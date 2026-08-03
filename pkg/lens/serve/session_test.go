@@ -146,3 +146,48 @@ func TestExecutionSessionRevisionCancelsOnlyStaleNavigationWork(t *testing.T) {
 	session.enableBackground()
 	require.Equal(t, "idle", (<-idle.result).value, "parent idle warm-up must survive a sibling navigation change")
 }
+
+func TestExecutionSessionReleaseCancelsOnlySpeculativeWork(t *testing.T) {
+	session := newExecutionSession(3, time.Second)
+	foregroundRelease := make(chan struct{})
+	foreground := session.submit(t.Context(), "root", priorityRootBase, 0, func(ctx context.Context) (any, error) {
+		select {
+		case <-foregroundRelease:
+			return "root", nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	})
+	backgroundStarted := make(chan struct{})
+	backgroundCancelled := make(chan struct{})
+	background := session.submit(t.Context(), "child", priorityIdlePrefetch, 0, func(ctx context.Context) (any, error) {
+		close(backgroundStarted)
+		<-ctx.Done()
+		close(backgroundCancelled)
+		return nil, ctx.Err()
+	})
+	session.enableBackground()
+	<-backgroundStarted
+
+	session.cancelBackground()
+	select {
+	case <-backgroundCancelled:
+	case <-time.After(time.Second):
+		t.Fatal("snapshot release did not cancel running speculative work")
+	}
+	require.ErrorIs(t, (<-background.result).err, context.Canceled)
+	close(foregroundRelease)
+	require.Equal(t, "root", (<-foreground.result).value, "snapshot release must not cancel foreground work")
+}
+
+func TestAgedPriorityAdvancesWithinItsClassWithoutCrossingForegroundBoundary(t *testing.T) {
+	now := time.Now()
+	root := &scheduledJob{priority: priorityRootBase + 9, queuedAt: now.Add(-20 * priorityAgingStep)}
+	intent := &scheduledJob{priority: priorityIntent + 9, queuedAt: now.Add(-20 * priorityAgingStep)}
+	idle := &scheduledJob{priority: priorityIdlePrefetch + 9, queuedAt: now.Add(-20 * priorityAgingStep)}
+
+	require.Equal(t, priorityRootBase+9, agedPriority(root, now, false), "cold first-row exclusivity must not age away")
+	require.Equal(t, priorityRootBase, agedPriority(root, now, true))
+	require.Equal(t, priorityIntent, agedPriority(intent, now, false))
+	require.Equal(t, priorityIdlePrefetch, agedPriority(idle, now, false))
+}

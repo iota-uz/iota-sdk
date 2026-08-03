@@ -107,6 +107,7 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 		I18n: document.RuntimeI18nDefaults(),
 		Endpoints: document.Endpoints{
 			Query: h.endpoint("/lens/query"), Export: h.endpoint("/export"),
+			Release: h.endpoint("/lens/release"),
 			Panel: func() string {
 				if h.progressive {
 					return h.endpoint("/lens/panel")
@@ -138,6 +139,37 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, doc)
+}
+
+// Release detaches a browser runtime from a snapshot execution session and
+// cancels only its speculative queue. The snapshot itself remains available
+// for Back/export until the configured SnapshotStore expires it.
+func (h *Handlers) Release(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, document.QueryErrorBadRequest, "method must be POST")
+		return
+	}
+	var req document.ReleaseRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		return
+	}
+	req.SnapshotID = strings.TrimSpace(req.SnapshotID)
+	if req.SnapshotID == "" {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "snapshotId is required")
+		return
+	}
+	snapshot, err := h.snapshots.Get(r.Context(), req.SnapshotID)
+	if err != nil {
+		h.writeSnapshotError(r.Context(), w, err)
+		return
+	}
+	if !sameSnapshotScope(h.runtimeRequest(r), snapshot.Params) {
+		h.writeSnapshotError(r.Context(), w, document.ErrSnapshotGone)
+		return
+	}
+	h.releaseSession(req.SnapshotID)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type loadedPanel struct {

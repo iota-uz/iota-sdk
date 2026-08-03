@@ -1289,10 +1289,11 @@ type Frame struct {
 }
 
 type Endpoints struct {
-	Query  string `json:"query,omitempty"`
-	Panel  string `json:"panel,omitempty"`
-	Drawer string `json:"drawer,omitempty"`
-	Export string `json:"export,omitempty"`
+	Query   string `json:"query,omitempty"`
+	Panel   string `json:"panel,omitempty"`
+	Drawer  string `json:"drawer,omitempty"`
+	Export  string `json:"export,omitempty"`
+	Release string `json:"release,omitempty"`
 }
 
 type Theme struct {
@@ -1403,6 +1404,13 @@ type DrawerResolveRequest struct {
 
 type DrawerResolveResponse struct {
 	URL string `json:"url"`
+}
+
+// ReleaseRequest detaches the browser consumer from one snapshot execution
+// session. It lets the server cancel queued/running speculative work without
+// affecting foreground requests for any other snapshot.
+type ReleaseRequest struct {
+	SnapshotID string `json:"snapshotId"`
 }
 
 type TableSummary struct {

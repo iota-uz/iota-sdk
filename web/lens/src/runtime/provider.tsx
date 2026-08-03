@@ -46,7 +46,7 @@ import {
   type NavigationView,
 } from './navigation'
 import { LensDrawer } from './drawer'
-import { DocumentCache } from './prefetch'
+import { DocumentCache, IdlePrefetchQueue } from './prefetch'
 import type { PrintReport } from './print'
 import { QueryClient } from './query'
 import { PanelClient } from './panel'
@@ -78,6 +78,38 @@ const DocumentContext = createContext<DocumentContextValue | undefined>(undefine
 /** A document older than this is refetched when the window regains focus. */
 const staleDocumentAgeMs = 5 * 60 * 1000
 
+interface SnapshotLease {
+  consumers: number
+  release: () => void
+  timer?: ReturnType<typeof setTimeout>
+}
+
+// React StrictMode mounts an effect, cleans it up, and mounts it again. A
+// module-level refcount with a one-task grace period prevents that probe (or a
+// second runtime sharing the document) from releasing a live snapshot.
+const snapshotLeases = new Map<string, SnapshotLease>()
+
+function acquireSnapshotLease(key: string, release: () => void): () => void {
+  const current = snapshotLeases.get(key) ?? { consumers: 0, release }
+  if (current.timer !== undefined) clearTimeout(current.timer)
+  current.timer = undefined
+  current.consumers += 1
+  current.release = release
+  snapshotLeases.set(key, current)
+  return () => {
+    const active = snapshotLeases.get(key)
+    if (!active) return
+    active.consumers = Math.max(0, active.consumers - 1)
+    if (active.consumers > 0) return
+    active.timer = setTimeout(() => {
+      const pending = snapshotLeases.get(key)
+      if (!pending || pending.consumers > 0) return
+      snapshotLeases.delete(key)
+      pending.release()
+    }, 0)
+  }
+}
+
 export interface DocumentProviderProps {
   src?: string
   initialDocument?: DashboardDocument
@@ -108,7 +140,8 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
   useEffect(() => {
     csrfRef.current = csrf
     fetcherRef.current = fetcher
-  }, [csrf, fetcher])
+    cache?.configure({ csrf, fetcher })
+  }, [cache, csrf, fetcher])
 
   const effectiveSrc = useCallback(() => {
     if (!src || !appliedFilters.current) return src
@@ -126,8 +159,16 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
     const controller = new AbortController()
     controllers.current.add(controller)
     setIsLoading(true)
-    const pending = fetchDocument(effectiveSrc() ?? src, { csrf: csrfRef.current, fetcher: fetcherRef.current, signal: controller.signal })
+    const target = effectiveSrc() ?? src
+    // The initial drawer load must join a hover/idle prefetch already in
+    // flight. Explicit refreshes bypass the cache once a document has loaded,
+    // preserving refresh/recovery semantics.
+    const request = cache && loadedAt.current === 0 && target === src
+      ? cache.load(target)
+      : fetchDocument(target, { csrf: csrfRef.current, fetcher: fetcherRef.current, signal: controller.signal })
+    const pending = request
       .then((next) => {
+        if (controller.signal.aborted) return next
         loadedAt.current = Date.now()
         setDocument(next)
         setError(null)
@@ -145,7 +186,7 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
       })
     inFlight.current = pending
     return pending
-  }, [effectiveSrc, initialDocument, src])
+  }, [cache, effectiveSrc, initialDocument, src])
 
   // A focus-triggered refetch keeps the current document on screen and swaps
   // only on success; a failure is logged and otherwise silent, so a transient
@@ -277,7 +318,12 @@ export interface DrawerContextValue {
   openKey: (metricKey: string, opener?: HTMLElement) => void
   close: () => void
   /** Warm a drill-drawer document on hover/focus intent before it is opened. */
-  prefetch: (src: string) => void
+  prefetch: (src: string) => () => void
+  /** Resolve and warm a compact snapshot-scoped drawer key without opening it. */
+  prefetchKey: (metricKey: string) => () => void
+  /** Queue bounded best-effort work after a low-cardinality target appears. */
+  prefetchIdle: (src: string) => () => void
+  prefetchIdleKey: (metricKey: string) => () => void
 }
 
 export interface PanelFrameState {
@@ -738,6 +784,20 @@ function RuntimeCore({
   const [notice, setNotice] = useState<string>()
   const documentRef = useRef(document)
   documentRef.current = document
+  useEffect(() => {
+    const endpoint = document.endpoints.release
+    if (!endpoint) return
+    const key = `${endpoint}\n${document.snapshotId}`
+    return acquireSnapshotLease(key, () => {
+      void (fetcher ?? fetch)(endpoint, {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) },
+        body: JSON.stringify({ snapshotId: document.snapshotId }),
+      }).catch(() => undefined)
+    })
+  }, [csrf, document.endpoints.release, document.snapshotId, fetcher])
   const filtersEnabled = !controlledNavigation && drawerDepth === 0
   // Filter state derives from the URL alone: user actions write the URL, the
   // URL drives the refetch, and browser Back needs no resync timers because
@@ -780,10 +840,23 @@ function RuntimeCore({
   // drawer opens, mirroring PanelFrame's overlay theme capture.
   const drawerTheme = useRef<{ theme?: string; dark: boolean }>({ dark: false })
   const drawerCache = useRef<DocumentCache>()
+  const drawerIdleQueue = useMemo(
+    () => {
+      // Reading the identity is intentional: each immutable snapshot owns a
+      // fresh queue even when the surrounding RuntimeCore instance survives.
+      if (!document.snapshotId || drawerDepth !== 0) return undefined
+      return new IdlePrefetchQueue({ capacity: 8 })
+    },
+    [document.snapshotId, drawerDepth],
+  )
   if (drawerDepth === 0 && !drawerCache.current) drawerCache.current = new DocumentCache({ capacity: 8, csrf, fetcher })
   useEffect(() => {
     drawerCache.current?.configure({ csrf, fetcher })
   }, [csrf, fetcher])
+  useEffect(() => () => drawerIdleQueue?.reset(), [drawerIdleQueue])
+  useEffect(() => {
+    drawerIdleQueue?.setPaused(Boolean(navigation.drawer))
+  }, [drawerIdleQueue, navigation.drawer])
   const frameStore = useRef<PanelFrameStore>()
   const [panelAttempts, setPanelAttempts] = useState<Record<string, number>>({})
   const panelForces = useRef(new Set<string>())
@@ -1481,6 +1554,25 @@ function RuntimeCore({
     replaceNextURL.current = true
     dispatch(navigationActions.closeDrawer())
   }, [controlledNavigation, dispatch, navigation.drawer, navigation.history])
+  const warmDrawerSource = useCallback(async (src: string, signal?: AbortSignal) => {
+    if (!isSameOriginDrawerSource(src) || signal?.aborted) return
+    await drawerCache.current?.prefetch(src)
+  }, [])
+  const warmDrawerKey = useCallback(async (metricKey: string, signal?: AbortSignal) => {
+    const endpoint = document.endpoints.drawer
+    if (!endpoint || !metricKey.trim() || signal?.aborted) return
+    const response = await (fetcher ?? fetch)(endpoint, {
+      method: 'POST', credentials: 'same-origin', signal,
+      headers: { 'Content-Type': 'application/json', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) },
+      body: JSON.stringify({ snapshotId: document.snapshotId, metricKey }),
+    })
+    if (!response.ok) throw new Error(`drawer resolver failed (${response.status})`)
+    const payload = await response.json() as { url?: unknown }
+    if (typeof payload.url !== 'string' || !isSameOriginDrawerSource(payload.url)) throw new Error('drawer resolver returned an invalid URL')
+    if (signal?.aborted) return
+    const relative = siteRelativeURL(payload.url, new URL(window.location.href))
+    if (relative) await drawerCache.current?.prefetch(relative)
+  }, [csrf, document.endpoints.drawer, document.snapshotId, fetcher])
   const drawer = useMemo<DrawerContextValue>(() => ({
     depth: drawerDepth,
     canOpen: drawerDepth === 0 || Boolean(onDrawerNavigate),
@@ -1535,10 +1627,29 @@ function RuntimeCore({
     },
     close: closeDrawer,
     prefetch: (src) => {
-      if (drawerDepth > 0 || navigation.drawer || !isSameOriginDrawerSource(src)) return
-      void drawerCache.current?.prefetch(src)
+      if (drawerDepth > 0 || navigation.drawer || !isSameOriginDrawerSource(src)) return () => undefined
+      void warmDrawerSource(src)
+      return () => undefined
     },
-  }), [closeDrawer, csrf, dispatch, document.endpoints.drawer, document.snapshotId, drawerDepth, fetcher, navigation.drawer, onDrawerNavigate])
+    prefetchKey: (metricKey) => {
+      if (drawerDepth > 0 || navigation.drawer || !document.endpoints.drawer || !metricKey.trim()) return () => undefined
+      const controller = new AbortController()
+      void warmDrawerKey(metricKey, controller.signal).catch((cause: unknown) => {
+        // Speculative warm-up is silent; the click path remains the
+        // authoritative retry and reports its own failure if one exists.
+        if (!controller.signal.aborted) console.debug('[lens] drawer prefetch skipped', cause)
+      })
+      return () => controller.abort()
+    },
+    prefetchIdle: (src) => {
+      if (drawerDepth > 0 || !isSameOriginDrawerSource(src)) return () => undefined
+      return drawerIdleQueue?.register(`src:${src}`, (signal) => warmDrawerSource(src, signal)) ?? (() => undefined)
+    },
+    prefetchIdleKey: (metricKey) => {
+      if (drawerDepth > 0 || !document.endpoints.drawer || !metricKey.trim()) return () => undefined
+      return drawerIdleQueue?.register(`key:${metricKey}`, (signal) => warmDrawerKey(metricKey, signal)) ?? (() => undefined)
+    },
+  }), [closeDrawer, csrf, dispatch, document.endpoints.drawer, document.snapshotId, drawerDepth, drawerIdleQueue, fetcher, navigation.drawer, onDrawerNavigate, warmDrawerKey, warmDrawerSource])
   const dashboard = useMemo(() => ({
     document, navigation, notice, dismissNotice: () => setNotice(undefined),
     canRecompute: Boolean(panelClient), isRecomputing, recompute,

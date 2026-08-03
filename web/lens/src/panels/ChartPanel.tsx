@@ -291,11 +291,34 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // level cannot silently flip a panel from one class to the other.
   const hasTree = Boolean(panel.drillRoot) || Boolean(level)
   const panelNavigation = usePanelNavigation(panel)
+  const cancelMarkPrefetch = useRef<() => void>()
   const markURL = useCallback((key: NodeKey) => {
     if (hasTree || !panelNavigation.action || !frame.data) return undefined
     const index = rowIndexForKey(frame.data, panel, key)
     return panelNavigation.urlForRow(frame.data, index >= 0 ? frame.data.rows[index] : undefined)
   }, [frame.data, hasTree, panelNavigation, panel])
+  const hoverMark = useCallback((key: NodeKey | null) => {
+    cancelMarkPrefetch.current?.()
+    cancelMarkPrefetch.current = undefined
+    if (key === null || hasTree) return
+    cancelMarkPrefetch.current = panelNavigation.prefetch(markURL(key))
+  }, [hasTree, markURL, panelNavigation])
+  useEffect(() => () => cancelMarkPrefetch.current?.(), [])
+  const idleDrawerURLs = useMemo(() => {
+    if (hasTree || panelNavigation.action?.kind !== 'open_drawer' || !frame.data) return []
+    // Concrete fan-out is safe only for genuinely small result sets. Larger
+    // frames wait for hover/focus intent, while the server may still warm their
+    // shared dependency closure.
+    if (frame.data.rows.length === 0 || frame.data.rows.length > 4) return []
+    return [...new Set(frame.data.rows.flatMap((row) => {
+      const url = panelNavigation.urlForRow(frame.data, row)
+      return url ? [url] : []
+    }))]
+  }, [frame.data, hasTree, panelNavigation])
+  useEffect(() => {
+    if (idleDrawerURLs.length === 0) return
+    return panelNavigation.prefetchIdle(idleDrawerURLs)
+  }, [idleDrawerURLs, panelNavigation])
   // A cross-filter panel is the control the page's filter is chosen from, so
   // the server deliberately leaves it out of its own filter — filtering the
   // age histogram by «65+» would delete the other bars and with them the way
@@ -785,6 +808,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
                 format={hostInput.format}
                 frame={hostInput.frame}
                 label={translate('chart.data', 'Chart data for {name}', { name: panel.title })}
+                onHover={hoverMark}
                 onSelect={select}
                 panel={panel}
                 translate={translate}
@@ -795,6 +819,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
                 adapter={adapter}
                 label={translate('chart.label', '{name} chart', { name: panel.title })}
                 drillable={chartInteractive}
+                onHover={chartInteractive ? hoverMark : undefined}
                 onSelect={chartInteractive ? select : undefined}
                 resetZoomKey={resetZoomKey}
               />

@@ -155,6 +155,7 @@ export interface Endpoints {
   panel?: string
   drawer?: string
   export?: string
+  release?: string
 }
 
 export interface FacetFilter {

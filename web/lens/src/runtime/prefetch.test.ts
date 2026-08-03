@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardDocument } from '../contract'
-import { DocumentCache } from './prefetch'
+import { DocumentCache, IdlePrefetchQueue } from './prefetch'
 
 function requestUrl(input: RequestInfo | URL): string {
   if (typeof input === 'string') return input
@@ -29,7 +29,45 @@ function documentResponse(id: string): Response {
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.restoreAllMocks()
+})
+
+describe('IdlePrefetchQueue', () => {
+  it('runs distinct candidates once, in registration order, through one worker', async () => {
+    vi.useFakeTimers()
+    const started: Array<string> = []
+    const queue = new IdlePrefetchQueue({ capacity: 4, delayMs: 0 })
+    const run = (key: string) => () => {
+      started.push(key)
+      return Promise.resolve()
+    }
+
+    queue.register('a', run('a'))
+    queue.register('b', run('b'))
+    queue.register('a', run('duplicate-a'))
+    await vi.runAllTimersAsync()
+
+    expect(started).toEqual(['a', 'b'])
+  })
+
+  it('bounds admitted work and aborts it on snapshot reset', async () => {
+    vi.useFakeTimers()
+    const queue = new IdlePrefetchQueue({ capacity: 1, delayMs: 0 })
+    let aborted = false
+    queue.register('a', (signal) => new Promise<void>((resolve) => {
+      signal.addEventListener('abort', () => { aborted = true; resolve() }, { once: true })
+    }))
+    const ignored = vi.fn<() => Promise<void>>().mockResolvedValue()
+    queue.register('b', ignored)
+    await vi.advanceTimersByTimeAsync(0)
+
+    queue.reset()
+    await Promise.resolve()
+
+    expect(aborted).toBe(true)
+    expect(ignored).not.toHaveBeenCalled()
+  })
 })
 
 describe('DocumentCache', () => {
@@ -53,6 +91,38 @@ describe('DocumentCache', () => {
 
     expect(fetcher).toHaveBeenCalledTimes(1)
     expect(cache.get('/a')).toBeDefined()
+  })
+
+  it('joins an interactive load to an in-flight prefetch and surfaces its result', async () => {
+    let resolveResponse: ((response: Response) => void) | undefined
+    const fetcher = vi.fn<typeof fetch>(() => new Promise<Response>((resolve) => { resolveResponse = resolve }))
+    const cache = new DocumentCache({ fetcher })
+
+    const prefetch = cache.prefetch('/a')
+    const load = cache.load('/a')
+    expect(fetcher).toHaveBeenCalledTimes(1)
+
+    resolveResponse?.(documentResponse('/a'))
+    const loaded = await load
+    await prefetch
+
+    expect(loaded.meta.dashboardId).toBe('/a')
+    expect(cache.get('/a')).toBe(loaded)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces a failed shared prefetch to an interactive load', async () => {
+    let resolveResponse: ((response: Response) => void) | undefined
+    const fetcher = vi.fn<typeof fetch>(() => new Promise<Response>((resolve) => { resolveResponse = resolve }))
+    const cache = new DocumentCache({ fetcher })
+
+    const prefetch = cache.prefetch('/a')
+    const load = cache.load('/a')
+    resolveResponse?.(new Response('boom', { status: 503 }))
+
+    await expect(prefetch).resolves.toBeUndefined()
+    await expect(load).rejects.toThrow('503')
+    expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
   it('does not refetch a URL that is already cached', async () => {

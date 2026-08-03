@@ -177,6 +177,44 @@ afterEach(() => {
 })
 
 describe('DashboardRuntimeProvider', () => {
+  it('releases the previous snapshot session when the document changes', async () => {
+    const first = parseDocument({
+      ...fixture,
+      snapshotId: 'lease-a',
+      endpoints: { ...fixture.endpoints, release: '/lens/release' },
+    })
+    const second = parseDocument({
+      ...fixture,
+      snapshotId: 'lease-b',
+      endpoints: { ...fixture.endpoints, release: '/lens/release' },
+    })
+    const releases: Array<string> = []
+    const fetcher = vi.fn<typeof fetch>((_input, init) => {
+      const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { snapshotId?: string }
+      if (body.snapshotId) releases.push(body.snapshotId)
+      return Promise.resolve(new Response(null, { status: 204 }))
+    })
+
+    function SnapshotLeaseFixture() {
+      const [current, setCurrent] = useState(first)
+      return (
+        <div className="lens-root">
+          <button type="button" onClick={() => setCurrent(second)}>Next snapshot</button>
+          <DocumentProvider initialDocument={current} fetcher={fetcher}>
+            <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+              <StatPanel panel={current.panels[0]!} />
+            </DashboardRuntimeProvider>
+          </DocumentProvider>
+        </div>
+      )
+    }
+
+    render(<SnapshotLeaseFixture />)
+    fireEvent.click(screen.getByRole('button', { name: 'Next snapshot' }))
+    await waitFor(() => expect(releases).toContain('lease-a'))
+    expect(releases).not.toContain('lease-b')
+  })
+
   it('prefetches a concrete child without changing navigation', async () => {
     const requests: Array<{ path: Array<string>; prefetch?: boolean; revision?: number }> = []
     const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {

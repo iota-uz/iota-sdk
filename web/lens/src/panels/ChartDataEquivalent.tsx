@@ -8,6 +8,7 @@ interface ChartDataEquivalentProps {
   format: ChartFormatResolver
   frame: Frame
   label: string
+  onHover?: (key: NodeKey | null) => void
   onSelect: (key: NodeKey) => void
   panel: Panel
   translate: (key: string, fallback: string, variables?: Record<string, string | number>) => string
@@ -57,7 +58,7 @@ export function chartDatumLabel(frame: Frame, panel: Panel, format: ChartFormatR
  * NodeKey and selection callback as pointer activation; inert marks remain
  * readable without adding stops to the keyboard tab order.
  */
-export function ChartDataEquivalent({ actionable, format, frame, label, onSelect, panel, translate }: ChartDataEquivalentProps) {
+export function ChartDataEquivalent({ actionable, format, frame, label, onHover, onSelect, panel, translate }: ChartDataEquivalentProps) {
   return (
     <div aria-label={label} className="lens-chart-keyboard-actions" role="list">
       {frame.rows.map((_, index) => {
@@ -66,7 +67,14 @@ export function ChartDataEquivalent({ actionable, format, frame, label, onSelect
         return (
           <div key={`${String(key)}-${index}`} role="listitem">
             {actionable && key !== undefined ? (
-              <button onClick={() => onSelect(key)} type="button">
+              <button
+                onBlur={() => onHover?.(null)}
+                onClick={() => onSelect(key)}
+                onFocus={() => onHover?.(key)}
+                onPointerEnter={() => onHover?.(key)}
+                onPointerLeave={() => onHover?.(null)}
+                type="button"
+              >
                 {translate('chart.openMark', 'Open {name}', { name: datum })}
               </button>
             ) : (

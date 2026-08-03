@@ -14,6 +14,7 @@ const (
 	priorityRootBase     = 100
 	priorityIntent       = 2000
 	priorityIdlePrefetch = 3000
+	priorityAgingStep    = 2 * time.Second
 )
 
 type scheduledResult struct {
@@ -26,6 +27,7 @@ type scheduledJob struct {
 	priority   int
 	order      int
 	sequence   uint64
+	queuedAt   time.Time
 	background bool
 	running    bool
 	revision   int
@@ -115,6 +117,7 @@ func (s *executionSession) submit(
 	s.nextSequence++
 	job := &scheduledJob{
 		key: key, priority: priority, order: order, sequence: s.nextSequence,
+		queuedAt:   time.Now(),
 		background: priority >= priorityIntent,
 		base:       base,
 		revision:   revision,
@@ -225,7 +228,7 @@ func (s *executionSession) nextJobLocked() int {
 	if foregroundIndex < 0 {
 		return -1
 	}
-	queuedPriority := s.queue[foregroundIndex].priority
+	queuedPriority := agedPriority(s.queue[foregroundIndex], time.Now(), s.backgroundReady)
 	for runningPriority, count := range s.runningForeground {
 		if count > 0 && queuedPriority > runningPriority {
 			return -1
@@ -236,17 +239,42 @@ func (s *executionSession) nextJobLocked() int {
 
 func (s *executionSession) bestQueuedLocked(background bool) int {
 	best := -1
+	now := time.Now()
 	for index, job := range s.queue {
 		if job.background != background {
 			continue
 		}
-		if best < 0 || job.priority < s.queue[best].priority ||
-			(job.priority == s.queue[best].priority && job.order < s.queue[best].order) ||
-			(job.priority == s.queue[best].priority && job.order == s.queue[best].order && job.sequence < s.queue[best].sequence) {
+		jobPriority := agedPriority(job, now, s.backgroundReady)
+		bestPriority := 0
+		if best >= 0 {
+			bestPriority = agedPriority(s.queue[best], now, s.backgroundReady)
+		}
+		if best < 0 || jobPriority < bestPriority ||
+			(jobPriority == bestPriority && job.order < s.queue[best].order) ||
+			(jobPriority == bestPriority && job.order == s.queue[best].order && job.sequence < s.queue[best].sequence) {
 			best = index
 		}
 	}
 	return best
+}
+
+func agedPriority(job *scheduledJob, now time.Time, allowRootAging bool) int {
+	floor := priorityRootBase
+	switch {
+	case job.priority == priorityInteractive:
+		return priorityInteractive
+	case job.priority >= priorityIdlePrefetch:
+		floor = priorityIdlePrefetch
+	case job.priority >= priorityIntent:
+		floor = priorityIntent
+	case !allowRootAging:
+		return job.priority
+	}
+	age := now.Sub(job.queuedAt)
+	if age <= 0 {
+		return job.priority
+	}
+	return max(floor, job.priority-int(age/priorityAgingStep))
 }
 
 func (s *executionSession) execute(job *scheduledJob) {
@@ -291,6 +319,38 @@ func (s *executionSession) enableBackground() {
 	s.backgroundReady = true
 	s.dispatchLocked()
 	s.mu.Unlock()
+}
+
+// cancelBackground drops every queued speculative job and interrupts running
+// speculative work. Foreground/interactive jobs retain their own request
+// lifecycle and are deliberately left alone.
+func (s *executionSession) cancelBackground() {
+	s.mu.Lock()
+	waiters := make([]chan scheduledResult, 0)
+	kept := s.queue[:0]
+	for _, job := range s.queue {
+		if !job.background {
+			kept = append(kept, job)
+			continue
+		}
+		delete(s.jobs, job.key)
+		for _, waiter := range job.waiters {
+			waiters = append(waiters, waiter)
+		}
+		s.reportLocked(Metric{Name: MetricCancelledSpeculation, Value: 1, Labels: map[string]string{"class": priorityClass(job.priority)}})
+	}
+	s.queue = kept
+	for _, job := range s.jobs {
+		if job.running && job.background && job.cancel != nil {
+			job.cancel()
+		}
+	}
+	s.backgroundReady = false
+	s.mu.Unlock()
+	for _, waiter := range waiters {
+		waiter <- scheduledResult{err: context.Canceled}
+		close(waiter)
+	}
 }
 
 func (s *executionSession) idleBefore(cutoff time.Time) bool {
@@ -348,6 +408,16 @@ func (h *Handlers) session(snapshotID string) *executionSession {
 	})
 	h.sessions[snapshotID] = created
 	return created
+}
+
+func (h *Handlers) releaseSession(snapshotID string) {
+	h.sessionsMu.Lock()
+	session := h.sessions[snapshotID]
+	delete(h.sessions, snapshotID)
+	h.sessionsMu.Unlock()
+	if session != nil {
+		session.cancelBackground()
+	}
 }
 
 type panelPriority struct {

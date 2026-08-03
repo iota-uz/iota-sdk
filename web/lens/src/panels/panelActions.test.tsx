@@ -503,6 +503,7 @@ describe('per-segment drawer drill', () => {
   }
 
   function renderDonut() {
+    window.history.replaceState(null, '', '/')
     const panel: Panel = { ...chartPanel([openDrawerPerRow]), kind: 'donut', frame: 'chart:root' }
     const document = documentWith([panel], { 'chart:root': segmentFrame })
     document.endpoints = { drawer: '/lens/drawer' }
@@ -510,10 +511,12 @@ describe('per-segment drawer drill', () => {
       new Response(JSON.stringify({ url: '/lens/document' }), { status: 200 }),
     ))
     let select: ((key: string) => void) | undefined
+    let hover: ((key: string | null) => void) | undefined
     let input: ChartInput | undefined
     const adapter: ChartAdapter = {
       mount: (_element, initial, events) => {
         select = (key) => events.onSelect(key)
+        hover = (key) => events.onHover(key)
         input = initial
         return { update: (next) => { input = next }, dispose: () => {} }
       },
@@ -527,7 +530,14 @@ describe('per-segment drawer drill', () => {
         </DocumentProvider>
       </div>,
     )
-    return { ...view, fetcher, activate: (key: string) => select?.(key), chartInput: () => input }
+    return {
+      ...view,
+      fetcher,
+      activate: (key: string) => select?.(key),
+      hover: (key: string | null) => hover?.(key),
+      chartMounted: () => hover !== undefined,
+      chartInput: () => input,
+    }
   }
 
   it('asks for the clicked segment’s drawer, not the panel’s', async () => {
@@ -545,6 +555,44 @@ describe('per-segment drawer drill', () => {
     activate('direct')
     await waitFor(() => expect(resolved()).toHaveLength(2))
     expect(resolved()[1]).toContain('family:expenses?branch=direct')
+  })
+
+  it('resolves the hovered segment into the shared drawer cache before click', async () => {
+    const { chartMounted, container, fetcher, hover } = renderDonut()
+    await waitFor(() => expect(container.querySelector('[data-drillable]')).not.toBeNull())
+    await waitFor(() => expect(chartMounted()).toBe(true))
+    const resolved = () => fetcher.mock.calls
+      .filter(([url]) => url === '/lens/drawer')
+      .map(([, init]) => typeof init?.body === 'string' ? init.body : '')
+
+    hover('broker')
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(resolved()).toHaveLength(1)
+    expect(resolved()[0]).toContain('family:expenses?branch=broker')
+    hover(null)
+  })
+
+  it('warms every low-cardinality segment in the bounded idle queue', async () => {
+    const { container, fetcher } = renderDonut()
+    await waitFor(() => expect(container.querySelector('[data-drillable]')).not.toBeNull())
+    const resolved = () => fetcher.mock.calls
+      .filter(([url]) => url === '/lens/drawer')
+      .map(([, init]) => typeof init?.body === 'string' ? init.body : '')
+
+    await waitFor(() => expect(resolved()).toHaveLength(2), { timeout: 1_500 })
+    expect(resolved()[0]).toContain('family:expenses?branch=direct')
+    expect(resolved()[1]).toContain('family:expenses?branch=broker')
+  })
+
+  it('cancels a transient segment hover before it starts speculative work', async () => {
+    const { chartMounted, container, fetcher, hover } = renderDonut()
+    await waitFor(() => expect(container.querySelector('[data-drillable]')).not.toBeNull())
+    await waitFor(() => expect(chartMounted()).toBe(true))
+
+    hover('broker')
+    hover(null)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(fetcher.mock.calls.filter(([url]) => url === '/lens/drawer')).toHaveLength(0)
   })
 
   it('carries the drill hint on the tooltip rather than in a corner of the card', async () => {

@@ -533,6 +533,51 @@ func TestHandlers_DrawerMintsRelativeURLFromScopedSnapshotOnOpen(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, unsafe.Code)
 }
 
+func TestHandlers_ReleaseCancelsScopedSnapshotPrefetch(t *testing.T) {
+	spec, frames := testDashboard(t)
+	handlers, err := New(Config{
+		Spec: spec, Engine: &fakeExecutor{frames: frames}, Snapshots: document.NewMemoryStore(time.Minute, 8), BasePath: "/dash",
+		Request: func(r *http.Request) lensruntime.Request {
+			return lensruntime.Request{Locale: "en", DataScope: r.URL.Query().Get("tenant"), Request: r.URL.Query()}
+		},
+	})
+	require.NoError(t, err)
+	doc := requestDocument(t, handlers, "/dash/document?tenant=tenant:one")
+	require.Equal(t, "/dash/lens/release", doc.Endpoints.Release)
+
+	session := handlers.session(doc.SnapshotID)
+	started := make(chan struct{})
+	cancelled := make(chan struct{})
+	prefetch := session.submit(t.Context(), "child", priorityIdlePrefetch, 0, func(ctx context.Context) (any, error) {
+		close(started)
+		<-ctx.Done()
+		close(cancelled)
+		return nil, ctx.Err()
+	})
+	session.enableBackground()
+	<-started
+	releaseRequest := document.ReleaseRequest{SnapshotID: doc.SnapshotID}
+
+	foreign := httptest.NewRecorder()
+	handlers.Release(foreign, httptest.NewRequest(http.MethodPost, "/dash/lens/release?tenant=tenant:two", marshal(t, releaseRequest)))
+	require.Equal(t, http.StatusGone, foreign.Code)
+	select {
+	case <-cancelled:
+		t.Fatal("cross-scope release cancelled another tenant's work")
+	default:
+	}
+
+	recorder := httptest.NewRecorder()
+	handlers.Release(recorder, httptest.NewRequest(http.MethodPost, "/dash/lens/release?tenant=tenant:one", marshal(t, releaseRequest)))
+	require.Equal(t, http.StatusNoContent, recorder.Code, recorder.Body.String())
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("release endpoint did not cancel speculative work")
+	}
+	require.ErrorIs(t, (<-prefetch.result).err, context.Canceled)
+}
+
 func TestHandlers_QueryAndExportRejectCrossScopeSnapshotsInEveryMode(t *testing.T) {
 	t.Parallel()
 
