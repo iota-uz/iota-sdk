@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/constant"
 	"go/types"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -46,9 +47,10 @@ type contractModel struct {
 }
 
 type jsonField struct {
-	name     string
-	typ      types.Type
-	optional bool
+	name           string
+	typ            types.Type
+	optional       bool
+	zodConstraints string
 }
 
 func generate(cfg config) (map[string]string, error) {
@@ -303,7 +305,7 @@ func emitTypes(model *contractModel) (string, error) {
 		output.WriteString(value)
 		output.WriteString("\n\n")
 	}
-	return output.String(), nil
+	return strings.TrimRight(output.String(), "\n") + "\n", nil
 }
 
 func emitSchemas(model *contractModel) (string, error) {
@@ -542,6 +544,7 @@ func emitZodStruct(structure *types.Struct, indent int, contractRoot bool) (stri
 				return "", fmt.Errorf("field %s: %w", field.name, err)
 			}
 		}
+		expression += field.zodConstraints
 		if field.optional {
 			expression += ".optional()"
 		}
@@ -570,9 +573,51 @@ func exportedJSONFields(structure *types.Struct) ([]jsonField, error) {
 		if skip {
 			continue
 		}
-		fields = append(fields, jsonField{name: name, typ: field.Type(), optional: optional})
+		constraints, err := parseLensValidationTag(structure.Tag(index), field.Type())
+		if err != nil {
+			return nil, fmt.Errorf("field %s: %w", field.Name(), err)
+		}
+		fields = append(fields, jsonField{name: name, typ: field.Type(), optional: optional, zodConstraints: constraints})
 	}
 	return fields, nil
+}
+
+func parseLensValidationTag(tag string, typ types.Type) (string, error) {
+	raw := strings.TrimSpace(reflect.StructTag(tag).Get("lens"))
+	if raw == "" {
+		return "", nil
+	}
+	base := types.Unalias(typ)
+	if pointer, ok := base.(*types.Pointer); ok {
+		base = types.Unalias(pointer.Elem())
+	}
+	basic, ok := base.(*types.Basic)
+	if !ok || basic.Info()&types.IsNumeric == 0 {
+		return "", fmt.Errorf("lens numeric constraints require a numeric field")
+	}
+	var output strings.Builder
+	seen := map[string]bool{}
+	for _, item := range strings.Split(raw, ",") {
+		parts := strings.SplitN(strings.TrimSpace(item), "=", 2)
+		if len(parts) != 2 || (parts[0] != "min" && parts[0] != "max") {
+			return "", fmt.Errorf("unsupported lens constraint %q", item)
+		}
+		if seen[parts[0]] {
+			return "", fmt.Errorf("duplicate lens constraint %q", parts[0])
+		}
+		seen[parts[0]] = true
+		value := strings.TrimSpace(parts[1])
+		numeric, err := strconv.ParseFloat(value, 64)
+		if err != nil || math.IsNaN(numeric) || math.IsInf(numeric, 0) {
+			return "", fmt.Errorf("invalid lens constraint %s=%q", parts[0], value)
+		}
+		output.WriteString(".")
+		output.WriteString(parts[0])
+		output.WriteString("(")
+		output.WriteString(value)
+		output.WriteString(")")
+	}
+	return output.String(), nil
 }
 
 func parseJSONTag(fieldName, tag string) (string, bool, bool) {

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Action, DashboardDocument, Frame, Panel } from '../contract'
 import type { ChartAdapter, ChartInput } from '../charts/adapter'
@@ -87,6 +87,52 @@ describe('stat panels with a panel-level navigate action', () => {
     renderPanel(documentWith([panel], { 'stat:root': statFrame }), <StatPanel panel={panel} />)
 
     expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('warms a ready stat drawer through the bounded idle queue and reuses it on click', async () => {
+    window.history.replaceState(null, '', '/')
+    const action: Action = {
+      kind: 'open_drawer', method: 'POST',
+      drawerKey: { kind: 'literal', value: 'loss_ratio' },
+      params: [], payload: {},
+    }
+    const panel = statPanel([action])
+    const document = documentWith([panel], { 'stat:root': statFrame })
+    document.endpoints = { drawer: '/lens/drawer' }
+    const child = {
+      ...document,
+      snapshotId: 'loss-ratio-child',
+      meta: { ...document.meta, title: 'Loss ratio detail' },
+      endpoints: {},
+    }
+    let resolverCalls = 0
+    const fetcher = vi.fn<typeof fetch>((input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url.endsWith('/lens/drawer')) {
+        resolverCalls += 1
+        return Promise.resolve(new Response(JSON.stringify({ url: `/lens/document?ticket=${resolverCalls}` }), { status: 200 }))
+      }
+      return Promise.resolve(new Response(JSON.stringify(child), { status: 200 }))
+    })
+
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={document}>
+          <DashboardRuntimeProvider fetcher={fetcher} locale="en">
+            <StatMetric panel={panel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2), { timeout: 2_000 })
+    expect(fetcher.mock.calls.map(([input]) => typeof input === 'string' ? input : input instanceof URL ? input.href : input.url))
+      .toEqual(['/lens/drawer', '/lens/document?ticket=1'])
+
+    fireEvent.click(screen.getByRole('link', { name: 'Open Loss ratio' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('3.1%')).toBeInTheDocument()
+    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -503,6 +549,7 @@ describe('per-segment drawer drill', () => {
   }
 
   function renderDonut() {
+    window.history.replaceState(null, '', '/')
     const panel: Panel = { ...chartPanel([openDrawerPerRow]), kind: 'donut', frame: 'chart:root' }
     const document = documentWith([panel], { 'chart:root': segmentFrame })
     document.endpoints = { drawer: '/lens/drawer' }
@@ -510,10 +557,12 @@ describe('per-segment drawer drill', () => {
       new Response(JSON.stringify({ url: '/lens/document' }), { status: 200 }),
     ))
     let select: ((key: string) => void) | undefined
+    let hover: ((key: string | null) => void) | undefined
     let input: ChartInput | undefined
     const adapter: ChartAdapter = {
       mount: (_element, initial, events) => {
         select = (key) => events.onSelect(key)
+        hover = (key) => events.onHover(key)
         input = initial
         return { update: (next) => { input = next }, dispose: () => {} }
       },
@@ -527,7 +576,14 @@ describe('per-segment drawer drill', () => {
         </DocumentProvider>
       </div>,
     )
-    return { ...view, fetcher, activate: (key: string) => select?.(key), chartInput: () => input }
+    return {
+      ...view,
+      fetcher,
+      activate: (key: string) => select?.(key),
+      hover: (key: string | null) => hover?.(key),
+      chartMounted: () => hover !== undefined,
+      chartInput: () => input,
+    }
   }
 
   it('asks for the clicked segment’s drawer, not the panel’s', async () => {
@@ -545,6 +601,44 @@ describe('per-segment drawer drill', () => {
     activate('direct')
     await waitFor(() => expect(resolved()).toHaveLength(2))
     expect(resolved()[1]).toContain('family:expenses?branch=direct')
+  })
+
+  it('resolves the hovered segment into the shared drawer cache before click', async () => {
+    const { chartMounted, container, fetcher, hover } = renderDonut()
+    await waitFor(() => expect(container.querySelector('[data-drillable]')).not.toBeNull())
+    await waitFor(() => expect(chartMounted()).toBe(true))
+    const resolved = () => fetcher.mock.calls
+      .filter(([url]) => url === '/lens/drawer')
+      .map(([, init]) => typeof init?.body === 'string' ? init.body : '')
+
+    hover('broker')
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(resolved()).toHaveLength(1)
+    expect(resolved()[0]).toContain('family:expenses?branch=broker')
+    hover(null)
+  })
+
+  it('warms every low-cardinality segment in the bounded idle queue', async () => {
+    const { container, fetcher } = renderDonut()
+    await waitFor(() => expect(container.querySelector('[data-drillable]')).not.toBeNull())
+    const resolved = () => fetcher.mock.calls
+      .filter(([url]) => url === '/lens/drawer')
+      .map(([, init]) => typeof init?.body === 'string' ? init.body : '')
+
+    await waitFor(() => expect(resolved()).toHaveLength(2), { timeout: 1_500 })
+    expect(resolved()[0]).toContain('family:expenses?branch=direct')
+    expect(resolved()[1]).toContain('family:expenses?branch=broker')
+  })
+
+  it('cancels a transient segment hover before it starts speculative work', async () => {
+    const { chartMounted, container, fetcher, hover } = renderDonut()
+    await waitFor(() => expect(container.querySelector('[data-drillable]')).not.toBeNull())
+    await waitFor(() => expect(chartMounted()).toBe(true))
+
+    hover('broker')
+    hover(null)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(fetcher.mock.calls.filter(([url]) => url === '/lens/drawer')).toHaveLength(0)
   })
 
   it('carries the drill hint on the tooltip rather than in a corner of the card', async () => {

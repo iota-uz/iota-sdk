@@ -20,7 +20,8 @@ import (
 )
 
 type stubDataSource struct {
-	calls atomic.Int32
+	calls     atomic.Int32
+	lastClass atomic.Value
 }
 
 func execute(ctx context.Context, spec lens.DashboardSpec, req Request) (*DashboardResult, error) {
@@ -57,6 +58,7 @@ func TestExecute_FailsClosedForUnserializableIdentity(t *testing.T) {
 
 func (s *stubDataSource) Run(_ context.Context, req datasource.QueryRequest) (*frame.FrameSet, error) {
 	s.calls.Add(1)
+	s.lastClass.Store(req.ExecutionClass)
 	fr, err := frame.New(req.Source,
 		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"a", "b"}},
 		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{1.0, 2.0}},
@@ -65,6 +67,26 @@ func (s *stubDataSource) Run(_ context.Context, req datasource.QueryRequest) (*f
 		return nil, err
 	}
 	return frame.NewFrameSet(fr)
+}
+
+func TestRunForwardsSchedulerExecutionClassWithoutChangingQueryIdentity(t *testing.T) {
+	t.Parallel()
+	ds := &stubDataSource{}
+	spec := lensbuild.Dashboard("class", "Class",
+		lensbuild.Row(panel.Bar("chart", "Chart", "data").Terminal().Build()),
+	).Datasets(lensbuild.QueryDataset("data", "primary", "select 1")).Build()
+
+	_, err := execute(t.Context(), spec, Request{
+		ExecutionClass: datasource.ExecutionClassRootCritical,
+		DataSources:    map[string]datasource.DataSource{"primary": ds},
+	})
+	require.NoError(t, err)
+	require.Equal(t, datasource.ExecutionClassRootCritical, ds.lastClass.Load())
+
+	base := datasource.QueryRequest{Source: "primary", Text: "select 1", ExecutionClass: datasource.ExecutionClassRootCritical}
+	promoted := base
+	promoted.ExecutionClass = datasource.ExecutionClassInteractiveCritical
+	require.Equal(t, queryCacheKey(base), queryCacheKey(promoted), "priority promotion must join the same semantic query")
 }
 
 func (s *stubDataSource) Capabilities() datasource.CapabilitySet {
@@ -90,6 +112,34 @@ func TestRunReusesDatasetAcrossPanels(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.Panels, 2)
 	require.Equal(t, int32(1), ds.calls.Load())
+}
+
+func TestApplyFrameOutputMetadataPromotesDeferredTotals(t *testing.T) {
+	t.Parallel()
+
+	placeholder := 5.0
+	actual := 210.0
+	fr, err := frame.New("expenses",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Acquisition", "Operations"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{150.0, 60.0}},
+	)
+	require.NoError(t, err)
+	fr.Meta.AuthoritativeTotal = &actual
+	fr.Meta.SeriesTotals = map[string]float64{"actual": 210, "plan": 240}
+	frames, err := frame.NewFrameSet(fr)
+	require.NoError(t, err)
+
+	spec := panel.MultiRingDonut("expenses", "Expenses", "expenses",
+		panel.RadialRing{Key: "actual", Total: placeholder},
+		panel.RadialRing{Key: "plan", Total: placeholder},
+	).TotalBadgeValue(placeholder).Terminal().Build()
+	result := applyFrameOutputMetadata(spec, frames)
+
+	require.NotNil(t, result.TotalBadgeValue)
+	require.InDelta(t, actual, *result.TotalBadgeValue, 1e-9)
+	require.Equal(t, 210.0, result.Radial.Rings[0].Total)
+	require.Equal(t, 240.0, result.Radial.Rings[1].Total)
+	require.Equal(t, placeholder, spec.Radial.Rings[0].Total, "the frozen structural panel must not be mutated")
 }
 
 func TestRunSanitizesInternalPaginationParamsAndPreservesPath(t *testing.T) {

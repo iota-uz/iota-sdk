@@ -33,6 +33,12 @@ type executorCall struct {
 	request lensruntime.Request
 }
 
+type explorationLoaderFunc func(context.Context, lensruntime.ExplorationLoadRequest) (lensruntime.ExplorationDefinition, error)
+
+func (f explorationLoaderFunc) LoadExploration(ctx context.Context, req lensruntime.ExplorationLoadRequest) (lensruntime.ExplorationDefinition, error) {
+	return f(ctx, req)
+}
+
 type fakeExecutor struct {
 	mu          sync.Mutex
 	calls       []executorCall
@@ -54,6 +60,69 @@ type fakeExecutor struct {
 	panelSpecs  map[string]panel.Spec
 }
 
+type latencyGuardrailExecutor struct {
+	mu          sync.Mutex
+	frames      map[string]*frame.FrameSet
+	legacyDelay time.Duration
+	panelDelays map[string]time.Duration
+	startedAt   map[string]time.Time
+}
+
+func (e *latencyGuardrailExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req lensruntime.Request, scope lensruntime.Scope) (*lensruntime.DashboardResult, error) {
+	panelID := ""
+	if len(scope.PanelIDs) > 0 {
+		panelID = scope.PanelIDs[0]
+	}
+	delay := e.legacyDelay
+	if panelID != "" {
+		delay = e.panelDelays[panelID]
+	}
+	e.mu.Lock()
+	if e.startedAt == nil {
+		e.startedAt = make(map[string]time.Time)
+	}
+	e.startedAt[panelID] = time.Now()
+	e.mu.Unlock()
+	if !scope.MetadataOnly && delay > 0 {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+	result := &lensruntime.DashboardResult{
+		Spec: spec, Variables: map[string]any{}, Panels: make(map[string]*lensruntime.PanelResult),
+		Datasets: make(map[string]*lensruntime.DatasetResult), Locale: req.Locale, Request: req.Request,
+		StartedAt: time.Now().UTC(), Duration: delay,
+	}
+	if scope.MetadataOnly {
+		return result, nil
+	}
+	if panelID != "" {
+		candidate, ok := lens.FindPanel(spec, panelID)
+		if !ok {
+			return nil, fmt.Errorf("latency panel %q is missing", panelID)
+		}
+		result.Panels[panelID] = panelResult(candidate, e.frames[panelID], req)
+		return result, nil
+	}
+	for _, candidate := range lens.FlattenPanels(spec) {
+		if candidate.Kind.IsContainer() || e.frames[candidate.ID] == nil {
+			continue
+		}
+		result.Panels[candidate.ID] = panelResult(candidate, e.frames[candidate.ID], req)
+	}
+	return result, nil
+}
+
+func (e *latencyGuardrailExecutor) started(panelID string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return !e.startedAt[panelID].IsZero()
+}
+
 func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req lensruntime.Request, scope lensruntime.Scope) (*lensruntime.DashboardResult, error) {
 	panelID := ""
 	if len(scope.PanelIDs) > 0 {
@@ -61,12 +130,14 @@ func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req
 	}
 	f.mu.Lock()
 	f.calls = append(f.calls, executorCall{panelID: panelID, request: cloneRuntimeRequest(req)})
+	executeErr := f.executeErrs[panelID]
+	panelErr := f.panelErrs[panelID]
 	f.mu.Unlock()
 	if f.started != nil && panelID != "" {
 		f.startOnce.Do(func() { close(f.started) })
 	}
-	if err := f.executeErrs[panelID]; err != nil {
-		return nil, err
+	if executeErr != nil {
+		return nil, executeErr
 	}
 	if f.cancelPanel != "" && panelID == f.cancelPanel {
 		<-ctx.Done()
@@ -130,7 +201,7 @@ func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req
 			Page: page, PerPage: len(frames.Primary().Rows()), HasMore: pages[page],
 		}
 	}
-	result.Panels[panelID].Error = f.panelErrs[panelID]
+	result.Panels[panelID].Error = panelErr
 	return result, nil
 }
 
@@ -158,7 +229,9 @@ func TestHandlers_ProgressivePanelsAreIndependentCachedAndScopeIsolated(t *testi
 	require.Equal(t, http.StatusInternalServerError, failed.Code)
 	require.NoError(t, doc.Validate(), "a panel failure must not invalidate the shell")
 
+	executor.mu.Lock()
 	delete(executor.panelErrs, "host")
+	executor.mu.Unlock()
 	loaded := requestPanel(t, handlers, doc.SnapshotID, PanelRequest{PanelID: "host"}, "tenant:one")
 	require.Equal(t, http.StatusOK, loaded.Code)
 	var response PanelResponse
@@ -190,6 +263,57 @@ func TestHandlers_ProgressivePanelsAreIndependentCachedAndScopeIsolated(t *testi
 
 	foreign := requestPanel(t, handlers, doc.SnapshotID, PanelRequest{PanelID: "host"}, "tenant:two")
 	require.Equal(t, http.StatusGone, foreign.Code)
+}
+
+func TestExplorationPathStepsPreservePointSelections(t *testing.T) {
+	t.Parallel()
+	spec, _ := testDashboard(t)
+	target, err := resolveTarget(spec, document.NodePath{
+		"metric", "metric/focus", "metric/focus/composition", "metric/focus/composition/root",
+		"metric/focus/composition/root/a", "metric/focus/composition/detail",
+		"metric/focus/composition/detail/b", "metric/focus/composition/end",
+	}, "composition")
+	require.NoError(t, err)
+	require.Equal(t, []explore.PathStep{
+		{NodeKey: "root"},
+		{NodeKey: "detail", PointKey: "a"},
+		{NodeKey: "end", PointKey: "b"},
+	}, explorationPathSteps(target))
+}
+
+func TestExecuteLevelUsesGenericExplorationRuntime(t *testing.T) {
+	t.Parallel()
+	spec, frames := testDashboard(t)
+	runtime := lensruntime.New(lensruntime.Options{})
+	var loaded lensruntime.ExplorationLoadRequest
+	computed := panel.Pie("computed-end", "Computed", "computed-data").IDField("id").Terminal().Build()
+	handlers, err := New(Config{
+		Spec: spec, Engine: runtime, Snapshots: document.NewMemoryStore(time.Minute, 8),
+		Exploration: runtime,
+		ResolveLoader: func(_ context.Context, request lensruntime.ExplorationLoadRequest, _ lensruntime.Request) (lensruntime.ExplorationLoader, error) {
+			return explorationLoaderFunc(func(_ context.Context, request lensruntime.ExplorationLoadRequest) (lensruntime.ExplorationDefinition, error) {
+				loaded = request
+				return lensruntime.ExplorationDefinition{
+					Dashboard: lens.DashboardSpec{
+						ID: "computed", Title: "Computed", Rows: []lens.RowSpec{{Panels: []panel.Spec{computed}}},
+						Datasets: []lens.DatasetSpec{staticDataset("computed-data", frames["end-panel"])},
+					},
+					PanelID: computed.ID,
+				}, nil
+			}), nil
+		},
+	})
+	require.NoError(t, err)
+	target, err := resolveTarget(spec, document.NodePath{"root", "a", "detail", "b", "end"}, "composition")
+	require.NoError(t, err)
+	result, err := handlers.executeLevel(context.Background(), lensruntime.Request{DataScope: "tenant:one"}, nil, target, 0)
+	require.NoError(t, err)
+	require.Equal(t, "end-panel", result.Panel.ID)
+	require.Equal(t, []explore.PathStep{
+		{NodeKey: "root"},
+		{NodeKey: "detail", PointKey: "a"},
+		{NodeKey: "end", PointKey: "b"},
+	}, loaded.Steps)
 }
 
 func TestHandlers_PanelBatchPreservesPerPanelResultsAndRejectsForeignScope(t *testing.T) {
@@ -347,6 +471,213 @@ func TestHandlers_PanelBatchFlushesFastResultBeforeSlowPanelCompletes(t *testing
 	}
 }
 
+func TestHandlers_PrefetchesFirstDrillStatesWhileLowerRootRowsLoad(t *testing.T) {
+	spec, frames := testDashboard(t)
+	slow := panel.Pie("slow", "Slow", "slow-data").IDField("id").Terminal().Build()
+	spec.Rows = append(spec.Rows, lens.RowSpec{Panels: []panel.Spec{slow}})
+	frames["slow"] = testFrames(t, "slow", 50)
+	spec.Datasets = append(spec.Datasets, staticDataset("slow-data", frames["slow"]))
+	releaseSlow := make(chan struct{})
+	slowStarted := make(chan struct{})
+	executor := &fakeExecutor{frames: frames, blockPanel: "slow", blockStart: slowStarted, blockDone: releaseSlow}
+	store := document.NewMemoryStore(time.Minute, 8)
+	observer := &recordingObserver{}
+	handlers, err := New(Config{
+		Spec: spec, Engine: executor, Snapshots: store, BasePath: "/dash", Progressive: true,
+		Observer: observer,
+		Request: func(r *http.Request) lensruntime.Request {
+			return lensruntime.Request{Locale: "en", DataScope: r.URL.Query().Get("tenant"), Request: r.URL.Query()}
+		},
+	})
+	require.NoError(t, err)
+	doc := requestDocument(t, handlers, "/dash/document?tenant=tenant:one")
+	server := httptest.NewServer(http.HandlerFunc(handlers.Panel))
+	defer server.Close()
+	request := PanelBatchRequest{SnapshotID: doc.SnapshotID, Panels: []PanelRequest{{PanelID: "slow"}, {PanelID: "host"}}}
+	httpRequest, err := http.NewRequest(http.MethodPost, server.URL+"?tenant=tenant:one", marshal(t, request))
+	require.NoError(t, err)
+	httpRequest.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(httpRequest)
+	require.NoError(t, err)
+	defer response.Body.Close()
+	scanner := bufio.NewScanner(response.Body)
+	require.True(t, scanner.Scan(), scanner.Err())
+	var first PanelBatchStreamEvent
+	require.NoError(t, json.Unmarshal(scanner.Bytes(), &first))
+	require.Equal(t, "host", first.PanelID, "the first visual row must be revealed before lower rows")
+	select {
+	case <-slowStarted:
+	case <-time.After(time.Second):
+		close(releaseSlow)
+		t.Fatal("lower root row did not continue loading")
+	}
+
+	rootRef := document.FrameRef("explore:metric/focus/composition:root")
+	require.Eventually(t, func() bool {
+		snapshot, getErr := store.Get(t.Context(), doc.SnapshotID)
+		if getErr != nil {
+			return false
+		}
+		_, materialized := snapshot.Frames[rootRef]
+		return materialized
+	}, time.Second, 10*time.Millisecond, "the default drill root must materialize in the background")
+	require.Equal(t, 1, executor.callCount("root-panel"))
+	queryRequest := QueryRequest{SnapshotID: doc.SnapshotID, Path: document.NodePath{"root"}, Perspective: "composition"}
+	queryRecorder := httptest.NewRecorder()
+	handlers.Query(queryRecorder, httptest.NewRequest(http.MethodPost, "/dash/lens/query?tenant=tenant:one", marshal(t, queryRequest)))
+	require.Equal(t, http.StatusOK, queryRecorder.Code, queryRecorder.Body.String())
+	require.Equal(t, 1, executor.callCount("root-panel"), "opening a prefetched drill state must reuse its snapshot frame")
+	require.Eventually(t, func() bool {
+		names := make(map[MetricName]bool)
+		for _, metric := range observer.recordedMetrics() {
+			names[metric.Name] = true
+		}
+		return names[MetricTimeToFirstUsefulKPI] && names[MetricTimeToFirstChild] && names[MetricPrefetchHit] && names[MetricSchedulerSaturation]
+	}, time.Second, 10*time.Millisecond)
+
+	close(releaseSlow)
+	for scanner.Scan() {
+	}
+	require.NoError(t, scanner.Err())
+}
+
+func TestHandlers_ProgressiveLatencyMeetsRecordedAtomicGuardrails(t *testing.T) {
+	spec, frames := testDashboard(t)
+	slow := panel.Pie("slow", "Slow", "slow-data").IDField("id").Terminal().Build()
+	spec.Rows = append(spec.Rows, lens.RowSpec{Panels: []panel.Spec{slow}})
+	frames["slow"] = testFrames(t, "slow", 50)
+	spec.Datasets = append(spec.Datasets, staticDataset("slow-data", frames["slow"]))
+	executor := &latencyGuardrailExecutor{
+		frames: frames, legacyDelay: 240 * time.Millisecond,
+		panelDelays: map[string]time.Duration{
+			"host": 20 * time.Millisecond, "slow": 180 * time.Millisecond,
+			"root-panel": 30 * time.Millisecond, "detail-panel": 30 * time.Millisecond,
+		},
+	}
+	requestFor := func(r *http.Request) lensruntime.Request {
+		return lensruntime.Request{Locale: "en", DataScope: "tenant:one", Request: r.URL.Query()}
+	}
+	legacy, err := New(Config{
+		Spec: spec, Engine: executor, Snapshots: document.NewMemoryStore(time.Minute, 8), BasePath: "/legacy",
+		Request: requestFor,
+	})
+	require.NoError(t, err)
+	legacyStarted := time.Now()
+	requestDocument(t, legacy, "/legacy/document")
+	legacyFirstUseful := time.Since(legacyStarted)
+
+	progressive, err := New(Config{
+		Spec: spec, Engine: executor, Snapshots: document.NewMemoryStore(time.Minute, 8), BasePath: "/progressive",
+		Progressive: true, Request: requestFor,
+	})
+	require.NoError(t, err)
+	progressiveStarted := time.Now()
+	doc := requestDocument(t, progressive, "/progressive/document")
+	server := httptest.NewServer(http.HandlerFunc(progressive.Panel))
+	defer server.Close()
+	response, err := http.Post(server.URL, "application/json", marshal(t, PanelBatchRequest{
+		SnapshotID: doc.SnapshotID,
+		Panels:     []PanelRequest{{PanelID: "slow"}, {PanelID: "host"}},
+	})) //nolint:noctx // Test server lifecycle bounds the request.
+	require.NoError(t, err)
+	defer response.Body.Close()
+	scanner := bufio.NewScanner(response.Body)
+	require.True(t, scanner.Scan(), scanner.Err())
+	firstUseful := time.Since(progressiveStarted)
+	var first PanelBatchStreamEvent
+	require.NoError(t, json.Unmarshal(scanner.Bytes(), &first))
+	require.Equal(t, "host", first.PanelID)
+	for scanner.Scan() {
+	}
+	require.NoError(t, scanner.Err())
+	fullRoot := time.Since(progressiveStarted)
+	t.Logf("latency guardrail: atomic=%s first_kpi=%s (%.1f%% faster) full_root=%s (%.1f%% of atomic)",
+		legacyFirstUseful, firstUseful, 100*(1-float64(firstUseful)/float64(legacyFirstUseful)),
+		fullRoot, 100*float64(fullRoot)/float64(legacyFirstUseful))
+
+	require.LessOrEqual(t, firstUseful, legacyFirstUseful*70/100,
+		"cold time-to-first-useful-KPI must improve by at least 30%%")
+	require.LessOrEqual(t, fullRoot, legacyFirstUseful*110/100,
+		"progressive root completion with child prefetch must stay within 10%% of atomic load")
+	require.Eventually(t, func() bool { return executor.started("root-panel") }, time.Second, 10*time.Millisecond,
+		"the guardrail must include real first-level child prefetch work")
+}
+
+func TestHandlers_DoesNotPrefetchUntilTheFirstUsefulRowIsComplete(t *testing.T) {
+	spec, frames := testDashboard(t)
+	slow := panel.Pie("top-slow", "Top slow", "top-slow-data").IDField("id").Terminal().Build()
+	spec.Rows[0].Panels = append(spec.Rows[0].Panels, slow)
+	frames["top-slow"] = testFrames(t, "top-slow", 50)
+	spec.Datasets = append(spec.Datasets, staticDataset("top-slow-data", frames["top-slow"]))
+	releaseSlow := make(chan struct{})
+	slowStarted := make(chan struct{})
+	executor := &fakeExecutor{frames: frames, blockPanel: "top-slow", blockStart: slowStarted, blockDone: releaseSlow}
+	store := document.NewMemoryStore(time.Minute, 8)
+	handlers, err := New(Config{
+		Spec: spec, Engine: executor, Snapshots: store, BasePath: "/dash", Progressive: true,
+		Request: func(r *http.Request) lensruntime.Request {
+			return lensruntime.Request{Locale: "en", DataScope: "tenant:one", Request: r.URL.Query()}
+		},
+	})
+	require.NoError(t, err)
+	doc := requestDocument(t, handlers, "/dash/document")
+	server := httptest.NewServer(http.HandlerFunc(handlers.Panel))
+	defer server.Close()
+	request := PanelBatchRequest{SnapshotID: doc.SnapshotID, Panels: []PanelRequest{{PanelID: "host"}, {PanelID: "top-slow"}}}
+	response, err := http.Post(server.URL, "application/json", marshal(t, request)) //nolint:noctx // Test server lifecycle bounds the request.
+	require.NoError(t, err)
+	defer response.Body.Close()
+	select {
+	case <-slowStarted:
+	case <-time.After(time.Second):
+		close(releaseSlow)
+		t.Fatal("second panel in the useful row did not start")
+	}
+	scanner := bufio.NewScanner(response.Body)
+	require.True(t, scanner.Scan(), scanner.Err())
+	var first PanelBatchStreamEvent
+	require.NoError(t, json.Unmarshal(scanner.Bytes(), &first))
+	require.Equal(t, "host", first.PanelID)
+	rootRef := document.FrameRef("explore:metric/focus/composition:root")
+	require.Never(t, func() bool {
+		snapshot, getErr := store.Get(t.Context(), doc.SnapshotID)
+		if getErr != nil {
+			return false
+		}
+		_, materialized := snapshot.Frames[rootRef]
+		return materialized
+	}, 100*time.Millisecond, 10*time.Millisecond, "prefetch must not compete with an unfinished KPI in the first row")
+
+	close(releaseSlow)
+	for scanner.Scan() {
+	}
+	require.NoError(t, scanner.Err())
+	require.Eventually(t, func() bool {
+		snapshot, getErr := store.Get(t.Context(), doc.SnapshotID)
+		if getErr != nil {
+			return false
+		}
+		_, materialized := snapshot.Frames[rootRef]
+		return materialized
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestBackgroundPrefetchTargetsBoundsDynamicCardinality(t *testing.T) {
+	spec, _ := testDashboard(t)
+	targets := backgroundPrefetchTargets(spec)
+	require.Len(t, targets, 2, "the default root and its concrete first child are safe to prefetch")
+	require.Empty(t, targets[0].points)
+	require.Equal(t, []string{"a"}, targets[1].points)
+
+	root := &spec.Explorers[0].Branches[0].Perspectives[0].Nodes[0]
+	root.Edges = nil
+	root.DynamicEdges = true
+	root.DynamicTargets = []string{"detail"}
+	targets = backgroundPrefetchTargets(spec)
+	require.Len(t, targets, 1, "dynamic selections must not fan out before user intent identifies a concrete path")
+	require.Equal(t, "root", targets[0].nodeKey)
+}
+
 func TestHandlers_DrawerMintsRelativeURLFromScopedSnapshotOnOpen(t *testing.T) {
 	t.Parallel()
 	spec, frames := testDashboard(t)
@@ -374,7 +705,7 @@ func TestHandlers_DrawerMintsRelativeURLFromScopedSnapshotOnOpen(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	var response document.DrawerResolveResponse
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
-	require.Equal(t, "/analytics/drill/approval-rate/lens/document?token=minted-now", response.URL)
+	require.Equal(t, "/analytics/drill/approval-rate/lens/document?_lens_snapshot="+url.QueryEscape(doc.SnapshotID)+"&token=minted-now", response.URL)
 	require.Equal(t, "approval-rate", resolved.MetricKey)
 
 	foreign := httptest.NewRecorder()
@@ -385,6 +716,51 @@ func TestHandlers_DrawerMintsRelativeURLFromScopedSnapshotOnOpen(t *testing.T) {
 	unsafe := httptest.NewRecorder()
 	handlers.Drawer(unsafe, httptest.NewRequest(http.MethodPost, "/dash/lens/drawer?tenant=tenant:one", marshal(t, request)))
 	require.Equal(t, http.StatusInternalServerError, unsafe.Code)
+}
+
+func TestHandlers_ReleaseCancelsScopedSnapshotPrefetch(t *testing.T) {
+	spec, frames := testDashboard(t)
+	handlers, err := New(Config{
+		Spec: spec, Engine: &fakeExecutor{frames: frames}, Snapshots: document.NewMemoryStore(time.Minute, 8), BasePath: "/dash",
+		Request: func(r *http.Request) lensruntime.Request {
+			return lensruntime.Request{Locale: "en", DataScope: r.URL.Query().Get("tenant"), Request: r.URL.Query()}
+		},
+	})
+	require.NoError(t, err)
+	doc := requestDocument(t, handlers, "/dash/document?tenant=tenant:one")
+	require.Equal(t, "/dash/lens/release", doc.Endpoints.Release)
+
+	session := handlers.session(doc.SnapshotID)
+	started := make(chan struct{})
+	cancelled := make(chan struct{})
+	prefetch := session.submit(t.Context(), "child", priorityIdlePrefetch, 0, func(ctx context.Context) (any, error) {
+		close(started)
+		<-ctx.Done()
+		close(cancelled)
+		return nil, ctx.Err()
+	})
+	session.enableBackground()
+	<-started
+	releaseRequest := document.ReleaseRequest{SnapshotID: doc.SnapshotID}
+
+	foreign := httptest.NewRecorder()
+	handlers.Release(foreign, httptest.NewRequest(http.MethodPost, "/dash/lens/release?tenant=tenant:two", marshal(t, releaseRequest)))
+	require.Equal(t, http.StatusGone, foreign.Code)
+	select {
+	case <-cancelled:
+		t.Fatal("cross-scope release cancelled another tenant's work")
+	default:
+	}
+
+	recorder := httptest.NewRecorder()
+	handlers.Release(recorder, httptest.NewRequest(http.MethodPost, "/dash/lens/release?tenant=tenant:one", marshal(t, releaseRequest)))
+	require.Equal(t, http.StatusNoContent, recorder.Code, recorder.Body.String())
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("release endpoint did not cancel speculative work")
+	}
+	require.ErrorIs(t, (<-prefetch.result).err, context.Canceled)
 }
 
 func TestHandlers_QueryAndExportRejectCrossScopeSnapshotsInEveryMode(t *testing.T) {
@@ -544,8 +920,9 @@ type observedError struct {
 }
 
 type recordingObserver struct {
-	mu     sync.Mutex
-	errors []observedError
+	mu      sync.Mutex
+	errors  []observedError
+	metrics []Metric
 }
 
 func (o *recordingObserver) OnError(_ context.Context, op string, err error) {
@@ -554,10 +931,22 @@ func (o *recordingObserver) OnError(_ context.Context, op string, err error) {
 	o.errors = append(o.errors, observedError{op: op, err: err})
 }
 
+func (o *recordingObserver) OnMetric(_ context.Context, metric Metric) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.metrics = append(o.metrics, metric)
+}
+
 func (o *recordingObserver) recorded() []observedError {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return append([]observedError(nil), o.errors...)
+}
+
+func (o *recordingObserver) recordedMetrics() []Metric {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]Metric(nil), o.metrics...)
 }
 
 func (f *fakeExecutor) callCount(panelID string) int {
@@ -1366,6 +1755,7 @@ func TestHandlers_QueryBoundsPathAndPage(t *testing.T) {
 		{SnapshotID: doc.SnapshotID, Path: longPath, Perspective: "composition"},
 		{SnapshotID: doc.SnapshotID, Path: document.NodePath{document.NodeKey(strings.Repeat("x", maxQueryPathEntry+1))}, Perspective: "composition"},
 		{SnapshotID: doc.SnapshotID, Path: document.NodePath{"detail"}, Perspective: "composition", Page: lensruntime.MaxTablePage + 1},
+		{SnapshotID: doc.SnapshotID, Path: document.NodePath{"detail"}, Perspective: "composition", IdlePrefetch: true},
 	}
 	for _, request := range tests {
 		recorder := httptest.NewRecorder()

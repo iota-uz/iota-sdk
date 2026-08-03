@@ -447,7 +447,7 @@ describe('drill overlay', () => {
     render(
       <div className="lens-root">
         <DocumentProvider initialDocument={lazyDocument} fetcher={fetcher}>
-          <DashboardRuntimeProvider fetcher={fetcher} locale="en">
+          <DashboardRuntimeProvider fetcher={fetcher} locale="en" drawerDepth={1}>
             <ExplorePanel panel={lazyDocument.panels[0]!} registry={registry} />
           </DashboardRuntimeProvider>
         </DocumentProvider>

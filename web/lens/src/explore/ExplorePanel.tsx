@@ -554,6 +554,10 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
             if (child && enterFocusNode(child, targetLevel)) return
             drillTo(childKey)
           }}
+          onPrefetchChild={(childKey) => {
+            const node = overlay.target.node
+            return drill.prefetch(node ? [node.key, childKey] : childKey, panel.id)
+          }}
           onDrillInto={(target) => {
             if (!target.node) return
             const targetLevel = target.node.target ? document.drill.edges[target.node.target] : undefined

@@ -12,6 +12,8 @@ import { QueryError, SnapshotGoneError } from './query'
 export interface PanelClientOptions {
   csrf?: string
   fetcher?: typeof fetch
+  /** Marks this client as speculative work in the shared snapshot scheduler. */
+  prefetch?: boolean
 }
 
 export interface PanelLoadOptions {
@@ -26,7 +28,7 @@ type PanelLoadResult = PanelBatchResult & { frames: NonNullable<PanelBatchResult
 function panelKey(request: SnapshotPanelRequest): string {
   return JSON.stringify([
     request.snapshotId, request.panelId, request.recompute === true, request.search ?? '',
-    request.sort?.field ?? '', request.sort?.direction ?? '', request.page ?? 1,
+    request.sort?.field ?? '', request.sort?.direction ?? '', request.page ?? 1, request.viewportRank ?? -1,
   ])
 }
 
@@ -84,6 +86,7 @@ export class PanelClient {
     if (inputs.some((input) => input.snapshotId !== snapshotId)) throw new Error('panel batch mixes snapshots')
     const panels = inputs.map((input) => PanelRequestSchema.parse({
       panelId: input.panelId, recompute: input.recompute, search: input.search, sort: input.sort, page: input.page,
+      viewportRank: input.viewportRank,
     }))
     const controller = new AbortController()
     const abort = () => controller.abort(options.signal?.reason)
@@ -106,6 +109,7 @@ export class PanelClient {
   private async fetch(request: SnapshotPanelRequest, signal: AbortSignal): Promise<PanelLoadResult> {
     const panels = await this.fetchBatch(request.snapshotId, [{
       panelId: request.panelId, recompute: request.recompute, search: request.search, sort: request.sort, page: request.page,
+      viewportRank: request.viewportRank,
     }], signal)
     const result = panels[request.panelId]
     if (!result) throw new QueryError('internal', `panel ${request.panelId} missing from batch response`, 200)
@@ -126,6 +130,7 @@ export class PanelClient {
       headers: {
         'Content-Type': 'application/json',
         ...(this.options.csrf ? { 'X-CSRF-Token': this.options.csrf } : {}),
+        ...(this.options.prefetch ? { 'X-Lens-Prefetch': 'intent' } : {}),
       },
       body: JSON.stringify(PanelBatchRequestSchema.parse({ snapshotId, panels })),
       signal,

@@ -49,6 +49,7 @@ function focusables(): Array<HTMLElement> {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -165,6 +166,26 @@ describe('copy the segment value', () => {
 })
 
 describe('overlay action hierarchy', () => {
+  it('starts bounded intent prefetch after hover and cancels it when intent disappears', () => {
+    vi.useFakeTimers()
+    const cancelPrefetch = vi.fn()
+    const prefetch = vi.fn(() => cancelPrefetch)
+    renderOverlay({
+      label: 'Operating margin',
+      breakdown: [{ node: { ...node, key: 'products' }, label: 'Products' }],
+      perspectives: [],
+    }, { onPrefetchChild: prefetch })
+
+    const row = screen.getByRole('button', { name: /Products/ })
+    fireEvent.pointerEnter(row)
+    vi.advanceTimersByTime(119)
+    expect(prefetch).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(prefetch).toHaveBeenCalledWith('products')
+    fireEvent.pointerLeave(row)
+    expect(cancelPrefetch).toHaveBeenCalledTimes(1)
+  })
+
   it('promotes the expansion to the single primary action', () => {
     renderOverlay({ node, label: 'Services', target: level, breakdown: [], perspectives: [] })
 

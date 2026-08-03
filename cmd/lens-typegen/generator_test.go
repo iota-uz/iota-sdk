@@ -1,12 +1,37 @@
 package main
 
 import (
+	"go/types"
 	"path/filepath"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestParseLensValidationTag(t *testing.T) {
+	t.Parallel()
+
+	constraints, err := parseLensValidationTag(`json:"rank,omitempty" lens:"min=0,max=2"`, types.NewPointer(types.Typ[types.Int]))
+	require.NoError(t, err)
+	require.Equal(t, ".min(0).max(2)", constraints)
+
+	for name, tag := range map[string]string{
+		"unknown":    `lens:"step=1"`,
+		"duplicate":  `lens:"min=0,min=1"`,
+		"empty":      `lens:"min="`,
+		"not finite": `lens:"max=NaN"`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, err := parseLensValidationTag(tag, types.Typ[types.Int])
+			require.Error(t, err)
+		})
+	}
+
+	_, err = parseLensValidationTag(`lens:"min=0"`, types.Typ[types.String])
+	require.ErrorContains(t, err, "numeric field")
+}
 
 func TestGenerateRepresentativeContract(t *testing.T) {
 	t.Parallel()

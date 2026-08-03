@@ -106,6 +106,9 @@ type Request struct {
 	// execution identity. Serve uses it for an explicit user-requested panel
 	// recalculation; ordinary document and query requests leave it false.
 	Recompute bool
+	// ExecutionClass is supplied by Lens serve after the scheduler derives it
+	// from the active surface. Hosts should leave it empty.
+	ExecutionClass datasource.ExecutionClass
 }
 
 type Options struct {
@@ -122,15 +125,21 @@ type Observer interface {
 	DatasetExecuted(string, time.Duration)
 }
 
+type DatasourceObserver interface {
+	DatasourceSaturation(string, int)
+}
+
 // Runtime is a long-lived Lens execution service. A process should normally
 // construct one instance and share it across render, fragment and export paths.
 type Runtime struct {
-	store       SnapshotStore
-	ttl         time.Duration
-	version     string
-	observer    Observer
-	flights     singleflight.Group
-	workTimeout time.Duration
+	store          SnapshotStore
+	ttl            time.Duration
+	version        string
+	observer       Observer
+	flights        singleflight.Group
+	workTimeout    time.Duration
+	activityMu     sync.Mutex
+	activeBySource map[string]int
 }
 
 func New(opts Options) *Runtime {
@@ -146,7 +155,10 @@ func New(opts Options) *Runtime {
 	if opts.WorkTimeout <= 0 {
 		opts.WorkTimeout = 2 * time.Minute
 	}
-	return &Runtime{store: opts.Store, ttl: opts.DefaultTTL, version: opts.CacheVersion, observer: opts.Observer, workTimeout: opts.WorkTimeout}
+	return &Runtime{
+		store: opts.Store, ttl: opts.DefaultTTL, version: opts.CacheVersion, observer: opts.Observer, workTimeout: opts.WorkTimeout,
+		activeBySource: make(map[string]int),
+	}
 }
 
 func (r *Runtime) Store() SnapshotStore { return r.store }
@@ -471,6 +483,9 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 				if panelResult.Error == nil {
 					panelResult.Error = validatePanelFrames(panelSpec, panelResult.Frames)
 				}
+				if panelResult.Error == nil {
+					panelResult.Panel = applyFrameOutputMetadata(panelSpec, panelResult.Frames)
+				}
 			}
 			panelResult.Duration = time.Since(start)
 			if panelResult.Error != nil {
@@ -486,6 +501,33 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 		})
 	}
 	return group.Wait()
+}
+
+// applyFrameOutputMetadata promotes semantic facts supplied by a datasource
+// into the executed panel. This lets a structural dashboard stay frozen while
+// totals that genuinely require data are resolved by the deferred query. The
+// scheduler remains the sole owner of when that query runs.
+func applyFrameOutputMetadata(spec panel.Spec, frames *frame.FrameSet) panel.Spec {
+	primary := frames.Primary()
+	if primary == nil {
+		return spec
+	}
+	if primary.Meta.AuthoritativeTotal != nil {
+		value := *primary.Meta.AuthoritativeTotal
+		spec.TotalBadgeValue = &value
+	}
+	if spec.Radial == nil || len(primary.Meta.SeriesTotals) == 0 {
+		return spec
+	}
+	radial := *spec.Radial
+	radial.Rings = append([]panel.RadialRing(nil), spec.Radial.Rings...)
+	for index := range radial.Rings {
+		if total, ok := primary.Meta.SeriesTotals[radial.Rings[index].Key]; ok {
+			radial.Rings[index].Total = total
+		}
+	}
+	spec.Radial = &radial
+	return spec
 }
 
 func logPanelFailure(spec panel.Spec, req Request, err error) {
@@ -542,20 +584,23 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 		return nil, fmt.Errorf("datasource %q not configured", spec.Source)
 	}
 	request := datasource.QueryRequest{
-		Source:    spec.Source,
-		Text:      spec.Query.Text,
-		Params:    resolveParams(spec.Query.Params, s.variables),
-		Timezone:  s.runtime.Timezone,
-		Locale:    s.runtime.Locale,
-		TimeRange: resolveDatasetTimeRangeFor(spec, s.spec.Variables, s.variables),
-		MaxRows:   spec.Query.MaxRows,
-		Kind:      spec.Query.Kind,
+		Source:         spec.Source,
+		Text:           spec.Query.Text,
+		Params:         resolveParams(spec.Query.Params, s.variables),
+		Timezone:       s.runtime.Timezone,
+		Locale:         s.runtime.Locale,
+		TimeRange:      resolveDatasetTimeRangeFor(spec, s.spec.Variables, s.variables),
+		MaxRows:        spec.Query.MaxRows,
+		Kind:           spec.Query.Kind,
+		ExecutionClass: s.runtime.ExecutionClass,
 	}
 	flightKey := s.snapshotKey + ":dataset:" + spec.Name + ":" + queryCacheKey(request)
 	result := s.executor.flights.DoChan(flightKey, func() (any, error) {
 		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.executor.workTimeout)
 		defer cancel()
 		started := time.Now()
+		s.executor.changeDatasourceActivity(workCtx, spec.Source, 1)
+		defer s.executor.changeDatasourceActivity(workCtx, spec.Source, -1)
 		frames, err := ds.Run(workCtx, request)
 		if err == nil && s.executor.observer != nil {
 			s.executor.observer.DatasetExecuted(spec.Name, time.Since(started))
@@ -1003,6 +1048,9 @@ func resolveDatasetTimeRangeFor(dataset lens.DatasetSpec, specs []lens.VariableS
 }
 
 func queryCacheKey(req datasource.QueryRequest) string {
+	// Scheduling metadata may change while a speculative job is promoted. It
+	// must not split singleflight/cache identity for the same semantic query.
+	req.ExecutionClass = ""
 	payload, err := json.Marshal(req)
 	if err != nil {
 		sum := sha256.Sum256([]byte(fmt.Sprintf("%#v", req)))

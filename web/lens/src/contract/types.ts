@@ -155,6 +155,7 @@ export interface Endpoints {
   panel?: string
   drawer?: string
   export?: string
+  release?: string
 }
 
 export interface FacetFilter {
@@ -446,6 +447,7 @@ export interface PanelRequest {
   search?: string
   sort?: TableSort
   page?: number
+  viewportRank?: number
 }
 
 export interface PanelResponse {
@@ -555,6 +557,9 @@ export interface QueryRequest {
   snapshotId: string
   path: NodePath
   perspective?: string
+  revision?: number
+  prefetch?: boolean
+  idlePrefetch?: boolean
   page?: number
   sort?: TableSort
 }
@@ -717,4 +722,3 @@ export interface ValueAxis {
 }
 
 export type ValueSourceKind = "field" | "literal" | "variable"
-

@@ -35,7 +35,6 @@ import {
   withFrameChildren,
   withInlineFrameChildren,
 } from './drill'
-import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
 import { DashboardSkeleton, defaultSkeletonRows, drawerSkeletonRows } from '../panels/Skeleton'
 import { formatAxis, formatFieldValue, formatFieldValueAtReference, formatFieldValueExact } from './format'
 import {
@@ -46,7 +45,8 @@ import {
   type NavigationView,
 } from './navigation'
 import { LensDrawer } from './drawer'
-import { DocumentCache } from './prefetch'
+import type { IdlePrefetchQueue } from './idlePrefetch'
+import type { DocumentCache } from './prefetch'
 import type { PrintReport } from './print'
 import { QueryClient } from './query'
 import { PanelClient } from './panel'
@@ -84,8 +84,25 @@ export interface DocumentProviderProps {
   csrf?: string
   fetcher?: typeof fetch
   /** Warmed drill documents; a hit seeds the initial document and skips fetch. */
-  cache?: DocumentCache
+  cache?: Pick<DocumentCache, 'configure' | 'get' | 'load'>
   children: ReactNode
+}
+
+/**
+ * Classifies a rendered panel into a bounded transport-only viewport band.
+ * Layout remains the source of truth for the first wave; this only reorders
+ * later rows according to what a reader can already see or will reach next.
+ */
+export function panelViewportRank(panelId: string): number | undefined {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return undefined
+  const escaped = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(panelId) : panelId.replace(/["\\]/g, '\\$&')
+  const element = document.querySelector<HTMLElement>(`[data-panel-id="${escaped}"]`)
+  if (!element) return undefined
+  const bounds = element.getBoundingClientRect()
+  const height = Math.max(1, window.innerHeight || document.documentElement.clientHeight)
+  if (bounds.bottom >= 0 && bounds.top <= height) return 0
+  if (bounds.bottom >= -height && bounds.top <= height * 2) return 1
+  return 2
 }
 
 export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, children }: DocumentProviderProps) {
@@ -108,7 +125,8 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
   useEffect(() => {
     csrfRef.current = csrf
     fetcherRef.current = fetcher
-  }, [csrf, fetcher])
+    cache?.configure({ csrf, fetcher })
+  }, [cache, csrf, fetcher])
 
   const effectiveSrc = useCallback(() => {
     if (!src || !appliedFilters.current) return src
@@ -126,8 +144,16 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
     const controller = new AbortController()
     controllers.current.add(controller)
     setIsLoading(true)
-    const pending = fetchDocument(effectiveSrc() ?? src, { csrf: csrfRef.current, fetcher: fetcherRef.current, signal: controller.signal })
+    const target = effectiveSrc() ?? src
+    // The initial drawer load must join a hover/idle prefetch already in
+    // flight. Explicit refreshes bypass the cache once a document has loaded,
+    // preserving refresh/recovery semantics.
+    const request = cache && loadedAt.current === 0 && target === src
+      ? cache.load(target)
+      : fetchDocument(target, { csrf: csrfRef.current, fetcher: fetcherRef.current, signal: controller.signal })
+    const pending = request
       .then((next) => {
+        if (controller.signal.aborted) return next
         loadedAt.current = Date.now()
         setDocument(next)
         setError(null)
@@ -145,7 +171,7 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
       })
     inFlight.current = pending
     return pending
-  }, [effectiveSrc, initialDocument, src])
+  }, [cache, effectiveSrc, initialDocument, src])
 
   // A focus-triggered refetch keeps the current document on screen and swaps
   // only on success; a failure is logged and otherwise silent, so a transient
@@ -246,6 +272,7 @@ export interface DashboardContextValue {
 
 export interface DrillContextValue {
   drillInto: (nodeKey: string, panelId?: string) => void
+  prefetch: (nodeKeys: string | Array<string>, panelId?: string) => () => void
   back: () => void
   jumpTo: (breadcrumbIndex: number) => void
   /**
@@ -276,7 +303,12 @@ export interface DrawerContextValue {
   openKey: (metricKey: string, opener?: HTMLElement) => void
   close: () => void
   /** Warm a drill-drawer document on hover/focus intent before it is opened. */
-  prefetch: (src: string) => void
+  prefetch: (src: string) => () => void
+  /** Resolve and warm a compact snapshot-scoped drawer key without opening it. */
+  prefetchKey: (metricKey: string) => () => void
+  /** Queue bounded best-effort work after a low-cardinality target appears. */
+  prefetchIdle: (src: string) => () => void
+  prefetchIdleKey: (metricKey: string) => () => void
 }
 
 export interface PanelFrameState {
@@ -549,7 +581,17 @@ function requestFor(document: DashboardDocument, navigation: NavigationView): Qu
     // rather than for the node's unparameterised aggregate.
     path: queryPathForNavigation(document, navigation.path),
     ...(navigation.perspectiveId ? { perspective: navigation.perspectiveId } : {}),
+    ...(navigation.revision ? { revision: navigation.revision } : {}),
   }
+}
+
+function firstContentRowReady(document: DashboardDocument): boolean {
+  const row = document.layout.rows.find((candidate) => candidate.panels.length > 0)
+  if (!row) return false
+  return row.panels.every(({ panelId }) => {
+    const panel = document.panels.find((candidate) => candidate.id === panelId)
+    return Boolean(panel && document.frames[panel.frame])
+  })
 }
 
 /** Absolute path of the level a node key leads to, resolved against the document. */
@@ -736,6 +778,31 @@ function RuntimeCore({
   const [notice, setNotice] = useState<string>()
   const documentRef = useRef(document)
   documentRef.current = document
+  useEffect(() => {
+    const endpoint = document.endpoints.release
+    if (!endpoint) return
+    const key = `${endpoint}\n${document.snapshotId}`
+    let active = true
+    let dispose: (() => void) | undefined
+    void import('./snapshotLease').then(({ acquireSnapshotLease }) => {
+      const acquired = acquireSnapshotLease(key, () => {
+        void (fetcher ?? fetch)(endpoint, {
+          method: 'POST', credentials: 'same-origin', keepalive: true,
+          headers: { 'Content-Type': 'application/json', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) },
+          body: JSON.stringify({ snapshotId: document.snapshotId }),
+        }).catch(() => undefined)
+      })
+      if (!active) {
+        acquired()
+        return
+      }
+      dispose = acquired
+    })
+    return () => {
+      active = false
+      dispose?.()
+    }
+  }, [csrf, document.endpoints.release, document.snapshotId, fetcher])
   const filtersEnabled = !controlledNavigation && drawerDepth === 0
   // Filter state derives from the URL alone: user actions write the URL, the
   // URL drives the refetch, and browser Back needs no resync timers because
@@ -777,11 +844,58 @@ function RuntimeCore({
   // the theme of the root it opened from — captured from the opener when the
   // drawer opens, mirroring PanelFrame's overlay theme capture.
   const drawerTheme = useRef<{ theme?: string; dark: boolean }>({ dark: false })
-  const drawerCache = useRef<DocumentCache>()
-  if (drawerDepth === 0 && !drawerCache.current) drawerCache.current = new DocumentCache({ capacity: 8, csrf, fetcher })
+  const drawerKeySources = useRef(new Map<string, string>())
+  const drawerKeyResolvers = useRef(new Map<string, Promise<string>>())
+  const drawerCache = useMemo<Pick<DocumentCache, 'configure' | 'get' | 'load' | 'prefetch'>>(() => {
+    let resolved: DocumentCache | undefined
+    let options: { csrf?: string; fetcher?: typeof fetch } = {}
+    const ready = import('./prefetch').then(({ DocumentCache: Cache }) => {
+      resolved = new Cache({ capacity: 8, ...options })
+      return resolved
+    })
+    return {
+      configure: (next) => {
+        options = next
+        resolved?.configure(next)
+      },
+      get: (src) => resolved?.get(src),
+      load: async (src) => (await ready).load(src),
+      prefetch: async (src, signal) => (await ready).prefetch(src, signal),
+    }
+  }, [])
+  const [drawerIdleQueue, setDrawerIdleQueue] = useState<IdlePrefetchQueue>()
   useEffect(() => {
-    drawerCache.current?.configure({ csrf, fetcher })
-  }, [csrf, fetcher])
+    drawerCache.configure({ csrf, fetcher })
+  }, [csrf, drawerCache, fetcher])
+  useEffect(() => {
+    drawerKeySources.current.clear()
+    drawerKeyResolvers.current.clear()
+  }, [document.endpoints.drawer, document.snapshotId])
+  useEffect(() => {
+    // Idle speculation is deliberately a dynamic feature chunk: it is not on
+    // the first-paint path, and panels re-register when the queue becomes
+    // available. Snapshot changes dispose the old queue before importing the
+    // next one, so no candidate can cross scopes.
+    if (!document.snapshotId || drawerDepth !== 0) {
+      setDrawerIdleQueue(undefined)
+      return
+    }
+    let active = true
+    let queue: IdlePrefetchQueue | undefined
+    void import('./idlePrefetch').then(({ IdlePrefetchQueue: Queue }) => {
+      if (!active) return
+      queue = new Queue({ capacity: 8 })
+      setDrawerIdleQueue(queue)
+    })
+    return () => {
+      active = false
+      queue?.reset()
+      setDrawerIdleQueue(undefined)
+    }
+  }, [document.snapshotId, drawerDepth])
+  useEffect(() => {
+    drawerIdleQueue?.setPaused(Boolean(navigation.drawer))
+  }, [drawerIdleQueue, navigation.drawer])
   const frameStore = useRef<PanelFrameStore>()
   const [panelAttempts, setPanelAttempts] = useState<Record<string, number>>({})
   const panelForces = useRef(new Set<string>())
@@ -865,6 +979,49 @@ function RuntimeCore({
     () => panelEndpoint ? new PanelClient(panelEndpoint, { csrf, fetcher }) : undefined,
     [csrf, fetcher, panelEndpoint],
   )
+  const prefetchDrill = useCallback((nodeKeys: string | Array<string>, panelId?: string) => {
+    if (!queryClient) return () => undefined
+    const source = documentRef.current
+    let next = navigationRef.current
+    for (const nodeKey of Array.isArray(nodeKeys) ? nodeKeys : [nodeKeys]) {
+      const resolved = runtimeNavigationReducer(source, next, navigationActions.drillInto(nodeKey, panelId))
+      if (resolved === next) return () => undefined
+      next = resolved
+      panelId = undefined
+    }
+    const pendingPath = dynamicParentPath(source, next.path)
+    const queryView = pendingPath ? { ...next, path: pendingPath } : next
+    const targetPanel = panelForNavigation(source, queryView)
+    if (!targetPanel || !frameForPanel(source, queryView, targetPanel, new Map()).shouldQuery) return () => undefined
+    const perspective = source.perspectives.find(({ id }) => id === queryView.perspectiveId)
+    const request: QueryRequest = {
+      ...requestFor(source, queryView),
+      prefetch: true,
+      ...(targetPanel.kind === 'table' || perspective?.semantics === 'evidence' ? { page: 1 } : {}),
+    }
+    const controller = new AbortController()
+    void queryClient.query(request, { signal: controller.signal }).then((response) => {
+      const frame = Object.values(response.frames)[0]
+      if (frame?.children) {
+        setRuntimeDocument((current) => withFrameChildren(current, queryView.path, frame))
+      }
+    }).catch(() => undefined)
+    return () => controller.abort(new DOMException('drill intent ended', 'AbortError'))
+  }, [queryClient, setRuntimeDocument])
+
+  useEffect(() => {
+    if (!queryClient || drawerDepth !== 0 || !firstContentRowReady(document)) return
+    const controller = new AbortController()
+    void import('./drillPrefetch').then(({ prefetchIdleDrillStates }) => prefetchIdleDrillStates({
+      document,
+      queryClient,
+      signal: controller.signal,
+      onChildren: (path, frame) => {
+        setRuntimeDocument((current) => withFrameChildren(current, path, frame))
+      },
+    })).catch(() => undefined)
+    return () => controller.abort(new DOMException('idle drill prefetch scope changed', 'AbortError'))
+  }, [document, drawerDepth, queryClient, setRuntimeDocument])
 
   useEffect(() => () => queryClient?.dispose(), [queryClient])
   useEffect(() => () => panelClient?.dispose(), [panelClient])
@@ -950,6 +1107,7 @@ function RuntimeCore({
     }
     void panelClient.loadBatch(pending.map(({ panel, force }) => ({
       snapshotId: sourceDocument.snapshotId, panelId: panel.id, ...(force ? { recompute: true } : {}),
+      viewportRank: panelViewportRank(panel.id),
     })), { onResult: applyPanelResult }).catch((cause: unknown) => {
       // A cancelled batch is not a failed one. Every other rejection path in
       // this file checks its signal first; this one did not, so unmounting the
@@ -1253,16 +1411,18 @@ function RuntimeCore({
     if (!exportEndpoint) return
     setExportStates((states) => ({ ...states, [scope]: { status: 'pending' } }))
     try {
-      const workbook = await exportWorkbook({
+      const exporter = await import('./export')
+      const workbook = await exporter.exportWorkbook({
         endpoint: exportEndpoint,
         snapshotId: document.snapshotId,
         panelId,
         csrf,
         fetcher,
       })
-      downloadWorkbook(workbook)
+      exporter.downloadWorkbook(workbook)
       setExportStates((states) => ({ ...states, [scope]: { status: 'idle' } }))
     } catch (cause: unknown) {
+      const { ExportSnapshotGoneError } = await import('./export')
       if (cause instanceof ExportSnapshotGoneError) {
         try {
           await refreshDocument()
@@ -1426,6 +1586,7 @@ function RuntimeCore({
 
   const drill = useMemo<DrillContextValue>(() => ({
     drillInto: (nodeKey, panelId) => dispatch(navigationActions.drillInto(nodeKey, panelId)),
+    prefetch: prefetchDrill,
     back: () => dispatch(navigationActions.back()),
     jumpTo: (breadcrumbIndex) => dispatch(navigationActions.jumpTo(breadcrumbIndex)),
     switchPerspective: (id, options) => {
@@ -1434,7 +1595,7 @@ function RuntimeCore({
     },
     reset: () => dispatch(navigationActions.reset()),
     canGoBack: navigation.history.length > 0,
-  }), [dispatch, navigation.history.length])
+  }), [dispatch, navigation.history.length, prefetchDrill])
   const closeDrawer = useCallback(() => {
     if (!navigation.drawer || controlledNavigation) return
     if (drawerOpener.current && typeof window !== 'undefined') {
@@ -1449,6 +1610,43 @@ function RuntimeCore({
     replaceNextURL.current = true
     dispatch(navigationActions.closeDrawer())
   }, [controlledNavigation, dispatch, navigation.drawer, navigation.history])
+  const warmDrawerSource = useCallback(async (src: string, signal?: AbortSignal) => {
+    if (!isSameOriginDrawerSource(src) || signal?.aborted) return
+    await drawerCache?.prefetch(src, signal)
+  }, [drawerCache])
+  const resolveDrawerKey = useCallback(async (metricKey: string, signal?: AbortSignal) => {
+    const endpoint = document.endpoints.drawer
+    const normalizedKey = metricKey.trim()
+    if (!endpoint || !normalizedKey || signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    const cacheKey = `${document.snapshotId}\u0000${endpoint}\u0000${normalizedKey}`
+    const cached = drawerKeySources.current.get(cacheKey)
+    if (cached) return cached
+    const existing = drawerKeyResolvers.current.get(cacheKey)
+    if (existing) return existing
+    const pending = (async () => {
+      const response = await (fetcher ?? fetch)(endpoint, {
+        method: 'POST', credentials: 'same-origin', signal,
+        headers: { 'Content-Type': 'application/json', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) },
+        body: JSON.stringify({ snapshotId: document.snapshotId, metricKey: normalizedKey }),
+      })
+      if (!response.ok) throw new Error(`drawer resolver failed (${response.status})`)
+      const payload = await response.json() as { url?: unknown }
+      if (typeof payload.url !== 'string' || !isSameOriginDrawerSource(payload.url)) throw new Error('drawer resolver returned an invalid URL')
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+      const relative = siteRelativeURL(payload.url, new URL(window.location.href))
+      if (!relative) throw new Error('drawer resolver returned a cross-origin URL')
+      drawerKeySources.current.set(cacheKey, relative)
+      return relative
+    })().finally(() => {
+      if (drawerKeyResolvers.current.get(cacheKey) === pending) drawerKeyResolvers.current.delete(cacheKey)
+    })
+    drawerKeyResolvers.current.set(cacheKey, pending)
+    return pending
+  }, [csrf, document.endpoints.drawer, document.snapshotId, fetcher])
+  const warmDrawerKey = useCallback(async (metricKey: string, signal?: AbortSignal) => {
+    const relative = await resolveDrawerKey(metricKey, signal)
+    if (!signal?.aborted) await drawerCache?.prefetch(relative, signal)
+  }, [drawerCache, resolveDrawerKey])
   const drawer = useMemo<DrawerContextValue>(() => ({
     depth: drawerDepth,
     canOpen: drawerDepth === 0 || Boolean(onDrawerNavigate),
@@ -1482,31 +1680,41 @@ function RuntimeCore({
     openKey: (metricKey, opener) => {
       const endpoint = document.endpoints.drawer
       if (!endpoint || !metricKey.trim()) return
-      void (fetcher ?? fetch)(endpoint, {
-        method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) },
-        body: JSON.stringify({ snapshotId: document.snapshotId, metricKey }),
-      }).then(async (response) => {
-        if (!response.ok) throw new Error(`drawer resolver failed (${response.status})`)
-        const payload = await response.json() as { url?: unknown }
-        if (typeof payload.url !== 'string' || !isSameOriginDrawerSource(payload.url)) throw new Error('drawer resolver returned an invalid URL')
+      void resolveDrawerKey(metricKey).then((relative) => {
         const root = opener?.closest<HTMLElement>('.lens-root')
           ?? globalThis.document.querySelector<HTMLElement>('.lens-root')
         drawerOpener.current = opener
         const theme = root?.dataset.theme
         drawerTheme.current = { theme, dark: theme === 'dark' || root?.classList.contains('dark') === true }
         const current = new URL(window.location.href)
-        const relative = siteRelativeURL(payload.url, current)
-        if (!relative) throw new Error('drawer resolver returned a cross-origin URL')
         dispatch(navigationActions.openDrawer(relative, drawerNavigationFromSource(relative, current)))
       }).catch((cause: unknown) => setNotice(cause instanceof Error ? cause.message : 'drawer resolver failed'))
     },
     close: closeDrawer,
     prefetch: (src) => {
-      if (drawerDepth > 0 || navigation.drawer || !isSameOriginDrawerSource(src)) return
-      void drawerCache.current?.prefetch(src)
+      if (drawerDepth > 0 || navigation.drawer || !isSameOriginDrawerSource(src)) return () => undefined
+      void warmDrawerSource(src)
+      return () => undefined
     },
-  }), [closeDrawer, csrf, dispatch, document.endpoints.drawer, document.snapshotId, drawerDepth, fetcher, navigation.drawer, onDrawerNavigate])
+    prefetchKey: (metricKey) => {
+      if (drawerDepth > 0 || navigation.drawer || !document.endpoints.drawer || !metricKey.trim()) return () => undefined
+      const controller = new AbortController()
+      void warmDrawerKey(metricKey, controller.signal).catch((cause: unknown) => {
+        // Speculative warm-up is silent; the click path remains the
+        // authoritative retry and reports its own failure if one exists.
+        if (!controller.signal.aborted) console.debug('[lens] drawer prefetch skipped', cause)
+      })
+      return () => controller.abort()
+    },
+    prefetchIdle: (src) => {
+      if (drawerDepth > 0 || !isSameOriginDrawerSource(src)) return () => undefined
+      return drawerIdleQueue?.register(`src:${src}`, (signal) => warmDrawerSource(src, signal)) ?? (() => undefined)
+    },
+    prefetchIdleKey: (metricKey) => {
+      if (drawerDepth > 0 || !document.endpoints.drawer || !metricKey.trim()) return () => undefined
+      return drawerIdleQueue?.register(`key:${metricKey}`, (signal) => warmDrawerKey(metricKey, signal)) ?? (() => undefined)
+    },
+  }), [closeDrawer, dispatch, document.endpoints.drawer, drawerDepth, drawerIdleQueue, navigation.drawer, onDrawerNavigate, resolveDrawerKey, warmDrawerKey, warmDrawerSource])
   const dashboard = useMemo(() => ({
     document, navigation, notice, dismissNotice: () => setNotice(undefined),
     canRecompute: Boolean(panelClient), isRecomputing, recompute,
@@ -1532,7 +1740,7 @@ function RuntimeCore({
                         // mounting the close button immediately, before the document
                         // lands, because DocumentProvider renders its children
                         // regardless of load state.
-                          <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher} cache={drawerCache.current}>
+                          <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher} cache={drawerCache}>
                             <LensDrawer
                               closeLabel={translate('drawer.close', 'Close details')}
                               dark={drawerTheme.current.dark}

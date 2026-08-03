@@ -16,30 +16,40 @@ export interface PrefetchHandlers {
 }
 
 /**
- * Hover/focus prefetch for a drawer-opening target. After a short intent delay
- * (cancelled if the pointer leaves first) the drawer document is warmed into
- * the shared cache, so a subsequent click opens against a document in hand.
- * Returns undefined when the action does not open a drawer or has no URL.
+ * Bounded idle plus hover/focus prefetch for a stat drawer target. The idle
+ * registration supplies the automatic first-level warm-up; concrete intent
+ * promotes the same target after a short cancellable dwell.
  */
-export function usePrefetch(url: string | undefined, action: Action | undefined): PrefetchHandlers | undefined {
+export function usePrefetch(
+  url: string | undefined,
+  action: Action | undefined,
+  prefetchIdle?: (urls: ReadonlyArray<string>) => () => void,
+): PrefetchHandlers | undefined {
   const drawer = useDrawer()
-  const enabled = action?.kind === 'open_drawer' && !action.drawerKey && drawer.depth === 0 && Boolean(url)
   const timer = useRef<ReturnType<typeof setTimeout>>()
+  const cancelActive = useRef<() => void>()
   const cancel = useCallback(() => {
     if (timer.current !== undefined) {
       clearTimeout(timer.current)
       timer.current = undefined
     }
+    cancelActive.current?.()
+    cancelActive.current = undefined
   }, [])
   useEffect(() => cancel, [cancel])
+  useEffect(() => prefetchIdle?.(url ? [url] : []), [prefetchIdle, url])
   return useMemo(() => {
-    if (!enabled || !url) return undefined
+    if (action?.kind !== 'open_drawer' || drawer.depth !== 0 || !url) return undefined
+    const drawerKey = drawerKeyFromActionURL(url)
     const schedule = () => {
       cancel()
-      timer.current = setTimeout(() => drawer.prefetch(url), prefetchIntentDelayMs)
+      timer.current = setTimeout(() => {
+        timer.current = undefined
+        cancelActive.current = drawerKey ? drawer.prefetchKey(drawerKey) : drawer.prefetch(url)
+      }, prefetchIntentDelayMs)
     }
     return { onPointerEnter: schedule, onFocus: schedule, onPointerLeave: cancel, onBlur: cancel }
-  }, [cancel, drawer, enabled, url])
+  }, [action?.kind, cancel, drawer, url])
 }
 
 /**
@@ -78,6 +88,10 @@ export interface PanelNavigation {
   cardURL: (frame: Frame | undefined) => string | undefined
   onClick: (url: string | undefined) => MouseEventHandler<HTMLAnchorElement> | undefined
   activate: (url: string | undefined, opener?: HTMLElement, options?: { newTab?: boolean }) => void
+  /** Promote a concrete drawer target on pointer/focus intent. */
+  prefetch: (url: string | undefined) => () => void
+  /** Register low-cardinality targets in the runtime's one-slot idle queue. */
+  prefetchIdle: (urls: ReadonlyArray<string>) => () => void
 }
 
 /**
@@ -132,6 +146,33 @@ export function useActionActivation(action: Action | undefined) {
   const opensDrawer = action?.kind === 'open_drawer'
   const filtersData = action?.kind === 'cross_filter' || action?.kind === 'cube_drill'
   const available = Boolean(action) && (!opensDrawer || drawer.depth === 0 || drawer.canOpen === true)
+  const intentTimer = useRef<ReturnType<typeof setTimeout>>()
+  const cancelIntent = useRef<() => void>()
+  const cancelPrefetch = useCallback(() => {
+    if (intentTimer.current !== undefined) clearTimeout(intentTimer.current)
+    intentTimer.current = undefined
+    cancelIntent.current?.()
+    cancelIntent.current = undefined
+  }, [])
+  useEffect(() => cancelPrefetch, [cancelPrefetch])
+  const prefetch = useCallback((url: string | undefined) => {
+    cancelPrefetch()
+    if (!url || !opensDrawer || !available) return cancelPrefetch
+    intentTimer.current = setTimeout(() => {
+      intentTimer.current = undefined
+      const key = drawerKeyFromActionURL(url)
+      cancelIntent.current = key ? drawer.prefetchKey(key) : drawer.prefetch(url)
+    }, prefetchIntentDelayMs)
+    return cancelPrefetch
+  }, [available, cancelPrefetch, drawer, opensDrawer])
+  const prefetchIdle = useCallback((urls: ReadonlyArray<string>) => {
+    if (!opensDrawer || !available) return () => undefined
+    const cancels = urls.map((url) => {
+      const key = drawerKeyFromActionURL(url)
+      return key ? drawer.prefetchIdleKey(key) : drawer.prefetchIdle(url)
+    })
+    return () => cancels.forEach((cancel) => cancel())
+  }, [available, drawer, opensDrawer])
   const activate = useCallback((url: string | undefined, opener?: HTMLElement, options?: { newTab?: boolean }) => {
     if (!url || !available) return
     if (opensDrawer) {
@@ -151,7 +192,7 @@ export function useActionActivation(action: Action | undefined) {
       else drawer.open(url, event.currentTarget)
     }
   }, [available, drawer, opensDrawer])
-  return { activate, available, onClick }
+  return { activate, available, onClick, prefetch, prefetchIdle }
 }
 
 export function usePanelNavigation(panel: Panel): PanelNavigation {
@@ -188,5 +229,7 @@ export function usePanelNavigation(panel: Panel): PanelNavigation {
     cardURL,
     onClick: activation.onClick,
     activate: activation.activate,
-  }), [action, activation.activate, activation.onClick, cardURL, urlForRow])
+    prefetch: activation.prefetch,
+    prefetchIdle: activation.prefetchIdle,
+  }), [action, activation.activate, activation.onClick, activation.prefetch, activation.prefetchIdle, cardURL, urlForRow])
 }

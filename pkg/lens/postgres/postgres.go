@@ -94,6 +94,9 @@ func (d *DataSource) Capabilities() datasource.CapabilitySet {
 
 func (d *DataSource) Run(ctx context.Context, req datasource.QueryRequest) (*frame.FrameSet, error) {
 	op := serrors.Op("lens/postgres.Run")
+	if req.Kind != "" && req.Kind != datasource.QueryKindRaw {
+		return nil, serrors.E(op, fmt.Errorf("postgres datasource does not support query kind %q", req.Kind))
+	}
 	if err := validateQuery(req.Text); err != nil {
 		return nil, serrors.E(op, err)
 	}

@@ -178,6 +178,7 @@ export const EndpointsSchema: z.ZodType<Contract.Endpoints> = z.object({
   panel: z.string().optional(),
   drawer: z.string().optional(),
   export: z.string().optional(),
+  release: z.string().optional(),
 }).strict()
 
 export const FacetFilterSchema: z.ZodType<Contract.FacetFilter> = z.lazy(() => z.object({
@@ -469,6 +470,7 @@ export const PanelRequestSchema: z.ZodType<Contract.PanelRequest> = z.lazy(() =>
   search: z.string().optional(),
   sort: z.lazy(() => TableSortSchema).optional(),
   page: z.number().int().optional(),
+  viewportRank: z.number().int().min(0).max(2).optional(),
 }).strict())
 
 export const PanelResponseSchema: z.ZodType<Contract.PanelResponse> = z.lazy(() => z.object({
@@ -578,6 +580,9 @@ export const QueryRequestSchema: z.ZodType<Contract.QueryRequest> = z.lazy(() =>
   snapshotId: z.string(),
   path: z.lazy(() => NodePathSchema),
   perspective: z.string().optional(),
+  revision: z.number().int().optional(),
+  prefetch: z.boolean().optional(),
+  idlePrefetch: z.boolean().optional(),
   page: z.number().int().optional(),
   sort: z.lazy(() => TableSortSchema).optional(),
 }).strict())

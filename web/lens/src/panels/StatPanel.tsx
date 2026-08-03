@@ -165,7 +165,7 @@ export function StatPanel({ panel }: StatPanelProps) {
   const { frame, label, showLabel, value, formatValue, formatValueExact, formatDelta, delta, deltaNumber } = useStatValues(panel)
   const navigation = usePanelNavigation(panel)
   const href = navigation.cardURL(frame.data)
-  const prefetch = usePrefetch(href, navigation.action)
+  const prefetch = usePrefetch(href, navigation.action, navigation.prefetchIdle)
 
   return (
     <PanelFrame panel={panel} frame={frame} variant="stat">
@@ -216,7 +216,7 @@ export function StatMetric({ panel }: StatPanelProps) {
   const caption = showLabel ? label : panel.title
   const navigation = usePanelNavigation(panel)
   const href = navigation.cardURL(frame.data)
-  const prefetch = usePrefetch(href, navigation.action)
+  const prefetch = usePrefetch(href, navigation.action, navigation.prefetchIdle)
   const loading = frame.isLoading && !frame.data
   const captionRef = useRef<HTMLParagraphElement>(null)
   const captionClamped = useIsClamped(captionRef)

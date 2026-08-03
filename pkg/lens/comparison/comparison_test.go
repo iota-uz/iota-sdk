@@ -269,11 +269,22 @@ func TestApplyStaticConfiguresPanelsWithSharedFieldContract(t *testing.T) {
 }
 
 func TestConfigureProgressivePresentationDeclaresDeferredComparisonContract(t *testing.T) {
-	dashboard := lens.DashboardSpec{Rows: []lens.RowSpec{{Panels: []panel.Spec{
-		{ID: "chart", Kind: panel.KindTimeSeries, Fields: panel.FieldMapping{Value: panel.Ref("value")}},
-		{ID: "stat", Kind: panel.KindStat, Fields: panel.FieldMapping{Value: panel.Ref("ratio")}},
-		{ID: "map", Kind: panel.KindMap, Fields: panel.FieldMapping{Value: panel.Ref("value")}},
-		{ID: "table", Kind: panel.KindTable, Columns: []panel.TableColumn{
+	structural, err := frame.New("metrics",
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber},
+		frame.Field{Name: "ratio", Type: frame.FieldTypeNumber},
+		frame.Field{Name: "product", Type: frame.FieldTypeString},
+		frame.Field{Name: "margin", Type: frame.FieldTypeNumber},
+	)
+	require.NoError(t, err)
+	structuralSet, err := frame.NewFrameSet(structural)
+	require.NoError(t, err)
+	dashboard := lens.DashboardSpec{Datasets: []lens.DatasetSpec{{
+		Name: "metrics", Kind: lens.DatasetKindStatic, Static: structuralSet,
+	}}, Rows: []lens.RowSpec{{Panels: []panel.Spec{
+		{ID: "chart", Dataset: "metrics", Kind: panel.KindTimeSeries, Fields: panel.FieldMapping{Value: panel.Ref("value")}},
+		{ID: "stat", Dataset: "metrics", Kind: panel.KindStat, Fields: panel.FieldMapping{Value: panel.Ref("ratio")}},
+		{ID: "map", Dataset: "metrics", Kind: panel.KindMap, Fields: panel.FieldMapping{Value: panel.Ref("value")}},
+		{ID: "table", Dataset: "metrics", Kind: panel.KindTable, Columns: []panel.TableColumn{
 			{Field: panel.Ref("product"), Label: "Product"},
 			{Field: panel.Ref("margin"), Label: "Margin", Formatter: formatPtr(format.Money("UZS", 0))},
 		}},
@@ -295,6 +306,10 @@ func TestConfigureProgressivePresentationDeclaresDeferredComparisonContract(t *t
 	require.True(t, dashboard.Rows[0].Panels[2].ComparisonUnsupported)
 	require.Equal(t, []string{"product", "previous_margin", "margin", "margin_delta"}, tableFieldNames(dashboard.Rows[0].Panels[3].Columns))
 	require.Equal(t, panel.Ref("margin_delta_percent"), dashboard.Rows[0].Panels[3].Columns[3].Cell.PercentField)
+	for _, field := range []string{"previous_value", "ratio_delta", "ratio_delta_percent", "previous_margin", "margin_delta", "margin_delta_percent"} {
+		_, ok := dashboard.Datasets[0].Static.Primary().Field(field)
+		require.True(t, ok, field)
+	}
 
 	ConfigureProgressivePresentation(&dashboard, false, StaticOptions{})
 	require.Empty(t, dashboard.Rows[0].Panels[0].Fields.Previous)

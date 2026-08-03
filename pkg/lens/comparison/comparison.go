@@ -82,6 +82,61 @@ func ConfigureProgressivePresentation(current *lens.DashboardSpec, enabled bool,
 			configureProgressivePanel(&current.Rows[rowIndex].Panels[panelIndex], enabled, options)
 		}
 	}
+	if enabled {
+		ensureProgressiveComparisonFields(current)
+	}
+}
+
+// ensureProgressiveComparisonFields keeps the structural dataset contract in
+// step with the presentation contract declared above. Progressive documents
+// are compiled before their deferred query runs; without placeholder fields,
+// the frozen panel can legitimately reference previous/delta columns which
+// are absent from its structural frame and later fail runtime validation.
+func ensureProgressiveComparisonFields(spec *lens.DashboardSpec) {
+	datasets := make(map[string]*lens.DatasetSpec, len(spec.Datasets))
+	for index := range spec.Datasets {
+		datasets[spec.Datasets[index].Name] = &spec.Datasets[index]
+	}
+	var visit func(panel.Spec)
+	visit = func(current panel.Spec) {
+		for _, child := range current.Children {
+			visit(child)
+		}
+		dataset := datasets[current.Dataset]
+		if dataset == nil || dataset.Static == nil || dataset.Static.Primary() == nil {
+			return
+		}
+		currentFrame := dataset.Static.Primary()
+		refs := []panel.FieldRef{current.Fields.Previous}
+		if current.Trend != nil {
+			refs = append(refs, current.Trend.AbsoluteField, current.Trend.PercentField)
+		}
+		for _, column := range current.Columns {
+			refs = append(refs, column.Field)
+			if column.Cell != nil {
+				refs = append(refs, column.Cell.PercentField)
+			}
+		}
+		for _, ref := range refs {
+			name := ref.Name()
+			if name == "" {
+				continue
+			}
+			if _, exists := currentFrame.Field(name); exists {
+				continue
+			}
+			values := make([]any, currentFrame.RowCount)
+			currentFrame.Fields = append(currentFrame.Fields, frame.Field{
+				Name: name, Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: values,
+			})
+		}
+		_ = currentFrame.Normalize()
+	}
+	for _, row := range spec.Rows {
+		for _, current := range row.Panels {
+			visit(current)
+		}
+	}
 }
 
 func configureProgressivePanel(spec *panel.Spec, enabled bool, options StaticOptions) {
