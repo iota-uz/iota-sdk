@@ -80,6 +80,54 @@ type executionSession struct {
 	activeRevision    int
 }
 
+// SessionRegistry lets independently registered Lens documents participate in
+// one snapshot execution graph. A host uses one registry for related document
+// handlers, then aliases a derived drawer snapshot to its parent after the
+// child document has been minted.
+type SessionRegistry struct {
+	mu       sync.Mutex
+	sessions map[string]*executionSession
+	aliases  map[string]string
+}
+
+func NewSessionRegistry() *SessionRegistry {
+	return &SessionRegistry{
+		sessions: make(map[string]*executionSession),
+		aliases:  make(map[string]string),
+	}
+}
+
+func (r *SessionRegistry) canonicalLocked(snapshotID string) string {
+	seen := map[string]bool{}
+	for {
+		parent := r.aliases[snapshotID]
+		if parent == "" || seen[parent] {
+			return snapshotID
+		}
+		seen[snapshotID] = true
+		snapshotID = parent
+	}
+}
+
+func (r *SessionRegistry) bind(childSnapshotID, parentSnapshotID string) error {
+	childSnapshotID = strings.TrimSpace(childSnapshotID)
+	parentSnapshotID = strings.TrimSpace(parentSnapshotID)
+	if childSnapshotID == "" || parentSnapshotID == "" || childSnapshotID == parentSnapshotID {
+		return fmt.Errorf("session alias requires distinct child and parent snapshots")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	parentSnapshotID = r.canonicalLocked(parentSnapshotID)
+	if childSnapshotID == parentSnapshotID {
+		return fmt.Errorf("session alias creates a cycle")
+	}
+	if existing := r.sessions[childSnapshotID]; existing != nil {
+		return fmt.Errorf("child snapshot session already started")
+	}
+	r.aliases[childSnapshotID] = parentSnapshotID
+	return nil
+}
+
 func newExecutionSession(maxConcurrency int, workTimeout time.Duration, metrics ...func(Metric)) *executionSession {
 	if maxConcurrency < 2 {
 		maxConcurrency = 2
@@ -457,32 +505,63 @@ func (s *executionSession) wasPrefetched(key string) bool {
 }
 
 func (h *Handlers) session(snapshotID string) *executionSession {
-	h.sessionsMu.Lock()
-	defer h.sessionsMu.Unlock()
+	registry := h.sessions
+	if registry == nil {
+		registry = NewSessionRegistry()
+		h.sessions = registry
+	}
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	snapshotID = registry.canonicalLocked(snapshotID)
 	cutoff := time.Now().Add(-2 * h.workTimeout)
-	for id, session := range h.sessions {
+	for id, session := range registry.sessions {
 		if session.idleBefore(cutoff) {
-			delete(h.sessions, id)
+			delete(registry.sessions, id)
 		}
 	}
-	if existing := h.sessions[snapshotID]; existing != nil {
+	if existing := registry.sessions[snapshotID]; existing != nil {
 		return existing
 	}
 	created := newExecutionSession(defaultConcurrency, h.workTimeout, func(metric Metric) {
 		h.observeMetric(context.Background(), metric)
 	})
-	h.sessions[snapshotID] = created
+	registry.sessions[snapshotID] = created
 	return created
 }
 
 func (h *Handlers) releaseSession(snapshotID string) {
-	h.sessionsMu.Lock()
-	session := h.sessions[snapshotID]
-	delete(h.sessions, snapshotID)
-	h.sessionsMu.Unlock()
+	registry := h.sessions
+	if registry == nil {
+		return
+	}
+	registry.mu.Lock()
+	if _, derived := registry.aliases[snapshotID]; derived {
+		delete(registry.aliases, snapshotID)
+		registry.mu.Unlock()
+		return
+	}
+	snapshotID = registry.canonicalLocked(snapshotID)
+	session := registry.sessions[snapshotID]
+	delete(registry.sessions, snapshotID)
+	for child, parent := range registry.aliases {
+		if registry.canonicalLocked(parent) == snapshotID {
+			delete(registry.aliases, child)
+		}
+	}
+	registry.mu.Unlock()
 	if session != nil {
 		session.cancelBackground()
 	}
+}
+
+// BindExecutionSession joins a derived document snapshot to the parent's
+// scheduler. It must be called before the child receives its first panel,
+// exploration, export or derived-document request.
+func (h *Handlers) BindExecutionSession(childSnapshotID, parentSnapshotID string) error {
+	if h.sessions == nil {
+		h.sessions = NewSessionRegistry()
+	}
+	return h.sessions.bind(childSnapshotID, parentSnapshotID)
 }
 
 // ExecuteExportSurface runs a snapshot export in the same execution graph as

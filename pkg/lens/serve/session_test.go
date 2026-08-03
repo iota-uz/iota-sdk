@@ -133,7 +133,7 @@ func TestExecutionSessionPreemptsRunningSpeculationForVisibleWork(t *testing.T) 
 }
 
 func TestExecuteDerivedSurfacePromotesIntentInsteadOfDuplicatingDrawerWork(t *testing.T) {
-	handlers := &Handlers{sessions: make(map[string]*executionSession), workTimeout: time.Second, observer: noopObserver{}}
+	handlers := &Handlers{sessions: NewSessionRegistry(), workTimeout: time.Second, observer: noopObserver{}}
 	started := make(chan struct{})
 	release := make(chan struct{})
 	var runs int
@@ -176,7 +176,7 @@ func TestExecuteDerivedSurfacePromotesIntentInsteadOfDuplicatingDrawerWork(t *te
 }
 
 func TestExecuteExportSurfaceJoinsSameSnapshotThroughputWork(t *testing.T) {
-	handlers := &Handlers{sessions: make(map[string]*executionSession), workTimeout: time.Second, observer: noopObserver{}}
+	handlers := &Handlers{sessions: NewSessionRegistry(), workTimeout: time.Second, observer: noopObserver{}}
 	started := make(chan struct{})
 	release := make(chan struct{})
 	var runs int
@@ -216,6 +216,18 @@ func TestExecuteExportSurfaceJoinsSameSnapshotThroughputWork(t *testing.T) {
 	require.Equal(t, "workbook-source", <-firstResult)
 	require.Equal(t, "workbook-source", <-secondResult)
 	require.Equal(t, 1, runs)
+}
+
+func TestDerivedSnapshotSharesParentRegistrySession(t *testing.T) {
+	registry := NewSessionRegistry()
+	parent := &Handlers{sessions: registry, workTimeout: time.Second, observer: noopObserver{}}
+	child := &Handlers{sessions: registry, workTimeout: time.Second, observer: noopObserver{}}
+	parentSession := parent.session("parent")
+	require.NoError(t, child.BindExecutionSession("child", "parent"))
+	require.Same(t, parentSession, child.session("child"))
+
+	child.releaseSession("child")
+	require.Same(t, parentSession, parent.session("parent"), "releasing a drawer must not release its parent dashboard")
 }
 
 func TestExecutionSessionKeepsPromotedWorkForInteractiveConsumer(t *testing.T) {

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"path"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -94,6 +93,7 @@ type Config struct {
 	DrawerResolver DrawerResolver
 	Exploration    ExplorationExecutor
 	ResolveLoader  ExplorationLoaderResolver
+	Sessions       *SessionRegistry
 	// Progressive returns a layout-only document and materialises each panel
 	// independently through Handlers.Panel.
 	Progressive bool
@@ -115,8 +115,7 @@ type Handlers struct {
 	drawerResolver DrawerResolver
 	exploration    ExplorationExecutor
 	resolveLoader  ExplorationLoaderResolver
-	sessionsMu     sync.Mutex
-	sessions       map[string]*executionSession
+	sessions       *SessionRegistry
 }
 
 type noopObserver struct{}
@@ -171,12 +170,16 @@ func New(cfg Config) (*Handlers, error) {
 	if observer == nil {
 		observer = noopObserver{}
 	}
+	sessions := cfg.Sessions
+	if sessions == nil {
+		sessions = NewSessionRegistry()
+	}
 	return &Handlers{
 		spec: cfg.Spec, plan: plan, engine: cfg.Engine, snapshots: cfg.Snapshots,
 		basePath: basePath, inlineDepth: cfg.InlineDepth, pageSize: pageSize, workTimeout: workTimeout,
 		request: cfg.Request, observer: observer, progressive: cfg.Progressive,
 		drawerResolver: cfg.DrawerResolver, exploration: cfg.Exploration, resolveLoader: cfg.ResolveLoader,
-		sessions: make(map[string]*executionSession),
+		sessions: sessions,
 	}, nil
 }
 
