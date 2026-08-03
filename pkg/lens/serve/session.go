@@ -207,10 +207,8 @@ func (s *executionSession) execute(job *scheduledJob) {
 	if job.background {
 		s.backgroundRunning--
 	} else if s.runningForeground[job.priority] <= 1 {
-		s.backgroundReady = true
 		delete(s.runningForeground, job.priority)
 	} else {
-		s.backgroundReady = true
 		s.runningForeground[job.priority]--
 	}
 	s.lastUsed = time.Now()

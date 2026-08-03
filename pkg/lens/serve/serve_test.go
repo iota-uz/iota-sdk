@@ -405,6 +405,65 @@ func TestHandlers_PrefetchesFirstDrillStatesWhileLowerRootRowsLoad(t *testing.T)
 	require.NoError(t, scanner.Err())
 }
 
+func TestHandlers_DoesNotPrefetchUntilTheFirstUsefulRowIsComplete(t *testing.T) {
+	spec, frames := testDashboard(t)
+	slow := panel.Pie("top-slow", "Top slow", "top-slow-data").IDField("id").Terminal().Build()
+	spec.Rows[0].Panels = append(spec.Rows[0].Panels, slow)
+	frames["top-slow"] = testFrames(t, "top-slow", 50)
+	spec.Datasets = append(spec.Datasets, staticDataset("top-slow-data", frames["top-slow"]))
+	releaseSlow := make(chan struct{})
+	slowStarted := make(chan struct{})
+	executor := &fakeExecutor{frames: frames, blockPanel: "top-slow", blockStart: slowStarted, blockDone: releaseSlow}
+	store := document.NewMemoryStore(time.Minute, 8)
+	handlers, err := New(Config{
+		Spec: spec, Engine: executor, Snapshots: store, BasePath: "/dash", Progressive: true,
+		Request: func(r *http.Request) lensruntime.Request {
+			return lensruntime.Request{Locale: "en", DataScope: "tenant:one", Request: r.URL.Query()}
+		},
+	})
+	require.NoError(t, err)
+	doc := requestDocument(t, handlers, "/dash/document")
+	server := httptest.NewServer(http.HandlerFunc(handlers.Panel))
+	defer server.Close()
+	request := PanelBatchRequest{SnapshotID: doc.SnapshotID, Panels: []PanelRequest{{PanelID: "host"}, {PanelID: "top-slow"}}}
+	response, err := http.Post(server.URL, "application/json", marshal(t, request)) //nolint:noctx // Test server lifecycle bounds the request.
+	require.NoError(t, err)
+	defer response.Body.Close()
+	select {
+	case <-slowStarted:
+	case <-time.After(time.Second):
+		close(releaseSlow)
+		t.Fatal("second panel in the useful row did not start")
+	}
+	scanner := bufio.NewScanner(response.Body)
+	require.True(t, scanner.Scan(), scanner.Err())
+	var first PanelBatchStreamEvent
+	require.NoError(t, json.Unmarshal(scanner.Bytes(), &first))
+	require.Equal(t, "host", first.PanelID)
+	rootRef := document.FrameRef("explore:metric/focus/composition:root")
+	require.Never(t, func() bool {
+		snapshot, getErr := store.Get(t.Context(), doc.SnapshotID)
+		if getErr != nil {
+			return false
+		}
+		_, materialized := snapshot.Frames[rootRef]
+		return materialized
+	}, 100*time.Millisecond, 10*time.Millisecond, "prefetch must not compete with an unfinished KPI in the first row")
+
+	close(releaseSlow)
+	for scanner.Scan() {
+	}
+	require.NoError(t, scanner.Err())
+	require.Eventually(t, func() bool {
+		snapshot, getErr := store.Get(t.Context(), doc.SnapshotID)
+		if getErr != nil {
+			return false
+		}
+		_, materialized := snapshot.Frames[rootRef]
+		return materialized
+	}, time.Second, 10*time.Millisecond)
+}
+
 func TestBackgroundPrefetchTargetsBoundsDynamicCardinality(t *testing.T) {
 	spec, _ := testDashboard(t)
 	targets := backgroundPrefetchTargets(spec)

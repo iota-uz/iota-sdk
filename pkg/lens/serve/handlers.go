@@ -261,13 +261,15 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 					flusher.Flush()
-					session.enableBackground()
 					emitted++
 					emittedByPriority[priority]++
 				}
 				delete(buffered, priority)
 				if emittedByPriority[priority] < priorityCounts[priority] {
 					break
+				}
+				if priorityIndex == 0 {
+					session.enableBackground()
 				}
 				priorityIndex++
 			}

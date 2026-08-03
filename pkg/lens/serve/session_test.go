@@ -34,6 +34,12 @@ func TestExecutionSessionStartsIdlePrefetchOnlyAfterUsefulForeground(t *testing.
 	require.Equal(t, "foreground", (<-foreground.result).value)
 	select {
 	case <-backgroundStarted:
+		t.Fatal("idle prefetch started before the useful foreground wave was revealed")
+	case <-time.After(30 * time.Millisecond):
+	}
+	session.enableBackground()
+	select {
+	case <-backgroundStarted:
 	case <-time.After(time.Second):
 		t.Fatal("idle prefetch did not start after foreground completion")
 	}
