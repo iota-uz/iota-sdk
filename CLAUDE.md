@@ -1,7 +1,9 @@
 # IOTA SDK - Claude Code Orchestrator Configuration
 
 ## Design Philosophy
+
 iota-sdk is a general purpose ERP building engine/solution. When designing anything inside iota-sdk:
+
 - Make it extensible, generalizable, and customizable
 - Prefer interfaces over concrete structs at boundaries
 - Apply dependency inversion and inject interfaces
@@ -9,16 +11,19 @@ iota-sdk is a general purpose ERP building engine/solution. When designing anyth
 
 ## Quick Decision Tree
 
-**Task Classification:**
-- **1-3 files**: No agents needed - use Read/Edit/Bash directly
-- **4-15 files**: 1-2 agents (small-medium features)
-- **16-30 files**: 3-4 agents parallel (large features)
-- **30+ files**: 5-7+ agents (cross-module)
+**Task Classification:** split on independence, not on size.
 
-**Agent Selection:**
+- **One dependent change**: one agent, or do it yourself — however many files it spans
+- **Parts that never need to see each other's work**: one agent each
+- **Read-heavy survey** (where is this used, what breaks): fan out freely; the results come back small
+
+**Agent Selection:** applies after the split, and picks which agent each piece
+goes to. It never splits a piece — a change that touches both a repository and a
+template is still one owner.
+
 - Errors/Failures → `debugger` first
 - Go code → `auditor` last (always)
-- Database/Schema → `editor`  
+- Database/Schema → `editor`
 - UI/Templates → `editor`
 - Production → `auditor` always
 
@@ -28,7 +33,7 @@ iota-sdk is a general purpose ERP building engine/solution. When designing anyth
 # After Go changes
 go vet ./...
 
-# After template/css changes  
+# After template/css changes
 templ generate && just css
 
 # Testing
@@ -80,7 +85,7 @@ modules/{module}/
 # Bug fix
 debugger && editor && auditor
 
-# New feature  
+# New feature
 editor && auditor
 
 # Database changes
@@ -94,12 +99,16 @@ general-purpose && editor && auditor
 ```
 
 **Workflow Rules:**
+
 - Always analyze scope first: `go vet ./...`, `find . -name "*.templ"`
-- Divide work evenly between agents of same type
-- Scale: 1-5 files → 1 agent, 6-15 → 3 agents, 16-30 → 5 agents, 31+ → 7-10 agents
+- Divide work along seams, not evenly — an even split that cuts through a
+  dependency costs more than it saves, because neither half can see the other
+- Pass every agent the paths and symbols you already have, and keep the ones it
+  returns. An agent starts with an empty context and re-derives the rest.
 - **>10 agents degrades coordination** - avoid
 
 **Critical coordination rule:**
+
 - **Before agent completes**: Agent must create tasks for ANY unfinished work (stubs, TODOs, partial implementations)
 - **After agents complete**: Orchestrator must call `TaskList` and either implement remaining tasks or create new agents
 - **Never assume**: Agents completed everything unless explicitly verified via `TaskList`
@@ -130,6 +139,7 @@ cd e2e && npx playwright test tests/module/specific.spec.ts:LINE  # Single test 
 **CRITICAL: Do NOT leave stubs, partial implementations, or TODO comments without creating tasks.**
 
 Prohibited patterns:
+
 - `// TODO: implement validation`
 - `// FIXME: handle error case`
 - `// This will be implemented later`
@@ -138,11 +148,13 @@ Prohibited patterns:
 - Partial feature implementations without tracking
 
 When you identify unfinished work, immediately use `TaskCreate`:
+
 - **subject**: "Implement validation for user input"
 - **description**: Full context, affected files (e.g., `user_service.go:123`), acceptance criteria
 - **activeForm**: "Implementing validation for user input"
 
 Common scenarios requiring TaskCreate:
+
 - Feature partially implemented (stub functions, incomplete logic)
 - Missing validation or error handling
 - Tests not yet written
@@ -151,11 +163,13 @@ Common scenarios requiring TaskCreate:
 - Edge cases not handled
 
 **Agent workflow**: Before completing, agents MUST:
+
 1. Search their changes for stubs/incomplete code
 2. Create tasks for ALL unfinished work with file:line references
 3. Return task IDs in completion message
 
 **Orchestrator workflow**: After agents complete:
+
 1. Call `TaskList` to verify all unfinished work is tracked
 2. Implement tasks or assign to new agents
 3. Show user final task list
