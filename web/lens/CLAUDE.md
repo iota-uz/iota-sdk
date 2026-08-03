@@ -4,10 +4,12 @@ Lens runtime work is verified through fixtures, Ladle stories, and Chromium
 screenshots. The normal loop does not require a running ERP:
 
 1. Edit the Go contract, runtime, panels, styles, or stories.
-2. Run `just lens check` from the repository root.
-3. Run `just lens ladle` and inspect the affected story at
+2. Run `just lens smoke <test file>` (or `-t 'name'`) while iterating — the
+   typecheck plus those tests, in seconds.
+3. Run `just lens check` from the repository root before pushing.
+4. Run `just lens ladle` and inspect the affected story at
    `http://localhost:61000`.
-4. Run `just lens vr`.
+5. Run `just lens vr`.
 
 A runtime PR that adds or changes a visible surface without corresponding
 stories and visual-regression coverage is incomplete.
@@ -28,6 +30,7 @@ runner detects that hermetic install automatically.
 Use these root commands during development:
 
 ```sh
+just lens smoke <t>   # typecheck + the tests you name — the per-edit lane
 just lens check       # regenerate contract, reject drift, typecheck, lint, test
 just lens ladle       # interactive story grid
 just lens vr          # compare, or bootstrap ignored local OS baselines
