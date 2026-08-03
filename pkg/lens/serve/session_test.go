@@ -122,6 +122,29 @@ func TestExecutionSessionKeepsPromotedWorkForInteractiveConsumer(t *testing.T) {
 	require.Equal(t, "child", (<-interactive.result).value)
 }
 
+func TestExecutionSessionReleaseDoesNotCancelRunningWorkPromotedToInteractive(t *testing.T) {
+	session := newExecutionSession(2, time.Second)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	run := func(ctx context.Context) (any, error) {
+		close(started)
+		select {
+		case <-release:
+			return "child", nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	prefetch := session.submit(t.Context(), "child", priorityIdlePrefetch, 4, run)
+	session.enableBackground()
+	<-started
+	interactive := session.submit(t.Context(), "child", priorityInteractive, 0, run)
+	prefetch.Cancel()
+	session.cancelBackground()
+	close(release)
+	require.Equal(t, "child", (<-interactive.result).value)
+}
+
 func TestExecutionSessionRevisionCancelsOnlyStaleNavigationWork(t *testing.T) {
 	session := newExecutionSession(3, time.Second)
 	staleStarted := make(chan struct{})

@@ -105,10 +105,8 @@ func (s *executionSession) submit(
 	if existing := s.jobs[key]; existing != nil {
 		s.reportLocked(Metric{Name: MetricRedundantWork, Value: 1, Labels: map[string]string{"class": priorityClass(priority)}})
 		existing.waiters[waiterID] = result
-		if !existing.running && priority < existing.priority {
-			existing.priority = priority
-			existing.order = order
-			existing.background = priority >= priorityIntent
+		if priority < existing.priority {
+			s.promoteLocked(existing, priority, order)
 		}
 		s.dispatchLocked()
 		s.mu.Unlock()
@@ -129,6 +127,32 @@ func (s *executionSession) submit(
 	s.dispatchLocked()
 	s.mu.Unlock()
 	return scheduledCall{result: result, cancel: func() { s.detach(key, waiterID) }}
+}
+
+func (s *executionSession) promoteLocked(job *scheduledJob, priority, order int) {
+	if job == nil || priority >= job.priority {
+		return
+	}
+	previousPriority := job.priority
+	previousBackground := job.background
+	job.priority = priority
+	job.order = order
+	job.background = priority >= priorityIntent
+	if !job.running {
+		return
+	}
+	if previousBackground {
+		s.backgroundRunning--
+	} else if s.runningForeground[previousPriority] <= 1 {
+		delete(s.runningForeground, previousPriority)
+	} else {
+		s.runningForeground[previousPriority]--
+	}
+	if job.background {
+		s.backgroundRunning++
+	} else {
+		s.runningForeground[priority]++
+	}
 }
 
 func (s *executionSession) advanceRevision(revision int) {
