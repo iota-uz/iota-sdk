@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -25,5 +25,42 @@ if (hasHermeticBrowser && !env.PLAYWRIGHT_BROWSERS_PATH) env.PLAYWRIGHT_BROWSERS
 
 const args = ['exec', 'playwright', 'test', ...forwarded]
 if (shouldUpdate) args.push('--update-snapshots')
+const report = path.join(root, 'vr', 'results', 'report.json')
+const missingMarker = path.join(root, 'vr', 'results', 'missing-baselines.txt')
+rmSync(report, { force: true })
+rmSync(missingMarker, { force: true })
+if (!shouldUpdate) {
+  args.push('--reporter=json')
+  env.PLAYWRIGHT_JSON_OUTPUT_NAME = report
+}
 const result = spawnSync('pnpm', args, { cwd: root, env, stdio: 'inherit' })
+if ((result.status ?? 1) !== 0 && !shouldUpdate && existsSync(report)) {
+  const failures = []
+  const visit = (suite) => {
+    for (const spec of suite.specs ?? []) {
+      for (const test of spec.tests ?? []) {
+        for (const run of test.results ?? []) {
+          if (run.status === 'unexpected') failures.push({ title: spec.title, errors: run.errors ?? [] })
+        }
+      }
+    }
+    for (const child of suite.suites ?? []) visit(child)
+  }
+  const parsed = JSON.parse(readFileSync(report, 'utf8'))
+  for (const suite of parsed.suites ?? []) visit(suite)
+  const missingOnly = failures.length > 0 && failures.every((failure) =>
+    failure.errors.some((error) => String(error.message ?? error.value ?? '').includes("A snapshot doesn't exist")),
+  )
+  if (missingOnly) {
+    const names = failures.map((failure) => failure.title).sort()
+    console.log(`Missing ${names.length} approved ${process.platform} baselines; generating candidates. Review and promote them before merge:`)
+    console.log(names.map((name) => `  - ${name}`).join('\n'))
+    const updateResult = spawnSync('pnpm', ['exec', 'playwright', 'test', ...forwarded, '--update-snapshots'], { cwd: root, env, stdio: 'inherit' })
+    if ((updateResult.status ?? 1) === 0) {
+      writeFileSync(missingMarker, `${names.join('\n')}\n`)
+      process.exit(0)
+    }
+    process.exit(updateResult.status ?? 1)
+  }
+}
 process.exit(result.status ?? 1)

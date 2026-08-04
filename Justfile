@@ -63,12 +63,13 @@ lens cmd="help" *args="":
       esac ;; \
     fixture) (cd web/lens && pnpm fixture {{args}}) ;; \
     vr|vr-update) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
+    vr-linux) docker run --rm --ipc=host -v "{{justfile_directory()}}:/work" -w /work/web/lens mcr.microsoft.com/playwright:v1.55.1-noble bash -lc 'corepack enable && pnpm install --frozen-lockfile && pnpm vr {{args}}' ;; \
     typegen) go run ./cmd/lens-typegen ;; \
     check) \
       node web/lens/scripts/check-typegen.mjs ; \
       (cd web/lens && pnpm check {{args}}) ;; \
     *) \
-      echo "Usage: just lens [dev|build|watch|serve-from-disk|smoke|fixture|check|typegen|ladle|vr|vr-update|install]" ; \
+      echo "Usage: just lens [dev|build|watch|serve-from-disk|smoke|fixture|check|typegen|ladle|vr|vr-update|vr-linux|install]" ; \
       echo "" ; \
       echo "  smoke <args>     typecheck plus the tests you name — a test file, or" ; \
       echo "                   -t 'name'. The per-edit lane; just lens check stays" ; \

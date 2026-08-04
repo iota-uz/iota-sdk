@@ -133,6 +133,18 @@ After promotion, unapproved pixel drift fails CI. The job uploads
 Use `just lens vr-update` only for an approved visual change; updating snapshots
 is never a substitute for understanding the diff.
 
+When existing snapshots match but a newly covered story has no Linux PNG, the
+normal lane reports those story names separately, generates candidate PNGs and
+stays green. It uploads `lens-vr-linux-candidates-<sha>` and emits a workflow
+notice with the promotion step above. If even one existing snapshot has pixel
+drift, the lane remains red and does not classify the run as missing-baseline
+only.
+
+On macOS, `just lens vr-linux` runs the comparison in Playwright's pinned
+v1.55.1 Noble image with the repository mounted at `/work`. This produces the
+same `vr/baselines/linux` and `vr/results` paths as CI; local Darwin snapshots
+are never promoted as Linux references.
+
 ## Guard check
 
 To prove the lane is active, make a temporary one-pixel layout change in a
