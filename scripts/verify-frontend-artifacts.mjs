@@ -24,7 +24,7 @@ try {
   writeFileSync(path.join(consumer, '.npmrc'), '@iota-uz:registry=http://127.0.0.1:9/\nfetch-retries=0\n')
   execFileSync('pnpm', [
     'add', '--ignore-scripts', '--strict-peer-dependencies',
-    clientHost.path, lens.path, 'react@19.2.4', 'react-dom@19.2.4',
+    clientHost.path, lens.path, 'react@19.2.4', 'react-dom@19.2.4', 'vite@7.2.7',
   ], { cwd: consumer, stdio: 'inherit' })
 
   const installed = (name) => JSON.parse(readFileSync(path.join(consumer, 'node_modules', ...name.split('/'), 'package.json'), 'utf8'))
@@ -39,6 +39,18 @@ try {
   if (installedLens.peerDependencies?.['@iota-uz/client-host'] !== clientHost.version) {
     throw new Error('Lens must require the exact sibling client-host version')
   }
+
+  // Metadata is insufficient: an export can point at a file the tarball never
+  // shipped. Bundle both public entry points exactly as a Granite consumer does
+  // so Rollup has to resolve the React runtime and the physical stylesheet.
+  writeFileSync(path.join(consumer, 'index.html'), '<main id="app"></main><script type="module" src="/main.js"></script>\n')
+  writeFileSync(path.join(consumer, 'main.js'), [
+    "import { LensDashboard } from '@iota-uz/lens-web'",
+    "import '@iota-uz/lens-web/styles.css'",
+    "document.querySelector('#app').dataset.runtime = LensDashboard.name",
+    '',
+  ].join('\n'))
+  execFileSync('pnpm', ['exec', 'vite', 'build'], { cwd: consumer, stdio: 'inherit' })
 } finally {
   rmSync(consumer, { recursive: true, force: true })
 }
