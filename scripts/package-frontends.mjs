@@ -27,9 +27,12 @@ try {
     execFileSync('pnpm', ['run', spec.build], { cwd: source, stdio: 'inherit' })
     const packageJSON = JSON.parse(readFileSync(path.join(source, 'package.json'), 'utf8'))
     packageJSON.version = version
-    packageJSON.dependencies = Object.fromEntries(Object.entries(packageJSON.dependencies ?? {}).map(([name, value]) => [
+    packageJSON.peerDependencies = Object.fromEntries(Object.entries(packageJSON.peerDependencies ?? {}).map(([name, value]) => [
       name, name === '@iota-uz/client-host' ? version : value,
     ]))
+    // Development links belong to the source checkout, never to a published
+    // artifact. Consumers install both siblings from the same SHA train.
+    packageJSON.devDependencies = undefined
     const staging = path.join(stagingRoot, packageJSON.name.replaceAll('/', '-'))
     mkdirSync(staging, { recursive: true })
     cpSync(path.join(source, spec.output), path.join(staging, spec.output), { recursive: true })

@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@iota-uz/client-host':
-        specifier: link:../client-host
-        version: link:../client-host
       echarts:
         specifier: ^6.1.0
         version: 6.1.0
@@ -21,6 +18,9 @@ importers:
       '@eslint/js':
         specifier: 9.17.0
         version: 9.17.0
+      '@iota-uz/client-host':
+        specifier: link:../client-host
+        version: link:../client-host
       '@ladle/react':
         specifier: 5.1.1
         version: 5.1.1(@types/node@22.10.2)(@types/react@18.3.18)(jiti@1.21.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.7.2)(yaml@2.9.0)

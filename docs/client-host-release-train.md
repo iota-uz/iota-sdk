@@ -23,6 +23,13 @@ must match the commit resolved by `just sdk preview <pr>` exactly. On a `main`
 push, the same invariant uses `github.sha`. `SDK_SOURCE_SHA` is a guard as well
 as an input: packaging aborts if it differs from the checked-out commit.
 
+`@iota-uz/lens-web` declares the same-SHA `@iota-uz/client-host` as an exact
+peer. It never asks a package registry for that private sibling: the consumer
+installs both tarballs in one `pnpm add` transaction. CI proves this in a clean
+temporary project with the `@iota-uz` registry pointed at an unreachable
+address, React 19 installed as the host runtime, strict peer checks enabled,
+and the installed package manifests compared with `frontend-artifacts.json`.
+
 Ordinary source PRs build the embedded compatibility bundle but do not commit
 its hashed output. The retained `pkg/lens/render/react/dist` snapshot is updated
 only by the release-train bot after merge. Direct React routes consume the
