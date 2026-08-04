@@ -1094,6 +1094,36 @@ describe('chart encoding and drill behavior', () => {
     expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
   })
 
+  it('expands a collapsed TopN remainder without an explicit id encoding', async () => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'label', type: 'string' }, { name: 'value', type: 'number' },
+          { name: '__lens_topn_group', type: 'string' },
+        ],
+        rows: [['A', 100, null], ['B', 4, 'Other'], ['C', 3, 'Other']],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const inputs: ChartInput[] = []
+    const adapter: ChartAdapter = {
+      mount(el, input, events) {
+        inputs.push(input)
+        const button = document.createElement('button')
+        button.textContent = 'Other'
+        button.onclick = () => events.onSelect('Other')
+        el.append(button)
+        return { update: (next) => inputs.push(next), dispose: () => el.replaceChildren() }
+      },
+    }
+    render(<BarPanel panel={panel('bar', { encoding: { label: 'label', value: 'value' } })} adapter={adapter} />)
+
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(2))
+    fireEvent.click(screen.getByRole('button', { name: 'Other' }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(3))
+    expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
+  })
+
   it('keeps a series in its own colour when the series before it is hidden', async () => {
     const frame: Frame = {
       columns: [

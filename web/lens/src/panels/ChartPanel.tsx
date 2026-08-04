@@ -430,6 +430,9 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
       return topN.collapsed ? topN : collapseMinorDonutSlices(visibleFrame, panel, translate('chart.other', 'Other'))
     })()
     : { frame: visibleFrame, collapsed: false }, [panel, translate, visibleFrame])
+  const collapsedRemainderSelectionKey = collapsedRemainder.collapsed && collapsedRemainder.frame
+    ? legendKey(collapsedRemainder.frame, panel, collapsedRemainder.frame.rows.length - 1)
+    : undefined
   const renderFrame = remainderExpanded || !collapsedRemainder.collapsed ? visibleFrame : collapsedRemainder.frame
   // The badge and axis must describe the same rows. Hidden series and a
   // collapsed tail can change whether the rendered values span enough orders
@@ -678,7 +681,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const distribution = kind === 'histogram' || kind === 'boxplot' || kind === 'heatmap'
   const compact = degenerate && !distribution
   const select = useCallback((key: NodeKey, anchor?: ChartAnchor, activation?: ChartActivation) => {
-    if (key === donutRemainderKey && collapsedRemainder.collapsed) {
+    if (collapsedRemainder.collapsed && key === collapsedRemainderSelectionKey) {
       setRemainderExpanded((current) => !current)
       return
     }
@@ -698,7 +701,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     if (level && !node?.target) return
     setSelectedKey(key)
     drillInto(node?.key ?? key, panel.id)
-  }, [collapsedRemainder.collapsed, drillInto, hasTree, level, markURL, onMarkSelect, panel.id, panelNavigation])
+  }, [collapsedRemainder.collapsed, collapsedRemainderSelectionKey, drillInto, hasTree, level, markURL, onMarkSelect, panel.id, panelNavigation])
 
   // A legend sits to the RIGHT of the plot on a wide panel and drops below it
   // when the panel is too narrow (handled in CSS by a container query). Moving
