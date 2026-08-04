@@ -142,6 +142,27 @@
     --lens-dur-fast: 120ms;
     --lens-dur-base: 200ms;
     --lens-dur-slow: 320ms;
+    /* How far a mark steps back while its neighbour is being pointed at, and —
+       more importantly — the one place that answers whether it steps back at
+       all. Two panels can show the same numbers and owe the pointer different
+       things:
+
+       A COMPOSITION (coverage, pie, donut, radial partition) is read against
+       its whole. The question a pointer asks is "how much of it is this", and
+       the answer is legible only when the rest recedes — so its siblings quiet
+       down by this much, and the pointed mark is reinforced on top of that.
+
+       A SEQUENCE (waterfall, bars, lines, distributions) is read by comparing
+       neighbours. Quieting them would dim the very marks the pointed one is
+       being measured against, so nothing recedes and the mark under the pointer
+       states itself instead — the plate and halo a waterfall column takes.
+
+       The number lives here because canvas cannot read the sheet: ECharts is
+       handed this token through buildEChartsTheme, so a donut's blur and the
+       coverage track's are provably one value. Opacity alone is the shared
+       lever for that reason — a CSS filter has no equivalent on canvas, and a
+       vocabulary that only half the board can pronounce is two vocabularies. */
+    --lens-quiet-opacity: .38;
     /* The scrim, and what may be drawn on it. A modal's backdrop is not a
        surface from the palette — it is the absence of one — so the ink and fill
        of a control that rides it (an expanded panel's Close) cannot come from
@@ -3397,13 +3418,18 @@
     filter: brightness(1.12);
   }
 
-  /* Hover is a preview of the drill target: quiet the siblings, reinforce the
-     selected colour, and carry the same state into its labelled row. This is
-     intentionally stronger than a small brightness shift, which disappeared
-     on already-saturated series colours. */
+  /* A composition, so the siblings recede — see `--lens-quiet-opacity`, which
+     is where that choice is made and where the donut on the next card reads the
+     same number from. Hover is also a preview of the drill target, so the state
+     carries into the labelled row below.
+
+     The quieting used to add `saturate(0.55)` on top. It was there because a
+     small brightness shift alone disappeared on already-saturated series
+     colours — but the opacity was doing that work by then, and canvas has no
+     filter to match it with, so the extra step could only ever have been a
+     coverage-specific dialect. */
   .lens-coverage[data-segment-active='true'] .lens-coverage-track-segment:not([data-highlighted='true']) {
-    filter: saturate(0.55);
-    opacity: 0.38;
+    opacity: var(--lens-quiet-opacity);
   }
 
   .lens-coverage-track-segment[data-highlighted='true'] {
