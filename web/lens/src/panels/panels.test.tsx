@@ -1145,7 +1145,7 @@ describe('chart encoding and drill behavior', () => {
     />)
 
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(11))
-    fireEvent.click(screen.getByRole('button', { name: 'Open Other, 44' }))
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Open Other, 44' }), { key: 'Enter' })
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(18))
     expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
   })

@@ -71,6 +71,11 @@ export function ChartDataEquivalent({ actionable, format, frame, label, onHover,
                 onBlur={() => onHover?.(null)}
                 onClick={() => onSelect(key)}
                 onFocus={() => onHover?.(key)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
+                  onSelect(key)
+                }}
                 onPointerEnter={() => onHover?.(key)}
                 onPointerLeave={() => onHover?.(null)}
                 type="button"
