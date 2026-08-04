@@ -705,6 +705,13 @@ jobs:
       - name: Generate CSS files
         run: just css
 
+      - name: Install Lens dependencies
+        working-directory: web/lens
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Lens compatibility assets
+        run: just lens build
+
       - name: Setup E2E database
         env:
           DB_NAME: iota_erp_e2e
