@@ -33,17 +33,46 @@ func TestTableFrameViewSearchesFullFrameAndRecomputesTotalsAndShares(t *testing.
 
 	view, summary := tableFrameView(spec, source, "MOTOR", nil)
 	require.Len(t, view.Rows, 2)
-	require.InDelta(t, 7.5, view.Rows[0][3], 1e-9)
-	require.InDelta(t, 2.5, view.Rows[1][3], 1e-9)
+	require.InDelta(t, 75.0, view.Rows[0][3], 1e-9)
+	require.InDelta(t, 25.0, view.Rows[1][3], 1e-9)
 	require.InDelta(t, 0.0, source.Rows[0][3], 1e-9, "server view must not mutate the cached source frame")
 	require.NotNil(t, summary)
 	require.Equal(t, 2, summary.FilteredRows)
 	require.InDelta(t, 5.0, summary.Values["claims"], 1e-9)
 	require.InDelta(t, 100.0, summary.Values["paid"], 1e-9)
-	require.InDelta(t, 10.0, summary.Values["share"], 1e-9)
+	require.InDelta(t, 100.0, summary.Values["share"], 1e-9)
 	require.InDelta(t, 1000.0, summary.FullValues["paid"], 1e-9)
 	require.InDelta(t, 100.0, summary.FullValues["share"], 1e-9)
 	require.Equal(t, 3, summary.TotalRows)
+}
+
+func TestTableFrameViewRecomputesSingleSearchResultShareWithoutChangingFullSummary(t *testing.T) {
+	t.Parallel()
+
+	spec := panel.Table("claims", "Claims", "claims").Searchable().Columns(
+		panel.TableColumn{Field: "product", Label: "Product"},
+		panel.TableColumn{Field: "paid", Label: "Paid"}.WithTotal(),
+		panel.TableColumn{Field: "share", Label: "Share"}.AsShareOf("paid").WithTotal(),
+	).Terminal().Build()
+	source := document.Frame{
+		Columns: []document.Column{
+			{Name: "product", Type: document.ColumnString},
+			{Name: "paid", Type: document.ColumnNumber},
+			{Name: "share", Type: document.ColumnNumber},
+		},
+		Rows: [][]any{
+			{"Motor", 100.0, 0.0},
+			{"Travel", 900.0, 0.0},
+		},
+	}
+
+	view, summary := tableFrameView(spec, source, "travel", nil)
+	require.Equal(t, [][]any{{"Travel", 900.0, 100.0}}, view.Rows)
+	require.NotNil(t, summary)
+	require.InDelta(t, 900.0, summary.Values["paid"], 1e-9)
+	require.InDelta(t, 100.0, summary.Values["share"], 1e-9)
+	require.InDelta(t, 1000.0, summary.FullValues["paid"], 1e-9)
+	require.InDelta(t, 100.0, summary.FullValues["share"], 1e-9)
 }
 
 func TestTableFrameViewKeepsNonTableFramesUntouched(t *testing.T) {
