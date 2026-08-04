@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { ClientHostProvider } from '@iota-uz/client-host'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Action, DashboardDocument } from '../contract'
 import { LensDashboard } from '../LensDashboard'
@@ -25,6 +26,18 @@ function statDocument(title: string, action?: Action): DashboardDocument {
 
 const drawerAction: Action = {
   kind: 'open_drawer', method: 'GET', urlTemplate: '/drill/loss/lens/document?token=signed', params: [], payload: {},
+}
+
+function renderWithClientHost(children: React.ReactNode) {
+  const background = globalThis.document.createElement('main')
+  const portalOwner = globalThis.document.createElement('div')
+  globalThis.document.body.append(background, portalOwner)
+  return render(
+    <ClientHostProvider background={background} portalOwner={portalOwner}>
+      {children}
+    </ClientHostProvider>,
+    { container: background },
+  )
 }
 
 // A drawer-hosted document carries its own identity block and an empty meta
@@ -76,21 +89,22 @@ describe('Lens drawer host', () => {
     render(<LensDashboard initialDocument={statDocument('Profitability', drawerAction)} fetcher={fetcher} />)
     const opener = screen.getByRole('link', { name: 'Open Profitability metric' })
 
+    opener.focus()
     fireEvent.click(opener)
     expect(await screen.findByRole('dialog', { name: 'Drill details' })).toBeInTheDocument()
     expect(opener.isConnected).toBe(true)
     expect(window.location.pathname).toBe('/dashboard')
     expect(new URL(window.location.href).searchParams.get('drawer')).toContain('/drill/loss/lens/document')
     expect(screen.getByRole('heading', { name: 'Profitability', hidden: true })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Loss ratio detail' })).toBeInTheDocument()
-    expect(globalThis.document.body.style.overflow).toBe('hidden')
+    expect(await screen.findByRole('heading', { name: 'Loss ratio detail' })).toBeInTheDocument()
+    expect(globalThis.document.documentElement.style.overflow).toBe('hidden')
 
     act(() => window.history.back())
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(opener).toHaveFocus())
     expect(opener.isConnected).toBe(true)
     expect(fetcher).toHaveBeenCalledTimes(1)
-    expect(globalThis.document.body.style.overflow).toBe('')
+    expect(globalThis.document.documentElement.style.overflow).toBe('')
   })
 
   it('traps focus and replaces the current drawer document instead of nesting another modal', async () => {
@@ -144,13 +158,13 @@ describe('Lens drawer host', () => {
 
   it('closes on a mousedown directly on the backdrop but not inside the dialog', () => {
     const onClose = vi.fn()
-    render(
+    renderWithClientHost(
       <LensDrawer closeLabel="Close details" eyebrow="Drill" label="Drill details" onClose={onClose}>
         <p>Body content</p>
       </LensDrawer>,
     )
     const dialog = screen.getByRole('dialog', { name: 'Drill details' })
-    const backdrop = dialog.parentElement as HTMLElement
+    const backdrop = dialog.querySelector<HTMLElement>('.lens-drawer-backdrop')!
 
     // A mousedown that lands on a child of the dialog must not dismiss.
     fireEvent.mouseDown(screen.getByText('Body content'))

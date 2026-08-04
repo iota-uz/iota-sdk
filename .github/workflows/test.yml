@@ -129,9 +129,6 @@ jobs:
           just lens typegen
           git diff --exit-code -- web/lens/src/contract
 
-      - name: Check Lens workspace
-        run: just lens check
-
       - name: Verify clean-clone Go compatibility boundary
         run: |
           test "$(git ls-files pkg/lens/render/react/dist)" = "pkg/lens/render/react/dist/.keep"
@@ -140,6 +137,9 @@ jobs:
 
       - name: Build ignored Lens compatibility assets
         run: just lens build
+
+      - name: Check Lens workspace
+        run: just lens check
 
       - name: Verify Lens compatibility bundle builds
         run: |

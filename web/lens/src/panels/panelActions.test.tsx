@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { ClientHostProvider } from '@iota-uz/client-host'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Action, DashboardDocument, Frame, Panel } from '../contract'
 import type { ChartAdapter, ChartInput } from '../charts/adapter'
@@ -44,12 +45,24 @@ function documentWith(panels: Panel[], frames: Record<string, Frame>): Dashboard
 }
 
 function renderPanel(document: DashboardDocument, children: React.ReactNode) {
-  return render(
+  return renderWithClientHost(
     <div className="lens-root">
       <DocumentProvider initialDocument={document}>
         <DashboardRuntimeProvider locale="en">{children}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>,
+  )
+}
+
+function renderWithClientHost(children: React.ReactNode) {
+  const background = globalThis.document.createElement('main')
+  const portalOwner = globalThis.document.createElement('div')
+  globalThis.document.body.append(background, portalOwner)
+  return render(
+    <ClientHostProvider background={background} portalOwner={portalOwner}>
+      {children}
+    </ClientHostProvider>,
+    { container: background },
   )
 }
 
@@ -116,7 +129,7 @@ describe('stat panels with a panel-level navigate action', () => {
       return Promise.resolve(new Response(JSON.stringify(child), { status: 200 }))
     })
 
-    render(
+    renderWithClientHost(
       <div className="lens-root">
         <DocumentProvider initialDocument={document}>
           <DashboardRuntimeProvider fetcher={fetcher} locale="en">
@@ -568,7 +581,7 @@ describe('per-segment drawer drill', () => {
         return { update: (next) => { input = next }, dispose: () => {} }
       },
     }
-    const view = render(
+    const view = renderWithClientHost(
       <div className="lens-root">
         <DocumentProvider initialDocument={document}>
           <DashboardRuntimeProvider fetcher={fetcher} locale="en">
