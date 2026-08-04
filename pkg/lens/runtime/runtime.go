@@ -1380,9 +1380,6 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 	if err := validateDrillTree(spec); err != nil {
 		return err
 	}
-	if math.IsNaN(spec.CircularScale) || math.IsInf(spec.CircularScale, 0) || spec.CircularScale < 0 {
-		return fmt.Errorf("panel %s circular scale must be zero or a positive finite value", spec.ID)
-	}
 	return nil
 }
 
@@ -1518,30 +1515,9 @@ func validateDrillTree(spec panel.Spec) error {
 		if len(branch.Children) == 0 {
 			return fmt.Errorf("panel %s drill tree branch %q requires children", spec.ID, key)
 		}
-		if err := validateDrillLevelView(spec.ID, "branch "+key, branch.View); err != nil {
-			return err
-		}
 		if err := validateDrillNodes(spec.ID, key, branch.Children); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func validateDrillLevelView(panelID, owner string, view *panel.DrillLevelView) error {
-	if view == nil {
-		return nil
-	}
-	switch view.LegendPosition {
-	case "", panel.LegendTop, panel.LegendRight, panel.LegendBottom, panel.LegendLeft:
-	default:
-		return fmt.Errorf("panel %s drill tree %s has invalid legend position %q", panelID, owner, view.LegendPosition)
-	}
-	if view.LegendWidthPx < 0 {
-		return fmt.Errorf("panel %s drill tree %s legend width cannot be negative", panelID, owner)
-	}
-	if math.IsNaN(view.CircularScale) || math.IsInf(view.CircularScale, 0) || view.CircularScale < 0 {
-		return fmt.Errorf("panel %s drill tree %s circular scale must be zero or a positive finite value", panelID, owner)
 	}
 	return nil
 }
@@ -1574,9 +1550,6 @@ func validateDrillNodes(panelID, parentPath string, nodes []panel.DrillNode) err
 		}
 		if len(node.Children) > 0 && node.Action != nil {
 			return fmt.Errorf("panel %s drill tree node %s cannot have both children and action", panelID, path)
-		}
-		if err := validateDrillLevelView(panelID, "node "+path, node.View); err != nil {
-			return err
 		}
 		if err := validateAction("panel "+panelID+" drill tree node "+path, node.Action, actionValidationOptions{}); err != nil {
 			return err

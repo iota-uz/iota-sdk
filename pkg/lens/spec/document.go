@@ -91,14 +91,12 @@ type DimensionSpec struct {
 	LabelField   string                  `json:"labelField,omitempty"`
 	ColorField   string                  `json:"colorField,omitempty"`
 	PanelKind    panel.Kind              `json:"panelKind,omitempty"`
-	Height       string                  `json:"height,omitempty"`
 	Description  Text                    `json:"description"`
 	RequiresJoin []string                `json:"requiresJoin,omitempty"`
 	Override     *DatasetSpec            `json:"override,omitempty"`
 	Transforms   []transform.Spec        `json:"transforms,omitempty"`
 	Colors       []string                `json:"colors,omitempty"`
 	ValueAxis    panel.ValueAxis         `json:"valueAxis,omitempty"`
-	ColorScale   string                  `json:"colorScale,omitempty"`
 	Presentation panel.PresentationHints `json:"presentation,omitempty"`
 	Map          *panel.MapSpec          `json:"map,omitempty"`
 }
@@ -157,16 +155,8 @@ type PanelSpec struct {
 	Kind            panel.Kind           `json:"kind"`
 	Dataset         string               `json:"dataset,omitempty"`
 	Span            int                  `json:"span,omitempty"`
-	Height          string               `json:"height,omitempty"`
 	Colors          []string             `json:"colors,omitempty"`
 	ShowLegend      bool                 `json:"showLegend,omitempty"`
-	LegendPosition  panel.LegendPosition `json:"legendPosition,omitempty"`
-	LegendWidthPx   int                  `json:"legendWidth,omitempty"`
-	LegendOffsetY   int                  `json:"legendOffsetY,omitempty"`
-	LegendFloating  bool                 `json:"legendFloating,omitempty"`
-	CircularScale   float64              `json:"circularScale,omitempty"`
-	CircularOffsetX int                  `json:"circularOffsetX,omitempty"`
-	ShowTotalBadge  bool                 `json:"showTotalBadge,omitempty"`
 	TotalBadgeValue *float64             `json:"totalBadgeValue,omitempty"`
 	HeadlineValue   *float64             `json:"headlineValue,omitempty"`
 	DrillTree       *panel.DrillTree     `json:"drillTree,omitempty"`
@@ -194,14 +184,11 @@ type PanelSpec struct {
 	// visualize the active comparison. The renderer owns localized messaging.
 	ComparisonUnsupported bool            `json:"comparisonUnsupported,omitempty"`
 	Children              []PanelSpec     `json:"children,omitempty"`
-	ClassName             string          `json:"className,omitempty"`
 	Chrome                chrome.Spec     `json:"-"`
 	ChromeIcon            string          `json:"icon,omitempty"`
 	AccentColor           string          `json:"accentColor,omitempty"`
 	ValueAxis             panel.ValueAxis `json:"valueAxis,omitempty"`
 	Distributed           bool            `json:"distributed,omitempty"`
-	ColorField            string          `json:"colorField,omitempty"`
-	ColorScale            string          `json:"colorScale,omitempty"`
 	Export                exportmeta.Spec `json:"export,omitempty"`
 	// FlowStages declares a metric_flow panel's ordered operand stages.
 	FlowStages []panel.FlowStage `json:"flowStages,omitempty"`

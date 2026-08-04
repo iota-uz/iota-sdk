@@ -462,22 +462,6 @@ func TestResolveDimensionDataset_TransformResolutionScenarios(t *testing.T) {
 	}
 }
 
-func TestBuildDimensionPanelUsesFilterValueWhenColorValueIsUnavailable(t *testing.T) {
-	t.Parallel()
-
-	spec := New("insurance-sales", "Sales").
-		Dataset(nil).
-		Dimension("agency", "Agency").
-		Field("agency_id").
-		ColorScale("AGENCY").
-		Measure("total_policies", "Total Policies").
-		Count().
-		Build()
-
-	panelSpec := buildDimensionPanel(spec, spec.Dimensions[0], dimensionDatasetResolution{Name: "cube_dim_agency"}, "/crm/reports/sales", 1, 0)
-	require.Equal(t, panel.Ref("filter_value"), panelSpec.ColorField)
-}
-
 func TestResolveDimensionDataset_DatasetColorFieldCollisionKeepsFilterValue(t *testing.T) {
 	t.Parallel()
 
@@ -492,7 +476,6 @@ func TestResolveDimensionDataset_DatasetColorFieldCollisionKeepsFilterValue(t *t
 		Dimension("agency", "Agency").
 		Field("agency_name").
 		ColorField("agency_name").
-		ColorScale("AGENCY").
 		Transforms(transform.TopN("total_policies", 10, "Other")).
 		Measure("total_policies", "Total Policies").
 		Field("total_policies").
