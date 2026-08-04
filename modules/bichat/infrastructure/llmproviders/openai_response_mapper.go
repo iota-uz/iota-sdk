@@ -60,7 +60,7 @@ func (m *OpenAIModel) mapResponse(resp *responses.Response) (*agents.Response, e
 			toolCalls = append(toolCalls, types.ToolCall{
 				ID:        item.CallID,
 				Name:      item.Name,
-				Arguments: item.Arguments,
+				Arguments: item.Arguments.OfString,
 			})
 
 		case "code_interpreter_call":
