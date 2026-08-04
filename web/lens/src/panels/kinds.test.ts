@@ -11,7 +11,9 @@ describe('retargetPanel', () => {
       table: { searchable: true }, terminal: true,
     }
 
-    expect(retargetPanel(table, 'bar')).toEqual(expect.not.objectContaining({ columns: expect.anything(), table: expect.anything() }))
+    const retargeted = retargetPanel(table, 'bar')
+    expect(retargeted).not.toHaveProperty('columns')
+    expect(retargeted).not.toHaveProperty('table')
   })
 
   it('preserves configuration when the renderer kind remains compatible', () => {

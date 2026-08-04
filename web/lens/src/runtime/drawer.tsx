@@ -39,41 +39,41 @@ export function LensDrawer({ children, closeLabel, dark = false, eyebrow, label,
   void theme
   return (
     <Portal surface="drawer" label={label} onEscape={onClose} className={`lens-root lens-drawer-root${dark ? ' dark' : ''}`} theme={dark ? 'dark' : 'light'}>
-    {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- backdrop dismissal is delegated while the nested dialog owns focus and semantics. */}
-    <div
-      className="lens-drawer-backdrop"
-      // mousedown, not click: a drag that starts inside the dialog and ends on
-      // the backdrop must not be read as "dismiss".
-      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
-    >
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- backdrop dismissal is delegated while the nested dialog owns focus and semantics. */}
       <div
-        className={`lens-drawer${wide ? ' lens-drawer-wide' : ''}`}
+        className="lens-drawer-backdrop"
+        // mousedown, not click: a drag that starts inside the dialog and ends on
+        // the backdrop must not be read as "dismiss".
+        onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
       >
-        <header className="lens-drawer-header">
-          <div className="lens-drawer-identity">
-            <span className="lens-drawer-eyebrow">{headerEyebrow}</span>
-            {/* The title is what the drawer is about — a product name, a
+        <div
+          className={`lens-drawer${wide ? ' lens-drawer-wide' : ''}`}
+        >
+          <header className="lens-drawer-header">
+            <div className="lens-drawer-identity">
+              <span className="lens-drawer-eyebrow">{headerEyebrow}</span>
+              {/* The title is what the drawer is about — a product name, a
                 counterparty — and it is the one line here that truncates. Panel
                 cards already carry their title as a tooltip; without the same
                 here, an ellipsis is where the subject's identity ends. */}
-            {headerTitle && <span className="lens-drawer-title" title={headerTitle}>{headerTitle}</span>}
-            {headerCaption && <span className="lens-drawer-caption" title={headerCaption}>{headerCaption}</span>}
+              {headerTitle && <span className="lens-drawer-title" title={headerTitle}>{headerTitle}</span>}
+              {headerCaption && <span className="lens-drawer-caption" title={headerCaption}>{headerCaption}</span>}
+            </div>
+            <button
+              aria-label={closeLabel}
+              className="lens-drawer-close"
+              onClick={onClose}
+              ref={closeRef}
+              type="button"
+            >
+              <X />
+            </button>
+          </header>
+          <div className="lens-drawer-document">
+            {children}
           </div>
-          <button
-            aria-label={closeLabel}
-            className="lens-drawer-close"
-            onClick={onClose}
-            ref={closeRef}
-            type="button"
-          >
-            <X />
-          </button>
-        </header>
-        <div className="lens-drawer-document">
-          {children}
         </div>
       </div>
-    </div>
     </Portal>
   )
 }

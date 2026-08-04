@@ -35,21 +35,33 @@ if (!shouldUpdate) {
 }
 const result = spawnSync('pnpm', args, { cwd: root, env, stdio: 'inherit' })
 if ((result.status ?? 1) !== 0 && !shouldUpdate && existsSync(report)) {
+  /** @param {unknown} value @returns {value is Record<string, unknown>} */
+  const isRecord = (value) => typeof value === 'object' && value !== null && !Array.isArray(value)
+  /** @param {unknown} value @param {string} key @returns {unknown[]} */
+  const arrayField = (value, key) => isRecord(value) && Array.isArray(value[key]) ? value[key] : []
+  /** @param {unknown} value @param {string} key @returns {string} */
+  const stringField = (value, key) => isRecord(value) && typeof value[key] === 'string' ? value[key] : ''
+  /** @param {unknown} error @returns {string} */
+  const errorText = (error) => stringField(error, 'message') || stringField(error, 'value')
+  /** @type {{ title: string, errors: unknown[] }[]} */
   const failures = []
+  /** @param {unknown} suite */
   const visit = (suite) => {
-    for (const spec of suite.specs ?? []) {
-      for (const test of spec.tests ?? []) {
-        for (const run of test.results ?? []) {
-          if (run.status === 'unexpected') failures.push({ title: spec.title, errors: run.errors ?? [] })
+    for (const spec of arrayField(suite, 'specs')) {
+      for (const test of arrayField(spec, 'tests')) {
+        for (const run of arrayField(test, 'results')) {
+          if (stringField(run, 'status') === 'unexpected') {
+            failures.push({ title: stringField(spec, 'title'), errors: arrayField(run, 'errors') })
+          }
         }
       }
     }
-    for (const child of suite.suites ?? []) visit(child)
+    for (const child of arrayField(suite, 'suites')) visit(child)
   }
-  const parsed = JSON.parse(readFileSync(report, 'utf8'))
-  for (const suite of parsed.suites ?? []) visit(suite)
+  const parsed = /** @type {unknown} */ (JSON.parse(readFileSync(report, 'utf8')))
+  for (const suite of arrayField(parsed, 'suites')) visit(suite)
   const missingOnly = failures.length > 0 && failures.every((failure) =>
-    failure.errors.some((error) => String(error.message ?? error.value ?? '').includes("A snapshot doesn't exist")),
+    failure.errors.some((error) => errorText(error).includes("A snapshot doesn't exist")),
   )
   if (missingOnly) {
     const names = failures.map((failure) => failure.title).sort()

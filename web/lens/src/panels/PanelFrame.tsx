@@ -199,13 +199,13 @@ export function PanelFrame({
   const captionNode = captionBelow && panel.caption ? <p className="lens-panel-caption">{panel.caption}</p> : null
   const calculationInfo = frame.calculation
     ? translate('panel.calculation', 'Calculated in {duration} · cache {cache}', {
-        duration: frame.calculation.durationMs < 1000
-          ? `${frame.calculation.durationMs} ms`
-          : `${(frame.calculation.durationMs / 1000).toFixed(1)} s`,
-        cache: frame.calculation.cacheHit
-          ? translate('panel.cacheHit', 'hit')
-          : translate('panel.cacheMiss', 'miss'),
-      })
+      duration: frame.calculation.durationMs < 1000
+        ? `${frame.calculation.durationMs} ms`
+        : `${(frame.calculation.durationMs / 1000).toFixed(1)} s`,
+      cache: frame.calculation.cacheHit
+        ? translate('panel.cacheHit', 'hit')
+        : translate('panel.cacheMiss', 'miss'),
+    })
     : ''
   const infoText = [variant === 'chart' ? panel.caption : '', panel.info, calculationInfo]
     .map((part) => part?.trim() ?? '')
