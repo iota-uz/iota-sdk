@@ -80,6 +80,21 @@ func TestRegistry_SetPublicTargetForApplet(t *testing.T) {
 	assert.Equal(t, MethodTargetGo, serverMethod.Target)
 }
 
+func TestRegistry_PublicContractCatalog(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRegistry()
+	require.NoError(t, registry.RegisterPublicContract("users", "users.list", dummyMethod(), nil, Query(true, 9)))
+	require.NoError(t, registry.RegisterPublicContract("users", "users.save", dummyMethod(), nil, Invalidates("users.list", "users.list")))
+	require.Equal(t, []MethodContract{
+		{Namespace: "users", Method: "users.list", Kind: MethodKindQuery, Cacheable: true, MaxRetries: 3},
+		{Namespace: "users", Method: "users.save", Kind: MethodKindMutation, Invalidates: []string{"users.list"}},
+	}, registry.PublicContracts())
+	catalog := registry.PublicContracts()
+	catalog[1].Invalidates[0] = "changed"
+	require.Equal(t, "users.list", registry.PublicContracts()[1].Invalidates[0])
+}
+
 func TestRegistry_RejectsBunTargetForServerOnlyMethods(t *testing.T) {
 	t.Parallel()
 
