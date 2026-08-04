@@ -16,6 +16,13 @@ each exact tarball. Consumer automation must stage `go.mod`, `go.sum`,
 after both Go resolution and `pnpm install --lockfile-only` succeed. A partial
 resolution is discarded, never committed.
 
+On a pull request, the workflow explicitly checks out and stamps
+`github.event.pull_request.head.sha`, not GitHub's synthetic merge SHA. The
+artifact is therefore named `frontend-<public-pr-head-sha>` and its manifest
+must match the commit resolved by `just sdk preview <pr>` exactly. On a `main`
+push, the same invariant uses `github.sha`. `SDK_SOURCE_SHA` is a guard as well
+as an input: packaging aborts if it differs from the checked-out commit.
+
 Ordinary source PRs build the embedded compatibility bundle but do not commit
 its hashed output. The retained `pkg/lens/render/react/dist` snapshot is updated
 only by the release-train bot after merge. Direct React routes consume the

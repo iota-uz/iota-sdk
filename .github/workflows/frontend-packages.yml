@@ -2,7 +2,7 @@ name: Frontend release train
 
 on:
   pull_request:
-    paths: ["web/**", "pkg/clienthost/**", "pkg/lens/**", "scripts/package-frontends.mjs"]
+    paths: ["web/**", "pkg/clienthost/**", "pkg/lens/**", "scripts/package-frontends.mjs", ".github/workflows/frontend-packages.yml"]
   push:
     branches: [main]
     paths: ["web/**", "pkg/clienthost/**", "pkg/lens/**", "scripts/package-frontends.mjs"]
@@ -10,8 +10,15 @@ on:
 jobs:
   package:
     runs-on: ubuntu-24.04
+    env:
+      SDK_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # pull_request workflows normally check out a synthetic merge ref.
+          # Preview consumers pin the public PR head, so both dependency planes
+          # must be built and stamped from that exact immutable commit instead.
+          ref: ${{ env.SDK_SOURCE_SHA }}
       - uses: actions/setup-node@v4
         with: { node-version: "20" }
       - uses: pnpm/action-setup@v3
@@ -23,9 +30,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
         working-directory: web/lens
       - run: node scripts/package-frontends.mjs artifacts/frontend
+      - name: Verify exact SDK provenance
+        run: |
+          jq -e --arg sha "$SDK_SOURCE_SHA" '
+            .sdkCommit == $sha and
+            (.artifacts | all(.version == ("0.0.0-sha-" + ($sha[0:12]))))
+          ' artifacts/frontend/frontend-artifacts.json
       - uses: actions/upload-artifact@v4
         with:
-          name: frontend-${{ github.sha }}
+          name: frontend-${{ env.SDK_SOURCE_SHA }}
           path: artifacts/frontend
           if-no-files-found: error
           retention-days: 30

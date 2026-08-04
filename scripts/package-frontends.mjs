@@ -6,7 +6,12 @@ import { execFileSync } from 'node:child_process'
 
 const root = path.resolve(import.meta.dirname, '..')
 const output = path.resolve(process.argv[2] ?? path.join(root, 'artifacts', 'frontend'))
-const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
+const checkoutCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
+const expectedCommit = process.env.SDK_SOURCE_SHA?.trim()
+if (expectedCommit && expectedCommit !== checkoutCommit) {
+  throw new Error(`SDK_SOURCE_SHA ${expectedCommit} does not match checked-out commit ${checkoutCommit}`)
+}
+const commit = expectedCommit || checkoutCommit
 const version = `0.0.0-sha-${commit.slice(0, 12)}`
 const packages = [
   { dir: 'web/client-host', build: 'build', output: 'dist' },
