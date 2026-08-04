@@ -124,11 +124,19 @@ jobs:
       - name: Check Lens workspace
         run: just lens check
 
-      - name: Rebuild embedded Lens assets
+      - name: Verify clean-clone Go compatibility boundary
+        run: |
+          test "$(git ls-files pkg/lens/render/react/dist)" = "pkg/lens/render/react/dist/.keep"
+          test ! -f pkg/lens/render/react/dist/.vite/manifest.json
+          go test ./pkg/lens/render/react
+
+      - name: Build ignored Lens compatibility assets
         run: just lens build
 
       - name: Verify Lens compatibility bundle builds
-        run: test -f pkg/lens/render/react/dist/.vite/manifest.json
+        run: |
+          test -f pkg/lens/render/react/dist/.vite/manifest.json
+          git diff --exit-code -- pkg/lens/render/react/dist/.keep
 
   lens-vr:
     needs: changes

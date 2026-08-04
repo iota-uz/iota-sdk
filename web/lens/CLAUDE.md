@@ -41,9 +41,14 @@ just lens watch       # rebuild it on every source change
 
 ## Seeing a change in a real host
 
-The distribution is embedded into the host's Go binary, so a rebuilt bundle is
-invisible to a running server until that binary is rebuilt and restarted. To
-skip that, point the host at the build directory:
+Standard React hosts consume the SHA-stamped `@iota-uz/lens-web` package and its
+public stylesheet. Use the frontend release-train artifact for a PR preview;
+generated compatibility chunks under `pkg/lens/render/react/dist` are ignored
+and must never be committed.
+
+For a legacy custom-element host, `just lens build` generates the compatibility
+bundle before the Go binary is built. To see rebuilds without rebuilding and
+restarting that binary, point the host at the build directory:
 
 ```sh
 just lens watch &                    # keep the bundle current
@@ -52,8 +57,10 @@ eval "$(just lens serve-from-disk)"  # LENS_ASSETS_DIR=<repo>/pkg/lens/render/re
 ```
 
 `LENS_ASSETS_DIR` re-reads the Vite manifest per request, so the asset revision
-follows every rebuild. Leave it unset everywhere else: without it the bundle
-comes from the binary and a missing one still fails loudly at startup.
+follows every rebuild. Leave it unset for a generated-then-embedded legacy
+build. A clean clone intentionally contains no compatibility manifest: direct
+package consumers still compile without Node, while invoking the legacy
+renderer/controller fails with the command needed to generate or locate it.
 
 The VR profile builds the Ladle story bundle and starts a fresh static preview
 for each run. It uses Chromium only, a 1600×1000 CSS viewport, device scale 1,

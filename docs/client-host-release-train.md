@@ -30,9 +30,19 @@ temporary project with the `@iota-uz` registry pointed at an unreachable
 address, React 19 installed as the host runtime, strict peer checks enabled,
 and the installed package manifests compared with `frontend-artifacts.json`.
 
-Ordinary source PRs build the embedded compatibility bundle but do not commit
-its hashed output. The retained `pkg/lens/render/react/dist` snapshot is updated
-only by the release-train bot after merge. Direct React routes consume the
-SHA-stamped `@iota-uz/lens-web` tarball; the custom element remains the
-compatibility adapter. Exact-match enforcement stays disabled until five
-consecutive unattended publish/finalize cycles are recorded by CI.
+Direct React routes consume the SHA-stamped `@iota-uz/lens-web` tarball. This is
+the canonical delivery model. The custom element remains a compatibility
+adapter for hosts that have not migrated yet, but its generated
+`pkg/lens/render/react/dist` files are ignored and never published by a bot or
+committed after merge.
+
+A clean Go clone therefore needs no Node installation. Importing the SDK and
+compiling a direct-package host do not read the compatibility manifest. A
+legacy host must run `just lens build` before compiling the Go binary, or set
+`LENS_ASSETS_DIR` to an already-built dist at runtime; invoking the legacy
+renderer/controller without either fails with an actionable error instead of
+serving an empty dashboard.
+
+Consumer exact-match enforcement depends on one atomic, verified installation
+of both frontend tarballs and the Go module from the same immutable commit. It
+does not depend on a release bot or an arbitrary number of unattended cycles.

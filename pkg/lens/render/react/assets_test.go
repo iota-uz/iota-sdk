@@ -61,7 +61,11 @@ func TestAssetRevisionChangesWhenLazyChunkGraphChanges(t *testing.T) {
 	)
 }
 
-func TestAssetsReferenceEmbeddedFiles(t *testing.T) {
+func TestAssetsReferenceResolvedFiles(t *testing.T) {
+	dir := t.TempDir()
+	writeManifest(t, dir, "entry.js")
+	useAssetSource(t, dir)
+
 	assets := Assets()
 	require.Len(t, assets.Revision, 12)
 	require.NotEmpty(t, assets.Stylesheets)
@@ -74,6 +78,10 @@ func TestAssetsReferenceEmbeddedFiles(t *testing.T) {
 }
 
 func TestStaticControllerServesHashedAssetsWithLongCache(t *testing.T) {
+	dir := t.TempDir()
+	writeManifest(t, dir, "entry.js")
+	useAssetSource(t, dir)
+
 	router := mux.NewRouter()
 	NewStaticController().Register(router)
 
@@ -88,6 +96,10 @@ func TestStaticControllerServesHashedAssetsWithLongCache(t *testing.T) {
 }
 
 func TestStaticControllerRejectsUnknownAssetRevision(t *testing.T) {
+	dir := t.TempDir()
+	writeManifest(t, dir, "entry.js")
+	useAssetSource(t, dir)
+
 	router := mux.NewRouter()
 	NewStaticController().Register(router)
 
@@ -103,11 +115,12 @@ func writeManifest(t *testing.T, dir, entryFile string) {
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".vite"), 0o755))
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "assets"), 0o755))
 	payload, err := json.Marshal(map[string]manifestEntry{
-		"index.html": {File: "assets/" + entryFile},
+		"index.html": {File: "assets/" + entryFile, CSS: []string{"assets/entry.css"}},
 	})
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".vite", "manifest.json"), payload, 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "assets", entryFile), []byte("export default 1\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "assets", "entry.css"), []byte(".lens-root {}\n"), 0o644))
 }
 
 // useAssetSource swaps the package-level source for the duration of one test.
@@ -138,13 +151,34 @@ func TestAssetsFollowTheDiskBundleWhenAssetsDirIsSet(t *testing.T) {
 	assert.NotEqual(t, before.Revision, after.Revision)
 }
 
-func TestAssetsDegradeToEmptyBundleWhenDiskBundleIsMissing(t *testing.T) {
+func requireCompatibilityPanic(t *testing.T, run func()) {
+	t.Helper()
+	var recovered any
+	func() {
+		defer func() { recovered = recover() }()
+		run()
+	}()
+
+	require.NotNil(t, recovered)
+	err, ok := recovered.(error)
+	require.True(t, ok, "compatibility failure must be an error, got %T", recovered)
+	assert.ErrorContains(t, err, compatibilityAssetsHelp)
+	assert.ErrorContains(t, err, ".vite/manifest.json")
+}
+
+func TestLegacySurfacesFailClearlyWhenBundleIsMissing(t *testing.T) {
 	useAssetSource(t, t.TempDir())
 
-	assets := Assets()
-
-	assert.Empty(t, assets.Entry, "a missing dev bundle must not take the process down")
-	assert.Empty(t, assets.Revision)
+	requireCompatibilityPanic(t, func() {
+		Assets()
+	})
+	requireCompatibilityPanic(t, func() {
+		var output bytes.Buffer
+		_ = LensDashboard("/lens/document").Render(context.Background(), &output)
+	})
+	requireCompatibilityPanic(t, func() {
+		NewStaticController()
+	})
 }
 
 func TestLensDashboardPointsAtTheRebuiltBundleWithoutRestart(t *testing.T) {
@@ -188,6 +222,10 @@ func TestStaticControllerServesTheRebuiltRevisionFromDisk(t *testing.T) {
 }
 
 func TestStaticControllerRegistrationIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	writeManifest(t, dir, "entry.js")
+	useAssetSource(t, dir)
+
 	router := mux.NewRouter()
 	NewStaticController().Register(router)
 	NewStaticController().Register(router)
@@ -203,6 +241,10 @@ func TestStaticControllerRegistrationIsIdempotent(t *testing.T) {
 }
 
 func TestLensDashboardRendersAssetsAndAttributes(t *testing.T) {
+	dir := t.TempDir()
+	writeManifest(t, dir, "entry.js")
+	useAssetSource(t, dir)
+
 	var output bytes.Buffer
 	err := LensDashboard(
 		"/lens/snapshots/example",
@@ -223,6 +265,8 @@ func TestLensDashboardRendersAssetsAndAttributes(t *testing.T) {
 }
 
 func TestLensDashboardCanOmitAssetTags(t *testing.T) {
+	useAssetSource(t, t.TempDir())
+
 	var output bytes.Buffer
 	err := LensDashboard("/lens/document", WithoutAssets()).Render(context.Background(), &output)
 	require.NoError(t, err)

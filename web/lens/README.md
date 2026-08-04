@@ -1,8 +1,15 @@
 # Lens React runtime
 
-The Lens custom element is built as a self-contained Vite bundle and embedded by
-`pkg/lens/render/react`. Its Tailwind pipeline is isolated from host applications:
-utilities are prefixed with `lens-` and preflight is disabled.
+`@iota-uz/lens-web` is the canonical Lens delivery surface. Standard React
+hosts install its SHA-stamped package artifact together with the matching
+`@iota-uz/client-host` artifact and import `LensDashboard` plus
+`@iota-uz/lens-web/styles.css` directly.
+
+`pkg/lens/render/react` remains a legacy custom-element adapter. `just lens
+build` creates its self-contained Vite bundle under the ignored
+`pkg/lens/render/react/dist`; generated chunks are not committed. Its Tailwind
+pipeline is isolated from host applications: utilities are prefixed with
+`lens-` and preflight is disabled.
 
 ```sh
 pnpm install
@@ -11,6 +18,11 @@ just lens check
 just lens build
 just lens dev --fixture
 ```
+
+A clean clone can compile direct-package Go consumers without Node. A legacy Go
+host must run `just lens build` before it builds the binary, or provide a built
+directory with `LENS_ASSETS_DIR`; otherwise invoking the adapter fails with an
+actionable compatibility-bundle error.
 
 Without `--fixture`, the development page requests `/lens/document` through the
 Vite proxy. Set `LENS_BACKEND_URL` to change the Go server from

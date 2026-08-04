@@ -75,10 +75,9 @@ lens cmd="help" *args="":
       echo "                   -t 'name'. The per-edit lane; just lens check stays" ; \
       echo "                   the pre-push one" ; \
       echo "  watch            rebuild the bundle on every source change" ; \
-      echo "  serve-from-disk  print the env export that makes a host serve the built" ; \
-      echo "                   bundle from disk (vite's outDir, pkg/lens/render/react/dist)" ; \
-      echo "                   instead of the bundle embedded in its binary, so a rebuild" ; \
-      echo "                   shows up on page reload with no Go rebuild or restart" ; \
+      echo "  serve-from-disk  print the env export that makes a legacy custom-element" ; \
+      echo "                   host serve the ignored compatibility bundle from Vite's" ; \
+      echo "                   outDir, so a rebuild appears without a Go restart" ; \
       exit 2 ;; \
   esac
 
