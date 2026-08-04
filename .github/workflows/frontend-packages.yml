@@ -1,0 +1,31 @@
+name: Frontend release train
+
+on:
+  pull_request:
+    paths: ["web/**", "pkg/clienthost/**", "pkg/lens/**", "scripts/package-frontends.mjs"]
+  push:
+    branches: [main]
+    paths: ["web/**", "pkg/clienthost/**", "pkg/lens/**", "scripts/package-frontends.mjs"]
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - uses: pnpm/action-setup@v3
+        with: { version: "9.15.0" }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - run: pnpm install --frozen-lockfile
+        working-directory: web/client-host
+      - run: pnpm install --frozen-lockfile
+        working-directory: web/lens
+      - run: node scripts/package-frontends.mjs artifacts/frontend
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-${{ github.sha }}
+          path: artifacts/frontend
+          if-no-files-found: error
+          retention-days: 30

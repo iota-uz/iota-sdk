@@ -21,6 +21,7 @@ logs/
 # Build artifacts
 dist/
 **/dist/
+**/package-dist/
 !pkg/lens/render/react/dist/
 !pkg/lens/render/react/dist/**
 
