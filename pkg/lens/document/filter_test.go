@@ -43,6 +43,94 @@ func facetFilter() Filter {
 	}
 }
 
+func segmentedFilter() Filter {
+	return Filter{
+		ID:    "grain",
+		Kind:  FilterKindSegmented,
+		Label: "Periodicity",
+		Segmented: &SegmentedFilter{
+			Param: "PeriodGrain",
+			Value: "quarter",
+			Options: []SegmentedOption{
+				{Value: "year", Label: "By year"},
+				{Value: "quarter", Label: "By quarter"},
+			},
+		},
+	}
+}
+
+func TestDashboardDocumentValidate_SegmentedFilter(t *testing.T) {
+	t.Run("valid segmented filter passes beside a period", func(t *testing.T) {
+		doc := testDocument()
+		doc.Filters = []Filter{periodFilter(), segmentedFilter()}
+		require.NoError(t, doc.Validate())
+	})
+
+	for _, test := range []struct {
+		name    string
+		mutate  func(*Filter)
+		message string
+	}{
+		{name: "payload required", mutate: func(filter *Filter) { filter.Segmented = nil }, message: "requires a segmented payload"},
+		{name: "param required", mutate: func(filter *Filter) { filter.Segmented.Param = " " }, message: "requires a param"},
+		{
+			name:    "single option rejected",
+			mutate:  func(filter *Filter) { filter.Segmented.Options = filter.Segmented.Options[1:] },
+			message: "at least two options",
+		},
+		{
+			name:    "option value required",
+			mutate:  func(filter *Filter) { filter.Segmented.Options[0].Value = " " },
+			message: "option requires a value",
+		},
+		{
+			name:    "option label required",
+			mutate:  func(filter *Filter) { filter.Segmented.Options[0].Label = " " },
+			message: "requires a label",
+		},
+		{
+			name:    "duplicate option rejected",
+			mutate:  func(filter *Filter) { filter.Segmented.Options[0].Value = "quarter" },
+			message: "duplicate option",
+		},
+		{
+			name:    "value must be one of the options",
+			mutate:  func(filter *Filter) { filter.Segmented.Value = "month" },
+			message: "is not one of its options",
+		},
+		{
+			name:    "mixed payload rejected",
+			mutate:  func(filter *Filter) { filter.Period = periodFilter().Period },
+			message: "cannot mix segmented",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			doc := testDocument()
+			filter := segmentedFilter()
+			test.mutate(&filter)
+			doc.Filters = []Filter{filter}
+			require.ErrorContains(t, doc.Validate(), test.message)
+		})
+	}
+
+	t.Run("survives clone and JSON round trip", func(t *testing.T) {
+		doc := testDocument()
+		doc.Filters = []Filter{periodFilter(), segmentedFilter()}
+		require.NoError(t, doc.Validate())
+
+		cloned := cloneFilters(doc.Filters)
+		require.Equal(t, doc.Filters, cloned)
+		cloned[1].Segmented.Options[0].Label = "mutated"
+		require.Equal(t, "By year", doc.Filters[1].Segmented.Options[0].Label)
+
+		encoded, err := doc.MarshalJSON()
+		require.NoError(t, err)
+		decoded := &DashboardDocument{}
+		require.NoError(t, json.Unmarshal(encoded, decoded))
+		require.Equal(t, doc.Filters, decoded.Filters)
+	})
+}
+
 func TestDashboardDocumentValidate_Filters(t *testing.T) {
 	t.Run("valid period filter passes", func(t *testing.T) {
 		doc := testDocument()

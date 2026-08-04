@@ -7,6 +7,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/lens/comparison"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -23,6 +24,7 @@ type dimensionDatasetResolution struct {
 	Name          string
 	Datasets      []lens.DatasetSpec
 	HasColorValue bool
+	Compared      bool
 }
 
 type statDatasetResolution struct {
@@ -88,6 +90,7 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 		}
 	}
 	groupBy := groupByDimension(spec, ctx)
+	comparison := resolveComparison(spec, ctx)
 	ctx.GroupBy = groupBy.Name
 	ctx.ActiveDimension = groupBy.Name
 	remaining := ctx.RemainingDimensions(spec)
@@ -106,8 +109,11 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 	if err != nil {
 		return lens.DashboardSpec{}, serrors.E(op, err)
 	}
+	if comparison.Enabled {
+		statsResolution = compareStatDatasets(spec, statsResolution, comparison)
+	}
 	dashboard.Datasets = append(dashboard.Datasets, statsResolution.Datasets...)
-	if statPanels := buildStatPanels(spec, statsResolution.DatasetByMeasure); len(statPanels) > 0 {
+	if statPanels := buildStatPanelsCompared(spec, statsResolution.DatasetByMeasure, comparison.Enabled); len(statPanels) > 0 {
 		dashboard.Rows = append(dashboard.Rows, lens.RowSpec{Panels: []panel.Spec{buildStatStrip(spec, statPanels)}})
 	}
 
@@ -120,6 +126,9 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 		resolved, err := resolveDimensionDataset(spec, ctx, dim)
 		if err != nil {
 			return lens.DashboardSpec{}, serrors.E(op, err)
+		}
+		if comparison.Enabled {
+			resolved = compareDimensionDataset(spec, resolved, comparison)
 		}
 		dashboard.Datasets = append(dashboard.Datasets, resolved.Datasets...)
 		dimensionPanels = append(dimensionPanels, buildDimensionPanel(spec, dim, resolved, baseURL, len(ordered), idx))
@@ -236,7 +245,7 @@ func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec)
 	}
 }
 
-func buildStatPanels(spec CubeSpec, datasetByMeasure map[string]string) []panel.Spec {
+func buildStatPanelsCompared(spec CubeSpec, datasetByMeasure map[string]string, compared bool) []panel.Spec {
 	panels := make([]panel.Spec, 0, len(spec.Measures))
 	span := statSpan(len(spec.Measures))
 	for _, measure := range spec.Measures {
@@ -261,6 +270,13 @@ func buildStatPanels(spec CubeSpec, datasetByMeasure map[string]string) []panel.
 		}
 		if measure.Action != nil {
 			builder.Action(*measure.Action)
+		} else {
+			builder.Terminal()
+		}
+		if compared {
+			builder.AutoTrend(
+				panel.Ref(comparison.DeltaField(measure.Name)), panel.Ref(comparison.DeltaPercentField(measure.Name)), "", measure.InvertTrend,
+			)
 		}
 		panels = append(panels, builder.Build())
 	}
@@ -286,7 +302,7 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 	// Additional measures appear only in stat panels.
 	measure := spec.Measures[0]
 	actionURL := baseURL
-	builder := panelBuilder(dim.PanelKind, "panel_"+dim.Name, dim.Label, resolved.Name).
+	builder := panelBuilder(dim.PanelKind, "panel_"+dim.Name, dim.Label, resolved.Name, dim.Map).
 		Span(dimensionSpan(remainingCount, index)).
 		Height("360px").
 		Description(dim.Description).
@@ -294,9 +310,15 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 			Label:    panel.Ref("label"),
 			Category: panel.Ref("label"),
 			Value:    panel.Ref(measure.Name),
-			ID:       panel.Ref("filter_value"),
+			Previous: func() panel.FieldRef {
+				if resolved.Compared {
+					return panel.Ref(comparison.PreviousField(measure.Name))
+				}
+				return ""
+			}(),
+			ID: panel.Ref("filter_value"),
 		}).
-		Action(action.CubeDrill(actionURL, dim.Name))
+		Action(action.CrossFilter(actionURL, dim.Name))
 	if strings.TrimSpace(dim.Height) != "" {
 		builder.Height(dim.Height)
 	}
@@ -305,6 +327,9 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 	}
 	if dim.ValueAxis.Scale != "" {
 		builder.ValueAxisScale(dim.ValueAxis.Scale, dim.ValueAxis.LogBase)
+	}
+	if !dim.Presentation.IsZero() {
+		builder.Presentation(dim.Presentation)
 	}
 	if strings.TrimSpace(dim.ColorScale) != "" {
 		colorField := panel.Ref("filter_value")
@@ -322,7 +347,56 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 			builder.DistributedColors()
 		}
 	}
+	if dim.PanelKind == panel.KindTable && resolved.Compared {
+		builder = panel.Table("panel_"+dim.Name, dim.Label, resolved.Name).
+			Span(dimensionSpan(remainingCount, index)).
+			Height("360px").
+			Action(action.CrossFilter(actionURL, dim.Name)).
+			Columns(
+				panel.TableColumn{Field: panel.Ref("label"), Label: dim.Label},
+				panel.TableColumn{Field: panel.Ref(comparison.PreviousField(measure.Name)), Label: "Before", Formatter: measure.Formatter, Align: "right"},
+				panel.TableColumn{Field: panel.Ref(measure.Name), Label: "After", Formatter: measure.Formatter, Align: "right"},
+				panel.TableColumn{
+					Field: panel.Ref(comparison.DeltaField(measure.Name)), Label: "Δ", Formatter: measure.Formatter, Align: "right",
+					Cell: &panel.TableCellSpec{Kind: panel.TableCellDelta, PercentField: panel.Ref(comparison.DeltaPercentField(measure.Name))},
+				},
+			)
+		if strings.TrimSpace(dim.Height) != "" {
+			builder.Height(dim.Height)
+		}
+	}
 	return builder.Build()
+}
+
+func compareStatDatasets(spec CubeSpec, resolved statDatasetResolution, comparison comparisonConfig) statDatasetResolution {
+	fieldsByTerminal := make(map[string][]string)
+	for _, measure := range spec.Measures {
+		terminal := resolved.DatasetByMeasure[measure.Name]
+		fieldsByTerminal[terminal] = append(fieldsByTerminal[terminal], measure.Name)
+	}
+	resolved.Datasets = append(resolved.Datasets, cloneComparisonGraph(resolved.Datasets, comparison, fieldsByTerminal, nil)...)
+	for terminal, fields := range fieldsByTerminal {
+		resolved.Datasets = append(resolved.Datasets, comparisonJoin(terminal, fields, nil))
+		for _, field := range fields {
+			resolved.DatasetByMeasure[field] = comparedDatasetName(terminal)
+		}
+	}
+	return resolved
+}
+
+func compareDimensionDataset(spec CubeSpec, resolved dimensionDatasetResolution, comparison comparisonConfig) dimensionDatasetResolution {
+	fields := make([]string, 0, len(spec.Measures))
+	for _, measure := range spec.Measures {
+		fields = append(fields, measure.Name)
+	}
+	resolved.Datasets = append(resolved.Datasets, cloneComparisonGraph(
+		resolved.Datasets, comparison, map[string][]string{resolved.Name: fields},
+		map[string][]string{resolved.Name: {"filter_value", "label"}},
+	)...)
+	resolved.Datasets = append(resolved.Datasets, comparisonJoin(resolved.Name, fields, []string{"filter_value", "label"}))
+	resolved.Name = comparedDatasetName(resolved.Name)
+	resolved.Compared = true
+	return resolved
 }
 
 func groupByDimension(spec CubeSpec, ctx DrillContext) DimensionSpec {
@@ -360,13 +434,14 @@ func buildDimensionRows(panels []panel.Spec) []lens.RowSpec {
 	return rows
 }
 
-func panelBuilder(kind panel.Kind, id, title, dataset string) *panel.Builder {
+func panelBuilder(kind panel.Kind, id, title, dataset string, mapSpec *panel.MapSpec) *panel.Builder {
 	switch kind {
+	case panel.KindTable:
+		return panel.Table(id, title, dataset)
 	case panel.KindStat,
 		panel.KindTimeSeries,
 		panel.KindBar,
 		panel.KindSegmentBar, panel.KindCascade,
-		panel.KindTable,
 		panel.KindGauge,
 		panel.KindTabs,
 		panel.KindGrid,
@@ -374,6 +449,12 @@ func panelBuilder(kind panel.Kind, id, title, dataset string) *panel.Builder {
 		panel.KindRepeat,
 		panel.KindStatGroup:
 		return panel.Bar(id, title, dataset)
+	case panel.KindHistogram:
+		return panel.Histogram(id, title, dataset)
+	case panel.KindBoxPlot:
+		return panel.BoxPlot(id, title, dataset)
+	case panel.KindHeatmap:
+		return panel.Heatmap(id, title, dataset)
 	case panel.KindHorizontalBar:
 		return panel.HorizontalBar(id, title, dataset)
 	case panel.KindStackedBar:
@@ -389,6 +470,14 @@ func panelBuilder(kind panel.Kind, id, title, dataset string) *panel.Builder {
 		// chart it has not described, so it gets the cube's default bar.
 		// Radial panels belong in a hand-written DashboardSpec.
 		return panel.Bar(id, title, dataset)
+	case panel.KindMap:
+		if mapSpec == nil {
+			return panel.Bar(id, title, dataset)
+		}
+		return panel.Choropleth(id, title, dataset, mapSpec.Source, mapSpec.FeatureProperty).
+			MapLabelProperty(mapSpec.LabelProperty).
+			MapLabelProperties(mapSpec.LabelProperties).
+			MapAttribution(mapSpec.Attribution)
 	case panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		return panel.Bar(id, title, dataset)
 	}

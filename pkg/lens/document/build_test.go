@@ -41,7 +41,38 @@ func TestBuild_ExistingExploreSpec(t *testing.T) {
 
 	payload, err := json.MarshalIndent(doc, "", "  ")
 	require.NoError(t, err)
-	require.Equal(t, golden(t, "generated_explore.json"), string(payload)+"\n")
+	requireGolden(t, "generated_explore.json", string(payload)+"\n")
+}
+
+func TestBuild_DeferredPanelsKeepLayoutAndStructuralValidation(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("rows",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Total"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+	stat := panel.Stat("deferred", "Deferred", "rows").ValueField("value").Terminal().Build()
+	spec := lensbuild.Dashboard("shell", "Shell", lensbuild.Row(stat)).
+		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
+	shell, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.ShellScope(),
+	)
+	require.NoError(t, err)
+	doc, err := Build(spec, shell, BuildOptions{
+		SnapshotID: "deferred", GeneratedAt: time.Unix(1, 0).UTC(), Locale: "en",
+		Endpoints: Endpoints{Panel: "/lens/panel"}, DeferPanels: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, doc.Panels, 1)
+	require.True(t, doc.Panels[0].Deferred)
+	require.Equal(t, "value", doc.Panels[0].Encoding.Value)
+	require.NotContains(t, doc.Frames, FrameRef("panel:deferred"))
+	require.NoError(t, doc.Validate())
+
+	doc.Panels[0].Status = &PanelStatus{Label: "Bad", Tone: StatusTone("invalid")}
+	require.ErrorContains(t, doc.Validate(), "unsupported status tone")
 }
 
 func TestBuild_RadialPanelsCarryExplicitGeometry(t *testing.T) {
@@ -59,7 +90,7 @@ func TestBuild_RadialPanelsCarryExplicitGeometry(t *testing.T) {
 	partition := panel.MultiRingDonut("mix", "Mix", "radial",
 		panel.RadialRing{Key: "actual", Label: "Actual", Order: 1, Total: 100},
 		panel.RadialRing{Key: "plan", Label: "Plan", Order: 2, Total: 100},
-	).IDField("id").SeriesField("series").RadialTolerance(0.01).Build()
+	).IDField("id").SeriesField("series").RadialTolerance(0.01).Terminal().Build()
 	spec := lensbuild.Dashboard("radial", "Radial", lensbuild.Row(partition)).
 		Datasets(lensbuild.StaticDataset("radial", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
@@ -86,12 +117,120 @@ func TestBuild_RadialPanelsCarryExplicitGeometry(t *testing.T) {
 		Tolerance: 0.01,
 	}, wire.Radial)
 	require.Equal(t, &Presentation{Legend: LegendBelow, SliceLabels: SliceLabelsPercent}, wire.Presentation)
+
+	// A deferred panel has no rows yet, so a declared ring total can only be the
+	// layout skeleton's placeholder. Left in place it made every slice print its
+	// own amount as a percentage of that placeholder; zero tells the runtime to
+	// reconcile against the rows it is actually given.
+	deferredDoc, err := Build(spec, executed, BuildOptions{
+		SnapshotID: "radial-deferred", GeneratedAt: time.Unix(1, 0).UTC(), Locale: "en", DeferPanels: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, deferredDoc.Panels, 1)
+	require.NotNil(t, deferredDoc.Panels[0].Radial)
+	for _, ring := range deferredDoc.Panels[0].Radial.Rings {
+		require.Zero(t, ring.Total, ring.Key)
+	}
 }
 
 func TestBuildPresentation_ShowLegendFallsBackToBelow(t *testing.T) {
 	t.Parallel()
 
 	require.Equal(t, &Presentation{Legend: LegendBelow}, buildPresentation(panel.Spec{ShowLegend: true}))
+}
+
+func TestBuildPresentation_CarriesOptInDataLabels(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, &Presentation{DataLabels: true}, buildPresentation(panel.Spec{
+		Presentation: panel.PresentationHints{DataLabels: true},
+	}))
+}
+
+func TestBuild_GaugeUsesWireKind(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("gauge", frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{68.4}})
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+	spec := lensbuild.Dashboard("gauge", "Gauge", lensbuild.Row(
+		panel.Gauge("budget", "Budget", "gauge").ValueField("value").Terminal().Build(),
+	)).Datasets(lensbuild.StaticDataset("gauge", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "gauge", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	require.Equal(t, PanelKindGauge, doc.Panels[0].Kind)
+	require.NoError(t, doc.Validate())
+}
+
+func TestBuild_DistributionPanelsCarryExplicitWireEncodings(t *testing.T) {
+	t.Parallel()
+	set, err := frame.FromRows("distribution", frame.Row{
+		"bucket": "0–10", "count": 12.0, "product": "OSAGO", "region": "Tashkent",
+		"min": 1.0, "q1": 3.0, "median": 5.0, "q3": 8.0, "max": 20.0,
+	})
+	require.NoError(t, err)
+	numberFormat := format.Count()
+	spec := lensbuild.Dashboard("distribution", "Distribution", lensbuild.Row(
+		panel.Histogram("hist", "Histogram", "distribution").CategoryField("bucket").ValueField("count").Terminal().Build(),
+		panel.BoxPlot("box", "Box plot", "distribution").CategoryField("product").
+			BoxFields("min", "q1", "median", "q3", "max").Format(numberFormat).Terminal().Build(),
+		panel.Heatmap("heat", "Heatmap", "distribution").CategoryField("region").SeriesField("product").ValueField("count").Terminal().Build(),
+	)).Datasets(lensbuild.StaticDataset("distribution", set)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "distribution", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	require.Equal(t, []PanelKind{PanelKindHistogram, PanelKindBoxPlot, PanelKindHeatmap}, []PanelKind{
+		doc.Panels[0].Kind, doc.Panels[1].Kind, doc.Panels[2].Kind,
+	})
+	require.Equal(t, Encoding{Category: "product", Lower: "min", Q1: "q1", Median: "median", Q3: "q3", Upper: "max"}, doc.Panels[1].Encoding)
+	require.Contains(t, doc.Panels[1].Format, "median")
+	require.NoError(t, doc.Validate())
+}
+
+func TestBuild_ChoroplethCarriesBoundedGeometryAndJoin(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("regions",
+		frame.Field{Name: "code", Type: frame.FieldTypeString, Values: []any{"north"}},
+		frame.Field{Name: "name", Type: frame.FieldTypeString, Values: []any{"North"}},
+		frame.Field{Name: "premium", Type: frame.FieldTypeNumber, Values: []any{42.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+	geometry := &panel.GeoJSONFeatureCollection{Type: "FeatureCollection", Features: []panel.GeoJSONFeature{{
+		Type: "Feature", Properties: map[string]any{"code": "north", "name": "North", "name_ru": "Север"},
+		Geometry: map[string]any{"type": "Polygon", "coordinates": []any{[]any{}}},
+	}}}
+	spec := lensbuild.Dashboard("map", "Map", lensbuild.Row(
+		panel.Choropleth("regions", "Regions", "regions", panel.GeoJSONSource{Inline: geometry}, "code").
+			MapLabelProperty("name").MapLabelProperties(map[string]string{"en": "name", "ru": "name_ru"}).
+			MapAttribution("© Example Maps").ComparisonUnsupported().
+			IDField("code").LabelField("name").ValueField("premium").Terminal().Build(),
+	)).Datasets(lensbuild.StaticDataset("regions", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "map", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	require.Equal(t, PanelKindMap, doc.Panels[0].Kind)
+	require.Equal(t, "code", doc.Panels[0].Map.FeatureProperty)
+	require.Equal(t, "name", doc.Panels[0].Map.LabelProperty)
+	require.Equal(t, map[string]string{"en": "name", "ru": "name_ru"}, doc.Panels[0].Map.LabelProperties)
+	require.Equal(t, "© Example Maps", doc.Panels[0].Map.Attribution)
+	require.True(t, doc.Panels[0].ComparisonUnsupported)
+	require.Equal(t, "north", doc.Panels[0].Map.Source.Inline.Features[0].Properties["code"])
+	require.NoError(t, doc.Validate())
 }
 
 func TestBuild_DocumentHeaderAndDrawerSuppression(t *testing.T) {
@@ -149,8 +288,8 @@ func TestBuild_InlineDepthIncludesOnlyMaterializedAggregateLevels(t *testing.T) 
 	t.Parallel()
 	spec, result := executeExploreDashboard(t)
 	view := &spec.Explorers[0].Branches[0].Perspectives[0]
-	rootPanel := panel.Pie("explore-root", "Root", "premium").IDField("id").Build()
-	detailPanel := panel.Pie("explore-detail", "Detail", "premium").IDField("id").Build()
+	rootPanel := panel.Pie("explore-root", "Root", "premium").IDField("id").Terminal().Build()
+	detailPanel := panel.Pie("explore-detail", "Detail", "premium").IDField("id").Terminal().Build()
 	view.Nodes[0].Load = nil
 	view.Nodes[0].Panel = &rootPanel
 	view.Nodes[1].Load = nil
@@ -242,9 +381,9 @@ func TestBuild_SparklineTargetAndFocusCanvas(t *testing.T) {
 	frames, err := frame.NewFrameSet(primary)
 	require.NoError(t, err)
 
-	stat := panel.Stat("kpi", "KPI", "rows").SparklineColored([]float64{1, 2, 3}, "#2563eb").Build()
-	coverage := panel.SegmentBar("coverage", "Coverage", "rows").Target(58.21, "Known liabilities").Build()
-	host := panel.Donut("host", "Host", "rows").IDField("id").FocusCanvas().Build()
+	stat := panel.Stat("kpi", "KPI", "rows").SparklineColored([]float64{1, 2, 3}, "#2563eb").Terminal().Build()
+	coverage := panel.SegmentBar("coverage", "Coverage", "rows").Target(58.21, "Known liabilities").Terminal().Build()
+	host := panel.Donut("host", "Host", "rows").IDField("id").FocusCanvas().Terminal().Build()
 	spec := lensbuild.Dashboard("focus", "Focus", lensbuild.Row(stat, coverage, host)).
 		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
@@ -295,11 +434,11 @@ func TestBuild_ExplorerLevelViewPresentationStatusAndSourceData(t *testing.T) {
 	spec, result := executeExploreDashboard(t)
 	view := &spec.Explorers[0].Branches[0].Perspectives[0]
 	money := format.Money("UZS", 0)
-	rootPanel := panel.Pie("explore-root", "Root", "premium").IDField("id").Build()
+	rootPanel := panel.Pie("explore-root", "Root", "premium").IDField("id").Terminal().Build()
 	sourceTable := panel.Table("root-source", "Source rows", "premium").IDField("id").Columns(
 		panel.TableColumn{Field: "label", Label: "Label"},
 		panel.TableColumn{Field: "value", Label: "Value", Formatter: &money},
-	).Build()
+	).Terminal().Build()
 	view.Nodes[0] = explore.PanelNode("root", "Root", rootPanel, explore.ToNode("a", "detail")).
 		WithView(panel.KindHorizontalBar).
 		WithPresentation(panel.PresentationHints{Waterfall: true}).
@@ -344,7 +483,7 @@ func TestBuild_ExplorerLevelViewRejectsNonWireKinds(t *testing.T) {
 	t.Parallel()
 	spec, result := executeExploreDashboard(t)
 	view := &spec.Explorers[0].Branches[0].Perspectives[0]
-	view.Nodes[0] = view.Nodes[0].WithView(panel.KindGauge)
+	view.Nodes[0] = view.Nodes[0].WithView(panel.KindTabs)
 	_, err := Build(spec, result, BuildOptions{SnapshotID: "bad-view", GeneratedAt: time.Unix(1, 0), InlineDepth: 1})
 	require.ErrorContains(t, err, "node root view")
 	require.ErrorContains(t, err, "unsupported document panel kind")
@@ -370,7 +509,7 @@ func TestBuild_TableSemanticsRequiresLeafActionForEvidence(t *testing.T) {
 			// An aggregate matrix: its only interaction is a renderer-local
 			// HTMX drawer, which never becomes a wire action.
 			panel.Table("matrix-table", "Matrix", "rows").IDField("id").
-				Columns(panel.TableColumn{Field: panel.FieldRef("label"), Label: "Label", Action: &htmx}).Build(),
+				Columns(panel.TableColumn{Field: panel.FieldRef("label"), Label: "Label", Action: &htmx}).Terminal().Build(),
 		),
 	).Datasets(lensbuild.StaticDataset("rows", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope())
@@ -393,9 +532,25 @@ func TestConvertAction_PreservesDrawerAndDropsHTMX(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, ActionOpenDrawer, drawer.Kind)
 	require.Equal(t, "/drill/loss/lens/document", drawer.URLTemplate)
+	metricDrawer, ok := convertAction(action.OpenDrawerMetric(action.FieldValue("metric_key")), false)
+	require.True(t, ok)
+	require.Equal(t, ActionOpenDrawer, metricDrawer.Kind)
+	require.NotNil(t, metricDrawer.DrawerKey)
+	require.Equal(t, ValueSourceField, metricDrawer.DrawerKey.Kind)
+	require.Equal(t, "metric_key", metricDrawer.DrawerKey.Name)
+	require.Empty(t, metricDrawer.URLTemplate)
 
 	_, ok = convertAction(action.HtmxSwap("/drill/loss", "#drawer"), false)
 	require.False(t, ok)
+}
+
+func TestBuildTrendCarriesPercentagePointUnit(t *testing.T) {
+	t.Parallel()
+	trend := buildTrend(panel.Stat("ratio", "Ratio", "ratio").
+		AutoTrend("delta", "delta_percent", "Comparison", false).
+		TrendAbsoluteDeltaUnit(panel.TrendDeltaPercentagePoints).
+		Build())
+	require.Equal(t, TrendDeltaPercentagePoints, trend.AbsoluteDeltaUnit)
 }
 
 func TestBuild_PanelTotalBadgeValue(t *testing.T) {
@@ -408,8 +563,8 @@ func TestBuild_PanelTotalBadgeValue(t *testing.T) {
 	frames, err := frame.NewFrameSet(primary)
 	require.NoError(t, err)
 
-	withTotal := panel.Pie("with-total", "With total", "totals").TotalBadgeValue(125.5).Build()
-	withoutTotal := panel.Pie("without-total", "Without total", "totals").Build()
+	withTotal := panel.Pie("with-total", "With total", "totals").TotalBadgeValue(125.5).Terminal().Build()
+	withoutTotal := panel.Pie("without-total", "Without total", "totals").Terminal().Build()
 	spec := lensbuild.Dashboard("totals", "Totals", lensbuild.Row(withTotal, withoutTotal)).
 		Datasets(lensbuild.StaticDataset("totals", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
@@ -437,8 +592,8 @@ func TestBuild_PreservesLogarithmicValueAxis(t *testing.T) {
 	t.Parallel()
 
 	primary, err := frame.New("products",
-		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Large", "Small"}},
-		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{1000.0, 1.0}},
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Large", "Medium", "Small"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{1000.0, 10.0, 1.0}},
 	)
 	require.NoError(t, err)
 	frames, err := frame.NewFrameSet(primary)
@@ -448,7 +603,7 @@ func TestBuild_PreservesLogarithmicValueAxis(t *testing.T) {
 		lensbuild.Row(
 			panel.HorizontalBar("products", "Products", "products").
 				LogarithmicValueAxis(10).
-				Build(),
+				Terminal().Build(),
 		),
 	).Datasets(lensbuild.StaticDataset("products", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
@@ -468,6 +623,7 @@ func TestBuild_TableProjectsColumnsAndCarriesMetadata(t *testing.T) {
 		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{"row-1"}},
 		frame.Field{Name: "group", Type: frame.FieldTypeString, Values: []any{"Retail"}},
 		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: []any{1250.0}},
+		frame.Field{Name: "sample_count", Type: frame.FieldTypeNumber, Values: []any{2.0}},
 		frame.Field{Name: "delta", Type: frame.FieldTypeNumber, Values: []any{-50.0}},
 		frame.Field{Name: "delta_pct", Type: frame.FieldTypeNumber, Values: []any{-4.0}},
 		frame.Field{Name: "earned_premium_url", Type: frame.FieldTypeString, Values: []any{"/analytics/premium?signed=token"}},
@@ -485,7 +641,7 @@ func TestBuild_TableProjectsColumnsAndCarriesMetadata(t *testing.T) {
 		lensbuild.Row(
 			panel.Table("profitability-table", "Profitability", "profitability").IDField("id").Columns(
 				panel.TableColumn{Field: "group", Label: "Группа", Action: &htmx},
-				panel.TableColumn{Field: "amount", Label: "Заработанная премия", Align: "right", Formatter: &money, Cell: &panel.TableCellSpec{Kind: panel.TableCellBar}},
+				panel.TableColumn{Field: "amount", Label: "Заработанная премия", Align: "right", Formatter: &money, Cell: &panel.TableCellSpec{Kind: panel.TableCellBar}, Heat: true, SampleSizeField: "sample_count", MinSampleSize: 5},
 				panel.TableColumn{Field: "delta", Label: "Изменение", Align: "right", Cell: &panel.TableCellSpec{Kind: panel.TableCellDelta, PercentField: "delta_pct"}, Action: &navigate},
 			).Build(),
 		),
@@ -501,7 +657,7 @@ func TestBuild_TableProjectsColumnsAndCarriesMetadata(t *testing.T) {
 	require.Empty(t, wirePanel.Actions)
 	require.Equal(t, []TableColumn{
 		{Field: "group", Label: "Группа", Cell: TableCell{Kind: TableCellPlain}},
-		{Field: "amount", Label: "Заработанная премия", Align: TableAlignRight, Cell: TableCell{Kind: TableCellBar}},
+		{Field: "amount", Label: "Заработанная премия", Align: TableAlignRight, Cell: TableCell{Kind: TableCellBar}, Heat: true, SampleSizeField: "sample_count", MinSampleSize: 5},
 		{
 			Field: "delta", Label: "Изменение", Align: TableAlignRight,
 			Cell: TableCell{Kind: TableCellDelta, SecondaryField: "delta_pct"},
@@ -519,7 +675,7 @@ func TestBuild_TableProjectsColumnsAndCarriesMetadata(t *testing.T) {
 	}, wirePanel.Format["amount"])
 	// Delta secondaries carry percent-unit values, so the wire format defaults
 	// to percent when the column declares no formatter of its own.
-	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1), DecimalSeparator: "."}, wirePanel.Format["delta_pct"])
+	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1)}, wirePanel.Format["delta_pct"])
 
 	wireFrame := doc.Frames[wirePanel.Frame]
 	require.Equal(t, []Column{
@@ -527,19 +683,18 @@ func TestBuild_TableProjectsColumnsAndCarriesMetadata(t *testing.T) {
 		{Name: "amount", Type: ColumnNumber},
 		{Name: "delta", Type: ColumnNumber},
 		{Name: "id", Type: ColumnString},
+		{Name: "sample_count", Type: ColumnNumber},
 		{Name: "delta_pct", Type: ColumnNumber},
 		{Name: "earned_premium_url", Type: ColumnString},
 	}, wireFrame.Columns)
-	require.Equal(t, [][]any{{"Retail", 1250.0, -50.0, "row-1", -4.0, "/analytics/premium?signed=token"}}, wireFrame.Rows)
+	require.Equal(t, [][]any{{"Retail", 1250.0, -50.0, "row-1", 2.0, -4.0, "/analytics/premium?signed=token"}}, wireFrame.Rows)
 	require.NotContains(t, columnNames(wireFrame.Columns), "action_url")
 	require.NotContains(t, columnNames(wireFrame.Columns), "renderer_internal")
 }
 
-// TestBuild_StatGroupAndTabsBecomeLayoutGroups_LegacyShapeUnchanged pins the
-// Groups-emission rule: a single-level group chain (length 1) keeps emitting
-// only the legacy singular Group, exactly as before nested Groups existed.
-// Groups becomes non-nil only once a chain nests to length >= 2.
-func TestBuild_StatGroupAndTabsBecomeLayoutGroups_LegacyShapeUnchanged(t *testing.T) {
+// TestBuild_SingleLevelContainersUseGroupsChain pins that even a single-level
+// container is represented by the authoritative Groups chain.
+func TestBuild_SingleLevelContainersUseGroupsChain(t *testing.T) {
 	t.Parallel()
 	primary, err := frame.New("rows",
 		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Alpha"}},
@@ -550,10 +705,10 @@ func TestBuild_StatGroupAndTabsBecomeLayoutGroups_LegacyShapeUnchanged(t *testin
 	require.NoError(t, err)
 
 	group := panel.StatGroup("ratios", "By earned premium").Span(12).Children(
-		panel.Stat("ratio-a", "Ratio A", "rows").Build(),
+		panel.Stat("ratio-a", "Ratio A", "rows").Terminal().Build(),
 	).Build()
 	tabs := panel.Tabs("result", "Result").Span(12).Children(
-		panel.Stat("cash", "Cash result", "rows").Build(),
+		panel.Stat("cash", "Cash result", "rows").Terminal().Build(),
 	).Build()
 	spec := lensbuild.Dashboard("groups", "Groups", lensbuild.Row(group), lensbuild.Row(tabs)).
 		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
@@ -565,10 +720,8 @@ func TestBuild_StatGroupAndTabsBecomeLayoutGroups_LegacyShapeUnchanged(t *testin
 	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "en"})
 	require.NoError(t, err)
 
-	require.Nil(t, doc.Layout.Rows[0].Panels[0].Groups)
-	require.NotNil(t, doc.Layout.Rows[0].Panels[0].Group)
-	require.Nil(t, doc.Layout.Rows[1].Panels[0].Groups)
-	require.NotNil(t, doc.Layout.Rows[1].Panels[0].Group)
+	require.Len(t, doc.Layout.Rows[0].Panels[0].Groups, 1)
+	require.Len(t, doc.Layout.Rows[1].Panels[0].Groups, 1)
 }
 
 // TestBuild_ContainerDescriptionBecomesGroupCaption pins that a container's
@@ -587,10 +740,10 @@ func TestBuild_ContainerDescriptionBecomesGroupCaption(t *testing.T) {
 
 	group := panel.StatGroup("ratios", "By written premium").Span(12).
 		Description("  Diagnostic basis, not a competing verdict.  ").
-		Children(panel.Stat("ratio-a", "Ratio A", "rows").Build()).Build()
+		Children(panel.Stat("ratio-a", "Ratio A", "rows").Terminal().Build()).Build()
 	tabs := panel.Tabs("result", "Result").Span(12).
 		Description("Cash and underwriting views of the same period.").
-		Children(panel.Stat("cash", "Cash result", "rows").Build()).Build()
+		Children(panel.Stat("cash", "Cash result", "rows").Terminal().Build()).Build()
 	spec := lensbuild.Dashboard("groups", "Groups", lensbuild.Row(group), lensbuild.Row(tabs)).
 		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
@@ -601,8 +754,8 @@ func TestBuild_ContainerDescriptionBecomesGroupCaption(t *testing.T) {
 	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "en"})
 	require.NoError(t, err)
 
-	require.Equal(t, "Diagnostic basis, not a competing verdict.", doc.Layout.Rows[0].Panels[0].Group.Caption)
-	require.Equal(t, "Cash and underwriting views of the same period.", doc.Layout.Rows[1].Panels[0].Group.Caption)
+	require.Equal(t, "Diagnostic basis, not a competing verdict.", doc.Layout.Rows[0].Panels[0].Groups[0].Caption)
+	require.Equal(t, "Cash and underwriting views of the same period.", doc.Layout.Rows[1].Panels[0].Groups[0].Caption)
 }
 
 // TestBuild_MetricKinds covers all three metric panel kinds end to end: kind
@@ -610,8 +763,7 @@ func TestBuild_ContainerDescriptionBecomesGroupCaption(t *testing.T) {
 // relationship=series for association), encoding of the new Share/Confidence/
 // Availability roles, per-element action conversion (including an htmx stage
 // action being dropped), hierarchy depth derivation from Parent, and a nested
-// Tabs-in-Tabs / StatGroup-inside-Tabs group chain with the legacy Group
-// mirror set to the innermost descriptor.
+// Tabs-in-Tabs / StatGroup-inside-Tabs group chain.
 func TestBuild_MetricKinds(t *testing.T) {
 	t.Parallel()
 	primary, err := frame.New("rows",
@@ -656,20 +808,20 @@ func TestBuild_MetricKinds(t *testing.T) {
 		panel.HierarchyRow{Key: "leaf", Label: "Leaf", Parent: "mid"},
 		panel.HierarchyRow{Key: "unalloc", Label: "Unallocated", Parent: "mid", Unallocated: true},
 		panel.HierarchyRow{Key: "ghost", Label: "Ghost (missing frame key)", Parent: "root"},
-	).HierarchyReconcile(0.1).Build()
+	).HierarchyReconcile(0.1).Terminal().Build()
 
 	relationship := panel.MetricRelationship("relationship", "Relationship", "rows", panel.RelationshipSpec{
 		Source: panel.RelationshipEnd{Key: "src", Label: "Source"},
 		Target: panel.RelationshipEnd{Key: "tgt", Label: "Target"},
 		Type:   panel.RelationshipAssociation,
-	}).Build()
+	}).Terminal().Build()
 
-	statA := panel.Stat("stat-a", "Stat A", "rows").Build()
-	statB := panel.Stat("stat-b", "Stat B", "rows").Build()
+	statA := panel.Stat("stat-a", "Stat A", "rows").Terminal().Build()
+	statB := panel.Stat("stat-b", "Stat B", "rows").Terminal().Build()
 	stockGroup := panel.StatGroup("stock-group", "Stock ratios").Span(12).Children(statA, statB).Build()
 
-	innerA := panel.Stat("inner-a", "Inner A", "rows").Build()
-	innerB := panel.Stat("inner-b", "Inner B", "rows").Build()
+	innerA := panel.Stat("inner-a", "Inner A", "rows").Terminal().Build()
+	innerB := panel.Stat("inner-b", "Inner B", "rows").Terminal().Build()
 	movementDetail := panel.Tabs("movement-detail", "Detail").Span(12).Children(innerA, innerB).Build()
 
 	composition := panel.Tabs("composition", "Composition").Span(12).Children(stockGroup, movementDetail).Build()
@@ -750,8 +902,7 @@ func TestBuild_MetricKinds(t *testing.T) {
 	require.Equal(t, MetricRelationshipBidirectional, byID["relationship"].MetricRelationship.Direction)
 
 	// Nested group chains: StatGroup-inside-Tabs and Tabs-in-Tabs each produce
-	// a two-level Groups chain, and the legacy Group always mirrors the
-	// innermost descriptor.
+	// a two-level Groups chain.
 	items := map[string]LayoutItem{}
 	for _, layoutRow := range doc.Layout.Rows {
 		for _, item := range layoutRow.Panels {
@@ -759,7 +910,6 @@ func TestBuild_MetricKinds(t *testing.T) {
 		}
 	}
 	// Top-level metric panels are not inside any container: no group at all.
-	require.Nil(t, items["flow"].Group)
 	require.Nil(t, items["flow"].Groups)
 
 	statAItem := items["stat-a"]
@@ -769,8 +919,6 @@ func TestBuild_MetricKinds(t *testing.T) {
 	require.Equal(t, "Stock ratios", statAItem.Groups[0].Tab)
 	require.Equal(t, "stock-group", statAItem.Groups[1].ID)
 	require.Equal(t, LayoutGroupMetrics, statAItem.Groups[1].Kind)
-	require.NotNil(t, statAItem.Group)
-	require.Equal(t, statAItem.Groups[1], *statAItem.Group, "legacy Group must mirror the innermost chain entry")
 
 	innerAItem := items["inner-a"]
 	require.Len(t, innerAItem.Groups, 2)
@@ -779,15 +927,13 @@ func TestBuild_MetricKinds(t *testing.T) {
 	require.Equal(t, "movement-detail", innerAItem.Groups[1].ID)
 	require.Equal(t, LayoutGroupTabs, innerAItem.Groups[1].Kind)
 	require.Equal(t, "Inner A", innerAItem.Groups[1].Tab)
-	require.NotNil(t, innerAItem.Group)
-	require.Equal(t, innerAItem.Groups[1], *innerAItem.Group)
 
 	innerBItem := items["inner-b"]
 	require.Equal(t, "Inner B", innerBItem.Groups[1].Tab)
 
 	payload, err := json.MarshalIndent(doc, "", "  ")
 	require.NoError(t, err)
-	require.Equal(t, golden(t, "metric_kinds.json"), string(payload)+"\n")
+	requireGolden(t, "metric_kinds.json", string(payload)+"\n")
 }
 
 func columnNames(columns []Column) []string {
@@ -842,7 +988,7 @@ func TestBuild_ExplicitDeltaFormatterBeatsPercentDefault(t *testing.T) {
 			panel.Table("t", "T", "rows").Columns(
 				panel.TableColumn{Field: "delta", Label: "Delta", Cell: &panel.TableCellSpec{Kind: panel.TableCellDelta, PercentField: "delta_pct"}},
 				panel.TableColumn{Field: "delta_pct", Label: "Delta %", Formatter: &explicit},
-			).Build(),
+			).Terminal().Build(),
 		),
 	).Datasets(lensbuild.StaticDataset("rows", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
@@ -866,7 +1012,7 @@ func TestBuild_TableWithoutColumnsKeepsEveryField(t *testing.T) {
 	require.NoError(t, err)
 
 	spec := lensbuild.Dashboard("rows", "Rows",
-		lensbuild.Row(panel.Table("plain", "Plain", "rows").Build()),
+		lensbuild.Row(panel.Table("plain", "Plain", "rows").Terminal().Build()),
 	).Datasets(lensbuild.StaticDataset("rows", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
 		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
@@ -892,7 +1038,7 @@ func TestBuild_CompactFormatterPinsSeparator(t *testing.T) {
 
 	compact := format.MoneyCompact("UZS")
 	spec := lensbuild.Dashboard("rows", "Rows",
-		lensbuild.Row(panel.Pie("p", "P", "rows").Format(compact).Build()),
+		lensbuild.Row(panel.Pie("p", "P", "rows").Format(compact).Terminal().Build()),
 	).Datasets(lensbuild.StaticDataset("rows", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
 		context.Background(), spec, runtime.Request{Locale: "ru", DataScope: "tenant:1"}, runtime.DashboardScope(),
@@ -902,7 +1048,7 @@ func TestBuild_CompactFormatterPinsSeparator(t *testing.T) {
 	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "ru"})
 	require.NoError(t, err)
 	require.Equal(t, FieldFormat{
-		Kind: FormatMoney, Currency: "UZS", Precision: PrecisionOf(2), Compact: true, DecimalSeparator: ".",
+		Kind: FormatMoney, Currency: "UZS", Precision: PrecisionOf(2), Compact: true,
 	}, doc.Panels[0].Format["value"])
 }
 
@@ -917,12 +1063,12 @@ func TestBuild_StatGroupAndTabsBecomeLayoutGroups(t *testing.T) {
 	require.NoError(t, err)
 
 	group := panel.StatGroup("ratios", "By earned premium").Span(12).Layout(panel.GroupColumns).Children(
-		panel.Stat("ratio-a", "Ratio A", "rows").Status("ОЦЕНКА", panel.StatusWarning).Colors("#2f56d9").Build(),
-		panel.Stat("ratio-b", "Ratio B", "rows").Build(),
+		panel.Stat("ratio-a", "Ratio A", "rows").Status("ОЦЕНКА", panel.StatusWarning).Colors("#2f56d9").Terminal().Build(),
+		panel.Stat("ratio-b", "Ratio B", "rows").Terminal().Build(),
 	).Build()
 	tabs := panel.Tabs("result", "Result").Span(12).Children(
-		panel.Stat("cash", "Cash result", "rows").Build(),
-		panel.Table("underwriting", "Underwriting result", "rows").Build(),
+		panel.Stat("cash", "Cash result", "rows").Terminal().Build(),
+		panel.Table("underwriting", "Underwriting result", "rows").Terminal().Build(),
 	).Build()
 	spec := lensbuild.Dashboard("groups", "Groups", lensbuild.Row(group), lensbuild.Row(tabs)).
 		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
@@ -937,12 +1083,12 @@ func TestBuild_StatGroupAndTabsBecomeLayoutGroups(t *testing.T) {
 	metrics := doc.Layout.Rows[0].Panels
 	require.Len(t, metrics, 2)
 	for _, item := range metrics {
-		require.NotNil(t, item.Group)
-		require.Equal(t, LayoutGroupMetrics, item.Group.Kind)
-		require.Equal(t, "ratios", item.Group.ID)
-		require.Equal(t, "By earned premium", item.Group.Label)
-		require.Equal(t, LayoutGroupColumns, item.Group.Layout)
-		require.Equal(t, 12, item.Group.Span)
+		require.Len(t, item.Groups, 1)
+		require.Equal(t, LayoutGroupMetrics, item.Groups[0].Kind)
+		require.Equal(t, "ratios", item.Groups[0].ID)
+		require.Equal(t, "By earned premium", item.Groups[0].Label)
+		require.Equal(t, LayoutGroupColumns, item.Groups[0].Layout)
+		require.Equal(t, 12, item.Groups[0].Span)
 	}
 
 	byID := map[string]Panel{}
@@ -955,10 +1101,10 @@ func TestBuild_StatGroupAndTabsBecomeLayoutGroups(t *testing.T) {
 
 	tabItems := doc.Layout.Rows[1].Panels
 	require.Len(t, tabItems, 2)
-	require.Equal(t, LayoutGroupTabs, tabItems[0].Group.Kind)
-	require.Equal(t, "Cash result", tabItems[0].Group.Tab)
-	require.Equal(t, "Underwriting result", tabItems[1].Group.Tab)
-	require.Equal(t, "result", tabItems[1].Group.ID)
+	require.Equal(t, LayoutGroupTabs, tabItems[0].Groups[0].Kind)
+	require.Equal(t, "Cash result", tabItems[0].Groups[0].Tab)
+	require.Equal(t, "Underwriting result", tabItems[1].Groups[0].Tab)
+	require.Equal(t, "result", tabItems[1].Groups[0].ID)
 }
 
 func TestBuild_SegmentBarBecomesCoverage(t *testing.T) {
@@ -975,7 +1121,7 @@ func TestBuild_SegmentBarBecomesCoverage(t *testing.T) {
 	segment := panel.SegmentBar("payouts", "Claim payouts", "rows").
 		Description("ALL CLAIMS COVERED BY RESERVE").
 		Presentation(panel.PresentationHints{HideTotalBadge: true}).
-		Build()
+		Terminal().Build()
 	segment.HeadlineValue = &headline
 	spec := lensbuild.Dashboard("coverage", "Coverage", lensbuild.Row(segment)).
 		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
@@ -1012,7 +1158,7 @@ func TestBuild_CascadeCarriesWaterfallLayout(t *testing.T) {
 	waterfall := panel.Cascade("reserve-movement", "Reserve movement", "bridge").
 		Waterfall().
 		AnnotationField("annotation").
-		Build()
+		Terminal().Build()
 	spec := lensbuild.Dashboard("waterfall", "Waterfall", lensbuild.Row(waterfall)).
 		Datasets(lensbuild.StaticDataset("bridge", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
@@ -1043,7 +1189,7 @@ func TestBuild_PanelColorsPublishIndexAndLabelSeriesKeys(t *testing.T) {
 	pie := panel.Pie("premium", "Premium", "rows").
 		LabelField("segment").ValueField("amount").
 		Colors("#2563eb", "#d97706").
-		Build()
+		Terminal().Build()
 	spec := lensbuild.Dashboard("premium-dash", "Premium", lensbuild.Row(pie)).
 		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
@@ -1078,7 +1224,7 @@ func TestBuild_SeriesPanelColorsPublishSeriesNameKeys(t *testing.T) {
 	bar := panel.StackedBar("claimed", "Claimed", "rows").
 		CategoryField("month").SeriesField("series").ValueField("amount").
 		Colors("#2563eb", "#d97706").
-		Build()
+		Terminal().Build()
 	spec := lensbuild.Dashboard("claims-dash", "Claims", lensbuild.Row(bar)).
 		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
@@ -1110,7 +1256,7 @@ func TestBuild_PercentFormatPinsSeparator(t *testing.T) {
 
 	percent := format.Percent(1)
 	spec := lensbuild.Dashboard("rows", "Rows",
-		lensbuild.Row(panel.Stat("s", "S", "rows").Format(percent).Build()),
+		lensbuild.Row(panel.Stat("s", "S", "rows").Format(percent).Terminal().Build()),
 	).Datasets(lensbuild.StaticDataset("rows", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
 		context.Background(), spec, runtime.Request{Locale: "ru", DataScope: "tenant:1"}, runtime.DashboardScope(),
@@ -1119,9 +1265,9 @@ func TestBuild_PercentFormatPinsSeparator(t *testing.T) {
 
 	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "ru"})
 	require.NoError(t, err)
-	// The Go renderer prints "47.1%"; the wire format carries the same
+	// The server formatter prints "47.1%"; the wire format carries the same
 	// separator so the runtime does not drift to "47,1 %".
-	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1), DecimalSeparator: "."}, doc.Panels[0].Format["value"])
+	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1)}, doc.Panels[0].Format["value"])
 }
 
 // TestBuild_LazyExploreLevelsCarryDeclaredEncoding pins the contract that made
@@ -1133,9 +1279,9 @@ func TestBuild_LazyExploreLevelsCarryDeclaredEncoding(t *testing.T) {
 	t.Parallel()
 	spec, result := executeExploreDashboard(t)
 	view := &spec.Explorers[0].Branches[0].Perspectives[0]
-	rootPanel := panel.Pie("explore-root", "Root", "premium").IDField("id").Build()
+	rootPanel := panel.Pie("explore-root", "Root", "premium").IDField("id").Terminal().Build()
 	detailPanel := panel.Pie("explore-detail", "Detail", "premium").
-		IDField("id").LabelField("label").ValueField("value").Build()
+		IDField("id").LabelField("label").ValueField("value").Terminal().Build()
 	view.Nodes[0].Load = nil
 	view.Nodes[0].Panel = &rootPanel
 	view.Nodes[1].Load = nil

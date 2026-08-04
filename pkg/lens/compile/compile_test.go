@@ -117,7 +117,12 @@ func TestDocumentCompilesManualStaticDashboard(t *testing.T) {
 		Title:       lensspec.LiteralText("Manual"),
 		Description: lensspec.LiteralText("Static"),
 		Datasets: []lensspec.DatasetSpec{
-			{Name: "stats", Kind: lens.DatasetKindStatic, StaticRef: "stats_dataset"},
+			{
+				Name:                "stats",
+				Kind:                lens.DatasetKindStatic,
+				StaticRef:           "stats_dataset",
+				ComparisonAlignment: lens.ComparisonAlignmentOrdinal,
+			},
 		},
 		Rows: []lensspec.RowSpec{
 			{
@@ -144,6 +149,7 @@ func TestDocumentCompilesManualStaticDashboard(t *testing.T) {
 	require.Len(t, compiled.Spec.Datasets, 1)
 	require.Len(t, compiled.Spec.Rows, 1)
 	require.Equal(t, "stats", compiled.Spec.Datasets[0].Name)
+	require.Equal(t, lens.ComparisonAlignmentOrdinal, compiled.Spec.Datasets[0].ComparisonAlignment)
 	require.Equal(t, "total", compiled.Spec.Rows[0].Panels[0].ID)
 }
 
@@ -187,6 +193,32 @@ func TestCompilePanelPreservesRadialContract(t *testing.T) {
 	require.Equal(t, &panel.RadialSpec{
 		Mode: panel.RadialPartition, Rings: rings, Tolerance: 0.01,
 	}, compiled.Radial)
+}
+
+func TestCompilePanelPreservesDistributionFieldsAndTemporalContract(t *testing.T) {
+	t.Parallel()
+	temporal := &panel.TemporalSpec{RegressionField: "trend", RegressionLabel: "Trend"}
+	item := lensspec.BoxPlot("settlement", "Settlement", "summary").
+		CategoryField("product").
+		PreviousField("previous_median").
+		BoxFields("minimum", "q1", "median", "q3", "maximum").
+		Build()
+	item.Temporal = temporal
+	item.ComparisonUnsupported = true
+
+	compiled, err := compilePanel(item, Options{})
+	require.NoError(t, err)
+	require.Equal(t, panel.KindBoxPlot, compiled.Kind)
+	require.Equal(t, panel.Ref("previous_median"), compiled.Fields.Previous)
+	require.Equal(t, panel.Ref("minimum"), compiled.Fields.Lower)
+	require.Equal(t, panel.Ref("q1"), compiled.Fields.Q1)
+	require.Equal(t, panel.Ref("median"), compiled.Fields.Median)
+	require.Equal(t, panel.Ref("q3"), compiled.Fields.Q3)
+	require.Equal(t, panel.Ref("maximum"), compiled.Fields.Upper)
+	require.Equal(t, temporal, compiled.Temporal)
+	require.True(t, compiled.ComparisonUnsupported)
+	require.Equal(t, panel.KindHistogram, lensspec.Histogram("hist", "Histogram", "data").Build().Kind)
+	require.Equal(t, panel.KindHeatmap, lensspec.Heatmap("heat", "Heatmap", "data").Build().Kind)
 }
 
 // Presentation hints and the rich table-column treatments are producer-side

@@ -3,21 +3,22 @@ import {
   lazy,
   Suspense,
   useContext,
-  useCallback,
   useEffect,
   useId,
-  useMemo,
   useRef,
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react'
-import type { LayoutGroup, LayoutItem, Panel } from './contract'
-import { useDashboard, useDocumentState, useDrawer, usePrint, useTranslate } from './runtime'
-import { ExportMenu, RegisteredPanel, StatMetric, StatusChip, type PanelRegistry } from './panels'
-import { LegendVisibilityContext } from './panels/context'
-import { X } from './icons'
+import type { LayoutGroup, LayoutItem, LayoutRow, Panel } from './contract'
+import { useDashboard, useDocumentState, useDrawer, useDrawerHeader, usePrint, useTranslate } from './runtime'
+import { ExportMenu } from './panels/ExportMenu'
+import { RegisteredPanel, type PanelRegistry } from './panels/registry'
+import { ShareSliceButton } from './panels/ShareSliceButton'
+import { StatMetric, StatusChip } from './panels/StatPanel'
+import { PanelChromeContext, type PanelChrome } from './panels/context'
+import { ArrowClockwise, CircleNotch, Clock, X } from './icons'
 import { ExplorePanel } from './explore'
 import { FilterBar, type CalendarDate } from './controls'
 import { isVisualRegression } from './visualRegression'
@@ -47,12 +48,10 @@ interface LayoutCluster {
 }
 
 /**
- * The group chain for an item, outermost→innermost. `groups` is authoritative
- * when present; the legacy singular `group` is the single-level fallback so
- * existing documents render byte-for-byte the same.
+ * The group chain for an item, outermost→innermost.
  */
 function chainOf(item: LayoutItem): LayoutGroup[] {
-  return item.groups && item.groups.length ? item.groups : item.group ? [item.group] : []
+  return item.groups ?? []
 }
 
 function groupAt(item: LayoutItem, depth: number): LayoutGroup | undefined {
@@ -83,6 +82,61 @@ export function clusterRow(items: LayoutItem[]): LayoutCluster[] {
   return clusterAtDepth(items, 0)
 }
 
+/** Beyond this, a strip's cells are slivers whatever the viewport. */
+const metricColumnCap = 6
+
+/**
+ * The widest strip on the dashboard, which is how many columns every strip on
+ * it is drawn on.
+ *
+ * A strip is identified by its group id, which is stable per strip, so counting
+ * members by id is the same partition the renderer clusters into.
+ */
+export function metricColumnCount(rows: LayoutRow[]): number {
+  const sizes = new Map<string, number>()
+  for (const row of rows) {
+    for (const item of row.panels) {
+      for (const group of chainOf(item)) {
+        if (group.kind !== 'metrics') continue
+        sizes.set(group.id, (sizes.get(group.id) ?? 0) + 1)
+      }
+    }
+  }
+  const widest = Math.max(1, ...sizes.values())
+  return Math.min(metricColumnCap, widest)
+}
+
+/**
+ * How many of the strip's columns each member occupies.
+ *
+ * Every strip on a dashboard is drawn on one column grid — that is what makes
+ * the vertical rules of a three-member strip and a four-member strip meet
+ * instead of zig-zagging past each other. A strip whose member count does not
+ * fill its last row hands the leftover columns to the cells that are there, so
+ * the row still reaches the card's edge (no half-row of white reading as a card
+ * that failed to load) while every seam still lands on a column line.
+ */
+export function metricSpans(count: number, columns: number): number[] {
+  const cols = Math.max(1, Math.floor(columns))
+  if (count <= 0) return []
+  const spans = new Array<number>(count).fill(1)
+  const tail = count % cols
+  if (tail === 0) return spans
+  const base = Math.floor(cols / tail)
+  const extra = cols % tail
+  for (let index = 0; index < tail; index += 1) {
+    spans[count - tail + index] = base + (index < extra ? 1 : 0)
+  }
+  return spans
+}
+
+/**
+ * The strip's column count. Set once per document from the widest strip so a
+ * member can compute its span; 4 is the shape a producer chunks strips into
+ * when nothing else is known.
+ */
+const MetricColumnsContext = createContext(4)
+
 /**
  * Per-group active-tab memory keyed by group id, held for the dashboard's
  * lifetime. A nested tab group unmounts when its outer tab switches away;
@@ -107,6 +161,7 @@ function MissingPanel({ panelId }: { panelId: string }) {
 }
 
 function GroupCard({ group, children }: { group: LayoutGroup; children: ReactNode }) {
+  const { isRefreshing } = useDocumentState()
   return (
     <div className="lens-grid-item" style={spanStyle(group.span)}>
       <section
@@ -122,8 +177,14 @@ function GroupCard({ group, children }: { group: LayoutGroup; children: ReactNod
           </header>
         )}
         {/* A group's caption reads for the whole strip, so it sits under the
-            heading rather than inside any one member's card. */}
-        {group.caption && <p className="lens-panel-caption">{group.caption}</p>}
+            heading rather than inside any one member's card. It is a
+            server-produced string that names the period the figures below are
+            for, so while a new document is in flight it describes the previous
+            one — it dims with them rather than standing at full strength over
+            superseded numbers. */}
+        {group.caption && (
+          <p className="lens-panel-caption" data-stale={isRefreshing || undefined}>{group.caption}</p>
+        )}
         {children}
       </section>
     </div>
@@ -191,26 +252,82 @@ function MetricsGroup({ group, items, panels, registry }: {
   panels: Map<string, Panel>
   registry?: PanelRegistry
 }) {
+  const columns = useContext(MetricColumnsContext)
+  // One span per breakpoint: the document's own column count on a wide card,
+  // two columns on a narrow one. The cell carries both, and the sheet picks
+  // which one applies — a container query cannot compute an integer.
+  const spans = metricSpans(items.length, columns)
+  const spansNarrow = metricSpans(items.length, 2)
   return (
     <GroupCard group={group}>
       {/* Class names stay literal: Tailwind's content scan cannot see an
           interpolated modifier and would drop the rule. */}
       <div className={`lens-metric-row ${group.layout === 'rows' ? 'lens-metric-row-rows' : 'lens-metric-row-columns'}`}>
-        {items.map((item) => {
+        {items.map((item, index) => {
           const panel = panels.get(item.panelId)
-          if (!panel) return <MissingPanel key={item.panelId} panelId={item.panelId} />
-          // Only stat panels have a chrome-free metric form; anything else
-          // keeps its own card so the group degrades instead of breaking.
-          // A stat that hosts a drill root needs its card chrome (the trail and
-          // the breakdown affordance live there), so it opts out of the compact
-          // metric form rather than losing its exploration.
-          return panel.kind === 'stat' && !panel.drillRoot
-            ? <StatMetric key={panel.id} panel={panel} />
-            : <PanelSlot key={panel.id} panel={panel} registry={registry} />
+          // Every member sits in the same kind of box, whatever it contains.
+          // A cell that wrapped its own content (a navigable stat used to) sized
+          // itself differently from one that did not, which is how one strip
+          // ended up with 447px and 480px cells side by side.
+          return (
+            <div
+              className="lens-metric-cell"
+              style={{
+                '--lens-metric-span': spans[index] ?? 1,
+                '--lens-metric-span-2': spansNarrow[index] ?? 1,
+              } as CSSProperties}
+              key={item.panelId}
+            >
+              {!panel
+                ? <MissingPanel panelId={item.panelId} />
+                // Only stat panels have a chrome-free metric form; anything else
+                // keeps its own card so the group degrades instead of breaking.
+                // A stat that hosts a drill root needs its card chrome (the trail
+                // and the breakdown affordance live there), so it opts out of the
+                // compact metric form rather than losing its exploration.
+                : panel.kind === 'stat' && !panel.drillRoot
+                  ? <StatMetric panel={panel} />
+                  : <PanelSlot panel={panel} registry={registry} />}
+            </div>
+          )
         })}
       </div>
     </GroupCard>
   )
+}
+
+/** One `PanelChrome` value, so the provider does not remount its subtree. */
+const redundantTitle: PanelChrome = { titleIsRedundant: true }
+
+function comparableTitle(value: string): string {
+  return value.trim().replace(/\s+/gu, ' ').toLocaleLowerCase()
+}
+
+/**
+ * Whether the tab's label already names the one panel behind it.
+ *
+ * A tab group is itself a card: heading, border, radius. A single panel inside
+ * it brings a second set, and when the tab label and the panel title are the
+ * same words the reader is shown one name twice, forty pixels apart, in two
+ * typographic treatments. Only the exact-match, single-panel case is silenced —
+ * a tab holding several panels needs every one of them named, and a tab label
+ * that says something different from the panel title is not a duplicate.
+ */
+function namesItsOnlyPanel(
+  tab: string,
+  items: LayoutItem[],
+  depth: number,
+  panels: Map<string, Panel>,
+): boolean {
+  if (!tab.trim()) return false
+  const members = items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)
+  if (members.length !== 1) return false
+  const only = members[0]
+  // A member that is itself grouped deeper renders its own container; the tab
+  // label is not naming a card in that case.
+  if (only && chainOf(only).length > depth + 1) return false
+  const title = only ? panels.get(only.panelId)?.title : undefined
+  return Boolean(title) && comparableTitle(title!) === comparableTitle(tab)
 }
 
 function TabsGroup({ group, items, depth, panels, registry }: {
@@ -230,25 +347,13 @@ function TabsGroup({ group, items, depth, panels, registry }: {
   const [active, setActive] = useState(() => store?.get(group.id) ?? tabs[0] ?? '')
   const current = tabs.includes(active) ? active : tabs[0] ?? ''
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const [hiddenSeries, setHiddenSeries] = useState<ReadonlySet<string>>(() => new Set())
-  const toggleSeries = useCallback((key: string) => {
-    setHiddenSeries((currentHidden) => {
-      const next = new Set(currentHidden)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }, [])
-  const resetSeries = useCallback(() => setHiddenSeries(new Set()), [])
-  const legendVisibility = useMemo(() => ({
-    hidden: hiddenSeries,
-    toggle: toggleSeries,
-    reset: resetSeries,
-  }), [hiddenSeries, resetSeries, toggleSeries])
+  const [focused, setFocused] = useState(current)
+  const focusCurrent = tabs.includes(focused) ? focused : current
 
   const select = (tab: string) => {
     store?.set(group.id, tab)
     setActive(tab)
+    setFocused(tab)
   }
 
   // Roving-tabindex keyboard model (WAI-ARIA tabs). The handler is on each tab
@@ -265,7 +370,7 @@ function TabsGroup({ group, items, depth, panels, registry }: {
     if (nextTab === undefined) return
     event.preventDefault()
     event.stopPropagation()
-    select(nextTab)
+    setFocused(nextTab)
     tabRefs.current[next]?.focus()
   }
 
@@ -273,8 +378,7 @@ function TabsGroup({ group, items, depth, panels, registry }: {
   const panelId = (index: number) => `${baseId}-panel-${index}`
 
   return (
-    <LegendVisibilityContext.Provider value={legendVisibility}>
-      <GroupCard group={group}>
+    <GroupCard group={group}>
       {/* An unlabelled group would otherwise expose its raw id to a screen
           reader; a translated generic name is the honest fallback. */}
       <div className="lens-tabstrip" role="tablist" aria-label={group.label || translate('dashboard.tabs', 'Tabs')}>
@@ -289,8 +393,13 @@ function TabsGroup({ group, items, depth, panels, registry }: {
             onKeyDown={(event) => onTabKeyDown(event, index)}
             ref={(node) => { tabRefs.current[index] = node }}
             role="tab"
-            tabIndex={tab === current ? 0 : -1}
+            tabIndex={tab === focusCurrent ? 0 : -1}
             type="button"
+            onKeyUp={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return
+              event.preventDefault()
+              select(tab)
+            }}
           >
             {tab}
           </button>
@@ -313,24 +422,31 @@ function TabsGroup({ group, items, depth, panels, registry }: {
           tabIndex={0}
         >
           {(print.active || tab === current) && (
-            <GroupChain
-              depth={depth + 1}
-              items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
-              panels={panels}
-              registry={registry}
-            />
+            <PanelChromeContext.Provider value={namesItsOnlyPanel(tab, items, depth, panels) ? redundantTitle : undefined}>
+              <GroupChain
+                depth={depth + 1}
+                items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
+                panels={panels}
+                registry={registry}
+              />
+            </PanelChromeContext.Provider>
           )}
         </div>
       ))}
-      </GroupCard>
-    </LegendVisibilityContext.Provider>
+    </GroupCard>
   )
 }
 
-/** Relative "updated X ago" using the document's own locale. */
+/**
+ * Relative "updated X ago" using the document's own locale.
+ *
+ * Short units, because this reading is now the label of the control it invites
+ * rather than a sentence beside it: «Рассчитано 17 секунд назад» is a header
+ * button 210px wide that says what «17 сек. назад» says in 140.
+ */
 function relativeTime(timestamp: number, locale: string): string {
   const seconds = Math.round((timestamp - Date.now()) / 1000)
-  const format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+  const format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'short' })
   const abs = Math.abs(seconds)
   if (abs < 60) return format.format(seconds, 'second')
   const minutes = Math.round(seconds / 60)
@@ -341,12 +457,18 @@ function relativeTime(timestamp: number, locale: string): string {
 }
 
 /**
+ * Past this age the stamp stops being a detail and becomes a caveat on every
+ * figure below it.
+ */
+const stalenessThresholdMs = 60 * 60_000
+
+/**
  * The document's live "updated X ago" read, or null when it cannot be shown
  * (inside a drawer, under visual regression, or without a parseable timestamp).
  * Ticks once a minute so the relative label stays current. Shared by the lone
  * freshness line and the header subtitle that folds it in.
  */
-function useFreshness(): { label: string; isRefreshing: boolean } | null {
+function useFreshness(): { label: string; isRefreshing: boolean; absolute: string; stale: boolean } | null {
   const { document } = useDashboard()
   const { isRefreshing } = useDocumentState()
   const drawer = useDrawer()
@@ -365,40 +487,81 @@ function useFreshness(): { label: string; isRefreshing: boolean } | null {
   const label = isRefreshing
     ? translate('panel.updating', 'Updating')
     : translate('dashboard.updated', 'Updated {time}', { time: relativeTime(generatedAt, document.meta.locale) })
-  return { label, isRefreshing }
+  const absolute = new Intl.DateTimeFormat(document.meta.locale, { dateStyle: 'medium', timeStyle: 'short' })
+    .format(generatedAt)
+  return { label, isRefreshing, absolute, stale: Date.now() - generatedAt > stalenessThresholdMs }
 }
 
 /**
- * A subtle "updated X ago" line under the dashboard header. It is hidden inside
- * drawers (the host dashboard already carries it) and under visual regression,
- * where a live timestamp would make the screenshot nondeterministic.
+ * How old the figures on screen are, and the one thing a reader does about it.
+ *
+ * These were two controls: a stamp reading «Рассчитано 9 минут назад» and a
+ * button reading «Пересчитать» beside it. Two boxes, one subject — the stamp
+ * stated a fact whose only available response was the box next to it, and
+ * «Пересчитать» named the machine's activity rather than answering the question
+ * a reader actually has. Fused, the age *is* the label: the control says whether
+ * it is worth pressing instead of asking the reader to correlate two adjacent
+ * readings, and the action row loses an entry.
+ *
+ * The label therefore changes with wall-clock time, which the split version
+ * deliberately avoided — a widening button used to shove Экспорт out from under
+ * the pointer mid-gesture. It cannot here: this is the first member of a
+ * right-aligned cluster (`.lens-dashboard-actions` is `justify-end`), so its own
+ * left edge absorbs every width change and the controls after it never move.
+ *
+ * Four states, because two independent facts gate it. Without a recompute
+ * endpoint the dashboard cannot act on its own staleness, so the same reading
+ * renders as a bare stamp on the same baseline and the row's geometry does not
+ * change between dashboards. Without a parseable `generatedAt` — and under
+ * visual regression, where a relative time is not reproducible — there is no age
+ * to print, so the button falls back to naming itself.
  */
-function DashboardFreshness() {
+function FreshnessControl() {
+  const { isRecomputing, recompute, canRecompute } = useDashboard()
+  const translate = useTranslate()
   const freshness = useFreshness()
-  if (!freshness) return null
-  return (
-    <p className="lens-dashboard-updated" aria-live="polite" data-refreshing={freshness.isRefreshing || undefined}>
-      {freshness.label}
-    </p>
-  )
-}
+  const hintID = useId()
 
-/**
- * The document's identity subtitle: a producer-localized period line with the
- * live freshness read folded in (« … · updated 5 min ago »). The freshness
- * fragment keeps its own aria-live so a refresh is still announced.
- */
-function DashboardSubtitle({ subtitle }: { subtitle?: string }) {
-  const freshness = useFreshness()
-  if (!subtitle && !freshness) return null
+  if (!canRecompute) {
+    if (!freshness) return null
+    return (
+      <p
+        aria-live="polite"
+        className="lens-dashboard-updated"
+        data-refreshing={freshness.isRefreshing || undefined}
+        data-stale={freshness.stale || undefined}
+        title={freshness.absolute}
+      >
+        <Clock />
+        <span>{freshness.label}</span>
+      </p>
+    )
+  }
+
+  // A relative label alone reads as uptime: it ticks up with wall-clock time
+  // whether or not anything went stale, so the absolute timestamp is what the
+  // control actually claims, on hover and in the description.
+  const hint = isRecomputing
+    ? translate('dashboard.recomputing', 'Recomputing…')
+    : translate('dashboard.recomputeHint', 'Refresh every figure, ignoring the cached results')
   return (
-    <p className="lens-dashboard-subtitle">
-      {subtitle && <span>{subtitle}</span>}
-      {subtitle && freshness && <span aria-hidden="true" className="lens-dashboard-subtitle-sep"> · </span>}
-      {freshness && (
-        <span aria-live="polite" data-refreshing={freshness.isRefreshing || undefined}>{freshness.label}</span>
-      )}
-    </p>
+    <>
+      <button
+        aria-busy={isRecomputing}
+        aria-describedby={hintID}
+        aria-live="polite"
+        className="lens-export-button lens-recompute"
+        data-stale={freshness?.stale || undefined}
+        disabled={isRecomputing}
+        onClick={recompute}
+        title={freshness ? `${freshness.absolute} — ${hint}` : hint}
+        type="button"
+      >
+        {isRecomputing ? <CircleNotch className="lens-icon-spin" /> : <ArrowClockwise />}
+        <span>{freshness ? freshness.label : translate('dashboard.recompute', 'Recompute')}</span>
+      </button>
+      <span className="lens-sr-only" id={hintID}>{hint}</span>
+    </>
   )
 }
 
@@ -446,9 +609,10 @@ function usePrintPreview(): void {
 }
 
 export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps) {
-  const { document } = useDashboard()
+  const { document, canRecompute } = useDashboard()
   const translate = useTranslate()
   const drawer = useDrawer()
+  const drawerHeader = useDrawerHeader()
   const print = usePrint()
   const panels = new Map(document.panels.map((panel) => [panel.id, panel]))
   // First paint only: panels rise/fade in with a small per-panel stagger. The
@@ -469,59 +633,91 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
   }
 
   const header = document.header
-  const identityTitle = header?.title || document.meta.title
+  // A drawer whose document carries a `drawer` block states its own identity in
+  // the chrome — eyebrow, title, caption and period. The document then printed
+  // its own title and subtitle directly underneath, so «Детализация /
+  // Бухгалтерские страховые выплаты / Период: 1 янв. — 2 авг. 2026» was followed
+  // by the same metric and the same period again. Where the chrome speaks, the
+  // contents do not: the identity belongs to the frame.
+  //
+  // Gated on the chrome actually carrying a title, not merely on being in a
+  // drawer. A document opened without a `drawer` block leaves the chrome's
+  // identity line empty, and suppressing the document's own heading there would
+  // take the drawer's only name away rather than de-duplicate it.
+  const inDrawer = drawer.depth > 0 && Boolean(drawerHeader?.title?.trim())
+  const identityTitle = inDrawer ? '' : (header?.title || document.meta.title)
   const hasHeader = Boolean(identityTitle) || Boolean(document.endpoints.export) || print.available ||
-    (document.filters?.length ?? 0) > 0
+    (document.filters?.length ?? 0) > 0 || canRecompute
+  const columns = metricColumnCount(document.layout.rows)
+  // Comparison is a property of the dashboard, not of the panels that happen to
+  // carry a delta: with it on, every strip reserves the chip's row. Otherwise
+  // turning it on grows one strip by 26px and leaves the strip beneath it where
+  // it was, so two rows of the same component stop matching.
+  const comparing = (document.filters ?? []).some((filter) =>
+    filter.kind === 'compare' && filter.compare !== undefined && filter.compare.value.mode !== 'off')
   return (
     <TabStateContext.Provider value={tabState}>
-    <main className="lens-dashboard" aria-label={identityTitle}>
-      {hasHeader && (
-        <header className="lens-dashboard-header">
-          {/* The document header owns the page identity: a strong title over a
-              muted period + freshness subtitle. Without one, an empty title
-              lets a host page own the heading and keeps the dashboard's own
-              chrome to the action bar. */}
-          {header ? (
-            <div className="lens-dashboard-identity">
+      <main
+        aria-label={identityTitle || undefined}
+        className={`lens-dashboard${comparing ? ' lens-dashboard-comparing' : ''}`}
+        style={{ '--lens-metric-columns': columns } as CSSProperties}
+      >
+        {hasHeader && (
+          <header className="lens-dashboard-header">
+            {/* Three rows, each answering one question, in the order a reader
+                asks them: what page is this and what can I do with it, what
+                slice am I looking at, and what is currently narrowing it.
+                They used to be two columns — identity opposite a single wrapping
+                cluster that mixed the controls changing the data with the verbs
+                carrying it away, at one weight and with no divider, so nothing
+                said which half did which. */}
+            <div className="lens-dashboard-headline">
+              {/* Without a title an empty slot lets a host page own the heading
+                  and keeps the dashboard's own chrome to the action row. */}
               {identityTitle ? <h1 className="lens-dashboard-title">{identityTitle}</h1> : <span />}
-              <DashboardSubtitle subtitle={header.subtitle} />
+              {/* The actions travel as one block. Loose in the row they
+                  re-ordered themselves against the filters at every wrap, so the
+                  fourth control at 1440px was the second one at 1000px. */}
+              <div className="lens-dashboard-actions">
+                <FreshnessControl />
+                <ShareSliceButton />
+                <ExportMenu />
+              </div>
             </div>
-          ) : (
-            document.meta.title ? <h1>{document.meta.title}</h1> : <span />
-          )}
-          <div className="lens-dashboard-controls">
-            <FilterBar today={filterToday} />
-            <ExportMenu />
+            {/* The producer's own scope line rides with the controls that change
+                it rather than under the title: on the analytics boards it
+                restated the period the period control was already printing, so
+                the same fact occupied three surfaces. What is left of it is what
+                no control states — the date the data itself was cut. */}
+            <FilterBar subtitle={inDrawer ? undefined : header?.subtitle} today={filterToday} />
+          </header>
+        )}
+        {hasHeader && <DocumentRefetchError />}
+        <MetricColumnsContext.Provider value={columns}>
+          <div className="lens-dashboard-rows">
+            {document.layout.rows.map((row, rowIndex) => (
+              <section
+                className={`lens-dashboard-row${row.class ? ` ${row.class}` : ''}`}
+                id={row.anchor || undefined}
+                key={`${row.heading ?? 'row'}-${rowIndex}`}
+              >
+                {row.heading && <h2 className="lens-row-heading"><span>{row.heading}</span></h2>}
+                <div
+                  className={`lens-panel-grid${entrance.current ? ' lens-entrance' : ''}`}
+                  style={entrance.current ? ({ '--lens-row-delay': `${Math.min(rowIndex * 60, 180)}ms` } as CSSProperties) : undefined}
+                >
+                  <GroupChain depth={0} items={row.panels} panels={panels} registry={registry} />
+                </div>
+              </section>
+            ))}
           </div>
-        </header>
-      )}
-      {hasHeader && <DocumentRefetchError />}
-      {/* The header folds freshness into its subtitle; only the headerless
-          layout still shows the lone updated line. */}
-      {hasHeader && !header && <DashboardFreshness />}
-      <div className="lens-dashboard-rows">
-        {document.layout.rows.map((row, rowIndex) => (
-          <section
-            className={`lens-dashboard-row${row.class ? ` ${row.class}` : ''}`}
-            id={row.anchor || undefined}
-            key={`${row.heading ?? 'row'}-${rowIndex}`}
-          >
-            {row.heading && <h2 className="lens-row-heading"><span>{row.heading}</span></h2>}
-            <div
-              className={`lens-panel-grid${entrance.current ? ' lens-entrance' : ''}`}
-              style={entrance.current ? ({ '--lens-row-delay': `${Math.min(rowIndex * 60, 180)}ms` } as CSSProperties) : undefined}
-            >
-              <GroupChain depth={0} items={row.panels} panels={panels} registry={registry} />
-            </div>
-          </section>
-        ))}
-      </div>
-      {print.active && (
-        <Suspense fallback={null}>
-          <LazyPrintReport />
-        </Suspense>
-      )}
-    </main>
+        </MetricColumnsContext.Provider>
+        {print.active && (
+          <Suspense fallback={null}>
+            <LazyPrintReport />
+          </Suspense>
+        )}
+      </main>
     </TabStateContext.Provider>
   )
 }

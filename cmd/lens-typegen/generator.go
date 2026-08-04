@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/constant"
 	"go/types"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -22,6 +23,19 @@ type config struct {
 	rootType        string
 	additionalTypes []string
 	versionConstant string
+	palette         paletteConfig
+}
+
+// paletteConfig carries Go-owned colour *values*. Types can be reflected out of
+// the contract package; values cannot, so the generator's caller imports the
+// package that declares them and hands them over here. The runtime renders
+// these, which is why they are generated rather than restated in TypeScript.
+type paletteConfig struct {
+	// series is the categorical palette in its declared order. Order is the
+	// contract: index n means the same colour on both sides.
+	series []string
+	// neutral is the colour reserved for collapsed remainders.
+	neutral string
 }
 
 type contractModel struct {
@@ -33,9 +47,10 @@ type contractModel struct {
 }
 
 type jsonField struct {
-	name     string
-	typ      types.Type
-	optional bool
+	name           string
+	typ            types.Type
+	optional       bool
+	zodConstraints string
 }
 
 func generate(cfg config) (map[string]string, error) {
@@ -51,11 +66,76 @@ func generate(cfg config) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	paletteFile, err := emitPalette(cfg.palette)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]string{
-		"index.ts":   generatedHeader + "\nexport * from './schemas'\nexport * from './types'\n",
+		"index.ts":   generatedHeader + "\nexport * from './palette'\nexport * from './schemas'\nexport * from './types'\n",
+		"palette.ts": paletteFile,
 		"schemas.ts": schemasFile,
 		"types.ts":   typesFile,
 	}, nil
+}
+
+// emitPalette writes the Go palette out as the runtime's own module. Only the
+// colour *values* cross over: which colour a category gets is decided in
+// TypeScript, by a hash the Go side deliberately does not reproduce.
+func emitPalette(cfg paletteConfig) (string, error) {
+	if len(cfg.series) == 0 {
+		return "", fmt.Errorf("palette has no series colors")
+	}
+	var output strings.Builder
+	output.WriteString(generatedHeader)
+	output.WriteString(`
+/**
+ * The Lens categorical palette, in the order Go declares it (pkg/lens/color).
+ *
+ * Values only. Which colour a given category is painted with is decided by
+ * ` + "`charts/palette.ts`" + `, whose hash is not the Go one, so nothing
+ * generated here says anything about assignment.
+ */
+export const PALETTE_SERIES = [
+`)
+	for _, value := range cfg.series {
+		normalized, err := normalizeHexColor(value)
+		if err != nil {
+			return "", fmt.Errorf("palette series: %w", err)
+		}
+		output.WriteString("  '")
+		output.WriteString(normalized)
+		output.WriteString("',\n")
+	}
+	output.WriteString("] as const\n\n")
+	neutral, err := normalizeHexColor(cfg.neutral)
+	if err != nil {
+		return "", fmt.Errorf("palette neutral: %w", err)
+	}
+	output.WriteString(`/**
+ * The colour reserved for a collapsed remainder, so an aggregated tail reads as
+ * de-emphasized rather than as one more category.
+ */
+export const PALETTE_NEUTRAL = '`)
+	output.WriteString(neutral)
+	output.WriteString("'\n")
+	return output.String(), nil
+}
+
+// normalizeHexColor lowercases a #rrggbb value and rejects anything else. The
+// case is cosmetic — CSS does not care — but a generated file that changes case
+// between runs would fail the drift check, and a malformed colour would
+// otherwise ship as a silently unpaintable string.
+func normalizeHexColor(value string) (string, error) {
+	if len(value) != 7 || value[0] != '#' {
+		return "", fmt.Errorf("color %q is not a #rrggbb hex value", value)
+	}
+	for _, digit := range value[1:] {
+		isHex := (digit >= '0' && digit <= '9') || (digit >= 'a' && digit <= 'f') || (digit >= 'A' && digit <= 'F')
+		if !isHex {
+			return "", fmt.Errorf("color %q is not a #rrggbb hex value", value)
+		}
+	}
+	return strings.ToLower(value), nil
 }
 
 func loadContract(cfg config) (*contractModel, error) {
@@ -225,7 +305,7 @@ func emitTypes(model *contractModel) (string, error) {
 		output.WriteString(value)
 		output.WriteString("\n\n")
 	}
-	return output.String(), nil
+	return strings.TrimRight(output.String(), "\n") + "\n", nil
 }
 
 func emitSchemas(model *contractModel) (string, error) {
@@ -277,15 +357,39 @@ func emitSchemas(model *contractModel) (string, error) {
 	}
 
 	output.WriteString("const DocumentVersionSchema = z.object({ version: z.string() }).passthrough()\n\n")
+	output.WriteString(`function panelIsActionable(panel: Contract.Panel): boolean {
+  return Boolean(
+    panel.drillRoot || panel.actions.length > 0 || panel.columns?.some((column) => column.action) ||
+    panel.metricFlow?.stages.some((stage) => stage.action) ||
+    panel.metricHierarchy?.rows.some((row) => row.action) ||
+    panel.metricRelationship?.source.action || panel.metricRelationship?.target.action
+  )
+}
+
+function assertPanelInteractionContract(document: Contract.DashboardDocument): void {
+  document.panels.forEach((panel, index) => {
+    const actionable = panelIsActionable(panel)
+    if (panel.terminal && actionable) {
+      throw new z.ZodError([{ code: 'custom', path: ['panels', index], message: 'panel ' + panel.id + ' cannot be terminal and actionable' }])
+    }
+    if (!panel.terminal && !actionable) {
+      throw new z.ZodError([{ code: 'custom', path: ['panels', index], message: 'panel ' + panel.id + ' must be actionable or explicitly terminal' }])
+    }
+  })
+}
+
+`)
 	output.WriteString("export function parseDocument(input: unknown): Contract.")
 	output.WriteString(model.root)
 	output.WriteString(" {\n")
 	output.WriteString("  const version = DocumentVersionSchema.safeParse(input)\n")
 	output.WriteString("  if (version.success && contractMajor(version.data.version) !== CONTRACT_MAJOR_VERSION) {\n")
 	output.WriteString("    throw new ContractVersionMismatchError(version.data.version)\n  }\n")
-	output.WriteString("  return ")
+	output.WriteString("  const document = ")
 	output.WriteString(model.root)
-	output.WriteString("Schema.parse(input)\n}\n")
+	output.WriteString("Schema.parse(input)\n")
+	output.WriteString("  assertPanelInteractionContract(document)\n")
+	output.WriteString("  return document\n}\n")
 	return output.String(), nil
 }
 
@@ -440,6 +544,7 @@ func emitZodStruct(structure *types.Struct, indent int, contractRoot bool) (stri
 				return "", fmt.Errorf("field %s: %w", field.name, err)
 			}
 		}
+		expression += field.zodConstraints
 		if field.optional {
 			expression += ".optional()"
 		}
@@ -468,9 +573,51 @@ func exportedJSONFields(structure *types.Struct) ([]jsonField, error) {
 		if skip {
 			continue
 		}
-		fields = append(fields, jsonField{name: name, typ: field.Type(), optional: optional})
+		constraints, err := parseLensValidationTag(structure.Tag(index), field.Type())
+		if err != nil {
+			return nil, fmt.Errorf("field %s: %w", field.Name(), err)
+		}
+		fields = append(fields, jsonField{name: name, typ: field.Type(), optional: optional, zodConstraints: constraints})
 	}
 	return fields, nil
+}
+
+func parseLensValidationTag(tag string, typ types.Type) (string, error) {
+	raw := strings.TrimSpace(reflect.StructTag(tag).Get("lens"))
+	if raw == "" {
+		return "", nil
+	}
+	base := types.Unalias(typ)
+	if pointer, ok := base.(*types.Pointer); ok {
+		base = types.Unalias(pointer.Elem())
+	}
+	basic, ok := base.(*types.Basic)
+	if !ok || basic.Info()&types.IsNumeric == 0 {
+		return "", fmt.Errorf("lens numeric constraints require a numeric field")
+	}
+	var output strings.Builder
+	seen := map[string]bool{}
+	for _, item := range strings.Split(raw, ",") {
+		parts := strings.SplitN(strings.TrimSpace(item), "=", 2)
+		if len(parts) != 2 || (parts[0] != "min" && parts[0] != "max") {
+			return "", fmt.Errorf("unsupported lens constraint %q", item)
+		}
+		if seen[parts[0]] {
+			return "", fmt.Errorf("duplicate lens constraint %q", parts[0])
+		}
+		seen[parts[0]] = true
+		value := strings.TrimSpace(parts[1])
+		numeric, err := strconv.ParseFloat(value, 64)
+		if err != nil || math.IsNaN(numeric) || math.IsInf(numeric, 0) {
+			return "", fmt.Errorf("invalid lens constraint %s=%q", parts[0], value)
+		}
+		output.WriteString(".")
+		output.WriteString(parts[0])
+		output.WriteString("(")
+		output.WriteString(value)
+		output.WriteString(")")
+	}
+	return output.String(), nil
 }
 
 func parseJSONTag(fieldName, tag string) (string, bool, bool) {

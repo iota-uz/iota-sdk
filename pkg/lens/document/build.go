@@ -39,7 +39,11 @@ type BuildOptions struct {
 	// renders this identity block once in its top bar, and the document's own
 	// dashboard heading is suppressed (Meta.Title cleared) so the heading is not
 	// stated twice.
-	Drawer *DrawerHeader
+	Drawer   *DrawerHeader
+	URLState *URLStateContract
+	// DeferPanels builds panel/layout metadata without requiring primary frames.
+	// The resulting panels are loaded independently from Endpoints.Panel.
+	DeferPanels bool
 }
 
 func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (*DashboardDocument, error) {
@@ -88,7 +92,9 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 		Endpoints:    opts.Endpoints,
 		I18n:         cloneStrings(opts.I18n),
 		Theme:        cloneTheme(opts.Theme),
+		URLState:     opts.URLState,
 	}
+	doc.ActiveFilters, doc.ResetFiltersURL = buildActiveFilters(spec.Drill)
 	if doc.I18n == nil {
 		doc.I18n = make(map[string]string)
 	}
@@ -105,7 +111,7 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 	for _, rowSpec := range spec.Rows {
 		layoutRow := LayoutRow{Heading: rowSpec.Heading, Class: rowSpec.Class, Anchor: rowSpec.Anchor, Panels: make([]LayoutItem, 0)}
 		for _, panelSpec := range rowSpec.Panels {
-			if err := appendPanelTree(doc, panelSpec, result, hosts, &layoutRow, nil); err != nil {
+			if err := appendPanelTree(doc, panelSpec, result, hosts, &layoutRow, nil, opts.DeferPanels); err != nil {
 				return nil, serrors.E(op, err)
 			}
 		}
@@ -136,6 +142,7 @@ func appendPanelTree(
 	hosts map[string]explore.Spec,
 	row *LayoutRow,
 	groups []LayoutGroup,
+	deferPanels bool,
 ) error {
 	if spec.Kind.IsContainer() {
 		//nolint:exhaustive // Only stat groups and tabs become wire containers; the rest flatten.
@@ -151,7 +158,7 @@ func appendPanelTree(
 			}
 			chain := appendGroup(groups, descriptor)
 			for _, child := range spec.Children {
-				if err := appendPanelTree(doc, child, result, hosts, row, chain); err != nil {
+				if err := appendPanelTree(doc, child, result, hosts, row, chain, deferPanels); err != nil {
 					return err
 				}
 			}
@@ -168,41 +175,45 @@ func appendPanelTree(
 					tab.Tab = fmt.Sprintf("%s %d", spec.ID, index+1)
 				}
 				chain := appendGroup(groups, tab)
-				if err := appendPanelTree(doc, child, result, hosts, row, chain); err != nil {
+				if err := appendPanelTree(doc, child, result, hosts, row, chain, deferPanels); err != nil {
 					return err
 				}
 			}
 			return nil
 		default:
 			for _, child := range spec.Children {
-				if err := appendPanelTree(doc, child, result, hosts, row, groups); err != nil {
+				if err := appendPanelTree(doc, child, result, hosts, row, groups, deferPanels); err != nil {
 					return err
 				}
 			}
 			return nil
 		}
 	}
-	kind, err := panelKind(spec.Kind)
+	kind, err := PanelKindOf(spec.Kind)
 	if err != nil {
 		return fmt.Errorf("panel %s: %w", spec.ID, err)
 	}
 	panelResult := result.Panel(spec.ID)
-	if panelResult == nil {
+	deferred := deferPanels
+	if panelResult == nil && !deferred {
 		return fmt.Errorf("panel %s is missing from runtime result", spec.ID)
 	}
-	if panelResult.Error != nil {
+	if !deferred && panelResult.Error != nil {
 		return fmt.Errorf("panel %s runtime result: %w", spec.ID, panelResult.Error)
 	}
-	primary := panelResult.Frames.Primary()
-	if primary == nil {
+	if !deferred && (panelResult.Frames == nil || panelResult.Frames.Primary() == nil) {
 		return fmt.Errorf("panel %s has no primary frame", spec.ID)
 	}
 	frameRef := FrameRef("panel:" + spec.ID)
-	wireFrame, err := buildPanelFrame(spec, primary)
-	if err != nil {
-		return fmt.Errorf("panel %s: %w", spec.ID, err)
+	wireFrame := Frame{}
+	if !deferred {
+		var err error
+		wireFrame, err = buildPanelFrame(spec, panelResult.Frames.Primary())
+		if err != nil {
+			return fmt.Errorf("panel %s: %w", spec.ID, err)
+		}
+		doc.Frames[frameRef] = wireFrame
 	}
-	doc.Frames[frameRef] = wireFrame
 	actions := panelActions(spec)
 	columns := buildTableColumns(spec)
 	semantics := inferSemantics(kind)
@@ -218,6 +229,7 @@ func appendPanelTree(
 	var metricHierarchy *MetricHierarchyConfig
 	var metricRelationship *MetricRelationshipConfig
 	var radial *RadialConfig
+	var mapConfig *MapConfig
 	//nolint:exhaustive // Only the three metric kinds carry a metric config.
 	switch kind {
 	case PanelKindMetricFlow:
@@ -231,14 +243,36 @@ func appendPanelTree(
 		radial = buildRadial(spec)
 		if radial != nil && radial.Mode == RadialModePartition {
 			semantics = SemanticsPartition
+			if deferred {
+				// A ring's Total is the whole its rows reconcile against, and a
+				// deferred panel has no rows yet — the figure here came from the
+				// layout skeleton, so every slice would print its amount as a
+				// percentage of a placeholder. Zero means "reconcile against the
+				// rows", which is what the runtime does until the real whole
+				// arrives with the panel.
+				for index := range radial.Rings {
+					radial.Rings[index].Total = 0
+				}
+			}
 		}
+	case PanelKindMap:
+		mapConfig = buildMap(spec)
 	}
 	var drillRoot *NodeKey
 	if explorerSpec, ok := hosts[spec.ID]; ok {
+		if deferred {
+			doc.Frames[frameRef] = Frame{Columns: []Column{}, Rows: [][]any{}}
+		}
 		semantics = defaultExplorerSemantics(explorerSpec, semantics)
 		key := explorerRootKey(explorerSpec.ID)
 		drillRoot = &key
 	} else if spec.DrillTree != nil {
+		// Static drill declarations reference the root frame before a deferred
+		// response arrives. An empty placeholder preserves that graph; the React
+		// runtime replaces it atomically with the loaded frame.
+		if deferred {
+			doc.Frames[frameRef] = Frame{Columns: []Column{}, Rows: [][]any{}}
+		}
 		key, err := buildStaticDrillTree(doc, spec, frameRef)
 		if err != nil {
 			return fmt.Errorf("panel %s drill tree: %w", spec.ID, err)
@@ -247,35 +281,41 @@ func appendPanelTree(
 	}
 	doc.Panels = append(doc.Panels, Panel{
 		ID: spec.ID, Kind: kind, Title: spec.Title, Semantics: semantics, Frame: frameRef,
-		Encoding: buildEncoding(spec.Fields, wireFrame), Format: buildFormats(spec), Total: spec.TotalBadgeValue, Columns: columns,
+		Encoding: func() Encoding {
+			if deferred {
+				return declaredEncoding(spec.Fields)
+			}
+			return buildEncoding(spec.Fields, wireFrame)
+		}(), Format: buildFormats(spec), Total: func() *float64 {
+			// Same reasoning as the ring totals below: a badge total is computed
+			// from rows, a deferred panel has none yet, and the figure standing
+			// here came from the layout skeleton — «Итого: 10 UZS» over a donut
+			// whose slices add up to 92 млрд. The frame carries the real total
+			// when the panel arrives and the runtime prefers it, so the honest
+			// shell states no total rather than a placeholder one.
+			if deferred {
+				return nil
+			}
+			return spec.TotalBadgeValue
+		}(), Columns: columns, Table: buildTableOptions(spec),
 		DrillRoot: drillRoot, Actions: actions,
 		Accent: panelAccent(spec), Status: buildStatus(spec), Caption: strings.TrimSpace(spec.Description),
 		Info:     strings.TrimSpace(spec.Info),
 		Headline: spec.HeadlineValue, Trend: buildTrend(spec), Presentation: buildPresentation(spec),
 		ValueAxis: buildValueAxis(spec.ValueAxis),
-		Sparkline: buildSparkline(spec), Target: buildTarget(spec),
+		Sparkline: buildSparkline(spec), Target: buildTarget(spec), Temporal: buildTemporal(spec),
 		MetricFlow: metricFlow, MetricHierarchy: metricHierarchy, MetricRelationship: metricRelationship,
-		Radial:     radial,
-		Confidence: Confidence(spec.Confidence), Availability: Availability(spec.Availability),
+		Radial: radial, Map: mapConfig,
+		Confidence: Confidence(spec.Confidence), Availability: Availability(spec.Availability), Deferred: deferred,
+		Terminal: spec.Terminal, ComparisonUnsupported: spec.ComparisonUnsupported,
 	})
 	span := spec.Span
 	if span == 0 {
 		span = 6
 	}
-	// A single-level group keeps the legacy singular Group only, so an
-	// existing document's output stays byte-identical: Groups is emitted only
-	// once a chain actually nests (length >= 2). The innermost entry always
-	// mirrors into Group for old readers, at any chain depth.
-	var legacyGroup *LayoutGroup
-	var nestedGroups []LayoutGroup
-	if len(groups) > 0 {
-		innermost := groups[len(groups)-1]
-		legacyGroup = &innermost
-		if len(groups) >= 2 {
-			nestedGroups = append([]LayoutGroup(nil), groups...)
-		}
-	}
-	row.Panels = append(row.Panels, LayoutItem{PanelID: spec.ID, Span: span, Group: legacyGroup, Groups: nestedGroups})
+	row.Panels = append(row.Panels, LayoutItem{
+		PanelID: spec.ID, Span: span, Groups: append([]LayoutGroup(nil), groups...),
+	})
 	labels := seriesLabels(spec, wireFrame, semantics)
 	for index, color := range spec.Colors {
 		if strings.TrimSpace(color) == "" {
@@ -298,10 +338,15 @@ func appendPanelTree(
 	return nil
 }
 
-// buildStaticDrillTree translates the renderer-neutral, precomputed
-// panel.DrillTree into the wire drill graph used by the React Lens runtime.
-// The legacy renderer consumes DrillTree directly; without this bridge the
-// same valid panel silently lost its in-place navigation in React documents.
+func buildTableOptions(spec panel.Spec) *TableOptions {
+	if spec.Kind != panel.KindTable || spec.Table == nil {
+		return nil
+	}
+	return &TableOptions{Searchable: spec.Table.Searchable}
+}
+
+// buildStaticDrillTree translates a precomputed panel.DrillTree into the wire
+// drill graph consumed by the React Lens runtime.
 func buildStaticDrillTree(doc *DashboardDocument, spec panel.Spec, rootFrame FrameRef) (NodeKey, error) {
 	rootKey := qualifiedKey("panel-drill", spec.ID)
 	rootPath := NodePath{rootKey}
@@ -519,7 +564,12 @@ func buildTrend(spec panel.Spec) *PanelTrend {
 	if spec.Trend == nil {
 		return nil
 	}
-	return &PanelTrend{Percent: spec.Trend.Percent, Label: spec.Trend.Label, Invert: spec.Trend.Invert}
+	return &PanelTrend{
+		Percent: spec.Trend.Percent, Label: spec.Trend.Label,
+		Polarity: TrendPolarity(spec.Trend.Polarity), Invert: spec.Trend.Invert,
+		AbsoluteField: spec.Trend.AbsoluteField.Name(), PercentField: spec.Trend.PercentField.Name(),
+		AbsoluteDeltaUnit: TrendDeltaUnit(spec.Trend.AbsoluteDeltaUnit),
+	}
 }
 
 func buildSparkline(spec panel.Spec) *Sparkline {
@@ -576,7 +626,7 @@ func presentationForKind(hints panel.PresentationHints, kind panel.Kind) *Presen
 // convertPresentation maps Go-side presentation hints onto the wire, returning
 // nil when every hint is unset. Levels and panels share it.
 func convertPresentation(hints panel.PresentationHints) *Presentation {
-	presentation := Presentation{Fill: hints.FillPlot, BarWidthPx: hints.BarWidthPx}
+	presentation := Presentation{DataLabels: hints.DataLabels, Fill: hints.FillPlot, BarWidthPx: hints.BarWidthPx}
 	if hints.LegendBelow {
 		presentation.Legend = LegendBelow
 	}
@@ -600,6 +650,9 @@ func convertPresentation(hints panel.PresentationHints) *Presentation {
 	}
 	if hints.ColorByCategory {
 		presentation.ColorBy = ColorByCategory
+	}
+	if hints.ColorBySequence {
+		presentation.ColorBy = ColorBySequence
 	}
 	if hints.Waterfall {
 		presentation.BridgeLayout = BridgeLayoutWaterfall
@@ -737,8 +790,15 @@ func convertRelationshipEnd(end panel.RelationshipEnd) MetricRelationshipEnd {
 	return result
 }
 
-func panelKind(kind panel.Kind) (PanelKind, error) {
-	//nolint:exhaustive // Container/gauge kinds are not part of the wire contract; default rejects them.
+// PanelKindOf reports the kind a spec is published to the runtime as. It is the
+// only place the several Go kinds that share one runtime representation are
+// folded together, so anything outside the builder that has to name the kind the
+// runtime will see — server-rendered markup labelled for the runtime's
+// stylesheet, for one — asks here instead of restating the mapping.
+//
+// Container kinds are not part of the wire contract and return an error.
+func PanelKindOf(kind panel.Kind) (PanelKind, error) {
+	//nolint:exhaustive // Container kinds are not part of the wire contract; default rejects them.
 	switch kind {
 	case panel.KindStat:
 		return PanelKindStat, nil
@@ -759,6 +819,16 @@ func panelKind(kind panel.Kind) (PanelKind, error) {
 		return PanelKindCoverage, nil
 	case panel.KindTimeSeries:
 		return PanelKindLine, nil
+	case panel.KindGauge:
+		return PanelKindGauge, nil
+	case panel.KindHistogram:
+		return PanelKindHistogram, nil
+	case panel.KindBoxPlot:
+		return PanelKindBoxPlot, nil
+	case panel.KindHeatmap:
+		return PanelKindHeatmap, nil
+	case panel.KindMap:
+		return PanelKindMap, nil
 	case panel.KindCascade:
 		return PanelKindCascade, nil
 	case panel.KindTable:
@@ -816,6 +886,42 @@ func buildRadial(spec panel.Spec) *RadialConfig {
 	}
 }
 
+func buildMap(spec panel.Spec) *MapConfig {
+	if spec.Map == nil {
+		return nil
+	}
+	var inline *GeoJSONFeatureCollection
+	if source := spec.Map.Source.Inline; source != nil {
+		features := make([]GeoJSONFeature, len(source.Features))
+		for index, feature := range source.Features {
+			features[index] = GeoJSONFeature{
+				Type: feature.Type, Properties: feature.Properties, Geometry: feature.Geometry,
+			}
+		}
+		inline = &GeoJSONFeatureCollection{Type: source.Type, Features: features}
+	}
+	return &MapConfig{
+		Source: GeoJSONSource{
+			Inline: inline, URL: spec.Map.Source.URL, MaxBytes: spec.Map.Source.MaxBytes,
+		},
+		FeatureProperty: spec.Map.FeatureProperty,
+		LabelProperty:   spec.Map.LabelProperty,
+		LabelProperties: cloneStringMap(spec.Map.LabelProperties),
+		Attribution:     spec.Map.Attribution,
+	}
+}
+
+func cloneStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(values))
+	for key, value := range values {
+		cloned[key] = value
+	}
+	return cloned
+}
+
 // metricRelationshipSemantics resolves a metric_relationship panel's final
 // semantics from its declared link type: reconciliation and derivation are
 // reconciliation-shaped (one side explains the other), association is neutral
@@ -845,6 +951,12 @@ func declaredEncoding(fields panel.FieldMapping) Encoding {
 	}
 	assign(&encoding.Label, fields.Label)
 	assign(&encoding.Value, fields.Value)
+	assign(&encoding.Previous, fields.Previous)
+	assign(&encoding.Lower, fields.Lower)
+	assign(&encoding.Q1, fields.Q1)
+	assign(&encoding.Median, fields.Median)
+	assign(&encoding.Q3, fields.Q3)
+	assign(&encoding.Upper, fields.Upper)
 	assign(&encoding.ID, fields.ID)
 	assign(&encoding.Series, fields.Series)
 	assign(&encoding.Category, fields.Category)
@@ -874,6 +986,12 @@ func buildEncoding(fields panel.FieldMapping, frame Frame) Encoding {
 	}
 	assign(&encoding.Label, fields.Label)
 	assign(&encoding.Value, fields.Value)
+	assign(&encoding.Previous, fields.Previous)
+	assign(&encoding.Lower, fields.Lower)
+	assign(&encoding.Q1, fields.Q1)
+	assign(&encoding.Median, fields.Median)
+	assign(&encoding.Q3, fields.Q3)
+	assign(&encoding.Upper, fields.Upper)
 	assign(&encoding.ID, fields.ID)
 	assign(&encoding.Series, fields.Series)
 	assign(&encoding.Category, fields.Category)
@@ -897,6 +1015,28 @@ func buildFormats(spec panel.Spec) map[string]FieldFormat {
 			formats[spec.Fields.Value.Name()] = converted
 		}
 	}
+	if !spec.Fields.Previous.Empty() && spec.Formatter != nil {
+		if converted, ok := convertFormat(*spec.Formatter); ok {
+			formats[spec.Fields.Previous.Name()] = converted
+		}
+	}
+	if spec.Kind == panel.KindBoxPlot && spec.Formatter != nil {
+		if converted, ok := convertFormat(*spec.Formatter); ok {
+			for _, field := range []panel.FieldRef{spec.Fields.Lower, spec.Fields.Q1, spec.Fields.Median, spec.Fields.Q3, spec.Fields.Upper} {
+				if !field.Empty() {
+					formats[field.Name()] = converted
+				}
+			}
+		}
+	}
+	if spec.Trend != nil && !spec.Trend.AbsoluteField.Empty() && spec.Formatter != nil {
+		if converted, ok := convertFormat(*spec.Formatter); ok {
+			formats[spec.Trend.AbsoluteField.Name()] = converted
+		}
+	}
+	if spec.Trend != nil && !spec.Trend.PercentField.Empty() {
+		formats[spec.Trend.PercentField.Name()] = FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1)}
+	}
 	for _, column := range spec.Columns {
 		if column.Field.Empty() || column.Formatter == nil {
 			continue
@@ -912,7 +1052,7 @@ func buildFormats(spec panel.Spec) map[string]FieldFormat {
 		// Delta secondaries are percent changes by contract; default their wire
 		// format so the runtime never renders a bare unlabeled number.
 		if _, exists := formats[column.Cell.PercentField.Name()]; !exists {
-			formats[column.Cell.PercentField.Name()] = FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1), DecimalSeparator: "."}
+			formats[column.Cell.PercentField.Name()] = FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1)}
 		}
 	}
 	return formats
@@ -930,6 +1070,8 @@ func buildTableColumns(spec panel.Spec) []TableColumn {
 			WidthPx: column.WidthPx, Clamp: column.ClampLines,
 			Affordance: TableAffordance(column.Affordance),
 			BadgeField: column.BadgeField.Name(),
+			Heat:       column.Heat, SampleSizeField: column.SampleSizeField.Name(),
+			MinSampleSize: column.MinSampleSize, Total: column.Total, ShareOf: column.ShareOf.Name(),
 		}
 		if column.Cell != nil {
 			wireColumn.Cell.Kind = TableCellKind(column.Cell.Kind)
@@ -971,16 +1113,8 @@ func convertFormat(spec format.Spec) (FieldFormat, bool) {
 			result.MinorUnits = false
 		}
 		result.Compact = true
-		// format.abbreviate prints the mantissa with %.*f, i.e. a dot in every
-		// locale. Pin the separator so both renderers agree byte for byte.
-		result.DecimalSeparator = "."
 	case format.KindPercent:
 		result.Kind = FormatPercent
-		// The Go renderer prints percents as %.*f%% — a dot and no space
-		// before the sign in every locale. Pin the separator so a percent
-		// cell reads identically on both renderers instead of drifting to
-		// the locale's comma and non-breaking space.
-		result.DecimalSeparator = "."
 	case format.KindDate, format.KindMonthLabel:
 		result.Kind = FormatDate
 		if spec.Kind == format.KindMonthLabel && result.Layout == "" {
@@ -994,8 +1128,8 @@ func convertFormat(spec format.Spec) (FieldFormat, bool) {
 	return result, true
 }
 
-// currencySymbol resolves a currency code to the grapheme the Go money
-// formatter prints (UZS → "so’m"), so both renderers show the same suffix.
+// currencySymbol resolves a currency code to the grapheme the server money
+// formatter prints (UZS → "so’m") so every output uses the same suffix.
 // Unknown codes keep the code itself.
 func currencySymbol(currency string) string {
 	code := strings.TrimSpace(currency)
@@ -1124,7 +1258,7 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDepende
 		if column.Cell != nil {
 			addDependency(action.FieldValue(column.Cell.PercentField.Name()))
 		}
-		// Companion columns (tone, badge) are read per row by the renderer but
+		// Companion columns (tone, badge, sample size) are read per row by the renderer but
 		// never rendered as their own column, so retain them explicitly or the
 		// projection drops them.
 		if !column.ToneField.Empty() {
@@ -1132,6 +1266,12 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDepende
 		}
 		if !column.BadgeField.Empty() {
 			addDependency(action.FieldValue(column.BadgeField.Name()))
+		}
+		if !column.SampleSizeField.Empty() {
+			addDependency(action.FieldValue(column.SampleSizeField.Name()))
+		}
+		if !column.ShareOf.Empty() {
+			addDependency(action.FieldValue(column.ShareOf.Name()))
 		}
 		addActionDependencies(column.Action)
 	}
@@ -1231,7 +1371,11 @@ func convertAction(spec action.Spec, leaf bool) (Action, bool) {
 		converted := convertSource(*spec.URLSource)
 		result.URLSource = &converted
 	}
-	//nolint:exhaustive // HTMX/cube-drill/explore actions are legacy renderer concerns, not wire actions.
+	if spec.DrawerKey != nil {
+		converted := convertSource(*spec.DrawerKey)
+		result.DrawerKey = &converted
+	}
+	//nolint:exhaustive // Explore actions become drill graph state; HTMX actions have no document representation.
 	switch spec.Kind {
 	case action.KindNavigate:
 		if leaf {
@@ -1243,6 +1387,18 @@ func convertAction(spec action.Spec, leaf bool) (Action, bool) {
 		result.Kind = ActionOpenDrawer
 	case action.KindEmitEvent:
 		result.Kind = ActionEmitEvent
+	case action.KindCubeDrill, action.KindCrossFilter:
+		if spec.Drill == nil {
+			return Action{}, false
+		}
+		if spec.Kind == action.KindCubeDrill {
+			result.Kind = ActionCubeDrill
+		} else {
+			result.Kind = ActionCrossFilter
+		}
+		result.Filter = &ActionFilter{
+			Dimension: spec.Drill.Dimension, Value: convertSource(spec.Drill.Value), GroupBy: spec.Drill.GroupBy,
+		}
 	default:
 		return Action{}, false
 	}
@@ -1325,7 +1481,7 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 				nodePath := appendPath(branchPath, qualifiedKey(spec.ID, branch.Key, view.Key), nodeKey)
 				level := Level{Path: nodePath, Label: nodeSpec.Label, Children: make([]Node, 0, len(nodeSpec.Edges)), Perspectives: []PerspectiveRef{{ID: perspectiveID}}}
 				if nodeSpec.View != "" {
-					viewKind, err := panelKind(nodeSpec.View)
+					viewKind, err := PanelKindOf(nodeSpec.View)
 					if err != nil {
 						return fmt.Errorf("explorer %s node %s view: %w", spec.ID, nodeSpec.Key, err)
 					}

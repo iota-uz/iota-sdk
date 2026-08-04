@@ -13,6 +13,7 @@ const cascadePanel: Panel = {
     balance: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
     movement: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
   },
+  terminal: true,
   actions: [],
 }
 
@@ -41,6 +42,7 @@ const tonedBridgePanel: Panel = {
     movement: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
   },
   presentation: { bridgeLayout: 'waterfall' },
+  terminal: true,
   actions: [],
 }
 
@@ -76,6 +78,7 @@ const officialResultPanel: Panel = {
     movement: { kind: 'money', currency: 'UZS', minorUnits: false, precision: 2 },
   },
   presentation: { bridgeLayout: 'waterfall' },
+  terminal: true,
   actions: [],
 }
 
@@ -189,7 +192,21 @@ const notedPanel: Panel = {
 function OpenInfoTip({ children }: { children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('.lens-info-tip-button')?.click()
+    let cancelled = false
+    let attempts = 0
+    const open = () => {
+      if (cancelled) return
+      const button = ref.current?.querySelector<HTMLElement>('.lens-info-tip-button')
+      if (button) {
+        button.click()
+        return
+      }
+      if (attempts++ < 60) window.requestAnimationFrame(open)
+    }
+    void window.document.fonts.ready.then(() => {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(open))
+    })
+    return () => { cancelled = true }
   }, [])
   return <div ref={ref}>{children}</div>
 }
@@ -284,6 +301,29 @@ export const CascadeSemanticTone: Story = () => {
   return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
 }
 
+const navigableBridgeFrame: Frame = {
+  columns: [...tonedBridgeFrame.columns, { name: 'detailUrl', type: 'string' }],
+  rows: tonedBridgeFrame.rows.map((row, index) => [...row, `/analytics/result/${index}`]),
+}
+
+// The same cascade list once each stage opens something. Its whole affordance is
+// a pointer state, so this story exists to be hovered rather than compared: at
+// rest an activatable stage and an inert one are the same geometry to the pixel,
+// which is the point — the bleed the plate needs is cancelled by the padding
+// that carries it, so switching a cascade to navigable moves nothing on screen
+// until a pointer or a Tab arrives.
+export const CascadeStagesNavigate: Story = () => {
+  const panel: Panel = {
+    ...tonedBridgePanel,
+    id: 'navigable-cascade',
+    frame: 'navigable-bridge',
+    presentation: undefined,
+    actions: [{ kind: 'navigate', urlSource: { kind: 'field', name: 'detailUrl' }, params: [], payload: {} }],
+  }
+  const document = storyDocument(panel, { 'navigable-bridge': navigableBridgeFrame })
+  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+}
+
 function OpenEvidence({ emptyPage }: { emptyPage?: boolean }) {
   const drill = useDrill()
   const pagination = usePanelPagination()
@@ -347,8 +387,8 @@ function ExportStory({ mode }: { mode: 'idle' | 'pending' | 'retry' }) {
   const document = storyDocument(panel, { 'export-frame': cascadeFrame }, { export: '/story/export' })
   const fetcher: typeof fetch = () => mode === 'retry'
     ? Promise.resolve(new Response(JSON.stringify({ error: 'snapshot_gone', message: 'snapshot expired' }), {
-        status: 410, headers: { 'Content-Type': 'application/json' },
-      }))
+      status: 410, headers: { 'Content-Type': 'application/json' },
+    }))
     : new Promise<Response>(() => undefined)
   return <Runtime document={document} fetcher={fetcher}>{mode === 'idle' ? <ExportButton panelId={panel.id} /> : <AutoExport />}</Runtime>
 }

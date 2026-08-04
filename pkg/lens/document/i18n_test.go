@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	literalKeyPattern = regexp.MustCompile(`translate\(\s*'([^']+)'`)
+	literalKeyPattern = regexp.MustCompile(`(?:translate\(|translateRef\.current\()\s*'([^']+)'`)
 	dynamicKeyPattern = regexp.MustCompile("translate\\(\\s*`([^`$]*)\\$\\{")
 	// Keys resolved indirectly through catalog definitions, e.g. the period
 	// preset catalog's `labelKey: 'filter.period.preset.today'` entries that

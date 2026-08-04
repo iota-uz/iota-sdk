@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/color"
 )
 
 func main() {
@@ -19,11 +21,19 @@ func run() error {
 		return err
 	}
 	files, err := generate(config{
-		dir:             root,
-		packagePattern:  "./pkg/lens/document",
-		rootType:        "DashboardDocument",
-		additionalTypes: []string{"QueryRequest", "QueryResponse", "QueryErrorResponse"},
+		dir:            root,
+		packagePattern: "./pkg/lens/document",
+		rootType:       "DashboardDocument",
+		additionalTypes: []string{
+			"QueryRequest", "QueryResponse", "QueryErrorResponse",
+			"PanelRequest", "PanelResponse", "PanelBatchRequest", "PanelBatchResponse", "PanelBatchStreamEvent",
+			"DrawerResolveRequest", "DrawerResolveResponse",
+		},
 		versionConstant: "ContractVersion",
+		palette: paletteConfig{
+			series:  color.Series(),
+			neutral: color.Neutral,
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("generate Lens contract: %w", err)

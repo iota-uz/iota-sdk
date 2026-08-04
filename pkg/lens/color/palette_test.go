@@ -60,17 +60,6 @@ func TestCategorical_ReturnsPaletteFromStartAndCycles(t *testing.T) {
 	require.Equal(t, want[1], cycled[11])
 }
 
-func TestSequence_IsScopeIndependent(t *testing.T) {
-	t.Parallel()
-
-	// The FNV scope-hash offset is gone: every scope yields the same
-	// sequence, identical to Categorical.
-	require.Equal(t, Categorical(5), Sequence("PRODUCT", 5))
-	require.Equal(t, Sequence("PRODUCT", 5), Sequence("REGION", 5))
-	require.Equal(t, Sequence("", 5), Sequence("ANYTHING", 5))
-	require.Nil(t, Sequence("PRODUCT", 0))
-}
-
 func TestNeutralAndAccentTokens(t *testing.T) {
 	t.Parallel()
 

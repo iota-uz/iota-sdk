@@ -1,7 +1,5 @@
 package react
 
-import lenstempl "github.com/iota-uz/iota-sdk/pkg/lens/render/templ"
-
 templ LensDashboard(src string, options ...Option) {
 	{{ resolved := resolveDashboardOptions(options...) }}
 	if resolved.IncludeAssets {
@@ -14,12 +12,15 @@ templ LensDashboard(src string, options ...Option) {
 		src={ src }
 		locale={ resolved.Locale }
 		theme={ string(resolved.Theme) }
+		if resolved.InitialDocument != nil {
+			initial-document={ initialDocumentAttribute(resolved.InitialDocument) }
+		}
 		if resolved.CSRF != "" {
 			csrf={ resolved.CSRF }
 		}
 	>
 		if resolved.Skeleton != nil {
-			@lenstempl.DashboardSkeleton(*resolved.Skeleton)
+			@DashboardSkeleton(*resolved.Skeleton)
 		}
 	</lens-dashboard>
 }

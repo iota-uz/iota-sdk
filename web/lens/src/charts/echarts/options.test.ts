@@ -1,7 +1,11 @@
 import type { EChartsOption } from 'echarts'
 import { describe, expect, it, vi } from 'vitest'
 import type { ChartInput } from '../adapter'
-import { buildChartOption, rawPercentPrecision, slicePercentLabel } from './options'
+import { fallbackMarkKey } from '../keys'
+import {
+  buildChartOption, categoryLabelLimit, categoryLabelWidth, categoryTickInterval, donutSliceLabel, middleEllipsis,
+  niceLogMaximum, rawPercentPrecision, slicePercentLabel,
+} from './options'
 import type { EChartsTheme } from './theme'
 
 const theme: EChartsTheme = {
@@ -10,9 +14,15 @@ const theme: EChartsTheme = {
   mutedText: '#64748b',
   border: '#e2e8f0',
   divider: '#f1f5f9',
+  faintText: '#94a3b8',
+  warn: '#d97706',
+  warnSoft: '#fffbeb',
+  accent: '#2563eb',
+  trend: '#7c3aed',
   selectedBorder: '#0f172a',
   fontFamily: 'Inter',
   colors: ['#2563eb', '#059669'],
+  popoverShadow: '0 1px 2px rgba(0,0,0,0.1)', cardRadius: 8, type: { xs: 10, sm: 11, base: 12, md: 14 },
   seriesColor: (name) => name === 'Revenue' ? '#059669' : undefined,
 }
 
@@ -49,6 +59,8 @@ interface TestDataItem {
   categoryKey?: string
   share?: number
   remainder?: boolean
+  symbol?: string
+  label?: unknown
 }
 
 interface TestSeries {
@@ -64,23 +76,47 @@ interface TestSeries {
   type?: string
   name?: string
   stack?: string
+  silent?: boolean
+  tooltip?: { show?: boolean }
+  lineStyle?: { type?: string | number[]; width?: number; color?: string }
+  endLabel?: { formatter?: string }
   areaStyle?: unknown
   radius?: string[]
   itemStyle?: { color?: string }
   data?: Array<TestDataItem | null>
+  markLine?: {
+    data?: Array<{
+      name?: string
+      xAxis?: unknown
+      yAxis?: number
+      lineStyle?: { type?: string; color?: string; width?: number }
+      label?: { formatter?: string; position?: string; backgroundColor?: string }
+    }>
+  }
+  markArea?: {
+    data?: Array<Array<{ xAxis?: unknown; itemStyle?: { color?: string; opacity?: number } }>>
+  }
 }
 
 interface TestAxis {
   type?: string
   logBase?: number
+  max?: number
+  min?: number
+  show?: boolean
   data?: string[]
   axisLabel?: { formatter?: (value: unknown) => string }
+  triggerEvent?: boolean
 }
 
 interface TestTooltip {
   formatter?: (params: unknown) => string
   renderMode?: string
   valueFormatter?: (value: unknown) => string
+}
+
+interface TestGraphic {
+  children?: Array<{ style?: { text?: string } }>
 }
 
 function testOption(option: EChartsOption) {
@@ -90,15 +126,29 @@ function testOption(option: EChartsOption) {
     tooltip: TestTooltip
     xAxis: TestAxis
     yAxis: TestAxis
+    grid?: { left?: number; right?: number; bottom?: number; containLabel?: boolean }
     media?: Array<{ query?: { maxWidth?: number }, option?: { series?: TestSeries[] } }>
+    graphic?: TestGraphic[]
+    dataZoom?: Array<{ type?: string }>
   }
+}
+
+function logarithmicInput(kind: 'bar' | 'hbar'): ChartInput {
+  const chartInput = input(kind)
+  chartInput.frame.rows = [
+    ['tiny', 'Tiny', 'Revenue', 2],
+    ['middle', 'Middle', 'Revenue', 50],
+    ['large', 'Large', 'Revenue', 1200],
+  ]
+  chartInput.valueAxis = { scale: 'logarithmic', logBase: 10 }
+  return chartInput
 }
 
 describe('slice percentages', () => {
   it('rounds the true share once, not the share ECharts already rounded', () => {
     // «Распределение риска»: 104 119 330 137 of 118 795 253 476 is 87.6459…%,
     // which reads 87.6. Rounded to ECharts' default two decimals first (87.65)
-    // it reads 87.7 — the double rounding the legacy renderer never had.
+    // it reads 87.7, exposing the double rounding this helper prevents.
     const share = (100 * 104_119_330_137) / (104_119_330_137 + 14_675_923_339)
     expect(slicePercentLabel(share)).toBe('87.6%')
     expect(slicePercentLabel(100 - share)).toBe('12.4%')
@@ -111,8 +161,7 @@ describe('slice percentages', () => {
     [87.6459, '87.6%'],
     [87.66, '87.7%'],
     // A literal x.x5 resolves by the binary value it actually holds — 12.35 is
-    // stored as 12.3499…, so one decimal reads 12.3. Go's %.1f agrees, which
-    // is what keeps the two renderers printing the same number.
+    // stored as 12.3499…, so one decimal reads 12.3. The server's %.1f agrees.
     [12.35, '12.3%'],
     [0.4999, ''],
     [3.99, ''],
@@ -255,6 +304,40 @@ describe('slice percentages', () => {
     expect(chart.series[0]?.label?.formatter?.({ percent: 87.6459, data: { share: 12.5 } })).toBe('12.5%')
   })
 
+  it('renders real-shaped expense amounts as shares of their truthful money total', () => {
+    const total = 45_561_778_243.57
+    const chartInput: ChartInput = {
+      ...input('donut'),
+      frame: {
+        columns: [
+          { name: 'ring_id', type: 'string' },
+          { name: 'category_id', type: 'string' },
+          { name: 'category', type: 'string' },
+          { name: 'amount', type: 'number' },
+        ],
+        rows: [
+          ['components', 'acquisition_cost', 'Acquisition', 1_068_717_254.18],
+          ['components', 'operating_expenses', 'Operating', 29_812_997_444.63],
+          ['components', 'reinsurance_cost', 'Reinsurance', 14_680_063_544.76],
+        ],
+        total,
+      },
+      encoding: { id: 'category_id', label: 'category', value: 'amount' },
+      format: (_field, value) => `${(Number(value) / 1_000_000_000).toFixed(2)} млрд UZS`,
+      presentation: { sliceLabels: 'percent' },
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series[0]?.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ nodeKey: 'acquisition_cost', value: 1_068_717_254.18, share: 2.4 }),
+      expect.objectContaining({ nodeKey: 'operating_expenses', value: 29_812_997_444.63, share: 65.4 }),
+      expect.objectContaining({ nodeKey: 'reinsurance_cost', value: 14_680_063_544.76, share: 32.2 }),
+    ]))
+    expect(chart.series[0]?.label?.formatter?.({ data: { share: 65.4 } })).toBe('65.4%')
+    expect(chart.graphic?.[0]?.children?.[1]?.style?.text).toBe('45.56 млрд UZS')
+  })
+
   it('writes the category on the slice when asked, and only when it fits', () => {
     const chart = testOption(buildChartOption(
       { ...input('pie'), presentation: { sliceLabels: 'label' } },
@@ -265,8 +348,24 @@ describe('slice percentages', () => {
     expect(formatter?.({ name: '2024', data: { share: 28.6 } })).toBe('2024')
     // Too narrow an arc to hold any label at all.
     expect(formatter?.({ name: '2024', data: { share: 1.2 } })).toBe('')
-    // Wide enough for a year, nowhere near enough for a product name.
-    expect(formatter?.({ name: 'Обязательное страхование гражданской ответственности', data: { share: 5 } })).toBe('')
+  })
+
+  it('measures the label against the chord it has to fit, not its character count', () => {
+    const chartInput = { ...input('pie'), presentation: { sliceLabels: 'label' as const }, viewportWidth: 400 }
+    const formatter = testOption(buildChartOption(chartInput, theme)).series[0]?.label?.formatter
+    const product = 'Обязательное страхование гражданской ответственности'
+
+    // Wide enough for a year, nowhere near enough for a product name — and the
+    // difference is decided by the measured width at the ring's own radius.
+    expect(formatter?.({ name: '2024', data: { share: 28.6 } })).toBe('2024')
+    expect(formatter?.({ name: product, data: { share: 5 } })).toBe('')
+  })
+
+  it('keeps a label it could not measure rather than dropping data on a guess', () => {
+    const chartInput = { ...input('pie'), presentation: { sliceLabels: 'label' as const } }
+    const formatter = testOption(buildChartOption(chartInput, theme)).series[0]?.label?.formatter
+
+    expect(formatter?.({ name: 'Обязательное страхование', data: { share: 28.6 } })).toBe('Обязательное страхование')
   })
 
   it('picks readable ink for the slice label from the slice fill', () => {
@@ -322,9 +421,11 @@ describe('buildChartOption', () => {
     expect(chart.animation).toBe(false)
   })
 
+  // Callouts buy their room from the ring once, instead of being truncated to
+  // whatever the ring left them.
   it.each([
-    ['pie', ['0%', '82%']],
-    ['donut', ['50%', '82%']],
+    ['pie', ['0%', '64%']],
+    ['donut', ['40%', '64%']],
   ] as const)('maps %s labels, values, stable keys, and radius', (kind, radius) => {
     const chart = testOption(buildChartOption(input(kind), theme))
     const series = chart.series[0]
@@ -339,7 +440,7 @@ describe('buildChartOption', () => {
     expect(series?.data?.[0]).toMatchObject({ itemStyle: { borderWidth: 0 } })
   })
 
-  it('does not select id-less points when no selection exists', () => {
+  it('gives every id-less multi-series mark a stable selectable key', () => {
     const chartInput = input('bar')
     chartInput.encoding = { category: 'category', series: 'series', value: 'value' }
     chartInput.selectedKey = undefined
@@ -347,9 +448,11 @@ describe('buildChartOption', () => {
     const chart = testOption(buildChartOption(chartInput, theme))
 
     expect(chart.series[0]?.data?.[0]).toMatchObject({
-      nodeKey: undefined,
+      nodeKey: fallbackMarkKey('Jan', 'Revenue'),
       itemStyle: { borderWidth: 0 },
     })
+    expect(chart.series[1]?.data?.[0]).toMatchObject({ nodeKey: fallbackMarkKey('Jan', 'Cost') })
+    expect(chart.series[0]?.data?.[0]?.nodeKey).not.toBe(chart.series[1]?.data?.[0]?.nodeKey)
     expect(chart.series[0]?.data?.[0]?.itemStyle?.borderColor).toBeUndefined()
   })
 
@@ -367,33 +470,214 @@ describe('buildChartOption', () => {
   })
 
   it('uses the requested logarithmic value axis and base', () => {
-    const chart = testOption(buildChartOption({
-      ...input('hbar'),
-      valueAxis: { scale: 'logarithmic', logBase: 10 },
-    }, theme))
+    const chart = testOption(buildChartOption(logarithmicInput('hbar'), theme))
 
     expect(chart.xAxis.type).toBe('log')
     expect(chart.xAxis.logBase).toBe(10)
+    expect(chart.xAxis.max).toBe(1200)
     expect(chart.yAxis.type).toBe('category')
     expect(chart.series[0]?.label).toMatchObject({ show: true, position: 'right' })
     expect(chart.series[0]?.label?.formatter?.({ value: 1200 })).toBe('$1200')
     expect(chart.series[0]?.labelLayout).toEqual({ hideOverlap: true })
   })
 
+  it('keeps both ends of long horizontal category labels recoverable', () => {
+    expect(middleEllipsis('Группа с очень длинным уточняющим названием для отчёта', 24)).toMatch(/^Группа с оче….*отчёта$/)
+    expect(niceLogMaximum(1700)).toBe(1800)
+  })
+
+  it('does not interpret the ECharts category index as an ellipsis width', () => {
+    const chart = testOption(buildChartOption(input('hbar'), theme))
+    const formatter = chart.yAxis.axisLabel?.formatter
+    const echartsFormatter = formatter as ((value: string, index: number) => string) | undefined
+    expect(echartsFormatter?.('Apr', 0)).toBe('Apr')
+    expect(echartsFormatter?.('Mar', 1)).toBe('Mar')
+  })
+
+  it('suppresses a fabricated value axis when every value is zero', () => {
+    const chartInput = input('bar')
+    chartInput.frame.rows = chartInput.frame.rows.map((row) => [...row.slice(0, 3), 0])
+    const chart = testOption(buildChartOption(chartInput, theme))
+    expect(chart.yAxis.show).toBe(false)
+  })
+
+  it('collapses a degenerate map domain to one swatch and value', () => {
+    const chartInput = input('map')
+    chartInput.frame.rows = [['north', 'North', 'Revenue', 42]]
+    chartInput.map = {
+      name: 'regions', featureProperty: 'code',
+      geoJSON: { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { code: 'north' }, geometry: { type: 'Polygon', coordinates: [] } }] },
+    }
+    const chart = buildChartOption(chartInput, theme) as Record<string, unknown>
+    // A single region has no rank to spread, so the ramp is hidden and the one
+    // swatch below carries the amount.
+    expect(chart.visualMap).toMatchObject({ show: false, min: 0, max: 1 })
+    expect(chart.graphic).toBeDefined()
+  })
+
   it('puts logarithmic vertical-bar values above their columns', () => {
-    const chart = testOption(buildChartOption({
-      ...input('bar'),
-      valueAxis: { scale: 'logarithmic', logBase: 10 },
-    }, theme))
+    const chart = testOption(buildChartOption(logarithmicInput('bar'), theme))
 
     expect(chart.series[0]?.label).toMatchObject({ show: true, position: 'top' })
     expect(chart.series[0]?.label?.formatter?.({ value: 1200 })).toBe('$1200')
   })
 
-  it('keeps data labels off ordinary linear bars', () => {
+  it('prints values on a bar chart small enough to hold them', () => {
     const chart = testOption(buildChartOption(input('bar'), theme))
 
+    expect(chart.series.every((series) => series.label?.show === true)).toBe(true)
+  })
+
+  it('drops the labels once there are more marks than a plot can label reliably', () => {
+    const chartInput = input('bar')
+    chartInput.frame = {
+      columns: chartInput.frame.columns,
+      rows: Array.from({ length: 40 }, (_, index) => ['Revenue', `M${index}`, 100 + index, 0]),
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    // All of them or none: a subset dropped by collision reads as missing data.
     expect(chart.series.every((series) => series.label === undefined)).toBe(true)
+  })
+
+  it('prints values when a linear axis cannot show the small readings', () => {
+    const chartInput = input('bar')
+    chartInput.frame = {
+      columns: chartInput.frame.columns,
+      rows: [['Revenue', 'Jan', 25_000_000_000, 0], ['Revenue', 'Feb', 41_000, 0], ['Revenue', 'Mar', 60_000, 0]],
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series[0]?.label?.show).toBe(true)
+  })
+
+  it('caps bar width and keeps a gap between categories', () => {
+    const chart = testOption(buildChartOption(input('bar'), theme)) as unknown as {
+      series: Array<{ barMaxWidth?: number; barCategoryGap?: string }>
+    }
+
+    expect(chart.series[0]?.barMaxWidth).toBe(96)
+    expect(chart.series[0]?.barCategoryGap).toBe('28%')
+  })
+
+  it('derives the category tick stride from the domain, not from label widths', () => {
+    expect(categoryTickInterval(8)).toBe(0)
+    expect(categoryTickInterval(24)).toBe(2)
+    // Two panels over the same domain therefore agree, whatever they label.
+    expect(categoryTickInterval(24)).toBe(categoryTickInterval(24))
+  })
+
+  it('sizes the horizontal-bar name column off the plot instead of a constant', () => {
+    expect(categoryLabelWidth(1200)).toBe(260)
+    expect(categoryLabelWidth(407)).toBe(155)
+    expect(categoryLabelWidth(undefined)).toBe(260)
+  })
+
+  it('shortens the name to the same allowance that clips it', () => {
+    // The drawn width and the string length are one decision, so the ellipsis
+    // cannot land somewhere other than the clip.
+    expect(categoryLabelLimit(407)).toBe(Math.round(categoryLabelWidth(407) / 6.5))
+    expect(categoryLabelLimit(1200)).toBe(40)
+    // Narrow enough that a proportional share would leave no readable name.
+    expect(categoryLabelLimit(120)).toBe(11)
+    // The decision is stable across the pixels between two allowances, which is
+    // what keeps the mounted adapter off a rebuild-per-pixel resize path, and
+    // changes once the reader would actually see a different string.
+    expect(categoryLabelLimit(1000)).toBe(categoryLabelLimit(1010))
+    expect(categoryLabelLimit(407)).not.toBe(categoryLabelLimit(900))
+  })
+
+  it('states the value unit once on the axis instead of on every tick', () => {
+    const chartInput = input('bar')
+    chartInput.valueUnit = 'UZS'
+
+    const chart = testOption(buildChartOption(chartInput, theme)) as unknown as { yAxis: { name?: string } }
+
+    expect(chart.yAxis.name).toBe('UZS')
+  })
+
+  it.each(['bar', 'line'] as const)('enables formatted data labels for %s only when requested', (kind) => {
+    const chartInput = input(kind)
+    chartInput.presentation = { dataLabels: true }
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series.every((series) => series.label?.show === true)).toBe(true)
+    expect(chart.series[0]?.label?.formatter?.({ value: 1200 })).toBe('$1200')
+  })
+
+  it('places neighbouring line-series labels on opposite sides of their marks', () => {
+    const chartInput = input('line')
+    chartInput.presentation = { dataLabels: true }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series[0]?.label?.position).toBe('top')
+    expect(chart.series[1]?.label?.position).toBe('bottom')
+  })
+
+  it('adds a muted prior-period series and zoom controls to time series', () => {
+    const chartInput = input('line')
+    chartInput.frame.columns[1] = { name: 'category', type: 'time' }
+    chartInput.frame.columns.push({ name: 'previous', type: 'number' })
+    chartInput.frame.rows = chartInput.frame.rows.map((row, index) => [row[0], `2026-0${index + 1}-01`, row[2], row[3], 900 + index * 100])
+    chartInput.encoding = { ...chartInput.encoding, previous: 'previous' }
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series[0]?.name).toContain('Previous')
+    expect(chart.series[0]?.silent).toBe(true)
+    expect(chart.series[0]?.lineStyle).toMatchObject({ type: 'dashed' })
+    expect(chart.dataZoom?.map((zoom) => zoom.type)).toEqual(['inside', 'slider'])
+  })
+
+  it('falls back from log to linear for fewer than three categories or less than 100x spread', () => {
+    const few = input('hbar')
+    few.valueAxis = { scale: 'logarithmic', logBase: 10 }
+    expect(testOption(buildChartOption(few, theme)).xAxis.type).toBe('value')
+
+    const narrow = logarithmicInput('hbar')
+    narrow.frame.rows = [
+      ['a', 'A', 'Revenue', 10], ['b', 'B', 'Revenue', 20], ['c', 'C', 'Revenue', 99],
+    ]
+    expect(testOption(buildChartOption(narrow, theme)).xAxis.type).toBe('value')
+  })
+
+  it('makes category labels emit hover events for their full-name tooltip', () => {
+    const chart = testOption(buildChartOption(input('hbar'), theme))
+    expect(chart.yAxis.triggerEvent).toBe(true)
+  })
+
+  it('falls back to an available label column when the declared category is absent', () => {
+    const chartInput = input('hbar')
+    chartInput.encoding = { ...chartInput.encoding, category: 'future_category', label: 'category' }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.yAxis.data).toEqual(['Jan', 'Feb'])
+    expect(chart.series[0]?.data).toHaveLength(2)
+  })
+
+  it('prints donut value and share labels and the total in its center', () => {
+    const chartInput = input('donut')
+    chartInput.tooltipTotalLabel = 'Итого'
+    const chart = testOption(buildChartOption(chartInput, theme))
+    const first = chart.series[0]?.data?.[0]
+
+    expect(donutSliceLabel({ name: first?.name, data: first }, chartInput)).toBe('Jan\n$1200 · 28.6%')
+    expect(chart.graphic).toHaveLength(1)
+    expect(chart.tooltip.formatter?.({ name: 'Jan', data: first })).toContain('$1200 · 28.6%')
+  })
+
+  it('keeps the share on outside donut labels in a narrow plot, and drops the amount', () => {
+    const chartInput = input('donut')
+    chartInput.viewportWidth = 480
+    const chart = testOption(buildChartOption(chartInput, theme))
+    const first = chart.series[0]?.data?.[0]
+
+    // A screenshot of a compact donut has to carry a quantity; the share is the
+    // one that fits, and the amount is the one that truncated the name.
+    expect(donutSliceLabel({ name: first?.name, data: first }, chartInput)).toBe('Jan\n28.6%')
   })
 
   it.each(['bar', 'line'] as const)('applies configured series brand colors to %s series', (kind) => {
@@ -442,6 +726,21 @@ describe('buildChartOption', () => {
     expect(tooltip).toContain('Jan')
     expect(tooltip).toContain('$1200')
     expect(tooltip).not.toContain('series0')
+  })
+
+  it('keeps numeric-looking categorical years literal and marks an incomplete period', () => {
+    const chartInput = input('bar')
+    chartInput.frame.rows = [['2025', '2025', 'Revenue', 1200]]
+    chartInput.temporal = { period: { category: '2025', state: 'ytd', label: 'YTD' } }
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    const tooltip = chart.tooltip.formatter?.([
+      { axisValueLabel: '2025', seriesName: 'Revenue', value: 1200 },
+    ]) ?? ''
+
+    expect(tooltip).toContain('2025 · YTD')
+    expect(tooltip).not.toContain('2,025')
+    expect(chart.series[0]?.data?.[0]?.itemStyle).toMatchObject({ borderWidth: 2 })
   })
 
   it('omits zero-valued stack entries and restores the localized column total', () => {
@@ -520,6 +819,7 @@ describe('buildChartOption', () => {
     const time = Date.parse('2026-01-01T00:00:00Z')
     chartInput.frame.columns[1] = { name: 'category', type: 'time' }
     chartInput.format = format
+    chartInput.categoryFormatDefined = true
 
     const chart = testOption(buildChartOption(chartInput, theme))
 
@@ -529,6 +829,27 @@ describe('buildChartOption', () => {
       .toBe(`category=${time}\nRevenue: value=1200`)
     expect(format).toHaveBeenCalledWith('category', time)
     expect(format).toHaveBeenCalledWith('value', 1200)
+  })
+
+  it('uses a readable calendar label when a time field has no explicit format', () => {
+    const chartInput = input('line')
+    const time = Date.parse('2026-01-01T00:00:00Z')
+    chartInput.frame.columns[1] = { name: 'category', type: 'time' }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.xAxis.axisLabel?.formatter?.(time)).toBe('Jan 2026')
+    expect(chart.tooltip.formatter?.([{ axisValue: time, seriesName: 'Revenue', value: [time, 1200] }]))
+      .toContain('Jan 2026')
+  })
+
+  it('reserves enough right and bottom inset for labels on vertical bars', () => {
+    const chartInput = input('bar')
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.xAxis).toMatchObject({ type: 'category' })
+    expect(chart.grid).toMatchObject({ right: 64, bottom: 32, containLabel: true })
   })
 
   it('omits zero-valued series from time-axis tooltips too', () => {
@@ -584,6 +905,189 @@ describe('buildChartOption', () => {
     // also names 'Revenue' directly; a raw theme lookup only applies when the
     // panel has no resolver at all.
     expect(chart.series.map((series) => series.itemStyle?.color)).toEqual(['#111111', '#222222'])
+  })
+
+  it('renders temporal readability overlays as distinct, labelled chart layers', () => {
+    const chartInput = input('line')
+    chartInput.frame.columns.push(
+      { name: 'regression', type: 'number' },
+      { name: 'sma_3', type: 'number' },
+      { name: 'annualized', type: 'number' },
+      { name: 'forecast', type: 'number' },
+      { name: 'forecast_lower', type: 'number' },
+      { name: 'forecast_upper', type: 'number' },
+    )
+    chartInput.frame.rows = chartInput.frame.rows.map((row, index) => [
+      ...row,
+      1100 + index * 100,
+      index < 2 ? null : 1000 + index * 100,
+      index === 2 ? 1700 : null,
+      index >= 2 ? 1600 + index * 100 : null,
+      index >= 2 ? 1450 + index * 100 : null,
+      index >= 2 ? 1750 + index * 100 : null,
+    ])
+    chartInput.temporal = {
+      regression: { field: 'regression', label: 'Trend' },
+      movingAverages: [{ window: 3, field: 'sma_3', label: 'SMA 3' }],
+      referenceLines: [{ value: 1400, label: 'Threshold' }],
+      period: { category: 'Feb', state: 'annualized', label: 'Estimate', annualizedField: 'annualized' },
+      annotations: [{ at: 'Feb', label: 'Method changed' }],
+      forecast: {
+        start: 'Feb', valueField: 'forecast', lowerField: 'forecast_lower', upperField: 'forecast_upper', label: 'Projection',
+      },
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series.map((series) => series.name)).toEqual(expect.arrayContaining([
+      'Revenue · Trend', 'Revenue · SMA 3', 'Estimate', 'Revenue · Projection', 'Projection confidence',
+    ]))
+    // Each derived overlay has a stroke of its own: a fitted line is a wide
+    // dash, an estimate a dot, a smoothed reading an unbroken line.
+    expect(chart.series.find((series) => series.name === 'Revenue · Trend')?.lineStyle).toMatchObject({ type: [10, 5] })
+    expect(chart.series.find((series) => series.name === 'Estimate')?.lineStyle).toMatchObject({ type: 'dotted' })
+    expect(chart.series.find((series) => series.name === 'Revenue · SMA 3')?.lineStyle?.type).toBeUndefined()
+    // A stated threshold is the one solid hairline, in the warning ink, with
+    // the value on a chip at the axis end instead of its name in the plot.
+    const marked = chart.series.find((series) => series.markLine)
+    expect(marked?.markLine?.data).toEqual([
+      expect.objectContaining({
+        name: 'Threshold',
+        yAxis: 1400,
+        lineStyle: { type: 'solid', color: theme.warn, width: 1 },
+      }),
+    ])
+    // The plot keeps the number on a chip at the axis end; the name is the
+    // legend's business now.
+    expect(marked?.markLine?.data?.[0]?.label).toMatchObject({
+      formatter: '$1400', position: 'insideStartTop', backgroundColor: theme.warnSoft,
+    })
+    // An event and a projection are regions of the axis, not more lines.
+    const bands = chart.series.find((series) => series.markArea)?.markArea?.data ?? []
+    expect(bands).toEqual(expect.arrayContaining([
+      [expect.objectContaining({ xAxis: 'Feb', itemStyle: { color: theme.faintText, opacity: 0.12 } }), { xAxis: 'Feb' }],
+      [expect.objectContaining({ xAxis: 'Feb', itemStyle: { color: theme.accent, opacity: 0.09 } }), { xAxis: 'Feb' }],
+      [expect.objectContaining({ xAxis: 'Feb', itemStyle: { color: theme.faintText, opacity: 0.08 } }), { xAxis: 'Feb' }],
+    ]))
+    expect(chart.series.some((series) => series.name === 'Threshold' || series.name === 'Method changed')).toBe(false)
+    expect(chart.series.find((series) => series.name === 'Projection lower')?.tooltip).toEqual({ show: false })
+    expect(chart.series.find((series) => series.name === 'Projection confidence')?.tooltip).toEqual({ show: false })
+    // The unfinished period is marked on its own datapoint but never named
+    // there: one panel's worth of text, printed once by the legend.
+    const revenue = chart.series.filter((series) => series.name === 'Revenue').at(-1)
+    expect(revenue?.data?.[1]).toMatchObject({ symbol: 'emptyCircle' })
+    expect(revenue?.data?.[1]?.label).toBeUndefined()
+  })
+
+  it('lets a reference line run edge to edge instead of reserving width for a label it no longer prints', () => {
+    const chartInput = input('line')
+    chartInput.temporal = { referenceLines: [{ value: 1400, label: 'Threshold' }] }
+
+    const withReference = testOption(buildChartOption(chartInput, theme))
+    const without = testOption(buildChartOption(input('line'), theme))
+
+    expect(withReference.grid?.right).toBe(without.grid?.right)
+    expect(withReference.grid?.containLabel).toBe(true)
+  })
+
+  it('keeps an extrapolation from redefining the axis the measurements are read on', () => {
+    // «Поступления денежных средств»: the fitted line runs below zero and the
+    // axis used to grow to accommodate it, flattening the series it explains.
+    const chartInput = input('line')
+    chartInput.frame.columns.push({ name: 'regression', type: 'number' })
+    chartInput.frame.rows = chartInput.frame.rows.map((row, index) => [...row, 900 - index * 900])
+    chartInput.temporal = { regression: { field: 'regression', label: 'Trend' } }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    // Readings that never go negative keep their zero baseline; the fitted
+    // line runs off the bottom of the plot instead of moving it.
+    expect(chart.yAxis.min).toBe(0)
+    // Nothing pushed the top, so the top stays ECharts' own.
+    expect(chart.yAxis.max).toBeUndefined()
+  })
+
+  it('draws the unfinished end of a line as a dashed tail of the same series', () => {
+    const chartInput = input('line')
+    chartInput.temporal = { period: { category: 'Feb', state: 'ytd', label: 'YTD' } }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+    const body = chart.series.filter((series) => series.name === 'Revenue')
+
+    // The body stops one point short; the tail carries the boundary point and
+    // the partial one, dashed.
+    expect(body).toHaveLength(2)
+    expect(body[0]?.data?.at(-1)).toBeNull()
+    expect(body[1]?.lineStyle).toMatchObject({ type: 'dashed' })
+    expect(body[1]?.data?.filter((item) => item !== null)).toHaveLength(2)
+  })
+
+  it('hangs the incomplete band on a stacked column without disturbing the stack', () => {
+    // A band on a category axis needs a bar's sense of where a category starts
+    // and ends. A bar panel already has one, so the band rides on its first
+    // column series rather than on a host of its own — nothing is added to the
+    // chart that could take a column slot away from the stack.
+    const chartInput = input('bar')
+    chartInput.presentation = { stack: true }
+    chartInput.temporal = { period: { category: 'Feb', state: 'ytd', label: 'YTD' } }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series.map((series) => series.type)).toEqual(['bar', 'bar'])
+    expect(chart.series.every((series) => series.stack === 'total')).toBe(true)
+    expect(chart.series[0]?.markArea?.data).toEqual([
+      [expect.objectContaining({ xAxis: 'Feb' }), { xAxis: 'Feb' }],
+    ])
+    // The partial column is hatched; it is not labelled once per series.
+    expect(chart.series[0]?.data?.[1]?.itemStyle).toMatchObject({ borderWidth: 2 })
+    expect(chart.series[0]?.data?.[1]?.label).toBeUndefined()
+  })
+
+  it('draws nothing for an overlay the reader switched off', () => {
+    const chartInput = input('line')
+    chartInput.temporal = {
+      referenceLines: [{ value: 1400, label: 'Threshold' }],
+      annotations: [{ at: 'Feb', label: 'Method changed' }],
+    }
+    chartInput.hiddenOverlays = new Set(['reference:0', 'annotation:0'])
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series.some((series) => series.markLine)).toBe(false)
+    expect(chart.series.some((series) => series.markArea)).toBe(false)
+  })
+
+  it('uses localized generated temporal labels when producer labels are absent', () => {
+    const chartInput = input('line')
+    chartInput.encoding.previous = 'previous'
+    chartInput.frame.columns.push(
+      { name: 'previous', type: 'number' },
+      { name: 'regression', type: 'number' },
+      { name: 'sma', type: 'number' },
+      { name: 'forecast', type: 'number' },
+      { name: 'lower', type: 'number' },
+      { name: 'upper', type: 'number' },
+      { name: 'annualized', type: 'number' },
+    )
+    chartInput.frame.rows = chartInput.frame.rows.map((row) => [...row, 1, 2, 3, 4, 3, 5, 6])
+    chartInput.labels = {
+      previous: 'Прошлый', trend: 'Тренд', movingAverage: (window) => `Сск ${window}`,
+      estimate: 'Оценка', ytd: 'С начала года', forecast: 'Прогноз',
+      forecastLower: (forecast) => `${forecast}: низ`, forecastConfidence: (forecast) => `${forecast}: интервал`,
+      boxplot: ['Мин', 'Q1', 'Медиана', 'Q3', 'Макс'],
+      noData: 'No data',
+    }
+    chartInput.temporal = {
+      regression: { field: 'regression' }, movingAverages: [{ window: 3, field: 'sma' }],
+      period: { category: 'Feb', state: 'annualized', annualizedField: 'annualized' },
+      forecast: { start: 'Feb', valueField: 'forecast', lowerField: 'lower', upperField: 'upper' },
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+    expect(chart.series.map((series) => series.name)).toEqual(expect.arrayContaining([
+      'Revenue · Прошлый', 'Revenue · Тренд', 'Revenue · Сск 3', 'Оценка',
+      'Revenue · Прогноз', 'Прогноз: низ', 'Прогноз: интервал',
+    ]))
   })
 
   it('paints pie slices from the panel resolver when the theme names no colour', () => {

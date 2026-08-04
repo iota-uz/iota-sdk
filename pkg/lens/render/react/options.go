@@ -1,9 +1,12 @@
 package react
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 )
 
 type Theme string
@@ -16,14 +19,15 @@ const (
 type Option func(*dashboardOptions)
 
 type dashboardOptions struct {
-	Locale        string
-	Theme         Theme
-	CSRF          string
-	AssetBasePath string
-	IncludeAssets bool
-	EntryURL      string
-	Stylesheets   []string
-	Skeleton      *lens.DashboardSpec
+	Locale          string
+	Theme           Theme
+	CSRF            string
+	AssetBasePath   string
+	IncludeAssets   bool
+	EntryURL        string
+	Stylesheets     []string
+	Skeleton        *lens.DashboardSpec
+	InitialDocument *document.DashboardDocument
 }
 
 // WithSkeleton renders the prepared dashboard's layout-shaped placeholder
@@ -34,6 +38,27 @@ func WithSkeleton(spec lens.DashboardSpec) Option {
 	return func(options *dashboardOptions) {
 		options.Skeleton = &spec
 	}
+}
+
+// WithInitialDocument embeds a lightweight, already-materialized document in
+// the custom element. Progressive dashboards use it to paint their real
+// header, filters, panel titles and stable grid on the first React frame while
+// deferred panel bodies hydrate independently.
+func WithInitialDocument(doc *document.DashboardDocument) Option {
+	return func(options *dashboardOptions) {
+		options.InitialDocument = doc
+	}
+}
+
+func initialDocumentAttribute(doc *document.DashboardDocument) string {
+	if doc == nil {
+		return ""
+	}
+	payload, err := json.Marshal(doc)
+	if err != nil {
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(payload)
 }
 
 func WithLocale(locale string) Option {
@@ -86,12 +111,16 @@ func resolveDashboardOptions(options ...Option) dashboardOptions {
 	}
 
 	assets := Assets()
-	resolved.EntryURL = joinAssetURL(resolved.AssetBasePath, assets.Entry)
+	resolved.EntryURL = versionedAssetURL(resolved.AssetBasePath, assets.Revision, assets.Entry)
 	resolved.Stylesheets = make([]string, 0, len(assets.Stylesheets))
 	for _, stylesheet := range assets.Stylesheets {
-		resolved.Stylesheets = append(resolved.Stylesheets, joinAssetURL(resolved.AssetBasePath, stylesheet))
+		resolved.Stylesheets = append(resolved.Stylesheets, versionedAssetURL(resolved.AssetBasePath, assets.Revision, stylesheet))
 	}
 	return resolved
+}
+
+func versionedAssetURL(basePath, revision, assetPath string) string {
+	return joinAssetURL(joinAssetURL(basePath, revision), assetPath)
 }
 
 func joinAssetURL(basePath, assetPath string) string {

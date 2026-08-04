@@ -575,17 +575,16 @@ func TestOpenAIModel_MapResponse_FunctionCalls(t *testing.T) {
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
+	var functionCall responses.ResponseOutputItemUnion
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"type":"function_call",
+		"call_id":"call_abc",
+		"name":"sql_execute",
+		"arguments":"{\"query\":\"SELECT 1\"}"
+	}`), &functionCall))
+
 	resp := &responses.Response{
-		Output: []responses.ResponseOutputItemUnion{
-			{
-				Type:   "function_call",
-				CallID: "call_abc",
-				Name:   "sql_execute",
-				Arguments: responses.ResponseOutputItemUnionArguments{
-					OfString: `{"query":"SELECT 1"}`,
-				},
-			},
-		},
+		Output: []responses.ResponseOutputItemUnion{functionCall},
 		Usage: responses.ResponseUsage{
 			InputTokens:  20,
 			OutputTokens: 10,
@@ -942,7 +941,7 @@ func TestOpenAIModel_BuildInputItems_OnlyImagesBecomeInputImage(t *testing.T) {
 
 func TestFunctionCallItemKey(t *testing.T) {
 	t.Run("prefers output item id", func(t *testing.T) {
-		key := functionCallItemKey(responses.ResponseOutputItemUnion{
+		key := functionCallItemKey(responses.ResponseFunctionToolCall{
 			ID:     "fc_123",
 			CallID: "call_123",
 		}, "")
@@ -950,14 +949,14 @@ func TestFunctionCallItemKey(t *testing.T) {
 	})
 
 	t.Run("falls back to event item_id", func(t *testing.T) {
-		key := functionCallItemKey(responses.ResponseOutputItemUnion{
+		key := functionCallItemKey(responses.ResponseFunctionToolCall{
 			CallID: "call_123",
 		}, "fc_fallback")
 		assert.Equal(t, "fc_fallback", key)
 	})
 
 	t.Run("falls back to call_id when item ids missing", func(t *testing.T) {
-		key := functionCallItemKey(responses.ResponseOutputItemUnion{
+		key := functionCallItemKey(responses.ResponseFunctionToolCall{
 			CallID: "call_123",
 		}, "")
 		assert.Equal(t, "call_123", key)

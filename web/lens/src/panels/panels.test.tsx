@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardDocument, Frame, Panel, PanelKind } from '../contract'
 import type { PanelFrameState } from '../runtime'
@@ -26,23 +26,36 @@ vi.mock('../runtime', () => ({
     return '—'
   },
   useFormatExact: () => () => undefined,
+  useFormatAtReference: () => (value: unknown) => {
+    if (value === null || value === undefined) return '—'
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+      return String(value)
+    }
+    return '—'
+  },
+  compactReference: () => undefined,
   useAxisFormat: () => (value: unknown) => String(value),
+  axisUnit: () => '',
   clampedDeltaPercent: () => undefined,
   useTranslate: () => (_key: string, fallback: string, vars?: Record<string, string | number>) => (
     vars ? fallback.replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match)) : fallback
   ),
   useDrill: () => ({ drillInto: runtime.drillInto }),
   useDrawer: () => ({ depth: 0, open: vi.fn(), close: vi.fn() }),
+  useFilters: () => ({ applyURL: vi.fn() }),
   useDashboard: () => ({ document: runtime.document, navigation: runtime.navigation }),
   levelForPath: () => runtime.level,
 }))
 
-import { BarPanel, LinePanel, PiePanel, rowIndexForKey } from './ChartPanel'
+import { legendLabels, legendRow, legendSwatches, legendValues, markRow } from './legend.test-utils'
+import { BarPanel, collapseExpandableTopN, collapseMinorDonutSlices, DistributionPanel, donutRemainderKey, LinePanel, PiePanel, rowIndexForKey } from './ChartPanel'
 import { CoveragePanel } from './CoveragePanel'
+import { GaugePanel } from './GaugePanel'
+import { MapPanel } from './MapPanel'
 import { buildCascadeStages, buildWaterfallItems, buildWaterfallModel, CascadePanel, waterfallAxisStep } from './CascadePanel'
 import { WaterfallPlot } from './WaterfallPlot'
-import { panelRegistry, RegisteredPanel, UNSUPPORTED } from './registry'
-import { StatPanel } from './StatPanel'
+import { panelRegistry, RegisteredPanel } from './registry'
+import { StatMetric, StatPanel } from './StatPanel'
 import { TablePanel } from './TablePanel'
 
 const dataFrame: Frame = {
@@ -66,16 +79,33 @@ function panel(kind: PanelKind, overrides: Partial<Panel> = {}): Panel {
     encoding: { id: 'id', label: 'label', category: 'category', series: 'series', value: 'value' },
     format: {},
     actions: [],
+    ...(kind === 'gauge' ? { radial: { mode: 'progress' as const, max: 100 } } : {}),
+    ...(kind === 'map' ? {
+      map: {
+        source: { inline: {
+          type: 'FeatureCollection',
+          features: [{
+            type: 'Feature', properties: { code: 'root/a', name: 'Alpha' },
+            geometry: { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] },
+          }],
+        } },
+        featureProperty: 'code', labelProperty: 'name',
+      },
+    } : {}),
     ...overrides,
   }
 }
 
-function state(name: 'loading' | 'empty' | 'error' | 'stale' | 'data'): PanelFrameState {
+function state(name: 'loading' | 'empty' | 'error' | 'stale' | 'superseded' | 'data'): PanelFrameState {
   const retry = vi.fn()
   if (name === 'loading') return { isLoading: true, isStale: false, error: null, retry }
   if (name === 'empty') return { data: { ...dataFrame, rows: [] }, isLoading: false, isStale: false, error: null, retry }
   if (name === 'error') return { isLoading: false, isStale: false, error: new Error('Frame failed'), retry }
   if (name === 'stale') return { data: dataFrame, isLoading: true, isStale: true, error: null, retry }
+  // What a filter change produces across the whole board: the previous
+  // period's data still drawn, dimmed and marked, with no panel-local request
+  // of its own in flight.
+  if (name === 'superseded') return { data: dataFrame, isLoading: false, isStale: true, error: null, retry }
   return { data: dataFrame, isLoading: false, isStale: false, error: null, retry }
 }
 
@@ -100,6 +130,9 @@ function renderKind(kind: PanelKind) {
   if (kind === 'cascade') return render(<CascadePanel panel={value} />)
   if (kind === 'table') return render(<TablePanel panel={value} />)
   if (kind === 'coverage') return render(<CoveragePanel panel={value} />)
+  if (kind === 'gauge') return render(<GaugePanel panel={value} />)
+  if (kind === 'map') return render(<MapPanel panel={value} adapter={fakeAdapter()} />)
+  if (kind === 'histogram' || kind === 'boxplot' || kind === 'heatmap') return render(<DistributionPanel panel={value} adapter={fakeAdapter()} />)
   if (kind === 'pie' || kind === 'donut' || kind === 'radial') return render(<PiePanel panel={value} adapter={fakeAdapter()} />)
   if (kind === 'bar' || kind === 'hbar') return render(<BarPanel panel={value} adapter={fakeAdapter()} />)
   return render(<LinePanel panel={value} adapter={fakeAdapter()} />)
@@ -114,10 +147,11 @@ afterEach(() => {
   runtime.level = undefined
   runtime.refreshing = false
   runtime.document = baseDocument
+  window.history.replaceState({}, '', '/')
 })
 
-describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
-  it.each(['loading', 'empty', 'error', 'stale', 'data'] as const)('renders %s', async (stateName) => {
+describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line', 'area', 'gauge', 'histogram', 'boxplot', 'heatmap', 'map', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
+  it.each(['loading', 'empty', 'error', 'stale', 'superseded', 'data'] as const)('renders %s', async (stateName) => {
     runtime.frame = state(stateName)
     const view = renderKind(kind)
     const panelElement = screen.getByLabelText(`${kind} panel`)
@@ -128,7 +162,12 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line
       expect(panelElement).toHaveAttribute('aria-busy', 'true')
       expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
     }
-    if (stateName === 'empty') expect(screen.getByText('No data')).toBeInTheDocument()
+    if (stateName === 'empty') {
+      expect(screen.getByText('No data')).toBeInTheDocument()
+      if (['pie', 'donut', 'radial', 'bar', 'hbar', 'line', 'area'].includes(kind)) {
+        expect(view.container.querySelector('.lens-chart-compact')).not.toBeNull()
+      }
+    }
     if (stateName === 'error') {
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
       expect(runtime.frame.retry).toHaveBeenCalledTimes(1)
@@ -141,14 +180,45 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line
       expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
       expect(screen.queryByText('Updating')).toBeNull()
     }
+    if (stateName === 'superseded') {
+      // Dimmed data being replaced is as busy as an empty skeleton is, and it
+      // says so where a reader and a screen reader can both find it. The data
+      // itself stays: losing every figure for the seconds a period change takes
+      // costs more than it protects.
+      expect(panelElement).toHaveAttribute('data-stale', 'true')
+      expect(panelElement).toHaveAttribute('aria-busy', 'true')
+      // A map is loading in its own right until its geometry arrives, so it
+      // keeps the skeleton; every other kind dims the data it already has.
+      if (kind !== 'map') {
+        expect(view.container.querySelector('.lens-panel-skeleton')).toBeNull()
+        expect(screen.getByText('Updating')).toBeInTheDocument()
+      }
+    }
     if (stateName === 'data') {
       if (kind === 'stat') expect(screen.getByText('42')).toBeInTheDocument()
       else if (kind === 'cascade') expect(screen.getByRole('list', { name: 'cascade panel stages' })).toBeInTheDocument()
       else if (kind === 'table') expect(screen.getByRole('table')).toBeInTheDocument()
       else if (kind === 'coverage') expect(panelElement.querySelector('.lens-coverage-headline')).not.toBeNull()
-      else await waitFor(() => expect(screen.getByText('chart data')).toBeInTheDocument())
+      else if (kind === 'gauge') expect(screen.getByRole('meter')).toHaveAttribute('aria-valuenow', '42')
+      else if (kind === 'histogram' || kind === 'boxplot' || kind === 'heatmap') await screen.findByRole('button', { name: 'chart data' })
+      else if (kind === 'map') await screen.findByRole('button', { name: 'chart data' })
+      else expect(panelElement.querySelector('.lens-chart-compact')).toHaveTextContent('42')
     }
     view.unmount()
+  })
+})
+
+describe('map panel', () => {
+  it('passes the exact feature join to ECharts and drills with the region key', async () => {
+    runtime.frame = state('data')
+    const inputs: ChartInput[] = []
+    render(<MapPanel panel={panel('map', { drillRoot: 'root' })} adapter={fakeAdapter((input) => inputs.push(input))} />)
+
+    const mark = await screen.findByRole('button', { name: 'chart data' })
+    expect(inputs.at(-1)?.kind).toBe('map')
+    expect(inputs.at(-1)?.map).toMatchObject({ featureProperty: 'code', labelProperty: 'name' })
+    fireEvent.click(mark)
+    expect(runtime.drillInto).toHaveBeenCalledWith('root/a', 'panel-map')
   })
 })
 
@@ -157,7 +227,7 @@ describe('panel total badge', () => {
     runtime.frame = state('data')
     const view = render(<BarPanel panel={panel('bar', { total: 12345 })} adapter={fakeAdapter()} />)
     const badge = view.container.querySelector('.lens-panel-total')
-    // The badge names what it totals, like the legacy renderer's "Итого:".
+    // The badge names what it totals instead of showing an unlabeled number.
     expect(badge).toHaveTextContent('Total: 12345')
   })
 
@@ -165,6 +235,50 @@ describe('panel total badge', () => {
     runtime.frame = state('data')
     const view = render(<BarPanel panel={panel('bar')} adapter={fakeAdapter()} />)
     expect(view.container.querySelector('.lens-panel-total')).toBeNull()
+  })
+
+  it('uses the hydrated frame total instead of a deferred shell placeholder', () => {
+    runtime.frame = {
+      data: { ...dataFrame, total: 42 },
+      isLoading: false,
+      isStale: false,
+      error: null,
+      retry: vi.fn(),
+    }
+    const view = render(<PiePanel
+      adapter={fakeAdapter()}
+      panel={panel('pie', { presentation: { totalBadge: 'plot' }, total: 3 })}
+    />)
+
+    expect(view.container.querySelector('.lens-plot-total')).toHaveTextContent('Total: 42')
+    expect(view.container.querySelector('.lens-plot-total')).not.toHaveTextContent('Total: 3')
+  })
+
+  it('leaves the plot total to the donut hub, which already prints it', () => {
+    runtime.frame = {
+      data: { ...dataFrame, total: 42 },
+      isLoading: false,
+      isStale: false,
+      error: null,
+      retry: vi.fn(),
+    }
+    const view = render(<PiePanel
+      adapter={fakeAdapter()}
+      panel={panel('donut', { presentation: { totalBadge: 'plot' }, total: 42 })}
+    />)
+
+    expect(view.container.querySelector('.lens-plot-total')).toBeNull()
+  })
+
+  it('does not leak a deferred shell total into an empty hydrated frame', () => {
+    runtime.frame = state('empty')
+    const view = render(<PiePanel
+      adapter={fakeAdapter()}
+      panel={panel('donut', { presentation: { totalBadge: 'plot' }, total: 3 })}
+    />)
+
+    expect(view.container.querySelector('.lens-plot-total')).toBeNull()
+    expect(view.container).not.toHaveTextContent('Total: 3')
   })
 
   it('totals the drilled level frame, not the root, in the header badge', () => {
@@ -192,9 +306,111 @@ describe('panel total badge', () => {
   })
 })
 
+describe('gauge panel', () => {
+  it('renders a formatted reading against the declared non-percent range', () => {
+    runtime.frame = {
+      data: { columns: [{ name: 'value', type: 'number' }], rows: [[125]] },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const view = render(<GaugePanel panel={panel('gauge', { encoding: { value: 'value' }, radial: { mode: 'progress', max: 250 } })} />)
+    expect(screen.getByRole('meter')).toHaveAttribute('aria-valuenow', '125')
+    expect(screen.getByRole('meter')).toHaveAttribute('aria-valuemax', '250')
+    expect(view.container.querySelector('.lens-gauge-reading')).toHaveTextContent('125of 250')
+    expect(view.container.querySelector('.lens-gauge-value-arc')).toHaveStyle({ strokeDasharray: '50 100' })
+  })
+})
+
+describe('temporal overlay controls', () => {
+  it('keeps regression off by default and selects one documented moving-average window', async () => {
+    runtime.frame = {
+      ...state('data'),
+      data: {
+        columns: [
+          ...dataFrame.columns,
+          { name: 'regression', type: 'number' },
+          { name: 'sma_3', type: 'number' },
+          { name: 'sma_7', type: 'number' },
+        ],
+        rows: [
+          ['root/a', 'Alpha', '2026-07-01T00:00:00Z', 'Actual', 42, 40, null, null],
+          ['root/b', 'Beta', '2026-07-02T00:00:00Z', 'Actual', 45, 43, 43, null],
+          ['root/c', 'Gamma', '2026-07-03T00:00:00Z', 'Actual', 48, 46, 45, 44],
+        ],
+      },
+    }
+    const inputs: ChartInput[] = []
+    const temporal = panel('line', {
+      temporal: {
+        regression: { field: 'regression', label: 'Trend' },
+        movingAverages: [
+          { window: 3, field: 'sma_3', label: 'SMA 3' },
+          { window: 7, field: 'sma_7', label: 'SMA 7' },
+        ],
+        referenceLines: [{ value: 50, label: 'Threshold' }],
+      },
+    })
+    const view = render(<LinePanel panel={temporal} adapter={fakeAdapter((input) => inputs.push(input))} />)
+    await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
+    // The header control and the legend entry are two switches on one state,
+    // so the header one is addressed through its own group.
+    const controls = within(view.container.querySelector<HTMLElement>('.lens-temporal-controls')!)
+    // The panel hands the chart every overlay the document declared and says
+    // separately which of them the reader has switched off, so the legend can
+    // list an overlay that is not currently drawn and offer it back.
+    expect(inputs.at(-1)?.temporal).toMatchObject({ referenceLines: [{ value: 50, label: 'Threshold' }] })
+    expect(inputs.at(-1)?.temporal?.regression?.field).toBe('regression')
+    expect([...(inputs.at(-1)?.hiddenOverlays ?? [])].sort()).toEqual(['average:3', 'average:7', 'trend'])
+
+    fireEvent.click(controls.getByRole('button', { name: 'Trend' }))
+    await waitFor(() => expect(inputs.at(-1)?.hiddenOverlays?.has('trend')).toBe(false))
+    expect(controls.getByRole('button', { name: 'Trend' })).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.change(controls.getByRole('combobox', { name: 'Moving average' }), { target: { value: '7' } })
+    await waitFor(() => expect([...(inputs.at(-1)?.hiddenOverlays ?? [])].sort()).toEqual(['average:3']))
+  })
+
+  it('lists every overlay in the legend, including the ones no data row can name', async () => {
+    runtime.frame = {
+      ...state('data'),
+      data: {
+        columns: [...dataFrame.columns, { name: 'regression', type: 'number' }],
+        rows: [
+          ['root/a', 'Alpha', '2026-07-01T00:00:00Z', 'Actual', 42, 40],
+          ['root/b', 'Beta', '2026-07-02T00:00:00Z', 'Actual', 45, 43],
+        ],
+      },
+    }
+    const temporal = panel('line', {
+      temporal: {
+        regression: { field: 'regression', label: 'Trend' },
+        referenceLines: [{ value: 50, label: 'Threshold' }],
+        annotations: [{ at: '2026-07-02T00:00:00Z', label: 'Method changed' }],
+      },
+    })
+    const view = render(<LinePanel panel={temporal} adapter={fakeAdapter()} />)
+
+    await screen.findByRole('list', { name: 'Chart marks' })
+    expect(markRow(view.container, 'Threshold')).toHaveAttribute('aria-pressed', 'true')
+    expect(markRow(view.container, 'Method changed')).toHaveAttribute('aria-pressed', 'true')
+    // The trend is off until the header control turns it on, and the legend
+    // says so rather than omitting it.
+    expect(markRow(view.container, 'Trend')).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(markRow(view.container, 'Threshold'))
+    await waitFor(() => expect(markRow(view.container, 'Threshold')).toHaveAttribute('aria-pressed', 'false'))
+  })
+})
+
 describe('logarithmic scale warning', () => {
   it('keeps the non-linear scale visible on the chart reading surface', () => {
-    runtime.frame = state('data')
+    runtime.frame = {
+      ...state('data'),
+      data: { ...dataFrame, rows: [
+        ['a', 'A', 'A', 'Actual', 2],
+        ['b', 'B', 'B', 'Actual', 100],
+        ['c', 'C', 'C', 'Actual', 10_000],
+      ] },
+    }
     render(
       <BarPanel
         panel={panel('bar', { valueAxis: { scale: 'logarithmic', logBase: 10 } })}
@@ -213,18 +429,44 @@ describe('logarithmic scale warning', () => {
 
     expect(screen.queryByRole('note')).toBeNull()
   })
+
+  it('recomputes the warning from the same visible frame sent to the axis', async () => {
+    runtime.frame = {
+      ...state('data'),
+      data: { ...dataFrame, rows: [
+        ['a', 'A', 'A', 'Small', 2],
+        ['b', 'B', 'B', 'Middle', 100],
+        ['c', 'C', 'C', 'Outlier', 10_000],
+      ] },
+    }
+    const inputs: ChartInput[] = []
+    const view = render(<BarPanel panel={panel('bar', {
+      valueAxis: { scale: 'logarithmic', logBase: 10 }, presentation: { legend: 'below' },
+    })} adapter={fakeAdapter((input) => inputs.push(input))} />)
+
+    expect(screen.getByRole('note')).toBeInTheDocument()
+    fireEvent.click(legendRow(view.container, 'Outlier'))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(2))
+    expect(screen.queryByRole('note')).toBeNull()
+  })
+
+  it('silently falls back to linear for one category', () => {
+    runtime.frame = state('data')
+    render(<BarPanel panel={panel('bar', { valueAxis: { scale: 'logarithmic', logBase: 10 } })} adapter={fakeAdapter()} />)
+    expect(screen.queryByRole('note')).toBeNull()
+    expect(screen.getByText('42')).toBeInTheDocument()
+  })
 })
 
-describe('document refetch loading', () => {
-  it('shows the skeleton while a date/period refetch is in flight', () => {
+describe('background document refetch isolation', () => {
+  it('keeps a usable panel visible while the document refreshes', () => {
     runtime.frame = state('data')
     runtime.refreshing = true
     const view = render(<BarPanel panel={panel('bar')} adapter={fakeAdapter()} />)
     const panelElement = screen.getByLabelText('bar panel')
-    expect(panelElement).toHaveAttribute('aria-busy', 'true')
-    expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
-    // The stale chart is gone; the panel is unmistakably recomputing.
-    expect(screen.queryByText('chart data')).toBeNull()
+    expect(panelElement).toHaveAttribute('aria-busy', 'false')
+    expect(view.container.querySelector('.lens-panel-skeleton')).toBeNull()
+    expect(screen.getByText('42')).toBeInTheDocument()
   })
 })
 
@@ -236,6 +478,11 @@ describe('panel registry', () => {
       cascade: true,
       coverage: true,
       donut: true,
+      gauge: true,
+      histogram: true,
+      boxplot: true,
+      heatmap: true,
+      map: true,
       radial: true,
       hbar: true,
       line: true,
@@ -248,24 +495,101 @@ describe('panel registry', () => {
     } satisfies Record<PanelKind, true>
 
     for (const kind of Object.keys(contractKinds) as PanelKind[]) {
-      const supported = panelRegistry[kind] !== undefined
-      const unsupported = UNSUPPORTED.some((candidate) => candidate === kind)
-      expect(Number(supported) + Number(unsupported), kind).toBe(1)
+      expect(panelRegistry[kind], kind).toBeDefined()
     }
   })
 
-  it('maps every kind and preserves an explicit fallback for custom registries', () => {
+  it('maps every kind and preserves an explicit fallback for custom registries', async () => {
     runtime.frame = state('data')
     const view = render(<RegisteredPanel panel={panel('table')} />)
-    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(await screen.findByRole('table')).toBeInTheDocument()
     view.rerender(<RegisteredPanel panel={panel('cascade')} registry={{}} />)
     expect(screen.getByText('Unsupported panel: cascade')).toBeInTheDocument()
+  })
+
+  it('lets a failed custom panel retry without taking down its siblings', () => {
+    runtime.frame = state('data')
+    let fail = true
+    const Fragile = () => {
+      if (fail) throw new Error('private renderer detail')
+      return <div>Recovered panel</div>
+    }
+    render(<RegisteredPanel panel={panel('stat')} registry={{ stat: Fragile }} />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('This panel could not be rendered.')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('private renderer detail')
+    fail = false
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(screen.getByText('Recovered panel')).toBeInTheDocument()
   })
 })
 
 describe('chart encoding and drill behavior', () => {
-  it('adds selection and hover affordances only when DrillRoot is present', async () => {
+  it('discloses when a panel cannot honor the active comparison', () => {
     runtime.frame = state('data')
+    render(<StatPanel panel={panel('stat', { comparisonUnsupported: true })} />)
+
+    expect(screen.getByRole('note')).toHaveTextContent('Comparison is not available for this panel.')
+  })
+
+  it('renders the server-localized map attribution as an accessible note', async () => {
+    runtime.frame = state('data')
+    const map = panel('map')
+    map.map = { ...map.map!, attribution: '© Example contributors · Boundaries (ODbL)' }
+    render(<MapPanel panel={map} adapter={fakeAdapter()} />)
+
+    expect(await screen.findByRole('note', { name: 'Map attribution' })).toHaveTextContent('© Example contributors · Boundaries (ODbL)')
+  })
+
+  it('offers zoom reset only for a declared time category and calls the adapter', async () => {
+    const resetZoom = vi.fn()
+    const mount = vi.fn(() => ({ update: vi.fn(), dispose: vi.fn(), resetZoom }))
+    const adapter: ChartAdapter = {
+      mount,
+    }
+    const temporalFrame = { ...dataFrame, rows: [...dataFrame.rows, ['root/b', 'Beta', '2026-07-02T00:00:00Z', 'Actual', 43]] }
+    runtime.frame = { ...state('data'), data: temporalFrame }
+    const view = render(<LinePanel panel={panel('line')} adapter={adapter} />)
+    await waitFor(() => expect(mount).toHaveBeenCalledTimes(1))
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset zoom' }))
+    await waitFor(() => expect(resetZoom).toHaveBeenCalledTimes(1))
+
+    runtime.frame = {
+      ...state('data'),
+      data: { ...temporalFrame, columns: temporalFrame.columns.map((column) => column.name === 'category' ? { ...column, type: 'string' as const } : column) },
+    }
+    view.rerender(<LinePanel panel={panel('line')} adapter={adapter} />)
+    expect(screen.queryByRole('button', { name: 'Reset zoom' })).toBeNull()
+  })
+
+  it('falls back to the label encoding when the preferred category column is absent', async () => {
+    const frame: Frame = {
+      columns: [{ name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+      rows: [['Alpha', 10], ['Beta', 20]],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const inputs: ChartInput[] = []
+    render(<BarPanel
+      adapter={fakeAdapter((input) => inputs.push(input))}
+      panel={panel('hbar', { encoding: { category: 'missing', label: 'label', value: 'value' } })}
+    />)
+
+    await waitFor(() => expect(inputs).toHaveLength(1))
+    expect(document.querySelector('.lens-chart-compact')).toBeNull()
+  })
+
+  it.each(['histogram', 'boxplot', 'heatmap'] as const)('passes %s through the chart runtime', async (kind) => {
+    runtime.frame = state('data')
+    const inputs: ChartInput[] = []
+    render(<DistributionPanel panel={panel(kind)} adapter={fakeAdapter((input) => inputs.push(input))} />)
+    await waitFor(() => expect(inputs.at(-1)?.kind).toBe(kind))
+  })
+
+  it('adds selection and hover affordances only when DrillRoot is present', async () => {
+    runtime.frame = {
+      ...state('data'),
+      data: { ...dataFrame, rows: [...dataFrame.rows, ['root/b', 'Beta', '2026-07-02T00:00:00Z', 'Actual', 21]] },
+    }
     const adapter = fakeAdapter()
     const view = render(<PiePanel panel={panel('pie')} adapter={adapter} />)
     await waitFor(() => expect(screen.getByText('chart data')).toBeInTheDocument())
@@ -280,7 +604,10 @@ describe('chart encoding and drill behavior', () => {
   })
 
   it('passes time and series encodings through and tolerates missing optional roles', async () => {
-    runtime.frame = state('data')
+    runtime.frame = {
+      ...state('data'),
+      data: { ...dataFrame, rows: [...dataFrame.rows, ['root/b', 'Beta', '2026-07-02T00:00:00Z', 'Plan', 21]] },
+    }
     const inputs: ChartInput[] = []
     const timePanel = panel('line', { encoding: { category: 'category', value: 'value', series: 'series' } })
     const view = render(<LinePanel panel={timePanel} adapter={fakeAdapter((input) => inputs.push(input))} />)
@@ -290,7 +617,10 @@ describe('chart encoding and drill behavior', () => {
 
     const sparse = panel('bar', { encoding: { value: 'value' } })
     view.rerender(<BarPanel panel={sparse} adapter={fakeAdapter((input) => inputs.push(input))} />)
-    await waitFor(() => expect(inputs.at(-1)?.encoding).toEqual({ value: 'value' }))
+    // With no categorical role this is the intentional compact-value state;
+    // the missing optional encodings are therefore tolerated without asking
+    // the chart adapter to invent an axis.
+    expect(screen.getByText('63')).toBeInTheDocument()
   })
 
   it('passes radial geometry and resolves a ring-specific row selection', async () => {
@@ -355,12 +685,11 @@ describe('chart encoding and drill behavior', () => {
       },
     })
     const view = render(<PiePanel panel={radial} adapter={fakeAdapter()} />)
-    await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-item').length).toBe(6))
-    const shares = Array.from(view.container.querySelectorAll('.lens-chart-legend-value')).map((node) => node.textContent)
+    await waitFor(() => expect(legendLabels(view.container)).toHaveLength(6))
     // Both rings declare 100. Grouped by that denominator the six rows sum to
     // 200%, so nothing reconciles and each ring prints 99.9%. Grouped by ring,
     // each thirds-decomposition adds up to exactly 100.0%.
-    expect(shares).toEqual(['33.4%', '33.3%', '33.3%', '33.4%', '33.3%', '33.3%'])
+    expect(legendValues(view.container)).toEqual(['33.4%', '33.3%', '33.3%', '33.4%', '33.3%', '33.3%'])
   })
 
   it('drops the colour pins of the rows a legend toggle hid', async () => {
@@ -375,9 +704,9 @@ describe('chart encoding and drill behavior', () => {
     runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
     const inputs: ChartInput[] = []
     const pie = panel('pie', { presentation: { legend: 'below' } })
-    render(<PiePanel panel={pie} adapter={fakeAdapter((input) => inputs.push(input))} />)
+    const view = render(<PiePanel panel={pie} adapter={fakeAdapter((input) => inputs.push(input))} />)
     await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
-    fireEvent.click(screen.getByText('Alpha'))
+    fireEvent.click(legendRow(view.container, 'Alpha'))
     // The pins are positional: keeping Alpha's after dropping Alpha's row
     // would paint Beta's slice with Alpha's colour.
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(1))
@@ -400,9 +729,8 @@ describe('chart encoding and drill behavior', () => {
     const inputs: ChartInput[] = []
     const pie = panel('pie', { presentation: { legend: 'below' } })
     const view = render(<PiePanel panel={pie} adapter={fakeAdapter((input) => inputs.push(input))} />)
-    await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-mark').length).toBe(2))
-    const marks = Array.from(view.container.querySelectorAll<HTMLElement>('.lens-chart-legend-mark'))
-    expect(marks.map((mark) => mark.style.background)).toEqual(['rgb(17, 17, 17)', 'rgb(34, 34, 34)'])
+    await waitFor(() => expect(legendSwatches(view.container)).toHaveLength(2))
+    expect(legendSwatches(view.container)).toEqual(['rgb(17, 17, 17)', 'rgb(34, 34, 34)'])
     expect(inputs.at(-1)?.rowColor?.('Alpha', 0, 'alpha')).toBe('#111111')
     expect(inputs.at(-1)?.rowColor?.('Beta', 1, 'beta')).toBe('#222222')
   })
@@ -429,15 +757,332 @@ describe('chart encoding and drill behavior', () => {
     })
     const view = render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
 
-    await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-item')).toHaveLength(2))
-    expect(screen.getByText('Written premium')).toBeInTheDocument()
-    expect(screen.getByText('Earned premium')).toBeInTheDocument()
+    await waitFor(() => expect(legendLabels(view.container)).toEqual(['Written premium', 'Earned premium']))
+    const data = screen.getByRole('list', { name: 'Chart data for line panel' })
+    expect(data).toHaveTextContent('2025, Written premium, 100')
+    expect(data).toHaveTextContent('2025, Earned premium, 80')
 
-    fireEvent.click(screen.getByRole('button', { name: /Earned premium/ }))
+    fireEvent.click(legendRow(view.container, 'Earned premium'))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toEqual([
       ['2025', 'Written premium', 100],
       ['2026', 'Written premium', 120],
     ]))
+    expect(data).not.toHaveTextContent('Earned premium')
+    expect(data).toHaveTextContent('2026, Written premium, 120')
+  })
+
+  it('prints period sums and supports solo and repeat-solo restore without bulk controls for two series', async () => {
+    const frame: Frame = {
+      columns: [
+        { name: 'category', type: 'string' },
+        { name: 'series', type: 'string' },
+        { name: 'value', type: 'number' },
+      ],
+      rows: [
+        ['2025', 'Written', 100], ['2025', 'Earned', 80],
+        ['2026', 'Written', 120], ['2026', 'Earned', 90],
+      ],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const inputs: ChartInput[] = []
+    const line = panel('line', {
+      encoding: { category: 'category', series: 'series', value: 'value' },
+      presentation: { legend: 'below' },
+    })
+    const view = render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
+
+    expect(legendRow(view.container, 'Written')).toHaveTextContent('220')
+    // Isolating is the row's double-click — the charting idiom — rather than a
+    // second button beside it.
+    fireEvent.doubleClick(legendRow(view.container, 'Earned'))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows.every((row) => row[1] === 'Earned')).toBe(true))
+    expect(new URL(window.location.href).searchParams.getAll('lens-state').length).toBe(1)
+
+    fireEvent.doubleClick(legendRow(view.container, 'Earned'))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(4))
+
+    // With only two series, the per-series controls are enough.
+    expect(screen.queryByRole('button', { name: 'Invert' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Hide all' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull()
+  })
+
+  it('shows bulk legend controls above four entries and hides them at or below that threshold', async () => {
+    const columns: Frame['columns'] = [
+      { name: 'category', type: 'string' },
+      { name: 'series', type: 'string' },
+      { name: 'value', type: 'number' },
+    ]
+    const line = panel('line', {
+      encoding: { category: 'category', series: 'series', value: 'value' },
+      presentation: { legend: 'below' },
+    })
+    runtime.frame = {
+      data: { columns, rows: Array.from({ length: 6 }, (_, index) => ['2026', `Series ${index + 1}`, index + 1]) },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const long = render(<LinePanel panel={line} adapter={fakeAdapter()} />)
+    // One threshold: the entry count that earns a search box is the same one
+    // that earns bulk selection, so the column has two compositions, not four.
+    expect(screen.getByRole('searchbox', { name: 'Search legend' })).toBeInTheDocument()
+    // The pair is one two-state control, not two loose commands: with every
+    // series plotted, "Show all" is the state the legend is already in.
+    expect(screen.getByRole('button', { name: 'Show all' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Hide all' })).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Hide all' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Hide all' })).toHaveAttribute('aria-pressed', 'true'))
+    expect(screen.getByRole('button', { name: 'Show all' })).toHaveAttribute('aria-pressed', 'false')
+    // Invert takes it back to the state it started in rather than to a third one.
+    fireEvent.click(screen.getByRole('button', { name: 'Invert' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Show all' })).toHaveAttribute('aria-pressed', 'true'))
+    long.unmount()
+
+    runtime.frame = {
+      data: { columns, rows: Array.from({ length: 3 }, (_, index) => ['2026', `Short ${index + 1}`, index + 1]) },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const short = render(<LinePanel panel={line} adapter={fakeAdapter()} />)
+    expect(screen.queryByRole('button', { name: 'Hide all' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull()
+    expect(screen.queryByRole('searchbox', { name: 'Search legend' })).toBeNull()
+    short.unmount()
+
+    runtime.frame = {
+      data: { columns, rows: Array.from({ length: 4 }, (_, index) => ['2026', `Bulk ${index + 1}`, index + 1]) },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const threshold = render(<LinePanel panel={line} adapter={fakeAdapter()} />)
+    expect(screen.queryByRole('button', { name: 'Hide all' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Invert' })).toBeNull()
+    expect(screen.queryByRole('searchbox', { name: 'Search legend' })).toBeNull()
+    threshold.unmount()
+
+    runtime.frame = {
+      data: { columns, rows: Array.from({ length: 5 }, (_, index) => ['2026', `Bulk ${index + 1}`, index + 1]) },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<LinePanel panel={line} adapter={fakeAdapter()} />)
+    expect(screen.getByRole('button', { name: 'Hide all' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Invert' })).toBeNull()
+    expect(screen.queryByRole('searchbox', { name: 'Search legend' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Hide all' }))
+    await screen.findByRole('button', { name: 'Show all' })
+  })
+
+  it('prints the latest ratio reading instead of summing a ratio series', () => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'category', type: 'string' },
+          { name: 'series', type: 'string' },
+          { name: 'value', type: 'number' },
+        ],
+        rows: [['2025', 'Loss ratio', 82], ['2026', 'Loss ratio', 91]],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const view = render(<LinePanel
+      adapter={fakeAdapter()}
+      panel={panel('line', {
+        encoding: { category: 'category', series: 'series', value: 'value' },
+        format: { value: { kind: 'percent', minorUnits: false, precision: 0 } },
+        presentation: { legend: 'below' },
+      })}
+    />)
+
+    expect(legendRow(view.container, 'Loss ratio')).toHaveTextContent('91')
+    expect(legendRow(view.container, 'Loss ratio')).not.toHaveTextContent('173')
+  })
+
+  it('exposes every drill mark as a keyboard action', async () => {
+    runtime.frame = {
+      data: {
+        columns: [{ name: 'id', type: 'string' }, { name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+        rows: [['root/a', 'Alpha', 10], ['beta', 'Beta', 20]],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<BarPanel
+      adapter={fakeAdapter()}
+      panel={panel('bar', { drillRoot: 'root', encoding: { id: 'id', label: 'label', value: 'value' } })}
+    />)
+
+    const actions = await screen.findAllByRole('button', { name: /Open (Alpha|Beta), (10|20)/ })
+    expect(actions).toHaveLength(2)
+    fireEvent.click(actions[1]!)
+    expect(runtime.drillInto).toHaveBeenCalledWith('beta', 'panel-bar')
+
+    runtime.drillInto.mockReset()
+    const keyboardAction = actions[0]!
+    keyboardAction.focus()
+    fireEvent.keyDown(keyboardAction, { key: 'Enter', code: 'Enter' })
+    // Browsers synthesize this click as the default Enter action for a button.
+    fireEvent.click(keyboardAction)
+    fireEvent.keyUp(keyboardAction, { key: 'Enter', code: 'Enter' })
+    expect(runtime.drillInto).toHaveBeenCalledWith('root/a', 'panel-bar')
+
+    runtime.drillInto.mockReset()
+    fireEvent.click(screen.getByRole('button', { name: 'chart data' }))
+    expect(runtime.drillInto).toHaveBeenCalledWith('root/a', 'panel-bar')
+  })
+
+  it('exposes formatted category, series, and value for a non-actionable chart', () => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'category', type: 'string' },
+          { name: 'series', type: 'string' },
+          { name: 'value', type: 'number' },
+        ],
+        rows: [['January', 'Revenue', 1200], ['January', 'Cost', 500]],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<LinePanel
+      adapter={fakeAdapter()}
+      panel={panel('line', { encoding: { category: 'category', series: 'series', value: 'value' } })}
+    />)
+
+    const data = screen.getByRole('list', { name: 'Chart data for line panel' })
+    expect(data).toHaveTextContent('January, Revenue, 1200')
+    expect(data).toHaveTextContent('January, Cost, 500')
+    expect(data.querySelectorAll('button')).toHaveLength(0)
+  })
+
+  it('falls back to a present label column when the default category column is absent', () => {
+    runtime.frame = {
+      data: {
+        columns: [{ name: 'id', type: 'string' }, { name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+        rows: [['osago', 'ОСАГО', 312_200_000], ['travel', 'Путешествия', 10_000_000]],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<BarPanel
+      adapter={fakeAdapter()}
+      panel={panel('hbar', { encoding: { id: 'id', category: 'category', label: 'label', value: 'value' } })}
+    />)
+
+    const equivalent = screen.getByRole('list', { name: 'Chart data for hbar panel' })
+    expect(equivalent).toHaveTextContent('ОСАГО, 312200000')
+    expect(equivalent).toHaveTextContent('Путешествия, 10000000')
+  })
+
+  it('gives same-category actionable series unambiguous names with values', async () => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'category', type: 'string' },
+          { name: 'series', type: 'string' },
+          { name: 'value', type: 'number' },
+        ],
+        rows: [['January', 'Revenue', 1200], ['January', 'Cost', 500]],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<LinePanel
+      adapter={fakeAdapter()}
+      panel={panel('line', {
+        drillRoot: 'root',
+        encoding: { category: 'category', series: 'series', value: 'value' },
+      })}
+    />)
+
+    expect(await screen.findByRole('button', { name: 'Open January, Revenue, 1200' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open January, Cost, 500' })).toBeInTheDocument()
+  })
+
+  it('shows legend search above six series and filters without changing the plot', () => {
+    const rows = ['2025', '2026'].flatMap((year) => Array.from({ length: 7 }, (_, index) => [year, `Product ${index + 1}`, index + 1]))
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'category', type: 'string' },
+          { name: 'series', type: 'string' },
+          { name: 'value', type: 'number' },
+        ],
+        rows,
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const line = panel('line', {
+      encoding: { category: 'category', series: 'series', value: 'value' },
+      presentation: { legend: 'below' },
+    })
+    const view = render(<LinePanel panel={line} adapter={fakeAdapter()} />)
+    const search = screen.getByRole('searchbox', { name: 'Search legend' })
+    fireEvent.change(search, { target: { value: 'Product 7' } })
+    // The search narrows the list a reader reads; it must not narrow the plot,
+    // which still has to draw the series the reader filtered out of view.
+    expect(legendLabels(view.container)).toEqual(['Product 7'])
+    expect(view.container.querySelector('.lens-chart-canvas')).toBeInTheDocument()
+  })
+
+  it('rebuilds a hidden stack from zero by removing its rows from the chart input', async () => {
+    const frame: Frame = {
+      columns: [
+        { name: 'category', type: 'string' }, { name: 'series', type: 'string' }, { name: 'value', type: 'number' },
+      ],
+      rows: [['2026', 'Direct', 100], ['2026', 'Inward', 50], ['2027', 'Direct', 80], ['2027', 'Inward', 30]],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const inputs: ChartInput[] = []
+    const view = render(<BarPanel panel={panel('bar', {
+      encoding: { category: 'category', series: 'series', value: 'value' },
+      presentation: { legend: 'below', stack: true },
+    })} adapter={fakeAdapter((input) => inputs.push(input))} />)
+
+    fireEvent.click(legendRow(view.container, 'Direct'))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toEqual([['2026', 'Inward', 50], ['2027', 'Inward', 30]]))
+    expect(inputs.at(-1)?.frame.total).toBe(80)
+  })
+
+  it('collapses expandable TopN and sub-two-percent donut tails without discarding their source rows', () => {
+    const topNFrame: Frame = {
+      columns: [
+        { name: 'id', type: 'string' }, { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' }, { name: '__lens_topn_group', type: 'string' },
+      ],
+      rows: [['a', 'A', 100, null], ['b', 'B', 4, 'Other'], ['c', 'C', 3, 'Other']],
+    }
+    const topN = collapseExpandableTopN(topNFrame, panel('bar', { encoding: { id: 'id', label: 'label', value: 'value' } }))
+    expect(topN.frame.rows).toEqual([['a', 'A', 100, null], [donutRemainderKey, 'Other', 7, 'Other']])
+
+    const donut = collapseMinorDonutSlices({ ...topNFrame, rows: [['a', 'A', 98, null], ['b', 'B', 1, null], ['c', 'C', 1, null]] }, panel('donut', {
+      encoding: { id: 'id', label: 'label', value: 'value' },
+    }), 'Other')
+    expect(donut.frame.rows.at(-1)?.slice(0, 3)).toEqual([donutRemainderKey, 'Other', 2])
+  })
+
+  it('expands a collapsed TopN remainder when its synthetic mark is selected', async () => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'id', type: 'string' }, { name: 'label', type: 'string' },
+          { name: 'value', type: 'number' }, { name: '__lens_topn_group', type: 'string' },
+        ],
+        rows: [['a', 'A', 100, null], ['b', 'B', 4, 'Other'], ['c', 'C', 3, 'Other']],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const inputs: ChartInput[] = []
+    const adapter: ChartAdapter = {
+      mount(el, input, events) {
+        inputs.push(input)
+        const button = document.createElement('button')
+        button.textContent = 'Other'
+        button.onclick = () => events.onSelect(donutRemainderKey)
+        el.append(button)
+        return { update: (next) => inputs.push(next), dispose: () => el.replaceChildren() }
+      },
+    }
+    render(<BarPanel panel={panel('bar', { encoding: { id: 'id', label: 'label', value: 'value' } })} adapter={adapter} />)
+
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(2))
+    fireEvent.click(screen.getByRole('button', { name: 'Other' }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(3))
+    expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
   })
 
   it('keeps a series in its own colour when the series before it is hidden', async () => {
@@ -470,16 +1115,40 @@ describe('chart encoding and drill behavior', () => {
     })
     const view = render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
 
-    await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-item')).toHaveLength(2))
+    await waitFor(() => expect(legendLabels(view.container)).toEqual(['Claimed', 'Paid']))
     expect(inputs.at(-1)?.seriesColor?.('Paid', 1)).toBe('#d97706')
 
-    fireEvent.click(screen.getByRole('button', { name: /Claimed/ }))
+    fireEvent.click(legendRow(view.container, 'Claimed'))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(2))
     // The chart now hands index 0 — the only series it can see — and must
     // still be told amber, the colour the legend beside it is still printing.
     expect(inputs.at(-1)?.seriesColor?.('Paid', 0)).toBe('#d97706')
-    const marks = Array.from(view.container.querySelectorAll<HTMLElement>('.lens-chart-legend-mark'))
-    expect(marks.at(-1)?.style.background).toBe('rgb(217, 119, 6)')
+    expect(legendSwatches(view.container).at(-1)).toBe('rgb(217, 119, 6)')
+  })
+
+  it('shows the figure\'s own shape while a strip cell is loading, not the empty-value dash', () => {
+    runtime.frame = state('loading')
+    const { container } = render(<StatMetric panel={panel('stat', { encoding: { value: 'value' } })} />)
+
+    // «—» is what this product prints for a value that is genuinely absent, so
+    // a loading cell that printed it made a slow strip and an empty one look
+    // the same.
+    expect(container.querySelector('.lens-stat-metric-value-shimmer')).not.toBeNull()
+    expect(container.querySelector('.lens-stat-metric-value')?.textContent).toBe('')
+    expect(container.querySelector('.lens-stat-metric')).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('marks a strip cell whose figure is being replaced', () => {
+    // A recompute keeps the old numbers on screen while the request is open.
+    // The card form said so («Updating» plus the stale dim) and the strip cell —
+    // which is what a KPI actually is — said nothing, so the figures a reader is
+    // most likely to act on were the ones that looked settled.
+    runtime.frame = state('stale')
+    const { container } = render(<StatMetric panel={panel('stat', { encoding: { value: 'value' } })} />)
+
+    const cell = container.querySelector('.lens-stat-metric')
+    expect(cell).toHaveAttribute('data-stale', 'true')
+    expect(container.querySelector('.lens-stat-metric-value')?.textContent).toBe('42')
   })
 
   it('renders the panel title once when the stat label would duplicate it', () => {
@@ -487,6 +1156,49 @@ describe('chart encoding and drill behavior', () => {
     render(<StatPanel panel={panel('stat', { encoding: { value: 'value' } })} />)
     expect(screen.getAllByText('stat panel')).toHaveLength(1)
     expect(screen.getByText('42')).toBeInTheDocument()
+  })
+
+  it.each([
+    { absolute: 42, expected: 'New' },
+    { absolute: 0, expected: 'N/A' },
+  ])('renders $expected when a comparison baseline cannot produce a percentage', ({ absolute, expected }) => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'value', type: 'number' },
+          { name: 'delta', type: 'number' },
+          { name: 'delta_percent', type: 'number' },
+        ],
+        rows: [[42, absolute, null]],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<StatPanel panel={panel('stat', {
+      encoding: { value: 'value' },
+      trend: { percent: 0, absoluteField: 'delta', percentField: 'delta_percent' },
+    })} />)
+
+    expect(screen.getByText(expected)).toBeInTheDocument()
+    expect(screen.queryByText('+0.0%')).toBeNull()
+  })
+
+  it('shows percentage KPI comparisons in points instead of relative percent change', () => {
+    runtime.frame = {
+      data: {
+        columns: [{ name: 'value', type: 'number' }, { name: 'delta', type: 'number' }, { name: 'delta_percent', type: 'number' }],
+        rows: [[3, -11, -78.4]],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<StatPanel panel={panel('stat', {
+      encoding: { value: 'value' },
+      trend: { percent: -78.4, absoluteField: 'delta', percentField: 'delta_percent', absoluteDeltaUnit: 'percentage_points' },
+    })} />)
+
+    expect(screen.getByText('-11 pp')).toBeInTheDocument()
+    expect(screen.getByText(/was 14/)).toBeInTheDocument()
+    expect(screen.queryByText('-78.4%')).toBeNull()
+    expect(document.querySelector('.lens-trend-chip')).toHaveAttribute('title', '-11 pp · was 14')
   })
 })
 
@@ -545,7 +1257,7 @@ describe('coverage panel', () => {
     expect(view.container.querySelector('.lens-coverage-bullet-marker')).not.toBeNull()
   })
 
-  it('makes each segment and legend row its own link for a row-scoped action', () => {
+  it('keeps track segments decorative and exposes one legend link per row-scoped action', () => {
     runtime.frame = {
       data: coverageFrame([['a', 'Alpha', '/drill/a', 60], ['b', 'Beta', '/drill/b', 40]]),
       isLoading: false, isStale: false, error: null, retry: vi.fn(),
@@ -558,9 +1270,11 @@ describe('coverage panel', () => {
     }
     const view = render(<CoveragePanel panel={coveragePanel({ actions: [action] })} />)
     const segmentLinks = view.container.querySelectorAll('a.lens-coverage-track-segment-link')
-    expect(segmentLinks).toHaveLength(2)
-    expect(segmentLinks[0]?.getAttribute('href')).toContain('/drill/a')
+    expect(segmentLinks).toHaveLength(0)
+    expect(view.container.querySelector('.lens-coverage-track')).toHaveAttribute('aria-hidden', 'true')
     const legendLinks = view.container.querySelectorAll('a.lens-coverage-legend-link')
+    expect(legendLinks).toHaveLength(2)
+    expect(legendLinks[0]?.getAttribute('href')).toContain('/drill/a')
     expect(legendLinks[1]?.getAttribute('href')).toContain('/drill/b')
   })
 })
@@ -650,6 +1364,7 @@ describe('cascade stages', () => {
     expect(view.container.querySelector('[data-lens-waterfall]')).not.toBeNull()
     expect(view.container.querySelectorAll('.lens-waterfall-bar')).toHaveLength(3)
     expect(view.container.querySelector('.lens-waterfall-bar[data-kind="decrease"]')).not.toBeNull()
+    expect(Array.from(view.container.querySelectorAll('.lens-waterfall-bar')).map((bar) => bar.getAttribute('data-label-row'))).toEqual(['0', '1', '0'])
     expect(view.container.querySelector('.lens-waterfall-annotation')).toHaveTextContent('12 above threshold')
   })
 
@@ -729,6 +1444,68 @@ describe('cascade stages', () => {
     expect(items.filter((item) => item.kind === 'end').map((item) => item.value)).toEqual([190, 170])
   })
 
+  it('tells a step that did not happen from the smallest step that did', () => {
+    const cascade = panel('cascade', {
+      encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },
+      presentation: { bridgeLayout: 'waterfall' },
+    })
+    const frame: Frame = {
+      columns: [
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'cut', type: 'number' },
+        { name: 'cutLabel', type: 'string' },
+        { name: 'final', type: 'bool' },
+      ],
+      rows: [
+        ['Earned premium', 200, 0, '', false],
+        // Not applicable in this period — no acquisition cost was booked.
+        ['Acquisition', 200, 0, 'Acquisition', false],
+        // A real, tiny movement. The two used to render identically.
+        ['Operating', 199.9, 0.1, 'Operating', false],
+        ['Result', 199.9, 0, '', true],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+    const items = buildWaterfallItems(buildCascadeStages(cascade, frame, format, format), format)
+    const byLabel = (label: string) => items.find((item) => item.label === label)
+
+    expect(byLabel('Acquisition')?.noMovement).toBe(true)
+    expect(byLabel('Acquisition')?.height).toBe(0)
+    expect(byLabel('Operating')?.noMovement).toBeUndefined()
+    expect(byLabel('Operating')?.height).toBeGreaterThan(0)
+    // The opening and closing totals are not movements and cannot be zero ones.
+    expect(byLabel('Earned premium')?.noMovement).toBeUndefined()
+    expect(byLabel('Result')?.noMovement).toBeUndefined()
+  })
+
+  it('prints the gridlines in the axis form and the columns in the exact one', () => {
+    const cascade = panel('cascade', {
+      encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },
+      presentation: { bridgeLayout: 'waterfall' },
+    })
+    const frame: Frame = {
+      columns: [
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'cut', type: 'number' },
+        { name: 'cutLabel', type: 'string' },
+        { name: 'final', type: 'bool' },
+      ],
+      rows: [['Premium', 200, 0, '', false], ['Result', 150, 50, 'Claims', true]],
+    }
+    const model = buildWaterfallModel(
+      buildCascadeStages(cascade, frame, (value) => `${String(value)} UZS`, (value) => String(value)),
+      (value) => `${String(value)} UZS`,
+      (value) => String(value),
+    )
+
+    // Eight gridlines repeating «UZS» is a column of noise; the unit is stated
+    // once by the plot instead.
+    expect(model.ticks.every((tick) => !tick.label.includes('UZS'))).toBe(true)
+    expect(model.items[0]?.formattedValue).toBe('200 UZS')
+  })
+
   it('keeps a genuine sub-unit movement on a small-scale waterfall', () => {
     const cascade = panel('cascade', {
       encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },
@@ -803,7 +1580,7 @@ describe('cascade stages', () => {
     expect(byLabel('Result')?.underlayHeight).toBeUndefined()
   })
 
-  it('keeps a split callout in the document but holds it for the pointer', () => {
+  it('answers a pointer with a floating split tip and keeps the amount readable without one', async () => {
     const cascade = panel('cascade', {
       encoding: {
         label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final',
@@ -831,12 +1608,25 @@ describe('cascade stages', () => {
 
     runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
     const view = render(<CascadePanel panel={cascade} />)
-    const callout = view.container.querySelector('.lens-waterfall-split-callout')
-    // The chip stays in the DOM — assistive tech reads the amount out with the
-    // bar whether or not the reader has a pointer. Only the paint waits, and
-    // the stylesheet keys that on this attribute.
-    expect(callout).toHaveTextContent('above reserve 10')
-    expect(callout?.getAttribute('data-reveal')).toBe('hover')
+    // The amount is in the accessibility tree with the bar whether or not the
+    // reader has a pointer; only the visible tip waits for one.
+    const band = view.container.querySelector('.lens-waterfall-bar-split')
+    expect(band?.querySelector('.lens-sr-only')).toHaveTextContent('above reserve 10')
+    expect(document.querySelector('.lens-waterfall-tip')).toBeNull()
+
+    const column = band!.closest('.lens-waterfall-column')!
+    fireEvent.mouseEnter(column)
+    // Floated over the plot in a body-level portal, so no card can clip it.
+    const tip = document.querySelector('.lens-waterfall-tip')
+    expect(tip).not.toBeNull()
+    expect(tip).toHaveTextContent('above reserve')
+    expect(tip).toHaveTextContent('10')
+    expect(tip?.closest('.lens-root')).not.toBe(view.container.closest('.lens-root'))
+
+    // The card carries buttons, so it outlives the pointer leaving the column
+    // by the time it takes to reach them.
+    fireEvent.mouseLeave(column)
+    await waitFor(() => expect(document.querySelector('.lens-waterfall-tip')).toBeNull())
 
     const printed = render(
       <WaterfallPlot

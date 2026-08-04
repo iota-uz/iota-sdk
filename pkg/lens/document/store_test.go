@@ -3,6 +3,7 @@ package document
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -96,6 +97,31 @@ func TestMemoryStore_PutGetAppendAreCloneSafe(t *testing.T) {
 	require.Equal(t, "one", loaded.Params["filters"].(map[string]any)["tenant"])
 	require.Equal(t, 1, loaded.Frames["root"].Rows[0][0], "append must not replace an already materialized frame")
 	require.Equal(t, 2, loaded.Frames["detail"].Rows[0][0])
+
+	calculatedAt := time.Date(2026, time.July, 19, 13, 0, 0, 0, time.UTC)
+	panelFrame := testFrame(4)
+	require.NoError(t, store.PutPanel(context.Background(), "snapshot-1", "panel-a", "panel:panel-a", panelFrame, PanelCalculation{
+		DurationMS: 12, CalculatedAt: calculatedAt,
+	}))
+	panelFrame.Rows[0][0] = 101
+	loaded, err = store.Get(context.Background(), "snapshot-1")
+	require.NoError(t, err)
+	require.Equal(t, 4, loaded.Frames["panel:panel-a"].Rows[0][0])
+	require.Equal(t, int64(12), loaded.Panels["panel-a"].DurationMS)
+	require.Equal(t, calculatedAt, loaded.Panels["panel-a"].CalculatedAt)
+}
+
+func TestMemoryStoreBoundsFramesPerSnapshot(t *testing.T) {
+	t.Parallel()
+	store := NewMemoryStore(time.Hour, 2)
+	frames := make(map[FrameRef]Frame, maxFramesPerSnapshot)
+	for index := range maxFramesPerSnapshot {
+		frames[FrameRef(fmt.Sprintf("frame:%d", index))] = testFrame(index)
+	}
+	require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "bounded", Frames: frames}))
+	require.ErrorContains(t, store.Append(t.Context(), "bounded", map[FrameRef]Frame{"overflow": testFrame(1)}), "cannot exceed")
+	frames["overflow"] = testFrame(1)
+	require.ErrorContains(t, store.Put(t.Context(), &Snapshot{ID: "too-large", Frames: frames}), "cannot exceed")
 }
 
 func TestMemoryStore_ExpiryAndUnknownSnapshots(t *testing.T) {

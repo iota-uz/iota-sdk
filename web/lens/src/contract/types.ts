@@ -7,17 +7,32 @@ export interface Action {
   method?: string
   urlTemplate?: string
   urlSource?: Source
+  drawerKey?: Source
   event?: string
   params: Array<ActionParam>
   payload: Record<string, Source>
   preserveQuery?: boolean
+  filter?: ActionFilter
 }
 
-export type ActionKind = "emit_event" | "navigate" | "navigate_to_leaf" | "open_drawer"
+export interface ActionFilter {
+  dimension: string
+  value: Source
+  groupBy?: string
+}
+
+export type ActionKind = "cross_filter" | "cube_drill" | "emit_event" | "navigate" | "navigate_to_leaf" | "open_drawer"
 
 export interface ActionParam {
   name: string
   source: Source
+}
+
+export interface ActiveFilter {
+  dimension: string
+  label: string
+  value: string
+  removeUrl: string
 }
 
 export type Availability = "available" | "config_required" | "empty_source" | "unavailable"
@@ -28,7 +43,7 @@ export type BridgeLayout = "waterfall"
 
 export type CascadeTone = "inflow" | "negative" | "neutral" | "positive"
 
-export type ColorBy = "category"
+export type ColorBy = "category" | "sequence"
 
 export interface Column {
   name: string
@@ -36,6 +51,22 @@ export interface Column {
 }
 
 export type ColumnType = "bool" | "number" | "string" | "time"
+
+export interface CompareFilter {
+  modeParam: string
+  startParam: string
+  endParam: string
+  compareTo: string
+  value: CompareValue
+}
+
+export type CompareMode = "custom" | "off" | "previous_period" | "year_ago"
+
+export interface CompareValue {
+  mode: CompareMode
+  start?: string
+  end?: string
+}
 
 export type Confidence = "calculated" | "proxy" | "requires_reconciliation" | "verified"
 
@@ -49,9 +80,12 @@ export interface DashboardDocument {
   drill: Drill
   perspectives: Array<Perspective>
   filters?: Array<Filter>
+  activeFilters?: Array<ActiveFilter>
+  resetFiltersUrl?: string
   endpoints: Endpoints
   i18n: Record<string, string>
   theme: Theme
+  urlState?: URLStateContract
   header?: DocumentHeader
   drawer?: DrawerHeader
 }
@@ -66,6 +100,16 @@ export interface DrawerHeader {
   title?: string
   caption?: string
   size?: DrawerSize
+}
+
+export interface DrawerResolveRequest {
+  snapshotId: string
+  metricKey: string
+  params?: Record<string, unknown>
+}
+
+export interface DrawerResolveResponse {
+  url: string
 }
 
 export type DrawerSize = "wide"
@@ -85,6 +129,12 @@ export interface DynamicChildren {
 export interface Encoding {
   label?: string
   value?: string
+  previous?: string
+  lower?: string
+  q1?: string
+  median?: string
+  q3?: string
+  upper?: string
   id?: string
   series?: string
   category?: string
@@ -102,7 +152,10 @@ export interface Encoding {
 
 export interface Endpoints {
   query?: string
+  panel?: string
+  drawer?: string
   export?: string
+  release?: string
 }
 
 export interface FacetFilter {
@@ -135,9 +188,11 @@ export interface Filter {
   label?: string
   period?: PeriodFilter
   facet?: FacetFilter
+  compare?: CompareFilter
+  segmented?: SegmentedFilter
 }
 
-export type FilterKind = "facet" | "period"
+export type FilterKind = "compare" | "facet" | "period" | "segmented"
 
 export interface FlowReconciliation {
   tolerance?: number
@@ -157,6 +212,23 @@ export interface Frame {
 }
 
 export type FrameRef = string
+
+export interface GeoJSONFeature {
+  type: string
+  properties: Record<string, unknown>
+  geometry: Record<string, unknown>
+}
+
+export interface GeoJSONFeatureCollection {
+  type: string
+  features: Array<GeoJSONFeature>
+}
+
+export interface GeoJSONSource {
+  inline?: GeoJSONFeatureCollection
+  url?: string
+  maxBytes?: number
+}
 
 export interface HierarchyReconciliation {
   tolerance?: number
@@ -184,7 +256,6 @@ export type LayoutGroupLayout = "columns" | "rows"
 export interface LayoutItem {
   panelId: string
   span: number
-  group?: LayoutGroup
   groups?: Array<LayoutGroup>
 }
 
@@ -219,6 +290,14 @@ export interface LevelSource {
   frame: FrameRef
   columns?: Array<TableColumn>
   format?: Record<string, FieldFormat>
+}
+
+export interface MapConfig {
+  source: GeoJSONSource
+  featureProperty: string
+  labelProperty?: string
+  labelProperties?: Record<string, string>
+  attribution?: string
 }
 
 export interface Meta {
@@ -305,6 +384,7 @@ export interface Panel {
   format: Record<string, FieldFormat>
   total?: number
   columns?: Array<TableColumn>
+  table?: TableOptions
   drillRoot?: NodeKey
   actions: Array<Action>
   accent?: string
@@ -315,17 +395,67 @@ export interface Panel {
   trend?: PanelTrend
   sparkline?: Sparkline
   target?: PanelTarget
+  temporal?: PanelTemporal
   presentation?: Presentation
   valueAxis?: ValueAxis
   metricFlow?: MetricFlowConfig
   metricHierarchy?: MetricHierarchyConfig
   metricRelationship?: MetricRelationshipConfig
   radial?: RadialConfig
+  map?: MapConfig
   confidence?: Confidence
   availability?: Availability
+  deferred?: boolean
+  terminal?: boolean
+  comparisonUnsupported?: boolean
 }
 
-export type PanelKind = "area" | "bar" | "cascade" | "coverage" | "donut" | "hbar" | "line" | "metric_flow" | "metric_hierarchy" | "metric_relationship" | "pie" | "radial" | "stat" | "table"
+export interface PanelBatchRequest {
+  snapshotId: string
+  panels: Array<PanelRequest>
+}
+
+export interface PanelBatchResponse {
+  panels: Record<string, PanelBatchResult>
+}
+
+export interface PanelBatchResult {
+  frames?: Record<FrameRef, Frame>
+  calculation?: PanelCalculation
+  summary?: TableSummary
+  page?: QueryPage
+  error?: QueryErrorResponse
+}
+
+export interface PanelBatchStreamEvent {
+  panelId?: string
+  result?: PanelBatchResult
+  complete?: boolean
+}
+
+export interface PanelCalculation {
+  durationMs: number
+  cacheHit: boolean
+  calculatedAt: string
+}
+
+export type PanelKind = "area" | "bar" | "boxplot" | "cascade" | "coverage" | "donut" | "gauge" | "hbar" | "heatmap" | "histogram" | "line" | "map" | "metric_flow" | "metric_hierarchy" | "metric_relationship" | "pie" | "radial" | "stat" | "table"
+
+export interface PanelRequest {
+  panelId: string
+  recompute?: boolean
+  search?: string
+  sort?: TableSort
+  page?: number
+  viewportRank?: number
+}
+
+export interface PanelResponse {
+  frames: Record<FrameRef, Frame>
+  calculation: PanelCalculation
+  summary?: TableSummary
+  page?: QueryPage
+}
 
 export interface PanelStatus {
   label: string
@@ -337,10 +467,23 @@ export interface PanelTarget {
   label?: string
 }
 
+export interface PanelTemporal {
+  regression?: TemporalSeries
+  movingAverages?: Array<TemporalMovingAverage>
+  referenceLines?: Array<PanelTarget>
+  period?: TemporalPeriod
+  annotations?: Array<TemporalAnnotation>
+  forecast?: TemporalForecast
+}
+
 export interface PanelTrend {
   percent: number
   label?: string
+  polarity?: TrendPolarity
   invert?: boolean
+  absoluteField?: string
+  percentField?: string
+  absoluteDeltaUnit?: TrendDeltaUnit
 }
 
 export interface PeriodFilter {
@@ -379,6 +522,7 @@ export interface PerspectiveRef {
 }
 
 export interface Presentation {
+  dataLabels?: boolean
   legend?: LegendPlacement
   legendValue?: LegendValue
   sliceLabels?: SliceLabels
@@ -413,7 +557,11 @@ export interface QueryRequest {
   snapshotId: string
   path: NodePath
   perspective?: string
+  revision?: number
+  prefetch?: boolean
+  idlePrefetch?: boolean
   page?: number
+  sort?: TableSort
 }
 
 export interface QueryResponse {
@@ -437,9 +585,22 @@ export interface RadialRing {
   total: number
 }
 
+export interface SegmentedFilter {
+  param: string
+  value: string
+  options: Array<SegmentedOption>
+}
+
+export interface SegmentedOption {
+  value: string
+  label: string
+}
+
 export type Semantics = "evidence" | "partition" | "reconciliation" | "series"
 
 export type SliceLabels = "label" | "percent"
+
+export type SortDirection = "asc" | "desc"
 
 export interface Source {
   kind: ValueSourceKind
@@ -481,14 +642,79 @@ export interface TableColumn {
   clamp?: number
   affordance?: TableAffordance
   badgeField?: string
+  heat?: boolean
+  sampleSizeField?: string
+  minSampleSize?: number
+  total?: boolean
+  shareOf?: string
+}
+
+export interface TableOptions {
+  searchable?: boolean
+}
+
+export interface TableSort {
+  field: string
+  direction: SortDirection
+}
+
+export interface TableSummary {
+  values: Record<string, unknown>
+  fullValues?: Record<string, unknown>
+  filteredRows: number
+  totalRows: number
+}
+
+export interface TemporalAnnotation {
+  at: string
+  label: string
+}
+
+export interface TemporalForecast {
+  start: string
+  valueField: string
+  lowerField: string
+  upperField: string
+  label?: string
+}
+
+export interface TemporalMovingAverage {
+  window: number
+  field: string
+  label?: string
+}
+
+export interface TemporalPeriod {
+  category: string
+  state: TemporalPeriodState
+  label?: string
+  annualizedField?: string
+}
+
+export type TemporalPeriodState = "annualized" | "ytd"
+
+export interface TemporalSeries {
+  field: string
+  label?: string
 }
 
 export interface Theme {
   palette: Record<string, string>
   series: Record<string, string>
+  debounceMs?: number
 }
 
 export type TotalBadgePlacement = "header" | "none" | "plot"
+
+export type TrendDeltaUnit = "percentage_points" | "value"
+
+export type TrendPolarity = "higher_better" | "lower_better" | "neutral"
+
+export interface URLStateContract {
+  version: number
+  param: string
+  maxBytes: number
+}
 
 export interface ValueAxis {
   scale: AxisScale
@@ -496,4 +722,3 @@ export interface ValueAxis {
 }
 
 export type ValueSourceKind = "field" | "literal" | "variable"
-

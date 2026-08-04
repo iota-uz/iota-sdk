@@ -2,7 +2,7 @@ import { waitFor } from '@testing-library/react'
 import type { EChartsOption } from 'echarts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChartInput } from '../adapter'
-import { createEChartsAdapter } from './adapter'
+import { createEChartsAdapter, prepareEChartsKind } from './adapter'
 
 class FakeResizeObserver {
   static instances: FakeResizeObserver[] = []
@@ -22,14 +22,14 @@ class FakeResizeObserver {
 }
 
 class FakeChart {
-  readonly handlers = new Map<string, (event: { data?: unknown }) => void>()
+  readonly handlers = new Map<string, (event: Record<string, unknown>) => void>()
   readonly options: EChartsOption[] = []
   readonly mergeOptions: Array<{ notMerge?: boolean; replaceMerge?: string[] }> = []
   readonly resize = vi.fn()
   readonly dispose = vi.fn()
   readonly dispatchAction = vi.fn()
 
-  on(name: string, handler: (event: { data?: unknown }) => void) {
+  on(name: string, handler: (event: Record<string, unknown>) => void) {
     this.handlers.set(name, handler)
   }
 
@@ -38,7 +38,7 @@ class FakeChart {
     this.mergeOptions.push(mergeOptions)
   }
 
-  emit(name: string, event: { data?: unknown } = {}) {
+  emit(name: string, event: Record<string, unknown> = {}) {
     this.handlers.get(name)?.(event)
   }
 }
@@ -76,14 +76,63 @@ function multiSeriesInput(seriesNames: string[]): ChartInput {
   }
 }
 
+function mapInput(): ChartInput {
+  return {
+    ...chartInput(),
+    kind: 'map',
+    map: {
+      name: 'regions',
+      featureProperty: 'id',
+      geoJSON: { type: 'FeatureCollection', features: [] },
+    },
+  }
+}
+
 describe('ECharts adapter', () => {
+  let originalFonts: PropertyDescriptor | undefined
+
   beforeEach(() => {
+    originalFonts = Object.getOwnPropertyDescriptor(document, 'fonts')
     FakeResizeObserver.instances = []
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)
   })
 
   afterEach(() => {
+    if (originalFonts) Object.defineProperty(document, 'fonts', originalFonts)
+    else Reflect.deleteProperty(document, 'fonts')
     vi.unstubAllGlobals()
+  })
+
+  it('waits for the requested font before the first canvas draw', async () => {
+    let finishLoading: ((faces: FontFace[]) => void) | undefined
+    const load = vi.fn(() => new Promise<FontFace[]>((resolve) => { finishLoading = resolve }))
+    Object.defineProperty(document, 'fonts', { configurable: true, value: { load } })
+    const chart = new FakeChart()
+    const element = document.createElement('div')
+    document.body.append(element)
+
+    const instance = createEChartsAdapter(() => chart as never).mount(element, chartInput(), {
+      onSelect: vi.fn(), onHover: vi.fn(),
+    })
+
+    expect(load).toHaveBeenCalledOnce()
+    expect(chart.options).toHaveLength(0)
+    expect(element).not.toHaveAttribute('data-chart-ready')
+    finishLoading?.([])
+    await waitFor(() => expect(chart.options).toHaveLength(1))
+    expect(element).not.toHaveAttribute('data-chart-ready')
+    chart.emit('finished')
+    expect(element).not.toHaveAttribute('data-chart-ready')
+    await waitFor(() => expect(element).toHaveAttribute('data-chart-ready', 'true'))
+
+    FakeResizeObserver.instances[0]?.resize()
+    expect(element).not.toHaveAttribute('data-chart-ready')
+    chart.emit('finished')
+    expect(element).not.toHaveAttribute('data-chart-ready')
+    await waitFor(() => expect(element).toHaveAttribute('data-chart-ready', 'true'))
+
+    instance.dispose()
+    expect(element).not.toHaveAttribute('data-chart-ready')
   })
 
   it('emits NodeKeys for selection and hover and clears hover on exit', () => {
@@ -100,7 +149,7 @@ describe('ECharts adapter', () => {
     chart.emit('mouseout')
 
     expect(onSelect).toHaveBeenCalledOnce()
-    expect(onSelect).toHaveBeenCalledWith('stable/key', undefined)
+    expect(onSelect).toHaveBeenCalledWith('stable/key', undefined, { newTab: false })
     expect(onHover).toHaveBeenNthCalledWith(1, 'stable/key')
     expect(onHover).toHaveBeenNthCalledWith(2, null)
 
@@ -109,6 +158,78 @@ describe('ECharts adapter', () => {
     instance.dispose()
     expect(chart.dispose).toHaveBeenCalledOnce()
     expect(FakeResizeObserver.instances[0]?.disconnect).toHaveBeenCalledOnce()
+  })
+
+  it('carries Ctrl/Cmd activation and resets the time zoom window', () => {
+    const chart = new FakeChart()
+    const onSelect = vi.fn()
+    const element = document.createElement('div')
+    document.body.append(element)
+    const instance = createEChartsAdapter(() => chart as never).mount(element, chartInput(), { onSelect, onHover: vi.fn() })
+
+    chart.emit('click', { data: { nodeKey: 'stable/key' }, event: { event: { ctrlKey: true, metaKey: false } } })
+    expect(onSelect).toHaveBeenCalledWith('stable/key', undefined, { newTab: true })
+    instance.resetZoom?.()
+    expect(chart.dispatchAction).toHaveBeenCalledWith({ type: 'dataZoom', start: 0, end: 100 })
+    instance.dispose()
+  })
+
+  it('leaves static-map wheel scrolling to the page and releases interception on dispose', async () => {
+    await prepareEChartsKind('map')
+    const chart = new FakeChart()
+    const scroller = document.createElement('div')
+    const element = document.createElement('div')
+    scroller.append(element)
+    document.body.append(scroller)
+    const pageCapture = vi.fn()
+    const echartsWheel = vi.fn((event: WheelEvent) => event.preventDefault())
+    const onSelect = vi.fn()
+    scroller.addEventListener('wheel', pageCapture, { capture: true })
+    element.addEventListener('wheel', echartsWheel)
+    const instance = createEChartsAdapter(() => chart as never).mount(element, mapInput(), {
+      onSelect, onHover: vi.fn(),
+    })
+
+    const mapWheel = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 120 })
+    expect(element.dispatchEvent(mapWheel)).toBe(true)
+    expect(pageCapture).toHaveBeenCalledOnce()
+    expect(echartsWheel).not.toHaveBeenCalled()
+    expect(mapWheel.defaultPrevented).toBe(false)
+    chart.emit('click', { data: { nodeKey: 'stable/key' } })
+    expect(onSelect).toHaveBeenCalledWith('stable/key', undefined, { newTab: false })
+
+    instance.update(chartInput())
+    const barWheel = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 120 })
+    expect(element.dispatchEvent(barWheel)).toBe(false)
+    expect(echartsWheel).toHaveBeenCalledOnce()
+    expect(barWheel.defaultPrevented).toBe(true)
+
+    instance.update(mapInput())
+    instance.dispose()
+    const afterDispose = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 120 })
+    expect(element.dispatchEvent(afterDispose)).toBe(false)
+    expect(echartsWheel).toHaveBeenCalledTimes(2)
+    expect(afterDispose.defaultPrevented).toBe(true)
+  })
+
+  it('shows the full axis label on hover and removes it on exit', () => {
+    const chart = new FakeChart()
+    const element = document.createElement('div')
+    document.body.append(element)
+    const instance = createEChartsAdapter(() => chart as never).mount(element, chartInput(), {
+      onSelect: vi.fn(), onHover: vi.fn(),
+    })
+
+    chart.emit('mouseover', {
+      componentType: 'xAxis',
+      value: 'A very long insurance product name',
+      event: { event: new MouseEvent('mousemove', { clientX: 120, clientY: 80 }) },
+    })
+    expect(document.querySelector('.lens-axis-label-tooltip')).toHaveTextContent('A very long insurance product name')
+
+    chart.emit('mouseout')
+    expect(document.querySelector('.lens-axis-label-tooltip')).toBeNull()
+    instance.dispose()
   })
 
   it('ignores self-fed height growth so the chart converges instead of inflating', () => {
@@ -140,6 +261,44 @@ describe('ECharts adapter', () => {
     // A genuine shrink is honored too — only self-inflating growth is ignored.
     observer.resize({ width: 520, height: 260 })
     expect(chart.resize).toHaveBeenLastCalledWith({ width: 520, height: 260 })
+
+    instance.dispose()
+  })
+
+  it('rebuilds a bar chart\'s name column when the box stops affording the old one', () => {
+    // ECharts settles axis-label layout when the option is built, so resizing
+    // alone re-fits the plot while the name allowance stays at the width the
+    // chart was built at. A horizontal bar built full-width and then narrowed
+    // kept a 260px name column in a 438px canvas: the names took the plot and
+    // the bars drew at zero width — the picture the flat cap used to produce.
+    const chart = new FakeChart()
+    const element = document.createElement('div')
+    let clientWidth = 960
+    Object.defineProperty(element, 'clientWidth', { get: () => clientWidth })
+    document.body.append(element)
+    const input = { ...chartInput(), kind: 'hbar' as const }
+    const instance = createEChartsAdapter(() => chart as never).mount(element, input, {
+      onSelect: vi.fn(),
+      onHover: vi.fn(),
+    })
+    const observer = FakeResizeObserver.instances[0]!
+    const nameColumn = () => {
+      const option = chart.options.at(-1) as unknown as { yAxis?: { axisLabel?: { width?: number } } }
+      return option.yAxis?.axisLabel?.width
+    }
+    const built = chart.options.length
+    expect(nameColumn()).toBe(260)
+
+    // Same allowance either side: a resize that changes no label decision must
+    // not put a rebuild on the per-pixel resize path.
+    clientWidth = 950
+    observer.resize({ width: 950, height: 320 })
+    expect(chart.options).toHaveLength(built)
+
+    clientWidth = 438
+    observer.resize({ width: 438, height: 320 })
+    expect(chart.options.length).toBeGreaterThan(built)
+    expect(nameColumn()).toBe(166)
 
     instance.dispose()
   })

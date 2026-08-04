@@ -48,10 +48,19 @@ docs cmd="help" *args="":
   esac
 
 [group("lens")]
-[doc("Lens React runtime commands (dev|build|fixture|check|typegen|ladle|vr|vr-update|install)")]
+[doc("Lens React runtime commands (dev|build|watch|serve-from-disk|smoke|fixture|check|typegen|ladle|vr|vr-update|install)")]
 lens cmd="help" *args="":
   case "{{cmd}}" in \
     dev|build|ladle|install) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
+    watch) (cd web/lens && pnpm exec vite build --watch {{args}}) ;; \
+    serve-from-disk) echo "export LENS_ASSETS_DIR={{justfile_directory()}}/pkg/lens/render/react/dist" ;; \
+    smoke) \
+      if [ -z "{{args}}" ]; then echo "Usage: just lens smoke <test file | -t 'test name'>" ; exit 2 ; fi ; \
+      smoke_args='{{args}}' ; \
+      case "$smoke_args" in \
+        -t\ *) (cd web/lens && pnpm exec tsc --noEmit && pnpm exec vitest run -t "${smoke_args#-t }") ;; \
+        *)     (cd web/lens && pnpm exec tsc --noEmit && pnpm exec vitest run $smoke_args) ;; \
+      esac ;; \
     fixture) (cd web/lens && pnpm fixture {{args}}) ;; \
     vr|vr-update) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
     typegen) go run ./cmd/lens-typegen ;; \
@@ -59,7 +68,16 @@ lens cmd="help" *args="":
       node web/lens/scripts/check-typegen.mjs ; \
       (cd web/lens && pnpm check {{args}}) ;; \
     *) \
-      echo "Usage: just lens [dev|build|fixture|check|typegen|ladle|vr|vr-update|install]" ; \
+      echo "Usage: just lens [dev|build|watch|serve-from-disk|smoke|fixture|check|typegen|ladle|vr|vr-update|install]" ; \
+      echo "" ; \
+      echo "  smoke <args>     typecheck plus the tests you name — a test file, or" ; \
+      echo "                   -t 'name'. The per-edit lane; just lens check stays" ; \
+      echo "                   the pre-push one" ; \
+      echo "  watch            rebuild the bundle on every source change" ; \
+      echo "  serve-from-disk  print the env export that makes a host serve the built" ; \
+      echo "                   bundle from disk (vite's outDir, pkg/lens/render/react/dist)" ; \
+      echo "                   instead of the bundle embedded in its binary, so a rebuild" ; \
+      echo "                   shows up on page reload with no Go rebuild or restart" ; \
       exit 2 ;; \
   esac
 

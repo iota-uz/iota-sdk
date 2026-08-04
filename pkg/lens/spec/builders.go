@@ -61,6 +61,47 @@ func Table(id, title, dataset string) *PanelBuilder {
 func Gauge(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindGauge, id, title, dataset)
 }
+func Histogram(id, title, dataset string) *PanelBuilder {
+	return newPanelBuilder(panel.KindHistogram, id, title, dataset)
+}
+func BoxPlot(id, title, dataset string) *PanelBuilder {
+	return newPanelBuilder(panel.KindBoxPlot, id, title, dataset)
+}
+func Heatmap(id, title, dataset string) *PanelBuilder {
+	return newPanelBuilder(panel.KindHeatmap, id, title, dataset)
+}
+func Choropleth(id, title, dataset string, source panel.GeoJSONSource, featureProperty string) *PanelBuilder {
+	builder := newPanelBuilder(panel.KindMap, id, title, dataset)
+	builder.panel.Map = &panel.MapSpec{Source: source, FeatureProperty: featureProperty}
+	return builder
+}
+
+// MapLabelProperty chooses a human-readable feature property for map labels.
+// Region identity still joins exactly through FeatureProperty and IDField.
+func (b *PanelBuilder) MapLabelProperty(name string) *PanelBuilder {
+	if b.panel.Map != nil {
+		b.panel.Map.LabelProperty = strings.TrimSpace(name)
+	}
+	return b
+}
+
+func (b *PanelBuilder) MapLabelProperties(properties map[string]string) *PanelBuilder {
+	if b.panel.Map != nil {
+		b.panel.Map.LabelProperties = make(map[string]string, len(properties))
+		for locale, property := range properties {
+			b.panel.Map.LabelProperties[locale] = property
+		}
+	}
+	return b
+}
+
+// MapAttribution declares the map source or licence credit.
+func (b *PanelBuilder) MapAttribution(attribution string) *PanelBuilder {
+	if b.panel.Map != nil {
+		b.panel.Map.Attribution = strings.TrimSpace(attribution)
+	}
+	return b
+}
 
 // MetricFlow builds a result-formula panel: an ordered sequence of signed
 // operand stages reading left-to-right to a single supplied result.
@@ -199,10 +240,6 @@ func (b *PanelBuilder) HeadlineValue(v float64) *PanelBuilder {
 	b.panel.HeadlineValue = &v
 	return b
 }
-func (b *PanelBuilder) DrillHierarchy(h panel.DrillHierarchy) *PanelBuilder {
-	b.panel.DrillHierarchy = &h
-	return b
-}
 
 // DrillTree enables stable, key-based in-place navigation. Configure IDField
 // with the initial dataset field whose values match branch trigger keys.
@@ -220,6 +257,13 @@ func (b *PanelBuilder) Trend(percent float64, label string) *PanelBuilder {
 // good/bad color mapping while the arrow still follows the sign.
 func (b *PanelBuilder) TrendWithInvert(percent float64, label string, invert bool) *PanelBuilder {
 	b.panel.Trend = &panel.TrendSpec{Percent: percent, Label: label, Invert: invert}
+	return b
+}
+
+func (b *PanelBuilder) TrendAbsoluteDeltaUnit(unit panel.TrendDeltaUnit) *PanelBuilder {
+	if b.panel.Trend != nil {
+		b.panel.Trend.AbsoluteDeltaUnit = unit
+	}
 	return b
 }
 
@@ -256,6 +300,15 @@ func (b *PanelBuilder) Layout(l panel.GroupLayout) *PanelBuilder {
 }
 func (b *PanelBuilder) Format(spec format.Spec) *PanelBuilder { b.panel.Formatter = &spec; return b }
 func (b *PanelBuilder) Action(spec action.Spec) *PanelBuilder { b.panel.Action = &spec; return b }
+
+// Terminal marks this leaf as an intentional end of the interaction path.
+func (b *PanelBuilder) Terminal() *PanelBuilder { b.panel.Terminal = true; return b }
+
+// ComparisonUnsupported marks a panel kind that cannot visualize comparison.
+func (b *PanelBuilder) ComparisonUnsupported() *PanelBuilder {
+	b.panel.ComparisonUnsupported = true
+	return b
+}
 func (b *PanelBuilder) Description(text string) *PanelBuilder {
 	b.panel.Description = LiteralText(text)
 	return b
@@ -302,6 +355,20 @@ func (b *PanelBuilder) LabelField(name string) *PanelBuilder {
 }
 func (b *PanelBuilder) ValueField(name string) *PanelBuilder {
 	b.panel.Fields.Value = name
+	return b
+}
+
+func (b *PanelBuilder) PreviousField(name string) *PanelBuilder {
+	b.panel.Fields.Previous = name
+	return b
+}
+
+func (b *PanelBuilder) BoxFields(lower, q1, median, q3, upper string) *PanelBuilder {
+	b.panel.Fields.Lower = lower
+	b.panel.Fields.Q1 = q1
+	b.panel.Fields.Median = median
+	b.panel.Fields.Q3 = q3
+	b.panel.Fields.Upper = upper
 	return b
 }
 func (b *PanelBuilder) SeriesField(name string) *PanelBuilder {
@@ -608,6 +675,37 @@ func (c TableColumnSpec) Badge(badgeField string) TableColumnSpec {
 func (c TableColumnSpec) Clamp(lines int) TableColumnSpec {
 	c.ClampLines = lines
 	return c
+}
+
+// Heatmap opts a numeric column into a value-intensity background.
+func (c TableColumnSpec) Heatmap() TableColumnSpec {
+	c.Heat = true
+	return c
+}
+
+// LowSample qualifies values backed by fewer than minimum observations.
+func (c TableColumnSpec) LowSample(sampleSizeField string, minimum int) TableColumnSpec {
+	c.SampleSizeField = sampleSizeField
+	c.MinSampleSize = minimum
+	return c
+}
+
+// WithTotal includes this numeric column in the server-computed total row.
+func (c TableColumnSpec) WithTotal() TableColumnSpec {
+	c.Total = true
+	return c
+}
+
+// AsShareOf computes this percentage column from sourceField after filtering.
+func (c TableColumnSpec) AsShareOf(sourceField string) TableColumnSpec {
+	c.ShareOf = sourceField
+	return c
+}
+
+// Searchable enables server-side substring search for a table panel.
+func (b *PanelBuilder) Searchable() *PanelBuilder {
+	b.panel.Table = &panel.TableOptions{Searchable: true}
+	return b
 }
 
 func Ref(name string) string {

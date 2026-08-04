@@ -28,20 +28,20 @@ func ExampleMetricFlow() {
 			Key: "closing", Label: "Closing balance", Role: panel.FlowRoleResult, Caption: "period end",
 			Action: &openStage,
 		},
-	).FlowReconcile(0.5).Build()
+	).FlowReconcile(0.5).Terminal().Build()
 
 	hierarchy := panel.MetricHierarchy("hierarchy", "Decomposition", "hierarchy_dataset",
 		panel.HierarchyRow{Key: "total", Label: "Total"},
 		panel.HierarchyRow{Key: "segment-a", Label: "Segment A", Parent: "total"},
 		panel.HierarchyRow{Key: "segment-b", Label: "Segment B", Parent: "total"},
 		panel.HierarchyRow{Key: "unallocated", Label: "Unallocated", Parent: "total", Unallocated: true},
-	).HierarchyReconcile(0.5).Build()
+	).HierarchyReconcile(0.5).Terminal().Build()
 
 	relationship := panel.MetricRelationship("relationship", "Related metric", "relationship_dataset", panel.RelationshipSpec{
 		Source: panel.RelationshipEnd{Key: "deferred-amount", Label: "Deferred amount"},
 		Target: panel.RelationshipEnd{Key: "closing-balance", Label: "Closing balance"},
 		Type:   panel.RelationshipAssociation,
-	}).Build()
+	}).Terminal().Build()
 
 	movement := panel.Tabs("movement", "Movement", flow, relationship).Build()
 	stock := panel.Tabs("stock", "Stock", hierarchy).Build()

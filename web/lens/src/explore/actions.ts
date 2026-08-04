@@ -19,7 +19,7 @@ export function variablesFromLocation(location: URL): Record<string, unknown> {
   return variables
 }
 
-function sourceValue(source: Source, context: LeafActionContext): unknown {
+export function resolveSourceValue(source: Source, context: LeafActionContext): unknown {
   let value: unknown
   if (source.kind === 'literal') value = source.value
   if (source.kind === 'field' && source.name) value = context.fields[source.name]
@@ -48,7 +48,7 @@ function resolveTemplate(action: Action, context: LeafActionContext): string | u
   if (!action.urlTemplate) return undefined
   let resolved = action.urlTemplate
   for (const param of action.params) {
-    const value = sourceValue(param.source, context)
+    const value = resolveSourceValue(param.source, context)
     if (value === undefined || value === null) return undefined
     const text = parameterText(value)
     if (text === undefined) return undefined
@@ -70,9 +70,14 @@ export function resolveLeafActionURL(action: Action, context: LeafActionContext)
  */
 export function resolveActionURL(action: Action, context: LeafActionContext): string | undefined {
   if (action.kind !== 'navigate' && action.kind !== 'navigate_to_leaf' && action.kind !== 'open_drawer') return undefined
+  if (action.kind === 'open_drawer' && action.drawerKey) {
+    const key = parameterText(resolveSourceValue(action.drawerKey, context))?.trim()
+    if (!key) return undefined
+    return `${context.location.pathname}#lens-drawer=${encodeURIComponent(key)}`
+  }
   let resolved: string | undefined
   if (action.urlSource) {
-    const value = sourceValue(action.urlSource, context)
+    const value = resolveSourceValue(action.urlSource, context)
     if (value === undefined || value === null) return undefined
     resolved = typeof value === 'string' ? value : parameterText(value)
   } else {
@@ -95,6 +100,14 @@ export function resolveActionURL(action: Action, context: LeafActionContext): st
   if (target.origin !== context.location.origin) return undefined
   if (action.preserveQuery) withPreservedQuery(target, context.location)
   return target.href
+}
+
+export function drawerKeyFromActionURL(value: string): string | undefined {
+  try {
+    const hash = new URL(value, globalThis.location.href).hash
+    if (!hash.startsWith('#lens-drawer=')) return undefined
+    return decodeURIComponent(hash.slice('#lens-drawer='.length)) || undefined
+  } catch { return undefined }
 }
 
 export function resolveColumnActionURL(

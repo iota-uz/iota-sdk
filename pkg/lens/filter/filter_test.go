@@ -40,8 +40,8 @@ func TestBuild_Scenarios(t *testing.T) {
 				assert.Equal(t, "all", model.Inputs[0].DateRange.Mode)
 				assert.True(t, model.Inputs[0].DateRange.AllowAllTime)
 				assert.Equal(t, lens.VariableComponentDateRangePicker, model.Inputs[0].Component)
-				assert.Equal(t, "range_start", model.Inputs[0].DateRange.StartName)
-				assert.Equal(t, "range_end", model.Inputs[0].DateRange.EndName)
+				assert.Equal(t, "range-start", model.Inputs[0].DateRange.StartName)
+				assert.Equal(t, "range-end", model.Inputs[0].DateRange.EndName)
 				assert.Equal(t, "2026-03-01", model.Inputs[0].DateRange.Start)
 				assert.Equal(t, "2026-03-09", model.Inputs[0].DateRange.End)
 			},

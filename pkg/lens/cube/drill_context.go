@@ -23,6 +23,9 @@ type DrillContext struct {
 	Filters         []DimensionFilter
 	ActiveDimension string
 	GroupBy         string
+	// Request preserves non-drill query state (period comparison, external
+	// controls) for cube compilation. Encode still emits only cube state.
+	Request url.Values
 }
 
 type Breadcrumb struct {
@@ -33,7 +36,7 @@ type Breadcrumb struct {
 }
 
 func ParseDrillContext(values url.Values) DrillContext {
-	ctx := DrillContext{}
+	ctx := DrillContext{Request: cloneValues(values)}
 	for _, raw := range values[QueryFilter] {
 		raw = strings.TrimSpace(raw)
 		if raw == "" {
@@ -255,6 +258,7 @@ func (c DrillContext) clone() DrillContext {
 		Filters:         make([]DimensionFilter, len(c.Filters)),
 		ActiveDimension: c.ActiveDimension,
 		GroupBy:         c.GroupBy,
+		Request:         cloneValues(c.Request),
 	}
 	for idx, filter := range c.Filters {
 		next.Filters[idx] = filter

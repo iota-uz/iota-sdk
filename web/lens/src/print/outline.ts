@@ -113,8 +113,7 @@ function widthFor(panel: Panel): 'half' | 'full' {
  * reader sees directly above the numbers.
  */
 function innermostGroup(item: LayoutItem): LayoutGroup | undefined {
-  const groups = item.groups ?? (item.group ? [item.group] : [])
-  return [...groups].reverse().find((group) => group.label || group.caption)
+  return [...(item.groups ?? [])].reverse().find((group) => group.label || group.caption)
 }
 
 function chapterTitle(index: number, heading: string | undefined, fallback: string): string {
@@ -263,7 +262,7 @@ export function buildOutline(
   for (const row of document.layout.rows) {
     const heading = chapterTitle(chapters.length, row.heading, fallbackTitle)
     const caption = row.panels
-      .flatMap((item) => item.groups ?? (item.group ? [item.group] : []))
+      .flatMap((item) => item.groups ?? [])
       .map((group) => group.caption?.trim())
       .find((value) => Boolean(value))
     const chapter = chapterFor(heading, caption)

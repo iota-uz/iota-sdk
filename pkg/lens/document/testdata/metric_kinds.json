@@ -30,13 +30,6 @@
           {
             "panelId": "stat-a",
             "span": 6,
-            "group": {
-              "id": "stock-group",
-              "kind": "metrics",
-              "label": "Stock ratios",
-              "layout": "columns",
-              "span": 12
-            },
             "groups": [
               {
                 "id": "composition",
@@ -57,13 +50,6 @@
           {
             "panelId": "stat-b",
             "span": 6,
-            "group": {
-              "id": "stock-group",
-              "kind": "metrics",
-              "label": "Stock ratios",
-              "layout": "columns",
-              "span": 12
-            },
             "groups": [
               {
                 "id": "composition",
@@ -84,13 +70,6 @@
           {
             "panelId": "inner-a",
             "span": 6,
-            "group": {
-              "id": "movement-detail",
-              "kind": "tabs",
-              "label": "Detail",
-              "span": 12,
-              "tab": "Inner A"
-            },
             "groups": [
               {
                 "id": "composition",
@@ -111,13 +90,6 @@
           {
             "panelId": "inner-b",
             "span": 6,
-            "group": {
-              "id": "movement-detail",
-              "kind": "tabs",
-              "label": "Detail",
-              "span": 12,
-              "tab": "Inner B"
-            },
             "groups": [
               {
                 "id": "composition",
@@ -247,7 +219,8 @@
         "reconcile": {
           "tolerance": 0.1
         }
-      }
+      },
+      "terminal": true
     },
     {
       "id": "relationship",
@@ -276,7 +249,8 @@
         },
         "type": "association",
         "direction": "bidirectional"
-      }
+      },
+      "terminal": true
     },
     {
       "id": "stat-a",
@@ -293,7 +267,8 @@
         "availability": "availability"
       },
       "format": {},
-      "actions": []
+      "actions": [],
+      "terminal": true
     },
     {
       "id": "stat-b",
@@ -310,7 +285,8 @@
         "availability": "availability"
       },
       "format": {},
-      "actions": []
+      "actions": [],
+      "terminal": true
     },
     {
       "id": "inner-a",
@@ -327,7 +303,8 @@
         "availability": "availability"
       },
       "format": {},
-      "actions": []
+      "actions": [],
+      "terminal": true
     },
     {
       "id": "inner-b",
@@ -344,7 +321,8 @@
         "availability": "availability"
       },
       "format": {},
-      "actions": []
+      "actions": [],
+      "terminal": true
     }
   ],
   "frames": {
@@ -1128,6 +1106,7 @@
   "i18n": {},
   "theme": {
     "palette": {},
-    "series": {}
+    "series": {},
+    "debounceMs": 500
   }
 }

@@ -40,6 +40,9 @@ describe('chart bundle boundary', () => {
     const echartsEntries = Object.keys(manifest).filter((key) => key.includes('echarts'))
 
     expect(echartsEntries.every((key) => dynamicGraph.has(key))).toBe(true)
+    const optionalInstallers = echartsEntries.filter((key) => key.endsWith('/install.js'))
+    expect(optionalInstallers).toHaveLength(4)
+    expect(new Set(optionalInstallers.map((key) => manifest[key]!.file)).size).toBe(4)
 
     const staticChunks = await Promise.all(
       [...staticGraph].map((key) => readFile(path.join(distPath, manifest[key]!.file), 'utf8')),
@@ -52,9 +55,12 @@ describe('chart bundle boundary', () => {
     // listeners, the waterfall axis search, and the document retry/slow-load
     // states, and from 410k for the info tips and the panel-scoped series
     // order that pins a series' colour across a legend toggle: the core entry
-    // measured 410,462 bytes after those intentional additions. The cap still
-    // catches accidental bloat — it is a tripwire for a chart library
-    // wandering into the core entry, not a per-byte budget.
-    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(420_000)
+    // measured 410,462 bytes after those intentional additions, and 422,622
+    // once the nine facet dropdowns collapsed into one filter menu (a rail, a
+    // staged multi-dimension apply, and the chip row), and 432,039 after stat
+    // drawers joined the bounded idle child-prefetch queue. The cap still catches
+    // accidental bloat — it is a tripwire for a chart library wandering into
+    // the core entry, not a per-byte budget.
+    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(433_000)
   })
 })

@@ -23,4 +23,16 @@
 //	mux.HandleFunc("/analytics/premium/lens/query", handlers.Query)
 //	mux.HandleFunc("/analytics/premium/export", handlers.Export)
 //	return authMiddleware(rbacMiddleware(mux))
+//
+// Progressive mode is the failure-isolated serving contract: Document returns
+// a valid shell and each Panel request can fail or retry independently.
+// Non-progressive mode is deliberately fail-fast because its document embeds
+// every frame and advertises no panel endpoint; one failed panel therefore
+// fails Document. Hosts that require sibling panels to survive a datasource
+// failure must enable Config.Progressive and mount Handlers.Panel.
+//
+// Searchable tables use the progressive Panel endpoint and operate on the
+// complete cached frame. They must not also use Query's _lp/_lpage/_llimit
+// datasource pagination channel: search and datasource paging are separate
+// contracts and composing them would produce incomplete search results.
 package serve

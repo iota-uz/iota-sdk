@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import type { DashboardDocument, Panel, Theme } from '../contract'
 import { buildCascadeStages, buildWaterfallModel } from '../panels/CascadePanel'
 import { ChartHost } from '../panels/ChartHost'
-import { seriesColorResolver } from '../panels/data'
+import { colorLabels, seriesColorResolver } from '../panels/data'
 import { WaterfallPlot } from '../panels/WaterfallPlot'
 import {
   clampedDeltaPercent,
@@ -103,7 +103,7 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): AuditTa
     return current - previous
   }
 
-  const resolveColor = seriesColorResolver(theme, panel, { positional: section.root })
+  const resolveColor = seriesColorResolver(theme, panel, { positional: section.root, labels: colorLabels(frame, panel) })
   // The value column is stated in one unit, so a bridge step and a portfolio
   // total are read against each other rather than digit by digit.
   const unit = columnUnit(frame.rows.map((row, rowIndex) => stepValue(row, rowIndex)), valueFormat, locale)
@@ -159,12 +159,12 @@ function PrintChart({ section, height }: { section: PrintSection; height: number
   // half-page box on leader lines that clip the labels anyway.
   const presentation = panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial'
     ? {
-        ...panel.presentation,
-        sliceLabels: panel.presentation?.sliceLabels ?? ('percent' as const),
-        // A wider band on paper: the share is written inside the ring, and a
-        // thin ring cannot hold five characters.
-        fill: true,
-      }
+      ...panel.presentation,
+      sliceLabels: panel.presentation?.sliceLabels ?? ('percent' as const),
+      // A wider band on paper: the share is written inside the ring, and a
+      // thin ring cannot hold five characters.
+      fill: true,
+    }
     : panel.presentation
   return (
     <div className="lens-print-chart" style={{ height }}>
@@ -1007,9 +1007,9 @@ function DetailView({ detail }: { detail: PrintDetail }) {
   const compact = panel.semantics === 'series' && rows > seriesTableLimit
   const section = compact && detail.section.frame
     ? {
-        ...detail.section,
-        frame: { ...detail.section.frame, rows: detail.section.frame.rows.slice(-seriesTableTail) },
-      }
+      ...detail.section,
+      frame: { ...detail.section.frame, rows: detail.section.frame.rows.slice(-seriesTableTail) },
+    }
     : detail.section
   return (
     <article className="lens-print-detail">

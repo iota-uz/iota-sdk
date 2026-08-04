@@ -4,23 +4,28 @@ package showcase
 
 import (
 	"github.com/iota-uz/iota-sdk/components/sidebar"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
-	lensrender "github.com/iota-uz/iota-sdk/pkg/lens/render/templ"
-	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	lensreact "github.com/iota-uz/iota-sdk/pkg/lens/render/react"
 )
 
 type LensPageProps struct {
 	SidebarProps sidebar.Props
 	Dashboard    lens.DashboardSpec
-	Results      *runtime.Result
+	DocumentURL  string
+	CSRF         string
+	Available    bool
 }
 
 templ LensContent(props LensPageProps) {
-	if props.Results != nil {
-		@lensrender.Dashboard(lensrender.DashboardProps{
-			Spec:   props.Dashboard,
-			Result: props.Results,
-		})
+	if props.Available {
+		{{ pageCtx := composables.UsePageCtx(ctx) }}
+		@lensreact.LensDashboard(
+			props.DocumentURL,
+			lensreact.WithLocale(pageCtx.GetLocale().String()),
+			lensreact.WithCSRF(props.CSRF),
+			lensreact.WithSkeleton(props.Dashboard),
+		)
 	} else {
 		<div class="p-8 text-center">
 			<p class="text-gray-600">No database connection available</p>

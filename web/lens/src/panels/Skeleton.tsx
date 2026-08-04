@@ -5,8 +5,9 @@ import type { LayoutItem, Panel, PanelKind } from '../contract'
 /**
  * Loading placeholders mirror the layout they replace instead of showing a
  * spinner: the same rows, the same 12-column spans and a shape per panel kind,
- * so nothing jumps when the data lands. Shapes match the server-rendered templ
- * skeleton (pkg/lens/render/templ/dashboard.templ) one for one.
+ * so nothing jumps when the data lands. The shape is styles.css's answer to the
+ * kind each card states, which is the same answer the server fallback in
+ * pkg/lens/render/react gets, so the handoff does not shift the grid.
  */
 
 export function ShimmerBar({ className, style }: { className?: string; style?: CSSProperties }) {
@@ -18,27 +19,24 @@ function spanStyle(span: number): CSSProperties {
   return { '--lens-panel-span': bounded } as CSSProperties
 }
 
-export function PanelSkeletonCard({ kind }: { kind: PanelKind }) {
-  if (kind === 'stat') {
-    return (
-      <div className="lens-skeleton-card lens-skeleton-card-stat">
-        <ShimmerBar className="lens-shimmer-label" style={{ width: '60%' }} />
-        <ShimmerBar className="lens-shimmer-value" style={{ width: '70%' }} />
-      </div>
-    )
-  }
-  if (kind === 'cascade' || kind === 'coverage') {
-    return (
-      <div className="lens-skeleton-card lens-skeleton-card-compact">
-        <ShimmerBar className="lens-shimmer-label" style={{ width: '35%' }} />
-        <ShimmerBar className="lens-shimmer-label" style={{ width: '100%' }} />
-      </div>
-    )
-  }
+/**
+ * A placeholder states the kind it stands in for and lets the stylesheet decide
+ * what that kind reserves. The server fallback in
+ * pkg/lens/render/react/skeleton.go emits the same `data-kind` — the runtime
+ * replaces that markup in place on the first paint, so the two must reserve the
+ * same height or the grid moves at the handoff. One rule in styles.css now
+ * answers for both, instead of a Go switch and this one agreeing by hand.
+ *
+ * `metrics` is the one thing the kind cannot say: a layout item carrying a
+ * metric group is a strip of cells in one card, far taller than the single stat
+ * card its kind suggests, and it reaches the runtime as stat panels under a
+ * group rather than as a kind of its own.
+ */
+export function PanelSkeletonCard({ kind, metrics }: { kind: PanelKind; metrics?: boolean }) {
   return (
-    <div className="lens-skeleton-card lens-skeleton-card-plot">
-      <ShimmerBar className="lens-shimmer-label" style={{ width: '35%' }} />
-      <ShimmerBar className="lens-shimmer-block" />
+    <div className="lens-skeleton-card" data-kind={kind} data-metrics={metrics ? 'true' : undefined}>
+      <ShimmerBar className="lens-shimmer-label" />
+      <ShimmerBar className="lens-shimmer-body" />
     </div>
   )
 }
@@ -54,7 +52,7 @@ export function PanelSkeletonBody({ kind }: { kind: PanelKind }) {
 
 export interface SkeletonRow {
   heading?: boolean
-  items: Array<{ span: number; kind: PanelKind; group?: LayoutItem['group'] }>
+  items: Array<{ span: number; kind: PanelKind; metrics?: boolean }>
 }
 
 /**
@@ -76,7 +74,7 @@ export function DashboardSkeleton({ rows }: { rows: SkeletonRow[] }) {
           <div className="lens-panel-grid">
             {row.items.map((item, itemIndex) => (
               <div className="lens-grid-item" key={itemIndex} style={spanStyle(item.span)}>
-                <PanelSkeletonCard kind={item.kind} />
+                <PanelSkeletonCard kind={item.kind} metrics={item.metrics} />
               </div>
             ))}
           </div>
@@ -95,7 +93,7 @@ export function skeletonRowsFromLayout(
     items: row.panels.map((item) => ({
       span: item.span,
       kind: panels.get(item.panelId)?.kind ?? 'bar',
-      group: item.group,
+      metrics: item.groups?.some((group) => group.kind === 'metrics'),
     })),
   }))
 }

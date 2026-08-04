@@ -2,9 +2,9 @@
  * Phosphor icon glyphs, inlined.
  *
  * The runtime used Unicode characters (⤢, ↓, ↻, →) which differ from the
- * legacy renderer's Phosphor set in shape, weight and baseline, and which
+ * host application's Phosphor set in shape, weight and baseline, and which
  * change with whatever font the host page loads. These are the same regular
- * (16px stroke on a 256 grid) paths the Go renderer emits through
+ * (16px stroke on a 256 grid) paths Granite emits through
  * github.com/iota-uz/icons/phosphor, inlined so no request leaves the page.
  *
  * Every glyph is decorative: the interactive element around it carries the
@@ -14,7 +14,7 @@
 import type { ReactNode } from 'react'
 
 export interface IconProps {
-  /** Square size in CSS pixels. Defaults match the legacy renderer's usage. */
+  /** Square size in CSS pixels. Defaults match Granite's standard usage. */
   size?: number
   className?: string
 }
@@ -22,7 +22,7 @@ export interface IconProps {
 function glyph(children: ReactNode, defaultSize: number) {
   return function Glyph({ size = defaultSize, className }: IconProps) {
     return (
-    <svg
+      <svg
         aria-hidden="true"
         className={className ? `lens-icon ${className}` : 'lens-icon'}
         focusable="false"
@@ -32,7 +32,7 @@ function glyph(children: ReactNode, defaultSize: number) {
         xmlns="http://www.w3.org/2000/svg"
       >
         {children}
-    </svg>
+      </svg>
     )
   }
 }
@@ -74,6 +74,12 @@ export const DownloadSimple = glyph(
     <polyline points="216 144 216 208 40 208 40 144" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
     <polyline points="168 104 128 144 88 104" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
   </>,
+  14,
+)
+
+/** Saved dashboard slice. */
+export const BookmarkSimple = glyph(
+  <path d="M48 216V48a16 16 0 0 1 16-16h128a16 16 0 0 1 16 16v168l-80-48Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />,
   14,
 )
 
@@ -237,6 +243,17 @@ export const Brackets = glyph(
   12,
 )
 
+/** Invert a selection: what was on goes off and what was off comes on. */
+export const ArrowsLeftRight = glyph(
+  <>
+    <line x1="24" y1="88" x2="216" y2="88" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="176 48 216 88 176 128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="232" y1="168" x2="40" y2="168" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="80 208 40 168 80 128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
 /** Quality: proxy — an approximate reconstruction (≈). */
 export const Approximate = glyph(
   <>
@@ -254,6 +271,32 @@ export const WarningTriangle = glyph(
     <line x1="128" y1="180" x2="128" y2="180" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="18" />
   </>,
   12,
+)
+
+/** The filter menu's trigger: a funnel narrowing what the page shows. */
+export const FunnelSimple = glyph(
+  <>
+    <line x1="32" y1="72" x2="224" y2="72" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="64" y1="128" x2="192" y2="128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="104" y1="184" x2="152" y2="184" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  14,
+)
+
+/**
+ * A plot that answers a click. The notes row states the affordance at rest with
+ * this glyph rather than a sentence; what the click actually does is on the
+ * element's accessible name and title (`chart.drillHint` / `chart.filterHint`).
+ */
+export const CursorClick = glyph(
+  <>
+    <line x1="96" y1="16" x2="96" y2="24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="16" y1="96" x2="24" y2="96" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="128" y1="32" x2="136" y2="16" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="32" y1="128" x2="16" y2="136" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <path d="M162.35,138.35a8,8,0,0,1,2.46-13l46.41-17.82a8,8,0,0,0-.71-14.85L50.44,40.41a8,8,0,0,0-10,10L92.68,210.51a8,8,0,0,0,14.85.71l17.82-46.41a8,8,0,0,1,13-2.46l51.31,51.31a8,8,0,0,0,11.31,0L213.66,201a8,8,0,0,0,0-11.31Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  14,
 )
 
 /** Quality: configuration required — sliders to be set. */
@@ -294,6 +337,45 @@ export const Info = glyph(
     <circle cx="128" cy="128" r="96" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
     <polyline points="120 120 128 120 128 176 136 176" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
     <circle cx="126" cy="84" r="12" />
+  </>,
+  14,
+)
+
+/**
+ * A legend row that is on the plot.
+ *
+ * The pair below replaces a `◎` — the one glyph in the runtime that was a
+ * Unicode character rather than a Phosphor path, and which said nothing about
+ * what it did or what state the row was in.
+ */
+export const Eye = glyph(
+  <>
+    <path d="M128,56C48,56,16,128,16,128s32,72,112,72,112-72,112-72S208,56,128,56Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <circle cx="128" cy="128" r="40" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  14,
+)
+
+/** A legend row that is currently off the plot. */
+export const EyeSlash = glyph(
+  <>
+    <line x1="48" y1="40" x2="208" y2="216" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <path d="M154.9,157.6A40,40,0,0,1,101.1,98.4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <path d="M73.8,69.7C33.2,89.6,16,128,16,128s32,72,112,72a118.1,118.1,0,0,0,54.2-12.3" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <path d="M208.6,169.1C230.4,149.6,240,128,240,128S208,56,128,56a125.2,125.2,0,0,0-16.4,1.1" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  14,
+)
+
+/**
+ * How old the figures are. The freshness stamp is the one fact a reader checks
+ * before trusting a number, so it carries a mark of its own instead of hiding
+ * at the end of a sentence of prose.
+ */
+export const Clock = glyph(
+  <>
+    <circle cx="128" cy="128" r="96" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="128 72 128 128 184 128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
   </>,
   14,
 )

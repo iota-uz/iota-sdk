@@ -44,6 +44,10 @@ export function queryCacheKey(request: QueryRequest): string {
   ])
 }
 
+function queryFlightKey(request: QueryRequest): string {
+  return JSON.stringify([queryCacheKey(request), request.prefetch === true, request.idlePrefetch === true, request.revision ?? 0])
+}
+
 export class QueryClient {
   private readonly cache = new Map<string, QueryResponse>()
   private readonly inFlight = new Map<string, Promise<QueryResponse>>()
@@ -73,7 +77,8 @@ export class QueryClient {
     const key = queryCacheKey(request)
     const cached = this.cache.get(key)
     if (cached && !options.force) return cached
-    const pending = this.inFlight.get(key)
+    const flightKey = queryFlightKey(request)
+    const pending = this.inFlight.get(flightKey)
     if (pending) return pending
 
     const controller = new AbortController()
@@ -87,10 +92,10 @@ export class QueryClient {
       })
       .finally(() => {
         options.signal?.removeEventListener('abort', abort)
-        this.inFlight.delete(key)
+        this.inFlight.delete(flightKey)
         this.controllers.delete(controller)
       })
-    this.inFlight.set(key, promise)
+    this.inFlight.set(flightKey, promise)
     return promise
   }
 

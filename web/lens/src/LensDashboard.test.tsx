@@ -21,6 +21,7 @@ describe('LensDashboard', () => {
   })
 
   it('renders optional facet filters and loads only human-readable options', async () => {
+    window.history.replaceState({}, '', '/report?_f=product%3Aone&_f=product%3Atwo&_f=region%3Atashkent')
     // Keep this contract test independent from chart rendering. ECharts owns
     // asynchronous canvas work, which can outlive jsdom teardown and turn a
     // focused filter test into a source of unrelated background errors.
@@ -43,6 +44,7 @@ describe('LensDashboard', () => {
         encoding: { label: 'label', value: 'value' },
         format: {},
         actions: [],
+        terminal: true,
       }],
       frames: {
         'panel:total': {
@@ -74,13 +76,21 @@ describe('LensDashboard', () => {
           clearUrl: '/report',
         },
       }],
+      activeFilters: [{
+        dimension: 'region', value: 'tashkent', label: 'Tashkent', removeUrl: '/report?_f=product%3Aone',
+      }],
+      resetFiltersUrl: '/report',
       endpoints: {},
       i18n: {},
       theme: { palette: {}, series: {} },
     }
     const document = parseDocument(facetFixture)
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      options: [{ label: 'Samarkand', count: 12, toggleUrl: '/report?_f=region%3Asamarkand' }],
+      applyUrl: '/report?_f=product%3Aone&_f=product%3Atwo',
+      options: [
+        { label: 'Tashkent', value: 'tashkent', count: 20, selected: true, toggleUrl: '/report?_f=product%3Aone' },
+        { label: 'Samarkand', value: 'samarkand', count: 12, toggleUrl: '/report?_f=region%3Asamarkand' },
+      ],
     }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -88,12 +98,28 @@ describe('LensDashboard', () => {
     expect(screen.getByRole('link', { name: /Remove filter: Tashkent/ })).toHaveAttribute(
       'href', '/report?_f=product%3Aone',
     )
-    expect(screen.getAllByRole('link', { name: 'Clear all' })).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: /Region/ }))
+    // "Clear all" is a command, not a destination: a button on the chip row.
+    expect(screen.getAllByRole('button', { name: 'Clear all' })).toHaveLength(1)
+    // Both facets live behind one trigger, which counts what is applied.
+    const trigger = screen.getByRole('button', { name: /Filters/ })
+    expect(trigger).toHaveTextContent('2')
+    expect(fetchMock).not.toHaveBeenCalled()
+    fireEvent.click(trigger)
 
-    expect(await screen.findByRole('link', { name: /Samarkand/ })).toHaveAttribute(
-      'href', '/report?_f=region%3Asamarkand',
-    )
+    // The rail names every dimension; the first one's options are the pane.
+    expect(screen.getByRole('tab', { name: /Region/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /Product/ })).toBeInTheDocument()
+    const samarkand = await screen.findByRole('checkbox', { name: /Samarkand/ })
+    expect(screen.getByRole('checkbox', { name: /Tashkent/ })).toBeChecked()
+    expect(globalThis.document.body.querySelector('.lens-facet-option-bar')).toHaveStyle({ width: '100%' })
+    fireEvent.click(samarkand)
+    expect(new URL(window.location.href).searchParams.getAll('_f')).toEqual([
+      'product:one', 'product:two', 'region:tashkent',
+    ])
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    expect(new URL(window.location.href).searchParams.getAll('_f')).toEqual([
+      'product:one', 'product:two', 'region:tashkent', 'region:samarkand',
+    ])
     expect(fetchMock.mock.calls[0]?.[0]).toContain('_f=product%3Aone&_f=product%3Atwo')
   })
 
@@ -176,6 +202,68 @@ describe('LensDashboard', () => {
     expect(screen.getByText('The document contains no panels.')).toBeInTheDocument()
   })
 
+  it('keeps recompute visible for a headerless deferred dashboard', () => {
+    const headerless = parseDocument({
+      ...fixture,
+      meta: { ...fixture.meta, title: '' },
+      header: undefined,
+      panels: [{ ...fixture.panels[0], deferred: true }],
+      frames: {},
+      endpoints: { panel: '/lens/panel' },
+    })
+
+    render(<LensDashboard initialDocument={headerless} />)
+
+    // The age of the data and the remedy for it are one control: the reading is
+    // the label, so the button says whether it is worth pressing.
+    expect(screen.getByRole('button', { name: /Updated/ })).toBeInTheDocument()
+  })
+
+  it('names itself when there is no age to report', () => {
+    // A relative time is not reproducible, so visual regression suppresses the
+    // reading. The control must not vanish with it: it falls back to naming the
+    // action, which is also what a document with an unreadable stamp gets.
+    document.documentElement.dataset.lensVr = 'true'
+    try {
+      const recomputable = parseDocument({
+        ...fixture,
+        panels: [{ ...fixture.panels[0], deferred: true }],
+        frames: {},
+        endpoints: { panel: '/lens/panel' },
+      })
+      render(<LensDashboard initialDocument={recomputable} />)
+
+      expect(screen.getByRole('button', { name: 'Recompute' })).toBeInTheDocument()
+    } finally {
+      delete document.documentElement.dataset.lensVr
+    }
+  })
+
+  it('leads the action row, spins in place, and explains what it does', () => {
+    const recomputable = parseDocument({
+      ...fixture,
+      panels: [{ ...fixture.panels[0], deferred: true }],
+      frames: {},
+      endpoints: { panel: '/lens/panel' },
+    })
+    const view = render(<LensDashboard initialDocument={recomputable} />)
+
+    const button = screen.getByRole('button', { name: /Updated/ })
+    // "Recompute" is the machine's word, so the control carries the reader's.
+    expect(button).toHaveAccessibleDescription(/ignoring the cached results/)
+
+    // Its label is a relative time, so it changes width on its own. That is
+    // safe only in this position: the cluster is right-aligned, so growth in
+    // its first member moves nothing after it — Export stays under the pointer.
+    const actions = view.container.querySelector('.lens-dashboard-actions')!
+    expect(actions.firstElementChild).toBe(button)
+
+    fireEvent.click(button)
+    // In flight it spins in place rather than swapping the glyph for a word.
+    expect(button).toHaveAttribute('aria-busy', 'true')
+    expect(view.container.querySelector('.lens-recompute .lens-icon-spin')).not.toBeNull()
+  })
+
   it('wires dashboard and panel exports when the document exposes an endpoint', () => {
     const exportable = parseDocument({ ...fixture, endpoints: { export: '/lens/export' } })
     render(<LensDashboard initialDocument={exportable} />)
@@ -199,6 +287,20 @@ describe('LensDashboard', () => {
 })
 
 describe('<lens-dashboard>', () => {
+  it('decodes an embedded document as UTF-8', async () => {
+    registerLensDashboardElement()
+    const documentFixture = structuredClone(fixture)
+    documentFixture.meta.title = 'Тренды страхового бизнеса'
+    const bytes = new TextEncoder().encode(JSON.stringify(documentFixture))
+    const encoded = btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''))
+    const element = document.createElement('lens-dashboard')
+    element.setAttribute('initial-document', encoded)
+
+    act(() => document.body.append(element))
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Тренды страхового бизнеса' })).toBeInTheDocument())
+  })
+
   it('re-renders on attribute changes and unmounts on disconnect', () => {
     registerLensDashboardElement()
     const element = document.createElement('lens-dashboard')

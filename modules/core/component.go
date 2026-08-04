@@ -61,7 +61,6 @@ type ModuleOptions struct {
 	DashboardLinkPermissions []permission.Permission
 	SettingsLinkPermissions  []permission.Permission
 	UserControllerOptions    []controllers.UserControllerOption
-
 	// SkipAdminControllers suppresses registration of the admin-facing
 	// controllers (dashboard, users, roles, groups, settings, sessions,
 	// spotlight, websocket). Auth controllers (login, logout, two-factor,
@@ -267,6 +266,7 @@ func (c *component) Build(builder *composition.Builder) error {
 			authFlowService *services.AuthFlowService,
 			tenantService *services.TenantService,
 			groupService *services.GroupService,
+			roleService *services.RoleService,
 			twoFactorService *coreservices2fa.TwoFactorService,
 			httpCfg *httpconfig.Config,
 			cookiesCfg *cookies.Config,

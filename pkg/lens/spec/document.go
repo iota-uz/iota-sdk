@@ -72,6 +72,7 @@ type VariableSpec struct {
 	Options         []VariableOption  `json:"options,omitempty"`
 	AllowAllTime    bool              `json:"allowAllTime,omitempty"`
 	DefaultDuration Duration          `json:"defaultDuration,omitempty"`
+	CompareTo       string            `json:"compareTo,omitempty"`
 }
 
 type VariableOption struct {
@@ -80,24 +81,26 @@ type VariableOption struct {
 }
 
 type DimensionSpec struct {
-	Name         string             `json:"name"`
-	Label        Text               `json:"label"`
-	Type         cube.DimensionType `json:"type,omitempty"`
-	Column       string             `json:"column,omitempty"`
-	LabelColumn  string             `json:"labelColumn,omitempty"`
-	ColorColumn  string             `json:"colorColumn,omitempty"`
-	Field        string             `json:"field,omitempty"`
-	LabelField   string             `json:"labelField,omitempty"`
-	ColorField   string             `json:"colorField,omitempty"`
-	PanelKind    panel.Kind         `json:"panelKind,omitempty"`
-	Height       string             `json:"height,omitempty"`
-	Description  Text               `json:"description"`
-	RequiresJoin []string           `json:"requiresJoin,omitempty"`
-	Override     *DatasetSpec       `json:"override,omitempty"`
-	Transforms   []transform.Spec   `json:"transforms,omitempty"`
-	Colors       []string           `json:"colors,omitempty"`
-	ValueAxis    panel.ValueAxis    `json:"valueAxis,omitempty"`
-	ColorScale   string             `json:"colorScale,omitempty"`
+	Name         string                  `json:"name"`
+	Label        Text                    `json:"label"`
+	Type         cube.DimensionType      `json:"type,omitempty"`
+	Column       string                  `json:"column,omitempty"`
+	LabelColumn  string                  `json:"labelColumn,omitempty"`
+	ColorColumn  string                  `json:"colorColumn,omitempty"`
+	Field        string                  `json:"field,omitempty"`
+	LabelField   string                  `json:"labelField,omitempty"`
+	ColorField   string                  `json:"colorField,omitempty"`
+	PanelKind    panel.Kind              `json:"panelKind,omitempty"`
+	Height       string                  `json:"height,omitempty"`
+	Description  Text                    `json:"description"`
+	RequiresJoin []string                `json:"requiresJoin,omitempty"`
+	Override     *DatasetSpec            `json:"override,omitempty"`
+	Transforms   []transform.Spec        `json:"transforms,omitempty"`
+	Colors       []string                `json:"colors,omitempty"`
+	ValueAxis    panel.ValueAxis         `json:"valueAxis,omitempty"`
+	ColorScale   string                  `json:"colorScale,omitempty"`
+	Presentation panel.PresentationHints `json:"presentation,omitempty"`
+	Map          *panel.MapSpec          `json:"map,omitempty"`
 }
 
 type MeasureSpec struct {
@@ -113,21 +116,24 @@ type MeasureSpec struct {
 	RequiresJoin []string         `json:"requiresJoin,omitempty"`
 	Override     *DatasetSpec     `json:"override,omitempty"`
 	Action       *action.Spec     `json:"action,omitempty"`
+	InvertTrend  bool             `json:"invertTrend,omitempty"`
 }
 
 type DatasetSpec struct {
-	Name        string           `json:"name"`
-	Title       Text             `json:"title"`
-	Kind        lens.DatasetKind `json:"kind"`
-	Source      string           `json:"source,omitempty"`
-	DependsOn   []string         `json:"dependsOn,omitempty"`
-	Query       *lens.QuerySpec  `json:"query,omitempty"`
-	Transforms  []transform.Spec `json:"transforms,omitempty"`
-	StaticRef   string           `json:"staticRef,omitempty"`
-	Static      *frame.FrameSet  `json:"-"`
-	Description Text             `json:"description"`
-	Cache       CachePolicy      `json:"cache,omitempty"`
-	Export      exportmeta.Spec  `json:"export,omitempty"`
+	Name                string                   `json:"name"`
+	Title               Text                     `json:"title"`
+	Kind                lens.DatasetKind         `json:"kind"`
+	Source              string                   `json:"source,omitempty"`
+	DependsOn           []string                 `json:"dependsOn,omitempty"`
+	Query               *lens.QuerySpec          `json:"query,omitempty"`
+	Transforms          []transform.Spec         `json:"transforms,omitempty"`
+	StaticRef           string                   `json:"staticRef,omitempty"`
+	Static              *frame.FrameSet          `json:"-"`
+	Description         Text                     `json:"description"`
+	Cache               CachePolicy              `json:"cache,omitempty"`
+	Export              exportmeta.Spec          `json:"export,omitempty"`
+	TimeRangeVariable   string                   `json:"timeRangeVariable,omitempty"`
+	ComparisonAlignment lens.ComparisonAlignment `json:"comparisonAlignment,omitempty"`
 }
 
 type RowSpec struct {
@@ -144,32 +150,32 @@ type RowSpec struct {
 }
 
 type PanelSpec struct {
-	ID              string                `json:"id"`
-	Title           Text                  `json:"title"`
-	Description     Text                  `json:"description"`
-	Info            Text                  `json:"info"`
-	Kind            panel.Kind            `json:"kind"`
-	Dataset         string                `json:"dataset,omitempty"`
-	Span            int                   `json:"span,omitempty"`
-	Height          string                `json:"height,omitempty"`
-	Colors          []string              `json:"colors,omitempty"`
-	ShowLegend      bool                  `json:"showLegend,omitempty"`
-	LegendPosition  panel.LegendPosition  `json:"legendPosition,omitempty"`
-	LegendWidthPx   int                   `json:"legendWidth,omitempty"`
-	LegendOffsetY   int                   `json:"legendOffsetY,omitempty"`
-	LegendFloating  bool                  `json:"legendFloating,omitempty"`
-	CircularScale   float64               `json:"circularScale,omitempty"`
-	CircularOffsetX int                   `json:"circularOffsetX,omitempty"`
-	ShowTotalBadge  bool                  `json:"showTotalBadge,omitempty"`
-	TotalBadgeValue *float64              `json:"totalBadgeValue,omitempty"`
-	HeadlineValue   *float64              `json:"headlineValue,omitempty"`
-	DrillHierarchy  *panel.DrillHierarchy `json:"drillHierarchy,omitempty"`
-	DrillTree       *panel.DrillTree      `json:"drillTree,omitempty"`
-	Trend           *panel.TrendSpec      `json:"trend,omitempty"`
-	Status          *panel.StatusSpec     `json:"status,omitempty"`
-	Sparkline       *panel.SparklineSpec  `json:"sparkline,omitempty"`
-	Target          *panel.TargetSpec     `json:"target,omitempty"`
-	GroupLayout     panel.GroupLayout     `json:"groupLayout,omitempty"`
+	ID              string               `json:"id"`
+	Title           Text                 `json:"title"`
+	Description     Text                 `json:"description"`
+	Info            Text                 `json:"info"`
+	Kind            panel.Kind           `json:"kind"`
+	Dataset         string               `json:"dataset,omitempty"`
+	Span            int                  `json:"span,omitempty"`
+	Height          string               `json:"height,omitempty"`
+	Colors          []string             `json:"colors,omitempty"`
+	ShowLegend      bool                 `json:"showLegend,omitempty"`
+	LegendPosition  panel.LegendPosition `json:"legendPosition,omitempty"`
+	LegendWidthPx   int                  `json:"legendWidth,omitempty"`
+	LegendOffsetY   int                  `json:"legendOffsetY,omitempty"`
+	LegendFloating  bool                 `json:"legendFloating,omitempty"`
+	CircularScale   float64              `json:"circularScale,omitempty"`
+	CircularOffsetX int                  `json:"circularOffsetX,omitempty"`
+	ShowTotalBadge  bool                 `json:"showTotalBadge,omitempty"`
+	TotalBadgeValue *float64             `json:"totalBadgeValue,omitempty"`
+	HeadlineValue   *float64             `json:"headlineValue,omitempty"`
+	DrillTree       *panel.DrillTree     `json:"drillTree,omitempty"`
+	Trend           *panel.TrendSpec     `json:"trend,omitempty"`
+	Status          *panel.StatusSpec    `json:"status,omitempty"`
+	Sparkline       *panel.SparklineSpec `json:"sparkline,omitempty"`
+	Target          *panel.TargetSpec    `json:"target,omitempty"`
+	Temporal        *panel.TemporalSpec  `json:"temporal,omitempty"`
+	GroupLayout     panel.GroupLayout    `json:"groupLayout,omitempty"`
 	// Presentation carries opt-in renderer density hints (legend placement,
 	// in-slice labels, total-badge placement, bar width, per-category color).
 	// The zero value keeps today's rendering.
@@ -177,18 +183,26 @@ type PanelSpec struct {
 	Fields       FieldMappingSpec        `json:"fields,omitempty"`
 	Formatter    *format.Spec            `json:"formatter,omitempty"`
 	Columns      []TableColumnSpec       `json:"columns,omitempty"`
+	Table        *panel.TableOptions     `json:"table,omitempty"`
 	Transforms   []transform.Spec        `json:"transforms,omitempty"`
 	Action       *action.Spec            `json:"action,omitempty"`
-	Children     []PanelSpec             `json:"children,omitempty"`
-	ClassName    string                  `json:"className,omitempty"`
-	Chrome       chrome.Spec             `json:"-"`
-	ChromeIcon   string                  `json:"icon,omitempty"`
-	AccentColor  string                  `json:"accentColor,omitempty"`
-	ValueAxis    panel.ValueAxis         `json:"valueAxis,omitempty"`
-	Distributed  bool                    `json:"distributed,omitempty"`
-	ColorField   string                  `json:"colorField,omitempty"`
-	ColorScale   string                  `json:"colorScale,omitempty"`
-	Export       exportmeta.Spec         `json:"export,omitempty"`
+	// Terminal explicitly declares that this leaf is an intentional end of the
+	// interaction path. Every compiled leaf must set Terminal or expose an
+	// action/drill path; the two states are mutually exclusive.
+	Terminal bool `json:"terminal,omitempty"`
+	// ComparisonUnsupported tells the renderer that this panel kind cannot
+	// visualize the active comparison. The renderer owns localized messaging.
+	ComparisonUnsupported bool            `json:"comparisonUnsupported,omitempty"`
+	Children              []PanelSpec     `json:"children,omitempty"`
+	ClassName             string          `json:"className,omitempty"`
+	Chrome                chrome.Spec     `json:"-"`
+	ChromeIcon            string          `json:"icon,omitempty"`
+	AccentColor           string          `json:"accentColor,omitempty"`
+	ValueAxis             panel.ValueAxis `json:"valueAxis,omitempty"`
+	Distributed           bool            `json:"distributed,omitempty"`
+	ColorField            string          `json:"colorField,omitempty"`
+	ColorScale            string          `json:"colorScale,omitempty"`
+	Export                exportmeta.Spec `json:"export,omitempty"`
 	// FlowStages declares a metric_flow panel's ordered operand stages.
 	FlowStages []panel.FlowStage `json:"flowStages,omitempty"`
 	// FlowReconcile opts a metric_flow panel into a tolerance-based mismatch
@@ -205,6 +219,8 @@ type PanelSpec struct {
 	Relationship *panel.RelationshipSpec `json:"relationship,omitempty"`
 	// Radial configures a radial panel's progress or partition geometry.
 	Radial *panel.RadialSpec `json:"radial,omitempty"`
+	// Map configures a choropleth panel's geometry source and exact region join.
+	Map *panel.MapSpec `json:"map,omitempty"`
 	// Confidence is the panel-level default confidence for its elements; a
 	// frame column value or an element's own confidence overrides it.
 	Confidence panel.Confidence `json:"confidence,omitempty"`
@@ -235,11 +251,26 @@ type TableColumnSpec struct {
 	// BadgeField names a frame column carrying a per-row badge tooltip; a
 	// non-empty value renders a muted "?" badge after the cell value.
 	BadgeField string `json:"badgeField,omitempty"`
+	// Heat shades numeric cells by value intensity across the returned frame.
+	Heat bool `json:"heat,omitempty"`
+	// SampleSizeField carries the observation count behind a derived value.
+	SampleSizeField string `json:"sampleSizeField,omitempty"`
+	// MinSampleSize is the exclusive confidence threshold. Values below it are
+	// retained but marked as a small sample. Zero defaults to five.
+	MinSampleSize int    `json:"minSampleSize,omitempty"`
+	Total         bool   `json:"total,omitempty"`
+	ShareOf       string `json:"shareOf,omitempty"`
 }
 
 type FieldMappingSpec struct {
 	Label        string `json:"label,omitempty"`
 	Value        string `json:"value,omitempty"`
+	Previous     string `json:"previous,omitempty"`
+	Lower        string `json:"lower,omitempty"`
+	Q1           string `json:"q1,omitempty"`
+	Median       string `json:"median,omitempty"`
+	Q3           string `json:"q3,omitempty"`
+	Upper        string `json:"upper,omitempty"`
 	Series       string `json:"series,omitempty"`
 	Category     string `json:"category,omitempty"`
 	ID           string `json:"id,omitempty"`

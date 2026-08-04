@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ArrowClockwise, CaretDown, CircleNotch, DownloadSimple } from '../icons'
 import { useExport, usePrint, useTranslate } from '../runtime'
+import { useMenuButton } from './useMenuButton'
 
 /** One artefact the dashboard can produce. */
 interface ExportChoice {
@@ -26,40 +27,11 @@ export function ExportMenu() {
   const exportState = useExport()
   const print = usePrint()
   const translate = useTranslate()
-  const [open, setOpen] = useState(false)
-  const container = useRef<HTMLDivElement>(null)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
-
-  const close = useCallback(() => setOpen(false), [])
-  // Escape and item activation close the menu; per the menu-button pattern,
-  // both also hand focus back to the trigger instead of leaving it stranded
-  // on a node that just left the document.
-  const closeAndFocusTrigger = useCallback(() => {
-    close()
-    triggerRef.current?.focus()
-  }, [close])
-
-  useEffect(() => {
-    if (!open || typeof document === 'undefined') return undefined
-    itemRefs.current[0]?.focus()
-    const onPointerDown = (event: PointerEvent) => {
-      if (!(event.target instanceof Node)) return
-      if (container.current?.contains(event.target)) return
-      close()
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      event.stopPropagation()
-      closeAndFocusTrigger()
-    }
-    document.addEventListener('pointerdown', onPointerDown, true)
-    document.addEventListener('keydown', onKeyDown, true)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true)
-      document.removeEventListener('keydown', onKeyDown, true)
-    }
-  }, [close, closeAndFocusTrigger, open])
+  // A labelled trigger sits in the middle of the action bar and reads
+  // left-to-right, so its menu hangs from the edge the eye is already on.
+  const {
+    closeAndFocusTrigger, container, itemRef, menu, menuPlacementProps, onMenuKeyDown, open, overlay, setOpen, trigger,
+  } = useMenuButton('start')
 
   const choices: ExportChoice[] = []
   if (exportState.available) {
@@ -115,7 +87,7 @@ export function ExportMenu() {
           }
           setOpen((current) => !current)
         }}
-        ref={triggerRef}
+        ref={trigger}
         title={status?.message ?? undefined}
         type="button"
       >
@@ -125,21 +97,16 @@ export function ExportMenu() {
         <span>{label}</span>
         {!single && !busy && <CaretDown className="lens-export-caret" />}
       </button>
-      {open && !single && (
+      {open && !single && overlay && createPortal(
         <div
           className="lens-export-menu"
-          onKeyDown={(event) => {
-            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
-            event.preventDefault()
-            const items = itemRefs.current.filter((item): item is HTMLButtonElement => item !== null)
-            if (items.length === 0) return
-            const current = items.indexOf(document.activeElement as HTMLButtonElement)
-            const delta = event.key === 'ArrowDown' ? 1 : -1
-            items[(current + delta + items.length) % items.length]?.focus()
-          }}
+          onKeyDown={onMenuKeyDown}
+          ref={menu}
           role="menu"
+          tabIndex={-1}
+          {...menuPlacementProps}
         >
-          {choices.map((choice, index) => (
+          {choices.map((choice) => (
             <button
               className="lens-export-menu-item"
               key={choice.key}
@@ -147,14 +114,15 @@ export function ExportMenu() {
                 closeAndFocusTrigger()
                 choice.run()
               }}
-              ref={(element) => { itemRefs.current[index] = element }}
+              ref={itemRef(choice.key)}
               role="menuitem"
               type="button"
             >
               {choice.label}
             </button>
           ))}
-        </div>
+        </div>,
+        overlay,
       )}
       {(busy || status?.message) && (
         <span

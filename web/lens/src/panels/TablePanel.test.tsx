@@ -1,8 +1,9 @@
+import { readFileSync } from 'node:fs'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardDocument, Panel } from '../contract'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
-import { TablePanel } from './TablePanel'
+import { heatRank, TablePanel } from './TablePanel'
 
 const tablePanel: Panel = {
   id: 'evidence',
@@ -68,6 +69,50 @@ afterEach(() => {
   window.history.replaceState(null, '', '/')
 })
 
+it('keeps compact horizontal overflow controls clear of table values', () => {
+  const styles = readFileSync('src/styles.css', 'utf8')
+  const edgeRule = styles.match(/\.lens-table-overflow-edge \{(?<rule>[^}]+)\}/)?.groups?.rule
+  const markerRule = styles.match(/\.lens-table-overflow-edge::after \{(?<rule>[^}]+)\}/)?.groups?.rule
+
+  expect(edgeRule).toContain('height: 40px')
+  expect(edgeRule).toContain('width: 28px')
+  expect(edgeRule).toContain('top: 50%')
+  expect(markerRule).not.toContain('repeat-y')
+  expect(styles).not.toContain("margin-right: var(--lens-table-sticky-width, 0px)")
+  expect(styles).toContain('.lens-table-scroll-spacer')
+  expect(styles).toContain('min-width: calc(var(--lens-table-sticky-width, 0px) + 2rem)')
+  expect(styles).toContain('.lens-table:has(.lens-table-scroll-spacer)')
+  expect(styles).toContain('width: calc(100% + var(--lens-table-sticky-width, 0px) + 2rem)')
+  expect(styles).toContain('@media (min-width: 769px)')
+  expect(styles).toContain('grid-template-columns: minmax(0, 1fr)')
+  expect(styles).toContain('max-width: 10rem')
+  expect(styles).toContain('min-width: 7rem')
+})
+
+it('wraps custom comparison dates without widening narrow dashboards', () => {
+  const styles = readFileSync('src/styles.css', 'utf8')
+  // The custom-interval fields moved inside the comparison popover, so the
+  // width they must not exceed is the popover's, not the header row's: the
+  // shared popover box is clamped to the viewport and the two date fields wrap
+  // and shrink inside it at every width, instead of only below 768px.
+  const popover = [...styles.matchAll(/\.lens-compare-popover \{(?<rule>[^}]+)\}/g)]
+    .map((match) => match.groups?.rule ?? '')
+    .join('\n')
+  const shared = styles.match(/\.lens-filter-menu-popover,\n {2}\.lens-compare-popover \{(?<rule>[^}]+)\}/)?.groups?.rule
+  const custom = styles.match(/\.lens-compare-custom \{(?<rule>[^}]+)\}/)?.groups?.rule
+  const field = styles.match(/\.lens-compare-custom input \{(?<rule>[^}]+)\}/)?.groups?.rule
+  const responsive = styles.match(/@media \(max-width: 768px\) \{(?<rule>[\s\S]*?)\n {2}\}/)?.groups?.rule
+
+  expect(shared).toContain('lens-max-w-[calc(100vw-24px)]')
+  expect(popover).toContain('lens-w-max')
+  expect(custom).toContain('lens-flex-wrap')
+  expect(field).toContain('lens-min-w-0')
+  expect(field).toContain('lens-flex-1')
+  expect(responsive).toContain('.lens-compare-filter')
+  expect(responsive).toContain('min-width: 0')
+  expect(responsive).toContain('width: 100%')
+})
+
 const columnsPanel: Panel = {
   id: 'profitability',
   kind: 'table',
@@ -129,6 +174,26 @@ const columnsDocument: DashboardDocument = {
 }
 
 describe('TablePanel columns', () => {
+  it('labels a non-zero absolute delta with a zero comparison baseline as New', () => {
+    const document = {
+      ...columnsDocument,
+      frames: {
+        'profitability:root': {
+          ...columnsDocument.frames['profitability:root']!,
+          rows: [['1', 'Orion', 1_000_000, 200_000, null, '/clients/1', 'top-secret']],
+        },
+      },
+    }
+    render(
+      <DocumentProvider initialDocument={document}>
+        <DashboardRuntimeProvider locale="en"><TablePanel panel={columnsPanel} /></DashboardRuntimeProvider>
+      </DocumentProvider>,
+    )
+
+    expect(screen.getByText('New')).toBeInTheDocument()
+    expect(screen.queryByText('—', { selector: '.lens-table-delta-pct' })).toBeNull()
+  })
+
   it('renders declared columns in order with labels, bar/delta cells, and per-column leaf links', () => {
     const { container } = render(
       <div className="lens-root">
@@ -377,7 +442,7 @@ describe('TablePanel pagination', () => {
     expect(screen.getByRole('button', { name: 'Next' })).toHaveProperty('disabled', disabled)
   })
 
-  it('queries and caches each server page while sorting only the fetched page', async () => {
+  it('queries and caches each server page without exposing page-local sorting as global', async () => {
     window.history.replaceState(null, '', '/?path=evidence&panel=evidence&region=north')
     const requestedPages: number[] = []
     const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
@@ -397,14 +462,14 @@ describe('TablePanel pagination', () => {
 
     expect(await screen.findByText('Alpha')).toBeInTheDocument()
     expect(requestedPages).toEqual([1])
-    expect(screen.getByText('Sort applies to this page only')).toBeInTheDocument()
+    expect(screen.queryByText('Sort applies to this page only')).not.toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'Open record' })[0]).toHaveAttribute(
       'href', expect.stringContaining('/records/A%201?'),
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /amount/ }))
-    const dataRows = screen.getAllByRole('row').slice(1)
-    expect(dataRows[0]).toHaveTextContent('Beta')
+    expect(screen.queryByRole('button', { name: /amount/i })).not.toBeInTheDocument()
+    expect(document.querySelectorAll('th')[2]).not.toHaveAttribute('aria-sort')
+    expect(screen.getAllByRole('row')[1]).toHaveTextContent('Alpha')
 
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     expect(await screen.findByText('Gamma')).toBeInTheDocument()
@@ -414,5 +479,278 @@ describe('TablePanel pagination', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
     await waitFor(() => expect(screen.getByText('Alpha')).toBeInTheDocument())
     expect(requestedPages).toEqual([1, 2])
+  })
+})
+
+describe('TablePanel server readability features', () => {
+  it('searches the full server frame and renders server totals, shares, heat, clamp, and low-sample context', async () => {
+    const panel: Panel = {
+      id: 'claims-products', kind: 'table', title: 'Claims by product', semantics: 'series', frame: 'panel:claims-products',
+      encoding: { id: 'id', label: 'product', value: 'paid' }, deferred: true, table: { searchable: true },
+      format: {
+        claims: { kind: 'number', minorUnits: false, precision: 0 },
+        paid: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
+        share: { kind: 'percent', minorUnits: false, precision: 1 },
+        average: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
+      },
+      columns: [
+        { field: 'product', label: 'Product', cell: { kind: 'plain' }, clamp: 2 },
+        { field: 'claims', label: 'Claims', cell: { kind: 'plain' }, total: true },
+        { field: 'paid', label: 'Paid', cell: { kind: 'plain' }, heat: true, total: true },
+        { field: 'share', label: 'Share', cell: { kind: 'plain' }, shareOf: 'paid', total: true },
+        { field: 'average', label: 'Average', cell: { kind: 'plain' }, sampleSizeField: 'claims', minSampleSize: 5 },
+      ],
+      actions: [],
+    }
+    const document_: DashboardDocument = {
+      version: '1.0.0', snapshotId: 'claims-snapshot',
+      meta: { dashboardId: 'claims', title: 'Claims', generatedAt: '2026-07-31T00:00:00Z', locale: 'en' },
+      layout: { rows: [{ panels: [{ panelId: panel.id, span: 12 }] }] }, panels: [panel],
+      frames: { 'panel:claims-products': { columns: [], rows: [] } },
+      drill: { inlineDepth: 0, edges: {} }, perspectives: [], endpoints: { panel: '/lens/panel' }, i18n: {}, theme: { palette: {}, series: {} },
+    }
+    const requests: Array<{ panels: Array<{ search?: string; sort?: { field: string; direction: string } }> }> = []
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { panels: Array<{ search?: string; sort?: { field: string; direction: string } }> }
+      requests.push(request)
+      const filtered = request.panels[0]?.search === 'motor'
+      const result = { frames: {
+        'panel:claims-products': {
+          columns: [
+            { name: 'id', type: 'string' }, { name: 'product', type: 'string' }, { name: 'claims', type: 'number' },
+            { name: 'paid', type: 'number' }, { name: 'share', type: 'number' }, { name: 'average', type: 'number' },
+          ],
+          rows: filtered
+            ? [['1', 'Compulsory motor liability insurance with a deliberately long product label', 2, 75, 100, 37.5]]
+            : [
+              ['1', 'Compulsory motor liability insurance with a deliberately long product label', 2, 75, 75, 37.5],
+              ['2', 'Travel', 10, 25, 25, 2.5],
+            ],
+        },
+      },
+      calculation: { durationMs: 12, cacheHit: false, calculatedAt: '2026-07-31T00:00:00Z' },
+      summary: {
+        values: filtered ? { claims: 2, paid: 75, share: 100 } : { claims: 12, paid: 100, share: 100 },
+        ...(filtered ? { fullValues: { claims: 12, paid: 100, share: 100 } } : {}),
+        filteredRows: filtered ? 1 : 2, totalRows: 2,
+      } }
+      return Promise.resolve(new Response(
+        `${JSON.stringify({ panelId: 'claims-products', result })}\n${JSON.stringify({ complete: true })}\n`,
+        { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } },
+      ))
+    })
+
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={document_}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <TablePanel panel={panel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    const longProduct = await screen.findByTitle('Compulsory motor liability insurance with a deliberately long product label')
+    expect(longProduct).toHaveClass('lens-table-clamp')
+    expect(screen.getByLabelText('Small sample: n=2, minimum 5')).toBeInTheDocument()
+    expect(screen.getByText('Total')).toBeInTheDocument()
+    expect(screen.getAllByRole('cell').some((cell) => cell.getAttribute('style')?.includes('color-mix'))).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: /Paid/ }))
+    await waitFor(() => expect(requests.at(-1)?.panels[0]?.sort).toEqual({ field: 'paid', direction: 'asc' }))
+
+    const scroller = screen.getByLabelText('Scrollable table')
+    Object.defineProperties(scroller, {
+      clientWidth: { configurable: true, value: 505 },
+      scrollWidth: { configurable: true, value: 733 },
+      scrollLeft: { configurable: true, value: 0, writable: true },
+    })
+    Object.defineProperty(scroller.querySelector('thead th:first-child'), 'offsetWidth', { configurable: true, value: 160 })
+    Object.defineProperty(scroller.querySelector('table'), 'scrollWidth', { configurable: true, value: 733 })
+    const initialRealHeaders = Array.from(scroller.querySelectorAll('thead th:not(.lens-table-scroll-spacer):not(.lens-table-action-heading)'))
+    Object.defineProperty(initialRealHeaders.at(-1)!, 'offsetLeft', { configurable: true, value: 548 })
+    Object.defineProperty(initialRealHeaders.at(-1)!, 'offsetWidth', { configurable: true, value: 80 })
+    fireEvent.scroll(scroller)
+    const scrollFrame = scroller.closest('.lens-table-scroll-frame')
+    expect(scroller).toHaveAttribute('tabindex', '0')
+    expect(scrollFrame).toHaveAttribute('data-overflow-left', 'false')
+    expect(scrollFrame).toHaveAttribute('data-overflow-right', 'true')
+    const scrollLeft = screen.getByRole('button', { name: 'Scroll table left' })
+    const scrollRight = screen.getByRole('button', { name: 'Scroll table right' })
+    expect(scrollLeft).toBeDisabled()
+    expect(scrollRight).toBeEnabled()
+    expect(scrollFrame?.querySelectorAll('.lens-table-scroll')).toHaveLength(1)
+    const spacerHeader = scrollFrame?.querySelector('thead .lens-table-scroll-spacer')
+    expect(spacerHeader).toHaveAttribute('aria-hidden', 'true')
+    expect(scrollFrame?.querySelectorAll('tbody .lens-table-scroll-spacer')).toHaveLength(2)
+
+    // The explicit spacer stays in the table containing box, while the
+    // programmatic maximum stops at the data edge rather than scrolling the
+    // spacer itself into view.
+    Object.defineProperty(scroller.querySelector('table'), 'scrollWidth', { configurable: true, value: 893 })
+    Object.defineProperty(scroller, 'scrollWidth', { configurable: true, value: 1053 })
+    Object.defineProperty(spacerHeader, 'offsetWidth', { configurable: true, value: 160 })
+    const lastRealHeader = Array.from(scrollFrame!.querySelectorAll('thead th:not(.lens-table-scroll-spacer):not(.lens-table-action-heading)')).at(-1)!
+    Object.defineProperty(lastRealHeader, 'offsetLeft', { configurable: true, value: 548 })
+    fireEvent.scroll(scroller)
+
+    fireEvent.click(scrollRight)
+    expect(scroller.scrollLeft).toBe(388)
+    expect(scroller).toHaveFocus()
+    expect(scrollLeft).toBeEnabled()
+    expect(scrollRight).toBeDisabled()
+    expect(scrollFrame).toHaveAttribute('data-overflow-left', 'true')
+    expect(scrollFrame).toHaveAttribute('data-overflow-right', 'false')
+
+    fireEvent.click(scrollLeft)
+    expect(scroller.scrollLeft).toBe(0)
+    expect(scroller).toHaveFocus()
+    expect(scrollLeft).toBeDisabled()
+    expect(scrollRight).toBeEnabled()
+
+    scroller.scrollLeft = 388
+    fireEvent.scroll(scroller)
+    expect(scrollFrame).toHaveAttribute('data-overflow-left', 'true')
+    expect(scrollFrame).toHaveAttribute('data-overflow-right', 'false')
+
+    // Chromium counts the translated sticky column as scrollable overflow.
+    // Scrolling to that inflated native maximum must clamp at the table edge.
+    scroller.scrollLeft = 388
+    fireEvent.scroll(scroller)
+    expect(scroller.scrollLeft).toBe(388)
+    expect(scrollFrame).toHaveAttribute('data-overflow-right', 'false')
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search table' }), { target: { value: 'motor' } })
+    await waitFor(() => expect(requests.at(-1)?.panels[0]?.search).toBe('motor'))
+    expect(requests.at(-1)?.panels[0]?.sort).toEqual({ field: 'paid', direction: 'asc' })
+    await waitFor(() => expect(screen.queryByText('Travel')).not.toBeInTheDocument())
+    expect(screen.getAllByText('$75')).toHaveLength(2)
+  })
+})
+
+describe('TablePanel column reading', () => {
+  // A table whose spec declares no alignment at all, so what the header does is
+  // decided by the frame's own column types — plus a compact column holding a
+  // zero beside a value three magnitudes above it, and a column the producer
+  // does not total.
+  const panel: Panel = {
+    id: 'claims-products', kind: 'table', title: 'Claims by product', semantics: 'series', frame: 'panel:claims-products',
+    encoding: { id: 'product', label: 'product', value: 'paid' }, deferred: true,
+    format: {
+      paid: { kind: 'number', minorUnits: false, compact: true, precision: 2 },
+      average: { kind: 'number', minorUnits: false, precision: 0 },
+    },
+    columns: [
+      { field: 'product', label: 'Product', cell: { kind: 'plain' } },
+      { field: 'paid', label: 'Paid', cell: { kind: 'plain' }, total: true },
+      { field: 'average', label: 'Average severity', cell: { kind: 'plain' } },
+    ],
+    actions: [],
+  }
+  const document_: DashboardDocument = {
+    version: '1.0.0', snapshotId: 'reading-snapshot',
+    meta: { dashboardId: 'claims', title: 'Claims', generatedAt: '2026-07-31T00:00:00Z', locale: 'en' },
+    layout: { rows: [{ panels: [{ panelId: panel.id, span: 12 }] }] }, panels: [panel],
+    frames: { 'panel:claims-products': { columns: [], rows: [] } },
+    drill: { inlineDepth: 0, edges: {} }, perspectives: [], endpoints: { panel: '/lens/panel' }, i18n: {},
+    theme: { palette: {}, series: {} },
+  }
+  const fetcher: typeof fetch = () => Promise.resolve(new Response(`${JSON.stringify({
+    panelId: 'claims-products',
+    result: {
+      frames: {
+        'panel:claims-products': {
+          columns: [{ name: 'product', type: 'string' }, { name: 'paid', type: 'number' }, { name: 'average', type: 'number' }],
+          rows: [['Motor', 111_130_000, 9_280_000], ['Travel', 0, 0], ['Cargo', 1_000, 1_000]],
+        },
+      },
+      calculation: { durationMs: 4, cacheHit: false, calculatedAt: '2026-07-31T00:00:00Z' },
+      summary: { values: { paid: 111_175_000 }, filteredRows: 3, totalRows: 3 },
+    },
+  })}\n${JSON.stringify({ complete: true })}\n`, { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } }))
+
+  async function renderPanel() {
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={document_}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <TablePanel panel={panel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+    await screen.findByText('Motor')
+  }
+
+  it('aligns a numeric column\'s header over its own digits without being told to', async () => {
+    await renderPanel()
+    const headers = Array.from(document.querySelectorAll('thead th'))
+
+    expect(headers[0]).not.toHaveClass('lens-table-col-right')
+    expect(headers[1]).toHaveClass('lens-table-col-right')
+    expect(headers[2]).toHaveClass('lens-table-col-right')
+    const body = Array.from(document.querySelectorAll('tbody tr')[0]?.querySelectorAll('td') ?? [])
+    expect(body[1]).toHaveClass('lens-table-col-right')
+    expect(document.querySelectorAll('tfoot td')[2]).toHaveClass('lens-table-col-right')
+  })
+
+  it('draws sort state instead of typing it, and says it to a screen reader', async () => {
+    await renderPanel()
+    const header = document.querySelectorAll('thead th')[1]!
+
+    expect(document.body.textContent).not.toMatch(/[↑↓↕]/)
+    expect(header).toHaveAttribute('aria-sort', 'none')
+    expect(header.querySelector('.lens-table-sort')).toBeInTheDocument()
+    expect(header.querySelectorAll('.lens-table-sort svg')).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: /Paid/ }))
+    expect(header).toHaveAttribute('aria-sort', 'ascending')
+    expect(header.querySelector('.lens-table-sort-ascending .lens-table-sort-up')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Paid/ }))
+    expect(header).toHaveAttribute('aria-sort', 'descending')
+    expect(header.querySelector('.lens-table-sort-descending')).toBeInTheDocument()
+    expect(header.querySelector('.lens-table-sort-up')).not.toBeInTheDocument()
+  })
+
+  // 111 130 000 / 0 / 1 000 in one column: read downwards, per-value compact
+  // notation printed «111.13M», «0» and «1,000» — three notations in a stack of
+  // digits. The magnitude that carries the column is the largest value's, and
+  // 1 000 survives it as 0.00M only by rounding to nothing, so the column steps
+  // down to the magnitude its smallest real value can be written in.
+  it('reads the whole numeric column at one magnitude', async () => {
+    await renderPanel()
+    const cells = Array.from(document.querySelectorAll('tbody tr')).map((row) => row.querySelectorAll('td')[1]?.textContent)
+
+    expect(cells).toEqual(['111,130.00K', '0.00K', '1.00K'])
+  })
+
+  it('says that a column does not total instead of leaving the cell blank', async () => {
+    await renderPanel()
+    const footer = document.querySelectorAll('tfoot td')
+
+    expect(footer[1]).toHaveTextContent('111.18M')
+    expect(footer[2]?.querySelector('.lens-table-summary-void')).toBeInTheDocument()
+    expect(footer[2]).toHaveTextContent('—')
+    expect(screen.getByText('Not summable')).toHaveClass('lens-sr-only')
+  })
+})
+
+describe('column heat', () => {
+  it('shades by rank, so one outlier cannot flatten the rest of the column', () => {
+    // «Выплачено»: 4,04 млрд against 312 млн against seven rows under 100 млн.
+    // Linear in the value, six of the nine landed on exactly one lightness.
+    const values = [4_040_000_000, 312_200_000, 111_130_000, 81_780_000, 40_000_000, 12_000_000, 5_000_000, 2_000_000, 1_490_000]
+    const sorted = [...values].sort((left, right) => left - right)
+    const ranks = values.map((value) => heatRank(value, sorted))
+
+    expect(new Set(ranks).size).toBe(values.length)
+    expect(ranks[0]).toBe(1)
+    expect(ranks.at(-1)).toBe(0)
+  })
+
+  it('gives two equal amounts the same shade', () => {
+    expect(heatRank(5, [1, 5, 5, 9])).toBe(heatRank(5, [1, 5, 5, 9]))
+    expect(heatRank(5, [1, 5, 5, 9])).toBe(0.5)
   })
 })

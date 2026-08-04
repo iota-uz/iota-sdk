@@ -10,6 +10,15 @@ import type { ChartAnchor } from '../charts/adapter'
 export interface PanelChrome {
   trail?: ReactNode
   explore?: ReactNode
+  /**
+   * The panel's name is already on screen, so its own header must not repeat
+   * it. Set by a tab group whose active tab label names the single panel
+   * inside it: two borders, two radii, two header bars and «ЕЖЕДНЕВНЫЙ ДОХОД»
+   * over «ДОХОД» forty pixels apart, all saying one thing. The card keeps its
+   * header — export, expand and the ⓘ live there — and loses the duplicate
+   * line; the accessible name comes from the section's own aria-label.
+   */
+  titleIsRedundant?: boolean
 }
 
 export const PanelChromeContext = createContext<PanelChrome | undefined>(undefined)
@@ -29,16 +38,4 @@ export const MarkSelectionContext = createContext<MarkSelectionHandler | undefin
 
 export function useMarkSelection(): MarkSelectionHandler | undefined {
   return useContext(MarkSelectionContext)
-}
-
-export interface LegendVisibility {
-  hidden: ReadonlySet<string>
-  toggle(key: string): void
-  reset(): void
-}
-
-export const LegendVisibilityContext = createContext<LegendVisibility | undefined>(undefined)
-
-export function useLegendVisibility(): LegendVisibility | undefined {
-  return useContext(LegendVisibilityContext)
 }

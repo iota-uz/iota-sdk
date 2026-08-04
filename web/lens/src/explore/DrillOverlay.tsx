@@ -6,6 +6,9 @@ import { createPortal } from 'react-dom'
 import type { FieldFormat } from '../contract'
 import { ArrowUpRight, CaretRight, Check, Copy, X } from '../icons'
 import { useDrawer, useFormat, useTranslate } from '../runtime'
+import { copyText } from '../runtime/clipboard'
+import { rawValueText } from '../runtime/format'
+import { useOverlayContainer } from '../runtime/overlayContainer'
 import { isVisualRegression } from '../visualRegression'
 import type { DrillTarget } from './model'
 
@@ -45,22 +48,56 @@ export interface DrillOverlayProps {
   selectedPerspectiveId?: string
   onDrillInto: (target: DrillTarget) => void
   onDrillChild: (childKey: string) => void
+  onPrefetchChild?: (childKey: string) => () => void
   onPerspective: (perspectiveId: string) => void
   onClose: () => void
 }
 
-function RowContent({ href, onActivate, children }: {
+function RowContent({ href, onActivate, onIntent, children }: {
   href?: string
   onActivate: () => void
+  onIntent?: () => void | (() => void)
   children: ReactNode
 }) {
+  const timer = useRef<ReturnType<typeof setTimeout>>()
+  const cancelIntent = useRef<(() => void) | undefined>()
+  const committed = useRef(false)
+  const cancel = () => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = undefined
+    if (!committed.current) cancelIntent.current?.()
+    cancelIntent.current = undefined
+  }
+  const intent = () => {
+    cancel()
+    committed.current = false
+    timer.current = setTimeout(() => {
+      const cleanup = onIntent?.()
+      cancelIntent.current = typeof cleanup === 'function' ? cleanup : undefined
+    }, 120)
+  }
+  const activate = () => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = undefined
+    // Once intent turns into navigation, keep the speculative request alive so
+    // the interactive activation can join and promote the same server job.
+    committed.current = true
+    onActivate()
+  }
+  useEffect(() => cancel, [])
+  const intentProps = {
+    onBlur: cancel,
+    onFocus: intent,
+    onPointerEnter: intent,
+    onPointerLeave: cancel,
+  }
   if (href) {
     return (
-      <a className="lens-drill-row" href={href}>{children}</a>
+      <a className="lens-drill-row" href={href} {...intentProps}>{children}</a>
     )
   }
   return (
-    <button className="lens-drill-row" onClick={onActivate} type="button">
+    <button className="lens-drill-row" onClick={activate} type="button" {...intentProps}>
       {children}
     </button>
   )
@@ -116,13 +153,20 @@ export function positionOverlay(
 
 export function DrillOverlay({
   target, path = [], anchor, anchorElement, valueFormat, accentColor, theme, dark = false, selectedPerspectiveId,
-  onDrillInto, onDrillChild, onPerspective, onClose,
+  onDrillInto, onDrillChild, onPrefetchChild, onPerspective, onClose,
 }: DrillOverlayProps) {
   const drawer = useDrawer()
   const translate = useTranslate()
   const formatValue = useFormat(valueFormat)
   const formatShare = useFormat({ kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' })
-  const [container, setContainer] = useState<HTMLElement>()
+  const anchorElementRef = useRef<HTMLElement | null>(anchorElement ?? null)
+  anchorElementRef.current = anchorElement ?? null
+  const container = useOverlayContainer(
+    true,
+    anchorElementRef,
+    drawer.depth > 0 ? 'lens-overlay-root-over-drawer' : '',
+    { dark, theme },
+  )
   const [position, setPosition] = useState<Position>({ left: anchor.x, top: anchor.y, placement: 'right', caret: caretInset })
   const [copied, setCopied] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -135,31 +179,8 @@ export function DrillOverlay({
     return !globalThis.window?.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   })
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return undefined
-    const element = document.createElement('div')
-    // Same rule as the expanded panel: leaving the dashboard subtree means the
-    // host has to re-declare the Lens root context, and living at the end of
-    // body means no ancestor stacking context can bury it.
-    // A focus canvas can live inside the runtime drawer. Its segment overlay
-    // is another body-level portal, so the normal overlay z-index would place
-    // it underneath the drawer portal even though it belongs to the drawer's
-    // active interaction. Lift only this nested overlay one rung above the
-    // drawer; page-level overlays keep their existing stacking contract.
-    element.className = `lens-root lens-overlay-root${drawer.depth > 0 ? ' lens-overlay-root-over-drawer' : ''}${dark ? ' dark' : ''}`
-    if (theme) element.dataset.theme = theme
-    document.body.appendChild(element)
-    setContainer(element)
-    return () => {
-      element.remove()
-      setContainer(undefined)
-    }
-  }, [dark, drawer.depth, theme])
-
   const anchorRef = useRef(anchor)
   anchorRef.current = anchor
-  const anchorElementRef = useRef(anchorElement)
-  anchorElementRef.current = anchorElement
 
   const reposition = useCallback(() => {
     const dialog = dialogRef.current
@@ -267,44 +288,16 @@ export function DrillOverlay({
   }, [])
 
   const copyValue = useCallback(async () => {
-    if (target.value === undefined) return
-    // Copy the raw machine value (plain digits, no thousands separators, no unit
-    // or compact abbreviation) so it pastes straight into a spreadsheet — not the
-    // formatted display string («13.02 млрд UZS»). The on-screen figure keeps its
-    // formatting.
-    const text = String(target.value)
-    const clipboard = globalThis.navigator?.clipboard
-    let done = false
-    try {
-      if (clipboard?.writeText) {
-        await clipboard.writeText(text)
-        done = true
-      }
-    } catch {
-      done = false
-    }
-    if (!done) {
-      // No async clipboard (insecure context) or a rejected write: fall back to
-      // the legacy selection copy, and if even that is unavailable stay silent
-      // rather than throw out of an event handler.
-      try {
-        const field = document.createElement('textarea')
-        field.value = text
-        field.setAttribute('readonly', '')
-        field.style.position = 'fixed'
-        field.style.opacity = '0'
-        document.body.appendChild(field)
-        field.select()
-        document.execCommand('copy')
-        field.remove()
-      } catch {
-        // Silent no-op: the value is still on screen to read.
-      }
-    }
+    // The raw machine value, so it pastes straight into a spreadsheet — not the
+    // formatted display string («13.02 млрд UZS»). The on-screen figure keeps
+    // its formatting.
+    const text = rawValueText(target.value, valueFormat)
+    if (text === undefined) return
+    await copyText(text)
     setCopied(true)
     if (copiedTimer.current) clearTimeout(copiedTimer.current)
     copiedTimer.current = setTimeout(() => setCopied(false), 1500)
-  }, [target.value])
+  }, [target.value, valueFormat])
 
   if (!container) return null
 
@@ -328,8 +321,9 @@ export function DrillOverlay({
     <>
       {/* A transparent catcher closes on any outside press without dimming the
           chart the popover is describing. */}
-      <div className="lens-drill-scrim" onMouseDown={onClose} />
+      <button aria-label={translate('drill.close', 'Close details')} className="lens-drill-scrim" onMouseDown={onClose} tabIndex={-1} type="button" />
       <span aria-hidden="true" className="lens-drill-caret" data-placement={position.placement} style={caretStyle} />
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- focus movement is delegated from controls inside this programmatically focusable dialog. */}
       <div
         aria-label={target.label}
         aria-modal="false"
@@ -420,6 +414,7 @@ export function DrillOverlay({
                   <RowContent
                     href={row.href}
                     onActivate={() => onDrillChild(row.node.key)}
+                    onIntent={row.href || !onPrefetchChild ? undefined : () => onPrefetchChild(row.node.key)}
                   >
                     <span className="lens-drill-row-label">{row.label}</span>
                     {row.value !== undefined && <span className="lens-drill-row-value">{formatValue(row.value)}</span>}

@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import type { DashboardDocument, Filter } from '../contract'
+import type { Action, DashboardDocument, Filter } from '../contract'
 import {
+  compareValues,
+  periodTransitionValues,
   currentPeriodValue,
+  currentSegmentedValue,
   declaredFilters,
+  filterActionURL,
   filterParamNames,
   periodValues,
   readFilterValues,
   sameFilterValues,
+  segmentedValues,
   srcWithFilterParams,
   writeFilterValues,
 } from './filters'
@@ -92,9 +97,12 @@ describe('readFilterValues', () => {
 describe('writeFilterValues', () => {
   it('round-trips through a URL and preserves unrelated params', () => {
     const url = new URL('https://x.test/dash?path=a&path=b&_f=product%3Aone&_f=region%3Atwo&other=1')
-    const values = { ActualRangeStart: '2026-02-01', ActualRangeEnd: '2026-03-01' }
+    const values = {
+      ActualRangeStart: '2026-02-01', ActualRangeEnd: '2026-03-01',
+      _f: ['product:one', 'region:two'],
+    }
     const next = writeFilterValues(url, doc, values)
-    expect(readFilterValues(doc, next)).toEqual(values)
+    expect(readFilterValues(doc, next)).toEqual({ ...values, _f: ['product:one', 'region:two'] })
     expect(next.searchParams.getAll('path')).toEqual(['a', 'b'])
     expect(next.searchParams.getAll('_f')).toEqual(['product:one', 'region:two'])
     expect(next.searchParams.get('other')).toBe('1')
@@ -116,7 +124,7 @@ describe('writeFilterValues', () => {
 describe('value helpers', () => {
   it('lists declared filters and param names', () => {
     expect(declaredFilters(doc)).toHaveLength(1)
-    expect(filterParamNames(doc)).toEqual(['ActualRangeStart', 'ActualRangeEnd'])
+    expect(filterParamNames(doc)).toEqual(['_f', '_groupby', 'ActualRangeStart', 'ActualRangeEnd'])
     expect(declaredFilters(documentWithFilters([]))).toEqual([])
   })
 
@@ -126,6 +134,38 @@ describe('value helpers', () => {
       .toEqual({ start: '2026-02-01', end: '2026-03-01' })
     expect(currentPeriodValue(periodFilter.period!, { ActualRangeStart: '', ActualRangeEnd: '' }))
       .toEqual({ start: '', end: '' })
+  })
+
+  it('canonicalizes a bound comparison off when its period becomes all-time', () => {
+    const comparison: Filter = {
+      id: 'compare', kind: 'compare', label: 'Compare',
+      compare: {
+        modeParam: 'compare', startParam: 'compare_start', endParam: 'compare_end', compareTo: 'period',
+        value: { mode: 'previous_period' },
+      },
+    }
+    expect(periodTransitionValues(
+      documentWithFilters([periodFilter, comparison]),
+      periodFilter,
+      { start: '', end: '' },
+      { compare: 'custom', compare_start: '2025-01-01', compare_end: '2025-12-31' },
+    )).toEqual({ ActualRangeStart: '', ActualRangeEnd: '', compare: 'off' })
+  })
+
+  it('canonicalizes an impossible all-time comparison from an initial URL', () => {
+    const comparison: Filter = {
+      id: 'compare', kind: 'compare', label: 'Compare',
+      compare: {
+        modeParam: 'compare', startParam: 'compare_start', endParam: 'compare_end', compareTo: 'period',
+        value: { mode: 'off' },
+      },
+    }
+    const document = documentWithFilters([periodFilter, comparison])
+    const url = new URL('https://x.test/dash?ActualRangeStart=&ActualRangeEnd=&compare=custom&compare_start=2024-01-01&compare_end=2024-08-01')
+
+    expect(readFilterValues(document, url)).toEqual({
+      ActualRangeStart: '', ActualRangeEnd: '', compare: 'off',
+    })
   })
 
   it('maps a period value to its parameters', () => {
@@ -158,5 +198,94 @@ describe('srcWithFilterParams', () => {
   it('keeps the all-time empty form on the src', () => {
     expect(srcWithFilterParams('/doc', [], { ActualRangeStart: '', ActualRangeEnd: '' }))
       .toBe('/doc?ActualRangeStart=&ActualRangeEnd=')
+  })
+})
+
+describe('comparison and cube interaction state', () => {
+  it('encodes custom comparison values and leaves preset ranges implicit', () => {
+    const compare = {
+      modeParam: 'compare', startParam: 'compare_start', endParam: 'compare_end', compareTo: 'period',
+      value: { mode: 'off' as const },
+    }
+    expect(compareValues(compare, { mode: 'previous_period' })).toEqual({ compare: 'previous_period' })
+    expect(compareValues(compare, { mode: 'custom', start: '2026-01-01', end: '2026-01-31' })).toEqual({
+      compare: 'custom', compare_start: '2026-01-01', compare_end: '2026-01-31',
+    })
+  })
+
+  it('toggles cross-filter values on the same repeated _f stack and preserves drill group-by', () => {
+    const action: Action = {
+      kind: 'cross_filter', urlTemplate: '/sales', params: [], payload: {},
+      filter: { dimension: 'product', value: { kind: 'field', name: 'product_id' } },
+    }
+    const current = new URL('https://x.test/sales?_f=region%3Atashkent&_groupby=region')
+    const selected = filterActionURL(action, { product_id: 'osago' }, current)!
+    expect(selected.searchParams.getAll('_f')).toEqual(['region:tashkent', 'product:osago'])
+    expect(selected.searchParams.get('_groupby')).toBe('region')
+    expect(filterActionURL(action, { product_id: 'osago' }, selected)!.searchParams.getAll('_f')).toEqual(['region:tashkent'])
+  })
+
+  it('adds cube drill group-by without replacing the shared filter stack', () => {
+    const action: Action = {
+      kind: 'cube_drill', urlTemplate: '/sales', params: [], payload: {},
+      filter: { dimension: 'product', groupBy: 'region', value: { kind: 'field', name: 'product_id' } },
+    }
+    const next = filterActionURL(action, { product_id: 'osago' }, new URL('https://x.test/sales?_f=channel%3Aagent'))!
+    expect(next.searchParams.getAll('_f')).toEqual(['channel:agent', 'product:osago'])
+    expect(next.searchParams.get('_groupby')).toBe('region')
+  })
+})
+
+const segmentedFilter: Filter = {
+  id: 'grain',
+  kind: 'segmented',
+  label: 'Periodicity',
+  segmented: {
+    param: 'PeriodGrain',
+    value: 'quarter',
+    options: [
+      { value: 'year', label: 'By year' },
+      { value: 'quarter', label: 'By quarter' },
+    ],
+  },
+}
+
+const segmentedDoc = documentWithFilters([periodFilter, segmentedFilter])
+
+describe('segmented filters', () => {
+  it('is a declared filter whose param joins the driven set', () => {
+    expect(declaredFilters(segmentedDoc)).toHaveLength(2)
+    expect(filterParamNames(segmentedDoc)).toContain('PeriodGrain')
+  })
+
+  it('reads only a value the declaration offers', () => {
+    expect(readFilterValues(segmentedDoc, new URL('https://x.test/dash?PeriodGrain=year')))
+      .toEqual({ PeriodGrain: 'year' })
+    // Anything else drops back to the document's own normalized selection,
+    // exactly as an out-of-range period boundary does.
+    expect(readFilterValues(segmentedDoc, new URL('https://x.test/dash?PeriodGrain=month'))).toEqual({})
+    expect(readFilterValues(segmentedDoc, new URL('https://x.test/dash'))).toEqual({})
+  })
+
+  it('falls back to the declared value, and rejects an unknown one', () => {
+    const segmented = segmentedFilter.segmented!
+    expect(currentSegmentedValue(segmented, {})).toBe('quarter')
+    expect(currentSegmentedValue(segmented, { PeriodGrain: 'year' })).toBe('year')
+    expect(currentSegmentedValue(segmented, { PeriodGrain: 'month' })).toBe('quarter')
+    expect(currentSegmentedValue(segmented, { PeriodGrain: ['year'] })).toBe('quarter')
+  })
+
+  it('round-trips through the URL beside every other declared filter', () => {
+    const url = new URL('https://x.test/dash?ActualRangeStart=2026-01-01&ActualRangeEnd=2026-07-22&keep=1')
+    const next = writeFilterValues(url, segmentedDoc, {
+      ActualRangeStart: '2026-01-01',
+      ActualRangeEnd: '2026-07-22',
+      ...segmentedValues(segmentedFilter.segmented!, 'year'),
+    })
+    expect(next.searchParams.get('PeriodGrain')).toBe('year')
+    expect(next.searchParams.get('keep')).toBe('1')
+    expect(readFilterValues(segmentedDoc, next)).toEqual({
+      ActualRangeStart: '2026-01-01', ActualRangeEnd: '2026-07-22', PeriodGrain: 'year',
+    })
   })
 })

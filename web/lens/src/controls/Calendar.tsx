@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { stackedCalendarMediaQuery } from '../breakpoints'
 import { CaretLeft, CaretRight } from '../icons'
 import type { TranslationVars } from '../runtime'
 import {
@@ -58,13 +59,12 @@ function localToday(): CalendarDate {
   return { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() }
 }
 
-/** Matches the stylesheet's stacked-popover breakpoint: one pane below it. */
 function useNarrow(): boolean {
   const [narrow, setNarrow] = useState(() => (
-    globalThis.window?.matchMedia?.('(max-width: 540px)').matches ?? false
+    globalThis.window?.matchMedia?.(stackedCalendarMediaQuery).matches ?? false
   ))
   useEffect(() => {
-    const media = globalThis.window?.matchMedia?.('(max-width: 540px)')
+    const media = globalThis.window?.matchMedia?.(stackedCalendarMediaQuery)
     if (!media?.addEventListener) return undefined
     const onChange = (event: MediaQueryListEvent) => setNarrow(event.matches)
     media.addEventListener('change', onChange)
@@ -303,6 +303,7 @@ export function Calendar({ locale, draft, min, max, today, onPick, translate }: 
 
   return (
     <div className="lens-calendar" data-panes={paneCount} data-view="days">
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- keyboard navigation is delegated from focusable grid cells; this wrapper must not become another tab stop. */}
       <div
         className="lens-calendar-panes"
         onKeyDown={onKeyDown}

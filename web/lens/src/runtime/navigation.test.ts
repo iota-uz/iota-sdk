@@ -8,7 +8,8 @@ describe('navigationReducer', () => {
 
     expect(next).toEqual({
       panelId: 'total', path: ['root', 'detail'], perspectiveId: 'composition',
-      history: [{ panelId: 'total', path: ['root'], perspectiveId: 'composition' }],
+      revision: 1,
+      history: [{ panelId: 'total', path: ['root'], perspectiveId: 'composition', revision: 0 }],
     })
     expect(initial.path).toEqual(['root'])
   })
@@ -77,7 +78,9 @@ describe('navigationReducer', () => {
 
   it('resets the view and history', () => {
     const state = navigationReducer(createNavigationState({ path: ['root'] }), navigationActions.drillInto('detail'))
-    expect(navigationReducer(state, navigationActions.reset())).toEqual({ path: [], history: [] })
+    expect(navigationReducer(state, navigationActions.reset())).toEqual({
+      panelId: undefined, path: [], perspectiveId: undefined, revision: 2, history: [],
+    })
   })
 
   it('opens one drawer without replacing the dashboard view', () => {
@@ -88,8 +91,9 @@ describe('navigationReducer', () => {
       panelId: 'margin',
       path: ['root'],
       perspectiveId: 'trend',
-      drawer: { src: '/drill/margin/lens/document?token=signed', path: [] },
-      history: [{ panelId: 'margin', path: ['root'], perspectiveId: 'trend' }],
+      revision: 1,
+      drawer: { src: '/drill/margin/lens/document?token=signed', path: [], panelId: undefined, perspectiveId: undefined },
+      history: [{ panelId: 'margin', path: ['root'], perspectiveId: 'trend', revision: 0 }],
     })
     expect(navigationReducer(opened, navigationActions.openDrawer('/drill/other/lens/document'))).toBe(opened)
   })
@@ -155,13 +159,13 @@ describe('navigationReducer', () => {
       src: '/drill/document', panelId: 'evidence', path: ['root', 'claims'], perspectiveId: 'records',
     })
     expect(drilled.history).toHaveLength(2)
-    expect(closed).toEqual({ path: ['dashboard'], panelId: undefined, perspectiveId: undefined, history: drilled.history })
+    expect(closed).toEqual({ path: ['dashboard'], panelId: undefined, perspectiveId: undefined, revision: 3, history: drilled.history })
   })
 
   it('restores an external view without retaining internal history', () => {
     const state = navigationReducer(createNavigationState({ path: ['root'] }), navigationActions.drillInto('detail'))
     expect(navigationReducer(state, navigationActions.restore({ path: ['external'], perspectiveId: 'p' }))).toEqual({
-      path: ['external'], perspectiveId: 'p', history: [], panelId: undefined,
+      path: ['external'], perspectiveId: 'p', revision: 2, history: [], panelId: undefined,
     })
   })
 

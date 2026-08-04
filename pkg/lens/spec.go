@@ -2,7 +2,10 @@
 package lens
 
 import (
+	"net/url"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
@@ -32,6 +35,7 @@ const (
 	VariableText         VariableKind = "text"
 	VariableNumber       VariableKind = "number"
 	VariableToggle       VariableKind = "toggle"
+	VariableCompare      VariableKind = "compare"
 )
 
 type VariableComponent string
@@ -43,6 +47,7 @@ const (
 	VariableComponentTextInput       VariableComponent = "text_input"
 	VariableComponentNumberInput     VariableComponent = "number_input"
 	VariableComponentToggle          VariableComponent = "toggle"
+	VariableComponentComparePicker   VariableComponent = "compare_picker"
 )
 
 type DashboardSpec struct {
@@ -129,6 +134,9 @@ type VariableSpec struct {
 	Options         []VariableOption
 	AllowAllTime    bool
 	DefaultDuration time.Duration
+	// CompareTo names the date-range variable whose interval this comparison
+	// derives from. Required for VariableCompare.
+	CompareTo string
 }
 
 func DefaultVariableComponent(kind VariableKind) VariableComponent {
@@ -143,6 +151,8 @@ func DefaultVariableComponent(kind VariableKind) VariableComponent {
 		return VariableComponentNumberInput
 	case VariableToggle:
 		return VariableComponentToggle
+	case VariableCompare:
+		return VariableComponentComparePicker
 	case VariableText:
 		fallthrough
 	default:
@@ -154,6 +164,98 @@ type DateRangeValue struct {
 	Mode  string
 	Start *time.Time
 	End   *time.Time
+}
+
+type CompareMode string
+
+const (
+	CompareOff            CompareMode = "off"
+	ComparePreviousPeriod CompareMode = "previous_period"
+	CompareYearAgo        CompareMode = "year_ago"
+	CompareCustom         CompareMode = "custom"
+)
+
+// CompareValue is the normalized comparison selection. Range is empty when
+// Mode is off; every active mode resolves to an explicit bounded interval.
+type CompareValue struct {
+	Mode  CompareMode
+	Range DateRangeValue
+}
+
+// CompareRequestKeys returns the canonical request keys for a comparison
+// variable. Keeping this mapping on VariableSpec's owning package prevents the
+// filter model, cube planner, and runtime resolver from drifting apart.
+// The three results are the mode, start and end request keys, in that order.
+func CompareRequestKeys(spec VariableSpec) (string, string, string) {
+	if len(spec.RequestKeys) >= 3 {
+		return spec.RequestKeys[0], spec.RequestKeys[1], spec.RequestKeys[2]
+	}
+	mode := CanonicalRequestKey(spec.Name)
+	return mode, mode + "-start", mode + "-end"
+}
+
+// DateRangeRequestKeys returns the start and end request keys, in that order.
+func DateRangeRequestKeys(spec VariableSpec) (string, string) {
+	if len(spec.RequestKeys) >= 3 {
+		return spec.RequestKeys[1], spec.RequestKeys[2]
+	}
+	if len(spec.RequestKeys) >= 2 {
+		return spec.RequestKeys[0], spec.RequestKeys[1]
+	}
+	base := CanonicalRequestKey(spec.Name)
+	return base + "-start", base + "-end"
+}
+
+func CanonicalRequestKey(name string) string {
+	var result strings.Builder
+	lastHyphen := true
+	var previous rune
+	for _, current := range strings.TrimSpace(name) {
+		if unicode.IsLetter(current) || unicode.IsDigit(current) {
+			if unicode.IsUpper(current) && !lastHyphen && (unicode.IsLower(previous) || unicode.IsDigit(previous)) {
+				result.WriteByte('-')
+			}
+			result.WriteRune(unicode.ToLower(current))
+			lastHyphen = false
+			previous = current
+			continue
+		}
+		if !lastHyphen && result.Len() > 0 {
+			result.WriteByte('-')
+			lastHyphen = true
+		}
+		previous = current
+	}
+	return strings.Trim(result.String(), "-")
+}
+
+// ResolveCompareMode normalizes the requested comparison mode. A custom mode
+// is active only when both boundaries are valid and ordered; callers must not
+// build or execute an unbounded comparison graph for malformed input.
+func ResolveCompareMode(spec VariableSpec, values url.Values) CompareMode {
+	modeKey, startKey, endKey := CompareRequestKeys(spec)
+	raw := strings.TrimSpace(values.Get(modeKey))
+	mode := CompareMode(raw)
+	if raw == "" {
+		if value, ok := spec.Default.(CompareValue); ok {
+			mode = value.Mode
+			if mode == CompareCustom && value.Range.Start != nil && value.Range.End != nil && !value.Range.End.Before(*value.Range.Start) {
+				return mode
+			}
+		}
+	}
+	switch mode {
+	case ComparePreviousPeriod, CompareYearAgo:
+		return mode
+	case CompareCustom:
+		start, startErr := time.Parse("2006-01-02", values.Get(startKey))
+		end, endErr := time.Parse("2006-01-02", values.Get(endKey))
+		if startErr == nil && endErr == nil && !end.Before(start) {
+			return mode
+		}
+	case CompareOff:
+	}
+	return CompareOff
 }
 
 type ParamValue struct {
@@ -168,6 +270,17 @@ type QuerySpec struct {
 	MaxRows int
 }
 
+// ComparisonAlignment controls how rows from a comparison period are paired
+// with the current dataset. The zero value preserves the inferred identity
+// join; ordinal alignment is an explicit opt-in for ordered datasets whose
+// category values necessarily differ between periods.
+type ComparisonAlignment string
+
+const (
+	ComparisonAlignmentInferred ComparisonAlignment = ""
+	ComparisonAlignmentOrdinal  ComparisonAlignment = "ordinal"
+)
+
 type DatasetSpec struct {
 	Name        string
 	Title       string
@@ -180,9 +293,20 @@ type DatasetSpec struct {
 	Description string
 	Cache       CachePolicy
 	Export      exportmeta.Spec
+	// TimeRangeVariable overrides the dashboard's primary date range for this
+	// dataset. Comparison branches use it to execute the same query against a
+	// second normalized interval.
+	TimeRangeVariable string
+	// ComparisonAlignment may explicitly opt an ordered dataset into ordinal
+	// comparison. The default remains a stable identity join and never falls
+	// back to row position implicitly.
+	ComparisonAlignment ComparisonAlignment
 }
 
 func ResolveTimeRange(value any) datasource.TimeRange {
+	if comparison, ok := value.(CompareValue); ok {
+		value = comparison.Range
+	}
 	dateRange, ok := value.(DateRangeValue)
 	if !ok {
 		return datasource.TimeRange{}

@@ -18,10 +18,13 @@ type DashboardDocument struct {
 	Perspectives []Perspective      `json:"perspectives"`
 	// Filters declares the dashboard's controls. Optional so documents from
 	// older producers keep parsing under the same contract major.
-	Filters   []Filter          `json:"filters,omitempty"`
-	Endpoints Endpoints         `json:"endpoints"`
-	I18n      map[string]string `json:"i18n"`
-	Theme     Theme             `json:"theme"`
+	Filters         []Filter          `json:"filters,omitempty"`
+	ActiveFilters   []ActiveFilter    `json:"activeFilters,omitempty"`
+	ResetFiltersURL string            `json:"resetFiltersUrl,omitempty"`
+	Endpoints       Endpoints         `json:"endpoints"`
+	I18n            map[string]string `json:"i18n"`
+	Theme           Theme             `json:"theme"`
+	URLState        *URLStateContract `json:"urlState,omitempty"`
 	// Header, when set, renders a document-level identity block (title + a
 	// muted subtitle) on the left of the dashboard's action bar. Optional so
 	// documents from older producers keep parsing under the same contract major.
@@ -33,6 +36,18 @@ type DashboardDocument struct {
 	// producers empty Meta.Title accordingly. Optional; absent keeps the
 	// generic drawer eyebrow.
 	Drawer *DrawerHeader `json:"drawer,omitempty"`
+}
+
+const (
+	URLStateVersion  = 1
+	URLStateParam    = "lens-state"
+	URLStateMaxBytes = 4096
+)
+
+type URLStateContract struct {
+	Version  int    `json:"version"`
+	Param    string `json:"param"`
+	MaxBytes int    `json:"maxBytes"`
 }
 
 // DrawerSize selects a host drawer's width treatment. An empty size keeps the
@@ -100,20 +115,8 @@ type LayoutRow struct {
 type LayoutItem struct {
 	PanelID string `json:"panelId"`
 	Span    int    `json:"span"`
-	// Group, when set, folds this item and its consecutive siblings that
-	// carry the same group ID into one shared container card. Renderers that
-	// do not understand groups keep laying the items out individually.
-	//
-	// Deprecated for producers in favor of Groups: kept for backward
-	// compatibility only. When Groups is non-empty it is authoritative and Group
-	// is ignored; the Go builder mirrors the innermost group here for old
-	// readers.
-	Group *LayoutGroup `json:"group,omitempty"`
 	// Groups is the nested-container chain this item belongs to, ordered
 	// outermost → innermost (the last element is the item's immediate container).
-	// Consumers use Groups when it is non-empty and fall back to the singular
-	// Group otherwise. Existing payloads that carry only Group keep byte- and
-	// behavior-compatible.
 	Groups []LayoutGroup `json:"groups,omitempty"`
 }
 
@@ -170,7 +173,19 @@ const (
 	FilterKindPeriod FilterKind = "period"
 	// FilterKindFacet is a searchable multi-select control backed by a
 	// producer-owned options endpoint.
-	FilterKindFacet FilterKind = "facet"
+	FilterKindFacet   FilterKind = "facet"
+	FilterKindCompare FilterKind = "compare"
+	// FilterKindSegmented is a small closed set of mutually exclusive values
+	// rendered inline — the shape a dashboard reaches for when a choice is
+	// short, permanent and cheap enough that hiding it behind a popover costs
+	// more than showing it. It exists so that such a choice can be a *filter*:
+	// URL state that survives reload and sharing, re-entering through
+	// syncFiltersFromURL like every other control. Before it, the only way to
+	// express "one of two/three modes" was a Tabs panel group, which is a
+	// layout container — its selection is renderer state, it is invisible to
+	// the URL, and it forces every branch of the choice to be materialized as
+	// a nested panel inside a panel.
+	FilterKindSegmented FilterKind = "segmented"
 )
 
 // Filter declares one dashboard-level control. The document owns the
@@ -189,7 +204,57 @@ type Filter struct {
 	// payload field must be set.
 	Period *PeriodFilter `json:"period,omitempty"`
 	// Facet carries the payload of a searchable multi-select filter.
-	Facet *FacetFilter `json:"facet,omitempty"`
+	Facet     *FacetFilter     `json:"facet,omitempty"`
+	Compare   *CompareFilter   `json:"compare,omitempty"`
+	Segmented *SegmentedFilter `json:"segmented,omitempty"`
+}
+
+// SegmentedFilter declares a single-choice control over a closed option set.
+// Param is the one query parameter the choice is written to; Value is the
+// server-normalized current selection and must be one of Options.
+type SegmentedFilter struct {
+	Param   string            `json:"param"`
+	Value   string            `json:"value"`
+	Options []SegmentedOption `json:"options"`
+}
+
+// SegmentedOption is one segment. Label is already localized by the producer:
+// a segmented filter's vocabulary is business vocabulary («По кварталам»), not
+// runtime chrome, so it is not part of the SDK i18n catalogue.
+type SegmentedOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+type CompareMode string
+
+const (
+	CompareModeOff            CompareMode = "off"
+	CompareModePreviousPeriod CompareMode = "previous_period"
+	CompareModeYearAgo        CompareMode = "year_ago"
+	CompareModeCustom         CompareMode = "custom"
+)
+
+type CompareFilter struct {
+	ModeParam  string       `json:"modeParam"`
+	StartParam string       `json:"startParam"`
+	EndParam   string       `json:"endParam"`
+	CompareTo  string       `json:"compareTo"`
+	Value      CompareValue `json:"value"`
+}
+
+type CompareValue struct {
+	Mode  CompareMode `json:"mode"`
+	Start string      `json:"start,omitempty"`
+	End   string      `json:"end,omitempty"`
+}
+
+// ActiveFilter is one condition in the shared cross-filter/cube-drill stack.
+type ActiveFilter struct {
+	Dimension string `json:"dimension"`
+	Label     string `json:"label"`
+	Value     string `json:"value"`
+	RemoveURL string `json:"removeUrl"`
 }
 
 // FacetFilter declares a producer-owned searchable option list and the
@@ -213,13 +278,15 @@ type FacetSelection struct {
 // FacetOptionsResponse is the wire response returned by FacetFilter's options
 // endpoint.
 type FacetOptionsResponse struct {
-	Options []FacetOption `json:"options"`
+	Options  []FacetOption `json:"options"`
+	ApplyURL string        `json:"applyUrl"`
 }
 
 // FacetOption is one searchable option. ToggleURL adds or removes it while
 // preserving the producer's complete filter state.
 type FacetOption struct {
 	Label     string `json:"label"`
+	Value     string `json:"value"`
 	Count     int    `json:"count,omitempty"`
 	Selected  bool   `json:"selected,omitempty"`
 	ToggleURL string `json:"toggleUrl"`
@@ -267,16 +334,21 @@ type PeriodPreset struct {
 type PanelKind string
 
 const (
-	PanelKindStat    PanelKind = "stat"
-	PanelKindPie     PanelKind = "pie"
-	PanelKindDonut   PanelKind = "donut"
-	PanelKindRadial  PanelKind = "radial"
-	PanelKindBar     PanelKind = "bar"
-	PanelKindHBar    PanelKind = "hbar"
-	PanelKindLine    PanelKind = "line"
-	PanelKindArea    PanelKind = "area"
-	PanelKindCascade PanelKind = "cascade"
-	PanelKindTable   PanelKind = "table"
+	PanelKindStat      PanelKind = "stat"
+	PanelKindPie       PanelKind = "pie"
+	PanelKindDonut     PanelKind = "donut"
+	PanelKindRadial    PanelKind = "radial"
+	PanelKindBar       PanelKind = "bar"
+	PanelKindHBar      PanelKind = "hbar"
+	PanelKindLine      PanelKind = "line"
+	PanelKindArea      PanelKind = "area"
+	PanelKindGauge     PanelKind = "gauge"
+	PanelKindHistogram PanelKind = "histogram"
+	PanelKindBoxPlot   PanelKind = "boxplot"
+	PanelKindHeatmap   PanelKind = "heatmap"
+	PanelKindMap       PanelKind = "map"
+	PanelKindCascade   PanelKind = "cascade"
+	PanelKindTable     PanelKind = "table"
 	// PanelKindCoverage renders a headline value, an optional caption, a
 	// segmented progress bar and one legend row per segment. It is the wire
 	// form of a segment-bar panel: a part-of-whole statement about a single
@@ -519,6 +591,7 @@ type Panel struct {
 	Format    map[string]FieldFormat `json:"format"`
 	Total     *float64               `json:"total,omitempty"`
 	Columns   []TableColumn          `json:"columns,omitempty"`
+	Table     *TableOptions          `json:"table,omitempty"`
 	DrillRoot *NodeKey               `json:"drillRoot,omitempty"`
 	Actions   []Action               `json:"actions"`
 	// Accent is the panel's own color (CSS color or theme palette key). Stat
@@ -545,8 +618,10 @@ type Panel struct {
 	// footer row.
 	Sparkline *Sparkline `json:"sparkline,omitempty"`
 	// Target is a target/threshold marker rendered on a coverage or hbar panel
-	// (bullet-style).
+	// (bullet-style), or the first horizontal reference line on a time series.
 	Target *PanelTarget `json:"target,omitempty"`
+	// Temporal carries opt-in overlays for line and area time series.
+	Temporal *PanelTemporal `json:"temporal,omitempty"`
 	// Presentation carries opt-in rendering hints. Every field is optional
 	// and absent hints keep the renderer's default treatment.
 	Presentation *Presentation `json:"presentation,omitempty"`
@@ -562,12 +637,23 @@ type Panel struct {
 	MetricRelationship *MetricRelationshipConfig `json:"metricRelationship,omitempty"`
 	// Radial carries the geometry contract for a radial panel.
 	Radial *RadialConfig `json:"radial,omitempty"`
+	// Map carries a bounded GeoJSON source and an exact frame-to-feature join.
+	Map *MapConfig `json:"map,omitempty"`
 	// Confidence is the panel-level default confidence for its elements; a
 	// frame column value or an element's own confidence overrides it.
 	Confidence Confidence `json:"confidence,omitempty"`
 	// Availability is the panel-level default availability for its elements; a
 	// frame column value or an element's own availability overrides it.
 	Availability Availability `json:"availability,omitempty"`
+	// Deferred marks a panel whose primary frame is intentionally absent from
+	// the initial document. Consumers load it from Endpoints.Panel using the
+	// document snapshot and this panel's ID.
+	Deferred bool `json:"deferred,omitempty"`
+	// Terminal explicitly states that the panel has no deeper data action.
+	Terminal bool `json:"terminal,omitempty"`
+	// ComparisonUnsupported marks an active comparison that this panel kind
+	// cannot visualize. The client renders its localized explanatory notice.
+	ComparisonUnsupported bool `json:"comparisonUnsupported,omitempty"`
 }
 
 // RadialMode selects a radial panel's geometry.
@@ -595,6 +681,40 @@ type RadialRing struct {
 	Total float64 `json:"total"`
 }
 
+// MaxMapGeoJSONBytes is the hard ceiling for a fetched map source. A panel may
+// request a smaller bound but cannot move this client safety limit upward.
+const MaxMapGeoJSONBytes = 5 * 1024 * 1024
+
+type GeoJSONFeatureCollection struct {
+	Type     string           `json:"type"`
+	Features []GeoJSONFeature `json:"features"`
+}
+
+type GeoJSONFeature struct {
+	Type       string         `json:"type"`
+	Properties map[string]any `json:"properties"`
+	Geometry   map[string]any `json:"geometry"`
+}
+
+// GeoJSONSource selects exactly one source. A fetched URL is a same-origin
+// absolute path and must provide a positive MaxBytes bound.
+type GeoJSONSource struct {
+	Inline   *GeoJSONFeatureCollection `json:"inline,omitempty"`
+	URL      string                    `json:"url,omitempty"`
+	MaxBytes int                       `json:"maxBytes,omitempty"`
+}
+
+// MapConfig declares an exact, case-sensitive one-to-one region join:
+// Encoding.ID values match FeatureProperty values. LabelProperty optionally
+// names the human-readable feature property used on the map.
+type MapConfig struct {
+	Source          GeoJSONSource     `json:"source"`
+	FeatureProperty string            `json:"featureProperty"`
+	LabelProperty   string            `json:"labelProperty,omitempty"`
+	LabelProperties map[string]string `json:"labelProperties,omitempty"`
+	Attribution     string            `json:"attribution,omitempty"`
+}
+
 // StatusTone selects a status chip's color treatment.
 type StatusTone string
 
@@ -609,14 +729,37 @@ type PanelStatus struct {
 	Tone  StatusTone `json:"tone,omitempty"`
 }
 
+// TrendPolarity says whether a movement in a metric is good news, bad news or
+// neither; see panel.TrendPolarity. Unset reads as neutral, which prints the
+// direction without a verdict.
+type TrendPolarity string
+
+const (
+	TrendPolarityNeutral      TrendPolarity = "neutral"
+	TrendPolarityHigherBetter TrendPolarity = "higher_better"
+	TrendPolarityLowerBetter  TrendPolarity = "lower_better"
+)
+
 // PanelTrend is a period-over-period change chip. Percent is already in
-// percent units (12.4 renders as "+12.4%"). Invert flips the good/bad color
-// mapping for down-is-good metrics; the arrow always follows the sign.
+// percent units (12.4 renders as "+12.4%"). Polarity decides the chip's colour;
+// Invert is its legacy two-state form (true = lower is better). The arrow always
+// follows the sign.
 type PanelTrend struct {
-	Percent float64 `json:"percent"`
-	Label   string  `json:"label,omitempty"`
-	Invert  bool    `json:"invert,omitempty"`
+	Percent           float64        `json:"percent"`
+	Label             string         `json:"label,omitempty"`
+	Polarity          TrendPolarity  `json:"polarity,omitempty"`
+	Invert            bool           `json:"invert,omitempty"`
+	AbsoluteField     string         `json:"absoluteField,omitempty"`
+	PercentField      string         `json:"percentField,omitempty"`
+	AbsoluteDeltaUnit TrendDeltaUnit `json:"absoluteDeltaUnit,omitempty"`
 }
+
+type TrendDeltaUnit string
+
+const (
+	TrendDeltaValue            TrendDeltaUnit = "value"
+	TrendDeltaPercentagePoints TrendDeltaUnit = "percentage_points"
+)
 
 // Sparkline is a small inline trend polyline rendered in a stat panel's footer
 // row. Values are plotted left-to-right, normalized to the sparkline viewbox;
@@ -690,6 +833,13 @@ const (
 	// ColorByCategory gives every category its own palette color instead of
 	// one color for the whole series.
 	ColorByCategory ColorBy = "category"
+	// ColorBySequence shades an *ordered* dimension along one hue instead of
+	// giving each step an unrelated one. Age bands, tenure buckets and rating
+	// grades are ranked, and a categorical palette says the opposite: a rainbow
+	// across 0-24 … 65+ claims the buckets are unrelated and hides the shape of
+	// the distribution behind ten competing hues. Only the producer knows a
+	// dimension is ordered, so only the producer can ask for this.
+	ColorBySequence ColorBy = "sequence"
 )
 
 // BridgeLayout selects the visual projection of a cascade/bridge panel.
@@ -733,6 +883,8 @@ const (
 )
 
 type Presentation struct {
+	// DataLabels writes formatted values directly on bar and line marks.
+	DataLabels  bool                `json:"dataLabels,omitempty"`
 	Legend      LegendPlacement     `json:"legend,omitempty"`
 	LegendValue LegendValue         `json:"legendValue,omitempty"`
 	SliceLabels SliceLabels         `json:"sliceLabels,omitempty"`
@@ -781,7 +933,7 @@ type Presentation struct {
 // Presentation uncomparable, so the check is spelled out rather than compared
 // against a zero value.
 func (p Presentation) isZero() bool {
-	return len(p.LineSeries) == 0 &&
+	return len(p.LineSeries) == 0 && !p.DataLabels &&
 		p.Legend == "" && p.LegendValue == "" && p.SliceLabels == "" &&
 		p.TotalBadge == "" && p.ColorBy == "" && !p.Fill && p.BarWidthPx == 0 &&
 		p.BridgeLayout == "" && p.Sortable == nil && p.Expandable == nil &&
@@ -807,6 +959,22 @@ type TableColumn struct {
 	// with a non-empty value renders a muted "?" badge (with that text as its
 	// title) after the cell's value — e.g. flagging an unmatched source row.
 	BadgeField string `json:"badgeField,omitempty"`
+	// Heat shades numeric cells by their value relative to the returned frame.
+	Heat bool `json:"heat,omitempty"`
+	// SampleSizeField names the numeric observation-count column used to mark
+	// low-confidence derived values without suppressing the number.
+	SampleSizeField string `json:"sampleSizeField,omitempty"`
+	// MinSampleSize is the exclusive threshold; zero is normalized to five.
+	MinSampleSize int `json:"minSampleSize,omitempty"`
+	// Total includes this numeric column in the server-computed footer.
+	Total bool `json:"total,omitempty"`
+	// ShareOf names the numeric source field whose filtered total is this
+	// percentage column's denominator.
+	ShareOf string `json:"shareOf,omitempty"`
+}
+
+type TableOptions struct {
+	Searchable bool `json:"searchable,omitempty"`
 }
 
 // TableAffordance selects the visual treatment of an actionable table cell.
@@ -865,6 +1033,12 @@ type TableCell struct {
 type Encoding struct {
 	Label    string `json:"label,omitempty"`
 	Value    string `json:"value,omitempty"`
+	Previous string `json:"previous,omitempty"`
+	Lower    string `json:"lower,omitempty"`
+	Q1       string `json:"q1,omitempty"`
+	Median   string `json:"median,omitempty"`
+	Q3       string `json:"q3,omitempty"`
+	Upper    string `json:"upper,omitempty"`
 	ID       string `json:"id,omitempty"`
 	Series   string `json:"series,omitempty"`
 	Category string `json:"category,omitempty"`
@@ -932,15 +1106,15 @@ type FieldFormat struct {
 	// (ru: "9,36 млрд", en: "9.36B", uz: "9,36 mlrd").
 	Compact bool `json:"compact,omitempty"`
 	// DecimalSeparator overrides the locale's decimal separator and puts the
-	// runtime in Go-renderer parity mode: ASCII spaces instead of the
-	// locale's non-breaking ones, and no space before a percent sign. The Go
-	// renderer prints abbreviated numbers with %.*f — a dot in every locale —
-	// so a document that must match it byte for byte sets "." here.
+	// runtime in server-format parity mode: ASCII spaces instead of the
+	// locale's non-breaking ones, and no space before a percent sign. The
+	// server formatter uses a dot in every locale, so a document that must
+	// match it byte for byte sets "." here.
 	DecimalSeparator string `json:"decimalSeparator,omitempty"`
 	// Symbol is the currency's display grapheme (UZS → "so’m"), taken from the
-	// same pkg/money definition the Go renderer formats with. When set, money
+	// same pkg/money definition the server formatter uses. When set, money
 	// renders as "<amount> <symbol>" instead of the locale's own currency
-	// display for the ISO code, which is how the Go renderer prints it.
+	// display for the ISO code.
 	Symbol string `json:"symbol,omitempty"`
 }
 
@@ -951,6 +1125,8 @@ const (
 	ActionNavigateToLeaf ActionKind = "navigate_to_leaf"
 	ActionOpenDrawer     ActionKind = "open_drawer"
 	ActionEmitEvent      ActionKind = "emit_event"
+	ActionCubeDrill      ActionKind = "cube_drill"
+	ActionCrossFilter    ActionKind = "cross_filter"
 )
 
 type ValueSourceKind string
@@ -966,10 +1142,18 @@ type Action struct {
 	Method        string            `json:"method,omitempty"`
 	URLTemplate   string            `json:"urlTemplate,omitempty"`
 	URLSource     *Source           `json:"urlSource,omitempty"`
+	DrawerKey     *Source           `json:"drawerKey,omitempty"`
 	Event         string            `json:"event,omitempty"`
 	Params        []ActionParam     `json:"params"`
 	Payload       map[string]Source `json:"payload"`
 	PreserveQuery bool              `json:"preserveQuery,omitempty"`
+	Filter        *ActionFilter     `json:"filter,omitempty"`
+}
+
+type ActionFilter struct {
+	Dimension string `json:"dimension"`
+	Value     Source `json:"value"`
+	GroupBy   string `json:"groupBy,omitempty"`
 }
 
 type ActionParam struct {
@@ -1105,20 +1289,28 @@ type Frame struct {
 }
 
 type Endpoints struct {
-	Query  string `json:"query,omitempty"`
-	Export string `json:"export,omitempty"`
+	Query   string `json:"query,omitempty"`
+	Panel   string `json:"panel,omitempty"`
+	Drawer  string `json:"drawer,omitempty"`
+	Export  string `json:"export,omitempty"`
+	Release string `json:"release,omitempty"`
 }
 
 type Theme struct {
-	Palette map[string]string `json:"palette"`
-	Series  map[string]string `json:"series"`
+	Palette    map[string]string `json:"palette"`
+	Series     map[string]string `json:"series"`
+	DebounceMS int               `json:"debounceMs,omitempty"`
 }
 
 type QueryRequest struct {
-	SnapshotID  string   `json:"snapshotId"`
-	Path        NodePath `json:"path"`
-	Perspective string   `json:"perspective,omitempty"`
-	Page        int      `json:"page,omitempty"`
+	SnapshotID   string     `json:"snapshotId"`
+	Path         NodePath   `json:"path"`
+	Perspective  string     `json:"perspective,omitempty"`
+	Revision     int        `json:"revision,omitempty"`
+	Prefetch     bool       `json:"prefetch,omitempty"`
+	IdlePrefetch bool       `json:"idlePrefetch,omitempty"`
+	Page         int        `json:"page,omitempty"`
+	Sort         *TableSort `json:"sort,omitempty"`
 }
 
 type QueryPage struct {
@@ -1141,6 +1333,95 @@ func (p QueryPage) MarshalJSON() ([]byte, error) {
 type QueryResponse struct {
 	Frames map[FrameRef]Frame `json:"frames"`
 	Page   *QueryPage         `json:"page,omitempty"`
+}
+
+type PanelRequest struct {
+	PanelID   string     `json:"panelId"`
+	Recompute bool       `json:"recompute,omitempty"`
+	Search    string     `json:"search,omitempty"`
+	Sort      *TableSort `json:"sort,omitempty"`
+	Page      int        `json:"page,omitempty"`
+	// ViewportRank is an SDK-measured viewport band; dashboard declarations
+	// never set it.
+	ViewportRank *int `json:"viewportRank,omitempty" lens:"min=0,max=2"`
+}
+
+type SortDirection string
+
+const (
+	SortAscending  SortDirection = "asc"
+	SortDescending SortDirection = "desc"
+)
+
+type TableSort struct {
+	Field     string        `json:"field"`
+	Direction SortDirection `json:"direction"`
+}
+
+type PanelBatchRequest struct {
+	SnapshotID string         `json:"snapshotId"`
+	Panels     []PanelRequest `json:"panels"`
+}
+
+// PanelCalculation describes the work that produced a panel frame. Duration
+// is the complete scoped runtime execution, including its required datasets.
+type PanelCalculation struct {
+	DurationMS   int64     `json:"durationMs"`
+	CacheHit     bool      `json:"cacheHit"`
+	CalculatedAt time.Time `json:"calculatedAt"`
+}
+
+type PanelResponse struct {
+	Frames      map[FrameRef]Frame `json:"frames"`
+	Calculation PanelCalculation   `json:"calculation"`
+	Summary     *TableSummary      `json:"summary,omitempty"`
+	Page        *QueryPage         `json:"page,omitempty"`
+}
+
+type PanelBatchResult struct {
+	Frames      map[FrameRef]Frame  `json:"frames,omitempty"`
+	Calculation *PanelCalculation   `json:"calculation,omitempty"`
+	Summary     *TableSummary       `json:"summary,omitempty"`
+	Page        *QueryPage          `json:"page,omitempty"`
+	Error       *QueryErrorResponse `json:"error,omitempty"`
+}
+
+type PanelBatchResponse struct {
+	Panels map[string]PanelBatchResult `json:"panels"`
+}
+
+// PanelBatchStreamEvent is one newline-delimited event from the progressive
+// panel endpoint. A panel event carries exactly one independently completed
+// result. The final event has Complete set, which lets clients distinguish a
+// clean stream from a truncated response.
+type PanelBatchStreamEvent struct {
+	PanelID  string            `json:"panelId,omitempty"`
+	Result   *PanelBatchResult `json:"result,omitempty"`
+	Complete bool              `json:"complete,omitempty"`
+}
+
+type DrawerResolveRequest struct {
+	SnapshotID string         `json:"snapshotId"`
+	MetricKey  string         `json:"metricKey"`
+	Params     map[string]any `json:"params,omitempty"`
+}
+
+type DrawerResolveResponse struct {
+	URL string `json:"url"`
+}
+
+// ReleaseRequest detaches the browser consumer from one snapshot execution
+// session. It lets the server cancel queued/running speculative work without
+// affecting foreground requests for any other snapshot.
+type ReleaseRequest struct {
+	SnapshotID string `json:"snapshotId"`
+}
+
+type TableSummary struct {
+	Values       map[string]any `json:"values"`
+	FullValues   map[string]any `json:"fullValues,omitempty"`
+	FilteredRows int            `json:"filteredRows"`
+	TotalRows    int            `json:"totalRows"`
 }
 
 type QueryErrorCode string

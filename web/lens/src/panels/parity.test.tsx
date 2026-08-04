@@ -6,12 +6,15 @@ import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
 import type { ChartAdapter, ChartInput } from '../charts/adapter'
 import { ChartPanel } from './ChartPanel'
 import { CoveragePanel } from './CoveragePanel'
-import { positionInfoTip } from './InfoTip'
+import { infoTipTailOffset, positionInfoTip } from './InfoTip'
 import { StatMetric, StatPanel } from './StatPanel'
 import { PanelSkeletonBody } from './Skeleton'
 import { TablePanel } from './TablePanel'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  window.history.replaceState({}, '', '/')
+})
 
 function documentWith(panels: Panel[], frames: Record<string, Frame>, layout?: DashboardDocument['layout']): DashboardDocument {
   return {
@@ -54,13 +57,15 @@ const statFrame: Frame = {
 }
 
 describe('stat panels', () => {
-  it('renders the metric form with a bullet, uppercase label and status chip', () => {
+  it('renders the metric form with an uppercase label and status chip, and no accent bullet', () => {
     const { container } = renderDocument(
       documentWith([statPanel], { 'stat:root': statFrame }),
       <StatMetric panel={statPanel} />,
     )
 
-    expect(container.querySelector('.lens-stat-metric-bullet')).toHaveStyle({ background: '#2f56d9' })
+    // The accent square said nothing a reader could look up, and said different
+    // things on different boards; a strip cell carries no colour of its own.
+    expect(container.querySelector('.lens-stat-metric-bullet')).toBeNull()
     expect(screen.getByText('Estimate')).toHaveClass('lens-status-chip-warning')
     expect(screen.getByText('3.1%')).toHaveClass('lens-stat-metric-value')
   })
@@ -106,6 +111,23 @@ describe('stat panels', () => {
     expect(tooltip.closest('.lens-panel')).toBeNull()
   })
 
+  it('keeps the portaled info tip open while the pointer crosses the visual gap', async () => {
+    const panel: Panel = { ...statPanel, info: 'Claims paid divided by earned premium.' }
+    const { container } = renderDocument(
+      documentWith([panel], { 'stat:root': statFrame }),
+      <div className="lens-panel"><StatMetric panel={panel} /></div>,
+    )
+    const wrapper = container.querySelector<HTMLElement>('.lens-info-tip')!
+    fireEvent.mouseEnter(wrapper)
+    const tooltip = await screen.findByRole('tooltip')
+    expect(tooltip.closest('.lens-info-tip-overlay-root')).not.toBeNull()
+    expect(tooltip).toHaveStyle({ pointerEvents: 'auto' })
+    fireEvent.mouseLeave(wrapper, { relatedTarget: null })
+    fireEvent.mouseEnter(tooltip)
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 150))
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+  })
+
   it('leaves a metric without a note free of info chrome', () => {
     const { container } = renderDocument(
       documentWith([statPanel], { 'stat:root': statFrame }),
@@ -132,7 +154,7 @@ describe('info tip placement', () => {
       { left: 1140, top: 380, bottom: 408 },
       { width: 320, height: 160 },
       { width: 1280, height: 720 },
-    )).toEqual({ left: 952, top: 414 })
+    )).toEqual({ left: 952, top: 414, side: 'below' })
   })
 
   it('flips a tooltip above its trigger when there is no room below', () => {
@@ -140,7 +162,13 @@ describe('info tip placement', () => {
       { left: 400, top: 680, bottom: 708 },
       { width: 320, height: 160 },
       { width: 1280, height: 720 },
-    )).toEqual({ left: 400, top: 514 })
+    )).toEqual({ left: 400, top: 514, side: 'above' })
+  })
+
+  it('points the tail at its trigger, and never past the bubble corners', () => {
+    expect(infoTipTailOffset(600, 560, 320)).toBe(40)
+    expect(infoTipTailOffset(561, 560, 320)).toBe(14)
+    expect(infoTipTailOffset(1000, 560, 320)).toBe(306)
   })
 })
 
@@ -169,8 +197,18 @@ describe('coverage panel', () => {
     // A chart panel's caption is not a band above the plot: it lives behind the
     // header's info affordance and appears once that is opened.
     expect(screen.queryByText('All claims covered by reserve')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'About this metric' }))
+    // The trigger names its own subject: a board carries a dozen ⓘ, and
+    // "About this metric" told a screen reader which of them it had landed on
+    // exactly as well as no label at all would have.
+    const info = screen.getByRole('button', { name: 'About Claims paid' })
+    expect(info).not.toHaveAttribute('title')
+    expect(info).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.mouseEnter(info.closest('.lens-info-tip')!)
+    expect(info).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('All claims covered by reserve')).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(info).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('All claims covered by reserve')).toBeNull()
     // A lone 100% segment is a meaningless full bar, so the track is dropped
     // entirely; the headline and both legend rows still state the split.
     expect(container.querySelector('.lens-coverage-track')).toBeNull()
@@ -289,18 +327,18 @@ describe('layout groups', () => {
     rows: [{
       heading: 'Key ratios',
       panels: [
-        { panelId: 'metric-a', span: 3, group: { id: 'ratios', kind: 'metrics', label: 'By earned premium', layout: 'columns', span: 12 } },
-        { panelId: 'metric-b', span: 3, group: { id: 'ratios', kind: 'metrics', label: 'By earned premium', layout: 'columns', span: 12 } },
+        { panelId: 'metric-a', span: 3, groups: [{ id: 'ratios', kind: 'metrics', label: 'By earned premium', layout: 'columns', span: 12 }] },
+        { panelId: 'metric-b', span: 3, groups: [{ id: 'ratios', kind: 'metrics', label: 'By earned premium', layout: 'columns', span: 12 }] },
       ],
     }],
   }
 
   it('groups consecutive items that share a group id', () => {
     const clusters = clusterRow([
-      { panelId: 'a', span: 3, group: { id: 'g', kind: 'metrics', span: 12 } },
-      { panelId: 'b', span: 3, group: { id: 'g', kind: 'metrics', span: 12 } },
+      { panelId: 'a', span: 3, groups: [{ id: 'g', kind: 'metrics', span: 12 }] },
+      { panelId: 'b', span: 3, groups: [{ id: 'g', kind: 'metrics', span: 12 }] },
       { panelId: 'c', span: 6 },
-      { panelId: 'd', span: 3, group: { id: 'h', kind: 'metrics', span: 12 } },
+      { panelId: 'd', span: 3, groups: [{ id: 'h', kind: 'metrics', span: 12 }] },
     ])
 
     expect(clusters.map((cluster) => cluster.items.map((item) => item.panelId))).toEqual([['a', 'b'], ['c'], ['d']])
@@ -320,8 +358,8 @@ describe('layout groups', () => {
     const tabsLayout: DashboardDocument['layout'] = {
       rows: [{
         panels: [
-          { panelId: 'metric-a', span: 12, group: { id: 'result', kind: 'tabs', span: 12, tab: 'Cash' } },
-          { panelId: 'metric-b', span: 12, group: { id: 'result', kind: 'tabs', span: 12, tab: 'Underwriting' } },
+          { panelId: 'metric-a', span: 12, groups: [{ id: 'result', kind: 'tabs', span: 12, tab: 'Cash' }] },
+          { panelId: 'metric-b', span: 12, groups: [{ id: 'result', kind: 'tabs', span: 12, tab: 'Underwriting' }] },
         ],
       }],
     }
@@ -354,11 +392,11 @@ describe('loading placeholders', () => {
 
   it('shapes the panel placeholder from the panel kind', () => {
     const { container } = render(<PanelSkeletonBody kind="stat" />)
-    expect(container.querySelector('.lens-skeleton-card-stat')).not.toBeNull()
+    expect(container.querySelector('.lens-skeleton-card')).toHaveAttribute('data-kind', 'stat')
 
     cleanup()
     const table = render(<PanelSkeletonBody kind="table" />)
-    expect(table.container.querySelector('.lens-skeleton-card-plot')).not.toBeNull()
+    expect(table.container.querySelector('.lens-skeleton-card')).toHaveAttribute('data-kind', 'table')
   })
 })
 
@@ -468,17 +506,17 @@ describe('expanded panel', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('escapes a tab group without being trapped by its card', () => {
+  it('escapes a tab group without being trapped by its card', async () => {
     const layout: DashboardDocument['layout'] = {
       rows: [{
-        panels: [{ panelId: 'expandable', span: 12, group: { id: 'result', kind: 'tabs', span: 12, tab: 'Cash' } }],
+        panels: [{ panelId: 'expandable', span: 12, groups: [{ id: 'result', kind: 'tabs', span: 12, tab: 'Cash' }] }],
       }],
     }
     const { container } = renderDocument(
       documentWith([expandable], { 'coverage:root': coverageFrame }, layout),
       <DashboardPanels />,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Expand panel' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Expand panel' }))
 
     const dialog = screen.getByRole('dialog')
     expect(container.contains(dialog)).toBe(false)
@@ -513,12 +551,16 @@ describe('panel header pressure', () => {
     )
 
     expect(container.querySelector('.lens-panel-title')).toHaveAttribute('title', panel.title)
+    expect(container.querySelector('.lens-panel-title')).toHaveTextContent(panel.title)
+    expect(container.querySelector('.lens-panel')).toHaveAccessibleName(panel.title)
     expect(container.querySelector('.lens-panel-total')).toHaveAttribute('title', 'Total: 1,000')
+    expect(screen.getByRole('button', { name: 'Export panel' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Expand panel' })).toBeEnabled()
   })
 })
 
 describe('chart legend series toggle', () => {
-  function renderPie() {
+  function renderPie(frame = pieFrame) {
     const inputs: Array<ChartInput> = []
     const adapter: ChartAdapter = {
       mount: (_element, initial) => {
@@ -527,7 +569,7 @@ describe('chart legend series toggle', () => {
       },
     }
     const view = renderDocument(
-      documentWith([piePanel], { 'mix:root': pieFrame }),
+      documentWith([piePanel], { 'mix:root': frame }),
       <ChartPanel panel={piePanel} adapter={adapter} />,
     )
     return { ...view, inputs }
@@ -581,6 +623,52 @@ describe('chart legend series toggle', () => {
     await waitFor(() => expect(view.container.querySelector('.lens-panel-total')?.textContent).toContain('700'))
   })
 
+  it('does not conjure a header total on a chart that states none at rest', async () => {
+    // A bar/line panel whose rows are not summable states no total, and hiding
+    // a series must not change that: the badge used to appear on the first
+    // legend click, shifting the export/expand icons under the pointer and
+    // giving the recomputed figure nothing to be compared against.
+    const panel: Panel = {
+      id: 'mix', kind: 'bar', title: 'Premium by channel', semantics: 'series', frame: 'mix:root',
+      encoding: { id: 'id', label: 'label', series: 'label', value: 'amount' },
+      format: { amount: { kind: 'number', minorUnits: false, precision: 0 } },
+      presentation: { legend: 'below' },
+      actions: [],
+    }
+    const view = renderDocument(
+      documentWith([panel], { 'mix:root': pieFrame }),
+      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+    )
+
+    expect(view.container.querySelector('.lens-panel-total')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Broker/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Broker/ })).toHaveAttribute('aria-pressed', 'false'))
+    expect(view.container.querySelector('.lens-panel-total')).toBeNull()
+  })
+
+  it('drops the header total when every series is hidden, rather than falling back to the root', async () => {
+    // The body says nothing is shown; the header must not go on printing the
+    // panel's own total behind it. ChartPanel had already unified the two
+    // answers, but it said so with `undefined`, and PanelFrame's `?? panel.total`
+    // read that as "no opinion" and reprinted the root figure — the same
+    // contradiction one seam over from where it was fixed.
+    const panel: Panel = {
+      ...piePanel,
+      total: 1000,
+      presentation: { ...piePanel.presentation, totalBadge: 'header' },
+    }
+    const view = renderDocument(
+      documentWith([panel], { 'mix:root': pieFrame }),
+      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+    )
+
+    expect(view.container.querySelector('.lens-panel-total')?.textContent).toContain('1,000')
+    for (const name of [/Direct/, /Broker/, /Inward/]) {
+      fireEvent.click(screen.getByRole('button', { name }))
+    }
+    await waitFor(() => expect(view.container.querySelector('.lens-panel-total')).toBeNull())
+  })
+
   it('states the share of a ring category that belongs to exactly one ring', () => {
     // «Накопленная премия»: the 0.9% still receivable is too thin an arc to
     // carry a label, so the legend is the only place its share can be read.
@@ -611,15 +699,29 @@ describe('chart legend series toggle', () => {
     expect(values).toEqual(['99.1%', '0.9%'])
   })
 
-  it('refuses to hide the last visible series', async () => {
-    const { inputs } = renderPie()
+  it('answers hide-all with an empty state that offers the way back', async () => {
+    const frame: Frame = {
+      ...pieFrame,
+      // Five rows, because bulk controls only appear past four: at four the
+      // legend is short enough to switch one row at a time.
+      rows: [
+        ['direct', 'Direct', 550], ['broker', 'Broker', 300], ['inward', 'Inward', 100],
+        ['partner', 'Partner', 50], ['other', 'Other', 25],
+      ],
+    }
+    const { container, inputs } = renderPie(frame)
     await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
 
-    fireEvent.click(screen.getByRole('button', { name: /Broker/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Inward/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hide all' }))
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /Direct/ })).toBeDisabled())
-    fireEvent.click(screen.getByRole('button', { name: /Direct/ }))
-    expect(inputs.at(-1)?.frame.rows.map((row) => row[0])).toEqual(['direct'])
+    // A grey featureless ring is indistinguishable from a panel that failed.
+    // Nothing is shown, so nothing is drawn — and nothing is totalled either:
+    // the hub used to keep printing the full total beside a chip reading 0.
+    await screen.findByText('All series are hidden')
+    expect(container.querySelector('.lens-chart-host')).toBeNull()
+    expect(container.querySelector('.lens-plot-total')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show all series' }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows.map((row) => row[0])).toEqual(['direct', 'broker', 'inward', 'partner', 'other']))
   })
 })

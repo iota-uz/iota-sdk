@@ -338,7 +338,7 @@ func RedirectNotAuthenticated() mux.MiddlewareFunc {
 					panic("params not found. Add RequestParams middleware up the chain")
 				}
 				if !params.Authenticated {
-					http.Redirect(w, r, fmt.Sprintf("/login?next=%s", r.URL), http.StatusFound)
+					http.Redirect(w, r, "/login?next="+url.QueryEscape(r.URL.RequestURI()), http.StatusFound)
 					return
 				}
 				next.ServeHTTP(w, r)

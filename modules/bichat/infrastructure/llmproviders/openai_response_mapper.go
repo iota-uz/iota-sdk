@@ -57,10 +57,11 @@ func (m *OpenAIModel) mapResponse(resp *responses.Response) (*agents.Response, e
 			}
 
 		case "function_call":
+			functionCall := item.AsFunctionCall()
 			toolCalls = append(toolCalls, types.ToolCall{
-				ID:        item.CallID,
-				Name:      item.Name,
-				Arguments: item.Arguments.OfString,
+				ID:        functionCall.CallID,
+				Name:      functionCall.Name,
+				Arguments: functionCall.Arguments,
 			})
 
 		case "code_interpreter_call":
