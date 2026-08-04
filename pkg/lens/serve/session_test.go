@@ -135,20 +135,20 @@ func TestExecutionSessionKeepsEachBackgroundLaneBounded(t *testing.T) {
 	intentA := session.submit(t.Context(), "intent-a", priorityIntent, 0, func(context.Context) (any, error) {
 		started <- "intent-a"
 		<-releaseIntent
-		return nil, nil
+		return struct{}{}, nil
 	})
 	intentB := session.submit(t.Context(), "intent-b", priorityIntent, 1, func(context.Context) (any, error) {
 		started <- "intent-b"
-		return nil, nil
+		return struct{}{}, nil
 	})
 	idleA := session.submit(t.Context(), "idle-a", priorityIdlePrefetch, 0, func(context.Context) (any, error) {
 		started <- "idle-a"
 		<-releaseIdle
-		return nil, nil
+		return struct{}{}, nil
 	})
 	idleB := session.submit(t.Context(), "idle-b", priorityIdlePrefetch, 1, func(context.Context) (any, error) {
 		started <- "idle-b"
-		return nil, nil
+		return struct{}{}, nil
 	})
 	session.enableBackground()
 	require.ElementsMatch(t, []string{"intent-a", "idle-a"}, []string{<-started, <-started})
@@ -363,7 +363,7 @@ func TestExecutionSessionRejectsNewWorkAfterRelease(t *testing.T) {
 	ran := false
 	call := session.submit(t.Context(), "late-prefetch", priorityIdlePrefetch, 0, func(context.Context) (any, error) {
 		ran = true
-		return nil, nil
+		return struct{}{}, nil
 	})
 
 	require.ErrorIs(t, (<-call.result).err, context.Canceled)

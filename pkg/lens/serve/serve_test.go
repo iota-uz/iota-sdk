@@ -494,7 +494,7 @@ func TestHandlers_PrefetchesFirstDrillStatesWhileLowerRootRowsLoad(t *testing.T)
 	server := httptest.NewServer(http.HandlerFunc(handlers.Panel))
 	defer server.Close()
 	request := PanelBatchRequest{SnapshotID: doc.SnapshotID, Panels: []PanelRequest{{PanelID: "slow"}, {PanelID: "host"}}}
-	httpRequest, err := http.NewRequest(http.MethodPost, server.URL+"?tenant=tenant:one", marshal(t, request))
+	httpRequest, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"?tenant=tenant:one", marshal(t, request))
 	require.NoError(t, err)
 	httpRequest.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(httpRequest)
