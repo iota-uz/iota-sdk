@@ -98,7 +98,8 @@ export function legendKey(frame: Frame, panel: Panel, index: number): string {
   // Some documents retain a legacy `label` role even though that column is
   // absent from the served frame, so resolving the click must use the same
   // category-first rule that created the mark key.
-  const labelField = panel.encoding.category ?? panel.encoding.label
+  const labelField = [panel.encoding.category, panel.encoding.label]
+    .find((field) => Boolean(field) && frame.columns.some((column) => column.name === field))
   const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
   const raw = idIndex >= 0 ? frame.rows[index]?.[idIndex] : frame.rows[index]?.[labelIndex]
   return typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'bigint' ? String(raw) : String(index)

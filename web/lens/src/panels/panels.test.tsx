@@ -1094,7 +1094,7 @@ describe('chart encoding and drill behavior', () => {
     expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
   })
 
-  it('expands a collapsed TopN remainder without an explicit id encoding', async () => {
+  it('expands a collapsed TopN remainder from its keyboard action when category and id are absent', async () => {
     runtime.frame = {
       data: {
         columns: [
@@ -1106,20 +1106,13 @@ describe('chart encoding and drill behavior', () => {
       isLoading: false, isStale: false, error: null, retry: vi.fn(),
     }
     const inputs: ChartInput[] = []
-    const adapter: ChartAdapter = {
-      mount(el, input, events) {
-        inputs.push(input)
-        const button = document.createElement('button')
-        button.textContent = 'Other'
-        button.onclick = () => events.onSelect('Other')
-        el.append(button)
-        return { update: (next) => inputs.push(next), dispose: () => el.replaceChildren() }
-      },
-    }
-    render(<BarPanel panel={panel('bar', { encoding: { label: 'label', value: 'value' } })} adapter={adapter} />)
+    render(<BarPanel
+      panel={panel('bar', { encoding: { category: 'category', label: 'label', value: 'value' } })}
+      adapter={fakeAdapter((input) => inputs.push(input))}
+    />)
 
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(2))
-    fireEvent.click(screen.getByRole('button', { name: 'Other' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open Other, 7' }))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(3))
     expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
   })
