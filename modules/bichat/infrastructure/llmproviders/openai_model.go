@@ -306,28 +306,29 @@ func (m *OpenAIModel) consumeOpenAIStream(
 
 		case "response.output_item.done":
 			if event.Item.Type == "function_call" {
-				itemID := functionCallItemKey(event.Item, event.ItemID)
+				functionCall := event.Item.AsFunctionCall()
+				itemID := functionCallItemKey(functionCall, event.ItemID)
 				if itemID == "" {
 					m.logger.Warn(ctx, "skipping function_call output_item.done without item id", map[string]any{
-						"call_id": event.Item.CallID,
-						"name":    event.Item.Name,
+						"call_id": functionCall.CallID,
+						"name":    functionCall.Name,
 					})
 					continue
 				}
 				if a, ok := toolCallAccum[itemID]; ok {
-					a.callID = event.Item.CallID
+					a.callID = functionCall.CallID
 					if a.name == "" {
-						a.name = event.Item.Name
+						a.name = functionCall.Name
 					}
 					if a.args == "" {
-						a.args = event.Item.Arguments
+						a.args = functionCall.Arguments
 					}
 				} else {
 					toolCallAccum[itemID] = &toolCallAccumEntry{
 						id:     itemID,
-						callID: event.Item.CallID,
-						name:   event.Item.Name,
-						args:   event.Item.Arguments,
+						callID: functionCall.CallID,
+						name:   functionCall.Name,
+						args:   functionCall.Arguments,
 					}
 					toolCallOrder = append(toolCallOrder, itemID)
 				}
