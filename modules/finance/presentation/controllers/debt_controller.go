@@ -27,7 +27,6 @@ import (
 )
 
 type DebtsController struct {
-	app                 application.Application
 	debtService         *services.DebtService
 	counterpartyService *services.CounterpartyService
 	transactionService  *services.TransactionService
@@ -35,7 +34,11 @@ type DebtsController struct {
 	tableDefinition     table.TableDefinition
 }
 
-func NewDebtsController(app application.Application) application.Controller {
+func NewDebtsController(
+	debtService *services.DebtService,
+	counterpartyService *services.CounterpartyService,
+	transactionService *services.TransactionService,
+) application.Controller {
 	basePath := "/finance/debts"
 
 	// Create table definition with columns for HTMX requests
@@ -52,17 +55,23 @@ func NewDebtsController(app application.Application) application.Controller {
 		Build()
 
 	return &DebtsController{
-		app:                 app,
-		debtService:         app.Service(services.DebtService{}).(*services.DebtService),
-		counterpartyService: app.Service(services.CounterpartyService{}).(*services.CounterpartyService),
-		transactionService:  app.Service(services.TransactionService{}).(*services.TransactionService),
+		debtService:         debtService,
+		counterpartyService: counterpartyService,
+		transactionService:  transactionService,
 		basePath:            basePath,
 		tableDefinition:     tableDefinition,
 	}
 }
 
-func (c *DebtsController) Key() string {
-	return c.basePath
+func (c *DebtsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.debt", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "finance.debt",
+			Parent:   "finance",
+			TitleKey: "NavigationLinks.Debts",
+			Path:     c.basePath,
+			Order:    20,
+		})
 }
 
 func (c *DebtsController) Register(r *mux.Router) {
@@ -70,8 +79,7 @@ func (c *DebtsController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

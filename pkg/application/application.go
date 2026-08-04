@@ -5,34 +5,29 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
-	"os"
+	"net/url"
 	"path/filepath"
 	"reflect"
-	goruntime "runtime"
 	"sort"
 	"strings"
-	"time"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
-	appletsconfig "github.com/iota-uz/applets/config"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/applets"
-	appletenginecontrollers "github.com/iota-uz/iota-sdk/pkg/appletengine/controllers"
-	appletenginehandlers "github.com/iota-uz/iota-sdk/pkg/appletengine/handlers"
-	appletenginejobs "github.com/iota-uz/iota-sdk/pkg/appletengine/jobs"
-	appletenginerpc "github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
-	appletengineruntime "github.com/iota-uz/iota-sdk/pkg/appletengine/runtime"
-	appletenginewsbridge "github.com/iota-uz/iota-sdk/pkg/appletengine/wsbridge"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/meiliconfig"
+	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -43,14 +38,23 @@ func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.
 	translated := make([]types.NavigationItem, 0, len(items))
 	for _, item := range items {
 		translated = append(translated, types.NavigationItem{
+			Key: item.Key,
 			Name: intl.MustLocalize(localizer, &i18n.LocalizeConfig{
 				MessageID: item.Name,
 			}),
+			Workspace:   item.Workspace,
+			Pinned:      item.Pinned,
 			Href:        item.Href,
 			Children:    translate(localizer, item.Children),
+			Keywords:    append([]string(nil), item.Keywords...),
 			Icon:        item.Icon,
 			Permissions: item.Permissions,
-			IsBeta:      item.IsBeta,
+			// Logic must be carried through: dropping it reverts the item to the
+			// zero value (PermissionLogicAll), which turns a RequireAny nav gate
+			// into AND and hides the item from users holding only one of its
+			// permissions.
+			Logic:  item.Logic,
+			IsBeta: item.IsBeta,
 		})
 	}
 	return translated
@@ -85,11 +89,12 @@ type seeder struct {
 	seedFuncs []SeedFunc
 }
 
-func (s *seeder) Seed(ctx context.Context, app Application) error {
-	conf := configuration.Use()
+func (s *seeder) Seed(ctx context.Context, deps *SeedDeps) error {
 	for _, seedFunc := range s.seedFuncs {
-		conf.Logger().Infof("Seeding %s", reflect.TypeOf(seedFunc).Name())
-		if err := seedFunc(ctx, app); err != nil {
+		if deps != nil && deps.Logger != nil {
+			deps.Logger.Infof("Seeding %s", reflect.TypeOf(seedFunc).Name())
+		}
+		if err := seedFunc(ctx, deps); err != nil {
 			return err
 		}
 	}
@@ -98,6 +103,83 @@ func (s *seeder) Seed(ctx context.Context, app Application) error {
 
 func (s *seeder) Register(seedFuncs ...SeedFunc) {
 	s.seedFuncs = append(s.seedFuncs, seedFuncs...)
+}
+
+// Seed wraps a function into a SeedFunc using dependency injection. The function
+// must accept context.Context as the first argument and return exactly one error.
+// Additional parameters are resolved from the SeedDeps provider registry.
+//
+// Seed panics if fn has an invalid signature. Call it at package init time or
+// during registration so signature errors surface at startup, not at seed time.
+func Seed(fn interface{}) SeedFunc {
+	if err := validateSeedSignature(fn); err != nil {
+		panic(err)
+	}
+	return func(ctx context.Context, deps *SeedDeps) error {
+		if deps == nil {
+			return fmt.Errorf("seed deps are required")
+		}
+		return deps.Invoke(ctx, fn)
+	}
+}
+
+func (d *SeedDeps) Invoke(ctx context.Context, fn interface{}) error {
+	if d == nil {
+		return fmt.Errorf("seed deps are required")
+	}
+	results, err := di.InvokeWithProviders(ctx, fn, d.providersForInvocation()...)
+	if err != nil {
+		return err
+	}
+	if len(results) != 1 {
+		return fmt.Errorf("seed function must return exactly one value")
+	}
+	if results[0].IsNil() {
+		return nil
+	}
+	resultErr, ok := results[0].Interface().(error)
+	if !ok {
+		return fmt.Errorf("seed function must return an error")
+	}
+	return resultErr
+}
+
+func (d *SeedDeps) providersForInvocation() []di.Provider {
+	if d == nil {
+		return nil
+	}
+
+	providers := make([]di.Provider, 0, len(d.providers)+3)
+	if d.Pool != nil {
+		providers = append(providers, di.ValueProvider(d.Pool))
+	}
+	if d.EventBus != nil {
+		providers = append(providers, di.ValueProvider(d.EventBus))
+	}
+	if d.Logger != nil {
+		providers = append(providers, di.ValueProvider(d.Logger))
+	}
+	providers = append(providers, d.providers...)
+	return providers
+}
+
+func validateSeedSignature(fn interface{}) error {
+	if fn == nil {
+		return fmt.Errorf("seed function is required")
+	}
+	fnType := reflect.TypeOf(fn)
+	if fnType.Kind() != reflect.Func {
+		return fmt.Errorf("seed function must be a function, got %s", fnType.Kind())
+	}
+	contextType := reflect.TypeOf((*context.Context)(nil)).Elem()
+	if fnType.NumIn() == 0 || fnType.In(0) != contextType {
+		return fmt.Errorf("seed function must accept context.Context as the first argument")
+	}
+	errorType := reflect.TypeOf((*error)(nil)).Elem()
+	if fnType.NumOut() != 1 || !fnType.Out(0).Implements(errorType) {
+		return fmt.Errorf("seed function must return exactly one error")
+	}
+	return nil
 }
 
 // ---- Applet Registry implementation ----
@@ -112,13 +194,31 @@ type ApplicationOptions struct {
 	Bundle             *i18n.Bundle
 	Huber              Huber
 	SupportedLanguages []string
+	// Meili holds MeiliSearch settings. When nil or empty URL, the application
+	// uses a no-op search engine. Previously read from configuration.Use().
+	Meili *meiliconfig.Config
+	// DBConfig provides typed database config for the migration manager.
+	// When nil, migrations are disabled (no-op manager).
+	DBConfig *dbconfig.Config
 }
 
 func LoadBundle() *i18n.Bundle {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
+	spotlight.MustRegisterTranslations(bundle)
 	return bundle
+}
+
+// DefaultSupportedLanguages returns the canonical UI languages supported by the SDK.
+func DefaultSupportedLanguages() []string {
+	return []string{
+		string(coreuser.UILanguageEN),
+		string(coreuser.UILanguageRU),
+		string(coreuser.UILanguageUZ),
+		string(coreuser.UILanguagePTBR),
+		string(coreuser.UILanguageZH),
+	}
 }
 
 // LoadBundleFromLocaleFiles creates a bundle and loads all message files from the given embed.FS slices.
@@ -150,25 +250,16 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("application options are required")
 	}
-	initCtx, initCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer initCancel()
 
 	var engine spotlight.IndexEngine
 	serviceOpts := make([]spotlight.ServiceOption, 0, 1)
 	if opts.Logger != nil {
 		serviceOpts = append(serviceOpts, spotlight.WithLogger(opts.Logger))
 	}
-	cfg := configuration.Use()
-	if cfg.MeiliURL == "" {
-		if opts.Logger != nil {
-			opts.Logger.Info("spotlight disabled: MEILI_URL not set")
-		}
-		engine = spotlight.NewNoopEngine()
+	if opts.Meili != nil && opts.Meili.URL != "" {
+		engine = spotlight.NewMeilisearchEngine(opts.Meili.URL, opts.Meili.APIKey)
 	} else {
-		engine = spotlight.NewMeilisearchEngine(cfg.MeiliURL, cfg.MeiliAPIKey)
-		if err := engine.Health(initCtx); err != nil {
-			return nil, fmt.Errorf("spotlight preflight check: %w", err)
-		}
+		engine = spotlight.NewNoopEngine()
 	}
 	spotlightService := spotlight.NewService(
 		engine,
@@ -176,25 +267,35 @@ func New(opts *ApplicationOptions) (Application, error) {
 		spotlight.DefaultServiceConfig(),
 		serviceOpts...,
 	)
-	if err := spotlightService.Start(initCtx); err != nil {
-		return nil, fmt.Errorf("start spotlight service: %w", err)
-	}
 	quickLinks := spotlight.NewQuickLinks(opts.Bundle, opts.SupportedLanguages)
 	spotlightService.RegisterProvider(quickLinks)
+	// Inject QuickLinks into the service for in-memory fuzzy search in the fast stage.
+	spotlight.WithQuickLinks(quickLinks)(spotlightService)
 
-	return &application{
+	app := &application{
 		pool:               opts.Pool,
 		eventPublisher:     opts.EventBus,
 		websocket:          opts.Huber,
-		controllers:        make(map[string]Controller),
-		services:           make(map[reflect.Type]interface{}),
 		quickLinks:         quickLinks,
 		spotlight:          spotlightService,
 		bundle:             opts.Bundle,
-		migrations:         NewMigrationManager(opts.Pool),
+		migrations:         newMigrationManager(opts.Pool, opts.DBConfig, opts.Logger),
 		supportedLanguages: opts.SupportedLanguages,
 		appletRegistry:     applets.NewRegistry(),
-	}, nil
+	}
+	return app, nil
+}
+
+// newMigrationManager creates a MigrationManager from the provided pool and db config.
+// When dbConfig is nil, a no-op manager is returned.
+func newMigrationManager(pool *pgxpool.Pool, db *dbconfig.Config, logger *logrus.Logger) MigrationManager {
+	if db == nil {
+		return &noopMigrationManager{}
+	}
+	if logger == nil {
+		logger = logrus.StandardLogger()
+	}
+	return NewMigrationManager(pool, *db, logger)
 }
 
 // application with a dynamically extendable service registry
@@ -202,20 +303,13 @@ type application struct {
 	pool               *pgxpool.Pool
 	eventPublisher     eventbus.EventBus
 	websocket          Huber
-	services           map[reflect.Type]interface{}
-	controllers        map[string]Controller
-	middleware         []mux.MiddlewareFunc
-	hashFsAssets       []*hashfs.FS
-	assets             []*embed.FS
-	graphSchemas       []GraphSchema
 	bundle             *i18n.Bundle
 	spotlight          spotlight.Service
 	quickLinks         *spotlight.QuickLinks
 	migrations         MigrationManager
-	navItems           []types.NavigationItem
 	supportedLanguages []string
 	appletRegistry     applets.Registry
-	appletRuntime      *appletengineruntime.Manager
+	runtimeSource      RuntimeSource
 }
 
 func (app *application) Spotlight() spotlight.Service {
@@ -231,41 +325,119 @@ func (app *application) QuickLinks() *spotlight.QuickLinks {
 }
 
 func (app *application) NavItems(localizer *i18n.Localizer) []types.NavigationItem {
-	return translate(localizer, app.navItems)
+	if app.runtimeSource == nil {
+		return nil
+	}
+	return translate(localizer, app.runtimeSource.NavItems())
 }
 
-func (app *application) RegisterNavItems(items ...types.NavigationItem) {
-	app.navItems = append(app.navItems, items...)
+type scopedNavSource interface {
+	NavItemsForScope(context.Context, NavScope) []types.NavigationItem
 }
 
-// AppendNavChildren finds a registered NavigationItem by name (recursively)
-// and appends the given children to it. If the parent item has an Href, it is
-// preserved as the first child so that the original link remains accessible
-// from the dropdown.
-func (app *application) AppendNavChildren(parentName string, children ...types.NavigationItem) {
-	appendChildren(&app.navItems, parentName, children)
+func (app *application) NavItemsForScope(ctx context.Context, localizer *i18n.Localizer, scope NavScope) []types.NavigationItem {
+	if app.runtimeSource == nil {
+		return nil
+	}
+	items := app.runtimeSource.NavItems()
+	if scoped, ok := app.runtimeSource.(scopedNavSource); ok {
+		items = append(items, scoped.NavItemsForScope(ctx, scope)...)
+	}
+	return translate(localizer, items)
 }
 
-func appendChildren(items *[]types.NavigationItem, parentName string, children []types.NavigationItem) bool {
-	for i := range *items {
-		if (*items)[i].Name == parentName {
-			(*items)[i].Children = append((*items)[i].Children, children...)
-			if (*items)[i].Href != "" {
-				(*items)[i].Href = ""
+func (app *application) NavWorkspaces() []types.NavWorkspace {
+	if app.runtimeSource == nil {
+		return nil
+	}
+	return app.runtimeSource.NavWorkspaces()
+}
+
+func navItemsToQuickLinks(items ...types.NavigationItem) []*spotlight.QuickLink {
+	out := make([]*spotlight.QuickLink, 0, len(items))
+	for _, item := range items {
+		if strings.TrimSpace(item.Href) != "" {
+			builder := spotlight.NewQuickLinkBuilder(item.Name, item.Href).
+				WithKeywords(navItemKeywords(item)...)
+			if len(item.Permissions) == 0 {
+				builder.Public()
+			} else {
+				builder.WithPermissions(navPermissionNames(item.Permissions)...).
+					WithPermissionLogic(spotlight.PermissionLogicAll)
 			}
-			return true
+			out = append(out, builder.Build())
 		}
-		if len((*items)[i].Children) > 0 {
-			if appendChildren(&(*items)[i].Children, parentName, children) {
-				return true
-			}
+		if len(item.Children) > 0 {
+			out = append(out, navItemsToQuickLinks(item.Children...)...)
 		}
 	}
-	return false
+	return out
+}
+
+func navPermissionNames(perms []permission.Permission) []string {
+	names := make([]string, 0, len(perms))
+	for _, perm := range perms {
+		if perm == nil {
+			continue
+		}
+		names = append(names, perm.Name())
+	}
+	return names
+}
+
+func navItemKeywords(item types.NavigationItem) []string {
+	keywords := make([]string, 0, len(item.Keywords)+8)
+	keywords = append(keywords, item.Keywords...)
+	keywords = append(keywords, splitKeywordTokens(item.Name)...)
+	keywords = append(keywords, hrefKeywords(item.Href)...)
+	return keywords
+}
+
+func hrefKeywords(href string) []string {
+	trimmed := strings.TrimSpace(href)
+	if trimmed == "" {
+		return nil
+	}
+	u, err := url.Parse(trimmed)
+	if err != nil {
+		return splitKeywordTokens(trimmed)
+	}
+	keywords := splitKeywordTokens(u.Path)
+	for key, values := range u.Query() {
+		keywords = append(keywords, splitKeywordTokens(key)...)
+		for _, value := range values {
+			keywords = append(keywords, splitKeywordTokens(value)...)
+		}
+	}
+	return keywords
+}
+
+func splitKeywordTokens(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(value, func(r rune) bool {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return false
+		}
+		return true
+	})
+	keywords := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" || len(trimmed) <= 1 {
+			continue
+		}
+		keywords = append(keywords, strings.ToLower(trimmed))
+	}
+	return keywords
 }
 
 func (app *application) Middleware() []mux.MiddlewareFunc {
-	return app.middleware
+	if app.runtimeSource == nil {
+		return nil
+	}
+	return app.runtimeSource.Middleware()
 }
 
 func (app *application) DB() *pgxpool.Pool {
@@ -277,31 +449,28 @@ func (app *application) EventPublisher() eventbus.EventBus {
 }
 
 func (app *application) Controllers() []Controller {
-	controllers := make([]Controller, 0, len(app.controllers))
-	for _, c := range app.controllers {
-		controllers = append(controllers, c)
+	if app.runtimeSource == nil {
+		return nil
 	}
-	// Register applet controllers first so their asset routes (e.g. /admin/ali/chat/assets)
-	// are added before other controllers that might match /admin/... and return 404 for
-	// dev proxy requests (@vite/client, /src/*, etc.).
-	sort.Slice(controllers, func(i, j int) bool {
-		ki, kj := controllers[i].Key(), controllers[j].Key()
-		appletI := strings.HasPrefix(ki, "applet_")
-		appletJ := strings.HasPrefix(kj, "applet_")
-		if appletI != appletJ {
-			return appletI
-		}
-		return ki < kj
+	controllers := append([]Controller(nil), app.runtimeSource.Controllers()...)
+	sort.SliceStable(controllers, func(i, j int) bool {
+		return controllers[i].Descriptor().Order < controllers[j].Descriptor().Order
 	})
 	return controllers
 }
 
 func (app *application) Assets() []*embed.FS {
-	return app.assets
+	if app.runtimeSource == nil {
+		return nil
+	}
+	return app.runtimeSource.Assets()
 }
 
 func (app *application) HashFsAssets() []*hashfs.FS {
-	return app.hashFsAssets
+	if app.runtimeSource == nil {
+		return nil
+	}
+	return app.runtimeSource.HashFSAssets()
 }
 
 func (app *application) Migrations() MigrationManager {
@@ -309,62 +478,13 @@ func (app *application) Migrations() MigrationManager {
 }
 
 func (app *application) GraphSchemas() []GraphSchema {
-	return app.graphSchemas
-}
-
-func (app *application) RegisterControllers(controllers ...Controller) {
-	for _, c := range controllers {
-		if c == nil {
-			continue
-		}
-		app.controllers[c.Key()] = c
+	if app.runtimeSource == nil {
+		return nil
 	}
+	return app.runtimeSource.GraphSchemas()
 }
 
-func (app *application) RegisterMiddleware(middleware ...mux.MiddlewareFunc) {
-	app.middleware = append(app.middleware, middleware...)
-}
-
-func (app *application) RegisterHashFsAssets(fs ...*hashfs.FS) {
-	app.hashFsAssets = append(app.hashFsAssets, fs...)
-}
-
-func (app *application) RegisterAssets(fs ...*embed.FS) {
-	app.assets = append(app.assets, fs...)
-}
-
-func (app *application) RegisterGraphSchema(schema GraphSchema) {
-	app.graphSchemas = append(app.graphSchemas, schema)
-}
-
-func (app *application) RegisterLocaleFiles(fs ...*embed.FS) {
-	for _, localeFs := range fs {
-		loadLocaleFSIntoBundle(app.bundle, localeFs)
-	}
-}
-
-// RegisterServices registers a new service in the application by its type
-func (app *application) RegisterServices(services ...interface{}) {
-	for _, service := range services {
-		serviceType := reflect.TypeOf(service).Elem()
-		app.services[serviceType] = service
-	}
-}
-
-// Service retrieves a service by its type
-func (app *application) Service(service interface{}) interface{} {
-	serviceType := reflect.TypeOf(service)
-	svc, exists := app.services[serviceType]
-	if !exists {
-		panic(fmt.Sprintf("service %s not found", serviceType.Name()))
-	}
-	return svc
-}
-
-func (app *application) Services() map[reflect.Type]interface{} {
-	return app.services
-}
-
+// Bundle returns the translation bundle registered with the application.
 func (app *application) Bundle() *i18n.Bundle {
 	return app.bundle
 }
@@ -373,439 +493,37 @@ func (app *application) GetSupportedLanguages() []string {
 	return app.supportedLanguages
 }
 
-func (app *application) RegisterApplet(a Applet) error {
-	return app.appletRegistry.Register(a)
-}
-
 func (app *application) AppletRegistry() AppletRegistry {
 	return app.appletRegistry
 }
 
-// CreateAppletControllers creates controllers for all registered applets.
-// This provides a single mounting point for all applets in the application.
-//
-// Parameters:
-//   - host: Host services for extracting user, tenant, pool, locale from request context
-//   - sessionConfig: Session configuration for context building
-//   - logger: Logger for applet operations
-//   - metrics: Metrics recorder (can be nil)
-//   - opts: Optional builder options (e.g., WithTenantNameResolver, WithErrorEnricher)
-//
-// Returns a slice of controllers that can be registered via RegisterControllers().
-//
-// Example usage:
-//
-//	controllers, err := app.CreateAppletControllers(
-//		hostServices,
-//		applets.DefaultSessionConfig,
-//		logger,
-//		metrics,
-//	)
-//	if err != nil {
-//		return err
-//	}
-//	app.RegisterControllers(controllers...)
-func (app *application) CreateAppletControllers(
-	host applets.HostServices,
-	sessionConfig applets.SessionConfig,
-	logger *logrus.Logger,
-	metrics applets.MetricsRecorder,
-	opts ...applets.BuilderOption,
-) ([]Controller, error) {
-	registry := app.AppletRegistry()
-	allApplets := registry.All()
-	rpcRegistry := appletenginerpc.NewRegistry()
-	var wsBridge *appletenginewsbridge.Bridge
-	ssrApplets := make([]Applet, 0)
-
-	_, projectConfig, loadConfigErr := appletsconfig.LoadFromCWD()
-	if loadConfigErr != nil {
-		if errors.Is(loadConfigErr, appletsconfig.ErrConfigNotFound) {
-			if logger != nil {
-				logger.WithError(loadConfigErr).Warn("applet engine config not found; using applet defaults")
-			}
-			projectConfig = nil
-		} else {
-			return nil, fmt.Errorf("load applet config from .applets/config.toml: %w", loadConfigErr)
-		}
-	}
-
-	engineByApplet := make(map[string]appletsconfig.AppletEngineConfig)
-	for _, a := range allApplets {
-		if projectConfig == nil {
-			continue
-		}
-		appletCfg, ok := projectConfig.Applets[a.Name()]
-		if !ok || appletCfg == nil || appletCfg.Engine == nil {
-			continue
-		}
-		engineByApplet[a.Name()] = projectConfig.EffectiveEngineConfig(a.Name())
-	}
-
-	controllers := make([]Controller, 0, len(allApplets)+1)
-	for _, a := range allApplets {
-		a = applyProjectAppletOverrides(a, projectConfig)
-		cfg := a.Config()
-		engineCfg, hasEngineConfig := engineByApplet[a.Name()]
-		bunRuntimeEnabled := hasEngineConfig && appletengineruntime.EnabledForEngineConfig(engineCfg)
-		bunDelegateMode := bunRuntimeEnabled && a.Name() == "bichat"
-		if cfg.RPC != nil {
-			for methodName, method := range cfg.RPC.Methods {
-				publicMethod := method
-				if bunDelegateMode {
-					goDelegateMethodName, err := toBunDelegateMethodName(a.Name(), methodName)
-					if err != nil {
-						return nil, err
-					}
-					if err := rpcRegistry.RegisterServerOnly(a.Name(), goDelegateMethodName, method, cfg.Middleware); err != nil {
-						return nil, err
-					}
-					publicMethod = makeBunPublicProxyMethod(methodName, goDelegateMethodName, method)
-				}
-				if err := rpcRegistry.RegisterPublic(a.Name(), methodName, publicMethod, cfg.Middleware); err != nil {
-					return nil, err
-				}
-			}
-		}
-		if appletFrontendType(projectConfig, a.Name()) == appletsconfig.FrontendTypeSSR {
-			ssrApplets = append(ssrApplets, a)
-			continue
-		}
-
-		controller, err := applets.NewAppletController(
-			a,
-			app.Bundle(),
-			sessionConfig,
-			logger,
-			metrics,
-			host,
-			opts...,
-		)
-		if err != nil {
-			return nil, err
-		}
-		controllers = append(controllers, controller)
-	}
-
-	fileStoreByApplet := make(map[string]appletenginehandlers.FilesStore)
-	if len(engineByApplet) > 0 {
-		wsBridge = appletenginewsbridge.New(logger)
-		wsStub := appletenginehandlers.NewWSStub(wsBridge)
-		for appletName, engineCfg := range engineByApplet {
-			kvStub := appletenginehandlers.NewKVStub()
-			if engineCfg.Backends.KV == appletsconfig.KVBackendRedis {
-				redisKVStore, err := appletenginehandlers.NewRedisKVStore(engineCfg.Redis.URL)
-				if err != nil {
-					return nil, fmt.Errorf("configure redis kv store for %s: %w", appletName, err)
-				}
-				kvStub = appletenginehandlers.NewKVStubWithStore(redisKVStore)
-			}
-			if err := kvStub.Register(rpcRegistry, appletName); err != nil {
-				return nil, err
-			}
-
-			dbStub := appletenginehandlers.NewDBStub()
-			if engineCfg.Backends.DB == appletsconfig.DBBackendPostgres {
-				if err := validateAppletSchemaArtifact(context.Background(), app.DB(), appletName); err != nil {
-					return nil, err
-				}
-				postgresDBStore, err := appletenginehandlers.NewPostgresDBStore(app.DB())
-				if err != nil {
-					return nil, fmt.Errorf("configure postgres db store for %s: %w", appletName, err)
-				}
-				dbStub = appletenginehandlers.NewDBStubWithStore(postgresDBStore)
-			}
-			if err := dbStub.Register(rpcRegistry, appletName); err != nil {
-				return nil, err
-			}
-
-			jobsStub := appletenginehandlers.NewJobsStub()
-			if engineCfg.Backends.Jobs == appletsconfig.JobsBackendPostgres {
-				postgresJobsStore, err := appletenginehandlers.NewPostgresJobsStore(app.DB())
-				if err != nil {
-					return nil, fmt.Errorf("configure postgres jobs store for %s: %w", appletName, err)
-				}
-				jobsStub = appletenginehandlers.NewJobsStubWithStore(postgresJobsStore)
-			}
-			if err := jobsStub.Register(rpcRegistry, appletName); err != nil {
-				return nil, err
-			}
-
-			filesStore := appletenginehandlers.NewLocalFilesStore(strings.TrimSpace(engineCfg.Files.Dir))
-			switch engineCfg.Backends.Files {
-			case appletsconfig.FilesBackendPostgres:
-				postgresFilesStore, err := appletenginehandlers.NewPostgresFilesStore(
-					app.DB(),
-					strings.TrimSpace(engineCfg.Files.Dir),
-				)
-				if err != nil {
-					return nil, fmt.Errorf("configure postgres files store for %s: %w", appletName, err)
-				}
-				filesStore = postgresFilesStore
-			case appletsconfig.FilesBackendS3:
-				accessKey := strings.TrimSpace(os.Getenv(strings.TrimSpace(engineCfg.S3.AccessKeyEnv)))
-				secretKey := strings.TrimSpace(os.Getenv(strings.TrimSpace(engineCfg.S3.SecretKeyEnv)))
-				s3FilesStore, err := appletenginehandlers.NewS3FilesStore(app.DB(), appletenginehandlers.S3FilesConfig{
-					Bucket:          strings.TrimSpace(engineCfg.S3.Bucket),
-					Region:          strings.TrimSpace(engineCfg.S3.Region),
-					Endpoint:        strings.TrimSpace(engineCfg.S3.Endpoint),
-					AccessKeyID:     accessKey,
-					SecretAccessKey: secretKey,
-					ForcePathStyle:  engineCfg.S3.ForcePathStyle,
-				})
-				if err != nil {
-					return nil, fmt.Errorf("configure s3 files store for %s: %w", appletName, err)
-				}
-				filesStore = s3FilesStore
-			}
-			fileStoreByApplet[appletName] = filesStore
-			filesStub := appletenginehandlers.NewFilesStubWithStore(filesStore)
-			if err := filesStub.Register(rpcRegistry, appletName); err != nil {
-				return nil, err
-			}
-
-			secretsStore := appletenginehandlers.NewEnvSecretsStore()
-			if engineCfg.Backends.Secrets == appletsconfig.SecretsBackendPostgres {
-				masterKeyPayload, readErr := os.ReadFile(strings.TrimSpace(engineCfg.Secrets.MasterKeyFile))
-				if readErr != nil {
-					return nil, fmt.Errorf("read %s secrets master key file: %w", appletName, readErr)
-				}
-				postgresSecretsStore, err := appletenginehandlers.NewPostgresSecretsStore(
-					app.DB(),
-					strings.TrimSpace(string(masterKeyPayload)),
-				)
-				if err != nil {
-					return nil, fmt.Errorf("configure postgres secrets store for %s: %w", appletName, err)
-				}
-				secretsStore = postgresSecretsStore
-			}
-			if err := validateRequiredAppletSecrets(context.Background(), appletName, engineCfg.Secrets.Required, secretsStore); err != nil {
-				return nil, err
-			}
-			secretsStub := appletenginehandlers.NewSecretsStubWithStore(secretsStore)
-			if err := secretsStub.Register(rpcRegistry, appletName); err != nil {
-				return nil, err
-			}
-
-			if err := wsStub.Register(rpcRegistry, appletName); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	if rpcRegistry.CountPublic() > 0 {
-		dispatcher := appletenginerpc.NewDispatcher(rpcRegistry, host, logger)
-		var runtimeManager *appletengineruntime.Manager
-
-		// Bun runtime process plumbing for applets with runtime=bun.
-		runtimeEnabledByApplet := make(map[string]appletsconfig.AppletEngineConfig)
-		for appletName, engineCfg := range engineByApplet {
-			if appletengineruntime.EnabledForEngineConfig(engineCfg) {
-				runtimeEnabledByApplet[appletName] = engineCfg
-			}
-		}
-		if len(runtimeEnabledByApplet) > 0 {
-			runtimeManager = appletengineruntime.NewManager("", dispatcher, logger)
-			dispatcher.SetBunPublicCaller(runtimeManager)
-			effectiveBunBin := ""
-			for _, engineCfg := range runtimeEnabledByApplet {
-				if effectiveBunBin == "" {
-					effectiveBunBin = engineCfg.BunBin
-				}
-				if strings.TrimSpace(engineCfg.BunBin) != "" && strings.TrimSpace(effectiveBunBin) != strings.TrimSpace(engineCfg.BunBin) {
-					return nil, fmt.Errorf("runtime bun_bin mismatch across enabled applets")
-				}
-			}
-			runtimeManager.SetBunBin(effectiveBunBin)
-
-			for appletName := range runtimeEnabledByApplet {
-				if err := rpcRegistry.SetPublicTargetForApplet(appletName, appletenginerpc.MethodTargetBun); err != nil {
-					return nil, fmt.Errorf("set bun rpc target for %s: %w", appletName, err)
-				}
-				entrypoint := resolveAppletRuntimeEntrypoint(appletName)
-				runtimeManager.RegisterApplet(appletName, entrypoint)
-				if store, ok := fileStoreByApplet[appletName]; ok && store != nil {
-					runtimeManager.RegisterFileStore(appletName, store)
-				}
-			}
-			dispatcher.SetBeforeDispatch(func(ctx context.Context, appletName string) error {
-				if _, ok := runtimeEnabledByApplet[appletName]; !ok {
-					return nil
-				}
-				_, err := runtimeManager.EnsureStarted(ctx, appletName, "")
-				return err
-			})
-			hasPostgresJobs := false
-			for _, engineCfg := range runtimeEnabledByApplet {
-				if engineCfg.Backends.Jobs == appletsconfig.JobsBackendPostgres {
-					hasPostgresJobs = true
-					break
-				}
-			}
-			if hasPostgresJobs && app.DB() != nil {
-				runner, err := appletenginejobs.NewRunner(app.DB(), runtimeManager, logger, 2*time.Second)
-				if err != nil {
-					return nil, fmt.Errorf("create applet jobs runner: %w", err)
-				}
-				jobCtx, jobCancel := context.WithCancel(context.Background())
-				runtimeManager.SetJobCancel(jobCancel)
-				go runner.Start(jobCtx)
-			}
-			if wsBridge != nil {
-				wsBridge.SetRuntimeManager(runtimeManager)
-			}
-			app.appletRuntime = runtimeManager
-		}
-
-		if len(ssrApplets) > 0 {
-			if runtimeManager == nil {
-				return nil, fmt.Errorf("ssr applets require bun runtime manager")
-			}
-			for _, applet := range ssrApplets {
-				entrypoint := resolveAppletRuntimeEntrypoint(applet.Name())
-				runtimeManager.RegisterApplet(applet.Name(), entrypoint)
-				controllers = append(controllers, appletenginecontrollers.NewSSRController(applet, runtimeManager, host, logger, entrypoint))
-			}
-		}
-
-		controllers = append(controllers, appletenginecontrollers.NewRPCController(dispatcher))
-		if wsBridge != nil {
-			controllers = append(controllers, appletenginecontrollers.NewWSController(wsBridge, logger))
-		}
-	}
-
-	return controllers, nil
-}
-
-func resolveAppletRuntimeEntrypoint(appletName string) string {
-	_, currentFile, _, ok := goruntime.Caller(0)
-	if !ok {
-		return filepath.Join("modules", appletName, "runtime", "index.ts")
-	}
-	// pkg/application/application.go -> repo root -> modules/<applet>/runtime/index.ts
-	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
-	return filepath.Join(root, "modules", appletName, "runtime", "index.ts")
-}
-
-type appletOverride struct {
-	base   Applet
-	config applets.Config
-}
-
-func (a *appletOverride) Name() string     { return a.base.Name() }
-func (a *appletOverride) BasePath() string { return a.base.BasePath() }
-func (a *appletOverride) Config() applets.Config {
-	return a.config
-}
-
-func applyProjectAppletOverrides(base Applet, projectConfig *appletsconfig.ProjectConfig) Applet {
-	if base == nil || projectConfig == nil {
-		return base
-	}
-	appletCfg, ok := projectConfig.Applets[base.Name()]
-	if !ok || appletCfg == nil {
-		return base
-	}
-
-	config := base.Config()
-	changed := false
-	if len(appletCfg.Hosts) > 0 {
-		hosts := make([]string, 0, len(appletCfg.Hosts))
-		for _, host := range appletCfg.Hosts {
-			host = strings.TrimSpace(host)
-			if host == "" {
-				continue
-			}
-			hosts = append(hosts, host)
-		}
-		if len(hosts) > 0 {
-			config.Hosts = hosts
-			changed = true
-		}
-	}
-	if !changed {
-		return base
-	}
-	return &appletOverride{base: base, config: config}
-}
-
-func appletFrontendType(projectConfig *appletsconfig.ProjectConfig, appletName string) string {
-	if projectConfig == nil || strings.TrimSpace(appletName) == "" {
-		return appletsconfig.FrontendTypeStatic
-	}
-	cfg, ok := projectConfig.Applets[appletName]
-	if !ok || cfg == nil || cfg.Frontend == nil {
-		return appletsconfig.FrontendTypeStatic
-	}
-	frontendType := strings.TrimSpace(cfg.Frontend.Type)
-	if frontendType == "" {
-		return appletsconfig.FrontendTypeStatic
-	}
-	return frontendType
-}
-
-func toBunDelegateMethodName(appletName, methodName string) (string, error) {
-	appletName = strings.TrimSpace(appletName)
-	methodName = strings.TrimSpace(methodName)
-	if appletName == "" {
-		return "", fmt.Errorf("applet name is required for bun delegate method")
-	}
-	if methodName == "" {
-		return "", fmt.Errorf("method name is required for bun delegate method")
-	}
-	prefix := appletName + "."
-	if !strings.HasPrefix(methodName, prefix) {
-		return "", fmt.Errorf("method %q must be namespaced with %q", methodName, prefix)
-	}
-	suffix := strings.TrimPrefix(methodName, prefix)
-	if suffix == "" {
-		return "", fmt.Errorf("method %q has empty suffix", methodName)
-	}
-	return appletName + ".__go." + suffix, nil
-}
-
-func makeBunPublicProxyMethod(publicMethodName, goDelegateMethodName string, base applets.RPCMethod) applets.RPCMethod {
-	return applets.RPCMethod{
-		RequirePermissions: append([]string(nil), base.RequirePermissions...),
-		Handler: func(context.Context, json.RawMessage) (any, error) {
-			return nil, fmt.Errorf(
-				"method %s is routed via bun runtime; use %s on internal transport",
-				publicMethodName,
-				goDelegateMethodName,
-			)
-		},
-	}
-}
-
-func validateRequiredAppletSecrets(ctx context.Context, appletName string, required []string, store appletenginehandlers.SecretsStore) error {
-	if len(required) == 0 {
+func (app *application) AttachRuntimeSource(source RuntimeSource) error {
+	app.runtimeSource = source
+	if source == nil {
+		app.appletRegistry = applets.NewRegistry()
 		return nil
 	}
-	if store == nil {
-		return fmt.Errorf("validate required secrets for %s: secrets store is required", appletName)
+	for _, localeFS := range source.LocaleFiles() {
+		loadLocaleFSIntoBundle(app.bundle, localeFS)
 	}
-	seen := make(map[string]struct{}, len(required))
-	missing := make([]string, 0)
-	for _, name := range required {
-		name = strings.TrimSpace(name)
-		if name == "" {
-			continue
-		}
-		if _, exists := seen[name]; exists {
-			continue
-		}
-		seen[name] = struct{}{}
-		_, found, err := store.Get(ctx, appletName, name)
-		if err != nil {
-			return fmt.Errorf("validate required secret %q for %s: %w", name, appletName, err)
-		}
-		if !found {
-			missing = append(missing, name)
+	app.quickLinks.Add(navItemsToQuickLinks(source.NavItems()...)...)
+	app.quickLinks.Add(source.QuickLinks()...)
+	for _, provider := range source.SpotlightProviders() {
+		app.spotlight.RegisterProvider(provider)
+	}
+	app.spotlight.SetAgent(source.SpotlightAgent())
+	registry := applets.NewRegistry()
+	for _, applet := range source.Applets() {
+		if err := registry.Register(applet); err != nil {
+			return err
 		}
 	}
-	if len(missing) == 0 {
-		return nil
-	}
-	sort.Strings(missing)
-	return fmt.Errorf("required secrets missing for %s: %s", appletName, strings.Join(missing, ", "))
+	app.appletRegistry = registry
+	return nil
+}
+
+func (app *application) DetachRuntimeSource() {
+	app.runtimeSource = nil
+	app.spotlight.SetAgent(nil)
+	app.appletRegistry = applets.NewRegistry()
 }

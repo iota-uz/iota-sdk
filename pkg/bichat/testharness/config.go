@@ -13,8 +13,8 @@ const (
 	DefaultRPCEndpointPath    = "/bi-chat/rpc"
 	DefaultStreamEndpointPath = "/bi-chat/stream"
 	DefaultCookieName         = "granite_sid"
-	DefaultJudgeModel         = "gpt-5-mini"
-	DefaultHITLModel          = "gpt-5-nano"
+	DefaultJudgeModel         = "gpt-5.4-mini"
+	DefaultHITLModel          = "gpt-5.4-nano"
 	DefaultParallelWorkers    = 8
 	DefaultRPCPollTimeout     = 60
 	DefaultRPCPollInterval    = 250

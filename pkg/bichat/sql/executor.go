@@ -16,8 +16,10 @@ type QueryExecutor interface {
 
 // QueryValidator validates SQL syntax and checks for dangerous operations
 // without executing the query. Returns an error if validation fails.
+// Context is passed so implementations can consult policy hooks that
+// inspect caller identity, tenant, or permissions.
 type QueryValidator interface {
-	ValidateQuery(sql string) error
+	ValidateQuery(ctx context.Context, sql string) error
 }
 
 // QueryResult contains the results of a SQL query execution.

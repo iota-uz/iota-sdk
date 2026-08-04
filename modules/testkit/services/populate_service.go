@@ -16,22 +16,22 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	twofactorsvc "github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/modules/testkit/domain/schemas"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PopulateService struct {
-	app             application.Application
+	db              *pgxpool.Pool
 	referenceMap    map[string]interface{}
 	createdEntities map[string]interface{}
 }
 
-func NewPopulateService(app application.Application) *PopulateService {
+func NewPopulateService(db *pgxpool.Pool) *PopulateService {
 	return &PopulateService{
-		app:             app,
+		db:              db,
 		referenceMap:    make(map[string]interface{}),
 		createdEntities: make(map[string]interface{}),
 	}
@@ -39,7 +39,7 @@ func NewPopulateService(app application.Application) *PopulateService {
 
 func (s *PopulateService) Execute(ctx context.Context, req *schemas.PopulateRequest) (map[string]interface{}, error) {
 	logger := composables.UseLogger(ctx)
-	db := s.app.DB()
+	db := s.db
 
 	// Reset state for new population request
 	s.referenceMap = make(map[string]interface{})

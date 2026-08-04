@@ -1,6 +1,8 @@
 package table
 
 import (
+	"strings"
+
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 )
@@ -18,6 +20,12 @@ templ ContentHTMX(config *TableConfig) {
 			hxTarget = params.Request.Header.Get("HX-Target")
 			isHtmxRequest = htmx.IsHxRequest(params.Request)
 		}
+		// In stacked-toolbar mode the filter chips live outside the swap target,
+		// so re-render them out-of-band on the filter/search swap (hxTarget is
+		// the resolved row target) — but NOT on infinite scroll (targets a row)
+		// or sort (targets the table container), which keep their chips intact.
+		oobTargetID := strings.TrimPrefix(config.ResolvedHxTarget(), "#")
+		emitFiltersOOB := config.StackedToolbar && len(config.FiltersOOB) > 0 && hxTarget == oobTargetID
 	}}
 	if isHtmxRequest {
 		// HTMX request - handle based on target
@@ -30,6 +38,11 @@ templ ContentHTMX(config *TableConfig) {
 		} else {
 			// Filter/search or infinite scroll - return only rows
 			@Rows(config)
+			if emitFiltersOOB {
+				for _, filter := range config.FiltersOOB {
+					@filter
+				}
+			}
 		}
 	} else {
 		// Full page request - return complete page with layout

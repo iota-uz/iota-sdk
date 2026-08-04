@@ -16,7 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -28,22 +28,50 @@ type AccountController struct {
 	tenantService  *services.TenantService
 	uploadService  *services.UploadService
 	sessionService *services.SessionService
+	cfg            *cookies.Config
 	basePath       string
 }
 
-func NewAccountController(app application.Application) application.Controller {
+func NewAccountController(
+	app application.Application,
+	userService *services.UserService,
+	tenantService *services.TenantService,
+	uploadService *services.UploadService,
+	sessionService *services.SessionService,
+	cfg *cookies.Config,
+) application.Controller {
 	return &AccountController{
 		app:            app,
-		userService:    app.Service(services.UserService{}).(*services.UserService),
-		tenantService:  app.Service(services.TenantService{}).(*services.TenantService),
-		uploadService:  app.Service(services.UploadService{}).(*services.UploadService),
-		sessionService: app.Service(services.SessionService{}).(*services.SessionService),
+		userService:    userService,
+		tenantService:  tenantService,
+		uploadService:  uploadService,
+		sessionService: sessionService,
+		cfg:            cfg,
 		basePath:       "/account",
 	}
 }
 
-func (c *AccountController) Key() string {
-	return c.basePath
+func (c *AccountController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor(
+		"core.account",
+		0,
+		application.Route("", c.basePath),
+		application.Route("", c.basePath+"/sessions"),
+	).WithNav(
+		application.NavNode{
+			ID:       "core.account",
+			TitleKey: "Account.Meta.Index.Title",
+			Path:     c.basePath,
+			Surfaces: spotlightOnlySurface(),
+		},
+		application.NavNode{
+			ID:       "core.account.sessions",
+			Parent:   "core.account",
+			TitleKey: "Account.Sessions.Title",
+			Path:     c.basePath + "/sessions",
+			Surfaces: spotlightOnlySurface(),
+		},
+	)
 }
 
 func (c *AccountController) Register(r *mux.Router) {
@@ -51,8 +79,7 @@ func (c *AccountController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
@@ -182,8 +209,7 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Get current session token from cookie
-	config := configuration.Use()
-	cookie, err := r.Cookie(config.SidCookieKey)
+	cookie, err := r.Cookie(c.cfg.SID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get session cookie")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
@@ -224,8 +250,7 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	tokenHash := vars["token"]
 
 	// Get current session token from cookie
-	config := configuration.Use()
-	cookie, err := r.Cookie(config.SidCookieKey)
+	cookie, err := r.Cookie(c.cfg.SID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get session cookie")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
@@ -298,8 +323,7 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 	}
 
 	// Get current session token from cookie
-	config := configuration.Use()
-	cookie, err := r.Cookie(config.SidCookieKey)
+	cookie, err := r.Cookie(c.cfg.SID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get session cookie")
 		http.Error(w, "Session not found", http.StatusUnauthorized)

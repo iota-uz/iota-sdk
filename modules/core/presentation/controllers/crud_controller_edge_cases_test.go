@@ -275,7 +275,7 @@ func (b *nullableTestBuilder) Repository() crud.Repository[NullableEntity] {
 // TestCrudController_DecimalFieldWithDriverValuer tests the decimal field fix with driver.Valuer types
 func TestCrudController_DecimalFieldWithDriverValuer(t *testing.T) {
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
@@ -298,8 +298,7 @@ func TestCrudController_DecimalFieldWithDriverValuer(t *testing.T) {
 		service: service,
 	}
 
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntityWithDecimal]("/products", env.App, builder)
+	controller := controllers.NewCrudController[TestEntityWithDecimal]("/products", builder)
 	suite.Register(controller)
 
 	// Test that decimal value is properly populated in edit form
@@ -533,7 +532,7 @@ func (b *validationTestBuilder) Repository() crud.Repository[TestEntity] {
 // TestCrudController_StringKeyEntityCreation tests the fix for entities with pre-assigned string keys
 func TestCrudController_StringKeyEntityCreation(t *testing.T) {
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
@@ -544,9 +543,7 @@ func TestCrudController_StringKeyEntityCreation(t *testing.T) {
 		schema:  createStringKeySchema(),
 		service: service,
 	}
-
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntityWithStringKey]("/codes", env.App, builder)
+	controller := controllers.NewCrudController[TestEntityWithStringKey]("/codes", builder)
 	suite.Register(controller)
 
 	// Test creating entity with pre-assigned string key
@@ -579,7 +576,7 @@ func TestCrudController_StringKeyEntityCreation(t *testing.T) {
 // TestCrudController_ReadonlyFieldValidationFix tests the service validation fix
 func TestCrudController_ReadonlyFieldValidationFix(t *testing.T) {
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
@@ -598,8 +595,7 @@ func TestCrudController_ReadonlyFieldValidationFix(t *testing.T) {
 		schema:  createTestSchema(),
 		service: service,
 	}
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test 1: Create new entity (should not validate readonly fields)
@@ -647,15 +643,14 @@ func TestCrudController_ReadonlyFieldValidationFix(t *testing.T) {
 // TestCrudController_ZeroValueHandling tests handling of zero values in fields
 func TestCrudController_ZeroValueHandling(t *testing.T) {
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test creating entity with zero values
@@ -704,7 +699,7 @@ func TestCrudController_NilValueHandling(t *testing.T) {
 	)
 
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
@@ -714,9 +709,7 @@ func TestCrudController_NilValueHandling(t *testing.T) {
 		schema:  nullableSchema,
 		service: service,
 	}
-
-	env := suite.Environment()
-	controller := controllers.NewCrudController[NullableEntity]("/nullable", env.App, builder)
+	controller := controllers.NewCrudController[NullableEntity]("/nullable", builder)
 	suite.Register(controller)
 
 	// Test form rendering with nullable fields
@@ -730,7 +723,7 @@ func TestCrudController_NilValueHandling(t *testing.T) {
 // TestCrudController_TimeZoneHandling tests proper handling of timestamps across timezones
 func TestCrudController_TimeZoneHandling(t *testing.T) {
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
@@ -748,8 +741,7 @@ func TestCrudController_TimeZoneHandling(t *testing.T) {
 	service.entities[entity.ID] = entity
 
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Test that timestamps are properly displayed
@@ -772,15 +764,14 @@ func TestCrudController_LargeFormSubmission(t *testing.T) {
 	}
 
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Create form with large but valid data
@@ -805,15 +796,14 @@ func TestCrudController_LargeFormSubmission(t *testing.T) {
 func TestCrudController_ConcurrentFormSubmissions(t *testing.T) {
 	t.Skip("TODO: Fix concurrent form submissions test - infrastructure issue")
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
-	env := suite.Environment()
-	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+	controller := controllers.NewCrudController[TestEntity]("/test", builder)
 	suite.Register(controller)
 
 	// Submit multiple forms concurrently

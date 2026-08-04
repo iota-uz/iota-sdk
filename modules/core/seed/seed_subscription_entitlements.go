@@ -5,7 +5,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/sirupsen/logrus"
 )
 
 const seedSubscriptionEntitlementsQuery = `
@@ -26,19 +26,22 @@ FROM tenants t
 ON CONFLICT (tenant_id) DO NOTHING;
 `
 
-func CreateSubscriptionEntitlements(ctx context.Context, _ application.Application) error {
-	conf := configuration.Use()
-	db, err := composables.UseTx(ctx)
-	if err != nil {
-		conf.Logger().Errorf("Failed to get db transaction for subscription entitlement seed: %v", err)
-		return err
-	}
+var createSubscriptionEntitlements = application.Seed(
+	func(ctx context.Context, logger logrus.FieldLogger) error {
+		db, err := composables.UseTx(ctx)
+		if err != nil {
+			logger.Errorf("Failed to get db transaction for subscription entitlement seed: %v", err)
+			return err
+		}
+		logger.Info("Seeding subscription entitlements")
+		if _, err = db.Exec(ctx, seedSubscriptionEntitlementsQuery); err != nil {
+			logger.Errorf("Failed to seed subscription entitlements: %v", err)
+			return err
+		}
+		return nil
+	},
+)
 
-	conf.Logger().Info("Seeding subscription entitlements")
-	if _, err = db.Exec(ctx, seedSubscriptionEntitlementsQuery); err != nil {
-		conf.Logger().Errorf("Failed to seed subscription entitlements: %v", err)
-		return err
-	}
-
-	return nil
+func CreateSubscriptionEntitlements(ctx context.Context, deps *application.SeedDeps) error {
+	return createSubscriptionEntitlements(ctx, deps)
 }

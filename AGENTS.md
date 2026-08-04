@@ -92,10 +92,12 @@ modules/{module}/
 
 ### 7. Registration
 - Add navigation item to `modules/{module}/links.go`
-- Register service and controller in `modules/{module}/module.go`:
-  - Add service to `app.RegisterServices()` call
-  - Add controller to `app.RegisterControllers()` call  
-  - Add quick links to `app.QuickLinks().Add()` call
+- Register the module in `modules/{module}/component.go`:
+  - Register repositories and services with `composition.ProvideFunc(...)` — the reflection injector resolves each constructor parameter from the container by type (no manual lookup)
+  - Use `composition.ProvideFuncAs[Interface]` when a constructor returns a concrete type but you want the provider keyed by an interface
+  - Add controllers with `composition.ContributeControllersFunc(...)` or `composition.AddControllers(...)` for pre-built instances
+  - Attach static contributions via `composition.AddNavItems`, `composition.AddQuickLinks`, `composition.AddHashFS`
+  - Declare locale files on the component itself via the required `LocaleFS()` method; the engine wires them automatically.
 
 ### 8. Verification
 - Run `go vet ./...` to verify compilation

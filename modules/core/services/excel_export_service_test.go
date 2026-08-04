@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -365,6 +366,26 @@ func TestExcelExportService_ExportFromDataSourceWithOptions(t *testing.T) {
 	// Verify expectations
 	mockRepo.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
+}
+
+func TestExcelExportService_ExportDataSourceToWriter(t *testing.T) {
+	uploadService := services.NewUploadService(new(MockUploadRepository), new(MockUploadStorage), eventbus.NewEventPublisher(logrus.New()))
+	excelService := services.NewExcelExportService(nil, uploadService)
+
+	datasource := &mockDataSource{
+		headers: []string{"id", "name"},
+		rows: [][]interface{}{
+			{1, "John"},
+			{2, "Jane"},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := excelService.ExportDataSourceToWriter(context.Background(), &buf, datasource, exportconfig.New(exportconfig.WithFilename("users")))
+
+	require.NoError(t, err)
+	assert.Positive(t, buf.Len())
+	assert.Equal(t, []byte{'P', 'K'}, buf.Bytes()[:2], "xlsx output should be a zip payload")
 }
 
 func TestExcelExportService_ExportFromDataSource_EmptyFilename(t *testing.T) {

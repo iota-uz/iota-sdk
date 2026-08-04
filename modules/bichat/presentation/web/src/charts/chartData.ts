@@ -357,10 +357,10 @@ export function attachRichChartDataToTurns(
     const assistantTurn = nextTurns[targetIndex]?.assistantTurn
     if (!assistantTurn) return
 
-    // SDK assistant turn currently supports a single chartData payload.
+    // Assistant turns now store charts as an array.
     // If multiple chart artifacts resolve to the same assistant turn, keep the
     // latest artifact (list is already ordered by createdAt ascending).
-    assistantTurn.chartData = chartData
+    assistantTurn.charts = [chartData]
   })
 
   return nextTurns

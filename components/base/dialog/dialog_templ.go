@@ -61,7 +61,7 @@ func Confirmation(p *Props) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "><form method=\"dialog\"><header class=\"flex items-center gap-3 justify-between px-4 py-3 border-b border-primary\"><h3 class=\"font-medium\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "><form method=\"dialog\"><header class=\"flex items-center gap-3 justify-between px-4 py-3 border-b border-subtle\"><h3 class=\"font-medium\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

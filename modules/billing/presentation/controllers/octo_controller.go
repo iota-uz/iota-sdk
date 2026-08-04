@@ -16,7 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -35,22 +35,20 @@ const (
 )
 
 type OctoController struct {
-	app            application.Application
 	billingService *services.BillingService
-	octo           configuration.OctoOptions
+	octo           paymentsconfig.OctoConfig
 	basePath       string
 	logTransport   *middleware.LogTransport
 }
 
 func NewOctoController(
-	app application.Application,
-	octo configuration.OctoOptions,
+	billingService *services.BillingService,
+	octo paymentsconfig.OctoConfig,
 	basePath string,
 	logTransport *middleware.LogTransport,
 ) application.Controller {
 	return &OctoController{
-		app:            app,
-		billingService: app.Service(services.BillingService{}).(*services.BillingService),
+		billingService: billingService,
 		octo:           octo,
 		basePath:       basePath,
 		logTransport:   logTransport,
@@ -62,8 +60,8 @@ func (c *OctoController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Handle)).Methods(http.MethodPost)
 }
 
-func (c *OctoController) Key() string {
-	return c.basePath
+func (c *OctoController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("billing.octo", 0, application.Route("", c.basePath))
 }
 
 func (c *OctoController) Handle(
@@ -166,7 +164,7 @@ func (c *OctoController) parseNotification(r *http.Request, logger *logrus.Entry
 func (c *OctoController) validateSignature(notification *octoapi.NotificationRequest, logger *logrus.Entry) error {
 	if !octoauth.ValidateSignature(
 		notification.Signature,
-		c.octo.OctoSecretHash,
+		c.octo.SecretHash,
 		notification.OctoPaymentUUID,
 		notification.Status,
 	) {
@@ -411,8 +409,8 @@ func (c *OctoController) checkAndUpdateStatusAsync(
 
 	// Create check status request
 	req := octoapi.NewCheckStatusRequest(
-		c.octo.OctoShopID,
-		c.octo.OctoSecret,
+		c.octo.ShopID,
+		c.octo.Secret,
 		notification.ShopTransactionId,
 	)
 

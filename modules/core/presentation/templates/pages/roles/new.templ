@@ -67,7 +67,7 @@ templ CreateForm(props *CreateFormProps) {
 					}) {
 						for _, moduleGroup := range props.ModulePermissionGroups {
 							@tab.Button(moduleGroup.Module) {
-								{ pageCtx.T(fmt.Sprintf("Modules.%s", moduleGroup.Module)) }
+								{ tOrKey(pageCtx, fmt.Sprintf("Modules.%s", moduleGroup.Module)) }
 							}
 						}
 					}
@@ -80,7 +80,7 @@ templ CreateForm(props *CreateFormProps) {
 									}) {
 										<div class="space-y-3">
 											<h3 class="text-lg font-medium text-gray-900">
-												{ pageCtx.T(fmt.Sprintf("Resources.%s", resourceGroup.Resource)) }
+												{ tOrKey(pageCtx, fmt.Sprintf("Resources.%s", resourceGroup.Resource)) }
 											</h3>
 											for setIndex, permissionSet := range resourceGroup.PermissionSets {
 												@PermissionSet(PermissionSetProps{

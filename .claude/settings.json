@@ -97,8 +97,7 @@
       "WebFetch(domain:pkg.go.dev)",
       "WebFetch(domain:docs.anthropic.com)",
       "WebFetch(domain:code.claude.com)",
-      "WebFetch(domain:github.com)",
-      "mcp__sequential-thinking__sequentialthinking"
+      "WebFetch(domain:github.com)"
     ],
     "deny": [
       "Read(**/*.key)",

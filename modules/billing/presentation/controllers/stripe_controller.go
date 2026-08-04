@@ -16,7 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/ports"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
@@ -25,23 +25,21 @@ import (
 )
 
 type StripeController struct {
-	app            application.Application
 	billingService *services.BillingService
-	stripe         configuration.StripeOptions
+	stripe         paymentsconfig.StripeConfig
 	basePath       string
 	hooks          []ports.StripeEventHook
 	hookQueue      chan stripe.Event
 }
 
 func NewStripeController(
-	app application.Application,
-	stripeOpts configuration.StripeOptions,
+	billingService *services.BillingService,
+	stripeOpts paymentsconfig.StripeConfig,
 	basePath string,
 	hooks ...ports.StripeEventHook,
 ) application.Controller {
 	controller := &StripeController{
-		app:            app,
-		billingService: app.Service(services.BillingService{}).(*services.BillingService),
+		billingService: billingService,
 		stripe:         stripeOpts,
 		basePath:       basePath,
 		hooks:          hooks,
@@ -56,8 +54,8 @@ func (c *StripeController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Handle)).Methods(http.MethodPost)
 }
 
-func (c *StripeController) Key() string {
-	return c.basePath
+func (c *StripeController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("billing.stripe", 0, application.Route("", c.basePath))
 }
 
 func (c *StripeController) Handle(

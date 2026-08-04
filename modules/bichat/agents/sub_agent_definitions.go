@@ -154,6 +154,9 @@ type SubAgentDependencies struct {
 	FileStorage        storage.FileStorage
 	ViewAccess         permissions.ViewAccessControl
 	ArtifactReaderTool coreagents.Tool
+	// SchemaAllowlist declares which Postgres schemas sub-agents may
+	// enumerate and describe. Empty = no schemas visible.
+	SchemaAllowlist []string
 }
 
 type SubAgentBuildOption func(*subAgentBuildConfig)
@@ -223,17 +226,20 @@ func resolveSubAgentTools(toolKeys []string, deps SubAgentDependencies) ([]corea
 				schemaLister = bichatsql.NewQueryExecutorSchemaLister(deps.QueryExecutor,
 					bichatsql.WithCountCacheTTL(10*time.Minute),
 					bichatsql.WithCacheKeyFunc(tenantCacheKey),
+					bichatsql.WithSchemaAllowlist(deps.SchemaAllowlist),
 				)
 			}
 			resolved = append(resolved, toolsql.NewSchemaListTool(schemaLister, toolsql.WithSchemaListViewAccess(deps.ViewAccess)))
-		case "schema_describe":
+		case "schema_describe_batch":
 			if deps.QueryExecutor == nil {
 				return nil, fmt.Errorf("tool %q requires query executor", name)
 			}
 			if schemaDescriber == nil {
-				schemaDescriber = bichatsql.NewQueryExecutorSchemaDescriber(deps.QueryExecutor)
+				schemaDescriber = bichatsql.NewQueryExecutorSchemaDescriber(deps.QueryExecutor,
+					bichatsql.WithDescribeSchemaAllowlist(deps.SchemaAllowlist),
+				)
 			}
-			resolved = append(resolved, toolsql.NewSchemaDescribeTool(schemaDescriber, toolsql.WithSchemaDescribeViewAccess(deps.ViewAccess)))
+			resolved = append(resolved, toolsql.NewSchemaDescribeBatchTool(schemaDescriber, toolsql.WithSchemaDescribeBatchViewAccess(deps.ViewAccess)))
 		case "sql_execute":
 			if deps.QueryExecutor == nil {
 				return nil, fmt.Errorf("tool %q requires query executor", name)

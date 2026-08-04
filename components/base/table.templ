@@ -1,9 +1,17 @@
 package base
 
 import (
+	"fmt"
+	"strconv"
+
 	twmerge "github.com/Oudwins/tailwind-merge-go"
 	icons "github.com/iota-uz/icons/phosphor"
 )
+
+// truncateStyle returns an inline max-width style (px) for truncated labels.
+func truncateStyle(widthPx int) string {
+	return fmt.Sprintf("max-width:%dpx", widthPx)
+}
 
 var tableOnce = templ.NewOnceHandle()
 
@@ -91,15 +99,35 @@ type Addon struct {
 }
 
 type TableColumn struct {
-	Label        string
-	Key          string
-	Class        string
-	Sortable     bool
-	SortDir      SortDirection
-	SortURL      string // URL for sorting this column
-	Sticky       bool
-	Configurable bool
-	AddonBottom  *Addon
+	Label         string
+	Key           string
+	Class         string
+	Sortable      bool
+	SortDir       SortDirection
+	SortURL       string // URL for sorting this column
+	Sticky        bool
+	Configurable  bool
+	DefaultHidden bool
+	AddonBottom   *Addon
+	// TruncateWidth, when > 0, clips the header label to this width (px) with a
+	// single-line ellipsis, matching the truncated body cells.
+	TruncateWidth int
+	// Priority drives responsive auto-hiding (emitted as data-col-priority).
+	// 0/1 always visible; 2 hides below tablet; >=3 hides below desktop.
+	Priority int
+}
+
+// PriorityClass returns the responsive hide utility for a column priority.
+// Sticky columns should pass 0 (exempt).
+func priorityClass(p int) string {
+	switch {
+	case p >= 3:
+		return "max-lg:hidden"
+	case p == 2:
+		return "max-md:hidden"
+	default:
+		return ""
+	}
 }
 
 type TableRowProps struct {
@@ -119,7 +147,7 @@ templ TableRow(props TableRowProps) {
 
 templ TableCell(props TableCellProps) {
 	<td
-		class={ twmerge.Merge(templ.CSSClasses([]any{"p-4 border-r border-primary last-of-type:border-r-0", props.Classes}).String()) }
+		class={ twmerge.Merge(templ.CSSClasses([]any{"p-4 border-r border-subtle last-of-type:border-r-0", props.Classes}).String()) }
 		{ props.Attrs... }
 	>
 		{ children... }
@@ -144,6 +172,13 @@ type TableProps struct {
 	ScrollbarPosition    ScrollbarPosition
 	ScrollbarUnderHeader bool
 	ScrollbarGutter      bool
+	// Foot, when set, renders a <tfoot> (e.g. a totals row) as a sibling of the
+	// body. Because <tfoot> sits outside <tbody>, infinite-scroll rows appended
+	// inside <tbody> never displace it.
+	Foot templ.Component
+	// FootSticky pins the footer to the bottom of the scroll viewport
+	// (mirrors the sticky header), keeping it visible while scrolling.
+	FootSticky bool
 }
 
 templ Table(props TableProps) {
@@ -163,18 +198,18 @@ templ Table(props TableProps) {
 			.table-nowrap td, .table-nowrap th { white-space: nowrap; }
 
 			/* Filler rows */
-			.table-filler-rows tbody td { border-bottom: 1px solid oklch(var(--clr-border-primary)); }
+			.table-filler-rows tbody td { border-bottom: 1px solid oklch(var(--clr-border-subtle)); }
 			.table-filler-rows .grid-filler td {
 				padding: 0;
-				border-right: 1px solid oklch(var(--clr-border-primary));
-				border-bottom: 1px solid oklch(var(--clr-border-primary));
+				border-right: 1px solid oklch(var(--clr-border-subtle));
+				border-bottom: 1px solid oklch(var(--clr-border-subtle));
 			}
 			.table-filler-rows .grid-filler td:last-child { border-right: 0; }
 			.table-filler-rows .grid-filler td.grid-sticky-right {
 				position: sticky;
 				right: 0;
 				background-color: oklch(var(--clr-surface-600));
-				border-left: 1px solid oklch(var(--clr-border-primary));
+				border-left: 1px solid oklch(var(--clr-border-default));
 				border-right: 0;
 			}
 			.table-filler-rows .grid-filler td:has(+ td.grid-sticky-right) { border-right: 0; }
@@ -189,13 +224,15 @@ templ Table(props TableProps) {
 			.table-filler-container,
 			.table-filler-container > #sortable-table-container,
 			.table-filler-container > #sortable-table-container > div { height: 100%; }
+			/* scrollAffordance (Branch B) wrapper — stable hook, avoids matching Branch A overlay divs */
+			.table-filler-container .table-scroll-wrap { height: 100%; }
 
 			/* Scrollbar gutter */
 			.table-scrollbar-gutter { scrollbar-gutter: stable; }
 			.table-scrollbar-gutter > table { height: auto; }
 			.table-scrollbar-gutter ~ [class*="z-[11]"] { display: none; }
 
-			@media (hover: none), (pointer: coarse) {
+			@media (hover: none), (pointer: coarse), (any-pointer: coarse) {
 				.sdk-touch-table-scroll {
 					overflow-x: auto !important;
 					-webkit-overflow-scrolling: touch;
@@ -218,9 +255,20 @@ templ Table(props TableProps) {
 				headH: 0,
 				sbGap: 0,
 				stickyR: 0,
+				touch: false,
+				canScrollLeft: false,
+				canScrollRight: false,
 				init() {
 					const sc = this.$refs.sc;
 					if (!sc) return;
+					this.touch = window.matchMedia('(hover: none), (pointer: coarse), (any-pointer: coarse)').matches
+						|| (navigator.maxTouchPoints || 0) > 0;
+					if (this.touch) {
+						sc.style.overflowX = 'auto';
+						sc.style.webkitOverflowScrolling = 'touch';
+						sc.style.overscrollBehaviorX = 'contain';
+						sc.style.touchAction = 'pan-x pan-y';
+					}
 					this.$nextTick(() => this.measure());
 					this._ro = new ResizeObserver(() => this.measure());
 					this._ro.observe(sc);
@@ -237,6 +285,12 @@ templ Table(props TableProps) {
 					if (this._ro) this._ro.disconnect();
 					if (this._mo) this._mo.disconnect();
 				},
+				updateAffordance() {
+					const sc = this.$refs.sc;
+					if (!sc) return;
+					this.canScrollLeft = sc.scrollLeft > 0;
+					this.canScrollRight = sc.scrollLeft + sc.clientWidth < sc.scrollWidth - 1;
+				},
 				measure() {
 					const sc = this.$refs.sc;
 					if (!sc || !sc.isConnected) return;
@@ -249,8 +303,9 @@ templ Table(props TableProps) {
 						if (s.position === 'sticky' && s.right !== 'auto') sr += th.offsetWidth;
 					});
 					this.stickyR = sr;
+					this.updateAffordance();
 				},
-				onScroll() { if(!this.syncing){this.syncing=true; this.$refs.proxy.scrollLeft=this.$refs.sc.scrollLeft; this.$nextTick(()=>this.syncing=false)} },
+				onScroll() { this.updateAffordance(); if(!this.syncing){this.syncing=true; this.$refs.proxy.scrollLeft=this.$refs.sc.scrollLeft; this.$nextTick(()=>this.syncing=false)} },
 				onProxy() { if(!this.syncing){this.syncing=true; this.$refs.sc.scrollLeft=this.$refs.proxy.scrollLeft; this.$nextTick(()=>this.syncing=false)} }
 			}"
 		>
@@ -263,7 +318,7 @@ templ Table(props TableProps) {
 					class={
 						twmerge.Merge(
 							templ.Classes(
-								"min-w-full rounded-b-lg table bg-surface-600 text-sm",
+								"min-w-full table bg-surface-600 text-sm rounded-lg",
 								templ.KV("-rotate-x-180", props.ScrollbarPosition.Top()),
 								props.Classes.String(),
 							).String(),
@@ -279,6 +334,7 @@ templ Table(props TableProps) {
 								x-sort:config="{
 									handle: '[x-sort\\:handle]',
 									filter: '[data-col-sticky]',
+									onMove: (event) => !(event.related && event.related.matches && event.related.matches('[data-col-sticky]')),
 									onEnd: (event) => {
 										moveColumn(event.oldIndex, event.newIndex, true);
 									},
@@ -288,10 +344,14 @@ templ Table(props TableProps) {
 							for _, col := range props.Columns {
 								if col.Sortable {
 									<th
-										class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", col.Class }
+										class={ "px-4 py-3 font-medium text-left border-r border-subtle last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", priorityClass(col.Priority), col.Class }
 										if props.Configurable {
 											data-col={ col.Key }
 											data-col-sticky?={ col.Sticky }
+											data-col-hidden?={ col.DefaultHidden }
+										}
+										if col.Priority > 0 {
+											data-col-priority={ strconv.Itoa(col.Priority) }
 										}
 										if col.Configurable {
 											x-sort:item
@@ -306,11 +366,15 @@ templ Table(props TableProps) {
 												hx-include="closest form"
 											>
 												if col.Configurable {
-													<button x-sort:handle type="button" class="-ml-1.5">
+													<button x-sort:handle type="button" class="-ml-1.5 cursor-grab active:cursor-grabbing">
 														@icons.DotsSixVertical(icons.Props{Size: "20"})
 													</button>
 												}
-												<span>{ col.Label }</span>
+												if col.TruncateWidth > 0 {
+													<span class="truncate" style={ truncateStyle(col.TruncateWidth) }>{ col.Label }</span>
+												} else {
+													<span>{ col.Label }</span>
+												}
 												<span class="sort-indicator">
 													if col.SortDir.IsAsc() {
 														@icons.CaretDown(icons.Props{Size: "16"})
@@ -332,10 +396,14 @@ templ Table(props TableProps) {
 									</th>
 								} else {
 									<th
-										class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", col.Class }
+										class={ "px-4 py-3 font-medium text-left border-r border-subtle last-of-type:border-r-0 border-b-0", priorityClass(col.Priority), col.Class }
 										if props.Configurable {
 											data-col={ col.Key }
 											data-col-sticky?={ col.Sticky }
+											data-col-hidden?={ col.DefaultHidden }
+										}
+										if col.Priority > 0 {
+											data-col-priority={ strconv.Itoa(col.Priority) }
 										}
 										if col.Configurable {
 											x-sort:item
@@ -344,11 +412,15 @@ templ Table(props TableProps) {
 										<div class="flex flex-col gap-1">
 											<div class="flex items-center gap-2">
 												if col.Configurable {
-													<button x-sort:handle type="button" class="-ml-1.5">
+													<button x-sort:handle type="button" class="-ml-1.5 cursor-grab active:cursor-grabbing">
 														@icons.DotsSixVertical(icons.Props{Size: "20"})
 													</button>
 												}
-												{ col.Label }
+												if col.TruncateWidth > 0 {
+													<span class="truncate" style={ truncateStyle(col.TruncateWidth) }>{ col.Label }</span>
+												} else {
+													{ col.Label }
+												}
 											</div>
 											if col.AddonBottom != nil {
 												if col.AddonBottom.Render != nil {
@@ -373,10 +445,21 @@ templ Table(props TableProps) {
 							{ children... }
 						</tbody>
 					}
+					if props.Foot != nil {
+						<tfoot
+							if props.FootSticky {
+								class="z-10"
+								style="position: sticky; bottom: 0; box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1)"
+							}
+						>
+							@props.Foot
+						</tfoot>
+					}
 				</table>
 			</div>
 			<div
 				class="absolute left-0 z-[9] overflow-x-scroll overflow-y-hidden proxy-scrollbar bg-surface-600"
+				x-show="!touch"
 				x-ref="proxy"
 				:style="'top:'+headH+'px;right:'+(sbGap+stickyR)+'px'"
 				style="height: 12px;"
@@ -390,125 +473,182 @@ templ Table(props TableProps) {
 				x-show="sbGap > 0"
 				:style="'width:'+sbGap+'px;height:'+headH+'px'"
 			></div>
+			<!-- Horizontal scroll affordance gradients (outside scroller / flip subtree) -->
+			<div
+				class="pointer-events-none absolute inset-y-0 left-0 w-8 z-[8] bg-gradient-to-r from-surface-600 to-transparent transition-opacity duration-150"
+				x-show="canScrollLeft"
+				x-transition.opacity
+			></div>
+			<div
+				class="pointer-events-none absolute inset-y-0 w-8 z-[8] bg-gradient-to-l from-surface-600 to-transparent transition-opacity duration-150"
+				x-show="canScrollRight"
+				x-transition.opacity
+				:style="'right:'+stickyR+'px'"
+			></div>
 		</div>
 	} else {
-		<div class={ twmerge.Merge(templ.Classes("overflow-x-auto relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), templ.KV("table-scrollbar-gutter", props.ScrollbarGutter), props.WrapperClasses.String()).String()) }>
-			<table
-				class={
-					twmerge.Merge(
-						templ.Classes(
-							"min-w-full rounded-b-lg table bg-surface-600 text-sm",
-							templ.KV("-rotate-x-180", props.ScrollbarPosition.Top()),
-							props.Classes.String(),
-						).String(),
-					),
-				}
-				{ props.Attrs... }
+		<div class="relative table-scroll-wrap" x-data="scrollAffordance">
+			<div
+				x-ref="sc"
+				@scroll="onScroll"
+				class={ twmerge.Merge(templ.Classes("overflow-x-auto relative", templ.KV("rotate-x-180", props.ScrollbarPosition.Top()), templ.KV("table-scrollbar-gutter", props.ScrollbarGutter), props.WrapperClasses.String()).String()) }
 			>
-				<thead class={ props.THead.Classes } { props.THead.Attrs... }>
-					<tr
-						class="bg-surface-500 text-200"
-						if props.Configurable {
-							x-sort.ghost
-							x-sort:config="{
+				<table
+					class={
+						twmerge.Merge(
+							templ.Classes(
+								"min-w-full table bg-surface-600 text-sm rounded-lg",
+								templ.KV("-rotate-x-180", props.ScrollbarPosition.Top()),
+								props.Classes.String(),
+							).String(),
+						),
+					}
+					{ props.Attrs... }
+				>
+					<thead class={ props.THead.Classes } { props.THead.Attrs... }>
+						<tr
+							class="bg-surface-500 text-200"
+							if props.Configurable {
+								x-sort.ghost
+								x-sort:config="{
 								draggable: '[data-sortable]',
+								onMove: (event) => !(event.related && event.related.matches && event.related.matches('[data-col-sticky]')),
 								onEnd: (event) => {
 									moveColumn(event.oldIndex, event.newIndex, true);
 								},
 							}"
-						}
-					>
-						for _, col := range props.Columns {
-							if col.Sortable {
-								<th
-									class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", col.Class }
-									if props.Configurable {
-										data-col={ col.Key }
-										data-col-sticky?={ col.Sticky }
-									}
-									if col.Configurable {
-										data-sortable
-										x-sort:item
-									}
-								>
-									<div class="flex flex-col gap-1">
-										<div
-											class="flex items-center gap-2"
-											hx-get={ col.SortURL }
-											hx-target="#sortable-table-container"
-											hx-swap="outerHTML"
-											hx-include="closest form"
-										>
-											if col.Configurable {
-												<button x-sort:handle type="button" class="-ml-1.5">
-													@icons.DotsSixVertical(icons.Props{Size: "20"})
-												</button>
-											}
-											<span>{ col.Label }</span>
-											<span class="sort-indicator">
-												if col.SortDir.IsAsc() {
-													@icons.CaretDown(icons.Props{Size: "16"})
-												} else if col.SortDir.IsDesc() {
-													@icons.CaretUp(icons.Props{Size: "16"})
-												} else {
-													@icons.CaretUpDown(icons.Props{Size: "16", Class: "opacity-30"})
-												}
-											</span>
-										</div>
-										if col.AddonBottom != nil {
-											if col.AddonBottom.Render != nil {
-												@col.AddonBottom.Render(col)
-											} else if col.AddonBottom.Component != nil {
-												@col.AddonBottom.Component
-											}
-										}
-									</div>
-								</th>
-							} else {
-								<th
-									class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", col.Class }
-									if props.Configurable {
-										data-col={ col.Key }
-										data-col-sticky?={ col.Sticky }
-									}
-									if col.Configurable {
-										data-sortable
-										x-sort:item
-									}
-								>
-									<div class="flex flex-col gap-1">
-										<div class="flex items-center gap-2">
-											if col.Configurable {
-												<button x-sort:handle type="button" class="-ml-1.5">
-													@icons.DotsSixVertical(icons.Props{Size: "20"})
-												</button>
-											}
-											{ col.Label }
-										</div>
-										if col.AddonBottom != nil {
-											if col.AddonBottom.Render != nil {
-												@col.AddonBottom.Render(col)
-											} else if col.AddonBottom.Component != nil {
-												@col.AddonBottom.Component
-											}
-										}
-									</div>
-								</th>
 							}
-						}
-					</tr>
-				</thead>
-				if props.NoTBody {
-					{ children... }
-				} else {
-					<tbody
-						class={ props.TBodyClasses }
-						{ props.TBodyAttrs... }
-					>
+						>
+							for _, col := range props.Columns {
+								if col.Sortable {
+									<th
+										class={ "px-4 py-3 font-medium text-left border-r border-subtle last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", priorityClass(col.Priority), col.Class }
+										if props.Configurable {
+											data-col={ col.Key }
+											data-col-sticky?={ col.Sticky }
+											data-col-hidden?={ col.DefaultHidden }
+										}
+										if col.Priority > 0 {
+											data-col-priority={ strconv.Itoa(col.Priority) }
+										}
+										if col.Configurable {
+											data-sortable
+											x-sort:item
+										}
+									>
+										<div class="flex flex-col gap-1">
+											<div
+												class="flex items-center gap-2"
+												hx-get={ col.SortURL }
+												hx-target="#sortable-table-container"
+												hx-swap="outerHTML"
+												hx-include="closest form"
+											>
+												if col.Configurable {
+													<button x-sort:handle type="button" class="-ml-1.5 cursor-grab active:cursor-grabbing">
+														@icons.DotsSixVertical(icons.Props{Size: "20"})
+													</button>
+												}
+												if col.TruncateWidth > 0 {
+													<span class="truncate" style={ truncateStyle(col.TruncateWidth) }>{ col.Label }</span>
+												} else {
+													<span>{ col.Label }</span>
+												}
+												<span class="sort-indicator">
+													if col.SortDir.IsAsc() {
+														@icons.CaretDown(icons.Props{Size: "16"})
+													} else if col.SortDir.IsDesc() {
+														@icons.CaretUp(icons.Props{Size: "16"})
+													} else {
+														@icons.CaretUpDown(icons.Props{Size: "16", Class: "opacity-30"})
+													}
+												</span>
+											</div>
+											if col.AddonBottom != nil {
+												if col.AddonBottom.Render != nil {
+													@col.AddonBottom.Render(col)
+												} else if col.AddonBottom.Component != nil {
+													@col.AddonBottom.Component
+												}
+											}
+										</div>
+									</th>
+								} else {
+									<th
+										class={ "px-4 py-3 font-medium text-left border-r border-subtle last-of-type:border-r-0 border-b-0", priorityClass(col.Priority), col.Class }
+										if props.Configurable {
+											data-col={ col.Key }
+											data-col-sticky?={ col.Sticky }
+											data-col-hidden?={ col.DefaultHidden }
+										}
+										if col.Priority > 0 {
+											data-col-priority={ strconv.Itoa(col.Priority) }
+										}
+										if col.Configurable {
+											data-sortable
+											x-sort:item
+										}
+									>
+										<div class="flex flex-col gap-1">
+											<div class="flex items-center gap-2">
+												if col.Configurable {
+													<button x-sort:handle type="button" class="-ml-1.5 cursor-grab active:cursor-grabbing">
+														@icons.DotsSixVertical(icons.Props{Size: "20"})
+													</button>
+												}
+												if col.TruncateWidth > 0 {
+													<span class="truncate" style={ truncateStyle(col.TruncateWidth) }>{ col.Label }</span>
+												} else {
+													{ col.Label }
+												}
+											</div>
+											if col.AddonBottom != nil {
+												if col.AddonBottom.Render != nil {
+													@col.AddonBottom.Render(col)
+												} else if col.AddonBottom.Component != nil {
+													@col.AddonBottom.Component
+												}
+											}
+										</div>
+									</th>
+								}
+							}
+						</tr>
+					</thead>
+					if props.NoTBody {
 						{ children... }
-					</tbody>
-				}
-			</table>
+					} else {
+						<tbody
+							class={ props.TBodyClasses }
+							{ props.TBodyAttrs... }
+						>
+							{ children... }
+						</tbody>
+					}
+					if props.Foot != nil {
+						<tfoot
+							if props.FootSticky {
+								class="z-10"
+								style="position: sticky; bottom: 0; box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1)"
+							}
+						>
+							@props.Foot
+						</tfoot>
+					}
+				</table>
+			</div>
+			<!-- Horizontal scroll affordance gradients (outside scroller / flip subtree) -->
+			<div
+				class="pointer-events-none absolute inset-y-0 left-0 w-8 z-[8] bg-gradient-to-r from-surface-600 to-transparent transition-opacity duration-150"
+				x-show="canScrollLeft"
+				x-transition.opacity
+			></div>
+			<div
+				class="pointer-events-none absolute inset-y-0 w-8 z-[8] bg-gradient-to-l from-surface-600 to-transparent transition-opacity duration-150"
+				x-show="canScrollRight"
+				x-transition.opacity
+				:style="'right:'+stickyR+'px'"
+			></div>
 		</div>
 	}
 }

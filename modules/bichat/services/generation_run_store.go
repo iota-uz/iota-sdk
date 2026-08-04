@@ -29,6 +29,16 @@ type generationRunStore interface {
 	UpdateRunSnapshot(ctx context.Context, tenantID, sessionID, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error
 	CompleteRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error
 	CancelRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error
+	// FailRun is the system-initiated terminal transition. Used by workers
+	// on unrecoverable errors and by the reaper on stale heartbeats.
+	FailRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error
+	// RequestCancel flips the cancel flag on an active run without moving
+	// it to a terminal status. The owning worker observes the flag on its
+	// next heartbeat/snapshot tick and drives the actual CancelRun call.
+	RequestCancel(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error
+	// Heartbeat refreshes LastHeartbeatAt so the reaper knows the run is
+	// still progressing. Idempotent; no-op on terminal states.
+	Heartbeat(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error
 }
 
 type redisGenerationRunStoreConfig struct {
@@ -54,6 +64,12 @@ type persistedGenerationRun struct {
 	PartialMeta    map[string]any `json:"partial_metadata"`
 	StartedAt      time.Time      `json:"started_at"`
 	LastUpdatedAt  time.Time      `json:"last_updated_at"`
+	// CancelRequested is flipped by Stop RPCs; the worker polls it.
+	CancelRequested bool `json:"cancel_requested,omitempty"`
+	// LastHeartbeatAt is refreshed by the worker; the reaper fails runs
+	// whose heartbeat has gone stale. Zero-value means "never heartbeated"
+	// (e.g. a queued-but-not-started run).
+	LastHeartbeatAt time.Time `json:"last_heartbeat_at,omitempty"`
 }
 
 func newConfiguredGenerationRunStore() generationRunStore {
@@ -118,15 +134,17 @@ func (s *redisGenerationRunStore) CreateRun(ctx context.Context, run domain.Gene
 	}
 
 	record := persistedGenerationRun{
-		ID:             run.ID().String(),
-		SessionID:      run.SessionID().String(),
-		TenantID:       run.TenantID().String(),
-		UserID:         run.UserID(),
-		Status:         string(domain.GenerationRunStatusStreaming),
-		PartialContent: run.PartialContent(),
-		PartialMeta:    cloneMetadata(run.PartialMetadata()),
-		StartedAt:      run.StartedAt().UTC(),
-		LastUpdatedAt:  run.LastUpdatedAt().UTC(),
+		ID:              run.ID().String(),
+		SessionID:       run.SessionID().String(),
+		TenantID:        run.TenantID().String(),
+		UserID:          run.UserID(),
+		Status:          string(domain.GenerationRunStatusStreaming),
+		PartialContent:  run.PartialContent(),
+		PartialMeta:     cloneMetadata(run.PartialMetadata()),
+		StartedAt:       run.StartedAt().UTC(),
+		LastUpdatedAt:   run.LastUpdatedAt().UTC(),
+		CancelRequested: run.CancelRequested(),
+		LastHeartbeatAt: run.LastHeartbeatAt().UTC(),
 	}
 	if record.StartedAt.IsZero() {
 		record.StartedAt = time.Now().UTC()
@@ -245,6 +263,70 @@ func (s *redisGenerationRunStore) CancelRun(ctx context.Context, tenantID, sessi
 	return s.finishRun(ctx, tenantID, sessionID, runID, domain.GenerationRunStatusCancelled)
 }
 
+func (s *redisGenerationRunStore) FailRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
+	return s.finishRun(ctx, tenantID, sessionID, runID, domain.GenerationRunStatusFailed)
+}
+
+// RequestCancel flips the cancel flag on the active run and refreshes
+// LastUpdatedAt. It is a no-op if the session has no active run or if the
+// active run's id doesn't match runID — this keeps repeated Stop RPCs
+// idempotent without leaking state.
+func (s *redisGenerationRunStore) RequestCancel(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
+	const op serrors.Op = "redisGenerationRunStore.RequestCancel"
+
+	record, found, err := s.loadRun(ctx, tenantID, sessionID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if !found {
+		return nil
+	}
+	if record.ID != runID.String() {
+		return nil
+	}
+	if record.Status != string(domain.GenerationRunStatusStreaming) {
+		return nil
+	}
+	if record.CancelRequested {
+		// Already requested; nothing to persist.
+		return nil
+	}
+	record.CancelRequested = true
+	record.LastUpdatedAt = time.Now().UTC()
+	if err := s.saveRun(ctx, tenantID, sessionID, record); err != nil {
+		return serrors.E(op, "persist cancel request", err)
+	}
+	return nil
+}
+
+// Heartbeat refreshes LastHeartbeatAt + LastUpdatedAt. Called from the
+// worker on every streaming iteration so the reaper can detect wedged
+// runs. The operation is racy-safe under the single-writer assumption
+// (one worker owns a given run at a time), same as UpdateRunSnapshot.
+// Idempotent no-op when the run is missing or not in streaming status;
+// callers must not treat those cases as errors.
+func (s *redisGenerationRunStore) Heartbeat(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
+	const op serrors.Op = "redisGenerationRunStore.Heartbeat"
+
+	record, found, err := s.loadRun(ctx, tenantID, sessionID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if !found {
+		return nil
+	}
+	if record.ID != runID.String() || record.Status != string(domain.GenerationRunStatusStreaming) {
+		return nil
+	}
+	now := time.Now().UTC()
+	record.LastHeartbeatAt = now
+	record.LastUpdatedAt = now
+	if err := s.saveRun(ctx, tenantID, sessionID, record); err != nil {
+		return serrors.E(op, "persist heartbeat", err)
+	}
+	return nil
+}
+
 func (s *redisGenerationRunStore) finishRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID, status domain.GenerationRunStatus) error {
 	const op serrors.Op = "redisGenerationRunStore.finishRun"
 
@@ -359,6 +441,8 @@ func mapPersistedGenerationRunToDomain(r persistedGenerationRun) (domain.Generat
 		PartialMetadata: cloneMetadata(r.PartialMeta),
 		StartedAt:       r.StartedAt,
 		LastUpdatedAt:   r.LastUpdatedAt,
+		CancelRequested: r.CancelRequested,
+		LastHeartbeatAt: r.LastHeartbeatAt,
 	})
 }
 

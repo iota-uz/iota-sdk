@@ -14,6 +14,23 @@ import (
 // ErrRunNotFoundOrFinished is returned by ResumeStream when the run is not active in this process.
 var ErrRunNotFoundOrFinished = errors.New("generation run not found or already finished")
 
+// ErrRunEventLogUnavailable is returned by TailRunEvents when the durable
+// per-run event log is not configured (e.g. REDIS_URL unset in dev). The
+// stream controller reports this via an SSE `error` event on an otherwise-200
+// stream so clients can display the condition without switching transports.
+var ErrRunEventLogUnavailable = errors.New("run event log unavailable")
+
+// ErrActiveRunIndexUnavailable is returned by TailActiveRuns when the
+// active-run index (per-tenant sidebar Redis hash) is not configured. Like
+// ErrRunEventLogUnavailable, the stream controller surfaces it as an SSE
+// `error` event rather than an HTTP error status so clients remain on the
+// same transport.
+var ErrActiveRunIndexUnavailable = errors.New("active run index unavailable")
+
+// ErrContinuationUnsupported is returned when the configured AgentService
+// does not implement ContinuationAgentService.
+var ErrContinuationUnsupported = errors.New("internal continuations are not supported by the configured agent service")
+
 // SessionCommands manages mutating session actions.
 type SessionCommands interface {
 	CreateSession(ctx context.Context, tenantID uuid.UUID, userID int64, title string) (domain.Session, error)
@@ -51,6 +68,12 @@ type TurnCommands interface {
 	SendMessage(ctx context.Context, req SendMessageRequest) (*SendMessageResponse, error)
 }
 
+// ContinuationCommands resumes a session from trusted application workflows.
+type ContinuationCommands interface {
+	ContinueSession(ctx context.Context, req ContinueSessionRequest) (AsyncRunAccepted, error)
+	GetContinuationRun(ctx context.Context, runID uuid.UUID) (ContinuationRun, error)
+}
+
 // TurnQueries reads conversation messages for a session.
 type TurnQueries interface {
 	GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error)
@@ -81,6 +104,50 @@ type StreamCommands interface {
 	// ResumeStream attaches to an active run: delivers current snapshot then streams subsequent chunks.
 	// Returns ErrRunNotFoundOrFinished if the run is not active in this process.
 	ResumeStream(ctx context.Context, sessionID uuid.UUID, runID uuid.UUID, onChunk func(StreamChunk)) error
+
+	// TailRunEvents reads the durable per-run event log. Events with
+	// stream id > `from` are delivered in order; an empty `from` streams
+	// from the beginning. onEvent is invoked once per event and must be
+	// non-blocking; callers typically forward it as an SSE line. The
+	// call returns when a terminal event is observed, ctx is cancelled,
+	// or the event log TTL has expired. Returns ErrRunEventLogUnavailable
+	// when the backing Redis stream is not configured.
+	TailRunEvents(ctx context.Context, sessionID, runID uuid.UUID, from string, onEvent func(RunEventDelivery)) error
+
+	// TailActiveRuns delivers the tenant's sidebar active-run view:
+	// first a snapshot of current runs, then live status deltas
+	// (streaming / completed / cancelled / failed / queued). Closes
+	// when ctx is cancelled. Returns ErrActiveRunIndexUnavailable when
+	// the active-run index is not configured.
+	//
+	// The tenant scope is resolved from context (composables.UseTenantID)
+	// so the transport layer doesn't need to pass it explicitly — the
+	// HTTP middleware has already authenticated the user and set the
+	// tenant header on the request ctx.
+	TailActiveRuns(ctx context.Context, onEvent func(ActiveRunDelivery)) error
+}
+
+// ActiveRunDelivery is a single sidebar update — either a snapshot row
+// on connect or a live delta afterwards. `Event` is "snapshot" for
+// rows delivered during initial HGETALL and "update" for subsequent
+// pubsub deltas, so the client can render differently (one-shot vs
+// mutation).
+type ActiveRunDelivery struct {
+	Event     string // "snapshot" | "update"
+	SessionID uuid.UUID
+	RunID     uuid.UUID
+	Status    string
+	UpdatedAt int64 // UnixMilli for wire compactness
+}
+
+// RunEventDelivery is a single durable event delivered through TailRunEvents.
+// StreamID is the Redis stream id used as the SSE `id:` field for
+// Last-Event-ID reconnect. Payload is the JSON-encoded
+// httpdto.StreamChunkPayload ready to be written verbatim to the SSE body.
+type RunEventDelivery struct {
+	StreamID string
+	Type     string
+	Payload  []byte
 }
 
 // StreamStatus describes an active streaming run for a session.
@@ -103,6 +170,7 @@ const (
 	AsyncRunOperationQuestionSubmit AsyncRunOperation = "question_submit"
 	AsyncRunOperationQuestionReject AsyncRunOperation = "question_reject"
 	AsyncRunOperationSessionCompact AsyncRunOperation = "session_compact"
+	AsyncRunOperationContinuation   AsyncRunOperation = "continuation"
 )
 
 type AsyncRunAccepted struct {
@@ -111,6 +179,29 @@ type AsyncRunAccepted struct {
 	SessionID uuid.UUID
 	RunID     uuid.UUID
 	StartedAt time.Time
+}
+
+// ContinuationRun is the durable status projection applications use to
+// reconcile an asynchronously dispatched continuation after a process restart.
+type ContinuationRun struct {
+	ID        uuid.UUID
+	SessionID uuid.UUID
+	Status    string
+	Error     string
+	StartedAt time.Time
+	UpdatedAt time.Time
+}
+
+// ContinueSessionRequest starts an internal continuation turn. The
+// IdempotencyKey is required so durable application workers can safely retry
+// delivery. The SDK derives a stable run id from the tenant, session, and key;
+// repeated delivery returns that run without executing a second turn.
+type ContinueSessionRequest struct {
+	SessionID       uuid.UUID
+	Event           ContinuationEvent
+	IdempotencyKey  string
+	ReasoningEffort *string
+	Model           *string
 }
 
 // SendMessageRequest contains the input for sending a message
@@ -126,6 +217,15 @@ type SendMessageRequest struct {
 	// ReasoningEffort overrides the default reasoning effort for this request.
 	// Valid values: "low", "medium", "high", "xhigh". Nil means use model default.
 	ReasoningEffort *string
+	// Model overrides the default model for this request. Must match a registered model name.
+	Model *string
+	// RequestID is the client-supplied idempotency key. When set, two
+	// sends sharing a RequestID within the dedupe TTL window (~30 min)
+	// converge on the same run: one server-side run executes, both
+	// clients see the same stream. Nil means no dedupe — duplicate
+	// sends race normally and the session's active-run lock decides
+	// which wins. See RunJobQueue.ClaimRequest for the mechanism.
+	RequestID *uuid.UUID
 }
 
 // SendMessageResponse contains the result of sending a message
@@ -186,6 +286,9 @@ type StreamChunk struct {
 	Snapshot *StreamSnapshot
 	// RunID is set when Type is ChunkTypeStreamStarted so the client can store it for resume.
 	RunID string
+	// TextBlockSeq identifies the assistant text segment ordinal that just ended
+	// (when Type is ChunkTypeTextBlockEnd). Zero-based within a single run.
+	TextBlockSeq int
 }
 
 // ChunkType represents the type of streaming chunk
@@ -205,6 +308,11 @@ const (
 	ChunkTypeSnapshot      ChunkType = "snapshot"
 	ChunkTypeStreamStarted ChunkType = "stream_started"
 	ChunkTypePing          ChunkType = "ping"
+	// ChunkTypeTextBlockEnd marks the boundary of an assistant text segment
+	// inside a turn that contains tool calls. The frontend uses it to render
+	// each text-then-tool sequence as a distinct block instead of merging
+	// every text delta into one paragraph.
+	ChunkTypeTextBlockEnd ChunkType = "text_block_end"
 )
 
 // ToolEvent represents a tool execution event in a streaming chunk.

@@ -180,6 +180,22 @@ func TestTransactionMapping(t *testing.T) {
 				assert.Len(t, cash.Data(), 3)
 			},
 		},
+		{
+			name:    "PayoutDetails",
+			gateway: billing.Uzum,
+			details: details.NewPayoutDetails(
+				details.PayoutWithData(map[string]any{
+					"external_id": "cashback-42",
+					"direction":   "outbound",
+				}),
+			),
+			validate: func(t *testing.T, d details.Details) {
+				t.Helper()
+				payout := d.(details.PayoutDetails)
+				assert.Equal(t, "cashback-42", payout.Get("external_id"))
+				assert.Equal(t, "outbound", payout.Get("direction"))
+			},
+		},
 		//{
 		//	name:    "StripeDetails",
 		//	gateway: billing.Stripe,
@@ -271,4 +287,20 @@ func TestToDomainTransaction_InvalidJSON(t *testing.T) {
 	_, err := persistence.ToDomainTransaction(dbModel)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse details")
+}
+
+func TestPayoutDetailsMapperErrorsIncludeOperation(t *testing.T) {
+	t.Parallel()
+
+	_, err := persistence.ToDomainDetails(billing.Uzum, json.RawMessage(`{`))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "billing.persistence.ToDomainDetails")
+	assert.Contains(t, err.Error(), "deserialize payout details")
+
+	_, err = persistence.ToDBDetails(details.NewPayoutDetails(
+		details.PayoutWithData(map[string]any{"unsupported": func() {}}),
+	))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "billing.persistence.ToDBDetails")
+	assert.Contains(t, err.Error(), "serialize payout details")
 }

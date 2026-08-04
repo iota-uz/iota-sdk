@@ -2,6 +2,7 @@ import "./lib/alpine.lib.min.js";
 import "./lib/alpine-focus.min.js";
 import "./lib/alpine-anchor.min.js";
 import "./lib/alpine-mask.min.js";
+import "./lib/alpine-collapse.min.js";
 import Sortable from "./lib/alpine-sort.js";
 
 let dateTimeFormat = () => ({
@@ -35,7 +36,7 @@ let relativeFormat = () => ({
     let units = ["second", "minute", "hour", "day", "week", "month", "year"];
     let unitIdx = cutoffs.findIndex((cutoff) => cutoff > Math.abs(delta));
     let divisor = unitIdx ? cutoffs[unitIdx - 1] : 1;
-    let rtf = new Intl.RelativeTimeFormat(locale, {numeric: "auto"});
+    let rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
     return rtf.format(Math.floor(delta / divisor), units[unitIdx]);
   },
 });
@@ -154,12 +155,12 @@ let dialog = (initialState) => ({
       });
     });
   }),
-  lightDismiss({target: dialog}) {
+  lightDismiss({ target: dialog }) {
     if (dialog.nodeName === "DIALOG") {
       dialog.close("dismiss");
     }
   },
-  async close({target: dialog}) {
+  async close({ target: dialog }) {
     dialog.setAttribute("inert", "");
     dialog.dispatchEvent(dialogEvents.closing);
     await animationsComplete(dialog);
@@ -205,6 +206,136 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   searchQuery: '',
   searchable,
   canCreateNew,
+  init() {
+    // Reposition the (top-layer) dropdown when the page scrolls/resizes while open.
+    this._reflow = (e) => {
+      // A scroll *inside* the open dropdown must not trigger a reposition:
+      // positionDropdown() clears then re-applies max-height, which resets the
+      // list's scrollTop to 0. Repositioning on the list's own scroll would snap
+      // the user back to the top on every wheel tick, making a long menu
+      // impossible to scroll. Only reposition when an ancestor/the page scrolls.
+      if (e && e.target instanceof Node && this.$refs.list && this.$refs.list.contains(e.target)) return;
+      if (this.open || this.openedWithKeyboard) this.positionDropdown();
+    };
+    this.$watch('open', () => this.syncDropdown());
+    this.$watch('openedWithKeyboard', () => this.syncDropdown());
+    window.addEventListener('scroll', this._reflow, true);
+    window.addEventListener('resize', this._reflow);
+    // Start hidden. Popover-capable browsers also hide via UA styles; this
+    // covers the in-flow fallback path. Deferred because $refs.list is a child
+    // ref not yet registered when the component's init() runs.
+    this.$nextTick(() => {
+      if (this.$refs.list) this.$refs.list.style.display = 'none';
+    });
+  },
+  destroy() {
+    // Disconnect the <select> mutation observer set up in select x-init so it
+    // isn't leaked when the combobox is removed (e.g. HTMX swaps the subtree).
+    if (this.observer) this.observer.disconnect();
+    if (this._reflow) {
+      window.removeEventListener('scroll', this._reflow, true);
+      window.removeEventListener('resize', this._reflow);
+    }
+    let list = this.$refs.list;
+    if (this.supportsPopover(list) && list.matches(':popover-open')) {
+      try { list.hidePopover(); } catch (e) { }
+    }
+  },
+  supportsPopover(el) {
+    return !!el && typeof el.showPopover === 'function' && el.hasAttribute('popover');
+  },
+  // Promote the option list to the top layer (Popover API) on open so it is
+  // never clipped by an overflow-hidden ancestor or hidden behind a modal drawer.
+  syncDropdown() {
+    let list = this.$refs.list;
+    if (!list) return;
+    let show = this.open || this.openedWithKeyboard;
+    if (show) {
+      list.style.display = 'flex';
+      if (this.supportsPopover(list) && !list.matches(':popover-open')) {
+        try { list.showPopover(); } catch (e) { }
+      }
+      this.$nextTick(() => this.positionDropdown());
+    } else {
+      if (this.supportsPopover(list) && list.matches(':popover-open')) {
+        try { list.hidePopover(); } catch (e) { }
+      }
+      list.style.display = 'none';
+    }
+  },
+  // Anchor the dropdown to the trigger using viewport coordinates, flipping
+  // above when there is not enough room below.
+  positionDropdown() {
+    let list = this.$refs.list;
+    let trigger = this.$refs.trigger;
+    if (!list || !trigger) return;
+    // Clearing `max-height` below momentarily makes the list non-scrollable,
+    // which resets its scrollTop to 0. Snapshot and restore it so a reposition
+    // (resize, chip add, or an ancestor scroll) never loses the user's place.
+    let prevScrollTop = list.scrollTop;
+    let rect = trigger.getBoundingClientRect();
+    let gap = 4;
+    let edge = 8; // keep the menu clear of the viewport edge
+    let isPopover = this.supportsPopover(list) && list.matches(':popover-open');
+    // Reset the UA-default top-layer box (`inset:0; margin:auto`) BEFORE measuring
+    // scrollWidth below: with inset:0 still active, `left`/`right` are both pinned
+    // to 0 so the box (and therefore its scrollWidth) is forced to full viewport
+    // width regardless of content — that previously made every popover render
+    // screen-wide the instant it opened.
+    if (isPopover) {
+      list.style.margin = '0';
+      list.style.inset = 'auto';
+      list.style.position = 'fixed';
+    } else {
+      list.style.position = 'absolute';
+      list.style.left = '0px';
+      list.style.top = '100%';
+    }
+    // Width: at least the field width, but grow to fit the widest option so long
+    // labels aren't clipped — capped to the viewport so it never overflows. Measure
+    // the natural content width with the constraint cleared first. Callers passing
+    // `!w-auto`/`!w-*` via ListClass still override this inline width.
+    let viewportWidth = Math.max(0, window.innerWidth - 2 * edge);
+    list.style.width = 'auto';
+    list.style.maxWidth = viewportWidth + 'px';
+    let width = Math.min(Math.max(rect.width, list.scrollWidth), viewportWidth);
+    list.style.width = width + 'px';
+    if (isPopover) {
+      // Size the menu to the available space rather than a fixed cap: measure the
+      // natural content height (bounded by any caller-supplied cap such as
+      // `!max-h-60`), then clamp to whichever side of the trigger has more room.
+      // Grows on tall screens; stays clip-safe (never taller than the viewport gap)
+      // when forced to flip up on short ones. Applied `important` so the clip-safe
+      // ceiling also wins over a caller's `!important` cap on short screens, while
+      // still never exceeding that cap (it bounds contentHeight) on tall ones.
+      list.style.removeProperty('max-height');
+      let contentHeight = Math.min(this.dropdownMaxHeightCap(list), list.scrollHeight + 2);
+      let spaceBelow = window.innerHeight - rect.bottom - gap - edge;
+      let spaceAbove = rect.top - gap - edge;
+      let flipUp = spaceBelow < contentHeight && spaceAbove > spaceBelow;
+      let height = Math.min(contentHeight, Math.max(0, flipUp ? spaceAbove : spaceBelow));
+      list.style.setProperty('max-height', height + 'px', 'important');
+      // Clamp left so a menu wider than the field stays within the viewport.
+      list.style.left = Math.max(edge, Math.min(rect.left, window.innerWidth - width - edge)) + 'px';
+      list.style.top = (flipUp ? rect.top - height - gap : rect.bottom + gap) + 'px';
+    } else {
+      // Fallback (no Popover API): sit just below the field, in flow (position/left/top
+      // already set above).
+      list.style.removeProperty('max-height');
+      let avail = Math.max(0, window.innerHeight - rect.bottom - gap - edge);
+      let height = Math.min(this.dropdownMaxHeightCap(list), list.scrollHeight + 2, avail);
+      list.style.setProperty('max-height', height + 'px', 'important');
+    }
+    // Restore the scroll position lost when max-height was cleared above.
+    list.scrollTop = prevScrollTop;
+  },
+  dropdownMaxHeightCap(list) {
+    // Caller-supplied max-height cap (e.g. ListClass `!max-h-60`) in pixels, or
+    // Infinity when none. Must be read with our own inline max-height cleared.
+    let cap = getComputedStyle(list).maxHeight;
+    let px = cap && cap !== 'none' ? parseFloat(cap) : NaN;
+    return Number.isFinite(px) ? px : Infinity;
+  },
   setValue(value) {
     if (!this.options.length && this.canCreateNew && this.searchQuery.length) {
       this.$refs.createOption.click();
@@ -220,6 +351,10 @@ let combobox = (searchable = false, canCreateNew = false) => ({
       }
     }
     if (index == null || index > this.allOptions.length - 1) return;
+    // Disabled options (and filterbuilder group headers) can't be newly selected,
+    // but an already-selected value must still be removable (e.g. an option that
+    // became disabled after selection) — only block selecting a fresh one.
+    if (this.allOptions[index].disabled && !this.allOptions[index].hasAttribute("selected")) return;
     if (this.multiple) {
       this.allOptions[index].toggleAttribute("selected");
       if (this.selectedValues.has(value)) {
@@ -249,8 +384,15 @@ let combobox = (searchable = false, canCreateNew = false) => ({
         label: option.textContent,
       });
     }
-    this.open = false;
-    this.openedWithKeyboard = false;
+    // Single-select picks one value and closes. Multi-select keeps the dropdown
+    // open so the user can tick several options without re-opening it each time;
+    // adding a chip can grow the trigger, so re-anchor the top-layer popover.
+    if (this.multiple) {
+      this.$nextTick(() => this.positionDropdown());
+    } else {
+      this.open = false;
+      this.openedWithKeyboard = false;
+    }
     this.searchQuery = '';
     this.options = [...this.allOptions];
     if (this.selectedValues.size === 0) {
@@ -269,6 +411,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   setActiveIndex(value) {
     for (let i = 0, len = this.options.length; i < len; i++) {
       let option = this.options[i];
+      if (option.disabled) continue;
       if (option.textContent.toLowerCase().startsWith(value.toLowerCase())) {
         this.activeIndex = i;
       }
@@ -277,6 +420,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   setActiveValue(value) {
     for (let i = 0, len = this.options.length; i < len; i++) {
       let option = this.options[i];
+      if (option.disabled) continue;
       if (option.textContent.toLowerCase().startsWith(value.toLowerCase())) {
         this.activeValue = option.value;
         return option;
@@ -324,33 +468,45 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     }
     select?.dispatchEvent(new Event("change"));
   },
+  syncSelectedAttrs() {
+    this.selectedValues.clear();
+    for (let i = 0; i < this.allOptions.length; i++) {
+      let option = this.allOptions[i];
+      if (option.hasAttribute("selected")) {
+        this.activeIndex = i;
+        this.activeValue = option.value;
+        if (!this.multiple && this.selectedValues.size > 0) break;
+        this.selectedValues.set(option.value, {
+          label: option.textContent,
+          value: option.value,
+        });
+      }
+    }
+  },
   select: {
     ["x-init"]() {
       this.options = Array.from(this.$el.querySelectorAll("option"));
       this.allOptions = [...this.options];
       this.multiple = this.$el.multiple;
-      for (let i = 0, len = this.options.length; i < len; i++) {
-        let option = this.options[i];
-        if (option.selected) {
-          this.activeIndex = i;
-          this.activeValue = option.value;
-          if (this.selectedValues.size > 0 && !this.multiple) continue;
-          this.selectedValues.set(option.value, {
-            label: option.textContent,
-            value: option.value,
-          })
+      this.$nextTick(() => this.syncSelectedAttrs());
+      this.observer = new MutationObserver((mutations) => {
+        if (mutations.some(m => m.type === "childList")) {
+          this.options = Array.from(this.$el.querySelectorAll("option"));
+          this.allOptions = [...this.options];
+          if (this.$refs.input) {
+            this.setActiveIndex(this.$refs.input.value);
+            this.setActiveValue(this.$refs.input.value);
+          }
         }
-      }
-      this.observer = new MutationObserver(() => {
-        this.options = Array.from(this.$el.querySelectorAll("option"));
-        this.allOptions = [...this.options];
-        if (this.$refs.input) {
-          this.setActiveIndex(this.$refs.input.value);
-          this.setActiveValue(this.$refs.input.value);
+        if (mutations.some(m => m.type === "attributes")) {
+          this.syncSelectedAttrs();
         }
       });
       this.observer.observe(this.$el, {
-        childList: true
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["selected"],
       });
     },
   },
@@ -358,6 +514,10 @@ let combobox = (searchable = false, canCreateNew = false) => ({
 
 let filtersDropdown = () => ({
   open: false,
+  // Pending change accumulated while the dropdown is open. Each tick re-renders
+  // the table fragment (this dropdown lives inside the HTMX swap target), which
+  // would collapse the dropdown mid-selection — so we batch and apply on close.
+  dirty: false,
   selected: [],
   init() {
     // Use [checked] attribute selector instead of :checked pseudo-selector
@@ -372,18 +532,35 @@ let filtersDropdown = () => ({
     } else {
       this.selected.splice(index, 1);
     }
-    // Dispatch custom event after Alpine state is updated
-    // We use 'filter-changed' custom event instead of 'change' to avoid race condition
-    // where HTMX collects form data before Alpine updates checkbox state
+    // Defer the reload until the dropdown closes so multiple options can be
+    // ticked without the table re-rendering (and closing the dropdown) on each.
+    this.dirty = true;
+  },
+  toggle() {
+    this.open = !this.open;
+    if (!this.open) this.flush();
+  },
+  close() {
+    if (!this.open) return;
+    this.open = false;
+    this.flush();
+  },
+  flush() {
+    if (!this.dirty) return;
+    this.dirty = false;
+    // Dispatch custom event after Alpine state is updated. We use 'filter-changed'
+    // instead of 'change' to avoid a race where HTMX collects form data before
+    // Alpine updates checkbox state.
     this.$nextTick(() => {
-      this.$el.dispatchEvent(new CustomEvent('filter-changed', {bubbles: true}));
+      this.$el.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
     });
   },
   clearAll() {
     this.selected = [];
     this.$el.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
+    this.dirty = false;
     this.$nextTick(() => {
-      this.$el.dispatchEvent(new CustomEvent('filter-changed', {bubbles: true}));
+      this.$el.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
     });
   }
 });
@@ -410,28 +587,59 @@ let checkboxes = () => ({
 
 let spotlight = () => ({
   isOpen: false,
+  isLoading: false,
+  aiLoading: false,
+  aiSessionId: '',
+  aiRunId: '',
+  aiCandidates: [],
+  aiTools: [],
+  aiInput: '',
+  aiError: '',
+  aiActive: false,
+  aiMode: false,
+  expandedChip: null,
+  currentProgressVerb: '',
+  verbRotationTimer: null,
+  verbIndex: 0,
   highlightedIndex: 0,
+  query: '',
+  searchId: '',
+  pendingCount: 0,
+  stages: [],
+  eventSource: null,
+  aiEventSource: null,
+  debounceTimer: null,
+  requestSeq: 0,
   init() {
     if (window.__spotlightConfirmBound) {
+      this.bindSearchLifecycle();
       return;
     }
     window.__spotlightConfirmBound = true;
 
-    const confirmationMessages = {
-      ru: 'Открыть этот результат?',
-      uz: 'Ushbu natijani ochish?',
-      en: 'Open this result?',
-    };
     document.addEventListener('click', (event) => {
       const button = event.target.closest('.js-spotlight-confirm[data-spotlight-url]');
       if (!button) return;
       event.preventDefault();
       const url = button.dataset.spotlightUrl || '';
       if (!url) return;
-      const lang = (document.documentElement.lang || 'en').slice(0, 2).toLowerCase();
-      const message = confirmationMessages[lang] || confirmationMessages.en;
-      if (window.confirm(message)) {
+      if (window.confirm(this.localizedText('confirmOpenResult', 'Open this result?'))) {
         window.location.href = url;
+      }
+    });
+    this.bindSearchLifecycle();
+  },
+
+  bindSearchLifecycle() {
+    if (this.$refs.input) {
+      this.query = this.$refs.input.value || '';
+    }
+    this.$watch('query', (value) => {
+      if (!this.aiMode) {
+        window.clearTimeout(this.debounceTimer);
+        this.debounceTimer = window.setTimeout(() => {
+          this.search(value);
+        }, 120);
       }
     });
   },
@@ -446,33 +654,541 @@ let spotlight = () => ({
   open() {
     this.isOpen = true;
     this.$nextTick(() => {
-      const input = this.$refs.input;
-      if (input) {
-        setTimeout(() => input.focus(), 50);
-      }
+      this.$refs.input?.focus();
     });
   },
 
   close() {
     this.isOpen = false;
     this.highlightedIndex = 0;
+    window.clearTimeout(this.debounceTimer);
+    this.stopStream();
+    this.stopAIStream();
+    this.cancelAISession();
+    this.aiActive = false;
+    this.aiMode = false;
+    this.expandedChip = null;
+    this.stopVerbRotation();
+  },
+
+  handleEscape() {
+    if (this.aiMode && this.aiActive) {
+      this.deactivateAI();
+    } else {
+      this.close();
+    }
+  },
+
+  scheduleSearch(value) {
+    this.query = value || '';
+    // The $watch on query handles the debounced search
+  },
+
+  async search(value) {
+    const query = (value || '').trim();
+    this.requestSeq += 1;
+    const requestSeq = this.requestSeq;
+    this.stopStream();
+    this.expandedChip = null;
+    this.isLoading = query !== '';
+    this.highlightedIndex = 0;
+    this.pendingCount = 0;
+    this.setResultsHTML('');
+
+    if (!query) {
+      this.searchId = '';
+      return;
+    }
+
+    try {
+      const response = await fetch(`/spotlight/search?q=${encodeURIComponent(query)}`, {
+        headers: {
+          Accept: 'application/json',
+        },
+        credentials: 'same-origin',
+      });
+      if (!response.ok) {
+        throw new Error(`search failed with ${response.status}`);
+      }
+
+      const payload = await response.json();
+      if (requestSeq !== this.requestSeq) {
+        const staleSearchId = payload.search_id || '';
+        if (staleSearchId) {
+          fetch(`/spotlight/cancel?search_id=${encodeURIComponent(staleSearchId)}`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: true,
+          }).catch(() => { });
+        }
+        return;
+      }
+
+      this.searchId = payload.search_id || '';
+      this.updatePayload(payload);
+
+      if (this.searchId && !payload.complete) {
+        this.startStream(this.searchId, requestSeq);
+      }
+    } catch (error) {
+      console.error('spotlight search failed', error);
+      if (requestSeq === this.requestSeq) {
+        this.isLoading = false;
+      }
+    }
+  },
+
+  startStream(searchId, requestSeq) {
+    if (!searchId) return;
+    const source = new EventSource(`/spotlight/stream?search_id=${encodeURIComponent(searchId)}`);
+    this.eventSource = source;
+
+    source.addEventListener('update', (event) => {
+      if (requestSeq !== this.requestSeq) {
+        return;
+      }
+      try {
+        const payload = JSON.parse(event.data || '{}');
+        this.updatePayload(payload);
+        if (payload.complete) {
+          this.stopStream();
+        }
+      } catch (error) {
+        console.error('spotlight stream update failed', error);
+      }
+    });
+
+    source.onerror = () => {
+      if (requestSeq !== this.requestSeq) {
+        return;
+      }
+      this.isLoading = false;
+      this.stopStream();
+    };
+  },
+
+  stopStream() {
+    const previousSearchId = this.searchId;
+    this.searchId = '';
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    if (previousSearchId) {
+      fetch(`/spotlight/cancel?search_id=${encodeURIComponent(previousSearchId)}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+      }).catch(() => { });
+    }
+  },
+
+  async triggerAI() {
+    const query = (this.query || '').trim();
+    if (!query || this.aiActive) return;
+
+    this.stopAIStream();
+    this.aiActive = true;
+    this.aiLoading = true;
+    this.aiError = '';
+    this.aiSessionId = '';
+    this.aiRunId = '';
+    this.aiCandidates = [];
+    this.aiTools = [];
+    this.aiInput = '';
+    this.expandedChip = null;
+    this.startVerbRotation();
+
+    try {
+      const response = await fetch('/spotlight/ai/sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ q: query }),
+      });
+      if (!response.ok) {
+        throw new Error(`AI search failed with ${response.status}`);
+      }
+      const payload = await response.json();
+      this.updateAISnapshot(payload);
+      if (this.aiSessionId && this.aiRunId && !payload.complete) {
+        this.startAIStream(this.aiSessionId, this.aiRunId);
+      }
+    } catch (error) {
+      console.error('spotlight ai search failed', error);
+      this.aiLoading = false;
+      this.stopVerbRotation();
+      this.aiError = this.localizedText('aiStartFailed', 'Could not start AI search');
+    }
+  },
+
+  deactivateAI() {
+    this.aiActive = false;
+    this.expandedChip = null;
+    this.stopVerbRotation();
+    this.stopAIStream();
+    this.cancelAISession();
+    this.aiLoading = false;
+    this.aiInput = '';
+  },
+
+  startVerbRotation() {
+    this.stopVerbRotation();
+    const root = this.$root || this.$el;
+    this.progressVerbs = [
+      root?.dataset?.['i18nAiProgressSearching'] || 'Searching records...',
+      root?.dataset?.['i18nAiProgressChecking'] || 'Checking database...',
+      root?.dataset?.['i18nAiProgressBuilding'] || 'Building results...',
+    ];
+    this.verbIndex = 0;
+    this.currentProgressVerb = this.progressVerbs[0];
+    this.verbRotationTimer = window.setInterval(() => {
+      this.verbIndex = (this.verbIndex + 1) % this.progressVerbs.length;
+      this.currentProgressVerb = this.progressVerbs[this.verbIndex];
+    }, 3000);
+  },
+
+  stopVerbRotation() {
+    if (this.verbRotationTimer) {
+      window.clearInterval(this.verbRotationTimer);
+      this.verbRotationTimer = null;
+    }
+    this.currentProgressVerb = '';
+  },
+
+  toggleChip(candidateId) {
+    this.expandedChip = this.expandedChip === candidateId ? null : candidateId;
+  },
+
+  confidenceDot(candidate) {
+    const conf = (candidate.confidence || '').toLowerCase();
+    if (conf.includes('exact') || conf.includes('strong')) {
+      return 'bg-emerald-400 dark:bg-emerald-300';
+    }
+    if (conf.includes('related') || conf.includes('partial')) {
+      return 'bg-amber-400 dark:bg-amber-300';
+    }
+    return 'bg-slate-300 dark:bg-slate-500';
+  },
+
+  entityChipIcon(candidate) {
+    const type = (candidate.entity_type || '').toLowerCase();
+    const map = {
+      contract: 'C',
+      policy: 'P',
+      vehicle: 'V',
+      claim: 'X',
+      chat: '💬',
+      organization: 'O',
+      client: 'U',
+      person: 'U',
+      user: 'S',
+    };
+    return map[type] || '?';
+  },
+
+  entityChipClass(candidate) {
+    const type = (candidate.entity_type || '').toLowerCase();
+    switch (type) {
+      case 'contract':
+      case 'policy':
+        return 'bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300';
+      case 'vehicle':
+        return 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300';
+      case 'claim':
+        return 'bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300';
+      case 'chat':
+        return 'bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-500/15 dark:text-fuchsia-300';
+      case 'organization':
+        return 'bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300';
+      case 'client':
+      case 'person':
+      case 'user':
+        return 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300';
+      default:
+        return 'bg-slate-100 text-slate-500 dark:bg-slate-500/15 dark:text-slate-400';
+    }
+  },
+
+  switchMode(toAI) {
+    this.aiMode = toAI;
+    this.$nextTick(() => {
+      this.$refs.input?.focus();
+    });
+  },
+
+  async submitAIQuery() {
+    const query = (this.query || '').trim();
+    if (!query) return;
+
+    if (this.aiActive && this.aiSessionId) {
+      // Already have a session - treat as follow-up
+      this.aiInput = query;
+      this.query = '';
+      await this.sendAIMessage();
+      return;
+    }
+
+    // Start new AI session
+    await this.triggerAI();
+  },
+
+  canSendAI() {
+    return !!this.aiSessionId && !this.aiLoading && (this.aiInput || '').trim() !== '';
+  },
+
+  async sendAIMessage() {
+    if (!this.canSendAI()) return;
+
+    const message = (this.aiInput || '').trim();
+    this.aiInput = '';
+    this.stopAIStream();
+    this.aiLoading = true;
+    this.aiError = '';
+    this.expandedChip = null;
+    this.startVerbRotation();
+
+    try {
+      const response = await fetch('/spotlight/ai/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          session_id: this.aiSessionId,
+          message,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`AI follow-up failed with ${response.status}`);
+      }
+      const payload = await response.json();
+      this.updateAISnapshot(payload);
+      if (this.aiSessionId && this.aiRunId && !payload.complete) {
+        this.startAIStream(this.aiSessionId, this.aiRunId);
+      }
+    } catch (error) {
+      console.error('spotlight ai message failed', error);
+      this.aiLoading = false;
+      this.stopVerbRotation();
+      this.aiError = this.localizedText('aiMessageFailed', 'Could not send AI message');
+    }
+  },
+
+  startAIStream(sessionId, runId) {
+    if (!sessionId || !runId) return;
+    const source = new EventSource(`/spotlight/ai/stream?session_id=${encodeURIComponent(sessionId)}&run_id=${encodeURIComponent(runId)}`);
+    this.aiEventSource = source;
+
+    source.addEventListener('update', (event) => {
+      try {
+        const payload = JSON.parse(event.data || '{}');
+        this.updateAISnapshot(payload);
+        if (payload.completed) {
+          this.stopAIStream();
+        }
+      } catch (error) {
+        console.error('spotlight ai stream update failed', error);
+      }
+    });
+
+    source.onerror = () => {
+      this.aiLoading = false;
+      this.stopAIStream();
+    };
+  },
+
+  stopAIStream() {
+    if (this.aiEventSource) {
+      this.aiEventSource.close();
+      this.aiEventSource = null;
+    }
+  },
+
+  cancelAISession() {
+    if (!this.aiSessionId) return;
+    const sessionId = this.aiSessionId;
+    const runId = this.aiRunId;
+    fetch(`/spotlight/ai/cancel?session_id=${encodeURIComponent(sessionId)}&run_id=${encodeURIComponent(runId)}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      keepalive: true,
+    }).catch(() => { });
+  },
+
+  updateAISnapshot(snapshot) {
+    this.aiSessionId = snapshot.session_id || '';
+    this.aiRunId = snapshot.run_id || '';
+    this.aiCandidates = Array.isArray(snapshot.candidates) ? snapshot.candidates : [];
+    this.aiTools = Array.isArray(snapshot.tools) ? snapshot.tools : [];
+    this.aiLoading = Boolean(snapshot.loading) && !snapshot.completed;
+    this.aiError = snapshot.error || '';
+    if (!this.aiLoading) {
+      this.stopVerbRotation();
+    }
+  },
+
+  updatePayload(payload) {
+    this.pendingCount = Number(payload.pending || 0);
+    this.stages = payload.stages || [];
+    this.setResultsHTML(payload.html || '');
+    this.isLoading = Boolean(payload.loading) && !payload.complete;
+  },
+
+  setResultsHTML(html) {
+    const list = this.$refs.results;
+    if (!list) return;
+    const items = this._items();
+    const currentItem = items[this.highlightedIndex];
+    const currentKey = currentItem?.querySelector('[data-spotlight-key]')?.dataset?.spotlightKey || '';
+
+    // Save which collapse groups were expanded (by group header text)
+    const wasExpanded = new Set();
+    list.querySelectorAll('[data-spotlight-more]').forEach((el) => {
+      if (el.style.display !== 'none') {
+        const groupKey = this._collapseGroupKey(el);
+        if (groupKey) wasExpanded.add(groupKey);
+      }
+    });
+
+    list.innerHTML = html || '';
+    this.$nextTick(() => {
+      // Initialize Alpine tree first so x-show/x-collapse are processed
+      if (window.Alpine && typeof window.Alpine.initTree === 'function') {
+        window.Alpine.initTree(list);
+      }
+
+      // Restore expanded state for collapse groups
+      if (wasExpanded.size > 0) {
+        list.querySelectorAll('[data-spotlight-more]').forEach((el) => {
+          const groupKey = this._collapseGroupKey(el);
+          if (groupKey && wasExpanded.has(groupKey)) {
+            const data = el.closest('[x-data]')?._x_dataStack?.[0];
+            if (data) data.expanded = true;
+          }
+        });
+      }
+
+      const nextItems = Array.from(this._items());
+      if (nextItems.length === 0) {
+        this.highlightedIndex = 0;
+      } else if (currentKey) {
+        const nextIndex = nextItems.findIndex((item) => item.querySelector('[data-spotlight-key]')?.dataset?.spotlightKey === currentKey);
+        this.highlightedIndex = nextIndex >= 0 ? nextIndex : 0;
+      } else if (this.highlightedIndex >= nextItems.length) {
+        this.highlightedIndex = 0;
+      }
+      // Ensure highlight lands on a visible item
+      if (nextItems.length > 0 && !this._isItemVisible(nextItems[this.highlightedIndex])) {
+        for (let i = 0; i < nextItems.length; i++) {
+          if (this._isItemVisible(nextItems[i])) {
+            this.highlightedIndex = i;
+            break;
+          }
+        }
+      }
+    });
+  },
+
+  applySuggestion(value) {
+    this.query = value || '';
+    if (this.$refs.input) {
+      this.$refs.input.focus();
+    }
+    this.search(this.query);
+  },
+
+  localeCode() {
+    return (document.documentElement.lang || 'en').toLowerCase();
+  },
+
+  localizedText(key, fallback = '') {
+    const attr = `i18n${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+    const root = this.$root || this.$el;
+    return root?.dataset?.[attr] || fallback;
+  },
+
+  translate(map) {
+    const locale = this.localeCode();
+    if (map[locale]) return map[locale];
+    const short = locale.slice(0, 2);
+    if (map[short]) return map[short];
+    return map.en;
+  },
+
+  statusLabel() {
+    if (!this.query) {
+      return '';
+    }
+    if (this.isLoading) {
+      if (this.pendingCount > 0) {
+        return `${this.localizedText('statusSearchingMore')} · ${this.pendingCount}`;
+      }
+      return this.localizedText('statusFindingMatches');
+    }
+    return this.localizedText('statusSearchComplete');
+  },
+
+  hasResults() {
+    return this._items().length > 0;
   },
 
   _items() {
-    const list = document.getElementById(this.$id('spotlight'));
+    const list = this.$refs.results || document.getElementById(this.$id('spotlight'));
     if (!list) return [];
     return list.querySelectorAll('[data-spotlight-item]');
+  },
+
+  _collapseGroupKey(moreEl) {
+    // Walk up from [data-spotlight-more] to find the nearest group header text.
+    // Structure: <li class="sticky...">TITLE</li> ... <li><ul data-spotlight-more>
+    const wrapper = moreEl.closest('li');
+    if (!wrapper) return null;
+    let sibling = wrapper.previousElementSibling;
+    while (sibling) {
+      if (sibling.classList.contains('sticky')) return sibling.textContent.trim();
+      sibling = sibling.previousElementSibling;
+    }
+    return null;
+  },
+
+  _isItemVisible(item) {
+    const more = item.closest('[data-spotlight-more]');
+    return !more || more.style.display !== 'none';
+  },
+
+  _expandCollapseFor(item) {
+    const more = item.closest('[data-spotlight-more]');
+    if (!more || more.style.display !== 'none') return;
+    const wrapper = more.closest('[x-data]');
+    const data = wrapper?._x_dataStack?.[0];
+    if (data) data.expanded = true;
   },
 
   highlightNext() {
     const items = this._items();
     if (items.length === 0) return;
-    this.highlightedIndex = (this.highlightedIndex + 1) % items.length;
+    let next = (this.highlightedIndex + 1) % items.length;
+    if (!this._isItemVisible(items[next])) {
+      this._expandCollapseFor(items[next]);
+    }
+    // Fallback: if expand failed or timing issue, skip hidden items
+    let attempts = 0;
+    while (attempts < items.length && !this._isItemVisible(items[next])) {
+      next = (next + 1) % items.length;
+      attempts++;
+    }
+    this.highlightedIndex = next;
 
     this.$nextTick(() => {
       const item = items[this.highlightedIndex];
       if (item) {
-        item.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        item.scrollIntoView({ block: 'nearest', behavior: 'auto' });
       }
     });
   },
@@ -480,12 +1196,22 @@ let spotlight = () => ({
   highlightPrevious() {
     const items = this._items();
     if (items.length === 0) return;
-    this.highlightedIndex = (this.highlightedIndex - 1 + items.length) % items.length;
+    let prev = (this.highlightedIndex - 1 + items.length) % items.length;
+    if (!this._isItemVisible(items[prev])) {
+      this._expandCollapseFor(items[prev]);
+    }
+    // Fallback: if expand failed or timing issue, skip hidden items
+    let attempts = 0;
+    while (attempts < items.length && !this._isItemVisible(items[prev])) {
+      prev = (prev - 1 + items.length) % items.length;
+      attempts++;
+    }
+    this.highlightedIndex = prev;
 
     this.$nextTick(() => {
       const item = items[this.highlightedIndex];
       if (item) {
-        item.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        item.scrollIntoView({ block: 'nearest', behavior: 'auto' });
       }
     });
   },
@@ -511,6 +1237,7 @@ let datePicker = ({
   selectorType = 'day',
   selected = [],
 } = {}) => ({
+  fp: null,
   selected: [],
   localeMap: {
     ru: {
@@ -528,32 +1255,32 @@ let datePicker = ({
     labelFormat = labelFormat || 'F j, Y';
     dateFormat = dateFormat || 'z';
 
-    let {default: flatpickr} = await import("./lib/flatpickr/index.js");
+    let { default: flatpickr } = await import("./lib/flatpickr/index.js");
     let found = this.localeMap[locale];
     if (found) {
-      let {default: localeData} = await import(`./lib/flatpickr/locales/${found.path}`);
+      let { default: localeData } = await import(`./lib/flatpickr/locales/${found.path}`);
       flatpickr.localize(localeData[found.key]);
     }
     let plugins = [];
     if (selectorType === 'month') {
-      let {default: monthSelect} = await import('./lib/flatpickr/plugins/month-select.js');
+      let { default: monthSelect } = await import('./lib/flatpickr/plugins/month-select.js');
       plugins.push(monthSelect({
         altFormat: labelFormat,
         dateFormat: dateFormat,
         shortHand: true,
       }))
     } else if (selectorType === 'week') {
-      let {default: weekSelect} = await import('./lib/flatpickr/plugins/week-select.js');
+      let { default: weekSelect } = await import('./lib/flatpickr/plugins/week-select.js');
       plugins.push(weekSelect())
     } else if (selectorType === 'year') {
-      let {default: yearSelect} = await import('./lib/flatpickr/plugins/year-select.js');
+      let { default: yearSelect } = await import('./lib/flatpickr/plugins/year-select.js');
       plugins.push(yearSelect())
     }
     if (selected) {
       this.selected = selected;
     }
     let self = this;
-    flatpickr(this.$refs.input, {
+    this.fp = flatpickr(this.$refs.input, {
       altInput: true,
       static: true,
       altInputClass: "form-control-input input outline-none w-full",
@@ -566,38 +1293,50 @@ let datePicker = ({
       plugins,
       onChange(selected = []) {
         let formattedDates = selected.map((s) => flatpickr.formatDate(s, dateFormat));
-        if (!formattedDates.length) {
-          self.selected = [];
-          self.$nextTick(() => {
-            self.$el.dispatchEvent(new CustomEvent('date-selected', {
-              bubbles: true,
-              detail: {selected: self.selected}
-            }));
-          });
+        if (JSON.stringify(self.selected) === JSON.stringify(formattedDates)) {
           return;
         }
-        if (mode === 'single') {
+        if (!formattedDates.length) {
+          self.selected = [];
+        } if (mode === 'single') {
           self.selected = [formattedDates[0]];
         } else if (mode === 'range') {
           if (formattedDates.length === 2) self.selected = formattedDates;
+          else return;
         } else {
-          self.selected = formattedDates;
+          self.selected = formattedDates
         }
-        // Dispatch custom event for HTMX integration
         self.$nextTick(() => {
           self.$el.dispatchEvent(new CustomEvent('date-selected', {
             bubbles: true,
-            detail: {selected: self.selected}
+            detail: { selected: self.selected }
           }));
         });
       },
     });
+
+    this.$watch("selected", (newVal) => {
+      if (!this.fp) return;
+      if (!newVal || newVal.length === 0) {
+        this.fp.clear();
+        return;
+      }
+      let currentFpDates = this.fp.selectedDates.map(d =>
+        flatpickr.formatDate(d, dateFormat)
+      );
+      if (JSON.stringify(newVal) != JSON.stringify(currentFpDates)) {
+        this.fp.setDate(newVal, false);
+      }
+    })
+  },
+  destroy() {
+    if (this.fp) this.fp.destroy();
   }
 })
 
 let navTabs = (defaultValue = '') => ({
   activeTab: defaultValue,
-  backgroundStyle: {left: 0, width: 0, opacity: 0},
+  backgroundStyle: { left: 0, width: 0, opacity: 0 },
   restoreHandler: null,
 
   init() {
@@ -624,7 +1363,7 @@ let navTabs = (defaultValue = '') => ({
     this.activeTab = tabValue;
     this.$nextTick(() => this.updateBackground());
     // Emit event for parent components to handle
-    this.$dispatch('tab-changed', {value: tabValue});
+    this.$dispatch('tab-changed', { value: tabValue });
   },
 
   updateBackground() {
@@ -675,13 +1414,102 @@ window.initSidebarCollapsed = function() {
   return false;
 }
 
-let createAnchoredOverlayPositioner = ({gap = 8, minTop = 8} = {}) => ({
+let createAnchoredOverlayPositioner = ({ gap = 8, minTop = 8 } = {}) => ({
   rightStart(anchorEl) {
     if (!anchorEl) return null;
     const rect = anchorEl.getBoundingClientRect();
     return {
       left: rect.right + gap,
       top: Math.max(minTop, rect.top),
+    };
+  },
+});
+
+let sidebarCollapsedMenus = () => ({
+  menusByNav: {},
+  overlayPositioner: createAnchoredOverlayPositioner({ gap: 8, minTop: 8 }),
+
+  open(navKey, anchorEl, groupId, depth, isCollapsed) {
+    if (!isCollapsed || !navKey || !groupId || Number.isNaN(depth)) return;
+
+    const menus = this.menusByNav[navKey] || [];
+    const current = menus[depth];
+    if (current && current.id === groupId) {
+      this.setMenus(navKey, menus.slice(0, depth));
+      return;
+    }
+
+    const position = this.overlayPositioner.rightStart(anchorEl);
+    if (!position) return;
+
+    const nextMenus = menus.slice(0, depth);
+    nextMenus[depth] = {
+      id: groupId,
+      left: position.left,
+      top: position.top,
+    };
+    this.setMenus(navKey, nextMenus);
+  },
+
+  close(navKey) {
+    if (!navKey || !this.menusByNav[navKey]) return;
+
+    const next = { ...this.menusByNav };
+    delete next[navKey];
+    this.menusByNav = next;
+  },
+
+  closeAll() {
+    this.menusByNav = {};
+  },
+
+  setMenus(navKey, menus) {
+    const next = { ...this.menusByNav };
+    if (menus.length === 0) {
+      delete next[navKey];
+    } else {
+      next[navKey] = menus;
+    }
+    this.menusByNav = next;
+  },
+
+  navKeyForElement(el) {
+    if (!el) return "";
+
+    return el.dataset.sidebarNavInstanceId || "";
+  },
+
+  menuForElement(el) {
+    if (!el) return null;
+
+    const navKey = this.navKeyForElement(el);
+    const groupId = el.dataset.groupId;
+    const depth = Number(el.dataset.depth || 0);
+    // Read the reactive store map unconditionally so Alpine tracks `menusByNav`
+    // as a dependency even on the first evaluation — when a teleported flyout's
+    // x-bind dataset attributes are not applied yet and navKey is still empty.
+    // Without this, the early return below skips the reactive read and x-show
+    // never re-evaluates after the store updates (collapsed flyouts never open).
+    const menusForNav = this.menusByNav[navKey];
+    if (!navKey || !groupId || Number.isNaN(depth)) return null;
+
+    const menu = menusForNav?.[depth];
+    if (!menu || menu.id !== groupId) return null;
+
+    return menu;
+  },
+
+  isOpenFor(el) {
+    return Boolean(this.menuForElement(el));
+  },
+
+  styleFor(el) {
+    const menu = this.menuForElement(el);
+    if (!menu) return {};
+
+    return {
+      left: `${menu.left}px`,
+      top: `${menu.top}px`,
     };
   },
 });
@@ -725,7 +1553,7 @@ let sidebarShell = () => ({
       if (this.storedTab && this.$el.querySelector('[role="tablist"]')) {
         // Wait a bit for navTabs to initialize
         setTimeout(() => {
-          this.$dispatch('restore-tab', {value: this.storedTab});
+          this.$dispatch('restore-tab', { value: this.storedTab });
         }, 100);
       }
     });
@@ -733,75 +1561,48 @@ let sidebarShell = () => ({
 })
 
 let sidebarNavigation = () => ({
-  collapsedMenus: [],
+  navID: "",
+  navInstanceID: "",
   outsideClickHandler: null,
   escapeHandler: null,
-  overlayPositioner: createAnchoredOverlayPositioner({gap: 8, minTop: 8}),
 
   onCollapsedGroupTrigger(event) {
     const trigger = event.currentTarget;
     if (!trigger) return;
 
+    const navKey = trigger.dataset.sidebarNavInstanceId || this.navInstanceID;
     const groupId = trigger.dataset.groupId;
     const depth = Number(trigger.dataset.depth || 0);
     if (!groupId || Number.isNaN(depth)) return;
 
-    this.openCollapsedMenu(trigger, groupId, depth);
+    this.openCollapsedMenu(navKey, trigger, groupId, depth);
   },
 
-  openCollapsedMenu(anchorEl, groupId, depth) {
-    if (!this.isCollapsed) return;
-
-    const current = this.collapsedMenus[depth];
-    if (current && current.id === groupId) {
-      this.collapsedMenus = this.collapsedMenus.slice(0, depth);
-      return;
-    }
-
-    const position = this.overlayPositioner.rightStart(anchorEl);
-    if (!position) return;
-
-    this.collapsedMenus = this.collapsedMenus.slice(0, depth);
-    this.collapsedMenus[depth] = {
-      id: groupId,
-      left: position.left,
-      top: position.top,
-    };
+  openCollapsedMenu(navKey, anchorEl, groupId, depth) {
+    this.$store.sidebarCollapsedMenus.open(navKey, anchorEl, groupId, depth, this.isCollapsed);
   },
 
   closeCollapsedMenus() {
-    this.collapsedMenus = [];
+    this.$store.sidebarCollapsedMenus.close(this.navInstanceID);
   },
 
   isCollapsedMenuOpen(groupId, depth) {
-    return this.isCollapsed && this.collapsedMenus[depth]?.id === groupId;
+    if (!this.isCollapsed) return false;
+
+    const menu = this.$store.sidebarCollapsedMenus.menusByNav[this.navInstanceID]?.[depth];
+    return menu?.id === groupId;
   },
 
   isCollapsedMenuOpenFor(el) {
-    if (!el) return false;
-    const groupId = el.dataset.groupId;
-    const depth = Number(el.dataset.depth || 0);
-    if (!groupId || Number.isNaN(depth)) return false;
-    return this.isCollapsedMenuOpen(groupId, depth);
+    return this.isCollapsed && this.$store.sidebarCollapsedMenus.isOpenFor(el);
   },
 
   collapsedMenuStyleFor(el) {
-    if (!el) return {};
-    const groupId = el.dataset.groupId;
-    const depth = Number(el.dataset.depth || 0);
-    if (!groupId || Number.isNaN(depth)) return {};
-    if (!this.isCollapsedMenuOpen(groupId, depth)) {
-      return {};
-    }
-    const menu = this.collapsedMenus[depth];
-    return {
-      left: `${menu.left}px`,
-      top: `${menu.top}px`,
-    };
+    return this.$store.sidebarCollapsedMenus.styleFor(el);
   },
 
   handleCollapsedMenuOutsideClick(event) {
-    if (!this.isCollapsed || this.collapsedMenus.length === 0) return;
+    if (!this.isCollapsed || Object.keys(this.$store.sidebarCollapsedMenus.menusByNav).length === 0) return;
 
     const target = event.target;
     if (
@@ -821,6 +1622,9 @@ let sidebarNavigation = () => ({
   },
 
   initSidebarNavigation() {
+    this.navID = this.$el.dataset.sidebarNavId || this.$el.id || "";
+    this.navInstanceID = `${this.navID || 'sidebar-nav'}-${Math.random().toString(36).slice(2)}`;
+    this.$el.dataset.sidebarNavInstanceId = this.navInstanceID;
     this.outsideClickHandler = this.handleCollapsedMenuOutsideClick.bind(this);
     this.escapeHandler = this.handleCollapsedMenuEscape.bind(this);
     document.addEventListener('click', this.outsideClickHandler);
@@ -834,6 +1638,7 @@ let sidebarNavigation = () => ({
   },
 
   destroy() {
+    this.closeCollapsedMenus();
     if (this.outsideClickHandler) {
       document.removeEventListener('click', this.outsideClickHandler);
       this.outsideClickHandler = null;
@@ -882,11 +1687,11 @@ let disableFormElementsWhen = (query) => ({
   }
 })
 
-let editableTableRows = ({rows, emptyRow} = {rows: [], emptyRow: ''}) => ({
+let editableTableRows = ({ rows, emptyRow } = { rows: [], emptyRow: '' }) => ({
   emptyRow,
   rows,
   addRow() {
-    this.rows.push({id: Math.random().toString(32).slice(2), html: this.emptyRow})
+    this.rows.push({ id: Math.random().toString(32).slice(2), html: this.emptyRow })
   },
   removeRow(id) {
     this.rows = this.rows.filter((row) => row.id !== id);
@@ -986,7 +1791,7 @@ let moneyInput = (config = {}) => ({
     if (hiddenInput) {
       hiddenInput.dispatchEvent(new CustomEvent('money-changed', {
         bubbles: true,
-        detail: {amountInCents: this.amountInCents}
+        detail: { amountInCents: this.amountInCents }
       }));
     }
   },
@@ -1024,7 +1829,7 @@ let moneyInput = (config = {}) => ({
   }
 });
 
-let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
+let dateRangeButtons = ({ formID, hiddenStartID, hiddenEndID } = {}) => ({
   formatDate(d) {
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -1052,7 +1857,7 @@ let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
         if (typeof htmx !== 'undefined') {
           htmx.trigger(form, 'dateRangeChange');
         } else {
-          const event = new Event('change', {bubbles: true});
+          const event = new Event('change', { bubbles: true });
           form.dispatchEvent(event);
         }
       }, 50);
@@ -1104,7 +1909,7 @@ let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
         if (typeof htmx !== 'undefined') {
           htmx.trigger(form, 'dateRangeChange');
         } else {
-          const event = new Event('change', {bubbles: true});
+          const event = new Event('change', { bubbles: true });
           form.dispatchEvent(event);
         }
       }, 50);
@@ -1153,7 +1958,7 @@ function createPermissionSetData(allChecked, someChecked, permissionIds, setId) 
       checkboxes.forEach(checkbox => {
         if (checkbox) {
           checkbox.checked = checked;
-          checkbox.dispatchEvent(new Event('change', {bubbles: true}));
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         }
       });
 
@@ -1222,7 +2027,7 @@ function createPermissionFormData(allChecked, someChecked, permissionIds) {
       const checkboxes = this.getPermissionCheckboxes();
       checkboxes.forEach(checkbox => {
         checkbox.checked = checked;
-        checkbox.dispatchEvent(new Event('change', {bubbles: true}));
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
       });
 
       this.updateVisualToggle();
@@ -1376,6 +2181,9 @@ let tableConfig = (id) => ({
     let col = this.columns.find(c => c.key === colKey);
     if (!col) return;
     col.visible = !col.visible;
+    // Mark as user-controlled so an explicit show overrides responsive
+    // (max-*:hidden) auto-hiding via inline display.
+    col.userSet = true;
     this.save();
     this.applyConfiguration();
   },
@@ -1385,13 +2193,44 @@ let tableConfig = (id) => ({
       return;
     }
     if (fromIndex === toIndex) return;
+    // Sticky (pinned) columns are fixed walls: a column may not be reordered
+    // across one. Clamp the target into the segment bounded by the nearest
+    // sticky columns on each side of the source position.
+    if (this.columns[fromIndex] && this.columns[fromIndex].sticky) return;
+    let lo = 0, hi = this.columns.length - 1;
+    for (let i = 0; i < this.columns.length; i++) {
+      if (!this.columns[i] || !this.columns[i].sticky) continue;
+      if (i < fromIndex) lo = Math.max(lo, i + 1);
+      else if (i > fromIndex) hi = Math.min(hi, i - 1);
+    }
+    toIndex = Math.max(lo, Math.min(hi, toIndex));
+    if (fromIndex === toIndex) return;
     let [col] = this.columns.splice(fromIndex, 1);
     this.columns.splice(toIndex, 0, col);
+    this.columns = this.normalizeColumnOrder(this.columns);
     if (sync) {
-      this.fixedColumns = this.columns;
+      this.fixedColumns = [...this.columns];
     }
     this.save();
     this.applyConfiguration();
+  },
+
+  normalizeColumnOrder(columns) {
+    let leftSticky = [];
+    let regular = [];
+    let rightSticky = [];
+
+    columns.forEach(col => {
+      if (col.stickyPos === 'left') {
+        leftSticky.push(col);
+      } else if (col.stickyPos === 'right') {
+        rightSticky.push(col);
+      } else {
+        regular.push(col);
+      }
+    });
+
+    return [...leftSticky, ...regular, ...rightSticky];
   },
 
   reorderRow(row) {
@@ -1409,8 +2248,14 @@ let tableConfig = (id) => ({
       let cell = cellMap.get(col.key);
       if (cell) {
         if (!col.visible) {
+          // Explicitly hidden by the user.
           cell.style.display = 'none';
+        } else if (col.userSet) {
+          // User explicitly showed it: force visible, beating the
+          // responsive max-*:hidden class.
+          cell.style.display = 'table-cell';
         } else {
+          // Let CSS (incl. responsive priority classes) govern visibility.
           cell.style.display = '';
         }
         fragment.appendChild(cell);
@@ -1473,7 +2318,13 @@ let tableConfig = (id) => ({
           mergedColumns.push({
             ...domCol,
             sticky: savedCol.sticky != undefined ? savedCol.sticky : domCol.sticky,
+            stickyPos: domCol.stickyPos,
             visible: savedCol.visible != undefined ? savedCol.visible : true,
+            // userSet defaults to false for legacy configs that predate it.
+            userSet: savedCol.userSet === true,
+            // priority ALWAYS comes from the DOM (never stale localStorage) so
+            // developer-changed priorities take effect on next render.
+            priority: domCol.priority,
           });
         }
       });
@@ -1484,10 +2335,10 @@ let tableConfig = (id) => ({
         }
       });
 
-      return mergedColumns;
+      return this.normalizeColumnOrder(mergedColumns);
     } catch (e) {
       console.error('Failed to parse saved table config:', e);
-      return domColumns;
+      return this.normalizeColumnOrder(domColumns);
     }
   },
 
@@ -1504,14 +2355,31 @@ let tableConfig = (id) => ({
     headerCells.forEach((th, index) => {
       let key = th.dataset.col || `col-${index}`;
       let sticky = th.dataset.colSticky != undefined;
+      let stickyPos = '';
+      if (sticky) {
+        let className = th.getAttribute('class') || '';
+        if (className.includes('right-0')) {
+          stickyPos = 'right';
+        } else if (className.includes('left-0')) {
+          stickyPos = 'left';
+        }
+      }
+      let defaultHidden = th.dataset.colHidden != undefined;
+      let priority = parseInt(th.dataset.colPriority || '0', 10) || 0;
       columns.push({
         key,
         label: th.textContent.trim(),
         sticky,
+        stickyPos,
+        priority,
+        // userSet tracks whether the user explicitly toggled this column,
+        // which lets an explicit "show" override responsive auto-hiding.
+        userSet: false,
+        visible: !defaultHidden,
       });
     });
 
-    return columns;
+    return this.normalizeColumnOrder(columns);
   },
 
 
@@ -1521,8 +2389,12 @@ let tableConfig = (id) => ({
   },
 
   save() {
-    let config = JSON.stringify({key: this.key, columns: this.columns, grid: this.grid});
-    window.localStorage.setItem(this.key, config);
+    let config = JSON.stringify({ key: this.key, columns: this.columns, grid: this.grid });
+    try {
+      window.localStorage.setItem(this.key, config);
+    } catch (e) {
+      console.warn('Failed to save table config:', e);
+    }
     return config;
   },
 
@@ -1540,6 +2412,7 @@ let tableConfig = (id) => ({
 
     this.columns = this.syncConfiguration(this.columns);
     this.fixedColumns = [...this.columns];
+    this.save();
     this.applyConfiguration();
     this.applyGridClasses();
 
@@ -1556,7 +2429,7 @@ let tableConfig = (id) => ({
     });
 
     for (let body of tBodies) {
-      this.observer.observe(body, {childList: true});
+      this.observer.observe(body, { childList: true });
     }
   },
 
@@ -1565,28 +2438,329 @@ let tableConfig = (id) => ({
   },
 })
 
-document.addEventListener("alpine:init", () => {
-  Alpine.data("dateTimeFormat", dateTimeFormat)
-  Alpine.data("relativeformat", relativeFormat);
-  Alpine.data("passwordVisibility", passwordVisibility);
-  Alpine.data("dialog", dialog);
-  Alpine.data("combobox", combobox);
-  Alpine.data("filtersDropdown", filtersDropdown);
-  Alpine.data("checkboxes", checkboxes);
-  Alpine.data("spotlight", spotlight);
-  Alpine.data("dateFns", dateFns);
-  Alpine.data("datePicker", datePicker);
-  Alpine.data("navTabs", navTabs);
-  Alpine.data("sidebarShell", sidebarShell);
-  Alpine.data("sidebarNavigation", sidebarNavigation);
-  Alpine.data("disableFormElementsWhen", disableFormElementsWhen);
-  Alpine.data("editableTableRows", editableTableRows);
-  Alpine.data("kanban", kanban);
-  Alpine.data("moneyInput", moneyInput);
-  Alpine.data("dateRangeButtons", dateRangeButtons);
-  Alpine.data("createPermissionFormData", createPermissionFormData);
-  Alpine.data("createPermissionSetData", createPermissionSetData);
-  Alpine.data("fillerRows", fillerRows);
-  Alpine.data("tableConfig", tableConfig);
-  Sortable(Alpine);
+// cellTruncate enables a tooltip ONLY when a truncated cell's content actually
+// overflows. x-tooltip (Tippy) disables itself when overflowText is falsy.
+let cellTruncate = () => ({
+  overflowText: '',
+  init() {
+    this._measure = () => {
+      const el = this.$el;
+      if (!el) return;
+      this.overflowText = el.scrollWidth > el.clientWidth ? el.textContent.trim() : '';
+    };
+    // Coalesce ResizeObserver callbacks into a single rAF so a burst of resize
+    // notifications (container reflow, gear toggles) does one layout read, not
+    // a forced reflow per callback.
+    this._schedule = () => {
+      if (this._raf) return;
+      this._raf = requestAnimationFrame(() => { this._raf = 0; this._measure(); });
+    };
+    this.$nextTick(() => this._measure());
+    this._ro = new ResizeObserver(() => this._schedule());
+    this._ro.observe(this.$el);
+  },
+  destroy() {
+    if (this._ro) this._ro.disconnect();
+    if (this._raf) cancelAnimationFrame(this._raf);
+  },
 });
+
+// scrollAffordance powers the horizontal scroll gradient overlays for the plain
+// (non-ScrollbarUnderHeader) table wrapper. The ScrollbarUnderHeader branch
+// folds this logic into its own inline x-data instead.
+let scrollAffordance = () => ({
+  canScrollLeft: false,
+  canScrollRight: false,
+  stickyR: 0,
+  init() {
+    this.sc = this.$refs.sc;
+    if (!this.sc) return;
+    this.$nextTick(() => this.measure());
+    this._ro = new ResizeObserver(() => this.measure());
+    this._ro.observe(this.sc);
+    this._mo = new MutationObserver(() => requestAnimationFrame(() => this.measure()));
+    this._mo.observe(this.sc.querySelector('tbody') || this.sc, { childList: true, subtree: true });
+  },
+  destroy() {
+    if (this._ro) this._ro.disconnect();
+    if (this._mo) this._mo.disconnect();
+  },
+  measure() {
+    const sc = this.sc;
+    if (!sc || !sc.isConnected) return;
+    let sr = 0;
+    sc.querySelectorAll('thead th').forEach(th => {
+      const s = getComputedStyle(th);
+      if (s.position === 'sticky' && s.right !== 'auto') sr += th.offsetWidth;
+    });
+    this.stickyR = sr;
+    this.onScroll();
+  },
+  onScroll() {
+    const sc = this.sc;
+    if (!sc) return;
+    this.canScrollLeft = sc.scrollLeft > 0;
+    this.canScrollRight = sc.scrollLeft + sc.clientWidth < sc.scrollWidth - 1;
+  },
+});
+
+// emptyStateCentering keeps the table empty-state centered in the visible
+// horizontal scroll viewport. The empty-state lives in a <td> that spans the
+// full (often much wider than the screen) table, so a plain justify-center
+// centers it across the entire scroll width and pushes it off to the right /
+// clips it. We pin the wrapper sticky to the scrollport's left edge and size it
+// to the scroll container's visible width so its own justify-center lands in
+// view. Mirrors scrollAffordance's ResizeObserver approach; works for both
+// scroll-wrapper variants since the wrapper is always the <table>'s parent.
+let emptyStateCentering = () => ({
+  init() {
+    const table = this.$el.closest("table");
+    this.sc = table && table.parentElement;
+    this.measure = () => {
+      if (!this.sc || !this.sc.isConnected) return;
+      this.$el.style.width = this.sc.clientWidth + "px";
+    };
+    this.$nextTick(() => this.measure());
+    if (this.sc) {
+      this._ro = new ResizeObserver(() => this.measure());
+      this._ro.observe(this.sc);
+    }
+  },
+  destroy() {
+    if (this._ro) this._ro.disconnect();
+  },
+});
+Alpine.data("emptyStateCentering", emptyStateCentering);
+
+// tableKeyboardNav adds arrow-key row navigation + Enter-to-open for drawer
+// rows. Attached to the TBODY (not the configurable container) to avoid x-data
+// collision with tableConfig. It acts only when focus is on a [data-row-drawer]
+// row, so drawerless tables and inputs are never affected.
+let tableKeyboardNav = () => ({
+  lastRow: null,
+  init() {
+    this._onDrawerClosed = (event) => {
+      // Only react when the swap actually targeted the drawer, otherwise
+      // unrelated table swaps (infinite-scroll, filter, search) would steal
+      // focus back to the last clicked row.
+      if (event?.detail?.target?.id !== 'view-drawer') return;
+      const drawer = document.getElementById('view-drawer');
+      const empty = !drawer || drawer.children.length === 0;
+      if (empty && this.lastRow && this.lastRow.isConnected) {
+        this.lastRow.focus();
+      }
+    };
+    // Refocus the originating row when the drawer is cleared/closed.
+    document.addEventListener('htmx:afterSwap', this._onDrawerClosed);
+  },
+  destroy() {
+    document.removeEventListener('htmx:afterSwap', this._onDrawerClosed);
+  },
+  rows() {
+    return Array.from(this.$el.querySelectorAll('[data-row-drawer]'));
+  },
+  onKey(e) {
+    const active = document.activeElement;
+    if (!active || !active.matches || !active.matches('[data-row-drawer]')) return;
+    // Guard against the handler running more than once for the same keypress
+    // (e.g. if htmx-alpine-init re-initialises the tbody and binds a second
+    // @keydown listener). Both listeners share the event object, so a one-shot
+    // flag keeps a single ArrowDown/ArrowUp to exactly one row of movement.
+    if (e.__rowNavHandled) return;
+    const rows = this.rows();
+    const idx = rows.indexOf(active);
+    if (idx === -1) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+      e.__rowNavHandled = true;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = rows[idx + 1];
+      if (next) next.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = rows[idx - 1];
+      if (prev) prev.focus();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      this.lastRow = active;
+      active.click();
+    }
+  },
+});
+
+// filterBuilder powers components/scaffold/filterbuilder: a chip-based
+// filter constructor. Chips are server-rendered; this factory only manages
+// popover state, writes the hidden `f` inputs (pkg/filterq URL codec) and
+// dispatches a bubbling `filter-changed` event so the enclosing HTMX form
+// resubmits.
+let filterBuilder = () => ({
+  adding: false,
+  editing: null, // chip index with an open edit popover
+  draftField: null, // field key picked in the add popover (stage 2)
+  fieldSearch: '',
+  openAdd() {
+    this.editing = null;
+    this.draftField = null;
+    this.fieldSearch = '';
+    this.adding = !this.adding;
+    if (this.adding) this.$nextTick(() => this.$refs.fieldSearchInput?.focus());
+  },
+  edit(i) {
+    this.adding = false;
+    this.draftField = null;
+    this.editing = this.editing === i ? null : i;
+  },
+  closeAll() {
+    this.adding = false;
+    this.editing = null;
+    this.draftField = null;
+  },
+  fieldMatches(el) {
+    const q = this.fieldSearch.trim().toLowerCase();
+    return !q || (el.dataset.fbLabel || '').toLowerCase().includes(q);
+  },
+  // groupMatches hides a whole field group (incl. its header) when the search
+  // filters out every field in it, so no empty group heading lingers.
+  groupMatches(el) {
+    const q = this.fieldSearch.trim().toLowerCase();
+    if (!q) return true;
+    return Array.from(el.querySelectorAll('[data-fb-label]'))
+      .some((n) => (n.dataset.fbLabel || '').toLowerCase().includes(q));
+  },
+  // Mirror of pkg/filterq EncodeCondition. Encode-only on purpose: decoding
+  // lives exclusively in Go, the server re-render is the source of truth.
+  encode({ field, op, values }) {
+    const esc = (v) => String(v).replaceAll('%', '%25').replaceAll(',', '%2C');
+    return field + ':' + op + ':' + values.map(esc).join(',');
+  },
+  applyFlag(field) {
+    this.onApply({ field, op: 'is', values: ['true'], chip: -1 });
+  },
+  onApply(detail) {
+    if (!detail || !detail.values || !detail.values.length) return;
+    const enc = this.encode(detail);
+    if (detail.chip >= 0) {
+      const input = this.$root.querySelector(`input[name="f"][data-fb-chip="${detail.chip}"]`);
+      if (input) input.value = enc;
+    } else {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'f';
+      input.value = enc;
+      this.$root.appendChild(input);
+    }
+    this.closeAll();
+    this.submit();
+  },
+  remove(i) {
+    // Capture nodes before deferring: Alpine magics ($root) are unavailable
+    // inside the $nextTick callback, and removing the wrapper (which contains
+    // the clicked button) synchronously would trip Alpine on the orphaned
+    // node and abort before the submit.
+    const root = this.$root;
+    const input = root.querySelector(`input[name="f"][data-fb-chip="${i}"]`);
+    const wrapper = input?.closest('[data-fb-chip-wrapper]');
+    this.closeAll();
+    this.$nextTick(() => {
+      wrapper?.remove();
+      root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+    });
+  },
+  clearAll() {
+    const root = this.$root;
+    this.closeAll();
+    this.$nextTick(() => {
+      root.querySelectorAll('[data-fb-chip-wrapper]').forEach((el) => el.remove());
+      root.querySelectorAll('input[name="f"]').forEach((el) => el.remove());
+      root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+    });
+  },
+  submit() {
+    this.$root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+  },
+});
+
+// fbPanel is the polymorphic operator+value editor inside filterBuilder
+// popovers. It collects values from its nameless embedded controls and hands
+// them up to filterBuilder via the `fb-apply` event.
+let fbPanel = (cfg = {}) => ({
+  op: cfg.op,
+  preset: cfg.preset || '',
+  apply() {
+    const values = this.collect();
+    if (!values.length) return;
+    this.$dispatch('fb-apply', { field: cfg.field, op: this.op, values, chip: cfg.chip });
+  },
+  applyPreset(token) {
+    this.op = 'between';
+    this.preset = token;
+    this.$dispatch('fb-apply', {
+      field: cfg.field,
+      op: 'between',
+      values: ['preset:' + token],
+      chip: cfg.chip,
+    });
+  },
+  variantEl() {
+    const variant = this.op === 'between' ? 'range' : 'single';
+    return this.$root.querySelector(`[data-fb-variant="${variant}"]`);
+  },
+  collect() {
+    switch (cfg.type) {
+      case 'reference': {
+        const select = this.$root.querySelector('select[multiple]');
+        return Array.from(select?.selectedOptions ?? [])
+          .map((o) => o.value)
+          .filter((v) => v && !v.startsWith('__group:'));
+      }
+      case 'date': {
+        // Select the DatePicker's canonical value inputs by their explicit
+        // `data-datepicker-value` attribute rather than excluding flatpickr's
+        // internal `.flatpickr-input` class. flatpickr's altInput mode leaves a
+        // hidden original input (the joined "from — to" display string) in the
+        // DOM; reading it as a 3rd value breaks the `between` arity check and
+        // the condition is silently dropped (no chip, filter not applied).
+        // Targeting the attribute we own yields exactly the 2 range values
+        // (or the 1 single value) and is robust to flatpickr's class internals.
+        const inputs = this.variantEl()?.querySelectorAll('input[type="hidden"][data-datepicker-value]') ?? [];
+        return Array.from(inputs).map((i) => i.value).filter(Boolean);
+      }
+      case 'number': {
+        const inputs = this.variantEl()?.querySelectorAll('input[data-fb-value]') ?? [];
+        return Array.from(inputs).map((i) => i.value.trim()).filter(Boolean);
+      }
+    }
+    return [];
+  },
+});
+
+Alpine.data("dateTimeFormat", dateTimeFormat)
+Alpine.data("relativeformat", relativeFormat);
+Alpine.data("passwordVisibility", passwordVisibility);
+Alpine.data("dialog", dialog);
+Alpine.data("combobox", combobox);
+Alpine.data("filtersDropdown", filtersDropdown);
+Alpine.data("checkboxes", checkboxes);
+Alpine.data("spotlight", spotlight);
+Alpine.data("dateFns", dateFns);
+Alpine.data("datePicker", datePicker);
+Alpine.data("navTabs", navTabs);
+Alpine.store("sidebarCollapsedMenus", sidebarCollapsedMenus());
+Alpine.data("sidebarShell", sidebarShell);
+Alpine.data("sidebarNavigation", sidebarNavigation);
+Alpine.data("disableFormElementsWhen", disableFormElementsWhen);
+Alpine.data("editableTableRows", editableTableRows);
+Alpine.data("kanban", kanban);
+Alpine.data("moneyInput", moneyInput);
+Alpine.data("dateRangeButtons", dateRangeButtons);
+Alpine.data("createPermissionFormData", createPermissionFormData);
+Alpine.data("createPermissionSetData", createPermissionSetData);
+Alpine.data("fillerRows", fillerRows);
+Alpine.data("tableConfig", tableConfig);
+Alpine.data("cellTruncate", cellTruncate);
+Alpine.data("scrollAffordance", scrollAffordance);
+Alpine.data("tableKeyboardNav", tableKeyboardNav);
+Alpine.data("filterBuilder", filterBuilder);
+Alpine.data("fbPanel", fbPanel);
+Sortable(Alpine);

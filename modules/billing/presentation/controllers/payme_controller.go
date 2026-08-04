@@ -14,7 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	paymeapi "github.com/iota-uz/payme"
 	paymeauth "github.com/iota-uz/payme/auth"
@@ -22,16 +22,14 @@ import (
 )
 
 type PaymeController struct {
-	app            application.Application
 	billingService *services.BillingService
-	payme          configuration.PaymeOptions
+	payme          paymentsconfig.PaymeConfig
 	basePath       string
 }
 
-func NewPaymeController(app application.Application, payme configuration.PaymeOptions, basePath string) application.Controller {
+func NewPaymeController(billingService *services.BillingService, payme paymentsconfig.PaymeConfig, basePath string) application.Controller {
 	return &PaymeController{
-		app:            app,
-		billingService: app.Service(services.BillingService{}).(*services.BillingService),
+		billingService: billingService,
 		payme:          payme,
 		basePath:       basePath,
 	}
@@ -42,8 +40,8 @@ func (c *PaymeController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Handle))
 }
 
-func (c *PaymeController) Key() string {
-	return c.basePath
+func (c *PaymeController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("billing.payme", 0, application.Route("", c.basePath))
 }
 
 func (c *PaymeController) Handle(
@@ -274,13 +272,12 @@ func (c *PaymeController) create(ctx context.Context, r *paymeapi.CreateTransact
 		billing.Payme,
 		filters,
 	)
-	if err != nil || len(entities) != 1 {
+	entity, ok := activePaymeTransaction(entities)
+	if err != nil || !ok {
 		logger.WithError(err).WithField("transaction_id", r.Id).Error("Invalid account in CreateTransaction")
 		errRPC := paymeapi.InvalidAccountError()
 		return nil, &errRPC
 	}
-
-	entity := entities[0]
 
 	amount := r.Amount / 100
 	if math.Abs(entity.Amount().Quantity()-amount) >= 1e-9 {
@@ -456,13 +453,12 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 		billing.Payme,
 		filters,
 	)
-	if err != nil || len(entities) != 1 {
+	entity, ok := activePaymeTransaction(entities)
+	if err != nil || !ok {
 		logger.WithError(err).Error("Invalid account in CheckPerformTransaction")
 		errRPC := paymeapi.CheckPerformTransactionInvalidAccountError()
 		return nil, &errRPC
 	}
-
-	entity := entities[0]
 
 	amount := r.Amount / 100
 	if math.Abs(entity.Amount().Quantity()-amount) >= 1e-9 {
@@ -509,6 +505,21 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 	return &paymeapi.CheckPerformTransactionResponse{
 		Allow: true,
 	}, nil
+}
+
+func activePaymeTransaction(entities []billing.Transaction) (billing.Transaction, bool) {
+	var selected billing.Transaction
+	for _, entity := range entities {
+		if !entity.Status().IsActive() {
+			continue
+		}
+		if selected != nil {
+			return nil, false
+		}
+		selected = entity
+	}
+
+	return selected, selected != nil
 }
 
 func (c *PaymeController) perform(ctx context.Context, r *paymeapi.PerformTransactionRequest, logger *logrus.Entry) (*paymeapi.PerformTransactionResponse, *paymeapi.JSONRPCErrorResponseError) {

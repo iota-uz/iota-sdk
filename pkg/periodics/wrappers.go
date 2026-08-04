@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime/debug"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -164,12 +165,13 @@ func MetricsWrapper(taskName string, collector *MetricsCollector) cron.JobWrappe
 			defer func() {
 				duration := time.Since(start)
 				if r := recover(); r != nil {
+					stack := string(debug.Stack())
 					var err error
 					switch v := r.(type) {
 					case error:
-						err = v
+						err = fmt.Errorf("%w\n\n%s", v, stack)
 					default:
-						err = fmt.Errorf("panic: %v", v)
+						err = fmt.Errorf("panic: %v\n\n%s", v, stack)
 					}
 					collector.RecordTaskFailure(taskName, duration, err)
 					panic(r) // Re-panic to let other wrappers handle it
@@ -181,11 +183,12 @@ func MetricsWrapper(taskName string, collector *MetricsCollector) cron.JobWrappe
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
+						stack := string(debug.Stack())
 						switch v := r.(type) {
 						case error:
-							jobError = v
+							jobError = fmt.Errorf("%w\n\n%s", v, stack)
 						default:
-							jobError = fmt.Errorf("panic: %v", v)
+							jobError = fmt.Errorf("panic: %v\n\n%s", v, stack)
 						}
 					}
 				}()

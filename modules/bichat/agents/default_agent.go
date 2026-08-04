@@ -37,6 +37,7 @@ type DefaultBIAgent struct {
 	agentRegistry         *agents.AgentRegistry         // Optional registry for multi-agent delegation
 	viewAccess            permissions.ViewAccessControl // Optional view permission control for SQL
 	insightDepth          string                        // Insight prompting depth: "", "brief", "standard", "detailed"
+	schemaAllowlist       []string                      // Schemas the LLM may enumerate / describe; empty = none visible
 }
 
 // BIAgentOption is a functional option for configuring DefaultBIAgent.
@@ -113,11 +114,20 @@ func WithWebFetchStorage(fileStorage storage.FileStorage) BIAgentOption {
 }
 
 // WithViewAccessControl enables permission-based view access control for SQL execution.
-// When configured, schema_list, schema_describe, and sql_execute tools will validate
+// When configured, schema_list, schema_describe_batch, and sql_execute tools will validate
 // user permissions against analytics schema views before execution.
 func WithViewAccessControl(vac permissions.ViewAccessControl) BIAgentOption {
 	return func(a *DefaultBIAgent) {
 		a.viewAccess = vac
+	}
+}
+
+// WithSchemaAllowlist declares which Postgres schemas the LLM may enumerate
+// via schema_list and describe via schema_describe_batch. Required for any
+// non-trivial deployment — leaving it unset means no schemas are exposed.
+func WithSchemaAllowlist(schemas []string) BIAgentOption {
+	return func(a *DefaultBIAgent) {
+		a.schemaAllowlist = append([]string(nil), schemas...)
 	}
 }
 
@@ -170,15 +180,18 @@ func NewDefaultBIAgent(
 	schemaLister := bichatsql.NewQueryExecutorSchemaLister(executor,
 		bichatsql.WithCountCacheTTL(10*time.Minute),
 		bichatsql.WithCacheKeyFunc(tenantCacheKey),
+		bichatsql.WithSchemaAllowlist(agent.schemaAllowlist),
 	)
-	schemaDescriber := bichatsql.NewQueryExecutorSchemaDescriber(executor)
+	schemaDescriber := bichatsql.NewQueryExecutorSchemaDescriber(executor,
+		bichatsql.WithDescribeSchemaAllowlist(agent.schemaAllowlist),
+	)
 
 	// Build core tools list with optional view access control
 	agentTools := []agents.Tool{
 		utility.NewGetCurrentTimeTool(),
 		utility.NewWebFetchTool(utility.WithWebFetchStorage(agent.webFetchStorage)),
 		toolsql.NewSchemaListTool(schemaLister, toolsql.WithSchemaListViewAccess(agent.viewAccess)),
-		toolsql.NewSchemaDescribeTool(schemaDescriber, toolsql.WithSchemaDescribeViewAccess(agent.viewAccess)),
+		toolsql.NewSchemaDescribeBatchTool(schemaDescriber, toolsql.WithSchemaDescribeBatchViewAccess(agent.viewAccess)),
 		toolsql.NewSQLExecuteTool(executor, toolsql.WithViewAccessControl(agent.viewAccess)),
 		export.NewRenderTableTool(executor),
 		export.NewExportQueryToExcelTool(executor),

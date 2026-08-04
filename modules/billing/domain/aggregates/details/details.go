@@ -239,6 +239,27 @@ type CashDetails interface {
 	Set(key string, value any) CashDetails
 }
 
+type PayoutDetails interface {
+	Details
+
+	Data() map[string]any
+	SetData(data map[string]any) PayoutDetails
+	Get(key string) any
+	Set(key string, value any) PayoutDetails
+}
+
+type TransferDetails interface {
+	Details
+
+	Data() map[string]any
+	SetData(data map[string]any) TransferDetails
+	Get(key string) any
+	Set(key string, value any) TransferDetails
+
+	Comment() string
+	SetComment(comment string) TransferDetails
+}
+
 type IntegratorDetails interface {
 	Details
 

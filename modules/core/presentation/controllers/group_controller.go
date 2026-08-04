@@ -22,7 +22,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -33,28 +32,18 @@ import (
 )
 
 type GroupRealtimeUpdates struct {
-	app          application.Application
-	groupService *services.GroupService
-	basePath     string
+	app    application.Application
+	logger *logrus.Logger
 }
 
-func NewGroupRealtimeUpdates(app application.Application, groupService *services.GroupService, basePath string) *GroupRealtimeUpdates {
+func NewGroupRealtimeUpdates(app application.Application, logger *logrus.Logger) *GroupRealtimeUpdates {
 	return &GroupRealtimeUpdates{
-		app:          app,
-		groupService: groupService,
-		basePath:     basePath,
+		app:    app,
+		logger: logger,
 	}
 }
 
-func (ru *GroupRealtimeUpdates) Register() {
-	ru.app.EventPublisher().Subscribe(ru.onGroupCreated)
-	ru.app.EventPublisher().Subscribe(ru.onGroupUpdated)
-	ru.app.EventPublisher().Subscribe(ru.onGroupDeleted)
-}
-
-func (ru *GroupRealtimeUpdates) onGroupCreated(event *group.CreatedEvent) {
-	logger := configuration.Use().Logger()
-
+func (ru *GroupRealtimeUpdates) OnGroupCreated(event *group.CreatedEvent) {
 	updatedGroup := event.Group
 	component := groups.GroupCreatedEvent(mappers.GroupToViewModel(updatedGroup), &base.TableRowProps{
 		Attrs: templ.Attributes{},
@@ -63,23 +52,21 @@ func (ru *GroupRealtimeUpdates) onGroupCreated(event *group.CreatedEvent) {
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
-			logger.WithError(err).Error("failed to render group created event for websocket")
+			ru.logger.WithError(err).Error("failed to render group created event for websocket")
 			return nil // Continue processing other connections
 		}
 		if err := conn.SendMessage(buf.Bytes()); err != nil {
-			logger.WithError(err).Error("failed to send group created event to websocket connection")
+			ru.logger.WithError(err).Error("failed to send group created event to websocket connection")
 			return nil // Continue processing other connections
 		}
 		return nil
 	}); err != nil {
-		logger.WithError(err).Error("failed to broadcast group created event to websocket")
+		ru.logger.WithError(err).Error("failed to broadcast group created event to websocket")
 		return
 	}
 }
 
-func (ru *GroupRealtimeUpdates) onGroupDeleted(event *group.DeletedEvent) {
-	logger := configuration.Use().Logger()
-
+func (ru *GroupRealtimeUpdates) OnGroupDeleted(event *group.DeletedEvent) {
 	component := groups.GroupRow(mappers.GroupToViewModel(event.Group), &base.TableRowProps{
 		Attrs: templ.Attributes{
 			"hx-swap-oob": "delete",
@@ -89,23 +76,21 @@ func (ru *GroupRealtimeUpdates) onGroupDeleted(event *group.DeletedEvent) {
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
-			logger.WithError(err).Error("failed to render group deleted event for websocket")
+			ru.logger.WithError(err).Error("failed to render group deleted event for websocket")
 			return nil // Continue processing other connections
 		}
 		if err := conn.SendMessage(buf.Bytes()); err != nil {
-			logger.WithError(err).Error("failed to send group deleted event to websocket connection")
+			ru.logger.WithError(err).Error("failed to send group deleted event to websocket connection")
 			return nil // Continue processing other connections
 		}
 		return nil
 	}); err != nil {
-		logger.WithError(err).Error("failed to broadcast group deleted event to websocket")
+		ru.logger.WithError(err).Error("failed to broadcast group deleted event to websocket")
 		return
 	}
 }
 
-func (ru *GroupRealtimeUpdates) onGroupUpdated(event *group.UpdatedEvent) {
-	logger := configuration.Use().Logger()
-
+func (ru *GroupRealtimeUpdates) OnGroupUpdated(event *group.UpdatedEvent) {
 	component := groups.GroupRow(mappers.GroupToViewModel(event.Group), &base.TableRowProps{
 		Attrs: templ.Attributes{},
 	})
@@ -113,16 +98,16 @@ func (ru *GroupRealtimeUpdates) onGroupUpdated(event *group.UpdatedEvent) {
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
-			logger.WithError(err).Error("failed to render group updated event for websocket")
+			ru.logger.WithError(err).Error("failed to render group updated event for websocket")
 			return nil // Continue processing other connections
 		}
 		if err := conn.SendMessage(buf.Bytes()); err != nil {
-			logger.WithError(err).Error("failed to send group updated event to websocket connection")
+			ru.logger.WithError(err).Error("failed to send group updated event to websocket connection")
 			return nil // Continue processing other connections
 		}
 		return nil
 	}); err != nil {
-		logger.WithError(err).Error("failed to broadcast group updated event to websocket")
+		ru.logger.WithError(err).Error("failed to broadcast group updated event to websocket")
 		return
 	}
 }
@@ -130,24 +115,28 @@ func (ru *GroupRealtimeUpdates) onGroupUpdated(event *group.UpdatedEvent) {
 type GroupsController struct {
 	app      application.Application
 	basePath string
-	realtime *GroupRealtimeUpdates
 }
 
 func NewGroupsController(app application.Application) application.Controller {
-	groupService := app.Service(services.GroupService{}).(*services.GroupService)
 	basePath := "/groups"
 
 	controller := &GroupsController{
 		app:      app,
 		basePath: basePath,
-		realtime: NewGroupRealtimeUpdates(app, groupService, basePath),
 	}
 
 	return controller
 }
 
-func (c *GroupsController) Key() string {
-	return c.basePath
+func (c *GroupsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.group", 0, application.Route("", c.basePath, application.RequireAll(permissions.GroupRead))).
+		WithNav(application.NavNode{
+			ID:       "core.groups",
+			Parent:   "core.administration",
+			TitleKey: "NavigationLinks.Groups",
+			Path:     c.basePath,
+			Order:    30,
+		})
 }
 
 func (c *GroupsController) Register(r *mux.Router) {
@@ -156,8 +145,7 @@ func (c *GroupsController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -168,8 +156,6 @@ func (c *GroupsController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[a-f0-9-]+}", di.H(c.Update)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[a-f0-9-]+}", di.H(c.Delete)).Methods(http.MethodDelete)
-
-	c.realtime.Register()
 }
 
 func (c *GroupsController) Groups(

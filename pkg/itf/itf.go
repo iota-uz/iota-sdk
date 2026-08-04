@@ -10,7 +10,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
-	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -18,14 +19,6 @@ import (
 func Setup(tb testing.TB, opts ...Option) *TestEnvironment {
 	tb.Helper()
 	return newTestContext().applyOptions(opts...).Build(tb)
-}
-
-// HTTP provides a quick HTTP suite bootstrap.
-//
-// Deprecated: use NewSuiteBuilder(tb).WithModules(...).Build() for new tests.
-func HTTP(tb testing.TB, modules ...application.Module) *Suite {
-	tb.Helper()
-	return NewSuite(tb, modules...)
 }
 
 // Excel creates a new Excel file builder
@@ -79,10 +72,10 @@ func Transaction(tb testing.TB, env *TestEnvironment) pgx.Tx {
 // Option configures the test setup
 type Option func(*TestContext)
 
-// WithModules adds modules to the test context
-func WithModules(modules ...application.Module) Option {
+// WithComponents adds composition components to the test context.
+func WithComponents(components ...composition.Component) Option {
 	return func(tc *TestContext) {
-		tc.modules = append(tc.modules, modules...)
+		tc.components = append(tc.components, components...)
 	}
 }
 
@@ -97,6 +90,28 @@ func WithDatabase(name string) Option {
 func WithUser(u user.User) Option {
 	return func(tc *TestContext) {
 		tc.user = u
+	}
+}
+
+// WithSource attaches a config.Source to the test context so that components
+// calling composition.ProvideConfig[T] inside their Build method can load typed
+// configuration. Intended for tests that need to inject config values without
+// relying on environment variables or the legacy configuration.Use() singleton.
+func WithSource(src config.Source) Option {
+	return func(tc *TestContext) {
+		tc.source = src
+	}
+}
+
+// WithCapabilities sets the composition capabilities used when compiling the
+// test container. When unset (the default) the harness compiles with the
+// historical [CapabilityAPI, CapabilityWorker] pair. Pass a narrower subset
+// to verify capability gating — for example, compile with CapabilityAPI only
+// to assert that worker-only contributions (NATS consumers, periodic tasks,
+// file-locked indices, etc.) stay inactive in API/CLI contexts.
+func WithCapabilities(caps ...composition.Capability) Option {
+	return func(tc *TestContext) {
+		tc.capabilities = append(tc.capabilities[:0], caps...)
 	}
 }
 

@@ -48,6 +48,6 @@ func (c *TwillioController) Register(r *mux.Router) {
 	subRouter.HandleFunc("", wrappedHandler).Methods(http.MethodPost)
 }
 
-func (c *TwillioController) Key() string {
-	return "TwillioController"
+func (c *TwillioController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("crm.twilio", 0, application.Route("", "/twilio"))
 }

@@ -92,6 +92,42 @@ func BuildResourcePermissionGroups(
 	return groups
 }
 
+// FilterCheckedResourcePermissionGroups returns a copy of groups containing only
+// checked permissions, sets that have at least one checked permission, and groups
+// that have at least one remaining set.
+func FilterCheckedResourcePermissionGroups(groups []*viewmodels.ResourcePermissionGroup) []*viewmodels.ResourcePermissionGroup {
+	out := make([]*viewmodels.ResourcePermissionGroup, 0, len(groups))
+	for _, g := range groups {
+		sets := make([]*viewmodels.PermissionSetItem, 0, len(g.PermissionSets))
+		for _, s := range g.PermissionSets {
+			if !s.Checked && !s.Partial {
+				continue
+			}
+			perms := make([]*viewmodels.PermissionItem, 0, len(s.Permissions))
+			for _, p := range s.Permissions {
+				if p.Checked {
+					perms = append(perms, p)
+				}
+			}
+			sets = append(sets, &viewmodels.PermissionSetItem{
+				Key:         s.Key,
+				Label:       s.Label,
+				Description: s.Description,
+				Checked:     s.Checked,
+				Partial:     s.Partial,
+				Permissions: perms,
+			})
+		}
+		if len(sets) > 0 {
+			out = append(out, &viewmodels.ResourcePermissionGroup{
+				Resource:       g.Resource,
+				PermissionSets: sets,
+			})
+		}
+	}
+	return out
+}
+
 // BuildModulePermissionGroups builds permission groups organized by module
 // Within each module, permissions are further grouped by resource
 func BuildModulePermissionGroups(

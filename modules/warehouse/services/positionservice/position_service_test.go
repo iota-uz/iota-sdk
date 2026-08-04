@@ -6,13 +6,14 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
 func TestPositionService_LoadFromFilePath(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
 
-	positionService := f.App.Service(positionservice.PositionService{}).(*positionservice.PositionService)
+	positionService := itf.GetService[positionservice.PositionService](f)
 
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "positions_import.xlsx")

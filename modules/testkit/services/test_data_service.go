@@ -6,21 +6,19 @@ import (
 	"fmt"
 
 	"github.com/iota-uz/iota-sdk/modules/testkit/domain/schemas"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type TestDataService struct {
-	app             application.Application
 	resetService    *ResetService
 	populateService *PopulateService
 }
 
-func NewTestDataService(app application.Application) *TestDataService {
+func NewTestDataService(db *pgxpool.Pool) *TestDataService {
 	return &TestDataService{
-		app:             app,
-		resetService:    NewResetService(app),
-		populateService: NewPopulateService(app),
+		resetService:    NewResetService(db),
+		populateService: NewPopulateService(db),
 	}
 }
 

@@ -57,7 +57,7 @@ A minimal module contains:
 
 ```
 modules/mymodule/
-├── module.go          # Module registration
+├── component.go       # Component registration
 ├── links.go           # Navigation items
 ├── domain/            # Business entities
 ├── services/          # Business logic
@@ -67,17 +67,17 @@ modules/mymodule/
 
 ### Module Registration
 
-Modules register themselves with the application during startup:
+Components register themselves with the composition engine during startup:
 
-1. **Define the Module** - Implement the `application.Module` interface
-2. **Register Components** - In your module's `Register(app)`, register services, controllers, nav items
-3. **Load Module** - Pass your module to `modules.Load(app, yourModule)` (built-in modules are already loaded via `modules.Load(app, modules.BuiltInModules...)`; do not edit `BuiltInModules` to add custom modules)
+1. **Define the Component** - Implement `composition.Component`
+2. **Build Declaratively** - Add services with `composition.Provide(...)` and runtime slices with `composition.Contribute...(...)`
+3. **Compose Explicitly** - Call `engine.Register(yourComponent)` and `engine.Compile(...)` for the capabilities your process needs
 
 ### Key Registration Steps
 
 When building a module, you'll:
 
-- **Register Services** - Business logic accessible via `app.Service()`
+- **Register Services** - Business logic accessible through the composition container
 - **Register Controllers** - HTTP handlers for routes
 - **Register Migrations** - Database schema changes
 - **Register Permissions** - RBAC for access control
@@ -122,8 +122,9 @@ sequenceDiagram
 
 Now that you understand the basics:
 
-1. Explore the [Project Structure](/getting-started/project-structure) to see how the codebase is organized
-2. Read about [Architecture](/architecture) for deeper understanding of patterns
-3. Review the [Core Module](/core) to see a complete implementation
+1. Review [DBCTL Operations](/getting-started/dbctl) for policy-first DB workflows
+2. Explore the [Project Structure](/getting-started/project-structure) to see how the codebase is organized
+3. Read about [Architecture](/architecture) for deeper understanding of patterns
+4. Review the [Core Module](/core) to see a complete implementation
 
 The SDK is designed to be intuitive once you understand the DDD layer separation. Every feature follows the same pattern, making it easy to extend and maintain.

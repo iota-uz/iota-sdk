@@ -44,7 +44,24 @@ type TimeRange struct {
 type QueryKind string
 
 const (
-	QueryKindRaw QueryKind = "raw"
+	QueryKindRaw   QueryKind = "raw"
+	QueryKindNamed QueryKind = "named"
+)
+
+// ExecutionClass describes why Lens is executing a datasource query. It is
+// derived by the SDK scheduler from the active surface and layout; dashboard
+// authors never declare it. Datasources may use it to select an equivalent
+// lower-latency implementation for critical work, but it is not part of query
+// result identity.
+type ExecutionClass string
+
+const (
+	ExecutionClassInteractiveCritical ExecutionClass = "interactive_critical"
+	ExecutionClassRootCritical        ExecutionClass = "root_critical"
+	ExecutionClassActiveBelowFold     ExecutionClass = "active_below_fold"
+	ExecutionClassIntentPrefetch      ExecutionClass = "intent_prefetch"
+	ExecutionClassIdlePrefetch        ExecutionClass = "idle_prefetch"
+	ExecutionClassExport              ExecutionClass = "export"
 )
 
 type QueryRequest struct {
@@ -53,17 +70,15 @@ type QueryRequest struct {
 	Params    map[string]any    `json:"params,omitempty"`
 	TimeRange TimeRange         `json:"time_range,omitempty"`
 	Timezone  string            `json:"timezone,omitempty"`
+	Locale    string            `json:"locale,omitempty"`
 	MaxRows   int               `json:"max_rows,omitempty"`
 	Kind      QueryKind         `json:"kind,omitempty"`
 	Labels    map[string]string `json:"labels,omitempty"`
+	// ExecutionClass is scheduling metadata, not a semantic query parameter.
+	ExecutionClass ExecutionClass `json:"execution_class,omitempty"`
 }
 
 type DataSource interface {
 	Run(ctx context.Context, req QueryRequest) (*frame.FrameSet, error)
 	Capabilities() CapabilitySet
-}
-
-type Plugin interface {
-	Name() string
-	New(config map[string]any) (DataSource, error)
 }

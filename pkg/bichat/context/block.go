@@ -32,6 +32,10 @@ const (
 	// KindHistory represents conversation history.
 	KindHistory BlockKind = "history"
 
+	// KindContinuation represents a trusted internal event that resumes an
+	// existing session without attributing the event to the user.
+	KindContinuation BlockKind = "continuation"
+
 	// KindTurn represents the current user message (always last).
 	KindTurn BlockKind = "turn"
 )
@@ -44,6 +48,7 @@ var KindOrder = []BlockKind{
 	KindState,
 	KindToolOutput,
 	KindHistory,
+	KindContinuation,
 	KindTurn,
 }
 

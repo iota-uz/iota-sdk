@@ -23,28 +23,28 @@ func setupTest(t *testing.T, permissions ...permission.Permission) *itf.TestEnvi
 
 	user := itf.User(permissions...)
 	return itf.Setup(t,
-		itf.WithModules(modules.BuiltInModules...),
+		itf.WithComponents(modules.Components()...),
 		itf.WithUser(user),
 	)
 }
 
 // Helper functions to get services from TestEnvironment
 func getPaymentService(env *itf.TestEnvironment) *services.PaymentService {
-	return env.Service(services.PaymentService{}).(*services.PaymentService)
+	return itf.GetService[services.PaymentService](env)
 }
 
 func getAccountService(env *itf.TestEnvironment) *services.MoneyAccountService {
-	return env.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+	return itf.GetService[services.MoneyAccountService](env)
 }
 
 func getPaymentCategoryService(env *itf.TestEnvironment) *services.PaymentCategoryService {
-	return env.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
+	return itf.GetService[services.PaymentCategoryService](env)
 }
 
 func getDebtService(env *itf.TestEnvironment) *services.DebtService {
-	return env.Service(services.DebtService{}).(*services.DebtService)
+	return itf.GetService[services.DebtService](env)
 }
 
 func getFinancialReportService(env *itf.TestEnvironment) *services.FinancialReportService {
-	return env.Service(services.FinancialReportService{}).(*services.FinancialReportService)
+	return itf.GetService[services.FinancialReportService](env)
 }

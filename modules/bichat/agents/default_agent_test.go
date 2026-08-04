@@ -141,7 +141,7 @@ func TestDefaultBIAgent_CoreTools(t *testing.T) {
 		"get_current_time",
 		"web_fetch",
 		"schema_list",
-		"schema_describe",
+		"schema_describe_batch",
 		"sql_execute",
 		"render_table",
 		"export_query_to_excel",

@@ -46,7 +46,7 @@ templ TransactionsTab(props *TransactionsTabProps) {
 
 templ transactionListItem(transaction *viewmodels.Transaction, pageCtx any) {
 	<div
-		class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow cursor-pointer"
+		class="bg-white border border-subtle rounded-lg p-4 hover:shadow-sm transition-shadow cursor-pointer"
 		hx-get={ fmt.Sprintf("/finance/transactions/%s/drawer", transaction.ID) }
 		hx-target="#view-drawer"
 		hx-swap="innerHTML"

@@ -16,6 +16,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/iota-uz/utils/random"
+	"log"
+	"strings"
 )
 
 func toJSON(v interface{}) string {
@@ -27,12 +29,47 @@ func toJSON(v interface{}) string {
 	return string(b)
 }
 
+// tOrKey translates the key using TSafe; if missing, logs a warning and returns the last segment of the key as fallback.
+func tOrKey(ctx types.PageContext, key string) string {
+	if v := ctx.TSafe(key); v != "" {
+		return v
+	}
+	log.Printf("[WARN] i18n missing translation: key=%q locale=%s", key, ctx.GetLocale())
+	if key == "" {
+		return "unknown"
+	}
+	if i := strings.LastIndex(key, "."); i >= 0 && i < len(key)-1 {
+		return key[i+1:]
+	}
+	return key
+}
+
 func getPermissionIds(permissions []*viewmodels.PermissionItem) []string {
 	ids := make([]string, 0, len(permissions))
 	for _, p := range permissions {
 		ids = append(ids, p.ID)
 	}
 	return ids
+}
+
+func permissionAttrs(attrs templ.Attributes, formID string, inputName string, permissionID string) templ.Attributes {
+	merged := templ.Attributes{}
+	for key, value := range attrs {
+		merged[key] = value
+	}
+
+	if inputName == "" {
+		merged["name"] = fmt.Sprintf("Permissions[%s]", permissionID)
+	} else {
+		merged["name"] = inputName
+		merged["value"] = permissionID
+	}
+
+	if formID != "" {
+		merged["form"] = formID
+	}
+
+	return merged
 }
 
 type SharedProps struct {
@@ -65,7 +102,7 @@ func Permission(props SharedProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		id := random.String(12, random.LowerCharSet)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"border border-gray-400 bg-surface-100 rounded-md py-2 px-3\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"border border-default bg-surface-100 rounded-md py-2 px-3\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -93,6 +130,8 @@ type PermissionSetProps struct {
 	Set          *viewmodels.PermissionSetItem
 	ResourceName string
 	SetIndex     int
+	Form         string
+	InputName    string
 }
 
 func PermissionSet(props PermissionSetProps) templ.Component {
@@ -118,9 +157,9 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		setId := fmt.Sprintf("%s-set-%d", props.ResourceName, props.SetIndex)
 		toggleId := fmt.Sprintf("toggle-%s", setId)
-		label := props.PageContext.T(props.Set.Label)
+		label := tOrKey(props.PageContext, props.Set.Label)
 		if len(props.Set.Permissions) == 1 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"border border-gray-400 bg-surface-100 rounded-md py-2 px-3\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"border border-default bg-surface-100 rounded-md py-2 px-3\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -129,9 +168,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 				Label:        label,
 				LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
 				Checked:      props.Set.Checked,
-				Attrs: templ.Attributes{
-					"name": fmt.Sprintf("Permissions[%s]", props.Set.Permissions[0].ID),
-				},
+				Attrs:        permissionAttrs(templ.Attributes{}, props.Form, props.InputName, props.Set.Permissions[0].ID),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -142,9 +179,9 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var3 string
-				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(props.PageContext.T(props.Set.Description))
+				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(tOrKey(props.PageContext, props.Set.Description))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 78, Col: 86}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 115, Col: 91}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -160,14 +197,14 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, " <div class=\"border border-gray-400 bg-surface-100 rounded-md\" x-data=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, " <div class=\"border border-default bg-surface-100 rounded-md\" x-data=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("createPermissionSetData(%t, %t, %s, '%s')", props.Set.Checked, props.Set.Partial, toJSON(getPermissionIds(props.Set.Permissions)), setId))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 85, Col: 162}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 122, Col: 162}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -180,7 +217,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(setId)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 88, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 125, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -193,7 +230,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 94, Col: 36}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 131, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -203,7 +240,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			toggleClasses := "bg-gray-200 after:border-gray-300"
+			toggleClasses := "bg-gray-200 after:border-default"
 
 			if props.Set.Checked {
 				toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
@@ -220,7 +257,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("toggle-visual-%s", setId))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 101, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 138, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -261,9 +298,9 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var10 string
-				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(props.PageContext.T(props.Set.Description))
+				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(tOrKey(props.PageContext, props.Set.Description))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 117, Col: 87}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 154, Col: 92}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -274,7 +311,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div><div x-show=\"expanded\" x-collapse class=\"border-t border-gray-300\"><div class=\"p-3 space-y-2\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div><div x-show=\"expanded\" x-collapse class=\"border-t border-default\"><div class=\"p-3 space-y-2\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -285,14 +322,13 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 				}
 				templ_7745c5c3_Err = input.Switch(&input.SwitchProps{
 					ID:           fmt.Sprintf("%s-perm-%s", setId, perm.ID),
-					Label:        props.PageContext.T(fmt.Sprintf("Permissions.%s", perm.Name)),
+					Label:        tOrKey(props.PageContext, fmt.Sprintf("Permissions.%s", perm.Name)),
 					LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
 					Checked:      perm.Checked,
-					Attrs: templ.Attributes{
-						"name":               fmt.Sprintf("Permissions[%s]", perm.ID),
+					Attrs: permissionAttrs(templ.Attributes{
 						"@change":            "updateState()",
 						"data-permission-id": perm.ID,
-					},
+					}, props.Form, props.InputName, perm.ID),
 				}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -315,6 +351,8 @@ type ResourceGroupProps struct {
 	PageContext   types.PageContext
 	ResourceGroup *viewmodels.ResourcePermissionGroup
 	GroupIndex    int
+	Form          string
+	InputName     string
 }
 
 func ResourceGroup(props ResourceGroupProps) templ.Component {
@@ -364,7 +402,7 @@ func ResourceGroup(props ResourceGroupProps) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(`createPermissionFormData(%t, %t, %s)`, allChecked, someChecked, toJSON(permissionIds)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 177, Col: 110}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 215, Col: 110}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -375,9 +413,9 @@ func ResourceGroup(props ResourceGroupProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var13 string
-		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(props.PageContext.T(fmt.Sprintf("Resources.%s", props.ResourceGroup.Resource)))
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(tOrKey(props.PageContext, fmt.Sprintf("Resources.%s", props.ResourceGroup.Resource)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 183, Col: 90}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 221, Col: 95}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -387,7 +425,7 @@ func ResourceGroup(props ResourceGroupProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		toggleClasses := "bg-gray-200 after:border-gray-300"
+		toggleClasses := "bg-gray-200 after:border-default"
 
 		if allChecked {
 			toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
@@ -404,7 +442,7 @@ func ResourceGroup(props ResourceGroupProps) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("toggle-visual-%d", props.GroupIndex))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 191, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 229, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -433,6 +471,8 @@ func ResourceGroup(props ResourceGroupProps) templ.Component {
 				Set:          set,
 				ResourceName: props.ResourceGroup.Resource,
 				SetIndex:     i,
+				Form:         props.Form,
+				InputName:    props.InputName,
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

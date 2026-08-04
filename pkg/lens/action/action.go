@@ -1,12 +1,22 @@
 // Package action defines panel actions and action value sources for Lens dashboards.
 package action
 
+import (
+	"fmt"
+	"net/url"
+	"strings"
+)
+
 type Kind string
 
 const (
-	KindNavigate  Kind = "navigate"
-	KindHtmxSwap  Kind = "htmx_swap"
-	KindEmitEvent Kind = "emit_event"
+	KindNavigate    Kind = "navigate"
+	KindOpenDrawer  Kind = "open_drawer"
+	KindHtmxSwap    Kind = "htmx_swap"
+	KindEmitEvent   Kind = "emit_event"
+	KindCubeDrill   Kind = "cube_drill"
+	KindCrossFilter Kind = "cross_filter"
+	KindExplore     Kind = "explore"
 )
 
 type ValueSourceKind string
@@ -15,7 +25,6 @@ const (
 	SourceLiteral  ValueSourceKind = "literal"
 	SourceField    ValueSourceKind = "field"
 	SourceVariable ValueSourceKind = "variable"
-	SourcePoint    ValueSourceKind = "point"
 )
 
 type ValueSource struct {
@@ -31,17 +40,27 @@ type Param struct {
 }
 
 type Spec struct {
-	Kind    Kind
-	Method  string
-	URL     string
-	Target  string
-	Event   string
-	Payload map[string]ValueSource
-	Params  []Param
+	Kind          Kind
+	Method        string
+	URL           string
+	URLSource     *ValueSource
+	DrawerKey     *ValueSource
+	Target        string
+	Event         string
+	Payload       map[string]ValueSource
+	Params        []Param
+	Drill         *DrillSpec
+	Explore       *ExploreSpec
+	PreserveQuery bool
 }
 
-type Plugin interface {
-	Name() string
+func (s Spec) WithURLSource(source ValueSource) Spec {
+	s.URLSource = &source
+	return s
+}
+
+func (s Spec) WithFieldURL(field string) Spec {
+	return s.WithURLSource(FieldValue(field))
 }
 
 func Navigate(url string, params ...Param) Spec {
@@ -53,6 +72,22 @@ func Navigate(url string, params ...Param) Spec {
 	}
 }
 
+// OpenDrawer loads a Lens document URL into the runtime's modal drawer host.
+func OpenDrawer(url string, params ...Param) Spec {
+	return Spec{
+		Kind:   KindOpenDrawer,
+		URL:    url,
+		Method: "GET",
+		Params: params,
+	}
+}
+
+// OpenDrawerMetric defers the signed drawer URL to the host resolver and puts
+// only a stable metric key plus bounded parameters on the wire.
+func OpenDrawerMetric(metric ValueSource, params ...Param) Spec {
+	return Spec{Kind: KindOpenDrawer, Method: "POST", DrawerKey: &metric, Params: params}
+}
+
 func HtmxSwap(url, target string, params ...Param) Spec {
 	return Spec{
 		Kind:   KindHtmxSwap,
@@ -61,6 +96,109 @@ func HtmxSwap(url, target string, params ...Param) Spec {
 		Target: target,
 		Params: params,
 	}
+}
+
+func CubeDrill(url, dimension string, params ...Param) Spec {
+	return Spec{
+		Kind:   KindCubeDrill,
+		Method: "GET",
+		URL:    url,
+		Params: params,
+		Drill: &DrillSpec{
+			Dimension: dimension,
+			Value:     FieldValue("filter_value"),
+		},
+	}
+}
+
+// CrossFilter toggles one dimension value without changing the cube's active
+// grouping. CubeDrill and CrossFilter share the same ordered filter stack.
+func CrossFilter(url, dimension string, params ...Param) Spec {
+	return Spec{
+		Kind:   KindCrossFilter,
+		Method: "GET",
+		URL:    url,
+		Params: params,
+		Drill: &DrillSpec{
+			Dimension: dimension,
+			Value:     FieldValue("filter_value"),
+		},
+	}
+}
+
+// Explore opens a branch in a dashboard's metric explorer. branch identifies
+// a stable branch key and may be replaced with WithExploreBranch for actions
+// whose branch is resolved from a dataset row.
+func Explore(explorerID, branch string) Spec {
+	return Spec{
+		Kind:   KindExplore,
+		Method: "GET",
+		Explore: &ExploreSpec{
+			ExplorerID: explorerID,
+			Branch:     LiteralValue(branch),
+		},
+	}
+}
+
+func (s Spec) withClonedExplore() Spec {
+	if s.Explore == nil {
+		return s
+	}
+	explore := *s.Explore
+	s.Explore = &explore
+	return s
+}
+
+func (s Spec) WithExploreBranch(source ValueSource) Spec {
+	if s.Explore == nil {
+		return s
+	}
+	s = s.withClonedExplore()
+	s.Explore.Branch = source
+	return s
+}
+
+func (s Spec) WithExplorePerspective(perspective string) Spec {
+	if s.Explore == nil {
+		return s
+	}
+	s = s.withClonedExplore()
+	s.Explore.Perspective = perspective
+	return s
+}
+
+func (s Spec) withClonedDrill() Spec {
+	if s.Drill == nil {
+		return s
+	}
+	drill := *s.Drill
+	s.Drill = &drill
+	return s
+}
+
+func (s Spec) WithDrillValue(source ValueSource) Spec {
+	if s.Drill == nil {
+		return s
+	}
+	s = s.withClonedDrill()
+	s.Drill.Value = source
+	return s
+}
+
+// WithDrillGroupBy selects the dimension shown after a cube drill. It has no
+// effect on a cross-filter action, which deliberately preserves grouping.
+func (s Spec) WithDrillGroupBy(dimension string) Spec {
+	if s.Drill == nil {
+		return s
+	}
+	s = s.withClonedDrill()
+	s.Drill.GroupBy = dimension
+	return s
+}
+
+func (s Spec) WithPreservedQuery() Spec {
+	s.PreserveQuery = true
+	return s
 }
 
 func FieldParam(name, field string) Param {
@@ -90,5 +228,74 @@ func VariableParam(name, variable string) Param {
 			Kind: SourceVariable,
 			Name: variable,
 		},
+	}
+}
+
+func FieldValue(field string) ValueSource {
+	return ValueSource{Kind: SourceField, Name: field}
+}
+
+func LiteralValue(value any) ValueSource {
+	return ValueSource{Kind: SourceLiteral, Value: value}
+}
+
+func VariableValue(variable string) ValueSource {
+	return ValueSource{Kind: SourceVariable, Name: variable}
+}
+
+// SafeRelativeURL accepts URLs that cannot navigate outside the current origin.
+func SafeRelativeURL(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || strings.ContainsRune(raw, '\\') || strings.HasPrefix(raw, "//") {
+		return "", false
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.IsAbs() || parsed.Host != "" || parsed.User != nil || parsed.Opaque != "" {
+		return "", false
+	}
+	return raw, true
+}
+
+// ResolveValue resolves a ValueSource against a data row and variable map,
+// returning the resolved value and whether a non-empty value was found.
+func ResolveValue(source ValueSource, row map[string]any, variables map[string]any) (any, bool) {
+	switch source.Kind {
+	case SourceField:
+		if row == nil {
+			if source.Fallback != nil {
+				return source.Fallback, true
+			}
+			return nil, false
+		}
+		value, ok := row[source.Name]
+		if !ok || value == nil || fmt.Sprint(value) == "" {
+			if source.Fallback != nil {
+				return source.Fallback, true
+			}
+			return nil, false
+		}
+		return value, true
+	case SourceLiteral:
+		if source.Value == nil {
+			return nil, false
+		}
+		return source.Value, true
+	case SourceVariable:
+		if variables == nil {
+			if source.Fallback != nil {
+				return source.Fallback, true
+			}
+			return nil, false
+		}
+		value, ok := variables[source.Name]
+		if !ok || value == nil || fmt.Sprint(value) == "" {
+			if source.Fallback != nil {
+				return source.Fallback, true
+			}
+			return nil, false
+		}
+		return value, true
+	default:
+		return nil, false
 	}
 }

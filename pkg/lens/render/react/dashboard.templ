@@ -1,0 +1,26 @@
+package react
+
+templ LensDashboard(src string, options ...Option) {
+	{{ resolved := resolveDashboardOptions(options...) }}
+	if resolved.IncludeAssets {
+		for _, stylesheet := range resolved.Stylesheets {
+			<link rel="stylesheet" href={ stylesheet }/>
+		}
+		<script type="module" src={ resolved.EntryURL }></script>
+	}
+	<lens-dashboard
+		src={ src }
+		locale={ resolved.Locale }
+		theme={ string(resolved.Theme) }
+		if resolved.InitialDocument != nil {
+			initial-document={ initialDocumentAttribute(resolved.InitialDocument) }
+		}
+		if resolved.CSRF != "" {
+			csrf={ resolved.CSRF }
+		}
+	>
+		if resolved.Skeleton != nil {
+			@DashboardSkeleton(*resolved.Skeleton)
+		}
+	</lens-dashboard>
+}

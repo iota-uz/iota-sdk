@@ -70,6 +70,13 @@ const (
 	// Prefer EventTypeContent in new code.
 	EventTypeChunk ExecutorEventType = "content"
 
+	// EventTypeTextBlockEnd is emitted to mark the end of an assistant text segment.
+	// It is emitted before the first tool_start of an iteration when prior text has
+	// been streamed, so consumers can render text/tool_call/text/tool_call sequences
+	// as distinct blocks instead of one merged paragraph. The TextBlockSeq field on
+	// the event identifies the segment ordinal within an Execute call (zero-based).
+	EventTypeTextBlockEnd ExecutorEventType = "text_block_end"
+
 	// EventTypeToolStart is emitted when a tool execution begins.
 	EventTypeToolStart ExecutorEventType = "tool_start"
 
@@ -174,6 +181,12 @@ type ExecutorEvent struct {
 	// FileAnnotations holds file references extracted from Result.
 	// It is populated when Type == EventTypeDone and files were generated.
 	FileAnnotations []types.FileAnnotation
+
+	// TextBlockSeq is the ordinal of an assistant text segment within an Execute
+	// call. It is populated when Type == EventTypeTextBlockEnd; the first segment
+	// is 0, the second is 1, and so on. Consumers use it to attribute streamed
+	// content chunks to a specific block when tool calls split a turn.
+	TextBlockSeq int
 }
 
 // ToolEvent represents a tool execution event.
@@ -208,6 +221,8 @@ type ToolEvent struct {
 type toolExecutionResult struct {
 	output    string
 	artifacts []types.ToolArtifact
+	truncated bool
+	rowCount  int
 }
 
 // Executor executes the ReAct (Reason + Act) loop for an agent.
@@ -252,6 +267,7 @@ type Executor struct {
 	tokenEstimator    TokenEstimator          // Optional token estimator for cost tracking
 	speculativeTools  bool                    // Start executing ready tool calls during streaming (best-effort)
 	formatterRegistry types.FormatterRegistry // Optional formatter registry for StructuredTool support
+	reminderRules     []ReminderRule          // Optional mid-loop behavioral steering rules
 }
 
 // Input represents the input to Execute or Resume.
@@ -367,6 +383,13 @@ func WithFormatterRegistry(registry types.FormatterRegistry) ExecutorOption {
 	}
 }
 
+// WithReminderRules registers opt-in mid-loop reminders emitted after tool batches.
+func WithReminderRules(rules ...ReminderRule) ExecutorOption {
+	return func(e *Executor) {
+		e.reminderRules = append(e.reminderRules, rules...)
+	}
+}
+
 // NewExecutor creates a new Executor with the given agent and model.
 func NewExecutor(agent ExtendedAgent, model Model, opts ...ExecutorOption) *Executor {
 	executor := &Executor{
@@ -390,6 +413,7 @@ func NewExecutor(agent ExtendedAgent, model Model, opts ...ExecutorOption) *Exec
 // falls back to agent.OnToolCall for backward compatibility.
 // After invoking StructuredTool.CallStructured we always return and never fall through to Tool.Call() to avoid double execution.
 func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments string) (toolExecutionResult, error) {
+	execResult := toolExecutionResult{rowCount: -1}
 	if e.formatterRegistry != nil && tool != nil {
 		if st, ok := tool.(StructuredTool); ok {
 			result, err := st.CallStructured(ctx, arguments)
@@ -397,11 +421,10 @@ func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments 
 				return toolExecutionResult{}, err
 			}
 			if result == nil {
-				return toolExecutionResult{}, nil
+				return execResult, nil
 			}
-			execResult := toolExecutionResult{
-				artifacts: result.Artifacts,
-			}
+			execResult.artifacts = result.Artifacts
+			execResult.truncated, execResult.rowCount = reminderMetadataFromPayload(result.Payload)
 			// result != nil: format or fallback, then return (never fall through to tool.Call())
 			if f := e.formatterRegistry.Get(result.CodecID); f != nil {
 				formatted, fmtErr := f.Format(result.Payload, types.DefaultFormatOptions())
@@ -430,13 +453,16 @@ func (e *Executor) callTool(ctx context.Context, tool Tool, toolName, arguments 
 	if tool != nil {
 		if tf, ok := tool.(*ToolFunc); ok && tf.Fn == nil {
 			output, err := e.agent.OnToolCall(ctx, toolName, arguments)
-			return toolExecutionResult{output: output}, err
+			execResult.output = output
+			return execResult, err
 		}
 		output, err := tool.Call(ctx, arguments)
-		return toolExecutionResult{output: output}, err
+		execResult.output = output
+		return execResult, err
 	}
 	output, err := e.agent.OnToolCall(ctx, toolName, arguments)
-	return toolExecutionResult{output: output}, err
+	execResult.output = output
+	return execResult, err
 }
 
 // Execute runs the ReAct loop and returns a Generator that yields ExecutorEvent objects.
@@ -465,9 +491,23 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 		// Use input messages as-is (system prompt already included from context compilation)
 		messages := input.Messages
+		stickySystemMessages := make([]types.Message, 0, 1)
+		for _, message := range input.Messages {
+			if message.Role() == types.RoleSystem {
+				stickySystemMessages = append(stickySystemMessages, message)
+			}
+		}
 
 		// Track provider continuity across iterations in a single execution.
 		previousResponseID := input.PreviousResponseID
+		// Once a provider returns a continuity token, the provider already owns
+		// the response and everything that preceded it. Re-sending the full
+		// local transcript alongside previous_response_id duplicates context on
+		// every tool iteration and eventually grows it quadratically. Keep only
+		// developer instructions plus messages created after that response.
+		incrementalMessageStart := -1
+		reminderTracker := newReminderTracker()
+		turnToolCounts := make(map[string]int)
 
 		// Agent lifecycle tracking
 		agentStartTime := time.Now()
@@ -487,20 +527,42 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			input.isResume,
 		))
 
+		// Track text-block segmentation across iterations. textBlockSeq is the
+		// running ordinal of completed text segments within this Execute call;
+		// it is included on every EventTypeTextBlockEnd we yield so consumers can
+		// attribute content chunks to the correct block when tool calls split a
+		// turn.
+		textBlockSeq := 0
+
 		// Start ReAct loop
 		iteration := 0
 		for iteration < e.maxIterations {
 			iteration++
+
+			// Per-iteration text-block tracking. iterTextEmitted flips true the
+			// first time we yield a content chunk inside this iteration;
+			// iterTextBlockEnded flips true once the closing EventTypeTextBlockEnd
+			// has been yielded so we never emit it twice for the same segment.
+			iterTextEmitted := false
+			iterTextBlockEnded := false
 
 			// Determine which tools to use (override if e.tools is set)
 			tools := e.tools
 			if tools == nil {
 				tools = e.agent.Tools()
 			}
+			batchToolNames := buildBatchToolNames(tools)
 
 			// Build model request
+			requestMessages := messages
+			if previousResponseID != nil && incrementalMessageStart >= 0 {
+				requestMessages = make([]types.Message, 0,
+					len(stickySystemMessages)+len(messages)-incrementalMessageStart)
+				requestMessages = append(requestMessages, stickySystemMessages...)
+				requestMessages = append(requestMessages, messages[incrementalMessageStart:]...)
+			}
 			req := Request{
-				Messages:           messages,
+				Messages:           requestMessages,
 				Tools:              tools,
 				PreviousResponseID: previousResponseID,
 			}
@@ -588,6 +650,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			specCancelled := false
 			specStarted := make(map[string]struct{})
 			specResults := make(map[string]types.Message)
+			specOutcomes := make(map[string]ToolCallOutcome)
 			specPending := 0
 			// Do not rely on a large buffer here: tool calls can exceed small fixed sizes.
 			// We drain results opportunistically during streaming to avoid backpressure.
@@ -617,6 +680,29 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				m := &sync.Mutex{}
 				specKeyLocks[key] = m
 				return m
+			}
+
+			// emitTextBlockEndIfNeeded yields an EventTypeTextBlockEnd marker when
+			// the current iteration has streamed any text and the marker has not
+			// already been emitted. It is called both from the speculative tool
+			// path (inside startSpecTool, before yielding the first tool_start)
+			// and from the synchronous executeToolCalls path so that consumers
+			// always see the closing marker for an assistant text segment before
+			// any tool_start that follows it. Returns false only if the consumer
+			// has stopped (yield returned false).
+			emitTextBlockEndIfNeeded := func() bool {
+				if !iterTextEmitted || iterTextBlockEnded {
+					return true
+				}
+				if !yield(ExecutorEvent{
+					Type:         EventTypeTextBlockEnd,
+					TextBlockSeq: textBlockSeq,
+				}) {
+					return false
+				}
+				iterTextBlockEnded = true
+				textBlockSeq++
+				return true
 			}
 
 			handleSpecResult := func(tr specToolResult) bool {
@@ -674,6 +760,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 				// Store for ordered message append later.
 				specResults[tr.call.ID] = types.ToolResponse(tr.call.ID, toolOutput)
+				specOutcomes[tr.call.ID] = toolCallOutcomeFromResult(tr.call, toolOutput, tr.result, tr.err, tr.durationMs)
 				return true
 			}
 
@@ -729,6 +816,13 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					return true
 				}
 				specStarted[callID] = struct{}{}
+
+				// Close the text segment that preceded this tool call, if any,
+				// so the consumer can flush it as its own block.
+				if !emitTextBlockEndIfNeeded() {
+					specCancel()
+					return false
+				}
 
 				// Emit tool start event
 				_ = e.eventBus.Publish(specToolCtx, events.NewToolStartEventWithTrace(
@@ -810,6 +904,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				// Yield chunk event
 				if chunk.Delta != "" {
 					chunks = append(chunks, chunk.Delta)
+					iterTextEmitted = true
 					if !yield(ExecutorEvent{
 						Type:    EventTypeContent,
 						Content: chunk.Delta,
@@ -873,6 +968,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			if providerResponseID != "" {
 				id := providerResponseID
 				previousResponseID = &id
+				incrementalMessageStart = len(messages)
 			}
 
 			// Accumulate tokens for agent lifecycle tracking
@@ -972,6 +1068,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				}
 				if usage != nil {
 					result.Usage = *usage
+					result.Usage.Cost = e.model.Pricing().CalculateCost(result.Usage)
 				}
 
 				if !yield(buildDoneEvent(result)) {
@@ -982,6 +1079,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 			// Execute tool calls
 			var toolResults []types.Message
+			var toolOutcomes []ToolCallOutcome
 			var interrupt *InterruptEvent
 			var toolErr error
 
@@ -1010,13 +1108,22 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				}
 
 				toolResults = make([]types.Message, 0, len(toolCalls))
+				toolOutcomes = make([]ToolCallOutcome, 0, len(toolCalls))
 				for _, tc := range toolCalls {
 					if msg, ok := specResults[tc.ID]; ok && msg != nil {
 						toolResults = append(toolResults, msg)
 					}
+					if outcome, ok := specOutcomes[tc.ID]; ok {
+						toolOutcomes = append(toolOutcomes, outcome)
+					}
 				}
 			} else {
-				toolResults, interrupt, toolErr = e.executeToolCalls(ctx, input.SessionID, input.TenantID, traceID, tools, toolCalls, yield)
+				// Synchronous path: close any pending text segment before
+				// executeToolCalls yields its first tool_start event.
+				if !emitTextBlockEndIfNeeded() {
+					return nil
+				}
+				toolResults, toolOutcomes, interrupt, toolErr = e.executeToolCalls(ctx, input.SessionID, input.TenantID, traceID, tools, toolCalls, yield)
 			}
 
 			if toolErr != nil {
@@ -1094,6 +1201,12 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 			// Add tool results to messages
 			messages = append(messages, toolResults...)
+			for _, outcome := range toolOutcomes {
+				turnToolCounts[outcome.Name]++
+			}
+			if reminder := e.reminderMessage(ctx, iteration, e.maxIterations, toolOutcomes, turnToolCounts, batchToolNames, reminderTracker); reminder != nil {
+				messages = append(messages, reminder)
+			}
 
 			// Continue to next iteration
 		}
@@ -1235,11 +1348,11 @@ func (e *Executor) executeToolCalls(
 	tools []Tool,
 	toolCalls []types.ToolCall,
 	yield func(ExecutorEvent) bool,
-) ([]types.Message, *InterruptEvent, error) {
+) ([]types.Message, []ToolCallOutcome, *InterruptEvent, error) {
 	const op serrors.Op = "Executor.executeToolCalls"
 
 	if len(toolCalls) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	// Interrupt tool handling is exclusive (do not execute other tools in the same batch).
@@ -1247,7 +1360,7 @@ func (e *Executor) executeToolCalls(
 	for i, tc := range toolCalls {
 		if tc.Name == ToolAskUserQuestion {
 			if interruptIdx != -1 {
-				return nil, nil, serrors.E(op, serrors.KindValidation, "multiple interrupt tool calls in one batch are not supported")
+				return nil, nil, nil, serrors.E(op, serrors.KindValidation, "multiple interrupt tool calls in one batch are not supported")
 			}
 			interruptIdx = i
 		}
@@ -1274,17 +1387,17 @@ func (e *Executor) executeToolCalls(
 				Arguments: tc.Arguments,
 			},
 		}) {
-			return nil, nil, nil // Consumer stopped
+			return nil, nil, nil, nil // Consumer stopped
 		}
 
 		payload, err := parseAndCanonicalizeAskUserQuestionArgs(tc.Arguments)
 		if err != nil {
-			return nil, nil, serrors.E(op, err)
+			return nil, nil, nil, serrors.E(op, err)
 		}
 
 		interruptData, err := json.Marshal(payload)
 		if err != nil {
-			return nil, nil, serrors.E(op, err, "failed to marshal interrupt payload")
+			return nil, nil, nil, serrors.E(op, err, "failed to marshal interrupt payload")
 		}
 
 		interrupt := &InterruptEvent{
@@ -1292,7 +1405,7 @@ func (e *Executor) executeToolCalls(
 			Data: interruptData,
 		}
 
-		return nil, interrupt, nil
+		return nil, nil, interrupt, nil
 	}
 
 	toolByName := make(map[string]Tool, len(tools))
@@ -1354,7 +1467,7 @@ func (e *Executor) executeToolCalls(
 			},
 		}) {
 			cancel()
-			return nil, nil, nil // Consumer stopped
+			return nil, nil, nil, nil // Consumer stopped
 		}
 
 		// Determine concurrency key (optional).
@@ -1405,6 +1518,7 @@ func (e *Executor) executeToolCalls(
 	}
 
 	ordered := make([]types.Message, len(toolCalls))
+	outcomes := make([]ToolCallOutcome, len(toolCalls))
 	received := 0
 
 	for received < len(toolCalls) {
@@ -1412,7 +1526,7 @@ func (e *Executor) executeToolCalls(
 		select {
 		case tr = <-resultsCh:
 		case <-toolCtx.Done():
-			return nil, nil, serrors.E(op, toolCtx.Err())
+			return nil, nil, nil, serrors.E(op, toolCtx.Err())
 		}
 
 		received++
@@ -1462,20 +1576,27 @@ func (e *Executor) executeToolCalls(
 			},
 		}) {
 			cancel()
-			return nil, nil, nil // Consumer stopped
+			return nil, nil, nil, nil // Consumer stopped
 		}
 
 		ordered[tr.idx] = types.ToolResponse(tr.call.ID, toolOutput)
+		outcomes[tr.idx] = toolCallOutcomeFromResult(tr.call, toolOutput, tr.result, tr.err, tr.durationMs)
 	}
 
 	results := make([]types.Message, 0, len(ordered))
+	orderedOutcomes := make([]ToolCallOutcome, 0, len(outcomes))
 	for _, msg := range ordered {
 		if msg != nil {
 			results = append(results, msg)
 		}
 	}
+	for _, outcome := range outcomes {
+		if outcome.Name != "" {
+			orderedOutcomes = append(orderedOutcomes, outcome)
+		}
+	}
 
-	return results, nil, nil
+	return results, orderedOutcomes, nil, nil
 }
 
 func parseAndCanonicalizeAskUserQuestionArgs(args string) (types.AskUserQuestionPayload, error) {
@@ -1673,6 +1794,7 @@ func buildDoneEvent(result *Response) ExecutorEvent {
 			CompletionTokens: u.CompletionTokens,
 			TotalTokens:      u.TotalTokens,
 			CachedTokens:     cachedTokens,
+			Cost:             u.Cost,
 		}
 	}
 	return ev

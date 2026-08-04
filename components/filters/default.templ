@@ -5,10 +5,12 @@
 package filters
 
 import (
+	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"strconv"
 )
 
 templ SearchFieldsTrigger(trigger *base.TriggerProps) {
@@ -88,8 +90,17 @@ templ PageSize() {
 // It provides common options like today, yesterday, this week, etc.
 templ CreatedAt() {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		initialCreatedAt := ""
+		currentURL := pageCtx.GetURL()
+		from := currentURL.Query().Get("CreatedAt.From")
+		to := currentURL.Query().Get("CreatedAt.To")
+		if from != "" && to != "" {
+			initialCreatedAt = fmt.Sprintf("%s|%s", from, to)
+		}
+	}}
 	<div x-data="dateFns" class="contents">
-		<div x-data="{createdAt: ''}" class="contents">
+		<div x-data={ fmt.Sprintf("{createdAt: %s}", strconv.Quote(initialCreatedAt)) } class="contents">
 			@base.Select(&base.SelectProps{
 				Placeholder: pageCtx.T("CreatedAt"),
 				Class:       "w-fit",

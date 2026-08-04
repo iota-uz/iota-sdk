@@ -5,42 +5,77 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	"github.com/sirupsen/logrus"
 )
 
 // ChatApplicationServices exposes explicit command/query facades over shared use cases.
 type ChatApplicationServices struct {
-	SessionCommands bichatservices.SessionCommands
-	SessionQueries  bichatservices.SessionQueries
-	TurnCommands    bichatservices.TurnCommands
-	TurnQueries     bichatservices.TurnQueries
-	StreamCommands  bichatservices.StreamCommands
-	HITLCommands    bichatservices.HITLCommands
-	Observability   *StreamObservability
+	SessionCommands      bichatservices.SessionCommands
+	SessionQueries       bichatservices.SessionQueries
+	TurnCommands         bichatservices.TurnCommands
+	ContinuationCommands bichatservices.ContinuationCommands
+	TurnQueries          bichatservices.TurnQueries
+	StreamCommands       bichatservices.StreamCommands
+	HITLCommands         bichatservices.HITLCommands
+	Observability        *StreamObservability
+	// core holds the single chatServiceImpl so shutdown helpers can reach it.
+	core *chatServiceImpl
 }
 
 type sessionCommandsService struct{ *chatServiceImpl }
 type sessionQueriesService struct{ *chatServiceImpl }
 type turnCommandsService struct{ *chatServiceImpl }
+type continuationCommandsService struct{ *chatServiceImpl }
 type turnQueriesService struct{ *chatServiceImpl }
 type streamCommandsService struct{ *chatServiceImpl }
 type hitlCommandsService struct{ *chatServiceImpl }
 
 // NewChatApplicationServices builds command/query service facades.
+// Returns an error when REDIS_URL is set but any Redis component fails to
+// initialise (see NewChatService).
 func NewChatApplicationServices(
 	chatRepo domain.ChatRepository,
 	agentService bichatservices.AgentService,
 	model agents.Model,
 	titleService TitleService,
 	titleQueue TitleJobQueue,
-) ChatApplicationServices {
-	core := NewChatService(chatRepo, agentService, model, titleService, titleQueue)
-	return ChatApplicationServices{
-		SessionCommands: &sessionCommandsService{chatServiceImpl: core},
-		SessionQueries:  &sessionQueriesService{chatServiceImpl: core},
-		TurnCommands:    &turnCommandsService{chatServiceImpl: core},
-		TurnQueries:     &turnQueriesService{chatServiceImpl: core},
-		StreamCommands:  &streamCommandsService{chatServiceImpl: core},
-		HITLCommands:    &hitlCommandsService{chatServiceImpl: core},
-		Observability:   NewStreamObservability(core.runRegistry),
+	logger ...*logrus.Logger,
+) (ChatApplicationServices, error) {
+	core, err := NewChatService(chatRepo, agentService, model, titleService, titleQueue)
+	if err != nil {
+		return ChatApplicationServices{}, err
 	}
+	if len(logger) > 0 && logger[0] != nil {
+		core.WithLogger(logger[0])
+	}
+	return ChatApplicationServices{
+		SessionCommands:      &sessionCommandsService{chatServiceImpl: core},
+		SessionQueries:       &sessionQueriesService{chatServiceImpl: core},
+		TurnCommands:         &turnCommandsService{chatServiceImpl: core},
+		ContinuationCommands: &continuationCommandsService{chatServiceImpl: core},
+		TurnQueries:          &turnQueriesService{chatServiceImpl: core},
+		StreamCommands:       &streamCommandsService{chatServiceImpl: core},
+		HITLCommands:         &hitlCommandsService{chatServiceImpl: core},
+		Observability:        NewStreamObservability(core.runRegistry),
+		core:                 core,
+	}, nil
+}
+
+// WithLangfuseBaseURL sets the Langfuse host URL on the underlying chat service
+// so that debug traces include a clickable trace URL. Call immediately after
+// NewChatApplicationServices; safe before concurrent use.
+func (s *ChatApplicationServices) WithLangfuseBaseURL(rawURL string) {
+	if s.core != nil {
+		s.core.WithLangfuseBaseURL(rawURL)
+	}
+}
+
+// CloseSharedRedis releases the shared *redis.Client that backs all Redis
+// components. Must be called exactly once at shutdown; no-op when Redis is
+// unconfigured.
+func (s *ChatApplicationServices) CloseSharedRedis() error {
+	if s.core == nil {
+		return nil
+	}
+	return s.core.CloseSharedRedis()
 }

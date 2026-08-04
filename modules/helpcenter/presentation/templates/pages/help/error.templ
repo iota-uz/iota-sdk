@@ -1,0 +1,9 @@
+package help
+
+import "fmt"
+
+templ Error(status int) {
+	<div class="p-6 text-sm text-gray-600">
+		{ fmt.Sprintf("Help Center error: %d", status) }
+	</div>
+}

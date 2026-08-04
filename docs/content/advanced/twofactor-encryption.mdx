@@ -47,7 +47,7 @@ The SDK automatically selects the appropriate encryptor:
 
 > **Production Environment Protection**: The system will fail to start only when **2FA is enabled** and `TOTP_ENCRYPTION_KEY` is missing in production (and test endpoints are disabled). If 2FA is disabled, the key is optional.
 
-Check the module initialization in `modules/core/module.go`:
+Check the module initialization in `modules/core/component.go`:
 
 ```go
 // In production, require TOTP_ENCRYPTION_KEY only when 2FA is enabled
@@ -159,7 +159,7 @@ func (e *KMSEncryptor) Decrypt(ctx context.Context, ciphertext string) (string, 
 }
 ```
 
-Then wire it in `modules/core/module.go`:
+Then wire it in `modules/core/component.go`:
 
 ```go
 // Production with AWS KMS

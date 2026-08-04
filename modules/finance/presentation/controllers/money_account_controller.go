@@ -35,7 +35,6 @@ import (
 )
 
 type MoneyAccountController struct {
-	app                 application.Application
 	moneyAccountService *services.MoneyAccountService
 	transactionService  *services.TransactionService
 	currencyService     *coreservices.CurrencyService
@@ -44,7 +43,11 @@ type MoneyAccountController struct {
 	tableDefinition     table.TableDefinition
 }
 
-func NewMoneyAccountController(app application.Application) application.Controller {
+func NewMoneyAccountController(
+	moneyAccountService *services.MoneyAccountService,
+	transactionService *services.TransactionService,
+	currencyService *coreservices.CurrencyService,
+) application.Controller {
 	basePath := "/finance/accounts"
 
 	// Create table definition with columns for HTMX requests
@@ -59,18 +62,29 @@ func NewMoneyAccountController(app application.Application) application.Controll
 		Build()
 
 	return &MoneyAccountController{
-		app:                 app,
-		moneyAccountService: app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
-		transactionService:  app.Service(services.TransactionService{}).(*services.TransactionService),
-		currencyService:     app.Service(coreservices.CurrencyService{}).(*coreservices.CurrencyService),
+		moneyAccountService: moneyAccountService,
+		transactionService:  transactionService,
+		currencyService:     currencyService,
 		transactionQuery:    query.NewPgTransactionQueryRepository(),
 		basePath:            basePath,
 		tableDefinition:     tableDefinition,
 	}
 }
 
-func (c *MoneyAccountController) Key() string {
-	return c.basePath
+func (c *MoneyAccountController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.money_account", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "finance.money_account",
+			Parent:   "finance",
+			TitleKey: "NavigationLinks.Accounts",
+			Path:     c.basePath,
+			Order:    40,
+			Actions: []application.NavAction{{
+				ID:       "finance.money_account.new",
+				TitleKey: "MoneyAccounts.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *MoneyAccountController) Register(r *mux.Router) {
@@ -78,8 +92,7 @@ func (c *MoneyAccountController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

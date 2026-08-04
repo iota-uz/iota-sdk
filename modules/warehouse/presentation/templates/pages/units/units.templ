@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -65,9 +66,12 @@ templ UnitsTable(props *IndexPageProps) {
 templ UnitsContent(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
-		<h1 class="text-2xl font-medium">
-			{ pageCtx.T("NavigationLinks.WarehouseUnits") }
-		</h1>
+		<div class="flex items-center gap-2">
+			<h1 class="text-2xl font-medium">
+				{ pageCtx.T("NavigationLinks.WarehouseUnits") }
+			</h1>
+			@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/warehouse.md"})
+		</div>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
 				class="p-4 flex items-center gap-3"

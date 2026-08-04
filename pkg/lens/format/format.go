@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	sdkmoney "github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 type Kind string
@@ -35,13 +37,19 @@ type Formatter interface {
 	Format(value any, locale, timezone string) string
 }
 
-type Plugin interface {
-	Name() string
-	Build(spec Spec) (Formatter, error)
-}
-
 func MoneyCompact(currency string) Spec {
 	return Spec{Name: "money_compact", Kind: KindAbbreviatedMoney, Currency: currency, Precision: 2}
+}
+
+// NumberCompact abbreviates like MoneyCompact but without a currency suffix —
+// for dense table columns where repeating the currency on every cell is noise
+// and the surrounding panel already states it.
+func NumberCompact() Spec {
+	return Spec{Name: "number_compact", Kind: KindAbbreviatedMoney, Precision: 2}
+}
+
+func Money(currency string, precision int) Spec {
+	return Spec{Name: "money", Kind: KindMoney, Currency: currency, Precision: precision}
 }
 
 func Count() Spec {
@@ -66,13 +74,16 @@ func Apply(spec *Spec, value any, locale, timezone string) string {
 		if !ok {
 			return defaultFormat(value)
 		}
-		return fmt.Sprintf("%.*f %s", spec.Precision, number, spec.Currency)
+		return formatMoney(number, spec.Currency, spec.Precision, locale)
 	case KindAbbreviatedMoney:
 		number, ok := coerceNumber(value)
 		if !ok {
 			return defaultFormat(value)
 		}
-		return fmt.Sprintf("%s %s", abbreviate(number, spec.Precision), spec.Currency)
+		if spec.Currency == "" {
+			return abbreviate(number, spec.Precision, locale)
+		}
+		return fmt.Sprintf("%s %s", abbreviate(number, spec.Precision, locale), spec.Currency)
 	case KindInteger:
 		number, ok := coerceNumber(value)
 		if !ok {
@@ -88,7 +99,7 @@ func Apply(spec *Spec, value any, locale, timezone string) string {
 		if precision < 0 {
 			precision = 0
 		}
-		return fmt.Sprintf("%.*f%%", precision, number)
+		return localizedFixed(number, precision, locale) + "%"
 	case KindDate:
 		layout := spec.Layout
 		if layout == "" {
@@ -124,6 +135,49 @@ func Apply(spec *Spec, value any, locale, timezone string) string {
 	}
 }
 
+func formatMoney(number float64, currency string, precision int, locale string) string {
+	if precision < 0 {
+		precision = 0
+	}
+	amount := scaleMoneyAmount(number, precision)
+	formatter := moneyFormatter(currency, precision, locale)
+	return formatter.Format(amount)
+}
+
+func scaleMoneyAmount(number float64, precision int) int64 {
+	scale := math.Pow10(precision)
+	return int64(math.Round(number * scale))
+}
+
+func moneyFormatter(currency string, precision int, locale string) *sdkmoney.Formatter {
+	decimal := "."
+	thousand := moneyThousandSeparator(locale)
+	grapheme := strings.TrimSpace(currency)
+	template := "1 $"
+	if grapheme == "" {
+		grapheme = "—"
+	}
+	if definition := sdkmoney.GetCurrency(currency); definition != nil {
+		if definition.Decimal != "" {
+			decimal = definition.Decimal
+		}
+		if definition.Grapheme != "" {
+			grapheme = definition.Grapheme
+		}
+	}
+	return sdkmoney.NewFormatter(precision, decimal, thousand, grapheme, template)
+}
+
+func moneyThousandSeparator(locale string) string {
+	normalized := strings.ToLower(strings.TrimSpace(locale))
+	switch {
+	case strings.HasPrefix(normalized, "en"):
+		return ","
+	default:
+		return " "
+	}
+}
+
 func defaultFormat(value any) string {
 	if value == nil {
 		return ""
@@ -145,18 +199,116 @@ func defaultFormat(value any) string {
 	}
 }
 
-func abbreviate(value float64, precision int) string {
+// abbreviateSuffixes is one locale's compact-number suffix set (thousand,
+// million, billion, trillion) plus whether a space separates the number from
+// the suffix. English keeps the tight "12.50K" convention; the other
+// supported locales spell the magnitude as a word and space it out.
+type abbreviateSuffixes struct {
+	Thousand string
+	Million  string
+	Billion  string
+	Trillion string
+	Spaced   bool
+}
+
+var (
+	abbreviateSuffixesEn = abbreviateSuffixes{Thousand: "K", Million: "M", Billion: "B", Trillion: "T"}
+	abbreviateSuffixesRu = abbreviateSuffixes{Thousand: "тыс", Million: "млн", Billion: "млрд", Trillion: "трлн", Spaced: true}
+	abbreviateSuffixesUz = abbreviateSuffixes{Thousand: "ming", Million: "mln", Billion: "mlrd", Trillion: "trln", Spaced: true}
+	// abbreviateSuffixesUzCyrl is the Cyrillic Uzbek locale ("uz-Cyrl").
+	abbreviateSuffixesUzCyrl = abbreviateSuffixes{Thousand: "минг", Million: "млн", Billion: "млрд", Trillion: "трлн", Spaced: true}
+)
+
+// abbreviateSuffixesFor resolves a locale code to its compact-number suffix
+// set. Matching follows the moneyThousandSeparator convention: a
+// case-insensitive prefix match, with "uz-Cyrl" checked before the bare "uz"
+// prefix so the Cyrillic variant is not shadowed by the Latin one.
+func abbreviateSuffixesFor(locale string) abbreviateSuffixes {
+	normalized := strings.ToLower(strings.TrimSpace(locale))
+	switch {
+	case strings.HasPrefix(normalized, "ru"):
+		return abbreviateSuffixesRu
+	case strings.HasPrefix(normalized, "uz-cyrl"):
+		return abbreviateSuffixesUzCyrl
+	case strings.HasPrefix(normalized, "uz"):
+		return abbreviateSuffixesUz
+	default:
+		return abbreviateSuffixesEn
+	}
+}
+
+// abbreviationFloor is the magnitude below which compact formatting falls
+// back to the exact grouped integer: «12 500 UZS» reads better (and is more
+// honest) than «12.50 тыс UZS», while «106.03 млрд» stays compact.
+const abbreviationFloor = 100_000
+
+func abbreviate(value float64, precision int, locale string) string {
+	suffixes := abbreviateSuffixesFor(locale)
 	abs := math.Abs(value)
 	switch {
+	case abs >= 1_000_000_000_000:
+		return formatAbbreviated(value/1_000_000_000_000, precision, suffixes.Trillion, suffixes.Spaced, locale)
 	case abs >= 1_000_000_000:
-		return fmt.Sprintf("%.*fB", precision, value/1_000_000_000)
+		return formatAbbreviated(value/1_000_000_000, precision, suffixes.Billion, suffixes.Spaced, locale)
 	case abs >= 1_000_000:
-		return fmt.Sprintf("%.*fM", precision, value/1_000_000)
-	case abs >= 1_000:
-		return fmt.Sprintf("%.*fK", precision, value/1_000)
+		return formatAbbreviated(value/1_000_000, precision, suffixes.Million, suffixes.Spaced, locale)
+	case abs >= abbreviationFloor:
+		return formatAbbreviated(value/1_000, precision, suffixes.Thousand, suffixes.Spaced, locale)
 	default:
-		return fmt.Sprintf("%.*f", precision, value)
+		return groupedInteger(value, locale)
 	}
+}
+
+// groupedInteger renders the value rounded to a whole unit with the locale's
+// thousand separator and no fraction: 66064767693.59 → "66 064 767 694".
+func groupedInteger(value float64, locale string) string {
+	rounded := int64(math.Round(value))
+	negative := rounded < 0
+	if negative {
+		rounded = -rounded
+	}
+	digits := strconv.FormatInt(rounded, 10)
+	separator := moneyThousandSeparator(locale)
+	var b strings.Builder
+	if negative {
+		b.WriteByte('-')
+	}
+	for i, r := range digits {
+		if i > 0 && (len(digits)-i)%3 == 0 {
+			b.WriteString(separator)
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// MoneyExact renders the full-precision grouped value with the ISO currency
+// code suffix («66 064 767 694 UZS») — the exact companion to MoneyCompact,
+// for tooltips/captions that must preserve the un-abbreviated amount.
+func MoneyExact(value float64, currency, locale string) string {
+	text := groupedInteger(value, locale)
+	code := strings.TrimSpace(currency)
+	if code == "" {
+		return text
+	}
+	return text + " " + code
+}
+
+func formatAbbreviated(scaled float64, precision int, suffix string, spaced bool, locale string) string {
+	number := localizedFixed(scaled, precision, locale)
+	if spaced {
+		return number + " " + suffix
+	}
+	return number + suffix
+}
+
+func localizedFixed(value float64, precision int, locale string) string {
+	formatted := fmt.Sprintf("%.*f", precision, value)
+	normalized := strings.ToLower(strings.TrimSpace(locale))
+	if strings.HasPrefix(normalized, "ru") || strings.HasPrefix(normalized, "uz") {
+		return strings.Replace(formatted, ".", ",", 1)
+	}
+	return formatted
 }
 
 func coerceNumber(value any) (float64, bool) {

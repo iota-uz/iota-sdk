@@ -7,10 +7,12 @@ import (
 	"sync"
 
 	"github.com/go-playground/locales/en"
+	"github.com/go-playground/locales/pt_BR"
 	"github.com/go-playground/locales/ru"
 	"github.com/go-playground/locales/zh_Hans_CN"
 	"github.com/go-playground/validator/v10"
 	en_translations "github.com/go-playground/validator/v10/translations/en"
+	pt_BR_translations "github.com/go-playground/validator/v10/translations/pt_BR"
 	ru_translations "github.com/go-playground/validator/v10/translations/ru"
 	zh_translations "github.com/go-playground/validator/v10/translations/zh"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -29,9 +31,10 @@ const (
 
 var (
 	registerTranslations = map[string]func(v *validator.Validate, trans ut.Translator) error{
-		"en": en_translations.RegisterDefaultTranslations,
-		"ru": ru_translations.RegisterDefaultTranslations,
-		"zh": zh_translations.RegisterDefaultTranslations,
+		"en":    en_translations.RegisterDefaultTranslations,
+		"ru":    ru_translations.RegisterDefaultTranslations,
+		"pt-BR": pt_BR_translations.RegisterDefaultTranslations,
+		"zh":    zh_translations.RegisterDefaultTranslations,
 	}
 	translationLock = sync.Mutex{}
 	ErrNoLocalizer  = errors.New("localizer not found")
@@ -67,11 +70,39 @@ func MustT(ctx context.Context, msgID string) string {
 	})
 }
 
+// T returns the translation for the given message ID without panicking.
+// The second return value is false when the localizer is missing from the
+// context or the message ID is not present in any registered translation
+// file. Callers should provide their own fallback rather than relying on
+// MustT, which is fragile in user-supplied LabelKey scenarios.
+func T(ctx context.Context, msgID string) (string, bool) {
+	l, ok := UseLocalizer(ctx)
+	if !ok {
+		return "", false
+	}
+	out, err := l.Localize(&i18n.LocalizeConfig{MessageID: msgID})
+	if err != nil {
+		return "", false
+	}
+	return out, true
+}
+
+// TWithDefault returns the translation for msgID or the supplied default
+// when the localizer is missing or the key is unknown. Equivalent to T but
+// avoids forcing every caller to write the same two-line fallback.
+func TWithDefault(ctx context.Context, msgID, fallback string) string {
+	if out, ok := T(ctx, msgID); ok {
+		return out
+	}
+	return fallback
+}
+
 func loadUniTranslator() *ut.UniversalTranslator {
 	enLocale := en.New()
 	ruLocale := ru.New()
+	ptLocale := pt_BR.New()
 	zhLocale := zh_Hans_CN.New()
-	return ut.New(enLocale, enLocale, ruLocale, zhLocale)
+	return ut.New(enLocale, enLocale, ruLocale, ptLocale, zhLocale)
 }
 
 func UseUniLocalizer(ctx context.Context) (ut.Translator, error) {

@@ -39,7 +39,7 @@ func AccentColor(props AccentColorProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<label class=\"accent-color-card cursor-pointer rounded-xl border border-primary max-w-xs flex flex-col items-center gap-3 p-3 pb-4 duration-300 has-[input:checked]:border-[var(--color)]\" style=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<label class=\"accent-color-card cursor-pointer rounded-xl border border-subtle max-w-xs flex flex-col items-center gap-3 p-3 pb-4 duration-300 has-[input:checked]:border-[var(--color)]\" style=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -107,7 +107,7 @@ func AccentColor(props AccentColorProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "><div class=\"rounded-xl border-2 border-primary flex items-center justify-center p-4 bg-surface-100 w-full duration-300 text-300 peer-checked:text-[var(--color)]\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "><div class=\"rounded-xl border-2 border-default flex items-center justify-center p-4 bg-surface-100 w-full duration-300 text-300 peer-checked:text-[var(--color)]\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -115,7 +115,7 @@ func AccentColor(props AccentColorProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div><div class=\"w-4 h-4 rounded-full bg-[var(--color)] relative outline outline-offset-2 outline-border-primary duration-300 peer-checked:outline-[var(--color)]\"></div></label>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div><div class=\"w-4 h-4 rounded-full bg-[var(--color)] relative outline outline-offset-2 outline-border-default duration-300 peer-checked:outline-[var(--color)]\"></div></label>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

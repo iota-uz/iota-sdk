@@ -20,25 +20,22 @@ import (
 // (via RequireAccessPermission) and relies on hard-to-guess filenames (UUIDs).
 // If you need per-file authorization, serve downloads through a DB-backed controller.
 type UploadsController struct {
-	app     application.Application
 	baseDir string
 	opts    ControllerOptions
 }
 
 func NewUploadsController(
-	app application.Application,
 	baseDir string,
 	opts ...ControllerOption,
 ) *UploadsController {
 	return &UploadsController{
-		app:     app,
 		baseDir: baseDir,
 		opts:    applyControllerOptions(opts...),
 	}
 }
 
-func (c *UploadsController) Key() string {
-	return "bichat.UploadsController"
+func (c *UploadsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("bichat.uploads", 0, application.Route("", c.opts.BasePath))
 }
 
 func (c *UploadsController) Register(r *mux.Router) {
@@ -46,8 +43,7 @@ func (c *UploadsController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

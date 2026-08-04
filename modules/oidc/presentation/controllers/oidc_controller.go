@@ -15,38 +15,46 @@ import (
 	oidcservices "github.com/iota-uz/iota-sdk/modules/oidc/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
 )
 
 // CallbackQueryDTO represents the query parameters for the OIDC callback endpoint
 type CallbackQueryDTO struct {
-	ID string `schema:"id"`
+	ID string `form:"id"`
 }
 
 type OIDCController struct {
-	app         application.Application
 	storage     *oidc.Storage
-	config      *configuration.OIDCOptions
+	oidcCfg     *oidcconfig.Config
+	httpCfg     *httpconfig.Config
+	cookiesCfg  *cookies.Config
 	oidcService *oidcservices.OIDCService
+	sessionSvc  *coreservices.SessionService
 	provider    op.OpenIDProvider
 }
 
 func NewOIDCController(
-	app application.Application,
 	storage *oidc.Storage,
-	config *configuration.OIDCOptions,
+	oidcCfg *oidcconfig.Config,
 	oidcService *oidcservices.OIDCService,
+	sessionService *coreservices.SessionService,
+	httpCfg *httpconfig.Config,
+	cookiesCfg *cookies.Config,
 ) *OIDCController {
 	return &OIDCController{
-		app:         app,
 		storage:     storage,
-		config:      config,
+		oidcCfg:     oidcCfg,
+		httpCfg:     httpCfg,
+		cookiesCfg:  cookiesCfg,
 		oidcService: oidcService,
+		sessionSvc:  sessionService,
 	}
 }
 
-func (c *OIDCController) Key() string {
-	return "/oidc"
+func (c *OIDCController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("oidc.oidc", 0, application.Route("", "/oidc"))
 }
 
 // Register mounts the OIDC provider router and custom routes
@@ -54,7 +62,7 @@ func (c *OIDCController) Register(r *mux.Router) {
 	// Convert base64-encoded crypto key to [32]byte array
 	var cryptoKey [32]byte
 	// Decode base64 crypto key
-	decodedKey, err := base64.StdEncoding.DecodeString(c.config.CryptoKey)
+	decodedKey, err := base64.StdEncoding.DecodeString(c.oidcCfg.CryptoKey)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to decode crypto key (must be base64-encoded): %v", err))
 	}
@@ -74,7 +82,7 @@ func (c *OIDCController) Register(r *mux.Router) {
 	provider, err := op.NewProvider(
 		providerConfig,
 		c.storage,
-		op.StaticIssuer(c.config.IssuerURL),
+		op.StaticIssuer(c.oidcCfg.IssuerURL),
 		// op.WithAllowInsecure() can be added for development without HTTPS
 	)
 	if err != nil {
@@ -149,15 +157,14 @@ func (c *OIDCController) handleCallback(w http.ResponseWriter, r *http.Request) 
 	// Complete auth request from active session if not already authenticated.
 	// This ensures users finish 2FA before OIDC authorization can proceed.
 	if !authReq.IsAuthenticated() {
-		sessionCookie, err := r.Cookie(configuration.Use().SidCookieKey)
+		sessionCookie, err := r.Cookie(c.cookiesCfg.SID)
 		if err != nil {
 			logger.WithError(err).Error("Missing session cookie for OIDC callback")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		sessionService := c.app.Service(coreservices.SessionService{}).(*coreservices.SessionService)
-		sess, err := sessionService.GetByToken(r.Context(), sessionCookie.Value)
+		sess, err := c.sessionSvc.GetByToken(r.Context(), sessionCookie.Value)
 		if err != nil {
 			logger.WithError(err).Error("Failed to load session for OIDC callback")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)

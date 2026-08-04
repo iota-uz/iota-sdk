@@ -1,0 +1,727 @@
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { DashboardDocument, Frame, Panel } from '../contract'
+import { clusterRow, DashboardPanels } from '../DashboardPanels'
+import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
+import type { ChartAdapter, ChartInput } from '../charts/adapter'
+import { ChartPanel } from './ChartPanel'
+import { CoveragePanel } from './CoveragePanel'
+import { infoTipTailOffset, positionInfoTip } from './InfoTip'
+import { StatMetric, StatPanel } from './StatPanel'
+import { PanelSkeletonBody } from './Skeleton'
+import { TablePanel } from './TablePanel'
+
+afterEach(() => {
+  cleanup()
+  window.history.replaceState({}, '', '/')
+})
+
+function documentWith(panels: Panel[], frames: Record<string, Frame>, layout?: DashboardDocument['layout']): DashboardDocument {
+  return {
+    version: '1.0.0',
+    snapshotId: 'parity-snapshot',
+    meta: { dashboardId: 'parity', title: '', generatedAt: '2026-07-19T00:00:00Z', locale: 'en' },
+    layout: layout ?? { rows: [{ panels: panels.map((panel) => ({ panelId: panel.id, span: 12 })) }] },
+    panels,
+    frames,
+    drill: { inlineDepth: 0, edges: {} },
+    perspectives: [],
+    endpoints: {},
+    i18n: {},
+    theme: { palette: {}, series: {} },
+  }
+}
+
+function renderDocument(document: DashboardDocument, children: React.ReactNode) {
+  return render(
+    <div className="lens-root">
+      <DocumentProvider initialDocument={document}>
+        <DashboardRuntimeProvider locale="en">{children}</DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>,
+  )
+}
+
+const statPanel: Panel = {
+  id: 'loss-ratio', kind: 'stat', title: 'Loss ratio', semantics: 'series', frame: 'stat:root',
+  encoding: { label: 'label', value: 'value' },
+  format: { value: { kind: 'percent', minorUnits: false, precision: 1 } },
+  accent: '#2f56d9',
+  status: { label: 'Estimate', tone: 'warning' },
+  actions: [],
+}
+
+const statFrame: Frame = {
+  columns: [{ name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+  rows: [['Loss ratio', 3.1]],
+}
+
+describe('stat panels', () => {
+  it('renders the metric form with an uppercase label and status chip, and no accent bullet', () => {
+    const { container } = renderDocument(
+      documentWith([statPanel], { 'stat:root': statFrame }),
+      <StatMetric panel={statPanel} />,
+    )
+
+    // The accent square said nothing a reader could look up, and said different
+    // things on different boards; a strip cell carries no colour of its own.
+    expect(container.querySelector('.lens-stat-metric-bullet')).toBeNull()
+    expect(screen.getByText('Estimate')).toHaveClass('lens-status-chip-warning')
+    expect(screen.getByText('3.1%')).toHaveClass('lens-stat-metric-value')
+  })
+
+  it('drops a dataset label that only repeats the panel title', () => {
+    const { container } = renderDocument(
+      documentWith([statPanel], { 'stat:root': statFrame }),
+      <StatPanel panel={statPanel} />,
+    )
+
+    // "Loss ratio" is the panel title, so the card shows it once, in the header.
+    expect(screen.getAllByText('Loss ratio')).toHaveLength(1)
+    // The status chip still forces the label row to exist.
+    expect(container.querySelector('.lens-stat-label')).not.toBeNull()
+  })
+
+  it('keeps a dataset label that says something new', () => {
+    const document = documentWith([statPanel], {
+      'stat:root': { ...statFrame, rows: [['Net of reinsurance', 3.1]] },
+    })
+    renderDocument(document, <StatPanel panel={statPanel} />)
+
+    expect(screen.getByText('Net of reinsurance')).toBeInTheDocument()
+  })
+
+  it('carries a metric note behind a compact info tip in the label row', () => {
+    const panel: Panel = { ...statPanel, info: 'Claims paid divided by earned premium.' }
+    const { container } = renderDocument(
+      documentWith([panel], { 'stat:root': statFrame }),
+      <div className="lens-panel"><StatMetric panel={panel} /></div>,
+    )
+
+    const tip = container.querySelector('.lens-info-tip-button-inline')
+    expect(tip).not.toBeNull()
+    // The label row owns it: the compact form has no header to hang it from.
+    expect(container.querySelector('.lens-stat-metric-label')?.contains(tip)).toBe(true)
+
+    fireEvent.click(tip!)
+    const tooltip = screen.getByRole('tooltip')
+    expect(tooltip.textContent).toContain('Claims paid divided by earned premium.')
+    // The note is a floating surface. Keeping it outside the panel prevents
+    // the next KPI cell from painting over it.
+    expect(tooltip.closest('.lens-panel')).toBeNull()
+  })
+
+  it('keeps the portaled info tip open while the pointer crosses the visual gap', async () => {
+    const panel: Panel = { ...statPanel, info: 'Claims paid divided by earned premium.' }
+    const { container } = renderDocument(
+      documentWith([panel], { 'stat:root': statFrame }),
+      <div className="lens-panel"><StatMetric panel={panel} /></div>,
+    )
+    const wrapper = container.querySelector<HTMLElement>('.lens-info-tip')!
+    fireEvent.mouseEnter(wrapper)
+    const tooltip = await screen.findByRole('tooltip')
+    expect(tooltip.closest('.lens-info-tip-overlay-root')).not.toBeNull()
+    expect(tooltip).toHaveStyle({ pointerEvents: 'auto' })
+    fireEvent.mouseLeave(wrapper, { relatedTarget: null })
+    fireEvent.mouseEnter(tooltip)
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 150))
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+  })
+
+  it('leaves a metric without a note free of info chrome', () => {
+    const { container } = renderDocument(
+      documentWith([statPanel], { 'stat:root': statFrame }),
+      <StatMetric panel={statPanel} />,
+    )
+
+    expect(container.querySelector('.lens-info-tip')).toBeNull()
+  })
+
+  it('renders multiline captions without flattening their content', () => {
+    const panel: Panel = { ...statPanel, caption: 'First caveat\nSecond caveat' }
+    const { container } = renderDocument(
+      documentWith([panel], { 'stat:root': statFrame }),
+      <StatPanel panel={panel} />,
+    )
+
+    expect(container.querySelector('.lens-panel-caption')?.textContent).toBe('First caveat\nSecond caveat')
+  })
+})
+
+describe('info tip placement', () => {
+  it('keeps a tooltip anchored near the right edge inside the viewport', () => {
+    expect(positionInfoTip(
+      { left: 1140, top: 380, bottom: 408 },
+      { width: 320, height: 160 },
+      { width: 1280, height: 720 },
+    )).toEqual({ left: 952, top: 414, side: 'below' })
+  })
+
+  it('flips a tooltip above its trigger when there is no room below', () => {
+    expect(positionInfoTip(
+      { left: 400, top: 680, bottom: 708 },
+      { width: 320, height: 160 },
+      { width: 1280, height: 720 },
+    )).toEqual({ left: 400, top: 514, side: 'above' })
+  })
+
+  it('points the tail at its trigger, and never past the bubble corners', () => {
+    expect(infoTipTailOffset(600, 560, 320)).toBe(40)
+    expect(infoTipTailOffset(561, 560, 320)).toBe(14)
+    expect(infoTipTailOffset(1000, 560, 320)).toBe(306)
+  })
+})
+
+const coveragePanel: Panel = {
+  id: 'claims-coverage', kind: 'coverage', title: 'Claims paid', semantics: 'partition', frame: 'coverage:root',
+  encoding: { label: 'label', value: 'amount' },
+  format: { amount: { kind: 'money', currency: 'UZS', minorUnits: false, precision: 0 } },
+  caption: 'All claims covered by reserve',
+  headline: 5_458_561_140,
+  actions: [],
+}
+
+const coverageFrame: Frame = {
+  columns: [{ name: 'label', type: 'string' }, { name: 'amount', type: 'number' }],
+  rows: [['Within reserve', 5_458_561_140], ['Above reserve', 0]],
+}
+
+describe('coverage panel', () => {
+  it('renders a headline, caption, segmented track and legend rows with shares', () => {
+    const { container } = renderDocument(
+      documentWith([coveragePanel], { 'coverage:root': coverageFrame }),
+      <CoveragePanel panel={coveragePanel} />,
+    )
+
+    expect(container.querySelector('.lens-coverage-headline')?.textContent).toContain('5,458,561,140')
+    // A chart panel's caption is not a band above the plot: it lives behind the
+    // header's info affordance and appears once that is opened.
+    expect(screen.queryByText('All claims covered by reserve')).toBeNull()
+    // The trigger names its own subject: a board carries a dozen ⓘ, and
+    // "About this metric" told a screen reader which of them it had landed on
+    // exactly as well as no label at all would have.
+    const info = screen.getByRole('button', { name: 'About Claims paid' })
+    expect(info).not.toHaveAttribute('title')
+    expect(info).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.mouseEnter(info.closest('.lens-info-tip')!)
+    expect(info).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('All claims covered by reserve')).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(info).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('All claims covered by reserve')).toBeNull()
+    // A lone 100% segment is a meaningless full bar, so the track is dropped
+    // entirely; the headline and both legend rows still state the split.
+    expect(container.querySelector('.lens-coverage-track')).toBeNull()
+    const shares = [...container.querySelectorAll('.lens-coverage-legend-share')].map((node) => node.textContent)
+    expect(shares).toEqual(['100%', '0%'])
+  })
+
+  it('honours a precision of 0 in the headline instead of falling back to locale defaults', () => {
+    const panel: Panel = { ...coveragePanel, headline: 51_522_007_533.993 }
+    const { container } = renderDocument(
+      documentWith([panel], { 'coverage:root': coverageFrame }),
+      <CoveragePanel panel={panel} />,
+    )
+
+    expect(container.querySelector('.lens-coverage-headline')?.textContent).toContain('51,522,007,534')
+    expect(container.querySelector('.lens-coverage-headline')?.textContent).not.toContain('.993')
+  })
+})
+
+const tablePanel: Panel = {
+  id: 'groups', kind: 'table', title: 'Groups', semantics: 'evidence', frame: 'groups:root',
+  encoding: { id: 'group_id', label: 'name' },
+  format: {
+    earned: { kind: 'number', minorUnits: false, precision: 2, compact: true, decimalSeparator: '.' },
+    balance: { kind: 'number', minorUnits: false, precision: 2, compact: true, decimalSeparator: '.' },
+    delta_pct: { kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' },
+  },
+  columns: [
+    { field: 'name', label: 'Product', cell: { kind: 'plain' }, clamp: 2, widthPx: 180 },
+    {
+      field: 'earned', label: 'Earned', align: 'right', cell: { kind: 'plain' }, affordance: 'pill',
+      action: { kind: 'navigate_to_leaf', urlSource: { kind: 'field', name: 'detail_url' }, params: [], payload: {} },
+    },
+    { field: 'balance', label: 'Balance', align: 'right', cell: { kind: 'underline' } },
+    {
+      field: 'delta', label: 'Change', align: 'right',
+      cell: { kind: 'delta', secondaryField: 'delta_pct', layout: 'stacked' },
+    },
+    {
+      field: '', label: '', text: 'Open', cell: { kind: 'plain' },
+      action: { kind: 'navigate_to_leaf', urlSource: { kind: 'field', name: 'detail_url' }, params: [], payload: {} },
+    },
+  ],
+  actions: [{
+    kind: 'navigate_to_leaf', urlTemplate: '/groups/{id}',
+    params: [{ name: 'id', source: { kind: 'field', name: 'group_id' } }], payload: {},
+  }],
+}
+
+const tableFrame: Frame = {
+  columns: [
+    { name: 'group_id', type: 'string' }, { name: 'name', type: 'string' },
+    { name: 'earned', type: 'number' }, { name: 'balance', type: 'number' },
+    { name: 'delta', type: 'number' }, { name: 'delta_pct', type: 'number' },
+    { name: 'detail_url', type: 'string' },
+  ],
+  rows: [
+    ['a', 'Group A', 9_364_442_607, 150_530_000, -12_030_000, -0.6, '/groups/a'],
+    ['b', 'Group B', 4_100_000_000, -75_000_000, 13_400_000, 13, '/groups/b'],
+  ],
+}
+
+describe('table parity treatments', () => {
+  it('renders pill, underline, stacked delta, clamp, action text and a panel-level leaf column', () => {
+    const { container } = renderDocument(
+      documentWith([tablePanel], { 'groups:root': tableFrame }),
+      <TablePanel panel={tablePanel} />,
+    )
+
+    // Compact cells with the pinned separator, wrapped in a drill pill.
+    const pill = container.querySelector('.lens-table-cell-pill')
+    expect(pill?.textContent).toContain('9.36B')
+    // The drill arrow is a Phosphor glyph now, not a text character.
+    expect(pill?.querySelector('svg')).not.toBeNull()
+
+    // Underline rules follow the sign and never shrink into a stray hyphen:
+    // they span the value instead of encoding magnitude.
+    const rules = container.querySelectorAll<HTMLElement>('.lens-table-underline-rule')
+    expect(rules).toHaveLength(2)
+    expect(rules[1]).toHaveClass('lens-table-underline-rule-negative')
+    expect(rules[0]?.style.width).toBe('')
+    expect(container.querySelector('.lens-table-underline')?.textContent).not.toContain('-—')
+
+    // Stacked delta puts the percent first and the amount below it.
+    const stacked = container.querySelector('.lens-table-delta-stacked')
+    expect(stacked?.firstElementChild).toHaveClass('lens-table-delta-pct-negative')
+    expect(stacked?.lastElementChild).toHaveClass('lens-table-delta-value')
+
+    // Clamped product names and pinned width.
+    expect(container.querySelector('.lens-table-clamp')).toHaveStyle({ '-webkit-line-clamp': '2' })
+    expect(container.querySelector('th')).toHaveStyle({ 'min-width': '180px' })
+
+    // An action-only column renders its literal text, not an em dash.
+    expect(screen.getAllByText('Open')).toHaveLength(2)
+
+    // The panel-level leaf action reaches the DOM in columns mode.
+    const openRecord = screen.getAllByText('Open record')
+    expect(openRecord).toHaveLength(2)
+    expect(openRecord[0]).toHaveAttribute('href', expect.stringContaining('/groups/a'))
+  })
+
+  it('offers no sort control on an action-only column', () => {
+    renderDocument(documentWith([tablePanel], { 'groups:root': tableFrame }), <TablePanel panel={tablePanel} />)
+
+    const headers = screen.getAllByRole('columnheader')
+    // 5 declared columns + the appended leaf action column.
+    expect(headers).toHaveLength(6)
+    expect(headers[4]?.querySelector('button')).toBeNull()
+  })
+})
+
+describe('layout groups', () => {
+  const first: Panel = { ...statPanel, id: 'metric-a', title: 'Metric A' }
+  const second: Panel = { ...statPanel, id: 'metric-b', title: 'Metric B' }
+  const metricsLayout: DashboardDocument['layout'] = {
+    rows: [{
+      heading: 'Key ratios',
+      panels: [
+        { panelId: 'metric-a', span: 3, groups: [{ id: 'ratios', kind: 'metrics', label: 'By earned premium', layout: 'columns', span: 12 }] },
+        { panelId: 'metric-b', span: 3, groups: [{ id: 'ratios', kind: 'metrics', label: 'By earned premium', layout: 'columns', span: 12 }] },
+      ],
+    }],
+  }
+
+  it('groups consecutive items that share a group id', () => {
+    const clusters = clusterRow([
+      { panelId: 'a', span: 3, groups: [{ id: 'g', kind: 'metrics', span: 12 }] },
+      { panelId: 'b', span: 3, groups: [{ id: 'g', kind: 'metrics', span: 12 }] },
+      { panelId: 'c', span: 6 },
+      { panelId: 'd', span: 3, groups: [{ id: 'h', kind: 'metrics', span: 12 }] },
+    ])
+
+    expect(clusters.map((cluster) => cluster.items.map((item) => item.panelId))).toEqual([['a', 'b'], ['c'], ['d']])
+  })
+
+  it('renders a metrics group as one card with a metric row', () => {
+    const document = documentWith([first, second], { 'stat:root': statFrame }, metricsLayout)
+    const { container } = renderDocument(document, <DashboardPanels />)
+
+    expect(container.querySelectorAll('.lens-panel-group')).toHaveLength(1)
+    expect(container.querySelectorAll('.lens-stat-metric')).toHaveLength(2)
+    expect(screen.getByText('By earned premium')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Key ratios')
+  })
+
+  it('renders a tabs group as a segmented strip showing one tab at a time', () => {
+    const tabsLayout: DashboardDocument['layout'] = {
+      rows: [{
+        panels: [
+          { panelId: 'metric-a', span: 12, groups: [{ id: 'result', kind: 'tabs', span: 12, tab: 'Cash' }] },
+          { panelId: 'metric-b', span: 12, groups: [{ id: 'result', kind: 'tabs', span: 12, tab: 'Underwriting' }] },
+        ],
+      }],
+    }
+    const document = documentWith([first, second], { 'stat:root': statFrame }, tabsLayout)
+    renderDocument(document, <DashboardPanels />)
+
+    const tabs = screen.getAllByRole('tab')
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Cash', 'Underwriting'])
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tabpanel').textContent).toContain('Metric A')
+    expect(screen.getByRole('tabpanel').textContent).not.toContain('Metric B')
+  })
+})
+
+describe('loading placeholders', () => {
+  it('mirrors the layout instead of showing a spinner while the document loads', () => {
+    const fetcher = vi.fn<typeof fetch>().mockReturnValue(new Promise<Response>(() => undefined))
+    const { container } = render(
+      <div className="lens-root">
+        <DocumentProvider src="/lens/document" fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en"><DashboardPanels /></DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    expect(container.querySelector('.lens-loading')).toHaveAttribute('aria-busy', 'true')
+    expect(container.querySelectorAll('.lens-skeleton-card').length).toBeGreaterThan(0)
+    expect(container.textContent).not.toContain('Loading dashboard')
+  })
+
+  it('shapes the panel placeholder from the panel kind', () => {
+    const { container } = render(<PanelSkeletonBody kind="stat" />)
+    expect(container.querySelector('.lens-skeleton-card')).toHaveAttribute('data-kind', 'stat')
+
+    cleanup()
+    const table = render(<PanelSkeletonBody kind="table" />)
+    expect(table.container.querySelector('.lens-skeleton-card')).toHaveAttribute('data-kind', 'table')
+  })
+})
+
+const plainPillPanel: Panel = {
+  id: 'plain-pill', kind: 'table', title: 'Groups', semantics: 'series', frame: 'groups:root',
+  encoding: { id: 'group_id', label: 'name' },
+  format: { earned: { kind: 'number', minorUnits: false, precision: 2, compact: true, decimalSeparator: '.' } },
+  columns: [
+    { field: 'name', label: 'Product', cell: { kind: 'plain' } },
+    // Pill without a wire action: the drill lives in the host renderer.
+    { field: 'earned', label: 'Earned', align: 'right', cell: { kind: 'plain' }, affordance: 'pill' },
+  ],
+  actions: [],
+}
+
+describe('drill affordance', () => {
+  it('renders a pill on a plain cell that carries no wire action, without claiming a link', () => {
+    const { container } = renderDocument(
+      documentWith([plainPillPanel], { 'groups:root': tableFrame }),
+      <TablePanel panel={plainPillPanel} />,
+    )
+
+    const pills = container.querySelectorAll('.lens-table-cell-pill')
+    expect(pills).toHaveLength(2)
+    expect(pills[0]?.tagName).toBe('SPAN')
+    expect(pills[0]?.textContent).toContain('9.36B')
+    // No arrow without a target: the affordance must not promise navigation
+    // the runtime cannot perform.
+    expect(container.querySelector('.lens-table-cell-link-arrow')).toBeNull()
+  })
+
+  it('renders zero and null underline cells without a stray rule', () => {
+    const zeroFrame: Frame = {
+      ...tableFrame,
+      rows: [
+        ['a', 'Group A', 1, 0, 0, 0, '/groups/a'],
+        ['b', 'Group B', 1, null, 0, 0, '/groups/b'],
+      ],
+    }
+    const { container } = renderDocument(
+      documentWith([tablePanel], { 'groups:root': zeroFrame }),
+      <TablePanel panel={tablePanel} />,
+    )
+
+    // Zero keeps a neutral rule; a missing number has none at all.
+    const rules = container.querySelectorAll('.lens-table-underline-rule')
+    expect(rules).toHaveLength(1)
+    expect(rules[0]).not.toHaveClass('lens-table-underline-rule-negative')
+  })
+})
+
+describe('expanded panel', () => {
+  const expandable: Panel = { ...coveragePanel, id: 'expandable' }
+
+  function openExpanded(children: React.ReactNode) {
+    const view = renderDocument(
+      documentWith([expandable], { 'coverage:root': coverageFrame }),
+      children,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Expand panel' }))
+    return view
+  }
+
+  it('renders the panel in a modal dialog at the end of body, not inside the grid', () => {
+    const { container } = openExpanded(<CoveragePanel panel={expandable} />)
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    expect(dialog).toHaveAttribute('aria-label', 'Claims paid')
+    // Portaled out of the dashboard: no ancestor stacking context can trap it.
+    expect(container.contains(dialog)).toBe(false)
+    expect(dialog.closest('.lens-root')).toHaveClass('lens-overlay-root')
+    expect(document.body.lastElementChild).toContainElement(dialog)
+    expect(dialog.querySelector('.lens-panel')).not.toBeNull()
+    expect(document.body.style.overflow).toBe('hidden')
+  })
+
+  it('carries the dashboard theme onto the portal host', () => {
+    render(
+      <div className="lens-root" data-theme="dark">
+        <DocumentProvider initialDocument={documentWith([expandable], { 'coverage:root': coverageFrame })}>
+          <DashboardRuntimeProvider locale="en"><CoveragePanel panel={expandable} /></DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Expand panel' }))
+
+    expect(screen.getByRole('dialog').closest('.lens-root')).toHaveAttribute('data-theme', 'dark')
+  })
+
+  it.each([
+    ['Escape key', () => fireEvent.keyDown(document, { key: 'Escape' })],
+    ['backdrop click', () => fireEvent.mouseDown(document.querySelector('.lens-panel-overlay')!)],
+  ])('closes on %s and restores focus to the expand button', (_name, close) => {
+    openExpanded(<CoveragePanel panel={expandable} />)
+    close()
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.body.style.overflow).not.toBe('hidden')
+    expect(screen.getByRole('button', { name: 'Expand panel' })).toHaveFocus()
+  })
+
+  it('keeps a click inside the dialog from dismissing it', () => {
+    openExpanded(<CoveragePanel panel={expandable} />)
+    fireEvent.mouseDown(screen.getByRole('dialog'))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('escapes a tab group without being trapped by its card', async () => {
+    const layout: DashboardDocument['layout'] = {
+      rows: [{
+        panels: [{ panelId: 'expandable', span: 12, groups: [{ id: 'result', kind: 'tabs', span: 12, tab: 'Cash' }] }],
+      }],
+    }
+    const { container } = renderDocument(
+      documentWith([expandable], { 'coverage:root': coverageFrame }, layout),
+      <DashboardPanels />,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Expand panel' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(container.contains(dialog)).toBe(false)
+    expect(container.querySelector('.lens-panel-placeholder')).not.toBeNull()
+  })
+})
+
+const piePanel: Panel = {
+  id: 'mix', kind: 'pie', title: 'Premium mix', semantics: 'partition', frame: 'mix:root',
+  encoding: { id: 'id', label: 'label', value: 'amount' },
+  format: { amount: { kind: 'number', minorUnits: false, precision: 0 } },
+  presentation: { legend: 'below', sliceLabels: 'percent', totalBadge: 'plot' },
+  total: 1000,
+  actions: [],
+}
+
+const pieFrame: Frame = {
+  columns: [{ name: 'id', type: 'string' }, { name: 'label', type: 'string' }, { name: 'amount', type: 'number' }],
+  rows: [['direct', 'Direct', 600], ['broker', 'Broker', 300], ['inward', 'Inward', 100]],
+}
+
+describe('panel header pressure', () => {
+  it('gives the title and the total badge their own tooltips so truncation stays recoverable', () => {
+    const panel: Panel = {
+      ...piePanel,
+      title: 'Финансовые расходы и прочие операционные затраты',
+      presentation: { legend: 'below', sliceLabels: 'percent' },
+    }
+    const { container } = renderDocument(
+      documentWith([panel], { 'mix:root': pieFrame }),
+      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+    )
+
+    expect(container.querySelector('.lens-panel-title')).toHaveAttribute('title', panel.title)
+    expect(container.querySelector('.lens-panel-title')).toHaveTextContent(panel.title)
+    expect(container.querySelector('.lens-panel')).toHaveAccessibleName(panel.title)
+    expect(container.querySelector('.lens-panel-total')).toHaveAttribute('title', 'Total: 1,000')
+    expect(screen.getByRole('button', { name: 'Export panel' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Expand panel' })).toBeEnabled()
+  })
+})
+
+describe('chart legend series toggle', () => {
+  function renderPie(frame = pieFrame) {
+    const inputs: Array<ChartInput> = []
+    const adapter: ChartAdapter = {
+      mount: (_element, initial) => {
+        inputs.push(initial)
+        return { update: (next) => inputs.push(next), dispose: () => {} }
+      },
+    }
+    const view = renderDocument(
+      documentWith([piePanel], { 'mix:root': frame }),
+      <ChartPanel panel={piePanel} adapter={adapter} />,
+    )
+    return { ...view, inputs }
+  }
+
+  it('keeps the total badge in the plot column, ahead of the plot', () => {
+    const { container } = renderPie()
+
+    // The badge has been absolutely positioned three times and has collided
+    // with three different neighbours — the last being the legend column, which
+    // is what the panel body's top-right corner IS on a wide panel. It lives in
+    // flow at the top of the plot column now, and the stylesheet lays it out
+    // from that position: a badge hoisted back up to `.lens-chart-layout` would
+    // be over the legend again the moment the panel is wide.
+    const area = container.querySelector('.lens-chart-area')
+    const badge = container.querySelector('.lens-plot-total')
+
+    expect(badge?.parentElement).toBe(area)
+    expect(area?.firstElementChild).toBe(badge)
+    expect(container.querySelector('.lens-chart-layout > .lens-plot-total')).toBeNull()
+  })
+
+  it('removes the datum so the chart re-normalizes, and follows the total badge', async () => {
+    const { inputs, container } = renderPie()
+    await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
+    expect(container.querySelector('.lens-plot-total')?.textContent).toContain('1,000')
+
+    fireEvent.click(screen.getByRole('button', { name: /Broker/ }))
+
+    await waitFor(() => {
+      // Hidden series leave the data entirely — dimming would keep every slice
+      // percentage computed against the old total.
+      expect(inputs.at(-1)?.frame.rows.map((row) => row[0])).toEqual(['direct', 'inward'])
+    })
+    expect(screen.getByRole('button', { name: /Broker/ })).toHaveAttribute('aria-pressed', 'false')
+    expect(container.querySelector('.lens-plot-total')?.textContent).toContain('700')
+  })
+
+  it('keeps the header total aligned with the visible legend series', async () => {
+    const panel: Panel = {
+      ...piePanel,
+      presentation: { ...piePanel.presentation, totalBadge: 'header' },
+    }
+    const view = renderDocument(
+      documentWith([panel], { 'mix:root': pieFrame }),
+      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+    )
+
+    expect(view.container.querySelector('.lens-panel-total')?.textContent).toContain('1,000')
+    fireEvent.click(screen.getByRole('button', { name: /Broker/ }))
+    await waitFor(() => expect(view.container.querySelector('.lens-panel-total')?.textContent).toContain('700'))
+  })
+
+  it('does not conjure a header total on a chart that states none at rest', async () => {
+    // A bar/line panel whose rows are not summable states no total, and hiding
+    // a series must not change that: the badge used to appear on the first
+    // legend click, shifting the export/expand icons under the pointer and
+    // giving the recomputed figure nothing to be compared against.
+    const panel: Panel = {
+      id: 'mix', kind: 'bar', title: 'Premium by channel', semantics: 'series', frame: 'mix:root',
+      encoding: { id: 'id', label: 'label', series: 'label', value: 'amount' },
+      format: { amount: { kind: 'number', minorUnits: false, precision: 0 } },
+      presentation: { legend: 'below' },
+      actions: [],
+    }
+    const view = renderDocument(
+      documentWith([panel], { 'mix:root': pieFrame }),
+      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+    )
+
+    expect(view.container.querySelector('.lens-panel-total')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Broker/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Broker/ })).toHaveAttribute('aria-pressed', 'false'))
+    expect(view.container.querySelector('.lens-panel-total')).toBeNull()
+  })
+
+  it('drops the header total when every series is hidden, rather than falling back to the root', async () => {
+    // The body says nothing is shown; the header must not go on printing the
+    // panel's own total behind it. ChartPanel had already unified the two
+    // answers, but it said so with `undefined`, and PanelFrame's `?? panel.total`
+    // read that as "no opinion" and reprinted the root figure — the same
+    // contradiction one seam over from where it was fixed.
+    const panel: Panel = {
+      ...piePanel,
+      total: 1000,
+      presentation: { ...piePanel.presentation, totalBadge: 'header' },
+    }
+    const view = renderDocument(
+      documentWith([panel], { 'mix:root': pieFrame }),
+      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+    )
+
+    expect(view.container.querySelector('.lens-panel-total')?.textContent).toContain('1,000')
+    for (const name of [/Direct/, /Broker/, /Inward/]) {
+      fireEvent.click(screen.getByRole('button', { name }))
+    }
+    await waitFor(() => expect(view.container.querySelector('.lens-panel-total')).toBeNull())
+  })
+
+  it('states the share of a ring category that belongs to exactly one ring', () => {
+    // «Накопленная премия»: the 0.9% still receivable is too thin an arc to
+    // carry a label, so the legend is the only place its share can be read.
+    const ringPanel: Panel = {
+      ...piePanel,
+      id: 'payment',
+      kind: 'radial',
+      frame: 'payment:root',
+      encoding: { id: 'id', label: 'label', series: 'ring', value: 'amount' },
+      radial: { mode: 'partition', rings: [{ key: 'payment', label: 'Collection', order: 1, total: 1000 }] },
+      total: 1000,
+    }
+    const ringFrame: Frame = {
+      columns: [
+        { name: 'id', type: 'string' },
+        { name: 'label', type: 'string' },
+        { name: 'ring', type: 'string' },
+        { name: 'amount', type: 'number' },
+      ],
+      rows: [['collected', 'Collected', 'payment', 991], ['receivable', 'Receivable', 'payment', 9]],
+    }
+    const { container } = renderDocument(
+      documentWith([ringPanel], { 'payment:root': ringFrame }),
+      <ChartPanel panel={ringPanel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+    )
+
+    const values = [...container.querySelectorAll('.lens-chart-legend-value')].map((node) => node.textContent)
+    expect(values).toEqual(['99.1%', '0.9%'])
+  })
+
+  it('answers hide-all with an empty state that offers the way back', async () => {
+    const frame: Frame = {
+      ...pieFrame,
+      // Five rows, because bulk controls only appear past four: at four the
+      // legend is short enough to switch one row at a time.
+      rows: [
+        ['direct', 'Direct', 550], ['broker', 'Broker', 300], ['inward', 'Inward', 100],
+        ['partner', 'Partner', 50], ['other', 'Other', 25],
+      ],
+    }
+    const { container, inputs } = renderPie(frame)
+    await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide all' }))
+
+    // A grey featureless ring is indistinguishable from a panel that failed.
+    // Nothing is shown, so nothing is drawn — and nothing is totalled either:
+    // the hub used to keep printing the full total beside a chip reading 0.
+    await screen.findByText('All series are hidden')
+    expect(container.querySelector('.lens-chart-host')).toBeNull()
+    expect(container.querySelector('.lens-plot-total')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show all series' }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows.map((row) => row[0])).toEqual(['direct', 'broker', 'inward', 'partner', 'other']))
+  })
+})

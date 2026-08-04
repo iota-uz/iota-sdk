@@ -159,7 +159,7 @@ func transactionListItem(transaction *viewmodels.Transaction, pageCtx any) templ
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div class=\"bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow cursor-pointer\" hx-get=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div class=\"bg-white border border-subtle rounded-lg p-4 hover:shadow-sm transition-shadow cursor-pointer\" hx-get=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

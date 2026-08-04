@@ -3,113 +3,261 @@ package llmproviders
 import (
 	"context"
 	"encoding/json"
-	"os"
+	"errors"
+	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/chart"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
+	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewOpenAIModel_MissingAPIKey(t *testing.T) {
-	require.NoError(t, os.Unsetenv("OPENAI_API_KEY"))
-
-	_, err := NewOpenAIModel()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "OPENAI_API_KEY")
+// testCfg returns an OpenAIConfig with a fake API key suitable for unit tests
+// that do not make real API calls.
+func testCfg(model ...string) bichatconfig.OpenAIConfig {
+	cfg := bichatconfig.OpenAIConfig{APIKey: "sk-test-key"}
+	if len(model) > 0 {
+		cfg.Model = model[0]
+	}
+	return cfg
 }
 
-func TestNewOpenAIModel_WithAPIKey(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { require.NoError(t, os.Unsetenv("OPENAI_API_KEY")) }()
+func TestNewOpenAIModelFromConfig_MissingAPIKey(t *testing.T) {
+	_, err := NewOpenAIModelFromConfig(bichatconfig.OpenAIConfig{APIKey: ""})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "API key")
+}
 
-	model, err := NewOpenAIModel()
+func TestIsPreviousResponseNotFoundError(t *testing.T) {
+	assert.True(t, isPreviousResponseNotFoundError(&openai.Error{
+		Code:  "previous_response_not_found",
+		Param: "previous_response_id",
+	}))
+	assert.False(t, isPreviousResponseNotFoundError(&openai.Error{
+		Code:  "invalid_request_error",
+		Param: "previous_response_id",
+	}))
+	assert.False(t, isPreviousResponseNotFoundError(&openai.Error{
+		Code:  "previous_response_not_found",
+		Param: "input",
+	}))
+	assert.True(t, isPreviousResponseNotFoundError(errors.New(
+		`stream error: {"code":"previous_response_not_found","param":"previous_response_id"}`,
+	)))
+}
+
+func TestNewOpenAIModelFromConfig_WithAPIKey(t *testing.T) {
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	assert.NotNil(t, model)
 }
 
-func TestNewOpenAIModel_DefaultModel(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { require.NoError(t, os.Unsetenv("OPENAI_API_KEY")) }()
-	require.NoError(t, os.Unsetenv("OPENAI_MODEL"))
+func TestNewOpenAIModelFromConfig_DefaultModel(t *testing.T) {
+	model, err := NewOpenAIModelFromConfig(bichatconfig.OpenAIConfig{APIKey: "sk-test-key", Model: ""})
+	require.NoError(t, err)
 
-	model, err := NewOpenAIModel()
+	oaiModel := model.(*OpenAIModel)
+	assert.Equal(t, agents.DefaultOpenAIModelSnapshot, oaiModel.modelName)
+}
+
+func TestNewOpenAIModelFromConfig_CustomModel(t *testing.T) {
+	model, err := NewOpenAIModelFromConfig(testCfg("gpt-5.2"))
 	require.NoError(t, err)
 
 	oaiModel := model.(*OpenAIModel)
 	assert.Equal(t, "gpt-5.2", oaiModel.modelName)
 }
 
-func TestNewOpenAIModel_CustomModel(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-5.2"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY"); _ = os.Unsetenv("OPENAI_MODEL") }()
-
-	model, err := NewOpenAIModel()
+func TestNewOpenAIModelFromConfig_WithBaseURLAndResolveIP(t *testing.T) {
+	model, err := NewOpenAIModelFromConfig(bichatconfig.OpenAIConfig{
+		APIKey:    "sk-test-key",
+		BaseURL:   "https://example-proxy.test/v1",
+		ResolveIP: "203.0.113.10",
+	})
 	require.NoError(t, err)
+	assert.NotNil(t, model)
+}
 
-	oaiModel := model.(*OpenAIModel)
-	assert.Equal(t, "gpt-5.2", oaiModel.modelName)
+func TestNewOpenAIHTTPClient_NoResolveIP(t *testing.T) {
+	client, configured, err := newOpenAIHTTPClient("", "")
+	require.NoError(t, err)
+	assert.Nil(t, client)
+	assert.False(t, configured)
+}
+
+func TestNewOpenAIHTTPClient_InvalidBaseURL(t *testing.T) {
+	client, configured, err := newOpenAIHTTPClient("://bad-url", "203.0.113.10")
+	require.Error(t, err)
+	assert.Nil(t, client)
+	assert.False(t, configured)
+}
+
+func TestNewOpenAIHTTPClient_ReturnsConfiguredTransport(t *testing.T) {
+	client, configured, err := newOpenAIHTTPClient("https://example-proxy.test/v1", "203.0.113.10")
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	assert.True(t, configured)
+	assert.Equal(t, 2*time.Minute, client.Timeout)
+	_, ok := client.Transport.(*http.Transport)
+	assert.True(t, ok)
+}
+
+func TestOpenAIStreamTerminalError_Failed(t *testing.T) {
+	event := responses.ResponseStreamEventUnion{
+		Type: "response.failed",
+		Response: responses.Response{
+			ID: "resp_failed",
+			Error: responses.ResponseError{
+				Code:    responses.ResponseErrorCodeServerError,
+				Message: "The model failed to generate a response.",
+			},
+		},
+	}
+
+	err := openAIStreamTerminalError(event)
+	require.Error(t, err)
+
+	var streamErr *openAIStreamError
+	require.ErrorAs(t, err, &streamErr)
+	assert.Equal(t, "response_failed", streamErr.Type)
+	assert.Equal(t, "server_error", streamErr.Code)
+	assert.Equal(t, "The model failed to generate a response.", streamErr.Message)
+	assert.Equal(t, "resp_failed", streamErr.ResponseID)
+	assert.JSONEq(t, `{
+		"type": "response_failed",
+		"code": "server_error",
+		"message": "The model failed to generate a response.",
+		"response_id": "resp_failed"
+	}`, err.Error())
+}
+
+func TestOpenAIStreamTerminalError_FailedWithoutProviderDetails(t *testing.T) {
+	event := responses.ResponseStreamEventUnion{
+		Type:     "response.failed",
+		Response: responses.Response{ID: "resp_failed"},
+	}
+
+	err := openAIStreamTerminalError(event)
+	require.Error(t, err)
+
+	var streamErr *openAIStreamError
+	require.ErrorAs(t, err, &streamErr)
+	assert.Equal(t, "response_failed", streamErr.Code)
+	assert.NotEmpty(t, streamErr.Message)
+	assert.Equal(t, "resp_failed", streamErr.ResponseID)
+}
+
+func TestOpenAIStreamTerminalError_Incomplete(t *testing.T) {
+	tests := []struct {
+		name           string
+		reason         string
+		expectedReason string
+	}{
+		{
+			name:           "output token limit",
+			reason:         "max_output_tokens",
+			expectedReason: "max_output_tokens",
+		},
+		{
+			name:           "content filter",
+			reason:         "content_filter",
+			expectedReason: "content_filter",
+		},
+		{
+			name:           "missing reason",
+			expectedReason: "unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := responses.ResponseStreamEventUnion{
+				Type: "response.incomplete",
+				Response: responses.Response{
+					ID: "resp_incomplete",
+					IncompleteDetails: responses.ResponseIncompleteDetails{
+						Reason: tt.reason,
+					},
+				},
+			}
+
+			err := openAIStreamTerminalError(event)
+			require.Error(t, err)
+
+			var streamErr *openAIStreamError
+			require.ErrorAs(t, err, &streamErr)
+			assert.Equal(t, "response_incomplete", streamErr.Type)
+			assert.Equal(t, "response_incomplete", streamErr.Code)
+			assert.Equal(t, tt.expectedReason, streamErr.Reason)
+			assert.Equal(t, "resp_incomplete", streamErr.ResponseID)
+			assert.Contains(t, streamErr.Message, tt.expectedReason)
+		})
+	}
+}
+
+func TestOpenAIStreamTerminalError_NonTerminalEvent(t *testing.T) {
+	err := openAIStreamTerminalError(responses.ResponseStreamEventUnion{
+		Type:  "response.output_text.delta",
+		Delta: "partial output",
+	})
+
+	require.NoError(t, err)
 }
 
 func TestOpenAIModel_Info(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-5-mini"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY"); _ = os.Unsetenv("OPENAI_MODEL") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg("gpt-5-mini"))
 	require.NoError(t, err)
 
 	info := model.Info()
 	assert.Equal(t, "gpt-5-mini", info.Name)
 	assert.Equal(t, "openai", info.Provider)
-	assert.Equal(t, 400000, info.ContextWindow)
+	// Bare-major alias resolves to the mini spec (400K context), not the
+	// frontier default. Pre-2026-04 this incorrectly fell through to the
+	// big-model spec while still being charged mini prices.
+	assert.Equal(t, 400_000, info.ContextWindow)
 	assert.Contains(t, info.Capabilities, agents.CapabilityStreaming)
 	assert.Contains(t, info.Capabilities, agents.CapabilityTools)
 	assert.Contains(t, info.Capabilities, agents.CapabilityJSONMode)
 }
 
-func TestOpenAIModel_Info_DefaultGPT52ContextWindow(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	require.NoError(t, os.Unsetenv("OPENAI_MODEL"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY"); _ = os.Unsetenv("OPENAI_MODEL") }()
-
-	model, err := NewOpenAIModel()
+func TestOpenAIModel_Info_DefaultGPT54ContextWindow(t *testing.T) {
+	model, err := NewOpenAIModelFromConfig(bichatconfig.OpenAIConfig{APIKey: "sk-test-key", Model: ""})
 	require.NoError(t, err)
 
 	info := model.Info()
-	assert.Equal(t, "gpt-5.2", info.Name)
-	assert.Equal(t, 400000, info.ContextWindow)
+	assert.Equal(t, agents.DefaultOpenAIModelSnapshot, info.Name)
+	assert.Equal(t, 1050000, info.ContextWindow)
 }
 
 func TestOpenAIModel_Info_ContextWindowFromCatalog(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
 	tests := []struct {
 		name       string
-		modelEnv   string
+		model      string
 		expectCtx  int
 		expectName string
 	}{
-		{name: "canonical gpt-5.2", modelEnv: "gpt-5.2", expectCtx: 400000, expectName: "gpt-5.2"},
-		{name: "versioned alias", modelEnv: "gpt-5.2-2025-12-11", expectCtx: 400000, expectName: "gpt-5.2-2025-12-11"},
-		{name: "normalized alias", modelEnv: " GPT-5.2-2025-12-11 ", expectCtx: 400000, expectName: " GPT-5.2-2025-12-11 "},
-		{name: "gpt-5-mini", modelEnv: "gpt-5-mini", expectCtx: 400000, expectName: "gpt-5-mini"},
-		{name: "gpt-5-nano", modelEnv: "gpt-5-nano", expectCtx: 400000, expectName: "gpt-5-nano"},
-		{name: "unknown falls back to default spec", modelEnv: "unknown-model", expectCtx: 400000, expectName: "unknown-model"},
+		{name: "canonical gpt-5.4", model: "gpt-5.4", expectCtx: 1050000, expectName: "gpt-5.4"},
+		{name: "versioned alias", model: agents.DefaultOpenAIModelSnapshot, expectCtx: 1050000, expectName: agents.DefaultOpenAIModelSnapshot},
+		{name: "normalized alias", model: " GPT-5.4-2026-03-05 ", expectCtx: 1050000, expectName: "GPT-5.4-2026-03-05"},
+		{name: "canonical gpt-5.2", model: "gpt-5.2", expectCtx: 400000, expectName: "gpt-5.2"},
+		{name: "versioned gpt-5.2 alias", model: "gpt-5.2-2025-12-11", expectCtx: 400000, expectName: "gpt-5.2-2025-12-11"},
+		{name: "gpt-5-mini bare alias resolves to mini spec", model: "gpt-5-mini", expectCtx: 400_000, expectName: "gpt-5-mini"},
+		{name: "gpt-5-nano bare alias resolves to nano spec", model: "gpt-5-nano", expectCtx: 400_000, expectName: "gpt-5-nano"},
+		{name: "canonical gpt-5.4-mini", model: "gpt-5.4-mini", expectCtx: 400000, expectName: "gpt-5.4-mini"},
+		{name: "canonical gpt-5.4-nano", model: "gpt-5.4-nano", expectCtx: 400000, expectName: "gpt-5.4-nano"},
+		{name: "unknown falls back to default spec", model: "unknown-model", expectCtx: 1050000, expectName: "unknown-model"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.NoError(t, os.Setenv("OPENAI_MODEL", tt.modelEnv))
-			defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
-
-			model, err := NewOpenAIModel()
+			model, err := NewOpenAIModelFromConfig(testCfg(tt.model))
 			require.NoError(t, err)
 
 			info := model.Info()
@@ -121,10 +269,7 @@ func TestOpenAIModel_Info_ContextWindowFromCatalog(t *testing.T) {
 }
 
 func TestOpenAIModel_HasCapability(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 
 	assert.True(t, model.HasCapability(agents.CapabilityStreaming))
@@ -134,10 +279,7 @@ func TestOpenAIModel_HasCapability(t *testing.T) {
 }
 
 func TestOpenAIModel_BuildResponseParams(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -178,7 +320,7 @@ func TestOpenAIModel_BuildResponseParams(t *testing.T) {
 	params := oaiModel.buildResponseParams(context.Background(), req, config)
 
 	// Verify model
-	assert.Equal(t, "gpt-5.2", params.Model)
+	assert.Equal(t, agents.DefaultOpenAIModelSnapshot, params.Model)
 
 	// Verify input items
 	assert.NotNil(t, params.Input.OfInputItemList)
@@ -207,11 +349,29 @@ func TestOpenAIModel_BuildResponseParams(t *testing.T) {
 	assert.NotNil(t, params.Text.Format.OfJSONObject)
 }
 
-func TestOpenAIModel_BuildResponseParams_NativeWebSearch(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+func TestOpenAIModel_BuildResponseParams_AllowsToolOutputFromPreviousResponse(t *testing.T) {
+	t.Parallel()
 
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+	previousResponseID := "resp_with_tool_call"
+	params := oaiModel.buildResponseParams(context.Background(), agents.Request{
+		Messages: []types.Message{
+			types.SystemMessage("Keep the developer instruction."),
+			types.ToolResponse("call_from_previous_response", `{"value":"found"}`),
+		},
+		PreviousResponseID: &previousResponseID,
+	}, agents.GenerateConfig{})
+
+	require.True(t, params.PreviousResponseID.Valid())
+	assert.Equal(t, previousResponseID, params.PreviousResponseID.Value)
+	require.NotNil(t, params.Input.OfInputItemList)
+	assert.Len(t, params.Input.OfInputItemList, 2)
+}
+
+func TestOpenAIModel_BuildResponseParams_NativeWebSearch(t *testing.T) {
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -244,10 +404,7 @@ func TestOpenAIModel_BuildResponseParams_NativeWebSearch(t *testing.T) {
 }
 
 func TestOpenAIModel_BuildResponseParams_NativeCodeInterpreter(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -280,10 +437,7 @@ func TestOpenAIModel_BuildResponseParams_NativeCodeInterpreter(t *testing.T) {
 }
 
 func TestOpenAIModel_BuildResponseParams_CodeInterpreterMemoryLimitOverride(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel(WithCodeInterpreterMemoryLimit("16g"))
+	model, err := NewOpenAIModelFromConfig(testCfg(), WithCodeInterpreterMemoryLimit("16g"))
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -310,10 +464,7 @@ func TestOpenAIModel_BuildResponseParams_CodeInterpreterMemoryLimitOverride(t *t
 }
 
 func TestOpenAIModel_BuildResponseParams_MixedTools(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -357,10 +508,7 @@ func TestOpenAIModel_BuildResponseParams_MixedTools(t *testing.T) {
 }
 
 func TestOpenAIModel_BuildResponseParams_DrawChartSchemaRequiresCanonicalOptions(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -385,10 +533,7 @@ func TestOpenAIModel_BuildResponseParams_DrawChartSchemaRequiresCanonicalOptions
 }
 
 func TestOpenAIModel_MapResponse_TextOnly(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -426,10 +571,7 @@ func TestOpenAIModel_MapResponse_TextOnly(t *testing.T) {
 }
 
 func TestOpenAIModel_MapResponse_FunctionCalls(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -463,10 +605,7 @@ func TestOpenAIModel_MapResponse_FunctionCalls(t *testing.T) {
 }
 
 func TestOpenAIModel_MapResponse_WithCitations(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -511,10 +650,7 @@ func TestOpenAIModel_MapResponse_WithCitations(t *testing.T) {
 }
 
 func TestOpenAIModel_MapResponse_CitationsEnrichedFromWebSearchSources(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -559,10 +695,7 @@ func TestOpenAIModel_MapResponse_CitationsEnrichedFromWebSearchSources(t *testin
 }
 
 func TestOpenAIModel_MapResponse_CodeInterpreterCall(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -611,10 +744,7 @@ func TestOpenAIModel_MapResponse_CodeInterpreterCall(t *testing.T) {
 }
 
 func TestOpenAIModel_BuildInputItems(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -639,10 +769,7 @@ func TestOpenAIModel_BuildInputItems(t *testing.T) {
 }
 
 func TestOpenAIModel_BuildInputItems_AssistantWithContentAndToolCalls(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -662,10 +789,7 @@ func TestOpenAIModel_BuildInputItems_AssistantWithContentAndToolCalls(t *testing
 }
 
 func TestOpenAIModel_BuildInputItems_SkipsInvalidToolCalls(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -699,9 +823,6 @@ func TestOpenAIModel_BuildInputItems_SkipsInvalidToolCalls(t *testing.T) {
 }
 
 func TestOpenAIModel_BuildInputItems_WebFetchCases(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
 	cases := []struct {
 		name        string
 		messages    []types.Message
@@ -764,7 +885,7 @@ func TestOpenAIModel_BuildInputItems_WebFetchCases(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			model, err := NewOpenAIModel()
+			model, err := NewOpenAIModelFromConfig(testCfg())
 			require.NoError(t, err)
 			oaiModel := model.(*OpenAIModel)
 
@@ -784,10 +905,7 @@ func TestOpenAIModel_BuildInputItems_WebFetchCases(t *testing.T) {
 }
 
 func TestOpenAIModel_BuildInputItems_OnlyImagesBecomeInputImage(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
@@ -897,15 +1015,9 @@ func TestOpenAIModel_BuildReadyToolCallsFromAccum_DeduplicatesByCallID(t *testin
 }
 
 func TestOpenAIModel_Pricing(t *testing.T) {
-	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-
 	// Pricing() comes from catalog; exact numbers are catalog data. Only assert behavior:
 	// unknown model falls back to default spec and returns valid pricing usable for cost calculation.
-	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-99-future"))
-	defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
-
-	model, err := NewOpenAIModel()
+	model, err := NewOpenAIModelFromConfig(testCfg("gpt-99-future"))
 	require.NoError(t, err)
 
 	pricing := model.Pricing()

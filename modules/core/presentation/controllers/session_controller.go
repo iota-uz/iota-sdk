@@ -20,26 +20,26 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 type SessionController struct {
-	app      application.Application
 	basePath string
+	cfg      *cookies.Config
 }
 
-func NewSessionController(app application.Application, basePath string) application.Controller {
+func NewSessionController(basePath string, cfg *cookies.Config) application.Controller {
 	return &SessionController{
-		app:      app,
 		basePath: basePath,
+		cfg:      cfg,
 	}
 }
 
-func (c *SessionController) Key() string {
-	return c.basePath
+func (c *SessionController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.session", 0, application.Route("", c.basePath))
 }
 
 func (c *SessionController) Register(r *mux.Router) {
@@ -48,8 +48,7 @@ func (c *SessionController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -100,9 +99,8 @@ func (c *SessionController) List(
 	}
 
 	// Get current user's session token for highlighting
-	config := configuration.Use()
 	currentToken := ""
-	if cookie, err := r.Cookie(config.SidCookieKey); err == nil {
+	if cookie, err := r.Cookie(c.cfg.SID); err == nil {
 		currentToken = cookie.Value
 	}
 

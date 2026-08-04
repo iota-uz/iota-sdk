@@ -1,0 +1,29 @@
+// Package logging provides this package.
+package logging
+
+import (
+	"embed"
+
+	"github.com/iota-uz/iota-sdk/pkg/composition"
+)
+
+//go:embed presentation/locales/*.json
+var localeFiles embed.FS
+
+func NewComponent() composition.Component {
+	return &component{}
+}
+
+type component struct{}
+
+func (c *component) Descriptor() composition.Descriptor {
+	return composition.Descriptor{Name: "logging"}
+}
+
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&localeFiles}
+}
+
+func (c *component) Build(builder *composition.Builder) error {
+	return nil
+}

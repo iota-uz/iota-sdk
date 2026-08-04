@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -138,9 +139,12 @@ templ GroupsContent(props *IndexPageProps) {
 	}
 	<div class="m-6">
 		<div class="flex justify-between md:justify-start">
-			<h1 class="text-2xl font-medium">
-				{ pageCtx.T("NavigationLinks.Groups") }
-			</h1>
+			<div class="flex items-center gap-2">
+				<h1 class="text-2xl font-medium">
+					{ pageCtx.T("NavigationLinks.Groups") }
+				</h1>
+				@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"})
+			</div>
 			<div class="flex md:hidden gap-2">
 				@button.Secondary(button.Props{
 					Size:  button.SizeNormal,
@@ -231,7 +235,7 @@ templ NewGroupDrawer() {
 				</form>
 				<div class="flex-1 min-h-0" hx-get="/groups/new" hx-trigger="load" hx-swap="innerHTML">
 					<div class="flex justify-center items-center h-full">
-						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-strong"></div>
 					</div>
 				</div>
 			</div>

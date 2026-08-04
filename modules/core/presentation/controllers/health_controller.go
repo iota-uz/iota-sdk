@@ -23,8 +23,8 @@ type HealthController struct {
 	app application.Application
 }
 
-func (c *HealthController) Key() string {
-	return "/health"
+func (c *HealthController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.health", 0, application.Route("", "/health"))
 }
 
 func (c *HealthController) Register(r *mux.Router) {

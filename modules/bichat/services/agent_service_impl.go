@@ -32,6 +32,7 @@ const (
 type agentServiceImpl struct {
 	agent                  agents.ExtendedAgent
 	model                  agents.Model
+	modelRegistry          *agents.ModelRegistry // Optional for per-request model selection
 	policy                 bichatctx.ContextPolicy
 	renderer               bichatctx.Renderer
 	checkpointer           agents.Checkpointer
@@ -44,6 +45,7 @@ type agentServiceImpl struct {
 	skillsCatalogLimit     int
 	skillsMaxChars         int
 	runtimeTools           []agents.Tool
+	executorOptions        []agents.ExecutorOption
 	logger                 *logrus.Logger
 	formatterRegistry      *bichatctx.FormatterRegistry // Optional for StructuredTool support
 }
@@ -52,6 +54,7 @@ type agentServiceImpl struct {
 type AgentServiceConfig struct {
 	Agent                  agents.ExtendedAgent
 	Model                  agents.Model
+	ModelRegistry          *agents.ModelRegistry // Optional for per-request model selection
 	Policy                 bichatctx.ContextPolicy
 	Renderer               bichatctx.Renderer
 	Checkpointer           agents.Checkpointer
@@ -64,6 +67,7 @@ type AgentServiceConfig struct {
 	SkillsCatalogLimit     int
 	SkillsMaxChars         int
 	RuntimeTools           []agents.Tool
+	ExecutorOptions        []agents.ExecutorOption
 	Logger                 *logrus.Logger
 	FormatterRegistry      *bichatctx.FormatterRegistry // Optional for StructuredTool support
 }
@@ -103,6 +107,7 @@ func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 	return &agentServiceImpl{
 		agent:                  cfg.Agent,
 		model:                  cfg.Model,
+		modelRegistry:          cfg.ModelRegistry,
 		policy:                 cfg.Policy,
 		renderer:               cfg.Renderer,
 		checkpointer:           cfg.Checkpointer,
@@ -115,6 +120,7 @@ func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 		skillsCatalogLimit:     limit,
 		skillsMaxChars:         maxChars,
 		runtimeTools:           append([]agents.Tool(nil), cfg.RuntimeTools...),
+		executorOptions:        append([]agents.ExecutorOption(nil), cfg.ExecutorOptions...),
 		logger:                 logger,
 		formatterRegistry:      cfg.FormatterRegistry,
 	}
@@ -132,7 +138,33 @@ func (s *agentServiceImpl) ProcessMessage(
 	content string,
 	attachments []domain.Attachment,
 ) (types.Generator[agents.ExecutorEvent], error) {
-	const op serrors.Op = "agentServiceImpl.ProcessMessage"
+	return s.process(ctx, sessionID, content, attachments, "")
+}
+
+// ProcessContinuation executes a trusted internal continuation in the same
+// session without synthesizing a user turn.
+func (s *agentServiceImpl) ProcessContinuation(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	event services.ContinuationEvent,
+) (types.Generator[agents.ExecutorEvent], error) {
+	const op serrors.Op = "agentServiceImpl.ProcessContinuation"
+	prompt, err := event.Prompt()
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
+	ctx = services.WithContinuationEvent(ctx, event)
+	return s.process(ctx, sessionID, "", nil, prompt)
+}
+
+func (s *agentServiceImpl) process(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	content string,
+	attachments []domain.Attachment,
+	continuation string,
+) (types.Generator[agents.ExecutorEvent], error) {
+	const op serrors.Op = "agentServiceImpl.process"
 	ctx = agents.WithRuntimeSessionID(ctx, sessionID)
 
 	// Get tenant ID for multi-tenant isolation
@@ -202,16 +234,26 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 		builder.History(historyCodec, historyPayload)
 	}
 
-	// 3. Current user turn (KindTurn)
-	turnCodec := codecs.NewTurnCodec()
-	turnPayload := codecs.TurnPayload{
-		Content: content,
+	if continuation != "" {
+		builder.Continuation(
+			codecs.NewSystemRulesCodec(),
+			continuation,
+			bichatctx.BlockOptions{
+				Sensitivity: bichatctx.SensitivityInternal,
+				Source:      "internal-continuation",
+				Tags:        []string{"internal", "continuation"},
+			},
+		)
+	} else {
+		turnCodec := codecs.NewTurnCodec()
+		turnPayload := codecs.TurnPayload{
+			Content: content,
+		}
+		if len(attachments) > 0 {
+			turnPayload.Attachments = codecs.ConvertAttachmentsToTurnAttachments(convertToTypeAttachments(attachments))
+		}
+		builder.Turn(turnCodec, turnPayload)
 	}
-	// Add attachments if present
-	if len(attachments) > 0 {
-		turnPayload.Attachments = codecs.ConvertAttachmentsToTurnAttachments(convertToTypeAttachments(attachments))
-	}
-	builder.Turn(turnCodec, turnPayload)
 
 	// Compile with renderer and policy
 	compiled, err := builder.Compile(s.renderer, s.policy)
@@ -244,7 +286,7 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 	// Use compiled.Messages directly (now canonical []types.Message)
 	executorMessages := compiled.Messages
 
-	executor := s.buildExecutor(sessionID, tenantID)
+	executor := s.buildExecutor(ctx, sessionID, tenantID)
 
 	// Execute agent and get event generator
 	input := agents.Input{
@@ -291,7 +333,7 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 		return nil, serrors.E(op, err)
 	}
 
-	executor := s.buildExecutor(sessionID, tenantID)
+	executor := s.buildExecutor(ctx, sessionID, tenantID)
 
 	// Return resume generator directly — no conversion needed.
 	return executor.Resume(ctx, checkpointID, answers), nil
@@ -299,7 +341,19 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 
 // buildExecutor creates an Executor with shared options (delegation, formatter, checkpointer).
 // Used by both ProcessMessage and ResumeWithAnswer to avoid duplicating setup logic.
-func (s *agentServiceImpl) buildExecutor(sessionID, tenantID uuid.UUID) *agents.Executor {
+func (s *agentServiceImpl) buildExecutor(ctx context.Context, sessionID, tenantID uuid.UUID) *agents.Executor {
+	// Resolve model: context override > default
+	model := s.model
+	if s.modelRegistry != nil {
+		if overrideName, ok := services.UseModelOverride(ctx); ok {
+			if resolved, found := s.modelRegistry.Get(overrideName); found {
+				model = resolved
+			} else {
+				s.logger.WithField("model", overrideName).Warn("requested model not found in registry, using default")
+			}
+		}
+	}
+
 	opts := []agents.ExecutorOption{
 		agents.WithCheckpointer(s.checkpointer),
 		agents.WithEventBus(s.eventBus),
@@ -309,12 +363,13 @@ func (s *agentServiceImpl) buildExecutor(sessionID, tenantID uuid.UUID) *agents.
 	if s.formatterRegistry != nil {
 		opts = append(opts, agents.WithFormatterRegistry(s.formatterRegistry))
 	}
+	opts = append(opts, s.executorOptions...)
 
 	if tools := s.composeExecutorTools(sessionID, tenantID); len(tools) > 0 {
 		opts = append(opts, agents.WithExecutorTools(tools))
 	}
 
-	return agents.NewExecutor(s.agent, s.model, opts...)
+	return agents.NewExecutor(s.agent, model, opts...)
 }
 
 func (s *agentServiceImpl) buildSkillsCatalogReference() string {

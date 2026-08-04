@@ -18,7 +18,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -84,15 +87,26 @@ func (e *LoginDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func NewLoginController(app application.Application, opts ...*LoginControllerOptions) application.Controller {
+func NewLoginController(
+	authService *services.AuthService,
+	authFlowService *services.AuthFlowService,
+	httpCfg *httpconfig.Config,
+	cookiesCfg *cookies.Config,
+	headersCfg *headers.Config,
+	googleCfg *googleoauthconfig.Config,
+	opts ...*LoginControllerOptions,
+) application.Controller {
 	options := &LoginControllerOptions{}
 	if len(opts) > 0 && opts[0] != nil {
 		options = opts[0]
 	}
 	return &LoginController{
-		app:             app,
-		authService:     app.Service(services.AuthService{}).(*services.AuthService),
-		authFlowService: app.Service(services.AuthFlowService{}).(*services.AuthFlowService),
+		authService:     authService,
+		authFlowService: authFlowService,
+		httpCfg:         httpCfg,
+		cookiesCfg:      cookiesCfg,
+		headersCfg:      headersCfg,
+		googleCfg:       googleCfg,
 		options:         options,
 	}
 }
@@ -108,15 +122,18 @@ func (c *LoginController) SetTwoFactorService(service *twofactor.TwoFactorServic
 }
 
 type LoginController struct {
-	app              application.Application
 	authService      *services.AuthService
 	authFlowService  *services.AuthFlowService
 	twoFactorService *twofactor.TwoFactorService
+	httpCfg          *httpconfig.Config
+	cookiesCfg       *cookies.Config
+	headersCfg       *headers.Config
+	googleCfg        *googleoauthconfig.Config
 	options          *LoginControllerOptions
 }
 
-func (c *LoginController) Key() string {
-	return "/login"
+func (c *LoginController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.login", 0, application.Route("", "/login"))
 }
 
 func (c *LoginController) Register(r *mux.Router) {
@@ -140,7 +157,6 @@ func (c *LoginController) Register(r *mux.Router) {
 // GetMiddlewares returns middleware used for login GET routes.
 func (c *LoginController) GetMiddlewares() []mux.MiddlewareFunc {
 	defaults := []mux.MiddlewareFunc{
-		middleware.ProvideLocalizer(c.app),
 		middleware.WithPageContext(),
 	}
 	if c.optionsOrDefault().CustomizeGetMiddlewares != nil {
@@ -152,8 +168,7 @@ func (c *LoginController) GetMiddlewares() []mux.MiddlewareFunc {
 // PostMiddlewares returns middleware used for login POST routes.
 func (c *LoginController) PostMiddlewares() []mux.MiddlewareFunc {
 	defaults := []mux.MiddlewareFunc{
-		middleware.ProvideLocalizer(c.app),
-		middleware.IPRateLimitPeriod(10, time.Minute), // 10 login attempts per minute per IP
+		middleware.IPRateLimitPeriod(10, time.Minute, c.headersCfg), // 10 login attempts per minute per IP
 	}
 	if c.optionsOrDefault().CustomizePostMiddlewares != nil {
 		return c.optionsOrDefault().CustomizePostMiddlewares(cloneMiddlewares(defaults))
@@ -197,8 +212,7 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
-	conf := configuration.Use()
-	oauthCookie, err := r.Cookie(conf.OauthStateCookieKey)
+	oauthCookie, err := r.Cookie(c.cookiesCfg.OAuthState)
 	if err != nil {
 		queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.OauthStateNotFound"))
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
@@ -325,7 +339,7 @@ func (c *LoginController) buildLoginMethods(w http.ResponseWriter, r *http.Reque
 		seen[method.ID] = struct{}{}
 	}
 
-	if c.includeGoogleMethod() && configuration.Use().Google.IsConfigured() {
+	if c.includeGoogleMethod() && c.googleCfg.IsConfigured() {
 		codeURL, err := c.authService.GoogleAuthenticate(w)
 		if err != nil {
 			composables.UseLogger(r.Context()).Error("failed to build google login method", "error", err)

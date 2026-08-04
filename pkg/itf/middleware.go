@@ -38,6 +38,9 @@ func TestMiddleware(env *TestEnvironment, u user.User) mux.MiddlewareFunc {
 
 			// Add app constants
 			ctx = context.WithValue(ctx, constants.AppKey, env.App)
+			if env.Container != nil {
+				ctx = context.WithValue(ctx, constants.ContainerKey, env.Container)
+			}
 			ctx = context.WithValue(ctx, constants.HeadKey, templ.NopComponent)
 			ctx = context.WithValue(ctx, constants.LogoKey, templ.NopComponent)
 			ctx = context.WithValue(ctx, constants.LoggerKey, logrus.WithField("test", true))

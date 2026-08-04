@@ -12,6 +12,7 @@ import (
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	positions2 "github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/positions"
@@ -41,7 +42,6 @@ import (
 )
 
 type PositionsController struct {
-	app      application.Application
 	basePath string
 }
 
@@ -50,15 +50,26 @@ type PositionPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewPositionsController(app application.Application) application.Controller {
+func NewPositionsController() application.Controller {
 	return &PositionsController{
-		app:      app,
 		basePath: "/warehouse/positions",
 	}
 }
 
-func (c *PositionsController) Key() string {
-	return c.basePath
+func (c *PositionsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("warehouse.position", 0, application.Route("", c.basePath, application.RequireAll(permissions.PositionRead))).
+		WithNav(application.NavNode{
+			ID:       "warehouse.position",
+			Parent:   "warehouse",
+			TitleKey: "NavigationLinks.WarehousePositions",
+			Path:     c.basePath,
+			Order:    20,
+			Actions: []application.NavAction{{
+				ID:       "warehouse.position.new",
+				TitleKey: "WarehousePositions.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *PositionsController) Register(r *mux.Router) {
@@ -66,8 +77,7 @@ func (c *PositionsController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

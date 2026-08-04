@@ -1,0 +1,108 @@
+// Package warehouse provides this package.
+package warehouse
+
+import (
+	"embed"
+
+	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/assets"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/orderservice"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
+)
+
+//go:generate go run github.com/99designs/gqlgen generate
+
+//go:embed presentation/locales/*.json
+var localeFiles embed.FS
+
+func NewComponent() composition.Component {
+	return &component{}
+}
+
+type component struct{}
+
+func (c *component) Descriptor() composition.Descriptor {
+	return composition.Descriptor{
+		Name:     "warehouse",
+		Requires: []string{"core"},
+	}
+}
+
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&localeFiles}
+}
+
+func (c *component) Build(builder *composition.Builder) error {
+	composition.AddNavNodes(builder, WarehouseLink)
+	composition.AddAssets(builder, &assets.FS)
+
+	composition.ProvideFunc(builder, persistence.NewUnitRepository)
+	composition.ProvideFunc(builder, persistence.NewPositionRepository)
+	composition.ProvideFunc(builder, persistence.NewProductRepository)
+	composition.ProvideFunc(builder, persistence.NewOrderRepository)
+	composition.ProvideFunc(builder, persistence.NewInventoryRepository)
+	composition.ProvideFunc(builder, services.NewUnitService)
+	composition.ProvideFunc(builder, productservice.NewProductService)
+	composition.ProvideFunc(builder, positionservice.NewPositionService)
+	composition.ProvideFunc(builder, orderservice.NewOrderService)
+	composition.ProvideFunc(builder, services.NewInventoryService)
+
+	// Controllers and GraphQL schemas are HTTP-layer concerns — skip them in
+	// worker-only builds that boot the warehouse module without routing.
+	if builder.Context().HasCapability(composition.CapabilityAPI) {
+		composition.ContributeControllersFunc(builder, func(
+			unitService *services.UnitService,
+			productService *productservice.ProductService,
+			positionService *positionservice.PositionService,
+			orderService *orderservice.OrderService,
+			inventoryService *services.InventoryService,
+		) []application.Controller {
+			return []application.Controller{
+				controllers.NewProductsController(productService, positionService),
+				controllers.NewPositionsController(),
+				controllers.NewUnitsController(unitService),
+				controllers.NewOrdersController(orderService, positionService, productService),
+				controllers.NewInventoryController(inventoryService, positionService),
+			}
+		})
+
+		composition.ContributeSchemas(builder, func(container *composition.Container) ([]application.GraphSchema, error) {
+			app, err := composition.Resolve[application.Application](container)
+			if err != nil {
+				return nil, err
+			}
+			orderSvc, err := composition.Resolve[*orderservice.OrderService](container)
+			if err != nil {
+				return nil, err
+			}
+			productSvc, err := composition.Resolve[*productservice.ProductService](container)
+			if err != nil {
+				return nil, err
+			}
+			positionSvc, err := composition.Resolve[*positionservice.PositionService](container)
+			if err != nil {
+				return nil, err
+			}
+			inventorySvc, err := composition.Resolve[*services.InventoryService](container)
+			if err != nil {
+				return nil, err
+			}
+			return []application.GraphSchema{
+				{
+					Value: graph.NewExecutableSchema(graph.Config{
+						Resolvers: graph.NewResolver(app, orderSvc, productSvc, positionSvc, inventorySvc),
+					}),
+					BasePath: "/warehouse",
+				},
+			}, nil
+		})
+	}
+
+	return nil
+}

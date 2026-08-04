@@ -1,0 +1,100 @@
+[NavigationLinks]
+HRM = "GRH"
+Employees = "Funcionários"
+
+[Resources]
+employee = "Funcionários"
+
+[Permissions.Employee]
+Create = "Criar funcionário"
+Read = "Visualizar funcionário"
+Update = "Atualizar funcionário"
+Delete = "Excluir funcionário"
+
+[Employees.Meta.List]
+Title = "Funcionários"
+
+[Employees.Meta.Edit]
+Title = "Editar funcionário"
+
+[Employees.Meta.New]
+Title = "Adicionar funcionário"
+
+[Employees.List]
+New = "Adicionar funcionário"
+FullName = "Nome completo"
+Position = "Cargo"
+Email = "E-mail"
+
+[Employees.List.NoEmployees]
+Title = "Nenhum funcionário encontrado"
+_Description = "Ainda não há funcionários. Clique em 'Adicionar funcionário' para criar um."
+
+[Employees.Tabs]
+Public = "Públicos"
+Private = "Confidenciais"
+
+[Employees.Cards]
+PersonalInfo = "Informações pessoais"
+JobInfo = "Informações profissionais"
+
+[Employees.Single]
+Edit = "Editar funcionário"
+Delete = "Excluir funcionário"
+DeleteConfirmation = "Tem certeza de que deseja excluir este funcionário?"
+
+[Employees.Public.FirstName]
+Label = "Nome"
+Placeholder = "Digite o nome"
+
+[Employees.Public.LastName]
+Label = "Sobrenome"
+Placeholder = "Digite o sobrenome"
+
+[Employees.Public.MiddleName]
+Label = "Nome do meio"
+Placeholder = "Informe o nome do meio"
+
+[Employees.Public.Phone]
+Label = "Telefone"
+Placeholder = "+998 (__) ___ __ __"
+
+[Employees.Public.Email]
+Label = "E-mail"
+Placeholder = "jodoe@gmail.com"
+
+[Employees.Public.BirthDate]
+Label = "Data de nascimento"
+
+[Employees.Public.Position]
+Label = "Cargo"
+Placeholder = "Escolha o cargo"
+
+[Employees.Public.HireDate]
+Label = "Data de início do emprego"
+
+[Employees.Public.ResignationDate]
+Label = "Data de desligamento"
+
+[Employees.Public.EmploymentStatus]
+Label = "Situação empregatícia"
+Placeholder = "Escolha a situação empregatícia"
+
+[Employees.Public.Level]
+Label = "Nível"
+Placeholder = "Escolha o nível"
+
+[Employees.Private.Salary]
+Label = "Salário"
+
+[Employees.Private.PassportSN]
+Label = "Série e número do passaporte"
+Placeholder = "AA 123 45 67"
+
+[Employees.Private.TIN]
+Label = "NIF (Número de Identificação Fiscal)"
+Placeholder = "1234567"
+
+[Employees.Private.Pin]
+Label = "PIN (Número de Identificação Pessoal)"
+Placeholder = "123456789192121"

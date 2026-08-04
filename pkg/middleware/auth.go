@@ -10,18 +10,39 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/go-i18n/v2/i18n"
+	"golang.org/x/text/language"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
-func getToken(r *http.Request) (string, error) {
-	conf := configuration.Use()
-	token, err := r.Cookie(conf.SidCookieKey)
+// resolveSIDKey returns the session-ID cookie key from the typed cookies.Config
+// registered in the composition container, falling back to "sid" if unavailable.
+func resolveSIDKey(ctx context.Context) string {
+	container, err := composition.UseContainer(ctx)
+	if err != nil {
+		return "sid"
+	}
+	cfg, err := composition.Resolve[*cookies.Config](container)
+	if err != nil || cfg == nil {
+		return "sid"
+	}
+	if cfg.SID == "" {
+		return "sid"
+	}
+	return cfg.SID
+}
+
+func getToken(r *http.Request, sidKey string) (string, error) {
+	token, err := r.Cookie(sidKey)
 	if errors.Is(err, http.ErrNoCookie) {
 		v := r.Header.Get("Authorization")
 		if v == "" {
@@ -39,17 +60,24 @@ func Authorize() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				token, err := getToken(r)
+				ctx := r.Context()
+				token, err := getToken(r, resolveSIDKey(ctx))
 				if err != nil {
 					next.ServeHTTP(w, r)
 					return
 				}
-				ctx := r.Context()
-				app, err := application.UseApp(ctx)
+				container, err := composition.UseContainer(ctx)
 				if err != nil {
-					panic(err)
+					composables.UseLogger(ctx).WithError(err).Error("Authorize: composition container not found in context")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
 				}
-				authService := app.Service(services.AuthService{}).(*services.AuthService)
+				authService, err := composition.Resolve[*services.AuthService](container)
+				if err != nil {
+					composables.UseLogger(ctx).WithError(err).Error("Authorize: failed to resolve AuthService")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
 				sess, err := authService.Authorize(ctx, token)
 				if err != nil {
 					next.ServeHTTP(w, r)
@@ -86,17 +114,24 @@ func AuthorizeAnySession() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				token, err := getToken(r)
+				ctx := r.Context()
+				token, err := getToken(r, resolveSIDKey(ctx))
 				if err != nil {
 					next.ServeHTTP(w, r)
 					return
 				}
-				ctx := r.Context()
-				app, err := application.UseApp(ctx)
+				container, err := composition.UseContainer(ctx)
 				if err != nil {
-					panic(err)
+					composables.UseLogger(ctx).WithError(err).Error("AuthorizeAnySession: composition container not found in context")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
 				}
-				authService := app.Service(services.AuthService{}).(*services.AuthService)
+				authService, err := composition.Resolve[*services.AuthService](container)
+				if err != nil {
+					composables.UseLogger(ctx).WithError(err).Error("AuthorizeAnySession: failed to resolve AuthService")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
 				sess, err := authService.Authorize(ctx, token)
 				if err != nil {
 					next.ServeHTTP(w, r)
@@ -125,40 +160,62 @@ func ProvideUser() mux.MiddlewareFunc {
 				ctx := r.Context()
 				sess, err := composables.UseSession(ctx)
 				if err != nil {
+					if routeAuthRequiresUser(ctx, r) {
+						http.Error(w, "Unauthorized", http.StatusUnauthorized)
+						return
+					}
 					next.ServeHTTP(w, r)
 					return
 				}
-				app, err := application.UseApp(ctx)
+				container, err := composition.UseContainer(ctx)
 				if err != nil {
-					panic(err)
+					composables.UseLogger(ctx).WithError(err).Error("ProvideUser: composition container not found in context")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
 				}
-				userService := app.Service(services.UserService{}).(*services.UserService)
+				userService, err := composition.Resolve[*services.UserService](container)
+				if err != nil {
+					composables.UseLogger(ctx).WithError(err).Error("ProvideUser: failed to resolve UserService")
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
 				u, err := userService.GetByID(ctx, sess.UserID())
 				if err != nil {
 					next.ServeHTTP(w, r)
 					return
 				}
 
+				// Refresh the localizer early so that the user's saved UI
+				// language takes precedence over the header-based locale
+				// that the global ProvideLocalizer middleware installed
+				// earlier in the chain. This must run before the
+				// blocked-user check so the error message is rendered in
+				// the user's preferred language.
+				ctx = refreshLocalizerForUser(ctx, container, string(u.UILanguage()))
+
 				// Check if user is blocked
 				if u.IsBlocked() {
 					// Clear session cookie
-					conf := configuration.Use()
 					http.SetCookie(w, &http.Cookie{
-						Name:   conf.SidCookieKey,
+						Name:   resolveSIDKey(ctx),
 						Value:  "",
 						Path:   "/",
 						MaxAge: -1,
 					})
 					// Redirect to login with localized error
-					errorMsg := intl.MustT(r.Context(), "Login.Errors.AccountBlocked")
+					errorMsg := intl.MustT(ctx, "Login.Errors.AccountBlocked")
 					escapedError := url.QueryEscape(errorMsg)
 					redirectURL := fmt.Sprintf("/login?error=%s", escapedError)
-					http.Redirect(w, r, redirectURL, http.StatusFound)
+					http.Redirect(w, r.WithContext(ctx), redirectURL, http.StatusFound)
 					return
 				}
 
 				// Set the user in context
 				ctx = context.WithValue(ctx, constants.UserKey, u)
+				if !routeAuthAllowsUser(ctx, r, u) {
+					renderRouteForbidden(w, r.WithContext(ctx))
+					return
+				}
 
 				// Check if we already have a tenant in context
 				_, tenantErr := composables.UseTenantID(ctx)
@@ -172,6 +229,106 @@ func ProvideUser() mux.MiddlewareFunc {
 	}
 }
 
+func renderRouteForbidden(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusForbidden)
+	if err := renderForbiddenPage(r.Context(), w); err != nil {
+		logForbiddenRenderError(r.Context(), err)
+		_, _ = w.Write([]byte("<h1>403 Forbidden</h1>"))
+	}
+}
+
+func renderForbiddenPage(ctx context.Context, w http.ResponseWriter) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("render forbidden page panic: %v", recovered)
+		}
+	}()
+	return error_pages.Forbidden().Render(ctx, w)
+}
+
+func logForbiddenRenderError(ctx context.Context, err error) {
+	defer func() {
+		_ = recover()
+	}()
+	composables.UseLogger(ctx).WithError(err).Error("failed to render forbidden page")
+}
+
+func routeAuthRequiresUser(ctx context.Context, r *http.Request) bool {
+	policy, ok := routeAuthPolicy(ctx, r)
+	if !ok || policy.Public {
+		return false
+	}
+	return len(policy.Permissions) > 0
+}
+
+func routeAuthAllowsUser(ctx context.Context, r *http.Request, u interface {
+	Can(permission.Permission) bool
+}) bool {
+	policy, ok := routeAuthPolicy(ctx, r)
+	if !ok || policy.Public || len(policy.Permissions) == 0 {
+		return true
+	}
+	switch policy.Logic {
+	case application.PermissionLogicAny:
+		for _, perm := range policy.Permissions {
+			if perm != nil && u.Can(perm) {
+				return true
+			}
+		}
+		return false
+	case application.PermissionLogicAll:
+		fallthrough
+	default:
+		for _, perm := range policy.Permissions {
+			if perm == nil {
+				continue
+			}
+			if !u.Can(perm) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+func routeAuthPolicy(ctx context.Context, r *http.Request) (application.AuthPolicy, bool) {
+	container, err := composition.UseContainer(ctx)
+	if err != nil || container == nil {
+		return application.AuthPolicy{}, false
+	}
+	return container.AuthPolicyForRoute(r.Method, r.Host, r.URL.Path)
+}
+
+// refreshLocalizerForUser rebuilds the localizer on the context using the
+// user's saved UI language as the primary source, falling back to whatever
+// was already in context if the user's preference cannot be parsed or the
+// bundle cannot be resolved. Called from ProvideUser after the user has
+// been loaded, so the authenticated request rendering uses the user's
+// preferred language — not the Accept-Language header the global
+// ProvideLocalizer middleware selected pre-auth.
+//
+// Resolves the bundle lazily through the composition container rather
+// than capturing it at install time because ProvideUser has no access to
+// a captured bundle.
+func refreshLocalizerForUser(ctx context.Context, container *composition.Container, uiLanguage string) context.Context {
+	code := strings.TrimSpace(uiLanguage)
+	if code == "" {
+		return ctx
+	}
+	tag, err := language.Parse(code)
+	if err != nil {
+		return ctx
+	}
+	bundle, err := composition.Resolve[*i18n.Bundle](container)
+	if err != nil || bundle == nil {
+		return ctx
+	}
+	ctx = intl.WithLocalizer(ctx, i18n.NewLocalizer(bundle, tag.String()))
+	ctx = intl.WithLocale(ctx, tag)
+	return ctx
+}
+
 func RedirectNotAuthenticated() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
@@ -181,7 +338,7 @@ func RedirectNotAuthenticated() mux.MiddlewareFunc {
 					panic("params not found. Add RequestParams middleware up the chain")
 				}
 				if !params.Authenticated {
-					http.Redirect(w, r, fmt.Sprintf("/login?next=%s", r.URL), http.StatusFound)
+					http.Redirect(w, r, "/login?next="+url.QueryEscape(r.URL.RequestURI()), http.StatusFound)
 					return
 				}
 				next.ServeHTTP(w, r)

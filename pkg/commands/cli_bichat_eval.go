@@ -4,7 +4,6 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -13,6 +12,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/eval"
 	evalcli "github.com/iota-uz/iota-sdk/pkg/bichat/eval/cli"
 	"github.com/iota-uz/iota-sdk/pkg/cli/exitcode"
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
 )
 
 func NewBiChatEvalCommand() *cobra.Command {
@@ -79,9 +81,20 @@ func newBiChatEvalRunCmd() *cobra.Command {
 			if strings.TrimSpace(seedTenantID) == "" {
 				return exitcode.InvalidUsage(fmt.Errorf("--seed-tenant-id is required"))
 			}
-			openAIAPIKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+
+			src, err := config.Build(envprov.New(".env", ".env.local"))
+			if err != nil {
+				return exitcode.New(exitcode.InvalidUsageCode, err)
+			}
+			reg := config.NewRegistry(src)
+			bichatCfg, err := config.Register[bichatconfig.Config](reg)
+			if err != nil {
+				return exitcode.New(exitcode.InvalidUsageCode, err)
+			}
+
+			openAIAPIKey := strings.TrimSpace(bichatCfg.OpenAI.APIKey)
 			if openAIAPIKey == "" {
-				return exitcode.InvalidUsage(fmt.Errorf("OPENAI_API_KEY environment variable is required"))
+				return exitcode.InvalidUsage(fmt.Errorf("OPENAI_API_KEY (bichat.openai.apikey) is required"))
 			}
 			if minPass < 0 || minPass > 1 {
 				return exitcode.InvalidUsage(fmt.Errorf("--min-pass-rate must be between 0.0 and 1.0"))
@@ -135,8 +148,8 @@ func newBiChatEvalRunCmd() *cobra.Command {
 	cmd.Flags().StringVar(&streamPath, "stream-path", "/bi-chat/stream", "SSE stream endpoint path")
 	cmd.Flags().StringVar(&cookieName, "cookie-name", "granite_sid", "Session cookie name")
 	cmd.Flags().StringVar(&sessionToken, "session-token", "", "Authenticated session token (cookie value)")
-	cmd.Flags().StringVar(&judgeModel, "judge-model", "gpt-5-mini", "OpenAI judge model")
-	cmd.Flags().StringVar(&hitlModel, "hitl-model", "gpt-5-nano", "OpenAI model used to answer HITL clarification questions")
+	cmd.Flags().StringVar(&judgeModel, "judge-model", "gpt-5.4-mini", "OpenAI judge model")
+	cmd.Flags().StringVar(&hitlModel, "hitl-model", "gpt-5.4-nano", "OpenAI model used to answer HITL clarification questions")
 	cmd.Flags().BoolVar(&seed, "seed", true, "Seed deterministic analytics data before running evals")
 	cmd.Flags().StringVar(&seedDSN, "seed-dsn", "", "PostgreSQL DSN for seeding and oracle computation")
 	cmd.Flags().StringVar(&seedTenantID, "seed-tenant-id", "", "Tenant UUID for seeded analytics data")

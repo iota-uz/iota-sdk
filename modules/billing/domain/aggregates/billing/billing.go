@@ -30,6 +30,10 @@ const (
 	RUB Currency = "RUB"
 )
 
+func (s Status) IsActive() bool {
+	return s == Created || s == Pending
+}
+
 // TransactionCallback is a function that gets invoked during transaction processing.
 // It receives the transaction and returns an error.
 // - If error is nil, the transaction processing continues normally

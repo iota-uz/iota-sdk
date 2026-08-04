@@ -27,18 +27,16 @@ func TestProjectController_List_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).Build().
+	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	env := suite.Environment()
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Test Customer",
@@ -86,18 +84,16 @@ func TestProjectController_List_HTMX_Request(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).Build().
+	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	env := suite.Environment()
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"HTMX Test Customer",
@@ -131,17 +127,15 @@ func TestProjectController_GetNewDrawer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).Build().
+	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	env := suite.Environment()
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Drawer Test Customer",
@@ -169,18 +163,16 @@ func TestProjectController_Create_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).Build().
+	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	env := suite.Environment()
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Create Test Customer",
@@ -223,18 +215,16 @@ func TestProjectController_Create_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).Build().
+	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	env := suite.Environment()
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Validation Test Customer",
@@ -270,18 +260,16 @@ func TestProjectController_GetEditDrawer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).Build().
+	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	env := suite.Environment()
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Edit Test Customer",
@@ -318,14 +306,11 @@ func TestProjectController_GetEditDrawer_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).Build().
+	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -338,18 +323,16 @@ func TestProjectController_Update_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).Build().
+	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	env := suite.Environment()
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Update Test Customer",
@@ -394,18 +377,16 @@ func TestProjectController_Update_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).Build().
+	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	env := suite.Environment()
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Validation Test Customer",
@@ -450,18 +431,16 @@ func TestProjectController_Delete_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).Build().
+	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
+	env := suite.Environment()
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
 		"Delete Test Customer",
@@ -500,14 +479,11 @@ func TestProjectController_Delete_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).Build().
+	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -520,14 +496,11 @@ func TestProjectController_InvalidUUID(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
-	}), finance.NewModule(), projects.NewModule()).Build().
+	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
 	suite.GET(ProjectBasePath + "/invalid-uuid/drawer").

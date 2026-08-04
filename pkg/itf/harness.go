@@ -20,7 +20,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -60,6 +61,24 @@ const (
 	MigrationApplyOnce MigrationPolicy = "apply_once"
 	MigrationSkip      MigrationPolicy = "skip"
 )
+
+// migrationAdvisoryLockKey serializes migration application across processes.
+// Parallel harnesses (separate test binaries, and t.Parallel within one) each
+// provision their OWN per-test database but share one Postgres server;
+// migrations that touch cluster-global catalog objects (e.g. the ai_readonly
+// ROLE + RLS in changes-1997500070.sql) otherwise race with
+// "tuple concurrently updated (SQLSTATE XX000)".
+//
+// NOTE: Postgres advisory locks are DATABASE-LOCAL (the lock tag includes the
+// current database OID), so a lock taken on a per-test DB would NOT block a
+// sibling harness on a different per-test DB. The lock is therefore taken on
+// the shared "postgres" maintenance database that every harness connects to
+// (see withMigrationAdvisoryLock), which is the only scope in which all
+// parallel harnesses contend on the same key.
+//
+// The value is an arbitrary stable constant, distinct from other advisory-lock
+// keys in the codebase.
+const migrationAdvisoryLockKey int64 = 6_073_120_419_784_512_301
 
 type IsolationMode string
 
@@ -116,22 +135,33 @@ type ContextConfig struct {
 }
 
 type HarnessConfig struct {
-	Name      string
-	Modules   []application.Module
-	Database  DatabaseConfig
-	Migration MigrationConfig
-	Isolation IsolationConfig
-	Seed      SeedConfig
-	Context   ContextConfig
+	Name       string
+	Components []composition.Component
+	// Source is optional; forwarded to SetupApplication for ProvideConfig[T].
+	Source config.Source
+	// Capabilities controls which composition capabilities are active when
+	// the harness compiles its container. Empty defaults to the historical
+	// behaviour of [CapabilityAPI, CapabilityWorker]. Set to a narrower
+	// subset (e.g. just CapabilityAPI) to test capability gating — useful
+	// for verifying that worker-only contributions (NATS consumers,
+	// periodic-task managers, file-locked indices, etc.) stay inactive in
+	// API-only contexts.
+	Capabilities []composition.Capability
+	Database     DatabaseConfig
+	Migration    MigrationConfig
+	Isolation    IsolationConfig
+	Seed         SeedConfig
+	Context      ContextConfig
 }
 
 type Scope struct {
-	Ctx    context.Context
-	Pool   *pgxpool.Pool
-	Tx     pgx.Tx
-	App    application.Application
-	Tenant *composables.Tenant
-	User   user.User
+	Ctx       context.Context
+	Pool      *pgxpool.Pool
+	Tx        pgx.Tx
+	App       application.Application
+	Container *composition.Container
+	Tenant    *composables.Tenant
+	User      user.User
 }
 
 type Harness interface {
@@ -155,6 +185,7 @@ type harnessState struct {
 	dbName    string
 	pool      *pgxpool.Pool
 	app       application.Application
+	container *composition.Container
 	tenant    *composables.Tenant
 	baseCtx   context.Context
 	closeOnce sync.Once
@@ -223,11 +254,12 @@ func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 			}
 		}
 		return &Scope{
-			Ctx:    ctx,
-			Pool:   h.state.pool,
-			App:    h.state.app,
-			Tenant: h.state.tenant,
-			User:   h.cfg.Context.User,
+			Ctx:       ctx,
+			Pool:      h.state.pool,
+			App:       h.state.app,
+			Container: h.state.container,
+			Tenant:    h.state.tenant,
+			User:      h.cfg.Context.User,
 		}
 	case IsolationRollback:
 		tx, err := h.state.pool.Begin(ctx)
@@ -255,12 +287,13 @@ func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 		})
 
 		return &Scope{
-			Ctx:    scopeCtx,
-			Pool:   h.state.pool,
-			Tx:     tx,
-			App:    h.state.app,
-			Tenant: h.state.tenant,
-			User:   h.cfg.Context.User,
+			Ctx:       scopeCtx,
+			Pool:      h.state.pool,
+			Tx:        tx,
+			App:       h.state.app,
+			Container: h.state.container,
+			Tenant:    h.state.tenant,
+			User:      h.cfg.Context.User,
 		}
 	default:
 		tb.Fatalf("unsupported isolation mode: %s", h.cfg.Isolation.Mode)
@@ -382,13 +415,14 @@ func (s *harnessState) close(cleanup CleanupMode) error {
 	var closeErr error
 	s.closeOnce.Do(func() {
 		if s.app != nil {
-			closeErr = mergeCloseErrors(closeErr, closeControllers(s.app.Controllers()))
+			closeErr = mergeCloseErrors(closeErr, closeApplication(s.app, s.container))
 		}
 		if s.pool != nil {
 			s.pool.Close()
 		}
 		if cleanup == CleanupDropOnExit {
-			if err := DropDBE(s.dbName); err != nil {
+			db := LoadDBConfigFromEnv()
+			if err := DropDBE(s.dbName, db); err != nil {
 				closeErr = mergeCloseErrors(closeErr, serrors.E(opDropDB, err, "drop database on close"))
 			}
 		}
@@ -406,44 +440,45 @@ func mergeCloseErrors(existing, next error) error {
 	return errors.Join(existing, next)
 }
 
-func harnessDBOpts(name string) string {
-	c := configuration.Use()
-	return fmt.Sprintf(
-		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
-		c.Database.Host,
-		c.Database.Port,
-		c.Database.User,
-		strings.ToLower(sanitizeDBName(name)),
-		c.Database.Password,
-	)
-}
-
 func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harnessState, error) {
+	db := LoadDBConfigFromEnv()
+
 	dbName := buildDBName(cfg.Name, key, isPerTest)
-	if err := CreateDBE(dbName); err != nil {
+	if err := CreateDBE(dbName, db); err != nil {
 		return nil, serrors.E(opCreateDB, err, "create database")
 	}
 
-	pool, err := newPoolWithConfig(harnessDBOpts(dbName), cfg.Database.Pool)
+	pool, err := newPoolWithConfig(DBOpts(dbName, db), cfg.Database.Pool)
 	if err != nil {
-		if cleanupErr := DropDBE(dbName); cleanupErr != nil {
+		if cleanupErr := DropDBE(dbName, db); cleanupErr != nil {
 			return nil, serrors.E(opCreatePool, cleanupErr, "cleanup database after pool creation failure")
 		}
 		return nil, serrors.E(opCreatePool, err, "create pool")
 	}
 
-	app, err := SetupApplication(pool, cfg.Modules...)
+	app, container, err := setupApplicationWithSource(pool, nil, cfg.Components, cfg.Source, cfg.Capabilities...)
 	if err != nil {
 		pool.Close()
-		_ = DropDBE(dbName)
+		_ = DropDBE(dbName, db)
 		return nil, serrors.E(opSetupApplication, err, "setup application")
 	}
 
-	if err := runMigrationPolicy(context.Background(), pool, app, cfg.Migration); err != nil {
+	migrateErr := func() error {
+		if cfg.Migration.Policy == MigrationApplyOnce {
+			// Serialize concurrent migration runs across all parallel harnesses
+			// by holding an advisory lock on the shared "postgres" admin DB for
+			// the whole run; the per-test pool below applies the migrations.
+			return withMigrationAdvisoryLock(db, func() error {
+				return runMigrationPolicy(context.Background(), pool, app, cfg.Migration)
+			})
+		}
+		return runMigrationPolicy(context.Background(), pool, app, cfg.Migration)
+	}()
+	if err := migrateErr; err != nil {
 		combinedErr := serrors.E(opRunMigrationPolicy, err, "migration policy")
-		closeErr := closeControllers(app.Controllers())
+		closeErr := closeApplication(app, container)
 		pool.Close()
-		dropErr := DropDBE(dbName)
+		dropErr := DropDBE(dbName, db)
 		if closeErr != nil {
 			combinedErr = mergeCloseErrors(
 				combinedErr,
@@ -461,24 +496,24 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 
 	tenant, err := resolveTenant(context.Background(), pool, cfg.Context.TenantID)
 	if err != nil {
-		closeErr := closeControllers(app.Controllers())
+		closeErr := closeApplication(app, container)
 		pool.Close()
-		_ = DropDBE(dbName)
+		_ = DropDBE(dbName, db)
 		if closeErr != nil {
 			return nil, serrors.E(opResolveTenant, closeErr, "failed to close controllers before tenant resolve failure")
 		}
 		return nil, serrors.E(opResolveTenant, err, "resolve tenant")
 	}
 
-	baseCtx := buildBaseContext(pool, app, tenant, cfg.Context)
+	baseCtx := buildBaseContext(pool, app, container, tenant, cfg.Context)
 
 	if cfg.Seed.Policy == SeedOncePerHarness && cfg.Seed.Run != nil {
 		if err := composables.InTx(baseCtx, func(seedCtx context.Context) error {
 			return cfg.Seed.Run(seedCtx, app)
 		}); err != nil {
-			closeErr := closeControllers(app.Controllers())
+			closeErr := closeApplication(app, container)
 			pool.Close()
-			_ = DropDBE(dbName)
+			_ = DropDBE(dbName, db)
 			if closeErr != nil {
 				return nil, serrors.E(opOncePerHarnessSeed, closeErr, "failed to close controllers before seed failure")
 			}
@@ -487,13 +522,14 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 	}
 
 	return &harnessState{
-		cfg:     cfg,
-		key:     key,
-		dbName:  dbName,
-		pool:    pool,
-		app:     app,
-		tenant:  tenant,
-		baseCtx: baseCtx,
+		cfg:       cfg,
+		key:       key,
+		dbName:    dbName,
+		pool:      pool,
+		app:       app,
+		container: container,
+		tenant:    tenant,
+		baseCtx:   baseCtx,
 	}, nil
 }
 
@@ -548,15 +584,15 @@ func inferSharedHarnessName() string {
 }
 
 func buildHarnessKey(cfg HarnessConfig) string {
-	moduleTypes := make([]string, 0, len(cfg.Modules))
-	for _, mod := range cfg.Modules {
-		moduleTypes = append(moduleTypes, reflect.TypeOf(mod).String())
+	componentTypes := make([]string, 0, len(cfg.Components))
+	for _, component := range cfg.Components {
+		componentTypes = append(componentTypes, reflect.TypeOf(component).String())
 	}
 
 	return fmt.Sprintf(
-		"name=%s|mods=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
+		"name=%s|components=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
 		cfg.Name,
-		moduleTypes,
+		componentTypes,
 		cfg.Database.Provisioning,
 		cfg.Migration.Policy,
 		cfg.Isolation.Mode,
@@ -593,6 +629,10 @@ func buildDBName(base, key string, perTest bool) string {
 func runMigrationPolicy(ctx context.Context, pool schemaReadinessQuerier, app application.Application, cfg MigrationConfig) error {
 	switch cfg.Policy {
 	case MigrationApplyOnce:
+		// Cross-process serialization is handled by the caller
+		// (createHarnessState) via withMigrationAdvisoryLock on the shared
+		// "postgres" admin DB; a lock on this per-test pool would be
+		// database-local and would not serialize sibling harnesses.
 		return app.Migrations().Run()
 	case MigrationSkip:
 		if pool == nil {
@@ -648,13 +688,16 @@ func resolveTenant(ctx context.Context, pool *pgxpool.Pool, tenantID *uuid.UUID)
 	return t, nil
 }
 
-func buildBaseContext(pool *pgxpool.Pool, app application.Application, tenant *composables.Tenant, cfg ContextConfig) context.Context {
+func buildBaseContext(pool *pgxpool.Pool, app application.Application, container *composition.Container, tenant *composables.Tenant, cfg ContextConfig) context.Context {
 	ctx := context.Background()
 	ctx = composables.WithPool(ctx, pool)
 	ctx = composables.WithTenantID(ctx, tenant.ID)
 	ctx = composables.WithParams(ctx, DefaultParams())
 	ctx = composables.WithSession(ctx, MockSession())
 	ctx = context.WithValue(ctx, constants.AppKey, app)
+	if container != nil {
+		ctx = context.WithValue(ctx, constants.ContainerKey, container)
+	}
 
 	locale := "en"
 	if len(cfg.Locales) > 0 && cfg.Locales[0] != "" {
@@ -735,4 +778,23 @@ func closeControllers(controllers []application.Controller) error {
 		}
 	}
 	return closeErr
+}
+
+func closeApplication(app application.Application, container *composition.Container) error {
+	if app == nil {
+		return nil
+	}
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	controllers := app.Controllers()
+	var closeErr error
+	if container != nil {
+		closeErr = composition.Stop(stopCtx, container)
+	}
+	if binder, ok := app.(application.RuntimeBinder); ok {
+		binder.DetachRuntimeSource()
+	}
+	return mergeCloseErrors(closeErr, closeControllers(controllers))
 }

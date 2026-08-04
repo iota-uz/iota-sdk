@@ -142,6 +142,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 	agentService := services.NewAgentService(services.AgentServiceConfig{
 		Agent:                  c.ParentAgent,
 		Model:                  c.Model,
+		ModelRegistry:          c.ModelRegistry,
 		Policy:                 c.ContextPolicy,
 		Renderer:               c.Renderer,
 		Checkpointer:           c.Checkpointer,
@@ -154,6 +155,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		SkillsCatalogLimit:     c.SkillsCatalogLimit,
 		SkillsMaxChars:         c.SkillsMaxChars,
 		RuntimeTools:           runtimeTools,
+		ExecutorOptions:        c.ExecutorOptions,
 		Logger:                 c.Logger,
 		FormatterRegistry:      formatters.DefaultFormatterRegistry(),
 	})
@@ -180,29 +182,41 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 	attachmentService := services.NewAttachmentService(fileStorage)
 	artifactService := bichatservices.NewArtifactService(c.ChatRepo, fileStorage, attachmentService)
 
-	chatServices := services.NewChatApplicationServices(
+	chatServices, err := services.NewChatApplicationServices(
 		c.ChatRepo,
 		agentService,
 		c.Model,
 		titleService,
 		titleJobQueue,
+		c.Logger,
 	)
+	if err != nil {
+		return nil, serrors.E(op, err, "failed to initialise Redis-backed chat services")
+	}
+	if c.LangfuseBaseURL != "" {
+		chatServices.WithLangfuseBaseURL(c.LangfuseBaseURL)
+	}
 
 	return &ServiceContainer{
-		sessionCommands:   chatServices.SessionCommands,
-		sessionQueries:    chatServices.SessionQueries,
-		turnCommands:      chatServices.TurnCommands,
-		turnQueries:       chatServices.TurnQueries,
-		streamCommands:    chatServices.StreamCommands,
-		hitlCommands:      chatServices.HITLCommands,
-		agentService:      agentService,
-		attachmentService: attachmentService,
-		artifactService:   artifactService,
-		observability:     chatServices.Observability,
-		titleService:      titleService,
-		titleJobQueue:     titleJobQueue,
-		titleQueueConfig:  c.TitleQueue,
-		logger:            c.Logger,
+		sessionCommands:      chatServices.SessionCommands,
+		sessionQueries:       chatServices.SessionQueries,
+		turnCommands:         chatServices.TurnCommands,
+		continuationCommands: chatServices.ContinuationCommands,
+		turnQueries:          chatServices.TurnQueries,
+		streamCommands:       chatServices.StreamCommands,
+		hitlCommands:         chatServices.HITLCommands,
+		agentService:         agentService,
+		attachmentService:    attachmentService,
+		artifactService:      artifactService,
+		observability:        chatServices.Observability,
+		titleService:         titleService,
+		titleJobQueue:        titleJobQueue,
+		titleQueueConfig:     c.TitleQueue,
+		logger:               c.Logger,
+		sharedRedisClose:     chatServices.CloseSharedRedis,
+		reaperInterval:       c.ReaperInterval,
+		reaperStaleThreshold: c.ReaperStaleThreshold,
+		reaperLockTTL:        c.ReaperLockTTL,
 	}, nil
 }
 

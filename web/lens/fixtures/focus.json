@@ -1,0 +1,206 @@
+{
+  "version": "1.0.0",
+  "snapshotId": "focus-story-1",
+  "meta": {
+    "dashboardId": "premium-explorer",
+    "title": "Premium explorer",
+    "generatedAt": "2026-07-19T10:00:00Z",
+    "locale": "en"
+  },
+  "header": { "title": "Premium explorer", "subtitle": "FY 2026 · earned basis" },
+  "layout": {
+    "rows": [
+      {
+        "heading": "Premium anatomy",
+        "panels": [{ "panelId": "premium", "span": 12 }]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": "premium",
+      "kind": "donut",
+      "title": "Net premium",
+      "semantics": "partition",
+      "frame": "panel:premium",
+      "encoding": { "id": "id", "label": "label", "value": "value" },
+      "format": { "value": { "kind": "money", "currency": "USD", "minorUnits": false, "precision": 0 } },
+      "drillRoot": "premium",
+      "actions": []
+    }
+  ],
+  "frames": {
+    "panel:premium": {
+      "columns": [{ "name": "id", "type": "string" }, { "name": "label", "type": "string" }, { "name": "value", "type": "number" }],
+      "rows": [
+        ["premium/motor", "Motor", 1240000],
+        ["premium/property", "Property", 860000],
+        ["premium/liability", "Liability", 420000]
+      ]
+    },
+    "motor:products": {
+      "columns": [{ "name": "id", "type": "string" }, { "name": "label", "type": "string" }, { "name": "value", "type": "number" }],
+      "rows": [
+        ["premium/motor/new", "New business", 720000],
+        ["premium/motor/renewal", "Renewals", 380000],
+        ["premium/motor/fleet", "Fleet", 140000]
+      ]
+    },
+    "motor:new": {
+      "columns": [{ "name": "id", "type": "string" }, { "name": "label", "type": "string" }, { "name": "value", "type": "number" }],
+      "rows": [
+        ["premium/motor/new/direct", "Direct", 460000],
+        ["premium/motor/new/agents", "Agents", 260000]
+      ]
+    },
+    "motor:new-direct": {
+      "columns": [{ "name": "id", "type": "string" }, { "name": "label", "type": "string" }, { "name": "value", "type": "number" }],
+      "rows": [
+        ["premium/motor/new/direct/osago", "OSAGO", 280000],
+        ["premium/motor/new/direct/kasko", "Kasko", 180000]
+      ]
+    },
+    "motor:trend": {
+      "columns": [{ "name": "id", "type": "string" }, { "name": "period", "type": "time" }, { "name": "series", "type": "string" }, { "name": "value", "type": "number" }],
+      "rows": [
+        ["q1", "2026-01-01T00:00:00Z", "Actual", 300000],
+        ["q2", "2026-04-01T00:00:00Z", "Actual", 320000],
+        ["q3", "2026-07-01T00:00:00Z", "Actual", 310000],
+        ["q4", "2026-10-01T00:00:00Z", "Actual", 310000]
+      ]
+    },
+    "motor:evidence": {
+      "columns": [{ "name": "transactionId", "type": "string" }, { "name": "counterparty", "type": "string" }, { "name": "amount", "type": "number" }],
+      "rows": [
+        ["POL-20441", "Orion Logistics", 182000],
+        ["POL-20517", "Northwind Fleet", 96000]
+      ]
+    },
+    "source:motor": {
+      "columns": [
+        { "name": "policyNumber", "type": "string" },
+        { "name": "insured", "type": "string" },
+        { "name": "premium", "type": "number" },
+        { "name": "issuedAt", "type": "time" }
+      ],
+      "rows": [
+        ["MTR-20441", "Orion Logistics", 182000, "2026-03-14T00:00:00Z"],
+        ["MTR-20517", "Northwind Fleet", 96000, "2026-04-02T00:00:00Z"],
+        ["MTR-20583", "Vega Retail", 54000, "2026-05-21T00:00:00Z"]
+      ]
+    }
+  },
+  "drill": {
+    "inlineDepth": 4,
+    "edges": {
+      "premium": {
+        "path": ["premium"],
+        "label": "Net premium",
+        "presentation": { "focus": "canvas" },
+        "children": [
+          { "key": "premium/motor", "path": ["premium", "premium/motor"], "label": "Motor", "target": "premium/motor" },
+          { "key": "premium/property", "path": ["premium", "premium/property"], "label": "Property" },
+          { "key": "premium/liability", "path": ["premium", "premium/liability"], "label": "Liability" }
+        ],
+        "frame": "panel:premium",
+        "encoding": { "id": "id", "label": "label", "value": "value" },
+        "perspectives": []
+      },
+      "premium/motor": {
+        "path": ["premium", "premium/motor"],
+        "label": "Motor",
+        "view": "bar",
+        "status": { "label": "Provisional", "tone": "warning" },
+        "source": {
+          "label": "Source policies",
+          "frame": "source:motor",
+          "columns": [
+            { "field": "policyNumber", "label": "Policy", "cell": { "kind": "plain" } },
+            { "field": "insured", "label": "Insured", "cell": { "kind": "plain" } },
+            { "field": "premium", "label": "Premium", "align": "right", "cell": { "kind": "plain" } },
+            { "field": "issuedAt", "label": "Issued", "cell": { "kind": "plain" } }
+          ],
+          "format": { "premium": { "kind": "money", "currency": "USD", "minorUnits": false, "precision": 0 } }
+        },
+        "children": [
+          { "key": "premium/motor/new", "path": ["premium", "premium/motor", "premium/motor/new"], "label": "", "target": "premium/motor/new" },
+          { "key": "premium/motor/renewal", "path": ["premium", "premium/motor", "premium/motor/renewal"], "label": "" },
+          { "key": "premium/motor/fleet", "path": ["premium", "premium/motor", "premium/motor/fleet"], "label": "" }
+        ],
+        "frame": "motor:products",
+        "encoding": { "id": "id", "label": "label", "value": "value" },
+        "perspectives": [
+          { "id": "premium/motor/by-product" },
+          { "id": "premium/motor/trend" },
+          { "id": "premium/motor/evidence" }
+        ]
+      },
+      "premium/motor/trend": {
+        "path": ["premium", "premium/motor", "premium/motor/trend"],
+        "label": "Motor trend",
+        "children": [],
+        "frame": "motor:trend",
+        "encoding": { "id": "id", "category": "period", "series": "series", "value": "value" },
+        "perspectives": [
+          { "id": "premium/motor/by-product" },
+          { "id": "premium/motor/trend" },
+          { "id": "premium/motor/evidence" }
+        ]
+      },
+      "premium/motor/evidence": {
+        "path": ["premium", "premium/motor", "premium/motor/evidence"],
+        "label": "Motor evidence",
+        "children": [],
+        "frame": "motor:evidence",
+        "encoding": { "id": "transactionId", "label": "counterparty", "value": "amount" },
+        "perspectives": [
+          { "id": "premium/motor/by-product" },
+          { "id": "premium/motor/trend" },
+          { "id": "premium/motor/evidence" }
+        ]
+      },
+      "premium/motor/new": {
+        "path": ["premium", "premium/motor", "premium/motor/new"],
+        "label": "New business",
+        "children": [
+          { "key": "premium/motor/new/direct", "path": ["premium", "premium/motor", "premium/motor/new", "premium/motor/new/direct"], "label": "", "target": "premium/motor/new/direct" },
+          { "key": "premium/motor/new/agents", "path": ["premium", "premium/motor", "premium/motor/new", "premium/motor/new/agents"], "label": "" }
+        ],
+        "frame": "motor:new",
+        "encoding": { "id": "id", "label": "label", "value": "value" },
+        "perspectives": []
+      },
+      "premium/motor/new/direct": {
+        "path": ["premium", "premium/motor", "premium/motor/new", "premium/motor/new/direct"],
+        "label": "Direct channel",
+        "children": [],
+        "frame": "motor:new-direct",
+        "encoding": { "id": "id", "label": "label", "value": "value" },
+        "perspectives": []
+      }
+    }
+  },
+  "perspectives": [
+    { "id": "premium/motor/by-product", "explorerId": "premium", "branchKey": "premium/motor", "key": "by-product", "label": "By product", "semantics": "partition", "root": "premium/motor" },
+    { "id": "premium/motor/trend", "explorerId": "premium", "branchKey": "premium/motor", "key": "trend", "label": "Trend", "semantics": "series", "root": "premium/motor/trend" },
+    { "id": "premium/motor/evidence", "explorerId": "premium", "branchKey": "premium/motor", "key": "evidence", "label": "Evidence", "semantics": "evidence", "root": "premium/motor/evidence" }
+  ],
+  "endpoints": {},
+  "i18n": {},
+  "theme": {
+    "palette": { "accent": "#2563eb", "muted": "#94a3b8" },
+    "series": {
+      "Motor": "#2563eb",
+      "Property": "#7c3aed",
+      "Liability": "#f59e0b",
+      "New business": "#2563eb",
+      "Renewals": "#7c3aed",
+      "Fleet": "#f59e0b",
+      "Direct": "#2563eb",
+      "Agents": "#7c3aed",
+      "OSAGO": "#2563eb",
+      "Kasko": "#7c3aed",
+      "Actual": "#2563eb"
+    }
+  }
+}

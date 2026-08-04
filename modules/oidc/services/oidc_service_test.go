@@ -56,7 +56,7 @@ func TestOIDCService_CompleteAuthRequest(t *testing.T) {
 	t.Parallel()
 
 	// Setup test environment
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	// Create repositories
 	clientRepo := persistence.NewClientRepository()
@@ -107,7 +107,7 @@ func TestOIDCService_CompleteAuthRequest_Expired(t *testing.T) {
 	t.Parallel()
 
 	// Setup test environment
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	// Create repositories
 	clientRepo := persistence.NewClientRepository()
@@ -149,7 +149,7 @@ func TestOIDCService_GetAuthRequest(t *testing.T) {
 	t.Parallel()
 
 	// Setup test environment
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	// Create repositories
 	clientRepo := persistence.NewClientRepository()
@@ -191,7 +191,7 @@ func TestOIDCService_GetAuthRequest_Invalid(t *testing.T) {
 	t.Parallel()
 
 	// Setup test environment
-	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 
 	// Create repositories
 	clientRepo := persistence.NewClientRepository()

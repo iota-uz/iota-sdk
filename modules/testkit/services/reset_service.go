@@ -6,23 +6,23 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ResetService struct {
-	app application.Application
+	db *pgxpool.Pool
 }
 
-func NewResetService(app application.Application) *ResetService {
+func NewResetService(db *pgxpool.Pool) *ResetService {
 	return &ResetService{
-		app: app,
+		db: db,
 	}
 }
 
 func (s *ResetService) TruncateAllTables(ctx context.Context) error {
 	logger := composables.UseLogger(ctx)
-	db := s.app.DB()
+	db := s.db
 
 	// Get all table names except migration-related tables
 	query := `

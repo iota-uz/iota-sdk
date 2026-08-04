@@ -3,8 +3,6 @@ package bichat
 
 import (
 	"context"
-	"net/http"
-	"os"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -14,10 +12,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/assets"
 	bichatrpc "github.com/iota-uz/iota-sdk/modules/bichat/rpc"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/sirupsen/logrus"
 )
 
 var distFS = assets.AppletFS()
@@ -72,7 +69,7 @@ func (a *BiChatApplet) Config() applets.Config {
 			BasePath:     "/assets",             // URL prefix for asset serving (relative to applet base path)
 			ManifestPath: ".vite/manifest.json", // Vite with manifest: true writes to dist/.vite/manifest.json
 			Entrypoint:   "index.html",          // Entry point file name (Vite default, matches manifest key)
-			Dev:          bichatDevAssets(),
+			Dev:          a.buildDevAssets(),
 		},
 
 		Mount: applets.MountConfig{
@@ -118,9 +115,13 @@ func (a *BiChatApplet) Config() applets.Config {
 			if sessionCommands == nil || sessionQueries == nil || turnCommands == nil || turnQueries == nil || hitlCommands == nil || artifactSvc == nil {
 				return nil
 			}
-			cfg := bichatrpc.Router(sessionCommands, sessionQueries, turnCommands, turnQueries, hitlCommands, artifactSvc).Config()
+			var rpcLogger *logrus.Logger
+			if a.config != nil {
+				rpcLogger = a.config.Logger
+			}
+			cfg := bichatrpc.Router(sessionCommands, sessionQueries, turnCommands, turnQueries, hitlCommands, artifactSvc, rpcLogger).Config()
 			// Expose internal error details in development mode.
-			if configuration.Use().IsDev() {
+			if a.config != nil && a.config.IsDev {
 				t := true
 				cfg.ExposeInternalErrors = &t
 			}
@@ -129,70 +130,45 @@ func (a *BiChatApplet) Config() applets.Config {
 	}
 }
 
-func bichatDevAssets() *applets.DevAssetConfig {
-	enabled := configuration.Use().IsDev()
-	target := strings.TrimSpace(os.Getenv("IOTA_APPLET_VITE_URL_BICHAT"))
-	if target == "" {
-		target = "http://localhost:5173"
-	}
-	entry := strings.TrimSpace(os.Getenv("IOTA_APPLET_ENTRY_BICHAT"))
-	if entry == "" {
-		entry = "/src/main.tsx"
-	}
-	client := strings.TrimSpace(os.Getenv("IOTA_APPLET_CLIENT_BICHAT"))
-	if client == "" {
-		client = "/@vite/client"
+// buildDevAssets returns dev-mode Vite config from the ModuleConfig's Applet settings.
+// Falls back to well-known defaults when the applet config is not set.
+func (a *BiChatApplet) buildDevAssets() *applets.DevAssetConfig {
+	isDev := false
+	viteURL := "http://localhost:5173"
+	entry := "/src/main.tsx"
+	client := "/@vite/client"
+
+	if a.config != nil {
+		isDev = a.config.IsDev
+		if v := strings.TrimSpace(a.config.AppletViteURL); v != "" {
+			viteURL = v
+		}
+		if v := strings.TrimSpace(a.config.AppletEntry); v != "" {
+			entry = v
+		}
+		if v := strings.TrimSpace(a.config.AppletClient); v != "" {
+			client = v
+		}
 	}
 
 	return &applets.DevAssetConfig{
-		Enabled:      enabled,
-		TargetURL:    target,
+		Enabled:      isDev,
+		TargetURL:    viteURL,
 		EntryModule:  entry,
 		ClientModule: client,
 	}
 }
 
 // getMiddleware returns the required middleware stack for BiChat.
-// This creates the same middleware stack as the old WebController.
-//
-// Prerequisites:
-//   - The global middleware must have already added the app to context via:
-//     middleware.Provide(constants.AppKey, app)
-//   - This is set up in internal/server/default.go
+// ProvideLocalizer is now installed globally in pkg/server/builder.go and
+// does not need to be repeated here.
 func (a *BiChatApplet) getMiddleware() []mux.MiddlewareFunc {
 	return []mux.MiddlewareFunc{
 		middleware.Authorize(),                                        // Check authentication token
 		middleware.RedirectNotAuthenticated(),                         // Redirect to /login if not authenticated
 		middleware.ProvideUser(),                                      // Add user to context from session
-		a.provideLocalizerFromContext(),                               // Add localizer using app from context
 		middleware.NavItemsWithInitialState(sidebar.SidebarCollapsed), // Ensure iota sidebar is visible + collapsed by default
 		middleware.WithPageContext(),                                  // Add page context (locale, etc.)
-	}
-}
-
-// provideLocalizerFromContext creates a middleware that extracts the app from context
-// and uses it to provide the localizer. This works around the issue that the applet
-// config doesn't have direct access to the app instance, but the global middleware
-// has already added it to the request context.
-func (a *BiChatApplet) provideLocalizerFromContext() mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Get app from context (added by global middleware)
-			app, err := application.UseApp(r.Context())
-			if err != nil {
-				configuration.Use().Logger().
-					WithError(err).
-					Error("BiChat applet localizer middleware missing app in request context")
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-				return
-			}
-
-			// Create the ProvideLocalizer middleware dynamically
-			localizerMiddleware := middleware.ProvideLocalizer(app)
-
-			// Apply it and continue
-			localizerMiddleware(next).ServeHTTP(w, r)
-		})
 	}
 }
 
@@ -285,10 +261,10 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 		modelProvider = strings.ToLower(strings.TrimSpace(info.Provider))
 		modelName = info.Name
 	}
-	apiKeyConfigured := true
-	if modelProvider == "openai" {
-		apiKeyConfigured = strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) != ""
-	}
+	// apiKeyConfigured: determined from the OpenAI API key stored in ModuleConfig.
+	// The config field is set at construction time from bichatconfig, avoiding any
+	// runtime os.Getenv call here.
+	apiKeyConfigured := a.config.OpenAIAPIKeyConfigured
 
 	var reasoningEffortOptions []string
 	if modelName != "" && modelProvider != "" {

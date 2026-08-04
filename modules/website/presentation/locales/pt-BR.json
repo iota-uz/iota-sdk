@@ -1,0 +1,56 @@
+{
+  "NavigationLinks": {
+    "Website": "Site",
+    "AIChatbot": "Chatbot IA"
+  },
+  "AIChatBot": {
+    "Meta": {
+      "Title": "Chatbot de IA"
+    },
+    "ModelName": {
+      "Label": "Nome do modelo",
+      "Placeholder": "Insira o nome do modelo (ex.: gpt-4)",
+      "NoModelsAvailable": "Nenhum modelo disponível"
+    },
+    "ModelType": {
+      "Label": "Tipo de modelo",
+      "Placeholder": "Selecione o tipo de modelo"
+    },
+    "SystemPrompt": {
+      "Label": "Prompt do sistema",
+      "Placeholder": "Insira o prompt do sistema para a IA"
+    },
+    "Temperature": {
+      "Label": "Temperatura",
+      "Placeholder": "Insira um valor entre 0.0 e 2.0"
+    },
+    "MaxTokens": {
+      "Label": "Máximo de tokens",
+      "Placeholder": "Insira o número máximo de tokens"
+    },
+    "BaseURL": {
+      "Label": "URL base da API",
+      "Placeholder": "Insira a URL base da API (ex.: https://api.openai.com/v1)"
+    },
+    "AccessToken": {
+      "Label": "Token de acesso à API",
+      "Placeholder": "Insira seu token de acesso à API"
+    },
+    "Errors": {
+      "ConfigNotFound": "Configuração do chat de IA não encontrada",
+      "FailedToGetConfig": "Falha ao obter configuração do chat de IA",
+      "InvalidFormData": "Dados do formulário inválidos fornecidos",
+      "FailedToSaveConfig": "Falha ao salvar a configuração do chat de IA",
+      "InvalidRequestBody": "Corpo da requisição inválido",
+      "InvalidThreadIDFormat": "Formato de ID do thread inválido",
+      "ThreadNotFound": "Thread não encontrado",
+      "FailedToCreateThread": "Falha ao criar thread de chat",
+      "InvalidPhoneFormat": "Formato de número de telefone inválido. Formato esperado: +998XXXXXXXXX (com código do país)",
+      "UnknownCountryCode": "Código de país desconhecido no número de telefone. Por favor, forneça um código de país válido",
+      "FailedToSendMessage": "Falha ao enviar mensagem para o thread de chat",
+      "FailedToGetAIResponse": "Falha ao obter resposta da IA",
+      "FailedToEncodeResponse": "Falha ao codificar a resposta",
+      "FailedToGetModels": "Falha ao obter a lista de modelos"
+    }
+  }
+}

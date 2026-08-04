@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,22 +13,26 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // mockModel is a test model that returns predefined responses.
 type mockModel struct {
+	mu            sync.Mutex
 	responses     []mockResponse
 	currentIndex  int
 	streamingMode bool
 	info          agents.ModelInfo
+	requests      []agents.Request
 }
 
 type mockResponse struct {
-	content      string
-	toolCalls    []types.ToolCall
-	finishReason string
-	err          error
+	content            string
+	toolCalls          []types.ToolCall
+	finishReason       string
+	providerResponseID string
+	err                error
 }
 
 func newMockModel(responses ...mockResponse) *mockModel {
@@ -46,6 +51,7 @@ func newMockModel(responses ...mockResponse) *mockModel {
 }
 
 func (m *mockModel) Generate(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (*agents.Response, error) {
+	m.recordRequest(req)
 	if m.currentIndex >= len(m.responses) {
 		return nil, fmt.Errorf("no more mock responses")
 	}
@@ -69,6 +75,7 @@ func (m *mockModel) Generate(ctx context.Context, req agents.Request, opts ...ag
 }
 
 func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (types.Generator[agents.Chunk], error) {
+	m.recordRequest(req)
 	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.Chunk) bool) error {
 		if m.currentIndex >= len(m.responses) {
 			return fmt.Errorf("no more mock responses")
@@ -103,11 +110,12 @@ func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agen
 
 		// Final chunk with tool calls and metadata
 		finalChunk := agents.Chunk{
-			Delta:        "",
-			ToolCalls:    resp.toolCalls,
-			Usage:        &types.TokenUsage{PromptTokens: 10, CompletionTokens: 20, TotalTokens: 30},
-			FinishReason: resp.finishReason,
-			Done:         true,
+			Delta:              "",
+			ToolCalls:          resp.toolCalls,
+			Usage:              &types.TokenUsage{PromptTokens: 10, CompletionTokens: 20, TotalTokens: 30},
+			FinishReason:       resp.finishReason,
+			ProviderResponseID: resp.providerResponseID,
+			Done:               true,
 		}
 
 		if !yield(finalChunk) {
@@ -116,6 +124,21 @@ func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agen
 
 		return nil
 	}), nil
+}
+
+func (m *mockModel) recordRequest(req agents.Request) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	copied := req
+	copied.Messages = append([]types.Message(nil), req.Messages...)
+	copied.Tools = append([]agents.Tool(nil), req.Tools...)
+	m.requests = append(m.requests, copied)
+}
+
+func (m *mockModel) capturedRequests() []agents.Request {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]agents.Request(nil), m.requests...)
 }
 
 func (m *mockModel) Info() agents.ModelInfo {
@@ -302,7 +325,8 @@ func TestExecutor_SingleTurn(t *testing.T) {
 			finalResult = event.Result
 		case agents.EventTypeError:
 			t.Fatalf("Unexpected error event: %v", event.Error)
-		case agents.EventTypeToolStart, agents.EventTypeToolEnd, agents.EventTypeInterrupt, agents.EventTypeThinking:
+		case agents.EventTypeToolStart, agents.EventTypeToolEnd, agents.EventTypeInterrupt,
+			agents.EventTypeThinking, agents.EventTypeTextBlockEnd:
 			// no-op for this test
 		}
 	}
@@ -414,7 +438,8 @@ func TestExecutor_ToolCalls(t *testing.T) {
 			toolEndEvent = event.Tool
 		case agents.EventTypeError:
 			t.Fatalf("Unexpected error event: %v", event.Error)
-		case agents.EventTypeChunk, agents.EventTypeInterrupt, agents.EventTypeDone, agents.EventTypeThinking:
+		case agents.EventTypeChunk, agents.EventTypeInterrupt, agents.EventTypeDone,
+			agents.EventTypeThinking, agents.EventTypeTextBlockEnd:
 			// no-op for this test
 		}
 	}
@@ -448,6 +473,63 @@ func TestExecutor_ToolCalls(t *testing.T) {
 		if toolEndEvent.DurationMs < 0 {
 			t.Error("Expected non-negative duration")
 		}
+	}
+}
+
+func TestExecutor_UsesIncrementalMessagesWithProviderContinuity(t *testing.T) {
+	t.Parallel()
+
+	tool := agents.NewTool(
+		"lookup",
+		"Looks up a value",
+		map[string]any{"type": "object"},
+		func(context.Context, string) (string, error) {
+			return `{"value":"found"}`, nil
+		},
+	)
+	agent := newMockAgent("continuity-agent", tool)
+	model := newMockModel(
+		mockResponse{
+			toolCalls: []types.ToolCall{{
+				ID: "call_continuity", Name: "lookup", Arguments: `{}`,
+			}},
+			finishReason:       "tool_calls",
+			providerResponseID: "resp_continuity",
+		},
+		mockResponse{content: "Done", finishReason: "stop"},
+	)
+	executor := agents.NewExecutor(agent, model)
+	ctx := context.Background()
+	gen := executor.Execute(ctx, agents.Input{
+		Messages: []types.Message{
+			types.SystemMessage("Keep this instruction."),
+			types.UserMessage("Find the value."),
+		},
+		SessionID: uuid.New(),
+		TenantID:  uuid.New(),
+	})
+	defer gen.Close()
+	for {
+		_, err := gen.Next(ctx)
+		if errors.Is(err, types.ErrGeneratorDone) {
+			break
+		}
+		require.NoError(t, err)
+	}
+
+	requests := model.capturedRequests()
+	require.Len(t, requests, 2)
+	require.Nil(t, requests[0].PreviousResponseID)
+	require.NotNil(t, requests[1].PreviousResponseID)
+	assert.Equal(t, "resp_continuity", *requests[1].PreviousResponseID)
+	require.Len(t, requests[1].Messages, 2)
+	assert.Equal(t, types.RoleSystem, requests[1].Messages[0].Role())
+	assert.Equal(t, "Keep this instruction.", requests[1].Messages[0].Content())
+	assert.Equal(t, types.RoleTool, requests[1].Messages[1].Role())
+	assert.Equal(t, "call_continuity", *requests[1].Messages[1].ToolCallID())
+	for _, message := range requests[1].Messages {
+		assert.NotEqual(t, types.RoleUser, message.Role())
+		assert.NotEqual(t, types.RoleAssistant, message.Role())
 	}
 }
 
@@ -1519,5 +1601,216 @@ func TestExecutor_InterruptTool_IsExclusive(t *testing.T) {
 	}
 	if executed.Load() {
 		t.Fatalf("expected other tool not to execute in same batch as interrupt")
+	}
+}
+
+// TestExecutor_TextBlockEnd_TextThenToolThenText asserts that executor emits a
+// EventTypeTextBlockEnd marker between an iteration's streamed text and the
+// first tool_start, and that the marker carries an incrementing TextBlockSeq.
+// The final text segment after the last tool call has no closing marker — the
+// done event implicitly closes it.
+func TestExecutor_TextBlockEnd_TextThenToolThenText(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	weatherTool := agents.NewTool(
+		"get_weather",
+		"Gets weather for a location",
+		map[string]any{},
+		func(ctx context.Context, input string) (string, error) { return "sunny", nil },
+	)
+
+	agent := newMockAgent("text-block-agent", weatherTool)
+	agent.setToolResult("get_weather", "sunny")
+
+	model := newMockModel(
+		mockResponse{
+			content: "Let me check the weather.",
+			toolCalls: []types.ToolCall{
+				{ID: "call_1", Name: "get_weather", Arguments: `{"location":"SF"}`},
+			},
+			finishReason: "tool_calls",
+		},
+		mockResponse{
+			content:      "It is sunny.",
+			finishReason: "stop",
+		},
+	)
+
+	executor := agents.NewExecutor(agent, model)
+	input := agents.Input{
+		Messages:  []types.Message{types.UserMessage("Weather in SF?")},
+		SessionID: uuid.New(),
+		TenantID:  uuid.New(),
+	}
+
+	gen := executor.Execute(ctx, input)
+	defer gen.Close()
+
+	type observation struct {
+		typ agents.ExecutorEventType
+		seq int
+	}
+	var observed []observation
+	for {
+		ev, err := gen.Next(ctx)
+		if err != nil {
+			if errors.Is(err, types.ErrGeneratorDone) {
+				break
+			}
+			t.Fatalf("unexpected generator error: %v", err)
+		}
+		switch ev.Type {
+		case agents.EventTypeContent, agents.EventTypeToolStart, agents.EventTypeToolEnd, agents.EventTypeTextBlockEnd, agents.EventTypeDone:
+			observed = append(observed, observation{typ: ev.Type, seq: ev.TextBlockSeq})
+		case agents.EventTypeError:
+			t.Fatalf("unexpected error event: %v", ev.Error)
+		case agents.EventTypeInterrupt, agents.EventTypeThinking:
+			// no-op: these events are not relevant to the text_block_end assertion
+		}
+	}
+
+	// Assert exactly one text_block_end before the tool sequence, with seq=0.
+	textBlockIdx := -1
+	toolStartIdx := -1
+	for i, o := range observed {
+		if o.typ == agents.EventTypeTextBlockEnd {
+			require.Equal(t, -1, textBlockIdx, "exactly one text_block_end expected, got a second at index %d", i)
+			require.Equal(t, 0, o.seq, "first text_block_end must have seq=0")
+			textBlockIdx = i
+		}
+		if o.typ == agents.EventTypeToolStart && toolStartIdx == -1 {
+			toolStartIdx = i
+		}
+	}
+	require.NotEqual(t, -1, textBlockIdx, "expected one text_block_end event")
+	require.NotEqual(t, -1, toolStartIdx, "expected at least one tool_start event")
+	require.Less(t, textBlockIdx, toolStartIdx, "text_block_end must precede tool_start")
+
+	// Final assistant text after the tool has no closing text_block_end (done implies it).
+	doneIdx := -1
+	for i, o := range observed {
+		if o.typ == agents.EventTypeDone {
+			doneIdx = i
+		}
+	}
+	require.NotEqual(t, -1, doneIdx, "expected done event")
+	for _, o := range observed[toolStartIdx+1 : doneIdx] {
+		require.NotEqual(t, agents.EventTypeTextBlockEnd, o.typ, "should not emit a closing text_block_end for the final segment")
+	}
+}
+
+// TestExecutor_TextBlockEnd_MultipleTurns asserts seq increments across
+// multiple iterations, each producing a text + tool_call boundary.
+func TestExecutor_TextBlockEnd_MultipleTurns(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	tool := agents.NewTool(
+		"do_thing",
+		"do_thing",
+		map[string]any{},
+		func(ctx context.Context, input string) (string, error) { return "ok", nil },
+	)
+
+	agent := newMockAgent("multi-turn-agent", tool)
+	agent.setToolResult("do_thing", "ok")
+
+	model := newMockModel(
+		mockResponse{
+			content:      "First step.",
+			toolCalls:    []types.ToolCall{{ID: "c1", Name: "do_thing", Arguments: "{}"}},
+			finishReason: "tool_calls",
+		},
+		mockResponse{
+			content:      "Second step.",
+			toolCalls:    []types.ToolCall{{ID: "c2", Name: "do_thing", Arguments: "{}"}},
+			finishReason: "tool_calls",
+		},
+		mockResponse{
+			content:      "All done.",
+			finishReason: "stop",
+		},
+	)
+
+	executor := agents.NewExecutor(agent, model)
+	input := agents.Input{
+		Messages:  []types.Message{types.UserMessage("Run it")},
+		SessionID: uuid.New(),
+		TenantID:  uuid.New(),
+	}
+
+	gen := executor.Execute(ctx, input)
+	defer gen.Close()
+
+	var seqs []int
+	for {
+		ev, err := gen.Next(ctx)
+		if err != nil {
+			if errors.Is(err, types.ErrGeneratorDone) {
+				break
+			}
+			t.Fatalf("unexpected generator error: %v", err)
+		}
+		if ev.Type == agents.EventTypeTextBlockEnd {
+			seqs = append(seqs, ev.TextBlockSeq)
+		}
+	}
+
+	require.Equal(t, []int{0, 1}, seqs, "expected two text_block_end events with seqs 0 and 1")
+}
+
+// TestExecutor_TextBlockEnd_NoTextBeforeTool asserts that no text_block_end is
+// emitted when an iteration produces only a tool call with no preceding text.
+func TestExecutor_TextBlockEnd_NoTextBeforeTool(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	tool := agents.NewTool(
+		"do_thing",
+		"do_thing",
+		map[string]any{},
+		func(ctx context.Context, input string) (string, error) { return "ok", nil },
+	)
+
+	agent := newMockAgent("no-text-agent", tool)
+	agent.setToolResult("do_thing", "ok")
+
+	model := newMockModel(
+		mockResponse{
+			content:      "",
+			toolCalls:    []types.ToolCall{{ID: "c1", Name: "do_thing", Arguments: "{}"}},
+			finishReason: "tool_calls",
+		},
+		mockResponse{
+			content:      "Done.",
+			finishReason: "stop",
+		},
+	)
+
+	executor := agents.NewExecutor(agent, model)
+	input := agents.Input{
+		Messages:  []types.Message{types.UserMessage("go")},
+		SessionID: uuid.New(),
+		TenantID:  uuid.New(),
+	}
+
+	gen := executor.Execute(ctx, input)
+	defer gen.Close()
+
+	for {
+		ev, err := gen.Next(ctx)
+		if err != nil {
+			if errors.Is(err, types.ErrGeneratorDone) {
+				break
+			}
+			t.Fatalf("unexpected generator error: %v", err)
+		}
+		if ev.Type == agents.EventTypeTextBlockEnd {
+			t.Fatalf("did not expect any text_block_end events when no text precedes tool_start")
+		}
 	}
 }

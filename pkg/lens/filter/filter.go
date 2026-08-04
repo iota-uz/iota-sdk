@@ -15,15 +15,18 @@ type Model struct {
 
 type Input struct {
 	Name        string
+	ModeName    string
 	Label       string
 	Description string
 	Kind        lens.VariableKind
+	Component   lens.VariableComponent
 	Required    bool
 	Options     []Option
 	Value       string
 	Values      []string
 	Checked     bool
 	DateRange   DateRange
+	Compare     Compare
 }
 
 type Option struct {
@@ -35,8 +38,19 @@ type Option struct {
 type DateRange struct {
 	Mode         string
 	AllowAllTime bool
+	StartName    string
+	EndName      string
 	Start        string
 	End          string
+}
+
+type Compare struct {
+	Mode      lens.CompareMode
+	StartName string
+	EndName   string
+	Start     string
+	End       string
+	CompareTo string
 }
 
 func Build(specs []lens.VariableSpec, values map[string]any) Model {
@@ -71,11 +85,14 @@ func defaultValue(spec lens.VariableSpec) any {
 }
 
 func buildInput(spec lens.VariableSpec, value any) Input {
+	modeName, _, _ := lens.CompareRequestKeys(spec)
 	input := Input{
 		Name:        spec.Name,
+		ModeName:    modeName,
 		Label:       spec.Label,
 		Description: spec.Description,
 		Kind:        spec.Kind,
+		Component:   resolveComponent(spec),
 		Required:    spec.Required,
 		Options:     buildOptions(spec.Options, value),
 	}
@@ -86,10 +103,24 @@ func buildInput(spec lens.VariableSpec, value any) Input {
 		input.Checked = asBool(value)
 	case lens.VariableMultiSelect:
 		input.Values = asStrings(value)
+	case lens.VariableCompare:
+		input.Compare = buildCompare(spec, value)
 	case lens.VariableSingleSelect, lens.VariableText, lens.VariableNumber:
 		input.Value = asString(value)
 	}
 	return input
+}
+
+func buildCompare(spec lens.VariableSpec, value any) Compare {
+	current, ok := value.(lens.CompareValue)
+	if !ok {
+		current = lens.CompareValue{Mode: lens.CompareOff}
+	}
+	_, startName, endName := lens.CompareRequestKeys(spec)
+	return Compare{
+		Mode: current.Mode, StartName: startName, EndName: endName,
+		Start: formatDate(current.Range.Start), End: formatDate(current.Range.End), CompareTo: spec.CompareTo,
+	}
 }
 
 func buildOptions(specs []lens.VariableOption, value any) []Option {
@@ -122,12 +153,26 @@ func buildDateRange(spec lens.VariableSpec, value any) DateRange {
 	if mode == "all" && !spec.AllowAllTime {
 		mode = "default"
 	}
+	startName, endName := dateRangeRequestNames(spec)
 	return DateRange{
 		Mode:         mode,
 		AllowAllTime: spec.AllowAllTime,
+		StartName:    startName,
+		EndName:      endName,
 		Start:        formatDate(current.Start),
 		End:          formatDate(current.End),
 	}
+}
+
+func resolveComponent(spec lens.VariableSpec) lens.VariableComponent {
+	if spec.Component != "" {
+		return spec.Component
+	}
+	return lens.DefaultVariableComponent(spec.Kind)
+}
+
+func dateRangeRequestNames(spec lens.VariableSpec) (string, string) {
+	return lens.DateRangeRequestKeys(spec)
 }
 
 func formatDate(value *time.Time) string {

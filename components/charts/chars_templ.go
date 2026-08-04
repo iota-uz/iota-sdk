@@ -23,23 +23,364 @@ import (
 
 func graph(id string, options templ.JSExpression) templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_graph_b55a`,
-		Function: `function __templ_graph_b55a(id, options){const renderChart = () => {
+		Name: `__templ_graph_478b`,
+		Function: `function __templ_graph_478b(id, options){const hiddenSeriesNames = (chart) => {
+		const globals = chart && chart.w && chart.w.globals;
+		if (!globals) {
+			return [];
+		}
+		const seriesNames = globals.seriesNames || [];
+		const names = seriesNames.length > 0 ? seriesNames : (globals.labels || []);
+		const hidden = new Set();
+		(globals.collapsedSeriesIndices || []).forEach((index) => {
+			if (names[index]) {
+				hidden.add(names[index]);
+			}
+		});
+		(globals.collapsedSeries || []).forEach((series) => {
+			if (typeof series === 'string') {
+				hidden.add(series);
+				return;
+			}
+			if (series && typeof series.name === 'string') {
+				hidden.add(series.name);
+			}
+		});
+		return Array.from(hidden);
+	}
+
+	// Charts inside the same rerender scope (e.g. the tabs of a KindTabs panel)
+	// share one legend selection, so deselecting a series in one tab carries
+	// over to the others instead of resetting on tab switch.
+	const rerenderScope = (container) => (container && container.closest)
+		? container.closest('[data-lens-rerender-scope]')
+		: null;
+	const readSharedHidden = (container) => {
+		const scope = rerenderScope(container);
+		return scope && Array.isArray(scope.__apexSharedHidden)
+			? scope.__apexSharedHidden
+			: null;
+	}
+	const writeSharedHidden = (container, names) => {
+		const scope = rerenderScope(container);
+		if (scope) {
+			scope.__apexSharedHidden = Array.from(names);
+		}
+	}
+	const manualLogAxisPlan = (series, base, collapsedSeriesIndices) => {
+		const values = [];
+		const collapsed = new Set(collapsedSeriesIndices || []);
+		(series || []).forEach((entry, seriesIndex) => {
+			if (collapsed.has(seriesIndex)) return;
+			(entry && Array.isArray(entry.data) ? entry.data : []).forEach((point) => {
+				const value = Number(point);
+				if (Number.isFinite(value)) values.push(value);
+			});
+		});
+		if (values.length === 0) return null;
+		let rawMinExponent = values[0];
+		let rawMaxExponent = values[0];
+		for (let index = 1; index < values.length; index += 1) {
+			rawMinExponent = Math.min(rawMinExponent, values[index]);
+			rawMaxExponent = Math.max(rawMaxExponent, values[index]);
+		}
+		const minExponent = Math.floor(rawMinExponent);
+		let maxExponent = Math.ceil(rawMaxExponent);
+		if (maxExponent <= minExponent) maxExponent = minExponent + 1;
+		const span = maxExponent - minExponent;
+		let step = 1;
+		while ((Math.floor(span / step) + 1) > 5) step += 1;
+		const maxTickExponent = minExponent + step * Math.ceil(span / step);
+		let tickAmount = Math.max(1, (maxTickExponent - minExponent) / step);
+		let axisMax = maxTickExponent;
+		if (step === 1) {
+			let halfMax = Math.ceil(rawMaxExponent * 2) / 2;
+			if (halfMax - rawMaxExponent < 0.04) halfMax += 0.5;
+			if (halfMax < maxTickExponent && halfMax > minExponent) {
+				axisMax = halfMax;
+				step = 0.5;
+				tickAmount = Math.round((halfMax - minExponent) * 2);
+			}
+		}
+		return { scale: 'log', base: base > 1 ? base : 10, min: minExponent, max: axisMax, step, tickAmount };
+	}
+	const recomputeManualLogAxis = (container, chartLike) => {
+		const metadata = options._sdk && options._sdk.manualLogScale;
+		const chart = container && container.__apexChart;
+		const chartCtx = chartLike && (chartLike.ctx || chartLike);
+		const config = chartCtx && chartCtx.w && chartCtx.w.config;
+		if (!metadata || !chart || !config || !Array.isArray(config.series)) return;
+		const currentAxis = metadata.horizontal
+			? config.xaxis
+			: (Array.isArray(config.yaxis) ? config.yaxis[0] : config.yaxis);
+		// Drill levels may deliberately switch back to a linear axis.
+		if (!currentAxis || typeof currentAxis.min !== 'number' || typeof currentAxis.max !== 'number') return;
+		const collapsed = chartCtx.w.globals.collapsedSeriesIndices || [];
+		const plan = manualLogAxisPlan(config.series, metadata.base, collapsed);
+		if (!plan) return;
+		container.__lensAxisPlan = plan;
+		if (metadata.horizontal) {
+			chart.updateOptions({ xaxis: {
+				...currentAxis,
+				min: plan.min,
+				max: plan.max,
+				stepSize: plan.step,
+				decimalsInFloat: 0,
+			} }, false, true);
+			return;
+		}
+		chart.updateOptions({ yaxis: [{
+			...currentAxis,
+			min: plan.min,
+			max: plan.max,
+			stepSize: plan.step,
+			tickAmount: plan.tickAmount,
+			forceNiceScale: false,
+			decimalsInFloat: 0,
+		}] }, false, true);
+	}
+	const scheduleManualLogAxisRecompute = (container, chartLike) => {
+		const chartCtx = chartLike && (chartLike.ctx || chartLike);
+		const animations = chartCtx && chartCtx.w && chartCtx.w.config && chartCtx.w.config.chart
+			? chartCtx.w.config.chart.animations
+			: null;
+		const dynamic = animations && animations.dynamicAnimation;
+		// Native legend toggling owns an asynchronous _updateSeries render.
+		// Replanning the axis before it settles races that render and can rebuild
+		// the legend without its collapsed marker. Run immediately when animation
+		// is disabled, otherwise just after Apex's configured dynamic transition.
+		const delay = dynamic && dynamic.enabled !== false
+			? Math.max(0, Number(dynamic.speed) || 350) + 32
+			: 0;
+		setTimeout(() => recomputeManualLogAxis(container, container.__apexChart || chartLike), delay);
+	}
+	const isCircularChart = (chartCtx) => {
+		const type = chartCtx && chartCtx.w && chartCtx.w.config && chartCtx.w.config.chart
+			? chartCtx.w.config.chart.type
+			: '';
+		return type === 'pie' || type === 'donut' || type === 'polarArea';
+	}
+	const setCircularSeriesHidden = (chartCtx, seriesIndex, shouldHide, originalSeries) => {
+		if (!isCircularChart(chartCtx)) {
+			return false;
+		}
+		const globals = chartCtx.w && chartCtx.w.globals;
+		const updateHelpers = chartCtx.updateHelpers;
+		if (!globals || !updateHelpers || !Array.isArray(originalSeries)) {
+			return false;
+		}
+		const collapsedIndices = new Set(globals.collapsedSeriesIndices || []);
+		const isHidden = collapsedIndices.has(seriesIndex);
+		if (isHidden === shouldHide) {
+			return true;
+		}
+		if (shouldHide) {
+			collapsedIndices.add(seriesIndex);
+		} else {
+			collapsedIndices.delete(seriesIndex);
+		}
+		const hiddenIndices = Array.from(collapsedIndices).sort((a, b) => a - b);
+		globals.collapsedSeriesIndices = hiddenIndices;
+		globals.collapsedSeries = hiddenIndices.map((index) => ({
+			index,
+			data: originalSeries[index],
+		}));
+		// ApexCharts 5.3 records collapsed circular indices but its internal
+		// non-axis masking condition never applies them. Feed _updateSeries an
+		// explicitly masked copy so the SVG geometry, total and percentages all
+		// derive from the same visible set. Keep originalSeries outside Apex:
+		// _updateSeries replaces w.config.series, so it cannot be our source when
+		// restoring a slice or hiding several slices in succession.
+		const series = originalSeries.map((value, index) => collapsedIndices.has(index) ? 0 : value);
+		const animations = chartCtx.w.config.chart.animations;
+		updateHelpers._updateSeries(series, Boolean(animations && animations.dynamicAnimation && animations.dynamicAnimation.enabled));
+		return true;
+	}
+	const bindCircularLegend = (container) => {
+		const type = options.chart && options.chart.type;
+		if ((type !== 'pie' && type !== 'donut' && type !== 'polarArea') || container.__apexCircularLegendBound) {
+			return;
+		}
+		container.addEventListener('click', (event) => {
+			// Apex renders an SVG marker inside an HTML legend item. Walking the
+			// composed event path is reliable across that namespace/realm boundary,
+			// while Element.closest() can stop at the SVG root.
+			const legend = (typeof event.composedPath === 'function' ? event.composedPath() : [])
+				.find((node) => node && node.classList && node.classList.contains('apexcharts-legend-series'));
+			if (!legend || !container.contains(legend)) {
+				return;
+			}
+			const seriesIndex = Number.parseInt(legend.getAttribute('rel') || '', 10) - 1;
+			const chart = container.__apexChart;
+			const chartCtx = chart && (chart.ctx || chart);
+			if (!Number.isInteger(seriesIndex) || seriesIndex < 0 || !chartCtx || !isCircularChart(chartCtx)) {
+				return;
+			}
+			const collapsed = chartCtx.w.globals.collapsedSeriesIndices || [];
+			if (collapsed.length === 0) {
+				container.__apexCircularOriginalSeries = Array.from(chartCtx.w.config.series || []);
+			}
+			const handled = setCircularSeriesHidden(
+				chartCtx,
+				seriesIndex,
+				!collapsed.includes(seriesIndex),
+				container.__apexCircularOriginalSeries,
+			);
+			if (!handled) {
+				return;
+			}
+			// Run before Apex's listener on the nested chart wrapper. Its v5.3
+			// circular legend path fires a synthetic slice click (and therefore a
+			// Lens drill) without ever collapsing the selected metric.
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			setTimeout(() => {
+				const names = hiddenSeriesNames(chartCtx);
+				container.__apexHiddenSeries = names;
+				writeSharedHidden(container, names);
+				scheduleManualLogAxisRecompute(container, chartCtx || container.__apexChart);
+			}, 0);
+		}, true);
+		container.__apexCircularLegendBound = true;
+	}
+	const bindSharedLegend = (container) => {
+		options.chart = options.chart || {};
+		options.chart.events = options.chart.events || {};
+		if (options.chart.events.__sdkSharedHiddenBound) {
+			return;
+		}
+		const prevLegendClick = options.chart.events.legendClick;
+		options.chart.events.legendClick = function(chartCtx, seriesIndex, opts) {
+			if (typeof prevLegendClick === 'function') {
+				try { prevLegendClick(chartCtx, seriesIndex, opts); } catch (e) { /* ignore */ }
+			}
+			// Read the resulting hidden set next tick and publish it to the shared
+			// scope for sibling charts to adopt on their next render. Circular
+			// charts use bindCircularLegend above; this callback handles Apex's
+			// native cartesian toggle, which completes immediately after it returns.
+			setTimeout(() => {
+				// Read the chart that fired this click (chartCtx), not
+				// container.__apexChart — a re-render may have replaced the latter
+				// by the time this tick runs, which would publish the wrong set.
+				const names = hiddenSeriesNames(chartCtx || container.__apexChart);
+				container.__apexHiddenSeries = names;
+				writeSharedHidden(container, names);
+				scheduleManualLogAxisRecompute(container, chartCtx || container.__apexChart);
+			}, 0);
+		};
+		options.chart.events.__sdkSharedHiddenBound = true;
+	}
+
+	const renderChart = () => {
 		const container = document.getElementById(id);
 		if (!container) {
 			console.error(` + "`" + `Chart container with ID ${id} not found.` + "`" + `);
 			return;
 		}
+		bindSharedLegend(container);
+		bindCircularLegend(container);
+		// Prefer the scope-shared selection (if any) so all charts in a tab group
+		// stay in sync; otherwise fall back to this chart's own state.
+		const sharedHidden = readSharedHidden(container);
+		const hidden = new Set(sharedHidden !== null ? sharedHidden : (container.__apexHiddenSeries || []));
+		if (container.__apexChart && typeof container.__apexChart.destroy === 'function') {
+			// When a shared scope exists it is the source of truth for the tab
+			// group; merging the outgoing chart's own hidden set would re-hide
+			// series the user un-hid elsewhere. Only fall back to it when there
+			// is no shared selection.
+			if (sharedHidden === null) {
+				hiddenSeriesNames(container.__apexChart).forEach((name) => hidden.add(name));
+			}
+			container.__apexChart.destroy();
+			container.__apexChart = null;
+		}
+		container.innerHTML = '';
+		container.__apexCircularOriginalSeries = Array.isArray(options.series)
+			? Array.from(options.series)
+			: [];
 		const chart = new ApexCharts(container, options);
-		chart.render();
+		container.__apexChart = chart;
+		container.__apexHiddenSeries = Array.from(hidden);
+		// Return the in-flight render() promise so the render queue can wait for
+		// this mount to settle before the next pass destroys it (destroying a
+		// half-mounted instance nulls its series and throws "isSeriesHidden of
+		// null"). The queue pointer itself is owned by scheduleRender().
+		const renderPromise = Promise.resolve(chart.render());
+		renderPromise.then(() => {
+			// A newer renderChart() may have destroyed this instance while the
+			// render promise was pending; bail so we don't toggle a dead chart
+			// or overwrite __apexHiddenSeries with its empty state.
+			if (container.__apexChart !== chart) {
+				return;
+			}
+			const globals = chart.w && chart.w.globals;
+			const seriesNames = (globals && globals.seriesNames) || [];
+			const names = seriesNames.length > 0 ? seriesNames : ((globals && globals.labels) || []);
+			hidden.forEach((name) => {
+				const index = names.indexOf(name);
+				if (index < 0) {
+					return;
+				}
+				if (globals && globals.axisCharts && typeof chart.hideSeries === 'function') {
+					chart.hideSeries(name);
+					return;
+				}
+				// Apex's public hideSeries(name) resolves an SVG seriesName attribute,
+				// which circular charts do not expose. Reuse the same indexed helper
+				// as their native legend click when restoring hidden slices after a
+				// Lens rerender/tab switch.
+				setCircularSeriesHidden(chart.ctx, index, true, container.__apexCircularOriginalSeries);
+			});
+			container.__apexHiddenSeries = hiddenSeriesNames(chart);
+		});
+		return renderPromise;
 	}
-	document.addEventListener('DOMContentLoaded', () => {
-		renderChart();
+	// scheduleRender is the single entry point for every render trigger (initial
+	// mount, both readiness passes, tab switch, fullscreen, resize/theme, and the
+	// sdk:rerenderCharts event fired ~100ms after each lens panel HTMX swap). It
+	// always chains the next renderChart() on the previous render's promise so
+	// destroy() can never run against an unsettled ApexCharts mount, regardless of
+	// which trigger fired.
+	const scheduleRender = () => {
+		const container = document.getElementById(id);
+		const pending = container ? container.__apexRenderPromise : null;
+		const next = Promise.resolve(pending).catch(() => {}).then(renderChart);
+		if (container) {
+			container.__apexRenderPromise = next;
+		}
+		return next;
+	}
+	const renderWhenReady = () => {
+		scheduleRender();
+		requestAnimationFrame(() => {
+			setTimeout(() => {
+				// Second pass is queued behind the first render() so it never
+				// destroys an instance whose mount() has not resolved yet.
+				scheduleRender();
+			}, 0);
+		});
+	};
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', renderWhenReady, { once: true });
+	} else {
+		renderWhenReady();
+	}
+	document.addEventListener('sdk:rerenderCharts', (evt) => {
+		const container = document.getElementById(id);
+		if (!container) {
+			return;
+		}
+		const root = evt && evt.detail && evt.detail.root;
+		if (root instanceof Element) {
+			if (!root.contains(container) && !container.contains(root)) {
+				return;
+			}
+		}
+		scheduleRender();
 	});
-	document.addEventListener('sdk:rerenderCharts', () => renderChart());
 }`,
-		Call:       templ.SafeScript(`__templ_graph_b55a`, id, options),
-		CallInline: templ.SafeScriptInline(`__templ_graph_b55a`, id, options),
+		Call:       templ.SafeScript(`__templ_graph_478b`, id, options),
+		CallInline: templ.SafeScriptInline(`__templ_graph_478b`, id, options),
 	}
 }
 
@@ -105,7 +446,7 @@ func Chart(props Props) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 54, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 395, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {

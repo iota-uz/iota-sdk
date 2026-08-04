@@ -80,7 +80,7 @@ templ drawerHeader(t *viewmodels.Transaction, pageCtx types.PageContext) {
 
 // Footer with metadata
 templ drawerFooter(t *viewmodels.Transaction, pageCtx types.PageContext) {
-	<div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+	<div class="px-6 py-4 bg-gray-50 border-t border-subtle">
 		<h3 class="text-sm font-medium text-gray-900 mb-3">{ pageCtx.T("Transactions.Single.Details") }</h3>
 		<dl class="space-y-3">
 			<div class="flex justify-between items-center text-sm">
@@ -128,7 +128,7 @@ templ depositLayout(t *viewmodels.Transaction, pageCtx types.PageContext) {
 		}
 		// Counterparty information
 		if t.Counterparty != nil {
-			<div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+			<div class="bg-gray-50 rounded-lg p-4 border border-subtle">
 				<div class="flex items-start gap-3">
 					<div class="p-2 bg-gray-100 rounded-lg">
 						@icons.User(icons.Props{Size: "24", Variant: icons.DuoTone, Class: "text-gray-600"})
@@ -183,7 +183,7 @@ templ withdrawalLayout(t *viewmodels.Transaction, pageCtx types.PageContext) {
 		}
 		// Expense category
 		if t.Category != nil {
-			<div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+			<div class="bg-gray-50 rounded-lg p-4 border border-subtle">
 				<div class="flex items-start gap-3">
 					<div class="p-2 bg-gray-100 rounded-lg">
 						@icons.Tag(icons.Props{Size: "24", Variant: icons.DuoTone, Class: "text-gray-600"})

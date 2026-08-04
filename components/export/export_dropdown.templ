@@ -1,8 +1,10 @@
 package export
 
 import (
+	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"net/http"
 )
@@ -82,14 +84,162 @@ type ExportDropdownProps struct {
 	Size      button.Size
 	Class     string
 	Attrs     templ.Attributes
+	// Download switches the dropdown from the htmx-POST mode (build server-side,
+	// upload, HX-Redirect) to a direct GET-download mode for handlers that stream
+	// the file in the response body. In this mode a click navigates a hidden
+	// iframe to ExportURL with the current filters, a unique download_token and
+	// the chosen format; the trigger shows a busy spinner and a "preparing"
+	// overlay until the handler echoes download_token back as a cookie
+	// (signalling the download has started). A max-timeout fallback always clears
+	// the busy state. Requires ExportURL registered as a GET route that sets the
+	// download_token cookie. Default (false) preserves the htmx-POST mode.
+	Download bool
+	// ParamsFormID (download mode only) is the id of a filter <form> whose fields
+	// are serialised into the export query string. Use it when filters live in a
+	// form rather than the page URL (e.g. inputs excluded from hx-push-url). When
+	// empty, the current window.location.search is used. sort/order are always
+	// merged from the URL; page/limit/per_page are always dropped (export = all).
+	ParamsFormID string
 }
+
+func exportButtonSizeClass(size button.Size) string {
+	switch size {
+	case button.SizeMD:
+		return "btn-md"
+	case button.SizeSM:
+		return "btn-sm"
+	case button.SizeXS:
+		return "btn-xs"
+	default:
+		return "btn-normal"
+	}
+}
+
+// exportDownloadState is the Alpine component driving GET-download mode: it
+// fetches the GET export route (which streams the file) and saves the response
+// as a Blob via a temporary <a download>. Awaiting the fetch gives a precise
+// completion signal, so the busy spinner clears exactly when the file is ready —
+// no cookie polling or hidden iframe (an iframe whose response is an attachment
+// has its load aborted, leaving the spinner stuck and showing a phantom status).
+const exportDownloadState = `{
+	exporting: false,
+	async runExport(format) {
+		if (this.exporting) return;
+		const formId = this.$root.dataset.paramsForm;
+		const form = formId ? document.getElementById(formId) : null;
+		if (formId && !(form instanceof HTMLFormElement)) {
+			// Fail loud rather than silently falling back to the URL, which for
+			// form-only filters could export a broader dataset than is shown.
+			console.error('ExportDropdown: ParamsFormID element is missing or not a form:', formId);
+			return;
+		}
+		let params = new URLSearchParams(window.location.search);
+		if (form instanceof HTMLFormElement) {
+			const formParams = new URLSearchParams(new FormData(form));
+			const formKeys = new Set();
+			formParams.forEach(function (_value, key) { formKeys.add(key); });
+			formKeys.forEach(function (key) { params.delete(key); });
+			formParams.forEach(function (value, key) { params.append(key, value); });
+		}
+		['page', 'limit', 'per_page'].forEach(function (k) { params.delete(k); });
+		params.set('format', format);
+		// Append (not overwrite) so an ExportURL that already carries a query
+		// string keeps it, and multi-valued filter keys (e.g. repeated f=) survive.
+		const sep = this.$root.dataset.exportUrl.indexOf('?') === -1 ? '?' : '&';
+		const target = this.$root.dataset.exportUrl + sep + params.toString();
+		this.$root.querySelectorAll('details').forEach(function (d) { d.removeAttribute('open'); });
+		this.exporting = true;
+		try {
+			const resp = await fetch(target, { credentials: 'same-origin' });
+			if (!resp.ok) throw new Error('export request failed: ' + resp.status);
+			const blob = await resp.blob();
+			// Content-Disposition is "attachment; filename=NAME"; reuse
+			// URLSearchParams as a tiny key=value parser. Handlers emit an
+			// unquoted, URL-decode-safe NAME, so .get() returns it decoded.
+			const cd = resp.headers.get('content-disposition') || '';
+			const filename = new URLSearchParams(cd.replace(/;\s*/g, '&')).get('filename')
+				|| (format === 'csv' ? 'export.csv' : 'export.xlsx');
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = filename;
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+		} catch (e) {
+			console.error('ExportDropdown: export failed', e);
+			window.alert('Export failed. Please try again.');
+		} finally {
+			this.exporting = false;
+		}
+	}
+}`
 
 templ ExportDropdown(props ExportDropdownProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="relative">
+	if props.Download {
+		@exportDownloadDropdown(props)
+	} else {
+		<div class="relative">
+			<details class="relative z-10 peer" name="export-dropdown">
+				<summary class={ "list-none cursor-pointer shrink-0 btn btn-secondary btn-with-icon flex items-center gap-2", exportButtonSizeClass(props.Size), props.Class }>
+					@icons.Download(icons.Props{Size: "18"})
+					if props.Label != "" {
+						{ props.Label }
+					} else {
+						{ pageCtx.T("Export.Title") }
+					}
+					@icons.CaretDown(icons.Props{Size: "16", Class: "ml-1"})
+				</summary>
+				<ul class="flex flex-col gap-1 mt-1 absolute bg-surface-300 right-0 text-sm rounded-md w-44 overflow-hidden shadow-sm border border-secondary p-1">
+					for _, format := range props.Formats {
+						{{ details := formatDetails[format] }}
+						<li>
+							<button
+								class="flex items-center gap-2 w-full text-left p-2 duration-200 hover:bg-surface-400 rounded-md"
+								hx-post={ props.ExportURL + "?format=" + details.Param }
+								hx-target="body"
+								hx-swap="none"
+								hx-on::after-request="this.closest('details').removeAttribute('open')"
+								{ props.Attrs... }
+							>
+								@details.Icon
+								{ pageCtx.T(details.LabelKey) }
+							</button>
+						</li>
+					}
+				</ul>
+			</details>
+			<details class="hidden peer-open:block" name="export-dropdown">
+				<summary class="fixed w-full h-full left-0 top-0"></summary>
+			</details>
+		</div>
+	}
+}
+
+// exportDownloadDropdown renders the GET-download + busy-loader variant.
+templ exportDownloadDropdown(props ExportDropdownProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div
+		class="relative"
+		x-data={ exportDownloadState }
+		data-export-url={ props.ExportURL }
+		data-params-form={ props.ParamsFormID }
+	>
 		<details class="relative z-10 peer" name="export-dropdown">
-			<summary class="list-none cursor-pointer shrink-0 btn btn-secondary btn-normal btn-with-icon flex items-center gap-2">
-				@icons.Download(icons.Props{Size: "18"})
+			<summary
+				class={ "list-none cursor-pointer shrink-0 btn btn-secondary btn-with-icon flex items-center gap-2", exportButtonSizeClass(props.Size), props.Class }
+				x-bind:aria-busy="exporting"
+			>
+				<span x-show="!exporting" class="flex items-center">
+					@icons.Download(icons.Props{Size: "18"})
+				</span>
+				<span x-show="exporting" x-cloak class="flex items-center">
+					@loaders.Spinner(loaders.SpinnerProps{
+						SpinnerClass: templ.Classes("w-[18px] h-[18px]"),
+					})
+				</span>
 				if props.Label != "" {
 					{ props.Label }
 				} else {
@@ -102,11 +252,10 @@ templ ExportDropdown(props ExportDropdownProps) {
 					{{ details := formatDetails[format] }}
 					<li>
 						<button
-							class="flex items-center gap-2 w-full text-left p-2 duration-200 hover:bg-surface-400 rounded-md"
-							hx-post={ props.ExportURL + "?format=" + details.Param }
-							hx-target="body"
-							hx-swap="none"
-							hx-on::after-request="this.closest('details').removeAttribute('open')"
+							type="button"
+							class="flex items-center gap-2 w-full text-left p-2 duration-200 hover:bg-surface-400 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+							x-on:click={ fmt.Sprintf("runExport('%s')", details.Param) }
+							x-bind:disabled="exporting"
 							{ props.Attrs... }
 						>
 							@details.Icon
@@ -119,5 +268,18 @@ templ ExportDropdown(props ExportDropdownProps) {
 		<details class="hidden peer-open:block" name="export-dropdown">
 			<summary class="fixed w-full h-full left-0 top-0"></summary>
 		</details>
+		<!-- Busy overlay: visible while the export fetch is in flight. -->
+		<div
+			x-show="exporting"
+			x-cloak
+			x-transition.opacity
+			class="fixed bottom-4 right-4 z-50 flex items-center gap-3 bg-surface-300 border border-secondary rounded-lg shadow-lg px-4 py-3 text-sm"
+			role="status"
+		>
+			@loaders.Spinner(loaders.SpinnerProps{
+				SpinnerClass: templ.Classes("w-5 h-5"),
+			})
+			<span>{ pageCtx.T("Export.Preparing") }</span>
+		</div>
 	</div>
 }

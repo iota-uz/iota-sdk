@@ -200,6 +200,9 @@ type GenerateConfig struct {
 type ReasoningEffort string
 
 const (
+	// ReasoningNone disables reasoning for the lowest-latency responses.
+	ReasoningNone ReasoningEffort = "none"
+
 	// ReasoningLow uses minimal thinking for faster responses.
 	ReasoningLow ReasoningEffort = "low"
 
@@ -212,6 +215,9 @@ const (
 	// ReasoningXHigh uses extra-high thinking for the most demanding tasks.
 	// Supported by select models (e.g., gpt-5.2).
 	ReasoningXHigh ReasoningEffort = "xhigh"
+
+	// ReasoningMax uses the highest available reasoning effort.
+	ReasoningMax ReasoningEffort = "max"
 )
 
 // GenerateOption configures a Generate/Stream request.

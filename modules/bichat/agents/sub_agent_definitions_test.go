@@ -89,7 +89,7 @@ func TestLoadSubAgentDefinitions_DefaultEmbedded(t *testing.T) {
 	excelDef := findDefinitionByName(t, defs, "excel-analyst")
 
 	assert.Equal(t, "Specialized agent for SQL query generation and database analysis", sqlDef.Description)
-	assert.Equal(t, []string{"schema_list", "schema_describe", "sql_execute"}, sqlDef.Tools)
+	assert.Equal(t, []string{"schema_list", "schema_describe_batch", "sql_execute"}, sqlDef.Tools)
 	assert.NotEmpty(t, sqlDef.SystemPrompt)
 
 	assert.Equal(t, "Specialized agent for spreadsheet attachments and large attachment-driven analysis", excelDef.Description)
@@ -153,7 +153,7 @@ func TestBuildSubAgent_SQLDefinition(t *testing.T) {
 		toolNames[tool.Name()] = true
 	}
 	assert.True(t, toolNames["schema_list"])
-	assert.True(t, toolNames["schema_describe"])
+	assert.True(t, toolNames["schema_describe_batch"])
 	assert.True(t, toolNames["sql_execute"])
 	assert.False(t, toolNames["ask_user_question"])
 }

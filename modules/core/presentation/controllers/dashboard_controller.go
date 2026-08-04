@@ -2,7 +2,7 @@
 package controllers
 
 import (
-	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -10,24 +10,31 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	icons "github.com/iota-uz/icons/phosphor"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/dashboard"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	lensdocument "github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lenspostgres "github.com/iota-uz/iota-sdk/pkg/lens/postgres"
+	lensreact "github.com/iota-uz/iota-sdk/pkg/lens/render/react"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	lensserve "github.com/iota-uz/iota-sdk/pkg/lens/serve"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
-func NewDashboardController(app application.Application) application.Controller {
-	config := configuration.Use()
+const dashboardLensBasePath = "/dashboard"
+
+func NewDashboardController(dbCfg *dbconfig.Config, navPermissions ...[]permission.Permission) application.Controller {
+	perms := firstPermissionSet(navPermissions)
 	ds, err := lenspostgres.New(lenspostgres.Config{
-		ConnectionString: config.Database.ConnectionString(),
+		ConnectionString: dbCfg.ConnectionString(),
 		MaxConnections:   5,
 		MinConnections:   1,
 		QueryTimeout:     30 * time.Second,
@@ -35,14 +42,25 @@ func NewDashboardController(app application.Application) application.Controller 
 	})
 	if err != nil {
 		log.Printf("Failed to create lens data source for dashboard: %v", err)
-		return &DashboardController{app: app}
+		return &DashboardController{
+			navPermissions: perms,
+			runtime:        runtime.New(runtime.Options{}),
+			snapshots:      lensdocument.NewMemoryStore(30*time.Minute, 128),
+		}
 	}
-	return &DashboardController{app: app, ds: ds}
+	return &DashboardController{
+		ds:             ds,
+		navPermissions: perms,
+		runtime:        runtime.New(runtime.Options{}),
+		snapshots:      lensdocument.NewMemoryStore(30*time.Minute, 128),
+	}
 }
 
 type DashboardController struct {
-	app application.Application
-	ds  datasource.DataSource
+	ds             datasource.DataSource
+	navPermissions []permission.Permission
+	runtime        *runtime.Runtime
+	snapshots      lensdocument.SnapshotStore
 }
 
 func (c *DashboardController) createFinanceDashboard(tenantID uuid.UUID) lens.DashboardSpec {
@@ -166,22 +184,33 @@ func (c *DashboardController) createFinanceDashboard(tenantID uuid.UUID) lens.Da
 	).Build()
 }
 
-func (c *DashboardController) Key() string {
-	return "/"
+func (c *DashboardController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.dashboard", 0, application.Route("", "/", navRouteOptions(c.navPermissions)...)).
+		WithNav(application.NavNode{
+			ID:         "core.dashboard",
+			TitleKey:   "NavigationLinks.Dashboard",
+			Path:       "/",
+			Icon:       icons.Gauge(icons.Props{Size: "20"}),
+			Order:      10,
+			Visibility: navAuthPolicy(c.navPermissions),
+		})
 }
 
 func (c *DashboardController) Register(r *mux.Router) {
-	router := r.Methods(http.MethodGet).Subrouter()
+	lensreact.NewStaticController().Register(r)
+	router := r.NewRoute().Subrouter()
 	router.Use(
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
-	router.HandleFunc("/", c.Get)
+	router.HandleFunc("/", c.Get).Methods(http.MethodGet)
+	router.HandleFunc(dashboardLensBasePath+"/document", c.Document).Methods(http.MethodGet)
+	router.HandleFunc(dashboardLensBasePath+"/lens/query", c.Query).Methods(http.MethodPost)
+	router.HandleFunc(dashboardLensBasePath+"/export", c.Export).Methods(http.MethodGet)
 }
 
 func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
@@ -193,29 +222,65 @@ func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	dash := c.createFinanceDashboard(tenantID)
 
-	var results *runtime.DashboardResult
-	if c.ds != nil {
-		err = composables.InTx(r.Context(), func(txCtx context.Context) error {
-			ctx, cancel := context.WithTimeout(txCtx, 30*time.Second)
-			defer cancel()
-			executed, execErr := runtime.Execute(ctx, dash, runtime.Runtime{
-				DataSources: map[string]datasource.DataSource{
-					"primary": c.ds,
-				},
-			})
-			results = executed
-			return execErr
-		})
-		if err != nil {
-			log.Printf("Dashboard transaction failed: %v", err)
-		}
-	}
-
 	props := &dashboard.IndexPageProps{
-		Dashboard: dash,
-		Results:   results,
+		Dashboard:   dash,
+		DocumentURL: dashboardLensBasePath + "/document",
+		Available:   c.ds != nil,
 	}
 	templ.Handler(dashboard.Index(props)).ServeHTTP(w, r)
+}
+
+func (c *DashboardController) Document(w http.ResponseWriter, r *http.Request) {
+	handlers, err := c.lensHandlers(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	handlers.Document(w, r)
+}
+
+func (c *DashboardController) Query(w http.ResponseWriter, r *http.Request) {
+	handlers, err := c.lensHandlers(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	handlers.Query(w, r)
+}
+
+func (c *DashboardController) Export(w http.ResponseWriter, r *http.Request) {
+	handlers, err := c.lensHandlers(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	handlers.Export(w, r)
+}
+
+func (c *DashboardController) lensHandlers(r *http.Request) (*lensserve.Handlers, error) {
+	if c.ds == nil {
+		return nil, fmt.Errorf("dashboard data source is unavailable")
+	}
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		return nil, fmt.Errorf("dashboard tenant lookup: %w", err)
+	}
+	spec := c.createFinanceDashboard(tenantID)
+	return lensserve.New(lensserve.Config{
+		Spec:        spec,
+		Engine:      c.runtime,
+		Snapshots:   c.snapshots,
+		BasePath:    dashboardLensBasePath,
+		InlineDepth: 1,
+		Request: func(*http.Request) runtime.Request {
+			return runtime.Request{
+				DataSources:          map[string]datasource.DataSource{"primary": c.ds},
+				DataSourceIdentities: map[string]string{"primary": "core-postgres:v1"},
+				DataScope:            tenantID.String(),
+				Namespace:            "core.dashboard",
+			}
+		},
+	})
 }
 
 func queryDataset(name, text string, tenantID uuid.UUID) lens.DatasetSpec {

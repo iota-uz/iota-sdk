@@ -28,21 +28,26 @@ import (
 )
 
 type CounterpartiesController struct {
-	app                   application.Application
 	counterpartiesService *services.CounterpartyService
 	basePath              string
 }
 
-func NewCounterpartiesController(app application.Application) application.Controller {
+func NewCounterpartiesController(counterpartiesService *services.CounterpartyService) application.Controller {
 	return &CounterpartiesController{
-		app:                   app,
-		counterpartiesService: app.Service(services.CounterpartyService{}).(*services.CounterpartyService),
+		counterpartiesService: counterpartiesService,
 		basePath:              "/finance/counterparties",
 	}
 }
 
-func (c *CounterpartiesController) Key() string {
-	return c.basePath
+func (c *CounterpartiesController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.counterparties", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "finance.counterparties",
+			Parent:   "finance",
+			TitleKey: "NavigationLinks.Counterparties",
+			Path:     c.basePath,
+			Order:    50,
+		})
 }
 
 func (c *CounterpartiesController) Register(r *mux.Router) {
@@ -51,8 +56,7 @@ func (c *CounterpartiesController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)

@@ -131,12 +131,6 @@ func (s *TenantService) GetByID(ctx context.Context, id uuid.UUID) (*entities.Te
 	return tenant, nil
 }
 
-// GetTenantDetails returns detailed information about a specific tenant
-// Deprecated: Use GetByID instead
-func (s *TenantService) GetTenantDetails(ctx context.Context, tenantID uuid.UUID) (*entities.TenantInfo, error) {
-	return s.GetByID(ctx, tenantID)
-}
-
 // GetAll retrieves all tenants (useful for exports)
 func (s *TenantService) GetAll(ctx context.Context) ([]*entities.TenantInfo, error) {
 	// Use a large limit to get all tenants, default DESC sort

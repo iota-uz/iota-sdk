@@ -56,6 +56,10 @@ func NewJobsStubWithStore(store JobsStore) *JobsStub {
 	return &JobsStub{store: store}
 }
 
+func NewMemoryJobsStore() JobsStore {
+	return newMemoryJobsStore()
+}
+
 func newMemoryJobsStore() *memoryJobsStore {
 	return &memoryJobsStore{jobs: make(map[string]map[string]jobRecord)}
 }

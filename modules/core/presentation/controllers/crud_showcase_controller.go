@@ -17,6 +17,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/crud/models"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const dropTableSQL = `DROP TABLE IF EXISTS _showcases`
@@ -399,7 +401,7 @@ func (s *showcaseMapper) ToFieldValuesList(_ context.Context, entities ...Showca
 }
 
 func NewCrudShowcaseController(
-	app application.Application,
+	bus eventbus.EventBus,
 	opts ...CrudOption[ShowcaseEntity],
 ) application.Controller {
 	fields := crud.NewFields([]crud.Field{
@@ -470,7 +472,7 @@ func NewCrudShowcaseController(
 
 	builder := crud.NewBuilder[ShowcaseEntity](
 		schema,
-		app.EventPublisher(),
+		bus,
 	)
 
 	// Merge the MultiLang renderer option with custom actions and user-provided options
@@ -515,15 +517,14 @@ func NewCrudShowcaseController(
 
 	return NewCrudController(
 		"/_dev/crud",
-		app,
 		builder,
 		allOpts...,
 	)
 }
 
-func InitCrudShowcase(app application.Application) {
+func InitCrudShowcase(db *pgxpool.Pool) {
 	ctx := context.Background()
-	tx, err := app.DB().Begin(ctx)
+	tx, err := db.Begin(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}

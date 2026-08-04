@@ -44,12 +44,8 @@ func (r *ComposablesPrincipalResolver) Resolve(ctx context.Context, req SearchRe
 		}).Warn("spotlight request user id mismatch")
 	}
 
-	for _, role := range u.Roles() {
-		principal.Roles = append(principal.Roles, role.Name())
-	}
-	for _, permission := range u.Permissions() {
-		principal.Permissions = append(principal.Permissions, permission.Name())
-	}
+	principal.Roles = composables.RoleNames(u)
+	principal.Permissions = composables.EffectivePermissionNames(u)
 	return principal, nil
 }
 
@@ -180,6 +176,21 @@ func canReadPolicy(policy AccessPolicy, principal Principal) bool {
 		}
 	}
 	if len(policy.AllowedPermissions) > 0 {
+		if policy.PermissionLogic == PermissionLogicAll {
+			for _, allowedPermission := range policy.AllowedPermissions {
+				found := false
+				for _, permission := range principal.Permissions {
+					if permission == allowedPermission {
+						found = true
+						break
+					}
+				}
+				if !found {
+					return false
+				}
+			}
+			return true
+		}
 		for _, permission := range principal.Permissions {
 			for _, allowedPermission := range policy.AllowedPermissions {
 				if permission == allowedPermission {

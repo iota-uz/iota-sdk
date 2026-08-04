@@ -27,13 +27,12 @@ import (
 )
 
 type PaymentCategoriesController struct {
-	app                    application.Application
 	paymentCategoryService *services.PaymentCategoryService
 	basePath               string
 	tableDefinition        table.TableDefinition
 }
 
-func NewPaymentCategoriesController(app application.Application) application.Controller {
+func NewPaymentCategoriesController(paymentCategoryService *services.PaymentCategoryService) application.Controller {
 	basePath := "/finance/payment-categories"
 
 	// Create table definition with columns for HTMX requests
@@ -47,15 +46,26 @@ func NewPaymentCategoriesController(app application.Application) application.Con
 		Build()
 
 	return &PaymentCategoriesController{
-		app:                    app,
-		paymentCategoryService: app.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService),
+		paymentCategoryService: paymentCategoryService,
 		basePath:               basePath,
 		tableDefinition:        tableDefinition,
 	}
 }
 
-func (c *PaymentCategoriesController) Key() string {
-	return c.basePath
+func (c *PaymentCategoriesController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.payment_category", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "finance.payment_category",
+			Parent:   "finance.enums",
+			TitleKey: "NavigationLinks.PaymentCategories",
+			Path:     c.basePath,
+			Order:    20,
+			Actions: []application.NavAction{{
+				ID:       "finance.payment_category.new",
+				TitleKey: "PaymentCategories.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *PaymentCategoriesController) Register(r *mux.Router) {
@@ -63,8 +73,7 @@ func (c *PaymentCategoriesController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

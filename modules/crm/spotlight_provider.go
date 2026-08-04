@@ -9,22 +9,17 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
-	"github.com/sirupsen/logrus"
 )
 
 type spotlightProvider struct {
-	db           spotlight.Queryer
-	maxDocuments int
+	db spotlight.Queryer
 }
 
 var _ spotlight.SearchProvider = &spotlightProvider{}
 
-const defaultSpotlightProviderLimit = 1000
-
 func newSpotlightProvider(db spotlight.Queryer) *spotlightProvider {
 	return &spotlightProvider{
-		db:           db,
-		maxDocuments: defaultSpotlightProviderLimit,
+		db: db,
 	}
 }
 
@@ -33,29 +28,25 @@ func (p *spotlightProvider) ProviderID() string {
 }
 
 func (p *spotlightProvider) Capabilities() spotlight.ProviderCapabilities {
-	return spotlight.ProviderCapabilities{SupportsWatch: false, EntityTypes: []string{"client"}}
+	return spotlight.ProviderCapabilities{EntityTypes: []string{"client"}}
 }
 
-func (p *spotlightProvider) ListDocuments(ctx context.Context, scope spotlight.ProviderScope) ([]spotlight.SearchDocument, error) {
+func (p *spotlightProvider) StreamDocuments(ctx context.Context, scope spotlight.ProviderScope, emit spotlight.DocumentBatchEmitter) error {
 	const op serrors.Op = "crm.spotlightProvider.ListDocuments"
-	limit := p.maxDocuments
-	if limit <= 0 {
-		limit = defaultSpotlightProviderLimit
-	}
 
-	rows, err := p.db.Query(ctx, `
+	query := `
 SELECT id, first_name, last_name, middle_name, updated_at
 FROM clients
 WHERE tenant_id = $1
-ORDER BY id ASC
-LIMIT $2
-`, scope.TenantID, limit)
+ORDER BY id ASC`
+
+	rows, err := p.db.Query(ctx, query, scope.TenantID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return serrors.E(op, err)
 	}
 	defer rows.Close()
 
-	out := make([]spotlight.SearchDocument, 0, limit)
+	out := make([]spotlight.SearchDocument, 0, spotlight.ProviderStreamBatchSize)
 	for rows.Next() {
 		var id int64
 		var firstName string
@@ -63,7 +54,7 @@ LIMIT $2
 		var middleName *string
 		var updatedAt time.Time
 		if err := rows.Scan(&id, &firstName, &lastName, &middleName, &updatedAt); err != nil {
-			return nil, serrors.E(op, err)
+			return serrors.E(op, err)
 		}
 		nameParts := []string{firstName}
 		if middleName != nil {
@@ -77,35 +68,40 @@ LIMIT $2
 			title = fmt.Sprintf("Client %d", id)
 		}
 		out = append(out, spotlight.SearchDocument{
-			ID:         fmt.Sprintf("crm:client:%d", id),
-			TenantID:   scope.TenantID,
-			Provider:   p.ProviderID(),
-			EntityType: "client",
-			Title:      title,
-			Body:       title,
-			URL:        fmt.Sprintf("/crm/clients?tab=profile&view=%d", id),
-			Language:   scope.Language,
+			ID:          fmt.Sprintf("crm:client:%d", id),
+			TenantID:    scope.TenantID,
+			Provider:    p.ProviderID(),
+			EntityType:  "client",
+			Domain:      spotlight.ResultDomainLookup,
+			Title:       title,
+			Description: title,
+			Body:        title,
+			SearchText:  title,
+			ExactTerms:  spotlight.ExpandExactTerms(fmt.Sprintf("%d", id), title),
+			URL:         fmt.Sprintf("/crm/clients?tab=profile&view=%d", id),
+			Language:    scope.Language,
 			Metadata: map[string]string{
-				"source": "crm.clients",
+				"source":          "crm.clients",
+				"group_key":       "people",
+				"group_title_key": "Spotlight.Group.People",
 			},
 			Access:    spotlight.AccessPolicy{Visibility: spotlight.VisibilityPublic},
 			UpdatedAt: updatedAt,
 		})
+		if len(out) == spotlight.ProviderStreamBatchSize {
+			if err := emit(out); err != nil {
+				return serrors.E(op, err)
+			}
+			out = make([]spotlight.SearchDocument, 0, spotlight.ProviderStreamBatchSize)
+		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return serrors.E(op, err)
 	}
-	if len(out) == limit {
-		logrus.WithFields(logrus.Fields{
-			"tenant_id": scope.TenantID.String(),
-			"limit":     limit,
-		}).Warn("crm spotlight provider reached document cap, results may be truncated")
+	if len(out) > 0 {
+		if err := emit(out); err != nil {
+			return serrors.E(op, err)
+		}
 	}
-	return out, nil
-}
-
-func (p *spotlightProvider) Watch(_ context.Context, _ spotlight.ProviderScope) (<-chan spotlight.DocumentEvent, error) {
-	changes := make(chan spotlight.DocumentEvent)
-	close(changes)
-	return changes, nil
+	return nil
 }

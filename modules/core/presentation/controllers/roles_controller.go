@@ -2,10 +2,12 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
@@ -28,7 +30,6 @@ import (
 )
 
 type RolesController struct {
-	app              application.Application
 	basePath         string
 	permissionSchema *rbac.PermissionSchema
 }
@@ -38,7 +39,7 @@ type RolesControllerOptions struct {
 	PermissionSchema *rbac.PermissionSchema
 }
 
-func NewRolesController(app application.Application, opts *RolesControllerOptions) application.Controller {
+func NewRolesController(opts *RolesControllerOptions) application.Controller {
 	if opts == nil || opts.PermissionSchema == nil {
 		panic("RolesController requires PermissionSchema in options")
 	}
@@ -46,14 +47,20 @@ func NewRolesController(app application.Application, opts *RolesControllerOption
 		panic("RolesController requires explicit BasePath in options")
 	}
 	return &RolesController{
-		app:              app,
 		basePath:         opts.BasePath,
 		permissionSchema: opts.PermissionSchema,
 	}
 }
 
-func (c *RolesController) Key() string {
-	return c.basePath
+func (c *RolesController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.roles", 0, application.Route("", c.basePath, application.RequireAll(permissions.RoleRead))).
+		WithNav(application.NavNode{
+			ID:       "core.roles",
+			Parent:   "core.administration",
+			TitleKey: "NavigationLinks.Roles",
+			Path:     c.basePath,
+			Order:    20,
+		})
 }
 
 func (c *RolesController) Register(r *mux.Router) {
@@ -63,8 +70,7 @@ func (c *RolesController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.RequireAuthorization(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -89,6 +95,11 @@ func (c *RolesController) List(
 	logger *logrus.Entry,
 	roleService *services.RoleService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.RoleRead); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
+
 	params := composables.UsePaginated(r)
 	search := r.URL.Query().Get("name")
 
@@ -141,6 +152,11 @@ func (c *RolesController) GetEdit(
 	logger *logrus.Entry,
 	roleService *services.RoleService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.RoleRead); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
+
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.Errorf("Error parsing role ID: %v", err)
@@ -150,8 +166,12 @@ func (c *RolesController) GetEdit(
 
 	roleEntity, err := roleService.GetByID(r.Context(), id)
 	if err != nil {
+		if errors.Is(err, persistence.ErrRoleNotFound) {
+			http.Error(w, "Role not found", http.StatusNotFound)
+			return
+		}
 		logger.Errorf("Error retrieving role: %v", err)
-		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		http.Error(w, "Error retrieving role", http.StatusInternalServerError)
 		return
 	}
 	props := &roles.EditFormProps{
@@ -181,6 +201,10 @@ func (c *RolesController) Delete(
 	}
 
 	if err := roleService.Delete(r.Context(), id); err != nil {
+		if errors.Is(err, persistence.ErrRoleNotFound) {
+			http.Error(w, "Role not found", http.StatusNotFound)
+			return
+		}
 		logger.Errorf("Error deleting role: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -215,16 +239,20 @@ func (c *RolesController) Update(
 
 	roleEntity, err := roleService.GetByID(r.Context(), id)
 	if err != nil {
+		if errors.Is(err, persistence.ErrRoleNotFound) {
+			http.Error(w, "Role not found", http.StatusNotFound)
+			return
+		}
 		logger.Errorf("Error retrieving role: %v", err)
-		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		http.Error(w, "Error retrieving role", http.StatusInternalServerError)
 		return
 	}
 
-	if errors, ok := dto.Ok(r.Context()); !ok {
+	if validationErrors, ok := dto.Ok(r.Context()); !ok {
 		props := &roles.EditFormProps{
 			Role:                   mappers.RoleToViewModel(roleEntity),
 			ModulePermissionGroups: c.modulePermissionGroups(roleEntity.Permissions()...),
-			Errors:                 errors,
+			Errors:                 validationErrors,
 		}
 		templ.Handler(roles.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -238,6 +266,10 @@ func (c *RolesController) Update(
 	}
 
 	if err := roleService.Update(r.Context(), updatedEntity); err != nil {
+		if errors.Is(err, persistence.ErrRoleNotFound) {
+			http.Error(w, "Role not found", http.StatusNotFound)
+			return
+		}
 		logger.Errorf("Error updating role: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -280,7 +312,7 @@ func (c *RolesController) Create(
 		return
 	}
 
-	if errors, ok := dto.Ok(r.Context()); !ok {
+	if validationErrors, ok := dto.Ok(r.Context()); !ok {
 		roleEntity, err := dto.ToEntity(c.permissionSchema)
 		if err != nil {
 			logger.Errorf("Error converting DTO to entity: %v", err)
@@ -290,7 +322,7 @@ func (c *RolesController) Create(
 		props := &roles.CreateFormProps{
 			Role:                   mappers.RoleToViewModel(roleEntity),
 			ModulePermissionGroups: c.modulePermissionGroups(),
-			Errors:                 errors,
+			Errors:                 validationErrors,
 		}
 		templ.Handler(roles.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

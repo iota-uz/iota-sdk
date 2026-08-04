@@ -17,25 +17,36 @@ import (
 )
 
 type FinancialReportController struct {
-	app                    application.Application
 	financialReportService *services.FinancialReportService
 	queryRepo              query.FinancialReportsQueryRepository
 	basePath               string
 }
 
-func NewFinancialReportController(app application.Application) application.Controller {
-	basePath := "/finance/reports"
-
+// NewFinancialReportController takes the query repository as a constructor
+// parameter so the composition container can swap it out — previously this
+// code called query.NewPgFinancialReportsQueryRepository() inline, which
+// pulled infrastructure into the presentation layer and blocked
+// tests/overrides from substituting an alternative implementation.
+func NewFinancialReportController(
+	financialReportService *services.FinancialReportService,
+	queryRepo query.FinancialReportsQueryRepository,
+) application.Controller {
 	return &FinancialReportController{
-		app:                    app,
-		financialReportService: app.Service(services.FinancialReportService{}).(*services.FinancialReportService),
-		queryRepo:              query.NewPgFinancialReportsQueryRepository(),
-		basePath:               basePath,
+		financialReportService: financialReportService,
+		queryRepo:              queryRepo,
+		basePath:               "/finance/reports",
 	}
 }
 
-func (c *FinancialReportController) Key() string {
-	return c.basePath
+func (c *FinancialReportController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.financial_report", 0, application.Route("", c.basePath+"/income-statement")).
+		WithNav(application.NavNode{
+			ID:       "finance.financial_report",
+			Parent:   "finance.reports",
+			TitleKey: "NavigationLinks.IncomeStatement",
+			Path:     c.basePath + "/income-statement",
+			Order:    10,
+		})
 }
 
 func (c *FinancialReportController) Register(r *mux.Router) {
@@ -43,8 +54,7 @@ func (c *FinancialReportController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

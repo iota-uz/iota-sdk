@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
@@ -28,10 +27,12 @@ func handler404(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func NotFound(app application.Application) http.HandlerFunc {
+// NotFound returns the 404 handler. ProvideLocalizer is now installed as a
+// global middleware in pkg/server/builder.go, so this only needs to attach
+// the page-context middleware before invoking the renderer.
+func NotFound() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		handler := middleware.WithPageContext()(http.HandlerFunc(handler404))
-		handler = middleware.ProvideLocalizer(app)(handler)
 		handler.ServeHTTP(w, r)
 	}
 }

@@ -1,0 +1,16 @@
+# pykernel-base "analysis" profile — the data-processing libraries an
+# agent-authored kernel program may import. The pykernel shim itself needs only
+# the CPython standard library (ast/json/os/socket/struct/sys/threading/
+# traceback/queue/ctypes), so this list is purely the agent surface.
+#
+# Deliberately NO database driver libraries (psycopg/pymongo/minio/mysql): the
+# kernel has no DSN and no network egress — every byte of data reaches it through
+# a host capability over the bridge — so a driver would be both unusable and an
+# unnecessary risk surface. See README.md "Why no DB drivers".
+#
+# Pinned for a reproducible image. Bump deliberately; rebuild + run smoke_test.py.
+numpy==2.2.1
+pandas==2.2.3
+duckdb==1.1.3
+openpyxl==3.1.5
+matplotlib==3.9.2

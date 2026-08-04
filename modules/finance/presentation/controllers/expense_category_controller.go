@@ -27,35 +27,45 @@ import (
 )
 
 type ExpenseCategoriesController struct {
-	app                    application.Application
 	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
 	tableDefinition        table.TableDefinition
 }
 
-func NewExpenseCategoriesController(app application.Application) application.Controller {
+func NewExpenseCategoriesController(expenseCategoryService *services.ExpenseCategoryService) application.Controller {
 	basePath := "/finance/expense-categories"
 
 	// Create table definition with columns for HTMX requests
 	tableDefinition := table.NewTableDefinition("", basePath).
 		WithColumns(
 			table.Column("name", "Name"),
-			table.Column("description", "Description"),
-			table.Column("created_at", "Created At"),
+			table.Column("description", "Description", table.WithTruncate()),
+			table.Column("created_at", "Created At", table.WithPriority(2)),
 		).
 		WithInfiniteScroll(true).
 		Build()
 
 	return &ExpenseCategoriesController{
-		app:                    app,
-		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
+		expenseCategoryService: expenseCategoryService,
 		basePath:               basePath,
 		tableDefinition:        tableDefinition,
 	}
 }
 
-func (c *ExpenseCategoriesController) Key() string {
-	return c.basePath
+func (c *ExpenseCategoriesController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.expense_category", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "finance.expense_category",
+			Parent:   "finance.enums",
+			TitleKey: "NavigationLinks.ExpenseCategories",
+			Path:     c.basePath,
+			Order:    10,
+			Actions: []application.NavAction{{
+				ID:       "finance.expense_category.new",
+				TitleKey: "ExpenseCategories.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *ExpenseCategoriesController) Register(r *mux.Router) {
@@ -63,8 +73,7 @@ func (c *ExpenseCategoriesController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
@@ -152,8 +161,8 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		).
 			WithColumns(
 				table.Column("name", pageCtx.T("ExpenseCategories.List.Name")),
-				table.Column("description", pageCtx.T("ExpenseCategories.Single._Description")),
-				table.Column("created_at", pageCtx.T("CreatedAt")),
+				table.Column("description", pageCtx.T("ExpenseCategories.Single._Description"), table.WithTruncate()),
+				table.Column("created_at", pageCtx.T("CreatedAt"), table.WithPriority(2)),
 			).
 			WithActions(actions.RenderAction(createAction)).
 			WithFilters(filters.CreatedAt()).

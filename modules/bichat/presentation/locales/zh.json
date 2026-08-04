@@ -47,6 +47,9 @@
     "InlineQuestion": {
       "InputNeeded": "需要输入",
       "WaitingForDetails": "正在等待助手的提问详情...",
+      "AnswerSubmitted": "答案已提交",
+      "DismissalSubmitted": "已关闭该请求",
+      "ResumeInProgress": "正在继续处理",
       "Next": "下一步",
       "Back": "返回",
       "OtherOption": "其他",
@@ -66,10 +69,14 @@
     "Tools": {
       "sql_execute": "正在查询数据库",
       "schema_list": "正在获取表列表",
-      "schema_describe": "正在分析表结构",
+      "schema_describe_batch": "正在分析表结构",
+      "load_skill": "正在加载技能说明",
       "draw_chart": "正在创建图表",
-      "draw_table": "正在构建表格",
       "kb_search": "正在搜索知识库",
+      "search_learnings": "正在搜索已保存的经验",
+      "save_learning": "正在保存经验",
+      "search_validated_queries": "正在搜索已验证的查询",
+      "save_validated_query": "正在保存已验证的查询",
       "web_search": "正在搜索互联网",
       "web_fetch": "正在从网络获取",
       "code_interpreter": "正在执行代码",
@@ -78,9 +85,7 @@
       "export_to_pdf": "正在导出到PDF",
       "artifact_reader": "正在读取上传文件",
       "ask_user_question": "正在询问您",
-      "final_answer": "正在组织回答",
       "task": "正在委派给{{agent}}",
-      "time": "正在检查当前时间",
       "get_current_time": "获取当前时间",
       "render_table": "构建交互式表格"
     },
@@ -325,7 +330,10 @@
       "LoadMore": "加载更多",
       "NoChatsFound": "未找到聊天",
       "NoChatsInOrg": "此组织暂无聊天",
-      "NoActiveChatsInOrg": "此组织无活跃聊天"
+      "NoActiveChatsInOrg": "此组织无活跃聊天",
+      "ChatFound": "找到 {{count}} 个聊天",
+      "ChatsFound": "找到 {{count}} 个聊天",
+      "NoChatsFromUser": "没有来自 {{firstName}} {{lastName}} 的聊天"
     },
     "Artifacts": {
       "Title": "工件",

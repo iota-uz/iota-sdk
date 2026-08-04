@@ -10,12 +10,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/pagination"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/sirupsen/logrus"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	icons "github.com/iota-uz/icons/phosphor"
 
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
@@ -47,25 +48,48 @@ type ChatController struct {
 	clientService   *services.ClientService
 	chatService     *services.ChatService
 	tenantService   *coreservices.TenantService
+	paginationCfg   *pagination.Config
 	logger          *logrus.Logger
 	basePath        string
 }
 
-func NewChatController(app application.Application, basePath string) application.Controller {
+func NewChatController(
+	app application.Application,
+	userService *coreservices.UserService,
+	clientService *services.ClientService,
+	chatService *services.ChatService,
+	templateService *services.MessageTemplateService,
+	tenantService *coreservices.TenantService,
+	basePath string,
+	logger *logrus.Logger,
+	paginationCfg ...*pagination.Config,
+) application.Controller {
+	var cfg *pagination.Config
+	if len(paginationCfg) > 0 {
+		cfg = paginationCfg[0]
+	}
 	return &ChatController{
 		app:             app,
-		logger:          configuration.Use().Logger(),
-		userService:     app.Service(coreservices.UserService{}).(*coreservices.UserService),
-		clientService:   app.Service(services.ClientService{}).(*services.ClientService),
-		chatService:     app.Service(services.ChatService{}).(*services.ChatService),
-		templateService: app.Service(services.MessageTemplateService{}).(*services.MessageTemplateService),
-		tenantService:   app.Service(coreservices.TenantService{}).(*coreservices.TenantService),
+		userService:     userService,
+		templateService: templateService,
+		clientService:   clientService,
+		chatService:     chatService,
+		tenantService:   tenantService,
+		paginationCfg:   cfg,
+		logger:          logger,
 		basePath:        basePath,
 	}
 }
 
-func (c *ChatController) Key() string {
-	return c.basePath
+func (c *ChatController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("crm.chat", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "crm.chat",
+			Parent:   "crm",
+			TitleKey: "NavigationLinks.Chats",
+			Path:     c.basePath,
+			Icon:     icons.ChatCircle(icons.Props{Size: "20"}),
+		})
 }
 
 func (c *ChatController) Register(r *mux.Router) {
@@ -74,8 +98,7 @@ func (c *ChatController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -182,12 +205,15 @@ func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
 		c.logger.WithError(err).Error("failed to get client by ID")
 		return
 	}
-	config := configuration.Use()
+	pageSize := 25
+	if c.paginationCfg != nil {
+		pageSize = c.paginationCfg.PageSize
+	}
 	chatViewModels, _, err := c.chatViewModelsWithTotal(
 		ctxWithDB,
 		&chat.FindParams{
 			Offset: 0,
-			Limit:  config.PageSize,
+			Limit:  pageSize,
 			SortBy: chat.SortBy{
 				Fields: []chat.SortByField{
 					{

@@ -40,6 +40,20 @@ type Field struct {
 	FormatterHint string
 }
 
+// Formula is an audit/export cell whose value must remain recalculable in the
+// generated workbook. Expression is stored without a leading '='. Result is
+// optional display metadata for consumers that cannot evaluate Excel formulas.
+type Formula struct {
+	Expression string `json:"expression"`
+	Result     any    `json:"result,omitempty"`
+}
+
+// Hyperlink is an export cell with a safe destination and visible label.
+type Hyperlink struct {
+	URL   string `json:"url"`
+	Label string `json:"label"`
+}
+
 // Clone duplicates the field metadata and cell slice. Nested map/slice cell values are copied
 // recursively so cloned frames cannot mutate the original frame state.
 func (f Field) Clone() Field {
@@ -65,13 +79,22 @@ type FrameMeta struct {
 	Title       string
 	Description string
 	Labels      map[string]string
+	// AuthoritativeTotal is a producer-computed whole for the frame. It is
+	// intentionally distinct from summing rows: plotted values may be
+	// transformed, truncated or represent shares of a larger population.
+	// Lens promotes it into panel output metadata after a deferred query runs.
+	AuthoritativeTotal *float64
+	// SeriesTotals contains producer-computed wholes keyed by series. Radial
+	// panels use these values as ring denominators after deferred execution.
+	SeriesTotals map[string]float64
 }
 
 type Frame struct {
-	Name     string
-	Fields   []Field
-	RowCount int
-	Meta     FrameMeta
+	Name       string
+	Fields     []Field
+	RowCount   int
+	Meta       FrameMeta
+	fieldIndex map[string]int
 }
 
 func New(name string, fields ...Field) (*Frame, error) {
@@ -97,6 +120,7 @@ func (f *Frame) Normalize() error {
 		}
 	}
 	f.RowCount = rowCount
+	f.buildFieldIndex()
 	return nil
 }
 
@@ -112,25 +136,47 @@ func (f *Frame) Clone() *Frame {
 	for k, v := range f.Meta.Labels {
 		labels[k] = v
 	}
-	return &Frame{
+	seriesTotals := make(map[string]float64, len(f.Meta.SeriesTotals))
+	for key, value := range f.Meta.SeriesTotals {
+		seriesTotals[key] = value
+	}
+	var authoritativeTotal *float64
+	if f.Meta.AuthoritativeTotal != nil {
+		value := *f.Meta.AuthoritativeTotal
+		authoritativeTotal = &value
+	}
+	cloned := &Frame{
 		Name:     f.Name,
 		Fields:   fields,
 		RowCount: f.RowCount,
 		Meta: FrameMeta{
-			Title:       f.Meta.Title,
-			Description: f.Meta.Description,
-			Labels:      labels,
+			Title:              f.Meta.Title,
+			Description:        f.Meta.Description,
+			Labels:             labels,
+			AuthoritativeTotal: authoritativeTotal,
+			SeriesTotals:       seriesTotals,
 		},
+	}
+	cloned.buildFieldIndex()
+	return cloned
+}
+
+func (f *Frame) buildFieldIndex() {
+	f.fieldIndex = make(map[string]int, len(f.Fields))
+	for i := range f.Fields {
+		f.fieldIndex[f.Fields[i].Name] = i
 	}
 }
 
 func (f *Frame) Field(name string) (*Field, bool) {
-	for i := range f.Fields {
-		if f.Fields[i].Name == name {
-			return &f.Fields[i], true
-		}
+	if f.fieldIndex == nil {
+		f.buildFieldIndex()
 	}
-	return nil, false
+	i, ok := f.fieldIndex[name]
+	if !ok || i >= len(f.Fields) {
+		return nil, false
+	}
+	return &f.Fields[i], true
 }
 
 func (f *Frame) MustField(name string) Field {
@@ -171,6 +217,7 @@ func (f *Frame) AppendRow(row map[string]any) error {
 			})
 		}
 		f.RowCount = 1
+		f.buildFieldIndex()
 		return nil
 	}
 
@@ -232,6 +279,12 @@ func InferFieldType(value any) FieldType {
 		}
 		value = rv.Elem().Interface()
 	}
+	if formula, ok := value.(Formula); ok {
+		return InferFieldType(formula.Result)
+	}
+	if hyperlink, ok := value.(Hyperlink); ok {
+		return InferFieldType(hyperlink.Label)
+	}
 	switch value.(type) {
 	case string:
 		return FieldTypeString
@@ -248,6 +301,22 @@ func InferFieldType(value any) FieldType {
 
 func cloneValue(value any) any {
 	switch v := value.(type) {
+	case Formula:
+		v.Result = cloneValue(v.Result)
+		return v
+	case *Formula:
+		if v == nil {
+			return (*Formula)(nil)
+		}
+		cloned := *v
+		cloned.Result = cloneValue(v.Result)
+		return &cloned
+	case *Hyperlink:
+		if v == nil {
+			return (*Hyperlink)(nil)
+		}
+		cloned := *v
+		return &cloned
 	case map[string]any:
 		cloned := make(map[string]any, len(v))
 		for key, item := range v {

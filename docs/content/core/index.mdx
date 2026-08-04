@@ -219,13 +219,20 @@ When an authenticated user lacks the required permission for a resource, the fra
 
 ### Service Access
 
-Other modules access Core services via the registry:
+Other modules access Core services by declaring them as constructor
+parameters. The reflection injector resolves each parameter from the
+composition container by type, so there is no explicit lookup ceremony:
 
 ```mermaid
 graph LR
-    A[Finance Module] -->|"app.Service()"| B[UserService]
-    C[Warehouse Module] -->|"app.Service()"| D[UploadService]
-    E[CRM Module] -->|"app.Service()"| F[SessionService]
+    A[Finance Component] -->|"ProvideFunc(NewExpenseService)"| B[UserService]
+    C[Warehouse Component] -->|"ProvideFunc(NewProductService)"| D[UploadService]
+    E[CRM Component] -->|"ProvideFunc(NewClientService)"| F[SessionService]
+```
+
+```go
+// modules/finance/component.go
+composition.ProvideFunc(builder, services.NewExpenseService) // takes *UserService, upload.Repository, ...
 ```
 
 ### Shared Entities
@@ -256,7 +263,7 @@ The Core module publishes domain events:
 
 ### Module Options
 
-Configure during registration via **`core.ModuleOptions`** (passed to `core.NewModule(opts)`):
+Configure during registration via **`core.ModuleOptions`** (passed to `core.NewComponent(opts)`):
 
 - **Permission Schema** - Define available permissions (e.g. for Roles UI).
 - **LoginControllerOptions** - Customize middleware or access checks for login routes (e.g. custom "login gate").
@@ -278,7 +285,7 @@ The sidebar shows navigation items only to users who have at least one role; use
 
 ## Usage
 
-The Core module is included in `BuiltInModules` and registered via `modules.Load(app, modules.BuiltInModules...)`. To add a custom module, pass it to `modules.Load(app, yourModule)` (or `modules.Load(app, modules.BuiltInModules..., yourModule)`); each module's `Register(app)` is called by `Load`. There is no `app.RegisterModule(module)`—use `modules.Load` instead.
+The Core component is included in `modules.Components()` and is usually loaded by registering the full component list with `composition.NewEngine()`, then compiling with the capabilities your process needs.
 
 ## Best Practices
 

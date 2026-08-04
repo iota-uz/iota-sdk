@@ -68,6 +68,7 @@ const (
 	FieldTenantID  Field = "tenant_id"
 	FieldGroupID   Field = "group_id"
 	FieldRoleID    Field = "role_id"
+	FieldBlocked   Field = "is_blocked"
 )
 
 type SortBy = repo.SortBy[Field]
@@ -107,6 +108,7 @@ func (r *pgUserQueryRepository) fieldMapping() map[Field]string {
 		FieldTenantID:  "u.tenant_id",
 		FieldGroupID:   "gu.group_id",
 		FieldRoleID:    "ur.role_id",
+		FieldBlocked:   "u.is_blocked",
 	}
 }
 
@@ -461,12 +463,16 @@ func (r *pgUserQueryRepository) loadUserRolesAndPermissions(ctx context.Context,
 	return nil
 }
 
-// scanAndLoadUsers scans user rows and loads related data (avatar, roles, permissions)
+// scanAndLoadUsers scans user rows and loads related data (avatar, roles, permissions).
+// Scanning is fully drained into dbUsers before any relation is loaded: loadUserWithRelations
+// issues further queries on the same tx, and interleaving those with an open outer cursor
+// (calling rows.Next() again after a nested query) errors "conn busy" on a single-connection
+// transaction (e.g. a caller-supplied tx, or the itf test harness's per-test tx).
 func (r *pgUserQueryRepository) scanAndLoadUsers(ctx context.Context, rows interface {
 	Next() bool
 	Scan(...interface{}) error
 }) ([]*viewmodels.User, error) {
-	users := make([]*viewmodels.User, 0)
+	dbUsers := make([]*models.User, 0)
 
 	for rows.Next() {
 		dbUser, err := r.scanUser(rows)
@@ -474,6 +480,11 @@ func (r *pgUserQueryRepository) scanAndLoadUsers(ctx context.Context, rows inter
 			return nil, errors.Wrap(err, "failed to scan user")
 		}
 
+		dbUsers = append(dbUsers, dbUser)
+	}
+
+	users := make([]*viewmodels.User, 0, len(dbUsers))
+	for _, dbUser := range dbUsers {
 		user, err := r.loadUserWithRelations(ctx, dbUser)
 		if err != nil {
 			return nil, err

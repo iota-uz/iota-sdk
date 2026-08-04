@@ -300,6 +300,23 @@ func (g *PgUserRepository) GetByID(ctx context.Context, id uint) (user.User, err
 	return users[0], nil
 }
 
+func (g *PgUserRepository) GetByIDs(ctx context.Context, ids []uint) ([]user.User, error) {
+	if len(ids) == 0 {
+		return []user.User{}, nil
+	}
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	users, err := g.queryUsers(ctx, userFindQuery+" WHERE u.id = ANY($1) AND u.tenant_id = $2", ids, tenantID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query users by ids")
+	}
+	return users, nil
+}
+
 func (g *PgUserRepository) GetByEmail(ctx context.Context, email string) (user.User, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	var users []user.User

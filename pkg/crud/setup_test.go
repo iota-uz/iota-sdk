@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/crud/models"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -241,7 +241,8 @@ func skipUnlessDB(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	config, err := pgxpool.ParseConfig(itf.DBOpts("postgres"))
+	db := itf.LoadDBConfigFromEnv()
+	config, err := pgxpool.ParseConfig(itf.DBOpts("postgres", db))
 	if err != nil {
 		t.Skipf("skipping integration test: invalid db config: %v", err)
 	}
@@ -268,8 +269,7 @@ func setupTest(t *testing.T) *testFixtures {
 
 	ctx := composables.WithPool(context.Background(), pool)
 
-	conf := configuration.Use()
-	publisher := eventbus.NewEventPublisher(conf.Logger())
+	publisher := eventbus.NewEventPublisher(logrus.New())
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {

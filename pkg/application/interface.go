@@ -1,12 +1,12 @@
-// Package application provides this package.
+// Package application defines the SDK composition surface for runtime access.
 package application
 
 import (
 	"context"
 	"embed"
-	"reflect"
 
 	"github.com/iota-uz/applets"
+	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -26,7 +26,27 @@ type GraphSchema struct {
 	ExecutorCb func(*executor.Executor)
 }
 
-// Application with a dynamically extendable service registry
+type RuntimeSource interface {
+	Controllers() []Controller
+	Middleware() []mux.MiddlewareFunc
+	Assets() []*embed.FS
+	HashFSAssets() []*hashfs.FS
+	LocaleFiles() []*embed.FS
+	GraphSchemas() []GraphSchema
+	Applets() []Applet
+	NavItems() []types.NavigationItem
+	NavWorkspaces() []types.NavWorkspace
+	QuickLinks() []*spotlight.QuickLink
+	SpotlightProviders() []spotlight.SearchProvider
+	SpotlightAgent() spotlight.Agent
+}
+
+type RuntimeBinder interface {
+	AttachRuntimeSource(source RuntimeSource) error
+	DetachRuntimeSource()
+}
+
+// Application exposes the runtime services consumed by modules, controllers, and servers.
 type Application interface {
 	DB() *pgxpool.Pool
 	EventPublisher() eventbus.EventBus
@@ -39,46 +59,46 @@ type Application interface {
 	QuickLinks() *spotlight.QuickLinks
 	Migrations() MigrationManager
 	NavItems(localizer *i18n.Localizer) []types.NavigationItem
-	RegisterNavItems(items ...types.NavigationItem)
-	AppendNavChildren(parentName string, children ...types.NavigationItem)
-	RegisterControllers(controllers ...Controller)
-	RegisterHashFsAssets(fs ...*hashfs.FS)
-	RegisterAssets(fs ...*embed.FS)
-	RegisterLocaleFiles(fs ...*embed.FS)
-	RegisterGraphSchema(schema GraphSchema)
+	NavWorkspaces() []types.NavWorkspace
 	GraphSchemas() []GraphSchema
-	RegisterServices(services ...interface{})
-	RegisterMiddleware(middleware ...mux.MiddlewareFunc)
-	Service(service interface{}) interface{}
-	Services() map[reflect.Type]interface{}
 	Bundle() *i18n.Bundle
 	GetSupportedLanguages() []string
-	RegisterApplet(applet Applet) error
 	AppletRegistry() AppletRegistry
-	CreateAppletControllers(
-		host applets.HostServices,
-		sessionConfig applets.SessionConfig,
-		logger *logrus.Logger,
-		metrics applets.MetricsRecorder,
-		opts ...applets.BuilderOption,
-	) ([]Controller, error)
 }
 
 type Seeder interface {
-	Seed(ctx context.Context, app Application) error
+	Seed(ctx context.Context, deps *SeedDeps) error
 	Register(funcs ...SeedFunc)
 }
 
-type SeedFunc func(ctx context.Context, app Application) error
+type SeedFunc func(ctx context.Context, deps *SeedDeps) error
+
+type SeedDeps struct {
+	Pool      *pgxpool.Pool
+	EventBus  eventbus.EventBus
+	Logger    logrus.FieldLogger
+	providers []di.Provider
+}
+
+func (d *SeedDeps) RegisterValues(values ...interface{}) {
+	if d == nil {
+		panic("seed deps are required")
+	}
+	for _, value := range values {
+		d.providers = append(d.providers, di.ValueProvider(value))
+	}
+}
+
+func (d *SeedDeps) RegisterProviders(providers ...di.Provider) {
+	if d == nil {
+		panic("seed deps are required")
+	}
+	d.providers = append(d.providers, providers...)
+}
 
 type Controller interface {
 	Register(r *mux.Router)
-	Key() string
-}
-
-type Module interface {
-	Name() string
-	Register(app Application) error
+	Descriptor() ControllerDescriptor
 }
 
 // Applet represents a React/Next.js application that integrates with the SDK

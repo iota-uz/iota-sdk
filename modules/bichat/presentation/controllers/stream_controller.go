@@ -13,24 +13,26 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
+	bichatmodsvcs "github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/httpdto"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 )
 
 // StreamController handles Server-Sent Events (SSE) for streaming chat responses.
 type StreamController struct {
-	app               application.Application
 	streamService     bichatservices.StreamCommands
 	sessionService    bichatservices.SessionQueries
 	attachmentService bichatservices.AttachmentService
 	opts              ControllerOptions
+	logger            *logrus.Logger
 }
 
 const maxStreamRequestBodyBytes int64 = 32 << 20 // 32 MiB
@@ -38,24 +40,30 @@ const streamHeartbeatInterval = 15 * time.Second
 
 // NewStreamController creates a new stream controller.
 func NewStreamController(
-	app application.Application,
 	streamService bichatservices.StreamCommands,
 	sessionService bichatservices.SessionQueries,
 	attachmentService bichatservices.AttachmentService,
 	opts ...ControllerOption,
 ) *StreamController {
+	o := applyControllerOptions(opts...)
 	return &StreamController{
-		app:               app,
 		streamService:     streamService,
 		sessionService:    sessionService,
 		attachmentService: attachmentService,
-		opts:              applyControllerOptions(opts...),
+		opts:              o,
+		logger:            o.Logger,
 	}
 }
 
-// Key returns the controller key for dependency injection.
-func (c *StreamController) Key() string {
-	return "bichat.StreamController"
+func (c *StreamController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("bichat.stream", 0, application.Route("", c.opts.BasePath)).
+		WithNav(application.NavNode{
+			ID:       "bichat.stream",
+			TitleKey: "NavigationLinks.BiChat",
+			Path:     c.opts.BasePath,
+			Icon:     icons.ChatCircle(icons.Props{Size: "20"}),
+			IsBeta:   true,
+		})
 }
 
 // Register registers HTTP routes for SSE streaming.
@@ -64,8 +72,7 @@ func (c *StreamController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
@@ -78,6 +85,16 @@ func (c *StreamController) Register(r *mux.Router) {
 	subRouter.HandleFunc("/stream/stop", c.StopStream).Methods("POST")
 	subRouter.HandleFunc("/stream/status", c.StreamStatus).Methods("GET")
 	subRouter.HandleFunc("/stream/resume", c.ResumeStream).Methods("POST")
+	// GET /stream/events is the cursor-based tail endpoint: EventSource
+	// connects here after a POST /stream kicks off a run. Native
+	// EventSource reconnect sends Last-Event-ID, which we forward to
+	// the event log so the browser never sees a dropped event across
+	// network blips / tab sleep.
+	subRouter.HandleFunc("/stream/events", c.TailEvents).Methods("GET")
+	// GET /stream/active-runs is the per-tenant sidebar fan-out. Used by
+	// the React chat list to render a status dot next to each session
+	// card without polling /stream/status per session.
+	subRouter.HandleFunc("/stream/active-runs", c.TailActiveRuns).Methods("GET")
 }
 
 // StreamMessage handles SSE streaming for a message.
@@ -124,6 +141,10 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		DebugMode       bool                  `json:"debugMode"`
 		ReplaceFrom     *uuid.UUID            `json:"replaceFromMessageId,omitempty"`
 		ReasoningEffort *string               `json:"reasoningEffort,omitempty"`
+		Model           *string               `json:"model,omitempty"`
+		// RequestID is the client idempotency key. Duplicate sends with
+		// the same RequestID within ~30 min converge on the same run.
+		RequestID *uuid.UUID `json:"requestId,omitempty"`
 	}
 
 	var req streamRequest
@@ -211,6 +232,8 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		DebugMode:            req.DebugMode,
 		ReplaceFromMessageID: req.ReplaceFrom,
 		ReasoningEffort:      req.ReasoningEffort,
+		Model:                req.Model,
+		RequestID:            req.RequestID,
 	}, func(chunk bichatservices.StreamChunk) {
 		// Handle context cancellation
 		select {
@@ -219,80 +242,20 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		default:
 		}
 
-		payload := httpdto.StreamChunkPayload{
-			Type:         string(chunk.Type),
-			Content:      chunk.Content,
-			Citation:     chunk.Citation,
-			Usage:        chunk.Usage,
-			GenerationMs: chunk.GenerationMs,
-			Timestamp:    chunk.Timestamp.UnixMilli(),
-		}
-		if chunk.Tool != nil {
-			toolPayload := &httpdto.ToolEventPayload{
-				CallID:     chunk.Tool.CallID,
-				Name:       chunk.Tool.Name,
-				AgentName:  chunk.Tool.AgentName,
-				Arguments:  chunk.Tool.Arguments,
-				Result:     chunk.Tool.Result,
-				DurationMs: chunk.Tool.DurationMs,
-			}
-			if chunk.Tool.Error != nil {
-				toolPayload.Error = chunk.Tool.Error.Error()
-			}
-			payload.Tool = toolPayload
-		}
-		if chunk.Interrupt != nil {
-			questions := make([]httpdto.InterruptQuestionPayload, 0, len(chunk.Interrupt.Questions))
-			for _, q := range chunk.Interrupt.Questions {
-				options := make([]httpdto.InterruptQuestionOptionPayload, 0, len(q.Options))
-				for _, opt := range q.Options {
-					options = append(options, httpdto.InterruptQuestionOptionPayload{
-						ID:    opt.ID,
-						Label: opt.Label,
-					})
-				}
-				questions = append(questions, httpdto.InterruptQuestionPayload{
-					ID:      q.ID,
-					Text:    q.Text,
-					Type:    string(q.Type),
-					Options: options,
-				})
-			}
-			payload.Interrupt = &httpdto.InterruptEventPayload{
-				CheckpointID:       chunk.Interrupt.CheckpointID,
-				AgentName:          chunk.Interrupt.AgentName,
-				ProviderResponseID: chunk.Interrupt.ProviderResponseID,
-				Questions:          questions,
-			}
-		}
+		eventName, payload, _ := bichatmodsvcs.BuildPayload(chunk)
+		// Post-encode error sanitisation: BuildPayload stores the raw error
+		// string from the chunk, but browsers must only see safe messages.
 		if chunk.Error != nil {
-			// Preserve known provider-facing failures (quota/auth/rate-limit), and
-			// keep all other internal failures generic.
 			payload.Error = c.streamClientErrorMessage(chunk.Error, chunk.Type)
 		}
-		if chunk.RunID != "" {
-			payload.RunID = chunk.RunID
-		}
-		if chunk.Snapshot != nil {
-			payload.Snapshot = &httpdto.StreamSnapshotPayload{
-				PartialContent:  chunk.Snapshot.PartialContent,
-				PartialMetadata: chunk.Snapshot.PartialMetadata,
-			}
-		}
-
-		// Event name is for SSE clients that care; our frontend reads `data:` lines.
-		eventName := payload.Type
-		if eventName == "" {
-			eventName = "chunk"
-		}
-		sendEvent(eventName, payload)
+		sendEvent(string(eventName), payload)
 	})
 
 	if err != nil {
 		// Log actual error server-side
-		logger := configuration.Use().Logger()
-		entry := logger.WithError(serrors.E(op, err))
-		entry.Error("Stream error")
+		if c.logger != nil {
+			c.logger.WithError(serrors.E(op, err)).Error("Stream error")
+		}
 
 		// Send sanitized error to client
 		sendEvent("error", httpdto.StreamChunkPayload{
@@ -339,16 +302,19 @@ func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := c.streamService.StopGeneration(r.Context(), req.SessionID); err != nil {
-		logger := configuration.Use().Logger()
 		wrapped := serrors.E(op, err)
 		if errors.Is(err, domain.ErrNoActiveRun) || errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
 			// Known condition: stop called when session is no longer streaming.
 			// Preserve idempotent API behavior and just log for observability.
-			logger.WithError(wrapped).Info("StopGeneration called for non-streaming session")
+			if c.logger != nil {
+				c.logger.WithError(wrapped).Info("StopGeneration called for non-streaming session")
+			}
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		logger.WithError(wrapped).Error("StopGeneration failed")
+		if c.logger != nil {
+			c.logger.WithError(wrapped).Error("StopGeneration failed")
+		}
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -497,67 +463,22 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 	}()
 
 	err := c.streamService.ResumeStream(r.Context(), req.SessionID, req.RunID, func(chunk bichatservices.StreamChunk) {
-		payload := httpdto.StreamChunkPayload{
-			Type:         string(chunk.Type),
-			Content:      chunk.Content,
-			Citation:     chunk.Citation,
-			Usage:        chunk.Usage,
-			GenerationMs: chunk.GenerationMs,
-			Timestamp:    chunk.Timestamp.UnixMilli(),
-		}
-		if chunk.Tool != nil {
-			toolPayload := &httpdto.ToolEventPayload{
-				CallID:     chunk.Tool.CallID,
-				Name:       chunk.Tool.Name,
-				AgentName:  chunk.Tool.AgentName,
-				Arguments:  chunk.Tool.Arguments,
-				Result:     chunk.Tool.Result,
-				DurationMs: chunk.Tool.DurationMs,
-			}
-			if chunk.Tool.Error != nil {
-				toolPayload.Error = chunk.Tool.Error.Error()
-			}
-			payload.Tool = toolPayload
-		}
-		if chunk.Interrupt != nil {
-			questions := make([]httpdto.InterruptQuestionPayload, 0, len(chunk.Interrupt.Questions))
-			for _, q := range chunk.Interrupt.Questions {
-				options := make([]httpdto.InterruptQuestionOptionPayload, 0, len(q.Options))
-				for _, opt := range q.Options {
-					options = append(options, httpdto.InterruptQuestionOptionPayload{ID: opt.ID, Label: opt.Label})
-				}
-				questions = append(questions, httpdto.InterruptQuestionPayload{ID: q.ID, Text: q.Text, Type: string(q.Type), Options: options})
-			}
-			payload.Interrupt = &httpdto.InterruptEventPayload{
-				CheckpointID:       chunk.Interrupt.CheckpointID,
-				AgentName:          chunk.Interrupt.AgentName,
-				ProviderResponseID: chunk.Interrupt.ProviderResponseID,
-				Questions:          questions,
-			}
-		}
+		eventName, payload, _ := bichatmodsvcs.BuildPayload(chunk)
+		// Post-encode error sanitisation: BuildPayload stores the raw error
+		// string from the chunk, but browsers must only see safe messages.
 		if chunk.Error != nil {
 			payload.Error = c.streamClientErrorMessage(chunk.Error, chunk.Type)
 		}
-		if chunk.Snapshot != nil {
-			payload.Snapshot = &httpdto.StreamSnapshotPayload{
-				PartialContent:  chunk.Snapshot.PartialContent,
-				PartialMetadata: chunk.Snapshot.PartialMetadata,
-			}
-		}
-
-		eventName := payload.Type
-		if eventName == "" {
-			eventName = "chunk"
-		}
-		sendEvent(eventName, payload)
+		sendEvent(string(eventName), payload)
 	})
 	if err != nil {
 		if errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
 			http.Error(w, "Run not found or already finished", http.StatusNotFound)
 			return
 		}
-		logger := configuration.Use().Logger()
-		logger.WithError(serrors.E(op, err)).Error("Resume stream error")
+		if c.logger != nil {
+			c.logger.WithError(serrors.E(op, err)).Error("Resume stream error")
+		}
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -566,6 +487,213 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 		Type:      "done",
 		Timestamp: time.Now().UnixMilli(),
 	})
+}
+
+// TailEvents handles GET /stream/events?sessionId=...&runId=... — a pure
+// SSE reader over the durable per-run Redis event log. The browser's
+// native EventSource auto-reconnect sends Last-Event-ID on every resumed
+// connection; we forward it to RunEventLog so replay is always cursor-
+// exact.
+//
+// For malformed input, the handler responds with HTTP 400 before starting
+// the stream. For valid SSE requests, the handler establishes an HTTP 200
+// event stream and reports runtime conditions such as an unavailable event
+// log or an unknown/finished run via an SSE `error` event payload so
+// clients can handle them without switching transports.
+func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
+	const op serrors.Op = "StreamController.TailEvents"
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	sessionIDStr := r.URL.Query().Get("sessionId")
+	runIDStr := r.URL.Query().Get("runId")
+	if sessionIDStr == "" || runIDStr == "" {
+		http.Error(w, "sessionId and runId are required", http.StatusBadRequest)
+		return
+	}
+	sessionID, err := uuid.Parse(sessionIDStr)
+	if err != nil || sessionID == uuid.Nil {
+		http.Error(w, "sessionId must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	runID, err := uuid.Parse(runIDStr)
+	if err != nil || runID == uuid.Nil {
+		http.Error(w, "runId must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	if !c.requireStreamSessionAuth(w, r, sessionID, false) {
+		return
+	}
+
+	// Native EventSource reconnect ships this header; if it's empty the
+	// client wants a full replay from the beginning.
+	lastEventID := strings.TrimSpace(r.Header.Get("Last-Event-ID"))
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	c.sendSSEComment(w, flusher, "stream-open")
+
+	var writeMu sync.Mutex
+	heartbeatStop := make(chan struct{})
+	defer close(heartbeatStop)
+	go func() {
+		ticker := time.NewTicker(streamHeartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-heartbeatStop:
+				return
+			case <-ticker.C:
+				writeMu.Lock()
+				c.sendSSEComment(w, flusher, "ping")
+				writeMu.Unlock()
+			}
+		}
+	}()
+
+	err = c.streamService.TailRunEvents(r.Context(), sessionID, runID, lastEventID, func(evt bichatservices.RunEventDelivery) {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		eventName := evt.Type
+		if eventName == "" {
+			eventName = string(httpdto.StreamEventChunk)
+		}
+		// Emit SSE triple with id: + event: + data:. The id: line is
+		// what EventSource stores in the browser's internal Last-Event-ID
+		// state so a reconnect targets the right cursor.
+		_, _ = fmt.Fprintf(w, "id: %s\n", evt.StreamID)
+		_, _ = fmt.Fprintf(w, "event: %s\n", eventName)
+		_, _ = fmt.Fprintf(w, "data: %s\n\n", evt.Payload)
+		flusher.Flush()
+	})
+	if err != nil {
+		if errors.Is(err, bichatservices.ErrRunEventLogUnavailable) {
+			if c.logger != nil {
+				c.logger.WithError(serrors.E(op, err)).Warn("TailEvents: run event log unavailable")
+			}
+			writeMu.Lock()
+			defer writeMu.Unlock()
+			c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
+				Type:      "error",
+				Error:     "run event log unavailable",
+				Timestamp: time.Now().UnixMilli(),
+			})
+			return
+		}
+		if errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
+			if c.logger != nil {
+				c.logger.WithError(serrors.E(op, err)).Warn("TailEvents: run not found or already finished")
+			}
+			writeMu.Lock()
+			defer writeMu.Unlock()
+			c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
+				Type:      "error",
+				Error:     "run not found or already finished",
+				Timestamp: time.Now().UnixMilli(),
+			})
+			return
+		}
+		if c.logger != nil {
+			c.logger.WithError(serrors.E(op, err)).Error("TailEvents failed")
+		}
+	}
+}
+
+// TailActiveRuns handles GET /stream/active-runs — the per-tenant
+// sidebar fan-out used by the chat list to render a status dot per
+// session. A connect sends one `snapshot` event per currently-running
+// session, then live `update` events per status transition
+// (streaming / completed / cancelled / failed / queued).
+//
+// Tenant scope is taken from the authenticated request context; the
+// handler has no query parameters. If the active-run index is not
+// configured or otherwise unavailable, the stream emits an SSE `error`
+// event instead of returning a 503 response.
+func (c *StreamController) TailActiveRuns(w http.ResponseWriter, r *http.Request) {
+	const op serrors.Op = "StreamController.TailActiveRuns"
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+	if _, err := composables.UseUser(r.Context()); err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if c.opts.RequireAccessPermission != nil {
+		if err := composables.CanUser(r.Context(), c.opts.RequireAccessPermission); err != nil {
+			http.Error(w, "Access denied", http.StatusForbidden)
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	c.sendSSEComment(w, flusher, "stream-open")
+
+	var writeMu sync.Mutex
+	heartbeatStop := make(chan struct{})
+	defer close(heartbeatStop)
+	go func() {
+		ticker := time.NewTicker(streamHeartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-heartbeatStop:
+				return
+			case <-ticker.C:
+				writeMu.Lock()
+				c.sendSSEComment(w, flusher, "ping")
+				writeMu.Unlock()
+			}
+		}
+	}()
+
+	err := c.streamService.TailActiveRuns(r.Context(), func(evt bichatservices.ActiveRunDelivery) {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		payload := struct {
+			SessionID string `json:"sessionId"`
+			RunID     string `json:"runId"`
+			Status    string `json:"status"`
+			UpdatedAt int64  `json:"updatedAt"`
+		}{
+			SessionID: evt.SessionID.String(),
+			RunID:     evt.RunID.String(),
+			Status:    evt.Status,
+			UpdatedAt: evt.UpdatedAt,
+		}
+		c.sendSSEEvent(w, flusher, evt.Event, payload)
+	})
+	if err != nil {
+		if errors.Is(err, bichatservices.ErrActiveRunIndexUnavailable) || errors.Is(err, bichatservices.ErrRunEventLogUnavailable) {
+			if c.logger != nil {
+				c.logger.WithError(serrors.E(op, err)).Warn("TailActiveRuns: active-run index unavailable")
+			}
+			writeMu.Lock()
+			defer writeMu.Unlock()
+			c.sendSSEEvent(w, flusher, "error", map[string]string{
+				"error": "active-run index unavailable",
+			})
+			return
+		}
+		if c.logger != nil {
+			c.logger.WithError(serrors.E(op, err)).Error("TailActiveRuns failed")
+		}
+	}
 }
 
 // Helper methods
@@ -603,30 +731,11 @@ func (c *StreamController) streamClientErrorMessage(err error, chunkType bichats
 		return sanitizeErrorString(err)
 	}
 
-	code, message, ok := parseProviderStreamError(err.Error())
-	if !ok {
-		return generic
+	code, _, _ := bichatmodsvcs.ParseProviderStreamError(err.Error())
+	if normalized := bichatmodsvcs.NormalizeProviderError(code, err.Error()); normalized != "" {
+		return normalized
 	}
-
-	switch strings.ToLower(code) {
-	case "insufficient_quota":
-		if strings.TrimSpace(message) != "" {
-			return message
-		}
-		return "You exceeded your current quota. Please check your plan and billing details."
-	case "rate_limit_exceeded", "rate_limit":
-		if strings.TrimSpace(message) != "" {
-			return message
-		}
-		return "Rate limit exceeded. Please retry shortly."
-	case "invalid_api_key", "authentication_error", "auth_error":
-		if strings.TrimSpace(message) != "" {
-			return message
-		}
-		return "Authentication failed with the model provider. Please verify API credentials."
-	default:
-		return generic
-	}
+	return generic
 }
 
 func sanitizeErrorString(err error) string {
@@ -634,39 +743,4 @@ func sanitizeErrorString(err error) string {
 		return ""
 	}
 	return "internal error"
-}
-
-// parseProviderStreamError expects provider errors to include a JSON fragment
-// containing "type"/"code"/"message". It scans the raw string for {"type": or
-// {"code":, then attempts to unmarshal that fragment. If parsing fails, it
-// intentionally returns ok=false so callers fall back to a generic safe message.
-func parseProviderStreamError(raw string) (string, string, bool) {
-	start := strings.Index(raw, "{\"type\":")
-	if start < 0 {
-		start = strings.Index(raw, "{\"code\":")
-	}
-	if start < 0 {
-		return "", "", false
-	}
-	fragment := raw[start:]
-	end := strings.LastIndex(fragment, "}")
-	if end < 0 {
-		return "", "", false
-	}
-	fragment = fragment[:end+1]
-
-	var providerErr struct {
-		Type    string `json:"type"`
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	}
-	if err := json.Unmarshal([]byte(fragment), &providerErr); err != nil {
-		return "", "", false
-	}
-
-	code := providerErr.Code
-	if strings.TrimSpace(code) == "" {
-		code = providerErr.Type
-	}
-	return code, providerErr.Message, strings.TrimSpace(code) != ""
 }

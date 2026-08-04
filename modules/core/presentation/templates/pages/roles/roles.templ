@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
@@ -85,9 +86,12 @@ templ RolesTable(props *IndexPageProps) {
 templ RolesContent(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
-		<h1 class="text-2xl font-medium">
-			{ pageCtx.T("NavigationLinks.Roles") }
-		</h1>
+		<div class="flex items-center gap-2">
+			<h1 class="text-2xl font-medium">
+				{ pageCtx.T("NavigationLinks.Roles") }
+			</h1>
+			@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"})
+		</div>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
 				class="p-4 flex items-center gap-3"

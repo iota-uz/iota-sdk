@@ -22,6 +22,9 @@ type TokenUsage struct {
 	// CacheReadTokens is the number of tokens read from the cache
 	// (prompt caching). Non-zero when cached content is reused.
 	CacheReadTokens int
+
+	// Cost is the estimated total request cost in USD.
+	Cost float64
 }
 
 // RecalculateTotal updates TotalTokens to include all token types.

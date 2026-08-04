@@ -7,6 +7,7 @@ tmp/
 coverage
 node_modules
 static
+!pkg/config/providers/static/
 uploads
 *_templ.txt
 modules/core/presentation/assets/css/main.min.css
@@ -20,6 +21,8 @@ logs/
 # Build artifacts
 dist/
 **/dist/
+!pkg/lens/render/react/dist/
+!pkg/lens/render/react/dist/**
 
 
 # Applet embedded assets are build output; keep only a placeholder for go:embed.
@@ -49,3 +52,4 @@ e2e/test-results/
 
 # Playwright CLI snapshots/artifacts
 .playwright-cli/
+.claude/scheduled_tasks.lock

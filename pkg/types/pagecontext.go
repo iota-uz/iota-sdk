@@ -123,6 +123,14 @@ func (p *pageContext) TSafe(k string, args ...map[string]interface{}) string {
 		cfg.TemplateData = args[0]
 	}
 
+	// "Safe" has to mean safe: a page context can be built without a localizer
+	// (component tests, non-HTTP renders), and go-i18n dereferences its own
+	// receiver, so calling through would panic on a nil pointer — the one
+	// failure TSafe exists to prevent.
+	if p.localizer == nil {
+		return ""
+	}
+
 	result, err := p.localizer.Localize(cfg)
 	if err != nil {
 		return ""

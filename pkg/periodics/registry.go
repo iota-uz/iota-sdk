@@ -7,13 +7,12 @@ import (
 	"maps"
 	"sync"
 
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // ManagerRegistry collects named Manager instances so that multiple modules
 // can each register their own periodic-task manager without overwriting
-// each other in the application service container.
+// each other in the composition container.
 type ManagerRegistry interface {
 	// Register adds a manager under the given name (e.g. "insurance").
 	// Returns an error if a manager with the same name is already registered.
@@ -69,31 +68,4 @@ func (r *managerRegistry) All() map[string]Manager {
 	result := make(map[string]Manager, len(r.managers))
 	maps.Copy(result, r.managers)
 	return result
-}
-
-// GetManagerRegistry retrieves the ManagerRegistry from the application container.
-// Returns nil if no registry has been registered.
-func GetManagerRegistry(app application.Application) ManagerRegistry {
-	for _, svc := range app.Services() {
-		if reg, ok := svc.(ManagerRegistry); ok {
-			return reg
-		}
-	}
-	return nil
-}
-
-var registryMu sync.Mutex
-
-// GetOrCreateManagerRegistry returns the existing ManagerRegistry from the
-// application container, or creates a new one, registers it, and returns it.
-// It is safe to call concurrently from multiple goroutines.
-func GetOrCreateManagerRegistry(app application.Application) ManagerRegistry {
-	registryMu.Lock()
-	defer registryMu.Unlock()
-	if reg := GetManagerRegistry(app); reg != nil {
-		return reg
-	}
-	reg := NewManagerRegistry()
-	app.RegisterServices(reg)
-	return reg
 }

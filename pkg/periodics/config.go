@@ -12,8 +12,10 @@ import "time"
 //	    CustomField string       `env:"CUSTOM_FIELD" envDefault:"value"`
 //	}
 type BaseTaskConfig struct {
-	// Schedule is the cron expression for when to run the task
-	Schedule string `env:"SCHEDULE" envDefault:"0 * * * *"`
+	// Schedule is the cron expression for when to run the task.
+	// No envDefault: callers may pre-populate task-specific defaults before
+	// env.Parse runs.
+	Schedule string `env:"SCHEDULE"`
 
 	// MaxRetries is the maximum number of retry attempts on failure
 	MaxRetries int `env:"MAX_RETRIES" envDefault:"3"`
@@ -21,14 +23,18 @@ type BaseTaskConfig struct {
 	// RetryDelay is the initial delay between retries (will be exponentially increased)
 	RetryDelay time.Duration `env:"RETRY_DELAY" envDefault:"1s"`
 
-	// Timeout is the maximum time the task can run before being cancelled
-	Timeout time.Duration `env:"TIMEOUT" envDefault:"5m"`
+	// Timeout is the maximum time the task can run before being cancelled.
+	// No envDefault: caarlos0/env applies envDefault unconditionally when the
+	// env var is unset, which silently overwrites caller-provided default config
+	// values. mergeWithDefaults() falls back to DefaultTaskConfig().Timeout (5m)
+	// when building the scheduled task executor if this stays zero.
+	Timeout time.Duration `env:"TIMEOUT"`
 
 	// EnableSkipIfRunning skips execution if previous instance is still running
 	EnableSkipIfRunning bool `env:"ENABLE_SKIP_IF_RUNNING" envDefault:"true"`
 
 	// Enabled determines if the task should be registered and run
-	Enabled bool `env:"ENABLED" envDefault:"true"`
+	Enabled bool `env:"ENABLED" envDefault:"false"`
 
 	// RunOnStart determines if the task should run immediately on application startup
 	RunOnStart bool `env:"RUN_ON_START" envDefault:"false"`

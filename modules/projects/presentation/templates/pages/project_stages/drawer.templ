@@ -127,7 +127,7 @@ templ EditDrawer(props *DrawerEditProps) {
 						})
 					}
 				</div>
-				<div class="p-6 border-t border-gray-200 flex justify-between">
+				<div class="p-6 border-t border-subtle flex justify-between">
 					@button.Danger(button.Props{
 						Attrs: templ.Attributes{
 							"type":       "button",
@@ -255,7 +255,7 @@ templ CreateDrawer(props *DrawerCreateProps) {
 						Error: props.Errors["FactualEndDate"],
 					})
 				</div>
-				<div class="p-6 border-t border-gray-200 flex justify-end gap-3">
+				<div class="p-6 border-t border-subtle flex justify-end gap-3">
 					@button.Secondary(button.Props{
 						Attrs: templ.Attributes{
 							"type":   "button",

@@ -68,7 +68,7 @@ func Dropdown(props DropdownProps) templ.Component {
 		}
 		var templ_7745c5c3_Var4 = []any{
 			"flex items-center justify-center cursor-pointer",
-			"border border-gray-300 rounded-md rounded-r-none px-2",
+			"border border-default rounded-md rounded-r-none px-2",
 		}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var4...)
 		if templ_7745c5c3_Err != nil {
@@ -100,14 +100,14 @@ func Dropdown(props DropdownProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 = []any{
-			"w-full border border-gray-300 rounded-md shadow-sm cursor-pointer",
+			"w-full border border-default rounded-md shadow-sm cursor-pointer",
 			"flex items-center justify-between px-4 py-2",
 		}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var6...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<button @click=\"open = !open\" type=\"button\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<button @click=\"toggle()\" type=\"button\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -153,13 +153,13 @@ func Dropdown(props DropdownProps) templ.Component {
 		}
 		var templ_7745c5c3_Var9 = []any{
 			"absolute z-20 mt-2 bg-white max-h-80 overflow-y-auto min-w-fit",
-			"border border-gray-200 rounded-md shadow-lg",
+			"border border-subtle rounded-md shadow-lg",
 		}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var9...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<ul x-show=\"open\" @click.away=\"open = false\" x-transition class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<ul x-show=\"open\" @click.away=\"close()\" x-transition class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -249,10 +249,10 @@ func DropdownItem(props DropdownItemProps) templ.Component {
 			Checked: props.Checked,
 			Class:   templ.Classes("p-2"),
 			Attrs: templ.Attributes{
-				"value":    props.Value,
-				"name":     props.Name,
-				"@change":  "toggleValue($event.target.value)",
-				":checked": "selected.includes('" + props.Value + "')",
+				"value":        props.Value,
+				"name":         props.Name,
+				"@change.stop": "toggleValue($event.target.value)",
+				":checked":     "selected.includes('" + props.Value + "')",
 			},
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
@@ -416,7 +416,7 @@ func (t *TableFilter) AsSideFilter() templ.Component {
 
 		pageCtx := composables.UsePageCtx(ctx)
 		id := random.String(12, random.LowerCharSet)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div class=\"bg-surface-600 border border-primary rounded-lg p-4 mb-4\"><div class=\"space-y-3\" x-data=\"checkboxes\" x-init=\"init\"><div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div class=\"bg-surface-600 border border-subtle rounded-lg p-4 mb-4\"><div class=\"space-y-3\" x-data=\"checkboxes\" x-init=\"init\"><div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

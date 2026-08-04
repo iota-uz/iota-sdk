@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eskiz/models"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -21,8 +20,8 @@ func TestIntegration_RealAPI(t *testing.T) {
 
 	cfg := NewConfig(url, email, password)
 	logger := logrus.New()
-	sdkConfig := configuration.Use()
-	service := NewService(cfg, logger, sdkConfig)
+	// Pass nil for sdkConfig: this test is always skipped so the value is never used.
+	service := NewService(cfg, logger, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

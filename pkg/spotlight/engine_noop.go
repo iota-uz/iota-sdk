@@ -1,7 +1,11 @@
 // Package spotlight provides this package.
 package spotlight
 
-import "context"
+import (
+	"context"
+
+	"github.com/google/uuid"
+)
 
 type NoopEngine struct{}
 
@@ -15,7 +19,19 @@ func (e *NoopEngine) Upsert(context.Context, []SearchDocument) error {
 	return nil
 }
 
+func (e *NoopEngine) UpsertAsync(context.Context, []SearchDocument) error {
+	return nil
+}
+
+func (e *NoopEngine) WaitPending(context.Context) error {
+	return nil
+}
+
 func (e *NoopEngine) Delete(context.Context, []DocumentRef) error {
+	return nil
+}
+
+func (e *NoopEngine) DeleteTenant(context.Context, uuid.UUID) error {
 	return nil
 }
 
@@ -25,4 +41,8 @@ func (e *NoopEngine) Search(context.Context, SearchRequest) ([]SearchHit, error)
 
 func (e *NoopEngine) Health(context.Context) error {
 	return nil
+}
+
+func (e *NoopEngine) Stats(context.Context) (*IndexStats, error) {
+	return &IndexStats{}, nil
 }

@@ -59,6 +59,8 @@ func (r *OpenAIRenderer) Render(block context.ContextBlock) (context.RenderedBlo
 		return r.renderToolOutput(block)
 	case context.KindHistory:
 		return r.renderHistory(block)
+	case context.KindContinuation:
+		return r.renderSystem(block)
 	case context.KindTurn:
 		return r.renderTurn(block)
 	default:

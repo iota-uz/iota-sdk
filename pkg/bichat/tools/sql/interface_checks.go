@@ -7,5 +7,5 @@ import "github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 var (
 	_ agents.StructuredTool = (*SQLExecuteTool)(nil)
 	_ agents.StructuredTool = (*SchemaListTool)(nil)
-	_ agents.StructuredTool = (*SchemaDescribeTool)(nil)
+	_ agents.StructuredTool = (*SchemaDescribeBatchTool)(nil)
 )

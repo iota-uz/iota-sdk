@@ -10,8 +10,7 @@ export default defineConfig(({ command }) =>
   createAppletViteConfig({
     basePath: '/bi-chat',
     backendUrl: 'http://localhost:3900',
-    enableLocalSdkAliases: command === 'serve' && Boolean(process.env.IOTA_SDK_DIST),
-    sdkDistDir: process.env.IOTA_SDK_DIST,
+    enableLocalSdkAliases: command === 'serve',
     extend: {
       plugins: [
         react(),

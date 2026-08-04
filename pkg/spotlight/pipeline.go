@@ -3,66 +3,262 @@ package spotlight
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 )
+
+// errTenantMismatch is returned when a provider emits a SearchDocument with
+// a TenantID that does not match the pipeline scope tenant. Granite is
+// currently single-tenant in production, but silently overwriting the
+// field would mask any future cross-tenant leak.
+var errTenantMismatch = errors.New("tenant mismatch")
 
 type IndexerPipeline struct {
 	registry *ProviderRegistry
 	engine   IndexEngine
+	logger   *logrus.Logger
 }
 
-const pipelineUpsertBatchSize = 500
+// pipelineUpsertBatchSize is the default count-based batch size when a
+// provider does not override it via ProviderCapabilities.BatchSize.
+const pipelineUpsertBatchSize = 5000
 
-func NewIndexerPipeline(registry *ProviderRegistry, engine IndexEngine) *IndexerPipeline {
-	return &IndexerPipeline{registry: registry, engine: engine}
+// SyncProviderError records the outcome of a single provider sync. Used
+// inside SyncReportError to expose per-provider granularity to operators.
+type SyncProviderError struct {
+	ProviderID string
+	Err        error
+	DocCount   int
+	BatchCount int
+}
+
+func (e SyncProviderError) Error() string {
+	return fmt.Sprintf("provider %s failed after %d docs / %d batches: %v",
+		e.ProviderID, e.DocCount, e.BatchCount, e.Err)
+}
+
+func (e SyncProviderError) Unwrap() error { return e.Err }
+
+// SyncReportError summarizes the result of a Sync call. It is returned as the
+// error chain when at least one provider failed, so callers can branch
+// with errors.As(err, &report) to inspect details. Issue #2810 §3.4.
+type SyncReportError struct {
+	TotalProviders int
+	Succeeded      []string
+	Failed         []SyncProviderError
+}
+
+func (r *SyncReportError) Error() string {
+	if r == nil || len(r.Failed) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(r.Failed))
+	for _, f := range r.Failed {
+		names = append(names, f.ProviderID)
+	}
+	return fmt.Sprintf("spotlight sync: %d of %d providers failed: %s",
+		len(r.Failed), r.TotalProviders, strings.Join(names, ", "))
+}
+
+// HasFailures reports whether the run had any failed providers. Nil-safe.
+func (r *SyncReportError) HasFailures() bool {
+	return r != nil && len(r.Failed) > 0
+}
+
+type batchStats struct {
+	docCount       int
+	batchCount     int
+	upsertDuration time.Duration
+}
+
+func NewIndexerPipeline(registry *ProviderRegistry, engine IndexEngine, logger *logrus.Logger) *IndexerPipeline {
+	return &IndexerPipeline{registry: registry, engine: engine, logger: logger}
 }
 
 func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language, query string, topK int, scope ScopeConfig) error {
-	const op serrors.Op = "spotlight.IndexerPipeline.Sync"
-
 	providers := p.registry.All()
-	sort.Slice(providers, func(i, j int) bool {
-		return providers[i].ProviderID() < providers[j].ProviderID()
-	})
+	syncStart := time.Now()
+	totalDocs := 0
+	report := &SyncReportError{TotalProviders: 0}
 
-	all := make([]SearchDocument, 0, 256)
 	for _, provider := range providers {
+		if provider.ProviderID() == "core.quick_links" {
+			continue // searched in-memory via QuickLinks.FuzzySearch
+		}
 		enabled, ok := scope.EnabledProviders[provider.ProviderID()]
 		if ok && !enabled {
 			continue
 		}
-		docs, err := provider.ListDocuments(ctx, ProviderScope{
+		report.TotalProviders++
+
+		caps := provider.Capabilities()
+		batchSize := pipelineUpsertBatchSize
+		if caps.BatchSize > 0 {
+			batchSize = caps.BatchSize
+		}
+		stats := &batchStats{}
+		buf := &docBuffer{
+			pipeline:  p,
+			ctx:       ctx,
+			stats:     stats,
+			batchSize: batchSize,
+		}
+		providerStart := time.Now()
+
+		providerScope := ProviderScope{
 			TenantID: tenantID,
 			Language: language,
 			Query:    query,
 			TopK:     topK,
+		}
+		providerErr := provider.StreamDocuments(ctx, providerScope, func(docs []SearchDocument) error {
+			return buf.add(provider.ProviderID(), tenantID, docs)
 		})
-		if err != nil {
-			return serrors.E(op, "provider "+provider.ProviderID()+" failed", err)
+		// Flush remaining buffered docs
+		if providerErr == nil {
+			providerErr = buf.flush()
 		}
-		for i := range docs {
-			docs[i].TenantID = tenantID
-			docs[i].Provider = provider.ProviderID()
-			if docs[i].UpdatedAt.IsZero() {
-				docs[i].UpdatedAt = time.Now().UTC()
+
+		providerDuration := time.Since(providerStart)
+		queryDuration := providerDuration - stats.upsertDuration
+		totalDocs += stats.docCount
+
+		if providerErr != nil {
+			report.Failed = append(report.Failed, SyncProviderError{
+				ProviderID: provider.ProviderID(),
+				Err:        providerErr,
+				DocCount:   stats.docCount,
+				BatchCount: stats.batchCount,
+			})
+			if p.logger != nil {
+				p.logger.WithFields(logrus.Fields{
+					"provider_id": provider.ProviderID(),
+					"docs":        stats.docCount,
+					"batches":     stats.batchCount,
+					"total_ms":    providerDuration.Milliseconds(),
+					"upsert_ms":   stats.upsertDuration.Milliseconds(),
+					"query_ms":    queryDuration.Milliseconds(),
+					"error":       providerErr.Error(),
+				}).Error("Spotlight provider failed")
 			}
+			continue
 		}
-		all = append(all, docs...)
+
+		report.Succeeded = append(report.Succeeded, provider.ProviderID())
+
+		if p.logger != nil {
+			p.logger.WithFields(logrus.Fields{
+				"provider_id": provider.ProviderID(),
+				"docs":        stats.docCount,
+				"batches":     stats.batchCount,
+				"total_ms":    providerDuration.Milliseconds(),
+				"upsert_ms":   stats.upsertDuration.Milliseconds(),
+				"query_ms":    queryDuration.Milliseconds(),
+			}).Info("Spotlight provider indexed")
+		}
 	}
 
-	for start := 0; start < len(all); start += pipelineUpsertBatchSize {
-		end := start + pipelineUpsertBatchSize
-		if end > len(all) {
-			end = len(all)
+	waitStart := time.Now()
+	if err := p.engine.WaitPending(ctx); err != nil {
+		if p.logger != nil {
+			p.logger.WithError(err).Error("Spotlight WaitPending failed")
 		}
-		if err := p.engine.Upsert(ctx, all[start:end]); err != nil {
-			return serrors.E(op, fmt.Sprintf("upsert batch [%d:%d] failed", start, end), err)
+		// Promote WaitPending failures into the aggregated report under
+		// a synthetic provider name so operators see at-a-glance that
+		// the engine drain failed (likely some upserts were lost).
+		report.Failed = append(report.Failed, SyncProviderError{
+			ProviderID: "_engine.WaitPending",
+			Err:        err,
+		})
+	}
+
+	if p.logger != nil {
+		p.logger.WithFields(logrus.Fields{
+			"total_docs":     totalDocs,
+			"total_ms":       time.Since(syncStart).Milliseconds(),
+			"wait_ms":        time.Since(waitStart).Milliseconds(),
+			"provider_count": len(providers),
+			"failed":         len(report.Failed),
+		}).Info("Spotlight sync completed")
+	}
+
+	if report.HasFailures() {
+		return report
+	}
+	return nil
+}
+
+// docBuffer accumulates documents from provider emit calls and flushes
+// them to the engine in larger batches for efficiency. batchSize is the
+// per-provider count ceiling (default pipelineUpsertBatchSize, override
+// via ProviderCapabilities.BatchSize).
+type docBuffer struct {
+	pipeline  *IndexerPipeline
+	ctx       context.Context
+	stats     *batchStats
+	pending   []SearchDocument
+	batchSize int
+}
+
+func (b *docBuffer) add(providerID string, tenantID uuid.UUID, docs []SearchDocument) error {
+	const op serrors.Op = "spotlight.IndexerPipeline.docBuffer.add"
+	now := time.Now().UTC()
+	for i := range docs {
+		if docs[i].TenantID != uuid.Nil && docs[i].TenantID != tenantID {
+			return serrors.E(op,
+				fmt.Sprintf("provider %s emitted document with tenant %s but pipeline scope is %s", providerID, docs[i].TenantID, tenantID),
+				errTenantMismatch)
+		}
+		docs[i].TenantID = tenantID
+		docs[i].Provider = providerID
+		if docs[i].UpdatedAt.IsZero() {
+			docs[i].UpdatedAt = now
 		}
 	}
+	b.stats.docCount += len(docs)
+	b.pending = append(b.pending, docs...)
+
+	batch := b.batchSize
+	if batch <= 0 {
+		batch = pipelineUpsertBatchSize
+	}
+	// Flush full batches
+	for len(b.pending) >= batch {
+		flushBatch := b.pending[:batch]
+		b.pending = b.pending[batch:]
+		if err := b.upsert(flushBatch, providerID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *docBuffer) flush() error {
+	if len(b.pending) == 0 {
+		return nil
+	}
+	providerID := ""
+	if len(b.pending) > 0 {
+		providerID = b.pending[0].Provider
+	}
+	batch := b.pending
+	b.pending = nil
+	return b.upsert(batch, providerID)
+}
+
+func (b *docBuffer) upsert(batch []SearchDocument, providerID string) error {
+	upsertStart := time.Now()
+	if err := b.pipeline.engine.UpsertAsync(b.ctx, batch); err != nil {
+		return serrors.E("spotlight.IndexerPipeline.processProviderBatch",
+			fmt.Sprintf("provider %s upsert batch of %d failed", providerID, len(batch)), err)
+	}
+	b.stats.upsertDuration += time.Since(upsertStart)
+	b.stats.batchCount++
 	return nil
 }

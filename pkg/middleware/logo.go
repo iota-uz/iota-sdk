@@ -9,18 +9,33 @@ import (
 	"github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
-func ProvideDynamicLogo(app application.Application) mux.MiddlewareFunc {
-	tenantService := app.Service(services.TenantService{}).(*services.TenantService)
-	uploadService := app.Service(services.UploadService{}).(*services.UploadService)
-
+// ProvideDynamicLogo resolves tenant and upload services per-request through the
+// composition container.
+func ProvideDynamicLogo() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
+
+			container, err := composition.UseContainer(ctx)
+			if err != nil {
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+			tenantService, err := composition.Resolve[*services.TenantService](container)
+			if err != nil {
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+			uploadService, err := composition.Resolve[*services.UploadService](container)
+			if err != nil {
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
 
 			user, err := composables.UseUser(ctx)
 			if err != nil {

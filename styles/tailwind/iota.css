@@ -168,7 +168,7 @@
     --clr-form-control-bg: var(--transparent);
     --clr-form-control-bg-active: var(--transparent);
     --clr-form-control-placeholder: var(--gray-400);
-    --clr-form-control-border: var(--gray-300);
+    --clr-form-control-border: var(--clr-border-default);
     --clr-form-control-border-hover: var(--primary-500);
     --clr-form-control-text: var(--black);
     --clr-form-control-ring: var(--primary-650) / 20%;
@@ -201,7 +201,16 @@
     --clr-avatar-text: var(--primary-500);
 
     /* Border */
-    --clr-border-primary: var(--gray-300);
+    --clr-border-subtle: var(--gray-200);
+    --clr-border-default: var(--gray-300);
+    --clr-border-strong: var(--gray-500);
+    --clr-border-brand: var(--primary-500);
+    --clr-border-danger: var(--red-500);
+    --clr-border-warning: var(--yellow-500);
+    --clr-border-success: var(--green-500);
+    --clr-border-disabled: var(--gray-200);
+    /* Deprecated compatibility alias. */
+    --clr-border-primary: var(--clr-border-default);
     --clr-border-secondary: var(--gray-100);
     --clr-border-green: var(--green-500);
     --clr-border-pink: var(--pink-500);
@@ -255,22 +264,13 @@
   ::before,
   ::after,
   ::backdrop {
-    border-color: oklch(var(--clr-surface-400));
+    /* Compatibility fallback only. Visible component borders use semantic tokens. */
+    border-color: oklch(var(--clr-border-subtle));
   }
 
   ::selection {
     background-color: oklch(var(--primary-600));
     color: oklch(var(--white));
-  }
-
-  :popover-open {
-    width: 200px;
-    height: 100px;
-    position: absolute;
-    inset: unset;
-    bottom: 5px;
-    right: 5px;
-    margin: 0;
   }
 
   html.dark {
@@ -301,7 +301,15 @@
     --clr-avatar-text: var(--primary-400);
 
     /* Border */
-    --clr-border-primary: var(--black-800);
+    --clr-border-subtle: var(--gray-800);
+    --clr-border-default: var(--gray-700);
+    --clr-border-strong: var(--gray-500);
+    --clr-border-brand: var(--primary-400);
+    --clr-border-danger: var(--red-500);
+    --clr-border-warning: var(--yellow-500);
+    --clr-border-success: var(--green-600);
+    --clr-border-disabled: var(--gray-800);
+    --clr-border-primary: var(--clr-border-default);
     --clr-border-secondary: var(--black-950);
     --clr-border-green: var(--green-600);
     --clr-border-pink: var(--pink-600);
@@ -320,7 +328,7 @@
     --clr-form-control-bg: var(--black);
     --clr-form-control-bg-active: var(--black);
     --clr-form-control-placeholder: var(--gray-100);
-    --clr-form-control-border: var(--black-800);
+    --clr-form-control-border: var(--clr-border-default);
     --clr-form-control-border-hover: var(--primary-500);
     --clr-form-control-text: var(--white);
     --clr-form-control-ring: var(--primary-650);
@@ -630,8 +638,48 @@
     --display: block;
   }
 
+  /*
+   * Loading state (stale-while-revalidate): while an HTMX row/content swap is
+   * in flight, dim the previous rows in place and show a centered spinner via
+   * .table-loading-overlay, instead of hiding the rows and blanking the table
+   * body. Custom class names are used deliberately: `.hidden` collides with
+   * Tailwind's utility (which lives in @layer utilities and wins on layer
+   * order regardless of specificity), so a `.htmx-request .hidden` reveal can
+   * never take effect — see the dead rules below.
+   */
   .htmx-request .hide-on-load {
+    opacity: 0.5;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+
+  /* Fully self-contained styling (no utility classes) so the overlay renders
+     correctly regardless of which template roots a consumer's Tailwind build
+     scans for class generation. */
+  .table-loading-overlay {
     display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .htmx-request .table-loading-overlay {
+    display: flex;
+  }
+
+  .table-loading-overlay__card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.875rem;
+    border-radius: 9999px;
+    background-color: #fff;
+    box-shadow:
+      0 6px 18px rgba(2, 6, 23, 0.14),
+      0 1px 3px rgba(2, 6, 23, 0.1);
   }
 
   .htmx-request.hide-on-load {
@@ -675,6 +723,7 @@
     display: grid;
     align-content: start;
     background-color: oklch(var(--bg-color));
+    border: 1px solid oklch(var(--clr-border-subtle));
     color: oklch(var(--text-color));
     max-inline-size: min(90vw, var(--size-content-3));
     margin: auto;
@@ -682,7 +731,21 @@
     position: fixed;
     inset: 0;
     overflow: clip;
-    transition: opacity 500ms var(--ease-3);
+    /* `display`/`overlay` are transitioned with allow-discrete so the closed
+       `display: none` (below) is deferred for the 500ms slide-out animation
+       instead of collapsing the box mid-exit. */
+    transition:
+      opacity 500ms var(--ease-3),
+      display 500ms allow-discrete,
+      overlay 500ms allow-discrete;
+  }
+
+  /* Start the open transition from the closed (opacity 0) state so the dialog
+     fades/slides in when it enters the top layer from `display: none`. */
+  @starting-style {
+    .dialog[open] {
+      opacity: 0;
+    }
   }
 
   .dialog-rounded {
@@ -710,6 +773,10 @@
   }
 
   .dialog:not([open]) {
+    /* Remove the closed dialog from layout + the a11y tree. `display` is
+       transitioned with allow-discrete (see `.dialog`) so the slide-out
+       animation still plays before the box collapses. */
+    display: none;
     pointer-events: none;
     opacity: 0;
   }
@@ -986,6 +1053,137 @@
   .sidebar-collapse-cursor [role="button"] {
     cursor: pointer;
   }
+
+  .help-article {
+    max-width: 48rem;
+    color: oklch(var(--gray-800));
+    font-size: 0.95rem;
+    line-height: 1.75;
+  }
+
+  .help-article > * + * {
+    margin-top: 1rem;
+  }
+
+  .help-article h1 {
+    color: oklch(var(--gray-950));
+    font-size: 2rem;
+    font-weight: 650;
+    line-height: 1.2;
+    letter-spacing: 0;
+    margin-bottom: 1rem;
+  }
+
+  .help-article h2 {
+    color: oklch(var(--gray-900));
+    font-size: 1.15rem;
+    font-weight: 650;
+    line-height: 1.35;
+    letter-spacing: 0;
+    margin-top: 2rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid oklch(var(--gray-200));
+  }
+
+  .help-article h3 {
+    color: oklch(var(--gray-900));
+    font-size: 1rem;
+    font-weight: 650;
+    line-height: 1.45;
+    margin-top: 1.5rem;
+  }
+
+  .help-article p {
+    max-width: 42rem;
+    color: oklch(var(--gray-700));
+  }
+
+  .help-article ul,
+  .help-article ol {
+    max-width: 42rem;
+    padding-left: 1.35rem;
+    color: oklch(var(--gray-700));
+  }
+
+  .help-article ul {
+    list-style: disc;
+  }
+
+  .help-article ol {
+    list-style: decimal;
+  }
+
+  .help-article li {
+    padding-left: 0.2rem;
+    margin-top: 0.35rem;
+  }
+
+  .help-article li::marker {
+    color: oklch(var(--primary-600));
+    font-weight: 650;
+  }
+
+  .help-article strong {
+    color: oklch(var(--gray-900));
+    font-weight: 650;
+  }
+
+  .help-article a {
+    color: oklch(var(--primary-600));
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+
+  .help-article blockquote {
+    max-width: 42rem;
+    border-left: 3px solid oklch(var(--primary-500));
+    background: oklch(var(--primary-50) / 45%);
+    color: oklch(var(--gray-800));
+    padding: 0.8rem 1rem;
+    border-radius: 0 0.375rem 0.375rem 0;
+  }
+
+  .help-article code {
+    border-radius: 0.25rem;
+    background: oklch(var(--gray-100));
+    color: oklch(var(--gray-900));
+    padding: 0.12rem 0.3rem;
+    font-size: 0.88em;
+  }
+
+  .help-article pre {
+    max-width: 100%;
+    overflow-x: auto;
+    border-radius: 0.5rem;
+    background: oklch(var(--gray-950));
+    color: oklch(var(--gray-50));
+    padding: 1rem;
+  }
+
+  .help-article pre code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+  }
+
+  .help-article table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  .help-article th,
+  .help-article td {
+    border-bottom: 1px solid oklch(var(--gray-200));
+    padding: 0.65rem 0.75rem;
+    text-align: left;
+  }
+
+  .help-article th {
+    color: oklch(var(--gray-900));
+    font-weight: 650;
+    background: oklch(var(--gray-50));
+  }
 }
 
 @layer utilities {
@@ -1161,4 +1359,78 @@
 
 .lazy-load * {
   transition: opacity 300ms ease-in;
+}
+
+/* Spotlight AI progress shimmer */
+.spotlight-shimmer {
+  -webkit-mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 1) 40%,
+    rgba(0, 0, 0, 0.2) 50%,
+    rgba(0, 0, 0, 1) 60%,
+    rgba(0, 0, 0, 1) 80%
+  );
+  mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 1) 40%,
+    rgba(0, 0, 0, 0.2) 50%,
+    rgba(0, 0, 0, 1) 60%,
+    rgba(0, 0, 0, 1) 80%
+  );
+  -webkit-mask-size: 300% 100%;
+  mask-size: 300% 100%;
+  animation: spotlight-shimmer 4.5s linear infinite;
+}
+
+.dark .spotlight-shimmer {
+  -webkit-mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 15%,
+    rgba(0, 0, 0, 1) 35%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 1) 65%,
+    rgba(0, 0, 0, 1) 85%
+  );
+  mask-image: linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 1) 15%,
+    rgba(0, 0, 0, 1) 35%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 1) 65%,
+    rgba(0, 0, 0, 1) 85%
+  );
+}
+
+@keyframes spotlight-shimmer {
+  0% {
+    -webkit-mask-position: 130% 0;
+    mask-position: 130% 0;
+  }
+  100% {
+    -webkit-mask-position: -30% 0;
+    mask-position: -30% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotlight-shimmer {
+    animation: none;
+  }
+}
+
+/*
+ * Infinite-scroll loading spinner reveal (scaffold/table InfiniteScrollSpinner).
+ * The row stays `class="hidden"` so it is display:none at rest AND so the
+ * fillGrid() scroll-guard (`tr:not(.hidden) > td[colspan]` in alpine.js) keeps
+ * excluding it — removing `.hidden` would make fillGrid treat the spinner as an
+ * empty-state row and lock table scrolling. Its `hx-indicator` puts
+ * `.htmx-request` on the row itself while the next page loads; reveal it then.
+ * Unlayered (not @layer) on purpose: Tailwind's `.hidden { display:none }` lives
+ * in @layer utilities and wins over any layered rule regardless of specificity,
+ * so the reveal must be unlayered to override it.
+ */
+#infinite-scroll-spinner.htmx-request {
+  display: table-row;
 }

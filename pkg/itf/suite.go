@@ -18,8 +18,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -40,23 +40,23 @@ type Suite struct {
 	t           testing.TB
 	env         *TestEnvironment
 	router      *mux.Router
-	modules     []application.Module
+	modules     []composition.Component
 	user        user.User
 	middlewares []MiddlewareFunc
 	beforeEach  []HookFunc
 }
 
-func NewSuite(tb testing.TB, modules ...application.Module) *Suite {
+func NewSuite(tb testing.TB, components ...composition.Component) *Suite {
 	tb.Helper()
 
 	s := &Suite{
 		t:           tb,
-		modules:     modules,
+		modules:     components,
 		middlewares: make([]MiddlewareFunc, 0),
 		beforeEach:  make([]HookFunc, 0),
 	}
 
-	s.env = newTestContext().WithModules(modules...).Build(tb)
+	s.env = newTestContext().WithComponents(components...).Build(tb)
 	s.router = mux.NewRouter()
 	s.setupMiddleware()
 
@@ -172,7 +172,7 @@ func (s *Suite) newRequest(method, path string) *Request {
 
 func (s *Suite) setupMiddleware() {
 	// Use the standard middleware for i18n/localizer setup
-	s.router.Use(middleware.ProvideLocalizer(s.env.App))
+	s.router.Use(middleware.ProvideLocalizer(s.env.App.Bundle(), s.env.App.GetSupportedLanguages()))
 
 	s.router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -196,6 +196,9 @@ func (s *Suite) setupMiddleware() {
 			ctx = composables.WithSession(ctx, MockSession())
 			ctx = composables.WithTenantID(ctx, s.env.Tenant.ID)
 			ctx = context.WithValue(ctx, constants.AppKey, s.env.App)
+			if s.env.Container != nil {
+				ctx = context.WithValue(ctx, constants.ContainerKey, s.env.Container)
+			}
 			ctx = context.WithValue(ctx, constants.HeadKey, templ.NopComponent)
 			ctx = context.WithValue(ctx, constants.LogoKey, templ.NopComponent)
 
@@ -381,11 +384,6 @@ func (m *MultipartData) AddForm(formValues url.Values) *MultipartData {
 		}
 	}
 	return m
-}
-
-// Deprecated: Use MultipartData with NewMultipart() instead for more flexibility
-func (r *Request) File(fieldName, fileName string, content []byte) *Request {
-	return r.MultipartData(NewMultipart().AddFile(fieldName, fileName, content))
 }
 
 func (r *Request) MultipartData(data *MultipartData) *Request {

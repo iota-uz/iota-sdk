@@ -23,7 +23,7 @@ type AgentMetadata struct {
 	WhenToUse string
 
 	// Model is the LLM model identifier this agent uses.
-	// Example: "gpt-5.2", "claude-opus-4-6", "gpt-5-mini"
+	// Example: "gpt-5.2", "claude-opus-4-6", "gpt-5.4-mini"
 	Model string
 
 	// TerminationTools is a list of tool names that cause the agent to stop.

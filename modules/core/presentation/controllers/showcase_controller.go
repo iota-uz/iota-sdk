@@ -3,7 +3,6 @@
 package controllers
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -19,28 +18,34 @@ import (
 	showcase "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	lensdocument "github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lenspostgres "github.com/iota-uz/iota-sdk/pkg/lens/postgres"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	lensserve "github.com/iota-uz/iota-sdk/pkg/lens/serve"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 type ShowcaseController struct {
-	app      application.Application
-	basePath string
-	ds       datasource.DataSource
+	basePath  string
+	httpCfg   *httpconfig.Config
+	appCfg    *appconfig.Config
+	ds        datasource.DataSource
+	runtime   *runtime.Runtime
+	snapshots lensdocument.SnapshotStore
 }
 
-func NewShowcaseController(app application.Application) application.Controller {
-	config := configuration.Use()
+func NewShowcaseController(dbCfg *dbconfig.Config, httpCfg *httpconfig.Config, appCfg *appconfig.Config) application.Controller {
 	ds, err := lenspostgres.New(lenspostgres.Config{
-		ConnectionString: config.Database.ConnectionString(),
+		ConnectionString: dbCfg.ConnectionString(),
 		MaxConnections:   5,
 		MinConnections:   1,
 		QueryTimeout:     30 * time.Second,
@@ -48,21 +53,26 @@ func NewShowcaseController(app application.Application) application.Controller {
 	})
 	if err != nil {
 		log.Printf("Failed to create lens data source for showcase: %v", err)
-		return &ShowcaseController{app: app, basePath: "/_dev"}
+		return &ShowcaseController{
+			basePath: "/_dev", httpCfg: httpCfg, appCfg: appCfg,
+			runtime: runtime.New(runtime.Options{}), snapshots: lensdocument.NewMemoryStore(30*time.Minute, 128),
+		}
 	}
-	return &ShowcaseController{app: app, basePath: "/_dev", ds: ds}
+	return &ShowcaseController{
+		basePath: "/_dev", httpCfg: httpCfg, appCfg: appCfg, ds: ds,
+		runtime: runtime.New(runtime.Options{}), snapshots: lensdocument.NewMemoryStore(30*time.Minute, 128),
+	}
 }
 
-func (c *ShowcaseController) Key() string {
-	return c.basePath
+func (c *ShowcaseController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.showcase", 0, application.Route("", c.basePath))
 }
 
 func (c *ShowcaseController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -75,17 +85,22 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router.HandleFunc("/components/tooltips", di.H(c.Tooltips)).Methods(http.MethodGet)
 	router.HandleFunc("/components/subscription", di.H(c.Subscription)).Methods(http.MethodGet)
 	router.HandleFunc("/lens", di.H(c.Lens)).Methods(http.MethodGet)
+	router.HandleFunc("/lens/document", c.LensDocument).Methods(http.MethodGet)
+	router.HandleFunc("/lens/lens/query", c.LensQuery).Methods(http.MethodPost)
+	router.HandleFunc("/lens/export", c.LensExport).Methods(http.MethodGet)
 	router.HandleFunc("/error-pages/403", di.H(c.Error403Page)).Methods(http.MethodGet)
 	router.HandleFunc("/error-pages/404", di.H(c.Error404Page)).Methods(http.MethodGet)
 	router.HandleFunc("/error-preview/403", di.H(c.Error403Preview)).Methods(http.MethodGet)
 	router.HandleFunc("/error-preview/404", di.H(c.Error404Preview)).Methods(http.MethodGet)
 	router.HandleFunc("/api/showcase/toast-example", di.H(c.ToastExample)).Methods(http.MethodPost)
 
-	log.Printf(
-		"See %s%s for docs\n",
-		configuration.Use().Origin,
-		c.basePath,
-	)
+	if c.appCfg != nil {
+		log.Printf(
+			"See %s%s for docs\n",
+			c.httpCfg.Origin(c.appCfg),
+			c.basePath,
+		)
+	}
 }
 
 func (c *ShowcaseController) getSidebarProps() sidebar.Props {
@@ -226,7 +241,23 @@ func (c *ShowcaseController) Lens(
 	logger *logrus.Entry,
 ) {
 	params := tenantParams(r)
-	dash := lensbuild.Dashboard("sdk-core-analytics", "IOTA SDK Core Analytics",
+	dash := showcaseLensDashboard(params)
+	available := params != nil && c.ds != nil
+	if !available {
+		logger.Warn("lens showcase dashboard data source is unavailable")
+	}
+
+	props := showcase.LensPageProps{
+		SidebarProps: c.getSidebarProps(),
+		Dashboard:    dash,
+		DocumentURL:  c.basePath + "/lens/document",
+		Available:    available,
+	}
+	templ.Handler(showcase.LensPage(props)).ServeHTTP(w, r)
+}
+
+func showcaseLensDashboard(params map[string]lens.ParamValue) lens.DashboardSpec {
+	return lensbuild.Dashboard("sdk-core-analytics", "IOTA SDK Core Analytics",
 		lensbuild.Row(
 			panel.TimeSeries("user-registrations", "User Registrations Over Time", "user-registrations").Span(6).Build(),
 			panel.Bar("user-languages", "User Interface Languages", "user-languages").Span(6).Build(),
@@ -263,31 +294,56 @@ func (c *ShowcaseController) Lens(
 			params,
 		),
 	).Build()
+}
 
-	var results *runtime.DashboardResult
-	if params == nil {
-		logger.Warn("skipping lens showcase dashboard execution because tenant context is missing")
-	} else if c.ds != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		defer cancel()
-		executed, err := runtime.Execute(ctx, dash, runtime.Runtime{
-			DataSources: map[string]datasource.DataSource{
-				"primary": c.ds,
-			},
-		})
-		if err != nil {
-			logger.WithError(err).Error("failed to execute lens showcase dashboard")
-		} else {
-			results = executed
-		}
+func (c *ShowcaseController) LensDocument(w http.ResponseWriter, r *http.Request) {
+	handlers, err := c.lensHandlers(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
 	}
+	handlers.Document(w, r)
+}
 
-	props := showcase.LensPageProps{
-		SidebarProps: c.getSidebarProps(),
-		Dashboard:    dash,
-		Results:      results,
+func (c *ShowcaseController) LensQuery(w http.ResponseWriter, r *http.Request) {
+	handlers, err := c.lensHandlers(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
 	}
-	templ.Handler(showcase.LensPage(props)).ServeHTTP(w, r)
+	handlers.Query(w, r)
+}
+
+func (c *ShowcaseController) LensExport(w http.ResponseWriter, r *http.Request) {
+	handlers, err := c.lensHandlers(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	handlers.Export(w, r)
+}
+
+func (c *ShowcaseController) lensHandlers(r *http.Request) (*lensserve.Handlers, error) {
+	if c.ds == nil {
+		return nil, fmt.Errorf("showcase data source is unavailable")
+	}
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		return nil, fmt.Errorf("showcase tenant lookup: %w", err)
+	}
+	spec := showcaseLensDashboard(map[string]lens.ParamValue{"tenant_id": {Literal: tenantID}})
+	return lensserve.New(lensserve.Config{
+		Spec: spec, Engine: c.runtime, Snapshots: c.snapshots,
+		BasePath: c.basePath + "/lens", InlineDepth: 1,
+		Request: func(*http.Request) runtime.Request {
+			return runtime.Request{
+				DataSources:          map[string]datasource.DataSource{"primary": c.ds},
+				DataSourceIdentities: map[string]string{"primary": "core-postgres:v1"},
+				DataScope:            tenantID.String(),
+				Namespace:            "core.showcase",
+			}
+		},
+	})
 }
 
 func tenantParams(r *http.Request) map[string]lens.ParamValue {

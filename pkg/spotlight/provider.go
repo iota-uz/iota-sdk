@@ -11,9 +11,22 @@ import (
 )
 
 type ProviderCapabilities struct {
-	SupportsWatch bool
 	EntityTypes   []string
+	IndexPriority int
+	// BatchSize, when positive, overrides the default pipeline upsert batch
+	// size for this provider. Use a smaller value for providers that emit
+	// large per-document payloads (e.g., long body text) to avoid hitting
+	// the engine's per-request size limit. Use a larger value for very
+	// small docs to amortize round-trip cost.
+	BatchSize int
+	// MaxBytes, when positive, caps the projected JSON payload size in
+	// bytes for any single upsert batch from this provider. Providers
+	// with highly variable document sizes should set this rather than
+	// (or in addition to) BatchSize.
+	MaxBytes int
 }
+
+const ProviderStreamBatchSize = 500
 
 type ProviderScope struct {
 	TenantID uuid.UUID
@@ -22,11 +35,32 @@ type ProviderScope struct {
 	TopK     int
 }
 
+type DocumentBatchEmitter func([]SearchDocument) error
+
 type SearchProvider interface {
 	ProviderID() string
 	Capabilities() ProviderCapabilities
-	ListDocuments(ctx context.Context, scope ProviderScope) ([]SearchDocument, error)
-	Watch(ctx context.Context, scope ProviderScope) (<-chan DocumentEvent, error)
+	StreamDocuments(ctx context.Context, scope ProviderScope, emit DocumentBatchEmitter) error
+}
+
+func CollectDocumentStream(_ context.Context, streamer func(DocumentBatchEmitter) error) ([]SearchDocument, error) {
+	var out []SearchDocument
+	if err := streamer(func(batch []SearchDocument) error {
+		out = append(out, batch...)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func CollectDocuments(ctx context.Context, provider SearchProvider, scope ProviderScope) ([]SearchDocument, error) {
+	if provider == nil {
+		return nil, nil
+	}
+	return CollectDocumentStream(ctx, func(emit DocumentBatchEmitter) error {
+		return provider.StreamDocuments(ctx, scope, emit)
+	})
 }
 
 type ProviderRegistry struct {
@@ -61,14 +95,19 @@ func (r *ProviderRegistry) Get(id string) (SearchProvider, bool) {
 func (r *ProviderRegistry) All() []SearchProvider {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	ids := make([]string, 0, len(r.providers))
-	for id := range r.providers {
-		ids = append(ids, id)
+	out := make([]SearchProvider, 0, len(r.providers))
+	for _, provider := range r.providers {
+		out = append(out, provider)
 	}
-	sort.Strings(ids)
-	out := make([]SearchProvider, 0, len(ids))
-	for _, id := range ids {
-		out = append(out, r.providers[id])
-	}
+	sort.SliceStable(out, func(i, j int) bool {
+		left := out[i]
+		right := out[j]
+		leftPriority := left.Capabilities().IndexPriority
+		rightPriority := right.Capabilities().IndexPriority
+		if leftPriority != rightPriority {
+			return leftPriority > rightPriority
+		}
+		return left.ProviderID() < right.ProviderID()
+	})
 	return out
 }

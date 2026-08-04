@@ -15,7 +15,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	httpcookies "github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	httpsession "github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/session"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/security"
@@ -26,15 +29,29 @@ import (
 // NewTwoFactorVerifyController creates a new TwoFactorVerifyController.
 // Initializes the controller with required service dependencies.
 // Parameters:
-//   - app: The application instance providing service registry
+//   - app: The application instance providing services (localizer, middleware)
+//   - twoFactorService: The two-factor authentication service
+//   - sessionService: The session management service
+//   - userService: The user management service
 //
 // Returns a configured TwoFactorVerifyController implementing the Controller interface.
-func NewTwoFactorVerifyController(app application.Application) application.Controller {
+func NewTwoFactorVerifyController(
+	twoFactorService *twofactor.TwoFactorService,
+	sessionService *services.SessionService,
+	userService *services.UserService,
+	httpCfg *httpconfig.Config,
+	cookiesCfg *httpcookies.Config,
+	sessionCfg *httpsession.Config,
+	appCfg *appconfig.Config,
+) application.Controller {
 	return &TwoFactorVerifyController{
-		app:              app,
-		twoFactorService: app.Service(twofactor.TwoFactorService{}).(*twofactor.TwoFactorService),
-		sessionService:   app.Service(services.SessionService{}).(*services.SessionService),
-		userService:      app.Service(services.UserService{}).(*services.UserService),
+		twoFactorService: twoFactorService,
+		sessionService:   sessionService,
+		userService:      userService,
+		httpCfg:          httpCfg,
+		cookiesCfg:       cookiesCfg,
+		sessionCfg:       sessionCfg,
+		appCfg:           appCfg,
 	}
 }
 
@@ -42,16 +59,19 @@ func NewTwoFactorVerifyController(app application.Application) application.Contr
 // Provides code verification, recovery code fallback, and OTP resend functionality.
 // Routes are mounted at /login/2fa/verify and require authentication (pending 2FA session).
 type TwoFactorVerifyController struct {
-	app              application.Application
 	twoFactorService *twofactor.TwoFactorService
 	sessionService   *services.SessionService
 	userService      *services.UserService
+	httpCfg          *httpconfig.Config
+	cookiesCfg       *httpcookies.Config
+	sessionCfg       *httpsession.Config
+	appCfg           *appconfig.Config
 }
 
-// Key returns the base route path for this controller.
+// Descriptor returns the controller descriptor.
 // Implements the Controller interface.
-func (c *TwoFactorVerifyController) Key() string {
-	return "/login/2fa/verify"
+func (c *TwoFactorVerifyController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.twofactor_verify", 0, application.Route("", "/login/2fa/verify"))
 }
 
 // Register registers all HTTP routes for 2FA verification flows.
@@ -66,7 +86,6 @@ func (c *TwoFactorVerifyController) Register(r *mux.Router) {
 	verifyRouter := r.PathPrefix("/login/2fa/verify").Subrouter()
 	verifyRouter.Use(
 		middleware.AuthorizeAnySession(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.WithPageContext(),
 	)
 
@@ -201,7 +220,6 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 
 	// Update session to Active status with full session duration
 	// Pending sessions have 10-minute TTL, active sessions get full duration
-	conf := configuration.Use()
 	updatedSession := session.New(
 		sess.Token(),
 		sess.UserID(),
@@ -210,7 +228,7 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 		sess.UserAgent(),
 		session.WithStatus(session.StatusActive),
 		session.WithAudience(sess.Audience()),
-		session.WithExpiresAt(time.Now().Add(conf.SessionDuration)),
+		session.WithExpiresAt(time.Now().Add(c.sessionCfg.Duration)),
 		session.WithCreatedAt(sess.CreatedAt()),
 	)
 
@@ -222,13 +240,13 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 
 	// Update the session cookie with new expiry to match the extended DB session
 	sessionCookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
+		Name:     c.cookiesCfg.SID,
 		Value:    updatedSession.Token(),
 		Expires:  updatedSession.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
+		Secure:   c.appCfg.IsProduction(),
+		Domain:   c.cookiesCfg.Domain,
 		Path:     "/",
 	}
 	http.SetCookie(w, sessionCookie)
@@ -330,7 +348,6 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 
 	// Update session to Active status with full session duration
 	// Pending sessions have 10-minute TTL, active sessions get full duration
-	conf := configuration.Use()
 	updatedSession := session.New(
 		sess.Token(),
 		sess.UserID(),
@@ -339,7 +356,7 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 		sess.UserAgent(),
 		session.WithStatus(session.StatusActive),
 		session.WithAudience(sess.Audience()),
-		session.WithExpiresAt(time.Now().Add(conf.SessionDuration)),
+		session.WithExpiresAt(time.Now().Add(c.sessionCfg.Duration)),
 		session.WithCreatedAt(sess.CreatedAt()),
 	)
 
@@ -351,13 +368,13 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 
 	// Update the session cookie with new expiry to match the extended DB session
 	sessionCookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
+		Name:     c.cookiesCfg.SID,
 		Value:    updatedSession.Token(),
 		Expires:  updatedSession.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
+		Secure:   c.appCfg.IsProduction(),
+		Domain:   c.cookiesCfg.Domain,
 		Path:     "/",
 	}
 	http.SetCookie(w, sessionCookie)

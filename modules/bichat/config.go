@@ -222,6 +222,8 @@ type ModuleConfig struct {
 	// Optional: Token Estimator for cost tracking and budget management
 	// If not provided, a no-op estimator will be used
 	TokenEstimator agents.TokenEstimator
+	// Optional: additional executor options applied to each parent agent run.
+	ExecutorOptions []agents.ExecutorOption
 
 	// Optional: Observability
 	Logger                 *logrus.Logger
@@ -260,6 +262,26 @@ type ModuleConfig struct {
 	StreamRequireAccessPermission permission.Permission
 	StreamReadAllPermission       permission.Permission
 
+	// Optional: Stale-run reaper tuning. Zero values fall back to the
+	// defaults in run_reaper.go (15s interval, 60s stale threshold, 30s lock TTL).
+	ReaperInterval       time.Duration
+	ReaperStaleThreshold time.Duration
+	ReaperLockTTL        time.Duration
+
+	// Applet dev-mode settings. Populated from bichatconfig.AppletConfig during Build.
+	// IsDev true enables Vite proxy mode; defaults come from bichatconfig.SetDefaults.
+	IsDev         bool
+	AppletViteURL string
+	AppletEntry   string
+	AppletClient  string
+	// OpenAIAPIKeyConfigured reports whether the OpenAI API key was set at construction
+	// time. Used by the React applet context to indicate LLM availability without
+	// re-reading env vars at request time.
+	OpenAIAPIKeyConfigured bool
+	// LangfuseBaseURL is the Langfuse host URL for building trace links in debug
+	// traces. Set via WithLangfuseBaseURL when Langfuse is configured.
+	LangfuseBaseURL string
+
 	// Internal: Build-time state (resolved once during BuildServices).
 	resolvedProjectPromptExtension string
 	projectPromptExtensionResolved bool
@@ -271,20 +293,30 @@ type ModuleConfig struct {
 // ServiceContainer holds built services created by ModuleConfig.BuildServices().
 // Use accessor methods to retrieve individual services.
 type ServiceContainer struct {
-	sessionCommands   bichatservices.SessionCommands
-	sessionQueries    bichatservices.SessionQueries
-	turnCommands      bichatservices.TurnCommands
-	turnQueries       bichatservices.TurnQueries
-	streamCommands    bichatservices.StreamCommands
-	hitlCommands      bichatservices.HITLCommands
-	agentService      bichatservices.AgentService
-	attachmentService bichatservices.AttachmentService
-	artifactService   bichatservices.ArtifactService
-	observability     *services.StreamObservability
-	titleService      services.TitleService
-	titleJobQueue     *services.RedisTitleJobQueue
-	titleQueueConfig  *TitleQueueConfig
-	logger            *logrus.Logger
+	sessionCommands      bichatservices.SessionCommands
+	sessionQueries       bichatservices.SessionQueries
+	turnCommands         bichatservices.TurnCommands
+	continuationCommands bichatservices.ContinuationCommands
+	turnQueries          bichatservices.TurnQueries
+	streamCommands       bichatservices.StreamCommands
+	hitlCommands         bichatservices.HITLCommands
+	agentService         bichatservices.AgentService
+	attachmentService    bichatservices.AttachmentService
+	artifactService      bichatservices.ArtifactService
+	observability        *services.StreamObservability
+	titleService         services.TitleService
+	titleJobQueue        *services.RedisTitleJobQueue
+	titleQueueConfig     *TitleQueueConfig
+	logger               *logrus.Logger
+	// sharedRedisClose is the single owner of the *redis.Client shared across
+	// all Redis-backed components (event log, active-run index, job queue).
+	// Component Close() calls are no-ops when the client was supplied externally.
+	// Call CloseSharedRedis() once during shutdown to release the connection.
+	sharedRedisClose func() error
+	// Reaper tunables forwarded from ModuleConfig. Zero means use defaults.
+	reaperInterval       time.Duration
+	reaperStaleThreshold time.Duration
+	reaperLockTTL        time.Duration
 }
 
 // SessionCommands returns session mutating actions.
@@ -297,6 +329,11 @@ func (sc *ServiceContainer) SessionQueries() bichatservices.SessionQueries { ret
 
 // TurnCommands returns non-streaming turn command actions.
 func (sc *ServiceContainer) TurnCommands() bichatservices.TurnCommands { return sc.turnCommands }
+
+// ContinuationCommands returns trusted internal continuation actions.
+func (sc *ServiceContainer) ContinuationCommands() bichatservices.ContinuationCommands {
+	return sc.continuationCommands
+}
 
 // TurnQueries returns turn query actions.
 func (sc *ServiceContainer) TurnQueries() bichatservices.TurnQueries { return sc.turnQueries }
@@ -364,6 +401,30 @@ func (sc *ServiceContainer) CloseTitleQueue() error {
 	err := sc.titleJobQueue.Close()
 	sc.titleJobQueue = nil
 	return err
+}
+
+// CloseSharedRedis releases the shared *redis.Client that backs the event log,
+// active-run index, and run job queue. Must be called exactly once at shutdown;
+// no-op when Redis was not configured.
+func (sc *ServiceContainer) CloseSharedRedis() error {
+	if sc.sharedRedisClose == nil {
+		return nil
+	}
+	return sc.sharedRedisClose()
+}
+
+// NewRunReaper builds the stale-run reaper when Redis is configured.
+// Returns (nil, nil) when REDIS_URL is unset so the caller can skip
+// the reaper without branching on a sentinel. Reaper interval / stale
+// threshold / lock TTL are forwarded from the ModuleConfig tunables;
+// zero values fall back to the per-constant defaults in run_reaper.go.
+func (sc *ServiceContainer) NewRunReaper() (*services.RunReaper, error) {
+	return services.NewConfiguredRunReaperWithTunables(
+		sc.logger,
+		sc.reaperInterval,
+		sc.reaperStaleThreshold,
+		sc.reaperLockTTL,
+	)
 }
 
 // ConfigOption is a functional option for ModuleConfig

@@ -39,7 +39,7 @@ func setupTestWithPermissions(t *testing.T, permissions ...permission.Permission
 
 	user := itf.User(permissions...)
 	return itf.Setup(t,
-		itf.WithModules(modules.BuiltInModules...),
+		itf.WithComponents(modules.Components()...),
 		itf.WithUser(user),
 	)
 }

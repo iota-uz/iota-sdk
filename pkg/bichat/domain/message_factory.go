@@ -60,6 +60,7 @@ func NewUserMessage(spec UserMessageSpec) (types.Message, error) {
 }
 
 func NewAssistantMessage(spec AssistantMessageSpec) (types.Message, error) {
+	spec = normalizeAssistantMessageUTF8(spec)
 	if spec.SessionID == uuid.Nil {
 		return nil, ErrInvalidAssistantMessage
 	}

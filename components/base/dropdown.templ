@@ -1,5 +1,7 @@
 package base
 
+import "github.com/iota-uz/iota-sdk/pkg/composables"
+
 type DropdownItemProps struct {
 	Href string
 }
@@ -21,6 +23,29 @@ templ DropdownItem(props DropdownItemProps) {
 	</li>
 }
 
+type DropdownFormItemProps struct {
+	Action string
+	Method string
+}
+
+func normalizeDropdownFormMethod(method string) string {
+	if method == "" {
+		return "post"
+	}
+	return method
+}
+
+templ DropdownFormItem(props DropdownFormItemProps) {
+	<li>
+		<form action={ templ.SafeURL(props.Action) } method={ normalizeDropdownFormMethod(props.Method) }>
+			@composables.CSRFTokenField()
+			<button type="submit" class="block w-full p-2 text-left duration-200 hover:bg-surface-400 rounded-md">
+				{ children... }
+			</button>
+		</form>
+	</li>
+}
+
 type DetailsDropdownProps struct {
 	Summary templ.Component
 	Classes templ.CSSClasses
@@ -34,7 +59,7 @@ func newDetailsDropdown(props *DetailsDropdownProps) *DetailsDropdownProps {
 }
 
 templ (p *DetailsDropdownProps) render() {
-	<div class={ p.Classes.String() }>
+	<div class={ templ.Classes("relative", p.Classes) }>
 		<details class="relative z-10 peer" name="details-dropdown">
 			if p.Summary != nil {
 				@p.Summary

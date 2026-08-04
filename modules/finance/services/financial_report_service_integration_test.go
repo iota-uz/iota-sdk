@@ -37,15 +37,15 @@ func reportCommittedCtx(fixtures *itf.TestEnvironment) context.Context {
 
 // Helper functions to get services
 func getExpenseService(env *itf.TestEnvironment) *services.ExpenseService {
-	return env.Service(services.ExpenseService{}).(*services.ExpenseService)
+	return itf.GetService[services.ExpenseService](env)
 }
 
 func getExpenseCategoryService(env *itf.TestEnvironment) *services.ExpenseCategoryService {
-	return env.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
+	return itf.GetService[services.ExpenseCategoryService](env)
 }
 
 func getCounterpartyService(env *itf.TestEnvironment) *services.CounterpartyService {
-	return env.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	return itf.GetService[services.CounterpartyService](env)
 }
 
 func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
@@ -60,7 +60,7 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		ctx := reportCommittedCtx(env)
 
 		// Create USD currency first
-		currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
+		currencyService := itf.GetService[coreServices.CurrencyService](env)
 		currencyDTO := &currency.CreateDTO{
 			Code:   string(currency.USD.Code()),
 			Name:   currency.USD.Name(),
@@ -231,7 +231,7 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		ctx := reportCommittedCtx(env)
 
 		// Create USD currency first
-		currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
+		currencyService := itf.GetService[coreServices.CurrencyService](env)
 		currencyDTO := &currency.CreateDTO{
 			Code:   string(currency.USD.Code()),
 			Name:   currency.USD.Name(),
@@ -345,7 +345,7 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		ctx := reportCommittedCtx(env)
 
 		// Create USD currency first
-		currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
+		currencyService := itf.GetService[coreServices.CurrencyService](env)
 		currencyDTO := &currency.CreateDTO{
 			Code:   string(currency.USD.Code()),
 			Name:   currency.USD.Name(),
@@ -441,7 +441,7 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		ctx := reportCommittedCtx(env)
 
 		// Create USD currency first
-		currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
+		currencyService := itf.GetService[coreServices.CurrencyService](env)
 		currencyDTO := &currency.CreateDTO{
 			Code:   string(currency.USD.Code()),
 			Name:   currency.USD.Name(),
@@ -572,7 +572,7 @@ func TestFinancialReportService_IncomeStatement_COGS_Separation(t *testing.T) {
 	ctx := committedCtx(env)
 
 	// Create USD currency with committed context
-	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
+	currencyService := itf.GetService[coreServices.CurrencyService](env)
 	currencyDTO := &currency.CreateDTO{
 		Code:   string(currency.USD.Code()),
 		Name:   currency.USD.Name(),
@@ -721,7 +721,7 @@ func TestFinancialReportService_IncomeStatement_GrossProfit(t *testing.T) {
 	ctx := committedCtx(env)
 
 	// Create USD currency
-	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
+	currencyService := itf.GetService[coreServices.CurrencyService](env)
 	currencyDTO := &currency.CreateDTO{
 		Code:   string(currency.USD.Code()),
 		Name:   currency.USD.Name(),
@@ -834,7 +834,7 @@ func TestFinancialReportService_IncomeStatement_OperatingProfit(t *testing.T) {
 	ctx := committedCtx(env)
 
 	// Create USD currency
-	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
+	currencyService := itf.GetService[coreServices.CurrencyService](env)
 	currencyDTO := &currency.CreateDTO{
 		Code:   string(currency.USD.Code()),
 		Name:   currency.USD.Name(),
@@ -977,7 +977,7 @@ func TestFinancialReportService_IncomeStatement_NoCOGS(t *testing.T) {
 	ctx := committedCtx(env)
 
 	// Create USD currency
-	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
+	currencyService := itf.GetService[coreServices.CurrencyService](env)
 	currencyDTO := &currency.CreateDTO{
 		Code:   string(currency.USD.Code()),
 		Name:   currency.USD.Name(),
@@ -1098,7 +1098,7 @@ func TestFinancialReportService_IncomeStatement_COGS_Percentage(t *testing.T) {
 	ctx := committedCtx(env)
 
 	// Create USD currency
-	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
+	currencyService := itf.GetService[coreServices.CurrencyService](env)
 	currencyDTO := &currency.CreateDTO{
 		Code:   string(currency.USD.Code()),
 		Name:   currency.USD.Name(),

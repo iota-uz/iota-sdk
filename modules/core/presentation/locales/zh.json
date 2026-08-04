@@ -86,6 +86,49 @@
   },
   "Back": "返回",
   "Cancel": "取消",
+  "Chart": {
+    "CloseFullScreen": "关闭全屏",
+    "ExpandToFullScreen": "全屏展开",
+    "ExportExcel": "导出到 Excel",
+    "ExportGenerating": "正在生成 Excel 报表…",
+    "ExportFailed": "无法生成报告，请重试。",
+    "LogScale": "对数刻度",
+    "LogScaleHint": "这些数值使用对数刻度显示",
+    "MetricInfo": "该指标的计算方式"
+  },
+  "Lens": {
+    "Empty": {
+      "_Description": "请尝试调整筛选条件",
+      "Title": "暂无数据"
+    },
+    "Error": {
+      "_Description": "渲染此面板时发生错误",
+      "Title": "无法加载数据",
+      "PanelLabel": "面板",
+      "ReasonLabel": "原因",
+      "LogsHint": "请检查服务器日志以获取完整错误上下文"
+    },
+    "Drill": {
+      "Back": "返回",
+      "CurrentScope": "当前范围"
+    },
+    "Table": {
+      "OpenRow": "打开详情"
+    },
+    "Filters": {
+      "All": "全部",
+      "AllTime": "全部时间",
+      "Apply": "应用",
+      "CustomRange": "自定义范围",
+      "DefaultRange": "默认范围",
+      "Title": "筛选"
+    }
+  },
+  "Common": {
+    "CloseNotification": "关闭通知",
+    "TabNavigation": "标签导航",
+    "Loading": "加载中..."
+  },
   "ConfirmDelete": "您确定要删除此项吗？",
   "Countries": {
     "AF": "阿富汗",
@@ -328,7 +371,8 @@
     "ToExcel": "导出到 Excel",
     "ToCSV": "导出到 CSV",
     "ToJSON": "导出到 JSON",
-    "ToTXT": "导出到 TXT"
+    "ToTXT": "导出到 TXT",
+    "Preparing": "正在准备文件…"
   },
   "Filters": {
     "CreatedAt": {
@@ -430,12 +474,14 @@
     "Website": "网站"
   },
   "NavigationLinks": {
+    "QuickLinks": "快速链接",
     "Dashboard": "仪表板",
     "Administration": "管理",
     "Users": "用户",
     "Roles": "角色",
     "Groups": "组",
     "Settings": "设置",
+    "SystemInfo": "系统信息",
     "KnowledgeBase": "知识库",
     "Operations": "运营",
     "Calendar": "日历",
@@ -541,8 +587,10 @@
     "Navbar": {
       "Profile": "个人资料",
       "Sessions": "会话",
-      "Logout": "退出登录"
-    }
+      "Logout": "退出登录",
+      "Settings": "设置"
+    },
+    "Departments": "部门"
   },
   "No": "否",
   "PerPage": "每页",
@@ -878,6 +926,34 @@
     "Filters": {
       "Title": "筛选器",
       "SelectAll": "全选"
+    },
+    "FilterBuilder": {
+      "AddFilter": "添加筛选",
+      "ClearAll": "清除全部",
+      "Apply": "应用",
+      "SearchFields": "搜索筛选...",
+      "SelectValues": "选择值...",
+      "NothingFound": "未找到",
+      "Remove": "移除筛选",
+      "Operators": {
+        "Is": "是",
+        "IsNot": "不是",
+        "Before": "之前",
+        "After": "之后",
+        "On": "在",
+        "Between": "介于",
+        "Eq": "=",
+        "Gt": ">",
+        "Lt": "<"
+      },
+      "Presets": {
+        "ThisMonth": "本月",
+        "LastMonth": "上月",
+        "Last30Days": "过去30天",
+        "Next30Days": "未来30天",
+        "ThisYear": "今年",
+        "LastYear": "去年"
+      }
     }
   },
   "Search": "搜索",
@@ -886,12 +962,60 @@
   "UploadLabel": "上传文件",
   "UploadPlaceholder": "选择要上传的文件",
   "DownloadTemplate": "下载模板",
+  "Running": "运行中…",
+  "Warnings": "警告",
+  "Confirm": "确认",
   "Example": {
     "Below": "请参见下面的示例"
   },
   "Spotlight": {
     "Placeholder": "搜索...",
     "NothingFound": "未找到任何内容",
+    "NothingFoundBody": "请尝试其他搜索词或检查拼写。",
+    "Match": {
+      "Exact": "精确匹配",
+      "Best": "最佳匹配"
+    },
+    "Hint": {
+      "Navigate": "↑ ↓ 导航",
+      "Open": "Enter 打开",
+      "Close": "Esc 关闭"
+    },
+    "Empty": {
+      "Title": "在一个面板中搜索整个工作区",
+      "_Description": "在同一个流程中查找记录、页面、人员和命令。",
+      "Body": "可以尝试姓名、邮箱、编号、页面名称或命令。",
+      "Footer": "从你手头的任何线索开始。最佳匹配会先出现，更多结果会继续流式加载。",
+      "Example": {
+        "Name": {
+          "Label": "姓名",
+          "Value": "张三"
+        },
+        "Email": {
+          "Label": "邮箱",
+          "Value": "mail@example.com"
+        },
+        "Identifier": {
+          "Label": "编号",
+          "Value": "INV-1024"
+        },
+        "Page": {
+          "Label": "页面",
+          "Value": "设置"
+        },
+        "Command": {
+          "Label": "命令",
+          "Value": "创建用户"
+        }
+      }
+    },
+    "Badge": {
+      "Exact": "精确",
+      "Action": "操作",
+      "Navigate": "导航",
+      "Staff": "员工",
+      "Person": "人员"
+    },
     "Summary": {
       "Default": "已为您的请求找到最佳匹配结果",
       "Help": "以下是最匹配的页面和知识条目"
@@ -903,9 +1027,45 @@
     },
     "Group": {
       "Navigate": "导航",
+      "Actions": "操作",
       "Data": "数据",
       "Knowledge": "知识",
+      "People": "人员",
+      "Staff": "员工",
       "_Other": "其他"
+    },
+    "ConfirmOpenResult": "打开这个结果？",
+    "Status": {
+      "SearchingMore": "继续搜索中",
+      "FindingMatches": "正在查找匹配",
+      "SearchComplete": "搜索完成"
+    },
+    "AI": {
+      "Button": "使用 AI 搜索",
+      "Placeholder": "问 AI 任何问题...",
+      "EmptyHint": "输入问题并按 Enter 使用 AI 搜索",
+      "Searching": "搜索中",
+      "Candidates": "可能匹配",
+      "FollowUpPlaceholder": "继续补充线索或提出后续问题",
+      "Open": "打开",
+      "Progress": {
+        "Searching": "正在搜索记录...",
+        "Checking": "正在检查数据库...",
+        "Building": "正在生成结果..."
+      },
+      "TabHint": "Tab 使用 AI",
+      "FollowUpHint": "追问...",
+      "EscHint": "Esc 退出 AI",
+      "Status": {
+        "Complete": "AI 搜索完成"
+      },
+      "Error": {
+        "StartFailed": "无法启动 AI 搜索",
+        "MessageFailed": "无法发送 AI 消息"
+      }
+    },
+    "MoreResults": {
+      "other": "还有 {{.Count}} 个结果"
     }
   },
   "Unknown": "未知",
@@ -931,11 +1091,17 @@
       "FullName": "全名",
       "Roles": "角色",
       "Email": "电子邮件",
-      "AllGroups": "所有组",
-      "AllRoles": "所有角色",
       "Filters": "筛选",
-      "ExpandFilters": "展开过滤器",
-      "CollapseFilters": "折叠过滤器"
+      "FilterRole": "角色",
+      "FilterGroup": "组",
+      "FilterCreatedAt": "创建时间",
+      "FilterUpdatedAt": "更新时间",
+      "FilterStatus": "状态",
+      "FilterStatusActive": "活跃",
+      "FilterStatusBlocked": "已封禁",
+      "FilterType": "类型",
+      "FilterTypeRegular": "普通",
+      "FilterTypeSystem": "系统"
     },
     "Cards": {
       "PersonalInfo": "个人信息",
@@ -965,9 +1131,16 @@
       "EnterPassword": "输入密码",
       "Delete": "删除用户",
       "DeleteConfirmation": "您确定要删除此用户吗？",
-      "Permissions": "用户权限"
+      "Permissions": "用户权限",
+      "Details": "详情",
+      "LastAction": "最后活动",
+      "CreatedAt": "创建时间",
+      "UpdatedAt": "更新时间",
+      "Roles": "角色",
+      "Access": "访问权限"
     },
     "Blocked": "已封禁",
+    "NoRole": "无角色",
     "Block": {
       "Title": "封禁用户",
       "Button": "封禁用户",
@@ -980,7 +1153,8 @@
       "Errors": {
         "ReasonRequired": "需要输入封禁原因",
         "ReasonTooShort": "封禁原因必须至少为3个字符",
-        "ReasonTooLong": "封禁原因不得超过1024个字符"
+        "ReasonTooLong": "封禁原因不得超过1024个字符",
+        "OperationFailed": "无法封禁该用户，请重试。"
       }
     },
     "Unblock": {
@@ -1144,5 +1318,100 @@
       "CurrentSession": "当前"
     },
     "Revoked": "会话已撤销"
-  }
+  },
+  "Settings": {
+    "Hub": {
+      "Title": "设置",
+      "BackToApp": "返回应用"
+    }
+  },
+  "Departments": {
+    "Meta": {
+      "List": {
+        "Title": "部门列表"
+      },
+      "Edit": {
+        "Title": "编辑部门"
+      },
+      "New": {
+        "Title": "新建部门"
+      }
+    },
+    "List": {
+      "New": "新建部门",
+      "Name": "名称",
+      "Code": "编码",
+      "Parent": "上级",
+      "Status": "状态",
+      "NoDepartments": {
+        "Title": "未找到部门",
+        "_Description": "点击“新建部门”按钮创建您的第一个部门"
+      }
+    },
+    "Single": {
+      "Name": "名称",
+      "Code": "编码",
+      "Parent": "上级部门",
+      "NoParent": "无上级",
+      "Order": "排序",
+      "Status": "状态",
+      "EnterName": "输入名称",
+      "EnterCode": "输入编码",
+      "EnterOrder": "输入排序"
+    },
+    "Status": {
+      "Active": "启用",
+      "Inactive": "停用"
+    },
+    "Errors": {
+      "SelfLoop": "部门不能作为自己的上级。",
+      "Cycle": "该上级会造成循环层级。",
+      "DuplicateCode": "该编码已被其他部门使用。",
+      "ParentNotFound": "未找到所选的上级部门。"
+    }
+  },
+  "Positions": {
+    "Meta": {
+      "List": {
+        "Title": "职位列表"
+      },
+      "Edit": {
+        "Title": "编辑职位"
+      },
+      "New": {
+        "Title": "新建职位"
+      }
+    },
+    "List": {
+      "New": "新建职位",
+      "Title": "名称",
+      "User": "用户",
+      "Department": "部门",
+      "Role": "角色",
+      "Status": "状态",
+      "NoPositions": {
+        "Title": "未找到职位",
+        "_Description": "点击“新建职位”按钮创建您的第一个职位"
+      }
+    },
+    "Single": {
+      "Title": "名称",
+      "User": "用户",
+      "SelectUser": "选择用户",
+      "Department": "部门",
+      "SelectDepartment": "选择部门",
+      "IsManager": "主管",
+      "IsPrimary": "主要",
+      "Status": "状态",
+      "EnterTitle": "输入名称"
+    },
+    "Status": {
+      "Active": "启用",
+      "Inactive": "停用"
+    }
+  },
+  "Error": {
+    "ProcessingFailed": "导入失败"
+  },
+  "DryRunNotice": "这是预览——数据尚未更改。请查看上方结果，然后确认以执行导入。"
 }

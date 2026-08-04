@@ -38,6 +38,33 @@ type TableColumn interface {
 	SortURL() string
 	StickyPos() StickyPosition
 	AddonBottom() *Addon
+	DefaultHidden() bool
+	// Truncate reports whether cell content for this column is clipped to a
+	// single line (with an ellipsis + overflow tooltip).
+	Truncate() bool
+	// TruncateWidth is the max content width in px when Truncate is true.
+	TruncateWidth() int
+	// Priority controls responsive auto-hiding. Lower = more important;
+	// unset/0/1 always visible, 2 hides below tablet, >=3 hides below desktop.
+	Priority() int
+}
+
+// DefaultTruncateWidth is the column max content width (px) applied when
+// WithTruncate / WithTruncateDefault is used without an explicit width.
+const DefaultTruncateWidth = 240
+
+// priorityCellClass returns the responsive auto-hide utility for a body cell at
+// the given column priority. Mirrors the header priorityClass in base/table.
+// Lower priority = more important; 0/1 always visible.
+func priorityCellClass(p int) string {
+	switch {
+	case p >= 3:
+		return "max-lg:hidden"
+	case p == 2:
+		return "max-md:hidden"
+	default:
+		return ""
+	}
 }
 
 type TableCell interface {
@@ -51,6 +78,9 @@ type tableCellImpl struct {
 	value     any
 	classes   templ.CSSClasses
 	attrs     templ.Attributes
+	// link, when non-empty, wraps the cell's display content in an <a href> so the
+	// content becomes a link (e.g. a drill-down). Empty → plain content.
+	link string
 }
 
 func (c *tableCellImpl) convertValueToString(value any, fieldType crud.FieldType) string {
@@ -624,6 +654,9 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			return builder.Build().Component()
 		}
 	}
+	if c.link != "" {
+		return cellLink(c.link, c.component)
+	}
 	return c.component
 }
 
@@ -648,6 +681,10 @@ type tableColumnImpl struct {
 	rendererRegistery *crud.RendererRegistry
 	stickyPos         StickyPosition
 	addonBottom       *Addon
+	defaultHidden     bool
+	truncate          bool
+	truncateWidth     int
+	priority          int
 }
 
 func (c *tableColumnImpl) Key() string                              { return c.key }
@@ -660,6 +697,10 @@ func (c *tableColumnImpl) SortURL() string                          { return c.s
 func (c *tableColumnImpl) Editable() bool                           { return c.editable }
 func (c *tableColumnImpl) StickyPos() StickyPosition                { return c.stickyPos }
 func (c *tableColumnImpl) AddonBottom() *Addon                      { return c.addonBottom }
+func (c *tableColumnImpl) DefaultHidden() bool                      { return c.defaultHidden }
+func (c *tableColumnImpl) Truncate() bool                           { return c.truncate }
+func (c *tableColumnImpl) TruncateWidth() int                       { return c.truncateWidth }
+func (c *tableColumnImpl) Priority() int                            { return c.priority }
 func (c *tableColumnImpl) EditableField() crud.Field                { return c.editableField }
 func (c *tableColumnImpl) RendererRegistry() *crud.RendererRegistry { return c.rendererRegistery }
 
@@ -687,10 +728,22 @@ func (r *tableRowImpl) ApplyOpts(opts ...RowOpt) TableRow {
 
 func WithDrawer(fetchURL string) RowOpt {
 	return func(r *tableRowImpl) {
-		r.attrs["class"] = r.attrs["class"].(string) + " cursor-pointer hover:bg-surface-500 transition-colors"
+		// Comma-ok guard: Row() initializes class as a string, but defend against
+		// a nil/non-string class set by a prior opt instead of panicking.
+		existing, _ := r.attrs["class"].(string)
+		r.attrs["class"] = existing +
+			" cursor-pointer hover:bg-surface-500 transition-colors" +
+			" focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
 		r.attrs["hx-get"] = fetchURL
 		r.attrs["hx-target"] = "#view-drawer"
 		r.attrs["hx-swap"] = "innerHTML"
+		// Keyboard navigation hooks (see tableKeyboardNav in alpine.js):
+		// the row becomes focusable and self-identifies as a drawer trigger so
+		// arrow-key navigation and Enter-to-open work without scroll hijacking.
+		r.attrs["tabindex"] = "0"
+		r.attrs["data-row-drawer"] = "true"
+		r.attrs["role"] = "button"
+		r.attrs["aria-haspopup"] = "dialog"
 	}
 }
 
@@ -729,6 +782,42 @@ func WithSortableState(sortable bool) ColumnOpt {
 func WithSticky(pos StickyPosition) ColumnOpt {
 	return func(c *tableColumnImpl) {
 		c.stickyPos = pos
+	}
+}
+
+// WithDefaultHidden hides a column by default. Users can show it via table settings.
+func WithDefaultHidden() ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.defaultHidden = true
+	}
+}
+
+// WithTruncate clips this column's cell content to a single line within
+// maxWidthPx (default DefaultTruncateWidth) and shows a tooltip with the full
+// text only when the content actually overflows.
+//
+// Text-only scope: truncate (overflow:hidden) plus the overflow tooltip (which
+// reads cell textContent) only behave correctly for plain inline text. Do not
+// use it on block/flex component cells (badges, chips, action buttons) — those
+// get visually clipped and surface meaningless or empty tooltips. Use it on
+// text columns only.
+func WithTruncate(maxWidthPx ...int) ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.truncate = true
+		c.truncateWidth = DefaultTruncateWidth
+		if len(maxWidthPx) > 0 && maxWidthPx[0] > 0 {
+			c.truncateWidth = maxWidthPx[0]
+		}
+	}
+}
+
+// WithPriority sets a column's responsive priority. Lower = more important.
+// unset/0/1 → always visible; 2 → hidden below tablet (max-md); >=3 → hidden
+// below desktop (max-lg). Sticky columns are exempt. Users may override the
+// auto-hiding via table settings.
+func WithPriority(n int) ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.priority = n
 	}
 }
 
@@ -827,6 +916,27 @@ func WithNoWrap(nowrap bool) TableConfigOpt {
 	}
 }
 
+// WithTruncateDefault enables truncation for ALL non-sticky columns that don't
+// already declare their own WithTruncate. Sticky columns are skipped because
+// they typically hold action buttons/dropdowns that overflow:hidden would clip.
+// maxWidthPx defaults to DefaultTruncateWidth.
+//
+// Text-only scope: like WithTruncate, truncate + the overflow tooltip (reads
+// cell textContent) only behave correctly for plain inline text, not for
+// block/flex component cells (badges, chips, action buttons). Because this
+// applies to every non-sticky column, callers that render component cells in
+// non-sticky positions should opt those columns out / set per-column behavior
+// accordingly (e.g. mark them sticky or render plain text).
+func WithTruncateDefault(maxWidthPx ...int) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.TruncateDefault = true
+		c.TruncateDefaultWidth = DefaultTruncateWidth
+		if len(maxWidthPx) > 0 && maxWidthPx[0] > 0 {
+			c.TruncateDefaultWidth = maxWidthPx[0]
+		}
+	}
+}
+
 func WithScrollbarGutter(enabled bool) TableConfigOpt {
 	return func(c *TableConfig) {
 		c.ScrollbarGutter = enabled
@@ -854,6 +964,15 @@ func WithFullHeight(enabled bool) TableConfigOpt {
 func WithContentID(id string) TableConfigOpt {
 	return func(c *TableConfig) {
 		c.ContentID = id
+	}
+}
+
+// WithStackedToolbar enables the portfolio-style layout: Actions render on the
+// title row (desktop), and search + filter chips stack vertically in a
+// persistent toolbar outside the row-swap target. See TableConfig.StackedToolbar.
+func WithStackedToolbar() TableConfigOpt {
+	return func(c *TableConfig) {
+		c.StackedToolbar = true
 	}
 }
 
@@ -887,6 +1006,63 @@ func WithSearchParamName(name string) TableConfigOpt {
 	}
 }
 
+// WithDeferredPanels registers one or more deferred panels (summary/aggregate
+// regions) rendered inside the table form but outside the swap target, so they
+// persist across row/content swaps and reload on filter/search changes.
+// Panels missing their required ID or URL are skipped (an empty ID/URL yields a
+// broken wrapper and an accidental hx-get="" request), mirroring how
+// NewRegistry silently drops invalid entries.
+func WithDeferredPanels(panels ...DeferredPanel) TableConfigOpt {
+	return func(c *TableConfig) {
+		for _, panel := range panels {
+			if strings.TrimSpace(panel.ID) == "" || strings.TrimSpace(panel.URL) == "" {
+				continue
+			}
+			c.DeferredPanels = append(c.DeferredPanels, panel)
+		}
+	}
+}
+
+// WithFooter sets the sticky footer row cells (one per column, index-matched to
+// Columns). See TableConfig.Footer.
+func WithFooter(cells ...TableCell) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.Footer = cells
+	}
+}
+
+// resolvedTruncate returns the effective truncation (on, widthPx) for a column,
+// folding in the table-wide WithTruncateDefault. Sticky columns never truncate.
+func (c *TableConfig) resolvedTruncate(col TableColumn) (bool, int) {
+	if !col.StickyPos().Unknown() && !col.StickyPos().None() {
+		return false, 0
+	}
+	if col.Truncate() {
+		w := col.TruncateWidth()
+		if w <= 0 {
+			w = DefaultTruncateWidth
+		}
+		return true, w
+	}
+	if c.TruncateDefault {
+		w := c.TruncateDefaultWidth
+		if w <= 0 {
+			w = DefaultTruncateWidth
+		}
+		return true, w
+	}
+	return false, 0
+}
+
+// resolvedPriority returns the effective responsive priority for a column.
+// Sticky columns are exempt (always 0).
+func (c *TableConfig) resolvedPriority(col TableColumn) int {
+	if !col.StickyPos().Unknown() && !col.StickyPos().None() {
+		return 0
+	}
+	return col.Priority()
+}
+
 func (c *TableConfig) ResolvedHxTarget() string {
 	if c.HxTarget != "" {
 		return c.HxTarget
@@ -911,6 +1087,36 @@ func (c *TableConfig) ResolvedHxIndicator() string {
 	return "#table-body"
 }
 
+// RefreshEvent is the canonical client event the form re-broadcasts after its
+// own (filter/search) request completes; deferred panels listen for it to
+// reload. Namespaced by table ID so multiple tables on a page don't cross-talk.
+// Tables without an explicit ID share the "default" namespace, so set WithID on
+// each when several tables (with deferred panels) live on the same page.
+func (c *TableConfig) RefreshEvent() string {
+	id := c.ID
+	if id == "" {
+		id = "default"
+	}
+	return "tbl:" + id + ":refresh"
+}
+
+// FormHxAttrs returns extra <form> attributes that re-broadcast RefreshEvent
+// after the form's OWN successful request. The event.detail.elt===this guard
+// fires only for the form's request (not bubbled panel/infinite-scroll/sort
+// requests), so it is loop-free and excludes infinite scroll & sort from panel
+// reloads. Empty when no deferred panels are configured.
+func (c *TableConfig) FormHxAttrs() templ.Attributes {
+	if len(c.DeferredPanels) == 0 {
+		return templ.Attributes{}
+	}
+	return templ.Attributes{
+		"hx-on::after-request": fmt.Sprintf(
+			"if(event.detail.elt===this && event.detail.successful){htmx.trigger(this,'%s')}",
+			c.RefreshEvent(),
+		),
+	}
+}
+
 type InfiniteScrollConfig struct {
 	HasMore bool
 	Page    int
@@ -930,6 +1136,33 @@ type TableHeadConfig struct {
 	Sticky               bool
 	ScrollbarUnderHeader bool
 	Attrs                templ.Attributes
+}
+
+// DeferredPanel declares a region (e.g. a summary/aggregates bar or a total
+// count badge) that paints a skeleton immediately, self-loads its real content
+// via hx-get on `load`, and reloads whenever the table's filter/search state
+// changes — without being destroyed by row/content swaps.
+//
+// Panels render inside the table <form> (so they inherit the current filter
+// querystring via hx-include) but outside the swap target (so row/content swaps
+// never wipe them). Reload is driven by RefreshEvent, which the form
+// re-broadcasts after its own successful request (see FormHxAttrs); infinite
+// scroll and sort therefore do NOT reload panels.
+//
+// The endpoint at URL MUST return only the panel's inner content — never the
+// wrapper div — otherwise the swap nests a self-loading element.
+type DeferredPanel struct {
+	// ID is the stable DOM id of the panel wrapper. Required when panels are
+	// used; must be unique on the page.
+	ID string
+	// URL is the hx-get endpoint returning the rendered inner fragment. It
+	// receives the table's current filter/search querystring via hx-include.
+	URL string
+	// Skeleton is the placeholder rendered on first paint. If nil,
+	// DefaultPanelSkeleton() is used.
+	Skeleton templ.Component
+	// Class is appended to the wrapper div's class list (layout/placement).
+	Class string
 }
 
 type TableConfig struct {
@@ -954,19 +1187,49 @@ type TableConfig struct {
 	CurrentSortOrder string // Current sort order (asc/desc)
 
 	// Table display customizations
-	FillerRows      bool   // Enable filler rows to fill vertical space
-	FillerRowHeight int    // Filler row height in px (default: 49)
-	NoWrap          bool   // white-space: nowrap on all td/th
-	ScrollbarGutter bool   // scrollbar-gutter: stable + hide SDK cover div
-	SearchClearable bool   // Show clear (X) button on search input
-	HxTrigger       string // Custom hx-trigger (overrides default)
-	FullHeight      bool   // Full-height flex layout (h-full min-h-0 overflow-hidden)
-	ContentID       string // ID for content wrapper div (HTMX swap target)
-	HxTarget        string // Custom hx-target; defaults to "#"+ContentID if set, else "#table-body"
-	HxSwap          string // Custom hx-swap; defaults to "innerHTML"
-	HxIndicator     string // Custom hx-indicator; defaults to "#table-body"
-	SearchValue     string // Current search input value (for HTMX re-render)
-	SearchParamName string // Query/form field name used for the search value
+	FillerRows      bool // Enable filler rows to fill vertical space
+	FillerRowHeight int  // Filler row height in px (default: 49)
+	NoWrap          bool // white-space: nowrap on all td/th
+
+	// TruncateDefault clips all non-sticky columns lacking their own
+	// WithTruncate to TruncateDefaultWidth px (single line + overflow tooltip).
+	TruncateDefault      bool
+	TruncateDefaultWidth int
+	ScrollbarGutter      bool   // scrollbar-gutter: stable + hide SDK cover div
+	SearchClearable      bool   // Show clear (X) button on search input
+	HxTrigger            string // Custom hx-trigger (overrides default)
+	FullHeight           bool   // Full-height flex layout (h-full min-h-0 overflow-hidden)
+	ContentID            string // ID for content wrapper div (HTMX swap target)
+	HxTarget             string // Custom hx-target; defaults to "#"+ContentID if set, else "#table-body"
+	HxSwap               string // Custom hx-swap; defaults to "innerHTML"
+	HxIndicator          string // Custom hx-indicator; defaults to "#table-body"
+	SearchValue          string // Current search input value (for HTMX re-render)
+	SearchParamName      string // Query/form field name used for the search value
+
+	// StackedToolbar renders the portfolio-style layout: page Actions move to
+	// the title row (desktop), and the search bar + filter chips stack
+	// vertically in a persistent toolbar OUTSIDE the row-swap target so typing
+	// never destroys the search input (search focus is preserved). Pair with
+	// AddFiltersOOB so chips re-render on the rows swap. Opt-in; default
+	// (false) keeps the single-row toolbar. Do NOT combine with WithContentID
+	// (that forces a whole-card swap, defeating the persistent toolbar).
+	StackedToolbar bool
+
+	// FiltersOOB are filter components re-rendered out-of-band on the
+	// rows-path HTMX response (e.g. filterbuilder.BuilderOOB), so the chip bar
+	// stays server-rendered when the toolbar lives outside the swap target.
+	// Only emitted in StackedToolbar mode. See AddFiltersOOB.
+	FiltersOOB []templ.Component
+
+	// Deferred panels rendered inside the form but outside the swap target;
+	// they skeleton-load and reload on filter/search change. See DeferredPanel.
+	DeferredPanels []DeferredPanel
+
+	// Footer, when non-empty, renders a sticky <tfoot> row (e.g. column totals)
+	// aligned with the columns. One cell per column, index-matched to Columns.
+	// Because <tfoot> sits outside <tbody>, infinite-scroll rows never displace
+	// it, and it stays pinned to the bottom when the head is sticky.
+	Footer []TableCell
 
 	// Optional: reference to definition for advanced usage
 	definition *TableDefinition
@@ -1027,6 +1290,17 @@ func WithCellAttrs(attrs templ.Attributes) CellOpt {
 	}
 }
 
+// WithCellLink wraps the cell's display content in an <a href> so the content
+// becomes a link (e.g. a report drill-down). The link covers the rendered
+// content, not the cell's surrounding padding. Works with any templ.Component
+// content, not just text, and composes with WithCellClasses / WithCellAttrs.
+// An empty href leaves the content unwrapped (plain, non-clickable).
+func WithCellLink(href string) CellOpt {
+	return func(c *tableCellImpl) {
+		c.link = href
+	}
+}
+
 func Cell(component templ.Component, value any, opts ...CellOpt) TableCell {
 	cell := &tableCellImpl{
 		component: component,
@@ -1077,8 +1351,24 @@ func (c *TableConfig) AddFilters(filters ...templ.Component) *TableConfig {
 	return c
 }
 
+// AddFiltersOOB registers filter components (e.g. filterbuilder.BuilderOOB) to
+// be re-rendered out-of-band on the rows-path HTMX response. Use in
+// StackedToolbar mode so the chip bar stays server-rendered even though the
+// toolbar sits outside the swap target. See TableConfig.FiltersOOB.
+func (c *TableConfig) AddFiltersOOB(filters ...templ.Component) *TableConfig {
+	c.FiltersOOB = append(c.FiltersOOB, filters...)
+	return c
+}
+
 func (c *TableConfig) AddRows(rows ...TableRow) *TableConfig {
 	c.Rows = append(c.Rows, rows...)
+	return c
+}
+
+// SetFooter sets the sticky footer row cells (one per column, index-matched to
+// Columns). Use when totals are computed after NewTableConfig. See TableConfig.Footer.
+func (c *TableConfig) SetFooter(cells ...TableCell) *TableConfig {
+	c.Footer = cells
 	return c
 }
 

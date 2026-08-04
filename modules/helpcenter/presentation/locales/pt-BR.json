@@ -1,0 +1,54 @@
+{
+  "NavigationLinks": {
+    "HelpCenter": "Central de Ajuda"
+  },
+  "HelpCenter": {
+    "Meta": {
+      "Title": "Central de Ajuda",
+      "Subtitle": "Navegue pela documentação do produto e guias operacionais."
+    },
+    "Search": {
+      "Placeholder": "Pesquisar artigos de ajuda",
+      "Unavailable": "A pesquisa não está disponível.",
+      "NoResults": "Nenhum resultado encontrado."
+    },
+    "Categories": "Documentação",
+    "Article": "Guia do produto",
+    "OnThisPage": "Nesta página",
+    "Tasks": {
+      "Kicker": "Navegador de tarefas",
+      "Title": "O que você quer fazer?",
+      "Subtitle": "Escolha uma tarefa para abrir a tela certa ou ler as instruções de trabalho.",
+      "PathLabel": "Caminho da tarefa",
+      "Path": {
+        "Task": "Escolha uma tarefa",
+        "Screen": "Abra a tela certa",
+        "Result": "Confira o resultado"
+      },
+      "OpenScreen": "Abrir tela",
+      "ReadGuide": "Ler guia"
+    },
+    "ExpandNavigation": "Expandir navegação",
+    "CollapseNavigation": "Recolher navegação",
+    "CloseNavigation": "Fechar navegação",
+    "CopyCode": "Copiar",
+    "Copied": "Copiado",
+    "Diagram": {
+      "Label": "Diagrama do processo",
+      "ZoomIn": "Ampliar",
+      "ZoomOut": "Reduzir",
+      "ResetZoom": "Redefinir zoom",
+      "ZoomLevel": "Zoom",
+      "EnterFullscreen": "Abrir em tela cheia",
+      "ExitFullscreen": "Sair da tela cheia"
+    },
+    "Callouts": {
+      "Note": "Observação",
+      "Tip": "Dica",
+      "Important": "Importante",
+      "Warning": "Aviso",
+      "Caution": "Cuidado"
+    },
+    "Empty": "Ainda não há artigos de ajuda disponíveis."
+  }
+}
