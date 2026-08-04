@@ -57,7 +57,7 @@ function flowPanel(overrides: Partial<Panel> = {}): Panel {
       ],
     },
     ...overrides,
-  }
+  } as Panel
 }
 
 function flowFrame(rows: Array<[string, unknown]>): Frame {
@@ -303,7 +303,7 @@ function hierarchyPanel(overrides: Partial<Panel> = {}): Panel {
       ],
     },
     ...overrides,
-  }
+  } as Panel
 }
 
 function hierarchyFrame(rows: Array<[string, unknown]>): Frame {
@@ -431,7 +431,7 @@ function relationshipPanel(
       target: { key: 'b', label: 'Metric B' },
     },
     ...overrides,
-  }
+  } as Panel
 }
 
 function relationshipFrame(rows: Array<[string, unknown]>): Frame {

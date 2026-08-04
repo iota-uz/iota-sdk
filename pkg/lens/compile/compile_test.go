@@ -1,11 +1,16 @@
 package compile
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
+	lensdocument "github.com/iota-uz/iota-sdk/pkg/lens/document"
+	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
@@ -215,10 +220,50 @@ func TestCompilePanelPreservesDistributionFieldsAndTemporalContract(t *testing.T
 	require.Equal(t, panel.Ref("median"), compiled.Fields.Median)
 	require.Equal(t, panel.Ref("q3"), compiled.Fields.Q3)
 	require.Equal(t, panel.Ref("maximum"), compiled.Fields.Upper)
+	require.True(t, compiled.Fields.Value.Empty())
 	require.Equal(t, temporal, compiled.Temporal)
 	require.True(t, compiled.ComparisonUnsupported)
 	require.Equal(t, panel.KindHistogram, lensspec.Histogram("hist", "Histogram", "data").Build().Kind)
 	require.Equal(t, panel.KindHeatmap, lensspec.Heatmap("heat", "Heatmap", "data").Build().Kind)
+}
+
+func TestFormattedBoxPlotBuildReferencesOnlyFiveNumberSummary(t *testing.T) {
+	t.Parallel()
+	numberFormat := format.Count()
+	item := lensspec.BoxPlot("settlement", "Settlement", "summary").
+		CategoryField("product").
+		BoxFields("minimum", "q1", "median", "q3", "maximum").
+		Format(numberFormat).
+		Terminal().
+		Build()
+
+	compiled, err := compilePanel(item, Options{})
+	require.NoError(t, err)
+	require.True(t, compiled.Fields.Value.Empty())
+	require.Equal(t, &numberFormat, compiled.Formatter)
+
+	frames, err := frame.FromRows("summary", frame.Row{
+		"product": "OSAGO",
+		"minimum": 1.0, "q1": 3.0, "median": 5.0, "q3": 8.0, "maximum": 20.0,
+	})
+	require.NoError(t, err)
+	dashboard := lensbuild.Dashboard("boxplot", "Box plot", lensbuild.Row(compiled)).
+		Datasets(lensbuild.StaticDataset("summary", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), dashboard,
+		runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+	doc, err := lensdocument.Build(dashboard, executed, lensdocument.BuildOptions{
+		SnapshotID: "boxplot", GeneratedAt: time.Unix(1, 0), Locale: "en",
+	})
+	require.NoError(t, err)
+	require.NoError(t, doc.Validate())
+	require.Len(t, doc.Panels[0].Format, 5)
+	for _, field := range []string{"minimum", "q1", "median", "q3", "maximum"} {
+		require.Contains(t, doc.Panels[0].Format, field)
+	}
+	require.NotContains(t, doc.Panels[0].Format, "value")
 }
 
 // Presentation hints and the rich table-column treatments are producer-side

@@ -4,8 +4,7 @@
  * The Lens categorical palette, in the order Go declares it (pkg/lens/color).
  *
  * Values only. Which colour a given category is painted with is decided by
- * `charts/palette.ts`, whose hash is not the Go one, so nothing
- * generated here says anything about assignment.
+ * `charts/palette.ts`; nothing generated here owns assignment.
  */
 export const PALETTE_SERIES = [
   '#2563eb',

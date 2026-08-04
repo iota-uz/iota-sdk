@@ -176,11 +176,6 @@ func (b *DimensionBuilder) MapAttribution(attribution string) *DimensionBuilder 
 	return b
 }
 
-func (b *DimensionBuilder) Height(height string) *DimensionBuilder {
-	b.spec.Height = height
-	return b
-}
-
 func (b *DimensionBuilder) Description(description string) *DimensionBuilder {
 	b.spec.Description = description
 	return b
@@ -203,11 +198,6 @@ func (b *DimensionBuilder) Transforms(specs ...transform.Spec) *DimensionBuilder
 
 func (b *DimensionBuilder) Colors(colors ...string) *DimensionBuilder {
 	b.spec.Colors = append([]string(nil), colors...)
-	return b
-}
-
-func (b *DimensionBuilder) ColorScale(scale string) *DimensionBuilder {
-	b.spec.ColorScale = scale
 	return b
 }
 

@@ -110,11 +110,13 @@ func resolveDashboardOptions(options ...Option) dashboardOptions {
 		}
 	}
 
-	assets := Assets()
-	resolved.EntryURL = versionedAssetURL(resolved.AssetBasePath, assets.Revision, assets.Entry)
-	resolved.Stylesheets = make([]string, 0, len(assets.Stylesheets))
-	for _, stylesheet := range assets.Stylesheets {
-		resolved.Stylesheets = append(resolved.Stylesheets, versionedAssetURL(resolved.AssetBasePath, assets.Revision, stylesheet))
+	if resolved.IncludeAssets {
+		assets := Assets()
+		resolved.EntryURL = versionedAssetURL(resolved.AssetBasePath, assets.Revision, assets.Entry)
+		resolved.Stylesheets = make([]string, 0, len(assets.Stylesheets))
+		for _, stylesheet := range assets.Stylesheets {
+			resolved.Stylesheets = append(resolved.Stylesheets, versionedAssetURL(resolved.AssetBasePath, assets.Revision, stylesheet))
+		}
 	}
 	return resolved
 }

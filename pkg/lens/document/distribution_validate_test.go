@@ -49,22 +49,28 @@ func TestDashboardDocumentValidate_DistributionPanelsRejectInvalidContracts(t *t
 	}
 }
 
-func TestDashboardDocumentValidate_LogarithmicAxisMustBeHonourable(t *testing.T) {
+func TestDashboardDocumentValidate_LogarithmicAxisDefersFramePolicyToRenderer(t *testing.T) {
 	t.Parallel()
 	doc := testDocument()
 	doc.Panels[0].Kind = PanelKindHBar
 	doc.Panels[0].ValueAxis = &ValueAxis{Scale: AxisScaleLogarithmic, LogBase: 10}
+	doc.Panels[0].Presentation = &Presentation{ValueSpreadThreshold: 25}
 	doc.Frames["panel:total"] = Frame{
 		Columns: []Column{{Name: "label", Type: ColumnString}, {Name: "value", Type: ColumnNumber}},
-		Rows:    [][]any{{"Large", 1000.0}, {"Medium", 10.0}, {"Small", 1.0}},
+		Rows:    [][]any{{"Large", 20.0}, {"Small", 2.0}},
 	}
+	// Too few categories and a spread below the producer's threshold are valid
+	// document data: the renderer presents this frame linearly instead.
 	require.NoError(t, doc.Validate())
 
 	doc.Frames["panel:total"] = Frame{
 		Columns: []Column{{Name: "label", Type: ColumnString}, {Name: "value", Type: ColumnNumber}},
-		Rows:    [][]any{{"Large", 1000.0}, {"Small", 1.0}},
+		Rows:    [][]any{{"Large", 1000.0}, {"Medium", 0.0}, {"Small", -1.0}},
 	}
-	require.ErrorContains(t, doc.Validate(), "at least three categories spanning two orders of magnitude")
+	// The same fallback applies when a logarithmic axis cannot represent the
+	// values. Go validates the contract shape; it does not contradict the
+	// runtime by rejecting a frame the runtime can still render honestly.
+	require.NoError(t, doc.Validate())
 
 	doc = testDocument()
 	doc.Panels[0].Kind = PanelKindHistogram

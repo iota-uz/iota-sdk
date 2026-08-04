@@ -7,18 +7,6 @@ function finiteNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-/**
- * The spread at which a linear axis stops being able to show the small
- * readings: two orders of magnitude between the largest value and the smallest.
- *
- * One number, two rules. It is the threshold at which a producer's request for
- * a logarithmic axis is honoured, and — because the data does not care whether
- * the producer asked — the threshold at which a chart left on a linear axis has
- * to state its values in figures instead of leaving eleven near-zero months as
- * eleven identical hairlines. The two treatments differ; the diagnosis is one.
- */
-export const obscuringValueSpread = 100
-
 /** Every finite reading in the frame's value column. */
 function frameValues(frame: Frame, encoding: Encoding): number[] | undefined {
   const categoryField = encoding.category ?? encoding.label
@@ -46,25 +34,27 @@ function frameValues(frame: Frame, encoding: Encoding): number[] | undefined {
  * disqualifying the frame: a zero is legible as a zero on a linear axis, and a
  * chart that crosses the baseline is not the degenerate case this describes.
  */
-export function linearScaleObscuresValues(frame: Frame, encoding: Encoding): boolean {
+export function linearScaleObscuresValues(frame: Frame, encoding: Encoding, threshold?: number): boolean {
+  if (threshold === undefined) return false
   const values = frameValues(frame, encoding)
   if (!values || values.length < 3) return false
   const magnitudes = values.map((value) => Math.abs(value)).filter((value) => value > 0)
   if (magnitudes.length < 2) return false
   const minimum = Math.min(...magnitudes)
   const maximum = Math.max(...magnitudes)
-  return minimum > 0 && maximum / minimum >= obscuringValueSpread
+  return minimum > 0 && maximum / minimum >= threshold
 }
 
 /**
  * A logarithmic axis earns its warning only when it materially helps.
  *
  * Fewer than three categories are better read as compact values, and a spread
- * below two orders of magnitude is clearer on an ordinary linear axis. Log
- * axes also cannot represent zero or negative values, so those frames always
- * fall back without claiming a logarithmic treatment.
+ * below the producer's configured spread threshold is clearer on an ordinary
+ * linear axis. With no threshold, SDK applies no product policy and honours a
+ * valid log request. Log axes cannot represent zero or negative values, so
+ * those frames always fall back without claiming a logarithmic treatment.
  */
-export function shouldUseLogarithmicScale(frame: Frame, encoding: Encoding, axis?: ValueAxis): boolean {
+export function shouldUseLogarithmicScale(frame: Frame, encoding: Encoding, axis?: ValueAxis, threshold?: number): boolean {
   if (axis?.scale !== 'logarithmic') return false
   const categoryField = encoding.category ?? encoding.label
   const valueField = encoding.value
@@ -89,5 +79,5 @@ export function shouldUseLogarithmicScale(frame: Frame, encoding: Encoding, axis
   if (categories.size < 3 || values.length === 0 || values.some((value) => value <= 1)) return false
   const minimum = Math.min(...values)
   const maximum = Math.max(...values)
-  return maximum / minimum >= obscuringValueSpread
+  return threshold === undefined || maximum / minimum >= threshold
 }

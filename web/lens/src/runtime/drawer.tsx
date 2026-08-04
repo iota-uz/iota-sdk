@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { Portal } from '@iota-uz/client-host'
+import { useRef, type ReactNode } from 'react'
 import { X } from '../icons'
 import { useDrawerHeader } from './provider'
 
@@ -21,15 +21,7 @@ interface LensDrawerProps {
   theme?: string
 }
 
-function focusableElements(host: HTMLElement): HTMLElement[] {
-  return Array.from(host.querySelectorAll<HTMLElement>(
-    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-  )).filter((element) => !element.hasAttribute('hidden'))
-}
-
 export function LensDrawer({ children, closeLabel, dark = false, eyebrow, label, onClose, restoreFocus, theme }: LensDrawerProps) {
-  const [container, setContainer] = useState<HTMLElement>()
-  const dialogRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   // The loaded document owns the heading: it names the metric (eyebrow), the
   // scope (title) and the period (caption) once, so the drawer never repeats a
@@ -43,128 +35,45 @@ export function LensDrawer({ children, closeLabel, dark = false, eyebrow, label,
   // views that host a full focus canvas; the slide-in motion is unchanged.
   const wide = header?.size === 'wide'
 
-  // The drawer portals to a body-level host, mirroring PanelOverlay: nested
-  // inline in the app root it could never paint above the expand overlay (a
-  // body-level portal at a huge z-index) no matter its own z-index. The host
-  // re-declares the Lens root class + theme it left behind so custom properties
-  // still resolve, and `.lens-drawer-root` sits one rung above the overlay.
-  useEffect(() => {
-    if (typeof document === 'undefined') return undefined
-    const element = globalThis.document.createElement('div')
-    globalThis.document.body.appendChild(element)
-    setContainer(element)
-    return () => element.remove()
-  }, [])
-
-  useEffect(() => {
-    if (!container) return
-    container.className = `lens-root lens-drawer-root${dark ? ' dark' : ''}`
-    if (theme) container.dataset.theme = theme
-    else delete container.dataset.theme
-  }, [container, dark, theme])
-
-  useEffect(() => {
-    if (!container) return undefined
-    const overflow = globalThis.document.body.style.overflow
-    globalThis.document.body.style.overflow = 'hidden'
-    // The drawer is now a body-level portal, so the background to seal off is
-    // the set of sibling body children — the dashboard app root and, when the
-    // drawer was opened from an expanded panel, that overlay's own host. Inert
-    // every direct child of body except the drawer's own container; walking the
-    // old backdrop → parent → children chain would now inert the drawer itself.
-    const background = Array.from(globalThis.document.body.children)
-      .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== container)
-      .map((element) => ({
-        element,
-        inert: element.inert,
-        ariaHidden: element.getAttribute('aria-hidden'),
-      }))
-    for (const state of background) {
-      state.element.inert = true
-      state.element.setAttribute('aria-hidden', 'true')
-    }
-    closeRef.current?.focus()
-    return () => {
-      globalThis.document.body.style.overflow = overflow
-      for (const state of background) {
-        state.element.inert = state.inert
-        if (state.ariaHidden === null) state.element.removeAttribute('aria-hidden')
-        else state.element.setAttribute('aria-hidden', state.ariaHidden)
-      }
-      if (restoreFocus?.isConnected) restoreFocus.focus()
-    }
-  }, [container, restoreFocus])
-
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      event.stopPropagation()
-      onClose()
-      return
-    }
-    if (event.key !== 'Tab' || !dialogRef.current) return
-    const focusable = focusableElements(dialogRef.current)
-    if (!focusable.length) {
-      event.preventDefault()
-      dialogRef.current.focus()
-      return
-    }
-    const first = focusable[0]
-    const last = focusable.at(-1)
-    if (event.shiftKey && globalThis.document.activeElement === first) {
-      event.preventDefault()
-      last?.focus()
-    } else if (!event.shiftKey && globalThis.document.activeElement === last) {
-      event.preventDefault()
-      first?.focus()
-    }
-  }
-
-  if (!container) return null
-
-  return createPortal(
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- backdrop dismissal is delegated while the nested dialog owns focus and semantics.
-    <div
-      className="lens-drawer-backdrop"
-      // mousedown, not click: a drag that starts inside the dialog and ends on
-      // the backdrop must not be read as "dismiss".
-      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
-    >
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- keyboard trapping is delegated from controls inside this programmatically focusable dialog. */}
+  void restoreFocus
+  void theme
+  return (
+    <Portal surface="drawer" label={label} onEscape={onClose} className={`lens-root lens-drawer-root${dark ? ' dark' : ''}`} theme={dark ? 'dark' : 'light'}>
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- backdrop dismissal is delegated while the nested dialog owns focus and semantics. */}
       <div
-        aria-label={label}
-        aria-modal="true"
-        className={`lens-drawer${wide ? ' lens-drawer-wide' : ''}`}
-        onKeyDown={onKeyDown}
-        ref={dialogRef}
-        role="dialog"
-        tabIndex={-1}
+        className="lens-drawer-backdrop"
+        // mousedown, not click: a drag that starts inside the dialog and ends on
+        // the backdrop must not be read as "dismiss".
+        onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
       >
-        <header className="lens-drawer-header">
-          <div className="lens-drawer-identity">
-            <span className="lens-drawer-eyebrow">{headerEyebrow}</span>
-            {/* The title is what the drawer is about — a product name, a
+        <div
+          className={`lens-drawer${wide ? ' lens-drawer-wide' : ''}`}
+        >
+          <header className="lens-drawer-header">
+            <div className="lens-drawer-identity">
+              <span className="lens-drawer-eyebrow">{headerEyebrow}</span>
+              {/* The title is what the drawer is about — a product name, a
                 counterparty — and it is the one line here that truncates. Panel
                 cards already carry their title as a tooltip; without the same
                 here, an ellipsis is where the subject's identity ends. */}
-            {headerTitle && <span className="lens-drawer-title" title={headerTitle}>{headerTitle}</span>}
-            {headerCaption && <span className="lens-drawer-caption" title={headerCaption}>{headerCaption}</span>}
+              {headerTitle && <span className="lens-drawer-title" title={headerTitle}>{headerTitle}</span>}
+              {headerCaption && <span className="lens-drawer-caption" title={headerCaption}>{headerCaption}</span>}
+            </div>
+            <button
+              aria-label={closeLabel}
+              className="lens-drawer-close"
+              onClick={onClose}
+              ref={closeRef}
+              type="button"
+            >
+              <X />
+            </button>
+          </header>
+          <div className="lens-drawer-document">
+            {children}
           </div>
-          <button
-            aria-label={closeLabel}
-            className="lens-drawer-close"
-            onClick={onClose}
-            ref={closeRef}
-            type="button"
-          >
-            <X />
-          </button>
-        </header>
-        <div className="lens-drawer-document">
-          {children}
         </div>
       </div>
-    </div>,
-    container,
+    </Portal>
   )
 }

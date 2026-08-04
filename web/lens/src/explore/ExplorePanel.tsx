@@ -15,6 +15,7 @@ import { CaretDown, CaretLeft, CaretRight } from '../icons'
 import { MarkSelectionContext, PanelChromeContext } from '../panels/context'
 import { RegisteredPanel, type PanelRegistry } from '../panels/registry'
 import { colorLabels, seriesColorResolver } from '../panels/data'
+import { retargetPanel } from '../panels/kinds'
 import {
   isPerspectiveFork,
   levelForPath,
@@ -139,8 +140,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   const viewPanel = useMemo<Panel>(() => {
     const encoding = level?.encoding ?? panel.encoding
     return {
-      ...panel,
-      kind,
+      ...retargetPanel(panel, kind),
       title: level?.label.trim() || panel.title,
       semantics,
       encoding,

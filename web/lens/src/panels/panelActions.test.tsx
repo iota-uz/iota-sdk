@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { ClientHostProvider } from '@iota-uz/client-host'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Action, DashboardDocument, Frame, Panel } from '../contract'
 import type { ChartAdapter, ChartInput } from '../charts/adapter'
@@ -7,6 +8,7 @@ import { CoveragePanel, ChartPanel, MarkSelectionContext, StatMetric, StatPanel 
 import { CascadePanel } from './CascadePanel'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
 import { navigateTo } from '../runtime/navigate'
+import { retargetPanel } from './kinds'
 
 vi.mock('../runtime/navigate', () => ({ navigateTo: vi.fn() }))
 
@@ -43,12 +45,24 @@ function documentWith(panels: Panel[], frames: Record<string, Frame>): Dashboard
 }
 
 function renderPanel(document: DashboardDocument, children: React.ReactNode) {
-  return render(
+  return renderWithClientHost(
     <div className="lens-root">
       <DocumentProvider initialDocument={document}>
         <DashboardRuntimeProvider locale="en">{children}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>,
+  )
+}
+
+function renderWithClientHost(children: React.ReactNode) {
+  const background = globalThis.document.createElement('main')
+  const portalOwner = globalThis.document.createElement('div')
+  globalThis.document.body.append(background, portalOwner)
+  return render(
+    <ClientHostProvider background={background} portalOwner={portalOwner}>
+      {children}
+    </ClientHostProvider>,
+    { container: background },
   )
 }
 
@@ -115,7 +129,7 @@ describe('stat panels with a panel-level navigate action', () => {
       return Promise.resolve(new Response(JSON.stringify(child), { status: 200 }))
     })
 
-    render(
+    renderWithClientHost(
       <div className="lens-root">
         <DocumentProvider initialDocument={document}>
           <DashboardRuntimeProvider fetcher={fetcher} locale="en">
@@ -550,7 +564,7 @@ describe('per-segment drawer drill', () => {
 
   function renderDonut() {
     window.history.replaceState(null, '', '/')
-    const panel: Panel = { ...chartPanel([openDrawerPerRow]), kind: 'donut', frame: 'chart:root' }
+    const panel = { ...retargetPanel(chartPanel([openDrawerPerRow]), 'donut'), frame: 'chart:root' }
     const document = documentWith([panel], { 'chart:root': segmentFrame })
     document.endpoints = { drawer: '/lens/drawer' }
     const fetcher = vi.fn<typeof fetch>(() => Promise.resolve(
@@ -567,7 +581,7 @@ describe('per-segment drawer drill', () => {
         return { update: (next) => { input = next }, dispose: () => {} }
       },
     }
-    const view = render(
+    const view = renderWithClientHost(
       <div className="lens-root">
         <DocumentProvider initialDocument={document}>
           <DashboardRuntimeProvider fetcher={fetcher} locale="en">
@@ -666,7 +680,7 @@ describe('cross-filter source panel', () => {
 
   function renderSource(search: string) {
     window.history.replaceState({}, '', `/sales${search}`)
-    const panel: Panel = { ...chartPanel([crossFilter]), kind: 'hbar' }
+    const panel = retargetPanel(chartPanel([crossFilter]), 'hbar')
     let input: ChartInput | undefined
     const adapter: ChartAdapter = {
       mount: (_element, initial) => {

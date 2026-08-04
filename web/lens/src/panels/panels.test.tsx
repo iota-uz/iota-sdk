@@ -93,7 +93,7 @@ function panel(kind: PanelKind, overrides: Partial<Panel> = {}): Panel {
       },
     } : {}),
     ...overrides,
-  }
+  } as Panel
 }
 
 function state(name: 'loading' | 'empty' | 'error' | 'stale' | 'superseded' | 'data'): PanelFrameState {
@@ -603,6 +603,15 @@ describe('chart encoding and drill behavior', () => {
     expect(runtime.drillInto).toHaveBeenCalledWith('root/a', 'panel-pie')
   })
 
+  it('keeps a one-category drill panel compact and clickable', () => {
+    runtime.frame = state('data')
+    render(<BarPanel panel={panel('bar', { drillRoot: 'root' })} adapter={fakeAdapter()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /2026-07-01T00:00:00Z \/ 42.*Open/ }))
+    expect(runtime.drillInto).toHaveBeenCalledWith('root/a', 'panel-bar')
+    expect(document.querySelector('.lens-chart-compact')).not.toBeNull()
+  })
+
   it('passes time and series encodings through and tolerates missing optional roles', async () => {
     runtime.frame = {
       ...state('data'),
@@ -1082,6 +1091,62 @@ describe('chart encoding and drill behavior', () => {
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(2))
     fireEvent.click(screen.getByRole('button', { name: 'Other' }))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(3))
+    expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
+  })
+
+  it('expands a collapsed TopN remainder from its keyboard action when category and id are absent', async () => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'label', type: 'string' }, { name: 'value', type: 'number' },
+          { name: '__lens_topn_group', type: 'string' },
+        ],
+        rows: [['A', 100, null], ['B', 4, 'Other'], ['C', 3, 'Other']],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const inputs: ChartInput[] = []
+    render(<BarPanel
+      panel={panel('bar', { encoding: { category: 'category', label: 'label', value: 'value' } })}
+      adapter={fakeAdapter((input) => inputs.push(input))}
+    />)
+
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(2))
+    fireEvent.click(screen.getByRole('button', { name: 'Open Other, 7' }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(3))
+    expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
+  })
+
+  it('expands the served cube TopN remainder through the keyboard action key', async () => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'filter_value', type: 'string' }, { name: 'id', type: 'string' },
+          { name: 'label', type: 'string' }, { name: 'total_policies', type: 'number' },
+          { name: 'total_policies_previous', type: 'number' },
+          { name: '__lens_topn_group', type: 'string' },
+        ],
+        rows: [
+          ...Array.from({ length: 10 }, (_, index) => [`top-${index}`, `row-${index}`, `Product ${index}`, 100 - index, 90 - index, null]),
+          ...Array.from({ length: 8 }, (_, index) => [`tail-${index}`, `row-${index + 10}`, `Tail ${index}`, 9 - index, 8 - index, 'Other']),
+        ],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const inputs: ChartInput[] = []
+    render(<BarPanel
+      panel={panel('hbar', {
+        encoding: {
+          id: 'filter_value', label: 'label', category: 'label',
+          value: 'total_policies', previous: 'total_policies_previous',
+        },
+      })}
+      adapter={fakeAdapter((input) => inputs.push(input))}
+    />)
+
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(11))
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Open Other, 44' }), { key: 'Enter' })
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(18))
     expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
   })
 
