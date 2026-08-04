@@ -95,6 +95,45 @@ describe('IdlePrefetchQueue', () => {
     expect(aborted).toBe(true)
     expect(ignored).not.toHaveBeenCalled()
   })
+
+  it('keeps one active task across a transient React detach and reattach', async () => {
+    vi.useFakeTimers()
+    const queue = new IdlePrefetchQueue({ capacity: 1, delayMs: 0, detachGraceMs: 50 })
+    let finish: (() => void) | undefined
+    let aborted = false
+    const run = vi.fn<(signal: AbortSignal) => Promise<void>>((signal) => new Promise<void>((resolve) => {
+      finish = resolve
+      signal.addEventListener('abort', () => { aborted = true; resolve() }, { once: true })
+    }))
+
+    const detachFirstRender = queue.register('drawer', run)
+    await vi.advanceTimersByTimeAsync(0)
+    detachFirstRender()
+    const detachSecondRender = queue.register('drawer', run)
+    await vi.advanceTimersByTimeAsync(50)
+
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(aborted).toBe(false)
+    finish?.()
+    await Promise.resolve()
+    detachSecondRender()
+  })
+
+  it('cancels a genuinely detached active task after the grace period', async () => {
+    vi.useFakeTimers()
+    const queue = new IdlePrefetchQueue({ capacity: 1, delayMs: 0, detachGraceMs: 50 })
+    let aborted = false
+    const detach = queue.register('drawer', (signal) => new Promise<void>((resolve) => {
+      signal.addEventListener('abort', () => { aborted = true; resolve() }, { once: true })
+    }))
+    await vi.advanceTimersByTimeAsync(0)
+
+    detach()
+    await vi.advanceTimersByTimeAsync(49)
+    expect(aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(aborted).toBe(true)
+  })
 })
 
 describe('DocumentCache', () => {

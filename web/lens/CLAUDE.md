@@ -47,7 +47,7 @@ skip that, point the host at the build directory:
 
 ```sh
 just lens watch &                    # keep the bundle current
-eval "$(just lens serve-from-disk)"  # export LENS_ASSETS_DIR=<repo>/web/lens/dist
+eval "$(just lens serve-from-disk)"  # LENS_ASSETS_DIR=<repo>/pkg/lens/render/react/dist
 # start the host in that shell; a page reload now shows the current bundle
 ```
 

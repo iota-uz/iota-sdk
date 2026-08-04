@@ -354,18 +354,25 @@
     }
   }
 
+  /* Three stacked rows, each answering one question: what page is this and what
+     can I do with it, what slice am I looking at, what is currently narrowing
+     it. It was two columns — identity opposite one wrapping cluster that mixed
+     the controls changing the figures with the verbs carrying them away, at one
+     weight, with no divider between them. Eight equal boxes on one baseline is
+     what a reader had to sort out before reading anything. */
   .lens-dashboard-header {
-    @apply lens-mb-5 lens-flex lens-min-w-0 lens-max-w-full lens-items-end lens-justify-between lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-3;
+    @apply lens-mb-5 lens-flex lens-min-w-0 lens-max-w-full lens-flex-col lens-gap-2 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-3;
   }
 
   .lens-dashboard-header h1 {
     @apply lens-m-0 lens-text-xl lens-font-semibold lens-tracking-tight lens-text-strong;
   }
 
-  /* The document's own identity block: a strong title over a muted period +
-     freshness line, left-aligned opposite the action bar. */
-  .lens-dashboard-identity {
-    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-0.5;
+  /* Row A: the page names itself, and the verbs sit opposite. Aligned on the
+     first line rather than the last, so a title that wraps to two lines drops
+     downward and leaves the action row where it was. */
+  .lens-dashboard-headline {
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-start lens-justify-between lens-gap-4;
   }
 
   /* The page's typographic anchor. At the `lg` step the h1 was smaller than
@@ -379,19 +386,18 @@
     line-height: 1.2;
   }
 
+  /* The tail of the scope sentence, not a second heading: what the controls
+     before it cannot state. It is the one member of that row with no affordance,
+     so it takes the row's height without the chip's padding or hover. */
   .lens-dashboard-subtitle {
-    @apply lens-m-0 lens-text-muted;
+    @apply lens-m-0 lens-inline-flex lens-min-h-control-sm lens-items-center lens-text-muted;
     font-size: var(--lens-type-base);
     line-height: 1.3;
   }
 
-  .lens-dashboard-subtitle-sep {
-    @apply lens-text-faint;
-  }
-
-  /* A stamp in the action bar, on the control baseline, not a sentence: the
-     age of the data belongs beside Recompute, which is what a reader does
-     about it. */
+  /* The freshness reading when the dashboard cannot act on it: same words and
+     same baseline as the button it replaces, without a frame that would promise
+     a press that does nothing. */
   .lens-dashboard-updated {
     @apply lens-m-0 lens-inline-flex lens-min-h-control-md lens-items-center lens-gap-1.5 lens-whitespace-nowrap lens-text-base lens-font-medium lens-text-muted;
   }
@@ -402,42 +408,50 @@
     @apply lens-text-warn;
   }
 
-  .lens-dashboard-controls {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-justify-end lens-gap-2;
+  /* Rows B and C. The scope row never moves when a chip is added or dropped: a
+     chip used to be injected among the triggers, so applying one filter
+     re-wrapped the bar and the next trigger the reader was aiming at had moved. */
+  .lens-filter-bar {
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-col lens-items-start lens-gap-1.5;
   }
 
-  /* Once the action/filter cluster can no longer coexist with the document
-     identity, move it below as one unit. Letting flexbox squeeze the identity
-     instead makes every word (and even every date token) wrap independently,
-     which is unreadable in a board dashboard. */
+  /* Row B: what is on screen, as a sentence whose every clause is editable in
+     place. The middots are the sentence's punctuation and belong to the row, not
+     to the controls, so a control can be added or hidden without either end of
+     the line growing a stray separator. */
+  .lens-dashboard-scope {
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center;
+    gap: 2px 6px;
+  }
+
+  .lens-dashboard-scope > * + *::before {
+    @apply lens-select-none lens-text-faint;
+    content: '·';
+    margin-inline-end: 6px;
+  }
+
+  /* Once the title and the actions can no longer share a line, the actions drop
+     below it and keep their own order. Letting flexbox squeeze the title
+     instead makes every word — and even every date token — wrap independently,
+     which is unreadable on a board dashboard. */
   @media (max-width: 1100px) {
-    .lens-dashboard-header {
-      @apply lens-flex-col lens-items-stretch lens-gap-3;
+    .lens-dashboard-headline {
+      @apply lens-flex-col lens-items-stretch lens-gap-2;
     }
 
-    .lens-dashboard-controls {
+    .lens-dashboard-actions {
       @apply lens-justify-start;
     }
   }
 
   @container lens-dashboard (max-width: 1100px) {
-    .lens-dashboard-header {
-      @apply lens-flex-col lens-items-stretch lens-gap-3;
+    .lens-dashboard-headline {
+      @apply lens-flex-col lens-items-stretch lens-gap-2;
     }
 
-    .lens-dashboard-controls {
+    .lens-dashboard-actions {
       @apply lens-justify-start;
     }
-  }
-
-  /* Two rows with one job each: what you can open, then what is currently on.
-     The trigger row never moves when a chip is added or dropped. */
-  .lens-filter-bar {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-col lens-items-start lens-gap-1.5;
-  }
-
-  .lens-filter-bar-controls {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-2;
   }
 
   .lens-filter-bar-chips {
@@ -455,12 +469,14 @@
   }
 
   /* The comparison trigger prints its own label because, unlike a facet, the
-     mode it holds ("Year ago") does not name the thing being compared. Label and
-     value are the panel-title and stat voices, so the pair reads as one control
-     rather than two words. */
+     mode it holds ("Year ago") does not name the thing being compared.
+     Small-caps set it apart as chrome when the control was a bordered box in a
+     row of bordered boxes; in the scope sentence the pair has to read as words —
+     «Сравнить с Год назад» — so the label takes the muted voice of everything
+     else in that line and the value the strong one. */
   .lens-compare-trigger-label {
-    @apply lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
-    font-size: var(--lens-type-xs);
+    @apply lens-font-medium lens-text-muted;
+    font-size: var(--lens-type-base);
   }
 
   .lens-compare-trigger-value {
@@ -477,9 +493,11 @@
     @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-gap-2;
   }
 
+  /* Same voice as the comparison label it shares the scope line with: two
+     clauses of one sentence cannot be set in two different registers. */
   .lens-segmented-label {
-    @apply lens-flex-none lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
-    font-size: var(--lens-type-xs);
+    @apply lens-flex-none lens-font-medium lens-text-muted;
+    font-size: var(--lens-type-base);
   }
 
   /* Two or three permanent segments never overflow, so the track does not
@@ -545,6 +563,12 @@
     opacity: 0.82;
   }
 
+  /* The segmented tray: a recessed track whose active member is its only raised
+     card, so a closed single choice is stated once, in one language. The two
+     surfaces are local variables because "raised" inverts in the dark theme —
+     there the tray sinks below the page and the card sits above it.
+     It held the period's year chips too until those moved into the picker; the
+     labelled segmented control (grain, on Trends) is what wears it now. */
   .lens-filter {
     @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-rounded-control lens-border lens-border-solid lens-border-border;
     --lens-seg-tray: rgb(15 23 42 / 0.05);
@@ -554,61 +578,12 @@
     gap: 2px;
   }
 
-  /* With no declared presets there is no tray to be a segment of: the trigger
-     stands alone and wears the header's ordinary control chrome, instead of a
-     recessed track drawn around a single button. */
-  .lens-filter[data-bare] {
-    @apply lens-border-0 lens-p-0;
-    background: transparent;
+  /* The period control: a clause of the scope sentence, so no tray and no
+     border — the arrows and the range read as one phrase with a step either
+     side of it. */
+  .lens-period-filter {
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center;
   }
-
-  .lens-filter[data-bare] .lens-filter-trigger {
-    @apply lens-min-h-control-md lens-border lens-border-solid lens-border-border lens-text-text;
-    background: var(--lens-bg-card);
-    border-radius: var(--lens-radius-control);
-    padding-inline: 10px 8px;
-  }
-
-  .lens-filter[data-bare] .lens-filter-trigger:hover,
-  .lens-filter[data-bare] .lens-filter-trigger[data-active]:hover {
-    @apply lens-border-strong lens-text-strong;
-    background: var(--lens-bg-card);
-    box-shadow: none;
-  }
-
-  .lens-filter[data-bare] .lens-filter-trigger[data-active] {
-    @apply lens-text-strong;
-    background: var(--lens-bg-card);
-    box-shadow: none;
-  }
-
-  /* One segmented tray holds the declared period chips and the calendar
-     trigger. The tray is a recessed track and the active member the only
-     raised card in it, so the applied period is always stated once, in one
-     language — never a pressed chip beside an accent-tinted trigger. The two
-     surfaces are local variables because "raised" inverts in the dark theme:
-     there the tray sinks below the page and the card sits above it. */
-  .lens-filter-segments {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-overflow-x-auto;
-    gap: 2px;
-    overscroll-behavior-inline: contain;
-    scrollbar-width: thin;
-  }
-
-  .lens-filter-presets-frame {
-    @apply lens-relative lens-min-w-0 lens-flex-1 lens-overflow-hidden;
-  }
-
-  .lens-filter-presets-edge {
-    @apply lens-pointer-events-none lens-absolute lens-inset-y-0 lens-flex lens-w-7 lens-items-center lens-justify-center lens-text-muted;
-    opacity: 0;
-    transition: opacity var(--lens-dur-fast) var(--lens-ease-standard);
-  }
-
-  .lens-filter-presets-edge-left { left: 0; background: linear-gradient(90deg, var(--lens-seg-tray), transparent); }
-  .lens-filter-presets-edge-right { right: 0; background: linear-gradient(90deg, transparent, var(--lens-seg-tray)); }
-  .lens-filter-presets-frame[data-overflow-left] .lens-filter-presets-edge-left,
-  .lens-filter-presets-frame[data-overflow-right] .lens-filter-presets-edge-right { opacity: 1; }
 
   /* Every declared facet lives behind this one trigger, so the popover is
      anchored to it in the flow (see useMenuButton's measured placement) instead
@@ -618,20 +593,15 @@
     @apply lens-relative lens-flex lens-min-w-0 lens-items-center;
   }
 
-  /* SECONDARY. One trigger implementation for every popover-menu control in the
-     runtime: the facet filter and the comparison filter are the same object —
-     a button that opens a list — and they are declared together so they cannot
-     drift into two lookalike controls again. */
+  /* One trigger implementation for every popover-menu control in the scope row:
+     the facet filter and the comparison filter are the same object — a button
+     that opens a list — and they share the period trigger's chip rule below so
+     they cannot drift into three lookalike controls again. Only the padding is
+     local. */
   .lens-facet-trigger,
   .lens-compare-trigger {
-    @apply lens-flex lens-min-h-control-md lens-items-center lens-gap-1.5 lens-whitespace-nowrap lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-base lens-font-semibold lens-text-text;
-  }
-
-  .lens-facet-trigger:hover,
-  .lens-facet-trigger[aria-expanded='true'],
-  .lens-compare-trigger:hover,
-  .lens-compare-trigger[aria-expanded='true'] {
-    @apply lens-border-strong lens-text-strong;
+    @apply lens-gap-1.5;
+    padding-inline: 8px 6px;
   }
 
   .lens-facet-count {
@@ -848,8 +818,14 @@
     --lens-seg-raised: var(--lens-bg-inset);
   }
 
+  /* CHIP. State a reader can toggle, whether or not the toggle opens something:
+     a segment of the grain tray, the applied period, the comparison mode. No
+     border and no fill at rest — the sentence they sit in is the frame. */
   .lens-filter-chip,
-  .lens-filter-trigger {
+  .lens-filter-trigger,
+  .lens-filter-step,
+  .lens-compare-trigger,
+  .lens-facet-trigger {
     @apply lens-flex lens-flex-none lens-items-center lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-font-sans lens-text-base lens-font-semibold lens-text-muted;
     border-radius: var(--lens-radius-badge);
     min-height: var(--lens-control-h-sm);
@@ -863,39 +839,55 @@
   }
 
   .lens-filter-chip:hover,
-  .lens-filter-trigger:hover {
+  .lens-filter-trigger:hover,
+  .lens-filter-step:hover:not(:disabled),
+  .lens-compare-trigger:hover,
+  .lens-facet-trigger:hover {
     @apply lens-text-strong;
-    background: rgb(255 255 255 / 0.55);
+    background: rgb(15 23 42 / 0.06);
   }
 
   .lens-root[data-theme='dark'] .lens-filter-chip:hover,
-  .lens-root[data-theme='dark'] .lens-filter-trigger:hover {
+  .lens-root[data-theme='dark'] .lens-filter-trigger:hover,
+  .lens-root[data-theme='dark'] .lens-filter-step:hover:not(:disabled),
+  .lens-root[data-theme='dark'] .lens-compare-trigger:hover,
+  .lens-root[data-theme='dark'] .lens-facet-trigger:hover {
     background: rgb(255 255 255 / 0.08);
   }
 
-  /* The raised member: the chip whose range is applied, or the trigger when no
-     chip matches it. Hover restates it so the idle hover above cannot repaint
-     the raised card. */
+  /* The tray's raised member. Hover restates it so the idle hover above cannot
+     repaint the raised card. */
   .lens-filter-chip[aria-pressed='true'],
-  .lens-filter-chip[aria-pressed='true']:hover,
-  .lens-filter-trigger[data-active],
-  .lens-filter-trigger[data-active]:hover {
+  .lens-filter-chip[aria-pressed='true']:hover {
     @apply lens-text-strong;
     background: var(--lens-seg-raised);
     box-shadow: var(--lens-shadow-card);
   }
 
-  /* Open, the trigger belongs to the popover: a hairline accent ring states
-     the tie without a second fill competing with the raised state. */
-  .lens-filter-trigger[aria-expanded='true'] {
+  /* Open, a trigger belongs to its popover: a hairline accent ring states the
+     tie without a fill that would read as a pressed state it does not have. */
+  .lens-filter-trigger[aria-expanded='true'],
+  .lens-compare-trigger[aria-expanded='true'],
+  .lens-facet-trigger[aria-expanded='true'] {
     @apply lens-text-strong;
-    background: var(--lens-seg-raised);
     box-shadow: inset 0 0 0 1px var(--lens-accent-500);
   }
 
   .lens-filter-trigger {
-    @apply lens-flex-none lens-gap-1.5;
+    @apply lens-flex-none lens-gap-1.5 lens-text-strong;
     padding-inline: 8px 6px;
+  }
+
+  /* The steps are the period's own arrows, so they hug it: no gap to the range
+     between them, and a square box that reads as a nudge rather than a peer of
+     the label it moves. Disabled they stay in place — a step that vanishes at
+     the edge of the document's bounds moves the range under the pointer. */
+  .lens-filter-step {
+    @apply lens-w-6 lens-justify-center;
+  }
+
+  .lens-filter-step:disabled {
+    @apply lens-cursor-default lens-opacity-40;
   }
 
   .lens-filter-trigger-label {
@@ -1796,23 +1788,35 @@
      and a native <select> — which left a reader no way to tell which of them
      mattered, because every possible answer was on screen at the same time.
 
+     The axis is what a control does to the document, NOT whether it opens
+     something. That distinction is the correction: for a while every popover
+     trigger was secondary by rule, which put the period, the comparison and the
+     facets in the same bordered boxes as Экспорт and Пересчитать. Consistency
+     without hierarchy — eight identical rectangles, and a reader with no way to
+     tell the controls that change the figures from the verbs that carry them
+     away. A control that STATES THE SLICE wears the chip weight even though it
+     opens a popover; a control that ACTS ON THE DOCUMENT wears secondary.
+
      1. PRIMARY — accent fill, on-accent ink. The one action that commits what
         the surface was opened to do. At most one per surface.
         .lens-facet-apply · .lens-filter-apply · .lens-leaf-action
-     2. SECONDARY — card fill, hairline border, control-md box. Every other
-        action and every popover trigger. The header's default weight.
-        .lens-export-button (+ .lens-action-square for its icon-only member)
-        .lens-facet-trigger · .lens-filter-trigger · .lens-compare-trigger
-        .lens-facet-actions button
+     2. SECONDARY — card fill, hairline border, control-md box. Actions on the
+        document: the header's action row, and every popover's own buttons.
+        .lens-export-button (+ .lens-action-square for its icon-only members:
+        copy link, and anything else whose glyph is unambiguous)
+        .lens-recompute · .lens-facet-actions button
      3. ICON-ONLY — no border, no fill, faint glyph that gains a wash on hover.
         For an affordance repeated per panel/row, where borders would tile the
-        page. Never for a header action: bare beside bordered reads as disabled.
+        page. Never in the header's action row: bare beside bordered reads as
+        disabled — use .lens-action-square there instead.
         .lens-icon-button
-     4. CHIP — badge radius, quiet or tinted fill, no border. State the reader
-        can toggle or dismiss (a selected facet, a period preset, "clear all"),
-        not an action on the document.
-        .lens-filter-chip · .lens-filter-preset · .lens-facet-active-chip
-        .lens-facet-clear
+     4. CHIP — badge radius, quiet fill on hover, no border. State: what the
+        reader is looking at and can change, whether that change is one press
+        (a tray segment, a step arrow) or a popover (period, comparison,
+        facets). This is the whole scope row.
+        .lens-filter-chip · .lens-filter-trigger · .lens-filter-step
+        .lens-compare-trigger · .lens-facet-trigger · .lens-filter-preset
+        .lens-facet-active-chip · .lens-facet-clear
 
      Height comes from --lens-control-h-*, ink and fill from the semantic
      tokens, the focus ring from the one rule at the end of the sheet. */
@@ -1877,6 +1881,7 @@
   .lens-fake-chart-footer button,
   .lens-filter-chip,
   .lens-filter-trigger,
+  .lens-filter-step,
   .lens-facet-trigger,
   .lens-compare-trigger,
   .lens-chart-keyboard-actions button,
@@ -2517,12 +2522,12 @@
     @apply lens-mt-0 lens-border-0 lens-bg-transparent lens-px-0 lens-py-0 lens-text-base lens-font-medium lens-text-muted lens-shadow-none;
   }
 
-  /* The copy confirmation is the width of the button that produced it, so it
-     can only ever cover that button's own column. It used to be a 148px card
-     under a 28px icon button, i.e. a note that reached 119px across the control
-     next to it. */
+  /* Right-anchored to the square that produced it and sized to its own text.
+     Matching the trigger's width instead would put one word per line under a
+     32px button; growing leftwards from its right edge keeps it clear of the
+     export menu, which is the only thing to its right. */
   .lens-share-control .lens-export-message {
-    @apply lens-absolute lens-right-0 lens-top-full lens-z-sticky lens-w-full lens-max-w-none lens-text-center;
+    @apply lens-absolute lens-right-0 lens-top-full lens-z-sticky lens-w-max lens-max-w-none lens-text-center;
   }
 
   .lens-export-message-error {

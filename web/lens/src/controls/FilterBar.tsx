@@ -10,6 +10,12 @@ import { clearRendererStateFromURL } from '../runtime/url'
 export interface FilterBarProps {
   /** Fixed "today" for deterministic stories and visual regression. */
   today?: CalendarDate
+  /**
+   * The producer's own scope line, printed after the controls. It states what
+   * the controls cannot — a data cut-off, a scope caveat — so it reads as the
+   * tail of the same sentence rather than as a second heading.
+   */
+  subtitle?: string
 }
 
 interface ActiveChip {
@@ -20,20 +26,26 @@ interface ActiveChip {
 
 /**
  * The declared dashboard controls, rendered in the header chrome. Empty when
- * the document declares none (and inside drawers, where the context hands out
- * no filters).
+ * the document declares none, carries no applied filter and states no scope
+ * line of its own (and inside drawers, where the context hands out no filters).
  *
  * Two rows, and the first one never moves: the controls that open something
- * (period, comparison, filters) sit on the trigger row, and everything that is
+ * (period, comparison, filters) sit on the scope row, and everything that is
  * currently *on* sits on the chip row below it. A chip used to be injected
  * between the triggers, so applying one filter re-wrapped the whole bar and the
  * next trigger the reader was aiming at had moved.
+ *
+ * The scope row reads as a sentence about what is on screen — «1 янв — 4 авг
+ * 2026 · Без сравнения · данные по 4 авг» — with each segment editable in
+ * place. It was a row of bordered boxes at the same weight as Экспорт and
+ * Пересчитать beside it, which gave a reader no way to tell the controls that
+ * change the figures from the ones that carry them away.
  */
-export function FilterBar({ today }: FilterBarProps) {
+export function FilterBar({ subtitle, today }: FilterBarProps) {
   const { filters, applyURL } = useFilters()
   const { document } = useDashboard()
   const translate = useTranslate()
-  if (filters.length === 0 && (document.activeFilters?.length ?? 0) === 0) return null
+  if (filters.length === 0 && (document.activeFilters?.length ?? 0) === 0 && !subtitle) return null
   const intercept = (url: string) => (event: React.MouseEvent<HTMLElement>) => {
     if ('metaKey' in event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)) return
     event.preventDefault()
@@ -72,7 +84,7 @@ export function FilterBar({ today }: FilterBarProps) {
 
   return (
     <div aria-label={translate('filter.bar.label', 'Dashboard filters')} className="lens-filter-bar" role="group">
-      <div className="lens-filter-bar-controls">
+      <div className="lens-dashboard-scope">
         {/* Declaration order is render order, and the row only wraps — it never
             reorders — so a control keeps the same neighbours at every width. */}
         {filters.map((filter) => (
@@ -85,6 +97,10 @@ export function FilterBar({ today }: FilterBarProps) {
                 : null
         ))}
         {facets.length > 0 && <FacetFilterMenu filters={facets} />}
+        {/* Not a heading and not a control: the part of the scope no control
+            owns. It sits last so the editable segments stay together at the
+            left edge, where the eye lands. */}
+        {subtitle && <p className="lens-dashboard-subtitle">{subtitle}</p>}
       </div>
       {(chips.length > 0 || clearAllURL) && (
         <div className="lens-filter-bar-chips">

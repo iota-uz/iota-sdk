@@ -418,6 +418,24 @@ describe('FilterBar runtime integration', () => {
   const compareTrigger = () => screen.findByRole('button', { name: /Compare with/ })
   const compareOption = (name: string) => screen.getByRole('option', { name })
 
+  // A declared preset is a rail entry in the picker, not a chip in the header:
+  // the header carries the applied range and the two arrows that move it.
+  const openPeriod = async () => {
+    // Idempotent: the trigger toggles, so a second open would close the picker.
+    if (!screen.queryByRole('dialog')) {
+      fireEvent.click(await screen.findByRole('button', { name: /Change period/ }))
+    }
+    return screen.findByRole('dialog')
+  }
+  const applyPreset = async (name: string) => {
+    fireEvent.click(within(await openPeriod()).getByRole('button', { name }))
+  }
+  const presetState = async (name: string) => {
+    const state = within(await openPeriod()).getByRole('button', { name }).getAttribute('aria-pressed')
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    return state
+  }
+
   it('replaces an impossible all-time comparison deep link after the normalized document loads', async () => {
     window.history.replaceState(null, '', '/dash?ActualRangeStart=&ActualRangeEnd=&compare=custom&compare_start=2025-01-01&compare_end=2025-08-01')
     const fetcher: typeof fetch = () => Promise.resolve(new Response(
@@ -506,13 +524,13 @@ describe('FilterBar runtime integration', () => {
     window.history.replaceState(null, '', '/dash')
     render(<DashboardFiltersFixture fetcher={refetchFailureFetcher([])} />)
 
-    fireEvent.click(await screen.findByRole('button', { name: '2025' }))
+    await applyPreset('2025')
 
     const banner = await screen.findByRole('alert')
     expect(banner).toHaveTextContent('Unable to refresh the dashboard. The previous data is still shown.')
     expect(screen.getByRole('heading', { name: 'Overview' })).toBeInTheDocument()
     expect(screen.getByText('42')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '2025' })).toHaveAttribute('aria-pressed', 'true')
+    expect(await presetState('2025')).toBe('true')
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss notice' }))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -523,7 +541,7 @@ describe('FilterBar runtime integration', () => {
     const calls: Array<string> = []
     render(<DashboardFiltersFixture fetcher={refetchFailureFetcher(calls)} />)
 
-    fireEvent.click(await screen.findByRole('button', { name: '2025' }))
+    await applyPreset('2025')
     fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
 
     const filteredURL = '/lens/document?ActualRangeStart=2025-01-01&ActualRangeEnd=2025-12-31'
@@ -534,37 +552,63 @@ describe('FilterBar runtime integration', () => {
     window.history.replaceState(null, '', '/dash')
     render(<DashboardFiltersFixture fetcher={refetchFailureFetcher([])} />)
 
-    fireEvent.click(await screen.findByRole('button', { name: '2025' }))
+    await applyPreset('2025')
     fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
 
     expect(await screen.findByRole('heading', { name: 'Refreshed Overview' })).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
 
-  it('marks the trigger as the active period source when no chip matches', async () => {
+  it('steps a running year back to the whole year before it, and announces where', async () => {
     window.history.replaceState(null, '', '/dash')
-    render(<FiltersFixture fetcher={periodFetcher([])} />)
+    const calls: Array<string> = []
+    render(<FiltersFixture fetcher={periodFetcher(calls)} />)
 
-    // Document default 2026-01-01..2026-07-22 matches no chip: the custom
-    // range on the trigger is the active source.
-    const trigger = await screen.findByRole('button', { name: /Change period/ })
-    expect(trigger.dataset.active).toBe('true')
+    // Document default 2026-01-01..2026-07-22 is the current year still
+    // running. A step back is the comparison the year chips existed to offer:
+    // the whole of 2025, not January-to-July of it.
+    const back = await screen.findByRole('button', { name: /Previous period/ })
+    expect(back).toHaveAccessibleName('Previous period: 01.01.2025 – 31.12.2025')
+    fireEvent.click(back)
 
-    // Once a chip's range applies, the chip is the source and the cue moves.
-    fireEvent.click(screen.getByRole('button', { name: '2025' }))
+    expect(window.location.search).toBe('?ActualRangeStart=2025-01-01&ActualRangeEnd=2025-12-31')
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: '2025' })).toHaveAttribute('aria-pressed', 'true')
+      expect(calls.at(-1)).toBe('/lens/document?ActualRangeStart=2025-01-01&ActualRangeEnd=2025-12-31')
     })
-    expect(screen.getByRole('button', { name: /Change period/ }).dataset.active).toBeUndefined()
+    // And forward re-opens the current year at today rather than running it to
+    // a December that has not happened.
+    expect(await screen.findByRole('button', { name: /Next period/ }))
+      .toHaveAccessibleName('Next period: 01.01.2026 – 22.07.2026')
   })
 
-  it('renders declared presets with the active one pressed', async () => {
+  it('steps a hand-drawn range by its own length', async () => {
+    window.history.replaceState(null, '', '/dash?ActualRangeStart=2026-07-06&ActualRangeEnd=2026-07-22')
+    render(<FiltersFixture fetcher={periodFetcher([])} />)
+
+    // 17 days lands on the 17 days before it: no gap, no overlap.
+    const back = await screen.findByRole('button', { name: /Previous period/ })
+    expect(back).toHaveAccessibleName('Previous period: 19.06.2026 – 05.07.2026')
+    fireEvent.click(back)
+    expect(window.location.search).toBe('?ActualRangeStart=2026-06-19&ActualRangeEnd=2026-07-05')
+  })
+
+  it('offers no step for a period with no length', async () => {
+    window.history.replaceState(null, '', '/dash?ActualRangeStart=&ActualRangeEnd=')
+    render(<FiltersFixture fetcher={periodFetcher([])} />)
+
+    // "All time" has no length to step by. The arrows stay in place rather
+    // than vanishing, which would move the range out from under the pointer.
+    expect(await screen.findByRole('button', { name: /Previous period/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Next period/ })).toBeDisabled()
+  })
+
+  it('renders declared presets in the picker with the active one pressed', async () => {
     window.history.replaceState(null, '', '/dash')
     render(<FiltersFixture fetcher={periodFetcher([])} />)
-    const chip = await screen.findByRole('button', { name: '2025' })
-    expect(chip.getAttribute('aria-pressed')).toBe('false')
+    const dialog = await openPeriod()
+    expect(within(dialog).getByRole('button', { name: '2025' }).getAttribute('aria-pressed')).toBe('false')
     // Document default is 2026-01-01..2026-07-22, matching no preset.
-    expect(screen.getByRole('button', { name: '2026' }).getAttribute('aria-pressed')).toBe('false')
+    expect(within(dialog).getByRole('button', { name: '2026' }).getAttribute('aria-pressed')).toBe('false')
   })
 
   it('drives the URL and refetches on preset click; Back restores without timers', async () => {
@@ -572,15 +616,14 @@ describe('FilterBar runtime integration', () => {
     const calls: Array<string> = []
     render(<FiltersFixture fetcher={periodFetcher(calls)} />)
 
-    const chip = await screen.findByRole('button', { name: '2025' })
-    fireEvent.click(chip)
+    await applyPreset('2025')
 
     expect(window.location.search).toBe('?ActualRangeStart=2025-01-01&ActualRangeEnd=2025-12-31')
     await waitFor(() => {
       expect(calls.at(-1)).toBe('/lens/document?ActualRangeStart=2025-01-01&ActualRangeEnd=2025-12-31')
     })
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: '2025' }).getAttribute('aria-pressed')).toBe('true')
+    await waitFor(async () => {
+      expect(await presetState('2025')).toBe('true')
     })
 
     // Browser Back: the URL is the whole state; popstate re-reads it. The spy
@@ -600,8 +643,8 @@ describe('FilterBar runtime integration', () => {
     await waitFor(() => {
       expect(calls.at(-1)).toBe('/lens/document')
     })
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: '2025' }).getAttribute('aria-pressed')).toBe('false')
+    await waitFor(async () => {
+      expect(await presetState('2025')).toBe('false')
     })
   })
 
@@ -609,13 +652,13 @@ describe('FilterBar runtime integration', () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
     render(<FiltersFixture fetcher={periodFetcher(calls)} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'All time' }))
+    await applyPreset('All time')
     expect(window.location.search).toBe('?ActualRangeStart=&ActualRangeEnd=')
     await waitFor(() => {
       expect(calls.at(-1)).toBe('/lens/document?ActualRangeStart=&ActualRangeEnd=')
     })
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'All time' }).getAttribute('aria-pressed')).toBe('true')
+    await waitFor(async () => {
+      expect(await presetState('All time')).toBe('true')
     })
   })
 
@@ -662,26 +705,25 @@ describe('FilterBar runtime integration', () => {
     expect(screen.getByLabelText('To')).toHaveValue('22.07.2026')
   })
 
-  it('keeps exactly one raised member in the segmented period group', async () => {
+  it('states the applied period once, on the trigger, whatever produced it', async () => {
     window.history.replaceState(null, '', '/dash')
     render(<FiltersFixture fetcher={periodFetcher([])} />)
     const group = await screen.findByRole('group', { name: 'Period' })
-    const raised = () => group.querySelectorAll('[aria-pressed="true"], [data-active]')
 
-    // The document default matches no chip: the trigger is the raised segment.
-    expect(raised()).toHaveLength(1)
-    expect(raised()[0]).toHaveClass('lens-filter-trigger')
-    // The chips live in the same tray as the trigger, so the caption beside
-    // them is gone: the group carries the filter's label instead.
-    expect(within(group).getByRole('button', { name: '2025' })).toBeInTheDocument()
+    // Three buttons and no caption: back, the applied range, forward. The
+    // declared years are in the picker, so nothing in the header competes with
+    // the trigger to say which period is on screen.
+    expect(within(group).getAllByRole('button')).toHaveLength(3)
+    expect(within(group).getByRole('button', { name: /Change period/ }))
+      .toHaveTextContent('01.01.2026 – 22.07.2026')
+    expect(within(group).queryByRole('button', { name: '2025' })).toBeNull()
     expect(screen.queryByText('Period')).not.toBeInTheDocument()
 
-    fireEvent.click(within(group).getByRole('button', { name: '2025' }))
+    await applyPreset('2025')
     await waitFor(() => {
-      expect(within(group).getByRole('button', { name: '2025' })).toHaveAttribute('aria-pressed', 'true')
+      expect(within(group).getByRole('button', { name: /Change period/ }))
+        .toHaveTextContent('01.01.2025 – 31.12.2025')
     })
-    expect(raised()).toHaveLength(1)
-    expect(raised()[0]).toHaveTextContent('2025')
   })
 
   it('keeps the built-in catalog in the popover instead of a second preset row', async () => {
@@ -715,25 +757,27 @@ describe('FilterBar runtime integration', () => {
     })
   })
 
-  it('surfaces the relative catalog in the popover even with server year-chips', async () => {
+  it('surfaces the relative catalog in the popover alongside the declared years', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
     render(<FiltersFixture fetcher={periodFetcher(calls)} />)
 
-    // Server year-chips drive the top row.
-    await screen.findByRole('button', { name: '2025' })
-    expect(screen.getByRole('button', { name: '2026' })).toBeInTheDocument()
+    const dialog = await openPeriod()
 
-    fireEvent.click(screen.getByRole('button', { name: /Change period/ }))
-    const dialog = await screen.findByRole('dialog')
-
-    // The full legacy quick-range catalog appears inside the popover
-    // regardless of server presets — including last fiscal year, even though
-    // it resolves to the same range as the server's previous-year chip.
+    // The producer's own years lead the rail and the quick-range catalog fills
+    // in what they do not cover.
+    expect(within(dialog).getByRole('button', { name: '2025' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: '2026' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Current month' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: '30 days' })).toBeInTheDocument()
+    // "Last fiscal year" resolves to exactly the 2025 entry above it, so it is
+    // dropped: two highlighted rows for one applied period give a reader no way
+    // to tell what distinguishes them. Same range, one row — the producer's.
+    expect(within(dialog).queryByRole('button', { name: 'Last fiscal year' })).toBeNull()
+    // "Current fiscal year" survives here because this document's 2026 entry
+    // runs to 31 December while the catalog's stops at today. The match is on
+    // the resolved range, not on what a preset is called.
     expect(within(dialog).getByRole('button', { name: 'Current fiscal year' })).toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Last fiscal year' })).toBeInTheDocument()
 
     // Selecting a popover preset applies its resolved bounds and closes the popover.
     fireEvent.click(within(dialog).getByRole('button', { name: 'Current month' }))
@@ -830,7 +874,7 @@ describe('FilterBar runtime integration', () => {
     window.history.replaceState(null, '', '/dash?ActualRangeStart=garbage&ActualRangeEnd=2026-01-01')
     const calls: Array<string> = []
     render(<FiltersFixture fetcher={periodFetcher(calls)} />)
-    await screen.findByRole('button', { name: '2025' })
+    await screen.findByRole('button', { name: /Change period/ })
     // The invalid pair is dropped: only the plain document fetch happened.
     expect(calls).toEqual(['/lens/document'])
   })
@@ -917,7 +961,7 @@ describe('facet filter menu', () => {
 
     const trigger = screen.getByRole('button', { name: /Filters/ })
     // One trigger, whatever the dashboard declares, and it counts what is on.
-    expect(view.container.querySelectorAll('.lens-filter-bar-controls button')).toHaveLength(1)
+    expect(view.container.querySelectorAll('.lens-dashboard-scope button')).toHaveLength(1)
     expect(trigger).toHaveTextContent('1')
     // Applied selections are a row of their own, so applying one never reflows
     // the row of triggers above it.

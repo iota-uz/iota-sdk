@@ -101,6 +101,73 @@ func TestExecutionSessionCancelsSpeculationAfterItsLastConsumerDetaches(t *testi
 	}
 }
 
+func TestExecutionSessionRunsIntentBesideUnrelatedIdleWork(t *testing.T) {
+	session := newExecutionSession(2, time.Second)
+	idleStarted := make(chan struct{})
+	idleRelease := make(chan struct{})
+	idle := session.submit(t.Context(), "idle", priorityIdlePrefetch, 0, func(context.Context) (any, error) {
+		close(idleStarted)
+		<-idleRelease
+		return "idle", nil
+	})
+	session.enableBackground()
+	<-idleStarted
+
+	intentStarted := make(chan struct{})
+	intent := session.submit(t.Context(), "intent", priorityIntent, 0, func(context.Context) (any, error) {
+		close(intentStarted)
+		return "intent", nil
+	})
+	select {
+	case <-intentStarted:
+	case <-time.After(time.Second):
+		t.Fatal("intent prefetch waited behind unrelated idle work")
+	}
+	require.Equal(t, "intent", (<-intent.result).value)
+	close(idleRelease)
+	require.Equal(t, "idle", (<-idle.result).value)
+}
+
+func TestExecutionSessionKeepsEachBackgroundLaneBounded(t *testing.T) {
+	session := newExecutionSession(4, time.Second)
+	releaseIntent := make(chan struct{})
+	releaseIdle := make(chan struct{})
+	started := make(chan string, 4)
+	intentA := session.submit(t.Context(), "intent-a", priorityIntent, 0, func(context.Context) (any, error) {
+		started <- "intent-a"
+		<-releaseIntent
+		return nil, nil
+	})
+	intentB := session.submit(t.Context(), "intent-b", priorityIntent, 1, func(context.Context) (any, error) {
+		started <- "intent-b"
+		return nil, nil
+	})
+	idleA := session.submit(t.Context(), "idle-a", priorityIdlePrefetch, 0, func(context.Context) (any, error) {
+		started <- "idle-a"
+		<-releaseIdle
+		return nil, nil
+	})
+	idleB := session.submit(t.Context(), "idle-b", priorityIdlePrefetch, 1, func(context.Context) (any, error) {
+		started <- "idle-b"
+		return nil, nil
+	})
+	session.enableBackground()
+	require.ElementsMatch(t, []string{"intent-a", "idle-a"}, []string{<-started, <-started})
+	select {
+	case unexpected := <-started:
+		t.Fatalf("second job escaped its bounded lane: %s", unexpected)
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(releaseIntent)
+	require.NoError(t, (<-intentA.result).err)
+	require.Equal(t, "intent-b", <-started)
+	require.NoError(t, (<-intentB.result).err)
+	close(releaseIdle)
+	require.NoError(t, (<-idleA.result).err)
+	require.Equal(t, "idle-b", <-started)
+	require.NoError(t, (<-idleB.result).err)
+}
+
 func TestExecutionSessionPreemptsRunningSpeculationForVisibleWork(t *testing.T) {
 	session := newExecutionSession(2, time.Second)
 	rootRelease := make(chan struct{})
@@ -242,6 +309,70 @@ func TestDerivedSnapshotSharesParentRegistrySession(t *testing.T) {
 
 	child.releaseSession("child")
 	require.Same(t, parentSession, parent.session("parent"), "releasing a drawer must not release its parent dashboard")
+	require.Same(t, parentSession, child.session("child"), "a cached drawer reopen must retain the parent execution graph")
+}
+
+func TestExecutionSessionRequeuesInteractiveWorkAfterBackgroundPreemption(t *testing.T) {
+	session := newExecutionSession(2, time.Second)
+	rootRelease := make(chan struct{})
+	root := session.submit(t.Context(), "root", priorityRootBase, 0, func(context.Context) (any, error) {
+		<-rootRelease
+		return "root", nil
+	})
+
+	backgroundStarted := make(chan struct{})
+	backgroundCancelled := make(chan struct{})
+	backgroundExit := make(chan struct{})
+	prefetch := session.submit(t.Context(), "child", priorityIdlePrefetch, 0, func(ctx context.Context) (any, error) {
+		close(backgroundStarted)
+		<-ctx.Done()
+		close(backgroundCancelled)
+		<-backgroundExit
+		return nil, ctx.Err()
+	})
+	session.enableBackground()
+	<-backgroundStarted
+
+	visible := session.submit(t.Context(), "visible", priorityRootBase, 1, func(context.Context) (any, error) {
+		return "visible", nil
+	})
+	<-backgroundCancelled
+
+	replacementStarted := make(chan struct{})
+	interactive := session.submit(t.Context(), "child", priorityInteractive, 0, func(context.Context) (any, error) {
+		close(replacementStarted)
+		return "interactive", nil
+	})
+	close(backgroundExit)
+
+	require.ErrorIs(t, (<-prefetch.result).err, context.Canceled)
+	select {
+	case <-replacementStarted:
+	case <-time.After(time.Second):
+		t.Fatal("interactive activation joined the preempted background job")
+	}
+	require.Equal(t, "interactive", (<-interactive.result).value)
+	close(rootRelease)
+	require.Equal(t, "root", (<-root.result).value)
+	require.Equal(t, "visible", (<-visible.result).value)
+}
+
+func TestExecutionSessionRejectsNewWorkAfterRelease(t *testing.T) {
+	session := newExecutionSession(2, time.Second)
+	session.release()
+
+	ran := false
+	call := session.submit(t.Context(), "late-prefetch", priorityIdlePrefetch, 0, func(context.Context) (any, error) {
+		ran = true
+		return nil, nil
+	})
+
+	require.ErrorIs(t, (<-call.result).err, context.Canceled)
+	require.False(t, ran)
+	session.mu.Lock()
+	require.Empty(t, session.jobs)
+	require.Empty(t, session.queue)
+	session.mu.Unlock()
 }
 
 func TestExecutionSessionKeepsPromotedWorkForInteractiveConsumer(t *testing.T) {

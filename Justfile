@@ -53,7 +53,7 @@ lens cmd="help" *args="":
   case "{{cmd}}" in \
     dev|build|ladle|install) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
     watch) (cd web/lens && pnpm exec vite build --watch {{args}}) ;; \
-    serve-from-disk) echo "export LENS_ASSETS_DIR={{justfile_directory()}}/web/lens/dist" ;; \
+    serve-from-disk) echo "export LENS_ASSETS_DIR={{justfile_directory()}}/pkg/lens/render/react/dist" ;; \
     smoke) \
       if [ -z "{{args}}" ]; then echo "Usage: just lens smoke <test file | -t 'test name'>" ; exit 2 ; fi ; \
       smoke_args='{{args}}' ; \
@@ -74,7 +74,8 @@ lens cmd="help" *args="":
       echo "                   -t 'name'. The per-edit lane; just lens check stays" ; \
       echo "                   the pre-push one" ; \
       echo "  watch            rebuild the bundle on every source change" ; \
-      echo "  serve-from-disk  print the env export that makes a host serve web/lens/dist" ; \
+      echo "  serve-from-disk  print the env export that makes a host serve the built" ; \
+      echo "                   bundle from disk (vite's outDir, pkg/lens/render/react/dist)" ; \
       echo "                   instead of the bundle embedded in its binary, so a rebuild" ; \
       echo "                   shows up on page reload with no Go rebuild or restart" ; \
       exit 2 ;; \

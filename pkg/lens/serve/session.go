@@ -2,6 +2,7 @@ package serve
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -33,6 +34,7 @@ type scheduledJob struct {
 	queuedAt   time.Time
 	background bool
 	running    bool
+	preempted  bool
 	revision   int
 	base       context.Context
 	cancel     context.CancelFunc
@@ -68,6 +70,8 @@ type executionSession struct {
 	queue             []*scheduledJob
 	running           int
 	backgroundRunning int
+	intentRunning     int
+	idleRunning       int
 	backgroundReady   bool
 	runningForeground map[int]int
 	maxConcurrency    int
@@ -79,6 +83,7 @@ type executionSession struct {
 	prefetched        map[string]struct{}
 	metric            func(Metric)
 	activeRevision    int
+	released          bool
 }
 
 // SessionRegistry lets independently registered Lens documents participate in
@@ -167,6 +172,12 @@ func (s *executionSession) submit(
 ) scheduledCall {
 	result := make(chan scheduledResult, 1)
 	s.mu.Lock()
+	if s.released {
+		s.mu.Unlock()
+		result <- scheduledResult{err: context.Canceled}
+		close(result)
+		return scheduledCall{result: result}
+	}
 	s.nextWaiter++
 	waiterID := s.nextWaiter
 	s.lastUsed = time.Now()
@@ -174,7 +185,7 @@ func (s *executionSession) submit(
 	if len(revisions) > 0 {
 		revision = revisions[0]
 	}
-	if existing := s.jobs[key]; existing != nil {
+	if existing := s.jobs[key]; existing != nil && !existing.preempted {
 		s.reportLocked(Metric{Name: MetricRedundantWork, Value: 1, Labels: map[string]string{"class": priorityClass(priority)}})
 		existing.waiters[waiterID] = result
 		if priority < existing.priority {
@@ -213,18 +224,8 @@ func (s *executionSession) promoteLocked(job *scheduledJob, priority, order int)
 	if !job.running {
 		return
 	}
-	if previousBackground {
-		s.backgroundRunning--
-	} else if s.runningForeground[previousPriority] <= 1 {
-		delete(s.runningForeground, previousPriority)
-	} else {
-		s.runningForeground[previousPriority]--
-	}
-	if job.background {
-		s.backgroundRunning++
-	} else {
-		s.runningForeground[priority]++
-	}
+	s.adjustRunningLocked(previousPriority, previousBackground, -1)
+	s.adjustRunningLocked(priority, job.background, 1)
 }
 
 func (s *executionSession) advanceRevision(revision int) {
@@ -313,11 +314,7 @@ func (s *executionSession) dispatchLocked() {
 		job.running = true
 		s.running++
 		s.reportLocked(Metric{Name: MetricSchedulerSaturation, Value: float64(s.running) / float64(s.maxConcurrency)})
-		if job.background {
-			s.backgroundRunning++
-		} else {
-			s.runningForeground[job.priority]++
-		}
+		s.adjustRunningLocked(job.priority, job.background, 1)
 		go s.execute(job)
 	}
 }
@@ -337,26 +334,55 @@ func (s *executionSession) preemptBackgroundLocked() {
 		return
 	}
 	s.reportLocked(Metric{Name: MetricCancelledSpeculation, Value: 1, Labels: map[string]string{"class": priorityClass(candidate.priority), "reason": "foreground_preemption"}})
+	candidate.preempted = true
 	candidate.cancel()
 	candidate.cancel = nil
 }
 
 func (s *executionSession) nextJobLocked() int {
 	foregroundIndex := s.bestQueuedLocked(false)
-	backgroundIndex := s.bestQueuedLocked(true)
-	if backgroundIndex >= 0 && s.backgroundReady && s.backgroundRunning == 0 && (s.maxConcurrency > 1 || foregroundIndex < 0) {
-		return backgroundIndex
-	}
-	if foregroundIndex < 0 {
-		return -1
-	}
-	queuedPriority := agedPriority(s.queue[foregroundIndex], time.Now(), s.backgroundReady)
-	for runningPriority, count := range s.runningForeground {
-		if count > 0 && queuedPriority > runningPriority {
-			return -1
+	if foregroundIndex >= 0 {
+		queuedPriority := agedPriority(s.queue[foregroundIndex], time.Now(), s.backgroundReady)
+		blocked := false
+		for runningPriority, count := range s.runningForeground {
+			if count > 0 && queuedPriority > runningPriority {
+				blocked = true
+				break
+			}
+		}
+		if !blocked {
+			return foregroundIndex
 		}
 	}
-	return foregroundIndex
+	if !s.backgroundReady || s.backgroundRunning >= min(2, s.maxConcurrency) {
+		return -1
+	}
+	return s.bestRunnableBackgroundLocked()
+}
+
+// bestRunnableBackgroundLocked gives intent and idle speculation independent
+// bounded lanes. An expensive SDK-owned idle traversal can keep making progress
+// without preventing a derived document's first row from warming in parallel.
+// Foreground still owns the global cap and preempts speculation when saturated.
+func (s *executionSession) bestRunnableBackgroundLocked() int {
+	best := -1
+	now := time.Now()
+	for index, job := range s.queue {
+		if !job.background {
+			continue
+		}
+		if job.priority >= priorityIdlePrefetch {
+			if s.idleRunning > 0 {
+				continue
+			}
+		} else if s.intentRunning > 0 {
+			continue
+		}
+		if best < 0 || lessScheduledJob(job, s.queue[best], now, s.backgroundReady) {
+			best = index
+		}
+	}
+	return best
 }
 
 func (s *executionSession) bestQueuedLocked(background bool) int {
@@ -366,18 +392,19 @@ func (s *executionSession) bestQueuedLocked(background bool) int {
 		if job.background != background {
 			continue
 		}
-		jobPriority := agedPriority(job, now, s.backgroundReady)
-		bestPriority := 0
-		if best >= 0 {
-			bestPriority = agedPriority(s.queue[best], now, s.backgroundReady)
-		}
-		if best < 0 || jobPriority < bestPriority ||
-			(jobPriority == bestPriority && job.order < s.queue[best].order) ||
-			(jobPriority == bestPriority && job.order == s.queue[best].order && job.sequence < s.queue[best].sequence) {
+		if best < 0 || lessScheduledJob(job, s.queue[best], now, s.backgroundReady) {
 			best = index
 		}
 	}
 	return best
+}
+
+func lessScheduledJob(left, right *scheduledJob, now time.Time, allowRootAging bool) bool {
+	leftPriority := agedPriority(left, now, allowRootAging)
+	rightPriority := agedPriority(right, now, allowRootAging)
+	return leftPriority < rightPriority ||
+		(leftPriority == rightPriority && left.order < right.order) ||
+		(leftPriority == rightPriority && left.order == right.order && left.sequence < right.sequence)
 }
 
 func agedPriority(job *scheduledJob, now time.Time, allowRootAging bool) int {
@@ -403,25 +430,37 @@ func (s *executionSession) execute(job *scheduledJob) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(job.base), s.workTimeout)
 	s.mu.Lock()
 	job.cancel = cancel
+	s.reportLocked(Metric{
+		Name:   MetricQueueWait,
+		Value:  float64(time.Since(job.queuedAt).Microseconds()) / 1000,
+		Labels: map[string]string{"class": priorityClass(job.priority)},
+	})
 	if len(job.waiters) == 0 {
 		cancel()
 	}
 	s.mu.Unlock()
+	started := time.Now()
 	value, err := job.run(ctx)
 	cancel()
 
 	s.mu.Lock()
+	outcome := "ok"
+	if err != nil {
+		outcome = "error"
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			outcome = "cancelled"
+		}
+	}
+	s.reportLocked(Metric{
+		Name:   MetricExecutionDuration,
+		Value:  float64(time.Since(started).Microseconds()) / 1000,
+		Labels: map[string]string{"class": priorityClass(job.priority), "outcome": outcome},
+	})
 	if s.jobs[job.key] == job {
 		delete(s.jobs, job.key)
 	}
 	s.running--
-	if job.background {
-		s.backgroundRunning--
-	} else if s.runningForeground[job.priority] <= 1 {
-		delete(s.runningForeground, job.priority)
-	} else {
-		s.runningForeground[job.priority]--
-	}
+	s.adjustRunningLocked(job.priority, job.background, -1)
 	s.lastUsed = time.Now()
 	waiters := make([]chan scheduledResult, 0, len(job.waiters))
 	for _, waiter := range job.waiters {
@@ -436,8 +475,33 @@ func (s *executionSession) execute(job *scheduledJob) {
 	}
 }
 
+func (s *executionSession) adjustRunningLocked(priority int, background bool, delta int) {
+	if background {
+		s.backgroundRunning += delta
+		if priority >= priorityIdlePrefetch {
+			s.idleRunning += delta
+		} else {
+			s.intentRunning += delta
+		}
+		return
+	}
+	if delta > 0 {
+		s.runningForeground[priority] += delta
+		return
+	}
+	if s.runningForeground[priority] <= -delta {
+		delete(s.runningForeground, priority)
+		return
+	}
+	s.runningForeground[priority] += delta
+}
+
 func (s *executionSession) enableBackground() {
 	s.mu.Lock()
+	if s.released {
+		s.mu.Unlock()
+		return
+	}
 	s.backgroundReady = true
 	s.dispatchLocked()
 	s.mu.Unlock()
@@ -448,6 +512,20 @@ func (s *executionSession) enableBackground() {
 // lifecycle and are deliberately left alone.
 func (s *executionSession) cancelBackground() {
 	s.mu.Lock()
+	waiters := s.cancelBackgroundLocked()
+	s.mu.Unlock()
+	deliverCancellation(waiters)
+}
+
+func (s *executionSession) release() {
+	s.mu.Lock()
+	s.released = true
+	waiters := s.cancelBackgroundLocked()
+	s.mu.Unlock()
+	deliverCancellation(waiters)
+}
+
+func (s *executionSession) cancelBackgroundLocked() []chan scheduledResult {
 	waiters := make([]chan scheduledResult, 0)
 	kept := s.queue[:0]
 	for _, job := range s.queue {
@@ -468,7 +546,10 @@ func (s *executionSession) cancelBackground() {
 		}
 	}
 	s.backgroundReady = false
-	s.mu.Unlock()
+	return waiters
+}
+
+func deliverCancellation(waiters []chan scheduledResult) {
 	for _, waiter := range waiters {
 		waiter <- scheduledResult{err: context.Canceled}
 		close(waiter)
@@ -574,7 +655,10 @@ func (h *Handlers) releaseSession(snapshotID string) {
 	}
 	registry.mu.Lock()
 	if _, derived := registry.aliases[snapshotID]; derived {
-		delete(registry.aliases, snapshotID)
+		// A derived document may be reopened from the browser's immutable
+		// document cache without another materialization request. Keep its alias
+		// for the lifetime of the parent snapshot so every reopen continues to
+		// share the parent's scheduler and singleflight graph.
 		registry.mu.Unlock()
 		return
 	}
@@ -588,7 +672,7 @@ func (h *Handlers) releaseSession(snapshotID string) {
 	}
 	registry.mu.Unlock()
 	if session != nil {
-		session.cancelBackground()
+		session.release()
 	}
 }
 

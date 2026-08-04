@@ -437,10 +437,16 @@ function TabsGroup({ group, items, depth, panels, registry }: {
   )
 }
 
-/** Relative "updated X ago" using the document's own locale. */
+/**
+ * Relative "updated X ago" using the document's own locale.
+ *
+ * Short units, because this reading is now the label of the control it invites
+ * rather than a sentence beside it: «Рассчитано 17 секунд назад» is a header
+ * button 210px wide that says what «17 сек. назад» says in 140.
+ */
 function relativeTime(timestamp: number, locale: string): string {
   const seconds = Math.round((timestamp - Date.now()) / 1000)
-  const format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+  const format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'short' })
   const abs = Math.abs(seconds)
   if (abs < 60) return format.format(seconds, 'second')
   const minutes = Math.round(seconds / 60)
@@ -487,54 +493,54 @@ function useFreshness(): { label: string; isRefreshing: boolean; absolute: strin
 }
 
 /**
- * How old the figures on screen are.
+ * How old the figures on screen are, and the one thing a reader does about it.
  *
- * It used to be the tail of the identity paragraph, joined to a static blurb by
- * a middot: «Аналитика продуктового портфеля… · Рассчитано 20 минут назад» —
- * one 12px grey sentence carrying a marketing line and the single fact a report
- * reader checks before trusting a number, with the run-on wrapping at 600px so
- * the age landed mid-line. It is its own control-height stamp now, beside
- * Recompute — the action it invites — with a mark, the absolute timestamp on
- * hover, and an escalation once the reading is old enough to matter. A relative
- * label alone reads as uptime: it ticks up with wall-clock time whether or not
- * anything went stale, so the timestamp is what it actually claims.
- */
-function FreshnessStamp() {
-  const freshness = useFreshness()
-  if (!freshness) return null
-  return (
-    <p
-      aria-live="polite"
-      className="lens-dashboard-updated"
-      data-refreshing={freshness.isRefreshing || undefined}
-      data-stale={freshness.stale || undefined}
-      title={freshness.absolute}
-    >
-      <Clock />
-      <span>{freshness.label}</span>
-    </p>
-  )
-}
-
-/**
- * Force every panel past the server cache.
+ * These were two controls: a stamp reading «Рассчитано 9 минут назад» and a
+ * button reading «Пересчитать» beside it. Two boxes, one subject — the stamp
+ * stated a fact whose only available response was the box next to it, and
+ * «Пересчитать» named the machine's activity rather than answering the question
+ * a reader actually has. Fused, the age *is* the label: the control says whether
+ * it is worth pressing instead of asking the reader to correlate two adjacent
+ * readings, and the action row loses an entry.
  *
- * Three things it did not say before. What it does: "Recompute" names the
- * machine's activity, not the reader's question, so the explanation rides on the
- * control. Whether it is worth doing: the button is quiet while the reading is
- * fresh and takes the warning tone once the figures are old enough for the
- * freshness stamp beside it to escalate — a control with no resting state is one
- * readers learn to click superstitiously. And that it is running: a spinner in
- * place of the arrow, with the label unchanged, because swapping the label to
- * «Пересчитывается…» widened the button by 40px and moved Экспорт out from under
- * the pointer mid-gesture.
+ * The label therefore changes with wall-clock time, which the split version
+ * deliberately avoided — a widening button used to shove Экспорт out from under
+ * the pointer mid-gesture. It cannot here: this is the first member of a
+ * right-aligned cluster (`.lens-dashboard-actions` is `justify-end`), so its own
+ * left edge absorbs every width change and the controls after it never move.
+ *
+ * Four states, because two independent facts gate it. Without a recompute
+ * endpoint the dashboard cannot act on its own staleness, so the same reading
+ * renders as a bare stamp on the same baseline and the row's geometry does not
+ * change between dashboards. Without a parseable `generatedAt` — and under
+ * visual regression, where a relative time is not reproducible — there is no age
+ * to print, so the button falls back to naming itself.
  */
-function RecomputeButton() {
-  const { isRecomputing, recompute } = useDashboard()
+function FreshnessControl() {
+  const { isRecomputing, recompute, canRecompute } = useDashboard()
   const translate = useTranslate()
   const freshness = useFreshness()
   const hintID = useId()
-  const label = translate('dashboard.recompute', 'Recompute')
+
+  if (!canRecompute) {
+    if (!freshness) return null
+    return (
+      <p
+        aria-live="polite"
+        className="lens-dashboard-updated"
+        data-refreshing={freshness.isRefreshing || undefined}
+        data-stale={freshness.stale || undefined}
+        title={freshness.absolute}
+      >
+        <Clock />
+        <span>{freshness.label}</span>
+      </p>
+    )
+  }
+
+  // A relative label alone reads as uptime: it ticks up with wall-clock time
+  // whether or not anything went stale, so the absolute timestamp is what the
+  // control actually claims, on hover and in the description.
   const hint = isRecomputing
     ? translate('dashboard.recomputing', 'Recomputing…')
     : translate('dashboard.recomputeHint', 'Refresh every figure, ignoring the cached results')
@@ -543,25 +549,20 @@ function RecomputeButton() {
       <button
         aria-busy={isRecomputing}
         aria-describedby={hintID}
+        aria-live="polite"
         className="lens-export-button lens-recompute"
         data-stale={freshness?.stale || undefined}
         disabled={isRecomputing}
         onClick={recompute}
-        title={hint}
+        title={freshness ? `${freshness.absolute} — ${hint}` : hint}
         type="button"
       >
         {isRecomputing ? <CircleNotch className="lens-icon-spin" /> : <ArrowClockwise />}
-        <span>{label}</span>
+        <span>{freshness ? freshness.label : translate('dashboard.recompute', 'Recompute')}</span>
       </button>
       <span className="lens-sr-only" id={hintID}>{hint}</span>
     </>
   )
-}
-
-/** The document's identity subtitle: the producer's period/scope line. */
-function DashboardSubtitle({ subtitle }: { subtitle?: string }) {
-  if (!subtitle) return null
-  return <p className="lens-dashboard-subtitle">{subtitle}</p>
 }
 
 function DocumentRefetchError() {
@@ -663,30 +664,32 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
       >
         {hasHeader && (
           <header className="lens-dashboard-header">
-            {/* The document header owns the page identity: a strong title over a
-              muted period + freshness subtitle. Without one, an empty title
-              lets a host page own the heading and keeps the dashboard's own
-              chrome to the action bar. */}
-            {inDrawer ? <span /> : header ? (
-              <div className="lens-dashboard-identity">
-                {identityTitle ? <h1 className="lens-dashboard-title">{identityTitle}</h1> : <span />}
-                <DashboardSubtitle subtitle={header.subtitle} />
-              </div>
-            ) : (
-              document.meta.title ? <h1>{document.meta.title}</h1> : <span />
-            )}
-            <div className="lens-dashboard-controls">
-              <FilterBar today={filterToday} />
-              {/* The actions travel as one block. Loose in the controls row they
+            {/* Three rows, each answering one question, in the order a reader
+                asks them: what page is this and what can I do with it, what
+                slice am I looking at, and what is currently narrowing it.
+                They used to be two columns — identity opposite a single wrapping
+                cluster that mixed the controls changing the data with the verbs
+                carrying it away, at one weight and with no divider, so nothing
+                said which half did which. */}
+            <div className="lens-dashboard-headline">
+              {/* Without a title an empty slot lets a host page own the heading
+                  and keeps the dashboard's own chrome to the action row. */}
+              {identityTitle ? <h1 className="lens-dashboard-title">{identityTitle}</h1> : <span />}
+              {/* The actions travel as one block. Loose in the row they
                   re-ordered themselves against the filters at every wrap, so the
                   fourth control at 1440px was the second one at 1000px. */}
               <div className="lens-dashboard-actions">
-                <FreshnessStamp />
-                {canRecompute && <RecomputeButton />}
+                <FreshnessControl />
                 <ShareSliceButton />
                 <ExportMenu />
               </div>
             </div>
+            {/* The producer's own scope line rides with the controls that change
+                it rather than under the title: on the analytics boards it
+                restated the period the period control was already printing, so
+                the same fact occupied three surfaces. What is left of it is what
+                no control states — the date the data itself was cut. */}
+            <FilterBar subtitle={inDrawer ? undefined : header?.subtitle} today={filterToday} />
           </header>
         )}
         {hasHeader && <DocumentRefetchError />}

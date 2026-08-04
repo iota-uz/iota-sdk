@@ -76,16 +76,20 @@ function DashboardScene({ theme, period = periodFilter }: { theme: LensThemeMode
   )
 }
 
-/** The applied range is a year chip: that chip, not the trigger, is raised. */
-const chipMatchedFilter: Filter = {
+/**
+ * A period that came from a declared preset. It reads exactly like one a reader
+ * drew by hand: the trigger prints the resolved range either way, and both step
+ * arrows are live because a whole calendar year has a year on each side of it.
+ */
+const presetMatchedFilter: Filter = {
   ...periodFilter,
   period: { ...periodFilter.period!, value: { start: '2025-01-01', end: '2025-12-31' } },
 }
 
-export const DashboardFilterChipActive: Story = () => (
-  <DashboardScene period={chipMatchedFilter} theme="light" />
+export const DashboardFilterPresetApplied: Story = () => (
+  <DashboardScene period={presetMatchedFilter} theme="light" />
 )
-DashboardFilterChipActive.storyName = 'Dashboard filter chip active'
+DashboardFilterPresetApplied.storyName = 'Dashboard filter preset applied'
 
 export const DashboardFilterLight: Story = () => <DashboardScene theme="light" />
 DashboardFilterLight.storyName = 'Dashboard filter light'

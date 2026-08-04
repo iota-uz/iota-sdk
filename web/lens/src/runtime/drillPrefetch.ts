@@ -58,7 +58,7 @@ export async function prefetchIdleDrillStates({
   signal,
   onChildren,
 }: IdleDrillPrefetchOptions): Promise<void> {
-  for (const candidate of idleDrillPrefetchRoots(document)) {
+  const prefetchCandidate = async (candidate: IdleDrillPrefetchRoot) => {
     if (signal.aborted) return;
     try {
       const response = await queryClient.query(
@@ -72,12 +72,12 @@ export async function prefetchIdleDrillStates({
         { signal },
       );
       const frame = Object.values(response.frames)[0];
-      if (!frame) continue;
+      if (!frame) return;
       if (frame.children) onChildren(candidate.path, frame);
       const children =
         frame.children?.filter(({ target }) => Boolean(target)) ?? [];
-      if (children.length === 0 || children.length > 4) continue;
-      for (const child of children) {
+      if (children.length === 0 || children.length > 4) return;
+      await Promise.all(children.map(async (child) => {
         if (!child.target || signal.aborted) return;
         await queryClient.query(
           {
@@ -89,9 +89,14 @@ export async function prefetchIdleDrillStates({
           },
           { signal },
         );
-      }
+      }));
     } catch {
       if (signal.aborted) return;
     }
-  }
+  };
+  // Submit every bounded candidate immediately. The shared SDK execution
+  // session, not a component-local await chain, owns ordering, promotion and
+  // concurrency. A later interactive activation can therefore join/promote a
+  // queued child even while an earlier speculative target is still expensive.
+  await Promise.all(idleDrillPrefetchRoots(document).map(prefetchCandidate));
 }

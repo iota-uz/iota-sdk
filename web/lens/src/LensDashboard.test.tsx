@@ -214,11 +214,32 @@ describe('LensDashboard', () => {
 
     render(<LensDashboard initialDocument={headerless} />)
 
-    expect(screen.getByRole('button', { name: 'Recompute' })).toBeInTheDocument()
-    expect(screen.getByText(/Updated/)).toBeInTheDocument()
+    // The age of the data and the remedy for it are one control: the reading is
+    // the label, so the button says whether it is worth pressing.
+    expect(screen.getByRole('button', { name: /Updated/ })).toBeInTheDocument()
   })
 
-  it('keeps the recompute button one width and explains what it does', () => {
+  it('names itself when there is no age to report', () => {
+    // A relative time is not reproducible, so visual regression suppresses the
+    // reading. The control must not vanish with it: it falls back to naming the
+    // action, which is also what a document with an unreadable stamp gets.
+    document.documentElement.dataset.lensVr = 'true'
+    try {
+      const recomputable = parseDocument({
+        ...fixture,
+        panels: [{ ...fixture.panels[0], deferred: true }],
+        frames: {},
+        endpoints: { panel: '/lens/panel' },
+      })
+      render(<LensDashboard initialDocument={recomputable} />)
+
+      expect(screen.getByRole('button', { name: 'Recompute' })).toBeInTheDocument()
+    } finally {
+      delete document.documentElement.dataset.lensVr
+    }
+  })
+
+  it('leads the action row, spins in place, and explains what it does', () => {
     const recomputable = parseDocument({
       ...fixture,
       panels: [{ ...fixture.panels[0], deferred: true }],
@@ -227,16 +248,19 @@ describe('LensDashboard', () => {
     })
     const view = render(<LensDashboard initialDocument={recomputable} />)
 
-    const button = screen.getByRole('button', { name: 'Recompute' })
-    // The word is the machine's, so the control carries the reader's version.
+    const button = screen.getByRole('button', { name: /Updated/ })
+    // "Recompute" is the machine's word, so the control carries the reader's.
     expect(button).toHaveAccessibleDescription(/ignoring the cached results/)
-    const before = button.textContent
-    fireEvent.click(button)
 
-    // In flight it spins in place: swapping the label to «Recomputing…» widened
-    // the button and moved Export out from under the pointer mid-gesture.
+    // Its label is a relative time, so it changes width on its own. That is
+    // safe only in this position: the cluster is right-aligned, so growth in
+    // its first member moves nothing after it — Export stays under the pointer.
+    const actions = view.container.querySelector('.lens-dashboard-actions')!
+    expect(actions.firstElementChild).toBe(button)
+
+    fireEvent.click(button)
+    // In flight it spins in place rather than swapping the glyph for a word.
     expect(button).toHaveAttribute('aria-busy', 'true')
-    expect(button.textContent).toBe(before)
     expect(view.container.querySelector('.lens-recompute .lens-icon-spin')).not.toBeNull()
   })
 

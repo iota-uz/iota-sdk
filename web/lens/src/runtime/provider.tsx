@@ -1009,11 +1009,16 @@ function RuntimeCore({
     return () => controller.abort(new DOMException('drill intent ended', 'AbortError'))
   }, [queryClient, setRuntimeDocument])
 
+  const rootContentReady = firstContentRowReady(document)
   useEffect(() => {
-    if (!queryClient || drawerDepth !== 0 || !firstContentRowReady(document)) return
+    if (!queryClient || drawerDepth !== 0 || !rootContentReady) return
+    // Runtime child frames enrich `document`, but they must not restart the
+    // speculative traversal that produced them. Scope the worker to the source
+    // snapshot and let it own that snapshot until cancellation or completion.
+    const prefetchDocument = documentRef.current
     const controller = new AbortController()
     void import('./drillPrefetch').then(({ prefetchIdleDrillStates }) => prefetchIdleDrillStates({
-      document,
+      document: prefetchDocument,
       queryClient,
       signal: controller.signal,
       onChildren: (path, frame) => {
@@ -1021,7 +1026,7 @@ function RuntimeCore({
       },
     })).catch(() => undefined)
     return () => controller.abort(new DOMException('idle drill prefetch scope changed', 'AbortError'))
-  }, [document, drawerDepth, queryClient, setRuntimeDocument])
+  }, [document.snapshotId, drawerDepth, queryClient, rootContentReady, setRuntimeDocument])
 
   useEffect(() => () => queryClient?.dispose(), [queryClient])
   useEffect(() => () => panelClient?.dispose(), [panelClient])

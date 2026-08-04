@@ -77,6 +77,69 @@ export function rangeDayCount(start: CalendarDate, end: CalendarDate): number {
   return Math.abs(toEpochDays(end) - toEpochDays(start)) + 1
 }
 
+/** The last day a year can currently show: today while the year is still open. */
+function yearEnd(year: number, today: CalendarDate): CalendarDate {
+  return year === today.year ? today : { year, month: 12, day: 31 }
+}
+
+/**
+ * A whole calendar year, finished or still running.
+ *
+ * The running case is required to reach past January, so that on the 31st of
+ * January «1 Jan — today» is read as the month it also is: both readings are
+ * honest there, and the month is the one whose step size a reader can see.
+ */
+function isYearRange(start: CalendarDate, end: CalendarDate, today: CalendarDate): boolean {
+  if (start.month !== 1 || start.day !== 1 || end.year !== start.year) return false
+  if (end.month === 12 && end.day === 31) return true
+  return sameDate(end, today) && end.month > 1
+}
+
+function isMonthRange(start: CalendarDate, end: CalendarDate): boolean {
+  return start.day === 1 && start.year === end.year && start.month === end.month &&
+    end.day === daysInMonth(end.year, end.month)
+}
+
+/**
+ * The period one step earlier or later, on the period's own terms.
+ *
+ * This is what replaced the row of declared preset chips in the dashboard
+ * header. Six chips stated six periods to switch between; one pair of arrows
+ * states the relationship those chips actually encoded — the period before this
+ * one — in a fraction of the width, and it keeps working on the dashboards that
+ * declare no presets at all and on a range a reader drew by hand.
+ *
+ * The unit is read off the range rather than configured, because a range
+ * already states it: a calendar year steps by years, a calendar month by
+ * months, and anything else by its own length, so a 17-day window lands on the
+ * 17 days before it with neither a gap nor an overlap.
+ *
+ * An open period — the 1st of January to today — is a year that has not
+ * finished. Stepping back off one yields the whole previous year rather than a
+ * January-to-August slice of it, which is the comparison the year chips existed
+ * to offer; stepping forward into the current year re-opens it at today.
+ */
+export function shiftPeriodRange(
+  start: CalendarDate,
+  end: CalendarDate,
+  direction: 1 | -1,
+  today: CalendarDate,
+): { start: CalendarDate; end: CalendarDate } {
+  if (isYearRange(start, end, today)) {
+    const year = start.year + direction
+    return { start: { year, month: 1, day: 1 }, end: yearEnd(year, today) }
+  }
+  if (isMonthRange(start, end)) {
+    const moved = addMonths({ ...start, day: 1 }, direction)
+    return {
+      start: moved,
+      end: { year: moved.year, month: moved.month, day: daysInMonth(moved.year, moved.month) },
+    }
+  }
+  const span = rangeDayCount(start, end) * direction
+  return { start: addDays(start, span), end: addDays(end, span) }
+}
+
 /** ISO day of week: 1 = Monday … 7 = Sunday. */
 export function dayOfWeek(date: CalendarDate): number {
   const utcDay = new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay()

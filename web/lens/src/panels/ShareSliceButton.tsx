@@ -33,25 +33,31 @@ export function ShareSliceButton() {
 
   return (
     <div className="lens-export-control lens-share-control">
-      {/* Labelled, like the three controls beside it. As the row's only icon-only
-          member it had a smaller hit box, a lighter border and a generic
-          two-rectangles glyph, and nothing on screen said it copies a link to
-          this filtered slice. The label is also what anchors the confirmation
-          below: a 28px button under a 148px note is why the note used to hang
-          over its neighbour. */}
+      {/* The glyph-only member of the secondary weight, not the icon-only weight:
+          `.lens-action-square` keeps the box, the border and the 32px hit target
+          of the labelled controls beside it, which is what a bare
+          `.lens-icon-button` here got wrong before — a lighter, smaller control
+          among bordered peers reads as disabled.
+
+          Labelled, «Копировать ссылку на срез» spent 190px of the header's most
+          contested row on the action a reader takes once a session, next to the
+          period they change constantly. The name survives where a name is
+          actually consulted: the accessible label, the hover title, and the
+          confirmation that follows the press. */}
       <button
         aria-label={label}
-        className="lens-export-button"
+        className="lens-export-button lens-action-square"
         onClick={() => { void copy() }}
         title={label}
         type="button"
       >
         {status === 'copied' ? <Check /> : <Copy />}
-        <span>{label}</span>
       </button>
-      {/* The note keeps the trigger's own width (see .lens-share-control), so
-          it can no longer reach across «Представления» beside it — and the
-          label above never changes, so the row does not reflow either. */}
+      {/* Right-anchored to the trigger and sized to its own text: hung under a
+          32px square at the trigger's width it would be one word per line. It
+          floats rather than sitting in the flow because this is the dashboard
+          header, where nothing clips and a reflow would shove the whole control
+          bar sideways for the three seconds it shows. */}
       {status !== 'idle' && (
         <span
           className={`lens-export-message${status === 'error' ? ' lens-export-message-error' : ''}`}

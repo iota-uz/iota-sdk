@@ -147,6 +147,13 @@ const (
 	I18nFilterQuickSelect          = "filter.period.quickSelect"
 	I18nFilterTo                   = "filter.period.to"
 
+	// The period stepper: the arrows either side of the period trigger that
+	// move the applied range by its own length. Each is announced with the
+	// range it would land on, so the accessible name states the destination
+	// rather than the direction.
+	I18nFilterPeriodPrevious = "filter.period.previous"
+	I18nFilterPeriodNext     = "filter.period.next"
+
 	// Relative period presets rendered by the runtime's built-in catalog
 	// (web/lens/src/controls/model.ts defaultPeriodPresets), which mirrors the
 	// legacy HTMX picker's DefaultQuickRanges: current month, 30 days,
@@ -318,6 +325,7 @@ func RuntimeI18nKeys() []string {
 		I18nFilterCompleted, I18nFilterCustom,
 		I18nFilterDateFormat, I18nFilterDuration,
 		I18nFilterFrom, I18nFilterOpen, I18nFilterQuickSelect, I18nFilterTo,
+		I18nFilterPeriodPrevious, I18nFilterPeriodNext,
 		I18nFilterPresetThisMonth, I18nFilterPresetLast30Days, I18nFilterPresetLast12Months,
 		I18nFilterPresetYearToDate, I18nFilterPresetLastMonth, I18nFilterPresetLastYear,
 		I18nChartBoxplotMin, I18nChartBoxplotQ1, I18nChartBoxplotMedian, I18nChartBoxplotQ3, I18nChartBoxplotMax,

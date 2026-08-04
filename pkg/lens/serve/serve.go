@@ -58,6 +58,8 @@ const (
 	MetricCancelledSpeculation MetricName = "cancelled_speculative_work"
 	MetricRedundantWork        MetricName = "redundant_work"
 	MetricSchedulerSaturation  MetricName = "scheduler_saturation"
+	MetricQueueWait            MetricName = "queue_wait_ms"
+	MetricExecutionDuration    MetricName = "execution_duration_ms"
 )
 
 type Metric struct {

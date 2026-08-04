@@ -910,12 +910,13 @@ func (h *Handlers) startBackgroundPrefetch(
 				}
 				continue
 			}
+			if errors.Is(loaded.err, document.ErrSnapshotGone) || errors.Is(loaded.err, context.Canceled) {
+				return
+			}
 			if isRoot {
 				parentReady = false
 			}
-			if !errors.Is(loaded.err, document.ErrSnapshotGone) && !errors.Is(loaded.err, context.Canceled) {
-				h.observer.OnError(context.Background(), "lens/serve.Prefetch", loaded.err)
-			}
+			h.observer.OnError(context.Background(), "lens/serve.Prefetch", loaded.err)
 		}
 	}()
 }
