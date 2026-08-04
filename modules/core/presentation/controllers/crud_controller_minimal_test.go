@@ -2,13 +2,37 @@ package controllers_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCrudController_DescriptorCatalogAndProjection(t *testing.T) {
+	t.Parallel()
+
+	controller := controllers.NewCrudController[TestEntity]("/test", createTestBuilder(newTestService()),
+		controllers.WithoutDelete[TestEntity](),
+	)
+	routes := controller.Descriptor().Routes
+	require.Len(t, routes, 6)
+	require.Equal(t, []string{http.MethodGet, http.MethodGet, http.MethodGet, http.MethodPost, http.MethodGet, http.MethodPost}, []string{
+		routes[0].Method, routes[1].Method, routes[2].Method, routes[3].Method, routes[4].Method, routes[5].Method,
+	})
+	for _, route := range routes {
+		require.Equal(t, application.RouteRendererServer, route.Renderer)
+		require.Equal(t, route.Requirement, route.Auth)
+	}
+	resource, err := controller.ResourceDescriptor()
+	require.NoError(t, err)
+	require.Equal(t, "test_entities", resource.ID())
+	require.NotContains(t, resource.Actions(), crud.ActionDescriptor{ID: "delete", Mutation: true, Destructive: true})
+}
 
 func TestCrudController_TestService(t *testing.T) {
 	// Test that the test service works correctly
