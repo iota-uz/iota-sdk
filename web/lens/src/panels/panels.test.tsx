@@ -1117,6 +1117,39 @@ describe('chart encoding and drill behavior', () => {
     expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
   })
 
+  it('expands the served cube TopN remainder through the keyboard action key', async () => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'filter_value', type: 'string' }, { name: 'id', type: 'string' },
+          { name: 'label', type: 'string' }, { name: 'total_policies', type: 'number' },
+          { name: 'total_policies_previous', type: 'number' },
+          { name: '__lens_topn_group', type: 'string' },
+        ],
+        rows: [
+          ...Array.from({ length: 10 }, (_, index) => [`top-${index}`, `row-${index}`, `Product ${index}`, 100 - index, 90 - index, null]),
+          ...Array.from({ length: 8 }, (_, index) => [`tail-${index}`, `row-${index + 10}`, `Tail ${index}`, 9 - index, 8 - index, 'Other']),
+        ],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const inputs: ChartInput[] = []
+    render(<BarPanel
+      panel={panel('hbar', {
+        encoding: {
+          id: 'filter_value', label: 'label', category: 'label',
+          value: 'total_policies', previous: 'total_policies_previous',
+        },
+      })}
+      adapter={fakeAdapter((input) => inputs.push(input))}
+    />)
+
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(11))
+    fireEvent.click(screen.getByRole('button', { name: 'Open Other, 44' }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(18))
+    expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
+  })
+
   it('keeps a series in its own colour when the series before it is hidden', async () => {
     const frame: Frame = {
       columns: [
