@@ -1,22 +1,22 @@
 {
-  "_CascadePanel-DLahs8ZS.js": {
-    "file": "assets/CascadePanel-DLahs8ZS.js",
+  "_CascadePanel-CC0FV7Nu.js": {
+    "file": "assets/CascadePanel-CC0FV7Nu.js",
     "name": "CascadePanel",
     "isDynamicEntry": true,
     "imports": [
       "index.html"
     ]
   },
-  "_ChartDataEquivalent-Ca-X-Ihe.js": {
-    "file": "assets/ChartDataEquivalent-Ca-X-Ihe.js",
+  "_ChartDataEquivalent-CwLgXuVx.js": {
+    "file": "assets/ChartDataEquivalent-CwLgXuVx.js",
     "name": "ChartDataEquivalent",
     "imports": [
       "index.html",
       "_keys-HcFt__Wh.js"
     ]
   },
-  "_ChartHost-CSs1EnAs.js": {
-    "file": "assets/ChartHost-CSs1EnAs.js",
+  "_ChartHost-C0xZZDvE.js": {
+    "file": "assets/ChartHost-C0xZZDvE.js",
     "name": "ChartHost",
     "imports": [
       "index.html"
@@ -25,21 +25,14 @@
       "src/charts/index.ts"
     ]
   },
-  "_QualityChip-CNTz2Wsp.js": {
-    "file": "assets/QualityChip-CNTz2Wsp.js",
-    "name": "QualityChip",
-    "imports": [
-      "index.html"
-    ]
-  },
-  "_adapter-DU9FfOUM.js": {
-    "file": "assets/adapter-DU9FfOUM.js",
+  "_adapter-CCf8nWfq.js": {
+    "file": "assets/adapter-CCf8nWfq.js",
     "name": "adapter",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_keys-HcFt__Wh.js",
-      "_scales-Cn9PFs1y.js"
+      "_scales-DPGLbdER.js"
     ],
     "dynamicImports": [
       "node_modules/.pnpm/echarts@6.1.0/node_modules/echarts/lib/chart/boxplot/install.js",
@@ -52,15 +45,22 @@
     "file": "assets/keys-HcFt__Wh.js",
     "name": "keys"
   },
-  "_scales-Cn9PFs1y.js": {
-    "file": "assets/scales-Cn9PFs1y.js",
+  "_metricViews-BQrHZ07b.js": {
+    "file": "assets/metricViews-BQrHZ07b.js",
+    "name": "metricViews",
+    "imports": [
+      "index.html"
+    ]
+  },
+  "_scales-DPGLbdER.js": {
+    "file": "assets/scales-DPGLbdER.js",
     "name": "scales",
     "imports": [
       "index.html"
     ]
   },
   "index.html": {
-    "file": "assets/lens-dashboard-BlLixRom.js",
+    "file": "assets/lens-dashboard-CMv5AFhX.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -72,8 +72,9 @@
       "src/runtime/export.ts",
       "src/runtime/export.ts",
       "src/runtime/print.ts",
+      "src/print/PrintReport.tsx",
       "src/panels/ChartPanel.tsx",
-      "_CascadePanel-DLahs8ZS.js",
+      "_CascadePanel-CC0FV7Nu.js",
       "src/panels/CoveragePanel.tsx",
       "src/panels/GaugePanel.tsx",
       "src/panels/MetricFlowPanel.tsx",
@@ -84,59 +85,59 @@
       "src/print/PrintReport.tsx"
     ],
     "css": [
-      "assets/index-CPUaRdWE.css"
+      "assets/index-DdbMz4As.css"
     ]
   },
   "node_modules/.pnpm/echarts@6.1.0/node_modules/echarts/lib/chart/boxplot/install.js": {
-    "file": "assets/install-2sLbMA0T.js",
+    "file": "assets/install-nCO1M1Uy.js",
     "name": "install",
     "src": "node_modules/.pnpm/echarts@6.1.0/node_modules/echarts/lib/chart/boxplot/install.js",
     "isDynamicEntry": true,
     "imports": [
-      "_adapter-DU9FfOUM.js",
+      "_adapter-CCf8nWfq.js",
       "index.html",
       "_keys-HcFt__Wh.js",
-      "_scales-Cn9PFs1y.js"
+      "_scales-DPGLbdER.js"
     ]
   },
   "node_modules/.pnpm/echarts@6.1.0/node_modules/echarts/lib/chart/heatmap/install.js": {
-    "file": "assets/install-C-rmR8uf.js",
+    "file": "assets/install-CrLQLUoV.js",
     "name": "install",
     "src": "node_modules/.pnpm/echarts@6.1.0/node_modules/echarts/lib/chart/heatmap/install.js",
     "isDynamicEntry": true,
     "imports": [
-      "_adapter-DU9FfOUM.js",
+      "_adapter-CCf8nWfq.js",
       "index.html",
       "_keys-HcFt__Wh.js",
-      "_scales-Cn9PFs1y.js"
+      "_scales-DPGLbdER.js"
     ]
   },
   "node_modules/.pnpm/echarts@6.1.0/node_modules/echarts/lib/chart/map/install.js": {
-    "file": "assets/install-BCw93yQl.js",
+    "file": "assets/install-D-Ug5kO9.js",
     "name": "install",
     "src": "node_modules/.pnpm/echarts@6.1.0/node_modules/echarts/lib/chart/map/install.js",
     "isDynamicEntry": true,
     "imports": [
-      "_adapter-DU9FfOUM.js",
+      "_adapter-CCf8nWfq.js",
       "index.html",
       "_keys-HcFt__Wh.js",
-      "_scales-Cn9PFs1y.js"
+      "_scales-DPGLbdER.js"
     ]
   },
   "node_modules/.pnpm/echarts@6.1.0/node_modules/echarts/lib/component/visualMap/install.js": {
-    "file": "assets/install-D8r9ZspM.js",
+    "file": "assets/install-DybLZ82n.js",
     "name": "install",
     "src": "node_modules/.pnpm/echarts@6.1.0/node_modules/echarts/lib/component/visualMap/install.js",
     "isDynamicEntry": true,
     "imports": [
-      "_adapter-DU9FfOUM.js",
+      "_adapter-CCf8nWfq.js",
       "index.html",
       "_keys-HcFt__Wh.js",
-      "_scales-Cn9PFs1y.js"
+      "_scales-DPGLbdER.js"
     ]
   },
   "src/charts/index.ts": {
-    "file": "assets/index-XYj4Jxwk.js",
+    "file": "assets/index-BMpfMW4R.js",
     "name": "index",
     "src": "src/charts/index.ts",
     "isDynamicEntry": true,
@@ -144,24 +145,24 @@
       "index.html"
     ],
     "dynamicImports": [
-      "_adapter-DU9FfOUM.js"
+      "_adapter-CCf8nWfq.js"
     ]
   },
   "src/panels/ChartPanel.tsx": {
-    "file": "assets/ChartPanel-B6AsDSql.js",
+    "file": "assets/ChartPanel-CkftO5Ox.js",
     "name": "ChartPanel",
     "src": "src/panels/ChartPanel.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_keys-HcFt__Wh.js",
-      "_scales-Cn9PFs1y.js",
-      "_ChartDataEquivalent-Ca-X-Ihe.js",
-      "_ChartHost-CSs1EnAs.js"
+      "_scales-DPGLbdER.js",
+      "_ChartDataEquivalent-CwLgXuVx.js",
+      "_ChartHost-C0xZZDvE.js"
     ]
   },
   "src/panels/CoveragePanel.tsx": {
-    "file": "assets/CoveragePanel-DXmCz9-b.js",
+    "file": "assets/CoveragePanel-D5Nn2v2k.js",
     "name": "CoveragePanel",
     "src": "src/panels/CoveragePanel.tsx",
     "isDynamicEntry": true,
@@ -170,7 +171,7 @@
     ]
   },
   "src/panels/GaugePanel.tsx": {
-    "file": "assets/GaugePanel-DGD5vciy.js",
+    "file": "assets/GaugePanel-D3Xayvy-.js",
     "name": "GaugePanel",
     "src": "src/panels/GaugePanel.tsx",
     "isDynamicEntry": true,
@@ -179,49 +180,49 @@
     ]
   },
   "src/panels/MapPanel.tsx": {
-    "file": "assets/MapPanel-DHU6UYG_.js",
+    "file": "assets/MapPanel-CgQSKySH.js",
     "name": "MapPanel",
     "src": "src/panels/MapPanel.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_ChartDataEquivalent-Ca-X-Ihe.js",
-      "_ChartHost-CSs1EnAs.js",
+      "_ChartDataEquivalent-CwLgXuVx.js",
+      "_ChartHost-C0xZZDvE.js",
       "_keys-HcFt__Wh.js"
     ]
   },
   "src/panels/MetricFlowPanel.tsx": {
-    "file": "assets/MetricFlowPanel-C9EMfY1l.js",
+    "file": "assets/MetricFlowPanel-CMBaUbu-.js",
     "name": "MetricFlowPanel",
     "src": "src/panels/MetricFlowPanel.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_QualityChip-CNTz2Wsp.js"
+      "_metricViews-BQrHZ07b.js"
     ]
   },
   "src/panels/MetricHierarchyPanel.tsx": {
-    "file": "assets/MetricHierarchyPanel-D4MAVe3a.js",
+    "file": "assets/MetricHierarchyPanel-D_lO27om.js",
     "name": "MetricHierarchyPanel",
     "src": "src/panels/MetricHierarchyPanel.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_QualityChip-CNTz2Wsp.js"
+      "_metricViews-BQrHZ07b.js"
     ]
   },
   "src/panels/MetricRelationshipPanel.tsx": {
-    "file": "assets/MetricRelationshipPanel-DYNyg3ci.js",
+    "file": "assets/MetricRelationshipPanel-BVTdMUCq.js",
     "name": "MetricRelationshipPanel",
     "src": "src/panels/MetricRelationshipPanel.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_QualityChip-CNTz2Wsp.js"
+      "_metricViews-BQrHZ07b.js"
     ]
   },
   "src/panels/TablePanel.tsx": {
-    "file": "assets/TablePanel-CRa5xZhm.js",
+    "file": "assets/TablePanel-C4C3DIPI.js",
     "name": "TablePanel",
     "src": "src/panels/TablePanel.tsx",
     "isDynamicEntry": true,
@@ -230,15 +231,15 @@
     ]
   },
   "src/print/PrintReport.tsx": {
-    "file": "assets/PrintReport-B4jBmcf5.js",
+    "file": "assets/PrintReport-D6nm5Whj.js",
     "name": "PrintReport",
     "src": "src/print/PrintReport.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_CascadePanel-DLahs8ZS.js",
-      "_ChartHost-CSs1EnAs.js",
-      "_QualityChip-CNTz2Wsp.js",
+      "_CascadePanel-CC0FV7Nu.js",
+      "_ChartHost-C0xZZDvE.js",
+      "_metricViews-BQrHZ07b.js",
       "src/panels/MetricRelationshipPanel.tsx"
     ]
   },
@@ -261,7 +262,7 @@
     "isDynamicEntry": true
   },
   "src/runtime/prefetch.ts": {
-    "file": "assets/prefetch-DEbsv8xs.js",
+    "file": "assets/prefetch-CpjHKdqn.js",
     "name": "prefetch",
     "src": "src/runtime/prefetch.ts",
     "isDynamicEntry": true,
@@ -273,7 +274,7 @@
     ]
   },
   "src/runtime/prefetchPanels.ts": {
-    "file": "assets/prefetchPanels-CfQytqm5.js",
+    "file": "assets/prefetchPanels-Bq0WJTYZ.js",
     "name": "prefetchPanels",
     "src": "src/runtime/prefetchPanels.ts",
     "isDynamicEntry": true,
@@ -282,7 +283,7 @@
     ]
   },
   "src/runtime/print.ts": {
-    "file": "assets/print-B1vgrZ77.js",
+    "file": "assets/print-DsKXi4d2.js",
     "name": "print",
     "src": "src/runtime/print.ts",
     "isDynamicEntry": true,

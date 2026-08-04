@@ -9,7 +9,7 @@ import {
   type RefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { useOverlayContainer } from '../runtime/overlayContainer'
+import { hoverBridgeDelay, useOverlayContainer } from '../runtime/overlayContainer'
 import { CopyValueButton } from './CopyValueButton'
 import type { WaterfallItem, WaterfallModel } from './CascadePanel'
 
@@ -184,9 +184,6 @@ interface WaterfallColumnProps {
   splitCallout: WaterfallSplitCallout
   actionHint?: string
 }
-
-/** Long enough for the pointer to cross the gap from the bar to the card. */
-const hoverBridgeDelay = 140
 
 function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint }: WaterfallColumnProps) {
   const [pointed, setPointed] = useState(false)

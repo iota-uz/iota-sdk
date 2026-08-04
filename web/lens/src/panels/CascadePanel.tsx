@@ -560,7 +560,6 @@ export function CascadePanel({ panel }: CascadePanelProps) {
                   className={`lens-cascade-stage${stage.final ? ' lens-cascade-stage-final' : ''}`}
                   data-final={stage.final || undefined}
                   data-tone={stage.tone}
-                  style={interaction ? { cursor: 'pointer' } : undefined}
                   {...interaction}
                 >
                   <div className="lens-cascade-stage-label">

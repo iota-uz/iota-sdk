@@ -1489,6 +1489,13 @@ function RuntimeCore({
         reportSignal,
       )
       for (const client of printQueryClients.values()) client.dispose()
+      // The report body is a lazy chunk and `setPrintState` is what mounts it,
+      // so the wait below is racing a network fetch it never accounts for: two
+      // frames plus 120ms clear a warm cache and nothing else, and when they do
+      // not, the print engine snapshots a Suspense fallback and the sheet comes
+      // out blank. Fetch the chunk while there is still nothing on screen —
+      // then the only thing left to wait for is React committing it.
+      await import('../print/PrintReport')
       setPrintState({ active: true, status: 'idle', report, preview })
       // Preview stops here: the composed document stays on screen, on canvas,
       // for review — no print dialog, nothing to dismiss.

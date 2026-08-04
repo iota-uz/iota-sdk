@@ -301,6 +301,29 @@ export const CascadeSemanticTone: Story = () => {
   return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
 }
 
+const navigableBridgeFrame: Frame = {
+  columns: [...tonedBridgeFrame.columns, { name: 'detailUrl', type: 'string' }],
+  rows: tonedBridgeFrame.rows.map((row, index) => [...row, `/analytics/result/${index}`]),
+}
+
+// The same cascade list once each stage opens something. Its whole affordance is
+// a pointer state, so this story exists to be hovered rather than compared: at
+// rest an activatable stage and an inert one are the same geometry to the pixel,
+// which is the point — the bleed the plate needs is cancelled by the padding
+// that carries it, so switching a cascade to navigable moves nothing on screen
+// until a pointer or a Tab arrives.
+export const CascadeStagesNavigate: Story = () => {
+  const panel: Panel = {
+    ...tonedBridgePanel,
+    id: 'navigable-cascade',
+    frame: 'navigable-bridge',
+    presentation: undefined,
+    actions: [{ kind: 'navigate', urlSource: { kind: 'field', name: 'detailUrl' }, params: [], payload: {} }],
+  }
+  const document = storyDocument(panel, { 'navigable-bridge': navigableBridgeFrame })
+  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+}
+
 function OpenEvidence({ emptyPage }: { emptyPage?: boolean }) {
   const drill = useDrill()
   const pagination = usePanelPagination()

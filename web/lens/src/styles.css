@@ -1886,6 +1886,7 @@
   .lens-compare-trigger,
   .lens-chart-keyboard-actions button,
   .lens-waterfall-column[role='button'],
+  .lens-cascade-stage[role='button'],
   .lens-filter-preset,
   .lens-calendar-nav,
   .lens-calendar-month,
@@ -1918,21 +1919,17 @@
     @apply lens-bg-inset;
   }
 
-  .lens-coverage-track-segment-link,
+  /* The track has no link of its own: a row-scoped action makes each legend row
+     activatable and leaves the segments decorative, which is why the track is
+     `aria-hidden` and `panels.test.tsx` pins the segment-link count at zero.
+     Two rules for `.lens-coverage-track-segment-link` used to live here anyway,
+     describing a hover nobody could ever reach. */
   .lens-coverage-legend-link {
-    @apply lens-relative lens-z-20 lens-no-underline lens-text-inherit;
-  }
-
-  .lens-coverage-legend-link {
-    @apply lens-flex lens-flex-1 lens-items-center lens-gap-3 lens-rounded-md;
+    @apply lens-relative lens-z-20 lens-flex lens-flex-1 lens-items-center lens-gap-3 lens-rounded-md lens-no-underline lens-text-inherit;
   }
 
   .lens-coverage-legend-link:hover {
     @apply lens-bg-inset;
-  }
-
-  .lens-coverage-track-segment-link:hover {
-    filter: brightness(1.12);
   }
 
   /* Icon specimen grid — story-only surface that pins every glyph's rendered
@@ -3559,6 +3556,30 @@
     @apply lens-flex lens-flex-col lens-gap-2 lens-py-1.5;
   }
 
+  /* A stage that opens something. This is the same panel as the waterfall — the
+     other layout of it — and it had no pointer state at all: activation was
+     declared in TSX with an inline `cursor: pointer` and nothing else, so the
+     one row a reader could act on looked exactly like the four they could not,
+     and the affordance had already drifted out of the single list above that
+     exists to stop precisely that.
+
+     The fill is the row-level hover the sheet already uses wherever a cell
+     navigates (.lens-stat-linked, .lens-coverage-legend-link), bled half a unit
+     past the text so it reads as a plate under the row rather than a highlight
+     stopping at the glyphs. The bleed lives on this rule with the padding that
+     cancels it, so an inert cascade keeps its geometry to the pixel. */
+  .lens-cascade-stage[role='button'] {
+    @apply lens-rounded-control;
+    margin-inline: -0.5rem;
+    padding-inline: 0.5rem;
+    transition: background-color var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  .lens-cascade-stage[role='button']:hover,
+  .lens-cascade-stage[role='button']:focus-visible {
+    @apply lens-bg-inset;
+  }
+
   .lens-cascade-stage-label {
     @apply lens-flex lens-items-baseline lens-justify-between lens-gap-4 lens-text-md lens-font-medium lens-text-text;
   }
@@ -3765,6 +3786,13 @@
     margin-left: calc(var(--lens-waterfall-bar-width) / -2);
     min-height: 3px;
     background: var(--lens-accent-500);
+    /* One hover, one speed. The plate behind the column fades over
+       `--lens-dur-fast`; the halo and the lift this bar takes on the same
+       pointer had no transition and snapped, which read as two events instead
+       of one. Geometry is not in the list on purpose — the bar's box stays put
+       (see the hover rules above). */
+    transition: box-shadow var(--lens-dur-fast) var(--lens-ease-out),
+      filter var(--lens-dur-fast) var(--lens-ease-out);
   }
 
   /* Direction defaults resolve to the tone palette. They used to be an orange

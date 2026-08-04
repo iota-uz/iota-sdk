@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslate } from '../runtime'
-import { useOverlayContainer } from '../runtime/overlayContainer'
+import { hoverBridgeDelay, useOverlayContainer } from '../runtime/overlayContainer'
 import { Info } from '../icons'
 
 export interface InfoTipProps {
@@ -32,7 +32,6 @@ interface FloatingPosition {
 
 const popoverGap = 6
 const viewportGutter = 8
-const hoverBridgeDelay = 120
 /** Half the tail's width plus the bubble's corner radius. */
 const tailInset = 14
 
@@ -161,9 +160,6 @@ export function InfoTip({ text, subject, inline }: InfoTipProps) {
     const next = event.relatedTarget
     if (next instanceof Node && other?.contains(next)) return
     cancelClose()
-    // The bubble lives in a body portal with a deliberate visual gap from its
-    // trigger. Give the pointer enough time to cross that gap; otherwise the
-    // portal unmounts under the cursor and appears to flicker.
     closeTimer.current = globalThis.setTimeout(() => setHovered(false), hoverBridgeDelay)
   }
 

@@ -1,6 +1,6 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { sourceFiles } from './test/sourceFiles'
 
 /**
  * Body-level overlay hosts, and the one mistake they keep making.
@@ -26,14 +26,6 @@ const styles = readFileSync('src/styles.css', 'utf8')
 
 /** The sheet without its comments, so a rule is only its rule. */
 const declarations = styles.replace(/\/\*[\s\S]*?\*\//g, '')
-
-function sourceFiles(directory: string): Array<string> {
-  return readdirSync(directory).flatMap((entry) => {
-    const path = join(directory, entry)
-    if (statSync(path).isDirectory()) return sourceFiles(path)
-    return /\.tsx?$/.test(path) && !/\.test\.tsx?$/.test(path) ? [path] : []
-  })
-}
 
 /** Every host class named at a `useOverlayContainer` call site. */
 function namedHostClasses(): Array<string> {
