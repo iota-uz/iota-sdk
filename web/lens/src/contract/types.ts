@@ -43,7 +43,7 @@ export type BridgeLayout = "waterfall"
 
 export type CascadeTone = "inflow" | "negative" | "neutral" | "positive"
 
-export type ColorBy = "category" | "sequence"
+export type ColorBy = "category" | "rank" | "sequence"
 
 export interface Column {
   name: string
@@ -563,6 +563,7 @@ export interface Presentation {
   sliceLabels?: SliceLabels
   totalBadge?: TotalBadgePlacement
   colorBy?: ColorBy
+  valueSpreadThreshold?: number
   fill?: boolean
   barWidthPx?: number
   bridgeLayout?: BridgeLayout

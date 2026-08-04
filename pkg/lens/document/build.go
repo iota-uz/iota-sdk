@@ -626,7 +626,10 @@ func presentationForKind(hints panel.PresentationHints, kind panel.Kind) *Presen
 // convertPresentation maps Go-side presentation hints onto the wire, returning
 // nil when every hint is unset. Levels and panels share it.
 func convertPresentation(hints panel.PresentationHints) *Presentation {
-	presentation := Presentation{DataLabels: hints.DataLabels, Fill: hints.FillPlot, BarWidthPx: hints.BarWidthPx}
+	presentation := Presentation{
+		DataLabels: hints.DataLabels, Fill: hints.FillPlot, BarWidthPx: hints.BarWidthPx,
+		ValueSpreadThreshold: hints.ValueSpreadThreshold,
+	}
 	if hints.LegendBelow {
 		presentation.Legend = LegendBelow
 	}
@@ -653,6 +656,9 @@ func convertPresentation(hints panel.PresentationHints) *Presentation {
 	}
 	if hints.ColorBySequence {
 		presentation.ColorBy = ColorBySequence
+	}
+	if hints.ColorByRank {
+		presentation.ColorBy = ColorByRank
 	}
 	if hints.Waterfall {
 		presentation.BridgeLayout = BridgeLayoutWaterfall

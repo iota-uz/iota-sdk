@@ -1141,6 +1141,17 @@ func TestBuild_SegmentBarBecomesCoverage(t *testing.T) {
 	require.Equal(t, TotalBadgeNone, wirePanel.Presentation.TotalBadge)
 }
 
+func TestConvertPresentationCarriesProducerOwnedScaleAndMapPolicy(t *testing.T) {
+	t.Parallel()
+
+	presentation := convertPresentation(panel.PresentationHints{
+		ColorByRank: true, ValueSpreadThreshold: 100,
+	})
+	require.NotNil(t, presentation)
+	require.Equal(t, ColorByRank, presentation.ColorBy)
+	require.Equal(t, 100.0, presentation.ValueSpreadThreshold)
+}
+
 func TestBuild_CascadeCarriesWaterfallLayout(t *testing.T) {
 	t.Parallel()
 	primary, err := frame.New("bridge",

@@ -141,6 +141,7 @@ function logarithmicInput(kind: 'bar' | 'hbar'): ChartInput {
     ['large', 'Large', 'Revenue', 1200],
   ]
   chartInput.valueAxis = { scale: 'logarithmic', logBase: 10 }
+  chartInput.presentation = { valueSpreadThreshold: 100 }
   return chartInput
 }
 
@@ -508,9 +509,7 @@ describe('buildChartOption', () => {
       geoJSON: { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { code: 'north' }, geometry: { type: 'Polygon', coordinates: [] } }] },
     }
     const chart = buildChartOption(chartInput, theme) as Record<string, unknown>
-    // A single region has no rank to spread, so the ramp is hidden and the one
-    // swatch below carries the amount.
-    expect(chart.visualMap).toMatchObject({ show: false, min: 0, max: 1 })
+    expect(chart.visualMap).toMatchObject({ show: false, min: 42, max: 42 })
     expect(chart.graphic).toBeDefined()
   })
 
@@ -632,6 +631,7 @@ describe('buildChartOption', () => {
   it('falls back from log to linear for fewer than three categories or less than 100x spread', () => {
     const few = input('hbar')
     few.valueAxis = { scale: 'logarithmic', logBase: 10 }
+    few.presentation = { valueSpreadThreshold: 100 }
     expect(testOption(buildChartOption(few, theme)).xAxis.type).toBe('value')
 
     const narrow = logarithmicInput('hbar')

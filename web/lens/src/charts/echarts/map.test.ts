@@ -44,18 +44,23 @@ describe('choropleth option', () => {
         labelLayout: { hideOverlap: boolean }
       }>
     }
-    // The colour domain is the rank the series carries, not the amount: one
-    // region three orders of magnitude above the rest would otherwise flatten
-    // every other region onto the pale end of a linear ramp.
-    expect(option.visualMap).toMatchObject({ min: 0, max: 1 })
+    expect(option.visualMap).toMatchObject({ min: 18, max: 42 })
     expect(option.series[0]).toMatchObject({ map: 'synthetic', nameProperty: 'code' })
     expect(option.series[0]!.labelLayout).toEqual({ hideOverlap: true })
     expect(option.series[0]!.label.padding).toEqual([4, 8])
     expect(option.series[0]!.data).toEqual([
-      { name: 'north', value: 1, amount: 42, nodeKey: 'north', displayLabel: 'North district' },
-      { name: 'south', value: 0, amount: 18, nodeKey: 'south', displayLabel: 'South district' },
+      { name: 'north', value: 42, amount: 42, nodeKey: 'north', displayLabel: 'North district' },
+      { name: 'south', value: 18, amount: 18, nodeKey: 'south', displayLabel: 'South district' },
     ])
     expect(option.series[0]!.label.formatter({ name: 'north' })).toBe('North district')
+
+    input.presentation = { colorBy: 'rank' }
+    const ranked = buildMapOption(input, theme) as {
+      visualMap: { min: number; max: number }
+      series: Array<{ data: Array<Record<string, unknown>> }>
+    }
+    expect(ranked.visualMap).toMatchObject({ min: 0, max: 1 })
+    expect(ranked.series[0]!.data.map(({ value }) => value)).toEqual([1, 0])
   })
 
   it.each([
@@ -149,8 +154,7 @@ describe('choropleth chrome', () => {
     expect(emphasis.borderWidth).toBe(1.5)
   })
 
-  // Прод-форма данных: Ташкент 31 415 полисов, следующий регион — 10.
-  it('keeps regions distinguishable when one dwarfs the rest', () => {
+  it('honours producer rank shading for a skewed distribution', () => {
     const input: ChartInput = {
       kind: 'map',
       frame: {
@@ -160,6 +164,7 @@ describe('choropleth chrome', () => {
       encoding: { id: 'code', label: 'label', value: 'value' },
       format: (_field, value) => `${String(value)} policies`,
       theme: { palette: { accent: '#2563eb' }, series: {} },
+      presentation: { colorBy: 'rank' },
       map: {
         name: 'synthetic', featureProperty: 'code', labelProperty: 'name',
         geoJSON: { type: 'FeatureCollection', features: [] },

@@ -654,7 +654,7 @@ func validatePresentation(owner string, presentation *Presentation) error {
 		return fmt.Errorf("%s has unsupported total badge placement %q", owner, presentation.TotalBadge)
 	}
 	switch presentation.ColorBy {
-	case "", ColorByCategory, ColorBySequence:
+	case "", ColorByCategory, ColorBySequence, ColorByRank:
 	default:
 		return fmt.Errorf("%s has unsupported color mode %q", owner, presentation.ColorBy)
 	}
@@ -665,6 +665,10 @@ func validatePresentation(owner string, presentation *Presentation) error {
 	}
 	if presentation.BarWidthPx < 0 {
 		return fmt.Errorf("%s bar width cannot be negative", owner)
+	}
+	if presentation.ValueSpreadThreshold != 0 &&
+		(math.IsNaN(presentation.ValueSpreadThreshold) || math.IsInf(presentation.ValueSpreadThreshold, 0) || presentation.ValueSpreadThreshold <= 1) {
+		return fmt.Errorf("%s value spread threshold must be finite and greater than one", owner)
 	}
 	return nil
 }

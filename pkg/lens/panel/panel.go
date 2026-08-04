@@ -341,7 +341,8 @@ type RelationshipSpec struct {
 }
 
 // PresentationHints are optional, renderer-level density choices carried on a
-// panel spec. Every field is opt-in: the zero value keeps today's rendering.
+// panel spec. Every field is opt-in: the zero value leaves policy to the
+// renderer's neutral defaults.
 type PresentationHints struct {
 	// DataLabels writes formatted values directly on bar and line marks. It is
 	// intentionally opt-in: dense charts keep tooltips as their reading surface.
@@ -373,6 +374,15 @@ type PresentationHints struct {
 	// the categories are ranked — age bands, tenure buckets, rating grades —
 	// and a categorical palette would claim they are unrelated.
 	ColorBySequence bool
+	// ColorByRank shades numeric map values by their order rather than their
+	// distance. This is useful for highly skewed choropleths, but changes the
+	// meaning of the colour ramp and therefore requires producer opt-in.
+	ColorByRank bool
+	// ValueSpreadThreshold is the minimum max/min ratio at which the renderer
+	// treats a requested logarithmic scale as material and identifies a linear
+	// scale as obscuring small values. Zero leaves this policy unset; when set,
+	// the value must be greater than one.
+	ValueSpreadThreshold float64
 	// HideTotalBadge suppresses the total badge, e.g. when a trend chip
 	// already carries the panel's summary.
 	HideTotalBadge bool

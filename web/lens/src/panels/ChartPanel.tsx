@@ -434,7 +434,9 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // The badge and axis must describe the same rows. Hidden series and a
   // collapsed tail can change whether the rendered values span enough orders
   // of magnitude to justify a logarithmic scale.
-  const logarithmic = renderFrame ? shouldUseLogarithmicScale(renderFrame, panel.encoding, panel.valueAxis) : false
+  const logarithmic = renderFrame
+    ? shouldUseLogarithmicScale(renderFrame, panel.encoding, panel.valueAxis, panel.presentation?.valueSpreadThreshold)
+    : false
   // Keep the legend independent of visibility. Hidden entries must remain in
   // the command surface so they can be restored one by one, and their ordinal
   // (therefore their positional colour pin) must not shift when a neighbour is

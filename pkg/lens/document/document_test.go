@@ -29,6 +29,14 @@ func TestDashboardDocumentValidate_FrameReferences(t *testing.T) {
 	})
 }
 
+func TestValidatePresentationRejectsInvalidValueSpreadThreshold(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, validatePresentation("panel chart", &Presentation{ValueSpreadThreshold: 100}))
+	require.ErrorContains(t, validatePresentation("panel chart", &Presentation{ValueSpreadThreshold: 1}), "greater than one")
+	require.ErrorContains(t, validatePresentation("panel chart", &Presentation{ValueSpreadThreshold: math.Inf(1)}), "finite")
+}
+
 func TestDashboardDocumentValidateAndSerialize_DynamicChildren(t *testing.T) {
 	t.Parallel()
 	doc := testDocument()
