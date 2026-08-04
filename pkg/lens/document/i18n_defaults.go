@@ -14,8 +14,6 @@ func RuntimeI18nDefaults() map[string]string {
 		I18nFilterFacetFilters:            "Filters",
 		I18nFilterFacetSearchIn:           "Search {facet}",
 		I18nFilterFacetStaged:             "Selected: {count}",
-		I18nFilterPeriodPrevious:          "Previous period",
-		I18nFilterPeriodNext:              "Next period",
 		I18nDashboardRecomputeHint:        "Refresh every figure, ignoring the cached results",
 		I18nChartFilterHint:               "Select to filter the page",
 		I18nChartCrossFilterSource:        "All categories shown — the filter applies to the other panels",
