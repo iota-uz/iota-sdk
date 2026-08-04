@@ -1738,7 +1738,7 @@
        with — on a floating card carrying the popover shadow it read as a
        drawn-on frame rather than an edge. The shadow is what separates a
        popover from the page; the border only has to close it. */
-    @apply lens-fixed lens-z-tooltip lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
+    @apply lens-pointer-events-auto lens-fixed lens-z-tooltip lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
 
     max-height: calc(100vh - 1rem);
     box-shadow: var(--lens-shadow-popover);
@@ -3714,10 +3714,14 @@
      changed shape over four pixels was a promise the reader had to hunt for. */
   .lens-waterfall-column[role='button']::before {
     @apply lens-pointer-events-none lens-absolute lens-inset-0 lens-z-0 lens-rounded-control lens-opacity-0;
-    /* A band, not a fill: the column's own underlay is the lightest thing on
-       the plot, so a hover state has to be lighter still and earn its read from
-       covering the full height rather than from weight. */
-    background: color-mix(in srgb, var(--lens-accent-500) 7%, transparent);
+    /* A plate, and it has to survive being drawn over the column's own underlay
+       — which is this same accent at 0.1. A tint alone cannot: 7% of a hue over
+       10% of that hue moved the strongest channel by 14/255, and the underlay
+       covers ~89% of the column height, so the one state the reader was meant
+       to see was the one place it was invisible. The outline is what carries
+       the read now; the fill only warms what it encloses. */
+    background: color-mix(in srgb, var(--lens-accent-500) 10%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lens-accent-500) 30%, transparent);
     content: '';
     transition: opacity var(--lens-dur-fast) var(--lens-ease-out);
   }
@@ -3727,9 +3731,23 @@
     @apply lens-opacity-100;
   }
 
+  /* The bar lifts off the plate rather than changing colour on it. A halo in the
+     card's own ink is the one separator that works over every bar hue and both
+     themes, and it is read as the segment growing — which is what the plate
+     alone could not say, because a plate says "this column" and the question
+     the pointer asks is "this step". Geometry is untouched on purpose: the bar
+     carries its value label and the connector meets its edge, and both jump if
+     the box moves. */
+  .lens-waterfall-column[role='button']:hover .lens-waterfall-bar {
+    box-shadow: 0 0 0 3px var(--lens-bg-card);
+  }
+
+  /* The halo is the pointer's half of this. A focused column already carries the
+     runtime's one focus ring, and a second ring inside it reads as two states at
+     once — so the keyboard path takes the plate and the lift, not the halo. */
   .lens-waterfall-column[role='button']:hover .lens-waterfall-bar,
   .lens-waterfall-column[role='button']:focus-visible .lens-waterfall-bar {
-    filter: saturate(1.08) brightness(1.06);
+    filter: brightness(1.04);
   }
 
   /* Runs from this column's bar to the next one's, so it follows the cap
@@ -3814,8 +3832,20 @@
      a stray label loose on the chart rather than as an answer to the column
      under the cursor. This is the shape every other panel on the board answers a
      pointer with, and being a body-level portal no card can clip it. */
+  /* The portal host fills the viewport only to carry theme variables, exactly as
+     the info tip's and the menu's do, and like them it must not become an
+     invisible hit target: a full-viewport layer over the plot takes the column's
+     pointer the instant the tip mounts, which fires mouseleave on a stationary
+     cursor, closes the tip after the hover bridge, uncovers the column, and
+     starts again — the flicker — while every click aimed at a step lands on the
+     layer instead of opening the drill. The card opts back in so its copy
+     buttons and its text still answer. */
+  .lens-waterfall-tip-overlay-root {
+    pointer-events: none;
+  }
+
   .lens-waterfall-tip {
-    @apply lens-fixed lens-z-tooltip lens-flex lens-flex-col lens-gap-0.5 lens-whitespace-nowrap lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-text-left lens-font-sans lens-text-base lens-normal-case lens-tracking-normal;
+    @apply lens-pointer-events-auto lens-fixed lens-z-tooltip lens-flex lens-flex-col lens-gap-0.5 lens-whitespace-nowrap lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-text-left lens-font-sans lens-text-base lens-normal-case lens-tracking-normal;
     box-shadow: var(--lens-shadow-popover);
   }
 
