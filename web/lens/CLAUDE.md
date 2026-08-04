@@ -148,9 +148,13 @@ drift, the lane remains red and does not classify the run as missing-baseline
 only.
 
 On macOS, `just lens vr-linux` runs the comparison in Playwright's pinned
-v1.55.1 Noble image with the repository mounted at `/work`. This produces the
-same `vr/baselines/linux` and `vr/results` paths as CI; local Darwin snapshots
-are never promoted as Linux references.
+v1.55.1 Noble image, with the repository mounted at `/work` and a
+container-owned `node_modules` volume. The isolated dependency tree prevents
+Darwin optional binaries from leaking into the Linux run, while a named pnpm
+store keeps repeated runs fast. Ladle also deduplicates React across the linked
+client-host workspace. This produces the same `vr/baselines/linux` and
+`vr/results` paths as CI; local Darwin snapshots are never promoted as Linux
+references.
 
 ## Guard check
 

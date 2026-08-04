@@ -63,7 +63,7 @@ lens cmd="help" *args="":
       esac ;; \
     fixture) (cd web/lens && pnpm fixture {{args}}) ;; \
     vr|vr-update) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
-    vr-linux) docker run --rm --ipc=host -v "{{justfile_directory()}}:/work" -w /work/web/lens mcr.microsoft.com/playwright:v1.55.1-noble bash -lc 'corepack enable && pnpm install --frozen-lockfile && pnpm vr {{args}}' ;; \
+    vr-linux) docker run --rm --ipc=host -v "{{justfile_directory()}}:/work" --mount type=volume,target=/work/web/lens/node_modules --mount type=volume,source=iota-sdk-lens-vr-pnpm-store,target=/root/.local/share/pnpm/store -w /work/web/lens mcr.microsoft.com/playwright:v1.55.1-noble bash -lc 'corepack enable && pnpm install --frozen-lockfile && pnpm vr {{args}}' ;; \
     typegen) go run ./cmd/lens-typegen ;; \
     check) \
       node web/lens/scripts/check-typegen.mjs ; \
