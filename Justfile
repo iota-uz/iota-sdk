@@ -63,7 +63,12 @@ lens cmd="help" *args="":
       esac ;; \
     fixture) (cd web/lens && pnpm fixture {{args}}) ;; \
     vr|vr-update) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
-    vr-linux) docker run --rm --ipc=host -v "{{justfile_directory()}}:/work" --mount type=volume,target=/work/web/lens/node_modules --mount type=volume,source=iota-sdk-lens-vr-pnpm-store,target=/root/.local/share/pnpm/store -w /work/web/lens mcr.microsoft.com/playwright:v1.55.1-noble bash -lc 'corepack enable && pnpm install --frozen-lockfile && pnpm vr {{args}}' ;; \
+    vr-linux) \
+      if [ "$(uname -m)" != "x86_64" ]; then \
+        echo "Lens Linux baselines are linux/amd64; use the lens_vr_update CI workflow on ARM hosts" ; \
+        exit 2 ; \
+      fi ; \
+      docker run --rm --platform linux/amd64 --ipc=host -v "{{justfile_directory()}}:/work" --mount type=volume,target=/work/web/client-host/node_modules --mount type=volume,target=/work/web/client-host/dist --mount type=volume,target=/work/web/lens/node_modules --mount type=volume,source=iota-sdk-lens-vr-pnpm-store,target=/root/.local/share/pnpm/store -w /work mcr.microsoft.com/playwright:v1.55.1-noble bash -lc 'corepack enable && cd web/client-host && pnpm install --frozen-lockfile && pnpm build && cd ../lens && pnpm install --frozen-lockfile && pnpm vr {{args}}' ;; \
     typegen) go run ./cmd/lens-typegen ;; \
     check) \
       node web/lens/scripts/check-typegen.mjs ; \

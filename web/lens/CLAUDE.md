@@ -147,14 +147,18 @@ notice with the promotion step above. If even one existing snapshot has pixel
 drift, the lane remains red and does not classify the run as missing-baseline
 only.
 
-On macOS, `just lens vr-linux` runs the comparison in Playwright's pinned
-v1.55.1 Noble image, with the repository mounted at `/work` and a
-container-owned `node_modules` volume. The isolated dependency tree prevents
-Darwin optional binaries from leaking into the Linux run, while a named pnpm
+On an x86_64 Docker host, `just lens vr-linux` runs the comparison in
+Playwright's pinned v1.55.1 Noble image forced to `linux/amd64`, the architecture
+used by the CI runner. The repository is mounted at `/work`; both workspaces get
+container-owned `node_modules`, and Client Host is rebuilt into a
+container-owned `dist` before Lens starts. That prevents Darwin optional
+binaries or a stale host build from leaking into the run, while a named pnpm
 store keeps repeated runs fast. Ladle also deduplicates React across the linked
 client-host workspace. This produces the same `vr/baselines/linux` and
-`vr/results` paths as CI; local Darwin snapshots are never promoted as Linux
-references.
+`vr/results` paths as CI. ARM hosts fail fast instead of running Chromium under
+QEMU and producing architecture-specific pixels; use the CI update workflow to
+generate or verify canonical candidates there. Local Darwin or native ARM64
+snapshots are never promoted as Linux references.
 
 ## Guard check
 
