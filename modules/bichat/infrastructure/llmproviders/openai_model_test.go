@@ -578,10 +578,12 @@ func TestOpenAIModel_MapResponse_FunctionCalls(t *testing.T) {
 	resp := &responses.Response{
 		Output: []responses.ResponseOutputItemUnion{
 			{
-				Type:      "function_call",
-				CallID:    "call_abc",
-				Name:      "sql_execute",
-				Arguments: `{"query":"SELECT 1"}`,
+				Type:   "function_call",
+				CallID: "call_abc",
+				Name:   "sql_execute",
+				Arguments: responses.ResponseOutputItemUnionArguments{
+					OfString: `{"query":"SELECT 1"}`,
+				},
 			},
 		},
 		Usage: responses.ResponseUsage{

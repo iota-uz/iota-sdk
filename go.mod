@@ -61,7 +61,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/mileusna/useragent v1.3.5
 	github.com/openai/openai-go v1.3.0
-	github.com/openai/openai-go/v3 v3.18.0
+	github.com/openai/openai-go/v3 v3.44.0
 	github.com/pkg/errors v0.9.1
 	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/pquerna/otp v1.5.0

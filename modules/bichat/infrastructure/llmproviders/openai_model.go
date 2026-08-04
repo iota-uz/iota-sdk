@@ -320,14 +320,14 @@ func (m *OpenAIModel) consumeOpenAIStream(
 						a.name = event.Item.Name
 					}
 					if a.args == "" {
-						a.args = event.Item.Arguments
+						a.args = event.Item.Arguments.OfString
 					}
 				} else {
 					toolCallAccum[itemID] = &toolCallAccumEntry{
 						id:     itemID,
 						callID: event.Item.CallID,
 						name:   event.Item.Name,
-						args:   event.Item.Arguments,
+						args:   event.Item.Arguments.OfString,
 					}
 					toolCallOrder = append(toolCallOrder, itemID)
 				}
