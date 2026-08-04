@@ -137,9 +137,9 @@ func TestApplyFrameOutputMetadataPromotesDeferredTotals(t *testing.T) {
 
 	require.NotNil(t, result.TotalBadgeValue)
 	require.InDelta(t, actual, *result.TotalBadgeValue, 1e-9)
-	require.Equal(t, 210.0, result.Radial.Rings[0].Total)
-	require.Equal(t, 240.0, result.Radial.Rings[1].Total)
-	require.Equal(t, placeholder, spec.Radial.Rings[0].Total, "the frozen structural panel must not be mutated")
+	require.InDelta(t, 210.0, result.Radial.Rings[0].Total, 1e-9)
+	require.InDelta(t, 240.0, result.Radial.Rings[1].Total, 1e-9)
+	require.InDelta(t, placeholder, spec.Radial.Rings[0].Total, 1e-9, "the frozen structural panel must not be mutated")
 }
 
 func TestRunSanitizesInternalPaginationParamsAndPreservesPath(t *testing.T) {

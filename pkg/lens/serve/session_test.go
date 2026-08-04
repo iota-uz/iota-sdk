@@ -52,7 +52,6 @@ func TestExecutionSessionPromotesQueuedPrefetchOnInteractiveActivation(t *testin
 	release := make(chan struct{})
 	started := make(chan string, 2)
 	for _, key := range []string{"root-a", "root-b"} {
-		key := key
 		session.submit(t.Context(), key, priorityRootBase, 0, func(context.Context) (any, error) {
 			started <- key
 			<-release

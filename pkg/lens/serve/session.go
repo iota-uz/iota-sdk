@@ -780,12 +780,3 @@ func (p panelPriorities) forRequest(request PanelRequest) (int, int) {
 	}
 	return priority, order
 }
-
-func (p panelPriorities) compare(left, right string) int {
-	leftPriority, leftOrder := p.forPanel(left)
-	rightPriority, rightOrder := p.forPanel(right)
-	if leftPriority != rightPriority {
-		return leftPriority - rightPriority
-	}
-	return leftOrder - rightOrder
-}
