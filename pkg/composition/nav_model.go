@@ -107,7 +107,7 @@ func validateNavNodes(routes []controllerRoute, contributions []navNodeContribut
 				}
 				continue
 			}
-			buildNode.auth = route.Auth
+			buildNode.auth = route.Requirement
 			if node.Visibility != nil {
 				buildNode.auth = *node.Visibility
 			}
@@ -387,7 +387,7 @@ func (c *Container) AuthPolicyForRoute(method, host, rawPath string) (applicatio
 			continue
 		}
 		if routeMatchesRequest(route, method, host, routePath) {
-			return route.Auth, true
+			return route.Requirement, true
 		}
 	}
 	for _, candidate := range c.routeAuthRoutes {
@@ -396,7 +396,7 @@ func (c *Container) AuthPolicyForRoute(method, host, rawPath string) (applicatio
 			continue
 		}
 		if routeMatchesRequest(route, method, host, routePath) {
-			return route.Auth, true
+			return route.Requirement, true
 		}
 	}
 	return application.AuthPolicy{}, false

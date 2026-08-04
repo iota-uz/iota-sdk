@@ -112,7 +112,15 @@ jobs:
         with:
           just-version: "1.46.0"
 
-      - name: Install dependencies
+      - name: Install Client Host dependencies
+        working-directory: web/client-host
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Client Host
+        working-directory: web/client-host
+        run: pnpm build
+
+      - name: Install Lens dependencies
         working-directory: web/lens
         run: pnpm install --frozen-lockfile
 
@@ -168,7 +176,15 @@ jobs:
         with:
           just-version: "1.46.0"
 
-      - name: Install dependencies
+      - name: Install Client Host dependencies
+        working-directory: web/client-host
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Client Host
+        working-directory: web/client-host
+        run: pnpm build
+
+      - name: Install Lens dependencies
         working-directory: web/lens
         run: pnpm install --frozen-lockfile
 
@@ -738,8 +754,12 @@ jobs:
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
 
-          # Wait for server to be ready (timeout: 60 seconds)
-          timeout 60 bash -c 'until curl -s http://localhost:3201 > /dev/null; do sleep 1; done'
+          # Leave enough time for a cold Go build on a fresh runner.
+          if ! timeout 180 bash -c 'until curl -s http://localhost:3201 > /dev/null; do sleep 1; done'; then
+            echo "Server did not become ready within 180 seconds"
+            cat /tmp/server.log || echo "No server logs found"
+            exit 1
+          fi
           echo "Server started successfully"
 
       - name: Run Playwright Tests

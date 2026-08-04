@@ -26,7 +26,7 @@ func TestCrudController_DescriptorCatalogAndProjection(t *testing.T) {
 	})
 	for _, route := range routes {
 		require.Equal(t, application.RouteRendererServer, route.Renderer)
-		require.Equal(t, route.Requirement, route.Auth)
+		require.Empty(t, route.Requirement.Permissions)
 	}
 	resource, err := controller.ResourceDescriptor()
 	require.NoError(t, err)

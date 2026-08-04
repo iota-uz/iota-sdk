@@ -162,8 +162,8 @@ func requireCompatibilityPanic(t *testing.T, run func()) {
 	require.NotNil(t, recovered)
 	err, ok := recovered.(error)
 	require.True(t, ok, "compatibility failure must be an error, got %T", recovered)
-	assert.ErrorContains(t, err, compatibilityAssetsHelp)
-	assert.ErrorContains(t, err, ".vite/manifest.json")
+	require.ErrorContains(t, err, compatibilityAssetsHelp)
+	require.ErrorContains(t, err, ".vite/manifest.json")
 }
 
 func TestLegacySurfacesFailClearlyWhenBundleIsMissing(t *testing.T) {

@@ -1149,7 +1149,7 @@ func TestConvertPresentationCarriesProducerOwnedScaleAndMapPolicy(t *testing.T) 
 	})
 	require.NotNil(t, presentation)
 	require.Equal(t, ColorByRank, presentation.ColorBy)
-	require.Equal(t, 100.0, presentation.ValueSpreadThreshold)
+	require.InDelta(t, 100.0, presentation.ValueSpreadThreshold, 1e-9)
 }
 
 func TestBuild_CascadeCarriesWaterfallLayout(t *testing.T) {
