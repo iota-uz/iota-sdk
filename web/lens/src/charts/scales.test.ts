@@ -13,6 +13,8 @@ describe('shouldUseLogarithmicScale', () => {
     expect(shouldUseLogarithmicScale(frame([['a', 2], ['b', 20], ['c', 200]]), encoding, { scale: 'logarithmic' }, 100)).toBe(true)
     expect(shouldUseLogarithmicScale(frame([['a', 1], ['b', 100]]), encoding, { scale: 'logarithmic' }, 100)).toBe(false)
     expect(shouldUseLogarithmicScale(frame([['a', 2], ['b', 9], ['c', 99]]), encoding, { scale: 'logarithmic' }, 100)).toBe(false)
+    expect(shouldUseLogarithmicScale(frame([['a', 2], ['b', 5], ['c', 20]]), encoding, { scale: 'logarithmic' }, 10)).toBe(true)
+    expect(shouldUseLogarithmicScale(frame([['a', 2], ['b', 5], ['c', 20]]), encoding, { scale: 'logarithmic' }, 11)).toBe(false)
   })
 
   it('honours a valid log request when no product threshold is declared', () => {
