@@ -14,7 +14,7 @@ function panelWith(id: string, overrides: Partial<Panel> = {}): Panel {
     format: {},
     actions: [],
     ...overrides,
-  }
+  } as Panel
 }
 
 function frameWith(rows: Array<Array<unknown>>): Frame {

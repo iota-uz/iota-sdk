@@ -374,17 +374,14 @@ export type NodeKey = string
 
 export type NodePath = Array<NodeKey>
 
-export interface Panel {
+export interface PanelBase {
   id: string
-  kind: PanelKind
   title: string
   semantics: Semantics
   frame: FrameRef
   encoding: Encoding
   format: Record<string, FieldFormat>
   total?: number
-  columns?: Array<TableColumn>
-  table?: TableOptions
   drillRoot?: NodeKey
   actions: Array<Action>
   accent?: string
@@ -398,17 +395,55 @@ export interface Panel {
   temporal?: PanelTemporal
   presentation?: Presentation
   valueAxis?: ValueAxis
-  metricFlow?: MetricFlowConfig
-  metricHierarchy?: MetricHierarchyConfig
-  metricRelationship?: MetricRelationshipConfig
-  radial?: RadialConfig
-  map?: MapConfig
   confidence?: Confidence
   availability?: Availability
   deferred?: boolean
   terminal?: boolean
   comparisonUnsupported?: boolean
 }
+
+export type Panel =
+  | PanelBase & { kind: "area"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "bar"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "boxplot"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "cascade"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "coverage"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "donut"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "gauge"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: RadialConfig; table?: never }
+  | PanelBase & { kind: "hbar"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "heatmap"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "histogram"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "line"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "map"; columns?: never; map?: MapConfig; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "metric_flow"; columns?: never; map?: never; metricFlow?: MetricFlowConfig; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "metric_hierarchy"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: MetricHierarchyConfig; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "metric_relationship"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: MetricRelationshipConfig; radial?: never; table?: never }
+  | PanelBase & { kind: "pie"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "radial"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: RadialConfig; table?: never }
+  | PanelBase & { kind: "stat"; columns?: never; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: never }
+  | PanelBase & { kind: "table"; columns?: Array<TableColumn>; map?: never; metricFlow?: never; metricHierarchy?: never; metricRelationship?: never; radial?: never; table?: TableOptions }
+
+export const PANEL_KIND_CONFIG_FIELDS = {
+  "area": [],
+  "bar": [],
+  "boxplot": [],
+  "cascade": [],
+  "coverage": [],
+  "donut": [],
+  "gauge": ["radial"],
+  "hbar": [],
+  "heatmap": [],
+  "histogram": [],
+  "line": [],
+  "map": ["map"],
+  "metric_flow": ["metricFlow"],
+  "metric_hierarchy": ["metricHierarchy"],
+  "metric_relationship": ["metricRelationship"],
+  "pie": [],
+  "radial": ["radial"],
+  "stat": [],
+  "table": ["columns", "table"],
+} as const satisfies Record<PanelKind, readonly string[]>
 
 export interface PanelBatchRequest {
   snapshotId: string

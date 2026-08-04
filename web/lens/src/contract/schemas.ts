@@ -1,7 +1,7 @@
 // GENERATED — do not edit
 
 import { z } from 'zod'
-import { CONTRACT_VERSION } from './types'
+import { CONTRACT_VERSION, PANEL_KIND_CONFIG_FIELDS } from './types'
 import type * as Contract from './types'
 
 const CONTRACT_MAJOR_VERSION = CONTRACT_VERSION.split('.', 1)[0]!
@@ -431,7 +431,15 @@ export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   deferred: z.boolean().optional(),
   terminal: z.boolean().optional(),
   comparisonUnsupported: z.boolean().optional(),
-}).strict())
+}).strict()).superRefine((value, ctx) => {
+  const allowed = new Set<string>(PANEL_KIND_CONFIG_FIELDS[value.kind])
+  const candidate = value as unknown as Record<string, unknown>
+  for (const field of Object.values(PANEL_KIND_CONFIG_FIELDS).flat()) {
+    if (!allowed.has(field) && candidate[field] !== undefined) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is not valid for ${value.kind}` })
+    }
+  }
+}) as z.ZodType<Contract.Panel>
 
 export const PanelBatchRequestSchema: z.ZodType<Contract.PanelBatchRequest> = z.lazy(() => z.object({
   snapshotId: z.string(),

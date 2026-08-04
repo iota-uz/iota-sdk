@@ -253,7 +253,7 @@ function storyPanel(kind: StoryKind): Panel {
         { key: 'plan', label: 'Plan', order: 1, total: 100 },
       ],
     } : undefined,
-  }
+  } as Panel
 }
 
 function storyDocument(kind: StoryKind, state: PanelState): DashboardDocument {

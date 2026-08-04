@@ -93,7 +93,7 @@ function panel(kind: PanelKind, overrides: Partial<Panel> = {}): Panel {
       },
     } : {}),
     ...overrides,
-  }
+  } as Panel
 }
 
 function state(name: 'loading' | 'empty' | 'error' | 'stale' | 'superseded' | 'data'): PanelFrameState {

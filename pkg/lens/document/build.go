@@ -859,17 +859,7 @@ func PanelKindOf(kind panel.Kind) (PanelKind, error) {
 // summary line is a MetricHierarchy-config concern rendered independently of
 // Semantics.
 func inferSemantics(kind PanelKind) Semantics {
-	//nolint:exhaustive // Remaining kinds are series-shaped by default.
-	switch kind {
-	case PanelKindPie, PanelKindDonut, PanelKindCoverage:
-		return SemanticsPartition
-	case PanelKindCascade, PanelKindMetricFlow:
-		return SemanticsReconciliation
-	case PanelKindTable:
-		return SemanticsEvidence
-	default:
-		return SemanticsSeries
-	}
+	return inferPanelSemantics(kind)
 }
 
 func buildRadial(spec panel.Spec) *RadialConfig {

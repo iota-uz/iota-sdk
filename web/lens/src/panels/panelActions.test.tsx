@@ -7,6 +7,7 @@ import { CoveragePanel, ChartPanel, MarkSelectionContext, StatMetric, StatPanel 
 import { CascadePanel } from './CascadePanel'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
 import { navigateTo } from '../runtime/navigate'
+import { retargetPanel } from './kinds'
 
 vi.mock('../runtime/navigate', () => ({ navigateTo: vi.fn() }))
 
@@ -550,7 +551,7 @@ describe('per-segment drawer drill', () => {
 
   function renderDonut() {
     window.history.replaceState(null, '', '/')
-    const panel: Panel = { ...chartPanel([openDrawerPerRow]), kind: 'donut', frame: 'chart:root' }
+    const panel = { ...retargetPanel(chartPanel([openDrawerPerRow]), 'donut'), frame: 'chart:root' }
     const document = documentWith([panel], { 'chart:root': segmentFrame })
     document.endpoints = { drawer: '/lens/drawer' }
     const fetcher = vi.fn<typeof fetch>(() => Promise.resolve(
@@ -666,7 +667,7 @@ describe('cross-filter source panel', () => {
 
   function renderSource(search: string) {
     window.history.replaceState({}, '', `/sales${search}`)
-    const panel: Panel = { ...chartPanel([crossFilter]), kind: 'hbar' }
+    const panel = retargetPanel(chartPanel([crossFilter]), 'hbar')
     let input: ChartInput | undefined
     const adapter: ChartAdapter = {
       mount: (_element, initial) => {
