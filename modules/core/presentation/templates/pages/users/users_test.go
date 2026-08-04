@@ -158,7 +158,6 @@ func TestBuildTableConfig_ActionGating(t *testing.T) {
 
 	email, err := internet.NewEmail("action-gating@example.com")
 	require.NoError(t, err)
-
 	noPermUser := user.New("No", "Perm", email, user.UILanguageEN)
 	cfgNoPerm := BuildTableConfig(composables.WithUser(usersTestCtx(), noPermUser), props, req)
 	require.Len(t, cfgNoPerm.Rows, 1)
