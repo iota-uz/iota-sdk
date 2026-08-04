@@ -674,7 +674,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     ? (onMarkSelect ? Boolean(level?.children.length ?? panel.drillRoot) : drillable)
     : Boolean(panelNavigation.action)
   const distribution = kind === 'histogram' || kind === 'boxplot' || kind === 'heatmap'
-  const compact = degenerate && !interactive && !distribution
+  const compact = degenerate && !distribution
   const select = useCallback((key: NodeKey, anchor?: ChartAnchor, activation?: ChartActivation) => {
     if (key === donutRemainderKey && collapsedRemainder.collapsed) {
       setRemainderExpanded((current) => !current)
@@ -800,7 +800,12 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
           {nothingVisible ? (
             <AllSeriesHidden onShowAll={() => setHiddenSeries(new Set())} />
           ) : hostInput && compact ? (
-            <CompactChartValue frame={hostInput.frame} panel={panel} />
+            <CompactChartValue
+              actionable={chartInteractive}
+              frame={hostInput.frame}
+              onSelect={chartInteractive ? select : undefined}
+              panel={panel}
+            />
           ) : hostInput && (
             <>
               <ChartDataEquivalent
@@ -865,7 +870,12 @@ function AllSeriesHidden({ onShowAll }: { onShowAll: () => void }) {
   )
 }
 
-function CompactChartValue({ frame, panel }: { frame: Frame; panel: Panel }) {
+function CompactChartValue({ actionable, frame, onSelect, panel }: {
+  actionable: boolean
+  frame: Frame
+  onSelect?: (key: NodeKey) => void
+  panel: Panel
+}) {
   const translate = useTranslate()
   const labelField = [panel.encoding.category, panel.encoding.label]
     .find((field) => field !== undefined && frame.columns.some((column) => column.name === field))
@@ -877,12 +887,11 @@ function CompactChartValue({ frame, panel }: { frame: Frame; panel: Panel }) {
   const rawLabel = labelIndex < 0 ? undefined : frame.rows[0]?.[labelIndex]
   const label = textCell(rawLabel)
   const formattedTotal = formatValue(total)
-  return (
-    <div
-      aria-label={frame.rows.length === 0 ? translate('panel.empty', 'No data') : [label, formattedTotal].filter(Boolean).join(' / ')}
-      className="lens-chart-compact"
-      role="img"
-    >
+  const keyField = panel.encoding.id ?? labelField
+  const keyIndex = frame.columns.findIndex((column) => column.name === keyField)
+  const key = textCell(keyIndex < 0 ? undefined : frame.rows[0]?.[keyIndex])
+  const content = (
+    <>
       {frame.rows.length === 0 ? (
         <span className="lens-chart-compact-empty">{translate('panel.empty', 'No data')}</span>
       ) : (
@@ -891,8 +900,24 @@ function CompactChartValue({ frame, panel }: { frame: Frame; panel: Panel }) {
           <strong className="lens-chart-compact-value">{formattedTotal}</strong>
         </>
       )}
-    </div>
+    </>
   )
+  const ariaLabel = frame.rows.length === 0
+    ? translate('panel.empty', 'No data')
+    : [label, formattedTotal].filter(Boolean).join(' / ')
+  if (actionable && key && frame.rows.length > 0) {
+    return (
+      <button
+        aria-label={`${ariaLabel}. ${translate('chart.openMark', 'Open {name}', { name: label ?? key })}`}
+        className="lens-chart-compact lens-chart-compact-action"
+        onClick={() => onSelect?.(key)}
+        type="button"
+      >
+        {content}
+      </button>
+    )
+  }
+  return <div aria-label={ariaLabel} className="lens-chart-compact" role="img">{content}</div>
 }
 
 /**

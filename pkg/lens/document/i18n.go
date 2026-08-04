@@ -159,6 +159,9 @@ const (
 	I18nFilterPresetLastMonth      = "filter.period.preset.lastMonth"
 	I18nFilterPresetLastYear       = "filter.period.preset.lastYear"
 	I18nPanelCollapse              = "panel.collapse"
+	I18nPanelCalculation           = "panel.calculation"
+	I18nPanelCacheHit              = "panel.cacheHit"
+	I18nPanelCacheMiss             = "panel.cacheMiss"
 	I18nPanelError                 = "panel.error"
 	I18nPanelEmpty                 = "panel.empty"
 	I18nPanelExpand                = "panel.expand"
@@ -346,6 +349,7 @@ func RuntimeI18nKeys() []string {
 		I18nFocusToParent, I18nFocusViewAs,
 		I18nExportDashboard, I18nExportData, I18nExportMenu, I18nExportPanel, I18nExportReport,
 		I18nExportPending, I18nExportRetry, I18nExportRetryHint, I18nExportPNG, I18nExportSVG, I18nExportImageError,
+		I18nPanelCalculation, I18nPanelCacheHit, I18nPanelCacheMiss,
 		I18nPanelCollapse, I18nPanelEmpty, I18nPanelError, I18nPanelExpand, I18nPanelInfo, I18nPanelInfoAbout, I18nPanelMissing, I18nPanelOpenMetric,
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
 		I18nPanelTrendNew, I18nPanelTrendNotAvailable, I18nPanelTrendPercentagePoints,

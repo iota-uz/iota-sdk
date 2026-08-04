@@ -1215,15 +1215,10 @@ export const maximumLabelledMarks = 12
 /**
  * Whether this panel prints its values on the marks.
  *
- * One rule, three reasons for it. A producer can ask (`dataLabels`). A
- * logarithmic axis has to, because a log bar's length states an order of
- * magnitude and not a value. And a linear axis whose spread it cannot show has
- * to, because the alternative is eleven months drawn as eleven baselines — the
- * same diagnosis as the log case, on a panel whose producer never asked for a
- * log axis and should not have to.
- *
- * All three are then subject to the same ceiling: a label the reader cannot
- * rely on being there is worse than no label at all.
+ * Data labels are a producer-owned, explicit presentation decision. Runtime
+ * heuristics may change axes and tooltips to preserve readability, but must not
+ * add ink that the document did not request. The mark ceiling still prevents an
+ * explicit request from producing a non-deterministic subset of labels.
  */
 export function shouldPrintDataLabels(options: {
   explicit?: boolean
@@ -1236,14 +1231,7 @@ export function shouldPrintDataLabels(options: {
   // A stacked segment is bounded by its neighbours, not by the plot; its label
   // has nowhere to go but on top of the segment above it.
   if (options.stacked) return options.explicit === true
-  const wanted = options.explicit === true
-    || options.logarithmic
-    || (options.isBar && options.obscured)
-    // A handful of bars can always afford their own figures, and a policy of
-    // "labels when they fit" is the only one under which a reader can tell the
-    // absence of a label from the absence of a value.
-    || (options.isBar && options.markCount <= maximumLabelledMarks)
-  return wanted && options.markCount <= maximumLabelledMarks
+  return options.explicit === true && options.markCount <= maximumLabelledMarks
 }
 
 /**

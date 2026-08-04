@@ -603,6 +603,15 @@ describe('chart encoding and drill behavior', () => {
     expect(runtime.drillInto).toHaveBeenCalledWith('root/a', 'panel-pie')
   })
 
+  it('keeps a one-category drill panel compact and clickable', () => {
+    runtime.frame = state('data')
+    render(<BarPanel panel={panel('bar', { drillRoot: 'root' })} adapter={fakeAdapter()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /2026-07-01T00:00:00Z \/ 42.*Open/ }))
+    expect(runtime.drillInto).toHaveBeenCalledWith('root/a', 'panel-bar')
+    expect(document.querySelector('.lens-chart-compact')).not.toBeNull()
+  })
+
   it('passes time and series encodings through and tolerates missing optional roles', async () => {
     runtime.frame = {
       ...state('data'),
