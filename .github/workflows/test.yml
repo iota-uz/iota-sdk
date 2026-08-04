@@ -705,6 +705,14 @@ jobs:
       - name: Generate CSS files
         run: just css
 
+      - name: Install Client Host dependencies
+        working-directory: web/client-host
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Client Host
+        working-directory: web/client-host
+        run: pnpm build
+
       - name: Install Lens dependencies
         working-directory: web/lens
         run: pnpm install --frozen-lockfile
