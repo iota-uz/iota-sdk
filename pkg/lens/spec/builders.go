@@ -65,7 +65,13 @@ func Histogram(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindHistogram, id, title, dataset)
 }
 func BoxPlot(id, title, dataset string) *PanelBuilder {
-	return newPanelBuilder(panel.KindBoxPlot, id, title, dataset)
+	b := newPanelBuilder(panel.KindBoxPlot, id, title, dataset)
+	// A box plot is encoded by its five-number summary, not by the generic
+	// scalar value field installed by newPanelBuilder. Keeping that default
+	// makes Format attach a phantom "value" formatter which document validation
+	// correctly rejects when the frame only contains the box fields.
+	b.panel.Fields.Value = ""
+	return b
 }
 func Heatmap(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindHeatmap, id, title, dataset)
