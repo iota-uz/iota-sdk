@@ -1,6 +1,11 @@
 package document
 
-import "sort"
+import (
+	"sort"
+	"strings"
+	"unicode"
+	"unicode/utf8"
+)
 
 // Runtime chrome translation keys. BuildOptions.I18n is an opaque map, so a
 // producer typo silently falls back to the runtime's English default. These
@@ -303,6 +308,23 @@ const (
 	I18nSemanticsRecon         = I18nSemanticsPrefix + string(SemanticsReconciliation)
 	I18nSemanticsSeries        = I18nSemanticsPrefix + string(SemanticsSeries)
 )
+
+// RuntimeLocaleKey maps a runtime wire key to the canonical host catalogue
+// key. Hosts only provide translations; the SDK owns both the runtime key list
+// and this deterministic naming convention.
+func RuntimeLocaleKey(runtimeKey string) string {
+	var key strings.Builder
+	key.WriteString("Lens.Runtime.")
+	for _, part := range strings.Split(runtimeKey, ".") {
+		if part == "" {
+			continue
+		}
+		first, size := utf8.DecodeRuneInString(part)
+		key.WriteRune(unicode.ToUpper(first))
+		key.WriteString(part[size:])
+	}
+	return key.String()
+}
 
 // RuntimeI18nKeys lists every translation key the runtime resolves, sorted.
 // Producers can range over it to assert their catalogue is complete.
