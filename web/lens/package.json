@@ -1,8 +1,13 @@
 {
   "name": "@iota-uz/lens-web",
-  "private": true,
+  "private": false,
   "version": "0.1.0",
   "type": "module",
+  "files": ["package-dist"],
+  "exports": {
+    ".": { "types": "./package-dist/index.d.ts", "import": "./package-dist/index.js" },
+    "./styles.css": "./package-dist/style.css"
+  },
   "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=20"
@@ -10,6 +15,7 @@
   "scripts": {
     "dev": "node ./scripts/dev.mjs",
     "build": "tsc --noEmit && vite build",
+    "build:package": "vite build --config vite.package.config.ts && tsc -p tsconfig.package.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && pnpm lint:styles",
     "lint:styles": "stylelint src/styles.css",
@@ -24,6 +30,7 @@
     "vr-update": "node ./scripts/vr.mjs --update"
   },
   "dependencies": {
+    "@iota-uz/client-host": "link:../client-host",
     "echarts": "^6.1.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",

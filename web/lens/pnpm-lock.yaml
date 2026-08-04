@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@iota-uz/client-host':
+        specifier: link:../client-host
+        version: link:../client-host
       echarts:
         specifier: ^6.1.0
         version: 6.1.0
