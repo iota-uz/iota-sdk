@@ -185,6 +185,22 @@ interface WaterfallColumnProps {
   actionHint?: string
 }
 
+/**
+ * One step of the bridge, from its bar down to the name under it.
+ *
+ * The name used to live in a second grid below the plot, aligned to this one by
+ * a matching column count and a matching left margin — so a column that opened
+ * a drill was activatable over its bar and inert over the word naming it, which
+ * is the part of a step a hand actually goes for. Nothing about the plate, the
+ * cursor or the focus ring reached past the bar, because none of them had
+ * anything to reach: the label was not in this element.
+ *
+ * It is now, and the two bands stay in step through `subgrid` — every column
+ * takes its plot height and its label height from the chart's rows rather than
+ * from its own content, so a two-line name under one step cannot shorten that
+ * step's bar and make it un-comparable with the one beside it.
+ */
+
 function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint }: WaterfallColumnProps) {
   const [pointed, setPointed] = useState(false)
   const bar = useRef<HTMLDivElement>(null)
@@ -214,68 +230,80 @@ function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint 
       onMouseLeave={hide}
       {...chrome}
     >
-      {item.underlayHeight !== undefined && (
-        <span
-          aria-hidden="true"
-          className="lens-waterfall-underlay"
-          style={{
-            top: `${item.top + item.height}%`,
-            height: `${item.underlayHeight}%`,
-          }}
-        />
-      )}
-      {index < count - 1 && (
-        <span
-          className="lens-waterfall-connector"
-          style={{ top: `${item.connectorTop}%` }}
-        />
-      )}
-      <div
-        className="lens-waterfall-bar"
-        ref={bar}
-        data-checkpoint={item.checkpoint}
-        data-kind={item.kind}
-        data-label-row={index % 2}
-        data-no-movement={item.noMovement}
-        data-terminal={!chrome || undefined}
-        data-tone={item.tone}
-        style={{
-          top: `${item.top}%`,
-          height: `${item.height}%`,
-        }}
-      >
-        <strong>{item.formattedValue}</strong>
-        {item.splitHeight !== undefined && (
+      <div className="lens-waterfall-column-plot">
+        {item.underlayHeight !== undefined && (
           <span
-            className="lens-waterfall-bar-split"
-            style={{ height: `${item.splitHeight}%` }}
-          >
-            {/* The amount stays in the accessibility tree whether or not a
-                pointer exists: the tooltip only ever exists while one hovers. */}
-            {splitCallout === 'hover'
-              ? <span className="lens-sr-only">{splitText}</span>
-              : (
-                <span
-                  className="lens-waterfall-split-callout"
-                  data-reveal="always"
-                  data-side={calloutSide}
-                >
-                  {splitText}
-                </span>
-              )}
-          </span>
+            aria-hidden="true"
+            className="lens-waterfall-underlay"
+            style={{
+              top: `${item.top + item.height}%`,
+              height: `${item.underlayHeight}%`,
+            }}
+          />
+        )}
+        {index < count - 1 && (
+          <span
+            className="lens-waterfall-connector"
+            style={{ top: `${item.connectorTop}%` }}
+          />
+        )}
+        <div
+          className="lens-waterfall-bar"
+          ref={bar}
+          data-checkpoint={item.checkpoint}
+          data-kind={item.kind}
+          data-label-row={index % 2}
+          data-no-movement={item.noMovement}
+          data-terminal={!chrome || undefined}
+          data-tone={item.tone}
+          style={{
+            top: `${item.top}%`,
+            height: `${item.height}%`,
+          }}
+        >
+          <strong>{item.formattedValue}</strong>
+          {item.splitHeight !== undefined && (
+            <span
+              className="lens-waterfall-bar-split"
+              style={{ height: `${item.splitHeight}%` }}
+            >
+              {/* The amount stays in the accessibility tree whether or not a
+                  pointer exists: the tooltip only ever exists while one hovers. */}
+              {splitCallout === 'hover'
+                ? <span className="lens-sr-only">{splitText}</span>
+                : (
+                  <span
+                    className="lens-waterfall-split-callout"
+                    data-reveal="always"
+                    data-side={calloutSide}
+                  >
+                    {splitText}
+                  </span>
+                )}
+            </span>
+          )}
+        </div>
+        {splitCallout === 'hover' && (
+          <WaterfallTip
+            actionHint={chrome ? actionHint : undefined}
+            anchor={bar}
+            item={item}
+            onMouseEnter={show}
+            onMouseLeave={hide}
+            open={pointed}
+          />
         )}
       </div>
-      {splitCallout === 'hover' && (
-        <WaterfallTip
-          actionHint={chrome ? actionHint : undefined}
-          anchor={bar}
-          item={item}
-          onMouseEnter={show}
-          onMouseLeave={hide}
-          open={pointed}
-        />
-      )}
+      <span className="lens-waterfall-label">
+        {/* Clamped to two lines rather than wrapped at any character: the band
+            was uniform because every label broke mid-word, so «Исходящее
+            перестрахование» read as three lines ending in an orphaned «е». The
+            full name is on the element, for the readers the clamp costs it. */}
+        <span title={item.label}>{item.label}</span>
+        {item.annotation && (
+          <small className="lens-waterfall-annotation">{item.annotation}</small>
+        )}
+      </span>
     </div>
   )
 }
@@ -316,7 +344,12 @@ export function WaterfallPlot({
             <span key={tick.value} style={{ top: `${tick.top}%` }}>{tick.label}</span>
           ))}
         </div>
-        <div className="lens-waterfall-plot">
+        {/* The rules are the chart's own layer rather than children of the plot:
+            the plot spans the label band now, so a `top: 40%` measured against
+            it would draw the gridline through the names. This box takes the
+            plot row alone — the height those percentages have always meant —
+            and the plot, which comes after it, draws over it. */}
+        <div aria-hidden="true" className="lens-waterfall-rules">
           {model.ticks.map((tick) => (
             <span
               className="lens-waterfall-gridline"
@@ -325,6 +358,8 @@ export function WaterfallPlot({
             />
           ))}
           <div className="lens-waterfall-zero" />
+        </div>
+        <div className="lens-waterfall-plot">
           {model.items.map((item, index) => (
             <WaterfallColumn
               // The whole column is the target, not the bar: a step worth 1,07
@@ -340,21 +375,6 @@ export function WaterfallPlot({
             />
           ))}
         </div>
-      </div>
-      <div className="lens-waterfall-labels">
-        {model.items.map((item, index) => (
-          <span className="lens-waterfall-label" key={`${item.label}-label-${index}`}>
-            {/* Clamped to two lines rather than wrapped at any character: the
-                band was uniform because every label broke mid-word, so
-                «Исходящее перестрахование» read as three lines ending in an
-                orphaned «е». The full name is on the element, for the readers
-                the clamp costs it. */}
-            <span title={item.label}>{item.label}</span>
-            {item.annotation && (
-              <small className="lens-waterfall-annotation">{item.annotation}</small>
-            )}
-          </span>
-        ))}
       </div>
       {children}
     </div>
