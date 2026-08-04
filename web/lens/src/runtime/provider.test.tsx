@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ClientHostBoundary } from '@iota-uz/client-host'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
 import { StatPanel } from '../panels'
@@ -186,12 +187,14 @@ function Controls() {
 function RuntimeFixture({ fetcher }: { fetcher: typeof fetch }) {
   return (
     <div className="lens-root">
-      <DocumentProvider initialDocument={document} fetcher={fetcher}>
-        <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
-          <Controls />
-          <StatPanel panel={statPanel} />
-        </DashboardRuntimeProvider>
-      </DocumentProvider>
+      <ClientHostBoundary theme="light">
+        <DocumentProvider initialDocument={document} fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <Controls />
+            <StatPanel panel={statPanel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </ClientHostBoundary>
     </div>
   )
 }
@@ -812,11 +815,13 @@ describe('DashboardRuntimeProvider', () => {
     }))
     render(
       <div className="lens-root" data-theme="dark">
-        <DocumentProvider initialDocument={document} fetcher={fetcher}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
-            <Controls />
-          </DashboardRuntimeProvider>
-        </DocumentProvider>
+        <ClientHostBoundary theme="dark">
+          <DocumentProvider initialDocument={document} fetcher={fetcher}>
+            <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+              <Controls />
+            </DashboardRuntimeProvider>
+          </DocumentProvider>
+        </ClientHostBoundary>
       </div>,
     )
 

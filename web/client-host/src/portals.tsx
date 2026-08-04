@@ -11,6 +11,7 @@ interface OverlayEntry { id: string; surface: PortalSurface; restore: HTMLElemen
 class PortalRegistry {
   private readonly roots = new Map<PortalSurface, HTMLElement>()
   private readonly overlays: OverlayEntry[] = []
+  private lockState: { overflow: string; inert?: boolean; ariaHidden?: string | null } | undefined
   constructor(private readonly owner: HTMLElement, private readonly background?: HTMLElement) {}
 
   root(surface: PortalSurface): HTMLElement {
@@ -31,9 +32,10 @@ class PortalRegistry {
     this.sync()
     return () => {
       const index = this.overlays.findIndex((candidate) => candidate.id === entry.id)
+      const wasTop = index === this.overlays.length - 1
       if (index >= 0) this.overlays.splice(index, 1)
       this.sync()
-      entry.restore?.focus()
+      if (wasTop) entry.restore?.focus()
     }
   }
 
@@ -46,11 +48,28 @@ class PortalRegistry {
 
   private sync(): void {
     const blocking = this.overlays.some(({ surface }) => surface === 'modal' || surface === 'drawer' || surface === 'command')
-    document.documentElement.style.overflow = blocking ? 'hidden' : ''
-    if (this.background) {
+    if (blocking && !this.lockState) {
+      this.lockState = {
+        overflow: document.documentElement.style.overflow,
+        ...(this.background ? {
+          inert: this.background.inert,
+          ariaHidden: this.background.getAttribute('aria-hidden'),
+        } : {}),
+      }
+      document.documentElement.style.overflow = 'hidden'
+      if (!this.background) return
       this.background.inert = blocking
-      if (blocking) this.background.setAttribute('aria-hidden', 'true')
-      else this.background.removeAttribute('aria-hidden')
+      this.background.setAttribute('aria-hidden', 'true')
+      return
+    }
+    if (!blocking && this.lockState) {
+      document.documentElement.style.overflow = this.lockState.overflow
+      if (this.background) {
+        this.background.inert = this.lockState.inert ?? false
+        if (this.lockState.ariaHidden === null || this.lockState.ariaHidden === undefined) this.background.removeAttribute('aria-hidden')
+        else this.background.setAttribute('aria-hidden', this.lockState.ariaHidden)
+      }
+      this.lockState = undefined
     }
   }
 }
