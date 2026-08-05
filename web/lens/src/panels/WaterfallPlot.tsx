@@ -11,6 +11,7 @@ import {
 import { createPortal } from 'react-dom'
 import { hoverBridgeDelay, useOverlayContainer } from '../runtime/overlayContainer'
 import { CopyValueButton } from './CopyValueButton'
+import { useIsClamped } from './useIsClamped'
 import type { WaterfallItem, WaterfallModel } from './CascadePanel'
 
 /** Chrome a host wraps around a single column, today: activation for a drill. */
@@ -204,6 +205,8 @@ interface WaterfallColumnProps {
 function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint }: WaterfallColumnProps) {
   const [pointed, setPointed] = useState(false)
   const bar = useRef<HTMLDivElement>(null)
+  const label = useRef<HTMLSpanElement>(null)
+  const labelClamped = useIsClamped(label)
   const closeTimer = useRef<ReturnType<typeof setTimeout>>()
   // The card carries buttons, so it has to survive the pointer leaving the
   // column to reach them: it lives in a body portal with a deliberate visual
@@ -298,8 +301,11 @@ function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint 
         {/* Clamped to two lines rather than wrapped at any character: the band
             was uniform because every label broke mid-word, so «Исходящее
             перестрахование» read as three lines ending in an orphaned «е». The
-            full name is on the element, for the readers the clamp costs it. */}
-        <span title={item.label}>{item.label}</span>
+            native tooltip is the full name behind that clamp — so it is here
+            only while there is a clamp to see behind, which is a question about
+            the rendered box (a name that fits at 1400px is cut at 900px) and
+            not about the string. */}
+        <span ref={label} title={labelClamped ? item.label : undefined}>{item.label}</span>
         {item.annotation && (
           <small className="lens-waterfall-annotation">{item.annotation}</small>
         )}

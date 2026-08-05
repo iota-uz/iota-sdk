@@ -228,7 +228,9 @@ describe('native tooltips', () => {
   it.each(panelKinds)('do not hide inside %s decoration', (kind) => {
     runtime.frame = state('data')
     const view = renderKind(kind)
-    const hidden = [...view.container.querySelectorAll('[aria-hidden="true"] [title]')]
+    // The hidden element counts as well as its descendants: a `title` on the
+    // coverage track itself is the same tooltip said to the same nobody.
+    const hidden = [...view.container.querySelectorAll('[aria-hidden="true"][title], [aria-hidden="true"] [title]')]
       .map((element) => `${element.className || element.tagName}: ${element.getAttribute('title')}`)
     expect(hidden, 'put the text where it can be read, or leave it to the legend').toEqual([])
     view.unmount()
@@ -1376,7 +1378,7 @@ describe('coverage panel', () => {
     // for anyone to miss. It used to hold a native tooltip per segment, which
     // in this configuration was addressed to nobody — pointer readers had the
     // legend row it highlights, and the rest of the track was hidden outright.
-    expect(view.container.querySelectorAll('.lens-coverage-track [title]')).toHaveLength(0)
+    expect(view.container.querySelectorAll('.lens-coverage-track[title], .lens-coverage-track [title]')).toHaveLength(0)
     const legendLinks = view.container.querySelectorAll('a.lens-coverage-legend-link')
     expect(legendLinks).toHaveLength(2)
     expect(legendLinks[0]?.getAttribute('href')).toContain('/drill/a')
@@ -1392,7 +1394,7 @@ describe('coverage panel', () => {
 
     // The bullet's track is `aria-hidden` in every configuration, so a tooltip
     // on its segments is unreachable by definition.
-    expect(view.container.querySelectorAll('.lens-coverage-track-segment[title]')).toHaveLength(0)
+    expect(view.container.querySelectorAll('.lens-coverage-track[title], .lens-coverage-track [title]')).toHaveLength(0)
     // The one exception the rule allows: the marker's label is capped at the
     // room left beside the tick and ellipsizes, so it names itself in full.
     expect(view.container.querySelector('.lens-coverage-bullet-label')).toHaveAttribute('title', 'Target 125')

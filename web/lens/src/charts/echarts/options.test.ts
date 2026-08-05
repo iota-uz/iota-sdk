@@ -1120,6 +1120,9 @@ describe('quieting the siblings', () => {
     // here is how the canvas and the DOM come to disagree by a hundredth.
     expect(series?.blur?.itemStyle?.opacity).toBe(theme.quietOpacity)
     expect(series?.blur?.label?.opacity).toBe(theme.quietOpacity)
+    // The leader line rides with the label it points from: a crisp line to a
+    // faded name is the state coming apart mid-figure.
+    expect(series?.blur?.labelLine?.lineStyle?.opacity).toBe(theme.quietOpacity)
   })
 
   it('keeps a concentric partition to its own ring', () => {
