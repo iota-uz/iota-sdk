@@ -112,7 +112,15 @@ jobs:
         with:
           just-version: "1.46.0"
 
-      - name: Install dependencies
+      - name: Install Client Host dependencies
+        working-directory: web/client-host
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Client Host
+        working-directory: web/client-host
+        run: pnpm build
+
+      - name: Install Lens dependencies
         working-directory: web/lens
         run: pnpm install --frozen-lockfile
 
@@ -121,14 +129,22 @@ jobs:
           just lens typegen
           git diff --exit-code -- web/lens/src/contract
 
+      - name: Verify clean-clone Go compatibility boundary
+        run: |
+          test "$(git ls-files pkg/lens/render/react/dist)" = "pkg/lens/render/react/dist/.keep"
+          test ! -f pkg/lens/render/react/dist/.vite/manifest.json
+          go test ./pkg/lens/render/react
+
+      - name: Build ignored Lens compatibility assets
+        run: just lens build
+
       - name: Check Lens workspace
         run: just lens check
 
-      - name: Rebuild embedded Lens assets
-        run: just lens build
-
-      - name: Verify committed Lens assets
-        run: git diff --exit-code -- pkg/lens/render/react/dist
+      - name: Verify Lens compatibility bundle builds
+        run: |
+          test -f pkg/lens/render/react/dist/.vite/manifest.json
+          git diff --exit-code -- pkg/lens/render/react/dist/.keep
 
   lens-vr:
     needs: changes
@@ -160,7 +176,15 @@ jobs:
         with:
           just-version: "1.46.0"
 
-      - name: Install dependencies
+      - name: Install Client Host dependencies
+        working-directory: web/client-host
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Client Host
+        working-directory: web/client-host
+        run: pnpm build
+
+      - name: Install Lens dependencies
         working-directory: web/lens
         run: pnpm install --frozen-lockfile
 
@@ -169,7 +193,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-lens-playwright-${{ hashFiles('web/lens/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-lens-playwright-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Install Chromium system dependencies
         working-directory: web/lens
@@ -209,6 +233,18 @@ jobs:
         if: inputs.lens_vr_update != true
         run: just lens vr
 
+      - name: Detect generated missing-baseline candidates
+        id: missing-baselines
+        if: inputs.lens_vr_update != true
+        shell: bash
+        run: |
+          if [[ -s web/lens/vr/results/missing-baselines.txt ]]; then
+            echo 'generated=true' >> "$GITHUB_OUTPUT"
+            echo '::notice::New Lens stories generated Linux baseline candidates; review the candidate artifact and promote the approved PNGs.'
+          else
+            echo 'generated=false' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Generate visual regression candidates
         if: inputs.lens_vr_update == true
         run: just lens vr-update
@@ -223,7 +259,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Linux baseline candidates
-        if: ${{ always() && (steps.baselines.outputs.available != 'true' || inputs.lens_vr_update == true) }}
+        if: ${{ always() && (steps.baselines.outputs.available != 'true' || steps.missing-baselines.outputs.generated == 'true' || inputs.lens_vr_update == true) }}
         uses: actions/upload-artifact@v4
         with:
           name: lens-vr-linux-candidates-${{ github.sha }}
@@ -390,7 +426,7 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Install BiChat applet dependencies
-        run: pnpm install --frozen-lockfile -C modules/bichat/presentation/web
+        run: pnpm install --frozen-lockfile --ignore-workspace -C modules/bichat/presentation/web
 
       - name: Run applet DX guardrails
         run: |
@@ -669,6 +705,21 @@ jobs:
       - name: Generate CSS files
         run: just css
 
+      - name: Install Client Host dependencies
+        working-directory: web/client-host
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Client Host
+        working-directory: web/client-host
+        run: pnpm build
+
+      - name: Install Lens dependencies
+        working-directory: web/lens
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Lens compatibility assets
+        run: just lens build
+
       - name: Setup E2E database
         env:
           DB_NAME: iota_erp_e2e
@@ -676,7 +727,7 @@ jobs:
           just e2e reset
 
       - name: Install Node dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile --ignore-workspace
         working-directory: e2e
 
       - name: Cache Playwright browsers
@@ -718,8 +769,12 @@ jobs:
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
 
-          # Wait for server to be ready (timeout: 60 seconds)
-          timeout 60 bash -c 'until curl -s http://localhost:3201 > /dev/null; do sleep 1; done'
+          # Leave enough time for a cold Go build on a fresh runner.
+          if ! timeout 180 bash -c 'until curl -s http://localhost:3201 > /dev/null; do sleep 1; done'; then
+            echo "Server did not become ready within 180 seconds"
+            cat /tmp/server.log || echo "No server logs found"
+            exit 1
+          fi
           echo "Server started successfully"
 
       - name: Run Playwright Tests
@@ -789,7 +844,7 @@ jobs:
 
       - name: Install documentation dependencies
         working-directory: ./docs
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-workspace
 
       - name: Validate Mermaid diagrams
         working-directory: ./docs

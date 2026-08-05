@@ -137,9 +137,9 @@ func TestApplyFrameOutputMetadataPromotesDeferredTotals(t *testing.T) {
 
 	require.NotNil(t, result.TotalBadgeValue)
 	require.InDelta(t, actual, *result.TotalBadgeValue, 1e-9)
-	require.Equal(t, 210.0, result.Radial.Rings[0].Total)
-	require.Equal(t, 240.0, result.Radial.Rings[1].Total)
-	require.Equal(t, placeholder, spec.Radial.Rings[0].Total, "the frozen structural panel must not be mutated")
+	require.InDelta(t, 210.0, result.Radial.Rings[0].Total, 1e-9)
+	require.InDelta(t, 240.0, result.Radial.Rings[1].Total, 1e-9)
+	require.InDelta(t, placeholder, spec.Radial.Rings[0].Total, 1e-9, "the frozen structural panel must not be mutated")
 }
 
 func TestRunSanitizesInternalPaginationParamsAndPreservesPath(t *testing.T) {
@@ -668,9 +668,6 @@ func TestValidate_RejectsInvalidDrillTrees(t *testing.T) {
 		{name: "blank branch key", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}}}}}, wantErr: "requires trigger key"},
 		{name: "duplicate branch key", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}}}, {TriggerKey: "earned", Label: "Other", Children: []panel.DrillNode{{Key: "other", Label: "Other", Value: 1}}}}}, wantErr: `duplicate branch key "earned"`},
 		{name: "branch without children", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned"}}}, wantErr: "requires children"},
-		{name: "invalid branch view legend", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", View: &panel.DrillLevelView{LegendPosition: "diagonal"}, Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}}}}}, wantErr: "invalid legend position"},
-		{name: "negative node view width", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, View: &panel.DrillLevelView{LegendWidthPx: -1}}}}}}, wantErr: "legend width cannot be negative"},
-		{name: "nonfinite branch view scale", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", View: &panel.DrillLevelView{CircularScale: math.Inf(1)}, Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}}}}}, wantErr: "circular scale must be zero or a positive finite value"},
 		{name: "duplicate sibling key", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}, {Key: "direct", Label: "Again", Value: 2}}}}}, wantErr: `duplicate child key "direct"`},
 		{name: "negative value", kind: panel.KindDonut, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: -1}}}}}, wantErr: "finite nonnegative value"},
 		{name: "nonfinite value", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: math.Inf(1)}}}}}, wantErr: "finite nonnegative value"},
@@ -695,28 +692,6 @@ func TestValidate_RejectsInvalidDrillTrees(t *testing.T) {
 			).Build()
 			err := Validate(spec)
 			require.ErrorContains(t, err, test.wantErr)
-		})
-	}
-}
-
-func TestValidate_RejectsInvalidCircularScale(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		scale float64
-	}{
-		{name: "negative", scale: -1},
-		{name: "positive infinity", scale: math.Inf(1)},
-		{name: "negative infinity", scale: math.Inf(-1)},
-		{name: "not a number", scale: math.NaN()},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			spec := drillTreeDashboard(t, panel.KindPie, validDrillTree(), frame.Row{"id": "earned", "label": "Earned", "value": 100.0})
-			spec.Rows[0].Panels[0].CircularScale = test.scale
-			require.ErrorContains(t, Validate(spec), "circular scale must be zero or a positive finite value")
 		})
 	}
 }

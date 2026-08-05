@@ -1,6 +1,11 @@
 package document
 
-import "sort"
+import (
+	"sort"
+	"strings"
+	"unicode"
+	"unicode/utf8"
+)
 
 // Runtime chrome translation keys. BuildOptions.I18n is an opaque map, so a
 // producer typo silently falls back to the runtime's English default. These
@@ -147,13 +152,6 @@ const (
 	I18nFilterQuickSelect          = "filter.period.quickSelect"
 	I18nFilterTo                   = "filter.period.to"
 
-	// The period stepper: the arrows either side of the period trigger that
-	// move the applied range by its own length. Each is announced with the
-	// range it would land on, so the accessible name states the destination
-	// rather than the direction.
-	I18nFilterPeriodPrevious = "filter.period.previous"
-	I18nFilterPeriodNext     = "filter.period.next"
-
 	// Relative period presets rendered by the runtime's built-in catalog
 	// (web/lens/src/controls/model.ts defaultPeriodPresets), which mirrors the
 	// legacy HTMX picker's DefaultQuickRanges: current month, 30 days,
@@ -166,6 +164,9 @@ const (
 	I18nFilterPresetLastMonth      = "filter.period.preset.lastMonth"
 	I18nFilterPresetLastYear       = "filter.period.preset.lastYear"
 	I18nPanelCollapse              = "panel.collapse"
+	I18nPanelCalculation           = "panel.calculation"
+	I18nPanelCacheHit              = "panel.cacheHit"
+	I18nPanelCacheMiss             = "panel.cacheMiss"
 	I18nPanelError                 = "panel.error"
 	I18nPanelEmpty                 = "panel.empty"
 	I18nPanelExpand                = "panel.expand"
@@ -308,6 +309,23 @@ const (
 	I18nSemanticsSeries        = I18nSemanticsPrefix + string(SemanticsSeries)
 )
 
+// RuntimeLocaleKey maps a runtime wire key to the canonical host catalogue
+// key. Hosts only provide translations; the SDK owns both the runtime key list
+// and this deterministic naming convention.
+func RuntimeLocaleKey(runtimeKey string) string {
+	var key strings.Builder
+	key.WriteString("Lens.Runtime.")
+	for _, part := range strings.Split(runtimeKey, ".") {
+		if part == "" {
+			continue
+		}
+		first, size := utf8.DecodeRuneInString(part)
+		key.WriteRune(unicode.ToUpper(first))
+		key.WriteString(part[size:])
+	}
+	return key.String()
+}
+
 // RuntimeI18nKeys lists every translation key the runtime resolves, sorted.
 // Producers can range over it to assert their catalogue is complete.
 func RuntimeI18nKeys() []string {
@@ -325,7 +343,6 @@ func RuntimeI18nKeys() []string {
 		I18nFilterCompleted, I18nFilterCustom,
 		I18nFilterDateFormat, I18nFilterDuration,
 		I18nFilterFrom, I18nFilterOpen, I18nFilterQuickSelect, I18nFilterTo,
-		I18nFilterPeriodPrevious, I18nFilterPeriodNext,
 		I18nFilterPresetThisMonth, I18nFilterPresetLast30Days, I18nFilterPresetLast12Months,
 		I18nFilterPresetYearToDate, I18nFilterPresetLastMonth, I18nFilterPresetLastYear,
 		I18nChartBoxplotMin, I18nChartBoxplotQ1, I18nChartBoxplotMedian, I18nChartBoxplotQ3, I18nChartBoxplotMax,
@@ -354,6 +371,7 @@ func RuntimeI18nKeys() []string {
 		I18nFocusToParent, I18nFocusViewAs,
 		I18nExportDashboard, I18nExportData, I18nExportMenu, I18nExportPanel, I18nExportReport,
 		I18nExportPending, I18nExportRetry, I18nExportRetryHint, I18nExportPNG, I18nExportSVG, I18nExportImageError,
+		I18nPanelCalculation, I18nPanelCacheHit, I18nPanelCacheMiss,
 		I18nPanelCollapse, I18nPanelEmpty, I18nPanelError, I18nPanelExpand, I18nPanelInfo, I18nPanelInfoAbout, I18nPanelMissing, I18nPanelOpenMetric,
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
 		I18nPanelTrendNew, I18nPanelTrendNotAvailable, I18nPanelTrendPercentagePoints,

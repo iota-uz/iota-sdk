@@ -26,6 +26,13 @@ export interface EChartsTheme {
    * is the only way a chart tooltip and a facet popover can be the same object.
    */
   popoverShadow: string
+  /**
+   * How far a mark steps back while a sibling is pointed at. Only a chart that
+   * is read against its whole — a pie, a donut, a radial partition — quiets its
+   * siblings at all; the rule and the reasoning live with the token in the
+   * stylesheet. Canvas cannot read a `var()`, so the number crosses here.
+   */
+  quietOpacity: number
   cardRadius: number
   /**
    * The type scale, in the numbers canvas needs. Every size a chart draws comes
@@ -45,6 +52,11 @@ function css(styles: CSSStyleDeclaration, name: string, fallback: string): strin
 function pixels(styles: CSSStyleDeclaration, name: string, fallback: number): number {
   const parsed = Number.parseFloat(css(styles, name, ''))
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+/** A token that carries no unit — a ratio, a count — read the same way. */
+function unitless(styles: CSSStyleDeclaration, name: string, fallback: number): number {
+  return pixels(styles, name, fallback)
 }
 
 function resolvePaletteColor(value: string | undefined, theme: Theme): string | undefined {
@@ -79,6 +91,7 @@ export function buildEChartsTheme(element: HTMLElement, theme: Theme): EChartsTh
         ? '0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5)'
         : '0 4px 12px rgba(15, 23, 42, 0.08), 0 16px 40px rgba(15, 23, 42, 0.14)',
     ),
+    quietOpacity: unitless(styles, '--lens-quiet-opacity', 0.38),
     cardRadius: pixels(styles, '--lens-radius-card', 8),
     type: {
       xs: pixels(styles, '--lens-type-xs', 10),

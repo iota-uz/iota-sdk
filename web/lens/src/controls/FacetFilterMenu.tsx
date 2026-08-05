@@ -53,10 +53,19 @@ function FacetPane({ filter, draft, onToggle, onTarget }: PaneProps) {
   const facet = filter.facet
   const { applyTarget, options, search, setSearch, status } = useFacetOptions(facet)
   const dimension = facet?.dimension ?? ''
+  const paneRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (applyTarget) onTarget(dimension, applyTarget)
   }, [applyTarget, dimension, onTarget])
+
+  useEffect(() => {
+    if (status === 'loading') return undefined
+    const frame = globalThis.requestAnimationFrame(() => {
+      paneRef.current?.querySelector<HTMLElement>('input, button')?.focus()
+    })
+    return () => globalThis.cancelAnimationFrame(frame)
+  }, [status])
 
   // The applied set is what the pane shows until the reader touches it; from
   // then on the draft is the truth, including the empty draft that Clear makes.
@@ -67,7 +76,7 @@ function FacetPane({ filter, draft, onToggle, onTarget }: PaneProps) {
   const searchable = options.length >= searchableListEntries || search.trim() !== ''
 
   return (
-    <div className="lens-filter-menu-pane">
+    <div className="lens-filter-menu-pane" ref={paneRef}>
       <p className="lens-filter-menu-pane-title">{filter.label}</p>
       {searchable && (
         <input
@@ -129,7 +138,6 @@ export function FacetFilterMenu({ filters }: { filters: Array<Filter> }) {
   const { applyURL } = useFilters()
   const menuID = useId()
   const { close, container, menu, menuPlacementProps, open, setOpen, trigger } = useMenuButton('end')
-  const paneRef = useRef<HTMLDivElement>(null)
   const [activeID, setActiveID] = useState(filters[0]?.id ?? '')
   const [drafts, setDrafts] = useState(new Map<string, ReadonlySet<string>>())
   const [targets, setTargets] = useState(new Map<string, string>())
@@ -149,14 +157,6 @@ export function FacetFilterMenu({ filters }: { filters: Array<Filter> }) {
     setDrafts(new Map())
     setTouched(new Set())
   }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    const frame = globalThis.requestAnimationFrame(() => {
-      paneRef.current?.querySelector<HTMLElement>('input, button')?.focus()
-    })
-    return () => globalThis.cancelAnimationFrame(frame)
-  }, [open, activeID])
 
   if (filters.length === 0) return null
 
@@ -243,7 +243,7 @@ export function FacetFilterMenu({ filters }: { filters: Array<Filter> }) {
                 })}
               </div>
             )}
-            <div className="lens-filter-menu-pane-host" ref={paneRef}>
+            <div className="lens-filter-menu-pane-host">
               {active && (
                 <FacetPane
                   draft={touched.has(active.facet?.dimension ?? '') ? drafts.get(active.facet?.dimension ?? '') : undefined}

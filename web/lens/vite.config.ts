@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
@@ -6,6 +7,12 @@ import { defineConfig } from 'vite'
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@iota-uz/sdk/client-host': path.resolve(rootDir, '../client-host/src/index.ts'),
+    },
+    dedupe: ['react', 'react-dom'],
+  },
   // Relative base, verified by experiment: removing it does NOT change the
   // dist bundle (Granite loads the runtime from manifest-derived absolute
   // URLs and never serves dist/index.html), but it DOES break the Ladle story
@@ -15,7 +22,15 @@ export default defineConfig({
   // first motivated this line was a stale dist pointing at a CSS chunk that
   // no longer existed, not an asset-path bug.
   base: './',
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'lens-go-embed-placeholder',
+      closeBundle() {
+        writeFileSync(path.resolve(rootDir, '../../pkg/lens/render/react/dist/.keep'), '')
+      },
+    },
+  ],
   server: {
     port: 5174,
     proxy: {

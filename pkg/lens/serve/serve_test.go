@@ -419,7 +419,7 @@ func TestHandlers_PanelBatchFlushesFastResultBeforeSlowPanelCompletes(t *testing
 	server := httptest.NewServer(http.HandlerFunc(handlers.Panel))
 	defer server.Close()
 	request := PanelBatchRequest{SnapshotID: doc.SnapshotID, Panels: []PanelRequest{{PanelID: "slow"}, {PanelID: "host"}}}
-	httpRequest, err := http.NewRequest(http.MethodPost, server.URL+"?tenant=tenant:one", marshal(t, request))
+	httpRequest, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"?tenant=tenant:one", marshal(t, request))
 	require.NoError(t, err)
 	httpRequest.Header.Set("Content-Type", "application/json")
 	type firstLine struct {
@@ -494,12 +494,12 @@ func TestHandlers_PrefetchesFirstDrillStatesWhileLowerRootRowsLoad(t *testing.T)
 	server := httptest.NewServer(http.HandlerFunc(handlers.Panel))
 	defer server.Close()
 	request := PanelBatchRequest{SnapshotID: doc.SnapshotID, Panels: []PanelRequest{{PanelID: "slow"}, {PanelID: "host"}}}
-	httpRequest, err := http.NewRequest(http.MethodPost, server.URL+"?tenant=tenant:one", marshal(t, request))
+	httpRequest, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"?tenant=tenant:one", marshal(t, request))
 	require.NoError(t, err)
 	httpRequest.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(httpRequest)
 	require.NoError(t, err)
-	defer response.Body.Close()
+	defer func() { require.NoError(t, response.Body.Close()) }()
 	scanner := bufio.NewScanner(response.Body)
 	require.True(t, scanner.Scan(), scanner.Err())
 	var first PanelBatchStreamEvent
@@ -575,12 +575,15 @@ func TestHandlers_ProgressiveLatencyMeetsRecordedAtomicGuardrails(t *testing.T) 
 	doc := requestDocument(t, progressive, "/progressive/document")
 	server := httptest.NewServer(http.HandlerFunc(progressive.Panel))
 	defer server.Close()
-	response, err := http.Post(server.URL, "application/json", marshal(t, PanelBatchRequest{
+	httpRequest, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL, marshal(t, PanelBatchRequest{
 		SnapshotID: doc.SnapshotID,
 		Panels:     []PanelRequest{{PanelID: "slow"}, {PanelID: "host"}},
-	})) //nolint:noctx // Test server lifecycle bounds the request.
+	}))
 	require.NoError(t, err)
-	defer response.Body.Close()
+	httpRequest.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(httpRequest)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, response.Body.Close()) }()
 	scanner := bufio.NewScanner(response.Body)
 	require.True(t, scanner.Scan(), scanner.Err())
 	firstUseful := time.Since(progressiveStarted)
@@ -624,9 +627,12 @@ func TestHandlers_DoesNotPrefetchUntilTheFirstUsefulRowIsComplete(t *testing.T) 
 	server := httptest.NewServer(http.HandlerFunc(handlers.Panel))
 	defer server.Close()
 	request := PanelBatchRequest{SnapshotID: doc.SnapshotID, Panels: []PanelRequest{{PanelID: "host"}, {PanelID: "top-slow"}}}
-	response, err := http.Post(server.URL, "application/json", marshal(t, request)) //nolint:noctx // Test server lifecycle bounds the request.
+	httpRequest, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL, marshal(t, request))
 	require.NoError(t, err)
-	defer response.Body.Close()
+	httpRequest.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(httpRequest)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, response.Body.Close()) }()
 	select {
 	case <-slowStarted:
 	case <-time.After(time.Second):

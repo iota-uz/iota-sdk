@@ -159,6 +159,7 @@ export function CompareFilterControl({ filter }: { filter: Filter }) {
     if (!container) return undefined
     const frame = globalThis.requestAnimationFrame(reposition)
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reposition)
+    if (triggerRef.current) observer?.observe(triggerRef.current)
     if (popoverRef.current) observer?.observe(popoverRef.current)
     globalThis.addEventListener('resize', reposition)
     globalThis.addEventListener('scroll', reposition, true)

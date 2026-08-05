@@ -324,6 +324,40 @@ export const CascadeStagesNavigate: Story = () => {
   return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
 }
 
+// The waterfall projection of the same navigable bridge. Hover a column's name,
+// not its bar: the plate, the cursor and the focus ring reach the whole step
+// now, which is what this story is for — the label used to be a second grid
+// under the plot, and the word a hand goes for was the one part of a step that
+// answered nothing.
+export const WaterfallColumnsNavigate: Story = () => {
+  const panel: Panel = {
+    ...tonedBridgePanel,
+    id: 'navigable-bridge-plot',
+    frame: 'navigable-bridge',
+    actions: [{ kind: 'navigate', urlSource: { kind: 'field', name: 'detailUrl' }, params: [], payload: {} }],
+  }
+  const document = storyDocument(panel, { 'navigable-bridge': navigableBridgeFrame })
+  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+}
+
+// Names long enough to clamp, beside names that fit on one line. The bars must
+// stand on one baseline regardless: every column takes its plot band from the
+// chart's row rather than from what is left after its own label, which is the
+// whole reason the two bands are a `subgrid` and not a box per column.
+export const WaterfallMixedLabelHeights: Story = () => {
+  const frame: Frame = {
+    ...tonedBridgeFrame,
+    rows: [
+      ['Премия', 3120000, 0, '', false, 'neutral'],
+      ['После перестрахования', 2310000, 810000, 'Исходящее перестрахование по договорам эксцедента убытка', false, 'negative'],
+      ['После выплат', 1980000, 330000, 'Выплаты', false, 'negative'],
+      ['Андеррайтинговый результат', 1740000, 240000, 'Операционные расходы и прочие вычеты периода', true, 'neutral'],
+    ],
+  }
+  const document = storyDocument(tonedBridgePanel, { bridge: frame })
+  return <Runtime document={document}><CascadePanel panel={tonedBridgePanel} /></Runtime>
+}
+
 function OpenEvidence({ emptyPage }: { emptyPage?: boolean }) {
   const drill = useDrill()
   const pagination = usePanelPagination()

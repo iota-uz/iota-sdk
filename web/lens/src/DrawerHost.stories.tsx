@@ -120,7 +120,16 @@ function DrawerScene({ open, theme, state = 'ready' }: { open: boolean; theme: L
   const host = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open) return
-    host.current?.querySelector<HTMLAnchorElement>('.lens-card-link')?.click()
+    let cancelled = false
+    let attempts = 0
+    const openDrawer = () => {
+      if (cancelled || globalThis.document.querySelector('.lens-drawer')) return
+      const link = host.current?.querySelector<HTMLAnchorElement>('.lens-card-link')
+      if (link) { link.click(); return }
+      if (attempts++ < 30) globalThis.requestAnimationFrame(openDrawer)
+    }
+    globalThis.requestAnimationFrame(openDrawer)
+    return () => { cancelled = true }
   }, [open])
   return (
     <div ref={host}>

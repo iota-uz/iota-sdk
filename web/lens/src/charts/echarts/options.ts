@@ -305,6 +305,37 @@ function baseOption(theme: EChartsTheme): EChartsOption {
   }
 }
 
+/**
+ * The pointer contract for a chart that is read against its whole.
+ *
+ * A slice means nothing on its own: the question is what share of the ring it
+ * is, and the ring answers loudest when everything else recedes. So the pointed
+ * mark keeps ECharts' own emphasis and its siblings quiet down — by the same
+ * number `.lens-coverage-track-segment` uses, which is the point of routing it
+ * through the theme rather than writing a literal here.
+ *
+ * A sequence — bars, lines, a waterfall, a distribution — gets none of this on
+ * purpose. Its marks are read by comparing neighbours, and fading them dims the
+ * very things the pointed one is being measured against.
+ */
+function compositionFocus(theme: EChartsTheme) {
+  return {
+    // Scoped to the series, not the plot: a concentric partition draws one ring
+    // per series, and each ring reconciles against a whole of its own. Quieting
+    // across the whole coordinate system — the ECharts default — would fade the
+    // outer ring while the reader is asking a question about the inner one.
+    emphasis: { focus: 'self' as const, blurScope: 'series' as const },
+    // The label rides with its mark. Left at full strength it separates from
+    // the slice it names, and a ring of crisp labels over faded slices reads as
+    // a rendering fault rather than a state.
+    blur: {
+      itemStyle: { opacity: theme.quietOpacity },
+      label: { opacity: theme.quietOpacity },
+      labelLine: { lineStyle: { opacity: theme.quietOpacity } },
+    },
+  }
+}
+
 /** `#rgb`/`#rrggbb` as three channels, or nothing when it is neither. */
 function channels(color: string | undefined): [number, number, number] | undefined {
   const hex = (color ?? '').trim().replace(/^#/, '')
@@ -351,12 +382,10 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
     const raw = chartValue(row[valueIndex])
     if (typeof raw === 'number') values.push(raw)
   }
-  // Shade by rank, not by amount — the same rule the shaded table column
-  // follows. On this map one region carries 31 415 policies and the next
-  // carries 10: linear in the value, thirteen of fourteen regions land on the
-  // palest end and the map says nothing the numeral had not. Ranking answers
-  // what a reader actually asks of a choropleth — which are the big ones, in
-  // order — whatever the distances between them.
+  // Rank shading preserves order while deliberately discarding numeric
+  // distance, so only the producer may opt into it. The neutral SDK default
+  // maps the actual amount onto the colour ramp.
+  const shadeByRank = input.presentation?.colorBy === 'rank'
   const sorted = [...values].sort((left, right) => left - right)
   const rank = (value: number): number => {
     if (sorted.length <= 1) return 1
@@ -372,9 +401,9 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
     if (key && frameLabel) frameLabels.set(key, frameLabel)
     return {
       name: key,
-      // `value` is the number the visual mapping reads; the amount it stands
-      // for travels beside it and is what the tooltip prints.
-      value: typeof raw === 'number' ? rank(raw) : raw,
+      // `value` is what the visual mapping reads. The raw amount travels
+      // beside it so tooltips remain truthful in both modes.
+      value: typeof raw === 'number' && shadeByRank ? rank(raw) : raw,
       amount: raw,
       nodeKey: key,
       displayLabel: frameLabel || featureLabels.get(key) || key,
@@ -405,9 +434,9 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
       },
     },
     visualMap: {
-      // The domain is the rank the series now carries; the two ends are still
-      // labelled with the real amounts they stand for.
-      type: 'continuous', min: 0, max: 1, calculable: false, orient: 'horizontal',
+      // A rank domain is normalized; the default amount domain retains the
+      // producer's actual numeric distance.
+      type: 'continuous', min: shadeByRank ? 0 : rangeMin, max: shadeByRank ? 1 : rangeMax, calculable: false, orient: 'horizontal',
       show: min !== max,
       left: 'center', bottom: 4, itemWidth: 12, itemHeight: 96,
       text: [input.formatAxis?.(input.encoding.value ?? '', rangeMax) ?? input.format(input.encoding.value ?? '', rangeMax), input.formatAxis?.(input.encoding.value ?? '', rangeMin) ?? input.format(input.encoding.value ?? '', rangeMin)],
@@ -747,6 +776,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       minAngle: minimumSliceAngle,
       label,
       labelLine: insideLabels ? { show: false } : { lineStyle: { color: theme.border } },
+      ...compositionFocus(theme),
       data: points.map((point, index) => {
         const item = dataItem(point, input, theme)
         const fill = pointColor(point, index, theme, input.rowColor)
@@ -848,6 +878,7 @@ function radialPartitionOption(input: ChartInput, theme: EChartsTheme, points: R
         }
         : { show: false },
       labelLine: { show: false },
+      ...compositionFocus(theme),
       data: ringPoints.map((point, index) => {
         const mark = { ...point, nodeKey: radialNodeKey(ring.key, point.nodeKey ?? point.category) }
         const item = dataItem(mark, input, theme, point.nodeKey ?? point.category)
@@ -1215,15 +1246,10 @@ export const maximumLabelledMarks = 12
 /**
  * Whether this panel prints its values on the marks.
  *
- * One rule, three reasons for it. A producer can ask (`dataLabels`). A
- * logarithmic axis has to, because a log bar's length states an order of
- * magnitude and not a value. And a linear axis whose spread it cannot show has
- * to, because the alternative is eleven months drawn as eleven baselines — the
- * same diagnosis as the log case, on a panel whose producer never asked for a
- * log axis and should not have to.
- *
- * All three are then subject to the same ceiling: a label the reader cannot
- * rely on being there is worse than no label at all.
+ * Data labels are a producer-owned, explicit presentation decision. Runtime
+ * heuristics may change axes and tooltips to preserve readability, but must not
+ * add ink that the document did not request. The mark ceiling still prevents an
+ * explicit request from producing a non-deterministic subset of labels.
  */
 export function shouldPrintDataLabels(options: {
   explicit?: boolean
@@ -1236,14 +1262,7 @@ export function shouldPrintDataLabels(options: {
   // A stacked segment is bounded by its neighbours, not by the plot; its label
   // has nowhere to go but on top of the segment above it.
   if (options.stacked) return options.explicit === true
-  const wanted = options.explicit === true
-    || options.logarithmic
-    || (options.isBar && options.obscured)
-    // A handful of bars can always afford their own figures, and a policy of
-    // "labels when they fit" is the only one under which a reader can tell the
-    // absence of a label from the absence of a value.
-    || (options.isBar && options.markCount <= maximumLabelledMarks)
-  return wanted && options.markCount <= maximumLabelledMarks
+  return options.explicit === true && options.markCount <= maximumLabelledMarks
 }
 
 /**
@@ -1299,7 +1318,9 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const compactFormatter = axisValueFormatter(input)
   const isBar = input.kind === 'bar' || input.kind === 'hbar'
   const horizontal = input.kind === 'hbar'
-  const logarithmic = shouldUseLogarithmicScale(input.frame, input.encoding, input.valueAxis)
+  const logarithmic = shouldUseLogarithmicScale(
+    input.frame, input.encoding, input.valueAxis, input.presentation?.valueSpreadThreshold,
+  )
   const numericPointValues = points.flatMap((point) => typeof point.value === 'number' ? [point.value] : [])
   const logMaximum = logarithmic && numericPointValues.length > 0
     ? niceLogMaximum(Math.max(...numericPointValues))
@@ -1329,7 +1350,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const dataLabels = shouldPrintDataLabels({
     explicit: input.presentation?.dataLabels,
     logarithmic,
-    obscured: linearScaleObscuresValues(input.frame, input.encoding),
+    obscured: linearScaleObscuresValues(input.frame, input.encoding, input.presentation?.valueSpreadThreshold),
     isBar,
     stacked,
     markCount: points.filter((point) => typeof point.value === 'number').length,

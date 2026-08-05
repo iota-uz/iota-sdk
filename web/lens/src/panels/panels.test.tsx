@@ -93,7 +93,7 @@ function panel(kind: PanelKind, overrides: Partial<Panel> = {}): Panel {
       },
     } : {}),
     ...overrides,
-  }
+  } as Panel
 }
 
 function state(name: 'loading' | 'empty' | 'error' | 'stale' | 'superseded' | 'data'): PanelFrameState {
@@ -150,7 +150,9 @@ afterEach(() => {
   window.history.replaceState({}, '', '/')
 })
 
-describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line', 'area', 'gauge', 'histogram', 'boxplot', 'heatmap', 'map', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
+const panelKinds: PanelKind[] = ['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line', 'area', 'gauge', 'histogram', 'boxplot', 'heatmap', 'map', 'cascade', 'coverage', 'table']
+
+describe.each<PanelKind>(panelKinds)('%s panel states', (kind) => {
   it.each(['loading', 'empty', 'error', 'stale', 'superseded', 'data'] as const)('renders %s', async (stateName) => {
     runtime.frame = state(stateName)
     const view = renderKind(kind)
@@ -204,6 +206,37 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line
       else if (kind === 'map') await screen.findByRole('button', { name: 'chart data' })
       else expect(panelElement.querySelector('.lens-chart-compact')).toHaveTextContent('42')
     }
+    view.unmount()
+  })
+})
+
+/**
+ * A native `title` is this runtime's answer to text the layout clips — the full
+ * name behind a two-line clamp, an ellipsized label — and never a second copy of
+ * a figure the panel already draws. It is a poor data channel: it waits about a
+ * second, ignores the theme, cannot be styled or reached by touch, and it is the
+ * one surface here the sheet has no say over.
+ *
+ * Where it sits is what separates the two uses. A `title` inside a subtree the
+ * panel itself marks `aria-hidden` cannot be naming that element's own clipped
+ * text — decoration has no text — and a screen reader never receives it either,
+ * so whatever it says is said to nobody twice over. Coverage had three, printing
+ * «label: amount» over a track whose legend prints the label, the amount and the
+ * share one row below it.
+ */
+describe('native tooltips', () => {
+  // The metric family — flow, hierarchy, relationship — answers the same sweep
+  // beside its own fixtures in metricPanels.test.tsx. Those kinds are absent
+  // from `panelKinds` because this file's harness cannot draw them: `renderKind`
+  // has no case for them and would quietly hand a LinePanel a metric document.
+  it.each(panelKinds)('do not hide inside %s decoration', (kind) => {
+    runtime.frame = state('data')
+    const view = renderKind(kind)
+    // The hidden element counts as well as its descendants: a `title` on the
+    // coverage track itself is the same tooltip said to the same nobody.
+    const hidden = [...view.container.querySelectorAll('[aria-hidden="true"][title], [aria-hidden="true"] [title]')]
+      .map((element) => `${element.className || element.tagName}: ${element.getAttribute('title')}`)
+    expect(hidden, 'put the text where it can be read, or leave it to the legend').toEqual([])
     view.unmount()
   })
 })
@@ -601,6 +634,15 @@ describe('chart encoding and drill behavior', () => {
     expect(screen.getByLabelText('pie panel chart')).toHaveAttribute('data-drillable', 'true')
     fireEvent.click(screen.getByText('chart data'))
     expect(runtime.drillInto).toHaveBeenCalledWith('root/a', 'panel-pie')
+  })
+
+  it('keeps a one-category drill panel compact and clickable', () => {
+    runtime.frame = state('data')
+    render(<BarPanel panel={panel('bar', { drillRoot: 'root' })} adapter={fakeAdapter()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /2026-07-01T00:00:00Z \/ 42.*Open/ }))
+    expect(runtime.drillInto).toHaveBeenCalledWith('root/a', 'panel-bar')
+    expect(document.querySelector('.lens-chart-compact')).not.toBeNull()
   })
 
   it('passes time and series encodings through and tolerates missing optional roles', async () => {
@@ -1085,6 +1127,62 @@ describe('chart encoding and drill behavior', () => {
     expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
   })
 
+  it('expands a collapsed TopN remainder from its keyboard action when category and id are absent', async () => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'label', type: 'string' }, { name: 'value', type: 'number' },
+          { name: '__lens_topn_group', type: 'string' },
+        ],
+        rows: [['A', 100, null], ['B', 4, 'Other'], ['C', 3, 'Other']],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const inputs: ChartInput[] = []
+    render(<BarPanel
+      panel={panel('bar', { encoding: { category: 'category', label: 'label', value: 'value' } })}
+      adapter={fakeAdapter((input) => inputs.push(input))}
+    />)
+
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(2))
+    fireEvent.click(screen.getByRole('button', { name: 'Open Other, 7' }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(3))
+    expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
+  })
+
+  it('expands the served cube TopN remainder through the keyboard action key', async () => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'filter_value', type: 'string' }, { name: 'id', type: 'string' },
+          { name: 'label', type: 'string' }, { name: 'total_policies', type: 'number' },
+          { name: 'total_policies_previous', type: 'number' },
+          { name: '__lens_topn_group', type: 'string' },
+        ],
+        rows: [
+          ...Array.from({ length: 10 }, (_, index) => [`top-${index}`, `row-${index}`, `Product ${index}`, 100 - index, 90 - index, null]),
+          ...Array.from({ length: 8 }, (_, index) => [`tail-${index}`, `row-${index + 10}`, `Tail ${index}`, 9 - index, 8 - index, 'Other']),
+        ],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const inputs: ChartInput[] = []
+    render(<BarPanel
+      panel={panel('hbar', {
+        encoding: {
+          id: 'filter_value', label: 'label', category: 'label',
+          value: 'total_policies', previous: 'total_policies_previous',
+        },
+      })}
+      adapter={fakeAdapter((input) => inputs.push(input))}
+    />)
+
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(11))
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Open Other, 44' }), { key: 'Enter' })
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(18))
+    expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
+  })
+
   it('keeps a series in its own colour when the series before it is hidden', async () => {
     const frame: Frame = {
       columns: [
@@ -1234,9 +1332,17 @@ describe('coverage panel', () => {
     // The thin (0.3%) slice keeps its true share width; a CSS min-width (not an
     // inline style) guarantees it stays visible, so the encoded share is honest.
     expect((segments[1] as HTMLElement).style.width).toBe('0.3%')
-    // Its tooltip names the segment and its exact value.
-    expect(segments[1]).toHaveAttribute('title', 'Beta: 3')
-    expect(view.container.querySelectorAll('.lens-coverage-legend-row')).toHaveLength(2)
+    // What the segment is worth is the legend's job, one row below and in the
+    // sheet's own type. The segment used to say it again through a native
+    // tooltip; the only `title` left on this panel is the legend label's, and
+    // it repeats nothing — the label is truncated to keep the value and share
+    // columns aligned, so it is the full name behind the clip.
+    expect(segments[1]).not.toHaveAttribute('title')
+    const rows = view.container.querySelectorAll('.lens-coverage-legend-row')
+    expect(rows).toHaveLength(2)
+    expect(rows[1]?.querySelector('.lens-coverage-legend-label')).toHaveAttribute('title', 'Beta')
+    expect(rows[1]).toHaveTextContent('Beta')
+    expect(rows[1]).toHaveTextContent('3')
   })
 
   it('drops the track when a single segment is 100%, keeping the headline and legend rows', () => {
@@ -1272,10 +1378,30 @@ describe('coverage panel', () => {
     const segmentLinks = view.container.querySelectorAll('a.lens-coverage-track-segment-link')
     expect(segmentLinks).toHaveLength(0)
     expect(view.container.querySelector('.lens-coverage-track')).toHaveAttribute('aria-hidden', 'true')
+    // Decorative all the way down: the hidden track carries no text of its own
+    // for anyone to miss. It used to hold a native tooltip per segment, which
+    // in this configuration was addressed to nobody — pointer readers had the
+    // legend row it highlights, and the rest of the track was hidden outright.
+    expect(view.container.querySelectorAll('.lens-coverage-track[title], .lens-coverage-track [title]')).toHaveLength(0)
     const legendLinks = view.container.querySelectorAll('a.lens-coverage-legend-link')
     expect(legendLinks).toHaveLength(2)
     expect(legendLinks[0]?.getAttribute('href')).toContain('/drill/a')
     expect(legendLinks[1]?.getAttribute('href')).toContain('/drill/b')
+    // The link is the row; the row's own label carries the clipped-text title,
+    // so no anchor restates it as a tooltip over the whole thing.
+    expect(view.container.querySelectorAll('a.lens-coverage-legend-link[title]')).toHaveLength(0)
+  })
+
+  it('leaves the bullet track silent and keeps the target label its clipped name', () => {
+    runtime.frame = { data: coverageFrame([['a', 'Alpha', '', 100], ['b', 'Beta', '', 20]]), isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const view = render(<CoveragePanel panel={coveragePanel({ target: { value: 125, label: 'Target' } })} />)
+
+    // The bullet's track is `aria-hidden` in every configuration, so a tooltip
+    // on its segments is unreachable by definition.
+    expect(view.container.querySelectorAll('.lens-coverage-track[title], .lens-coverage-track [title]')).toHaveLength(0)
+    // The one exception the rule allows: the marker's label is capped at the
+    // room left beside the tick and ellipsizes, so it names itself in full.
+    expect(view.container.querySelector('.lens-coverage-bullet-label')).toHaveAttribute('title', 'Target 125')
   })
 })
 

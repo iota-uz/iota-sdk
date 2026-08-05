@@ -3,6 +3,7 @@ package rpc
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -31,6 +32,59 @@ type Method struct {
 	Target      MethodTarget
 	Middlewares []mux.MiddlewareFunc
 	Method      applets.RPCMethod
+	Contract    MethodContract
+}
+
+type MethodKind string
+
+const (
+	MethodKindQuery    MethodKind = "query"
+	MethodKindMutation MethodKind = "mutation"
+)
+
+// MethodContract is the serializable server-state policy consumed by the
+// generated client-host RPC adapter. Request and response types still come
+// from the existing TypedRPCRouter generator.
+type MethodContract struct {
+	Namespace   string     `json:"namespace"`
+	Method      string     `json:"method"`
+	Kind        MethodKind `json:"kind"`
+	Cacheable   bool       `json:"cacheable,omitempty"`
+	MaxRetries  int        `json:"maxRetries,omitempty"`
+	Invalidates []string   `json:"invalidates,omitempty"`
+}
+
+type ContractOption func(*MethodContract)
+
+func Query(cacheable bool, maxRetries int) ContractOption {
+	return func(contract *MethodContract) {
+		contract.Kind = MethodKindQuery
+		contract.Cacheable = cacheable
+		if maxRetries < 0 {
+			maxRetries = 0
+		}
+		if maxRetries > 3 {
+			maxRetries = 3
+		}
+		contract.MaxRetries = maxRetries
+	}
+}
+
+func Invalidates(methods ...string) ContractOption {
+	return func(contract *MethodContract) {
+		seen := make(map[string]struct{}, len(methods))
+		for _, method := range methods {
+			method = strings.TrimSpace(method)
+			if method == "" {
+				continue
+			}
+			if _, exists := seen[method]; exists {
+				continue
+			}
+			seen[method] = struct{}{}
+			contract.Invalidates = append(contract.Invalidates, method)
+		}
+	}
 }
 
 type Registry struct {
@@ -46,6 +100,22 @@ func NewRegistry() *Registry {
 
 func (r *Registry) RegisterPublic(appletName, methodName string, method applets.RPCMethod, middlewares []mux.MiddlewareFunc) error {
 	return r.RegisterPublicWithTarget(appletName, methodName, MethodTargetGo, method, middlewares)
+}
+
+// RegisterPublicContract registers a public method plus the policy used to
+// generate standard React query/mutation clients.
+func (r *Registry) RegisterPublicContract(appletName, methodName string, method applets.RPCMethod, middlewares []mux.MiddlewareFunc, options ...ContractOption) error {
+	parts := strings.SplitN(strings.TrimSpace(methodName), ".", 2)
+	contract := MethodContract{Kind: MethodKindMutation, Method: strings.TrimSpace(methodName)}
+	if len(parts) == 2 {
+		contract.Namespace = parts[0]
+	}
+	for _, option := range options {
+		if option != nil {
+			option(&contract)
+		}
+	}
+	return r.register(Method{AppletName: appletName, Name: methodName, Visibility: visibilityPublic, Target: MethodTargetGo, Middlewares: middlewares, Method: method, Contract: contract})
 }
 
 func (r *Registry) RegisterPublicWithTarget(appletName, methodName string, target MethodTarget, method applets.RPCMethod, middlewares []mux.MiddlewareFunc) error {
@@ -104,8 +174,29 @@ func (r *Registry) register(method Method) error {
 	}
 	method.Name = name
 	method.AppletName = appletName
+	if method.Contract.Method == "" {
+		method.Contract = MethodContract{Namespace: parts[0], Method: name, Kind: MethodKindMutation}
+	}
 	r.methods[name] = method
 	return nil
+}
+
+// PublicContracts returns a deterministic defensive catalog for typegen and
+// development diagnostics.
+func (r *Registry) PublicContracts() []MethodContract {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	contracts := make([]MethodContract, 0, len(r.methods))
+	for _, method := range r.methods {
+		if method.Visibility != visibilityPublic {
+			continue
+		}
+		contract := method.Contract
+		contract.Invalidates = append([]string(nil), contract.Invalidates...)
+		contracts = append(contracts, contract)
+	}
+	sort.Slice(contracts, func(i, j int) bool { return contracts[i].Method < contracts[j].Method })
+	return contracts
 }
 
 func (r *Registry) SetPublicTargetForApplet(appletName string, target MethodTarget) error {

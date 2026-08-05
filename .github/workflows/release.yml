@@ -1,62 +1,110 @@
-name: Build & release
+name: Release iota-sdk
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Specify the release version (e.g., v1.2.3)"
-        required: true
-      notes:
-        description: "Release notes or description"
-        required: false
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
 
 jobs:
-  build-and-release:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.24.10"
-
-      - name: Install golangci-lint
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
-          golangci-lint version
-
-      - name: Install templ
-        run: |
-          go install github.com/a-h/templ/cmd/templ@latest
-          templ --help
-
-      - name: Download Go dependencies
-        run: |
-          go mod download
-
-      - name: Generate templates and run go vet
-        run: |
-          templ generate
-          git diff --exit-code
-          go vet ./...
-          go test -tags dev -v ./...
-
-      - name: Create and push tag
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17
+        ports:
+          - 5432:5432
         env:
-          VERSION: ${{ inputs.version }}
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: iota_erp
+          POSTGRES_INITDB_ARGS: >-
+            -c max_connections=1000
+            -c fsync=off
+            -c synchronous_commit=off
+            -c full_page_writes=off
+            -c autovacuum=off
+            -c jit=off
+        options: >-
+          --tmpfs /var/lib/postgresql/data:rw,size=4g,noatime
+          --health-cmd="pg_isready -U postgres -d iota_erp"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+      - uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # v3
+        with:
+          version: "9.15.0"
+      - name: Install just
+        uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3
+        with:
+          just-version: "1.46.0"
+      - name: Use npm with trusted-publishing support
+        run: npm install --global npm@11.5.1
+      - name: Validate one release identity
+        shell: bash
         run: |
-          echo "Creating tag $VERSION"
-          git tag $VERSION
-          git push origin $VERSION
-
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version="$(node -p "require('./web/sdk/package.json').version")"
+          go_version="$(sed -n 's/^\s*ReleaseVersion\s*=\s*"\([^"]*\)"/\1/p' pkg/sdkidentity/identity.go)"
+          test "$GITHUB_REF_NAME" = "v${package_version}"
+          test "$tag_version" = "$package_version"
+          test "$go_version" = "$package_version"
+          test "$(git rev-list -n 1 "$GITHUB_REF_NAME")" = "$GITHUB_SHA"
+      - run: pnpm install --frozen-lockfile
+      - name: Verify Go release graph
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: iota_erp
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+        run: |
+          just test -v
+          go vet ./...
+      - name: Build and verify canonical npm package
+        env:
+          SDK_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          FRONTEND_PACKAGE_VERSION="${GITHUB_REF_NAME#v}" node scripts/package-frontends.mjs artifacts/frontend
+          node scripts/verify-frontend-artifacts.mjs artifacts/frontend
+      - name: Publish canonical package through OIDC
+        run: npm publish "artifacts/frontend/$(jq -r .file artifacts/frontend/frontend-artifacts.json)" --access public --provenance
+      - name: Verify registry identity and provenance metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          for attempt in {1..12}; do
+            published="$(npm view "@iota-uz/sdk@${version}" --json 2>/dev/null || true)"
+            if jq -e --arg version "$version" '.version == $version and .dist.integrity != null and .dist.attestations.provenance.predicateType == "https://slsa.dev/provenance/v1"' <<<"$published"; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "registry did not expose the expected version, integrity, and provenance" >&2
+          exit 1
       - name: Create GitHub release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Creating GitHub release..."
-          gh release create ${{ inputs.version }} \
-            --title "Release ${{ inputs.version }}" \
-            --notes "${{ inputs.notes }}"
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes

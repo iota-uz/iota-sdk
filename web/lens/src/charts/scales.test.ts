@@ -9,10 +9,16 @@ const frame = (rows: Frame['rows']): Frame => ({
 })
 
 describe('shouldUseLogarithmicScale', () => {
-  it('uses log only for at least three categories spanning two orders of magnitude', () => {
-    expect(shouldUseLogarithmicScale(frame([['a', 2], ['b', 20], ['c', 200]]), encoding, { scale: 'logarithmic' })).toBe(true)
-    expect(shouldUseLogarithmicScale(frame([['a', 1], ['b', 100]]), encoding, { scale: 'logarithmic' })).toBe(false)
-    expect(shouldUseLogarithmicScale(frame([['a', 1], ['b', 9], ['c', 99]]), encoding, { scale: 'logarithmic' })).toBe(false)
+  it('applies a producer-owned spread threshold', () => {
+    expect(shouldUseLogarithmicScale(frame([['a', 2], ['b', 20], ['c', 200]]), encoding, { scale: 'logarithmic' }, 100)).toBe(true)
+    expect(shouldUseLogarithmicScale(frame([['a', 1], ['b', 100]]), encoding, { scale: 'logarithmic' }, 100)).toBe(false)
+    expect(shouldUseLogarithmicScale(frame([['a', 2], ['b', 9], ['c', 99]]), encoding, { scale: 'logarithmic' }, 100)).toBe(false)
+    expect(shouldUseLogarithmicScale(frame([['a', 2], ['b', 5], ['c', 20]]), encoding, { scale: 'logarithmic' }, 10)).toBe(true)
+    expect(shouldUseLogarithmicScale(frame([['a', 2], ['b', 5], ['c', 20]]), encoding, { scale: 'logarithmic' }, 11)).toBe(false)
+  })
+
+  it('honours a valid log request when no product threshold is declared', () => {
+    expect(shouldUseLogarithmicScale(frame([['a', 2], ['b', 3], ['c', 4]]), encoding, { scale: 'logarithmic' })).toBe(true)
   })
 
   it('falls back to linear for non-positive data without a warning', () => {
@@ -30,14 +36,18 @@ describe('linearScaleObscuresValues', () => {
     // «Заявленный ущерб»: one month at 25 млрд against eleven near zero, on a
     // panel that never declared a logarithmic axis and drew eleven baselines.
     const months = Array.from({ length: 11 }, (_, index) => [`m${index}`, 40_000 + index * 1_000] as [string, number])
-    expect(linearScaleObscuresValues(frame([...months, ['peak', 25_000_000_000]]), encoding)).toBe(true)
+    expect(linearScaleObscuresValues(frame([...months, ['peak', 25_000_000_000]]), encoding, 100)).toBe(true)
   })
 
   it('leaves an ordinary spread alone', () => {
-    expect(linearScaleObscuresValues(frame([['a', 40], ['b', 55], ['c', 90]]), encoding)).toBe(false)
+    expect(linearScaleObscuresValues(frame([['a', 40], ['b', 55], ['c', 90]]), encoding, 100)).toBe(false)
   })
 
   it('ignores zeros rather than letting one disqualify the frame', () => {
-    expect(linearScaleObscuresValues(frame([['a', 0], ['b', 10], ['c', 100_000]]), encoding)).toBe(true)
+    expect(linearScaleObscuresValues(frame([['a', 0], ['b', 10], ['c', 100_000]]), encoding, 100)).toBe(true)
+  })
+
+  it('does not infer a product readability policy', () => {
+    expect(linearScaleObscuresValues(frame([['a', 1], ['b', 100], ['c', 100_000]]), encoding)).toBe(false)
   })
 })

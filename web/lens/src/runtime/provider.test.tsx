@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ClientHostBoundary } from '@iota-uz/sdk/client-host'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
 import { StatPanel } from '../panels'
@@ -186,12 +187,14 @@ function Controls() {
 function RuntimeFixture({ fetcher }: { fetcher: typeof fetch }) {
   return (
     <div className="lens-root">
-      <DocumentProvider initialDocument={document} fetcher={fetcher}>
-        <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
-          <Controls />
-          <StatPanel panel={statPanel} />
-        </DashboardRuntimeProvider>
-      </DocumentProvider>
+      <ClientHostBoundary theme="light">
+        <DocumentProvider initialDocument={document} fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <Controls />
+            <StatPanel panel={statPanel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </ClientHostBoundary>
     </div>
   )
 }
@@ -396,13 +399,11 @@ describe('DashboardRuntimeProvider', () => {
     expect(await within(retrying).findByRole('alert')).toHaveTextContent('This panel could not be rendered.')
     expect(within(retrying).getByRole('alert')).not.toHaveTextContent('retrying failed')
     expect(within(ready).getByText('11')).toBeInTheDocument()
-    // Calculation telemetry is a developer's question and is answered on the
-    // panel element, not inside the reader-facing note.
     expect(ready).toHaveAttribute('data-calculation-ms', '1250')
     expect(ready).toHaveAttribute('data-calculation-cache', 'hit')
-    // Any ⓘ at all, not one particular label: an assertion of absence that
-    // names a string stops proving anything the moment the string changes.
-    expect(within(ready).queryByRole('button', { name: /^About\b/ })).toBeNull()
+    const info = within(ready).getByRole('button', { name: /^About\b/ })
+    fireEvent.click(info)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Calculated in 1.3 s · cache hit')
 
     fireEvent.click(within(retrying).getByRole('button', { name: 'Retry' }))
     expect(within(retrying).queryByRole('alert')).toBeNull()
@@ -814,11 +815,13 @@ describe('DashboardRuntimeProvider', () => {
     }))
     render(
       <div className="lens-root" data-theme="dark">
-        <DocumentProvider initialDocument={document} fetcher={fetcher}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
-            <Controls />
-          </DashboardRuntimeProvider>
-        </DocumentProvider>
+        <ClientHostBoundary theme="dark">
+          <DocumentProvider initialDocument={document} fetcher={fetcher}>
+            <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+              <Controls />
+            </DashboardRuntimeProvider>
+          </DocumentProvider>
+        </ClientHostBoundary>
       </div>,
     )
 

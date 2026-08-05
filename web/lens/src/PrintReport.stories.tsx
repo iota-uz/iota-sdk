@@ -136,12 +136,6 @@ const bridgePanel: Panel = {
   terminal: true,
   actions: [],
   caption: 'Every deduction is charged in the period it belongs to.',
-  metricRelationship: {
-    source: { key: 'earned', label: 'Earned premium' },
-    target: { key: 'result', label: 'Underwriting result' },
-    type: 'derivation',
-    note: 'Claims are read from the accounting ledger, capped at the premium of their own product.',
-  },
 }
 
 const productsPanel: Panel = {

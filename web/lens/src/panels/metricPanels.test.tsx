@@ -57,7 +57,7 @@ function flowPanel(overrides: Partial<Panel> = {}): Panel {
       ],
     },
     ...overrides,
-  }
+  } as Panel
 }
 
 function flowFrame(rows: Array<[string, unknown]>): Frame {
@@ -303,7 +303,7 @@ function hierarchyPanel(overrides: Partial<Panel> = {}): Panel {
       ],
     },
     ...overrides,
-  }
+  } as Panel
 }
 
 function hierarchyFrame(rows: Array<[string, unknown]>): Frame {
@@ -431,7 +431,7 @@ function relationshipPanel(
       target: { key: 'b', label: 'Metric B' },
     },
     ...overrides,
-  }
+  } as Panel
 }
 
 function relationshipFrame(rows: Array<[string, unknown]>): Frame {
@@ -495,5 +495,41 @@ describe('MetricRelationshipPanel', () => {
 
     const link = screen.getByRole('link', { name: 'Open Metric A' })
     expect(link).toHaveAttribute('href', expect.stringContaining('/metrics/a'))
+  })
+})
+
+/**
+ * The same sweep the other panel kinds take in panels.test.tsx, run here because
+ * this is where the metric family's fixtures live — that file's `renderKind` has
+ * no case for these three and would quietly hand a LinePanel a metric document.
+ *
+ * A native `title` is the full text behind a clip, never a second copy of what
+ * the panel already draws. Inside a subtree the panel marks `aria-hidden` it can
+ * be neither: decoration has no text of its own to be clipped, and a screen
+ * reader never receives it.
+ */
+describe('native tooltips in the metric family', () => {
+  it('do not hide inside metric_flow decoration', () => {
+    const panel = flowPanel()
+    const frame = flowFrame([['premium', 1000], ['fees', 200], ['claims', 300], ['net', 900]])
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+
+    expect(container.querySelectorAll('[aria-hidden="true"][title], [aria-hidden="true"] [title]')).toHaveLength(0)
+  })
+
+  it('do not hide inside metric_hierarchy decoration', () => {
+    const panel = hierarchyPanel()
+    const frame = hierarchyFrame([['total', 1000], ['segment-a', 600], ['segment-a-1', 500]])
+    const { container } = renderDocument(documentWith([panel], { 'hierarchy:root': frame }), <MetricHierarchyPanel panel={panel} />)
+
+    expect(container.querySelectorAll('[aria-hidden="true"][title], [aria-hidden="true"] [title]')).toHaveLength(0)
+  })
+
+  it('do not hide inside metric_relationship decoration', () => {
+    const panel = relationshipPanel('association', undefined)
+    const frame = relationshipFrame([['a', 100], ['b', 100]])
+    const { container } = renderDocument(documentWith([panel], { 'relationship:root': frame }), <MetricRelationshipPanel panel={panel} />)
+
+    expect(container.querySelectorAll('[aria-hidden="true"][title], [aria-hidden="true"] [title]')).toHaveLength(0)
   })
 })

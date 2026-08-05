@@ -1,0 +1,4 @@
+packages:
+  - web/sdk
+  - web/client-host
+  - web/lens

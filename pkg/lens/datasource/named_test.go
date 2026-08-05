@@ -2,6 +2,7 @@ package datasource_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
@@ -32,9 +33,12 @@ func TestNamedDataSourceRoutesFrozenRequestToRegisteredHandler(t *testing.T) {
 
 func TestNamedDataSourceFailsClosed(t *testing.T) {
 	source := datasource.NewNamedDataSource()
-	require.Error(t, source.Register("", func(context.Context, datasource.QueryRequest) (*frame.FrameSet, error) { return nil, nil }))
-	require.NoError(t, source.Register("known", func(context.Context, datasource.QueryRequest) (*frame.FrameSet, error) { return nil, nil }))
-	require.Error(t, source.Register("known", func(context.Context, datasource.QueryRequest) (*frame.FrameSet, error) { return nil, nil }))
+	handler := func(context.Context, datasource.QueryRequest) (*frame.FrameSet, error) {
+		return nil, errors.New("not executed")
+	}
+	require.Error(t, source.Register("", handler))
+	require.NoError(t, source.Register("known", handler))
+	require.Error(t, source.Register("known", handler))
 
 	_, err := source.Run(t.Context(), datasource.QueryRequest{Text: "missing", Kind: datasource.QueryKindNamed})
 	require.ErrorContains(t, err, "not registered")

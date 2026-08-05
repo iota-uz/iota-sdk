@@ -41,9 +41,14 @@ just lens watch       # rebuild it on every source change
 
 ## Seeing a change in a real host
 
-The distribution is embedded into the host's Go binary, so a rebuilt bundle is
-invisible to a running server until that binary is rebuilt and restarted. To
-skip that, point the host at the build directory:
+Standard React hosts consume the SHA-stamped `@iota-uz/sdk/lens` package and its
+public stylesheet. Use the frontend release-train artifact for a PR preview;
+generated compatibility chunks under `pkg/lens/render/react/dist` are ignored
+and must never be committed.
+
+For a legacy custom-element host, `just lens build` generates the compatibility
+bundle before the Go binary is built. To see rebuilds without rebuilding and
+restarting that binary, point the host at the build directory:
 
 ```sh
 just lens watch &                    # keep the bundle current
@@ -52,8 +57,10 @@ eval "$(just lens serve-from-disk)"  # LENS_ASSETS_DIR=<repo>/pkg/lens/render/re
 ```
 
 `LENS_ASSETS_DIR` re-reads the Vite manifest per request, so the asset revision
-follows every rebuild. Leave it unset everywhere else: without it the bundle
-comes from the binary and a missing one still fails loudly at startup.
+follows every rebuild. Leave it unset for a generated-then-embedded legacy
+build. A clean clone intentionally contains no compatibility manifest: direct
+package consumers still compile without Node, while invoking the legacy
+renderer/controller fails with the command needed to generate or locate it.
 
 The VR profile builds the Ladle story bundle and starts a fresh static preview
 for each run. It uses Chromium only, a 1600×1000 CSS viewport, device scale 1,
@@ -132,6 +139,26 @@ After promotion, unapproved pixel drift fails CI. The job uploads
 `lens-vr-linux-diffs-<sha>` with actual, expected, diff, and trace artifacts.
 Use `just lens vr-update` only for an approved visual change; updating snapshots
 is never a substitute for understanding the diff.
+
+When existing snapshots match but a newly covered story has no Linux PNG, the
+normal lane reports those story names separately, generates candidate PNGs and
+stays green. It uploads `lens-vr-linux-candidates-<sha>` and emits a workflow
+notice with the promotion step above. If even one existing snapshot has pixel
+drift, the lane remains red and does not classify the run as missing-baseline
+only.
+
+On an x86_64 Docker host, `just lens vr-linux` runs the comparison in
+Playwright's pinned v1.55.1 Noble image forced to `linux/amd64`, the architecture
+used by the CI runner. The repository is mounted at `/work`; both workspaces get
+container-owned `node_modules`, and Client Host is rebuilt into a
+container-owned `dist` before Lens starts. That prevents Darwin optional
+binaries or a stale host build from leaking into the run, while a named pnpm
+store keeps repeated runs fast. Ladle also deduplicates React across the linked
+client-host workspace. This produces the same `vr/baselines/linux` and
+`vr/results` paths as CI. ARM hosts fail fast instead of running Chromium under
+QEMU and producing architecture-specific pixels; use the CI update workflow to
+generate or verify canonical candidates there. Local Darwin or native ARM64
+snapshots are never promoted as Linux references.
 
 ## Guard check
 

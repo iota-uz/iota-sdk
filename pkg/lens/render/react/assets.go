@@ -1,4 +1,4 @@
-// Package react embeds and serves the Lens React custom element runtime.
+// Package react provides the legacy Lens custom-element compatibility adapter.
 package react
 
 import (
@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log/slog"
 	"os"
 	"sort"
 	"strings"
@@ -17,14 +16,15 @@ import (
 
 const DefaultAssetBasePath = "/assets/lens"
 
-// AssetsDirEnv points the runtime at a Vite build directory on disk instead of
-// the embedded bundle. The bundle is embedded into the binary, so without this
-// a rebuilt runtime is invisible until the Go binary itself is rebuilt and
-// restarted. Set it to <sdk>/web/lens/dist while iterating on the runtime; the
-// manifest is then re-read per request, so a page reload is enough to see a
-// fresh `vite build`. Leave it unset in production.
+// AssetsDirEnv points the legacy custom-element adapter at a generated Vite
+// build directory. Direct React hosts consume @iota-uz/lens-web and do not need
+// this directory or a Node installation when compiling the Go SDK.
 const AssetsDirEnv = "LENS_ASSETS_DIR"
 
+// dist contains only a tracked placeholder in a clean clone. `just lens build`
+// writes the ignored compatibility bundle into it before a legacy host builds
+// its Go binary.
+//
 //go:embed all:dist
 var embeddedAssets embed.FS
 
@@ -44,71 +44,59 @@ type manifestEntry struct {
 	DynamicImports []string `json:"dynamicImports"`
 }
 
-// assetSource resolves the runtime bundle. The embedded source resolves once at
-// init and fails loudly there, which is what catches a binary built without a
-// bundle. The on-disk source resolves per call so a rebuild is picked up by a
-// page reload.
+const compatibilityAssetsHelp = "lens react compatibility runtime assets are unavailable: direct React hosts must consume @iota-uz/lens-web; legacy Go custom-element hosts must run `just lens build` before building or set LENS_ASSETS_DIR to a built Lens dist"
+
+// assetSource resolves the optional compatibility bundle. It deliberately does
+// no manifest I/O during package initialization: direct-package consumers can
+// compile a clean SDK clone without Node. Embedded assets resolve once on first
+// legacy use; a development directory resolves per call so rebuilds are visible
+// on page reload.
 type assetSource struct {
 	fsys   fs.FS
 	live   bool
 	dir    string
 	bundle AssetBundle
-
-	mu         sync.Mutex
-	lastReport string
+	err    error
+	loaded bool
+	mu     sync.Mutex
 }
 
 var source = newAssetSource(os.Getenv(AssetsDirEnv))
 
 func newAssetSource(dir string) *assetSource {
 	if dir = strings.TrimSpace(dir); dir != "" {
-		live := &assetSource{fsys: os.DirFS(dir), live: true, dir: dir}
-		// Say at startup that the directory is wrong, rather than once per
-		// request after every dashboard has already rendered empty.
-		live.assets()
-		return live
+		return &assetSource{fsys: os.DirFS(dir), live: true, dir: dir}
 	}
 	dist, err := fs.Sub(embeddedAssets, "dist")
 	if err != nil {
 		panic(fmt.Sprintf("lens react: open embedded dist: %v", err))
 	}
-	return &assetSource{fsys: dist, bundle: mustLoadAssetBundle()}
+	return &assetSource{fsys: dist, dir: "embedded pkg/lens/render/react/dist"}
 }
 
-func (s *assetSource) assets() AssetBundle {
-	if !s.live {
-		return s.bundle
+func (s *assetSource) assets() (AssetBundle, error) {
+	if s.live {
+		return s.load()
 	}
-	data, err := fs.ReadFile(s.fsys, ".vite/manifest.json")
-	if err == nil {
-		var bundle AssetBundle
-		if bundle, err = parseAssetBundle(data); err == nil {
-			s.report("")
-			return bundle
-		}
-	}
-	// Dev only: a missing or half-written manifest means "run just lens build",
-	// not "take the process down". The page will render without a runtime, which
-	// is why this says out loud what to do about it.
-	s.report(err.Error())
-	return AssetBundle{}
-}
-
-// report logs a dev-source problem once per distinct message. Without this a
-// broken LENS_ASSETS_DIR logs on every asset request, which buries the line
-// that says how to fix it.
-func (s *assetSource) report(message string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if message == s.lastReport {
-		return
+	if !s.loaded {
+		s.bundle, s.err = s.load()
+		s.loaded = true
 	}
-	s.lastReport = message
-	if message == "" {
-		return
+	return s.bundle, s.err
+}
+
+func (s *assetSource) load() (AssetBundle, error) {
+	data, err := fs.ReadFile(s.fsys, ".vite/manifest.json")
+	if err != nil {
+		return AssetBundle{}, fmt.Errorf("%s: read .vite/manifest.json: %w", s.dir, err)
 	}
-	slog.Error("lens react: no runtime bundle at "+AssetsDirEnv+" — run `just lens build`",
-		"dir", s.dir, "error", message)
+	bundle, err := parseAssetBundle(data)
+	if err != nil {
+		return AssetBundle{}, fmt.Errorf("%s: %w", s.dir, err)
+	}
+	return bundle, nil
 }
 
 func DistFS() fs.FS {
@@ -116,20 +104,18 @@ func DistFS() fs.FS {
 }
 
 func Assets() AssetBundle {
-	bundle := source.assets()
+	bundle, err := source.assets()
+	if err != nil {
+		panic(compatibilityAssetsError(err))
+	}
 	return AssetBundle{
 		Entry:       bundle.Entry,
 		Revision:    bundle.Revision,
 		Stylesheets: append([]string(nil), bundle.Stylesheets...),
 	}
 }
-
-func mustLoadAssetBundle() AssetBundle {
-	data, err := embeddedAssets.ReadFile("dist/.vite/manifest.json")
-	if err != nil {
-		panic(fmt.Sprintf("lens react: read Vite manifest: %v", err))
-	}
-	return loadAssetBundle(data)
+func compatibilityAssetsError(err error) error {
+	return fmt.Errorf("%s: %w", compatibilityAssetsHelp, err)
 }
 
 func loadAssetBundle(data []byte) AssetBundle {

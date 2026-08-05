@@ -9,7 +9,7 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['node_modules', 'coverage', 'build'] },
+  { ignores: ['node_modules', 'coverage', 'build', 'package-dist'] },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {

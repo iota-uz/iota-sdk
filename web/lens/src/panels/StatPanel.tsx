@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEventHandler, type ReactNode, type RefObject } from 'react'
+import { useRef, type MouseEventHandler, type ReactNode } from 'react'
 import type { Panel, Sparkline } from '../contract'
 import { useFormat, useFormatExact, usePanelFrame, useTranslate } from '../runtime'
 import { ArrowUpRight } from '../icons'
@@ -7,6 +7,7 @@ import { StatValueTicker } from './StatValueTicker'
 import { cell, displayText, panelField } from './data'
 import { InfoTip } from './InfoTip'
 import { PanelFrame, TrendChip, trendTone } from './PanelFrame'
+import { useIsClamped } from './useIsClamped'
 
 export interface StatPanelProps {
   panel: Panel
@@ -63,30 +64,6 @@ export function StatSparkline({ sparkline, tone }: { sparkline: Sparkline; tone?
       <circle cx={lastX} cy={lastY} r={1.8} style={{ fill: color }} />
     </svg>
   )
-}
-
-/**
- * Whether an element's own box is hiding some of its text.
- *
- * The note behind the ⓘ exists to carry what the reader cannot otherwise read.
- * Appending a caption that is printed in full two lines below turned the note
- * into an echo of the card, so the caption joins it only when the strip's
- * two-line slot actually cut it — which is a question about the rendered box,
- * not about the string.
- */
-function useIsClamped(target: RefObject<HTMLElement | null>): boolean {
-  const [clamped, setClamped] = useState(false)
-  useEffect(() => {
-    const element = target.current
-    if (!element) return undefined
-    const measure = () => setClamped(element.scrollHeight - element.clientHeight > 1)
-    measure()
-    if (typeof ResizeObserver === 'undefined') return undefined
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-    return () => observer.disconnect()
-  })
-  return clamped
 }
 
 export function StatusChip({ status }: { status: NonNullable<Panel['status']> }) {

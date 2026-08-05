@@ -17,7 +17,7 @@ import { axisUnit, cubeFilterParam, formatFieldValueAtReference, levelForPath, u
 import { formatFieldValueExact, rawValueText } from '../runtime/format'
 import { hiddenSeriesFromURL, hiddenSeriesToURL, temporalStateFromURL, temporalStateToURL } from '../runtime/url'
 import { usePanelNavigation } from './actions'
-import { ChartDataEquivalent } from './ChartDataEquivalent'
+import { ChartDataEquivalent, chartRowKey } from './ChartDataEquivalent'
 import { ChartHost } from './ChartHost'
 import { useMarkSelection } from './context'
 import { colorLabels, encodingRoles, rowColorResolver, seriesColorResolver } from './data'
@@ -98,7 +98,8 @@ export function legendKey(frame: Frame, panel: Panel, index: number): string {
   // Some documents retain a legacy `label` role even though that column is
   // absent from the served frame, so resolving the click must use the same
   // category-first rule that created the mark key.
-  const labelField = panel.encoding.category ?? panel.encoding.label
+  const labelField = [panel.encoding.category, panel.encoding.label]
+    .find((field) => Boolean(field) && frame.columns.some((column) => column.name === field))
   const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
   const raw = idIndex >= 0 ? frame.rows[index]?.[idIndex] : frame.rows[index]?.[labelIndex]
   return typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'bigint' ? String(raw) : String(index)
@@ -430,11 +431,16 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
       return topN.collapsed ? topN : collapseMinorDonutSlices(visibleFrame, panel, translate('chart.other', 'Other'))
     })()
     : { frame: visibleFrame, collapsed: false }, [panel, translate, visibleFrame])
+  const collapsedRemainderSelectionKey = collapsedRemainder.collapsed && collapsedRemainder.frame
+    ? chartRowKey(collapsedRemainder.frame, panel, collapsedRemainder.frame.rows.length - 1)
+    : undefined
   const renderFrame = remainderExpanded || !collapsedRemainder.collapsed ? visibleFrame : collapsedRemainder.frame
   // The badge and axis must describe the same rows. Hidden series and a
   // collapsed tail can change whether the rendered values span enough orders
   // of magnitude to justify a logarithmic scale.
-  const logarithmic = renderFrame ? shouldUseLogarithmicScale(renderFrame, panel.encoding, panel.valueAxis) : false
+  const logarithmic = renderFrame
+    ? shouldUseLogarithmicScale(renderFrame, panel.encoding, panel.valueAxis, panel.presentation?.valueSpreadThreshold)
+    : false
   // Keep the legend independent of visibility. Hidden entries must remain in
   // the command surface so they can be restored one by one, and their ordinal
   // (therefore their positional colour pin) must not shift when a neighbour is
@@ -674,9 +680,14 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     ? (onMarkSelect ? Boolean(level?.children.length ?? panel.drillRoot) : drillable)
     : Boolean(panelNavigation.action)
   const distribution = kind === 'histogram' || kind === 'boxplot' || kind === 'heatmap'
-  const compact = degenerate && !interactive && !distribution
+  const compact = degenerate && !distribution
   const select = useCallback((key: NodeKey, anchor?: ChartAnchor, activation?: ChartActivation) => {
-    if (key === donutRemainderKey && collapsedRemainder.collapsed) {
+    const remainderIndex = collapsedRemainder.frame ? collapsedRemainder.frame.rows.length - 1 : -1
+    const remainderSelected = collapsedRemainder.collapsed && Boolean(
+      key === collapsedRemainderSelectionKey
+      || (collapsedRemainder.frame && rowIndexForKey(collapsedRemainder.frame, panel, key) === remainderIndex)
+    )
+    if (remainderSelected) {
       setRemainderExpanded((current) => !current)
       return
     }
@@ -696,7 +707,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     if (level && !node?.target) return
     setSelectedKey(key)
     drillInto(node?.key ?? key, panel.id)
-  }, [collapsedRemainder.collapsed, drillInto, hasTree, level, markURL, onMarkSelect, panel.id, panelNavigation])
+  }, [collapsedRemainder.collapsed, collapsedRemainder.frame, collapsedRemainderSelectionKey, drillInto, hasTree, level, markURL, onMarkSelect, panel, panelNavigation])
 
   // A legend sits to the RIGHT of the plot on a wide panel and drops below it
   // when the panel is too narrow (handled in CSS by a container query). Moving
@@ -800,7 +811,12 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
           {nothingVisible ? (
             <AllSeriesHidden onShowAll={() => setHiddenSeries(new Set())} />
           ) : hostInput && compact ? (
-            <CompactChartValue frame={hostInput.frame} panel={panel} />
+            <CompactChartValue
+              actionable={chartInteractive}
+              frame={hostInput.frame}
+              onSelect={chartInteractive ? select : undefined}
+              panel={panel}
+            />
           ) : hostInput && (
             <>
               <ChartDataEquivalent
@@ -865,7 +881,12 @@ function AllSeriesHidden({ onShowAll }: { onShowAll: () => void }) {
   )
 }
 
-function CompactChartValue({ frame, panel }: { frame: Frame; panel: Panel }) {
+function CompactChartValue({ actionable, frame, onSelect, panel }: {
+  actionable: boolean
+  frame: Frame
+  onSelect?: (key: NodeKey) => void
+  panel: Panel
+}) {
   const translate = useTranslate()
   const labelField = [panel.encoding.category, panel.encoding.label]
     .find((field) => field !== undefined && frame.columns.some((column) => column.name === field))
@@ -877,12 +898,11 @@ function CompactChartValue({ frame, panel }: { frame: Frame; panel: Panel }) {
   const rawLabel = labelIndex < 0 ? undefined : frame.rows[0]?.[labelIndex]
   const label = textCell(rawLabel)
   const formattedTotal = formatValue(total)
-  return (
-    <div
-      aria-label={frame.rows.length === 0 ? translate('panel.empty', 'No data') : [label, formattedTotal].filter(Boolean).join(' / ')}
-      className="lens-chart-compact"
-      role="img"
-    >
+  const keyField = panel.encoding.id ?? labelField
+  const keyIndex = frame.columns.findIndex((column) => column.name === keyField)
+  const key = textCell(keyIndex < 0 ? undefined : frame.rows[0]?.[keyIndex])
+  const content = (
+    <>
       {frame.rows.length === 0 ? (
         <span className="lens-chart-compact-empty">{translate('panel.empty', 'No data')}</span>
       ) : (
@@ -891,8 +911,24 @@ function CompactChartValue({ frame, panel }: { frame: Frame; panel: Panel }) {
           <strong className="lens-chart-compact-value">{formattedTotal}</strong>
         </>
       )}
-    </div>
+    </>
   )
+  const ariaLabel = frame.rows.length === 0
+    ? translate('panel.empty', 'No data')
+    : [label, formattedTotal].filter(Boolean).join(' / ')
+  if (actionable && key && frame.rows.length > 0) {
+    return (
+      <button
+        aria-label={`${ariaLabel}. ${translate('chart.openMark', 'Open {name}', { name: label ?? key })}`}
+        className="lens-chart-compact lens-chart-compact-action"
+        onClick={() => onSelect?.(key)}
+        type="button"
+      >
+        {content}
+      </button>
+    )
+  }
+  return <div aria-label={ariaLabel} className="lens-chart-compact" role="img">{content}</div>
 }
 
 /**

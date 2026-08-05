@@ -13,7 +13,7 @@ function panelWith(overrides: Partial<Panel>): Panel {
     format: { value: { kind: 'number', minorUnits: false, precision: 0 } },
     actions: [],
     ...overrides,
-  }
+  } as Panel
 }
 
 function frameWith(rows: Array<Array<unknown>>, extra: Array<string> = []): Frame {

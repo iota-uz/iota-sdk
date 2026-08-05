@@ -173,9 +173,13 @@ export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
 
   useEffect(() => {
     if (!open || !overlay) return undefined
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(place)
+    if (trigger.current) observer?.observe(trigger.current)
+    if (menu.current) observer?.observe(menu.current)
     globalThis.addEventListener('resize', place)
     globalThis.addEventListener('scroll', place, true)
     return () => {
+      observer?.disconnect()
       globalThis.removeEventListener('resize', place)
       globalThis.removeEventListener('scroll', place, true)
     }

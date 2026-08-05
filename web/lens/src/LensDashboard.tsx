@@ -1,4 +1,5 @@
 import fixture from '../fixtures/panels-v1.json'
+import { ClientHostBoundary } from '@iota-uz/sdk/client-host'
 import { parseDocument, type DashboardDocument } from './contract'
 import { DashboardPanels } from './DashboardPanels'
 import type { CalendarDate } from './controls'
@@ -34,11 +35,13 @@ export function LensDashboard({
   const document = initialDocument ?? (src ? undefined : bundledFixture)
   return (
     <div className="lens-root" data-theme={theme} lang={locale}>
-      <DocumentProvider src={src} initialDocument={document} csrf={csrf} fetcher={fetcher}>
-        <DashboardRuntimeProvider locale={locale} csrf={csrf} fetcher={fetcher} fallback={fallback}>
-          <DashboardPanels filterToday={filterToday} />
-        </DashboardRuntimeProvider>
-      </DocumentProvider>
+      <ClientHostBoundary theme={theme}>
+        <DocumentProvider src={src} initialDocument={document} csrf={csrf} fetcher={fetcher}>
+          <DashboardRuntimeProvider locale={locale} csrf={csrf} fetcher={fetcher} fallback={fallback}>
+            <DashboardPanels filterToday={filterToday} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </ClientHostBoundary>
     </div>
   )
 }

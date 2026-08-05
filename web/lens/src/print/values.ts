@@ -1,4 +1,5 @@
 import type { Encoding, FieldFormat, Frame, Panel, PanelKind, Semantics } from '../contract'
+import { retargetPanel } from '../panels/kinds'
 import type { PrintSection } from '../runtime/print'
 
 /** Panel kinds ChartHost can draw on its own, without a dashboard provider. */
@@ -63,9 +64,9 @@ export function sectionPanel(section: PrintSection): Panel {
   // drill *level* takes the view its own step declares: a formula demoted to
   // «Категория / Значение» is no longer a formula.
   const authored = section.root || section.path.length === 0
+  const kind = authored ? section.panel.kind : (section.level.view ?? viewFor(semantics, section.panel.kind))
   return {
-    ...section.panel,
-    kind: authored ? section.panel.kind : (section.level.view ?? viewFor(semantics, section.panel.kind)),
+    ...retargetPanel(section.panel, kind),
     title: section.level.label.trim() || section.panel.title,
     semantics,
     encoding,

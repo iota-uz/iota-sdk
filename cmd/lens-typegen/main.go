@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/color"
+	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 )
 
 func main() {
@@ -20,6 +21,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	kinds := document.PanelKinds()
+	panelVariants := make(map[string][]string, len(kinds))
+	for kind, metadata := range kinds {
+		panelVariants[string(kind)] = metadata.ConfigFields
+	}
 	files, err := generate(config{
 		dir:            root,
 		packagePattern: "./pkg/lens/document",
@@ -33,6 +39,9 @@ func run() error {
 		palette: paletteConfig{
 			series:  color.Series(),
 			neutral: color.Neutral,
+		},
+		discriminatedTypes: map[string]discriminatedTypeConfig{
+			"Panel": {field: "kind", variants: panelVariants},
 		},
 	})
 	if err != nil {
