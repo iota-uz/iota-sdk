@@ -1,7 +1,4 @@
 packages:
-  - docs
-  - e2e
-  - modules/bichat/presentation/web
   - web/sdk
   - web/client-host
   - web/lens
