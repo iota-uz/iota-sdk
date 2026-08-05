@@ -22,6 +22,9 @@ try {
 
   const installedPackage = JSON.parse(await readFile(path.join(consumer, 'node_modules/@iota-uz/sdk/package.json'), 'utf8'))
   if (installedPackage.version !== manifest.packageVersion) throw new Error('consumer installed the wrong package version')
+  if (installedPackage.repository?.url !== 'https://github.com/iota-uz/iota-sdk') {
+    throw new Error('published package repository must match the SDK provenance repository')
+  }
   if (Object.keys(installedPackage.dependencies ?? {}).length !== 0) {
     throw new Error('implementation dependencies leaked into the public package dependency graph')
   }

@@ -3,6 +3,10 @@
   "version": "0.5.0",
   "description": "Canonical JavaScript distribution for iota-sdk.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iota-uz/iota-sdk"
+  },
   "private": false,
   "publishConfig": {
     "access": "public",
