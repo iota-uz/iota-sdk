@@ -47,7 +47,9 @@ just db migrate up                 # Apply migrations
 
 **Never run `go build`** - use `go vet` instead.
 
-**NPM @iota-uz/sdk** is published from the applets repo (tag v0.x.x). Do not add a publish workflow in iota-sdk.
+**NPM @iota-uz/sdk** is built and released from this repository together with
+the matching Go tag. Public JavaScript APIs are limited to the bounded exports
+documented in `docs/client-host-release-train.md`.
 
 ## Module Architecture (DDD)
 

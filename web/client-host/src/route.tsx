@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { ClientHostProvider, type WidgetSlotName } from './portals'
+import { assertSDKIdentity } from './identity'
 import { CLIENT_HOST_PROTOCOL_VERSION } from './protocol'
 
 export class ClientHostProtocolError extends Error {
@@ -12,6 +13,8 @@ export class ClientHostProtocolError extends Error {
 
 export interface ClientRouteContext<TInitial = unknown> {
   protocolVersion: string
+  sdkReleaseVersion: string
+  sdkCommit: string
   initial: TInitial
   theme: 'light' | 'dark'
   csrf?: string
@@ -35,6 +38,11 @@ export function assertClientHostProtocol(actual: string): void {
 
 export function mountClientRoute<TInitial, TProps extends object>(options: MountClientRouteOptions<TInitial, TProps>): () => void {
   assertClientHostProtocol(options.context.protocolVersion)
+  assertSDKIdentity({
+    releaseVersion: options.context.sdkReleaseVersion,
+    sourceCommit: options.context.sdkCommit,
+    protocolVersion: options.context.protocolVersion,
+  })
   const root: Root = createRoot(options.root)
   const Component = options.component
   root.render(

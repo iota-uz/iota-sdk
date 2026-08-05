@@ -1,62 +1,78 @@
-name: Build & release
+name: Release iota-sdk
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Specify the release version (e.g., v1.2.3)"
-        required: true
-      notes:
-        description: "Release notes or description"
-        required: false
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
 
 jobs:
-  build-and-release:
-    runs-on: ubuntu-latest
-
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - uses: actions/checkout@v4
         with:
-          go-version: "1.24.10"
-
-      - name: Install golangci-lint
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+      - uses: pnpm/action-setup@v3
+        with:
+          version: "9.15.0"
+      - name: Use npm with trusted-publishing support
+        run: npm install --global npm@11.5.1
+      - name: Validate one release identity
+        shell: bash
         run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
-          golangci-lint version
-
-      - name: Install templ
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version="$(node -p "require('./web/sdk/package.json').version")"
+          go_version="$(sed -n 's/^\s*ReleaseVersion\s*=\s*"\([^"]*\)"/\1/p' pkg/sdkidentity/identity.go)"
+          test "$GITHUB_REF_NAME" = "v${package_version}"
+          test "$tag_version" = "$package_version"
+          test "$go_version" = "$package_version"
+          test "$(git rev-list -n 1 "$GITHUB_REF_NAME")" = "$GITHUB_SHA"
+      - run: pnpm install --frozen-lockfile
+      - name: Verify Go release graph
         run: |
-          go install github.com/a-h/templ/cmd/templ@latest
-          templ --help
-
-      - name: Download Go dependencies
-        run: |
-          go mod download
-
-      - name: Generate templates and run go vet
-        run: |
-          templ generate
-          git diff --exit-code
-          go vet ./...
-          go test -tags dev -v ./...
-
-      - name: Create and push tag
+          go test ./pkg/clienthost ./pkg/sdkidentity ./pkg/lens/document
+          go vet ./pkg/clienthost ./pkg/sdkidentity ./pkg/lens/...
+      - name: Build and verify canonical npm package
         env:
-          VERSION: ${{ inputs.version }}
+          SDK_SOURCE_SHA: ${{ github.sha }}
         run: |
-          echo "Creating tag $VERSION"
-          git tag $VERSION
-          git push origin $VERSION
-
+          FRONTEND_PACKAGE_VERSION="${GITHUB_REF_NAME#v}" node scripts/package-frontends.mjs artifacts/frontend
+          node scripts/verify-frontend-artifacts.mjs artifacts/frontend
+      - name: Publish canonical package through OIDC
+        run: npm publish "artifacts/frontend/$(jq -r .file artifacts/frontend/frontend-artifacts.json)" --access public --provenance
+      - name: Verify registry identity and provenance metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          for attempt in {1..12}; do
+            published="$(npm view "@iota-uz/sdk@${version}" --json 2>/dev/null || true)"
+            if jq -e --arg version "$version" '.version == $version and .dist.integrity != null and .dist.attestations.provenance.predicateType == "https://slsa.dev/provenance/v1"' <<<"$published"; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "registry did not expose the expected version, integrity, and provenance" >&2
+          exit 1
       - name: Create GitHub release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Creating GitHub release..."
-          gh release create ${{ inputs.version }} \
-            --title "Release ${{ inputs.version }}" \
-            --notes "${{ inputs.notes }}"
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes

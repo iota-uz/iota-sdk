@@ -12,21 +12,30 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/sdkidentity"
 )
 
 type Manifest struct {
-	Package         string            `json:"package"`
-	PackageVersion  string            `json:"packageVersion"`
-	SDKCommit       string            `json:"sdkCommit"`
-	ProtocolVersion string            `json:"protocolVersion"`
-	Entry           string            `json:"entry"`
-	Styles          []string          `json:"styles,omitempty"`
-	Integrity       map[string]string `json:"integrity,omitempty"`
+	Package           string            `json:"package"`
+	PackageVersion    string            `json:"packageVersion"`
+	SDKCommit         string            `json:"sdkCommit"`
+	SDKReleaseVersion string            `json:"sdkReleaseVersion"`
+	ProtocolVersion   string            `json:"protocolVersion"`
+	Entry             string            `json:"entry"`
+	Styles            []string          `json:"styles,omitempty"`
+	Integrity         map[string]string `json:"integrity,omitempty"`
 }
 
 func (m Manifest) Validate() error {
-	if strings.TrimSpace(m.Package) == "" || strings.TrimSpace(m.SDKCommit) == "" {
+	if strings.TrimSpace(m.Package) == "" || strings.TrimSpace(m.SDKCommit) == "" || strings.TrimSpace(m.SDKReleaseVersion) == "" {
 		return fmt.Errorf("clienthost manifest: package and sdk commit are required")
+	}
+	if err := (sdkidentity.Identity{
+		ReleaseVersion:  m.SDKReleaseVersion,
+		SourceCommit:    m.SDKCommit,
+		ProtocolVersion: m.ProtocolVersion,
+	}).Validate(); err != nil {
+		return fmt.Errorf("clienthost manifest: %w", err)
 	}
 	if strings.TrimSpace(m.Entry) == "" {
 		return fmt.Errorf("clienthost manifest: entry is required")
@@ -49,10 +58,12 @@ func ParseManifest(data []byte) (Manifest, error) {
 }
 
 type RouteContext struct {
-	ProtocolVersion string          `json:"protocolVersion"`
-	Initial         json.RawMessage `json:"initial"`
-	Theme           string          `json:"theme"`
-	CSRF            string          `json:"csrf,omitempty"`
+	ProtocolVersion   string          `json:"protocolVersion"`
+	SDKReleaseVersion string          `json:"sdkReleaseVersion"`
+	SDKCommit         string          `json:"sdkCommit"`
+	Initial           json.RawMessage `json:"initial"`
+	Theme             string          `json:"theme"`
+	CSRF              string          `json:"csrf,omitempty"`
 }
 
 type SessionContext struct {
@@ -165,7 +176,14 @@ func (c *Controller) handler(route Route) http.HandlerFunc {
 		}
 		page := Page{
 			Title: payload.Title, MountID: "iota-client-route", Manifest: c.manifest,
-			Context: RouteContext{ProtocolVersion: ProtocolVersion, Initial: initial, Theme: session.Theme, CSRF: session.CSRF},
+			Context: RouteContext{
+				ProtocolVersion:   ProtocolVersion,
+				SDKReleaseVersion: c.manifest.SDKReleaseVersion,
+				SDKCommit:         c.manifest.SDKCommit,
+				Initial:           initial,
+				Theme:             session.Theme,
+				CSRF:              session.CSRF,
+			},
 		}
 		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := c.shell(request.Context(), page, Bootstrap(page)).Render(request.Context(), writer); err != nil {

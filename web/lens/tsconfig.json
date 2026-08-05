@@ -16,7 +16,11 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
+    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"],
+    "baseUrl": ".",
+    "paths": {
+      "@iota-uz/sdk/client-host": ["../client-host/dist/index.d.ts"]
+    }
   },
   "include": ["src", "vr/**/*.ts", "playwright.config.ts", "vite.config.ts", "vite.package.config.ts", "tailwind.config.ts", ".ladle/**/*.ts", ".ladle/**/*.tsx"]
 }

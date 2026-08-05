@@ -1,0 +1,49 @@
+{
+  "name": "@iota-uz/sdk",
+  "version": "0.5.0",
+  "description": "Canonical JavaScript distribution for iota-sdk.",
+  "license": "MIT",
+  "private": false,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    "./package.json": "./package.json",
+    "./client-host": {
+      "types": "./dist/client-host/index.d.ts",
+      "import": "./dist/client-host/index.js"
+    },
+    "./identity": {
+      "types": "./dist/sdk-identity.d.ts",
+      "import": "./dist/sdk-identity.js",
+      "require": "./dist/sdk-identity.cjs"
+    },
+    "./lens": {
+      "types": "./dist/lens/index.d.ts",
+      "import": "./dist/lens/index.js"
+    },
+    "./lens/styles.css": "./dist/lens/style.css"
+  },
+  "scripts": {
+    "build": "pnpm build:subpaths",
+    "build:subpaths": "pnpm --dir ../client-host build && pnpm --dir ../lens build:package && node ./scripts/assemble-subpaths.mjs",
+    "check": "pnpm test:exports",
+    "test:exports": "node ./scripts/check-package-exports.mjs",
+    "pack": "pnpm build && npm pack --json"
+  },
+  "peerDependencies": {
+    "react": "^18.3.0 || ^19.0.0",
+    "react-dom": "^18.3.0 || ^19.0.0"
+  }
+}

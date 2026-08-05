@@ -41,7 +41,7 @@ just lens watch       # rebuild it on every source change
 
 ## Seeing a change in a real host
 
-Standard React hosts consume the SHA-stamped `@iota-uz/lens-web` package and its
+Standard React hosts consume the SHA-stamped `@iota-uz/sdk/lens` package and its
 public stylesheet. Use the frontend release-train artifact for a PR preview;
 generated compatibility chunks under `pkg/lens/render/react/dist` are ignored
 and must never be committed.

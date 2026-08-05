@@ -1,48 +1,46 @@
-# Client host release train
+# Canonical frontend distribution
 
-Go contracts and frontend packages are one SDK release unit. A preview must use
-the same SDK commit in both dependency planes:
+The Go module and `@iota-uz/sdk` are one release unit. The public JavaScript
+package deliberately exposes only bounded APIs built from separate private
+workspace modules:
 
-```sh
-node scripts/package-frontends.mjs /tmp/iota-sdk-frontends
-go mod edit -replace github.com/iota-uz/iota-sdk=/absolute/path/to/iota-sdk
-pnpm add /tmp/iota-sdk-frontends/iota-uz-client-host-0.0.0-sha-<sha>.tgz \
-  /tmp/iota-sdk-frontends/iota-uz-lens-web-0.0.0-sha-<sha>.tgz
-```
+- `@iota-uz/sdk/identity`
+- `@iota-uz/sdk/client-host`
+- `@iota-uz/sdk/lens`
+- `@iota-uz/sdk/lens/styles.css`
 
-`frontend-artifacts.json` records the full SDK commit, protocol and SHA-256 of
-each exact tarball. Consumer automation must stage `go.mod`, `go.sum`,
-`package.json` and the package lock together and only replace the working files
-after both Go resolution and `pnpm install --lockfile-only` succeed. A partial
-resolution is discarded, never committed.
+Version 0.5 is a clean break. The former root, BiChat, applet, Tailwind, asset,
+`@iota-uz/client-host`, and `@iota-uz/lens-web` APIs are not compatibility
+surfaces of this distribution.
 
-On a pull request, the workflow explicitly checks out and stamps
-`github.event.pull_request.head.sha`, not GitHub's synthetic merge SHA. The
-artifact is therefore named `frontend-<public-pr-head-sha>` and its manifest
-must match the commit resolved by `just sdk preview <pr>` exactly. On a `main`
-push, the same invariant uses `github.sha`. `SDK_SOURCE_SHA` is a guard as well
-as an input: packaging aborts if it differs from the checked-out commit.
+## Identity contract
 
-`@iota-uz/lens-web` declares the same-SHA `@iota-uz/client-host` as an exact
-peer. It never asks a package registry for that private sibling: the consumer
-installs both tarballs in one `pnpm add` transaction. CI proves this in a clean
-temporary project with the `@iota-uz` registry pointed at an unreachable
-address, React 19 installed as the host runtime, strict peer checks enabled,
-and the installed package manifests compared with `frontend-artifacts.json`.
+Every release uses one SemVer for its Git tag, Go identity, and npm package.
+The frontend build also embeds the full source commit and protocol version.
+The Go host sends all three values to the browser; the client validates them
+before rendering. A release, commit, or incompatible protocol mismatch fails
+closed with an explicit diagnostic.
 
-Direct React routes consume the SHA-stamped `@iota-uz/lens-web` tarball. This is
-the canonical delivery model. The custom element remains a compatibility
-adapter for hosts that have not migrated yet, but its generated
-`pkg/lens/render/react/dist` files are ignored and never published by a bot or
-committed after merge.
+## Pull-request preview
 
-A clean Go clone therefore needs no Node installation. Importing the SDK and
-compiling a direct-package host do not read the compatibility manifest. A
-legacy host must run `just lens build` before compiling the Go binary, or set
-`LENS_ASSETS_DIR` to an already-built dist at runtime; invoking the legacy
-renderer/controller without either fails with an actionable error instead of
-serving an empty dashboard.
+`scripts/package-frontends.mjs` builds one SHA-stamped package into an ephemeral
+Actions artifact. The artifact is neither published nor committed and is not a
+production dependency. Its manifest records the source commit, release version,
+protocol version, tarball name, and SHA-256.
 
-Consumer exact-match enforcement depends on one atomic, verified installation
-of both frontend tarballs and the Go module from the same immutable commit. It
-does not depend on a release bot or an arbitrary number of unattended cycles.
+The verification script installs the tarball in an empty consumer while the
+`@iota-uz` registry points to an unreachable address. It checks every export,
+peer-only React resolution, and proves that importing client-host does not pull
+Lens or ECharts into the initial bundle.
+
+## Production release
+
+The `v<version>` tag must point at the release commit and match both
+`web/sdk/package.json` and `pkg/sdkidentity.ReleaseVersion`. One workflow tests
+the Go and JavaScript graphs, builds the canonical tarball, publishes it through
+npm trusted publishing with provenance, verifies registry metadata, and creates
+the GitHub release.
+
+Consumers update `go.mod`, `go.sum`, `package.json`, and the JavaScript lockfile
+in one transaction. Production must never use preview tarballs, release-asset
+URLs, a Go module-cache build, or revisions that differ between Go and npm.
