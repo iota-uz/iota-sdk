@@ -225,6 +225,10 @@ describe.each<PanelKind>(panelKinds)('%s panel states', (kind) => {
  * share one row below it.
  */
 describe('native tooltips', () => {
+  // The metric family — flow, hierarchy, relationship — answers the same sweep
+  // beside its own fixtures in metricPanels.test.tsx. Those kinds are absent
+  // from `panelKinds` because this file's harness cannot draw them: `renderKind`
+  // has no case for them and would quietly hand a LinePanel a metric document.
   it.each(panelKinds)('do not hide inside %s decoration', (kind) => {
     runtime.frame = state('data')
     const view = renderKind(kind)
@@ -1384,8 +1388,8 @@ describe('coverage panel', () => {
     expect(legendLinks[0]?.getAttribute('href')).toContain('/drill/a')
     expect(legendLinks[1]?.getAttribute('href')).toContain('/drill/b')
     // The link is the row; the row's own label carries the clipped-text title,
-    // so the anchor does not restate it as a tooltip over the whole thing.
-    expect(legendLinks[0]).not.toHaveAttribute('title')
+    // so no anchor restates it as a tooltip over the whole thing.
+    expect(view.container.querySelectorAll('a.lens-coverage-legend-link[title]')).toHaveLength(0)
   })
 
   it('leaves the bullet track silent and keeps the target label its clipped name', () => {
