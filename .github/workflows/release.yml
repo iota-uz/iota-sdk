@@ -18,18 +18,18 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "24"
           registry-url: https://registry.npmjs.org
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # v3
         with:
           version: "9.15.0"
       - name: Use npm with trusted-publishing support
@@ -48,8 +48,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Verify Go release graph
         run: |
-          go test ./pkg/clienthost ./pkg/sdkidentity ./pkg/lens/document
-          go vet ./pkg/clienthost ./pkg/sdkidentity ./pkg/lens/...
+          just test -v
+          go vet ./...
       - name: Build and verify canonical npm package
         env:
           SDK_SOURCE_SHA: ${{ github.sha }}

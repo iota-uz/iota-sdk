@@ -5,6 +5,8 @@ package sdkidentity
 import (
 	"fmt"
 	"strings"
+
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 const (
@@ -19,19 +21,21 @@ type Identity struct {
 }
 
 func (identity Identity) Validate() error {
+	const op = serrors.Op("sdkidentity.Identity.Validate")
+
 	if identity.ReleaseVersion != ReleaseVersion {
-		return fmt.Errorf("sdk identity: release %q is incompatible with %q", identity.ReleaseVersion, ReleaseVersion)
+		return serrors.E(op, fmt.Errorf("release %q is incompatible with %q", identity.ReleaseVersion, ReleaseVersion))
 	}
 	if len(identity.SourceCommit) != 40 {
-		return fmt.Errorf("sdk identity: source commit must be a full Git SHA")
+		return serrors.E(op, fmt.Errorf("source commit must be a full Git SHA"))
 	}
 	for _, character := range identity.SourceCommit {
 		if !strings.ContainsRune("0123456789abcdef", character) {
-			return fmt.Errorf("sdk identity: source commit must be lowercase hexadecimal")
+			return serrors.E(op, fmt.Errorf("source commit must be lowercase hexadecimal"))
 		}
 	}
 	if protocolMajor(identity.ProtocolVersion) != protocolMajor(ProtocolVersion) {
-		return fmt.Errorf("sdk identity: protocol %q is incompatible with %q", identity.ProtocolVersion, ProtocolVersion)
+		return serrors.E(op, fmt.Errorf("protocol %q is incompatible with %q", identity.ProtocolVersion, ProtocolVersion))
 	}
 	return nil
 }

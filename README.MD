@@ -7,11 +7,12 @@ This repo ships one public NPM package alongside the Go module:
 - Client host: `@iota-uz/sdk/client-host`
 - Lens runtime: `@iota-uz/sdk/lens`
 - Lens styles: `@iota-uz/sdk/lens/styles.css`
+- Release identity: `@iota-uz/sdk/identity`
 
 Install it with React peers:
 
 ```bash
-pnpm add @iota-uz/sdk react react-dom
+pnpm add @iota-uz/sdk@0.5.0 react react-dom
 ```
 
 ```ts
