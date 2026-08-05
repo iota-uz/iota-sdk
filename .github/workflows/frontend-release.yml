@@ -1,0 +1,66 @@
+name: Publish frontend packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Shared semver version for client-host and lens-web"
+        required: true
+        type: string
+
+concurrency:
+  group: frontend-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: https://registry.npmjs.org
+      - uses: pnpm/action-setup@v3
+        with:
+          version: "9.15.0"
+      - name: Install package dependencies
+        run: |
+          pnpm --dir web/client-host install --frozen-lockfile
+          pnpm --dir web/lens install --frozen-lockfile
+      - name: Build release artifacts
+        env:
+          FRONTEND_PACKAGE_VERSION: ${{ inputs.version }}
+          SDK_SOURCE_SHA: ${{ github.sha }}
+        run: node scripts/package-frontends.mjs artifacts/frontend
+      - name: Verify release artifacts
+        run: node scripts/verify-frontend-artifacts.mjs artifacts/frontend
+      - name: Publish missing package versions
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e --arg version "$RELEASE_VERSION" '
+            .artifacts | length == 2 and all(.version == $version)
+          ' artifacts/frontend/frontend-artifacts.json
+
+          while IFS=$'\t' read -r package file; do
+            if npm view "${package}@${RELEASE_VERSION}" version >/dev/null 2>&1; then
+              echo "${package}@${RELEASE_VERSION} is already published"
+              continue
+            fi
+            npm publish "artifacts/frontend/${file}" --access public --provenance
+          done < <(jq -r '.artifacts[] | [.package, .file] | @tsv' artifacts/frontend/frontend-artifacts.json)
+
+          while IFS= read -r package; do
+            npm view "${package}@${RELEASE_VERSION}" version >/dev/null
+          done < <(jq -r '.artifacts[].package' artifacts/frontend/frontend-artifacts.json)

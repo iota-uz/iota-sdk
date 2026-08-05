@@ -2,6 +2,13 @@
   "name": "@iota-uz/lens-web",
   "private": false,
   "version": "0.1.0",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iota-uz/iota-sdk.git",
+    "directory": "web/lens"
+  },
+  "publishConfig": { "access": "public" },
   "type": "module",
   "files": ["package-dist"],
   "exports": {
