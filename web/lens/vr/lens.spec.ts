@@ -460,6 +460,39 @@ test('filter refetch failure keeps stale panels and surfaces the error', async (
   await screenshot(page, 'filter-refetch-error', { maxDiffPixels: 1 })
 })
 
+test('a hovered coverage segment grows out of its quieted siblings', async ({ page }) => {
+  // A pie sector grows under the pointer because ECharts scales it; a segment
+  // bar had only a colour shift, so the two chart families disagreed about what
+  // hover means. This measures the growth rather than photographing it: the
+  // heights are the contract, and a baseline of them would need re-blessing
+  // every time the story's palette moved.
+  await openStory(page, 'parity--coverage-composite', 0)
+  const track = page.locator('.lens-coverage-track').first()
+  const segment = track.locator('.lens-coverage-track-segment').first()
+  const sibling = track.locator('.lens-coverage-track-segment').nth(1)
+
+  // At rest the track is the thin rule the reader scans past.
+  await expect(page.locator('.lens-coverage[data-segment-active="true"]')).toHaveCount(0)
+  const restingTrack = (await track.boundingBox())?.height ?? 0
+  const restingSibling = (await sibling.boundingBox())?.height ?? 0
+  expect(restingTrack).toBeGreaterThan(0)
+
+  await segment.hover()
+  // The whole card carries the state, which is what lets the legend row light
+  // up with the segment and the siblings give up their height.
+  await expect(page.locator('.lens-coverage[data-segment-active="true"]').first()).toBeVisible()
+  await expect(segment).toHaveAttribute('data-highlighted', 'true')
+
+  await expect.poll(async () => (await track.boundingBox())?.height ?? 0)
+    .toBeGreaterThan(restingTrack)
+  await expect.poll(async () => (await segment.boundingBox())?.height ?? 0)
+    .toBeGreaterThan(restingTrack)
+  // The siblings shrink, so the hovered one reads as having grown relative to
+  // them rather than the whole bar merely getting fatter.
+  await expect.poll(async () => (await sibling.boundingBox())?.height ?? 0)
+    .toBeLessThanOrEqual(restingSibling)
+})
+
 test('calendar range preview follows the hovered day', async ({ page }) => {
   await openStory(page, 'filter-controls--calendar-range-pending', 0)
   // The anchor is Jul 3; hovering Jul 15 washes the days between them.

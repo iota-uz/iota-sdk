@@ -1304,7 +1304,16 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const logMaximum = logarithmic && numericPointValues.length > 0
     ? niceLogMaximum(Math.max(...numericPointValues))
     : undefined
-  const showSeriesName = Boolean(input.encoding.series)
+  // A declared series role is not a series the frame has. A progressive
+  // dashboard builds its panel shell before any frame exists, so the wire
+  // encoding it publishes is the panel's *declaration* — and every panel
+  // declares the default field names whether or not it uses them. On a chart
+  // with one unnamed series that made the tooltip print ECharts' internal
+  // "series0" as if it were the reader's own label for the measure.
+  //
+  // The frame is the authority on what a role resolves to, exactly as it
+  // already is for the category axis below.
+  const showSeriesName = availableEncodingField(input, input.encoding.series) !== undefined
   const categoryField = availableEncodingField(input, input.encoding.category, input.encoding.label) ?? ''
   const categoryIsTime = input.frame.columns.find((column) => column.name === categoryField)?.type === 'time'
   const timeAxis = !isBar && categoryIsTime

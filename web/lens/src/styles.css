@@ -3383,14 +3383,26 @@
 
   .lens-coverage-track {
     @apply lens-mt-2 lens-flex lens-h-2.5 lens-w-full lens-gap-0.5 lens-overflow-hidden lens-rounded-full lens-bg-inset;
+    /* The track is what grows, not the segment: it owns the pill silhouette and
+       clips its children to it, so a segment that grew on its own would square
+       off the rounded ends. Growing the track keeps the shape and gives the
+       highlighted segment — the only one still at full height — the same "pops
+       toward the reader" reading a hovered pie slice gets from its emphasis
+       scale. */
+    transition: height var(--lens-dur-fast) var(--lens-ease-out);
+  }
+
+  .lens-coverage[data-segment-active='true'] .lens-coverage-track {
+    @apply lens-h-4;
   }
 
   .lens-coverage-track-segment {
-    @apply lens-block lens-h-full lens-transition-[filter,opacity,box-shadow];
+    @apply lens-block lens-h-full lens-transition-[filter,opacity,box-shadow,transform];
     background: var(--lens-accent-500);
     /* Guarantee a thin slice (e.g. a 0.3% remainder) stays visible and
        hoverable; flexbox lets the larger segments absorb the difference. */
     min-width: 3px;
+    transform-origin: center;
   }
 
   .lens-coverage-track-segment:hover {
@@ -3400,15 +3412,39 @@
   /* Hover is a preview of the drill target: quiet the siblings, reinforce the
      selected colour, and carry the same state into its labelled row. This is
      intentionally stronger than a small brightness shift, which disappeared
-     on already-saturated series colours. */
+     on already-saturated series colours.
+
+     The siblings also give up the height the track just gained, so the
+     highlighted segment reads as having grown relative to them rather than the
+     whole bar merely getting fatter. */
   .lens-coverage[data-segment-active='true'] .lens-coverage-track-segment:not([data-highlighted='true']) {
     filter: saturate(0.55);
     opacity: 0.38;
+    transform: scaleY(0.625);
   }
 
   .lens-coverage-track-segment[data-highlighted='true'] {
     filter: brightness(1.08) saturate(1.08);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 80%);
+  }
+
+  /* The bullet variant hangs a target marker at a fixed offset over the track,
+     so a track that changed height would slide out from under its own marker.
+     It keeps the colour treatment and forgoes the growth. */
+  .lens-coverage-bullet .lens-coverage-track,
+  .lens-coverage[data-segment-active='true'] .lens-coverage-bullet .lens-coverage-track {
+    @apply lens-h-2.5;
+  }
+
+  .lens-coverage[data-segment-active='true'] .lens-coverage-bullet .lens-coverage-track-segment {
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lens-coverage-track,
+    .lens-coverage-track-segment {
+      transition: none;
+    }
   }
 
   .lens-coverage-legend {
