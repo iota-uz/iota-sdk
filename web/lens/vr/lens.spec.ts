@@ -140,6 +140,7 @@ const storyIds = [
   'parity--stat-beside-a-tall-table',
   'parity--metric-group',
   'parity--metric-group-info',
+  'parity--metric-group-loading',
   'parity--metric-group-responsive',
   'parity--metric-group-sparkline',
   'parity--panel-header-pressure',
@@ -404,6 +405,7 @@ test('VR manifest covers every Ladle story', async ({ request }) => {
   const covered = new Set<string>([
     ...staticStories.map(([storyId]) => storyId),
     ...keyframeCovered,
+    ...measuredStories,
     'parity--metric-group-responsive',
   ])
 
@@ -467,6 +469,74 @@ const keyframeCovered = [
   'parity--coverage-split',
   'parity--pie-with-legend-right--light',
 ] as const
+
+/**
+ * Stories whose contract is a measurement rather than a raster.
+ *
+ * A placeholder is a gradient sweeping under an animation; a screenshot of one
+ * is a picture of whichever frame the capture froze, and the defect it has to
+ * catch is not a colour but a box that was zero pixels wide. Measuring the box
+ * says that directly, and says it the same way on every platform.
+ */
+const measuredStories = ['parity--metric-group-loading'] as const
+
+/** The cells of the KPI strip, and the placeholder each one is showing. */
+async function loadingMetricBoxes(page: Page) {
+  return page.locator('.lens-stat-metric[aria-busy="true"]').evaluateAll((elements) => elements.map((element) => {
+    const box = element.querySelector('.lens-stat-metric-value-shimmer')?.getBoundingClientRect()
+    const neighbour = element
+      .querySelector('.lens-stat-metric-main > .lens-stat-sparkline, .lens-stat-metric-main > .lens-stat-drill-mark')
+      ?.getBoundingClientRect()
+    const cell = element.getBoundingClientRect()
+    return {
+      cellWidth: cell.width,
+      cellHeight: cell.height,
+      shimmer: box ? { width: box.width, height: box.height, right: box.right } : null,
+      neighbourLeft: neighbour?.left ?? null,
+      text: (element.querySelector('.lens-stat-metric-value')?.textContent ?? '').trim(),
+    }
+  }))
+}
+
+test('a loading KPI cell shows a placeholder the size of the figure it stands in for', async ({ page }) => {
+  await openStory(page, 'parity--metric-group-loading', 0)
+  const cells = await loadingMetricBoxes(page)
+  expect(cells).toHaveLength(4)
+
+  for (const { cellWidth, shimmer, neighbourLeft, text } of cells) {
+    // The figure slot carries no text while the panel is in flight, so it is a
+    // flex item zero pixels wide — a placeholder sized as a percentage of it
+    // measured 0 × 28 and painted nothing at all, leaving a KPI strip that read
+    // as a row of names over an empty gap for as long as the query ran.
+    expect(text).toBe('')
+    expect(shimmer?.width ?? 0).toBeGreaterThan(40)
+    expect(shimmer?.height ?? 0).toBeGreaterThan(12)
+    // It stands in for a figure, not for the card: a slab the width of the cell
+    // would read as a loading table rather than as a number on its way.
+    expect(shimmer?.width ?? 0).toBeLessThan(cellWidth)
+    // …and it keeps out of the drill mark and the sparkline that share its row.
+    if (neighbourLeft !== null) expect(shimmer?.right ?? 0).toBeLessThanOrEqual(neighbourLeft)
+  }
+  // Two of the four cells carry one of those neighbours; without them the
+  // collision clause above would pass by never running.
+  expect(cells.filter(({ neighbourLeft }) => neighbourLeft !== null).length).toBe(2)
+})
+
+test('the loading KPI strip is the height the settled one is', async ({ page }) => {
+  // A placeholder that reserves the wrong box moves the whole board when the
+  // figures land. Same four metrics, same captions, same spans — only the
+  // frames differ — so the cells must measure the same in both stories.
+  await openStory(page, 'parity--metric-group-loading', 0)
+  const loading = (await loadingMetricBoxes(page)).map(({ cellHeight }) => Math.round(cellHeight))
+
+  await openStory(page, 'parity--metric-group', 0)
+  const settled = await page.locator('.lens-stat-metric').evaluateAll((elements) => (
+    elements.map((element) => Math.round(element.getBoundingClientRect().height))
+  ))
+
+  expect(loading).toHaveLength(4)
+  expect(loading).toEqual(settled)
+})
 
 test('filter refetch failure keeps stale panels and surfaces the error', async ({ page }) => {
   await openStory(page, 'filter-controls--refetch-error', 0)

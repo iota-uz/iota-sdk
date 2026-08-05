@@ -235,6 +235,60 @@ export const MetricGroupSparkline: Story = () => {
 MetricGroupSparkline.storyName = 'Metric group sparkline'
 
 /**
+ * The same strip before any of its figures have landed.
+ *
+ * A KPI strip is the first thing on a board and the last thing to finish
+ * computing, so its loading state is what a reader looks at for the whole first
+ * second — and it was the one state nothing exercised. The figure slot has no
+ * text of its own while the panel is deferred, so a placeholder that borrowed
+ * its width from that slot resolved to zero and the strip painted a row of
+ * names over an empty gap: indistinguishable, for that whole second, from a
+ * board whose numbers had failed to arrive.
+ *
+ * The row beside the figure is crowded on purpose: the first metric is a link
+ * (so it draws its drill mark) and the second carries a sparkline, which are
+ * the two things the placeholder shares its flex row with.
+ */
+const loadingMetrics: Panel[] = metrics.map(({ panel }, index) => ({
+  ...panel,
+  deferred: true,
+  caption: ['Claims paid ÷ earned premium', 'Expenses ÷ earned premium', '(claims + expenses) ÷ earned premium', 'Earned premium − claims − expenses ± reserves'][index],
+  sparkline: index === 1 ? { values: [38.1, 39.4, 40.2, 40.9, 41.1, 41.4, 41.7] } : undefined,
+  terminal: index !== 0,
+  actions: index === 0
+    ? [{ kind: 'navigate' as const, urlTemplate: '/analytics/drill/loss-ratio', params: [], payload: {} }]
+    : [],
+}))
+
+/** A request that never settles: the panels stay in flight for the capture. */
+const neverSettles: typeof fetch = () => new Promise<Response>(() => undefined)
+
+export const MetricGroupLoading: Story = () => {
+  const doc: DashboardDocument = {
+    ...storyDocument(loadingMetrics, {}, {
+      rows: [{
+        heading: 'КЛЮЧЕВЫЕ КОЭФФИЦИЕНТЫ',
+        panels: loadingMetrics.map((panel) => ({
+          panelId: panel.id, span: 3,
+          groups: [{ id: 'earned', kind: 'metrics' as const, label: 'ПО ЗАРАБОТАННОЙ ПРЕМИИ', layout: 'columns' as const, span: 12 }],
+        })),
+      }],
+    }),
+    // Deferred panels are computed per panel after the document lands, which is
+    // the shape that puts every cell of the strip in flight at once.
+    endpoints: { panel: '/lens/panel' },
+  }
+  return (
+    <div className="lens-root">
+      <DocumentProvider fetcher={neverSettles} initialDocument={doc}>
+        <DashboardRuntimeProvider fetcher={neverSettles} locale="ru"><DashboardPanels /></DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>
+  )
+}
+MetricGroupLoading.storyName = 'Metric group loading'
+
+/**
  * A cube dashboard's KPI band is a headerless strip whose metrics carry both a
  * caption and a supporting note, and whose first metric is a link to its own
  * evidence. Three things have to hold at once here, and each of them broke a
