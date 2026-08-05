@@ -119,6 +119,7 @@ const storyIds = [
   'parity--chart-readability-states',
   'parity--compact-table-cells',
   'parity--coverage-composite',
+  'parity--coverage-split',
   'parity--dashboard-loading-skeleton-dark',
   'parity--dashboard-loading-skeleton-light',
   'parity--drill-pill-affordances',
@@ -463,6 +464,7 @@ const keyframeCovered = [
   'explore--perspective-switching-on-a-segment',
   'metric-composition--full',
   'parity--clickable-panels',
+  'parity--coverage-split',
   'parity--pie-with-legend-right--light',
 ] as const
 
@@ -474,6 +476,48 @@ test('filter refetch failure keeps stale panels and surfaces the error', async (
   // The calendar icon can flip one antialiased edge pixel on Darwin Chromium;
   // all stale values, the alert, and the retry state remain exact.
   await screenshot(page, 'filter-refetch-error', { maxDiffPixels: 1 })
+})
+
+test('a hovered coverage segment grows out of its quieted siblings', async ({ page }) => {
+  // A pie sector grows under the pointer because ECharts scales it; a segment
+  // bar had only a colour shift, so the two chart families disagreed about what
+  // hover means. This measures the growth rather than photographing it: the
+  // heights are the contract, and a baseline of them would need re-blessing
+  // every time the story's palette moved.
+  // CoverageComposite next door has one positive segment and a zero remainder,
+  // so Lens draws no track for it — a partition bar needs two parts before
+  // there is anything to hover. CoverageSplit is the two-part variant.
+  await openStory(page, 'parity--coverage-split', 0)
+  const track = page.locator('.lens-coverage-track').first()
+  const segment = track.locator('.lens-coverage-track-segment').first()
+  const sibling = track.locator('.lens-coverage-track-segment').nth(1)
+
+  // At rest the track is the thin rule the reader scans past.
+  await expect(page.locator('.lens-coverage[data-segment-active="true"]')).toHaveCount(0)
+  const restingTrack = (await track.boundingBox())?.height ?? 0
+  const restingSibling = (await sibling.boundingBox())?.height ?? 0
+  expect(restingTrack).toBeGreaterThan(0)
+
+  await segment.hover()
+  // The whole card carries the state, which is what lets the legend row light
+  // up with the segment and the siblings give up their height.
+  await expect(page.locator('.lens-coverage[data-segment-active="true"]').first()).toBeVisible()
+  await expect(segment).toHaveAttribute('data-highlighted', 'true')
+
+  await expect.poll(async () => (await track.boundingBox())?.height ?? 0)
+    .toBeGreaterThan(restingTrack)
+  await expect.poll(async () => (await segment.boundingBox())?.height ?? 0)
+    .toBeGreaterThan(restingTrack)
+  // The siblings give the growth back, so what the reader sees is one segment
+  // rising out of the bar rather than the whole bar getting fatter. They are
+  // quieted by exactly the ratio that holds them at their resting thickness —
+  // asserting they end up *thinner* than at rest would be asserting a design
+  // this deliberately does not have, so the contract is: no thicker than at
+  // rest, and thinner than the segment under the pointer.
+  await expect.poll(async () => (await sibling.boundingBox())?.height ?? 0)
+    .toBeLessThanOrEqual(restingSibling)
+  const hovered = (await segment.boundingBox())?.height ?? 0
+  expect((await sibling.boundingBox())?.height ?? 0).toBeLessThan(hovered)
 })
 
 test('calendar range preview follows the hovered day', async ({ page }) => {

@@ -728,6 +728,75 @@ describe('buildChartOption', () => {
     expect(tooltip).not.toContain('series0')
   })
 
+  it('ignores a declared series role the frame does not carry', () => {
+    // A progressive dashboard publishes the panel's *declaration*, built before
+    // any frame exists — and every panel declares the default field names
+    // whether it uses them or not. So a single-measure bar arrives claiming a
+    // "series" column it does not have, and the tooltip printed ECharts'
+    // internal "series0" beside the figure as if it were a label the reader
+    // had asked for.
+    const chartInput = input('hbar')
+    chartInput.frame = {
+      columns: [
+        { name: 'measure_id', type: 'string' },
+        { name: 'measure', type: 'string' },
+        { name: 'amount', type: 'number' },
+      ],
+      rows: [['class5_assets_proxy', 'Баланс счетов класса 5 — прокси', 198_467_392_963]],
+    }
+    chartInput.encoding = {
+      id: 'measure_id', label: 'measure', value: 'amount',
+      series: 'series', category: 'category', cut: 'cut', final: 'final',
+    }
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    const tooltip = chart.tooltip.formatter?.([
+      {
+        axisValueLabel: 'Баланс счетов класса 5 — прокси',
+        marker: '<span class="marker"></span>',
+        seriesName: 'series0',
+        value: 198_467_392_963,
+      },
+    ]) ?? ''
+
+    expect(tooltip).toContain('Баланс счетов класса 5 — прокси')
+    // Dropping the name must not drop the figure with it.
+    expect(tooltip).toContain('$198467392963')
+    expect(tooltip).not.toContain('series0')
+  })
+
+  it('keeps an overlay label on a chart whose own series is unnamed', () => {
+    // Suppressing the synthetic "series0" must not suppress the overlays: on a
+    // single-measure chart their label is the only thing separating last
+    // year's row from this year's.
+    const chartInput = input('bar')
+    chartInput.frame = {
+      columns: [
+        { name: 'id', type: 'string' },
+        { name: 'category', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'previous', type: 'number' },
+      ],
+      rows: [['jan', 'Jan', 1200, 900], ['feb', 'Feb', 1500, 1100]],
+    }
+    chartInput.encoding = {
+      id: 'id', label: 'category', category: 'category', value: 'value',
+      previous: 'previous', series: 'series',
+    }
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    const comparison = chart.series.find((entry) => entry.name === 'Previous')
+    expect(comparison, 'the comparison overlay must be drawn for this test to mean anything').toBeDefined()
+
+    const tooltip = chart.tooltip.formatter?.([
+      { axisValueLabel: 'Jan', marker: '<span class="marker"></span>', seriesName: 'series0', value: 1200 },
+      { axisValueLabel: 'Jan', marker: '<span class="marker"></span>', seriesName: 'Previous', value: 900 },
+    ]) ?? ''
+
+    expect(tooltip).toContain('Previous')
+    expect(tooltip).not.toContain('series0')
+  })
+
   it('keeps numeric-looking categorical years literal and marks an incomplete period', () => {
     const chartInput = input('bar')
     chartInput.frame.rows = [['2025', '2025', 'Revenue', 1200]]

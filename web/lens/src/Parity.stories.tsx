@@ -62,6 +62,17 @@ const coverageFrame: Frame = {
   rows: [['В пределах резерва', 5_458_561_140], ['Сверх резерва', 0]],
 }
 
+const coverageSplitPanel: Panel = {
+  ...coveragePanel, id: 'payouts-split', frame: 'payouts-split:frame',
+  caption: 'ЧАСТЬ ВЫПЛАТ ВЫШЛА ЗА РЕЗЕРВ',
+  headline: 6_913_561_140,
+}
+
+const coverageSplitFrame: Frame = {
+  columns: [{ name: 'label', type: 'string' }, { name: 'amount', type: 'number' }],
+  rows: [['В пределах резерва', 5_458_561_140], ['Сверх резерва', 1_455_000_000]],
+}
+
 const underwritingPanel: Panel = {
   ...coveragePanel, id: 'payouts-uw', title: 'Андеррайтинговый результат',
   caption: 'РЕЗЕРВ ПОКРЫВАЕТ ЗАЯВЛЕННЫЕ УБЫТКИ',
@@ -349,6 +360,20 @@ export const CoverageComposite: Story = () => {
     rows: [{ panels: [{ panelId: 'payouts', span: 12 }] }],
   })
   return <Runtime doc={doc}><CoveragePanel panel={coveragePanel} /></Runtime>
+}
+
+/**
+ * The plain multi-segment track — the shape a partition bar takes when it has
+ * no target and more than one non-zero part. CoverageComposite next door has a
+ * single positive segment and a zero remainder, so Lens draws no track for it
+ * at all: this variant is the only story that exercises the track, its hover
+ * emphasis, and the quieting of the segments the pointer is not on.
+ */
+export const CoverageSplit: Story = () => {
+  const doc = storyDocument([coverageSplitPanel], { 'payouts-split:frame': coverageSplitFrame }, {
+    rows: [{ panels: [{ panelId: 'payouts-split', span: 12 }] }],
+  })
+  return <Runtime doc={doc}><CoveragePanel panel={coverageSplitPanel} /></Runtime>
 }
 
 export const CompactTableCells: Story = () => {
