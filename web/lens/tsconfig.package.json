@@ -7,7 +7,10 @@
     "declarationMap": true,
     "outDir": "package-dist",
     "rootDir": "src",
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "paths": {
+      "@iota-uz/sdk/client-host": ["../client-host/dist/index.d.ts"]
+    }
   },
   "include": ["src/index.ts", "src/vite-env.d.ts"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.stories.tsx"]

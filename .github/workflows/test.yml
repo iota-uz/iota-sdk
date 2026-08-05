@@ -193,7 +193,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-lens-playwright-${{ hashFiles('web/lens/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-lens-playwright-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Install Chromium system dependencies
         working-directory: web/lens
@@ -426,7 +426,7 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Install BiChat applet dependencies
-        run: pnpm install --frozen-lockfile -C modules/bichat/presentation/web
+        run: pnpm install --frozen-lockfile --ignore-workspace -C modules/bichat/presentation/web
 
       - name: Run applet DX guardrails
         run: |
@@ -727,7 +727,7 @@ jobs:
           just e2e reset
 
       - name: Install Node dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile --ignore-workspace
         working-directory: e2e
 
       - name: Cache Playwright browsers
@@ -844,7 +844,7 @@ jobs:
 
       - name: Install documentation dependencies
         working-directory: ./docs
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-workspace
 
       - name: Validate Mermaid diagrams
         working-directory: ./docs

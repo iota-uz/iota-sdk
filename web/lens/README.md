@@ -1,9 +1,14 @@
 # Lens React runtime
 
-`@iota-uz/lens-web` is the canonical Lens delivery surface. Standard React
-hosts install its SHA-stamped package artifact together with the matching
-`@iota-uz/client-host` artifact and import `LensDashboard` plus
-`@iota-uz/lens-web/styles.css` directly.
+`@iota-uz/sdk/lens` is the canonical Lens delivery surface. Standard React
+hosts install one SHA-stamped `@iota-uz/sdk` artifact and import both the Lens
+and client-host APIs from its bounded subpaths:
+
+```ts
+import { ClientHostProvider } from '@iota-uz/sdk/client-host'
+import { LensDashboard } from '@iota-uz/sdk/lens'
+import '@iota-uz/sdk/lens/styles.css'
+```
 
 `pkg/lens/render/react` remains a legacy custom-element adapter. `just lens
 build` creates its self-contained Vite bundle under the ignored

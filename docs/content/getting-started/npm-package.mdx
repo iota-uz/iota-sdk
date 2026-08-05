@@ -1,65 +1,41 @@
 ---
 title: 'NPM Package (@iota-uz/sdk)'
-description: 'Use IOTA SDK UI utilities + Tailwind v4 inputs in external projects'
+description: 'Use the client host and Lens runtime from the canonical SDK release'
 ---
 
 # NPM Package (`@iota-uz/sdk`)
 
-`@iota-uz/sdk` is the unified public NPM package that ships:
-- React utilities for applets (`@iota-uz/sdk`)
-- BIChat UI (`@iota-uz/sdk/bichat`)
-- Tailwind v4 inputs + config helper (`@iota-uz/sdk/tailwind/*`)
-- Bundled assets (fonts) under `@iota-uz/sdk/assets`
-
-Canonical package source and release pipeline now live in the `applets/` repository.
+The Go module and JavaScript distribution are released from the same commit and
+use the same version. Version 0.5 is a clean break: the public package contains
+only stable bounded APIs and does not expose the old root, BiChat, applet,
+Tailwind, or asset surfaces.
 
 ## Install
 
 ```bash
-pnpm add @iota-uz/sdk
-pnpm add -D tailwindcss@4.1.18 @tailwindcss/cli@4.1.18
+pnpm add @iota-uz/sdk@0.5.0 react react-dom
 ```
 
-## Tailwind v4 (consumer compiles)
+Production consumers should pin an exact SDK version matching their Go module.
 
-### 1) Create Tailwind config
-
-```js
-// tailwind.config.cjs
-const createIotaTailwindConfig = require('@iota-uz/sdk/tailwind/create-config')
-
-module.exports = createIotaTailwindConfig({
-  content: ['./src/**/*.{ts,tsx,js,jsx,html}'],
-  extend: {},
-})
-```
-
-### 2) Create a Tailwind input CSS file
-
-Tailwind v4 loads config via `@config`, so your input CSS should reference your config and then import the SDK Tailwind input:
-
-```css
-/* src/tailwind.css */
-@config "../tailwind.config.cjs";
-@import "@iota-uz/sdk/tailwind/main.css";
-
-/* Add your own layers/custom CSS below if needed */
-```
-
-### 3) Build CSS
-
-```bash
-pnpm exec tailwindcss --input ./src/tailwind.css --output ./public/assets/main.css --minify
-```
-
-## BIChat UI
+## Client host
 
 ```ts
-import { BiChatApp } from '@iota-uz/sdk/bichat'
-import '@iota-uz/sdk/bichat/styles.css'
+import {
+  ClientHostBoundary,
+  ClientHostProvider,
+} from '@iota-uz/sdk/client-host'
 ```
 
-## Assets (fonts)
+## Lens
 
-If you use SDK fonts, serve `node_modules/@iota-uz/sdk/assets` at `/assets` so URLs like `/assets/fonts/...` resolve.
+```ts
+import {
+  LensDashboard,
+  CONTRACT_VERSION,
+} from '@iota-uz/sdk/lens'
+import '@iota-uz/sdk/lens/styles.css'
+```
 
+Both exports include SDK release, source-commit, and protocol identity. The
+client host validates the identity supplied by the Go host before rendering.

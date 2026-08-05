@@ -1,6 +1,7 @@
 export * from './applet'
 export * from './cache'
 export * from './errors'
+export * from './identity'
 export * from './portals'
 export * from './protocol'
 export * from './route'

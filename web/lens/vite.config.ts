@@ -7,6 +7,12 @@ import { defineConfig } from 'vite'
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@iota-uz/sdk/client-host': path.resolve(rootDir, '../client-host/src/index.ts'),
+    },
+    dedupe: ['react', 'react-dom'],
+  },
   // Relative base, verified by experiment: removing it does NOT change the
   // dist bundle (Granite loads the runtime from manifest-derived absolute
   // URLs and never serves dist/index.html), but it DOES break the Ladle story

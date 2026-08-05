@@ -1,4 +1,4 @@
-name: Frontend release train
+name: Frontend package preview
 
 on:
   pull_request:
@@ -13,32 +13,30 @@ jobs:
     env:
       SDK_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # pull_request workflows normally check out a synthetic merge ref.
           # Preview consumers pin the public PR head, so both dependency planes
           # must be built and stamped from that exact immutable commit instead.
           ref: ${{ env.SDK_SOURCE_SHA }}
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - uses: pnpm/action-setup@v3
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: "24" }
+      - uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # v3
         with: { version: "9.15.0" }
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with: { go-version-file: go.mod }
       - run: pnpm install --frozen-lockfile
-        working-directory: web/client-host
-      - run: pnpm install --frozen-lockfile
-        working-directory: web/lens
       - run: node scripts/package-frontends.mjs artifacts/frontend
       - name: Verify exact SDK provenance
         run: |
           jq -e --arg sha "$SDK_SOURCE_SHA" '
             .sdkCommit == $sha and
-            (.artifacts | all(.version == ("0.0.0-sha-" + ($sha[0:12]))))
+            .package == "@iota-uz/sdk" and
+            .packageVersion == ("0.0.0-sha-" + ($sha[0:12]))
           ' artifacts/frontend/frontend-artifacts.json
-      - name: Verify clean sibling-tarball install
+      - name: Verify clean single-package install and bundle boundaries
         run: node scripts/verify-frontend-artifacts.mjs artifacts/frontend
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frontend-${{ env.SDK_SOURCE_SHA }}
           path: artifacts/frontend

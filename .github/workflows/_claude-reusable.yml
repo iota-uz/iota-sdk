@@ -148,7 +148,7 @@ jobs:
 
       - name: Install E2E dependencies
         if: inputs.setup_level == 'full'
-        run: cd e2e && pnpm install --frozen-lockfile
+        run: cd e2e && pnpm install --frozen-lockfile --ignore-workspace
 
       - name: Install Playwright browsers
         if: inputs.setup_level == 'full' && inputs.mcp_playwright

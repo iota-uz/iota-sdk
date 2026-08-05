@@ -9,12 +9,14 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/sdkidentity"
 	"github.com/stretchr/testify/require"
 )
 
 func testManifest() Manifest {
 	return Manifest{
-		Package: "@iota-uz/example", PackageVersion: "0.0.0-sha-abc", SDKCommit: "abc",
+		Package: "@iota-uz/example", PackageVersion: "0.0.0-sha-abc",
+		SDKCommit: "0123456789abcdef0123456789abcdef01234567", SDKReleaseVersion: sdkidentity.ReleaseVersion,
 		ProtocolVersion: ProtocolVersion, Entry: "/assets/example.js", Styles: []string{"/assets/example.css"},
 		Integrity: map[string]string{"/assets/example.js": "sha384-example"},
 	}
@@ -40,9 +42,11 @@ func TestController_ServesCanonicalBootstrapAndDescriptor(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	body := recorder.Body.String()
 	require.Contains(t, body, `id="iota-client-route-mount"`)
-	require.Contains(t, body, `data-sdk-commit="abc"`)
+	require.Contains(t, body, `data-sdk-commit="0123456789abcdef0123456789abcdef01234567"`)
 	require.Contains(t, body, `integrity="sha384-example"`)
 	require.Contains(t, body, `"protocolVersion":"1.0.0"`)
+	require.Contains(t, body, `"sdkReleaseVersion":"0.5.0"`)
+	require.Contains(t, body, `"sdkCommit":"0123456789abcdef0123456789abcdef01234567"`)
 	require.Contains(t, body, `"theme":"dark"`)
 	require.Contains(t, body, `"csrf":"token"`)
 	require.NotContains(t, body, `{"value":"</script>"}`)

@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { ClientHostProvider } from '@iota-uz/client-host'
+import { ClientHostProvider } from '@iota-uz/sdk/client-host'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Action, DashboardDocument } from '../contract'
 import { LensDashboard } from '../LensDashboard'

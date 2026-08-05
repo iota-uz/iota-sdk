@@ -1,5 +1,5 @@
 import fixture from '../fixtures/panels-v1.json'
-import { ClientHostBoundary } from '@iota-uz/client-host'
+import { ClientHostBoundary } from '@iota-uz/sdk/client-host'
 import { parseDocument, type DashboardDocument } from './contract'
 import { DashboardPanels } from './DashboardPanels'
 import type { CalendarDate } from './controls'

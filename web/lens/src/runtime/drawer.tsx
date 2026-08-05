@@ -1,4 +1,4 @@
-import { Portal } from '@iota-uz/client-host'
+import { Portal } from '@iota-uz/sdk/client-host'
 import { useRef, type ReactNode } from 'react'
 import { X } from '../icons'
 import { useDrawerHeader } from './provider'
