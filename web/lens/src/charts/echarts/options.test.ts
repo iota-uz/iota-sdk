@@ -763,6 +763,38 @@ describe('buildChartOption', () => {
     expect(tooltip).not.toContain('series0')
   })
 
+  it('keeps an overlay label on a chart whose own series is unnamed', () => {
+    // Suppressing the synthetic "series0" must not suppress the overlays: on a
+    // single-measure chart their label is the only thing separating last
+    // year's row from this year's.
+    const chartInput = input('bar')
+    chartInput.frame = {
+      columns: [
+        { name: 'id', type: 'string' },
+        { name: 'category', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'previous', type: 'number' },
+      ],
+      rows: [['jan', 'Jan', 1200, 900], ['feb', 'Feb', 1500, 1100]],
+    }
+    chartInput.encoding = {
+      id: 'id', label: 'category', category: 'category', value: 'value',
+      previous: 'previous', series: 'series',
+    }
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    const comparison = chart.series.find((entry) => entry.name === 'Previous')
+    expect(comparison, 'the comparison overlay must be drawn for this test to mean anything').toBeDefined()
+
+    const tooltip = chart.tooltip.formatter?.([
+      { axisValueLabel: 'Jan', marker: '<span class="marker"></span>', seriesName: 'series0', value: 1200 },
+      { axisValueLabel: 'Jan', marker: '<span class="marker"></span>', seriesName: 'Previous', value: 900 },
+    ]) ?? ''
+
+    expect(tooltip).toContain('Previous')
+    expect(tooltip).not.toContain('series0')
+  })
+
   it('keeps numeric-looking categorical years literal and marks an incomplete period', () => {
     const chartInput = input('bar')
     chartInput.frame.rows = [['2025', '2025', 'Revenue', 1200]]

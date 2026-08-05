@@ -184,7 +184,7 @@ function nonZeroTooltipRecords(params: unknown): Record<string, unknown>[] {
     })
 }
 
-function timeTooltipFormatter(input: ChartInput, categoryField: string, showSeriesName: boolean) {
+function timeTooltipFormatter(input: ChartInput, categoryField: string, showSeriesName: (name: string) => boolean) {
   const valueField = input.encoding.value ?? ''
   return (params: unknown) => {
     const records = nonZeroTooltipRecords(params)
@@ -198,7 +198,7 @@ function timeTooltipFormatter(input: ChartInput, categoryField: string, showSeri
       const seriesName = text(entry.seriesName)
       const formatted = input.formatTooltip?.(valueField, tooltipValue(entry.value), reference)
         ?? input.format(valueField, tooltipValue(entry.value))
-      return showSeriesName && seriesName ? `${seriesName}: ${formatted}` : formatted
+      return showSeriesName(seriesName) ? `${seriesName}: ${formatted}` : formatted
     })
     return [header, ...lines].join('\n')
   }
@@ -253,7 +253,7 @@ function categoryTooltipFormatter(
   categoryField: string,
   stacked: boolean,
   lineSeries: ReadonlySet<string>,
-  showSeriesName: boolean,
+  showSeriesName: (name: string) => boolean,
 ) {
   const valueField = input.encoding.value ?? ''
   return (params: unknown) => {
@@ -277,7 +277,7 @@ function categoryTooltipFormatter(
       const marker = typeof entry.marker === 'string' ? entry.marker : ''
       const seriesName = text(entry.seriesName)
       const amount = tooltipAmount(input, valueField, tooltipValue(entry.value))
-      return tooltipRow(showSeriesName ? seriesName : '', amount.text, marker, amount.copy)
+      return tooltipRow(showSeriesName(seriesName) ? seriesName : '', amount.text, marker, amount.copy)
     })
     if (stacked) {
       const total = records.reduce((sum, entry) => {
@@ -1325,16 +1325,6 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const logMaximum = logarithmic && numericPointValues.length > 0
     ? niceLogMaximum(Math.max(...numericPointValues))
     : undefined
-  // A declared series role is not a series the frame has. A progressive
-  // dashboard builds its panel shell before any frame exists, so the wire
-  // encoding it publishes is the panel's *declaration* — and every panel
-  // declares the default field names whether or not it uses them. On a chart
-  // with one unnamed series that made the tooltip print ECharts' internal
-  // "series0" as if it were the reader's own label for the measure.
-  //
-  // The frame is the authority on what a role resolves to, exactly as it
-  // already is for the category axis below.
-  const showSeriesName = availableEncodingField(input, input.encoding.series) !== undefined
   const categoryField = availableEncodingField(input, input.encoding.category, input.encoding.label) ?? ''
   const categoryIsTime = input.frame.columns.find((column) => column.name === categoryField)?.type === 'time'
   const timeAxis = !isBar && categoryIsTime
@@ -1704,6 +1694,23 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     ...annualizedSeries,
     ...forecastSeries,
   ]
+  // A tooltip row is labelled when the label is one this chart wrote.
+  //
+  // A measured series takes its name from the frame, and a frame with no
+  // series column names nothing: `name` is left undefined and ECharts falls
+  // back to its own positional "series0". A progressive dashboard hits this on
+  // every panel, because a panel shell is published before any frame exists
+  // and declares the default field names whether or not it ends up using them
+  // — so the reader was shown an internal index as if it were the name of the
+  // measure.
+  //
+  // Deciding this per chart instead would silence the overlays too, and an
+  // overlay's name is the only thing separating "Previous" or "Trend" from the
+  // measurement it is drawn against.
+  const namedSeries = new Set(
+    series.map((entry) => text((entry as { name?: unknown }).name)).filter((name) => name !== ''),
+  )
+  const showSeriesName = (name: string) => namedSeries.has(name)
   // A horizontal bar hangs its category names in the plot's left margin, and
   // `containLabel` gives that margin whatever the longest name asks for. A
   // catalogue product name asks for the whole width, leaving the bars a sliver
