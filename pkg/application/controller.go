@@ -37,9 +37,24 @@ type RouteSpec struct {
 	Path           string
 	Prefix         bool
 	Host           string
+	Renderer       RouteRenderer
 	AllowCollision bool
-	Auth           AuthPolicy
+	// Requirement is the canonical route access contract consumed by hosts.
+	Requirement AuthPolicy
+	// Deprecated: use Requirement. Kept populated for existing descriptor
+	// consumers during the migration.
+	Auth AuthPolicy
 }
+
+// RouteRenderer selects the owner of a route's page lifecycle. Server routes
+// are rendered by Templ/HTMX; client routes mount through the standard React
+// host. It does not describe fragments returned inside a server route.
+type RouteRenderer string
+
+const (
+	RouteRendererServer RouteRenderer = "server"
+	RouteRendererReact  RouteRenderer = "react"
+)
 
 type Surface string
 
@@ -112,8 +127,9 @@ func (d ControllerDescriptor) WithNav(nodes ...NavNode) ControllerDescriptor {
 
 func Route(method, routePath string, opts ...RouteOption) RouteSpec {
 	route := RouteSpec{
-		Method: strings.ToUpper(strings.TrimSpace(method)),
-		Path:   NormalizeRoutePath(routePath),
+		Method:   strings.ToUpper(strings.TrimSpace(method)),
+		Path:     NormalizeRoutePath(routePath),
+		Renderer: RouteRendererServer,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -127,7 +143,15 @@ type RouteOption func(*RouteSpec)
 
 func WithAuth(auth AuthPolicy) RouteOption {
 	return func(route *RouteSpec) {
+		route.Requirement = auth
 		route.Auth = auth
+	}
+}
+
+// RenderedBy declares which standard host owns the route lifecycle.
+func RenderedBy(renderer RouteRenderer) RouteOption {
+	return func(route *RouteSpec) {
+		route.Renderer = renderer
 	}
 }
 
@@ -171,8 +195,9 @@ func Delete(routePath string, opts ...RouteOption) RouteSpec {
 
 func Prefix(routePath string, opts ...RouteOption) RouteSpec {
 	route := RouteSpec{
-		Path:   NormalizeRoutePath(routePath),
-		Prefix: true,
+		Path:     NormalizeRoutePath(routePath),
+		Prefix:   true,
+		Renderer: RouteRendererServer,
 	}
 	for _, opt := range opts {
 		if opt != nil {

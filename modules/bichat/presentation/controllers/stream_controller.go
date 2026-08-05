@@ -56,7 +56,14 @@ func NewStreamController(
 }
 
 func (c *StreamController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("bichat.stream", 0, application.Route("", c.opts.BasePath)).
+	return application.Descriptor("bichat.stream", 0,
+		application.BaseRoute(http.MethodPost, c.opts.BasePath, "/stream"),
+		application.BaseRoute(http.MethodPost, c.opts.BasePath, "/stream/stop"),
+		application.BaseRoute(http.MethodGet, c.opts.BasePath, "/stream/status"),
+		application.BaseRoute(http.MethodPost, c.opts.BasePath, "/stream/resume"),
+		application.BaseRoute(http.MethodGet, c.opts.BasePath, "/stream/events"),
+		application.BaseRoute(http.MethodGet, c.opts.BasePath, "/stream/active-runs"),
+	).
 		WithNav(application.NavNode{
 			ID:       "bichat.stream",
 			TitleKey: "NavigationLinks.BiChat",

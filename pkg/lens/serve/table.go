@@ -31,6 +31,7 @@ func tableFrameView(spec panel.Spec, source document.Frame, search string, order
 		}
 		view.Rows = append(view.Rows, row)
 	}
+	recomputeShares(spec, &view)
 	if ordering != nil {
 		index := frameColumnIndex(view, ordering.Field)
 		sort.SliceStable(view.Rows, func(left, right int) bool {

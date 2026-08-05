@@ -341,7 +341,8 @@ type RelationshipSpec struct {
 }
 
 // PresentationHints are optional, renderer-level density choices carried on a
-// panel spec. Every field is opt-in: the zero value keeps today's rendering.
+// panel spec. Every field is opt-in: the zero value leaves policy to the
+// renderer's neutral defaults.
 type PresentationHints struct {
 	// DataLabels writes formatted values directly on bar and line marks. It is
 	// intentionally opt-in: dense charts keep tooltips as their reading surface.
@@ -373,6 +374,15 @@ type PresentationHints struct {
 	// the categories are ranked — age bands, tenure buckets, rating grades —
 	// and a categorical palette would claim they are unrelated.
 	ColorBySequence bool
+	// ColorByRank shades numeric map values by their order rather than their
+	// distance. This is useful for highly skewed choropleths, but changes the
+	// meaning of the colour ramp and therefore requires producer opt-in.
+	ColorByRank bool
+	// ValueSpreadThreshold is the minimum max/min ratio at which the renderer
+	// treats a requested logarithmic scale as material and identifies a linear
+	// scale as obscuring small values. Zero leaves this policy unset; when set,
+	// the value must be greater than one.
+	ValueSpreadThreshold float64
 	// HideTotalBadge suppresses the total badge, e.g. when a trend chip
 	// already carries the panel's summary.
 	HideTotalBadge bool
@@ -508,18 +518,6 @@ type GroupLayout string
 const (
 	GroupColumns GroupLayout = "columns"
 	GroupRows    GroupLayout = "rows"
-)
-
-// LegendPosition controls where a chart places its legend. Empty keeps the
-// renderer default (bottom). A side legend preserves vertical plot area for
-// charts with long category labels, especially pies and donuts.
-type LegendPosition string
-
-const (
-	LegendTop    LegendPosition = "top"
-	LegendRight  LegendPosition = "right"
-	LegendBottom LegendPosition = "bottom"
-	LegendLeft   LegendPosition = "left"
 )
 
 type AxisScale string
@@ -683,27 +681,15 @@ func (f FieldRef) Empty() bool {
 }
 
 type Spec struct {
-	ID             string
-	Title          string
-	Description    string
-	Info           string
-	Kind           Kind
-	Dataset        string
-	Span           int
-	Height         string
-	Colors         []string
-	ShowLegend     bool
-	LegendPosition LegendPosition
-	LegendWidthPx  int
-	LegendOffsetY  int
-	LegendFloating bool
-	// CircularScale and CircularOffsetX let dense pie/donut panels reserve a
-	// stable plot area while a floating side legend occupies the other half.
-	// CircularScale is zero when unset and must be positive when configured.
-	// Both settings are ignored by non-circular panels.
-	CircularScale   float64
-	CircularOffsetX int
-	ShowTotalBadge  bool
+	ID          string
+	Title       string
+	Description string
+	Info        string
+	Kind        Kind
+	Dataset     string
+	Span        int
+	Colors      []string
+	ShowLegend  bool
 	// TotalBadgeValue, when set, renders the total badge with this
 	// server-computed value instead of summing the plotted data points
 	// client-side. Required for panels whose plotted series are not the raw
@@ -749,12 +735,9 @@ type Spec struct {
 	// represented by its chart kind. Renderers localize the explanatory notice.
 	ComparisonUnsupported bool
 	Children              []Spec
-	ClassName             string
 	Chrome                chrome.Spec
 	ValueAxis             ValueAxis
 	Distributed           bool
-	ColorField            FieldRef
-	ColorScale            string
 	Export                exportmeta.Spec
 	// FlowStages, when set (KindMetricFlow), declares the panel's ordered
 	// operand stages.
@@ -803,36 +786,21 @@ type DrillTree struct {
 
 // DrillBranch binds one initial chart point to its first detail level.
 type DrillBranch struct {
-	TriggerKey string          `json:"triggerKey"`
-	Label      string          `json:"label"`
-	View       *DrillLevelView `json:"view,omitempty"`
-	Children   []DrillNode     `json:"children"`
-}
-
-// DrillLevelView controls the presentation of a branch's or node's child
-// level. The closest configured ancestor is inherited by deeper levels, so a
-// dense detail journey can keep a side legend without repeating the layout on
-// every node. Returning to the root restores the panel's original layout.
-type DrillLevelView struct {
-	LegendPosition  LegendPosition `json:"legendPosition,omitempty"`
-	LegendWidthPx   int            `json:"legendWidthPx,omitempty"`
-	LegendOffsetY   int            `json:"legendOffsetY,omitempty"`
-	LegendFloating  bool           `json:"legendFloating,omitempty"`
-	CircularScale   float64        `json:"circularScale,omitempty"`
-	CircularOffsetX int            `json:"circularOffsetX,omitempty"`
+	TriggerKey string      `json:"triggerKey"`
+	Label      string      `json:"label"`
+	Children   []DrillNode `json:"children"`
 }
 
 // DrillNode is one stable item in a DrillTree detail level. Navigate,
 // HtmxSwap, and EmitEvent actions are supported on leaves; actions that depend
 // on an unresolved dataset row are not supported.
 type DrillNode struct {
-	Key      string          `json:"key"`
-	Label    string          `json:"label"`
-	Value    float64         `json:"value"`
-	Color    string          `json:"color,omitempty"`
-	Action   *action.Spec    `json:"action,omitempty"`
-	View     *DrillLevelView `json:"view,omitempty"`
-	Children []DrillNode     `json:"children,omitempty"`
+	Key      string       `json:"key"`
+	Label    string       `json:"label"`
+	Value    float64      `json:"value"`
+	Color    string       `json:"color,omitempty"`
+	Action   *action.Spec `json:"action,omitempty"`
+	Children []DrillNode  `json:"children,omitempty"`
 }
 
 // TrendPolarity says whether a movement in this metric is good news, bad news,
@@ -1075,40 +1043,9 @@ func newBuilder(kind Kind, id, title, dataset string) *Builder {
 }
 
 func (b *Builder) Span(span int) *Builder           { b.spec.Span = span; return b }
-func (b *Builder) Height(height string) *Builder    { b.spec.Height = height; return b }
 func (b *Builder) Colors(colors ...string) *Builder { b.spec.Colors = colors; return b }
 func (b *Builder) Legend() *Builder                 { b.spec.ShowLegend = true; return b }
-func (b *Builder) LegendAt(position LegendPosition) *Builder {
-	b.spec.ShowLegend = true
-	b.spec.LegendPosition = position
-	return b
-}
-func (b *Builder) LegendWidth(px int) *Builder {
-	b.spec.ShowLegend = true
-	b.spec.LegendWidthPx = px
-	return b
-}
-func (b *Builder) LegendOffsetY(px int) *Builder {
-	b.spec.ShowLegend = true
-	b.spec.LegendOffsetY = px
-	return b
-}
-func (b *Builder) FloatingLegend() *Builder {
-	b.spec.ShowLegend = true
-	b.spec.LegendFloating = true
-	return b
-}
-func (b *Builder) CircularScale(scale float64) *Builder {
-	b.spec.CircularScale = scale
-	return b
-}
-func (b *Builder) CircularOffsetX(px int) *Builder {
-	b.spec.CircularOffsetX = px
-	return b
-}
-func (b *Builder) TotalBadge() *Builder { b.spec.ShowTotalBadge = true; return b }
 func (b *Builder) TotalBadgeValue(v float64) *Builder {
-	b.spec.ShowTotalBadge = true
 	b.spec.TotalBadgeValue = &v
 	return b
 }
@@ -1282,7 +1219,6 @@ func (b *Builder) Export(url string, evidenceDatasets ...string) *Builder {
 	b.spec.Export = exportmeta.Spec{Enabled: true, URL: url, EvidenceDatasets: append([]string(nil), evidenceDatasets...)}
 	return b
 }
-func (b *Builder) ClassName(name string) *Builder { b.spec.ClassName = name; return b }
 func (b *Builder) ValueAxisScale(scale AxisScale, base int) *Builder {
 	b.spec.ValueAxis.Scale = scale
 	if base > 1 {
@@ -1303,11 +1239,6 @@ func (b *Builder) AccentColor(color string) *Builder {
 }
 func (b *Builder) DistributedColors() *Builder {
 	b.spec.Distributed = true
-	return b
-}
-func (b *Builder) SemanticColors(scale string, field FieldRef) *Builder {
-	b.spec.ColorScale = strings.TrimSpace(scale)
-	b.spec.ColorField = field
 	return b
 }
 func (b *Builder) Fields(mapping FieldMapping) *Builder {

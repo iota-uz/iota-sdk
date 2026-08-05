@@ -3321,6 +3321,18 @@
     @apply lens-m-4 lens-flex lens-min-h-24 lens-flex-col lens-items-center lens-justify-center lens-gap-1 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-inset lens-p-4 lens-text-center;
   }
 
+  .lens-chart-compact-action {
+    width: 100%;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .lens-chart-compact-action:hover {
+    background: var(--lens-bg-hover);
+  }
+
   .lens-chart-compact-label,
   .lens-chart-compact-empty {
     @apply lens-max-w-full lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-text-md lens-text-muted;

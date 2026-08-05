@@ -63,21 +63,26 @@ lens cmd="help" *args="":
       esac ;; \
     fixture) (cd web/lens && pnpm fixture {{args}}) ;; \
     vr|vr-update) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
+    vr-linux) \
+      if [ "$(uname -m)" != "x86_64" ]; then \
+        echo "Lens Linux baselines are linux/amd64; use the lens_vr_update CI workflow on ARM hosts" ; \
+        exit 2 ; \
+      fi ; \
+      docker run --rm --platform linux/amd64 --ipc=host -v "{{justfile_directory()}}:/work" --mount type=volume,target=/work/web/client-host/node_modules --mount type=volume,target=/work/web/client-host/dist --mount type=volume,target=/work/web/lens/node_modules --mount type=volume,source=iota-sdk-lens-vr-pnpm-store,target=/root/.local/share/pnpm/store -w /work mcr.microsoft.com/playwright:v1.55.1-noble bash -lc 'corepack enable && cd web/client-host && pnpm install --frozen-lockfile && pnpm build && cd ../lens && pnpm install --frozen-lockfile && pnpm vr {{args}}' ;; \
     typegen) go run ./cmd/lens-typegen ;; \
     check) \
       node web/lens/scripts/check-typegen.mjs ; \
       (cd web/lens && pnpm check {{args}}) ;; \
     *) \
-      echo "Usage: just lens [dev|build|watch|serve-from-disk|smoke|fixture|check|typegen|ladle|vr|vr-update|install]" ; \
+      echo "Usage: just lens [dev|build|watch|serve-from-disk|smoke|fixture|check|typegen|ladle|vr|vr-update|vr-linux|install]" ; \
       echo "" ; \
       echo "  smoke <args>     typecheck plus the tests you name — a test file, or" ; \
       echo "                   -t 'name'. The per-edit lane; just lens check stays" ; \
       echo "                   the pre-push one" ; \
       echo "  watch            rebuild the bundle on every source change" ; \
-      echo "  serve-from-disk  print the env export that makes a host serve the built" ; \
-      echo "                   bundle from disk (vite's outDir, pkg/lens/render/react/dist)" ; \
-      echo "                   instead of the bundle embedded in its binary, so a rebuild" ; \
-      echo "                   shows up on page reload with no Go rebuild or restart" ; \
+      echo "  serve-from-disk  print the env export that makes a legacy custom-element" ; \
+      echo "                   host serve the ignored compatibility bundle from Vite's" ; \
+      echo "                   outDir, so a rebuild appears without a Go restart" ; \
       exit 2 ;; \
   esac
 

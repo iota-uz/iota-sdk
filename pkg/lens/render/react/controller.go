@@ -27,12 +27,13 @@ func NewStaticController() *StaticController {
 
 func NewStaticControllerAt(basePath string) *StaticController {
 	basePath = normalizeAssetBasePath(basePath)
+	assets := Assets()
 	controller := &StaticController{
 		basePath: basePath,
 		handler:  http.StripPrefix(basePath+"/", http.FileServer(http.FS(DistFS()))),
 	}
 	if !source.live {
-		controller.versionedHandler = versionedFileHandler(basePath, source.bundle.Revision)
+		controller.versionedHandler = versionedFileHandler(basePath, assets.Revision)
 	}
 	return controller
 }
@@ -58,7 +59,12 @@ func (c *StaticController) Register(router *mux.Router) {
 
 func (c *StaticController) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	relativePath := strings.TrimPrefix(r.URL.Path, c.basePath+"/")
-	revision := source.assets().Revision
+	assets, err := source.assets()
+	if err != nil {
+		http.Error(w, compatibilityAssetsError(err).Error(), http.StatusServiceUnavailable)
+		return
+	}
+	revision := assets.Revision
 	versionedPrefix := revision + "/"
 	if strings.HasPrefix(relativePath, "assets/") || strings.HasPrefix(relativePath, versionedPrefix+"assets/") {
 		w.Header().Set("Cache-Control", immutableCacheControl)

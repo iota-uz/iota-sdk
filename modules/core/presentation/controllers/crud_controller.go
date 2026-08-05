@@ -171,7 +171,7 @@ func NewCrudController[TEntity any](
 	basePath string,
 	builder crud.Builder[TEntity],
 	opts ...CrudOption[TEntity],
-) application.Controller {
+) *CrudController[TEntity] {
 	controller := &CrudController[TEntity]{
 		basePath:            basePath,
 		schema:              builder.Schema(),
@@ -235,11 +235,7 @@ func (c *CrudController[TEntity]) Descriptor() application.ControllerDescriptor 
 	// The read permission gates the list route at the descriptor layer (mirrors
 	// the handler-level accessDenied check) so descriptor-derived route auth and
 	// nav visibility stay consistent.
-	var routeOpts []application.RouteOption
-	if c.readPerm != nil {
-		routeOpts = append(routeOpts, application.RequireAll(c.readPerm))
-	}
-	descriptor := application.Descriptor("core.crud:"+c.basePath, 0, application.Route("", c.basePath, routeOpts...))
+	descriptor := application.Descriptor("core.crud:"+c.basePath, 0, c.RouteCatalog()...)
 	if c.navQuickLink {
 		descriptor = descriptor.WithNav(application.NavNode{
 			ID:       "core.crud.nav:" + c.basePath,
@@ -255,6 +251,59 @@ func (c *CrudController[TEntity]) Descriptor() application.ControllerDescriptor 
 		})
 	}
 	return descriptor
+}
+
+// RouteCatalog returns every enabled CRUD operation with its actual method,
+// server renderer and operation-specific access requirement.
+func (c *CrudController[TEntity]) RouteCatalog() []application.RouteSpec {
+	routes := []application.RouteSpec{
+		c.operationRoute(http.MethodGet, "", c.readPerm),
+		c.operationRoute(http.MethodGet, "/{id}/details", c.readPerm),
+	}
+	if c.enableCreate {
+		routes = append(routes,
+			c.operationRoute(http.MethodGet, "/new", c.createPerm),
+			c.operationRoute(http.MethodPost, "", c.createPerm),
+		)
+	}
+	if c.enableEdit {
+		routes = append(routes,
+			c.operationRoute(http.MethodGet, "/{id}/edit", c.updatePerm),
+			c.operationRoute(http.MethodPost, "/{id}", c.updatePerm),
+		)
+	}
+	if c.enableDelete {
+		routes = append(routes, c.operationRoute(http.MethodDelete, "/{id}", c.deletePerm))
+	}
+	return routes
+}
+
+func (c *CrudController[TEntity]) operationRoute(method, suffix string, perm permission.Permission) application.RouteSpec {
+	opts := []application.RouteOption{application.RenderedBy(application.RouteRendererServer)}
+	if perm != nil {
+		opts = append(opts, application.RequireAll(perm))
+	}
+	return application.BaseRoute(method, c.basePath, suffix, opts...)
+}
+
+// ResourceDescriptor projects the existing load-bearing schema into the
+// renderer-neutral CRUD v2 contract. No mapper, hook, rule or component crosses
+// this boundary.
+func (c *CrudController[TEntity]) ResourceDescriptor() (crud.ResourceDescriptor, error) {
+	actions := []crud.ActionDescriptor{
+		{ID: "list"},
+		{ID: "details"},
+	}
+	if c.enableCreate {
+		actions = append(actions, crud.ActionDescriptor{ID: "new", Form: true}, crud.ActionDescriptor{ID: "create", Mutation: true, Form: true})
+	}
+	if c.enableEdit {
+		actions = append(actions, crud.ActionDescriptor{ID: "edit", Form: true}, crud.ActionDescriptor{ID: "update", Mutation: true, Form: true})
+	}
+	if c.enableDelete {
+		actions = append(actions, crud.ActionDescriptor{ID: "delete", Mutation: true, Destructive: true})
+	}
+	return crud.ProjectSchema(c.schema, crud.WithDescriptorActions(actions...))
 }
 
 // RegisterRenderer registers a custom field renderer for the given type

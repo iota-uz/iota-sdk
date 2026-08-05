@@ -605,25 +605,13 @@ func validateValueAxis(panel Panel, frame Frame) error {
 	if categoryIndex < 0 || valueIndex < 0 {
 		return fmt.Errorf("panel %s logarithmic value axis requires category and value columns", panel.ID)
 	}
-	categories := make(map[string]struct{})
-	minimum, maximum := math.Inf(1), math.Inf(-1)
-	for _, row := range frame.Rows {
-		if categoryIndex < len(row) && row[categoryIndex] != nil {
-			categories[fmt.Sprint(row[categoryIndex])] = struct{}{}
-		}
-		if valueIndex >= len(row) || row[valueIndex] == nil {
-			continue
-		}
-		value, ok := numericValue(row[valueIndex])
-		if !ok || math.IsNaN(value) || math.IsInf(value, 0) || value <= 0 {
-			return fmt.Errorf("panel %s logarithmic value axis requires positive finite values", panel.ID)
-		}
-		minimum = min(minimum, value)
-		maximum = max(maximum, value)
-	}
-	if len(categories) < 3 || math.IsInf(minimum, 1) || maximum/minimum < 100 {
-		return fmt.Errorf("panel %s logarithmic value axis requires at least three categories spanning two orders of magnitude", panel.ID)
-	}
+	// Whether this particular frame can use the requested logarithmic axis is
+	// presentation policy, not document validity. The React renderer falls back
+	// to a linear/compact treatment for too few categories, non-positive values,
+	// or a spread below Presentation.ValueSpreadThreshold. Keeping those checks
+	// here as well used to hard-code 100x for non-deferred documents while the
+	// renderer honoured the producer-owned threshold (and neutral unset value),
+	// so the same panel was accepted or rejected solely by serving mode.
 	return nil
 }
 
@@ -654,7 +642,7 @@ func validatePresentation(owner string, presentation *Presentation) error {
 		return fmt.Errorf("%s has unsupported total badge placement %q", owner, presentation.TotalBadge)
 	}
 	switch presentation.ColorBy {
-	case "", ColorByCategory, ColorBySequence:
+	case "", ColorByCategory, ColorBySequence, ColorByRank:
 	default:
 		return fmt.Errorf("%s has unsupported color mode %q", owner, presentation.ColorBy)
 	}
@@ -665,6 +653,10 @@ func validatePresentation(owner string, presentation *Presentation) error {
 	}
 	if presentation.BarWidthPx < 0 {
 		return fmt.Errorf("%s bar width cannot be negative", owner)
+	}
+	if presentation.ValueSpreadThreshold != 0 &&
+		(math.IsNaN(presentation.ValueSpreadThreshold) || math.IsInf(presentation.ValueSpreadThreshold, 0) || presentation.ValueSpreadThreshold <= 1) {
+		return fmt.Errorf("%s value spread threshold must be finite and greater than one", owner)
 	}
 	return nil
 }

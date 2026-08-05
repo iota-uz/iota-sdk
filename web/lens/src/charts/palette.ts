@@ -34,9 +34,8 @@ export function remainderColor(source?: Element | null): string {
 /**
  * The palette drawn when the document carries no `theme.palette` of its own,
  * which is every document today: no host populates it. Generated from
- * `pkg/lens/color`, so the colours are declared once, in Go — assignment stays
- * here (see `paletteAssignment`) because the two hashes are not the same
- * function and moving it would repaint existing dashboards.
+ * `pkg/lens/color`, so the colours are declared once, in Go. Category
+ * assignment has one owner here in the React runtime (see `paletteAssignment`).
  */
 export const fallbackSeries = PALETTE_SERIES
 

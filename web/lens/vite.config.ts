@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
@@ -15,7 +16,15 @@ export default defineConfig({
   // first motivated this line was a stale dist pointing at a CSS chunk that
   // no longer existed, not an asset-path bug.
   base: './',
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'lens-go-embed-placeholder',
+      closeBundle() {
+        writeFileSync(path.resolve(rootDir, '../../pkg/lens/render/react/dist/.keep'), '')
+      },
+    },
+  ],
   server: {
     port: 5174,
     proxy: {

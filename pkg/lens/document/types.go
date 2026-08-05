@@ -840,6 +840,9 @@ const (
 	// the distribution behind ten competing hues. Only the producer knows a
 	// dimension is ordered, so only the producer can ask for this.
 	ColorBySequence ColorBy = "sequence"
+	// ColorByRank shades numeric values by ordinal rank. It is producer-owned:
+	// rank colour preserves order but deliberately discards numeric distance.
+	ColorByRank ColorBy = "rank"
 )
 
 // BridgeLayout selects the visual projection of a cascade/bridge panel.
@@ -890,6 +893,10 @@ type Presentation struct {
 	SliceLabels SliceLabels         `json:"sliceLabels,omitempty"`
 	TotalBadge  TotalBadgePlacement `json:"totalBadge,omitempty"`
 	ColorBy     ColorBy             `json:"colorBy,omitempty"`
+	// ValueSpreadThreshold is the producer-selected max/min ratio used to
+	// decide when a requested logarithmic scale is material and when a linear
+	// scale needs readability assistance. Zero leaves the policy unset.
+	ValueSpreadThreshold float64 `json:"valueSpreadThreshold,omitempty"`
 	// Fill lets the plot occupy the whole card instead of the default inset.
 	Fill bool `json:"fill,omitempty"`
 	// BarWidthPx pins the rendered bar thickness in CSS pixels.
@@ -935,7 +942,7 @@ type Presentation struct {
 func (p Presentation) isZero() bool {
 	return len(p.LineSeries) == 0 && !p.DataLabels &&
 		p.Legend == "" && p.LegendValue == "" && p.SliceLabels == "" &&
-		p.TotalBadge == "" && p.ColorBy == "" && !p.Fill && p.BarWidthPx == 0 &&
+		p.TotalBadge == "" && p.ColorBy == "" && p.ValueSpreadThreshold == 0 && !p.Fill && p.BarWidthPx == 0 &&
 		p.BridgeLayout == "" && p.Sortable == nil && p.Expandable == nil &&
 		p.Exportable == nil && p.RowGroupField == "" && p.Focus == "" && !p.Stack
 }

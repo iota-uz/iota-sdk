@@ -63,6 +63,20 @@ describe('invalid Lens documents', () => {
     expect(DashboardDocumentSchema.safeParse(document).success).toBe(false)
   })
 
+  it('rejects configuration owned by a different panel kind', () => {
+    const document = validDocument()
+    const panels = document['panels'] as Array<Record<string, unknown>>
+    panels[0]!['table'] = { searchable: true }
+
+    const result = DashboardDocumentSchema.safeParse(document)
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.join('.') === 'panels.0.table')).toBe(
+        true,
+      )
+    }
+  })
+
   it('rejects the removed singular layout group key', () => {
     const document = validDocument()
     const layout = document['layout'] as { rows: Array<{ panels: Array<Record<string, unknown>> }> }

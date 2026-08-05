@@ -321,6 +321,7 @@ const logarithmicProductsPanel: Panel = {
   encoding: { category: 'product', value: 'policies' },
   format: { policies: { kind: 'number', minorUnits: false, precision: 0 } },
   valueAxis: { scale: 'logarithmic', logBase: 10 },
+  presentation: { valueSpreadThreshold: 100 },
   terminal: true,
   actions: [],
 }

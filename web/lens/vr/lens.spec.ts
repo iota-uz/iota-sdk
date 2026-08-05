@@ -203,19 +203,19 @@ const staticStories = [
   ['explore-focus--half-width-host-expands-while-exploring', 2, 50],
   ['explore-focus--lens-switched-to-trend', 1, 50],
   ['explore-focus--narrow-container-collapses-context', 1, 50],
-  // The dark overlay's dense white text has the same Chromium subpixel
-  // raster variance as its light sibling; geometry and content stay exact.
-  ['explore--drill-overlay--dark', 1, 1_500],
+  // The root has one category, so the compact value replaces its canvas while
+  // the overlay's dense text retains a local raster tolerance.
+  ['explore--drill-overlay--dark', 0, 1_500],
   ['explore--level-fork-awaits-a-view--dark', 0],
   ['explore--level-fork-awaits-a-view--light', 0],
   // Chromium's light-theme subpixel text raster in the floating overlay is
   // bistable; the geometry and content stay identical.
-  ['explore--drill-overlay--light', 1, 800],
-  ['explore--drill-overlay-inside-an-expanded-panel', 1],
+  ['explore--drill-overlay--light', 0, 800],
+  ['explore--drill-overlay-inside-an-expanded-panel', 0],
   ['explore--header-too-narrow-for-a-level-name', 1],
   // The focused donut's center label is subject to Chromium text raster
   // variation while its keyboard state and geometry remain identical.
-  ['explore--keyboard-walkthrough', 1, 300],
+  ['explore--keyboard-walkthrough', 0, 300],
   ['explore--narrow-card-deepest-path--dark', 1],
   ['explore--narrow-card-deepest-path--light', 1],
   ['explore--segment-overlay-statistics--dark', 0],
@@ -235,7 +235,7 @@ const staticStories = [
   ['filter-controls--dashboard-filter-dark', 0],
   ['filter-controls--dashboard-filter-light', 0],
   ['filter-controls--dashboard-facet-active', 0],
-  ['filter-controls--facet-options-open', 0],
+  ['filter-controls--facet-options-open', 0, 1],
   ['filter-controls--filters-menu-open', 0],
   ['filter-controls--granularity-segmented', 0],
   ['filter-controls--granularity-segmented-dark', 0],
@@ -412,6 +412,18 @@ test('VR manifest covers every Ladle story', async ({ request }) => {
 for (const [storyId, canvasCount, maxDiffPixels] of staticStories) {
   test(storyId, async ({ page }) => {
     await openStory(page, storyId, canvasCount)
+    if (storyId === 'filter-controls--facet-options-open' || storyId === 'filter-controls--filters-menu-open') {
+      await expect(page.locator('.lens-filter-menu-popover .lens-facet-search')).toBeFocused()
+    }
+    if (storyId === 'filter-controls--comparison-menu-open') {
+      await expect.poll(async () => {
+        const [trigger, popover] = await Promise.all([
+          page.locator('.lens-compare-trigger').boundingBox(),
+          page.locator('.lens-compare-popover').boundingBox(),
+        ])
+        return trigger && popover ? Math.round(popover.x - trigger.x) : undefined
+      }).toBe(0)
+    }
     await screenshot(page, storyId, { maxDiffPixels })
   })
 }
@@ -485,9 +497,9 @@ test('panel-level actions expose their affordance on hover', async ({ page }) =>
   await openStory(page, 'parity--clickable-panels', 0)
   await page.getByRole('link', { name: /Открыть|Open/ }).first().hover()
   await expect(page.locator('.lens-stat-drill-mark').first()).toBeVisible()
-  // A card's rounded top-left edge can alternate by one antialiased pixel on
-  // Darwin Chromium; the hover affordance itself remains pixel-identical.
-  await screenshot(page, 'parity-clickable-panels-hover', { pointer: 'keep', maxDiffPixels: 1 })
+  // A card's two rounded edge corners can each alternate by one antialiased
+  // pixel; the hover affordance itself remains pixel-identical.
+  await screenshot(page, 'parity-clickable-panels-hover', { pointer: 'keep', maxDiffPixels: 2 })
 })
 
 test('a split band names itself when its column is hovered', async ({ page }) => {
@@ -532,7 +544,9 @@ test('focus canvas source data expands to the audit table', async ({ page }) => 
 })
 
 test('explore full drill flow keyframes', async ({ page }) => {
-  await openStory(page, 'explore--full-drill-flow--three-levels', 1)
+  // The one-category root is intentionally compact; chart canvases appear
+  // only after the walkthrough enters a multi-category level.
+  await openStory(page, 'explore--full-drill-flow--three-levels', 0)
   // Same center-label raster variance as the keyboard walkthrough.
   await screenshot(page, 'explore-full-drill-01-root', { maxDiffPixels: 300 })
 

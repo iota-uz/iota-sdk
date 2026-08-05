@@ -143,6 +143,7 @@ function logarithmicInput(kind: 'bar' | 'hbar'): ChartInput {
     ['large', 'Large', 'Revenue', 1200],
   ]
   chartInput.valueAxis = { scale: 'logarithmic', logBase: 10 }
+  chartInput.presentation = { valueSpreadThreshold: 100 }
   return chartInput
 }
 
@@ -478,9 +479,8 @@ describe('buildChartOption', () => {
     expect(chart.xAxis.logBase).toBe(10)
     expect(chart.xAxis.max).toBe(1200)
     expect(chart.yAxis.type).toBe('category')
-    expect(chart.series[0]?.label).toMatchObject({ show: true, position: 'right' })
-    expect(chart.series[0]?.label?.formatter?.({ value: 1200 })).toBe('$1200')
-    expect(chart.series[0]?.labelLayout).toEqual({ hideOverlap: true })
+    expect(chart.series[0]?.label).toBeUndefined()
+    expect(chart.series[0]?.labelLayout).toBeUndefined()
   })
 
   it('keeps both ends of long horizontal category labels recoverable', () => {
@@ -511,23 +511,20 @@ describe('buildChartOption', () => {
       geoJSON: { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { code: 'north' }, geometry: { type: 'Polygon', coordinates: [] } }] },
     }
     const chart = buildChartOption(chartInput, theme) as Record<string, unknown>
-    // A single region has no rank to spread, so the ramp is hidden and the one
-    // swatch below carries the amount.
-    expect(chart.visualMap).toMatchObject({ show: false, min: 0, max: 1 })
+    expect(chart.visualMap).toMatchObject({ show: false, min: 42, max: 42 })
     expect(chart.graphic).toBeDefined()
   })
 
-  it('puts logarithmic vertical-bar values above their columns', () => {
+  it('keeps logarithmic vertical-bar labels opt-in', () => {
     const chart = testOption(buildChartOption(logarithmicInput('bar'), theme))
 
-    expect(chart.series[0]?.label).toMatchObject({ show: true, position: 'top' })
-    expect(chart.series[0]?.label?.formatter?.({ value: 1200 })).toBe('$1200')
+    expect(chart.series[0]?.label).toBeUndefined()
   })
 
-  it('prints values on a bar chart small enough to hold them', () => {
+  it('does not infer data labels from a small mark count', () => {
     const chart = testOption(buildChartOption(input('bar'), theme))
 
-    expect(chart.series.every((series) => series.label?.show === true)).toBe(true)
+    expect(chart.series.every((series) => series.label?.show !== true)).toBe(true)
   })
 
   it('drops the labels once there are more marks than a plot can label reliably', () => {
@@ -543,7 +540,7 @@ describe('buildChartOption', () => {
     expect(chart.series.every((series) => series.label === undefined)).toBe(true)
   })
 
-  it('prints values when a linear axis cannot show the small readings', () => {
+  it('does not infer data labels from an obscured linear reading', () => {
     const chartInput = input('bar')
     chartInput.frame = {
       columns: chartInput.frame.columns,
@@ -552,7 +549,7 @@ describe('buildChartOption', () => {
 
     const chart = testOption(buildChartOption(chartInput, theme))
 
-    expect(chart.series[0]?.label?.show).toBe(true)
+    expect(chart.series[0]?.label).toBeUndefined()
   })
 
   it('caps bar width and keeps a gap between categories', () => {
@@ -636,6 +633,7 @@ describe('buildChartOption', () => {
   it('falls back from log to linear for fewer than three categories or less than 100x spread', () => {
     const few = input('hbar')
     few.valueAxis = { scale: 'logarithmic', logBase: 10 }
+    few.presentation = { valueSpreadThreshold: 100 }
     expect(testOption(buildChartOption(few, theme)).xAxis.type).toBe('value')
 
     const narrow = logarithmicInput('hbar')
