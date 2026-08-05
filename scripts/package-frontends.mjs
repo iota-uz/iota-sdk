@@ -12,7 +12,12 @@ if (expectedCommit && expectedCommit !== checkoutCommit) {
   throw new Error(`SDK_SOURCE_SHA ${expectedCommit} does not match checked-out commit ${checkoutCommit}`)
 }
 const commit = expectedCommit || checkoutCommit
-const version = `0.0.0-sha-${commit.slice(0, 12)}`
+const releaseVersion = process.env.FRONTEND_PACKAGE_VERSION?.trim()
+const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/
+if (releaseVersion && !semverPattern.test(releaseVersion)) {
+  throw new Error(`FRONTEND_PACKAGE_VERSION must be a valid semver version, got ${releaseVersion}`)
+}
+const version = releaseVersion || `0.0.0-sha-${commit.slice(0, 12)}`
 const packages = [
   { dir: 'web/client-host', build: 'build', output: 'dist' },
   { dir: 'web/lens', build: 'build:package', output: 'package-dist' },
@@ -36,6 +41,7 @@ try {
     const staging = path.join(stagingRoot, packageJSON.name.replaceAll('/', '-'))
     mkdirSync(staging, { recursive: true })
     cpSync(path.join(source, spec.output), path.join(staging, spec.output), { recursive: true })
+    cpSync(path.join(root, 'LICENSE'), path.join(staging, 'LICENSE'))
     writeFileSync(path.join(staging, 'package.json'), `${JSON.stringify(packageJSON, null, 2)}\n`)
     const packed = JSON.parse(execFileSync('npm', ['pack', staging, '--pack-destination', output, '--json'], { encoding: 'utf8' }))[0]
     const tarball = path.join(output, packed.filename)
