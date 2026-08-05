@@ -119,6 +119,7 @@ const storyIds = [
   'parity--chart-readability-states',
   'parity--compact-table-cells',
   'parity--coverage-composite',
+  'parity--coverage-split',
   'parity--dashboard-loading-skeleton-dark',
   'parity--dashboard-loading-skeleton-light',
   'parity--drill-pill-affordances',
@@ -463,6 +464,7 @@ const keyframeCovered = [
   'explore--perspective-switching-on-a-segment',
   'metric-composition--full',
   'parity--clickable-panels',
+  'parity--coverage-split',
   'parity--pie-with-legend-right--light',
 ] as const
 
@@ -482,7 +484,10 @@ test('a hovered coverage segment grows out of its quieted siblings', async ({ pa
   // hover means. This measures the growth rather than photographing it: the
   // heights are the contract, and a baseline of them would need re-blessing
   // every time the story's palette moved.
-  await openStory(page, 'parity--coverage-composite', 0)
+  // CoverageComposite next door has one positive segment and a zero remainder,
+  // so Lens draws no track for it — a partition bar needs two parts before
+  // there is anything to hover. CoverageSplit is the two-part variant.
+  await openStory(page, 'parity--coverage-split', 0)
   const track = page.locator('.lens-coverage-track').first()
   const segment = track.locator('.lens-coverage-track-segment').first()
   const sibling = track.locator('.lens-coverage-track-segment').nth(1)
