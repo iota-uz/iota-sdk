@@ -13,7 +13,8 @@ if (expectedCommit && expectedCommit !== checkoutCommit) {
 }
 const commit = expectedCommit || checkoutCommit
 const releaseVersion = process.env.FRONTEND_PACKAGE_VERSION?.trim()
-if (releaseVersion && !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(releaseVersion)) {
+const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/
+if (releaseVersion && !semverPattern.test(releaseVersion)) {
   throw new Error(`FRONTEND_PACKAGE_VERSION must be a valid semver version, got ${releaseVersion}`)
 }
 const version = releaseVersion || `0.0.0-sha-${commit.slice(0, 12)}`
