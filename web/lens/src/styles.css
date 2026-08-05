@@ -2323,11 +2323,24 @@
 
   /* The loading figure is the figure's own shape, not the «—» this product
      prints for a value that is genuinely absent: a slow strip and an empty one
-     must not look the same. */
+     must not look the same.
+
+     It carries its own width rather than borrowing the slot's. The slot holds
+     no text while the figure is loading, and a flex item sized by its content
+     is zero pixels wide — `width: 60%` resolved against that zero, so the
+     placeholder painted nothing and a loading strip read as a row of names over
+     an empty gap, which is exactly the "no data" it was added to distinguish
+     itself from. A width of its own also keeps the slot's flex base at the
+     placeholder's size, so the drill mark and the sparkline beside it sit where
+     a figure would put them instead of against the name.
+
+     `max-width` is what the percentage was really buying — a cell narrower than
+     the placeholder shrinks it rather than overflowing — and it is stated
+     against the slot, which by then has a width to state it against. */
   .lens-stat-metric-value-shimmer {
     height: var(--lens-type-2xl);
-    width: 60%;
-    max-width: 8rem;
+    width: 5.5rem;
+    max-width: 100%;
     border-radius: var(--lens-radius-badge);
   }
 
