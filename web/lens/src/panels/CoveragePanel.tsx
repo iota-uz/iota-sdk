@@ -63,12 +63,11 @@ export function buildCoverageSegments(
  * measure-vs-goal reading (e.g. reserves against liquid assets) the plain
  * 100%-wide track cannot express.
  */
-function CoverageBullet({ activeSegment, formatValue, onSegmentEnter, onSegmentLeave, segments, total, target, tooltip }: {
+function CoverageBullet({ activeSegment, formatValue, onSegmentEnter, onSegmentLeave, segments, total, target }: {
   activeSegment?: string
   segments: CoverageSegment[]
   total: number
   target: NonNullable<Panel['target']>
-  tooltip: (segment: CoverageSegment) => string
   formatValue: (value: unknown) => string
   onSegmentEnter: (key: string) => void
   onSegmentLeave: (key: string) => void
@@ -90,7 +89,6 @@ function CoverageBullet({ activeSegment, formatValue, onSegmentEnter, onSegmentL
             onPointerEnter={() => onSegmentEnter(segment.key)}
             onPointerLeave={() => onSegmentLeave(segment.key)}
             style={{ width: percent(segment.value), background: segment.color }}
-            title={tooltip(segment)}
           />
         ))}
       </div>
@@ -147,7 +145,6 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
   const segmentHref = (index: number) => (
     navigation.rowScoped ? navigation.urlForRow(frame.data, frame.data?.rows[index]) : undefined
   )
-  const tooltip = (segment: CoverageSegment) => `${segment.label}: ${formatValue(segment.value)}`
   const [activeSegment, setActiveSegment] = useState<string>()
   const highlightSegment = (key: string) => setActiveSegment(key)
   const clearSegment = (key: string) => setActiveSegment((current) => current === key ? undefined : current)
@@ -160,6 +157,14 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
             <span className="lens-coverage-headline-value">{formatValue(headline)}</span>
             <span className="lens-coverage-headline-label">{translate('panel.total', 'Total')}</span>
           </p>
+          {/* The segments answer a pointer by highlighting their legend row, and
+              the row states the label, the amount and the share in the sheet's
+              own type. They used to carry a native `title` saying two of those
+              three as well: a second answer, a second later, in the operating
+              system's styling — and on a track the panel marks `aria-hidden`,
+              so a screen reader never had it at all. A native tooltip is kept
+              in this runtime for text the layout clips, not as a data channel
+              beside one that is already on screen. */}
           {showTrack && !panel.target && (
             <div className="lens-coverage-track" aria-hidden={navigation.rowScoped || undefined} aria-label={navigation.rowScoped ? undefined : panel.title} role={navigation.rowScoped ? undefined : 'img'}>
               {segments.map((segment) => segment.value > 0 && (
@@ -170,7 +175,6 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
                   onPointerEnter={() => highlightSegment(segment.key)}
                   onPointerLeave={() => clearSegment(segment.key)}
                   style={{ width: `${segment.share * 100}%`, background: segment.color }}
-                  title={tooltip(segment)}
                 />
               ))}
             </div>
@@ -183,7 +187,6 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
               onSegmentLeave={clearSegment}
               segments={segments}
               target={panel.target}
-              tooltip={tooltip}
               total={total}
             />
           )}
@@ -193,7 +196,11 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
               const content = (
                 <>
                   <span aria-hidden="true" className="lens-coverage-legend-bullet" style={{ background: segment.color }} />
-                  <span className="lens-coverage-legend-label">{segment.label}</span>
+                  {/* The one native tooltip this panel keeps, and it says nothing
+                      the row does not already print: the label is truncated to
+                      keep the value and share columns aligned, so this is the
+                      full name for the readers that clip costs it. */}
+                  <span className="lens-coverage-legend-label" title={segment.label}>{segment.label}</span>
                   <span className="lens-coverage-legend-value">{formatValue(segment.value)}</span>
                   <span className="lens-coverage-legend-share">{formatPercent(segment.share * 100)}</span>
                 </>
@@ -209,7 +216,7 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
                   onPointerLeave={() => clearSegment(segment.key)}
                 >
                   {href
-                    ? <a className="lens-coverage-legend-link" href={href} onClick={navigation.onClick(href)} title={tooltip(segment)}>{content}</a>
+                    ? <a className="lens-coverage-legend-link" href={href} onClick={navigation.onClick(href)}>{content}</a>
                     : content}
                 </li>
               )

@@ -519,7 +519,7 @@ describe('chart tooltips', () => {
       card: '#fff', text: '#111', mutedText: '#666', border: '#eee', divider: '#eee',
       faintText: '#94a3b8', warn: '#d97706', warnSoft: '#fffbeb', accent: '#2563eb', trend: '#7c3aed',
       selectedBorder: '#000', fontFamily: 'Inter',
-      popoverShadow: '0 1px 2px rgba(0,0,0,0.1)', cardRadius: 8, type: { xs: 10, sm: 11, base: 12, md: 14 },
+      popoverShadow: '0 1px 2px rgba(0,0,0,0.1)', quietOpacity: 0.38, cardRadius: 8, type: { xs: 10, sm: 11, base: 12, md: 14 },
       colors: [], seriesColor: () => undefined,
     })
 

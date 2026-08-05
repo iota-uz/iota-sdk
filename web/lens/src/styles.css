@@ -142,6 +142,27 @@
     --lens-dur-fast: 120ms;
     --lens-dur-base: 200ms;
     --lens-dur-slow: 320ms;
+    /* How far a mark steps back while its neighbour is being pointed at, and —
+       more importantly — the one place that answers whether it steps back at
+       all. Two panels can show the same numbers and owe the pointer different
+       things:
+
+       A COMPOSITION (coverage, pie, donut, radial partition) is read against
+       its whole. The question a pointer asks is "how much of it is this", and
+       the answer is legible only when the rest recedes — so its siblings quiet
+       down by this much, and the pointed mark is reinforced on top of that.
+
+       A SEQUENCE (waterfall, bars, lines, distributions) is read by comparing
+       neighbours. Quieting them would dim the very marks the pointed one is
+       being measured against, so nothing recedes and the mark under the pointer
+       states itself instead — the plate and halo a waterfall column takes.
+
+       The number lives here because canvas cannot read the sheet: ECharts is
+       handed this token through buildEChartsTheme, so a donut's blur and the
+       coverage track's are provably one value. Opacity alone is the shared
+       lever for that reason — a CSS filter has no equivalent on canvas, and a
+       vocabulary that only half the board can pronounce is two vocabularies. */
+    --lens-quiet-opacity: .38;
     /* The scrim, and what may be drawn on it. A modal's backdrop is not a
        surface from the palette — it is the absence of one — so the ink and fill
        of a control that rides it (an expanded panel's Close) cannot come from
@@ -3409,13 +3430,18 @@
     filter: brightness(1.12);
   }
 
-  /* Hover is a preview of the drill target: quiet the siblings, reinforce the
-     selected colour, and carry the same state into its labelled row. This is
-     intentionally stronger than a small brightness shift, which disappeared
-     on already-saturated series colours. */
+  /* A composition, so the siblings recede — see `--lens-quiet-opacity`, which
+     is where that choice is made and where the donut on the next card reads the
+     same number from. Hover is also a preview of the drill target, so the state
+     carries into the labelled row below.
+
+     The quieting used to add `saturate(0.55)` on top. It was there because a
+     small brightness shift alone disappeared on already-saturated series
+     colours — but the opacity was doing that work by then, and canvas has no
+     filter to match it with, so the extra step could only ever have been a
+     coverage-specific dialect. */
   .lens-coverage[data-segment-active='true'] .lens-coverage-track-segment:not([data-highlighted='true']) {
-    filter: saturate(0.55);
-    opacity: 0.38;
+    opacity: var(--lens-quiet-opacity);
   }
 
   .lens-coverage-track-segment[data-highlighted='true'] {
@@ -3682,14 +3708,11 @@
        longer reading as columns on an axis at all. Width encodes nothing here;
        height does. */
     --lens-waterfall-bar-width: min(50%, 96px);
+    /* The working height of the bars — see the chart's rows, where it becomes a
+       floor the plot may grow past. Named so the printed bridge can drop it to
+       nothing without restating the row template. */
+    --lens-waterfall-plot-h: 288px;
     scrollbar-width: thin;
-  }
-
-  .lens-waterfall-plot,
-  .lens-waterfall-labels {
-    display: grid;
-    grid-template-columns: repeat(var(--lens-waterfall-count), minmax(0, 1fr));
-    gap: 12px;
   }
 
   /* The plot claims the card's spare height instead of a fixed box: a waterfall
@@ -3697,17 +3720,31 @@
      dead space below them. min-height is the real working height — dashboard
      panels shrink-wrap (align-items: start), so flex alone would collapse back
      to the content. flex still earns its keep where a sibling stretches the
-     card: a tab group, or the wide result drawer. */
+     card: a tab group, or the wide result drawer.
+
+     Two rows, because the names under the bars belong to the columns above
+     them: the chart states the bands once, and the plot and every column pass
+     them down through `subgrid`. Declared per column instead, a two-line name
+     would eat into that column's bar band alone and quietly break the one
+     comparison the panel exists to make. The names used to live in a separate
+     grid below, kept in line with this one by a matching column count and a
+     matching left margin — two rulers for one row of steps, and a step that
+     was activatable over its bar and inert over its own name. */
   .lens-waterfall-chart {
     @apply lens-grid lens-min-h-0 lens-flex-1;
     grid-template-columns: 96px minmax(0, 1fr);
+    grid-template-rows: minmax(var(--lens-waterfall-plot-h), 1fr) auto;
+    row-gap: 0.5rem;
     min-width: calc(6rem + var(--lens-waterfall-count) * var(--lens-waterfall-column-width));
     padding-top: 2rem;
   }
 
+  /* The ticks are positioned against the plot band, so the axis takes that row
+     alone — stretched over the label band too, every percentage would land low
+     by the height of a name. */
   .lens-waterfall-axis {
     @apply lens-relative lens-h-full;
-    min-height: 288px;
+    grid-row: 1;
   }
 
   .lens-waterfall-axis span {
@@ -3724,8 +3761,25 @@
   }
 
   .lens-waterfall-plot {
-    @apply lens-relative lens-h-full;
-    min-height: 288px;
+    @apply lens-relative;
+    display: grid;
+    grid-column: 2;
+    grid-row: 1 / -1;
+    grid-template-columns: repeat(var(--lens-waterfall-count), minmax(0, 1fr));
+    grid-template-rows: subgrid;
+    column-gap: 12px;
+  }
+
+  /* Rules and the zero line: the plot row, the plot's column, drawn under the
+     steps that share those tracks. Two explicitly placed items may overlap;
+     what may not happen is an auto-placed one meeting an occupied cell, which
+     is why this is not a child of the plot — there it pushed every column into
+     implicit tracks of its own and packed the bridge into the right half of the
+     card. */
+  .lens-waterfall-rules {
+    @apply lens-relative lens-z-0;
+    grid-row: 1;
+    grid-column: 2;
   }
 
   .lens-waterfall-gridline {
@@ -3737,14 +3791,28 @@
     top: var(--lens-waterfall-zero);
   }
 
+  /* The whole step: its bar band and its name, taking both of the chart's rows
+     through the plot's subgrid. */
   .lens-waterfall-column {
     @apply lens-relative lens-min-w-0;
+    display: grid;
+    grid-row: 1 / -1;
+    grid-template-rows: subgrid;
+  }
+
+  /* The band the bar, its underlay and its connector are positioned in — every
+     one of them by a percentage, which is why this box exists rather than the
+     column's whole height being the basis. */
+  .lens-waterfall-column-plot {
+    @apply lens-relative lens-min-w-0;
+    grid-row: 1;
   }
 
   /* A step worth 1,07 of a 201 opening is four pixels of bar. The column is the
-     target instead, and it has to look like one: at rest the plot said nothing
-     about which of its ten steps could be opened, and a pointer that only
-     changed shape over four pixels was a promise the reader had to hunt for. */
+     target instead — all of it, the name included — and it has to look like
+     one: at rest the plot said nothing about which of its ten steps could be
+     opened, and a pointer that only changed shape over four pixels was a
+     promise the reader had to hunt for. */
   .lens-waterfall-column[role='button']::before {
     @apply lens-pointer-events-none lens-absolute lens-inset-0 lens-z-0 lens-rounded-control lens-opacity-0;
     /* A plate, and it has to survive being drawn over the column's own underlay
@@ -4064,18 +4132,12 @@
     color: var(--lens-warn);
   }
 
-  .lens-waterfall-labels {
-    @apply lens-mt-2;
-    margin-left: 96px;
-    min-width: calc(var(--lens-waterfall-count) * var(--lens-waterfall-column-width));
-  }
-
+  /* In the label row of its own column, so it needs neither the left margin nor
+     the column count the parallel grid below the plot used to carry to stay in
+     line with the bar it names. */
   .lens-waterfall-label {
-    @apply lens-min-w-0 lens-text-center lens-text-base lens-font-medium lens-leading-4 lens-text-muted;
-  }
-
-  .lens-waterfall-label {
-    @apply lens-flex lens-flex-col lens-items-center lens-gap-1;
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-items-center lens-gap-1 lens-text-center lens-text-base lens-font-medium lens-leading-4 lens-text-muted;
+    grid-row: 2;
   }
 
   /* `overflow-wrap: anywhere` broke every label at whatever character reached
@@ -6923,6 +6985,10 @@
 
 .lens-print-chart-waterfall .lens-waterfall {
   --lens-waterfall-column-width: 4.5rem;
+  /* The page states the height, so the bars take what is left of it rather than
+     a screen's working floor — 288px inside a 380px figure would leave the
+     names hanging off the bottom of the block. */
+  --lens-waterfall-plot-h: 0px;
   padding: 0;
   height: 100%;
 }
@@ -6939,8 +7005,8 @@
   min-height: 0;
 }
 
-.lens-print-chart-waterfall .lens-waterfall-labels {
-  padding-top: 4px;
+.lens-print-chart-waterfall .lens-waterfall-chart {
+  row-gap: 4px;
 }
 
 .lens-print-chart-waterfall .lens-waterfall-axis span,

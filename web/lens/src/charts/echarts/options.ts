@@ -305,6 +305,37 @@ function baseOption(theme: EChartsTheme): EChartsOption {
   }
 }
 
+/**
+ * The pointer contract for a chart that is read against its whole.
+ *
+ * A slice means nothing on its own: the question is what share of the ring it
+ * is, and the ring answers loudest when everything else recedes. So the pointed
+ * mark keeps ECharts' own emphasis and its siblings quiet down — by the same
+ * number `.lens-coverage-track-segment` uses, which is the point of routing it
+ * through the theme rather than writing a literal here.
+ *
+ * A sequence — bars, lines, a waterfall, a distribution — gets none of this on
+ * purpose. Its marks are read by comparing neighbours, and fading them dims the
+ * very things the pointed one is being measured against.
+ */
+function compositionFocus(theme: EChartsTheme) {
+  return {
+    // Scoped to the series, not the plot: a concentric partition draws one ring
+    // per series, and each ring reconciles against a whole of its own. Quieting
+    // across the whole coordinate system — the ECharts default — would fade the
+    // outer ring while the reader is asking a question about the inner one.
+    emphasis: { focus: 'self' as const, blurScope: 'series' as const },
+    // The label rides with its mark. Left at full strength it separates from
+    // the slice it names, and a ring of crisp labels over faded slices reads as
+    // a rendering fault rather than a state.
+    blur: {
+      itemStyle: { opacity: theme.quietOpacity },
+      label: { opacity: theme.quietOpacity },
+      labelLine: { lineStyle: { opacity: theme.quietOpacity } },
+    },
+  }
+}
+
 /** `#rgb`/`#rrggbb` as three channels, or nothing when it is neither. */
 function channels(color: string | undefined): [number, number, number] | undefined {
   const hex = (color ?? '').trim().replace(/^#/, '')
@@ -745,6 +776,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       minAngle: minimumSliceAngle,
       label,
       labelLine: insideLabels ? { show: false } : { lineStyle: { color: theme.border } },
+      ...compositionFocus(theme),
       data: points.map((point, index) => {
         const item = dataItem(point, input, theme)
         const fill = pointColor(point, index, theme, input.rowColor)
@@ -846,6 +878,7 @@ function radialPartitionOption(input: ChartInput, theme: EChartsTheme, points: R
         }
         : { show: false },
       labelLine: { show: false },
+      ...compositionFocus(theme),
       data: ringPoints.map((point, index) => {
         const mark = { ...point, nodeKey: radialNodeKey(ring.key, point.nodeKey ?? point.category) }
         const item = dataItem(mark, input, theme, point.nodeKey ?? point.category)

@@ -22,7 +22,7 @@ const theme: EChartsTheme = {
   selectedBorder: '#0f172a',
   fontFamily: 'Inter',
   colors: ['#2563eb', '#059669'],
-  popoverShadow: '0 1px 2px rgba(0,0,0,0.1)', cardRadius: 8, type: { xs: 10, sm: 11, base: 12, md: 14 },
+  popoverShadow: '0 1px 2px rgba(0,0,0,0.1)', quietOpacity: 0.38, cardRadius: 8, type: { xs: 10, sm: 11, base: 12, md: 14 },
   seriesColor: (name) => name === 'Revenue' ? '#059669' : undefined,
 }
 
@@ -82,6 +82,8 @@ interface TestSeries {
   endLabel?: { formatter?: string }
   areaStyle?: unknown
   radius?: string[]
+  emphasis?: { focus?: string; blurScope?: string; disabled?: boolean }
+  blur?: { itemStyle?: { opacity?: number }; label?: { opacity?: number }; labelLine?: { lineStyle?: { opacity?: number } } }
   itemStyle?: { color?: string }
   data?: Array<TestDataItem | null>
   markLine?: {
@@ -1098,5 +1100,54 @@ describe('buildChartOption', () => {
     const colors = (chart.series[0]?.data ?? []).map((item) => item?.itemStyle?.color)
 
     expect(colors).toEqual(['#111111', '#222222', '#333333', '#444444'])
+  })
+})
+
+/**
+ * The board answers a pointer in one of two ways, and which one is not a matter
+ * of taste per chart: a figure read against its whole quiets everything else so
+ * the share can be seen, and a figure read by comparing neighbours leaves them
+ * alone, because they are what the pointed mark is being compared to. The same
+ * split is stated in the stylesheet for the panels drawn in DOM.
+ */
+describe('quieting the siblings', () => {
+  it.each(['pie', 'donut'] as const)('%s is read against its whole, so it quiets them', (kind) => {
+    const chart = testOption(buildChartOption(input(kind), theme))
+    const series = chart.series[0]
+
+    expect(series?.emphasis?.focus).toBe('self')
+    // The number is the stylesheet's, carried through the theme — a literal
+    // here is how the canvas and the DOM come to disagree by a hundredth.
+    expect(series?.blur?.itemStyle?.opacity).toBe(theme.quietOpacity)
+    expect(series?.blur?.label?.opacity).toBe(theme.quietOpacity)
+    // The leader line rides with the label it points from: a crisp line to a
+    // faded name is the state coming apart mid-figure.
+    expect(series?.blur?.labelLine?.lineStyle?.opacity).toBe(theme.quietOpacity)
+  })
+
+  it('keeps a concentric partition to its own ring', () => {
+    const chartInput = input('radial')
+    chartInput.radial = {
+      mode: 'partition',
+      rings: [
+        { key: 'plan', label: 'Plan', order: 2, total: 100 },
+        { key: 'actual', label: 'Actual', order: 1, total: 100 },
+      ],
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    // Each ring reconciles against a whole of its own, so pointing at a slice
+    // of one must not fade the other — which is what the ECharts default
+    // (`coordinateSystem`) would do.
+    expect(chart.series.map((series) => series.emphasis?.blurScope)).toEqual(['series', 'series'])
+    expect(chart.series.every((series) => series.blur?.itemStyle?.opacity === theme.quietOpacity)).toBe(true)
+  })
+
+  it.each(['bar', 'line', 'area'] as const)('%s is a sequence, so its neighbours stay as drawn', (kind) => {
+    const chart = testOption(buildChartOption(input(kind), theme))
+
+    expect(chart.series.some((series) => series.blur !== undefined)).toBe(false)
+    expect(chart.series.some((series) => series.emphasis?.focus === 'self')).toBe(false)
   })
 })
