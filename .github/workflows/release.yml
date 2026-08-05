@@ -17,6 +17,34 @@ jobs:
   release:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: iota_erp
+          POSTGRES_INITDB_ARGS: >-
+            -c max_connections=1000
+            -c fsync=off
+            -c synchronous_commit=off
+            -c full_page_writes=off
+            -c autovacuum=off
+            -c jit=off
+        options: >-
+          --tmpfs /var/lib/postgresql/data:rw,size=4g,noatime
+          --health-cmd="pg_isready -U postgres -d iota_erp"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --tmpfs /data:rw,size=1g
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -51,6 +79,13 @@ jobs:
           test "$(git rev-list -n 1 "$GITHUB_REF_NAME")" = "$GITHUB_SHA"
       - run: pnpm install --frozen-lockfile
       - name: Verify Go release graph
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: iota_erp
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          REDIS_URL: redis://localhost:6379
         run: |
           just test -v
           go vet ./...
