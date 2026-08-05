@@ -508,10 +508,16 @@ test('a hovered coverage segment grows out of its quieted siblings', async ({ pa
     .toBeGreaterThan(restingTrack)
   await expect.poll(async () => (await segment.boundingBox())?.height ?? 0)
     .toBeGreaterThan(restingTrack)
-  // The siblings shrink, so the hovered one reads as having grown relative to
-  // them rather than the whole bar merely getting fatter.
+  // The siblings give the growth back, so what the reader sees is one segment
+  // rising out of the bar rather than the whole bar getting fatter. They are
+  // quieted by exactly the ratio that holds them at their resting thickness —
+  // asserting they end up *thinner* than at rest would be asserting a design
+  // this deliberately does not have, so the contract is: no thicker than at
+  // rest, and thinner than the segment under the pointer.
   await expect.poll(async () => (await sibling.boundingBox())?.height ?? 0)
     .toBeLessThanOrEqual(restingSibling)
+  const hovered = (await segment.boundingBox())?.height ?? 0
+  expect((await sibling.boundingBox())?.height ?? 0).toBeLessThan(hovered)
 })
 
 test('calendar range preview follows the hovered day', async ({ page }) => {

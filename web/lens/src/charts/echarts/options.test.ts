@@ -760,6 +760,8 @@ describe('buildChartOption', () => {
     ]) ?? ''
 
     expect(tooltip).toContain('Баланс счетов класса 5 — прокси')
+    // Dropping the name must not drop the figure with it.
+    expect(tooltip).toContain('$198467392963')
     expect(tooltip).not.toContain('series0')
   })
 
