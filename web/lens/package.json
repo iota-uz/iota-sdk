@@ -16,7 +16,7 @@
   "scripts": {
     "dev": "node ./scripts/dev.mjs",
     "build": "tsc --noEmit && vite build",
-    "build:package": "vite build --config vite.package.config.ts && tsc -p tsconfig.package.json",
+    "build:package": "pnpm --dir ../client-host build && vite build --config vite.package.config.ts && tsc -p tsconfig.package.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && pnpm lint:styles",
     "lint:styles": "stylelint src/styles.css",
