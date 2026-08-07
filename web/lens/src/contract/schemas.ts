@@ -194,6 +194,8 @@ export const FacetSelectionSchema: z.ZodType<Contract.FacetSelection> = z.object
   removeUrl: z.string(),
 }).strict()
 
+export const FailureReasonSchema: z.ZodType<Contract.FailureReason> = z.enum(["canceled", "timeout", "unknown"])
+
 export const FieldFormatSchema: z.ZodType<Contract.FieldFormat> = z.lazy(() => z.object({
   kind: z.lazy(() => FormatKindSchema),
   currency: z.string().optional(),
@@ -577,6 +579,7 @@ export const QueryErrorCodeSchema: z.ZodType<Contract.QueryErrorCode> = z.enum([
 export const QueryErrorResponseSchema: z.ZodType<Contract.QueryErrorResponse> = z.object({
   error: z.lazy(() => QueryErrorCodeSchema),
   message: z.string(),
+  reason: z.lazy(() => FailureReasonSchema).optional(),
 }).strict()
 
 export const QueryPageSchema: z.ZodType<Contract.QueryPage> = z.object({

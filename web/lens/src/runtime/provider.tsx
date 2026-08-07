@@ -50,7 +50,7 @@ import type { DocumentCache } from './prefetch'
 import type { PrintReport } from './print'
 import { QueryClient } from './query'
 import { PanelClient } from './panel'
-import { SnapshotGoneError } from './query'
+import { QueryError, SnapshotGoneError } from './query'
 import { queryWithSnapshotRecovery } from './recovery'
 import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL, siteRelativeURL } from './url'
 import { X } from '../icons'
@@ -1088,9 +1088,15 @@ function RuntimeCore({
       const { panel, attempt, key, previous, retry } = item
       if (launchedPanelAttempts.current.get(key) !== attempt) return
       if (response.error || !response.frames) {
+        // A classified failure travels as a QueryError so the panel can say
+        // what happened. A plain Error here would flatten every cause back into
+        // the one generic sentence, which is what the frame used to show.
+        const failure = response.error
+          ? new QueryError(response.error.error, response.error.message, 200, response.error.reason)
+          : new Error(`panel ${panel.id} response has no frames`)
         frames.set(panel.id, {
           data: previous, isStale: Boolean(previous), isLoading: false,
-          error: new Error(response.error?.message ?? `panel ${panel.id} response has no frames`),
+          error: failure,
           retry, calculation: frames.get(panel.id)?.calculation,
         })
         return

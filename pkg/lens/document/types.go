@@ -1442,4 +1442,10 @@ const (
 type QueryErrorResponse struct {
 	Error   QueryErrorCode `json:"error"`
 	Message string         `json:"message"`
+	// Reason is the closed, machine-readable classification of what went wrong,
+	// which the runtime turns into a sentence a reader can act on. Message stays
+	// a developer-facing string and is never shown. Optional: a producer that
+	// does not classify, and every non-execution failure, leaves it unset, and
+	// the runtime falls back to its generic copy.
+	Reason FailureReason `json:"reason,omitempty"`
 }

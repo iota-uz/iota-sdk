@@ -37,9 +37,12 @@
     --lens-focus-ring-offset: 2px;
     /* The date range band. A selected range can cover two whole month panes,
        so its wash has to stay a wash: light enough that the solid endpoints,
-       not the band, read as the selection. The preview is half of it. */
-    --lens-range-wash: rgb(37 99 235 / 0.1);
-    --lens-range-wash-soft: rgb(37 99 235 / 0.05);
+       not the band, read as the selection. The preview is half of it.
+       Raised from 0.10/0.05: at the picker's larger cell the old value was a
+       tint a reader had to look for, and the one thing the grid must state at a
+       glance is which days are in. */
+    --lens-range-wash: rgb(37 99 235 / 0.15);
+    --lens-range-wash-soft: rgb(37 99 235 / 0.08);
     --lens-pos: #059669;
     --lens-neg: #dc2626;
     /* A second shade of the negative colour for telling one part of a cost apart
@@ -208,8 +211,8 @@
     /* The dark accents are pale blues, so the ink on top of them is the page's
        darkest, not its lightest. */
     --lens-text-on-accent: #0f172a;
-    --lens-range-wash: rgb(96 165 250 / 0.2);
-    --lens-range-wash-soft: rgb(96 165 250 / 0.1);
+    --lens-range-wash: rgb(96 165 250 / 0.28);
+    --lens-range-wash-soft: rgb(96 165 250 / 0.14);
     --lens-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
     --lens-shadow-popover: 0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5);
     --lens-pos-soft: rgba(5, 150, 105, 0.16);
@@ -935,42 +938,77 @@
 
   /* The picker popover: a two-pane card. The left rail lists the relative
      presets under a "quick select" heading, the main pane owns the dual-month
-     calendar, typed range entry, and the footer actions. When the 640px card
-     no longer fits with its viewport gutters, the
-     panes stack, the calendar drops to one month, and the preset list becomes
-     a horizontally scrollable row. */
+     calendar, typed range entry, and the footer actions. When the 860px card no
+     longer fits with its viewport gutters the panes stack, the calendar drops to
+     one month, and the preset list becomes a horizontally scrollable row.
+
+     It was 640px wide. Two month grids, a rail and a typed range inside that
+     left ~32px per day cell and 2px between week rows — a picker a reader had
+     to aim at rather than read. The card is sized off the day cell now (40px,
+     square at this width) and every region around the grid was given room on
+     the same scale. */
   .lens-filter-popover {
     @apply lens-fixed lens-flex lens-flex-row lens-items-stretch lens-overflow-hidden lens-border lens-border-solid lens-border-border lens-bg-card lens-p-0 lens-outline-none;
-    width: 640px;
+    width: 860px;
     border-radius: var(--lens-radius-card);
     box-shadow: var(--lens-shadow-popover);
   }
 
   /* The rail is a recessed column that fills the card's height whatever it
-     holds, so a short preset list cannot leave it dangling half-drawn. */
+     holds, so a short preset list cannot leave it dangling half-drawn. Its
+     inset fill is what separates the list of periods from the grid that draws
+     one, so it carries a hard border on the seam rather than a divider.
+
+     The list is top-aligned and the fill runs past it to the card's floor: the
+     surface is the region, not the rows. The one thing that must not appear
+     below the last row is a rule — a horizontal line with empty fill under it
+     is the mark of a list that was cut off, which is why the entry that closes
+     the rail carries none. */
   .lens-filter-popover-side {
-    @apply lens-flex lens-flex-col lens-gap-px lens-overflow-y-auto lens-border-0 lens-border-r lens-border-solid lens-bg-inset;
-    flex: 0 0 148px;
-    padding: 8px 6px;
+    @apply lens-flex lens-flex-col lens-overflow-y-auto lens-border-0 lens-border-r lens-border-solid lens-bg-inset;
+    flex: 0 0 232px;
+    gap: var(--lens-space-0-5);
+    padding: var(--lens-space-3) var(--lens-space-2);
     border-color: var(--lens-border);
   }
 
+  /* A group caption, and the rule that opens the group. The rail holds three
+     lists — the producer's own periods, the running ones, the completed ones —
+     and until the divider they ran together as one column of look-alike rows. */
   .lens-filter-preset-heading {
-    @apply lens-flex-none lens-font-semibold lens-uppercase lens-text-faint;
+    @apply lens-flex-none lens-border-0 lens-border-t lens-border-solid lens-font-semibold lens-uppercase lens-text-muted;
+    border-color: var(--lens-border);
     font-size: var(--lens-type-xs);
-    letter-spacing: 0.06em;
-    padding: 6px 8px 4px;
+    letter-spacing: 0.1em;
+    margin-top: var(--lens-space-2);
+    padding: var(--lens-space-3) var(--lens-space-2) var(--lens-space-1);
   }
 
   .lens-filter-preset-heading:first-child {
-    padding-top: 2px;
+    @apply lens-border-t-0;
+    margin-top: 0;
+    padding-top: var(--lens-space-1);
   }
 
   .lens-filter-preset {
-    @apply lens-relative lens-block lens-w-full lens-flex-none lens-border-0 lens-bg-transparent lens-text-left lens-font-sans lens-text-base lens-font-medium lens-text-text lens-transition-colors;
-    border-radius: var(--lens-radius-badge);
-    padding: 7px 8px;
+    @apply lens-relative lens-flex lens-w-full lens-flex-none lens-items-center lens-border-0 lens-bg-transparent lens-text-left lens-font-sans lens-text-md lens-font-medium lens-text-text lens-transition-colors;
+    gap: var(--lens-space-2);
+    border-radius: var(--lens-radius-control);
+    padding: var(--lens-space-2);
     line-height: 1.35;
+  }
+
+  /* Every entry reserves the glyph column, including the producer's years,
+     which carry no glyph: a number names its own period, and a rail whose
+     labels start at two different x-positions reads as two lists. */
+  .lens-filter-preset-icon {
+    @apply lens-flex lens-flex-none lens-items-center lens-justify-center lens-text-faint;
+    width: 16px;
+    height: 16px;
+  }
+
+  .lens-filter-preset-label {
+    @apply lens-min-w-0 lens-flex-1;
   }
 
   .lens-filter-preset:hover {
@@ -978,46 +1016,63 @@
     background: var(--lens-bg-card);
   }
 
-  /* The selected preset is marked, not filled: an accent bar on the leading
-     edge over the card surface keeps the rail free of blue blocks. */
+  /* The selected period is a filled pill with a solid accent edge. It used to
+     be a card-white box with a hairline accent bar, which on the rail's inset
+     fill is exactly the treatment of a text input — the one row a reader must
+     read as "this is the applied period" instead looked like the one row they
+     could type into. */
   .lens-filter-preset[aria-pressed='true'] {
-    @apply lens-font-semibold lens-text-strong;
-    background: var(--lens-bg-card);
-    box-shadow: inset 2px 0 0 var(--lens-accent-500);
+    @apply lens-font-semibold;
+    background: var(--lens-accent-50);
+    color: var(--lens-accent-700);
+    box-shadow: inset 3px 0 0 var(--lens-accent-600);
   }
 
-  /* All time clears the period rather than choosing one: it sits under a
-     divider, away from the relative catalog — directly under its siblings, not
-     pinned to the column's floor. Pinning it there opened a ~70px hole in the
-     middle of the rail whose only message was that the calendar beside it is
-     taller than the list. */
+  .lens-filter-preset[aria-pressed='true'] .lens-filter-preset-icon {
+    color: var(--lens-accent-600);
+  }
+
+  .lens-root[data-theme='dark'] .lens-filter-preset[aria-pressed='true'] {
+    color: var(--lens-accent-300);
+  }
+
+  /* All time clears the period rather than choosing one, but it is still a
+     period a reader picks off this list, so it closes the completed group as
+     an ordinary entry in a quieter ink — no rule of its own.
+
+     It carried a divider, which is what a group heading carries: a rule with
+     one row under it read as a third, unnamed group holding a single item, and
+     with nothing but the rail's floor beneath it the column below looked like a
+     list that had stopped mid-draw. Pinning it to that floor instead (the other
+     thing tried here) only moved the hole into the middle of the rail. */
   .lens-filter-preset-clear {
-    @apply lens-border-0 lens-border-t lens-border-solid lens-text-muted;
-    border-color: var(--lens-border);
-    border-radius: 0;
-    margin-top: 6px;
-    padding-top: 10px;
+    @apply lens-text-muted;
   }
 
   .lens-filter-popover-main {
-    @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col lens-gap-2.5;
-    padding: 12px 14px;
+    @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col;
+    gap: var(--lens-space-4);
+    padding: var(--lens-space-5) 22px;
   }
 
   /* Typed range entry: From and To, an em-dash between them, each half a masked
      dd.mm.yyyy input in a field box of its own under its caption. The pair used
      to share one outer border with nothing but text inside it, which reads as a
      printed summary of the applied range rather than as two editable fields.
-     An invalid half carries its own red ring. No glyphs inside: the calendar is
-     right above. */
+     An invalid half carries its own red ring. Each field carries a calendar
+     glyph on its leading edge — the grid above is not enough to say that these
+     two boxes are the same period stated in digits, and a bare masked number is
+     the one thing in this card with no mark of what it is. The row stands on a
+     rule of its own: calendar, then dates, then actions. */
   .lens-filter-range {
-    @apply lens-flex lens-items-center;
-    padding: 3px 0;
+    @apply lens-flex lens-items-center lens-border-0 lens-border-t lens-border-solid;
+    border-color: var(--lens-border);
+    padding-top: var(--lens-space-4);
   }
 
   .lens-filter-range-field {
     @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col;
-    padding: 2px 6px;
+    gap: var(--lens-space-1);
   }
 
   /* Each half wears its own field box. Two captions over two bare texts inside
@@ -1025,7 +1080,8 @@
      a date can be typed — which is what they are. */
   .lens-filter-range-field .lens-filter-range-input {
     @apply lens-border lens-border-solid lens-border-border lens-bg-card;
-    padding: 2px 6px;
+    min-height: var(--lens-control-h-md);
+    padding: var(--lens-space-1) var(--lens-space-2);
     border-radius: var(--lens-radius-control);
   }
 
@@ -1033,25 +1089,31 @@
     @apply lens-border-strong;
   }
 
-  /* Same size and tracking as the weekday headers: the picker has one caption
-     voice, not a second smaller one. */
+  /* Same tracking as the weekday headers and the rail's group captions: the
+     picker has one caption voice. */
   .lens-filter-range-caption {
-    @apply lens-font-semibold lens-uppercase lens-text-faint;
+    @apply lens-font-semibold lens-uppercase lens-text-muted;
     font-size: var(--lens-type-xs);
-    letter-spacing: 0.06em;
+    letter-spacing: 0.1em;
   }
 
   .lens-filter-range-input {
     @apply lens-flex lens-items-center;
+    gap: var(--lens-space-2);
     padding: 1px 2px;
     border-radius: var(--lens-radius-badge);
+  }
+
+  .lens-filter-range-icon {
+    @apply lens-flex-none lens-text-faint;
   }
 
   .lens-filter-range-input[data-invalid] {
     box-shadow: 0 0 0 1px var(--lens-neg), 0 0 0 3px var(--lens-neg-soft);
   }
 
-  .lens-filter-range-input[data-invalid] .lens-filter-input {
+  .lens-filter-range-input[data-invalid] .lens-filter-input,
+  .lens-filter-range-input[data-invalid] .lens-filter-range-icon {
     color: var(--lens-neg);
   }
 
@@ -1059,14 +1121,15 @@
      caption+input stack: it aligns to the field's second row instead of being
      nudged by a magic offset. */
   .lens-filter-range-sep {
-    @apply lens-flex lens-flex-none lens-flex-col lens-justify-end lens-self-stretch lens-text-faint;
-    font-size: var(--lens-type-base);
+    @apply lens-flex lens-flex-none lens-flex-col lens-justify-center lens-self-stretch lens-text-faint;
+    font-size: var(--lens-type-md);
     line-height: 1;
-    padding-block: 2px 4px;
+    padding-inline: var(--lens-space-3);
+    padding-top: var(--lens-space-5);
   }
 
   .lens-filter-input {
-    @apply lens-w-full lens-border-0 lens-bg-transparent lens-p-0 lens-font-sans lens-text-base lens-font-medium lens-text-strong;
+    @apply lens-w-full lens-border-0 lens-bg-transparent lens-p-0 lens-font-sans lens-text-md lens-font-medium lens-text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -1121,10 +1184,14 @@
     }
   }
 
-  @media (max-width: 664px) {
+  /* The picker's own stacking edge, paired with `stackedCalendarMaxWidth` in
+     breakpoints.ts — the pane count and the card width have to flip together.
+     It is wider than the facet menu's sheet edge above because this card is
+     wider: 860px plus its viewport gutters no longer fits below 884. */
+  @media (max-width: 884px) {
     .lens-filter-popover {
       @apply lens-flex-col;
-      width: min(340px, calc(100vw - 24px));
+      width: min(380px, calc(100vw - 24px));
     }
 
     .lens-filter-popover-side {
@@ -1137,19 +1204,28 @@
       @apply lens-hidden;
     }
 
+    /* Stacked, the rail is a scrolling row of labels: the glyph column is
+       vertical rhythm for a list, and a list is exactly what this is not. */
     .lens-filter-preset {
       @apply lens-w-auto lens-flex-none;
     }
 
-    /* Stacked, the rail is a scrolling row: All time keeps its separation but
-       takes it on the leading edge instead of the top. */
+    .lens-filter-preset-icon {
+      @apply lens-hidden;
+    }
+
+    /* Stacked, the rail is one scrolling row with no headings to group it, so
+       All time keeps a separation the column no longer needs — taken on its
+       leading edge, at the end of the row. */
     .lens-filter-preset-clear {
-      @apply lens-border-t-0 lens-border-l;
+      @apply lens-border-0 lens-border-l lens-border-solid;
       border-color: var(--lens-border);
-      margin-top: 0;
       margin-left: auto;
-      padding-top: 7px;
-      padding-left: 10px;
+      padding-left: var(--lens-space-3);
+    }
+
+    .lens-filter-popover-main {
+      padding: var(--lens-space-4);
     }
   }
 
@@ -1171,13 +1247,24 @@
   }
 
   .lens-filter-popover-footer {
-    @apply lens-flex lens-items-center lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-pt-2;
+    @apply lens-flex lens-items-center lens-border-0 lens-border-t lens-border-solid;
+    gap: var(--lens-space-2);
     border-color: var(--lens-border);
+    padding-top: var(--lens-space-4);
   }
 
-  /* The draft's state, stated where the actions are. */
+  /* The draft's state, stated where the actions are, behind a mark of its own:
+     a bare sentence at the foot of a card this size reads as a caption on the
+     buttons beside it rather than as the fact the whole grid was drawn to
+     produce. */
+  .lens-filter-summary-badge {
+    @apply lens-flex lens-flex-none lens-items-center lens-justify-center lens-rounded-full lens-bg-inset lens-text-muted;
+    width: var(--lens-control-h-sm);
+    height: var(--lens-control-h-sm);
+  }
+
   .lens-filter-summary {
-    @apply lens-mr-auto lens-text-base lens-text-muted;
+    @apply lens-mr-auto lens-text-md lens-text-muted;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -1186,17 +1273,20 @@
   }
 
   /* The footer buttons are dialog actions, not tray segments: they carry their
-     own hit area and hover instead of inheriting the segmented track's. */
+     own hit area and hover instead of inheriting the segmented track's. They
+     stand on the picker's own scale, a step above the scope row's chips — a
+     32px Apply under a 40px day grid reads as the smaller decision. */
   .lens-filter-cancel,
   .lens-filter-apply {
-    @apply lens-justify-center;
-    min-height: var(--lens-control-h-md);
+    @apply lens-justify-center lens-text-md;
+    min-height: var(--lens-control-h-lg);
     border-radius: var(--lens-radius-control);
   }
 
   .lens-filter-cancel {
-    @apply lens-border lens-border-solid lens-border-border lens-px-3 lens-text-muted;
+    @apply lens-border lens-border-solid lens-border-border lens-text-muted;
     background: var(--lens-bg-card);
+    padding-inline: var(--lens-space-4);
     box-shadow: none;
   }
 
@@ -1210,7 +1300,7 @@
   .lens-filter-apply {
     background: var(--lens-accent-600);
     color: var(--lens-text-on-accent);
-    padding-inline: 0.875rem;
+    padding-inline: var(--lens-space-5);
   }
 
   .lens-filter-apply:hover:not(:disabled) {
@@ -1223,28 +1313,60 @@
     opacity: 0.45;
   }
 
+  /* The stacked card's footer, in a second block rather than the layout one
+     above: these three rules override declarations that are written after it,
+     and a media query does not raise specificity — grouped up there they lost
+     the cascade to the very rules they exist to relax.
+
+     One line for a day count, a Cancel and an Apply inside ~350px. The badge
+     goes and the summary becomes the part that gives way, because the two
+     things this footer must never lose are the buttons: a localized
+     «Длительность: 203 дн.» at full size pushes Apply past the card's own
+     overflow clip, and a commit action that is not on screen is not one. */
+  @media (max-width: 884px) {
+    .lens-filter-summary-badge {
+      @apply lens-hidden;
+    }
+
+    .lens-filter-summary {
+      @apply lens-min-w-0 lens-truncate lens-text-base;
+    }
+
+    .lens-filter-cancel,
+    .lens-filter-apply {
+      @apply lens-text-base;
+      min-height: var(--lens-control-h-md);
+      padding-inline: var(--lens-space-3);
+    }
+  }
+
   .lens-calendar {
-    @apply lens-flex lens-flex-col lens-gap-1.5;
+    @apply lens-flex lens-flex-col;
+    gap: var(--lens-space-2);
   }
 
   /* Two consecutive month panes side by side; the stacked breakpoint drops
      the calendar to a single pane (decided in JS with the same media query). */
   .lens-calendar-panes {
     @apply lens-flex lens-items-start;
-    gap: 18px;
+    gap: 28px;
   }
 
   .lens-calendar-pane {
-    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-1;
+    @apply lens-flex lens-min-w-0 lens-flex-col;
+    gap: var(--lens-space-2);
     flex: 1 1 0;
   }
 
   /* Fixed side tracks keep the month label optically centered whether the
-     pane carries its nav button on the left, the right, or neither. */
+     pane carries its nav button on the left, the right, or neither. The tracks
+     are the nav button's own box: the two carets sit on the outer edges of the
+     pair of panes, which is where a reader reaches for "the month before this
+     window" and "the month after it". */
   .lens-calendar-header {
     @apply lens-items-center;
     display: grid;
-    grid-template-columns: 28px 1fr 28px;
+    grid-template-columns: var(--lens-control-h-md) 1fr var(--lens-control-h-md);
   }
 
   .lens-calendar-nav-group {
@@ -1259,21 +1381,29 @@
   /* The heading is the way into the month/year panel — the only way to travel
      more than a month at a time, so it has to look pressable. */
   .lens-calendar-month {
-    @apply lens-mx-auto lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-text-center lens-font-sans lens-text-md lens-font-semibold lens-text-strong lens-transition-colors;
-    border-radius: var(--lens-radius-badge);
-    padding: 3px 8px;
+    @apply lens-mx-auto lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-text-center lens-font-sans lens-text-lg lens-font-semibold lens-text-strong lens-transition-colors;
+    border-radius: var(--lens-radius-control);
+    padding: var(--lens-space-1) var(--lens-space-3);
   }
 
   .lens-calendar-month:hover {
     @apply lens-bg-inset;
   }
 
+  /* A bordered square, not a bare caret. Unbordered, the two glyphs that move
+     the window were the faintest marks on the card and sat between a 16px month
+     title and a 40px day grid — the only two controls in the picker a reader
+     could fail to see were the two they need most often. */
   .lens-calendar-nav {
-    @apply lens-flex lens-h-7 lens-w-7 lens-items-center lens-justify-center lens-rounded-control lens-border-0 lens-bg-transparent lens-font-sans lens-leading-none lens-text-muted;
+    @apply lens-flex lens-items-center lens-justify-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-font-sans lens-leading-none lens-text-muted lens-transition-colors;
+    width: var(--lens-control-h-md);
+    height: var(--lens-control-h-md);
+    background: var(--lens-bg-card);
   }
 
   .lens-calendar-nav:hover {
-    @apply lens-bg-inset lens-text-strong;
+    @apply lens-border-strong lens-text-strong;
+    background: var(--lens-bg-inset);
   }
 
   /* The day grid has NO column gap: in-range washes touch edge to edge so a
@@ -1287,13 +1417,14 @@
   }
 
   .lens-calendar-week + .lens-calendar-week {
-    margin-top: var(--lens-space-0-5);
+    margin-top: var(--lens-space-1);
   }
 
   .lens-calendar-weekday {
-    @apply lens-py-1 lens-text-center lens-font-semibold lens-uppercase lens-text-faint;
-    font-size: var(--lens-type-xs);
-    letter-spacing: 0.06em;
+    @apply lens-text-center lens-font-semibold lens-uppercase lens-text-muted;
+    font-size: var(--lens-type-sm);
+    letter-spacing: 0.1em;
+    padding-block: var(--lens-space-2);
   }
 
   /* A day cell is a fixed-height flat button; every visual state is painted
@@ -1302,8 +1433,8 @@
      are decorative spans on the same footprint: faint, inert, never washed. */
   .lens-calendar-day {
     @apply lens-relative lens-inline-flex lens-items-center lens-justify-center lens-border-0 lens-bg-transparent lens-p-0 lens-text-center lens-font-sans lens-font-medium lens-text-text;
-    height: 32px;
-    font-size: var(--lens-type-base);
+    height: 40px;
+    font-size: var(--lens-type-md);
     border-radius: 0;
     font-variant-numeric: tabular-nums lining-nums;
   }
@@ -1398,10 +1529,10 @@
     content: '';
     position: absolute;
     left: 50%;
-    bottom: 3px;
-    width: 3px;
-    height: 3px;
-    margin-left: -1.5px;
+    bottom: 5px;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
     border-radius: 50%;
     background: var(--lens-accent-500);
     z-index: 1;
@@ -1421,21 +1552,30 @@
   /* The month/year jump panel: it stands in for the day grid on the same
      footprint, so the popover does not resize when the user travels. */
   .lens-calendar-jump {
-    @apply lens-flex lens-flex-col lens-gap-2;
-    min-height: 246px;
+    @apply lens-flex lens-flex-col;
+    gap: var(--lens-space-2);
+    min-height: 332px;
   }
 
-  /* Rows keep the day grid's cell height instead of stretching to fill the
-     panel: the twelve targets sit as a block in the middle of the pane. */
+  /* The twelve targets sit as a centred block inside the footprint the day grid
+     leaves, held to roughly one month pane's width: the panel stands in for two
+     panes, but twelve three-letter labels stretched across both of them is a row
+     of words with no relation to each other.
+
+     Three columns, not four. Four made rows of Jan–Apr, May–Aug, Sep–Dec, which
+     group nothing; three make each row a quarter, which is the unit this
+     product's periods are actually cut on — and four rows fill the day grid's
+     height instead of floating as a band in the middle of it. */
   .lens-calendar-jump-grid {
-    @apply lens-grid lens-flex-1 lens-content-center;
-    grid-template-columns: repeat(4, 1fr);
-    grid-auto-rows: 34px;
-    gap: 6px 8px;
+    @apply lens-mx-auto lens-grid lens-w-full lens-flex-1 lens-content-center;
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: 56px;
+    gap: var(--lens-space-2) var(--lens-space-3);
+    max-width: 312px;
   }
 
   .lens-calendar-jump-cell {
-    @apply lens-flex lens-items-center lens-justify-center lens-border-0 lens-bg-transparent lens-font-sans lens-text-base lens-font-medium lens-text-text lens-transition-colors;
+    @apply lens-flex lens-items-center lens-justify-center lens-border-0 lens-bg-transparent lens-font-sans lens-text-md lens-font-medium lens-text-text lens-transition-colors;
     border-radius: var(--lens-radius-sm);
     font-variant-numeric: tabular-nums lining-nums;
   }
@@ -3639,6 +3779,13 @@
     @apply lens-text-faint;
   }
 
+  /* A movement nobody knows the size of. It prints the em dash rather than the
+     «0 UZS» a coerced null used to, and takes the same quiet ink as a flat step
+     without borrowing its claim that the step came to nothing. */
+  .lens-cascade-connector strong[data-direction='unknown'] {
+    @apply lens-text-faint lens-font-normal;
+  }
+
   .lens-cascade-stage {
     @apply lens-flex lens-flex-col lens-gap-2 lens-py-1.5;
   }
@@ -3738,6 +3885,22 @@
 
   .lens-cascade-stage[data-tone='inflow'] .lens-cascade-stage-label strong {
     color: var(--lens-warn);
+  }
+
+  /* A stage with no amount behind it. Its figure is an em dash, so it must not
+     take a tone's ink and read as a number that happens to be dashed; and its
+     track must not be the same empty rail a genuine zero draws, or the panel is
+     back to saying "nothing" where it means "not known". An outline with no
+     fill is a measure that was never taken.
+
+     Last of the cascade rules on purpose: the tone declarations above are the
+     ones it has to beat, and they match at the same specificity. */
+  .lens-cascade-stage[data-unknown='true'] .lens-cascade-stage-label strong {
+    @apply lens-font-normal lens-text-faint;
+  }
+
+  .lens-cascade-stage[data-unknown='true'] .lens-cascade-track {
+    @apply lens-border lens-border-dashed lens-border-border lens-bg-transparent;
   }
 
   /* The cascade used to reserve 7rem per step whatever the panel measured, and
@@ -4179,6 +4342,36 @@
 
   .lens-waterfall-bar[data-tone='inflow'] strong {
     color: var(--lens-warn);
+  }
+
+  /* A step whose amount is not known — the third thing a bridge has to be able
+     to say, after "it moved" and "it did not move".
+
+     Coerced to zero it drew a full-height deduction to the axis: a stage
+     annotated «Нет данных» reported a −149,00 млрд movement that was, exactly,
+     the running total standing above it. The zero hairline is not the answer
+     either — a solid rule on the running total states that the step happened
+     and came to nothing. A DASHED rule states neither: the cascade passes
+     through this column without being able to account for it, and the em dash
+     over it names what the badge under it spells out.
+
+     Last, and stated at the specificity of each rule it has to beat. The
+     terminal ring is a three-attribute selector, and an unknown closing total
+     is terminal by definition — a ring around a column that has no bar was the
+     shape the old dead duplicate already had. */
+  .lens-waterfall-bar[data-unknown='true'],
+  .lens-waterfall-bar[data-unknown='true'][data-kind='end'],
+  .lens-waterfall-bar[data-unknown='true'][data-kind='end'][data-terminal] {
+    min-height: 0;
+    background: transparent;
+    border-top: 2px dashed var(--lens-text-faint);
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .lens-waterfall-bar[data-unknown='true'] strong {
+    @apply lens-font-normal;
+    color: var(--lens-text-faint);
   }
 
   /* In the label row of its own column, so it needs neither the left margin nor
