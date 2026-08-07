@@ -1605,6 +1605,237 @@ describe('cascade stages', () => {
     expect(byLabel('Result')?.noMovement).toBeUndefined()
   })
 
+  // A stage the producer has no amount for. The frame says null, which is
+  // «Нет данных» — not «0 UZS», and the difference between those two sentences
+  // is the difference between a bridge and a fiction.
+  const unknownCascade = () => panel('cascade', {
+    encoding: {
+      label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel',
+      final: 'final', annotation: 'annotation',
+    },
+    presentation: { bridgeLayout: 'waterfall' },
+  })
+
+  const unknownColumns: Frame['columns'] = [
+    { name: 'label', type: 'string' },
+    { name: 'value', type: 'number' },
+    { name: 'cut', type: 'number' },
+    { name: 'cutLabel', type: 'string' },
+    { name: 'final', type: 'bool' },
+    { name: 'annotation', type: 'string' },
+  ]
+
+  it('reads an absent amount as unknown rather than as zero', () => {
+    const cascade = unknownCascade()
+    const frame: Frame = {
+      columns: unknownColumns,
+      rows: [
+        ['Заработанная премия', 200, 0, '', false, ''],
+        // Every shape a producer's "nothing here" arrives in.
+        ['Null', null, 0, 'Null', false, ''],
+        ['Empty', '', 0, 'Empty', false, ''],
+        ['Not a number', 'n/a', 0, 'Not a number', false, ''],
+        // A real zero is a measurement and stays one.
+        ['Zero', 0, 200, 'Zero', false, ''],
+      ],
+    }
+    const format = (value: unknown) => `${String(value)} UZS`
+    const stages = buildCascadeStages(cascade, frame, format, format)
+
+    expect(stages.map(({ label, hasValue }) => ({ label, hasValue }))).toEqual([
+      { label: 'Заработанная премия', hasValue: true },
+      { label: 'Null', hasValue: false },
+      { label: 'Empty', hasValue: false },
+      { label: 'Not a number', hasValue: false },
+      { label: 'Zero', hasValue: true },
+    ])
+    // The list projection prints the em dash the metric panels print, never the
+    // «0 UZS» a coerced null used to put in front of a reader — and the stage's
+    // own movement, equally unknown, does not restate it either.
+    expect(stages[1]?.formattedValue).toBe('—')
+    expect(stages[1]?.formattedCut).toBe('—')
+    expect(stages[1]?.width).toBe(0)
+    expect(stages[4]?.formattedValue).toBe('0 UZS')
+  })
+
+  it('draws an unknown stage as a gap and keeps measuring from the last known total', () => {
+    const cascade = unknownCascade()
+    const frame: Frame = {
+      columns: unknownColumns,
+      rows: [
+        ['Заработанная премия', 200, 0, '', false, ''],
+        ['Страховые выплаты', 180, 20, 'Страховые выплаты', false, ''],
+        // The stage from the live defect: nothing behind it, and a badge that
+        // says so. It used to render a −180 deduction — the running total,
+        // restated as a movement — and send every later delta off by that much.
+        ['Изменение РЗУ', null, 0, 'Изменение РЗУ', false, 'Нет данных'],
+        ['Операционные расходы', 150, 30, 'Операционные расходы', false, ''],
+        ['Результат', 150, 0, '', true, ''],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+    const items = buildWaterfallItems(buildCascadeStages(cascade, frame, format, format), format)
+    const byLabel = (label: string) => items.find((item) => item.label === label)
+
+    const gap = byLabel('Изменение РЗУ')
+    expect(gap?.unknown).toBe(true)
+    expect(gap?.value).toBe(0)
+    expect(gap?.height).toBe(0)
+    // It shares the hairline the zero-movement column already had; `unknown` is
+    // what tells the two apart, in the model and in the stylesheet.
+    expect(gap?.noMovement).toBe(true)
+    expect(gap?.formattedValue).toBe('—')
+    // The badge is the whole point of the row: it is the only thing on the
+    // column that says why there is nothing to draw.
+    expect(gap?.annotation).toBe('Нет данных')
+    // And it keeps its frame row, so the drill the producer wired still opens.
+    expect(gap?.rowIndex).toBe(2)
+    // Nothing invented: no bar the size of the running total it stands on.
+    expect(items.some((item) => Math.abs(item.value) === 180)).toBe(false)
+
+    // The gap did not move the running total, so the stage after it is measured
+    // from 180 — the last figure anyone knows — and not from a fabricated zero.
+    expect(byLabel('Операционные расходы')?.value).toBe(-30)
+    expect(byLabel('Результат')?.kind).toBe('end')
+    expect(byLabel('Результат')?.value).toBe(150)
+  })
+
+  it('closes on an unknown final row in place, without a dead twin beside it', () => {
+    const cascade = unknownCascade()
+    const frame: Frame = {
+      columns: unknownColumns,
+      rows: [
+        ['Заработанная премия', 200, 0, '', false, ''],
+        ['Страховые выплаты', 180, 20, 'Страховые выплаты', false, ''],
+        // The closing total the dashboard cannot compute yet. Its bogus delta
+        // was too large for the residual test, so it fell through to the
+        // movement branch — and the synthetic closing then repeated it as a
+        // second, rowIndex-less column that showed «Настроить» and did nothing.
+        ['Расчётный результат по МСФО-базе', null, 0, '', true, 'Настроить'],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+    const items = buildWaterfallItems(buildCascadeStages(cascade, frame, format, format), format)
+
+    expect(items.map(({ label, kind }) => ({ label, kind }))).toEqual([
+      { label: 'Заработанная премия', kind: 'start' },
+      { label: 'Страховые выплаты', kind: 'decrease' },
+      { label: 'Расчётный результат по МСФО-базе', kind: 'end' },
+    ])
+    const closing = items.at(-1)
+    expect(closing?.unknown).toBe(true)
+    expect(closing?.formattedValue).toBe('—')
+    expect(closing?.height).toBe(0)
+    // The row it was built from, which is what makes it clickable at all.
+    expect(closing?.rowIndex).toBe(2)
+    expect(closing?.annotation).toBe('Настроить')
+    // A total nobody could compute is not an interim total to explain in a key.
+    expect(closing?.checkpoint).toBeUndefined()
+    // Neither the amount nor a clipboard value exists, so neither is offered.
+    expect(closing?.exactValue).toBeUndefined()
+    expect(closing?.rawValue).toBeUndefined()
+  })
+
+  it('anchors a cascade whose opening total is unknown at zero', () => {
+    const cascade = unknownCascade()
+    const frame: Frame = {
+      columns: unknownColumns,
+      rows: [
+        // Degenerate but reachable: with no opening figure the cascade has no
+        // origin, so zero is the only anchor left. The known totals after it
+        // still stand at their own heights rather than at a delta off nothing.
+        ['Заработанная премия', null, 0, '', false, 'Нет данных'],
+        ['Страховые выплаты', 180, 20, 'Страховые выплаты', false, ''],
+        ['Результат', 150, 30, 'Результат', true, ''],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+    const items = buildWaterfallItems(buildCascadeStages(cascade, frame, format, format), format)
+
+    expect(items[0]?.kind).toBe('start')
+    expect(items[0]?.unknown).toBe(true)
+    expect(items[0]?.formattedValue).toBe('—')
+    expect(items[1]?.value).toBe(180)
+    expect(items.at(-1)?.value).toBe(150)
+  })
+
+  it('gives a synthesized closing total the row and the badge of the stage it repeats', () => {
+    const cascade = unknownCascade()
+    const frame: Frame = {
+      columns: unknownColumns,
+      rows: [
+        ['Заработанная премия', 200, 0, '', false, ''],
+        // A final row carrying a genuine movement: it stays a deduction, and
+        // the closing total is synthesized after it.
+        ['Результат', 150, 50, 'Страховые выплаты', true, 'Проверено'],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+    const items = buildWaterfallItems(buildCascadeStages(cascade, frame, format, format), format)
+
+    expect(items.map(({ kind }) => kind)).toEqual(['start', 'decrease', 'end'])
+    // It repeats a real stage, so it carries that stage's row: the badge it
+    // shows and the drill it opens now come from the same place.
+    expect(items.at(-1)?.rowIndex).toBe(1)
+    expect(items.at(-1)?.annotation).toBe('Проверено')
+    expect(items.every((item) => item.rowIndex !== undefined)).toBe(true)
+  })
+
+  it('marks the unknown column in the plot and says out loud what its dash means', () => {
+    const cascade = unknownCascade()
+    const frame: Frame = {
+      columns: unknownColumns,
+      rows: [
+        ['Заработанная премия', 200, 0, '', false, ''],
+        ['Изменение РЗУ', null, 0, 'Изменение РЗУ', false, 'Нет данных'],
+        ['Результат', 150, 30, 'Результат', true, ''],
+      ],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const view = render(<CascadePanel panel={cascade} />)
+
+    const unknownBar = view.container.querySelector('.lens-waterfall-bar[data-unknown="true"]')
+    expect(unknownBar).not.toBeNull()
+    expect(unknownBar?.getAttribute('data-no-movement')).toBe('true')
+    expect(unknownBar?.querySelector('strong')).toHaveTextContent('—')
+    expect(unknownBar?.querySelector('.lens-sr-only')).toHaveTextContent('Unavailable')
+    // Only the one column: the two known totals draw real bars.
+    expect(view.container.querySelectorAll('.lens-waterfall-bar[data-unknown="true"]')).toHaveLength(1)
+    expect(view.container.querySelector('.lens-waterfall-annotation')).toHaveTextContent('Нет данных')
+  })
+
+  it('prints an em dash in the cascade list where the amount is unknown', () => {
+    const cascade = panel('cascade', {
+      encoding: {
+        label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel',
+        final: 'final', annotation: 'annotation',
+      },
+    })
+    const frame: Frame = {
+      columns: unknownColumns,
+      rows: [
+        ['Заработанная премия', 200, 0, '', false, ''],
+        ['Изменение РЗУ', null, 0, 'Изменение РЗУ', false, 'Нет данных'],
+      ],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const view = render(<CascadePanel panel={cascade} />)
+
+    const stages = [...view.container.querySelectorAll('.lens-cascade-stage')]
+    expect(stages).toHaveLength(2)
+    expect(stages[1]).toHaveAttribute('data-unknown', 'true')
+    expect(stages[1]?.querySelector('.lens-cascade-stage-label strong')).toHaveTextContent('—')
+    // Not «0», and not a figure at all: the stacked projection has to say the
+    // same thing the plot does.
+    expect(stages[1]?.querySelector('.lens-cascade-stage-label strong')?.textContent).not.toContain('0')
+    expect(stages[1]?.querySelector('.lens-cascade-stage-annotation')).toHaveTextContent('Нет данных')
+    // An em dash is a glyph; a reader who cannot see it gets the word.
+    expect(stages[1]?.querySelector('.lens-sr-only')).toHaveTextContent('Unavailable')
+    // The movement into it is equally unknown, so the connector says so too.
+    expect(view.container.querySelector('.lens-cascade-connector strong'))
+      .toHaveAttribute('data-direction', 'unknown')
+  })
+
   it('prints the gridlines in the axis form and the columns in the exact one', () => {
     const cascade = panel('cascade', {
       encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },

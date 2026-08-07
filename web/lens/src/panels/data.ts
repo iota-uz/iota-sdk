@@ -170,7 +170,7 @@ const AVAILABILITY_VALUES: ReadonlySet<string> = new Set<Availability>([
 ])
 
 /** A finite number, coerced from a numeric string; undefined for null/NaN/±Inf. */
-function finiteNumber(value: unknown): number | undefined {
+export function finiteNumber(value: unknown): number | undefined {
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
   if (typeof value === 'string' && value.trim() !== '') {
     const parsed = Number(value)

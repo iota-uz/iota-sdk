@@ -389,12 +389,42 @@ describe('cascade stages with a row-scoped action', () => {
     // start + 2 deltas + synthetic closing total.
     expect(columns).toHaveLength(4)
     expect(container.querySelector('.lens-waterfall-bar[role="button"]')).toBeNull()
+    // Including the synthetic closing total: it repeats the final stage, so it
+    // repeats that stage's row too. A column that looks like every other one and
+    // answers nothing is the one thing it must not be.
     const stages = columns.filter((column) => column.getAttribute('role') === 'button')
-    expect(stages).toHaveLength(3)
+    expect(stages).toHaveLength(4)
     stages[1]!.click()
     expect(assign).toHaveBeenCalledWith(expect.stringContaining('/analytics/families/claims'))
-    // The synthetic closing total repeats the final stage and stays inert.
-    expect(columns.at(-1)!.getAttribute('role')).toBeNull()
+    columns.at(-1)!.click()
+    expect(assign).toHaveBeenCalledWith(expect.stringContaining('/analytics/families/opex'))
+  })
+
+  it('activates an unknown closing column through the row that declared it', () => {
+    const assign = vi.mocked(navigateTo)
+    // The closing total the producer cannot compute yet: it must still be the
+    // column a reader clicks to go and configure it.
+    const frame: Frame = {
+      ...cascadeFrame,
+      rows: [
+        ['Earned premium', 100, 0, '', false, '/analytics/families/earned'],
+        ['After claims', 60, 40, 'Claims paid', false, '/analytics/families/claims'],
+        ['Result', null, 0, '', true, '/analytics/families/result'],
+      ],
+    }
+    const panel = cascadePanel([rowAction()], true)
+    const { container } = renderPanel(
+      documentWith([panel], { 'cascade:root': frame }),
+      <CascadePanel panel={panel} />,
+    )
+
+    const columns = [...container.querySelectorAll<HTMLElement>('.lens-waterfall-column')]
+    // Start, one deduction, and the unknown closing total — drawn once.
+    expect(columns).toHaveLength(3)
+    expect(container.querySelector('.lens-waterfall-bar[data-unknown="true"]')).not.toBeNull()
+    expect(columns.at(-1)!.getAttribute('role')).toBe('button')
+    columns.at(-1)!.click()
+    expect(assign).toHaveBeenCalledWith(expect.stringContaining('/analytics/families/result'))
   })
 
   it('activates a stacked cascade stage and leaves url-less rows inert', () => {

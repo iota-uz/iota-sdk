@@ -40,6 +40,12 @@ export interface WaterfallPlotProps {
   axisUnit?: string
   /** What activating a column does, printed at the foot of its tooltip. */
   actionHint?: string
+  /**
+   * What a column with no amount says out loud, since its figure is an em dash.
+   * Absent in a rendering with no runtime to translate it (the printed report),
+   * where the dash and the stage's own badge carry the meaning.
+   */
+  unknownLabel?: string
   children?: ReactNode
 }
 
@@ -184,6 +190,7 @@ interface WaterfallColumnProps {
   chrome?: Record<string, unknown>
   splitCallout: WaterfallSplitCallout
   actionHint?: string
+  unknownLabel?: string
 }
 
 /**
@@ -202,7 +209,7 @@ interface WaterfallColumnProps {
  * step's bar and make it un-comparable with the one beside it.
  */
 
-function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint }: WaterfallColumnProps) {
+function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint, unknownLabel }: WaterfallColumnProps) {
   const [pointed, setPointed] = useState(false)
   const bar = useRef<HTMLDivElement>(null)
   const label = useRef<HTMLSpanElement>(null)
@@ -259,12 +266,16 @@ function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint 
           data-no-movement={item.noMovement}
           data-terminal={!chrome || undefined}
           data-tone={item.tone}
+          data-unknown={item.unknown}
           style={{
             top: `${item.top}%`,
             height: `${item.height}%`,
           }}
         >
-          <strong>{item.formattedValue}</strong>
+          <strong>
+            {item.formattedValue}
+            {item.unknown && unknownLabel && <span className="lens-sr-only">{unknownLabel}</span>}
+          </strong>
           {item.splitHeight !== undefined && (
             <span
               className="lens-waterfall-bar-split"
@@ -328,6 +339,7 @@ export function WaterfallPlot({
   splitCallout = 'hover',
   axisUnit,
   actionHint,
+  unknownLabel,
   children,
 }: WaterfallPlotProps) {
   return (
@@ -378,6 +390,7 @@ export function WaterfallPlot({
               item={item}
               key={`${item.label}-${index}`}
               splitCallout={splitCallout}
+              unknownLabel={unknownLabel}
             />
           ))}
         </div>
