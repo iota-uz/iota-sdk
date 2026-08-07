@@ -84,7 +84,7 @@ describe('date arithmetic', () => {
 describe('month grid', () => {
   it('pads boundary days from adjacent months, Monday-first', () => {
     const weeks = monthGrid(2026, 7, 1) // July 2026 starts on Wednesday
-    expect(weeks).toHaveLength(5)
+    expect(weeks).toHaveLength(6)
     expect(weeks[0]![0]!.date).toEqual(date(2026, 6, 29))
     expect(weeks[0]![0]!.inMonth).toBe(false)
     expect(weeks[0]![2]!.date).toEqual(date(2026, 7, 1))
@@ -92,6 +92,26 @@ describe('month grid', () => {
     expect(weeks[4]![6]!.date).toEqual(date(2026, 8, 2))
     expect(weeks[4]![6]!.inMonth).toBe(false)
     for (const week of weeks) expect(week).toHaveLength(7)
+  })
+
+  // The grid is always six rows so the popover keeps one height and no month
+  // ends in a row holding a single date. Padding is trailing: the first row
+  // still opens on the week that carries the 1st.
+  it('is six weeks whatever the month needs', () => {
+    // February 2026 starts on Sunday and fills exactly four Sunday-first weeks.
+    const short = monthGrid(2026, 2, 7)
+    expect(short).toHaveLength(6)
+    expect(short[0]![0]!.date).toEqual(date(2026, 2, 1))
+    expect(short[3]![6]!.date).toEqual(date(2026, 2, 28))
+    expect(short.slice(4).flat().every((cell) => !cell.inMonth)).toBe(true)
+    expect(short[5]![6]!.date).toEqual(date(2026, 3, 14))
+
+    // A month that genuinely spans six rows is unchanged: March 2026 starts on
+    // Sunday, so Monday-first weeks run from 23 February to 5 April.
+    const long = monthGrid(2026, 3, 1)
+    expect(long).toHaveLength(6)
+    expect(long[0]![0]!.date).toEqual(date(2026, 2, 23))
+    expect(long[5]![6]!.date).toEqual(date(2026, 4, 5))
   })
 
   it('respects a Sunday-first week', () => {
