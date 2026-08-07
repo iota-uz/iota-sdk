@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -71,7 +70,7 @@ func TestClickRefundAddressesTheReversalEndpointAndSignsTheRequest(t *testing.T)
 	provider, _ := clickProvider(t, func(w http.ResponseWriter, r *http.Request) {
 		gotMethod, gotPath, gotAuth = r.Method, r.URL.Path, r.Header.Get("Auth")
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"error_code":0,"error_note":"Success","payment_id":%d}`, testPaymentID)
+		_, _ = fmt.Fprintf(w, `{"error_code":0,"error_note":"Success","payment_id":%d}`, testPaymentID)
 	})
 
 	before := time.Now().Unix()
@@ -105,7 +104,7 @@ func TestClickRefundSurfacesGatewayRefusalWithItsCode(t *testing.T) {
 
 	provider, _ := clickProvider(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"error_code":-31007,"error_note":"Payment was rejected"}`)
+		_, _ = fmt.Fprint(w, `{"error_code":-31007,"error_note":"Payment was rejected"}`)
 	})
 
 	transaction, err := provider.Refund(context.Background(), clickTransaction(t, 100_000), 100_000)
@@ -125,12 +124,29 @@ func TestClickRefundRejectsAPartialAmountWithoutCallingTheGateway(t *testing.T) 
 	called := false
 	provider, _ := clickProvider(t, func(w http.ResponseWriter, _ *http.Request) {
 		called = true
-		fmt.Fprint(w, `{"error_code":0}`)
+		_, _ = fmt.Fprint(w, `{"error_code":0}`)
 	})
 
 	_, err := provider.Refund(context.Background(), clickTransaction(t, 100_000), 40_000)
 	require.ErrorIs(t, err, providers.ErrClickPartialRefund)
 	require.False(t, called, "a partial refund must not reach Click")
+}
+
+// More than was captured is not a reversal either: the endpoint sends back the
+// captured amount, so accepting a larger figure would let the caller believe it
+// returned money that never arrived.
+func TestClickRefundRejectsAnAmountLargerThanWasCaptured(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	provider, _ := clickProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		_, _ = fmt.Fprint(w, `{"error_code":0}`)
+	})
+
+	_, err := provider.Refund(context.Background(), clickTransaction(t, 100_000), 140_000)
+	require.ErrorIs(t, err, providers.ErrClickPartialRefund)
+	require.False(t, called, "an amount that is not the captured one must not reach Click")
 }
 
 // Without the Complete callback there is no click_trans_id, and nothing was
@@ -141,7 +157,7 @@ func TestClickRefundRefusesATransactionThatNeverCompleted(t *testing.T) {
 	called := false
 	provider, _ := clickProvider(t, func(w http.ResponseWriter, _ *http.Request) {
 		called = true
-		fmt.Fprint(w, `{"error_code":0}`)
+		_, _ = fmt.Fprint(w, `{"error_code":0}`)
 	})
 
 	transaction := billing.New(100_000, billing.UZS, billing.Click, details.NewClickDetails("sale-1",
@@ -160,7 +176,7 @@ func TestClickRefundTreatsANonJSONErrorPageAsAFailure(t *testing.T) {
 
 	provider, _ := clickProvider(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
-		fmt.Fprint(w, "<html>502</html>")
+		_, _ = fmt.Fprint(w, "<html>502</html>")
 	})
 
 	transaction, err := provider.Refund(context.Background(), clickTransaction(t, 100_000), 100_000)
@@ -168,6 +184,6 @@ func TestClickRefundTreatsANonJSONErrorPageAsAFailure(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "502")
 
-	var refusal providers.ClickReversalError
-	require.False(t, errors.As(err, &refusal), "a transport failure is not a gateway refusal")
+	// A transport failure is not a gateway refusal.
+	require.NotErrorAs(t, err, &providers.ClickReversalError{})
 }

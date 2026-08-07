@@ -22,10 +22,10 @@ import (
 // is empty. https://docs.click.uz/en/merchant-api-request/
 const DefaultClickAPIURL = "https://api.click.uz/v2/merchant"
 
-// ErrClickPartialRefund is returned when a refund asks for less than the full
-// transaction amount. The Click reversal endpoint takes no amount: it reverses
-// the whole payment or nothing.
-var ErrClickPartialRefund = errors.New("click supports full reversal only, not partial refund")
+// ErrClickPartialRefund is returned when a refund asks for anything other than
+// the exact captured amount. The Click reversal endpoint takes no amount: it
+// reverses the whole payment or nothing.
+var ErrClickPartialRefund = errors.New("click reverses the exact captured amount only")
 
 // ErrClickPaymentIDMissing is returned when the transaction carries no Click
 // payment identifier, which happens when the payment never reached the Complete
@@ -133,7 +133,11 @@ func (p *clickProvider) Refund(ctx context.Context, t billing.Transaction, quant
 		return nil, err
 	}
 
-	if quantity < t.Amount().Quantity() {
+	// Exact amount only. Less would be a partial refund the endpoint cannot
+	// express; more would let a caller believe it sent back something we never
+	// captured. Either way the reversal returns the captured amount, so a
+	// mismatch means the caller and the gateway disagree about the money.
+	if quantity != t.Amount().Quantity() {
 		return nil, ErrClickPartialRefund
 	}
 
