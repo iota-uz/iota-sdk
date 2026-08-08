@@ -958,39 +958,39 @@ export function TablePanel({ panel }: TablePanelProps) {
               />
             </div>
             {(showsRowCount || frame.page) && (
-            <footer className="lens-table-footer">
-              <span className="lens-table-footer-notes">
-                {/* Only a paginated table has a "this page" to scope sorting to.
+              <footer className="lens-table-footer">
+                <span className="lens-table-footer-notes">
+                  {/* Only a paginated table has a "this page" to scope sorting to.
                   On a table that shows every row at once the caveat describes a
                   limit that does not exist, and reads as a warning that some of
                   the data is out of sight. */}
-                {showsRowCount && (
-                  <span className="lens-table-rowcount">
-                    {frame.summary && frame.summary.totalRows > frame.summary.filteredRows
-                      ? translate('table.filteredRowCount', '{filtered} of {total} rows', { filtered: frame.summary.filteredRows, total: frame.summary.totalRows })
-                      : translate('table.rowCount', '{count} rows', { count: frame.summary?.filteredRows ?? dataRowCount })}
-                  </span>
+                  {showsRowCount && (
+                    <span className="lens-table-rowcount">
+                      {frame.summary && frame.summary.totalRows > frame.summary.filteredRows
+                        ? translate('table.filteredRowCount', '{filtered} of {total} rows', { filtered: frame.summary.filteredRows, total: frame.summary.totalRows })
+                        : translate('table.rowCount', '{count} rows', { count: frame.summary?.filteredRows ?? dataRowCount })}
+                    </span>
+                  )}
+                </span>
+                {frame.page && (
+                  <nav
+                    aria-label={translate('table.pages', '{name} pages', { name: panel.title })}
+                    className="lens-table-pagination"
+                  >
+                    <button disabled={frame.isLoading || page <= 1} onClick={() => changePage(page - 1)} type="button">
+                      {translate('table.previous', 'Previous')}
+                    </button>
+                    <span aria-live="polite">
+                      {frame.isLoading && loadingPage !== page
+                        ? translate('table.loadingPage', 'Loading page {n}', { n: loadingPage })
+                        : translate('table.page', 'Page {n}', { n: page })}
+                    </span>
+                    <button disabled={frame.isLoading || !hasNext} onClick={() => changePage(page + 1)} type="button">
+                      {translate('table.next', 'Next')}
+                    </button>
+                  </nav>
                 )}
-              </span>
-              {frame.page && (
-                <nav
-                  aria-label={translate('table.pages', '{name} pages', { name: panel.title })}
-                  className="lens-table-pagination"
-                >
-                  <button disabled={frame.isLoading || page <= 1} onClick={() => changePage(page - 1)} type="button">
-                    {translate('table.previous', 'Previous')}
-                  </button>
-                  <span aria-live="polite">
-                    {frame.isLoading && loadingPage !== page
-                      ? translate('table.loadingPage', 'Loading page {n}', { n: loadingPage })
-                      : translate('table.page', 'Page {n}', { n: page })}
-                  </span>
-                  <button disabled={frame.isLoading || !hasNext} onClick={() => changePage(page + 1)} type="button">
-                    {translate('table.next', 'Next')}
-                  </button>
-                </nav>
-              )}
-            </footer>
+              </footer>
             )}
           </div>
         </ColumnReferences.Provider>
