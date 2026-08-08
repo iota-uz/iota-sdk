@@ -607,6 +607,11 @@ export function TablePanel({ panel }: TablePanelProps) {
       const raw = row[groupIndex]
       return typeof raw === 'string' && raw.endsWith(':toggle') ? count : count + 1
     }, 0) ?? 0)
+  // A short, unpaginated table has nothing to put in the footer, and the footer
+  // is a bordered inset band — on a three-row explanatory table it reads as an
+  // empty row the producer forgot to fill. Decide here whether it has anything
+  // to say, so the band and its only two occupants appear and vanish together.
+  const showsRowCount = (frame.summary?.filteredRows ?? dataRowCount) > rowCountDisclosureThreshold
 
   useEffect(() => {
     if (requestedSnapshotId.current !== document.snapshotId) {
@@ -952,13 +957,14 @@ export function TablePanel({ panel }: TablePanelProps) {
                 type="button"
               />
             </div>
+            {(showsRowCount || frame.page) && (
             <footer className="lens-table-footer">
               <span className="lens-table-footer-notes">
                 {/* Only a paginated table has a "this page" to scope sorting to.
                   On a table that shows every row at once the caveat describes a
                   limit that does not exist, and reads as a warning that some of
                   the data is out of sight. */}
-                {(frame.summary?.filteredRows ?? dataRowCount) > rowCountDisclosureThreshold && (
+                {showsRowCount && (
                   <span className="lens-table-rowcount">
                     {frame.summary && frame.summary.totalRows > frame.summary.filteredRows
                       ? translate('table.filteredRowCount', '{filtered} of {total} rows', { filtered: frame.summary.filteredRows, total: frame.summary.totalRows })
@@ -985,6 +991,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                 </nav>
               )}
             </footer>
+            )}
           </div>
         </ColumnReferences.Provider>
       )}
