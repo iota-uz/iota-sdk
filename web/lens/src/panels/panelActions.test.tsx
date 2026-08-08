@@ -444,6 +444,61 @@ describe('cascade stages with a row-scoped action', () => {
     expect(assign).toHaveBeenCalledWith(expect.stringContaining('/analytics/families/opex'))
   })
 
+  // The badge under a step's name is where a reader's eye and hand go — on an
+  // unknown stage it is the only solid shape in the column, since the bar is a
+  // dashed gap. So it has to say whether the step opens anything: «Настроить»
+  // on a column that leads somewhere and «Нет данных» on one that does not were
+  // the same chip, and a reader who was told to click the first could not work
+  // out how. The arrow is drawn on the condition a drill cell's pill draws it —
+  // a destination that actually resolved.
+  const annotatedUnknownFrame: Frame = {
+    columns: [...cascadeFrame.columns, { name: 'annotation', type: 'string' }],
+    rows: [
+      ['Earned premium', 100, 0, '', false, '/analytics/families/earned', ''],
+      // Unknown and inert: a status, with nothing behind it to open.
+      ['Reserve change', null, 0, 'Reserve change', false, '', 'Нет данных'],
+      // Unknown and actionable: the row the reader was told to go and configure.
+      ['Result', null, 0, '', true, '/analytics/families/result', 'Настроить'],
+    ],
+  }
+
+  const annotatedPanel = (waterfall: boolean): Panel => {
+    const base = cascadePanel([rowAction()], waterfall)
+    return { ...base, encoding: { ...base.encoding, annotation: 'annotation' } }
+  }
+
+  it('marks an actionable badge with an arrow and leaves an inert one a status', () => {
+    const panel = annotatedPanel(true)
+    const { container } = renderPanel(
+      documentWith([panel], { 'cascade:root': annotatedUnknownFrame }),
+      <CascadePanel panel={panel} />,
+    )
+
+    const badges = [...container.querySelectorAll<HTMLElement>('.lens-waterfall-annotation')]
+    expect(badges.map((badge) => badge.textContent)).toEqual(['Нет данных', 'Настроить'])
+    expect(badges[0]!.querySelector('svg')).toBeNull()
+    expect(badges[1]!.querySelector('svg')).not.toBeNull()
+    // The column stays the one interactive element: the badge is its handle,
+    // not a control nested inside a control.
+    expect(badges[0]!.closest('.lens-waterfall-column')!.getAttribute('role')).toBeNull()
+    expect(badges[1]!.closest('.lens-waterfall-column')!.getAttribute('role')).toBe('button')
+    expect(badges[1]!.querySelector('button, a')).toBeNull()
+  })
+
+  it('marks an actionable badge in the stacked projection too', () => {
+    const panel = annotatedPanel(false)
+    const { container } = renderPanel(
+      documentWith([panel], { 'cascade:root': annotatedUnknownFrame }),
+      <CascadePanel panel={panel} />,
+    )
+
+    const badges = [...container.querySelectorAll<HTMLElement>('.lens-cascade-stage-annotation')]
+    expect(badges.map((badge) => badge.textContent)).toEqual(['Нет данных', 'Настроить'])
+    expect(badges[0]!.querySelector('svg')).toBeNull()
+    expect(badges[1]!.querySelector('svg')).not.toBeNull()
+    expect(badges[1]!.closest('.lens-cascade-stage')!.getAttribute('role')).toBe('button')
+  })
+
   it('keeps an action-less cascade inert', () => {
     const panel = cascadePanel([], true)
     const { container } = renderPanel(

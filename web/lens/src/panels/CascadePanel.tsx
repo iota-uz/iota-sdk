@@ -1,5 +1,6 @@
 import { useCallback, type KeyboardEvent, type MouseEvent } from 'react'
 import type { Frame, Panel } from '../contract'
+import { ArrowUpRight } from '../icons'
 import { axisUnit, useAxisFormat, useFormat, useFormatExact, usePanelFrame, useTranslate } from '../runtime'
 import { rawValueText } from '../runtime/format'
 import { usePanelNavigation } from './actions'
@@ -691,7 +692,16 @@ export function CascadePanel({ panel }: CascadePanelProps) {
                     <span className="lens-cascade-stage-title">
                       <span>{stage.label}</span>
                       {stage.annotation && (
-                        <small className="lens-cascade-stage-annotation">{stage.annotation}</small>
+                        <small className="lens-cascade-stage-annotation">
+                          {stage.annotation}
+                          {/* The same claim the waterfall's badge makes, on the
+                              same condition: an arrow only where this stage
+                              resolved a destination. The row's plate is a hover
+                              state and says nothing at rest, so without this the
+                              list has no mark at all for "there is somewhere to
+                              go from here". */}
+                          {interaction && <ArrowUpRight size={10} />}
+                        </small>
                       )}
                     </span>
                     <strong data-negative={(stage.hasValue && stage.value < 0) || undefined}>

@@ -3831,13 +3831,65 @@
     @apply lens-flex lens-min-w-0 lens-flex-wrap lens-items-center lens-gap-1.5;
   }
 
+  /* The badge under a step's name — «Нет данных», «Настроить», «12 сверх
+     порога». On a step that opens nothing it is a status and only that. On a
+     step that opens something it is also the handle: it is the one solid shape
+     in a column whose bar may be an empty gap, so it is where the eye lands and
+     where a hand goes. Both used to render identically, which taught the reader
+     that these chips are decoration — and then one of them was the only way
+     into the drill.
+
+     The three colours are the values this chip has always had, named so the
+     states below can be mixed from the resting one instead of restating it. */
   .lens-cascade-stage-annotation,
   .lens-waterfall-annotation {
-    @apply lens-inline-flex lens-w-fit lens-max-w-full lens-items-center lens-rounded lens-border lens-border-solid lens-px-1.5 lens-py-0.5 lens-text-xs lens-font-semibold lens-leading-3;
-    border-color: #fecaca;
-    background: #fef2f2;
-    color: #b91c1c;
+    @apply lens-inline-flex lens-w-fit lens-max-w-full lens-items-center lens-gap-1 lens-rounded lens-border lens-border-solid lens-px-1.5 lens-py-0.5 lens-text-xs lens-font-semibold lens-leading-3;
+    --lens-annotation-ink: #b91c1c;
+    --lens-annotation-fill: #fef2f2;
+    --lens-annotation-edge: #fecaca;
+    border-color: var(--lens-annotation-edge);
+    background: var(--lens-annotation-fill);
+    color: var(--lens-annotation-ink);
     font-variant-numeric: tabular-nums lining-nums;
+    transition: background-color var(--lens-dur-fast) var(--lens-ease-standard),
+      border-color var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  /* The arrow is rendered only where a destination actually resolved — the same
+     claim, and the same glyph, a drill cell's pill makes (.lens-table-cell-pill)
+     — so it needs no state of its own. It must not be the part of the chip that
+     compresses under a narrow column, hence the floor on its box. */
+  .lens-cascade-stage-annotation .lens-icon,
+  .lens-waterfall-annotation .lens-icon {
+    @apply lens-shrink-0;
+    transition: transform var(--lens-dur-fast) var(--lens-ease-out);
+  }
+
+  /* Approaching the step. The chip deepens toward its own ink and its edge goes
+     solid: a badge becoming a control, rather than a badge changing colour. The
+     column (or the row) is still the one interactive element — this is its
+     handle answering, which is what a reader hunting for something to click
+     needs to see, and what neither the plate behind the column nor the chip
+     itself said before.
+
+     `[role='button']` is doing the whole job of the distinction: an inert chip
+     that lit up under a pointer would be exactly the promise this treatment
+     exists to stop making. */
+  .lens-cascade-stage[role='button']:hover .lens-cascade-stage-annotation,
+  .lens-cascade-stage[role='button']:focus-visible .lens-cascade-stage-annotation,
+  .lens-waterfall-column[role='button']:hover .lens-waterfall-annotation,
+  .lens-waterfall-column[role='button']:focus-visible .lens-waterfall-annotation {
+    border-color: var(--lens-annotation-ink);
+    background: color-mix(in srgb, var(--lens-annotation-ink) 12%, var(--lens-annotation-fill));
+  }
+
+  /* And the arrow steps toward the corner it points at, the two pixels a drill
+     row's chevron and a quiet cell's arrow already move. */
+  .lens-cascade-stage[role='button']:hover .lens-cascade-stage-annotation .lens-icon,
+  .lens-cascade-stage[role='button']:focus-visible .lens-cascade-stage-annotation .lens-icon,
+  .lens-waterfall-column[role='button']:hover .lens-waterfall-annotation .lens-icon,
+  .lens-waterfall-column[role='button']:focus-visible .lens-waterfall-annotation .lens-icon {
+    transform: translate(1px, -1px);
   }
 
   .lens-cascade-track {
@@ -4084,6 +4136,7 @@
        of one. Geometry is not in the list on purpose — the bar's box stays put
        (see the hover rules above). */
     transition: box-shadow var(--lens-dur-fast) var(--lens-ease-out),
+      border-color var(--lens-dur-fast) var(--lens-ease-out),
       filter var(--lens-dur-fast) var(--lens-ease-out);
   }
 
@@ -4372,6 +4425,26 @@
   .lens-waterfall-bar[data-unknown='true'] strong {
     @apply lens-font-normal;
     color: var(--lens-text-faint);
+  }
+
+  /* After the block above on purpose, and stated over its dashed rule rather
+     than instead of it: an unknown step in a column that opens something.
+     The halo a pointer lifts a solid bar with is a 3px ring in the card's own
+     ink, and a hairline has nothing to lift — the ring only paints a pale band
+     over the underlay behind it. So the gap answers the pointer by taking the
+     accent instead. It is the one part of an actionable unknown column that
+     said nothing under a hand, and it is most of the column's area: without it
+     the reader's aim has only the plate's outline and the chip below to go on. */
+  .lens-waterfall-column[role='button']:hover .lens-waterfall-bar[data-unknown='true'],
+  .lens-waterfall-column[role='button']:focus-visible .lens-waterfall-bar[data-unknown='true'] {
+    border-top-color: var(--lens-accent-500);
+  }
+
+  /* The halo is the pointer's half of the bar treatment and the keyboard path
+     never takes it, so the pointer's rule is the only one with a halo to
+     cancel — and the focus ring the column draws is left alone. */
+  .lens-waterfall-column[role='button']:hover .lens-waterfall-bar[data-unknown='true'] {
+    box-shadow: none;
   }
 
   /* In the label row of its own column, so it needs neither the left margin nor

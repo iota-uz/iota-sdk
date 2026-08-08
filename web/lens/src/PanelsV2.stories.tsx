@@ -351,6 +351,45 @@ export const CascadeUnknownStage: Story = () => {
   return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
 }
 
+// The same unknown-amount bridge once its stages open something — and the
+// distinction worth pinning: a «Настроить» badge on a column that leads
+// somewhere, beside a «Нет данных» badge on one that does not. They used to be
+// the same red chip, and since an unknown column's bar is a dashed gap rather
+// than a shape to aim at, the one badge a reader was told to click looked
+// exactly like the one that answers nothing — and read as a status either way.
+//
+// The arrow is the whole difference at rest, and it is drawn on the condition a
+// drill cell's pill draws it: a destination that actually resolved. «Изменение
+// РЗУ» carries no url here and keeps a bare status badge.
+const navigableUnknownFrame: Frame = {
+  columns: [...annotatedUnknownFrame.columns, { name: 'detailUrl', type: 'string' }],
+  rows: annotatedUnknownFrame.rows.map((row) => [
+    ...row,
+    row[0] === 'Изменение РЗУ' ? '' : `/analytics/drill/${String(row[0])}`,
+  ]),
+}
+
+const navigableUnknownPanel: Panel = {
+  ...unknownResultPanel,
+  id: 'navigable-unknown-bridge',
+  frame: 'navigable-unknown',
+  actions: [{ kind: 'navigate', urlSource: { kind: 'field', name: 'detailUrl' }, params: [], payload: {} }],
+}
+
+export const WaterfallUnknownStageNavigates: Story = () => {
+  const document = storyDocument(navigableUnknownPanel, { 'navigable-unknown': navigableUnknownFrame })
+  return <Runtime document={document}><CascadePanel panel={navigableUnknownPanel} /></Runtime>
+}
+
+// The stacked projection of the same thing. Its rows have a hover plate and no
+// resting mark at all, so without the arrow the list says nothing about which
+// of its stages is a way in — the same failure, one layout over.
+export const CascadeUnknownStageNavigates: Story = () => {
+  const panel: Panel = { ...navigableUnknownPanel, id: 'navigable-unknown-cascade', presentation: undefined }
+  const document = storyDocument(panel, { 'navigable-unknown': navigableUnknownFrame })
+  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+}
+
 // Cascade-list projection of the same toned bridge: track fill and value text
 // follow the per-stage tone.
 export const CascadeSemanticTone: Story = () => {

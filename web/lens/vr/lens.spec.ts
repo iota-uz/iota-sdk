@@ -89,6 +89,7 @@ const storyIds = [
   'panels-v2--cascade-semantic-tone',
   'panels-v2--cascade-stages-navigate',
   'panels-v2--cascade-unknown-stage',
+  'panels-v2--cascade-unknown-stage-navigates',
   'panels-v2--export-idle',
   'panels-v2--panel-info-tip-dark',
   'panels-v2--panel-info-tip-light',
@@ -104,6 +105,7 @@ const storyIds = [
   'panels-v2--waterfall-semantic-tone',
   'panels-v2--waterfall-split-callout',
   'panels-v2--waterfall-unknown-stage',
+  'panels-v2--waterfall-unknown-stage-navigates',
   'print-report--composed-report',
   'progressive-panels--sibling-ready-loading-and-error',
   'temporal-overlays--category-axis-overlays',
@@ -276,6 +278,9 @@ const staticStories = [
   ['panels-v2--cascade-semantic-tone', 0],
   ['panels-v2--cascade-stages-navigate', 0],
   ['panels-v2--cascade-unknown-stage', 0],
+  // The same list once its stages open something: the badge on an actionable
+  // stage carries the arrow, the one on an inert stage stays a status.
+  ['panels-v2--cascade-unknown-stage-navigates', 0],
   ['panels-v2--export-idle', 0],
   ['panels-v2--panel-info-tip-dark', 0],
   ['panels-v2--panel-info-tip-light', 0],
@@ -295,6 +300,10 @@ const staticStories = [
   // The gap column: a dashed rule on the last known running total, not a
   // deduction to the axis, and one closing column rather than a twin.
   ['panels-v2--waterfall-unknown-stage', 0],
+  // The gap column that opens something, beside the gap column that does not:
+  // the arrow in the badge is the whole distinction at rest, and a bar that is
+  // a dashed hairline leaves the badge as the only thing to aim at.
+  ['panels-v2--waterfall-unknown-stage-navigates', 0],
   ['progressive-panels--sibling-ready-loading-and-error', 0],
   // A category axis: the shape /analytics/trends draws, and the one where a
   // single-category band needs a bar's sense of the band's edges.

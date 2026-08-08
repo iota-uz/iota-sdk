@@ -9,6 +9,7 @@ import {
   type RefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { ArrowUpRight } from '../icons'
 import { hoverBridgeDelay, useOverlayContainer } from '../runtime/overlayContainer'
 import { CopyValueButton } from './CopyValueButton'
 import { useIsClamped } from './useIsClamped'
@@ -318,7 +319,17 @@ function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint,
             not about the string. */}
         <span ref={label} title={labelClamped ? item.label : undefined}>{item.label}</span>
         {item.annotation && (
-          <small className="lens-waterfall-annotation">{item.annotation}</small>
+          <small className="lens-waterfall-annotation">
+            {item.annotation}
+            {/* The badge is the only solid shape in a column whose bar may be an
+                empty dashed gap, so it is what a reader aims at — and a chip
+                that looks the same whether or not the step opens anything is
+                what made «Настроить» unfindable. The arrow is the claim that
+                there is somewhere to go, and it is drawn on the same condition
+                a drill cell's pill draws it: a destination actually resolved
+                (`chrome`), never merely a status worth stating. */}
+            {chrome && <ArrowUpRight size={10} />}
+          </small>
         )}
       </span>
     </div>
