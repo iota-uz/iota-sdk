@@ -76,4 +76,14 @@ describe('panelFailureCopy', () => {
     const failure = new QueryError('internal', 'analytics.repository.trends: context deadline exceeded', 200, 'timeout')
     expect(panelFailureCopy(failure, russianHost).message).not.toContain('deadline')
   })
+
+  // A host that translates panel.error to the same English sentence the
+  // runtime would have used anyway is still a host that translated it — that
+  // choice must survive even though its value is indistinguishable, by text,
+  // from the untranslated fallback.
+  it('keeps an explicit English generic translation over the built-in reason copy', () => {
+    const explicitEnglishHost = translator({ 'panel.error': 'This panel could not be rendered.' })
+    const copy = panelFailureCopy(new QueryError('internal', 'panel execution failed', 200, 'timeout'), explicitEnglishHost)
+    expect(copy.message).toBe('This panel could not be rendered.')
+  })
 })

@@ -32,6 +32,15 @@ type Translate = (key: string, fallback: string) => string
 const genericDefault = 'This panel could not be rendered.'
 const timeoutDefault = 'There is too much data in the selected period to load it in time. Pick a shorter period, or try again.'
 const canceledDefault = 'Loading stopped before it finished. Try again when you are ready.'
+// A host that explicitly translates panel.error to the English default text
+// is indistinguishable, by value, from a host that never translated it at
+// all — genericDefault is a legitimate translation, not only a fallback. Ask
+// with a fallback nothing would ever choose on purpose, so getting it back
+// means the key is absent, independently of what a real translation says.
+// Each translate() call below still takes its key as a literal string, so
+// the Go-side i18n call-site scanner (pkg/lens/document/i18n_test.go) still
+// finds it.
+const missingTranslationSentinel = ' lens-missing-translation'
 
 /**
  * The reader-facing sentence for a failed panel.
@@ -47,13 +56,18 @@ const canceledDefault = 'Loading stopped before it finished. Try again when you 
  * actually says something.
  */
 export function panelFailureCopy(error: unknown, translate: Translate): PanelFailureCopy {
-  const generic = translate('panel.error', genericDefault)
-  const localized = generic !== genericDefault
+  const rawGeneric = translate('panel.error', missingTranslationSentinel)
+  const localizedGeneric = rawGeneric === missingTranslationSentinel ? undefined : rawGeneric
+  const generic = localizedGeneric ?? genericDefault
   switch (failureReason(error)) {
-    case 'timeout':
-      return { message: translate('panel.error.timeout', localized ? generic : timeoutDefault), alert: true }
-    case 'canceled':
-      return { message: translate('panel.error.canceled', localized ? generic : canceledDefault), alert: false }
+    case 'timeout': {
+      const raw = translate('panel.error.timeout', missingTranslationSentinel)
+      return { message: raw === missingTranslationSentinel ? (localizedGeneric ?? timeoutDefault) : raw, alert: true }
+    }
+    case 'canceled': {
+      const raw = translate('panel.error.canceled', missingTranslationSentinel)
+      return { message: raw === missingTranslationSentinel ? (localizedGeneric ?? canceledDefault) : raw, alert: false }
+    }
     default:
       return { message: generic, alert: true }
   }

@@ -36,7 +36,13 @@ func TestClassifyFailure(t *testing.T) {
 		"net timeout":          {err: fmt.Errorf("datasource: %w", netTimeout), expected: document.FailureTimeout},
 		"net failure":          {err: fmt.Errorf("datasource: %w", netOther), expected: document.FailureUnknown},
 		"statement timeout":    {err: errors.New("ERROR: canceling statement due to statement timeout (SQLSTATE 57014)"), expected: document.FailureTimeout},
+		"i/o timeout":          {err: errors.New("dial tcp 10.0.0.1:5432: i/o timeout"), expected: document.FailureTimeout},
 		"unrelated failure":    {err: errors.New("column \"premium\" does not exist"), expected: document.FailureUnknown},
+		// The word "timeout" appearing in an error is not itself a deadline —
+		// a setup mistake that happens to name the word must not be told to
+		// the reader as "pick a shorter period", which would send them
+		// chasing a symptom that was never there.
+		"unrelated config error naming timeout": {err: errors.New("invalid timeout configuration: must be positive"), expected: document.FailureUnknown},
 		"missing dataset":      {err: fmt.Errorf("dataset %q not found", "trends"), expected: document.FailureUnknown},
 		// A chain is free to lose its sentinel on the way up: the EAI trends
 		// panel fails through a memoizer that reports what it cached as text,

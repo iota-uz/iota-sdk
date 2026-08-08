@@ -53,8 +53,14 @@ func ClassifyFailure(err error) FailureReason {
 	}
 	text := strings.ToLower(err.Error())
 	switch {
+	// A bare "timeout" substring also matches "invalid timeout configuration"
+	// and similar setup errors that are not a deadline at all. Match the
+	// signatures a driver or worker actually reports instead.
 	case strings.Contains(text, context.DeadlineExceeded.Error()),
-		strings.Contains(text, "timeout"),
+		strings.Contains(text, "statement timeout"),
+		strings.Contains(text, "i/o timeout"),
+		strings.Contains(text, "query timeout"),
+		strings.Contains(text, "request timeout"),
 		strings.Contains(text, "timed out"):
 		return FailureTimeout
 	case strings.Contains(text, context.Canceled.Error()),

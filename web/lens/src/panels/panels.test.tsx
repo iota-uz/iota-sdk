@@ -1698,6 +1698,13 @@ describe('cascade stages', () => {
     expect(byLabel('Операционные расходы')?.value).toBe(-30)
     expect(byLabel('Результат')?.kind).toBe('end')
     expect(byLabel('Результат')?.value).toBe(150)
+
+    // The plot model must agree: an unknown column draws no translucent
+    // underlay either. Without this, the gap stood on a full-height accent
+    // block reaching down to zero — the exact invented height the badge and
+    // the zero-value bar above already refuse to draw.
+    const model = buildWaterfallModel(buildCascadeStages(cascade, frame, format, format), format, format)
+    expect(model.items.find((item) => item.label === 'Изменение РЗУ')?.underlayHeight).toBeUndefined()
   })
 
   it('closes on an unknown final row in place, without a dead twin beside it', () => {

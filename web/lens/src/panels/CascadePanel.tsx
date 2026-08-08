@@ -541,8 +541,10 @@ export function buildWaterfallModel(
       rawSplit: splittable ? rawValue(splitMagnitude) : undefined,
       splitLabel: splittable ? item.splitLabel : undefined,
       // Only a floating bar leaves a balance under it; the totals stand on zero
-      // already. A bar dipping below zero leaves nothing, hence the clamp.
-      underlayHeight: item.kind === 'start' || item.kind === 'end'
+      // already. A bar dipping below zero leaves nothing, hence the clamp. An
+      // unknown stage draws no invented height at all — it is a gap standing
+      // on the running total, not a translucent claim about what fills it.
+      underlayHeight: unknown || item.kind === 'start' || item.kind === 'end'
         ? undefined
         : Math.max(0, zero - bottom) || undefined,
       connectorTop: y(item.to),
