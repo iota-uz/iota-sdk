@@ -3855,6 +3855,28 @@
       border-color var(--lens-dur-fast) var(--lens-ease-standard);
   }
 
+  /* The same three names, restated for a dark card. The chip's light values are
+     a paper red — a near-white fill under a dark ink — and on #1e293b that
+     inverts into the brightest object on the panel, so the one badge that may
+     be only a status shouted louder than the numbers it annotates.
+
+     Nothing new is chosen here: the dark negative family already declares both
+     halves of this chip. --lens-neg-soft is the same wash the light theme gives
+     this pill (there, literally #fef2f2, the fill below), and --lens-neg-alt is
+     the light red the dark block exists to provide where --lens-neg would go
+     muddy against the page. The edge lands between them by mixing that ink into
+     the card's own border, which leaves the hover state — edge to solid ink —
+     the visible step it is in light.
+
+     The states below need no dark rule of their own: they are mixed from these
+     three, and a translucent fill deepens under the same 12% ink mix. */
+  .lens-root[data-theme='dark'] .lens-cascade-stage-annotation,
+  .lens-root[data-theme='dark'] .lens-waterfall-annotation {
+    --lens-annotation-ink: var(--lens-neg-alt);
+    --lens-annotation-fill: var(--lens-neg-soft);
+    --lens-annotation-edge: color-mix(in srgb, var(--lens-neg-alt) 45%, var(--lens-border));
+  }
+
   /* The arrow is rendered only where a destination actually resolved — the same
      claim, and the same glyph, a drill cell's pill makes (.lens-table-cell-pill)
      — so it needs no state of its own. It must not be the part of the chip that
