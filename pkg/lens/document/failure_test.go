@@ -43,7 +43,7 @@ func TestClassifyFailure(t *testing.T) {
 		// the reader as "pick a shorter period", which would send them
 		// chasing a symptom that was never there.
 		"unrelated config error naming timeout": {err: errors.New("invalid timeout configuration: must be positive"), expected: document.FailureUnknown},
-		"missing dataset":      {err: fmt.Errorf("dataset %q not found", "trends"), expected: document.FailureUnknown},
+		"missing dataset":                       {err: fmt.Errorf("dataset %q not found", "trends"), expected: document.FailureUnknown},
 		// A chain is free to lose its sentinel on the way up: the EAI trends
 		// panel fails through a memoizer that reports what it cached as text,
 		// so the deadline arrives spelled out rather than wrapped.
