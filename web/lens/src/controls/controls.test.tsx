@@ -47,6 +47,23 @@ describe('Calendar', () => {
     expect(screen.getAllByRole('gridcell', { name: 'Aug 1, 2026' })).toHaveLength(1)
   })
 
+  // Six rows per pane whatever the month: a month can otherwise end in a row
+  // holding a single date, and the card changes height as the window steps.
+  // The surplus rows are padding, so they add no gridcell to either pane.
+  it('draws every month on the same six-row grid', () => {
+    // February 2026 starts on Sunday and fills exactly four Sunday-first weeks.
+    render(<Calendar {...baseProps} onPick={() => undefined} today={{ year: 2026, month: 2, day: 10 }} />)
+    for (const grid of grids()) {
+      const weeks = grid.querySelectorAll('.lens-calendar-week')
+      expect(weeks).toHaveLength(6)
+    }
+    const february = firstGrid()
+    expect(february.getAttribute('aria-label')).toContain('February 2026')
+    expect(within(february).getAllByRole('gridcell')).toHaveLength(28)
+    const lastWeek = february.querySelectorAll('.lens-calendar-week')[5]!
+    expect(within(lastWeek as HTMLElement).queryAllByRole('gridcell')).toHaveLength(0)
+  })
+
   it('uses one pane whenever the full popover would exceed the viewport', () => {
     const addEventListener = vi.fn()
     const removeEventListener = vi.fn()

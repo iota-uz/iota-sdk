@@ -77,13 +77,19 @@ const storyIds = [
   'metric-composition--narrow',
   'metric-composition--quality-chips',
   'metric-composition--relationship-variants',
+  'panel-failure--failure-reasons--dark',
+  'panel-failure--failure-reasons--light',
   'panel-matrix--all-kinds-and-states--dark',
   'panel-matrix--all-kinds-and-states--light',
   'panel-matrix--sparkline-and-coverage-target--dark',
   'panel-matrix--sparkline-and-coverage-target--light',
+  'panel-matrix--unknown-cascade-stage--dark',
+  'panel-matrix--unknown-cascade-stage--light',
   'panels-v2--cascade-final-stage',
   'panels-v2--cascade-semantic-tone',
   'panels-v2--cascade-stages-navigate',
+  'panels-v2--cascade-unknown-stage',
+  'panels-v2--cascade-unknown-stage-navigates',
   'panels-v2--export-idle',
   'panels-v2--panel-info-tip-dark',
   'panels-v2--panel-info-tip-light',
@@ -98,6 +104,8 @@ const storyIds = [
   'panels-v2--waterfall-mixed-label-heights',
   'panels-v2--waterfall-semantic-tone',
   'panels-v2--waterfall-split-callout',
+  'panels-v2--waterfall-unknown-stage',
+  'panels-v2--waterfall-unknown-stage-navigates',
   'print-report--composed-report',
   'progressive-panels--sibling-ready-loading-and-error',
   'temporal-overlays--category-axis-overlays',
@@ -251,14 +259,28 @@ const staticStories = [
   ['metric-composition--narrow', 0],
   ['metric-composition--quality-chips', 0],
   ['metric-composition--relationship-variants', 0],
+  // What a panel says once the server names the kind of failure. Card-edge
+  // antialiasing alternates between two stable rasters here the same way it
+  // does across the matrices below (#932).
+  ['panel-failure--failure-reasons--dark', 0, 50],
+  ['panel-failure--failure-reasons--light', 0, 50],
   ['panel-matrix--all-kinds-and-states--dark', 0],
   ['panel-matrix--all-kinds-and-states--light', 0],
   // Card-edge antialiasing alternates between two stable rasters (#932).
   ['panel-matrix--sparkline-and-coverage-target--dark', 0, 50],
   ['panel-matrix--sparkline-and-coverage-target--light', 0, 50],
+  // A bridge with amounts nobody has, in both projections and every panel
+  // state. Card-edge antialiasing alternates the same way the variant matrix
+  // beside it does (#932).
+  ['panel-matrix--unknown-cascade-stage--dark', 0, 50],
+  ['panel-matrix--unknown-cascade-stage--light', 0, 50],
   ['panels-v2--cascade-final-stage', 0],
   ['panels-v2--cascade-semantic-tone', 0],
   ['panels-v2--cascade-stages-navigate', 0],
+  ['panels-v2--cascade-unknown-stage', 0],
+  // The same list once its stages open something: the badge on an actionable
+  // stage carries the arrow, the one on an inert stage stays a status.
+  ['panels-v2--cascade-unknown-stage-navigates', 0],
   ['panels-v2--export-idle', 0],
   ['panels-v2--panel-info-tip-dark', 0],
   ['panels-v2--panel-info-tip-light', 0],
@@ -275,6 +297,13 @@ const staticStories = [
   ['panels-v2--waterfall-mixed-label-heights', 0],
   ['panels-v2--waterfall-semantic-tone', 0],
   ['panels-v2--waterfall-split-callout', 0],
+  // The gap column: a dashed rule on the last known running total, not a
+  // deduction to the axis, and one closing column rather than a twin.
+  ['panels-v2--waterfall-unknown-stage', 0],
+  // The gap column that opens something, beside the gap column that does not:
+  // the arrow in the badge is the whole distinction at rest, and a bar that is
+  // a dashed hairline leaves the badge as the only thing to aim at.
+  ['panels-v2--waterfall-unknown-stage-navigates', 0],
   ['progressive-panels--sibling-ready-loading-and-error', 0],
   // A category axis: the shape /analytics/trends draws, and the one where a
   // single-category band needs a bar's sense of the band's edges.

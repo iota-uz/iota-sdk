@@ -389,12 +389,42 @@ describe('cascade stages with a row-scoped action', () => {
     // start + 2 deltas + synthetic closing total.
     expect(columns).toHaveLength(4)
     expect(container.querySelector('.lens-waterfall-bar[role="button"]')).toBeNull()
+    // Including the synthetic closing total: it repeats the final stage, so it
+    // repeats that stage's row too. A column that looks like every other one and
+    // answers nothing is the one thing it must not be.
     const stages = columns.filter((column) => column.getAttribute('role') === 'button')
-    expect(stages).toHaveLength(3)
+    expect(stages).toHaveLength(4)
     stages[1]!.click()
     expect(assign).toHaveBeenCalledWith(expect.stringContaining('/analytics/families/claims'))
-    // The synthetic closing total repeats the final stage and stays inert.
-    expect(columns.at(-1)!.getAttribute('role')).toBeNull()
+    columns.at(-1)!.click()
+    expect(assign).toHaveBeenCalledWith(expect.stringContaining('/analytics/families/opex'))
+  })
+
+  it('activates an unknown closing column through the row that declared it', () => {
+    const assign = vi.mocked(navigateTo)
+    // The closing total the producer cannot compute yet: it must still be the
+    // column a reader clicks to go and configure it.
+    const frame: Frame = {
+      ...cascadeFrame,
+      rows: [
+        ['Earned premium', 100, 0, '', false, '/analytics/families/earned'],
+        ['After claims', 60, 40, 'Claims paid', false, '/analytics/families/claims'],
+        ['Result', null, 0, '', true, '/analytics/families/result'],
+      ],
+    }
+    const panel = cascadePanel([rowAction()], true)
+    const { container } = renderPanel(
+      documentWith([panel], { 'cascade:root': frame }),
+      <CascadePanel panel={panel} />,
+    )
+
+    const columns = [...container.querySelectorAll<HTMLElement>('.lens-waterfall-column')]
+    // Start, one deduction, and the unknown closing total — drawn once.
+    expect(columns).toHaveLength(3)
+    expect(container.querySelector('.lens-waterfall-bar[data-unknown="true"]')).not.toBeNull()
+    expect(columns.at(-1)!.getAttribute('role')).toBe('button')
+    columns.at(-1)!.click()
+    expect(assign).toHaveBeenCalledWith(expect.stringContaining('/analytics/families/result'))
   })
 
   it('activates a stacked cascade stage and leaves url-less rows inert', () => {
@@ -412,6 +442,61 @@ describe('cascade stages with a row-scoped action', () => {
     expect(stages[2]!.getAttribute('role')).toBe('button')
     stages[2]!.click()
     expect(assign).toHaveBeenCalledWith(expect.stringContaining('/analytics/families/opex'))
+  })
+
+  // The badge under a step's name is where a reader's eye and hand go — on an
+  // unknown stage it is the only solid shape in the column, since the bar is a
+  // dashed gap. So it has to say whether the step opens anything: «Настроить»
+  // on a column that leads somewhere and «Нет данных» on one that does not were
+  // the same chip, and a reader who was told to click the first could not work
+  // out how. The arrow is drawn on the condition a drill cell's pill draws it —
+  // a destination that actually resolved.
+  const annotatedUnknownFrame: Frame = {
+    columns: [...cascadeFrame.columns, { name: 'annotation', type: 'string' }],
+    rows: [
+      ['Earned premium', 100, 0, '', false, '/analytics/families/earned', ''],
+      // Unknown and inert: a status, with nothing behind it to open.
+      ['Reserve change', null, 0, 'Reserve change', false, '', 'Нет данных'],
+      // Unknown and actionable: the row the reader was told to go and configure.
+      ['Result', null, 0, '', true, '/analytics/families/result', 'Настроить'],
+    ],
+  }
+
+  const annotatedPanel = (waterfall: boolean): Panel => {
+    const base = cascadePanel([rowAction()], waterfall)
+    return { ...base, encoding: { ...base.encoding, annotation: 'annotation' } }
+  }
+
+  it('marks an actionable badge with an arrow and leaves an inert one a status', () => {
+    const panel = annotatedPanel(true)
+    const { container } = renderPanel(
+      documentWith([panel], { 'cascade:root': annotatedUnknownFrame }),
+      <CascadePanel panel={panel} />,
+    )
+
+    const badges = [...container.querySelectorAll<HTMLElement>('.lens-waterfall-annotation')]
+    expect(badges.map((badge) => badge.textContent)).toEqual(['Нет данных', 'Настроить'])
+    expect(badges[0]!.querySelector('svg')).toBeNull()
+    expect(badges[1]!.querySelector('svg')).not.toBeNull()
+    // The column stays the one interactive element: the badge is its handle,
+    // not a control nested inside a control.
+    expect(badges[0]!.closest('.lens-waterfall-column')!.getAttribute('role')).toBeNull()
+    expect(badges[1]!.closest('.lens-waterfall-column')!.getAttribute('role')).toBe('button')
+    expect(badges[1]!.querySelector('button, a')).toBeNull()
+  })
+
+  it('marks an actionable badge in the stacked projection too', () => {
+    const panel = annotatedPanel(false)
+    const { container } = renderPanel(
+      documentWith([panel], { 'cascade:root': annotatedUnknownFrame }),
+      <CascadePanel panel={panel} />,
+    )
+
+    const badges = [...container.querySelectorAll<HTMLElement>('.lens-cascade-stage-annotation')]
+    expect(badges.map((badge) => badge.textContent)).toEqual(['Нет данных', 'Настроить'])
+    expect(badges[0]!.querySelector('svg')).toBeNull()
+    expect(badges[1]!.querySelector('svg')).not.toBeNull()
+    expect(badges[1]!.closest('.lens-cascade-stage')!.getAttribute('role')).toBe('button')
   })
 
   it('keeps an action-less cascade inert', () => {

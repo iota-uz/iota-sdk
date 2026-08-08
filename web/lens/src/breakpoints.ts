@@ -17,11 +17,13 @@
  * longer fits between the viewport padding, so the calendar renders a single
  * pane and steps a month at a time.
  *
- * Mirrors the `@media (max-width: 664px)` block in `styles.css` that narrows
+ * Mirrors the `.lens-filter-popover` media block in `styles.css` that narrows
  * the popover itself: the pane count and the popover width have to change on
- * the same edge, or the card is sized for two panes while showing one.
+ * the same edge, or the card is sized for two panes while showing one. Raised
+ * from 664 with the card's own width (640 → 860): the facet menu's sheet edge
+ * is a different, still-664 block, and the two are not one breakpoint.
  */
-export const stackedCalendarMaxWidth = 664
+export const stackedCalendarMaxWidth = 884
 
 /** `stackedCalendarMaxWidth` as a media query, for `matchMedia`. */
 export const stackedCalendarMediaQuery = `(max-width: ${stackedCalendarMaxWidth}px)`

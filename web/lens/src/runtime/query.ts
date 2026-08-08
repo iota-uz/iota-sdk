@@ -2,6 +2,7 @@ import {
   QueryErrorResponseSchema,
   QueryRequestSchema,
   QueryResponseSchema,
+  type FailureReason,
   type QueryErrorCode,
   type QueryRequest,
   type QueryResponse,
@@ -12,6 +13,13 @@ export class QueryError extends Error {
     readonly code: QueryErrorCode,
     message: string,
     readonly status: number,
+    /**
+     * What kind of failure this was, when the server classified it. `message`
+     * stays a developer string that is never shown; this is the part a reader
+     * can be told about. Optional: a server that does not classify, and every
+     * client-side failure, leaves it unset and the generic copy applies.
+     */
+    readonly reason?: FailureReason,
   ) {
     super(message)
     this.name = 'QueryError'
@@ -122,7 +130,7 @@ export class QueryClient {
       const code: QueryErrorCode = parsed.success ? parsed.data.error : 'internal'
       const message = parsed.success ? parsed.data.message : `query request failed with ${response.status}`
       if (response.status === 410 && code === 'snapshot_gone') throw new SnapshotGoneError(message)
-      throw new QueryError(code, message, response.status)
+      throw new QueryError(code, message, response.status, parsed.success ? parsed.data.reason : undefined)
     }
     return QueryResponseSchema.parse(payload)
   }

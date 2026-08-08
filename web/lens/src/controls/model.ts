@@ -160,15 +160,25 @@ export interface MonthCell {
 /**
  * Weeks covering the month, each exactly seven days, including the boundary
  * days of the previous/next months that pad the first and last week.
+ *
+ * Always six rows, whatever the month needs. A month can fill four rows
+ * (February starting on the week's first day) or six, and a grid sized to the
+ * month drew a final row holding a single date — 31 January hanging under a
+ * full grid reads as a stub rather than as the last week of the month — and
+ * resized the popover under the reader every time they stepped a month. Six is
+ * the natural maximum (at most six lead days plus 31 gives 37 cells), so the
+ * fixed count only ever pads: the first row still holds the 1st, and the
+ * surplus rows are trailing days of the next month, which the calendar renders
+ * as the same inert padding it already renders at the month's edges.
  */
+export const monthGridWeeks = 6
+
 export function monthGrid(year: number, month: number, firstDay: number): Array<Array<MonthCell>> {
   const first: CalendarDate = { year, month, day: 1 }
   const lead = (dayOfWeek(first) - firstDay + 7) % 7
   let cursor = addDays(first, -lead)
-  const total = lead + daysInMonth(year, month)
-  const weekCount = Math.ceil(total / 7)
   const weeks: Array<Array<MonthCell>> = []
-  for (let week = 0; week < weekCount; week += 1) {
+  for (let week = 0; week < monthGridWeeks; week += 1) {
     const cells: Array<MonthCell> = []
     for (let day = 0; day < 7; day += 1) {
       cells.push({ date: cursor, inMonth: cursor.year === year && cursor.month === month })

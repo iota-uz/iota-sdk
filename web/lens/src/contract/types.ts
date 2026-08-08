@@ -171,6 +171,8 @@ export interface FacetSelection {
   removeUrl: string
 }
 
+export type FailureReason = "canceled" | "timeout" | "unknown"
+
 export interface FieldFormat {
   kind: FormatKind
   currency?: string
@@ -581,6 +583,7 @@ export type QueryErrorCode = "bad_request" | "internal" | "snapshot_gone"
 export interface QueryErrorResponse {
   error: QueryErrorCode
   message: string
+  reason?: FailureReason
 }
 
 export interface QueryPage {

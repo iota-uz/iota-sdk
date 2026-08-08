@@ -334,10 +334,17 @@ export const PopoverOpenDark: Story = () => (
 )
 PopoverOpenDark.storyName = 'Popover open dark'
 
+/**
+ * The calendar at the width it actually gets: the popover is 860px with a 232px
+ * preset rail beside it, so the grid is drawn in the 628px that leaves. A story
+ * card narrower than that would pin a density the product never renders.
+ */
+const calendarPaneWidth = 628
+
 function CalendarCard({ children, theme = 'light' }: { children: React.ReactNode; theme?: LensThemeMode }) {
   return (
     <div className="lens-root" data-theme={theme}>
-      <div className="lens-filter-popover" style={{ position: 'static', width: 496 }}>
+      <div className="lens-filter-popover" style={{ position: 'static', width: calendarPaneWidth }}>
         <div className="lens-filter-popover-main">
           {children}
         </div>
@@ -423,7 +430,7 @@ CalendarMonthPanel.storyName = 'Calendar month panel'
 export const CalendarLocales: Story = () => (
   <div className="lens-root" style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
     {(['en-US', 'ru', 'uz', 'uz-Cyrl'] as const).map((locale) => (
-      <div className="lens-filter-popover" key={locale} style={{ position: 'static', width: 496 }}>
+      <div className="lens-filter-popover" key={locale} style={{ position: 'static', width: calendarPaneWidth }}>
         <div className="lens-filter-popover-main">
           <Calendar
             draft={committedRange}
