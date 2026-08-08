@@ -59,9 +59,11 @@ describe('chart bundle boundary', () => {
     // once the nine facet dropdowns collapsed into one filter menu (a rail, a
     // staged multi-dimension apply, and the chip row), and 432,039 after stat
     // drawers joined the bounded idle child-prefetch queue, and 435,754 after
-    // drawers moved onto the standard client-host portal lifecycle. The cap still
+    // drawers moved onto the standard client-host portal lifecycle, and 437,517
+    // after the period picker's expanded calendar, the cascade's honest
+    // unknown-value gaps, and failure copy that names what broke. The cap still
     // catches accidental bloat — it is a tripwire for a chart library wandering
     // into the core entry, not a per-byte budget.
-    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(437_000)
+    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(438_000)
   })
 })
