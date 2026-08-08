@@ -45,7 +45,7 @@ func TestController_ServesCanonicalBootstrapAndDescriptor(t *testing.T) {
 	require.Contains(t, body, `data-sdk-commit="0123456789abcdef0123456789abcdef01234567"`)
 	require.Contains(t, body, `integrity="sha384-example"`)
 	require.Contains(t, body, `"protocolVersion":"1.0.0"`)
-	require.Contains(t, body, `"sdkReleaseVersion":"0.5.1"`)
+	require.Contains(t, body, `"sdkReleaseVersion":"0.5.2"`)
 	require.Contains(t, body, `"sdkCommit":"0123456789abcdef0123456789abcdef01234567"`)
 	require.Contains(t, body, `"theme":"dark"`)
 	require.Contains(t, body, `"csrf":"token"`)
