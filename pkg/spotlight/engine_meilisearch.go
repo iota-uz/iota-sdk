@@ -264,8 +264,12 @@ func (e *MeilisearchEngine) configureIndex(indexName string) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.configureIndex"
 
 	index := e.client.Index(indexName)
+	settings, err := index.GetSettings()
+	if err != nil {
+		return serrors.E(op, err)
+	}
 
-	filterableAttrs := []interface{}{
+	filterableAttrs := []string{
 		"tenant_id",
 		"provider",
 		"entity_type",
@@ -278,30 +282,40 @@ func (e *MeilisearchEngine) configureIndex(indexName string) error {
 		"allowed_roles",
 		"allowed_permissions",
 	}
-	filterTask, err := index.UpdateFilterableAttributes(&filterableAttrs)
-	if err != nil {
-		return serrors.E(op, err)
-	}
-	if _, err := waitTaskCtxClient(context.Background(), e.client, filterTask.TaskUID); err != nil {
-		return serrors.E(op, err)
+	if !slices.Equal(settings.FilterableAttributes, filterableAttrs) {
+		attrs := make([]interface{}, len(filterableAttrs))
+		for i, attr := range filterableAttrs {
+			attrs[i] = attr
+		}
+		filterTask, err := index.UpdateFilterableAttributes(&attrs)
+		if err != nil {
+			return serrors.E(op, err)
+		}
+		if _, err := waitTaskCtxClient(context.Background(), e.client, filterTask.TaskUID); err != nil {
+			return serrors.E(op, err)
+		}
 	}
 
 	searchableAttrs := []string{"title", "description", "search_text"}
-	searchTask, err := index.UpdateSearchableAttributes(&searchableAttrs)
-	if err != nil {
-		return serrors.E(op, err)
-	}
-	if _, err := waitTaskCtxClient(context.Background(), e.client, searchTask.TaskUID); err != nil {
-		return serrors.E(op, err)
+	if !slices.Equal(settings.SearchableAttributes, searchableAttrs) {
+		searchTask, err := index.UpdateSearchableAttributes(&searchableAttrs)
+		if err != nil {
+			return serrors.E(op, err)
+		}
+		if _, err := waitTaskCtxClient(context.Background(), e.client, searchTask.TaskUID); err != nil {
+			return serrors.E(op, err)
+		}
 	}
 
 	sortableAttrs := []string{"updated_at"}
-	sortTask, err := index.UpdateSortableAttributes(&sortableAttrs)
-	if err != nil {
-		return serrors.E(op, err)
-	}
-	if _, err := waitTaskCtxClient(context.Background(), e.client, sortTask.TaskUID); err != nil {
-		return serrors.E(op, err)
+	if !slices.Equal(settings.SortableAttributes, sortableAttrs) {
+		sortTask, err := index.UpdateSortableAttributes(&sortableAttrs)
+		if err != nil {
+			return serrors.E(op, err)
+		}
+		if _, err := waitTaskCtxClient(context.Background(), e.client, sortTask.TaskUID); err != nil {
+			return serrors.E(op, err)
+		}
 	}
 
 	return nil

@@ -53,28 +53,12 @@ func TestMeilisearchEngine_SetupForSearchExistingIndexStaysReadOnly(t *testing.T
 		Return(index).
 		Once()
 	index.EXPECT().
-		UpdateFilterableAttributes(mock.Anything).
-		Return(&meilisearch.TaskInfo{TaskUID: 1}, nil).
-		Once()
-	service.EXPECT().
-		WaitForTaskWithContext(mock.Anything, int64(1), 100*time.Millisecond).
-		Return(&meilisearch.Task{}, nil).
-		Once()
-	index.EXPECT().
-		UpdateSearchableAttributes(mock.Anything).
-		Return(&meilisearch.TaskInfo{TaskUID: 2}, nil).
-		Once()
-	service.EXPECT().
-		WaitForTaskWithContext(mock.Anything, int64(2), 100*time.Millisecond).
-		Return(&meilisearch.Task{}, nil).
-		Once()
-	index.EXPECT().
-		UpdateSortableAttributes(mock.Anything).
-		Return(&meilisearch.TaskInfo{TaskUID: 3}, nil).
-		Once()
-	service.EXPECT().
-		WaitForTaskWithContext(mock.Anything, int64(3), 100*time.Millisecond).
-		Return(&meilisearch.Task{}, nil).
+		GetSettings().
+		Return(&meilisearch.Settings{
+			FilterableAttributes: requiredFilterableAttributes(),
+			SearchableAttributes: requiredSearchableAttributes(),
+			SortableAttributes:   requiredSortableAttributes(),
+		}, nil).
 		Once()
 
 	require.NoError(t, engine.setup())
@@ -105,6 +89,10 @@ func TestMeilisearchEngine_SetupForSearchMissingIndexBootstrapsIt(t *testing.T) 
 	service.EXPECT().
 		Index("spotlight").
 		Return(index).
+		Once()
+	index.EXPECT().
+		GetSettings().
+		Return(&meilisearch.Settings{}, nil).
 		Once()
 	index.EXPECT().
 		UpdateFilterableAttributes(mock.Anything).
@@ -466,28 +454,12 @@ func TestMeilisearchEngine_DeleteTenant_RemovesOnlyRequestedTenantDocuments(t *t
 		Return(index).
 		Once()
 	index.EXPECT().
-		UpdateFilterableAttributes(mock.Anything).
-		Return(&meilisearch.TaskInfo{TaskUID: 31}, nil).
-		Once()
-	service.EXPECT().
-		WaitForTaskWithContext(mock.Anything, int64(31), 100*time.Millisecond).
-		Return(&meilisearch.Task{}, nil).
-		Once()
-	index.EXPECT().
-		UpdateSearchableAttributes(mock.Anything).
-		Return(&meilisearch.TaskInfo{TaskUID: 32}, nil).
-		Once()
-	service.EXPECT().
-		WaitForTaskWithContext(mock.Anything, int64(32), 100*time.Millisecond).
-		Return(&meilisearch.Task{}, nil).
-		Once()
-	index.EXPECT().
-		UpdateSortableAttributes(mock.Anything).
-		Return(&meilisearch.TaskInfo{TaskUID: 33}, nil).
-		Once()
-	service.EXPECT().
-		WaitForTaskWithContext(mock.Anything, int64(33), 100*time.Millisecond).
-		Return(&meilisearch.Task{}, nil).
+		GetSettings().
+		Return(&meilisearch.Settings{
+			FilterableAttributes: requiredFilterableAttributes(),
+			SearchableAttributes: requiredSearchableAttributes(),
+			SortableAttributes:   requiredSortableAttributes(),
+		}, nil).
 		Once()
 	service.EXPECT().
 		Index("spotlight").
