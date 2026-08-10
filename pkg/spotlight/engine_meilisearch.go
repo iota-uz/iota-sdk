@@ -269,19 +269,7 @@ func (e *MeilisearchEngine) configureIndex(indexName string) error {
 		return serrors.E(op, err)
 	}
 
-	filterableAttrs := []string{
-		"tenant_id",
-		"provider",
-		"entity_type",
-		"domain",
-		"schema_version",
-		"exact_terms",
-		"access_visibility",
-		"owner_id",
-		"allowed_users",
-		"allowed_roles",
-		"allowed_permissions",
-	}
+	filterableAttrs := requiredFilterableAttributes()
 	if !slices.Equal(settings.FilterableAttributes, filterableAttrs) {
 		attrs := make([]interface{}, len(filterableAttrs))
 		for i, attr := range filterableAttrs {
@@ -296,7 +284,7 @@ func (e *MeilisearchEngine) configureIndex(indexName string) error {
 		}
 	}
 
-	searchableAttrs := []string{"title", "description", "search_text"}
+	searchableAttrs := requiredSearchableAttributes()
 	if !slices.Equal(settings.SearchableAttributes, searchableAttrs) {
 		searchTask, err := index.UpdateSearchableAttributes(&searchableAttrs)
 		if err != nil {
@@ -307,7 +295,7 @@ func (e *MeilisearchEngine) configureIndex(indexName string) error {
 		}
 	}
 
-	sortableAttrs := []string{"updated_at"}
+	sortableAttrs := requiredSortableAttributes()
 	if !slices.Equal(settings.SortableAttributes, sortableAttrs) {
 		sortTask, err := index.UpdateSortableAttributes(&sortableAttrs)
 		if err != nil {

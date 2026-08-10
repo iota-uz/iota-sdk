@@ -124,6 +124,69 @@ func TestMeilisearchEngine_SetupForSearchMissingIndexBootstrapsIt(t *testing.T) 
 	require.True(t, engine.writeReady.Load())
 }
 
+func TestMeilisearchEngineConfigureIndexUpdatesOnlyDriftedSetting(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings *meilisearch.Settings
+		taskUID  int64
+		update   func(*meilimocks.MockmeilisearchIndexManager, *meilimocks.MockmeilisearchServiceManager, int64)
+	}{
+		{
+			name: "filterable",
+			settings: &meilisearch.Settings{
+				FilterableAttributes: []string{"tenant_id"},
+				SearchableAttributes: requiredSearchableAttributes(),
+				SortableAttributes:   requiredSortableAttributes(),
+			},
+			taskUID: 21,
+			update: func(index *meilimocks.MockmeilisearchIndexManager, service *meilimocks.MockmeilisearchServiceManager, taskUID int64) {
+				index.EXPECT().UpdateFilterableAttributes(mock.Anything).Return(&meilisearch.TaskInfo{TaskUID: taskUID}, nil).Once()
+				service.EXPECT().WaitForTaskWithContext(mock.Anything, taskUID, 100*time.Millisecond).Return(&meilisearch.Task{}, nil).Once()
+			},
+		},
+		{
+			name: "searchable",
+			settings: &meilisearch.Settings{
+				FilterableAttributes: requiredFilterableAttributes(),
+				SearchableAttributes: []string{"title"},
+				SortableAttributes:   requiredSortableAttributes(),
+			},
+			taskUID: 22,
+			update: func(index *meilimocks.MockmeilisearchIndexManager, service *meilimocks.MockmeilisearchServiceManager, taskUID int64) {
+				index.EXPECT().UpdateSearchableAttributes(mock.Anything).Return(&meilisearch.TaskInfo{TaskUID: taskUID}, nil).Once()
+				service.EXPECT().WaitForTaskWithContext(mock.Anything, taskUID, 100*time.Millisecond).Return(&meilisearch.Task{}, nil).Once()
+			},
+		},
+		{
+			name: "sortable",
+			settings: &meilisearch.Settings{
+				FilterableAttributes: requiredFilterableAttributes(),
+				SearchableAttributes: requiredSearchableAttributes(),
+				SortableAttributes:   nil,
+			},
+			taskUID: 23,
+			update: func(index *meilimocks.MockmeilisearchIndexManager, service *meilimocks.MockmeilisearchServiceManager, taskUID int64) {
+				index.EXPECT().UpdateSortableAttributes(mock.Anything).Return(&meilisearch.TaskInfo{TaskUID: taskUID}, nil).Once()
+				service.EXPECT().WaitForTaskWithContext(mock.Anything, taskUID, 100*time.Millisecond).Return(&meilisearch.Task{}, nil).Once()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := meilimocks.NewMockmeilisearchServiceManager(t)
+			index := meilimocks.NewMockmeilisearchIndexManager(t)
+			engine := &MeilisearchEngine{client: service, indexName: "spotlight"}
+
+			service.EXPECT().Index("spotlight").Return(index).Once()
+			index.EXPECT().GetSettings().Return(tt.settings, nil).Once()
+			tt.update(index, service, tt.taskUID)
+
+			require.NoError(t, engine.configureIndex("spotlight"))
+		})
+	}
+}
+
 func TestMeilisearchEngine_SetupForSearchRejectsExistingIndexWithoutRequiredSettings(t *testing.T) {
 	service := meilimocks.NewMockmeilisearchServiceManager(t)
 	index := meilimocks.NewMockmeilisearchIndexManager(t)
