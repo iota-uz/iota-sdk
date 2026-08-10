@@ -32,3 +32,11 @@ func TestNeutralAndAccentTokens(t *testing.T) {
 	require.Equal(t, "#94A3B8", Neutral)
 	require.Equal(t, "#2563EB", Accent())
 }
+
+func TestSemanticCompatibilityPreservesProductAliases(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "OSAGO", CanonicalProductKey("3"))
+	require.Equal(t, "#7C3AED", Semantic(ScopeProduct, "3"))
+	require.Equal(t, []string{"#7C3AED", "#2563EB"}, Palette(ScopeProduct, []string{"OSAGO", "TRAVEL"}))
+}

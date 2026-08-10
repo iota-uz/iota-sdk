@@ -520,6 +520,18 @@ const (
 	GroupRows    GroupLayout = "rows"
 )
 
+// LegendPosition is retained for compatibility with existing server-side Lens
+// specifications. New renderers may instead express their preferred layout
+// through PresentationHints.
+type LegendPosition string
+
+const (
+	LegendTop    LegendPosition = "top"
+	LegendRight  LegendPosition = "right"
+	LegendBottom LegendPosition = "bottom"
+	LegendLeft   LegendPosition = "left"
+)
+
 type AxisScale string
 
 const (
