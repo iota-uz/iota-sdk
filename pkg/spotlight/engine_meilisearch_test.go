@@ -205,7 +205,7 @@ func TestMeilisearchEngine_SetupForSearchFallsBackToReadyBuildIndexWhenActiveEmp
 		indexName:  "spotlight",
 		activeName: "spotlight",
 	}
-	buildIndexName := rebuildIndexName("spotlight")
+	buildIndexName := rebuildIndexName("spotlight", "00000000-0000-0000-0000-000000000001")
 
 	service.EXPECT().
 		Index("spotlight").
@@ -213,11 +213,15 @@ func TestMeilisearchEngine_SetupForSearchFallsBackToReadyBuildIndexWhenActiveEmp
 		Once()
 	activeIndex.EXPECT().
 		GetStats().
-		Return(&meilisearch.StatsIndex{
-			NumberOfDocuments: 0,
-		}, nil).
+		Return(&meilisearch.StatsIndex{NumberOfDocuments: 0}, nil).
 		Once()
-
+	service.EXPECT().
+		ListIndexesWithContext(mock.Anything, mock.AnythingOfType("*meilisearch.IndexesQuery")).
+		Return(&meilisearch.IndexesResults{Results: []*meilisearch.IndexResult{{
+			UID:       buildIndexName,
+			UpdatedAt: time.Now(),
+		}}}, nil).
+		Once()
 	service.EXPECT().
 		Index(buildIndexName).
 		Return(buildIndex).
@@ -242,13 +246,9 @@ func TestMeilisearchEngine_SetupForSearchFallsBackToReadyBuildIndexWhenActiveEmp
 		Once()
 	buildIndex.EXPECT().
 		Search("", mock.AnythingOfType("*meilisearch.SearchRequest")).
-		Return(&meilisearch.SearchResponse{
-			Hits: meilisearch.Hits{
-				meilisearch.Hit{
-					"schema_version": json.RawMessage(`"` + IndexSchemaVersion + `"`),
-				},
-			},
-		}, nil).
+		Return(&meilisearch.SearchResponse{Hits: meilisearch.Hits{
+			meilisearch.Hit{"schema_version": json.RawMessage(`"` + IndexSchemaVersion + `"`)},
+		}}, nil).
 		Once()
 	buildIndex.EXPECT().
 		GetSettings().
@@ -261,6 +261,22 @@ func TestMeilisearchEngine_SetupForSearchFallsBackToReadyBuildIndexWhenActiveEmp
 
 	require.NoError(t, engine.setupForSearch())
 	require.True(t, engine.searchReady.Load())
+}
+
+func TestRebuildIndexNameIncludesSchemaAndRunID(t *testing.T) {
+	t.Parallel()
+
+	name := rebuildIndexName("spotlight", "00000000-0000-0000-0000-000000000001")
+
+	require.Equal(t, "spotlight_build_2026_03_30_search_v4_00000000-0000-0000-0000-000000000001", name)
+}
+
+func TestRebuildRunIDUsesValidContextValue(t *testing.T) {
+	t.Parallel()
+
+	ctx := WithRebuildRunID(context.Background(), "00000000-0000-0000-0000-000000000001")
+
+	require.Equal(t, "00000000-0000-0000-0000-000000000001", rebuildRunID(ctx))
 }
 
 func TestBuildSearchFilterEscapesDynamicValues(t *testing.T) {
