@@ -83,12 +83,14 @@ type DimensionSpec struct {
 	LabelField   string                  `json:"labelField"`
 	ColorField   string                  `json:"colorField"`
 	PanelKind    panel.Kind              `json:"panelKind"`
+	Height       string                  `json:"height"`
 	Description  Text                    `json:"description"`
 	RequiresJoin []string                `json:"requiresJoin"`
 	Override     *DatasetSpec            `json:"override"`
 	Transforms   []transform.Spec        `json:"transforms"`
 	Colors       []string                `json:"colors"`
 	ValueAxis    panel.ValueAxis         `json:"valueAxis"`
+	ColorScale   string                  `json:"colorScale"`
 	Presentation panel.PresentationHints `json:"presentation"`
 	Map          *panel.MapSpec          `json:"map"`
 }
@@ -282,10 +284,12 @@ func (s DimensionSpec) resolve(opts ResolveOptions) (cube.DimensionSpec, error) 
 		LabelField:   resolveString(s.LabelField, opts.Values),
 		ColorField:   resolveString(s.ColorField, opts.Values),
 		PanelKind:    s.PanelKind,
+		Height:       resolveString(s.Height, opts.Values),
 		Description:  resolveText(s.Description, opts),
 		RequiresJoin: resolveStringSlice(s.RequiresJoin, opts.Values),
 		Colors:       resolveStringSlice(s.Colors, opts.Values),
 		ValueAxis:    s.ValueAxis,
+		ColorScale:   resolveString(s.ColorScale, opts.Values),
 		Presentation: s.Presentation,
 	}
 	if s.Map != nil {

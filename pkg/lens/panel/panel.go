@@ -693,15 +693,23 @@ func (f FieldRef) Empty() bool {
 }
 
 type Spec struct {
-	ID          string
-	Title       string
-	Description string
-	Info        string
-	Kind        Kind
-	Dataset     string
-	Span        int
-	Colors      []string
-	ShowLegend  bool
+	ID              string
+	Title           string
+	Description     string
+	Info            string
+	Kind            Kind
+	Dataset         string
+	Span            int
+	Height          string
+	Colors          []string
+	ShowLegend      bool
+	LegendPosition  LegendPosition
+	LegendWidthPx   int
+	LegendOffsetY   int
+	LegendFloating  bool
+	CircularScale   float64
+	CircularOffsetX int
+	ShowTotalBadge  bool
 	// TotalBadgeValue, when set, renders the total badge with this
 	// server-computed value instead of summing the plotted data points
 	// client-side. Required for panels whose plotted series are not the raw
@@ -747,9 +755,12 @@ type Spec struct {
 	// represented by its chart kind. Renderers localize the explanatory notice.
 	ComparisonUnsupported bool
 	Children              []Spec
+	ClassName             string
 	Chrome                chrome.Spec
 	ValueAxis             ValueAxis
 	Distributed           bool
+	ColorField            FieldRef
+	ColorScale            string
 	Export                exportmeta.Spec
 	// FlowStages, when set (KindMetricFlow), declares the panel's ordered
 	// operand stages.
@@ -1055,9 +1066,40 @@ func newBuilder(kind Kind, id, title, dataset string) *Builder {
 }
 
 func (b *Builder) Span(span int) *Builder           { b.spec.Span = span; return b }
+func (b *Builder) Height(height string) *Builder    { b.spec.Height = height; return b }
 func (b *Builder) Colors(colors ...string) *Builder { b.spec.Colors = colors; return b }
 func (b *Builder) Legend() *Builder                 { b.spec.ShowLegend = true; return b }
+func (b *Builder) LegendAt(position LegendPosition) *Builder {
+	b.spec.ShowLegend = true
+	b.spec.LegendPosition = position
+	return b
+}
+func (b *Builder) LegendWidth(px int) *Builder {
+	b.spec.ShowLegend = true
+	b.spec.LegendWidthPx = px
+	return b
+}
+func (b *Builder) LegendOffsetY(px int) *Builder {
+	b.spec.ShowLegend = true
+	b.spec.LegendOffsetY = px
+	return b
+}
+func (b *Builder) FloatingLegend() *Builder {
+	b.spec.ShowLegend = true
+	b.spec.LegendFloating = true
+	return b
+}
+func (b *Builder) CircularScale(scale float64) *Builder {
+	b.spec.CircularScale = scale
+	return b
+}
+func (b *Builder) CircularOffsetX(px int) *Builder {
+	b.spec.CircularOffsetX = px
+	return b
+}
+func (b *Builder) TotalBadge() *Builder { b.spec.ShowTotalBadge = true; return b }
 func (b *Builder) TotalBadgeValue(v float64) *Builder {
+	b.spec.ShowTotalBadge = true
 	b.spec.TotalBadgeValue = &v
 	return b
 }
@@ -1231,6 +1273,7 @@ func (b *Builder) Export(url string, evidenceDatasets ...string) *Builder {
 	b.spec.Export = exportmeta.Spec{Enabled: true, URL: url, EvidenceDatasets: append([]string(nil), evidenceDatasets...)}
 	return b
 }
+func (b *Builder) ClassName(name string) *Builder { b.spec.ClassName = name; return b }
 func (b *Builder) ValueAxisScale(scale AxisScale, base int) *Builder {
 	b.spec.ValueAxis.Scale = scale
 	if base > 1 {
@@ -1251,6 +1294,11 @@ func (b *Builder) AccentColor(color string) *Builder {
 }
 func (b *Builder) DistributedColors() *Builder {
 	b.spec.Distributed = true
+	return b
+}
+func (b *Builder) SemanticColors(scale string, field FieldRef) *Builder {
+	b.spec.ColorScale = strings.TrimSpace(scale)
+	b.spec.ColorField = field
 	return b
 }
 func (b *Builder) Fields(mapping FieldMapping) *Builder {
