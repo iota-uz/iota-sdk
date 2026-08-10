@@ -304,6 +304,7 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 	actionURL := baseURL
 	builder := panelBuilder(dim.PanelKind, "panel_"+dim.Name, dim.Label, resolved.Name, dim.Map).
 		Span(dimensionSpan(remainingCount, index)).
+		Height("360px").
 		Description(dim.Description).
 		Fields(panel.FieldMapping{
 			Label:    panel.Ref("label"),
@@ -318,6 +319,9 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 			ID: panel.Ref("filter_value"),
 		}).
 		Action(action.CrossFilter(actionURL, dim.Name))
+	if strings.TrimSpace(dim.Height) != "" {
+		builder.Height(dim.Height)
+	}
 	if measure.Formatter != nil {
 		builder.Format(*measure.Formatter)
 	}
@@ -326,6 +330,16 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 	}
 	if !dim.Presentation.IsZero() {
 		builder.Presentation(dim.Presentation)
+	}
+	if strings.TrimSpace(dim.ColorScale) != "" {
+		colorField := panel.Ref("filter_value")
+		if resolved.HasColorValue {
+			colorField = panel.Ref("color_value")
+		}
+		builder.SemanticColors(dim.ColorScale, colorField)
+		if dim.PanelKind == panel.KindBar || dim.PanelKind == panel.KindHorizontalBar {
+			builder.DistributedColors()
+		}
 	}
 	if len(dim.Colors) > 0 {
 		builder.Colors(dim.Colors...)
@@ -336,6 +350,7 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 	if dim.PanelKind == panel.KindTable && resolved.Compared {
 		builder = panel.Table("panel_"+dim.Name, dim.Label, resolved.Name).
 			Span(dimensionSpan(remainingCount, index)).
+			Height("360px").
 			Action(action.CrossFilter(actionURL, dim.Name)).
 			Columns(
 				panel.TableColumn{Field: panel.Ref("label"), Label: dim.Label},
@@ -346,6 +361,9 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 					Cell: &panel.TableCellSpec{Kind: panel.TableCellDelta, PercentField: panel.Ref(comparison.DeltaPercentField(measure.Name))},
 				},
 			)
+		if strings.TrimSpace(dim.Height) != "" {
+			builder.Height(dim.Height)
+		}
 	}
 	return builder.Build()
 }
