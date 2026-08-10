@@ -197,9 +197,41 @@ func newPanelBuilder(kind panel.Kind, id, title, dataset string) *PanelBuilder {
 	}
 }
 
-func (b *PanelBuilder) Span(span int) *PanelBuilder           { b.panel.Span = span; return b }
+func (b *PanelBuilder) Span(span int) *PanelBuilder { b.panel.Span = span; return b }
+
+// Height retains compatibility with existing Lens specifications.
+func (b *PanelBuilder) Height(height string) *PanelBuilder    { b.panel.Height = height; return b }
 func (b *PanelBuilder) Colors(colors ...string) *PanelBuilder { b.panel.Colors = colors; return b }
 func (b *PanelBuilder) Legend() *PanelBuilder                 { b.panel.ShowLegend = true; return b }
+func (b *PanelBuilder) LegendAt(position panel.LegendPosition) *PanelBuilder {
+	b.panel.ShowLegend = true
+	b.panel.LegendPosition = position
+	return b
+}
+func (b *PanelBuilder) LegendWidth(px int) *PanelBuilder {
+	b.panel.ShowLegend = true
+	b.panel.LegendWidthPx = px
+	return b
+}
+func (b *PanelBuilder) LegendOffsetY(px int) *PanelBuilder {
+	b.panel.ShowLegend = true
+	b.panel.LegendOffsetY = px
+	return b
+}
+func (b *PanelBuilder) FloatingLegend() *PanelBuilder {
+	b.panel.ShowLegend = true
+	b.panel.LegendFloating = true
+	return b
+}
+func (b *PanelBuilder) CircularScale(scale float64) *PanelBuilder {
+	b.panel.CircularScale = scale
+	return b
+}
+func (b *PanelBuilder) CircularOffsetX(px int) *PanelBuilder {
+	b.panel.CircularOffsetX = px
+	return b
+}
+func (b *PanelBuilder) TotalBadge() *PanelBuilder { b.panel.ShowTotalBadge = true; return b }
 
 // TotalBadgeValue shows the total badge with a server-computed value instead
 // of the client-side sum of plotted points. Use when the plotted series are
@@ -292,6 +324,7 @@ func (b *PanelBuilder) Info(text string) *PanelBuilder {
 	b.panel.Info = LiteralText(text)
 	return b
 }
+func (b *PanelBuilder) ClassName(name string) *PanelBuilder { b.panel.ClassName = name; return b }
 func (b *PanelBuilder) ValueAxisScale(scale panel.AxisScale, base int) *PanelBuilder {
 	b.panel.ValueAxis.Scale = scale
 	if base > 1 {
@@ -312,6 +345,11 @@ func (b *PanelBuilder) AccentColor(color string) *PanelBuilder {
 }
 func (b *PanelBuilder) DistributedColors() *PanelBuilder {
 	b.panel.Distributed = true
+	return b
+}
+func (b *PanelBuilder) SemanticColors(scale, field string) *PanelBuilder {
+	b.panel.ColorScale = strings.TrimSpace(scale)
+	b.panel.ColorField = field
 	return b
 }
 func (b *PanelBuilder) Fields(mapping FieldMappingSpec) *PanelBuilder {
