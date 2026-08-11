@@ -208,7 +208,15 @@ func (e *MeilisearchEngine) setupForSearch() error {
 	if err != nil {
 		return serrors.E("spotlight.MeilisearchEngine.setupForSearch", err)
 	}
-	if created {
+	// A previous setup may have created the index and then timed out while
+	// waiting for its settings task. On retry ensureSearchIndex now reports an
+	// existing index, so resume that task before taking the validation branch.
+	if e.settingsTaskPending {
+		if err := e.configureIndex(indexName); err != nil {
+			return err
+		}
+		e.writeReady.Store(true)
+	} else if created {
 		if err := e.configureIndex(indexName); err != nil {
 			return err
 		}
