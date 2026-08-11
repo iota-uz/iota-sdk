@@ -49,12 +49,13 @@ type MeilisearchEngine struct {
 	// settingsTaskUID is retained when waiting for a settings update times out.
 	// setupMu serializes configureIndex calls, so the next setup attempt waits
 	// for the same Meilisearch task instead of enqueueing an identical one.
-	settingsTaskUID   int64
-	settingsTaskIndex string
-	pendingMu         sync.Mutex
-	pendingUIDs       []int64
-	logger            *logrus.Logger
-	metrics           Metrics
+	settingsTaskPending bool
+	settingsTaskUID     int64
+	settingsTaskIndex   string
+	pendingMu           sync.Mutex
+	pendingUIDs         []int64
+	logger              *logrus.Logger
+	metrics             Metrics
 }
 
 type meiliSearchIndexState struct {
@@ -268,7 +269,10 @@ func (e *MeilisearchEngine) ensureIndexExists(indexName string) (bool, error) {
 func (e *MeilisearchEngine) configureIndex(indexName string) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.configureIndex"
 
-	if e.settingsTaskUID != 0 && e.settingsTaskIndex == indexName {
+	if e.settingsTaskPending {
+		if e.settingsTaskIndex != indexName {
+			return serrors.E(op, fmt.Errorf("settings task %d is pending for index %q", e.settingsTaskUID, e.settingsTaskIndex))
+		}
 		return e.waitSettingsTask(op)
 	}
 
@@ -312,6 +316,7 @@ func (e *MeilisearchEngine) configureIndex(indexName string) error {
 	}
 	e.settingsTaskUID = settingsTask.TaskUID
 	e.settingsTaskIndex = indexName
+	e.settingsTaskPending = true
 	return e.waitSettingsTask(op)
 }
 
@@ -325,20 +330,23 @@ func (e *MeilisearchEngine) waitSettingsTask(op serrors.Op) error {
 	}
 	e.settingsTaskUID = 0
 	e.settingsTaskIndex = ""
+	e.settingsTaskPending = false
 
 	if task == nil {
 		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned no result", taskUID))
 	}
 	switch task.Status {
+	case meilisearch.TaskStatusSucceeded:
+		return nil
 	case meilisearch.TaskStatusFailed:
 		return serrors.E(op, fmt.Errorf("meilisearch settings task %d failed: %s", taskUID, task.Error.Message))
 	case meilisearch.TaskStatusCanceled:
 		return serrors.E(op, fmt.Errorf("meilisearch settings task %d was canceled", taskUID))
 	case meilisearch.TaskStatusUnknown, meilisearch.TaskStatusEnqueued, meilisearch.TaskStatusProcessing:
 		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned non-terminal status %q", taskUID, task.Status))
-	case meilisearch.TaskStatusSucceeded:
+	default:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned unexpected status %q", taskUID, task.Status))
 	}
-	return nil
 }
 
 func equalStringSets(left, right []string) bool {

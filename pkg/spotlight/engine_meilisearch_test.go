@@ -101,7 +101,7 @@ func TestMeilisearchEngine_SetupForSearchMissingIndexBootstrapsIt(t *testing.T) 
 		Once()
 	service.EXPECT().
 		WaitForTaskWithContext(mock.Anything, int64(11), 100*time.Millisecond).
-		Return(&meilisearch.Task{}, nil).
+		Return(&meilisearch.Task{Status: meilisearch.TaskStatusSucceeded}, nil).
 		Once()
 
 	require.NoError(t, engine.setupForSearch())
@@ -109,7 +109,7 @@ func TestMeilisearchEngine_SetupForSearchMissingIndexBootstrapsIt(t *testing.T) 
 	require.True(t, engine.writeReady.Load())
 }
 
-func TestMeilisearchEngineConfigureIndexUpdatesOnlyDriftedSetting(t *testing.T) {
+func TestMeilisearchEngineConfigureIndex_UpdatesOnlyDriftedSetting(t *testing.T) {
 	tests := []struct {
 		name     string
 		settings *meilisearch.Settings
@@ -160,7 +160,8 @@ func TestMeilisearchEngineConfigureIndexUpdatesOnlyDriftedSetting(t *testing.T) 
 			index.EXPECT().UpdateSettings(mock.Anything).Run(func(settings *meilisearch.Settings) {
 				got = settings
 			}).Return(&meilisearch.TaskInfo{TaskUID: tt.taskUID}, nil).Once()
-			service.EXPECT().WaitForTaskWithContext(mock.Anything, tt.taskUID, 100*time.Millisecond).Return(&meilisearch.Task{}, nil).Once()
+			service.EXPECT().WaitForTaskWithContext(mock.Anything, tt.taskUID, 100*time.Millisecond).
+				Return(&meilisearch.Task{Status: meilisearch.TaskStatusSucceeded}, nil).Once()
 
 			require.NoError(t, engine.configureIndex("spotlight"))
 			require.Equal(t, tt.want, got)
@@ -195,17 +196,19 @@ func TestMeilisearchEngineConfigureIndex_RetryWaitsForExistingSettingsTask(t *te
 
 	service.EXPECT().Index("spotlight").Return(index).Once()
 	index.EXPECT().GetSettings().Return(&meilisearch.Settings{}, nil).Once()
-	index.EXPECT().UpdateSettings(mock.Anything).Return(&meilisearch.TaskInfo{TaskUID: 41}, nil).Once()
-	service.EXPECT().WaitForTaskWithContext(mock.Anything, int64(41), 100*time.Millisecond).
+	index.EXPECT().UpdateSettings(mock.Anything).Return(&meilisearch.TaskInfo{TaskUID: 0}, nil).Once()
+	service.EXPECT().WaitForTaskWithContext(mock.Anything, int64(0), 100*time.Millisecond).
 		Return(nil, context.DeadlineExceeded).Once()
 
 	require.ErrorIs(t, engine.configureIndex("spotlight"), context.DeadlineExceeded)
-	require.Equal(t, int64(41), engine.settingsTaskUID)
+	require.True(t, engine.settingsTaskPending)
+	require.Zero(t, engine.settingsTaskUID)
 
-	service.EXPECT().WaitForTaskWithContext(mock.Anything, int64(41), 100*time.Millisecond).
+	service.EXPECT().WaitForTaskWithContext(mock.Anything, int64(0), 100*time.Millisecond).
 		Return(&meilisearch.Task{Status: meilisearch.TaskStatusSucceeded}, nil).Once()
 
 	require.NoError(t, engine.configureIndex("spotlight"))
+	require.False(t, engine.settingsTaskPending)
 	require.Zero(t, engine.settingsTaskUID)
 }
 
@@ -224,6 +227,22 @@ func TestMeilisearchEngineConfigureIndex_FailedSettingsTaskIsNotAccepted(t *test
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "settings task 42 failed")
 	require.Zero(t, engine.settingsTaskUID)
+}
+
+func TestMeilisearchEngineConfigureIndex_EmptyTaskStatusIsNotAccepted(t *testing.T) {
+	service := meilimocks.NewMockmeilisearchServiceManager(t)
+	index := meilimocks.NewMockmeilisearchIndexManager(t)
+	engine := &MeilisearchEngine{client: service, indexName: "spotlight"}
+
+	service.EXPECT().Index("spotlight").Return(index).Once()
+	index.EXPECT().GetSettings().Return(&meilisearch.Settings{}, nil).Once()
+	index.EXPECT().UpdateSettings(mock.Anything).Return(&meilisearch.TaskInfo{TaskUID: 43}, nil).Once()
+	service.EXPECT().WaitForTaskWithContext(mock.Anything, int64(43), 100*time.Millisecond).
+		Return(&meilisearch.Task{}, nil).Once()
+
+	err := engine.configureIndex("spotlight")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unexpected status")
 }
 
 func TestMeilisearchEngineConfigureIndex_MissingSettingsTaskIsRejected(t *testing.T) {
