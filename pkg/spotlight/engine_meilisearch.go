@@ -125,10 +125,12 @@ const defaultWaitForTaskDeadline = 60 * time.Second
 // one a generous budget so a slow Meili doesn't surface as a noisy
 // task failure in the periodic reindex log.
 //
-// 5 minutes accounts for cold-start Meili re-indexing a fresh tenant
-// with 2M+ docs on a single shared CPU. The drain returns as soon as
-// each task is done; the deadline only fires if something is wedged.
-const drainWaitDeadline = 5 * time.Minute
+// Production evidence from EAI showed Meili merging 565 queued writes for
+// 3.5M documents into one batch that legitimately ran longer than 5 minutes.
+// Thirty minutes covers that maintenance workload and the documented rebuild
+// window while still bounding a genuinely wedged task. The drain returns as
+// soon as each task is done.
+const drainWaitDeadline = 30 * time.Minute
 
 // waitTaskPollInterval is the poll interval the meilisearch client uses
 // while waiting for a task to reach a terminal state.
@@ -990,8 +992,8 @@ func buildMeiliRecords(docs []SearchDocument) []map[string]interface{} {
 // Meilisearch. Each pending task gets `drainWaitDeadline` of headroom
 // (not the inline 10s) because Meili can take 20-40s to digest a single
 // 80 MiB batch under CPU pressure. If the caller's ctx is already
-// deadlined, that deadline is honored — drainWaitDeadline only sets
-// the floor.
+// deadlined, that deadline is honored — drainWaitDeadline is only the
+// fallback for callers without one.
 func (e *MeilisearchEngine) WaitPending(ctx context.Context) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.WaitPending"
 
@@ -1015,7 +1017,7 @@ func (e *MeilisearchEngine) WaitPending(ctx context.Context) error {
 // parent already has *any* deadline, we propagate it as-is — the caller
 // owns the deadline and we must not tighten it (a long-running reindex
 // is the canonical case). Only when the parent has no deadline at all do
-// we apply drainWaitDeadline as a floor so background callers don't hang
+// we apply drainWaitDeadline as a fallback so background callers don't hang
 // indefinitely if Meili wedges.
 func drainTaskCtx(parent context.Context) (context.Context, context.CancelFunc) {
 	if parent == nil {
