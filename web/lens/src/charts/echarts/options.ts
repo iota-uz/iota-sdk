@@ -696,6 +696,18 @@ function sliceLabelColor(fill: string | undefined, theme: EChartsTheme): string 
   return light !== undefined && light > 0.4 ? theme.text : '#ffffff'
 }
 
+function partitionTotalGraphic(input: ChartInput, theme: EChartsTheme, total: number | undefined) {
+  return total === undefined ? undefined : [{
+    type: 'group' as const,
+    left: 'center' as const,
+    top: 'middle' as const,
+    children: [
+      { type: 'text' as const, style: { text: input.tooltipTotalLabel ?? 'Total', fill: theme.mutedText, font: `12px ${theme.fontFamily}`, align: 'center' as const }, left: 'center' as const, top: -12 },
+      { type: 'text' as const, style: { text: input.format(input.encoding.value ?? '', total), fill: theme.text, font: `600 16px ${theme.fontFamily}`, align: 'center' as const }, left: 'center' as const, top: 5 },
+    ],
+  }]
+}
+
 function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const donut = input.kind === 'donut'
   const points = rowPoints(input)
@@ -746,15 +758,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const total = partitionTotal(points, input.frame.total)
   return {
     ...baseOption(theme),
-    graphic: donut && total !== undefined ? [{
-      type: 'group',
-      left: 'center',
-      top: 'middle',
-      children: [
-        { type: 'text', style: { text: input.tooltipTotalLabel ?? 'Total', fill: theme.mutedText, font: `12px ${theme.fontFamily}`, align: 'center' }, left: 'center', top: -12 },
-        { type: 'text', style: { text: input.format(input.encoding.value ?? '', total), fill: theme.text, font: `600 16px ${theme.fontFamily}`, align: 'center' }, left: 'center', top: 5 },
-      ],
-    }] : undefined,
+    graphic: donut ? partitionTotalGraphic(input, theme, total) : undefined,
     tooltip: {
       trigger: 'item',
       ...tooltipChrome(theme),
@@ -903,6 +907,7 @@ function radialPartitionOption(input: ChartInput, theme: EChartsTheme, points: R
   return {
     ...baseOption(theme),
     aria: { enabled: true },
+    graphic: partitionTotalGraphic(input, theme, input.frame.total),
     tooltip: {
       trigger: 'item',
       ...tooltipChrome(theme),

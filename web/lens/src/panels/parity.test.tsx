@@ -689,6 +689,7 @@ describe('chart legend series toggle', () => {
         { name: 'amount', type: 'number' },
       ],
       rows: [['collected', 'Collected', 'payment', 991], ['receivable', 'Receivable', 'payment', 9]],
+      total: 1000,
     }
     const { container } = renderDocument(
       documentWith([ringPanel], { 'payment:root': ringFrame }),
@@ -697,6 +698,7 @@ describe('chart legend series toggle', () => {
 
     const values = [...container.querySelectorAll('.lens-chart-legend-value')].map((node) => node.textContent)
     expect(values).toEqual(['99.1%', '0.9%'])
+    expect(container.querySelector('.lens-plot-total')).toBeNull()
   })
 
   it('answers hide-all with an empty state that offers the way back', async () => {
