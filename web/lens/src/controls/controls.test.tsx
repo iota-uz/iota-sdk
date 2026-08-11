@@ -988,6 +988,12 @@ describe('facet filter menu', () => {
 
     fireEvent.click(trigger)
     await screen.findByRole('checkbox', { name: /Option 1/ })
+    const menu = screen.getByRole('dialog', { name: 'Filters' })
+    // Placement is measured in viewport coordinates, so the menu must live in
+    // the shared body portal. Keeping it under the trigger would add the
+    // trigger row's offset a second time and push the card to the screen edge.
+    expect(view.container).not.toContainElement(menu)
+    expect(menu.parentElement).toHaveClass('lens-menu-overlay-root')
     // A staged selection is counted before it is applied, not after.
     expect(screen.getByText('Selected: 1')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('checkbox', { name: /Option 1/ }))

@@ -609,10 +609,9 @@
     @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center;
   }
 
-  /* Every declared facet lives behind this one trigger, so the popover is
-     anchored to it in the flow (see useMenuButton's measured placement) instead
-     of being a portalled card positioned against a trigger somewhere in a
-     wrapped row of nine. */
+  /* Every declared facet lives behind this one trigger. The trigger remains in
+     the flow while the popover is portalled out of overflow-clipping dashboard
+     containers and positioned against the trigger by useMenuButton. */
   .lens-filter-menu {
     @apply lens-relative lens-flex lens-min-w-0 lens-items-center;
   }
@@ -649,7 +648,7 @@
      and panel menus use: one edge flush with the trigger's, flipped only when
      the viewport demands it. */
   .lens-filter-menu-popover {
-    @apply lens-absolute lens-w-max;
+    @apply lens-fixed lens-w-max;
   }
 
   /* The last step of the placement rule: alignment picks an edge, the shift
@@ -659,10 +658,8 @@
     transform: translateX(var(--lens-menu-shift, 0px));
   }
 
-  .lens-filter-menu-popover[data-align='end'] { right: 0; left: auto; }
-  .lens-filter-menu-popover[data-align='start'] { left: 0; right: auto; }
-  .lens-filter-menu-popover[data-side='down'] { @apply lens-mt-1; top: 100%; bottom: auto; }
-  .lens-filter-menu-popover[data-side='up'] { @apply lens-mb-1; bottom: 100%; top: auto; }
+  .lens-filter-menu-popover[data-align] { right: auto; }
+  .lens-filter-menu-popover[data-side] { bottom: auto; }
 
   .lens-filter-menu-body {
     @apply lens-flex lens-min-h-0 lens-items-stretch;
