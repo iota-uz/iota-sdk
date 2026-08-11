@@ -121,7 +121,7 @@ func TestMeilisearchEngineWaitTaskCtxUsesMaintenanceOverride(t *testing.T) {
 		Run(func(ctx context.Context, _ int64, _ time.Duration) {
 			deadline, ok := ctx.Deadline()
 			require.True(t, ok)
-			require.Greater(t, time.Until(deadline), 4*time.Minute)
+			require.Greater(t, time.Until(deadline), 29*time.Minute)
 		}).
 		Return(&meilisearch.Task{Status: meilisearch.TaskStatusSucceeded}, nil).
 		Once()
