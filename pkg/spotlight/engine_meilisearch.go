@@ -580,7 +580,7 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 		if err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
-		if _, err := waitTaskCtxClient(ctx, s.client, task.TaskUID); err != nil {
+		if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
 		createdPlaceholder = true
@@ -592,7 +592,7 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 	if err != nil {
 		return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 	}
-	if _, err := waitTaskCtxClient(ctx, s.client, task.TaskUID); err != nil {
+	if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
 		return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 	}
 
@@ -604,7 +604,7 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 		return nil
 	}
 	if cleanupTask != nil {
-		if _, err := waitTaskCtxClient(ctx, s.client, cleanupTask.TaskUID); err != nil {
+		if _, err := s.engine.waitTaskCtx(ctx, cleanupTask.TaskUID); err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
 	}
@@ -633,7 +633,7 @@ func (s *meiliRebuildSession) Abort(ctx context.Context) error {
 		return serrors.E("spotlight.MeilisearchEngine.AbortRebuild", err)
 	}
 	if task != nil {
-		if _, err := waitTaskCtxClient(ctx, s.client, task.TaskUID); err != nil {
+		if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.AbortRebuild", err)
 		}
 	}

@@ -558,8 +558,9 @@ func TestMeiliRebuildSessionCommitCreatesActiveIndexBeforeSwapWhenMissing(t *tes
 		activeIndexName: "spotlight",
 		buildIndexName:  "spotlight_build_v4",
 		engine: &MeilisearchEngine{
-			client:    service,
-			indexName: "spotlight",
+			client:           service,
+			indexName:        "spotlight",
+			taskWaitDeadline: drainWaitDeadline,
 		},
 	}
 
@@ -583,6 +584,11 @@ func TestMeiliRebuildSessionCommitCreatesActiveIndexBeforeSwapWhenMissing(t *tes
 		Once()
 	service.EXPECT().
 		WaitForTaskWithContext(mock.Anything, int64(21), 100*time.Millisecond).
+		Run(func(ctx context.Context, _ int64, _ time.Duration) {
+			deadline, ok := ctx.Deadline()
+			require.True(t, ok)
+			require.Greater(t, time.Until(deadline), 29*time.Minute)
+		}).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 	service.EXPECT().
