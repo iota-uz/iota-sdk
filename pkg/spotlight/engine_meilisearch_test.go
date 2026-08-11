@@ -130,6 +130,15 @@ func TestMeilisearchEngineWaitTaskCtxUsesMaintenanceOverride(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestDrainTaskCtxUsesMaintenanceFallback(t *testing.T) {
+	ctx, cancel := drainTaskCtx(context.Background())
+	defer cancel()
+
+	deadline, ok := ctx.Deadline()
+	require.True(t, ok)
+	require.Greater(t, time.Until(deadline), 29*time.Minute)
+}
+
 func TestMeilisearchEngine_SetupForSearchRetryWaitsForPendingSettingsTask(t *testing.T) {
 	service := meilimocks.NewMockmeilisearchServiceManager(t)
 	index := meilimocks.NewMockmeilisearchIndexManager(t)
