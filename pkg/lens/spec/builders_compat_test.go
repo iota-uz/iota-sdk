@@ -15,13 +15,15 @@ func TestPanelBuilderHeightCompatibility(t *testing.T) {
 	panel := StackedBar("daily", "Daily", "daily").Height("320px").Build()
 
 	require.Equal(t, "320px", panel.Height)
-	payload, err := json.Marshal(panel)
+	// Marshal the public builder result itself: this compatibility test intentionally
+	// exercises the complete wire type, including nested SDK structs outside its scope.
+	payload, err := json.Marshal(panel) //nolint:musttag
 	require.NoError(t, err)
 	var wire map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(payload, &wire))
 	height, ok := wire["height"]
 	require.True(t, ok)
-	assert.Equal(t, json.RawMessage(`"320px"`), height)
+	assert.JSONEq(t, `"320px"`, string(height))
 }
 
 func TestPanelBuilderLegacyPresentationCompatibility(t *testing.T) {

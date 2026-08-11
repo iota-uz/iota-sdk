@@ -46,10 +46,16 @@ type MeilisearchEngine struct {
 	setupMu     sync.Mutex
 	searchReady atomic.Bool
 	writeReady  atomic.Bool
-	pendingMu   sync.Mutex
-	pendingUIDs []int64
-	logger      *logrus.Logger
-	metrics     Metrics
+	// settingsTaskUID is retained when waiting for a settings update times out.
+	// setupMu serializes configureIndex calls, so the next setup attempt waits
+	// for the same Meilisearch task instead of enqueueing an identical one.
+	settingsTaskPending bool
+	settingsTaskUID     int64
+	settingsTaskIndex   string
+	pendingMu           sync.Mutex
+	pendingUIDs         []int64
+	logger              *logrus.Logger
+	metrics             Metrics
 }
 
 type meiliSearchIndexState struct {
@@ -202,7 +208,15 @@ func (e *MeilisearchEngine) setupForSearch() error {
 	if err != nil {
 		return serrors.E("spotlight.MeilisearchEngine.setupForSearch", err)
 	}
-	if created {
+	// A previous setup may have created the index and then timed out while
+	// waiting for its settings task. On retry ensureSearchIndex now reports an
+	// existing index, so resume that task before taking the validation branch.
+	if e.settingsTaskPending {
+		if err := e.configureIndex(indexName); err != nil {
+			return err
+		}
+		e.writeReady.Store(true)
+	} else if created {
 		if err := e.configureIndex(indexName); err != nil {
 			return err
 		}
@@ -263,48 +277,101 @@ func (e *MeilisearchEngine) ensureIndexExists(indexName string) (bool, error) {
 func (e *MeilisearchEngine) configureIndex(indexName string) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.configureIndex"
 
+	if e.settingsTaskPending {
+		if e.settingsTaskIndex != indexName {
+			return serrors.E(op, fmt.Errorf("settings task %d is pending for index %q", e.settingsTaskUID, e.settingsTaskIndex))
+		}
+		return e.waitSettingsTask(op)
+	}
+
 	index := e.client.Index(indexName)
-
-	filterableAttrs := []interface{}{
-		"tenant_id",
-		"provider",
-		"entity_type",
-		"domain",
-		"schema_version",
-		"exact_terms",
-		"access_visibility",
-		"owner_id",
-		"allowed_users",
-		"allowed_roles",
-		"allowed_permissions",
-	}
-	filterTask, err := index.UpdateFilterableAttributes(&filterableAttrs)
+	settings, err := index.GetSettings()
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	if _, err := waitTaskCtxClient(context.Background(), e.client, filterTask.TaskUID); err != nil {
-		return serrors.E(op, err)
+
+	update := &meilisearch.Settings{}
+	drifted := false
+
+	filterableAttrs := requiredFilterableAttributes()
+	if !equalStringSets(settings.FilterableAttributes, filterableAttrs) {
+		update.FilterableAttributes = filterableAttrs
+		drifted = true
 	}
 
-	searchableAttrs := []string{"title", "description", "search_text"}
-	searchTask, err := index.UpdateSearchableAttributes(&searchableAttrs)
+	searchableAttrs := requiredSearchableAttributes()
+	if !slices.Equal(settings.SearchableAttributes, searchableAttrs) {
+		update.SearchableAttributes = searchableAttrs
+		drifted = true
+	}
+
+	sortableAttrs := requiredSortableAttributes()
+	if !equalStringSets(settings.SortableAttributes, sortableAttrs) {
+		update.SortableAttributes = sortableAttrs
+		drifted = true
+	}
+
+	if !drifted {
+		return nil
+	}
+
+	settingsTask, err := index.UpdateSettings(update)
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	if _, err := waitTaskCtxClient(context.Background(), e.client, searchTask.TaskUID); err != nil {
-		return serrors.E(op, err)
+	if settingsTask == nil {
+		return serrors.E(op, "Meilisearch returned no settings task")
 	}
+	e.settingsTaskUID = settingsTask.TaskUID
+	e.settingsTaskIndex = indexName
+	e.settingsTaskPending = true
+	return e.waitSettingsTask(op)
+}
 
-	sortableAttrs := []string{"updated_at"}
-	sortTask, err := index.UpdateSortableAttributes(&sortableAttrs)
+func (e *MeilisearchEngine) waitSettingsTask(op serrors.Op) error {
+	taskUID := e.settingsTaskUID
+	task, err := waitTaskCtxClient(context.Background(), e.client, taskUID)
 	if err != nil {
+		// Keep the task UID: the task may still be processing server-side, and a
+		// later setup attempt must wait for it instead of creating a duplicate.
 		return serrors.E(op, err)
 	}
-	if _, err := waitTaskCtxClient(context.Background(), e.client, sortTask.TaskUID); err != nil {
-		return serrors.E(op, err)
-	}
+	e.settingsTaskUID = 0
+	e.settingsTaskIndex = ""
+	e.settingsTaskPending = false
 
-	return nil
+	if task == nil {
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned no result", taskUID))
+	}
+	switch task.Status {
+	case meilisearch.TaskStatusSucceeded:
+		return nil
+	case meilisearch.TaskStatusFailed:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d failed: %s", taskUID, task.Error.Message))
+	case meilisearch.TaskStatusCanceled:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d was canceled", taskUID))
+	case meilisearch.TaskStatusUnknown, meilisearch.TaskStatusEnqueued, meilisearch.TaskStatusProcessing:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned non-terminal status %q", taskUID, task.Status))
+	default:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned unexpected status %q", taskUID, task.Status))
+	}
+}
+
+func equalStringSets(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	counts := make(map[string]int, len(left))
+	for _, value := range left {
+		counts[value]++
+	}
+	for _, value := range right {
+		counts[value]--
+		if counts[value] < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func (e *MeilisearchEngine) validateSearchSettings(indexName string) error {
