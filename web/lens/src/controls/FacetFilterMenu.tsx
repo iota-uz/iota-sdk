@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { Filter } from '../contract'
 import { CaretDown, FunnelSimple } from '../icons'
 import { searchableListEntries } from '../listSearch'
@@ -137,7 +138,7 @@ export function FacetFilterMenu({ filters }: { filters: Array<Filter> }) {
   const translate = useTranslate()
   const { applyURL } = useFilters()
   const menuID = useId()
-  const { close, container, menu, menuPlacementProps, open, setOpen, trigger } = useMenuButton('end')
+  const { close, container, menu, menuPlacementProps, open, overlay, setOpen, trigger } = useMenuButton('end')
   const [activeID, setActiveID] = useState(filters[0]?.id ?? '')
   const [drafts, setDrafts] = useState(new Map<string, ReadonlySet<string>>())
   const [targets, setTargets] = useState(new Map<string, string>())
@@ -211,7 +212,7 @@ export function FacetFilterMenu({ filters }: { filters: Array<Filter> }) {
         {appliedCount > 0 && <span className="lens-facet-count">{appliedCount}</span>}
         <CaretDown aria-hidden="true" />
       </button>
-      {open && (
+      {open && overlay && createPortal(
         <div
           aria-label={label}
           className="lens-filter-menu-popover"
@@ -271,7 +272,8 @@ export function FacetFilterMenu({ filters }: { filters: Array<Filter> }) {
               {translate('filter.facet.apply', 'Apply')}
             </button>
           </div>
-        </div>
+        </div>,
+        overlay,
       )}
     </div>
   )

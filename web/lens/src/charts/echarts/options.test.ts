@@ -192,6 +192,8 @@ describe('slice percentages', () => {
         { key: 'actual', label: 'Actual', order: 1, total: 100 },
       ],
     }
+    chartInput.frame.total = 100
+    chartInput.tooltipTotalLabel = 'Итого'
 
     const chart = testOption(buildChartOption(chartInput, theme))
 
@@ -210,6 +212,23 @@ describe('slice percentages', () => {
       categoryKey: 'north',
     })
     expect(chart.series[0]?.data?.[0]?.itemStyle?.color).toBe(chart.series[1]?.data?.[0]?.itemStyle?.color)
+    expect(chart.graphic?.[0]?.children?.[0]?.style?.text).toBe('Итого')
+    expect(chart.graphic?.[0]?.children?.[1]?.style?.text).toBe('$100')
+  })
+
+  it('does not invent a total for partition rings without an authoritative frame total', () => {
+    const chartInput = input('radial')
+    chartInput.radial = {
+      mode: 'partition',
+      rings: [
+        { key: 'Revenue', label: 'Revenue', order: 0, total: 2700 },
+        { key: 'Cost', label: 'Cost', order: 1, total: 1500 },
+      ],
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.graphic).toBeUndefined()
   })
 
   it('never draws a sub-percent ring slice as an unclickable hairline', () => {

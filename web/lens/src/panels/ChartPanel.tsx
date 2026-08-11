@@ -752,10 +752,13 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     <PanelFrame allowEmptyContent={!distribution} panel={panel} frame={frame} headerActions={temporalControls} total={shareTotal}>
       <div className={`lens-chart-layout${hasLegend ? ' lens-chart-layout-legend' : ''}`}>
         <div className="lens-chart-area">
-          {/* Above the plot, in flow — see PlotTotalBadge. A donut prints the
-              same figure in its hub (the hole exists to carry it), so the chip
-              would be the number twice, 100px apart, in two treatments. */}
-          {presentation?.totalBadge === 'plot' && kind !== 'donut' && shareTotal !== null && (
+          {/* Above the plot, in flow — see PlotTotalBadge. Donut and partition
+              radial charts print the same figure in their hub (the hole exists
+              to carry it), so the chip would duplicate the number. */}
+          {presentation?.totalBadge === 'plot'
+            && kind !== 'donut'
+            && panel.radial?.mode !== 'partition'
+            && shareTotal !== null && (
             <PlotTotalBadge panel={panel} total={shareTotal} />
           )}
           {/* One row above the plot for everything the plot column carries that

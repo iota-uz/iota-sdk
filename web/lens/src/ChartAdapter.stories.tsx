@@ -58,6 +58,7 @@ const radialPartitionFrame: Frame = {
     ['east', 'East', 'actual', 27], ['north', 'North', 'plan', 36],
     ['south', 'South', 'plan', 34], ['east', 'East', 'plan', 30],
   ],
+  total: 100,
 }
 const radialProgressFrame: Frame = {
   columns: partitionFrame.columns,
@@ -95,6 +96,7 @@ function radialInput(mode: 'partition' | 'progress'): ChartInput {
     format: (_field, value) => formatFieldValue(value, { kind: 'number', minorUnits: false, precision: 0 }, 'en-US'),
     theme: chartTheme,
     presentation: { sliceLabels: 'percent' },
+    tooltipTotalLabel: 'Total',
     radial: {
       mode: 'partition',
       rings: [
@@ -183,6 +185,7 @@ const receivableRingFrame: Frame = {
     ['collected', 'Collected', 'payment', 99.1],
     ['receivable', 'Receivable', 'payment', 0.9],
   ],
+  total: 100,
 }
 
 function receivableRingInput(): ChartInput {
@@ -193,6 +196,7 @@ function receivableRingInput(): ChartInput {
     format: (_field, value) => formatFieldValue(value, { kind: 'percent', minorUnits: false, precision: 1 }, 'en-US'),
     theme: chartTheme,
     presentation: { sliceLabels: 'percent' },
+    tooltipTotalLabel: 'Total',
     radial: { mode: 'partition', rings: [{ key: 'payment', label: 'Collection', order: 1, total: 100 }] },
   }
 }
@@ -227,6 +231,7 @@ const threeRingFrame: Frame = {
     ['property', 'Property', 'groups', 31],
     ['liability', 'Liability', 'groups', 17],
   ],
+  total: 100,
 }
 
 function threeRingInput(): ChartInput {
@@ -237,6 +242,7 @@ function threeRingInput(): ChartInput {
     format: (_field, value) => formatFieldValue(value, { kind: 'number', minorUnits: false, precision: 0 }, 'en-US'),
     theme: chartTheme,
     presentation: { sliceLabels: 'percent' },
+    tooltipTotalLabel: 'Total',
     radial: {
       mode: 'partition',
       rings: [
