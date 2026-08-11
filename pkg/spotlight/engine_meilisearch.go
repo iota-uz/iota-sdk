@@ -46,10 +46,15 @@ type MeilisearchEngine struct {
 	setupMu     sync.Mutex
 	searchReady atomic.Bool
 	writeReady  atomic.Bool
-	pendingMu   sync.Mutex
-	pendingUIDs []int64
-	logger      *logrus.Logger
-	metrics     Metrics
+	// settingsTaskUID is retained when waiting for a settings update times out.
+	// setupMu serializes configureIndex calls, so the next setup attempt waits
+	// for the same Meilisearch task instead of enqueueing an identical one.
+	settingsTaskUID   int64
+	settingsTaskIndex string
+	pendingMu         sync.Mutex
+	pendingUIDs       []int64
+	logger            *logrus.Logger
+	metrics           Metrics
 }
 
 type meiliSearchIndexState struct {
@@ -263,50 +268,94 @@ func (e *MeilisearchEngine) ensureIndexExists(indexName string) (bool, error) {
 func (e *MeilisearchEngine) configureIndex(indexName string) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.configureIndex"
 
+	if e.settingsTaskUID != 0 && e.settingsTaskIndex == indexName {
+		return e.waitSettingsTask(op)
+	}
+
 	index := e.client.Index(indexName)
 	settings, err := index.GetSettings()
 	if err != nil {
 		return serrors.E(op, err)
 	}
 
+	update := &meilisearch.Settings{}
+	drifted := false
+
 	filterableAttrs := requiredFilterableAttributes()
-	if !slices.Equal(settings.FilterableAttributes, filterableAttrs) {
-		attrs := make([]interface{}, len(filterableAttrs))
-		for i, attr := range filterableAttrs {
-			attrs[i] = attr
-		}
-		filterTask, err := index.UpdateFilterableAttributes(&attrs)
-		if err != nil {
-			return serrors.E(op, err)
-		}
-		if _, err := waitTaskCtxClient(context.Background(), e.client, filterTask.TaskUID); err != nil {
-			return serrors.E(op, err)
-		}
+	if !equalStringSets(settings.FilterableAttributes, filterableAttrs) {
+		update.FilterableAttributes = filterableAttrs
+		drifted = true
 	}
 
 	searchableAttrs := requiredSearchableAttributes()
 	if !slices.Equal(settings.SearchableAttributes, searchableAttrs) {
-		searchTask, err := index.UpdateSearchableAttributes(&searchableAttrs)
-		if err != nil {
-			return serrors.E(op, err)
-		}
-		if _, err := waitTaskCtxClient(context.Background(), e.client, searchTask.TaskUID); err != nil {
-			return serrors.E(op, err)
-		}
+		update.SearchableAttributes = searchableAttrs
+		drifted = true
 	}
 
 	sortableAttrs := requiredSortableAttributes()
-	if !slices.Equal(settings.SortableAttributes, sortableAttrs) {
-		sortTask, err := index.UpdateSortableAttributes(&sortableAttrs)
-		if err != nil {
-			return serrors.E(op, err)
-		}
-		if _, err := waitTaskCtxClient(context.Background(), e.client, sortTask.TaskUID); err != nil {
-			return serrors.E(op, err)
-		}
+	if !equalStringSets(settings.SortableAttributes, sortableAttrs) {
+		update.SortableAttributes = sortableAttrs
+		drifted = true
 	}
 
+	if !drifted {
+		return nil
+	}
+
+	settingsTask, err := index.UpdateSettings(update)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if settingsTask == nil {
+		return serrors.E(op, "Meilisearch returned no settings task")
+	}
+	e.settingsTaskUID = settingsTask.TaskUID
+	e.settingsTaskIndex = indexName
+	return e.waitSettingsTask(op)
+}
+
+func (e *MeilisearchEngine) waitSettingsTask(op serrors.Op) error {
+	taskUID := e.settingsTaskUID
+	task, err := waitTaskCtxClient(context.Background(), e.client, taskUID)
+	if err != nil {
+		// Keep the task UID: the task may still be processing server-side, and a
+		// later setup attempt must wait for it instead of creating a duplicate.
+		return serrors.E(op, err)
+	}
+	e.settingsTaskUID = 0
+	e.settingsTaskIndex = ""
+
+	if task == nil {
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned no result", taskUID))
+	}
+	switch task.Status {
+	case meilisearch.TaskStatusFailed:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d failed: %s", taskUID, task.Error.Message))
+	case meilisearch.TaskStatusCanceled:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d was canceled", taskUID))
+	case meilisearch.TaskStatusUnknown, meilisearch.TaskStatusEnqueued, meilisearch.TaskStatusProcessing:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned non-terminal status %q", taskUID, task.Status))
+	case meilisearch.TaskStatusSucceeded:
+	}
 	return nil
+}
+
+func equalStringSets(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	counts := make(map[string]int, len(left))
+	for _, value := range left {
+		counts[value]++
+	}
+	for _, value := range right {
+		counts[value]--
+		if counts[value] < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func (e *MeilisearchEngine) validateSearchSettings(indexName string) error {
