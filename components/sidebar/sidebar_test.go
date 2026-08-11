@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
 )
@@ -66,8 +67,8 @@ func TestBuildSidebarNavTabs_SelectsMostSpecificMatchingRoute(t *testing.T) {
 			require.Len(t, tabs[0].Nodes, 1)
 			require.True(t, tabs[0].Nodes[0].IsActive)
 			require.Len(t, tabs[0].Nodes[0].Children, 2)
-			require.Equal(t, testCase.currentActive, tabs[0].Nodes[0].Children[0].IsActive)
-			require.Equal(t, testCase.archiveActive, tabs[0].Nodes[0].Children[1].IsActive)
+			assert.Equal(t, testCase.currentActive, tabs[0].Nodes[0].Children[0].IsActive)
+			assert.Equal(t, testCase.archiveActive, tabs[0].Nodes[0].Children[1].IsActive)
 		})
 	}
 }
