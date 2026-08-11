@@ -220,6 +220,31 @@ func TestLoadCubeResolvesMapDimension(t *testing.T) {
 	require.Equal(t, "© Example Maps", spec.Dimensions[0].Map.Attribution)
 }
 
+func TestLoadCubeResolvesLegacyDimensionPresentation(t *testing.T) {
+	t.Parallel()
+
+	spec, err := LoadCube([]byte(`{
+		"version": 1,
+		"id": "product-sales",
+		"title": "Product sales",
+		"dataMode": "sql",
+		"dataSource": "primary",
+		"fromSQL": "sales",
+		"dimensions": [{
+			"name": "product",
+			"label": "Product",
+			"column": "product_code",
+			"height": "420px",
+			"colorScale": "{{product_color_scale}}"
+		}],
+		"measures": [{"name": "premium", "label": "Premium", "column": "premium", "aggregation": "sum"}]
+	}`), ResolveOptions{Values: map[string]any{"product_color_scale": "product"}})
+
+	require.NoError(t, err)
+	require.Equal(t, "420px", spec.Dimensions[0].Height)
+	require.Equal(t, "product", spec.Dimensions[0].ColorScale)
+}
+
 func TestLoadCubeResolvesVariableDefaults(t *testing.T) {
 	t.Parallel()
 

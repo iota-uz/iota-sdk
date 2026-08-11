@@ -393,16 +393,47 @@ func (e *MeilisearchEngine) resolveSearchIndexName() (string, error) {
 		return e.activeName, nil
 	}
 
-	buildIndexName := rebuildIndexName(e.activeName)
-	buildState, err := e.inspectSearchIndex(buildIndexName)
+	buildIndexName, err := e.latestReadyBuildIndex()
 	if err != nil {
 		return "", err
 	}
-	if buildState.currentSchemaReady() {
+	if buildIndexName != "" {
 		return buildIndexName, nil
 	}
 
 	return e.activeName, nil
+}
+
+// latestReadyBuildIndex preserves the startup fallback used while an initial
+// rebuild is ready to swap but the active index is still empty. Build names
+// include a unique run UUID, so unlike the old fixed-name lookup we discover
+// the newest valid candidate from Meili.
+func (e *MeilisearchEngine) latestReadyBuildIndex() (string, error) {
+	results, err := e.client.ListIndexesWithContext(context.Background(), &meilisearch.IndexesQuery{Limit: 200})
+	if err != nil || results == nil {
+		return "", err
+	}
+
+	indexes := append([]*meilisearch.IndexResult(nil), results.Results...)
+	slices.SortFunc(indexes, func(a, b *meilisearch.IndexResult) int {
+		if a == nil || b == nil {
+			return 0
+		}
+		return b.UpdatedAt.Compare(a.UpdatedAt)
+	})
+	for _, idx := range indexes {
+		if idx == nil || !strings.HasPrefix(idx.UID, e.buildIndexPrefix()) {
+			continue
+		}
+		state, err := e.inspectSearchIndex(idx.UID)
+		if err != nil {
+			return "", err
+		}
+		if state.currentSchemaReady() {
+			return idx.UID, nil
+		}
+	}
+	return "", nil
 }
 
 func (e *MeilisearchEngine) inspectSearchIndex(indexName string) (meiliSearchIndexState, error) {
@@ -586,15 +617,18 @@ func (s *meiliRebuildSession) Abort(ctx context.Context) error {
 func (e *MeilisearchEngine) StartRebuild(ctx context.Context) (RebuildSession, error) {
 	const op serrors.Op = "spotlight.MeilisearchEngine.StartRebuild"
 
-	buildIndexName := rebuildIndexName(e.activeName)
-	if err := e.resetIndex(ctx, buildIndexName); err != nil {
-		return nil, serrors.E(op, err)
-	}
+	// A rebuild must never reuse a static scratch index. A second replica,
+	// manual CLI invocation, or a process restart used to delete the other
+	// run's work through resetIndex. The caller normally supplies the same UUID
+	// it logs for the run; a UUID is generated for SDK-only callers.
+	buildIndexName := rebuildIndexName(e.activeName, rebuildRunID(ctx))
 
 	buildEngine := &MeilisearchEngine{
 		client:     e.client,
 		indexName:  buildIndexName,
 		activeName: e.activeName,
+		logger:     e.logger,
+		metrics:    e.metrics,
 	}
 	if err := buildEngine.setup(); err != nil {
 		return nil, serrors.E(op, err)
@@ -608,27 +642,9 @@ func (e *MeilisearchEngine) StartRebuild(ctx context.Context) (RebuildSession, e
 	}, nil
 }
 
-func (e *MeilisearchEngine) resetIndex(ctx context.Context, indexName string) error {
-	if _, err := e.client.GetIndex(indexName); err == nil {
-		task, err := e.client.DeleteIndexWithContext(ctx, indexName)
-		if err != nil {
-			return err
-		}
-		if task != nil {
-			if _, err := e.waitTaskCtx(ctx, task.TaskUID); err != nil {
-				return err
-			}
-		}
-		return nil
-	} else if !isMeiliNotFound(err) {
-		return err
-	}
-	return nil
-}
-
-func rebuildIndexName(active string) string {
+func rebuildIndexName(active, runID string) string {
 	sanitizedVersion := strings.NewReplacer("-", "_", ".", "_").Replace(IndexSchemaVersion)
-	return fmt.Sprintf("%s_build_%s", active, sanitizedVersion)
+	return fmt.Sprintf("%s_build_%s_%s", active, sanitizedVersion, runID)
 }
 
 // buildIndexPrefix returns the prefix used to identify rebuild scratch
@@ -646,8 +662,7 @@ type PrunedIndex struct {
 }
 
 // PruneOrphanBuildIndexes scans Meili for rebuild scratch indexes that no
-// longer match the current schema version, are older than the supplied
-// minAge, and removes them. Returns the list of pruned indexes for
+// are older than the supplied minAge, and removes them. Returns the list of pruned indexes for
 // callers that want to log or metric the action. The janitor task in EAI
 // calls this on an hourly schedule.
 //
@@ -666,7 +681,6 @@ func (e *MeilisearchEngine) PruneOrphanBuildIndexes(ctx context.Context, minAge 
 	}
 
 	prefix := e.buildIndexPrefix()
-	current := rebuildIndexName(e.activeName)
 	cutoff := time.Now().Add(-minAge)
 
 	pruned := make([]PrunedIndex, 0)
@@ -675,10 +689,6 @@ func (e *MeilisearchEngine) PruneOrphanBuildIndexes(ctx context.Context, minAge 
 			continue
 		}
 		if !strings.HasPrefix(idx.UID, prefix) {
-			continue
-		}
-		if idx.UID == current {
-			// Active rebuild target; never prune.
 			continue
 		}
 		if minAge > 0 && !idx.UpdatedAt.IsZero() && idx.UpdatedAt.After(cutoff) {
@@ -704,9 +714,8 @@ func (e *MeilisearchEngine) PruneOrphanBuildIndexes(ctx context.Context, minAge 
 		})
 		if e.logger != nil {
 			e.logger.WithFields(logrus.Fields{
-				"index":   idx.UID,
-				"age":     time.Since(idx.UpdatedAt).String(),
-				"current": current,
+				"index": idx.UID,
+				"age":   time.Since(idx.UpdatedAt).String(),
 			}).Info("spotlight janitor pruned orphan build index")
 		}
 	}
