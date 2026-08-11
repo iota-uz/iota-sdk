@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
 )
@@ -19,12 +20,57 @@ import (
 // look up. Rendering with a nil localizer is covered by the base components
 // themselves, which fall back rather than panic.
 func renderContext() context.Context {
+	return renderContextForPath("/")
+}
+
+func renderContextForPath(path string) context.Context {
 	bundle := i18n.NewBundle(language.English)
 	bundle.MustAddMessages(language.English, &i18n.Message{ID: "Common.TabNavigation", Other: "Tab navigation"})
 	return composables.WithPageCtx(
 		context.Background(),
-		types.NewPageContext(language.English, &url.URL{Path: "/"}, i18n.NewLocalizer(bundle, language.English.String())),
+		types.NewPageContext(language.English, &url.URL{Path: path}, i18n.NewLocalizer(bundle, language.English.String())),
 	)
+}
+
+func TestBuildSidebarNavTabs_SelectsMostSpecificMatchingRoute(t *testing.T) {
+	t.Parallel()
+
+	claims := NewGroup("Claims", nil, []Item{
+		NewLink("/claims", "Current claims", nil),
+		NewLink("/claims/archive", "Archived claims", nil),
+	})
+	testCases := []struct {
+		name          string
+		path          string
+		currentActive bool
+		archiveActive bool
+	}{
+		{name: "current claims list", path: "/claims", currentActive: true},
+		{name: "current claim detail", path: "/claims/123", currentActive: true},
+		{name: "archive list", path: "/claims/archive", archiveActive: true},
+		{name: "archive claim detail", path: "/claims/archive/123", archiveActive: true},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			tabs := BuildSidebarNavTabs(renderContextForPath(testCase.path), TabGroupCollection{
+				Groups: []TabGroup{{
+					Label: "ERP",
+					Value: "erp",
+					Items: []Item{claims},
+				}},
+			})
+
+			require.Len(t, tabs, 1)
+			require.Len(t, tabs[0].Nodes, 1)
+			require.True(t, tabs[0].Nodes[0].IsActive)
+			require.Len(t, tabs[0].Nodes[0].Children, 2)
+			assert.Equal(t, testCase.currentActive, tabs[0].Nodes[0].Children[0].IsActive)
+			assert.Equal(t, testCase.archiveActive, tabs[0].Nodes[0].Children[1].IsActive)
+		})
+	}
 }
 
 func TestSidebar_CollapsedFlyoutUsesTeleportSafeStore(t *testing.T) {
