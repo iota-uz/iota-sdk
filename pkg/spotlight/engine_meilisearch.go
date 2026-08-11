@@ -56,6 +56,10 @@ type MeilisearchEngine struct {
 	pendingUIDs         []int64
 	logger              *logrus.Logger
 	metrics             Metrics
+	// taskWaitDeadline overrides the default single-task deadline for this
+	// engine. Rebuild engines use the maintenance budget because their index
+	// creation, settings, and bulk tasks may sit behind live projector writes.
+	taskWaitDeadline time.Duration
 }
 
 type meiliSearchIndexState struct {
@@ -140,7 +144,11 @@ func (e *MeilisearchEngine) waitTaskCtx(ctx context.Context, taskUID int64) (*me
 	}
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, defaultWaitForTaskDeadline)
+		deadline := e.taskWaitDeadline
+		if deadline <= 0 {
+			deadline = defaultWaitForTaskDeadline
+		}
+		ctx, cancel = context.WithTimeout(ctx, deadline)
 		defer cancel()
 	}
 	return e.client.WaitForTaskWithContext(ctx, taskUID, waitTaskPollInterval)
@@ -262,7 +270,7 @@ func (e *MeilisearchEngine) ensureIndexExists(indexName string) (bool, error) {
 			return false, serrors.E(op, err)
 		}
 
-		task, err := waitTaskCtxClient(context.Background(), e.client, taskInfo.TaskUID)
+		task, err := e.waitTaskCtx(context.Background(), taskInfo.TaskUID)
 		if err != nil {
 			return false, serrors.E(op, err)
 		}
@@ -330,7 +338,7 @@ func (e *MeilisearchEngine) configureIndex(indexName string) error {
 
 func (e *MeilisearchEngine) waitSettingsTask(op serrors.Op) error {
 	taskUID := e.settingsTaskUID
-	task, err := waitTaskCtxClient(context.Background(), e.client, taskUID)
+	task, err := e.waitTaskCtx(context.Background(), taskUID)
 	if err != nil {
 		// Keep the task UID: the task may still be processing server-side, and a
 		// later setup attempt must wait for it instead of creating a duplicate.
@@ -645,6 +653,11 @@ func (e *MeilisearchEngine) StartRebuild(ctx context.Context) (RebuildSession, e
 		activeName: e.activeName,
 		logger:     e.logger,
 		metrics:    e.metrics,
+		// A live index may continuously enqueue projector writes ahead of the
+		// scratch-index setup. The regular 60s request budget is intentionally
+		// too short for that maintenance queue; use the existing bulk-drain
+		// budget for every task belonging to this isolated rebuild engine.
+		taskWaitDeadline: drainWaitDeadline,
 	}
 	if err := buildEngine.setup(); err != nil {
 		return nil, serrors.E(op, err)

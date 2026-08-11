@@ -109,6 +109,27 @@ func TestMeilisearchEngine_SetupForSearchMissingIndexBootstrapsIt(t *testing.T) 
 	require.True(t, engine.writeReady.Load())
 }
 
+func TestMeilisearchEngineWaitTaskCtxUsesMaintenanceOverride(t *testing.T) {
+	service := meilimocks.NewMockmeilisearchServiceManager(t)
+	engine := &MeilisearchEngine{
+		client:           service,
+		taskWaitDeadline: drainWaitDeadline,
+	}
+
+	service.EXPECT().
+		WaitForTaskWithContext(mock.Anything, int64(42), waitTaskPollInterval).
+		Run(func(ctx context.Context, _ int64, _ time.Duration) {
+			deadline, ok := ctx.Deadline()
+			require.True(t, ok)
+			require.Greater(t, time.Until(deadline), 4*time.Minute)
+		}).
+		Return(&meilisearch.Task{Status: meilisearch.TaskStatusSucceeded}, nil).
+		Once()
+
+	_, err := engine.waitTaskCtx(context.Background(), 42)
+	require.NoError(t, err)
+}
+
 func TestMeilisearchEngine_SetupForSearchRetryWaitsForPendingSettingsTask(t *testing.T) {
 	service := meilimocks.NewMockmeilisearchServiceManager(t)
 	index := meilimocks.NewMockmeilisearchIndexManager(t)
