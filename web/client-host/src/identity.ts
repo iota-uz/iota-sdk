@@ -1,6 +1,6 @@
 import { CLIENT_HOST_PROTOCOL_VERSION } from './protocol'
 
-export const SDK_RELEASE_VERSION = '0.5.3'
+export const SDK_RELEASE_VERSION = '0.5.4'
 export const SDK_SOURCE_COMMIT = '__IOTA_SDK_SOURCE_COMMIT__'
 export const SDK_PROTOCOL_VERSION = CLIENT_HOST_PROTOCOL_VERSION
 export const SDK_IDENTITY = Object.freeze({
