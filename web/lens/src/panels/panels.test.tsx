@@ -50,6 +50,7 @@ vi.mock('../runtime', () => ({
 import { legendLabels, legendRow, legendSwatches, legendValues, markRow } from './legend.test-utils'
 import { BarPanel, collapseExpandableTopN, collapseMinorDonutSlices, DistributionPanel, donutRemainderKey, LinePanel, PiePanel, rowIndexForKey } from './ChartPanel'
 import { CoveragePanel } from './CoveragePanel'
+import { seriesColorResolver } from './data'
 import { GaugePanel } from './GaugePanel'
 import { MapPanel } from './MapPanel'
 import { buildCascadeStages, buildWaterfallItems, buildWaterfallModel, CascadePanel, waterfallAxisStep } from './CascadePanel'
@@ -95,6 +96,17 @@ function panel(kind: PanelKind, overrides: Partial<Panel> = {}): Panel {
     ...overrides,
   } as Panel
 }
+
+describe('series colours', () => {
+  it('keeps a named business-series colour ahead of a positional skeleton pin', () => {
+    const resolve = seriesColorResolver({
+      palette: { osago: '#7c3aed' },
+      series: { OSAGO: 'osago', 'panel-bar:0': '#dc2626' },
+    }, panel('bar'))
+
+    expect(resolve('OSAGO', 0)).toBe('#7c3aed')
+  })
+})
 
 function state(name: 'loading' | 'empty' | 'error' | 'stale' | 'superseded' | 'data'): PanelFrameState {
   const retry = vi.fn()

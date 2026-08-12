@@ -849,6 +849,28 @@ describe('buildChartOption', () => {
     expect(tooltip).toContain('$1200')
   })
 
+  it('sorts tooltip series by amount before the total', () => {
+    const chartInput = input('bar')
+    chartInput.frame.rows = [
+      ['jan-small', 'Jan', 'Small', 20],
+      ['jan-largest', 'Jan', 'Largest', 300],
+      ['jan-middle', 'Jan', 'Middle', 80],
+    ]
+    chartInput.presentation = { stack: true }
+    chartInput.tooltipTotalLabel = 'Итого'
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    const tooltip = chart.tooltip.formatter?.([
+      { axisValueLabel: 'Jan', seriesName: 'Small', value: 20 },
+      { axisValueLabel: 'Jan', seriesName: 'Largest', value: 300 },
+      { axisValueLabel: 'Jan', seriesName: 'Middle', value: 80 },
+    ]) ?? ''
+
+    expect(tooltip.indexOf('Largest')).toBeLessThan(tooltip.indexOf('Middle'))
+    expect(tooltip.indexOf('Middle')).toBeLessThan(tooltip.indexOf('Small'))
+    expect(tooltip.indexOf('Small')).toBeLessThan(tooltip.indexOf('Итого'))
+  })
+
   it('does not add an overlaid line series to a stacked column total', () => {
     const chartInput = input('bar')
     chartInput.presentation = { stack: true, lineSeries: ['Cost'] }

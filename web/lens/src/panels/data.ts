@@ -3,11 +3,13 @@ import { fallbackSeries, paletteAssignment, stablePaletteIndex } from '../charts
 
 /**
  * Resolves a datum's color the way the chart adapter does, so a React-rendered
- * legend cannot disagree with the plot: the panel's own `panelId:index` series
- * entry first, then a series entry keyed by label, then the palette order, then
- * the panel accent.
+ * legend cannot disagree with the plot: a semantic series entry keyed by label
+ * first, then the panel's own `panelId:index` entry, then the palette order,
+ * then the panel accent.
  *
- * `positional: false` drops the `panelId:index` entry. That entry pins a color
+ * A named entry wins because it identifies the business series even when a
+ * deferred frame contains a subset in a different order. `positional: false`
+ * drops the `panelId:index` entry. That entry pins a color
  * to the n-th row of the panel's *own* frame, so once the panel is showing a
  * drill level it describes rows that are no longer on screen — the legend was
  * printing the root's second color next to the level's second slice, which the
@@ -27,8 +29,8 @@ export function seriesColorResolver(
   // colours one datum at a time.
   const assigned = labels ? paletteAssignment(labels, colors.length) : undefined
   const paletteIndex = (key: string) => assigned?.get(key) ?? stablePaletteIndex(key, colors.length)
-  return (label, index) => (positional ? resolve(theme.series[`${panel.id}:${index}`]) : undefined)
-    ?? resolve(theme.series[label])
+  return (label, index) => resolve(theme.series[label])
+    ?? (positional ? resolve(theme.series[`${panel.id}:${index}`]) : undefined)
     ?? colors[paletteIndex(label || String(index))]
     ?? panel.accent
 }

@@ -182,6 +182,11 @@ function nonZeroTooltipRecords(params: unknown): Record<string, unknown>[] {
       seen.add(key)
       return true
     })
+    // A stacked chart's declaration order is an implementation detail, not a
+    // useful reading order. Put the largest contribution first so the tooltip
+    // answers “what drove this column?” without making the reader scan every
+    // row. Array#sort is stable, so equal amounts keep the producer's order.
+    .sort((left, right) => (numericTooltipValue(right.value) ?? 0) - (numericTooltipValue(left.value) ?? 0))
 }
 
 function timeTooltipFormatter(input: ChartInput, categoryField: string, showSeriesName: (name: string) => boolean) {
