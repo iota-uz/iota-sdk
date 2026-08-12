@@ -189,7 +189,7 @@ export function chartOverlays(context: OverlayContext): ChartOverlay[] {
     push({
       id: overlayId.average(average.window),
       kind: 'average',
-      label: average.label || labels?.movingAverage(average.window) || `SMA ${average.window}`,
+      label: average.label || labels?.movingAverage?.(average.window) || `SMA ${average.window}`,
       tone: 'series',
       stroke: 'solid',
     })

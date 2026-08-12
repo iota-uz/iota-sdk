@@ -1531,7 +1531,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     .filter((average) => shown.has(overlayId.average(average.window)))
     .flatMap((average) => seriesNames.map((name, index) => ({
       type: 'line' as const,
-      name: `${name ? `${name} · ` : ''}${average.label || input.labels?.movingAverage(average.window) || `SMA ${average.window}`}`,
+      name: `${name ? `${name} · ` : ''}${average.label || input.labels?.movingAverage?.(average.window) || `SMA ${average.window}`}`,
       silent: true,
       z: 5,
       showSymbol: false,
@@ -1572,7 +1572,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       },
       {
         type: 'line' as const,
-        name: input.labels?.forecastLower(forecastLabel) ?? `${forecastLabel} lower`,
+        name: input.labels?.forecastLower?.(forecastLabel) ?? `${forecastLabel} lower`,
         silent: true,
         tooltip: { show: false },
         stack,
@@ -1584,7 +1584,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       },
       {
         type: 'line' as const,
-        name: input.labels?.forecastConfidence(forecastLabel) ?? `${forecastLabel} confidence`,
+        name: input.labels?.forecastConfidence?.(forecastLabel) ?? `${forecastLabel} confidence`,
         silent: true,
         tooltip: { show: false },
         stack,
