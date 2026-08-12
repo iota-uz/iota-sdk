@@ -989,6 +989,9 @@ describe('facet filter menu', () => {
     fireEvent.click(trigger)
     await screen.findByRole('checkbox', { name: /Option 1/ })
     const menu = screen.getByRole('dialog', { name: 'Filters' })
+    // A conventional dropdown starts under the button's leading edge. The
+    // placement helper may still flip it at the viewport boundary.
+    expect(menu).toHaveAttribute('data-align', 'start')
     // Placement is measured in viewport coordinates, so the menu must live in
     // the shared body portal. Keeping it under the trigger would add the
     // trigger row's offset a second time and push the card to the screen edge.

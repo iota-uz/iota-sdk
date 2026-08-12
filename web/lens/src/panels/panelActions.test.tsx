@@ -290,6 +290,25 @@ describe('charts with a panel-level navigate action', () => {
     expect(assign).toHaveBeenCalledWith(expect.stringContaining('/policies/KASKO'))
   })
 
+  it('fully navigates when a cube drill targets a different report page', async () => {
+    window.history.replaceState(null, '', '/insurance/sales-report')
+    const assign = vi.mocked(navigateTo)
+    const panel = chartPanel([{
+      kind: 'cube_drill', method: 'GET', urlTemplate: '/insurance/sales-report/drill/policies/breakdown',
+      params: [], payload: {},
+      filter: { dimension: 'product', value: { kind: 'field', name: 'id' } },
+    }])
+    const { container, activate } = renderChart(panel)
+
+    await waitFor(() => expect(container.querySelector('[data-drillable]')).not.toBeNull())
+    activate('broker')
+
+    expect(assign).toHaveBeenCalledWith(expect.stringMatching(
+      /^\/insurance\/sales-report\/drill\/policies\/breakdown\?_f=product%3Abroker$/,
+    ))
+    expect(window.location.pathname).toBe('/insurance/sales-report')
+  })
+
   it('leaves a chart without a drill root or an action inert', async () => {
     const assign = vi.mocked(navigateTo)
     const { container, activate } = renderChart(chartPanel([]))

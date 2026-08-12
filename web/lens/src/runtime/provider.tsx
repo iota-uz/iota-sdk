@@ -53,6 +53,7 @@ import { PanelClient } from './panel'
 import { QueryError, SnapshotGoneError } from './query'
 import { queryWithSnapshotRecovery } from './recovery'
 import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL, siteRelativeURL } from './url'
+import { navigateTo } from './navigate'
 import { X } from '../icons'
 
 /* eslint-disable react-refresh/only-export-components */
@@ -1566,6 +1567,14 @@ function RuntimeCore({
       return
     }
     const current = new URL(window.location.href)
+    // Cross-filtering belongs to the mounted document only while the target
+    // stays on that document. Cube drills may intentionally point at a
+    // separate report page; pushState would change the address without
+    // mounting that page, leaving the old dashboard visible until reload.
+    if (next.pathname !== current.pathname) {
+      navigateTo(siteRelativeURL(next.href, current) ?? next.href)
+      return
+    }
     if (!sameNavigationURL(current, next)) {
       window.history.pushState(browserStateFor(navigation, window.history.state), '', next)
     }
