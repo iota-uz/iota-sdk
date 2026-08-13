@@ -106,7 +106,14 @@ func triggerHeaderValue(event, detail string) string {
 	if detail == "" {
 		return event
 	}
-	name, _ := json.Marshal(event) // marshalling a string cannot fail
+	// Marshalling a string cannot fail, but the error is answered rather than
+	// discarded: emitting half a document would hand htmx a payload it cannot
+	// parse, whereas the bare event name is the form it already accepts for a
+	// detail-less event.
+	name, err := json.Marshal(event)
+	if err != nil {
+		return event
+	}
 	return escapeNonASCII(`{` + string(name) + `:` + detail + `}`)
 }
 
@@ -215,11 +222,17 @@ type toastDetail struct {
 // characters in a title or message stay valid JSON instead of breaking the
 // client-side parse.
 func toastPayload(variant ToastVariant, title, message string) string {
-	detail, _ := json.Marshal(toastDetail{ // marshalling strings cannot fail
+	// A struct of strings cannot fail to marshal, but the error is answered
+	// rather than discarded: an empty payload degrades to the bare `notify`
+	// event, while a truncated one would break the client-side parse.
+	detail, err := json.Marshal(toastDetail{
 		Variant: variant,
 		Title:   title,
 		Message: message,
 	})
+	if err != nil {
+		return ""
+	}
 	return string(detail)
 }
 
