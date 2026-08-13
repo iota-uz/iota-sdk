@@ -531,9 +531,21 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const seriesColor = useMemo(() => {
     const resolve = seriesColorResolver(document.theme, panel, { positional: !active, labels: paletteLabels })
     const order = seriesOrder(frame.data, panel)
-    if (order.size === 0) return resolve
-    return (label: string, index: number) => resolve(label, order.get(label) ?? index)
-  }, [active, document.theme, frame.data, paletteLabels, panel])
+    const frameSeries = new Map<string, string>()
+    const seriesIndex = frame.data?.columns.findIndex((column) => column.name === panel.encoding.series) ?? -1
+    if (seriesIndex >= 0) {
+      for (const [rowIndex, row] of (frame.data?.rows ?? []).entries()) {
+        const raw = row[seriesIndex]
+        const color = frameColors?.[rowIndex]?.trim()
+        if ((typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'bigint') && color) {
+          const label = String(raw)
+          if (!frameSeries.has(label)) frameSeries.set(label, color)
+        }
+      }
+    }
+    if (order.size === 0 && frameSeries.size === 0) return resolve
+    return (label: string, index: number) => frameSeries.get(label) ?? resolve(label, order.get(label) ?? index)
+  }, [active, document.theme, frame.data, frameColors, paletteLabels, panel])
   // The row-indexed half of the same rule. It is handed the *visible* palette
   // because the plot draws the visible rows; the legend builds its own over the
   // full frame, and the two agree row for row either way.

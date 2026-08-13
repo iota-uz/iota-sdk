@@ -337,15 +337,12 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 			colorField = panel.Ref("color_value")
 		}
 		builder.SemanticColors(dim.ColorScale, colorField)
-		if dim.PanelKind == panel.KindBar || dim.PanelKind == panel.KindHorizontalBar {
-			builder.DistributedColors()
-		}
 	}
 	if len(dim.Colors) > 0 {
 		builder.Colors(dim.Colors...)
-		if dim.PanelKind == panel.KindBar || dim.PanelKind == panel.KindHorizontalBar {
-			builder.DistributedColors()
-		}
+	}
+	if dim.PanelKind == panel.KindBar || dim.PanelKind == panel.KindHorizontalBar {
+		builder.DistributedColors()
 	}
 	if dim.PanelKind == panel.KindTable && resolved.Compared {
 		builder = panel.Table("panel_"+dim.Name, dim.Label, resolved.Name).
