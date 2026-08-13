@@ -2,8 +2,11 @@
 package htmx
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
+	"unicode/utf16"
 )
 
 // ================= Setters =================
@@ -53,31 +56,72 @@ func Reswap(w http.ResponseWriter, swapStyle string) {
 	w.Header().Add("Hx-Reswap", swapStyle)
 }
 
+// escapeNonASCII rewrites every rune above U+007F as a \uXXXX escape sequence
+// (a surrogate pair outside the BMP, U+FFFD for invalid UTF-8), keeping a header
+// value pure ASCII. Browsers decode header bytes as ISO-8859-1, so raw UTF-8
+// reaches htmx as mojibake, while JSON.parse restores the escaped form intact.
+//
+// It takes an assembled JSON document rather than its parts, so a caller-supplied
+// payload is never re-parsed or re-marshalled.
+func escapeNonASCII(s string) string {
+	if isASCII(s) {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch {
+		case r < 0x80:
+			b.WriteRune(r)
+		case r > 0xFFFF:
+			high, low := utf16.EncodeRune(r)
+			fmt.Fprintf(&b, `\u%04x\u%04x`, high, low)
+		default:
+			fmt.Fprintf(&b, `\u%04x`, r)
+		}
+	}
+	return b.String()
+}
+
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
+}
+
+// triggerHeaderValue builds the value for an HX-Trigger* header.
+//
+// An empty detail keeps the bare event-name form htmx accepts for detail-less
+// events. Otherwise the event name is marshalled as a JSON string and the
+// caller's detail is embedded verbatim as the event payload.
+func triggerHeaderValue(event, detail string) string {
+	if detail == "" {
+		return event
+	}
+	// Fall back to the bare event name if marshalling fails.
+	name, err := json.Marshal(event)
+	if err != nil {
+		return event
+	}
+	return escapeNonASCII(`{` + string(name) + `:` + detail + `}`)
+}
+
 // SetTrigger sets the HX-Trigger header to trigger client-side events.
 func SetTrigger(w http.ResponseWriter, event, detail string) {
-	if detail == "" {
-		w.Header().Add("Hx-Trigger", event)
-	} else {
-		w.Header().Add("Hx-Trigger", `{"`+event+`": `+detail+`}`)
-	}
+	w.Header().Add("Hx-Trigger", triggerHeaderValue(event, detail))
 }
 
 // TriggerAfterSettle sets the HX-Trigger-After-Settle header to trigger client-side events after the settle step.
 func TriggerAfterSettle(w http.ResponseWriter, event, detail string) {
-	if detail == "" {
-		w.Header().Add("Hx-Trigger-After-Settle", event)
-	} else {
-		w.Header().Add("Hx-Trigger-After-Settle", `{"`+event+`": `+detail+`}`)
-	}
+	w.Header().Add("Hx-Trigger-After-Settle", triggerHeaderValue(event, detail))
 }
 
 // TriggerAfterSwap sets the HX-Trigger-After-Swap header to trigger client-side events after the swap step.
 func TriggerAfterSwap(w http.ResponseWriter, event, detail string) {
-	if detail == "" {
-		w.Header().Add("Hx-Trigger-After-Swap", event)
-	} else {
-		w.Header().Add("Hx-Trigger-After-Swap", `{"`+event+`": `+detail+`}`)
-	}
+	w.Header().Add("Hx-Trigger-After-Swap", triggerHeaderValue(event, detail))
 }
 
 // ================= Getters =================
@@ -160,23 +204,43 @@ const (
 	ToastVariantInfo    ToastVariant = "info"
 )
 
+type toastDetail struct {
+	Variant ToastVariant `json:"variant"`
+	Title   string       `json:"title"`
+	Message string       `json:"message"`
+}
+
+// toastPayload marshals the toast detail so that quotes, backslashes and control
+// characters in a title or message stay valid JSON instead of breaking the
+// client-side parse.
+func toastPayload(variant ToastVariant, title, message string) string {
+	// Fall back to an empty detail, which degrades to the bare event, if
+	// marshalling fails.
+	detail, err := json.Marshal(toastDetail{
+		Variant: variant,
+		Title:   title,
+		Message: message,
+	})
+	if err != nil {
+		return ""
+	}
+	return string(detail)
+}
+
 // TriggerToast triggers a toast notification with the specified variant, title, and message.
 // This uses the HX-Trigger header to dispatch a 'notify' event that the toast container listens for.
 func TriggerToast(w http.ResponseWriter, variant ToastVariant, title, message string) {
-	detail := fmt.Sprintf(`{"variant": "%s", "title": "%s", "message": "%s"}`, variant, title, message)
-	SetTrigger(w, "notify", detail)
+	SetTrigger(w, "notify", toastPayload(variant, title, message))
 }
 
 // TriggerToastAfterSwap triggers a toast notification after the swap step.
 func TriggerToastAfterSwap(w http.ResponseWriter, variant ToastVariant, title, message string) {
-	detail := fmt.Sprintf(`{"variant": "%s", "title": "%s", "message": "%s"}`, variant, title, message)
-	TriggerAfterSwap(w, "notify", detail)
+	TriggerAfterSwap(w, "notify", toastPayload(variant, title, message))
 }
 
 // TriggerToastAfterSettle triggers a toast notification after the settle step.
 func TriggerToastAfterSettle(w http.ResponseWriter, variant ToastVariant, title, message string) {
-	detail := fmt.Sprintf(`{"variant": "%s", "title": "%s", "message": "%s"}`, variant, title, message)
-	TriggerAfterSettle(w, "notify", detail)
+	TriggerAfterSettle(w, "notify", toastPayload(variant, title, message))
 }
 
 // Convenience functions for common toast types
