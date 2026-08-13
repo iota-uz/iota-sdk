@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	ReleaseVersion  = "0.5.4"
+	ReleaseVersion  = "0.5.5"
 	ProtocolVersion = "1.0.0"
 )
 
