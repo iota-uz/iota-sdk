@@ -69,12 +69,10 @@ func decodeToast(t *testing.T, value string) toastDetail {
 }
 
 // TestTriggerToast_NonASCIISurvivesAsASCII pins the reported production bug: a
-// Cyrillic toast reached the operator as mojibake because the raw UTF-8 bytes in
-// the header are decoded as ISO-8859-1 by the browser.
-//
-// Falsely green if it asserted only that json.Unmarshal returns the original
-// text: raw UTF-8 unmarshals just fine in Go. The load-bearing assertion is that
-// every byte written to the wire is below 0x80.
+// Cyrillic toast reached the operator as mojibake because the browser decodes
+// the raw UTF-8 bytes in the header as ISO-8859-1. The load-bearing assertion is
+// requireASCII — raw UTF-8 unmarshals fine in Go, so a round trip alone would
+// pass on the broken code.
 func TestTriggerToast_NonASCIISurvivesAsASCII(t *testing.T) {
 	t.Parallel()
 
@@ -122,11 +120,8 @@ func TestTriggerToast_NonASCIISurvivesAsASCII(t *testing.T) {
 
 // TestTriggerToast_SpecialCharactersStayValidJSON covers the second defect: the
 // detail used to be built with fmt.Sprintf, so a quote, a backslash or a control
-// character produced JSON that htmx failed to parse and the toast never appeared.
-//
-// Falsely green if it only checked that the header contains the message text —
-// a broken document can still contain it. The assertion that matters is that the
-// value parses as JSON and the text comes back byte-identical.
+// character produced JSON that htmx failed to parse. It asserts a successful
+// parse rather than substring containment, which a broken document also passes.
 func TestTriggerToast_SpecialCharactersStayValidJSON(t *testing.T) {
 	t.Parallel()
 
@@ -160,11 +155,8 @@ func TestTriggerToast_SpecialCharactersStayValidJSON(t *testing.T) {
 
 // TestTriggerToast_ASCIIOnlyKeepsBehaviour guards existing consumers: an
 // ASCII-only toast must still arrive as the same notify event with the same
-// three fields.
-//
-// Falsely green if it compared the header byte-for-byte against the old
-// fmt.Sprintf output — the separators changed (no space after the colon), while
-// the parsed payload, which is all the client sees, did not.
+// three fields. It compares the parsed payload, not the raw header — the
+// separators changed (no space after the colon), what the client sees did not.
 func TestTriggerToast_ASCIIOnlyKeepsBehaviour(t *testing.T) {
 	t.Parallel()
 
@@ -190,9 +182,8 @@ func TestTriggerToast_ASCIIOnlyKeepsBehaviour(t *testing.T) {
 
 // TestTriggers_EmptyDetailUnchanged pins the detail-less form: htmx reads a value
 // that is not JSON as a bare event name, so it must stay byte-for-byte identical.
-//
-// Falsely green if it asserted with Contains instead of Equal — a JSON-wrapped
-// value contains the event name too, yet would change what htmx dispatches.
+// Equal, not Contains — a JSON-wrapped value contains the event name too, yet
+// changes what htmx dispatches.
 func TestTriggers_EmptyDetailUnchanged(t *testing.T) {
 	t.Parallel()
 
@@ -221,10 +212,8 @@ func TestTriggers_EmptyDetailUnchanged(t *testing.T) {
 // TestSetTrigger_PreMarshalledDetailIsNormalised covers callers that hand
 // SetTrigger a payload they marshalled themselves: encoding/json emits non-ASCII
 // as raw UTF-8, so those triggers carried mojibake by the same route as toasts.
-//
-// Falsely green if it re-marshalled the detail before comparing — the fix must
-// escape the caller's document without reparsing it, leaving key order and
-// number formatting untouched.
+// The caller's document is compared as it was handed over, never re-marshalled:
+// escaping must leave key order and number formatting untouched.
 func TestSetTrigger_PreMarshalledDetailIsNormalised(t *testing.T) {
 	t.Parallel()
 
@@ -250,10 +239,9 @@ func TestSetTrigger_PreMarshalledDetailIsNormalised(t *testing.T) {
 }
 
 // TestSetTrigger_EventNameIsEncoded covers the event half of the header, which
-// used to be concatenated into the JSON unescaped.
-//
-// Falsely green if it used an event name without characters that need escaping —
-// every ASCII event name in the repository parses fine either way.
+// used to be concatenated into the JSON unescaped. The event name deliberately
+// carries a quote and Cyrillic; every plain ASCII name in the repository parses
+// fine either way.
 func TestSetTrigger_EventNameIsEncoded(t *testing.T) {
 	t.Parallel()
 

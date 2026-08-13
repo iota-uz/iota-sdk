@@ -56,18 +56,13 @@ func Reswap(w http.ResponseWriter, swapStyle string) {
 	w.Header().Add("Hx-Reswap", swapStyle)
 }
 
-// escapeNonASCII rewrites every rune above U+007F as a \uXXXX escape sequence.
+// escapeNonASCII rewrites every rune above U+007F as a \uXXXX escape sequence
+// (a surrogate pair outside the BMP, U+FFFD for invalid UTF-8), keeping a header
+// value pure ASCII. Browsers decode header bytes as ISO-8859-1, so raw UTF-8
+// reaches htmx as mojibake, while JSON.parse restores the escaped form intact.
 //
-// Header values are transported as bytes and decoded by browsers as ISO-8859-1
-// (XHR/fetch), so raw UTF-8 reaches htmx as mojibake. \uXXXX is valid JSON and
-// JSON.parse restores the original string, so the payload survives intact while
-// the header itself stays pure ASCII. Runes outside the BMP are emitted as a
-// UTF-16 surrogate pair, as JSON requires.
-//
-// Escaping is applied to an assembled JSON document rather than to its parts:
-// non-ASCII cannot legally appear outside a JSON string literal, so this cannot
-// corrupt a valid document, and a caller-supplied payload is never re-parsed or
-// re-marshalled. Invalid UTF-8 in the input is escaped as U+FFFD.
+// It takes an assembled JSON document rather than its parts, so a caller-supplied
+// payload is never re-parsed or re-marshalled.
 func escapeNonASCII(s string) string {
 	if isASCII(s) {
 		return s
@@ -106,10 +101,7 @@ func triggerHeaderValue(event, detail string) string {
 	if detail == "" {
 		return event
 	}
-	// Marshalling a string cannot fail, but the error is answered rather than
-	// discarded: emitting half a document would hand htmx a payload it cannot
-	// parse, whereas the bare event name is the form it already accepts for a
-	// detail-less event.
+	// Fall back to the bare event name if marshalling fails.
 	name, err := json.Marshal(event)
 	if err != nil {
 		return event
@@ -222,9 +214,8 @@ type toastDetail struct {
 // characters in a title or message stay valid JSON instead of breaking the
 // client-side parse.
 func toastPayload(variant ToastVariant, title, message string) string {
-	// A struct of strings cannot fail to marshal, but the error is answered
-	// rather than discarded: an empty payload degrades to the bare `notify`
-	// event, while a truncated one would break the client-side parse.
+	// Fall back to an empty detail, which degrades to the bare event, if
+	// marshalling fails.
 	detail, err := json.Marshal(toastDetail{
 		Variant: variant,
 		Title:   title,
