@@ -42,18 +42,18 @@ func TestSemanticCompatibilityPreservesProductAliases(t *testing.T) {
 		canonical string
 		color     string
 	}{
-		{name: "OSAGO legacy ID", key: "3", canonical: "OSAGO", color: "#7C3AED"},
-		{name: "TRAVEL legacy ID", key: "17", canonical: "TRAVEL", color: "#2563EB"},
-		{name: "OPO legacy ID", key: "144", canonical: "OPO", color: "#16A34A"},
-		{name: "SMR legacy ID", key: "334", canonical: "SMR", color: "#EA580C"},
-		{name: "EURO KASKO legacy ID", key: "347", canonical: "EURO_KASKO", color: "#0F766E"},
-		{name: "KASKO legacy ID", key: "349", canonical: "KASKO", color: "#DC2626"},
-		{name: "OSGOR legacy ID", key: "4002", canonical: "OSGOR", color: "#D97706"},
-		{name: "OSGOP legacy ID", key: "4003", canonical: "OSGOP", color: "#DB2777"},
-		{name: "online KASKO alias", key: "ONLINE_KASKO", canonical: "KASKO", color: "#DC2626"},
-		{name: "web constructor alias", key: "WEB_CONSTRUCTOR", canonical: "EURO_KASKO", color: "#0F766E"},
-		{name: "electronic OSGOR alias", key: "EOSGOR", canonical: "OSGOR", color: "#D97706"},
-		{name: "electronic OSGOP alias", key: "EOSGOP", canonical: "OSGOP", color: "#DB2777"},
+		{name: "OSAGO legacy ID", key: "3", canonical: "OSAGO", color: "#4338CA"},
+		{name: "TRAVEL legacy ID", key: "17", canonical: "TRAVEL", color: "#15803D"},
+		{name: "OPO legacy ID", key: "144", canonical: "OPO", color: "#DC2626"},
+		{name: "SMR legacy ID", key: "334", canonical: "SMR", color: "#A16207"},
+		{name: "EURO KASKO legacy ID", key: "347", canonical: "EURO_KASKO", color: "#F97316"},
+		{name: "KASKO legacy ID", key: "349", canonical: "KASKO", color: "#F97316"},
+		{name: "OSGOR legacy ID", key: "4002", canonical: "OSGOR", color: "#0369A1"},
+		{name: "OSGOP legacy ID", key: "4003", canonical: "OSGOP", color: "#7C3AED"},
+		{name: "online KASKO alias", key: "ONLINE_KASKO", canonical: "KASKO", color: "#F97316"},
+		{name: "web constructor alias", key: "WEB_CONSTRUCTOR", canonical: "EURO_KASKO", color: "#F97316"},
+		{name: "electronic OSGOR alias", key: "EOSGOR", canonical: "OSGOR", color: "#0369A1"},
+		{name: "electronic OSGOP alias", key: "EOSGOP", canonical: "OSGOP", color: "#7C3AED"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -64,5 +64,5 @@ func TestSemanticCompatibilityPreservesProductAliases(t *testing.T) {
 		})
 	}
 
-	require.Equal(t, []string{"#7C3AED", "#2563EB"}, Palette(ScopeProduct, []string{"OSAGO", "TRAVEL"}))
+	require.Equal(t, []string{"#4338CA", "#15803D"}, Palette(ScopeProduct, []string{"OSAGO", "TRAVEL"}))
 }

@@ -23,14 +23,14 @@ const (
 )
 
 var productPalette = map[string]string{
-	"OSAGO":      "#7C3AED",
-	"TRAVEL":     "#2563EB",
-	"KASKO":      "#DC2626",
-	"EURO_KASKO": "#0F766E",
-	"OSGOR":      "#D97706",
-	"OSGOP":      "#DB2777",
-	"SMR":        "#EA580C",
-	"OPO":        "#16A34A",
+	"OSAGO":      "#4338CA",
+	"TRAVEL":     "#15803D",
+	"KASKO":      "#F97316",
+	"EURO_KASKO": "#F97316",
+	"OSGOR":      "#0369A1",
+	"OSGOP":      "#7C3AED",
+	"SMR":        "#A16207",
+	"OPO":        "#DC2626",
 }
 
 var paymentMethodPalette = map[string]string{

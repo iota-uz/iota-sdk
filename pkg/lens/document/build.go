@@ -11,6 +11,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	lenscolor "github.com/iota-uz/iota-sdk/pkg/lens/color"
 	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
@@ -1206,7 +1207,7 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDepende
 		// carries one hint silently drops every other: a stack becomes a
 		// group, a legend disappears.
 		built.Presentation = buildPresentation(spec)
-		built.Colors = append([]string(nil), spec.Colors...)
+		built.Colors = panelFrameColors(spec, source)
 		return built, nil
 	}
 
@@ -1319,6 +1320,24 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDepende
 	}
 	result.Total = frameTotal(spec)
 	return result, nil
+}
+
+func panelFrameColors(spec panel.Spec, source *frame.Frame) []string {
+	if source != nil && spec.ColorField.Name() != "" {
+		if field, ok := source.Field(spec.ColorField.Name()); ok {
+			colors := make([]string, len(field.Values))
+			for index, value := range field.Values {
+				key := strings.TrimSpace(fmt.Sprint(value))
+				if strings.EqualFold(spec.ColorScale, "literal") {
+					colors[index] = key
+				} else if key != "" {
+					colors[index] = lenscolor.Semantic(spec.ColorScale, key)
+				}
+			}
+			return colors
+		}
+	}
+	return append([]string(nil), spec.Colors...)
 }
 
 // frameTotal is the authoritative whole a panel's rows are shares of. Only an

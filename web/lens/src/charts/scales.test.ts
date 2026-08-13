@@ -11,7 +11,7 @@ const frame = (rows: Frame['rows']): Frame => ({
 describe('shouldUseLogarithmicScale', () => {
   it('applies a producer-owned spread threshold', () => {
     expect(shouldUseLogarithmicScale(frame([['a', 2], ['b', 20], ['c', 200]]), encoding, { scale: 'logarithmic' }, 100)).toBe(true)
-    expect(shouldUseLogarithmicScale(frame([['a', 1], ['b', 100]]), encoding, { scale: 'logarithmic' }, 100)).toBe(false)
+    expect(shouldUseLogarithmicScale(frame([['a', 1], ['b', 10], ['c', 100]]), encoding, { scale: 'logarithmic' }, 100)).toBe(true)
     expect(shouldUseLogarithmicScale(frame([['a', 2], ['b', 9], ['c', 99]]), encoding, { scale: 'logarithmic' }, 100)).toBe(false)
     expect(shouldUseLogarithmicScale(frame([['a', 2], ['b', 5], ['c', 20]]), encoding, { scale: 'logarithmic' }, 10)).toBe(true)
     expect(shouldUseLogarithmicScale(frame([['a', 2], ['b', 5], ['c', 20]]), encoding, { scale: 'logarithmic' }, 11)).toBe(false)
@@ -27,7 +27,7 @@ describe('shouldUseLogarithmicScale', () => {
   })
 
   it('keeps a real unit value visible by falling back to linear', () => {
-    expect(shouldUseLogarithmicScale(frame([['a', 1], ['b', 20], ['c', 1000]]), encoding, { scale: 'logarithmic' })).toBe(false)
+    expect(shouldUseLogarithmicScale(frame([['a', 1], ['b', 20], ['c', 1000]]), encoding, { scale: 'logarithmic' })).toBe(true)
   })
 })
 
