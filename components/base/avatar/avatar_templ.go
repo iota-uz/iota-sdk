@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	twmerge "github.com/Oudwins/tailwind-merge-go"
+	"github.com/iota-uz/iota-sdk/pkg/twmerge"
 )
 
 type Variant string

@@ -13,9 +13,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Oudwins/tailwind-merge-go/pkg/twmerge"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/pkg/money"
+	"github.com/iota-uz/iota-sdk/pkg/twmerge"
 	"github.com/iota-uz/utils/random"
 )
 
