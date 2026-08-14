@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/twmerge"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // classes compares what a merge produced as a set. Upstream groups the
@@ -28,19 +30,11 @@ func classes(merged string) []string {
 func TestMergeResolvesConflicts(t *testing.T) {
 	t.Parallel()
 
-	if got := twmerge.Merge("p-1 p-2"); got != "p-2" {
-		t.Fatalf("Merge(%q) = %q, want %q", "p-1 p-2", got, "p-2")
-	}
-	if got := twmerge.Merge("px-2 py-1", "p-4"); got != "p-4" {
-		t.Fatalf("Merge(%q, %q) = %q, want %q", "px-2 py-1", "p-4", got, "p-4")
-	}
-	if got, want := classes(twmerge.Merge("text-sm font-medium", "text-lg")),
-		[]string{"font-medium", "text-lg"}; !equal(got, want) {
-		t.Fatalf(`Merge("text-sm font-medium", "text-lg") = %v, want %v`, got, want)
-	}
-	if got := twmerge.Merge(""); got != "" {
-		t.Fatalf("Merge(%q) = %q, want empty", "", got)
-	}
+	assert.Equal(t, "p-2", twmerge.Merge("p-1 p-2"))
+	assert.Equal(t, "p-4", twmerge.Merge("px-2 py-1", "p-4"))
+	assert.Equal(t, []string{"font-medium", "text-lg"},
+		classes(twmerge.Merge("text-sm font-medium", "text-lg")))
+	assert.Empty(t, twmerge.Merge(""))
 }
 
 // TestMergeIsGoroutineSafe is the reason this package exists. Every component
@@ -74,9 +68,8 @@ func TestMergeIsGoroutineSafe(t *testing.T) {
 				// Unique per (goroutine, iteration), and a genuine conflict:
 				// the second padding class must win.
 				margin := fmt.Sprintf("m-%d-%d", g, i)
-				got := classes(twmerge.Merge("p-1 "+margin, "p-4"))
-				if want := classes(margin + " p-4"); !equal(got, want) {
-					t.Errorf("Merge(%q, %q) = %v, want %v", "p-1 "+margin, "p-4", got, want)
+				if !assert.Equal(t, classes(margin+" p-4"),
+					classes(twmerge.Merge("p-1 "+margin, "p-4"))) {
 					return
 				}
 			}
@@ -98,28 +91,12 @@ func TestMergeStaysCorrectPastCacheCapacity(t *testing.T) {
 
 	for i := range keys {
 		in := fmt.Sprintf("gap-1 w-%d", i)
-		if got, want := classes(twmerge.Merge(in)), classes(in); !equal(got, want) {
-			t.Fatalf("first pass: Merge(%q) = %v, want %v", in, got, want)
-		}
+		require.Equal(t, classes(in), classes(twmerge.Merge(in)), "first pass: %s", in)
 	}
 	// Second pass over the same keys: the early ones were flushed by now, so
 	// these answers are recomputed rather than read back.
 	for i := range keys {
 		in := fmt.Sprintf("gap-1 w-%d", i)
-		if got, want := classes(twmerge.Merge(in)), classes(in); !equal(got, want) {
-			t.Fatalf("after eviction: Merge(%q) = %v, want %v", in, got, want)
-		}
+		require.Equal(t, classes(in), classes(twmerge.Merge(in)), "after eviction: %s", in)
 	}
-}
-
-func equal(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
