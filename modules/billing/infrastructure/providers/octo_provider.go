@@ -3,6 +3,7 @@ package providers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -103,9 +104,38 @@ func (o *octoProvider) Create(ctx context.Context, t billing.Transaction) (billi
 	return t, nil
 }
 
-func (o *octoProvider) Cancel(ctx context.Context, t billing.Transaction) (billing.Transaction, error) {
-	//TODO implement me
-	panic("implement me")
+// ErrOctoCancelAfterCapture is returned when a merchant asks to cancel a
+// payment Octo has already captured. Sending that money back is a refund — the
+// TransactionManagement API's RefundPost — not a cancellation.
+var ErrOctoCancelAfterCapture = errors.New("octo payment is captured; cancelling it would be a refund")
+
+// Cancel abandons a payment the merchant no longer intends to take, and does so
+// without calling Octo.
+//
+// Octo has no cancel endpoint: PreparePayment opens the payment, CheckStatus
+// reads it, RefundPost sends captured money back, and SetAccept answers a hold.
+// The status written here is what the merchant withdraws, and under manual
+// capture (auto_capture=false, which is how a hold arises at all) it also
+// releases the customer's money: Octo asks for the verdict on its notification,
+// and OctoController.determineFinalAcceptStatus answers `cancel` for exactly
+// the statuses below. So a customer who pays a link the merchant has abandoned
+// has their authorisation released rather than captured — the hold is not
+// stranded by writing this locally, it is resolved by it.
+//
+// A captured payment is refused rather than voided (ErrOctoCancelAfterCapture):
+// its money exists, and recording it as never taken is how a refund gets
+// skipped.
+func (o *octoProvider) Cancel(_ context.Context, t billing.Transaction) (billing.Transaction, error) {
+	octoDetails, err := toOctoDetails(t.Details())
+	if err != nil {
+		return nil, err
+	}
+
+	if octoDetails.Status() == octoapi.SucceededStatus || t.Status() == billing.Completed {
+		return nil, ErrOctoCancelAfterCapture
+	}
+
+	return t.SetStatus(billing.Canceled), nil
 }
 
 func (o *octoProvider) Refund(ctx context.Context, t billing.Transaction, quantity float64) (billing.Transaction, error) {
