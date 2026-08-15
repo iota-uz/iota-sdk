@@ -69,11 +69,16 @@ const (
 // replay into a ~10ms catalog copy. Unset (the default) keeps the historical
 // behaviour, so a developer's `go test ./...` needs no extra preparation.
 //
-// The template holds schema only. Cluster-global objects that migrations create
-// - roles, and the role-level settings and grants attached to them - are NOT
-// copied by CREATE DATABASE ... TEMPLATE, so whoever builds the template must
-// run the migrations against the same cluster the tests use. Extensions and RLS
-// policies are database-local and do come across.
+// CREATE DATABASE ... TEMPLATE copies everything database-local: schema,
+// extensions, RLS policies - and ROWS. Whatever sits in the template's tables
+// lands in every clone, so a template must be built from migrations alone and
+// never from a seeded or restored database, unless every test is meant to see
+// that data.
+//
+// What it does NOT copy is cluster-global: roles, and the role-level settings
+// and grants attached to them. Migrations that create them (the ai_readonly
+// ROLE behind the RLS policies, for one) therefore have to be run against the
+// same cluster the tests use, not just into the template.
 const TemplateDBEnv = "ITF_TEMPLATE_DB"
 
 // migrationAdvisoryLockKey serializes migration application across processes.
@@ -137,9 +142,11 @@ type MigrationConfig struct {
 	//
 	// Cloning is orthogonal to Policy. With the default MigrationApplyOnce the
 	// harness still runs the migrator over the clone, which plans zero
-	// migrations and therefore costs almost nothing - and repairs a template
-	// that was built before the newest migration landed. MigrationSkip drops
-	// even that, at the price of trusting the template to be current.
+	// migrations and therefore costs almost nothing - and brings THIS CLONE
+	// current when the template was built before the newest migration landed.
+	// It does not touch the template: a stale template stays stale, and every
+	// clone keeps paying for the missing migrations until it is rebuilt.
+	// MigrationSkip drops even that, at the price of trusting the template.
 	TemplateDB string
 }
 

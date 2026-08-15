@@ -9,6 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -122,17 +124,119 @@ func TestCreateDBFromTemplate_MissingTemplateIsLoud(t *testing.T) {
 	require.Contains(t, err.Error(), TemplateDBEnv)
 }
 
-func TestNormalizeHarnessConfig_TemplateFromEnv(t *testing.T) {
-	t.Setenv(TemplateDBEnv, "some_template")
+func TestNormalizeHarnessConfig_TemplatePrecedence(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		env   string
+		given MigrationConfig
+		want  string
+	}{
+		{
+			name:  "environment supplies the template when the config is silent",
+			env:   "some_template",
+			given: MigrationConfig{},
+			want:  "some_template",
+		},
+		{
+			name:  "an explicit template wins over the environment",
+			env:   "some_template",
+			given: MigrationConfig{TemplateDB: "explicit"},
+			want:  "explicit",
+		},
+		{
+			name:  "no environment and no config means no cloning",
+			env:   "",
+			given: MigrationConfig{},
+			want:  "",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(TemplateDBEnv, tt.env)
 
-	cfg := normalizeHarnessConfig(t, HarnessConfig{Name: "x"})
-	require.Equal(t, "some_template", cfg.Migration.TemplateDB)
+			cfg := normalizeHarnessConfig(t, HarnessConfig{Name: "x", Migration: tt.given})
 
-	explicit := normalizeHarnessConfig(t, HarnessConfig{
-		Name:      "x",
-		Migration: MigrationConfig{TemplateDB: "explicit"},
-	})
-	require.Equal(t, "explicit", explicit.Migration.TemplateDB)
+			assert.Equal(t, tt.want, cfg.Migration.TemplateDB)
+		})
+	}
+}
+
+// MigrationSkip only became reachable with cloning: before it, every harness
+// started from an empty database and the readiness probe could not pass. These
+// two cases are the contract - a clone of a migrated template satisfies the
+// policy, a clone of one without migration bookkeeping is refused loudly rather
+// than handing the suite a half-built schema.
+func TestMigrationSkip_AcceptsAClonedTemplate(t *testing.T) {
+	conn, db := adminConn(t)
+
+	for _, tt := range []struct {
+		name      string
+		migrated  bool
+		assertErr func(t *testing.T, err error)
+	}{
+		{
+			name:     "a template carrying gorp_migrations is ready",
+			migrated: true,
+			assertErr: func(t *testing.T, err error) {
+				t.Helper()
+				assert.NoError(t, err)
+			},
+		},
+		{
+			name:     "a template without gorp_migrations is refused",
+			migrated: false,
+			assertErr: func(t *testing.T, err error) {
+				t.Helper()
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "gorp_migrations")
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			template := buildTemplate(t, conn, db)
+			if tt.migrated {
+				markTemplateMigrated(t, conn, db, template)
+			}
+
+			clone := sanitizeDBName("itf_skip_" + uuid.New().String()[:8])
+			require.NoError(t, CreateDBFromTemplateE(clone, template, db))
+			t.Cleanup(func() { require.NoError(t, DropDB(clone, db)) })
+
+			ctx := context.Background()
+			pool, err := pgxpool.New(ctx, DBOpts(clone, db))
+			require.NoError(t, err)
+			t.Cleanup(pool.Close)
+
+			err = runMigrationPolicy(ctx, pool, nil, MigrationConfig{
+				Policy:     MigrationSkip,
+				TemplateDB: template,
+			})
+
+			tt.assertErr(t, err)
+		})
+	}
+}
+
+// markTemplateMigrated gives a template the bookkeeping table the readiness
+// probe looks for. It has to unmark and re-mark the template: Postgres refuses
+// connections to a database while datistemplate is set.
+func markTemplateMigrated(t *testing.T, conn *sql.DB, db dbconfig.Config, template string) {
+	t.Helper()
+
+	ctx := context.Background()
+	_, err := conn.ExecContext(ctx,
+		"UPDATE pg_database SET datistemplate = false WHERE datname = $1", template)
+	require.NoError(t, err)
+
+	seed, err := sql.Open("postgres", DBOpts(template, db))
+	require.NoError(t, err)
+	_, err = seed.ExecContext(ctx,
+		"CREATE TABLE gorp_migrations (id text primary key, applied_at timestamptz)")
+	require.NoError(t, err)
+	require.NoError(t, seed.Close())
+
+	_, err = conn.ExecContext(ctx,
+		"UPDATE pg_database SET datistemplate = true WHERE datname = $1", template)
+	require.NoError(t, err)
 }
 
 func TestBuildHarnessKey_SeparatesTemplates(t *testing.T) {

@@ -94,6 +94,7 @@ suite.POST("/submit").
 Automatic database name handling for long test names.
 
 ### Template Database Cloning
+
 Every harness provisions its own database. By default that database starts empty
 and the migration set is replayed into it — roughly a second per harness, taken
 under a cluster-wide advisory lock so that parallel harnesses do not race on the
@@ -121,13 +122,19 @@ Notes:
   extra preparation.
 - **Cloning is orthogonal to the migration policy.** With the default
   `MigrationApplyOnce` the migrator still runs over the clone, plans zero
-  migrations, and therefore costs almost nothing — while repairing a template
-  built before the newest migration landed. `MigrationSkip` drops even that
-  probe, trusting the template to be current.
-- **The template carries schema only.** `CREATE DATABASE ... TEMPLATE` does not
-  copy cluster-global objects — roles, their settings and grants — so build the
-  template against the same cluster the tests run on. Extensions and RLS
-  policies are database-local and do come across.
+  migrations, and therefore costs almost nothing — while bringing *that clone*
+  current if the template was built before the newest migration landed. It does
+  not repair the template: a stale template stays stale and every clone keeps
+  paying for the missing migrations until you rebuild it. `MigrationSkip` drops
+  even that probe, trusting the template to be current.
+- **The clone gets the template's rows, too.** `CREATE DATABASE ... TEMPLATE`
+  copies everything database-local — schema, extensions, RLS policies and table
+  contents. Build the template from migrations alone; a template made from a
+  seeded or restored database hands that data to every test.
+- **Cluster-global objects are not copied.** Roles, and the settings and grants
+  attached to them, live outside the database — so build the template against
+  the same cluster the tests run on, and do not expect a migration that only
+  ran into the template to have created the role its RLS policies reference.
 - **Nothing may be connected to the template.** Postgres refuses to clone a
   database with open connections; the harness never opens a pool against it, and
   serializes concurrent clones on an advisory lock.

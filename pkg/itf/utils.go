@@ -282,7 +282,7 @@ func CreateDBFromTemplate(name, template string, db dbconfig.Config) {
 	// `duplicate key value violates unique constraint "pg_database_datname_index"`.
 	// The lock is held for a single catalog operation (milliseconds), unlike
 	// the migration lock, which spans a whole migration run.
-	err = withAdvisoryLock(db, createDatabaseAdvisoryLockKey, "create database", func() error {
+	err = withAdvisoryLock(db, createDatabaseAdvisoryLockKey, "create database", lockRequired, func() error {
 		if _, err := conn.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName)); err != nil {
 			return err
 		}
@@ -408,19 +408,52 @@ func dropDB(name string, db dbconfig.Config) error {
 // effort) so a transient lock hiccup degrades to prior behavior rather than
 // failing the whole test run.
 func withMigrationAdvisoryLock(db dbconfig.Config, fn func() error) error {
-	return withAdvisoryLock(db, migrationAdvisoryLockKey, "migration", fn)
+	return withAdvisoryLock(db, migrationAdvisoryLockKey, "migration", lockBestEffort, fn)
 }
+
+// Whether a caller can survive running fn without the lock. Migrations are
+// idempotent under the migrator's own bookkeeping, so an unlocked run degrades
+// to the pre-lock behaviour - noisy, occasionally racy, but not destructive.
+// DROP DATABASE + CREATE DATABASE is neither: two harnesses interleaving there
+// replace each other's database out from under a running test. Anything that
+// rewrites the catalog must fail rather than proceed unserialized.
+const (
+	lockBestEffort = false
+	lockRequired   = true
+)
+
+// advisoryLockAcquireTimeout bounds only the WAIT for the lock, never the work
+// done under it. Without it a lock leaked by a crashed sibling turns into a
+// test binary that hangs until the go test timeout kills it with no
+// explanation. The bound is generous because the migration path legitimately
+// holds the lock for a full migration replay per waiting harness.
+const advisoryLockAcquireTimeout = 5 * time.Minute
 
 // withAdvisoryLock runs fn while holding a session-level Postgres advisory lock
 // with the given key. label appears in the warnings emitted on the degraded
 // paths. See [withMigrationAdvisoryLock] for why the lock is taken on the
 // shared admin database rather than the caller's own.
-func withAdvisoryLock(db dbconfig.Config, key int64, label string, fn func() error) error {
+//
+// required decides what happens when the lock cannot be taken: with
+// lockBestEffort fn runs unlocked and the failure is only logged; with
+// lockRequired the error is returned and fn never runs.
+func withAdvisoryLock(db dbconfig.Config, key int64, label string, required bool, fn func() error) error {
 	ctx := context.Background()
+
+	degrade := func(stage string, cause error) error {
+		if required {
+			return serrors.E(
+				serrors.Op("itf.withAdvisoryLock"),
+				fmt.Errorf("%s advisory lock: %s: %w", label, stage, cause),
+			)
+		}
+		log.Printf("[WARNING] %s advisory lock: %s, running unlocked: %v", label, stage, cause)
+		return fn()
+	}
+
 	sqlDB, err := sql.Open("postgres", adminConnString(db))
 	if err != nil {
-		log.Printf("[WARNING] %s advisory lock: open admin connection failed, running unlocked: %v", label, err)
-		return fn()
+		return degrade("open admin connection failed", err)
 	}
 	defer func() {
 		if cerr := sqlDB.Close(); cerr != nil {
@@ -432,8 +465,7 @@ func withAdvisoryLock(db dbconfig.Config, key int64, label string, fn func() err
 	// released on the SAME connection, which a pool would not guarantee.
 	conn, err := sqlDB.Conn(ctx)
 	if err != nil {
-		log.Printf("[WARNING] %s advisory lock: pin connection failed, running unlocked: %v", label, err)
-		return fn()
+		return degrade("pin connection failed", err)
 	}
 	defer func() {
 		if cerr := conn.Close(); cerr != nil {
@@ -441,9 +473,10 @@ func withAdvisoryLock(db dbconfig.Config, key int64, label string, fn func() err
 		}
 	}()
 
-	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", key); err != nil {
-		log.Printf("[WARNING] %s advisory lock: acquire failed, running unlocked: %v", label, err)
-		return fn()
+	acquireCtx, cancel := context.WithTimeout(ctx, advisoryLockAcquireTimeout)
+	defer cancel()
+	if _, err := conn.ExecContext(acquireCtx, "SELECT pg_advisory_lock($1)", key); err != nil {
+		return degrade("acquire failed", err)
 	}
 	defer func() {
 		if _, uerr := conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", key); uerr != nil {
