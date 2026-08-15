@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -62,11 +63,29 @@ const (
 	MigrationSkip      MigrationPolicy = "skip"
 )
 
+// TemplateDBEnv names a pre-migrated template database. When it is set and
+// [MigrationConfig.TemplateDB] is empty, every harness clones its database from
+// that template instead of creating an empty one, turning a ~1s migration
+// replay into a ~10ms catalog copy. Unset (the default) keeps the historical
+// behaviour, so a developer's `go test ./...` needs no extra preparation.
+//
+// CREATE DATABASE ... TEMPLATE copies everything database-local: schema,
+// extensions, RLS policies - and ROWS. Whatever sits in the template's tables
+// lands in every clone, so a template must be built from migrations alone and
+// never from a seeded or restored database, unless every test is meant to see
+// that data.
+//
+// What it does NOT copy is cluster-global: roles, and the role-level settings
+// and grants attached to them. Migrations that create them (the ai_readonly
+// ROLE behind the RLS policies, for one) therefore have to be run against the
+// same cluster the tests use, not just into the template.
+const TemplateDBEnv = "ITF_TEMPLATE_DB"
+
 // migrationAdvisoryLockKey serializes migration application across processes.
 // Parallel harnesses (separate test binaries, and t.Parallel within one) each
 // provision their OWN per-test database but share one Postgres server;
 // migrations that touch cluster-global catalog objects (e.g. the ai_readonly
-// ROLE + RLS in changes-1997500070.sql) otherwise race with
+// ROLE + RLS in changes-1997500670.sql) otherwise race with
 // "tuple concurrently updated (SQLSTATE XX000)".
 //
 // NOTE: Postgres advisory locks are DATABASE-LOCAL (the lock tag includes the
@@ -79,6 +98,13 @@ const (
 // The value is an arbitrary stable constant, distinct from other advisory-lock
 // keys in the codebase.
 const migrationAdvisoryLockKey int64 = 6_073_120_419_784_512_301
+
+// createDatabaseAdvisoryLockKey serializes DROP + CREATE DATABASE across
+// processes. Two hazards share it: shared-per-package harnesses in sibling test
+// binaries derive the same database name and collide on
+// pg_database_datname_index, and concurrent clones of one template collide on
+// the template itself. Held for a single catalog statement, not a migration run.
+const createDatabaseAdvisoryLockKey int64 = 6_073_120_419_784_512_302
 
 type IsolationMode string
 
@@ -110,6 +136,18 @@ type DatabaseConfig struct {
 
 type MigrationConfig struct {
 	Policy MigrationPolicy
+	// TemplateDB names a pre-migrated database to clone instead of creating an
+	// empty one. Empty falls back to the [TemplateDBEnv] environment variable,
+	// and then to creating an empty database.
+	//
+	// Cloning is orthogonal to Policy. With the default MigrationApplyOnce the
+	// harness still runs the migrator over the clone, which plans zero
+	// migrations and therefore costs almost nothing - and brings THIS CLONE
+	// current when the template was built before the newest migration landed.
+	// It does not touch the template: a stale template stays stale, and every
+	// clone keeps paying for the missing migrations until it is rebuilt.
+	// MigrationSkip drops even that, at the price of trusting the template.
+	TemplateDB string
 }
 
 type TxConfig struct {
@@ -444,7 +482,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 	db := LoadDBConfigFromEnv()
 
 	dbName := buildDBName(cfg.Name, key, isPerTest)
-	if err := CreateDBE(dbName, db); err != nil {
+	if err := CreateDBFromTemplateE(dbName, cfg.Migration.TemplateDB, db); err != nil {
 		return nil, serrors.E(opCreateDB, err, "create database")
 	}
 
@@ -554,6 +592,9 @@ func normalizeHarnessConfig(tb testing.TB, cfg HarnessConfig) HarnessConfig {
 	if cfg.Migration.Policy == "" {
 		cfg.Migration.Policy = MigrationApplyOnce
 	}
+	if cfg.Migration.TemplateDB == "" {
+		cfg.Migration.TemplateDB = os.Getenv(TemplateDBEnv)
+	}
 	if cfg.Isolation.Mode == "" {
 		cfg.Isolation.Mode = IsolationRollback
 	}
@@ -590,11 +631,12 @@ func buildHarnessKey(cfg HarnessConfig) string {
 	}
 
 	return fmt.Sprintf(
-		"name=%s|components=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
+		"name=%s|components=%v|prov=%s|migrate=%s|template=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
 		cfg.Name,
 		componentTypes,
 		cfg.Database.Provisioning,
 		cfg.Migration.Policy,
+		cfg.Migration.TemplateDB,
 		cfg.Isolation.Mode,
 		cfg.Database.Cleanup,
 		cfg.Seed.Policy,
