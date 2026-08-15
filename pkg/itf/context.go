@@ -30,6 +30,7 @@ type TestContext struct {
 	components   []composition.Component
 	capabilities []composition.Capability
 	dbName       string
+	templateDB   string        // optional; clone the database from this template
 	source       config.Source // optional; enables ProvideConfig[T] in component Build
 }
 
@@ -83,7 +84,8 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 			Cleanup:      CleanupDropOnExit,
 		},
 		Migration: MigrationConfig{
-			Policy: MigrationApplyOnce,
+			Policy:     MigrationApplyOnce,
+			TemplateDB: tc.templateDB,
 		},
 		Isolation: IsolationConfig{
 			Mode: IsolationRollback,

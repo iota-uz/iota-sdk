@@ -93,6 +93,47 @@ suite.POST("/submit").
 ### Database Name Truncation Fix
 Automatic database name handling for long test names.
 
+### Template Database Cloning
+Every harness provisions its own database. By default that database starts empty
+and the migration set is replayed into it — roughly a second per harness, taken
+under a cluster-wide advisory lock so that parallel harnesses do not race on the
+cluster-global objects migrations create.
+
+Point `ITF_TEMPLATE_DB` at a pre-migrated database and the harness clones it
+instead, at catalog speed:
+
+```bash
+# once, before the suite (CI does this in a setup step)
+createdb itf_template
+DB_NAME=itf_template go run cmd/command/main.go migrate up
+psql -d postgres -c "UPDATE pg_database SET datistemplate = true WHERE datname = 'itf_template'"
+
+# then
+ITF_TEMPLATE_DB=itf_template go test ./...
+```
+
+Measured on `modules/{core,finance,warehouse}` (5 packages, `-p 8`):
+**29.7s → 7.4s**.
+
+Notes:
+
+- **Unset is the default.** A clean checkout still runs `go test ./...` with no
+  extra preparation.
+- **Cloning is orthogonal to the migration policy.** With the default
+  `MigrationApplyOnce` the migrator still runs over the clone, plans zero
+  migrations, and therefore costs almost nothing — while repairing a template
+  built before the newest migration landed. `MigrationSkip` drops even that
+  probe, trusting the template to be current.
+- **The template carries schema only.** `CREATE DATABASE ... TEMPLATE` does not
+  copy cluster-global objects — roles, their settings and grants — so build the
+  template against the same cluster the tests run on. Extensions and RLS
+  policies are database-local and do come across.
+- **Nothing may be connected to the template.** Postgres refuses to clone a
+  database with open connections; the harness never opens a pool against it, and
+  serializes concurrent clones on an advisory lock.
+- Per-suite override: `itf.WithTemplateDatabase("other_template")`, or
+  `HarnessConfig.Migration.TemplateDB`.
+
 ## Quick Start
 
 ### Basic Setup

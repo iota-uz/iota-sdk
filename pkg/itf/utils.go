@@ -241,11 +241,22 @@ func intelligentTruncate(name string, maxLength int) string {
 
 // CreateDB creates a test database using an explicit dbconfig.Config for the admin connection.
 func CreateDB(name string, db dbconfig.Config) {
+	CreateDBFromTemplate(name, "", db)
+}
+
+// CreateDBFromTemplate creates a test database, cloning it from template when
+// template is non-empty. Cloning replaces a migration replay (~1s) with a
+// catalog-level copy (~10ms); see [MigrationConfig.TemplateDB] for how the
+// harness picks the template up.
+//
+// The template database must exist and must have no open connections: Postgres
+// refuses CREATE DATABASE ... TEMPLATE while anything is connected to the
+// source. The harness never opens a pool against the template, so the only
+// realistic contender is another clone in flight, which the advisory lock below
+// serializes.
+func CreateDBFromTemplate(name, template string, db dbconfig.Config) {
 	sanitizedName := sanitizeDBName(name)
-	adminConnStr := fmt.Sprintf(
-		"host=%s port=%s user=%s dbname=postgres password=%s sslmode=disable",
-		db.Host, db.Port, db.User, db.Password,
-	)
+	adminConnStr := adminConnString(db)
 	conn, err := sql.Open("postgres", adminConnStr)
 	if err != nil {
 		panic(err)
@@ -255,25 +266,99 @@ func CreateDB(name string, db dbconfig.Config) {
 			log.Printf("[WARNING] Error closing CreateDB connection: %v", err)
 		}
 	}()
-	_, err = conn.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName))
-	if err != nil {
-		panic(err)
+
+	create := fmt.Sprintf(`CREATE DATABASE "%s"`, sanitizedName)
+	if template != "" {
+		sanitizedTemplate := sanitizeDBName(template)
+		if err := assertTemplateExists(conn, sanitizedTemplate); err != nil {
+			panic(err)
+		}
+		create = fmt.Sprintf(`CREATE DATABASE "%s" TEMPLATE "%s"`, sanitizedName, sanitizedTemplate)
 	}
-	_, err = conn.ExecContext(context.Background(), fmt.Sprintf(`CREATE DATABASE "%s"`, sanitizedName))
+
+	// DROP + CREATE is not atomic, and shared-per-package harnesses in sibling
+	// test binaries derive the SAME database name from the same config. Without
+	// this lock they interleave into
+	// `duplicate key value violates unique constraint "pg_database_datname_index"`.
+	// The lock is held for a single catalog operation (milliseconds), unlike
+	// the migration lock, which spans a whole migration run.
+	err = withAdvisoryLock(db, createDatabaseAdvisoryLockKey, "create database", func() error {
+		if _, err := conn.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName)); err != nil {
+			return err
+		}
+		return execWithTemplateRetry(conn, create)
+	})
 	if err != nil {
 		panic(err)
 	}
 }
 
 // CreateDBE creates a test database and returns an error instead of panicking.
-func CreateDBE(name string, db dbconfig.Config) (err error) {
+func CreateDBE(name string, db dbconfig.Config) error {
+	return CreateDBFromTemplateE(name, "", db)
+}
+
+// CreateDBFromTemplateE is [CreateDBFromTemplate] returning an error instead of
+// panicking.
+func CreateDBFromTemplateE(name, template string, db dbconfig.Config) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = serrors.E(opCreateDBE, fmt.Errorf("failed to create test database %q: %v", sanitizeDBName(name), r))
 		}
 	}()
-	CreateDB(name, db)
+	CreateDBFromTemplate(name, template, db)
 	return nil
+}
+
+func adminConnString(db dbconfig.Config) string {
+	return fmt.Sprintf(
+		"host=%s port=%s user=%s dbname=postgres password=%s sslmode=disable",
+		db.Host, db.Port, db.User, db.Password,
+	)
+}
+
+// assertTemplateExists fails loudly rather than silently producing an empty
+// database: a misspelled or not-yet-built template would otherwise surface much
+// later as "schema not ready", or as hundreds of "relation does not exist".
+func assertTemplateExists(conn *sql.DB, template string) error {
+	var exists bool
+	err := conn.QueryRowContext(
+		context.Background(),
+		"SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)",
+		template,
+	).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("probe template database %q: %w", template, err)
+	}
+	if !exists {
+		return fmt.Errorf(
+			"template database %q does not exist; build it before running tests or unset %s",
+			template, TemplateDBEnv,
+		)
+	}
+	return nil
+}
+
+// execWithTemplateRetry retries the transient "source database is being
+// accessed by other users" that Postgres raises when a clone starts while
+// another backend still holds a connection to the template. The advisory lock
+// removes the common case (a sibling clone); this covers stragglers such as a
+// connection that has not finished tearing down yet.
+func execWithTemplateRetry(conn *sql.DB, stmt string) error {
+	const attempts = 5
+	var err error
+	for attempt := range attempts {
+		_, err = conn.ExecContext(context.Background(), stmt)
+		if err == nil || !isSourceDatabaseBusy(err) {
+			return err
+		}
+		time.Sleep(time.Duration(attempt+1) * 100 * time.Millisecond)
+	}
+	return err
+}
+
+func isSourceDatabaseBusy(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "is being accessed by other users")
 }
 
 // DropDB drops a test database. Used for cleanup after tests to free disk space.
@@ -323,20 +408,23 @@ func dropDB(name string, db dbconfig.Config) error {
 // effort) so a transient lock hiccup degrades to prior behavior rather than
 // failing the whole test run.
 func withMigrationAdvisoryLock(db dbconfig.Config, fn func() error) error {
-	ctx := context.Background()
-	adminConnStr := fmt.Sprintf(
-		"host=%s port=%s user=%s dbname=postgres password=%s sslmode=disable",
-		db.Host, db.Port, db.User, db.Password,
-	)
+	return withAdvisoryLock(db, migrationAdvisoryLockKey, "migration", fn)
+}
 
-	sqlDB, err := sql.Open("postgres", adminConnStr)
+// withAdvisoryLock runs fn while holding a session-level Postgres advisory lock
+// with the given key. label appears in the warnings emitted on the degraded
+// paths. See [withMigrationAdvisoryLock] for why the lock is taken on the
+// shared admin database rather than the caller's own.
+func withAdvisoryLock(db dbconfig.Config, key int64, label string, fn func() error) error {
+	ctx := context.Background()
+	sqlDB, err := sql.Open("postgres", adminConnString(db))
 	if err != nil {
-		log.Printf("[WARNING] migration advisory lock: open admin connection failed, running unlocked: %v", err)
+		log.Printf("[WARNING] %s advisory lock: open admin connection failed, running unlocked: %v", label, err)
 		return fn()
 	}
 	defer func() {
 		if cerr := sqlDB.Close(); cerr != nil {
-			log.Printf("[WARNING] migration advisory lock: closing admin pool: %v", cerr)
+			log.Printf("[WARNING] %s advisory lock: closing admin pool: %v", label, cerr)
 		}
 	}()
 
@@ -344,22 +432,22 @@ func withMigrationAdvisoryLock(db dbconfig.Config, fn func() error) error {
 	// released on the SAME connection, which a pool would not guarantee.
 	conn, err := sqlDB.Conn(ctx)
 	if err != nil {
-		log.Printf("[WARNING] migration advisory lock: pin connection failed, running unlocked: %v", err)
+		log.Printf("[WARNING] %s advisory lock: pin connection failed, running unlocked: %v", label, err)
 		return fn()
 	}
 	defer func() {
 		if cerr := conn.Close(); cerr != nil {
-			log.Printf("[WARNING] migration advisory lock: closing pinned connection: %v", cerr)
+			log.Printf("[WARNING] %s advisory lock: closing pinned connection: %v", label, cerr)
 		}
 	}()
 
-	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", migrationAdvisoryLockKey); err != nil {
-		log.Printf("[WARNING] migration advisory lock: acquire failed, running unlocked: %v", err)
+	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", key); err != nil {
+		log.Printf("[WARNING] %s advisory lock: acquire failed, running unlocked: %v", label, err)
 		return fn()
 	}
 	defer func() {
-		if _, uerr := conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", migrationAdvisoryLockKey); uerr != nil {
-			log.Printf("[WARNING] migration advisory lock: release failed: %v", uerr)
+		if _, uerr := conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", key); uerr != nil {
+			log.Printf("[WARNING] %s advisory lock: release failed: %v", label, uerr)
 		}
 	}()
 

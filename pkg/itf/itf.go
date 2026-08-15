@@ -86,6 +86,17 @@ func WithDatabase(name string) Option {
 	}
 }
 
+// WithTemplateDatabase clones the test database from a pre-migrated template
+// instead of creating an empty one and replaying migrations. Overrides the
+// [TemplateDBEnv] environment variable, which is the usual way to switch a
+// whole CI run over; reach for this option when one suite needs a different
+// template from the rest.
+func WithTemplateDatabase(name string) Option {
+	return func(tc *TestContext) {
+		tc.templateDB = name
+	}
+}
+
 // WithUser sets the default user for the test context
 func WithUser(u user.User) Option {
 	return func(tc *TestContext) {

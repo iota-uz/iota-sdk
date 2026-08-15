@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -62,11 +63,24 @@ const (
 	MigrationSkip      MigrationPolicy = "skip"
 )
 
+// TemplateDBEnv names a pre-migrated template database. When it is set and
+// [MigrationConfig.TemplateDB] is empty, every harness clones its database from
+// that template instead of creating an empty one, turning a ~1s migration
+// replay into a ~10ms catalog copy. Unset (the default) keeps the historical
+// behaviour, so a developer's `go test ./...` needs no extra preparation.
+//
+// The template holds schema only. Cluster-global objects that migrations create
+// - roles, and the role-level settings and grants attached to them - are NOT
+// copied by CREATE DATABASE ... TEMPLATE, so whoever builds the template must
+// run the migrations against the same cluster the tests use. Extensions and RLS
+// policies are database-local and do come across.
+const TemplateDBEnv = "ITF_TEMPLATE_DB"
+
 // migrationAdvisoryLockKey serializes migration application across processes.
 // Parallel harnesses (separate test binaries, and t.Parallel within one) each
 // provision their OWN per-test database but share one Postgres server;
 // migrations that touch cluster-global catalog objects (e.g. the ai_readonly
-// ROLE + RLS in changes-1997500070.sql) otherwise race with
+// ROLE + RLS in changes-1997500670.sql) otherwise race with
 // "tuple concurrently updated (SQLSTATE XX000)".
 //
 // NOTE: Postgres advisory locks are DATABASE-LOCAL (the lock tag includes the
@@ -79,6 +93,13 @@ const (
 // The value is an arbitrary stable constant, distinct from other advisory-lock
 // keys in the codebase.
 const migrationAdvisoryLockKey int64 = 6_073_120_419_784_512_301
+
+// createDatabaseAdvisoryLockKey serializes DROP + CREATE DATABASE across
+// processes. Two hazards share it: shared-per-package harnesses in sibling test
+// binaries derive the same database name and collide on
+// pg_database_datname_index, and concurrent clones of one template collide on
+// the template itself. Held for a single catalog statement, not a migration run.
+const createDatabaseAdvisoryLockKey int64 = 6_073_120_419_784_512_302
 
 type IsolationMode string
 
@@ -110,6 +131,16 @@ type DatabaseConfig struct {
 
 type MigrationConfig struct {
 	Policy MigrationPolicy
+	// TemplateDB names a pre-migrated database to clone instead of creating an
+	// empty one. Empty falls back to the [TemplateDBEnv] environment variable,
+	// and then to creating an empty database.
+	//
+	// Cloning is orthogonal to Policy. With the default MigrationApplyOnce the
+	// harness still runs the migrator over the clone, which plans zero
+	// migrations and therefore costs almost nothing - and repairs a template
+	// that was built before the newest migration landed. MigrationSkip drops
+	// even that, at the price of trusting the template to be current.
+	TemplateDB string
 }
 
 type TxConfig struct {
@@ -444,7 +475,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 	db := LoadDBConfigFromEnv()
 
 	dbName := buildDBName(cfg.Name, key, isPerTest)
-	if err := CreateDBE(dbName, db); err != nil {
+	if err := CreateDBFromTemplateE(dbName, cfg.Migration.TemplateDB, db); err != nil {
 		return nil, serrors.E(opCreateDB, err, "create database")
 	}
 
@@ -554,6 +585,9 @@ func normalizeHarnessConfig(tb testing.TB, cfg HarnessConfig) HarnessConfig {
 	if cfg.Migration.Policy == "" {
 		cfg.Migration.Policy = MigrationApplyOnce
 	}
+	if cfg.Migration.TemplateDB == "" {
+		cfg.Migration.TemplateDB = os.Getenv(TemplateDBEnv)
+	}
 	if cfg.Isolation.Mode == "" {
 		cfg.Isolation.Mode = IsolationRollback
 	}
@@ -590,11 +624,12 @@ func buildHarnessKey(cfg HarnessConfig) string {
 	}
 
 	return fmt.Sprintf(
-		"name=%s|components=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
+		"name=%s|components=%v|prov=%s|migrate=%s|template=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
 		cfg.Name,
 		componentTypes,
 		cfg.Database.Provisioning,
 		cfg.Migration.Policy,
+		cfg.Migration.TemplateDB,
 		cfg.Isolation.Mode,
 		cfg.Database.Cleanup,
 		cfg.Seed.Policy,
