@@ -90,12 +90,14 @@ var ErrPaymeCancelAfterCompletion = errors.New("payme transaction is completed; 
 // being allowed to pay something the sale has moved on from.
 //
 // A transaction Payme already created and performed is deliberately refused
-// rather than voided — see ErrPaymeCancelAfterCompletion. What this does not
-// promise is that money cannot still arrive: a customer who created the
-// transaction before the cancellation can still perform it, because
-// PerformTransaction resolves by transaction id and does not consult the
-// status. Handling that captured payment belongs to the caller, and refusing
-// it is not an option — it is how "the customer paid and got nothing" happens.
+// rather than voided — see ErrPaymeCancelAfterCompletion.
+//
+// The customer who opened their transaction *before* the cancellation is the
+// case this leaves to PaymeController.perform: a perform resolves by
+// transaction id, so nothing here can stop the call arriving. What the state
+// written below does is give that handler something to refuse on, and it
+// refuses — an unconfirmed perform is money Payme returns, whereas accepting it
+// is money taken for an order that has moved on.
 func (p *paymeProvider) Cancel(_ context.Context, t billing.Transaction) (billing.Transaction, error) {
 	paymeDetails, err := toPaymeDetails(t.Details())
 	if err != nil {
