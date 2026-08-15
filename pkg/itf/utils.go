@@ -268,8 +268,9 @@ func CreateDBFromTemplate(name, template string, db dbconfig.Config) {
 	}()
 
 	create := fmt.Sprintf(`CREATE DATABASE "%s"`, sanitizedName)
+	var sanitizedTemplate string
 	if template != "" {
-		sanitizedTemplate := sanitizeDBName(template)
+		sanitizedTemplate = sanitizeDBName(template)
 		if err := assertTemplateExists(conn, sanitizedTemplate); err != nil {
 			panic(err)
 		}
@@ -282,11 +283,32 @@ func CreateDBFromTemplate(name, template string, db dbconfig.Config) {
 	// `duplicate key value violates unique constraint "pg_database_datname_index"`.
 	// The lock is held for a single catalog operation (milliseconds), unlike
 	// the migration lock, which spans a whole migration run.
-	err = withAdvisoryLock(db, createDatabaseAdvisoryLockKey, "create database", lockRequired, func() error {
-		if _, err := conn.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName)); err != nil {
+	//
+	// The retry wraps the lock rather than sitting inside it. Sleeping while
+	// holding a cluster-wide lock turns one straggler into a convoy: every
+	// sibling harness queues behind the sleeper, and with `go test -p 8` across
+	// four CI shards the waits ran past the acquisition budget and came back as
+	// "canceling statement due to user request" - a lock bottleneck wearing the
+	// costume of a timeout.
+	err = retryWhileTemplateBusy(func() error {
+		return withAdvisoryLock(db, createDatabaseAdvisoryLockKey, "create database", lockRequired, func() error {
+			if sanitizedTemplate != "" {
+				// Postgres refuses to clone a database that anything is
+				// connected to, and "anything" includes an autovacuum worker
+				// that picked this moment to visit the template. Evicting them
+				// is what makes the clone deterministic; the retry below is
+				// only for the backend that connects between this statement
+				// and the next.
+				if err := terminateConnections(conn, sanitizedTemplate); err != nil {
+					return err
+				}
+			}
+			if _, err := conn.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName)); err != nil {
+				return err
+			}
+			_, err := conn.ExecContext(context.Background(), create)
 			return err
-		}
-		return execWithTemplateRetry(conn, create)
+		})
 	})
 	if err != nil {
 		panic(err)
@@ -339,21 +361,41 @@ func assertTemplateExists(conn *sql.DB, template string) error {
 	return nil
 }
 
-// execWithTemplateRetry retries the transient "source database is being
-// accessed by other users" that Postgres raises when a clone starts while
-// another backend still holds a connection to the template. The advisory lock
-// removes the common case (a sibling clone); this covers stragglers such as a
-// connection that has not finished tearing down yet.
-func execWithTemplateRetry(conn *sql.DB, stmt string) error {
-	const attempts = 5
+// retryWhileTemplateBusy retries "source database is being accessed by other
+// users", which Postgres raises when a clone starts while any backend still
+// holds a connection to the template.
+//
+// Terminating the template's backends removes the cause; this covers the one
+// case termination cannot, a backend that connects in the window between the
+// eviction and the CREATE. fn must take and release the lock itself, so the
+// backoff below is served without holding it.
+//
+// The durable fix belongs to whoever builds the template: `datallowconn =
+// false`, the way template0 does it, makes the race impossible instead of rare.
+func retryWhileTemplateBusy(fn func() error) error {
+	const attempts = 8
 	var err error
 	for attempt := range attempts {
-		_, err = conn.ExecContext(context.Background(), stmt)
+		err = fn()
 		if err == nil || !isSourceDatabaseBusy(err) {
 			return err
 		}
 		time.Sleep(time.Duration(attempt+1) * 100 * time.Millisecond)
 	}
+	return err
+}
+
+// terminateConnections evicts every backend connected to dbName except this
+// one. Errors are returned rather than swallowed: a clone that proceeds against
+// a still-occupied template fails anyway, and it fails less legibly.
+func terminateConnections(conn *sql.DB, dbName string) error {
+	const terminateSQL = `
+		SELECT pg_terminate_backend(pg_stat_activity.pid)
+		FROM pg_stat_activity
+		WHERE pg_stat_activity.datname = $1
+		AND pid <> pg_backend_pid()
+	`
+	_, err := conn.ExecContext(context.Background(), terminateSQL, dbName)
 	return err
 }
 

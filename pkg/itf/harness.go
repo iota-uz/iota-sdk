@@ -79,6 +79,11 @@ const (
 // and grants attached to them. Migrations that create them (the ai_readonly
 // ROLE behind the RLS policies, for one) therefore have to be run against the
 // same cluster the tests use, not just into the template.
+//
+// Set datallowconn = false on the template once it is built, the way template0
+// protects itself. CREATE DATABASE ... TEMPLATE fails outright while any
+// backend is connected to the source, and the backend nobody remembers is
+// autovacuum.
 const TemplateDBEnv = "ITF_TEMPLATE_DB"
 
 // migrationAdvisoryLockKey serializes migration application across processes.
