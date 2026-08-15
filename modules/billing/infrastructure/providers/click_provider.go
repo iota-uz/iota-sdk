@@ -114,9 +114,34 @@ func (p *clickProvider) Create(_ context.Context, t billing.Transaction) (billin
 	return t, nil
 }
 
-func (p *clickProvider) Cancel(ctx context.Context, t billing.Transaction) (billing.Transaction, error) {
-	//TODO implement me
-	panic("implement me")
+// ErrClickCancelAfterPayment is returned when a merchant asks to cancel an
+// invoice Click has already paid. Click identifies a captured payment by its
+// payment id, and sending that money back is a reversal — Refund below — not a
+// cancellation.
+var ErrClickCancelAfterPayment = errors.New("click payment is captured; cancelling it would be a reversal")
+
+// Cancel abandons an invoice the customer has not paid, and does so without
+// calling Click.
+//
+// Click has no endpoint for it: the merchant API covers preparing, confirming
+// and reversing a *payment*, and an invoice nobody paid is not yet a payment —
+// it is a link carrying a service id and a merchant transaction id. The only
+// thing a merchant can withdraw is its own willingness to accept the callback,
+// which is what this status does.
+//
+// A captured payment is refused rather than voided (ErrClickCancelAfterPayment):
+// its money exists, and pretending otherwise is how a reversal gets skipped.
+func (p *clickProvider) Cancel(_ context.Context, t billing.Transaction) (billing.Transaction, error) {
+	clickDetails, err := toClickDetails(t.Details())
+	if err != nil {
+		return nil, err
+	}
+
+	if clickDetails.PaymentID() != 0 || t.Status() == billing.Completed {
+		return nil, ErrClickCancelAfterPayment
+	}
+
+	return t.SetStatus(billing.Canceled), nil
 }
 
 // Refund reverses a completed Click payment through the Merchant API.
