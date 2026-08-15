@@ -111,6 +111,37 @@ func TestCreateDBFromTemplate_ConcurrentClones(t *testing.T) {
 	}
 }
 
+// This is the failure that took down all four CI shards of the suite this
+// feature was built for: CREATE DATABASE ... TEMPLATE refuses to run while ANY
+// backend is connected to the source, and at a few hundred clones per run the
+// backend nobody remembers - autovacuum - eventually is that one. A clone must
+// evict stragglers instead of failing.
+//
+// The durable fix is datallowconn = false on the template; this covers the
+// templates that do not have it.
+func TestCreateDBFromTemplate_EvictsAStragglerOnTheTemplate(t *testing.T) {
+	conn, db := adminConn(t)
+	template := buildTemplate(t, conn, db)
+
+	straggler, err := sql.Open("postgres", DBOpts(template, db))
+	require.NoError(t, err)
+	require.NoError(t, straggler.PingContext(context.Background()))
+	t.Cleanup(func() { _ = straggler.Close() })
+
+	clone := sanitizeDBName("itf_evict_" + uuid.New().String()[:8])
+	require.NoError(t, CreateDBFromTemplateE(clone, template, db))
+	t.Cleanup(func() { require.NoError(t, DropDB(clone, db)) })
+
+	cloneConn, err := sql.Open("postgres", DBOpts(clone, db))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, cloneConn.Close()) })
+
+	var id int
+	require.NoError(t, cloneConn.QueryRowContext(context.Background(),
+		"SELECT id FROM template_marker").Scan(&id))
+	assert.Equal(t, 42, id)
+}
+
 func TestCreateDBFromTemplate_MissingTemplateIsLoud(t *testing.T) {
 	_, db := adminConn(t)
 

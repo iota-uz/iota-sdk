@@ -107,7 +107,7 @@ instead, at catalog speed:
 # once, before the suite (CI does this in a setup step)
 createdb itf_template
 DB_NAME=itf_template go run cmd/command/main.go migrate up
-psql -d postgres -c "UPDATE pg_database SET datistemplate = true WHERE datname = 'itf_template'"
+psql -d postgres -c "UPDATE pg_database SET datistemplate = true, datallowconn = false WHERE datname = 'itf_template'"
 
 # then
 ITF_TEMPLATE_DB=itf_template go test ./...
@@ -135,9 +135,14 @@ Notes:
   attached to them, live outside the database — so build the template against
   the same cluster the tests run on, and do not expect a migration that only
   ran into the template to have created the role its RLS policies reference.
-- **Nothing may be connected to the template.** Postgres refuses to clone a
-  database with open connections; the harness never opens a pool against it, and
-  serializes concurrent clones on an advisory lock.
+- **Nothing may be connected to the template — `datallowconn = false` is how
+  you guarantee it.** Postgres refuses to clone a database that any backend is
+  connected to, and the backend you forget about is autovacuum: it visits every
+  database on its own schedule, and at a few hundred clones per run it will
+  eventually land on the template. Marking the template the way `template0`
+  marks itself makes the collision impossible rather than rare. The harness also
+  evicts stragglers with `pg_terminate_backend` before each clone and retries
+  the residual race, but that is the safety net, not the design.
 - Per-suite override: `itf.WithTemplateDatabase("other_template")`, or
   `HarnessConfig.Migration.TemplateDB`.
 
