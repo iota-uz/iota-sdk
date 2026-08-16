@@ -31,9 +31,19 @@ func Reselect(w http.ResponseWriter, selector string) {
 func Location(w http.ResponseWriter, path, target string) {
 	if target == "" {
 		w.Header().Add("Hx-Location", path)
-	} else {
-		w.Header().Add("Hx-Location", `{"path":"`+path+`", "target":"`+target+`"}`)
+		return
 	}
+	pathJSON, err := json.Marshal(path)
+	if err != nil {
+		w.Header().Add("Hx-Location", path)
+		return
+	}
+	targetJSON, err := json.Marshal(target)
+	if err != nil {
+		w.Header().Add("Hx-Location", path)
+		return
+	}
+	w.Header().Add("Hx-Location", escapeNonASCII(`{"path":`+string(pathJSON)+`,"target":`+string(targetJSON)+`}`))
 }
 
 // PushURL sets the HX-Push-Url header to push a new URL into the browser history stack.

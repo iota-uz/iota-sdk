@@ -2,6 +2,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -293,7 +294,14 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	// Prevent revoking current session
 	if sessionToRevoke == currentToken {
 		logger.Error("cannot revoke current session")
-		htmx.SetTrigger(w, "error", fmt.Sprintf(`{"message": "%s"}`, pageCtx.T("Account.Sessions.CannotRevokeCurrent")))
+		errorPayload, err := json.Marshal(map[string]string{
+			"message": pageCtx.T("Account.Sessions.CannotRevokeCurrent"),
+		})
+		if err != nil {
+			logger.WithError(err).Error("failed to marshal session revoke toast")
+		} else {
+			htmx.SetTrigger(w, "error", string(errorPayload))
+		}
 		http.Error(w, pageCtx.T("Account.Sessions.CannotRevokeCurrent"), http.StatusForbidden)
 		return
 	}
@@ -306,7 +314,15 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	}
 
 	// Return success with HTMX trigger
-	htmx.SetTrigger(w, "success", fmt.Sprintf(`{"message": "%s"}`, pageCtx.T("Account.Sessions.RevokeSuccess")))
+	successPayload, err := json.Marshal(map[string]string{
+		"message": pageCtx.T("Account.Sessions.RevokeSuccess"),
+	})
+	if err != nil {
+		logger.WithError(err).Error("failed to marshal session revoke toast")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	htmx.SetTrigger(w, "success", string(successPayload))
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -341,7 +357,12 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 
 	// Return success with count and refresh page
 	successMsg := fmt.Sprintf(pageCtx.T("Account.Sessions.RevokeAllSuccess"), count)
-	successMsg = fmt.Sprintf(`{"message": "%s"}`, successMsg)
-	htmx.SetTrigger(w, "success", successMsg)
+	successPayload, err := json.Marshal(map[string]string{"message": successMsg})
+	if err != nil {
+		logger.WithError(err).Error("failed to marshal session revoke toast")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	htmx.SetTrigger(w, "success", string(successPayload))
 	htmx.Refresh(w)
 }
