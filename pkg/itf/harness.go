@@ -433,6 +433,16 @@ func (m *harnessManager) close(key string, cleanup CleanupMode) error {
 		entry.cond.Wait()
 	}
 
+	// Waiting released the lock, so the entry this call is holding may have been
+	// settled meanwhile - by another closer, or by a failed getOrCreate, which
+	// drops the entry from the map and leaves its state nil. Either way there is
+	// no state left to release, and dereferencing it below is a nil panic in the
+	// harness teardown of whatever test happened to be last.
+	if entry.state == nil || m.entries[key] != entry {
+		m.mu.Unlock()
+		return nil
+	}
+
 	entry.refs--
 	if entry.refs > 0 {
 		m.mu.Unlock()
