@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -211,6 +212,10 @@ func TestBillingService_Cancel_RefusesTerminalStatus(t *testing.T) {
 				TransactionID: terminal.ID(),
 			})
 			require.ErrorIs(t, err, services.ErrTransactionNotCancellable)
+
+			var wrapped *serrors.Error
+			require.ErrorAs(t, err, &wrapped, "the refusal carries its operation")
+			assert.Equal(t, serrors.Op("BillingService.Cancel"), wrapped.Op)
 
 			stored, err := billingService.GetByID(f.Ctx, terminal.ID())
 			require.NoError(t, err)

@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type CreateTransactionCommand struct {
@@ -194,20 +195,22 @@ var ErrTransactionNotCancellable = errors.New("transaction is not active; only a
 // to reach this method with a dead transaction is a caller that believes the
 // transaction is alive, and that caller is better told than humoured.
 func (s *BillingService) Cancel(ctx context.Context, cmd *CancelTransactionCommand) (billing.Transaction, error) {
+	const op serrors.Op = "BillingService.Cancel"
+
 	entity, err := s.repo.GetByID(ctx, cmd.TransactionID)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	if !entity.Status().IsActive() {
-		return nil, fmt.Errorf("%w: status %q", ErrTransactionNotCancellable, entity.Status())
+		return nil, serrors.E(op, fmt.Errorf("%w: status %q", ErrTransactionNotCancellable, entity.Status()))
 	}
 
 	provider := s.providers[entity.Gateway()]
 
 	updatedEvent, err := billing.NewUpdatedEvent(ctx, entity)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	var updatedTransaction billing.Transaction
@@ -228,7 +231,7 @@ func (s *BillingService) Cancel(ctx context.Context, cmd *CancelTransactionComma
 		return err
 	})
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	updatedEvent.Result = updatedTransaction
