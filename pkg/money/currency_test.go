@@ -154,3 +154,42 @@ func TestCurrency_GetCurrencyByNumericCodeNonExistingCurrency(t *testing.T) {
 		t.Errorf("Unexpected currency returned %+v", currency)
 	}
 }
+
+// "840" is declared by USD and by the USDSPACE formatting variant. The lookup
+// used to return whichever the map's randomised iteration reached first, so a
+// dollar receipt was rendered - and stored - as "USDSPACE" on some runs.
+func TestCurrency_GetCurrencyByNumericCodePrefersTheISOCodeOverAVariant(t *testing.T) {
+	for i := 0; i < 200; i++ {
+		got := GetCurrencyByNumericCode("840")
+		if got == nil || got.Code != USD {
+			t.Fatalf("iteration %d: expected USD for 840, got %+v", i, got)
+		}
+	}
+}
+
+// "532" is a genuine collision in the standard rather than a variant: XCG
+// succeeded ANG and inherited its numeric code. Both are ISO-shaped, so the
+// tie-break is the smaller code, and it must answer that one every time.
+func TestCurrency_GetCurrencyByNumericCodeIsStableOnACollision(t *testing.T) {
+	for i := 0; i < 200; i++ {
+		got := GetCurrencyByNumericCode("532")
+		if got == nil || got.Code != ANG {
+			t.Fatalf("iteration %d: expected %s for 532, got %+v", i, ANG, got)
+		}
+	}
+}
+
+// The rule holds for currencies a caller adds, not only for the built-in table.
+func TestCurrencies_CurrencyByNumericCodePrefersTheISOCodeAmongAdded(t *testing.T) {
+	const numericCode = "999"
+	iso := &Currency{Code: "ZZZ", NumericCode: numericCode, Fraction: 2, Grapheme: "z", Template: "$1", Decimal: ".", Thousand: ","}
+	variant := &Currency{Code: "AAASPACE", NumericCode: numericCode, Fraction: 2, Grapheme: "z", Template: "$1", Decimal: ".", Thousand: " "}
+
+	cs := Currencies{}.Add(variant).Add(iso)
+	for i := 0; i < 200; i++ {
+		got := cs.CurrencyByNumericCode(numericCode)
+		if got == nil || got.Code != iso.Code {
+			t.Fatalf("iteration %d: expected the ISO code %s, got %+v", i, iso.Code, got)
+		}
+	}
+}
