@@ -3,6 +3,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type CreateTransactionCommand struct {
@@ -161,17 +163,54 @@ func (s *BillingService) Save(ctx context.Context, entity billing.Transaction) (
 	return savedTransaction, nil
 }
 
+// ErrTransactionNotCancellable is returned when a cancellation is asked for a
+// transaction that has already left the active set: refunded, partially
+// refunded, expired, failed, completed, or cancelled once already.
+//
+// Cancelling one of those describes nothing that can still happen to the money.
+// The record would be rewritten to say the payment was never taken, and for a
+// refunded transaction that is worse than wrong — the refund disappears from
+// the history, leaving money that went back to the customer recorded as money
+// that never arrived.
+//
+// The gateway providers each refuse a *completed* transaction in their own
+// protocol's terms (ErrPaymeCancelAfterCompletion, ErrOctoCancelAfterCapture,
+// ErrClickCancelAfterPayment). This refuses every other terminal state, and
+// refuses it for every gateway — including Cash and Integrator, which have no
+// provider at all and whose cancellation is a bare status write with nothing
+// standing in front of it.
+var ErrTransactionNotCancellable = errors.New("transaction is not active; only a created or pending transaction can be cancelled")
+
+// Cancel voids an unpaid transaction.
+//
+// A transaction that is no longer active is refused (ErrTransactionNotCancellable)
+// before the provider is called and before the updated event is built: a
+// cancellation that must not happen should neither reach the gateway nor
+// announce a status change that did not occur.
+//
+// The refusal is an error rather than a silent no-op, including for a
+// transaction that is already cancelled. Nothing in this SDK cancels twice — a
+// gateway-initiated cancellation (Payme's CancelTransaction) is handled by
+// PaymeController.cancel through Save and never arrives here — so the only way
+// to reach this method with a dead transaction is a caller that believes the
+// transaction is alive, and that caller is better told than humoured.
 func (s *BillingService) Cancel(ctx context.Context, cmd *CancelTransactionCommand) (billing.Transaction, error) {
+	const op serrors.Op = "BillingService.Cancel"
+
 	entity, err := s.repo.GetByID(ctx, cmd.TransactionID)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
+	}
+
+	if !entity.Status().IsActive() {
+		return nil, serrors.E(op, fmt.Errorf("%w: status %q", ErrTransactionNotCancellable, entity.Status()))
 	}
 
 	provider := s.providers[entity.Gateway()]
 
 	updatedEvent, err := billing.NewUpdatedEvent(ctx, entity)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	var updatedTransaction billing.Transaction
@@ -192,7 +231,7 @@ func (s *BillingService) Cancel(ctx context.Context, cmd *CancelTransactionComma
 		return err
 	})
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	updatedEvent.Result = updatedTransaction

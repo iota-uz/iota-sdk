@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -167,6 +169,114 @@ func TestBillingService_CreateTransaction_Payme(t *testing.T) {
 //	assert.NotEqual(t, uuid.Nil, result.ID(), "Expected non-nil transaction ID")
 //	assert.WithinDuration(t, time.Now(), result.CreatedAt(), time.Second*2)
 //}
+
+// TestBillingService_Cancel_RefusesTerminalStatus asserts that a transaction
+// which already left the active set is refused instead of being rewritten to
+// "cancelled" — for Refunded that rewrite erases a refund that really happened.
+//
+// This test is falsely green if Cancel starts failing for an unrelated reason
+// (a missing transaction, a provider outage) and the assertion only checked
+// that an error came back: it pins the sentinel with ErrorIs and re-reads the
+// row to prove the stored status survived, so a refusal that still wrote to the
+// database would fail here.
+func TestBillingService_Cancel_RefusesTerminalStatus(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	billingService := getBillingService(f)
+
+	tenant, err := composables.UseTenantID(f.Ctx)
+	require.NoError(t, err)
+
+	for _, status := range []billing.Status{
+		billing.Refunded,
+		billing.PartiallyRefunded,
+		billing.Expired,
+		billing.Failed,
+		billing.Completed,
+	} {
+		t.Run(string(status), func(t *testing.T) {
+			created, err := billingService.Create(f.Ctx, &services.CreateTransactionCommand{
+				TenantID: tenant,
+				Quantity: 1000,
+				Currency: billing.UZS,
+				Gateway:  billing.Click,
+				Details:  details.NewClickDetails(fmt.Sprintf("terminal_%s", status)),
+			})
+			require.NoError(t, err, "Create should succeed")
+
+			terminal, err := billingService.Save(f.Ctx, created.SetStatus(status))
+			require.NoError(t, err, "Save should persist the terminal status")
+			require.Equal(t, status, terminal.Status())
+
+			_, err = billingService.Cancel(f.Ctx, &services.CancelTransactionCommand{
+				TransactionID: terminal.ID(),
+			})
+			require.ErrorIs(t, err, services.ErrTransactionNotCancellable)
+
+			var wrapped *serrors.Error
+			require.ErrorAs(t, err, &wrapped, "the refusal carries its operation")
+			assert.Equal(t, serrors.Op("BillingService.Cancel"), wrapped.Op)
+
+			stored, err := billingService.GetByID(f.Ctx, terminal.ID())
+			require.NoError(t, err)
+			assert.Equal(t, status, stored.Status(), "a refused cancellation must leave the stored status untouched")
+		})
+	}
+}
+
+// TestBillingService_Cancel_RefusesRepeatCancellation asserts that cancelling a
+// transaction twice is refused rather than treated as a no-op, and that the
+// refusal publishes no event — the second call has no status change to announce.
+//
+// This test is falsely green if the event assertion counts events from another
+// test sharing the bus; it filters by transaction id, so only events about this
+// transaction can satisfy or break it.
+func TestBillingService_Cancel_RefusesRepeatCancellation(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	billingService := getBillingService(f)
+
+	tenant, err := composables.UseTenantID(f.Ctx)
+	require.NoError(t, err)
+
+	created, err := billingService.Create(f.Ctx, &services.CreateTransactionCommand{
+		TenantID: tenant,
+		Quantity: 1000,
+		Currency: billing.UZS,
+		Gateway:  billing.Click,
+		Details:  details.NewClickDetails("repeat_cancel"),
+	})
+	require.NoError(t, err, "Create should succeed")
+
+	canceled, err := billingService.Cancel(f.Ctx, &services.CancelTransactionCommand{
+		TransactionID: created.ID(),
+	})
+	require.NoError(t, err, "the first cancellation of an active transaction should succeed")
+	require.Equal(t, billing.Canceled, canceled.Status())
+
+	var (
+		mu       sync.Mutex
+		observed int
+	)
+	unsubscribe := f.App.EventPublisher().Subscribe(func(event *billing.UpdatedEvent) {
+		if event.Result == nil || event.Result.ID() != created.ID() {
+			return
+		}
+		mu.Lock()
+		observed++
+		mu.Unlock()
+	})
+	defer unsubscribe()
+
+	_, err = billingService.Cancel(f.Ctx, &services.CancelTransactionCommand{
+		TransactionID: created.ID(),
+	})
+	require.ErrorIs(t, err, services.ErrTransactionNotCancellable)
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Zero(t, observed, "a refused cancellation must not publish an update event")
+}
 
 func TestBillingService_RegisterCallback(t *testing.T) {
 	t.Helper()
