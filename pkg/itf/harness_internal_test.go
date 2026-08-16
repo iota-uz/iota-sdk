@@ -237,4 +237,3 @@ func TestSharedHarnessManagerCloseSurvivesASettledEntry(t *testing.T) {
 	require.NoError(t, manager.close(key, CleanupKeep))
 	require.Equal(t, 1, manager.entries[key].refs, "a settled entry is left untouched, not counted down")
 }
-
