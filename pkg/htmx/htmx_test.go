@@ -282,3 +282,54 @@ func TestEscapeNonASCII_SurrogatePairs(t *testing.T) {
 		})
 	}
 }
+
+// TestLocation_SpecialCharactersStayValidJSON covers the same defect
+// SetTrigger already had: Location assembled the two-field form with `+`
+// concatenation, so a quote or backslash in path/target produced JSON htmx
+// failed to parse, and non-ASCII reached the browser as raw UTF-8 mojibake.
+func TestLocation_SpecialCharactersStayValidJSON(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		path   string
+		target string
+	}{
+		{name: "ascii", path: "/policies/1", target: "#content"},
+		{name: "quote in path", path: `/search?q="AB 1234567"`, target: "#content"},
+		{name: "backslash", path: `/files/C:\policies\2026`, target: "#content"},
+		{name: "cyrillic target", path: "/policies/1", target: `[data-панель="сводка"]`},
+		{name: "non-BMP rune", path: "/готово 😀", target: "#content"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rec := httptest.NewRecorder()
+			Location(rec, tt.path, tt.target)
+
+			value := headerOnWire(t, rec, "Hx-Location")
+			requireASCII(t, value)
+
+			var payload struct {
+				Path   string `json:"path"`
+				Target string `json:"target"`
+			}
+			require.NoErrorf(t, json.Unmarshal([]byte(value), &payload), "header is not valid JSON: %q", value)
+			assert.Equal(t, tt.path, payload.Path)
+			assert.Equal(t, tt.target, payload.Target)
+		})
+	}
+}
+
+// TestLocation_EmptyTargetUnchanged pins the bare-path form: an empty target
+// must keep sending the path as-is, not JSON-wrap it.
+func TestLocation_EmptyTargetUnchanged(t *testing.T) {
+	t.Parallel()
+
+	rec := httptest.NewRecorder()
+	Location(rec, "/policies/1", "")
+
+	assert.Equal(t, "/policies/1", headerOnWire(t, rec, "Hx-Location"))
+}
