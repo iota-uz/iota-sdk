@@ -168,17 +168,13 @@ func TestCurrency_GetCurrencyByNumericCodePrefersTheISOCodeOverAVariant(t *testi
 }
 
 // "532" is a genuine collision in the standard rather than a variant: XCG
-// succeeded ANG and inherited its numeric code. Neither answer is wrong, but
-// the lookup must give the same one every time.
+// succeeded ANG and inherited its numeric code. Both are ISO-shaped, so the
+// tie-break is the smaller code, and it must answer that one every time.
 func TestCurrency_GetCurrencyByNumericCodeIsStableOnACollision(t *testing.T) {
-	first := GetCurrencyByNumericCode("532")
-	if first == nil {
-		t.Fatal("expected a currency for 532")
-	}
 	for i := 0; i < 200; i++ {
 		got := GetCurrencyByNumericCode("532")
-		if got == nil || got.Code != first.Code {
-			t.Fatalf("iteration %d: 532 answered %+v after %+v", i, got, first)
+		if got == nil || got.Code != ANG {
+			t.Fatalf("iteration %d: expected %s for 532, got %+v", i, ANG, got)
 		}
 	}
 }
