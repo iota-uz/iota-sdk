@@ -50,6 +50,7 @@ func (d *DashboardDocument) Validate() error {
 		}
 	}
 	groupDescriptors := make(map[string]LayoutGroup)
+	groupTabs := make(map[string]map[string]struct{})
 	for rowIndex, row := range d.Layout.Rows {
 		for _, item := range row.Panels {
 			if _, ok := panelIDs[item.PanelID]; !ok {
@@ -61,12 +62,21 @@ func (d *DashboardDocument) Validate() error {
 			if err := validateItemGroups(item, groupDescriptors); err != nil {
 				return serrors.E(op, err)
 			}
+			for _, group := range item.Groups {
+				if group.Kind != LayoutGroupTabs {
+					continue
+				}
+				if groupTabs[group.ID] == nil {
+					groupTabs[group.ID] = make(map[string]struct{})
+				}
+				groupTabs[group.ID][group.Tab] = struct{}{}
+			}
 		}
 	}
 	if err := d.validateDrill(); err != nil {
 		return serrors.E(op, err)
 	}
-	if err := validateFilters(d.Filters); err != nil {
+	if err := validateFilters(d.Filters, groupDescriptors, groupTabs); err != nil {
 		return serrors.E(op, err)
 	}
 	if d.Drawer != nil {
@@ -122,7 +132,7 @@ func validPeriodDate(raw string) bool {
 	return err == nil && parsed.Format(PeriodDateLayout) == raw
 }
 
-func validateFilters(filters []Filter) error {
+func validateFilters(filters []Filter, groups map[string]LayoutGroup, groupTabs map[string]map[string]struct{}) error {
 	ids := make(map[string]struct{}, len(filters))
 	for _, filter := range filters {
 		if strings.TrimSpace(filter.ID) == "" {
@@ -138,6 +148,16 @@ func validateFilters(filters []Filter) error {
 			}
 			if strings.TrimSpace(filter.Placement.Tab) == "" {
 				return fmt.Errorf("filter %s placement requires a tab", filter.ID)
+			}
+			group, ok := groups[filter.Placement.GroupID]
+			if !ok {
+				return fmt.Errorf("filter %s placement references missing group %q", filter.ID, filter.Placement.GroupID)
+			}
+			if group.Kind != LayoutGroupTabs {
+				return fmt.Errorf("filter %s placement group %q is not a tabs group", filter.ID, filter.Placement.GroupID)
+			}
+			if _, ok := groupTabs[filter.Placement.GroupID][filter.Placement.Tab]; !ok {
+				return fmt.Errorf("filter %s placement references missing tab %q", filter.ID, filter.Placement.Tab)
 			}
 		}
 		switch filter.Kind {
