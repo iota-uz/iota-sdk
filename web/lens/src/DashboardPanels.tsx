@@ -220,11 +220,12 @@ function LeafItem({ item, panels, registry }: {
  * arbitrary compositions (tabs-in-tabs, metrics-in-tabs, tabs after passthrough
  * containers, grouped mixed with ungrouped) fall out of one recursion.
  */
-function GroupChain({ items, depth, panels, registry }: {
+function GroupChain({ items, depth, panels, registry, filterToday }: {
   items: LayoutItem[]
   depth: number
   panels: Map<string, Panel>
   registry?: PanelRegistry
+  filterToday?: CalendarDate
 }) {
   return (
     <>
@@ -239,7 +240,7 @@ function GroupChain({ items, depth, panels, registry }: {
           return <MetricsGroup group={cluster.group} items={cluster.items} key={key} panels={panels} registry={registry} />
         }
         return (
-          <TabsGroup depth={depth} group={cluster.group} items={cluster.items} key={key} panels={panels} registry={registry} />
+          <TabsGroup depth={depth} filterToday={filterToday} group={cluster.group} items={cluster.items} key={key} panels={panels} registry={registry} />
         )
       })}
     </>
@@ -330,12 +331,13 @@ function namesItsOnlyPanel(
   return Boolean(title) && comparableTitle(title!) === comparableTitle(tab)
 }
 
-function TabsGroup({ group, items, depth, panels, registry }: {
+function TabsGroup({ group, items, depth, panels, registry, filterToday }: {
   group: LayoutGroup
   items: LayoutItem[]
   depth: number
   panels: Map<string, Panel>
   registry?: PanelRegistry
+  filterToday?: CalendarDate
 }) {
   const translate = useTranslate()
   const { filters } = useFilters()
@@ -429,7 +431,7 @@ function TabsGroup({ group, items, depth, panels, registry }: {
             <>
               {filtersForTab(tab).length > 0 && (
                 <div className="lens-tab-filter-bar" role="group">
-                  <FilterControls filters={filtersForTab(tab)} />
+                  <FilterControls filters={filtersForTab(tab)} today={filterToday} />
                 </div>
               )}
               <PanelChromeContext.Provider value={namesItsOnlyPanel(tab, items, depth, panels) ? redundantTitle : undefined}>
@@ -438,6 +440,7 @@ function TabsGroup({ group, items, depth, panels, registry }: {
                   items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
                   panels={panels}
                   registry={registry}
+                  filterToday={filterToday}
                 />
               </PanelChromeContext.Provider>
             </>
@@ -717,7 +720,7 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
                   className={`lens-panel-grid${entrance.current ? ' lens-entrance' : ''}`}
                   style={entrance.current ? ({ '--lens-row-delay': `${Math.min(rowIndex * 60, 180)}ms` } as CSSProperties) : undefined}
                 >
-                  <GroupChain depth={0} items={row.panels} panels={panels} registry={registry} />
+                  <GroupChain depth={0} filterToday={filterToday} items={row.panels} panels={panels} registry={registry} />
                 </div>
               </section>
             ))}
