@@ -115,13 +115,17 @@ func TestDashboardDocumentValidate_SegmentedFilter(t *testing.T) {
 
 	t.Run("survives clone and JSON round trip", func(t *testing.T) {
 		doc := testDocument()
-		doc.Filters = []Filter{periodFilter(), segmentedFilter()}
+		segmented := segmentedFilter()
+		segmented.Placement = &FilterPlacement{GroupID: "result", Tab: "Underwriting"}
+		doc.Filters = []Filter{periodFilter(), segmented}
 		require.NoError(t, doc.Validate())
 
 		cloned := cloneFilters(doc.Filters)
 		require.Equal(t, doc.Filters, cloned)
 		cloned[1].Segmented.Options[0].Label = "mutated"
+		cloned[1].Placement.Tab = "mutated"
 		require.Equal(t, "By year", doc.Filters[1].Segmented.Options[0].Label)
+		require.Equal(t, "Underwriting", doc.Filters[1].Placement.Tab)
 
 		encoded, err := doc.MarshalJSON()
 		require.NoError(t, err)
@@ -129,6 +133,23 @@ func TestDashboardDocumentValidate_SegmentedFilter(t *testing.T) {
 		require.NoError(t, json.Unmarshal(encoded, decoded))
 		require.Equal(t, doc.Filters, decoded.Filters)
 	})
+
+	for _, test := range []struct {
+		name      string
+		placement FilterPlacement
+		message   string
+	}{
+		{name: "group required", placement: FilterPlacement{Tab: "Underwriting"}, message: "requires a group id"},
+		{name: "tab required", placement: FilterPlacement{GroupID: "result"}, message: "requires a tab"},
+	} {
+		t.Run("placement "+test.name, func(t *testing.T) {
+			doc := testDocument()
+			filter := segmentedFilter()
+			filter.Placement = &test.placement
+			doc.Filters = []Filter{filter}
+			require.ErrorContains(t, doc.Validate(), test.message)
+		})
+	}
 }
 
 func TestDashboardDocumentValidate_Filters(t *testing.T) {

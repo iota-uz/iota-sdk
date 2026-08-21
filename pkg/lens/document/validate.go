@@ -132,6 +132,14 @@ func validateFilters(filters []Filter) error {
 			return fmt.Errorf("duplicate filter %q", filter.ID)
 		}
 		ids[filter.ID] = struct{}{}
+		if filter.Placement != nil {
+			if strings.TrimSpace(filter.Placement.GroupID) == "" {
+				return fmt.Errorf("filter %s placement requires a group id", filter.ID)
+			}
+			if strings.TrimSpace(filter.Placement.Tab) == "" {
+				return fmt.Errorf("filter %s placement requires a tab", filter.ID)
+			}
+		}
 		switch filter.Kind {
 		case FilterKindPeriod:
 			if filter.Period == nil {

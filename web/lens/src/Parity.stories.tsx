@@ -374,6 +374,21 @@ export const TabGroup: Story = () => {
       }],
     },
   )
+  doc.filters = [{
+    id: 'business-type',
+    kind: 'segmented',
+    label: 'Тип бизнеса',
+    placement: { groupId: 'result', tab: 'Денежный результат' },
+    segmented: {
+      param: 'BusinessType',
+      value: 'all',
+      options: [
+        { value: 'all', label: 'Все' },
+        { value: 'direct', label: 'Прямое страхование' },
+        { value: 'reinsurance', label: 'Перестрахование' },
+      ],
+    },
+  }]
   return <Runtime doc={doc}><DashboardPanels /></Runtime>
 }
 
