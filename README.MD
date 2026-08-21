@@ -12,7 +12,7 @@ This repo ships one public NPM package alongside the Go module:
 Install it with React peers:
 
 ```bash
-pnpm add @iota-uz/sdk@0.5.5 react react-dom
+pnpm add @iota-uz/sdk@0.5.6 react react-dom
 ```
 
 ```ts
