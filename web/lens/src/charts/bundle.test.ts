@@ -61,9 +61,10 @@ describe('chart bundle boundary', () => {
     // drawers joined the bounded idle child-prefetch queue, and 435,754 after
     // drawers moved onto the standard client-host portal lifecycle, and 437,517
     // after the period picker's expanded calendar, the cascade's honest
-    // unknown-value gaps, and failure copy that names what broke. The cap still
+    // unknown-value gaps, and failure copy that names what broke, and 438,274
+    // after filters gained tab-local placement. The cap still
     // catches accidental bloat — it is a tripwire for a chart library wandering
     // into the core entry, not a per-byte budget.
-    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(438_000)
+    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(439_000)
   })
 })

@@ -27,7 +27,7 @@ export function SegmentedFilterControl({ filter }: { filter: Filter }) {
   const label = filter.label || translate('filter.bar.label', 'Dashboard filters')
   const active = currentSegmentedValue(segmented, values)
   return (
-    <div className="lens-segmented-filter" data-filter-id={filter.id}>
+    <div className="lens-segmented-filter" data-filter-id={filter.id} data-testid={`lens-filter-${filter.id}`}>
       {filter.label && <span className="lens-segmented-label">{filter.label}</span>}
       <div aria-label={label} className="lens-filter lens-segmented-track" role="group">
         {segmented.options.map((option) => (

@@ -11,8 +11,8 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react'
-import type { LayoutGroup, LayoutItem, LayoutRow, Panel } from './contract'
-import { useDashboard, useDocumentState, useDrawer, useDrawerHeader, usePrint, useTranslate } from './runtime'
+import type { Filter, LayoutGroup, LayoutItem, LayoutRow, Panel } from './contract'
+import { useDashboard, useDocumentState, useDrawer, useDrawerHeader, useFilters, usePrint, useTranslate } from './runtime'
 import { ExportMenu } from './panels/ExportMenu'
 import { RegisteredPanel, type PanelRegistry } from './panels/registry'
 import { ShareSliceButton } from './panels/ShareSliceButton'
@@ -20,7 +20,7 @@ import { StatMetric, StatusChip } from './panels/StatPanel'
 import { PanelChromeContext, type PanelChrome } from './panels/context'
 import { ArrowClockwise, CircleNotch, Clock, X } from './icons'
 import { ExplorePanel } from './explore'
-import { FilterBar, type CalendarDate } from './controls'
+import { FilterBar, FilterControls, type CalendarDate } from './controls'
 import { isVisualRegression } from './visualRegression'
 
 /* eslint-disable react-refresh/only-export-components */
@@ -338,6 +338,7 @@ function TabsGroup({ group, items, depth, panels, registry }: {
   registry?: PanelRegistry
 }) {
   const translate = useTranslate()
+  const { filters } = useFilters()
   const print = usePrint()
   const store = useContext(TabStateContext)
   const baseId = useId()
@@ -376,6 +377,9 @@ function TabsGroup({ group, items, depth, panels, registry }: {
 
   const tabId = (index: number) => `${baseId}-tab-${index}`
   const panelId = (index: number) => `${baseId}-panel-${index}`
+  const filtersForTab = (tab: string): Filter[] => filters.filter((filter) => (
+    filter.placement?.groupId === group.id && filter.placement.tab === tab
+  ))
 
   return (
     <GroupCard group={group}>
@@ -422,14 +426,21 @@ function TabsGroup({ group, items, depth, panels, registry }: {
           tabIndex={0}
         >
           {(print.active || tab === current) && (
-            <PanelChromeContext.Provider value={namesItsOnlyPanel(tab, items, depth, panels) ? redundantTitle : undefined}>
-              <GroupChain
-                depth={depth + 1}
-                items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
-                panels={panels}
-                registry={registry}
-              />
-            </PanelChromeContext.Provider>
+            <>
+              {filtersForTab(tab).length > 0 && (
+                <div className="lens-tab-filter-bar" role="group">
+                  <FilterControls filters={filtersForTab(tab)} />
+                </div>
+              )}
+              <PanelChromeContext.Provider value={namesItsOnlyPanel(tab, items, depth, panels) ? redundantTitle : undefined}>
+                <GroupChain
+                  depth={depth + 1}
+                  items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
+                  panels={panels}
+                  registry={registry}
+                />
+              </PanelChromeContext.Provider>
+            </>
           )}
         </div>
       ))}

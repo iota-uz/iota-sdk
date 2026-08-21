@@ -482,6 +482,14 @@
     @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-1.5;
   }
 
+  /* A filter that only changes one tab belongs with that tab's content, not in
+     the dashboard-wide scope line. It spans the tab grid and stays aligned to
+     the content edge, close to the figures it controls. */
+  .lens-tab-filter-bar {
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-justify-end lens-gap-2 lens-px-4 lens-pt-3;
+    grid-column: 1 / -1;
+  }
+
   /* The actions cluster wraps as one unit, so its members keep one order at
      every width. */
   .lens-dashboard-actions {

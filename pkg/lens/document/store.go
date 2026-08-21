@@ -393,6 +393,10 @@ func cloneFilters(filters []Filter) []Filter {
 	result := make([]Filter, len(filters))
 	for index, filter := range filters {
 		cloned := filter
+		if filter.Placement != nil {
+			placement := *filter.Placement
+			cloned.Placement = &placement
+		}
 		if filter.Period != nil {
 			period := *filter.Period
 			period.Presets = slices.Clone(filter.Period.Presets)
