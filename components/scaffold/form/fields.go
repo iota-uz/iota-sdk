@@ -313,8 +313,8 @@ func (f *dateField) Component() templ.Component {
 		"name": f.key,
 		"type": string(FieldTypeDate),
 	}
-	if !f.defaultVal.IsZero() {
-		attrs["value"] = f.defaultVal.Format(time.DateOnly)
+	if val := mapping.Or(f.value, f.defaultVal); !val.IsZero() {
+		attrs["value"] = val.Format(time.DateOnly)
 	}
 	for k, v := range f.attrs {
 		attrs[k] = v
