@@ -1163,6 +1163,7 @@ func (c *ClientController) UpdateNotes(
 		}
 
 		clientVM := mappers.ClientToViewModel(entity)
+		clientVM.Comments = dto.Comments
 		props := &clients.NotesInfoEditProps{
 			Client: clientVM,
 			Errors: errorsMap,
