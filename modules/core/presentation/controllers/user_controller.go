@@ -220,3 +220,10 @@ func (c *UsersController) resourcePermissionGroups(
 ) []*viewmodels.ResourcePermissionGroup {
 	return BuildResourcePermissionGroups(c.permissionSchema, selected...)
 }
+
+func (c *UsersController) grantableResourcePermissionGroups(
+	ctx context.Context,
+	selected ...permission.Permission,
+) []*viewmodels.ResourcePermissionGroup {
+	return BuildResourcePermissionGroups(grantablePermissionSchema(ctx, c.permissionSchema), selected...)
+}

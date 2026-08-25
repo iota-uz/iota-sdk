@@ -18,13 +18,15 @@ import (
 type GroupService struct {
 	repo      group.Repository
 	publisher eventbus.EventBus
+	policy    *PrivilegeGrantPolicy
 }
 
 // NewGroupService creates a new group service instance
-func NewGroupService(repo group.Repository, publisher eventbus.EventBus) *GroupService {
+func NewGroupService(repo group.Repository, publisher eventbus.EventBus, policy *PrivilegeGrantPolicy) *GroupService {
 	return &GroupService{
 		repo:      repo,
 		publisher: publisher,
+		policy:    policy,
 	}
 }
 
@@ -90,6 +92,11 @@ func (s *GroupService) Create(ctx context.Context, g group.Group) (group.Group, 
 
 	var savedGroup group.Group
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		g, err = s.policy.AuthorizeGroupCreate(txCtx, g)
+		if err != nil {
+			return err
+		}
 		savedGroup, err = s.repo.Save(txCtx, g)
 		return err
 	})
@@ -114,16 +121,12 @@ func (s *GroupService) Update(ctx context.Context, g group.Group) (group.Group, 
 		return nil, err
 	}
 
-	if !g.CanUpdate() {
-		return nil, composables.ErrForbidden
-	}
-
 	var oldGroup group.Group
 	var updatedGroup group.Group
 
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		var err error
-		oldGroup, err = s.repo.GetByID(txCtx, g.ID())
+		oldGroup, g, err = s.policy.AuthorizeGroupUpdate(txCtx, g)
 		if err != nil {
 			return err
 		}
@@ -152,19 +155,10 @@ func (s *GroupService) Delete(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	entity, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	if !entity.CanDelete() {
-		return composables.ErrForbidden
-	}
-
 	var g group.Group
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		var err error
-		g, err = s.repo.GetByID(txCtx, id)
+		g, err = s.policy.AuthorizeGroupDelete(txCtx, id)
 		if err != nil {
 			return err
 		}
@@ -194,7 +188,7 @@ func (s *GroupService) AddUser(ctx context.Context, groupID uuid.UUID, userToAdd
 
 	var savedGroup group.Group
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		g, err := s.repo.GetByID(txCtx, groupID)
+		g, userToAdd, err := s.policy.AuthorizeGroupMembership(txCtx, groupID, userToAdd.ID(), true)
 		if err != nil {
 			return err
 		}
@@ -227,7 +221,7 @@ func (s *GroupService) RemoveUser(ctx context.Context, groupID uuid.UUID, userTo
 
 	var savedGroup group.Group
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		g, err := s.repo.GetByID(txCtx, groupID)
+		g, userToRemove, err := s.policy.AuthorizeGroupMembership(txCtx, groupID, userToRemove.ID(), false)
 		if err != nil {
 			return err
 		}
@@ -262,7 +256,7 @@ func (s *GroupService) AssignRole(ctx context.Context, groupID uuid.UUID, roleTo
 	var savedGroup group.Group
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		var err error
-		g, err = s.repo.GetByID(txCtx, groupID)
+		g, roleToAssign, err = s.policy.AuthorizeGroupRoleChange(txCtx, groupID, roleToAssign.ID(), true)
 		if err != nil {
 			return err
 		}
@@ -297,7 +291,7 @@ func (s *GroupService) RemoveRole(ctx context.Context, groupID uuid.UUID, roleTo
 	var savedGroup group.Group
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		var err error
-		g, err = s.repo.GetByID(txCtx, groupID)
+		g, roleToRemove, err = s.policy.AuthorizeGroupRoleChange(txCtx, groupID, roleToRemove.ID(), false)
 		if err != nil {
 			return err
 		}

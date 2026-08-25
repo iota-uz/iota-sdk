@@ -67,6 +67,11 @@ templ EditFormInner(props *EditFormProps) {
 	>
 		@composables.CSRFTokenField()
 		<div class="flex-1 overflow-y-auto p-4 md:p-6">
+			if !props.User.CanUpdate {
+				<div role="status" aria-live="polite" data-test-id="authorization-read-only-notice" class="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+					{ pageCtx.T("Authorization.Notices.ReadOnlyTarget") }
+				</div>
+			}
 			if props.User.IsBlocked {
 				<div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
 					<div class="flex items-start gap-3">
@@ -246,7 +251,7 @@ templ EditFormInner(props *EditFormProps) {
 			}
 		</div>
 		<div class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4">
-			if composables.CanUser(ctx, permissions.UserUpdateBlockStatus) == nil {
+			if composables.CanUser(ctx, permissions.UserUpdateBlockStatus) == nil && props.User.CanUpdate {
 				if !props.User.IsBlocked {
 					<button
 						type="button"

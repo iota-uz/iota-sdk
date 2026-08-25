@@ -38,7 +38,7 @@ const (
 		r.id, r.type, r.name, r.description, r.created_at, r.updated_at
 	FROM roles r
 	JOIN group_roles gr ON r.id = gr.role_id
-	WHERE gr.group_id = $1`
+	WHERE gr.group_id = $1 AND r.tenant_id = $2`
 )
 
 // Field constants for group sorting and filtering
@@ -340,7 +340,7 @@ func (r *pgGroupQueryRepository) loadGroupUsersAndRoles(ctx context.Context, gro
 	}
 
 	// Load roles
-	roleRows, err := tx.Query(ctx, selectGroupRolesSQL, group.ID)
+	roleRows, err := tx.Query(ctx, selectGroupRolesSQL, group.ID, tenantID)
 	if err != nil {
 		return errors.Wrap(err, "failed to query group roles")
 	}

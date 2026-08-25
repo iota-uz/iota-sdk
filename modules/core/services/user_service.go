@@ -19,14 +19,16 @@ type UserService struct {
 	validator      user.Validator
 	publisher      eventbus.EventBus
 	sessionService *SessionService
+	policy         *PrivilegeGrantPolicy
 }
 
-func NewUserService(repo user.Repository, validator user.Validator, publisher eventbus.EventBus, sessionService *SessionService) *UserService {
+func NewUserService(repo user.Repository, validator user.Validator, publisher eventbus.EventBus, sessionService *SessionService, policy *PrivilegeGrantPolicy) *UserService {
 	return &UserService{
 		repo:           repo,
 		validator:      validator,
 		publisher:      publisher,
 		sessionService: sessionService,
+		policy:         policy,
 	}
 }
 
@@ -87,6 +89,11 @@ func (s *UserService) Create(ctx context.Context, data user.User) (user.User, er
 
 	var createdUser user.User
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		data, err = s.policy.AuthorizeUserCreate(txCtx, data)
+		if err != nil {
+			return err
+		}
 		if err := s.validator.ValidateCreate(txCtx, data); err != nil {
 			return err
 		}
@@ -123,11 +130,23 @@ func (s *UserService) Update(ctx context.Context, data user.User) (user.User, er
 		return nil, err
 	}
 
-	if !data.CanUpdate() {
-		return nil, composables.ErrForbidden
-	}
+	return s.performAdminUpdate(ctx, data)
+}
 
-	return s.performUpdate(ctx, data)
+func (s *UserService) performAdminUpdate(ctx context.Context, data user.User) (user.User, error) {
+	var updated user.User
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		canonical, err := s.policy.AuthorizeUserUpdate(txCtx, data)
+		if err != nil {
+			return err
+		}
+		updated, err = s.performUpdate(txCtx, canonical)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
 }
 
 func (s *UserService) UpdateSelf(ctx context.Context, data user.User) (user.User, error) {
@@ -144,13 +163,27 @@ func (s *UserService) UpdateSelf(ctx context.Context, data user.User) (user.User
 		return nil, composables.ErrForbidden
 	}
 
-	// Preserve sensitive fields from current user to prevent privilege escalation
-	data = data.
-		SetRoles(currentUser.Roles()).
-		SetPermissions(currentUser.Permissions()).
-		SetGroupIDs(currentUser.GroupIDs())
-
-	return s.performUpdate(ctx, data)
+	var updated user.User
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		latest, err := s.policy.AuthorizeSelfUpdate(txCtx, data)
+		if err != nil {
+			return err
+		}
+		data = data.
+			SetRoles(latest.Roles()).
+			SetPermissions(latest.Permissions()).
+			SetGroupIDs(latest.GroupIDs())
+		// A concurrent block/unblock is administrative state and must not be
+		// reverted by a stale self-service form submission.
+		if latest.IsBlocked() && !data.IsBlocked() {
+			data = data.Block(latest.BlockReason(), latest.BlockedBy(), latest.BlockedByTenantID())
+		} else if !latest.IsBlocked() && data.IsBlocked() {
+			data = data.Unblock()
+		}
+		updated, err = s.performUpdate(txCtx, data)
+		return err
+	})
+	return updated, err
 }
 
 // performUpdate executes the common update logic for both Update and UpdateSelf
@@ -211,29 +244,21 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 		return nil, err
 	}
 
-	entity, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	if !entity.CanDelete() {
-		return nil, composables.ErrForbidden
-	}
-
-	tenantID := entity.TenantID()
-	userCount, err := s.repo.CountByTenantID(ctx, tenantID)
-	if err != nil {
-		return nil, err
-	}
-
-	if userCount <= 1 {
-		return nil, errors.New("cannot delete the last user in tenant")
-	}
-
 	deletedEvent := user.NewDeletedEvent(ctx)
 
 	var deletedUser user.User
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		entity, err := s.policy.AuthorizeUserTarget(txCtx, id, "user.delete")
+		if err != nil {
+			return err
+		}
+		userCount, err := s.repo.CountByTenantID(txCtx, entity.TenantID())
+		if err != nil {
+			return err
+		}
+		if userCount <= 1 {
+			return errors.New("cannot delete the last user in tenant")
+		}
 		if err := s.repo.Delete(txCtx, id); err != nil {
 			return err
 		} else {
@@ -269,8 +294,7 @@ func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string)
 
 	var blockedUser user.User
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
-		// Get user entity
-		u, err := s.repo.GetByID(txCtx, userID)
+		u, err := s.policy.AuthorizeUserTarget(txCtx, userID, "user.block")
 		if err != nil {
 			return err
 		}
@@ -332,8 +356,7 @@ func (s *UserService) UnblockUser(ctx context.Context, userID uint) (user.User, 
 
 	var unblockedUser user.User
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
-		// Get user entity
-		u, err := s.repo.GetByID(txCtx, userID)
+		u, err := s.policy.AuthorizeUserTarget(txCtx, userID, "user.unblock")
 		if err != nil {
 			return err
 		}

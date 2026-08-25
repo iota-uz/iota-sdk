@@ -70,6 +70,22 @@ func persistTestUser(t *testing.T, env *itf.TestEnvironment) {
 	}
 }
 
+func persistWeakerSessionTarget(t *testing.T, env *itf.TestEnvironment) uint {
+	t.Helper()
+	targetID := env.User.ID() + 10_000
+	_, err := env.Pool.Exec(env.Ctx, `
+		INSERT INTO users (id, type, first_name, last_name, email, password, tenant_id, ui_language, created_at, updated_at)
+		VALUES ($1, 'user', 'Session', 'Target', $2, '', $3, 'en', NOW(), NOW())`,
+		targetID,
+		fmt.Sprintf("session-target-%d@example.com", targetID),
+		env.Tenant.ID,
+	)
+	if err != nil {
+		t.Fatalf("Failed to persist weaker session target: %v", err)
+	}
+	return targetID
+}
+
 func TestAccountController_GetSessions(t *testing.T) {
 	t.Parallel()
 
@@ -574,7 +590,8 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 			AsUser(permissions.SessionDelete, permissions.SessionRead).
 			Build()
 
-		persistTestUser(t, suite.Env())
+		persistAdministrativeTestActor(t, suite, permissions.SessionDelete, permissions.SessionRead)
+		targetID := persistWeakerSessionTarget(t, suite.Env())
 
 		controller := controllers.NewSessionController("/sessions", itf.GetService[cookies.Config](suite.Env()))
 		suite.Register(controller)
@@ -585,7 +602,7 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 		// Create a session to revoke
 		testToken := "admin-revoke-test-token"
 		err := sessionService.Create(ctx, &session.CreateDTO{
-			UserID:    suite.Env().User.ID(),
+			UserID:    targetID,
 			TenantID:  suite.Env().Tenant.ID,
 			IP:        "10.10.10.10",
 			UserAgent: "test-browser",
@@ -807,7 +824,8 @@ func TestSessionController_Permissions(t *testing.T) {
 			AsUser(permissions.SessionDelete).
 			Build()
 
-		persistTestUser(t, suite.Env())
+		persistAdministrativeTestActor(t, suite, permissions.SessionDelete)
+		targetID := persistWeakerSessionTarget(t, suite.Env())
 
 		controller := controllers.NewSessionController("/sessions", itf.GetService[cookies.Config](suite.Env()))
 		suite.Register(controller)
@@ -818,7 +836,7 @@ func TestSessionController_Permissions(t *testing.T) {
 		// Create a session to revoke
 		testToken := "delete-perm-test-token"
 		err := sessionService.Create(ctx, &session.CreateDTO{
-			UserID:    suite.Env().User.ID(),
+			UserID:    targetID,
 			TenantID:  suite.Env().Tenant.ID,
 			IP:        "172.30.0.1",
 			UserAgent: "delete-test-agent",

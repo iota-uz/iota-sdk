@@ -87,29 +87,48 @@ const (
 	userPermissionInsertQuery = `INSERT INTO user_permissions (user_id, permission_id) VALUES`
 
 	userRolePermissionsQuery = `
-				SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
-				FROM role_permissions rp LEFT JOIN permissions p ON rp.permission_id = p.id WHERE role_id = $1`
+					SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
+					FROM role_permissions rp
+					JOIN roles r ON r.id = rp.role_id
+					JOIN permissions p ON rp.permission_id = p.id
+					WHERE rp.role_id = $1 AND r.tenant_id = $2`
 
 	userPermissionsQuery = `
-				SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
-				FROM user_permissions up LEFT JOIN permissions p ON up.permission_id = p.id WHERE up.user_id = $1`
+					SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
+					FROM user_permissions up
+					JOIN users u ON u.id = up.user_id
+					JOIN permissions p ON up.permission_id = p.id
+					WHERE up.user_id = $1 AND u.tenant_id = $2`
+
+	userGroupPermissionsQuery = `
+					SELECT DISTINCT p.id, p.name, p.resource, p.action, p.modifier, p.description
+					FROM group_users gu
+					JOIN user_groups g ON g.id = gu.group_id
+					JOIN group_roles gr ON gr.group_id = g.id
+					JOIN roles r ON r.id = gr.role_id AND r.tenant_id = g.tenant_id
+					JOIN role_permissions rp ON rp.role_id = r.id
+					JOIN permissions p ON p.id = rp.permission_id
+					WHERE gu.user_id = $1 AND g.tenant_id = $2`
 
 	userRolesQuery = `
-				SELECT
-					r.id,
-					r.tenant_id,
+					SELECT
+						r.id,
+						r.type,
+						r.tenant_id,
 					r.name,
 					r.description,
 					r.created_at,
 					r.updated_at
-				FROM user_roles ur LEFT JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1
+					FROM user_roles ur
+					JOIN roles r ON ur.role_id = r.id
+					WHERE ur.user_id = $1 AND r.tenant_id = $2
 			`
 
 	userGroupsQuery = `
-				SELECT
-					group_id
-				FROM group_users
-				WHERE user_id = $1
+					SELECT gu.group_id
+					FROM group_users gu
+					JOIN user_groups g ON g.id = gu.group_id
+					WHERE gu.user_id = $1 AND g.tenant_id = $2
 			`
 )
 
@@ -363,11 +382,15 @@ func (g *PgUserRepository) PhoneExists(ctx context.Context, phone string) (bool,
 		return false, errors.Wrap(err, "failed to get transaction")
 	}
 
-	base := repo.Join(userExistsQuery, "WHERE u.phone = $1")
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get tenant from context")
+	}
+	base := repo.Join(userExistsQuery, "WHERE u.phone = $1 AND u.tenant_id = $2")
 	query := repo.Exists(base)
 
 	exists := false
-	if err := tx.QueryRow(ctx, query, phone).Scan(&exists); err != nil {
+	if err := tx.QueryRow(ctx, query, phone, tenantID).Scan(&exists); err != nil {
 		return false, errors.Wrap(err, "checking phone existence failed")
 	}
 	return exists, nil
@@ -379,11 +402,15 @@ func (g *PgUserRepository) EmailExists(ctx context.Context, email string) (bool,
 		return false, errors.Wrap(err, "failed to get transaction")
 	}
 
-	base := repo.Join(userExistsQuery, "WHERE u.email = $1")
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get tenant from context")
+	}
+	base := repo.Join(userExistsQuery, "WHERE u.email = $1 AND u.tenant_id = $2")
 	query := repo.Exists(base)
 
 	exists := false
-	if err := tx.QueryRow(ctx, query, email).Scan(&exists); err != nil {
+	if err := tx.QueryRow(ctx, query, email, tenantID).Scan(&exists); err != nil {
 		return false, errors.Wrap(err, "checking email existence failed")
 	}
 	return exists, nil
@@ -394,8 +421,16 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+	if err := g.validateUserRelations(ctx, data, tenantID); err != nil {
+		return nil, err
+	}
 
 	dbUser, _ := toDBUser(data)
+	dbUser.TenantID = tenantID.String()
 
 	fields := []string{
 		"type",
@@ -481,12 +516,14 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		return errors.Wrap(err, "failed to get transaction")
 	}
 	dbUser, _ := toDBUser(data)
-	if dbUser.TenantID == uuid.Nil.String() {
-		dbUser.TenantID = tenantID.String()
+	if data.TenantID() != tenantID {
+		return errors.New("user tenant does not match context tenant")
+	}
+	if err := g.validateUserRelations(ctx, data, tenantID); err != nil {
+		return err
 	}
 
 	fields := []string{
-		"tenant_id",
 		"first_name",
 		"last_name",
 		"middle_name",
@@ -503,7 +540,6 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 	}
 
 	values := []interface{}{
-		dbUser.TenantID,
 		dbUser.FirstName,
 		dbUser.LastName,
 		dbUser.MiddleName,
@@ -531,9 +567,9 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		}
 	}
 
-	values = append(values, dbUser.ID)
+	values = append(values, dbUser.ID, tenantID)
 
-	_, err = tx.Exec(ctx, repo.Update("users", fields, fmt.Sprintf("id = $%d", len(values))), values...)
+	_, err = tx.Exec(ctx, repo.Update("users", fields, fmt.Sprintf("id = $%d AND tenant_id = $%d", len(values)-1, len(values))), values...)
 
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to update user with ID: %d", dbUser.ID))
@@ -634,6 +670,9 @@ func (g *PgUserRepository) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get tenant from context")
 	}
+	if _, err := g.GetByID(ctx, id); err != nil {
+		return err
+	}
 
 	if err := g.execQuery(ctx, userRoleDeleteQuery, id); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete roles for user ID: %d", id))
@@ -703,19 +742,24 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 
 	entities := make([]user.User, 0, len(users))
 	for _, u := range users {
-		roles, err := g.userRoles(ctx, u.ID)
+		roles, err := g.userRoles(ctx, u.ID, u.TenantID)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to get roles for user ID: %d", u.ID))
 		}
 
-		groupIDs, err := g.userGroupIDs(ctx, u.ID)
+		groupIDs, err := g.userGroupIDs(ctx, u.ID, u.TenantID)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to get group IDs for user ID: %d", u.ID))
 		}
 
-		userPermissions, err := g.userPermissions(ctx, u.ID)
+		userPermissions, err := g.userPermissions(ctx, u.ID, u.TenantID)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to get permissions for user ID: %d", u.ID))
+		}
+
+		groupPermissions, err := g.userGroupPermissions(ctx, u.ID, u.TenantID)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to get group permissions for user ID: %d", u.ID))
 		}
 
 		var avatar upload.Upload
@@ -728,9 +772,9 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 
 		var domainUser user.User
 		if avatar != nil {
-			domainUser, err = ToDomainUser(u, ToDBUpload(avatar), roles, groupIDs, userPermissions)
+			domainUser, err = ToDomainUser(u, ToDBUpload(avatar), roles, groupIDs, userPermissions, groupPermissions)
 		} else {
-			domainUser, err = ToDomainUser(u, nil, roles, groupIDs, userPermissions)
+			domainUser, err = ToDomainUser(u, nil, roles, groupIDs, userPermissions, groupPermissions)
 		}
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to convert user ID: %d to domain entity", u.ID))
@@ -741,13 +785,13 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 	return entities, nil
 }
 
-func (g *PgUserRepository) rolePermissions(ctx context.Context, roleID uint) ([]*models.Permission, error) {
+func (g *PgUserRepository) rolePermissions(ctx context.Context, roleID uint, tenantID string) ([]*models.Permission, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
-	rows, err := tx.Query(ctx, userRolePermissionsQuery, roleID)
+	rows, err := tx.Query(ctx, userRolePermissionsQuery, roleID, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query permissions for role ID: %d", roleID))
 	}
@@ -776,13 +820,13 @@ func (g *PgUserRepository) rolePermissions(ctx context.Context, roleID uint) ([]
 	return permissions, nil
 }
 
-func (g *PgUserRepository) userRoles(ctx context.Context, userID uint) ([]role.Role, error) {
+func (g *PgUserRepository) userRoles(ctx context.Context, userID uint, tenantID string) ([]role.Role, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
-	rows, err := tx.Query(ctx, userRolesQuery, userID)
+	rows, err := tx.Query(ctx, userRolesQuery, userID, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query roles for user ID: %d", userID))
 	}
@@ -793,6 +837,7 @@ func (g *PgUserRepository) userRoles(ctx context.Context, userID uint) ([]role.R
 		var r models.Role
 		if err := rows.Scan(
 			&r.ID,
+			&r.Type,
 			&r.TenantID,
 			&r.Name,
 			&r.Description,
@@ -810,7 +855,7 @@ func (g *PgUserRepository) userRoles(ctx context.Context, userID uint) ([]role.R
 
 	entities := make([]role.Role, 0, len(roles))
 	for _, r := range roles {
-		permissions, err := g.rolePermissions(ctx, r.ID)
+		permissions, err := g.rolePermissions(ctx, r.ID, tenantID)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to get permissions for role ID: %d", r.ID))
 		}
@@ -824,13 +869,13 @@ func (g *PgUserRepository) userRoles(ctx context.Context, userID uint) ([]role.R
 	return entities, nil
 }
 
-func (g *PgUserRepository) userGroupIDs(ctx context.Context, userID uint) ([]uuid.UUID, error) {
+func (g *PgUserRepository) userGroupIDs(ctx context.Context, userID uint, tenantID string) ([]uuid.UUID, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
-	rows, err := tx.Query(ctx, userGroupsQuery, userID)
+	rows, err := tx.Query(ctx, userGroupsQuery, userID, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query group IDs for user ID: %d", userID))
 	}
@@ -858,13 +903,13 @@ func (g *PgUserRepository) userGroupIDs(ctx context.Context, userID uint) ([]uui
 	return groupIDs, nil
 }
 
-func (g *PgUserRepository) userPermissions(ctx context.Context, userID uint) ([]permission.Permission, error) {
+func (g *PgUserRepository) userPermissions(ctx context.Context, userID uint, tenantID string) ([]permission.Permission, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
-	rows, err := tx.Query(ctx, userPermissionsQuery, userID)
+	rows, err := tx.Query(ctx, userPermissionsQuery, userID, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query permissions for user ID: %d", userID))
 	}
@@ -898,6 +943,36 @@ func (g *PgUserRepository) userPermissions(ctx context.Context, userID uint) ([]
 		domainPermissions = append(domainPermissions, domainPerm)
 	}
 	return domainPermissions, nil
+}
+
+func (g *PgUserRepository) userGroupPermissions(ctx context.Context, userID uint, tenantID string) ([]permission.Permission, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get transaction")
+	}
+
+	rows, err := tx.Query(ctx, userGroupPermissionsQuery, userID, tenantID)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to query group permissions for user ID: %d", userID))
+	}
+	defer rows.Close()
+
+	result := make([]permission.Permission, 0)
+	for rows.Next() {
+		var p models.Permission
+		if err := rows.Scan(&p.ID, &p.Name, &p.Resource, &p.Action, &p.Modifier, &p.Description); err != nil {
+			return nil, errors.Wrap(err, "failed to scan group permission row")
+		}
+		domainPermission, err := toDomainPermission(&p)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to convert permission ID: %s", p.ID))
+		}
+		result = append(result, domainPermission)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errors.Wrap(err, "row iteration error")
+	}
+	return result, nil
 }
 
 func (g *PgUserRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
@@ -966,6 +1041,103 @@ func (g *PgUserRepository) updateUserPermissions(ctx context.Context, userID uin
 	q, args := repo.BatchInsertQueryN(userPermissionInsertQuery, values)
 	if err := g.execQuery(ctx, q, args...); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to insert permissions for user ID: %d", userID))
+	}
+	return nil
+}
+
+func (g *PgUserRepository) validateUserRelations(ctx context.Context, entity user.User, tenantID uuid.UUID) error {
+	if err := validateUniqueRoles(entity.Roles(), tenantID); err != nil {
+		return err
+	}
+	if err := validateUniqueGroups(entity.GroupIDs()); err != nil {
+		return err
+	}
+	if err := validateUniquePermissions(entity.Permissions()); err != nil {
+		return err
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+	roleIDs := make([]int32, 0, len(entity.Roles()))
+	for _, candidate := range entity.Roles() {
+		roleIDs = append(roleIDs, int32(candidate.ID()))
+	}
+	if len(roleIDs) > 0 {
+		var count int
+		if err := tx.QueryRow(ctx, "SELECT COUNT(*) FROM roles WHERE tenant_id = $1 AND id = ANY($2::int[])", tenantID, roleIDs).Scan(&count); err != nil {
+			return err
+		}
+		if count != len(roleIDs) {
+			return errors.New("user contains an invalid or cross-tenant role")
+		}
+	}
+
+	if len(entity.GroupIDs()) > 0 {
+		var count int
+		if err := tx.QueryRow(ctx, "SELECT COUNT(*) FROM user_groups WHERE tenant_id = $1 AND id = ANY($2::uuid[])", tenantID, entity.GroupIDs()).Scan(&count); err != nil {
+			return err
+		}
+		if count != len(entity.GroupIDs()) {
+			return errors.New("user contains an invalid or cross-tenant group")
+		}
+	}
+
+	permissionIDs := make([]uuid.UUID, 0, len(entity.Permissions()))
+	for _, candidate := range entity.Permissions() {
+		permissionIDs = append(permissionIDs, candidate.ID())
+	}
+	if len(permissionIDs) > 0 {
+		var count int
+		if err := tx.QueryRow(ctx, "SELECT COUNT(*) FROM permissions WHERE id = ANY($1::uuid[])", permissionIDs).Scan(&count); err != nil {
+			return err
+		}
+		if count != len(permissionIDs) {
+			return errors.New("user contains an invalid permission")
+		}
+	}
+	return nil
+}
+
+func validateUniqueRoles(roles []role.Role, tenantID uuid.UUID) error {
+	seen := make(map[uint]struct{}, len(roles))
+	for _, candidate := range roles {
+		if candidate == nil || candidate.ID() == 0 || candidate.TenantID() != tenantID {
+			return errors.New("user contains an invalid or cross-tenant role")
+		}
+		if _, ok := seen[candidate.ID()]; ok {
+			return errors.New("user contains a duplicate role")
+		}
+		seen[candidate.ID()] = struct{}{}
+	}
+	return nil
+}
+
+func validateUniqueGroups(groupIDs []uuid.UUID) error {
+	seen := make(map[uuid.UUID]struct{}, len(groupIDs))
+	for _, id := range groupIDs {
+		if id == uuid.Nil {
+			return errors.New("user contains an invalid group")
+		}
+		if _, ok := seen[id]; ok {
+			return errors.New("user contains a duplicate group")
+		}
+		seen[id] = struct{}{}
+	}
+	return nil
+}
+
+func validateUniquePermissions(permissions []permission.Permission) error {
+	seen := make(map[uuid.UUID]struct{}, len(permissions))
+	for _, candidate := range permissions {
+		if candidate == nil || candidate.ID() == uuid.Nil {
+			return errors.New("user contains an invalid permission")
+		}
+		if _, ok := seen[candidate.ID()]; ok {
+			return errors.New("user contains a duplicate permission")
+		}
+		seen[candidate.ID()] = struct{}{}
 	}
 	return nil
 }

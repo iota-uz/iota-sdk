@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -15,9 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/modules/core/validators"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
@@ -48,13 +45,9 @@ func TestUserService_CanUserBeDeleted(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
 
-	// Create required dependencies
-	uploadRepository := persistence.NewUploadRepository()
-	userRepository := persistence.NewUserRepository(uploadRepository)
-	userValidator := validators.NewUserValidator(userRepository)
-	eventBus := eventbus.NewEventPublisher(logrus.New())
-	sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
-	userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
+	userRepository := persistence.NewUserRepository(persistence.NewUploadRepository())
+	userService := itf.GetService[services.UserService](f)
+	require.NotNil(t, userService)
 
 	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
@@ -137,13 +130,11 @@ func TestUserService_Delete_SelfDeletionPrevention(t *testing.T) {
 	t.Parallel()
 	f := setupTestWithPermissions(t, permissions.UserDelete)
 
-	// Create required dependencies
-	uploadRepository := persistence.NewUploadRepository()
-	userRepository := persistence.NewUserRepository(uploadRepository)
-	userValidator := validators.NewUserValidator(userRepository)
-	eventBus := eventbus.NewEventPublisher(logrus.New())
-	sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
-	userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
+	userRepository := persistence.NewUserRepository(persistence.NewUploadRepository())
+	permissionRepository := persistence.NewPermissionRepository()
+	require.NoError(t, permissionRepository.Save(f.Ctx, permissions.UserDelete))
+	userService := itf.GetService[services.UserService](f)
+	require.NotNil(t, userService)
 
 	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
@@ -164,15 +155,25 @@ func TestUserService_Delete_SelfDeletionPrevention(t *testing.T) {
 		createdUser, err := userRepository.Create(isolatedTenantCtx, lonelyUser)
 		require.NoError(t, err)
 
-		// Attempt to delete the last user
+		// A cross-tenant actor must be rejected before the legacy last-user rule.
 		_, err = userService.Delete(isolatedTenantCtx, createdUser.ID())
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot delete the last user in tenant")
+		require.ErrorIs(t, err, composables.ErrForbidden)
 	})
 
 	t.Run("Delete_Non_Last_User_Should_Succeed", func(t *testing.T) {
 		// Use committed context so data is visible to InTx operations
 		ctx := userCommittedCtx(f)
+		require.NoError(t, permissionRepository.Save(ctx, permissions.UserDelete))
+		actorEmail, err := internet.NewEmail("delete-admin@test.com")
+		require.NoError(t, err)
+		actor, err := userRepository.Create(ctx, user.New(
+			"Delete", "Admin", actorEmail, user.UILanguageEN,
+			user.WithTenantID(tenant),
+			user.WithPermissions([]permission.Permission{permissions.UserDelete}),
+		))
+		require.NoError(t, err)
+		ctx = composables.WithUser(ctx, actor)
 
 		// Create multiple users in tenant
 		email1, err := internet.NewEmail("deletable1@test.com")
@@ -205,6 +206,19 @@ func TestUserService_Delete_SelfDeletionPrevention(t *testing.T) {
 	})
 
 	t.Run("System_User_Deletion_Protection_Still_Works", func(t *testing.T) {
+		// Privilege checks use row locks, so setup must be committed and visible
+		// to the service transaction instead of living in the harness scope tx.
+		ctx := userCommittedCtx(f)
+		actorEmail, err := internet.NewEmail("system-delete-admin@test.com")
+		require.NoError(t, err)
+		actor, err := userRepository.Create(ctx, user.New(
+			"System Delete", "Admin", actorEmail, user.UILanguageEN,
+			user.WithTenantID(tenant),
+			user.WithPermissions([]permission.Permission{permissions.UserDelete}),
+		))
+		require.NoError(t, err)
+		ctx = composables.WithUser(ctx, actor)
+
 		// Create system user
 		email, err := internet.NewEmail("systemuser@test.com")
 		require.NoError(t, err)
@@ -212,13 +226,13 @@ func TestUserService_Delete_SelfDeletionPrevention(t *testing.T) {
 			user.WithType(user.TypeSystem),
 			user.WithTenantID(tenant))
 
-		createdSystemUser, err := userRepository.Create(f.Ctx, systemUser)
+		createdSystemUser, err := userRepository.Create(ctx, systemUser)
 		require.NoError(t, err)
 
 		// Attempt to delete system user
-		_, err = userService.Delete(f.Ctx, createdSystemUser.ID())
+		_, err = userService.Delete(ctx, createdSystemUser.ID())
 		require.Error(t, err)
-		assert.Equal(t, composables.ErrForbidden, err, "System user deletion should return ErrForbidden")
+		assert.ErrorIs(t, err, composables.ErrForbidden, "System user deletion should return ErrForbidden")
 	})
 }
 
@@ -228,12 +242,9 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 	f := setupTestWithPermissions(t)
 
 	permissionRepository := persistence.NewPermissionRepository()
-	uploadRepository := persistence.NewUploadRepository()
-	userRepository := persistence.NewUserRepository(uploadRepository)
-	userValidator := validators.NewUserValidator(userRepository)
-	eventBus := eventbus.NewEventPublisher(logrus.New())
-	sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
-	userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
+	userRepository := persistence.NewUserRepository(persistence.NewUploadRepository())
+	userService := itf.GetService[services.UserService](f)
+	require.NotNil(t, userService)
 
 	// Ensure UserUpdate permission exists in database
 	err := permissionRepository.Save(f.Ctx, permissions.UserUpdate)
@@ -338,7 +349,7 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 		assert.Equal(t, "ByAdmin", result.LastName())
 	})
 
-	t.Run("User_With_Update_Can_Also_Update_Self", func(t *testing.T) {
+	t.Run("Generic_Admin_Update_Cannot_Update_Self", func(t *testing.T) {
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)
 
@@ -360,10 +371,14 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 		// Set admin as current user in context
 		ctx := composables.WithUser(f.Ctx, createdAdmin)
 
-		// Admin updates their own information (should succeed with UserUpdate permission)
+		// The generic admin route must not bypass the narrower self-update flow.
 		updatedAdmin := createdAdmin.SetName("SelfModified", createdAdmin.LastName(), createdAdmin.MiddleName())
 
-		result, err := userService.Update(ctx, updatedAdmin)
+		_, err = userService.Update(ctx, updatedAdmin)
+		require.Error(t, err)
+		require.ErrorIs(t, err, composables.ErrForbidden)
+
+		result, err := userService.UpdateSelf(ctx, updatedAdmin)
 		require.NoError(t, err)
 		assert.Equal(t, "SelfModified", result.FirstName())
 	})
@@ -401,12 +416,9 @@ func TestUserService_UpdateSelf_SecurityValidation(t *testing.T) {
 	f := setupTestWithPermissions(t)
 
 	permissionRepository := persistence.NewPermissionRepository()
-	uploadRepository := persistence.NewUploadRepository()
-	userRepository := persistence.NewUserRepository(uploadRepository)
-	userValidator := validators.NewUserValidator(userRepository)
-	eventBus := eventbus.NewEventPublisher(logrus.New())
-	sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
-	userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
+	userRepository := persistence.NewUserRepository(persistence.NewUploadRepository())
+	userService := itf.GetService[services.UserService](f)
+	require.NotNil(t, userService)
 
 	// Ensure required permissions exist in database
 	err := permissionRepository.Save(f.Ctx, permissions.UserRead)

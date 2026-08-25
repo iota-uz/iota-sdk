@@ -163,6 +163,8 @@ func (c *GroupsController) Groups(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	groupQueryService *services.GroupQueryService,
+	groupService *services.GroupService,
+	policy *services.PrivilegeGrantPolicy,
 ) {
 	if err := composables.CanUser(r.Context(), permissions.GroupRead); err != nil {
 		RenderForbidden(w, r)
@@ -215,6 +217,31 @@ func (c *GroupsController) Groups(
 		return
 	}
 
+	actor, err := composables.UseUser(r.Context())
+	if err != nil {
+		logger.WithError(err).Error("Error retrieving current user")
+		http.Error(w, "Error retrieving current user", http.StatusInternalServerError)
+		return
+	}
+	for _, groupViewModel := range groupViewModels {
+		groupID, parseErr := uuid.Parse(groupViewModel.ID)
+		if parseErr != nil {
+			groupViewModel.CanUpdate = false
+			groupViewModel.CanDelete = false
+			continue
+		}
+		groupEntity, loadErr := groupService.GetByID(r.Context(), groupID)
+		if loadErr != nil {
+			logger.WithField("groupID", groupViewModel.ID).WithError(loadErr).Warn("failed to evaluate group management actions")
+			groupViewModel.CanUpdate = false
+			groupViewModel.CanDelete = false
+			continue
+		}
+		canManage := policy.CanManageGroup(actor, groupEntity)
+		groupViewModel.CanUpdate = groupViewModel.CanUpdate && canManage
+		groupViewModel.CanDelete = groupViewModel.CanDelete && canManage
+	}
+
 	isHxRequest := htmx.IsHxRequest(r)
 
 	pageProps := &groups.IndexPageProps{
@@ -242,6 +269,8 @@ func (c *GroupsController) GetEdit(
 	logger *logrus.Entry,
 	groupQueryService *services.GroupQueryService,
 	roleService *services.RoleService,
+	groupService *services.GroupService,
+	policy *services.PrivilegeGrantPolicy,
 ) {
 	if err := composables.CanUser(r.Context(), permissions.GroupRead); err != nil {
 		RenderForbidden(w, r)
@@ -283,10 +312,30 @@ func (c *GroupsController) GetEdit(
 	}
 
 	groupViewModel := foundGroups[0]
+	groupID, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "Invalid group ID", http.StatusBadRequest)
+		return
+	}
+	groupEntity, err := groupService.GetByID(r.Context(), groupID)
+	if err != nil {
+		logger.WithError(err).Error("Error retrieving group authorization state")
+		http.Error(w, "Error retrieving group", http.StatusInternalServerError)
+		return
+	}
+	actor, err := composables.UseUser(r.Context())
+	if err != nil {
+		logger.WithError(err).Error("Error retrieving current user")
+		http.Error(w, "Error retrieving current user", http.StatusInternalServerError)
+		return
+	}
+	canManage := policy.CanManageGroup(actor, groupEntity)
+	groupViewModel.CanUpdate = groupViewModel.CanUpdate && canManage
+	groupViewModel.CanDelete = groupViewModel.CanDelete && canManage
 
 	props := &groups.EditFormProps{
 		Group:  groupViewModel,
-		Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		Roles:  mapping.MapViewModels(grantableRoles(r.Context(), roles), mappers.RoleToViewModel),
 		Errors: map[string]string{},
 	}
 
@@ -312,7 +361,7 @@ func (c *GroupsController) GetNew(
 
 	props := &groups.CreateFormProps{
 		Group:  &groups.GroupFormData{},
-		Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		Roles:  mapping.MapViewModels(grantableRoles(r.Context(), roles), mappers.RoleToViewModel),
 		Errors: map[string]string{},
 	}
 	templ.Handler(groups.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -349,7 +398,7 @@ func (c *GroupsController) Create(
 				Description: dto.Description,
 				RoleIDs:     dto.RoleIDs,
 			},
-			Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Roles:  mapping.MapViewModels(grantableRoles(r.Context(), roles), mappers.RoleToViewModel),
 			Errors: errors,
 		}
 		templ.Handler(
@@ -373,20 +422,21 @@ func (c *GroupsController) Create(
 	}
 	groupEntity = groupEntity.SetTenantID(tenantID)
 
-	// Process role assignments
+	// Preserve every submitted ID so the service policy can reject an invalid
+	// selection atomically instead of silently accepting a partial request.
 	for _, roleIDStr := range dto.RoleIDs {
 		roleID, err := strconv.ParseUint(roleIDStr, 10, 64)
 		if err != nil {
-			continue
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
-		role, err := roleService.GetByID(r.Context(), uint(roleID))
-		if err != nil {
-			continue
-		}
-		groupEntity = groupEntity.AssignRole(role)
+		groupEntity = groupEntity.AssignRole(role.New("", role.WithID(uint(roleID))))
 	}
 
 	if _, err := groupService.Create(r.Context(), groupEntity); err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -442,7 +492,7 @@ func (c *GroupsController) Update(
 				Name:        dto.Name,
 				Description: dto.Description,
 			},
-			Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Roles:  mapping.MapViewModels(grantableRoles(r.Context(), roles), mappers.RoleToViewModel),
 			Errors: errors,
 		}
 
@@ -454,6 +504,7 @@ func (c *GroupsController) Update(
 	if err != nil {
 		logger.Errorf("Error retrieving group: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	roles := make([]role.Role, 0, len(dto.RoleIDs))
@@ -465,13 +516,7 @@ func (c *GroupsController) Update(
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		role, err := roleService.GetByID(r.Context(), uint(rUintID))
-		if err != nil {
-			logger.Errorf("Error getting role: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		roles = append(roles, role)
+		roles = append(roles, role.New("", role.WithID(uint(rUintID))))
 	}
 
 	groupEntity, err := dto.Apply(existingGroup, roles)
@@ -482,6 +527,9 @@ func (c *GroupsController) Update(
 	}
 
 	if _, err := groupService.Update(r.Context(), groupEntity); err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -509,6 +557,9 @@ func (c *GroupsController) Delete(
 	}
 
 	if err := groupService.Delete(r.Context(), id); err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

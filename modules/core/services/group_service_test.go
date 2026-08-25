@@ -11,9 +11,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	permissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,8 +40,8 @@ func TestGroupService_GetByID(t *testing.T) {
 	testGroup := group.New("Test Group", group.WithID(groupID), group.WithTenantID(tenant))
 
 	// Setup service
-	bus := eventbus.NewEventPublisher(logrus.New())
-	service := services.NewGroupService(groupRepository, bus)
+	service := itf.GetService[services.GroupService](f)
+	require.NotNil(t, service)
 
 	// Add the group to the repository
 	savedGroup, err := groupRepository.Save(f.Ctx, testGroup)
@@ -76,8 +75,8 @@ func TestGroupService_Count(t *testing.T) {
 	require.NoError(t, err)
 
 	// Setup service
-	bus := eventbus.NewEventPublisher(logrus.New())
-	service := services.NewGroupService(groupRepository, bus)
+	service := itf.GetService[services.GroupService](f)
+	require.NotNil(t, service)
 
 	// Add some test groups
 	for i := 1; i <= 5; i++ {
@@ -114,8 +113,8 @@ func TestGroupService_GetPaginated(t *testing.T) {
 	require.NoError(t, err)
 
 	// Setup service
-	bus := eventbus.NewEventPublisher(logrus.New())
-	service := services.NewGroupService(groupRepository, bus)
+	service := itf.GetService[services.GroupService](f)
+	require.NotNil(t, service)
 
 	// Create time markers for sorting and filtering
 	now := time.Now()

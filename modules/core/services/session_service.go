@@ -12,12 +12,14 @@ import (
 type SessionService struct {
 	repo      session.Repository
 	publisher eventbus.EventBus
+	policy    *PrivilegeGrantPolicy
 }
 
-func NewSessionService(repo session.Repository, publisher eventbus.EventBus) *SessionService {
+func NewSessionService(repo session.Repository, publisher eventbus.EventBus, policy *PrivilegeGrantPolicy) *SessionService {
 	return &SessionService{
 		repo:      repo,
 		publisher: publisher,
+		policy:    policy,
 	}
 }
 
@@ -139,6 +141,22 @@ func (s *SessionService) GetByUserID(ctx context.Context, userID uint) ([]sessio
 
 func (s *SessionService) TerminateSession(ctx context.Context, token string) error {
 	return s.Delete(ctx, token)
+}
+
+func (s *SessionService) TerminateUserSession(ctx context.Context, userID uint, token string) error {
+	return composables.InTx(ctx, func(txCtx context.Context) error {
+		if _, err := s.policy.AuthorizeUserTarget(txCtx, userID, "session.revoke"); err != nil {
+			return err
+		}
+		sess, err := s.repo.GetByToken(txCtx, token)
+		if err != nil {
+			return err
+		}
+		if sess.UserID() != userID {
+			return s.policy.InvalidSelection(txCtx, "session.revoke", "session", "")
+		}
+		return s.Delete(txCtx, token)
+	})
 }
 
 func (s *SessionService) TerminateOtherSessions(ctx context.Context, userID uint, currentToken string) (int, error) {
