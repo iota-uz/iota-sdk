@@ -33,9 +33,9 @@ const (
 
 	groupCountQuery = `SELECT COUNT(DISTINCT g.id) FROM user_groups g`
 
-	groupDeleteQuery     = `DELETE FROM user_groups WHERE id = $1`
-	groupUserDeleteQuery = `DELETE FROM group_users WHERE group_id = $1`
-	groupRoleDeleteQuery = `DELETE FROM group_roles WHERE group_id = $1`
+	groupDeleteQuery     = `DELETE FROM user_groups WHERE id = $1 AND tenant_id = $2`
+	groupUserDeleteQuery = `DELETE FROM group_users gu USING user_groups g WHERE gu.group_id = g.id AND g.id = $1 AND g.tenant_id = $2`
+	groupRoleDeleteQuery = `DELETE FROM group_roles gr USING user_groups g WHERE gr.group_id = g.id AND g.id = $1 AND g.tenant_id = $2`
 	groupUserInsertQuery = `INSERT INTO group_users (group_id, user_id) VALUES`
 	groupRoleInsertQuery = `INSERT INTO group_roles (group_id, role_id) VALUES`
 )
@@ -59,9 +59,13 @@ func NewGroupRepository(userRepo user.Repository, roleRepo role.Repository) grou
 	}
 }
 
-func (g *PgGroupRepository) buildGroupFilters(params *group.FindParams) ([]string, []interface{}, error) {
-	where := []string{"1 = 1"}
-	var args []interface{}
+func (g *PgGroupRepository) buildGroupFilters(ctx context.Context, params *group.FindParams) ([]string, []interface{}, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+	where := []string{"g.tenant_id = $1"}
+	args := []interface{}{tenantID}
 
 	for _, filter := range params.Filters {
 		column, ok := g.fieldMap[filter.Column]
@@ -82,7 +86,7 @@ func (g *PgGroupRepository) buildGroupFilters(params *group.FindParams) ([]strin
 }
 
 func (g *PgGroupRepository) GetPaginated(ctx context.Context, params *group.FindParams) ([]group.Group, error) {
-	where, args, err := g.buildGroupFilters(params)
+	where, args, err := g.buildGroupFilters(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +113,7 @@ func (g *PgGroupRepository) Count(ctx context.Context, params *group.FindParams)
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 
-	where, args, err := g.buildGroupFilters(params)
+	where, args, err := g.buildGroupFilters(ctx, params)
 	if err != nil {
 		return 0, err
 	}
@@ -130,8 +134,12 @@ func (g *PgGroupRepository) Count(ctx context.Context, params *group.FindParams)
 }
 
 func (g *PgGroupRepository) GetByID(ctx context.Context, id uuid.UUID) (group.Group, error) {
-	q := repo.Join(groupFindQuery, "WHERE g.id = $1")
-	groups, err := g.queryGroups(ctx, q, id.String())
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+	q := repo.Join(groupFindQuery, "WHERE g.id = $1 AND g.tenant_id = $2")
+	groups, err := g.queryGroups(ctx, q, id.String(), tenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query group with id: %s", id.String()))
 	}
@@ -147,11 +155,17 @@ func (g *PgGroupRepository) Exists(ctx context.Context, id uuid.UUID) (bool, err
 		return false, errors.Wrap(err, "failed to get transaction")
 	}
 
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	var exists bool
 	err = tx.QueryRow(
 		ctx,
-		"SELECT EXISTS(SELECT 1 FROM user_groups WHERE id = $1)",
+		"SELECT EXISTS(SELECT 1 FROM user_groups WHERE id = $1 AND tenant_id = $2)",
 		id.String(),
+		tenantID,
 	).Scan(&exists)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to check if group exists")
@@ -175,6 +189,19 @@ func (g *PgGroupRepository) create(ctx context.Context, entity group.Group) (gro
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
+	}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+	if entity.TenantID() != tenantID {
+		return nil, errors.New("group tenant does not match context tenant")
+	}
+	if err := g.validateGroupUsers(ctx, entity.Users(), tenantID); err != nil {
+		return nil, err
+	}
+	if err := g.validateGroupRoles(ctx, entity.Roles(), tenantID); err != nil {
+		return nil, err
 	}
 
 	// Generate a new UUID if not provided
@@ -234,6 +261,19 @@ func (g *PgGroupRepository) update(ctx context.Context, entity group.Group) (gro
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+	if entity.TenantID() != tenantID {
+		return nil, errors.New("group tenant does not match context tenant")
+	}
+	if err := g.validateGroupUsers(ctx, entity.Users(), tenantID); err != nil {
+		return nil, err
+	}
+	if err := g.validateGroupRoles(ctx, entity.Roles(), tenantID); err != nil {
+		return nil, err
+	}
 
 	dbGroup := ToDBGroup(entity)
 
@@ -243,10 +283,10 @@ func (g *PgGroupRepository) update(ctx context.Context, entity group.Group) (gro
 		"updated_at",
 	}
 
-	values := make([]interface{}, 0, 4)
-	values = append(values, dbGroup.Name, dbGroup.Description, dbGroup.UpdatedAt, dbGroup.ID)
+	values := make([]interface{}, 0, 5)
+	values = append(values, dbGroup.Name, dbGroup.Description, dbGroup.UpdatedAt, dbGroup.ID, tenantID)
 
-	_, err = tx.Exec(ctx, repo.Update("user_groups", fields, fmt.Sprintf("id = $%d", len(values))), values...)
+	_, err = tx.Exec(ctx, repo.Update("user_groups", fields, "id = $4 AND tenant_id = $5"), values...)
 
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to update group with ID: %s", dbGroup.ID))
@@ -270,16 +310,20 @@ func (g *PgGroupRepository) update(ctx context.Context, entity group.Group) (gro
 
 func (g *PgGroupRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	uuidStr := id.String()
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
 
-	if err := g.execQuery(ctx, groupUserDeleteQuery, uuidStr); err != nil {
+	if err := g.execQuery(ctx, groupUserDeleteQuery, uuidStr, tenantID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete users for group ID: %s", uuidStr))
 	}
 
-	if err := g.execQuery(ctx, groupRoleDeleteQuery, uuidStr); err != nil {
+	if err := g.execQuery(ctx, groupRoleDeleteQuery, uuidStr, tenantID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete roles for group ID: %s", uuidStr))
 	}
 
-	if err := g.execQuery(ctx, groupDeleteQuery, uuidStr); err != nil {
+	if err := g.execQuery(ctx, groupDeleteQuery, uuidStr, tenantID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete group with ID: %s", uuidStr))
 	}
 
@@ -434,7 +478,14 @@ func (g *PgGroupRepository) execQuery(ctx context.Context, query string, args ..
 }
 
 func (g *PgGroupRepository) updateGroupUsers(ctx context.Context, groupID string, users []user.User) error {
-	if err := g.execQuery(ctx, groupUserDeleteQuery, groupID); err != nil {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
+	if err := g.validateGroupUsers(ctx, users, tenantID); err != nil {
+		return err
+	}
+	if err := g.execQuery(ctx, groupUserDeleteQuery, groupID, tenantID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete existing users for group ID: %s", groupID))
 	}
 
@@ -454,7 +505,14 @@ func (g *PgGroupRepository) updateGroupUsers(ctx context.Context, groupID string
 }
 
 func (g *PgGroupRepository) updateGroupRoles(ctx context.Context, groupID string, roles []role.Role) error {
-	if err := g.execQuery(ctx, groupRoleDeleteQuery, groupID); err != nil {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
+	if err := g.validateGroupRoles(ctx, roles, tenantID); err != nil {
+		return err
+	}
+	if err := g.execQuery(ctx, groupRoleDeleteQuery, groupID, tenantID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete existing roles for group ID: %s", groupID))
 	}
 
@@ -469,6 +527,66 @@ func (g *PgGroupRepository) updateGroupRoles(ctx context.Context, groupID string
 	q, args := repo.BatchInsertQueryN(groupRoleInsertQuery, values)
 	if err := g.execQuery(ctx, q, args...); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to insert roles for group ID: %s", groupID))
+	}
+	return nil
+}
+
+func (g *PgGroupRepository) validateGroupUsers(ctx context.Context, users []user.User, tenantID uuid.UUID) error {
+	if len(users) == 0 {
+		return nil
+	}
+	ids := make([]int32, 0, len(users))
+	seen := make(map[uint]struct{}, len(users))
+	for _, entity := range users {
+		if entity == nil || entity.ID() == 0 || entity.TenantID() != tenantID {
+			return errors.New("group contains an invalid or cross-tenant user")
+		}
+		if _, ok := seen[entity.ID()]; ok {
+			return errors.New("group contains a duplicate user")
+		}
+		seen[entity.ID()] = struct{}{}
+		ids = append(ids, int32(entity.ID()))
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+	var count int
+	if err := tx.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE tenant_id = $1 AND id = ANY($2::int[])", tenantID, ids).Scan(&count); err != nil {
+		return err
+	}
+	if count != len(ids) {
+		return errors.New("group contains an invalid or cross-tenant user")
+	}
+	return nil
+}
+
+func (g *PgGroupRepository) validateGroupRoles(ctx context.Context, roles []role.Role, tenantID uuid.UUID) error {
+	if len(roles) == 0 {
+		return nil
+	}
+	ids := make([]int32, 0, len(roles))
+	seen := make(map[uint]struct{}, len(roles))
+	for _, entity := range roles {
+		if entity == nil || entity.ID() == 0 || entity.TenantID() != tenantID {
+			return errors.New("group contains an invalid or cross-tenant role")
+		}
+		if _, ok := seen[entity.ID()]; ok {
+			return errors.New("group contains a duplicate role")
+		}
+		seen[entity.ID()] = struct{}{}
+		ids = append(ids, int32(entity.ID()))
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+	var count int
+	if err := tx.QueryRow(ctx, "SELECT COUNT(*) FROM roles WHERE tenant_id = $1 AND id = ANY($2::int[])", tenantID, ids).Scan(&count); err != nil {
+		return err
+	}
+	if count != len(ids) {
+		return errors.New("group contains an invalid or cross-tenant role")
 	}
 	return nil
 }

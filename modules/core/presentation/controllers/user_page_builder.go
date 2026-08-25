@@ -5,6 +5,7 @@ import (
 	"io"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -14,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -42,6 +44,7 @@ func loadUserFormOptions(
 	ctx context.Context,
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
+	policy *services.PrivilegeGrantPolicy,
 ) ([]*viewmodels.Role, []*viewmodels.Group, error) {
 	const op = serrors.Op("controllers.loadUserFormOptions")
 
@@ -55,7 +58,24 @@ func loadUserFormOptions(
 		return nil, nil, serrors.E(op, err)
 	}
 
-	return mapping.MapViewModels(roles, mappers.RoleToViewModel), groups, nil
+	actor, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, nil, serrors.E(op, err)
+	}
+	grantableRoleEntities := grantableRoles(ctx, roles)
+	grantableGroups := groups[:0]
+	for _, candidate := range groups {
+		id, parseErr := uuid.Parse(candidate.ID)
+		if parseErr != nil {
+			continue
+		}
+		allowed, checkErr := policy.CanGrantGroupID(ctx, actor, id)
+		if checkErr == nil && allowed {
+			grantableGroups = append(grantableGroups, candidate)
+		}
+	}
+
+	return mapping.MapViewModels(grantableRoleEntities, mappers.RoleToViewModel), grantableGroups, nil
 }
 
 func selectedRoleViewModels(allRoles []*viewmodels.Role, selectedIDs []uint) []*viewmodels.Role {
@@ -137,11 +157,12 @@ func (c *UsersController) buildCreateFormProps(
 	ctx context.Context,
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
+	policy *services.PrivilegeGrantPolicy,
 	state *userCreateFormState,
 ) (*users.CreateFormProps, error) {
 	const op = serrors.Op("controllers.buildCreateFormProps")
 
-	roleViewModels, groups, err := loadUserFormOptions(ctx, roleService, groupQueryService)
+	roleViewModels, groups, err := loadUserFormOptions(ctx, roleService, groupQueryService, policy)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -170,7 +191,7 @@ func (c *UsersController) buildCreateFormProps(
 		User:                     userViewModel,
 		Roles:                    roleViewModels,
 		Groups:                   groups,
-		ResourcePermissionGroups: c.resourcePermissionGroups(),
+		ResourcePermissionGroups: c.grantableResourcePermissionGroups(ctx),
 		Errors:                   errors,
 	}, nil
 }
@@ -181,12 +202,13 @@ func (c *UsersController) buildEditFormProps(
 	userService *services.UserService,
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
+	policy *services.PrivilegeGrantPolicy,
 	userID uint,
 	state *userEditFormState,
 ) (*users.EditFormProps, error) {
 	const op = serrors.Op("controllers.buildEditFormProps")
 
-	roleViewModels, groups, err := loadUserFormOptions(ctx, roleService, groupQueryService)
+	roleViewModels, groups, err := loadUserFormOptions(ctx, roleService, groupQueryService, policy)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -202,7 +224,15 @@ func (c *UsersController) buildEditFormProps(
 	}
 
 	userViewModel := mappers.UserToViewModel(us)
-	userViewModel.CanDelete = canDelete
+	actor, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	canManage := policy.CanManageUser(actor, us)
+	userViewModel.CanUpdate = userViewModel.CanUpdate && canManage
+	userViewModel.CanDelete = userViewModel.CanDelete && canDelete && canManage
+	userViewModel.CanBeBlocked = userViewModel.CanBeBlocked && canManage
+	canDelete = canDelete && canManage
 	decorateBlockedByUser(ctx, logger, userService, userViewModel)
 
 	selectedPermissions := us.Permissions()
@@ -228,7 +258,7 @@ func (c *UsersController) buildEditFormProps(
 		User:                     userViewModel,
 		Roles:                    roleViewModels,
 		Groups:                   groups,
-		ResourcePermissionGroups: c.resourcePermissionGroups(selectedPermissions...),
+		ResourcePermissionGroups: c.grantableResourcePermissionGroups(ctx, selectedPermissions...),
 		Errors:                   errors,
 		CanDelete:                canDelete,
 	}, nil

@@ -4,9 +4,11 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
@@ -21,8 +23,9 @@ func (c *UsersController) GetNew(
 	logger *logrus.Entry,
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
+	policy *services.PrivilegeGrantPolicy,
 ) {
-	props, err := c.buildCreateFormProps(r.Context(), roleService, groupQueryService, nil)
+	props, err := c.buildCreateFormProps(r.Context(), roleService, groupQueryService, policy, nil)
 	if err != nil {
 		logger.WithError(err).Error("error building create form props")
 		http.Error(w, "Error retrieving user form options", http.StatusInternalServerError)
@@ -42,9 +45,10 @@ func (c *UsersController) Create(
 	userService *services.UserService,
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
+	policy *services.PrivilegeGrantPolicy,
 ) {
 	respondWithForm := func(errors map[string]string, dto *dtos.CreateUserDTO) {
-		props, err := c.buildCreateFormProps(r.Context(), roleService, groupQueryService, &userCreateFormState{
+		props, err := c.buildCreateFormProps(r.Context(), roleService, groupQueryService, policy, &userCreateFormState{
 			DTO:    dto,
 			Errors: errors,
 		})
@@ -92,6 +96,9 @@ func (c *UsersController) Create(
 			respondWithForm(errs.Fields, dto)
 			return
 		}
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 
 		logger.WithError(err).Error("error creating user")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -108,6 +115,7 @@ func (c *UsersController) Update(
 	userService *services.UserService,
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
+	policy *services.PrivilegeGrantPolicy,
 ) {
 	id, err := shared.ParseID(r)
 	if err != nil {
@@ -124,7 +132,7 @@ func (c *UsersController) Update(
 	}
 
 	respondWithForm := func(errors map[string]string, dto *dtos.UpdateUserDTO) {
-		props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, id, &userEditFormState{
+		props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, policy, id, &userEditFormState{
 			DTO:    dto,
 			Errors: errors,
 		})
@@ -154,16 +162,18 @@ func (c *UsersController) Update(
 
 	roles := make([]role.Role, 0, len(dto.RoleIDs))
 	for _, roleID := range dto.RoleIDs {
-		roleEntity, err := roleService.GetByID(r.Context(), roleID)
-		if err != nil {
-			logger.WithError(err).Error("error getting role")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		roles = append(roles, roleEntity)
+		roles = append(roles, role.New("", role.WithID(roleID)))
 	}
 
-	permissions := c.selectedPermissionsFromIDs(dto.PermissionIDs)
+	permissions := make([]permission.Permission, 0, len(dto.PermissionIDs))
+	for _, permissionID := range dto.PermissionIDs {
+		permissionUUID, err := uuid.Parse(permissionID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		permissions = append(permissions, permission.New(permission.WithID(permissionUUID)))
+	}
 
 	userEntity, err = dto.Apply(userEntity, roles, permissions)
 	if err != nil {
@@ -176,6 +186,9 @@ func (c *UsersController) Update(
 		var errs *validators.ValidationError
 		if errors.As(err, &errs) {
 			respondWithForm(errs.Fields, dto)
+			return
+		}
+		if respondPrivilegeDenied(w, r, err) {
 			return
 		}
 
@@ -201,6 +214,9 @@ func (c *UsersController) Delete(
 	}
 
 	if _, err := userService.Delete(r.Context(), id); err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 		logger.WithError(err).Error("error deleting user")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

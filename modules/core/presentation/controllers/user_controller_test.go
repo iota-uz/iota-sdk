@@ -253,8 +253,9 @@ func TestUsersController_EditForm_PermissionInputsRenderInsideSaveForm(t *testin
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		AsUser(permissions.UserRead, permissions.UserUpdate).
+		AsUser(permissions.UserRead, permissions.UserUpdate, permissions.UploadRead).
 		Build()
+	persistAdministrativeTestActor(t, suite, permissions.UserRead, permissions.UserUpdate, permissions.UploadRead)
 
 	controller := controllers.NewUsersController(
 		suite.Env().App,
@@ -282,8 +283,9 @@ func TestUsersController_Update_PersistsDirectPermissions(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		AsUser(permissions.UserRead, permissions.UserUpdate).
+		AsUser(permissions.UserRead, permissions.UserUpdate, permissions.UploadRead).
 		Build()
+	persistAdministrativeTestActor(t, suite, permissions.UserRead, permissions.UserUpdate, permissions.UploadRead)
 
 	controller := controllers.NewUsersController(
 		suite.Env().App,
@@ -322,8 +324,9 @@ func TestUsersController_Update_InvalidFormPreservesSubmittedPermissions(t *test
 
 	suite := itf.NewSuiteBuilder(t).
 		WithComponents(modules.Components()...).
-		AsUser(permissions.UserRead, permissions.UserUpdate).
+		AsUser(permissions.UserRead, permissions.UserUpdate, permissions.UploadRead).
 		Build()
+	persistAdministrativeTestActor(t, suite, permissions.UserRead, permissions.UserUpdate, permissions.UploadRead)
 
 	controller := controllers.NewUsersController(
 		suite.Env().App,

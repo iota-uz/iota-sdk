@@ -1,4 +1,19 @@
 {
+  "Authorization": {
+    "Errors": {
+      "Title": "Amalga ruxsat berilmagan",
+      "GrantCeiling": "Bu ruxsatni tayinlab bo‘lmaydi: unda hisobingizda mavjud bo‘lmagan huquqlar bor. O‘zgarishlar saqlanmadi.",
+      "TargetDominance": "Bu foydalanuvchi, rol yoki guruhni boshqara olmaysiz: uning kirish darajasi siznikidan yuqori. O‘zgarishlar saqlanmadi.",
+      "TenantBoundary": "Bu obyekt tashkilotingizda mavjud emas. O‘zgarishlar saqlanmadi.",
+      "SystemRole": "Bu tizim rolini tayinlay olmaysiz. O‘zgarishlar saqlanmadi.",
+      "SystemGroup": "Bu tizim guruhini tayinlay olmaysiz. O‘zgarishlar saqlanmadi.",
+      "SelfAdmin": "O‘z profilingizni tahrirlash uchun hisob sozlamalaridan foydalaning. Ma’muriy o‘zgarishlar saqlanmadi.",
+      "InvalidSelection": "Tanlangan kirish variantlaridan biri noto‘g‘ri yoki mavjud emas. O‘zgarishlar saqlanmadi."
+    },
+    "Notices": {
+      "ReadOnlyTarget": "Bu obyektning kirish darajasi yuqoriroq. Uni ko‘rishingiz mumkin, ammo o‘zgartira olmaysiz."
+    }
+  },
   "Account": {
     "Meta": {
       "Index": {

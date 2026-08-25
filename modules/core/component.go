@@ -124,6 +124,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewOTPRepository)
 	composition.ProvideFunc(builder, persistence.NewRecoveryCodeRepository)
 	composition.ProvideFunc(builder, persistence.NewGroupRepository)
+	composition.ProvideFunc(builder, persistence.NewPrivilegeRepository)
 	composition.ProvideFunc(builder, persistence.NewCurrencyRepository)
 	composition.ProvideFunc(builder, persistence.NewDepartmentRepository)
 	composition.ProvideFunc(builder, persistence.NewUserPositionRepository)
@@ -133,6 +134,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, query.NewPgOrgQueryRepository)
 
 	// ----- Services -----
+	composition.ProvideFunc(builder, services.NewPrivilegeGrantPolicy)
 	composition.ProvideFunc(builder, services.NewTenantService)
 	composition.ProvideFunc(builder, services.NewUploadService)
 	composition.ProvideFunc(builder, services.NewSessionService)
@@ -370,8 +372,9 @@ func newCoreUserService(
 	repo user.Repository,
 	bus eventbus.EventBus,
 	sessionService *services.SessionService,
+	policy *services.PrivilegeGrantPolicy,
 ) *services.UserService {
-	return services.NewUserService(repo, validators.NewUserValidator(repo), bus, sessionService)
+	return services.NewUserService(repo, validators.NewUserValidator(repo), bus, sessionService, policy)
 }
 
 // newCoreTwoFactorService bootstraps the 2FA service from typed configs.

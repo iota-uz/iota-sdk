@@ -148,6 +148,7 @@ func (c *UsersController) GetEdit(
 	userService *services.UserService,
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
+	policy *services.PrivilegeGrantPolicy,
 ) {
 	id, err := shared.ParseID(r)
 	if err != nil {
@@ -156,7 +157,7 @@ func (c *UsersController) GetEdit(
 		return
 	}
 
-	props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, id, nil)
+	props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, policy, id, nil)
 	if err != nil {
 		logger.WithError(err).Error("error building edit form props")
 		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
@@ -210,6 +211,7 @@ func (c *UsersController) BlockUser(
 	userService *services.UserService,
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
+	policy *services.PrivilegeGrantPolicy,
 ) {
 	if !htmx.IsHxRequest(r) {
 		http.Error(w, "Expected HTMX request", http.StatusBadRequest)
@@ -265,6 +267,9 @@ func (c *UsersController) BlockUser(
 	}
 
 	if _, err := userService.BlockUser(r.Context(), id, blockReason); err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 		logger.WithError(err).Error("error blocking user")
 		errors["BlockReason"] = pageCtx.T("Users.Block.Errors.OperationFailed")
 
@@ -288,7 +293,7 @@ func (c *UsersController) BlockUser(
 		WithField("action", "block").
 		Info("user blocked")
 
-	props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, id, nil)
+	props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, policy, id, nil)
 	if err != nil {
 		logger.WithError(err).Error("error building edit form props")
 		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
@@ -320,6 +325,7 @@ func (c *UsersController) UnblockUser(
 	userService *services.UserService,
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
+	policy *services.PrivilegeGrantPolicy,
 ) {
 	if !htmx.IsHxRequest(r) {
 		http.Error(w, "Expected HTMX request", http.StatusBadRequest)
@@ -340,6 +346,9 @@ func (c *UsersController) UnblockUser(
 	}
 
 	if _, err := userService.UnblockUser(r.Context(), id); err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 		logger.WithError(err).Error("error unblocking user")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -351,7 +360,7 @@ func (c *UsersController) UnblockUser(
 		WithField("action", "unblock").
 		Info("user unblocked")
 
-	props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, id, nil)
+	props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, policy, id, nil)
 	if err != nil {
 		logger.WithError(err).Error("error building edit form props")
 		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)

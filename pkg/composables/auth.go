@@ -69,13 +69,8 @@ func EffectivePermissionNames(u user.User) []string {
 		seen[name] = struct{}{}
 		names = append(names, name)
 	}
-	for _, perm := range u.Permissions() {
+	for _, perm := range user.EffectivePermissions(u) {
 		appendPermission(perm.Name())
-	}
-	for _, role := range u.Roles() {
-		for _, perm := range role.Permissions() {
-			appendPermission(perm.Name())
-		}
 	}
 	slices.Sort(names)
 	return names

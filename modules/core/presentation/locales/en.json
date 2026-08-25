@@ -1,4 +1,19 @@
 {
+  "Authorization": {
+    "Errors": {
+      "Title": "Action not allowed",
+      "GrantCeiling": "You cannot assign this access because it includes permissions your account does not have. Changes were not saved.",
+      "TargetDominance": "You cannot administer this user, role, or group because it has a higher access level. Changes were not saved.",
+      "TenantBoundary": "This item is not available in your organization. Changes were not saved.",
+      "SystemRole": "You cannot assign this system role. Changes were not saved.",
+      "SystemGroup": "You cannot assign this system group. Changes were not saved.",
+      "SelfAdmin": "Use your account settings to edit your own profile. Administrative changes were not saved.",
+      "InvalidSelection": "One of the selected access options is invalid or unavailable. Changes were not saved."
+    },
+    "Notices": {
+      "ReadOnlyTarget": "This item has a higher access level. You can view it, but you cannot modify it."
+    }
+  },
   "Account": {
     "Meta": {
       "Index": {

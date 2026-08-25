@@ -216,7 +216,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		assert.NotEmpty(t, allPermsAfter, "Should have permissions after seeding")
 
 		// Verify Admin role was created with permissions
-		roles, err := roleRepo.GetPaginated(f.Ctx, &role.FindParams{})
+		roles, err := roleRepo.GetPaginated(composables.WithTenantID(f.Ctx, tenantID), &role.FindParams{})
 		require.NoError(t, err)
 
 		var adminRole *interface{}
@@ -314,7 +314,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 
 		// Verify second tenant's Admin role was created (or reused existing one)
 		// Note: Each tenant should have their own Admin role
-		roles, err := roleRepo.GetPaginated(f.Ctx, &role.FindParams{})
+		roles, err := roleRepo.GetPaginated(composables.WithTenantID(f.Ctx, tenantID2), &role.FindParams{})
 		require.NoError(t, err)
 
 		adminRoleCount := 0
@@ -374,7 +374,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		assert.Positive(t, totalPermCount, "Should have permissions")
 
 		// Get Admin role and verify it has all permissions
-		roles, err := roleRepo.GetPaginated(f.Ctx, &role.FindParams{})
+		roles, err := roleRepo.GetPaginated(composables.WithTenantID(f.Ctx, tenantID), &role.FindParams{})
 		require.NoError(t, err)
 
 		var adminRole interface{}
@@ -430,7 +430,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		require.NoError(t, tx1.Commit(ctxWithTenant1))
 
 		// Count Admin roles after first run
-		roles1, err := roleRepo.GetPaginated(f.Ctx, &role.FindParams{})
+		roles1, err := roleRepo.GetPaginated(composables.WithTenantID(f.Ctx, tenantID), &role.FindParams{})
 		require.NoError(t, err)
 
 		adminCount1 := 0
@@ -470,7 +470,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		require.NoError(t, tx2.Commit(ctxWithTenant2))
 
 		// Count Admin roles after second run - should be same
-		roles2, err := roleRepo.GetPaginated(f.Ctx, &role.FindParams{})
+		roles2, err := roleRepo.GetPaginated(composables.WithTenantID(f.Ctx, tenantID), &role.FindParams{})
 		require.NoError(t, err)
 
 		adminCount2 := 0

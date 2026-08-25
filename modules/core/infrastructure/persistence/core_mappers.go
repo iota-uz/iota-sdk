@@ -34,7 +34,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
-func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role, groupIDs []uuid.UUID, permissions []permission.Permission) (user.User, error) {
+func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role, groupIDs []uuid.UUID, permissions []permission.Permission, groupPermissions ...[]permission.Permission) (user.User, error) {
 	var avatar upload.Upload
 	if dbUpload != nil {
 		var err error
@@ -88,6 +88,9 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 
 	if permissions != nil {
 		options = append(options, user.WithPermissions(permissions))
+	}
+	if len(groupPermissions) > 0 {
+		options = append(options, user.WithGroupPermissions(groupPermissions[0]))
 	}
 
 	if dbUpload != nil {

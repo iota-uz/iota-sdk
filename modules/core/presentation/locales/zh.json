@@ -1,4 +1,19 @@
 {
+  "Authorization": {
+    "Errors": {
+      "Title": "不允许执行此操作",
+      "GrantCeiling": "无法授予此访问权限，因为其中包含您账户不具备的权限。更改未保存。",
+      "TargetDominance": "无法管理此用户、角色或组，因为其访问级别更高。更改未保存。",
+      "TenantBoundary": "此项目在您的组织中不可用。更改未保存。",
+      "SystemRole": "您不能分配此系统角色。更改未保存。",
+      "SystemGroup": "您不能分配此系统组。更改未保存。",
+      "SelfAdmin": "请使用账户设置编辑您自己的个人资料。管理更改未保存。",
+      "InvalidSelection": "所选访问选项之一无效或不可用。更改未保存。"
+    },
+    "Notices": {
+      "ReadOnlyTarget": "此项目具有更高的访问级别。您可以查看，但不能修改。"
+    }
+  },
   "Account": {
     "Meta": {
       "Index": {

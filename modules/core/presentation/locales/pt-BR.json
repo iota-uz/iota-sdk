@@ -1,4 +1,19 @@
 {
+  "Authorization": {
+    "Errors": {
+      "Title": "Ação não permitida",
+      "GrantCeiling": "Você não pode atribuir este acesso porque ele contém permissões que sua conta não possui. As alterações não foram salvas.",
+      "TargetDominance": "Você não pode administrar este usuário, função ou grupo porque ele possui um nível de acesso superior. As alterações não foram salvas.",
+      "TenantBoundary": "Este item não está disponível em sua organização. As alterações não foram salvas.",
+      "SystemRole": "Você não pode atribuir esta função de sistema. As alterações não foram salvas.",
+      "SystemGroup": "Você não pode atribuir este grupo de sistema. As alterações não foram salvas.",
+      "SelfAdmin": "Use as configurações da conta para editar seu próprio perfil. As alterações administrativas não foram salvas.",
+      "InvalidSelection": "Uma das opções de acesso selecionadas é inválida ou indisponível. As alterações não foram salvas."
+    },
+    "Notices": {
+      "ReadOnlyTarget": "Este item possui um nível de acesso superior. Você pode visualizá-lo, mas não pode modificá-lo."
+    }
+  },
   "Account": {
     "Meta": {
       "Index": {

@@ -177,8 +177,21 @@ func (c *SessionController) Revoke(
 		return
 	}
 
-	// Terminate session
-	if err := sessionService.TerminateSession(r.Context(), token); err != nil {
+	sess, err := sessionService.GetByToken(r.Context(), token)
+	if err != nil {
+		logger.WithError(err).Error("Failed to retrieve session")
+		if errors.Is(err, persistence.ErrSessionNotFound) {
+			http.Error(w, "Session not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Error terminating session", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if err := sessionService.TerminateUserSession(r.Context(), sess.UserID(), token); err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 		logger.WithError(err).Error("Failed to terminate session")
 		if errors.Is(err, persistence.ErrSessionNotFound) {
 			http.Error(w, "Session not found", http.StatusNotFound)

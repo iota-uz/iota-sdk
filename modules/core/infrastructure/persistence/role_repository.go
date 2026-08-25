@@ -38,7 +38,7 @@ const (
 			p.description,
 			rp.role_id
 		FROM permissions p LEFT JOIN role_permissions rp ON rp.permission_id = p.id WHERE rp.role_id = ANY($1)`
-	roleCountQuery              = `SELECT COUNT(DISTINCT r.id) FROM roles r WHERE r.tenant_id = $1`
+	roleCountQuery              = `SELECT COUNT(DISTINCT r.id) FROM roles r`
 	roleInsertQuery             = `INSERT INTO roles (type, name, description, tenant_id) VALUES ($1, $2, $3, $4) RETURNING id`
 	roleUpdateQuery             = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4 AND tenant_id = $5`
 	permissionUpsertByNameQuery = `
@@ -85,9 +85,13 @@ func NewRoleRepository() role.Repository {
 	}
 }
 
-func (g *GormRoleRepository) buildRoleFilters(params *role.FindParams) ([]string, []interface{}, error) {
-	where := []string{"1 = 1"}
-	args := []interface{}{}
+func (g *GormRoleRepository) buildRoleFilters(ctx context.Context, params *role.FindParams) ([]string, []interface{}, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+	where := []string{"r.tenant_id = $1"}
+	args := []interface{}{tenantID}
 
 	for _, filter := range params.Filters {
 		column, ok := g.fieldMap[filter.Column]
@@ -116,7 +120,7 @@ func (g *GormRoleRepository) buildRoleFilters(params *role.FindParams) ([]string
 }
 
 func (g *GormRoleRepository) GetPaginated(ctx context.Context, params *role.FindParams) ([]role.Role, error) {
-	where, args, err := g.buildRoleFilters(params)
+	where, args, err := g.buildRoleFilters(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -152,13 +156,13 @@ func (g *GormRoleRepository) Count(ctx context.Context, params *role.FindParams)
 
 	if params == nil {
 		var count int64
-		if err := tx.QueryRow(ctx, roleCountQuery, tenantID.String()).Scan(&count); err != nil {
+		if err := tx.QueryRow(ctx, roleCountQuery+" WHERE r.tenant_id = $1", tenantID.String()).Scan(&count); err != nil {
 			return 0, errors.Wrap(err, "failed to count roles")
 		}
 		return count, nil
 	}
 
-	where, args, err := g.buildRoleFilters(params)
+	where, args, err := g.buildRoleFilters(ctx, params)
 	if err != nil {
 		return 0, err
 	}
@@ -223,7 +227,6 @@ func (g *GormRoleRepository) Create(ctx context.Context, data role.Role) (role.R
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
-
 	entity, permissions := toDBRole(data)
 	entity.TenantID = tenantID.String()
 

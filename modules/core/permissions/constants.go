@@ -81,6 +81,13 @@ var (
 		permission.ActionDelete,
 		permission.ModifierAll,
 	)
+	RoleAssignSystem = permission.MustCreate(
+		uuid.MustParse("b7a17a2c-7a31-4a42-8a16-951255aabf81"),
+		"Role.AssignSystem",
+		ResourceRole,
+		permission.Action("assign_system"),
+		permission.ModifierAll,
+	)
 	GroupCreate = permission.MustCreate(
 		uuid.MustParse("7e8f9a0b-1c2d-3e4f-5a6b-7c8d9e0f1a2b"),
 		"Group.Create",
@@ -107,6 +114,13 @@ var (
 		"Group.Delete",
 		ResourceGroup,
 		permission.ActionDelete,
+		permission.ModifierAll,
+	)
+	GroupAssignSystem = permission.MustCreate(
+		uuid.MustParse("c64d7b55-39d9-4aa2-b38d-b17514afbe17"),
+		"Group.AssignSystem",
+		ResourceGroup,
+		permission.Action("assign_system"),
 		permission.ModifierAll,
 	)
 	UploadCreate = permission.MustCreate(
@@ -219,10 +233,12 @@ var Permissions = []permission.Permission{
 	RoleRead,
 	RoleUpdate,
 	RoleDelete,
+	RoleAssignSystem,
 	GroupCreate,
 	GroupRead,
 	GroupUpdate,
 	GroupDelete,
+	GroupAssignSystem,
 	UploadCreate,
 	UploadRead,
 	UploadUpdate,

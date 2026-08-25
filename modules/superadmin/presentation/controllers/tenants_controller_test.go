@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/superadmin"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/controllers"
@@ -54,6 +55,21 @@ func createRegularUserForTenants() user.User {
 		user.WithType(user.TypeUser),
 		user.WithTenantID(uuid.New()),
 	)
+}
+
+func persistSuperAdminForTenantControllerTest(t *testing.T, env *itf.TestEnvironment) {
+	t.Helper()
+	roleRepository := persistence.NewRoleRepository()
+	adminRole, err := roleRepository.Create(env.Ctx, role.New(
+		"SuperAdmin test role",
+		role.WithType(role.TypeSystem),
+		role.WithPermissions(defaults.AllPermissions()),
+	))
+	require.NoError(t, err)
+	userRepository := persistence.NewUserRepository(persistence.NewUploadRepository())
+	persisted, err := userRepository.Create(env.Ctx, env.User.SetRoles([]role.Role{adminRole}))
+	require.NoError(t, err)
+	require.Equal(t, env.User.ID(), persisted.ID())
 }
 
 func TestTenantsController_Index(t *testing.T) {
@@ -1318,6 +1334,7 @@ func TestTenantsController_ResetUserPassword_Success(t *testing.T) {
 		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
+	persistSuperAdminForTenantControllerTest(t, suite.Env())
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
 	controller := controllers.NewTenantsController(userService)
@@ -1434,6 +1451,7 @@ func TestTenantsController_ResetUserPassword_WrongTenant(t *testing.T) {
 		WithComponents(superadmin.NewComponent(nil)).
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
+	persistSuperAdminForTenantControllerTest(t, suite.Env())
 
 	userService := itf.GetService[coreservices.UserService](suite.Env())
 	controller := controllers.NewTenantsController(userService)
@@ -1528,6 +1546,7 @@ func TestTenantsController_ResetUserPassword_Permissions(t *testing.T) {
 			WithComponents(superadmin.NewComponent(nil)).
 			WithUser(createSuperAdminUserForTenants()).
 			Build()
+		persistSuperAdminForTenantControllerTest(t, suite.Env())
 
 		userService := itf.GetService[coreservices.UserService](suite.Env())
 		controller := controllers.NewTenantsController(userService)
