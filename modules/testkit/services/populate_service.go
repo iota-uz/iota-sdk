@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -177,6 +178,8 @@ func (s *PopulateService) populateData(ctx context.Context, data *schemas.DataSp
 }
 
 func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserSpec) error {
+	const op = serrors.Op("PopulateService.createUsers")
+
 	logger := composables.UseLogger(ctx)
 
 	// Get tenant ID from context
@@ -253,7 +256,7 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 		if len(userSpec.Permissions) > 0 {
 			requestedPermissions, err := resolvePermissions(ctx, permissionRepo, userSpec.Permissions)
 			if err != nil {
-				return fmt.Errorf("failed to resolve permissions for user %s: %w", userSpec.Email, err)
+				return serrors.E(op, err, fmt.Sprintf("failed to resolve permissions for user %s", userSpec.Email))
 			}
 			userOptions = append(userOptions, user.WithPermissions(requestedPermissions))
 		}
@@ -352,9 +355,11 @@ func resolvePermissions(
 	repository permission.Repository,
 	names []string,
 ) ([]permission.Permission, error) {
+	const op = serrors.Op("PopulateService.resolvePermissions")
+
 	available, err := repository.GetAll(ctx)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	byName := make(map[string]permission.Permission, len(available))
@@ -370,7 +375,7 @@ func resolvePermissions(
 		}
 		candidate, ok := byName[name]
 		if !ok {
-			return nil, fmt.Errorf("permission %q not found", name)
+			return nil, serrors.E(op, serrors.NotFound, fmt.Sprintf("permission %q not found", name))
 		}
 		seen[name] = struct{}{}
 		requested = append(requested, candidate)
