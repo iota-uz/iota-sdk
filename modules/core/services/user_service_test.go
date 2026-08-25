@@ -158,7 +158,7 @@ func TestUserService_Delete_SelfDeletionPrevention(t *testing.T) {
 		// A cross-tenant actor must be rejected before the legacy last-user rule.
 		_, err = userService.Delete(isolatedTenantCtx, createdUser.ID())
 		require.Error(t, err)
-		assert.ErrorIs(t, err, composables.ErrForbidden)
+		require.ErrorIs(t, err, composables.ErrForbidden)
 	})
 
 	t.Run("Delete_Non_Last_User_Should_Succeed", func(t *testing.T) {
@@ -376,7 +376,7 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 
 		_, err = userService.Update(ctx, updatedAdmin)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, composables.ErrForbidden)
+		require.ErrorIs(t, err, composables.ErrForbidden)
 
 		result, err := userService.UpdateSelf(ctx, updatedAdmin)
 		require.NoError(t, err)
