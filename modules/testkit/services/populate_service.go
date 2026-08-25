@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -177,6 +178,8 @@ func (s *PopulateService) populateData(ctx context.Context, data *schemas.DataSp
 }
 
 func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserSpec) error {
+	const op = serrors.Op("PopulateService.createUsers")
+
 	logger := composables.UseLogger(ctx)
 
 	// Get tenant ID from context
@@ -249,6 +252,13 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 		userOptions := []user.Option{
 			user.WithTenantID(tenantID),
 			user.WithType(user.TypeUser),
+		}
+		if len(userSpec.Permissions) > 0 {
+			requestedPermissions, err := resolvePermissions(ctx, permissionRepo, userSpec.Permissions)
+			if err != nil {
+				return serrors.E(op, err, fmt.Sprintf("failed to resolve permissions for user %s", userSpec.Email))
+			}
+			userOptions = append(userOptions, user.WithPermissions(requestedPermissions))
 		}
 
 		if userSpec.TwoFactorMethod != "" {
@@ -338,6 +348,39 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 	}
 
 	return nil
+}
+
+func resolvePermissions(
+	ctx context.Context,
+	repository permission.Repository,
+	names []string,
+) ([]permission.Permission, error) {
+	const op = serrors.Op("PopulateService.resolvePermissions")
+
+	available, err := repository.GetAll(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	byName := make(map[string]permission.Permission, len(available))
+	for _, candidate := range available {
+		byName[candidate.Name()] = candidate
+	}
+
+	requested := make([]permission.Permission, 0, len(names))
+	seen := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		if _, duplicate := seen[name]; duplicate {
+			continue
+		}
+		candidate, ok := byName[name]
+		if !ok {
+			return nil, serrors.E(op, serrors.NotFound, fmt.Sprintf("permission %q not found", name))
+		}
+		seen[name] = struct{}{}
+		requested = append(requested, candidate)
+	}
+	return requested, nil
 }
 
 func parseTwoFactorMethod(raw string) (pkgtwofactor.Method, error) {
