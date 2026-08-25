@@ -250,6 +250,13 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 			user.WithTenantID(tenantID),
 			user.WithType(user.TypeUser),
 		}
+		if len(userSpec.Permissions) > 0 {
+			requestedPermissions, err := resolvePermissions(ctx, permissionRepo, userSpec.Permissions)
+			if err != nil {
+				return fmt.Errorf("failed to resolve permissions for user %s: %w", userSpec.Email, err)
+			}
+			userOptions = append(userOptions, user.WithPermissions(requestedPermissions))
+		}
 
 		if userSpec.TwoFactorMethod != "" {
 			method, err := parseTwoFactorMethod(userSpec.TwoFactorMethod)
@@ -338,6 +345,37 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 	}
 
 	return nil
+}
+
+func resolvePermissions(
+	ctx context.Context,
+	repository permission.Repository,
+	names []string,
+) ([]permission.Permission, error) {
+	available, err := repository.GetAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	byName := make(map[string]permission.Permission, len(available))
+	for _, candidate := range available {
+		byName[candidate.Name()] = candidate
+	}
+
+	requested := make([]permission.Permission, 0, len(names))
+	seen := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		if _, duplicate := seen[name]; duplicate {
+			continue
+		}
+		candidate, ok := byName[name]
+		if !ok {
+			return nil, fmt.Errorf("permission %q not found", name)
+		}
+		seen[name] = struct{}{}
+		requested = append(requested, candidate)
+	}
+	return requested, nil
 }
 
 func parseTwoFactorMethod(raw string) (pkgtwofactor.Method, error) {

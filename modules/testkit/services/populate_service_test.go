@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	corepermissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/testkit/domain/schemas"
 	"github.com/iota-uz/iota-sdk/modules/testkit/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -19,6 +20,50 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPopulateService_AssignsRequestedUserPermissionsWithoutAdminRole(t *testing.T) {
+	t.Parallel()
+
+	f := setupTest(t)
+	tenantID := uuid.New()
+	ctx := context.WithValue(
+		composables.WithTenantID(f.Ctx, tenantID),
+		constants.LoggerKey,
+		logrus.NewEntry(logrus.New()),
+	)
+	populateService := services.NewPopulateService(f.Pool)
+
+	_, err := populateService.Execute(ctx, &schemas.PopulateRequest{
+		Version: "1.0",
+		Tenant: &schemas.TenantSpec{
+			ID:   tenantID.String(),
+			Name: "Limited administrator fixture",
+		},
+		Data: &schemas.DataSpec{Users: []schemas.UserSpec{{
+			Email:       "limited-admin-fixture@example.com",
+			Password:    "TestPass123!",
+			FirstName:   "Limited",
+			LastName:    "Administrator",
+			Permissions: []string{corepermissions.UserRead.Name(), corepermissions.RoleRead.Name()},
+		}}},
+	})
+	require.NoError(t, err)
+
+	created, err := persistence.NewUserRepository(persistence.NewUploadRepository()).GetByEmail(
+		ctx,
+		"limited-admin-fixture@example.com",
+	)
+	require.NoError(t, err)
+	assert.Empty(t, created.Roles())
+	require.Len(t, created.Permissions(), 2)
+	assert.ElementsMatch(t, []string{corepermissions.UserRead.Name(), corepermissions.RoleRead.Name()}, []string{
+		created.Permissions()[0].Name(),
+		created.Permissions()[1].Name(),
+	})
+
+	// Falsely green if the fixture silently assigns Admin: exact direct grants
+	// and an empty role set are both part of the test identity contract.
+}
 
 // setupTest creates all necessary dependencies for tests
 func setupTest(t *testing.T) *itf.TestEnvironment {
