@@ -106,7 +106,7 @@ func NewBrowserSessionService(
 
 func (s *BrowserSessionService) Resolve(w http.ResponseWriter, r *http.Request) ([]BrowserSession, error) {
 	value := ""
-	if cookie, err := r.Cookie(s.cookiesCfg.SID); err == nil {
+	if cookie, err := r.Cookie(s.sidName()); err == nil {
 		value = cookie.Value
 	} else if !errors.Is(err, http.ErrNoCookie) {
 		return nil, err
@@ -172,7 +172,7 @@ func (s *BrowserSessionService) Add(ctx context.Context, cookieValue string, ses
 
 func (s *BrowserSessionService) AddFromRequest(ctx context.Context, r *http.Request, sess session.Session) (*http.Cookie, error) {
 	value := ""
-	if cookie, err := r.Cookie(s.cookiesCfg.SID); err == nil {
+	if cookie, err := r.Cookie(s.sidName()); err == nil {
 		value = cookie.Value
 	}
 	return s.Add(ctx, value, sess)
@@ -246,7 +246,7 @@ func (s *BrowserSessionService) RemoveAll(w http.ResponseWriter, r *http.Request
 
 func (s *BrowserSessionService) resolveRequest(r *http.Request) (browserSessionState, []BrowserSession, bool, error) {
 	value := ""
-	if cookie, err := r.Cookie(s.cookiesCfg.SID); err == nil {
+	if cookie, err := r.Cookie(s.sidName()); err == nil {
 		value = cookie.Value
 	}
 	return s.resolveValue(r.Context(), value)
@@ -306,7 +306,7 @@ func (s *BrowserSessionService) cookie(state browserSessionState, sessions []Bro
 	}
 	encoded, _ := encodeBrowserSessionState(state)
 	return &http.Cookie{
-		Name:     s.cookiesCfg.SID,
+		Name:     s.sidName(),
 		Value:    encoded,
 		Expires:  expires,
 		HttpOnly: true,
@@ -319,7 +319,7 @@ func (s *BrowserSessionService) cookie(state browserSessionState, sessions []Bro
 
 func (s *BrowserSessionService) clearCookie() *http.Cookie {
 	return &http.Cookie{
-		Name:     s.cookiesCfg.SID,
+		Name:     s.sidName(),
 		Value:    "",
 		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
@@ -329,6 +329,13 @@ func (s *BrowserSessionService) clearCookie() *http.Cookie {
 		Domain:   s.cookiesCfg.Domain,
 		Path:     "/",
 	}
+}
+
+func (s *BrowserSessionService) sidName() string {
+	if s.cookiesCfg != nil && s.cookiesCfg.SID != "" {
+		return s.cookiesCfg.SID
+	}
+	return "sid"
 }
 
 func encodeBrowserSessionState(state browserSessionState) (string, error) {

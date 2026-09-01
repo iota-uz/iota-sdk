@@ -267,7 +267,7 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 	loginRedirectURL := fmt.Sprintf("/login?%s", queryParams.Encode())
 	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
 		NextURL:            nextURL,
-		SessionCookieValue: sessionCookieValue(r, c.cookiesCfg.SID),
+		SessionCookieValue: sessionCookieValue(r, c.sidCookieName()),
 		AccessCheck:        c.runLoginAccessCheck,
 	})
 	if err != nil {
@@ -557,7 +557,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	loginRedirectURL := buildLoginRedirectURL(dto.Email, nextURL, authRequestID)
 	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
 		NextURL:            postLoginRedirectURL,
-		SessionCookieValue: sessionCookieValue(r, c.cookiesCfg.SID),
+		SessionCookieValue: sessionCookieValue(r, c.sidCookieName()),
 		AccessCheck:        c.runLoginAccessCheck,
 	})
 	if err != nil {
@@ -598,7 +598,7 @@ func (c *LoginController) FinalizeAuthentication(
 
 	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
 		NextURL:            validatedNextURL,
-		SessionCookieValue: sessionCookieValue(r, c.cookiesCfg.SID),
+		SessionCookieValue: sessionCookieValue(r, c.sidCookieName()),
 		AccessCheck:        c.runLoginAccessCheck,
 	})
 	if err != nil {
@@ -632,6 +632,13 @@ func sessionCookieValue(r *http.Request, name string) string {
 		return cookie.Value
 	}
 	return ""
+}
+
+func (c *LoginController) sidCookieName() string {
+	if c.cookiesCfg != nil && c.cookiesCfg.SID != "" {
+		return c.cookiesCfg.SID
+	}
+	return "sid"
 }
 
 func buildLoginRedirectURL(email, nextURL, authRequestID string) string {
