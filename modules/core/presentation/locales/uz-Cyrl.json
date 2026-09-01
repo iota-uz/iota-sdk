@@ -463,14 +463,19 @@
     "WelcomeBack": "Xush kelibsiz",
     "LoginToUse": "IOTA ERP dan foydalanish uchun tizimga kiring",
     "LoginWithGoogle": "Google orqali kirish",
-    "OrSignInWith": "Yoki quyidagi orqali kiring",
+		"OrSignInWith": "Yoki quyidagi orqali kiring",
+		"ChooseAccount": "Аккаунтни танланг",
+		"UseAnotherAccount": "Бошқа аккаунтдан фойдаланиш",
+		"ActiveAccount": "Фаол",
     "Errors": {
       "PasswordInvalid": "Email yoki parol noto'g'ri",
       "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
       "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
       "OauthCodeNotFound": "OAuth kodi topilmadi. Iltimos, qayta urinib ko'ring.",
       "UserNotFound": "Foydalanuvchi topilmadi",
-      "AccountBlocked": "Sizning akkauntingiz bloklangan. Administratorga murojaat qiling."
+			"AccountBlocked": "Sizning akkauntingiz bloklangan. Administratorga murojaat qiling.",
+			"SessionExpired": "Бу аккаунт сессияси тугаган. Қайта киринг ёки бошқа аккаунтни танланг."
+			,"AuthorizationRequestInvalid": "Авторизация сўрови энди яроқсиз. Иловага қайтиб, қайта бошланг."
     }
   },
   "Modules": {
@@ -598,7 +603,11 @@
     "Navbar": {
       "Profile": "Profil",
       "Sessions": "Sessiyalar",
-      "Logout": "Chiqish",
+			"Logout": "Chiqish",
+			"CurrentAccount": "Жорий аккаунт",
+			"AddAccount": "Аккаунт қўшиш",
+			"LogoutCurrent": "Жорий аккаунтдан чиқиш",
+			"LogoutAll": "Барча аккаунтлардан чиқиш",
       "Settings": "Созламалар"
     },
     "Departments": "Бўлимлар"

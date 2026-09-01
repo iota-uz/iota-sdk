@@ -463,14 +463,19 @@
     "WelcomeBack": "Bem-vindo de volta",
     "LoginToUse": "Entre para usar o IOTA ERP",
     "LoginWithGoogle": "Entrar com Google",
-    "OrSignInWith": "Ou entre com...",
+		"OrSignInWith": "Ou entre com...",
+		"ChooseAccount": "Escolha uma conta",
+		"UseAnotherAccount": "Usar outra conta",
+		"ActiveAccount": "Ativa",
     "Errors": {
       "PasswordInvalid": "E-mail ou senha inválidos",
       "OauthStateNotFound": "Estado oAuth não encontrado. Por favor, tente novamente.",
       "OauthStateInvalid": "Estado oAuth inválido. Por favor, tente novamente.",
       "OauthCodeNotFound": "Código oAuth não encontrado. Por favor, tente novamente.",
       "UserNotFound": "Usuário não encontrado",
-      "AccountBlocked": "Sua conta foi bloqueada. Entre em contato com o administrador."
+			"AccountBlocked": "Sua conta foi bloqueada. Entre em contato com o administrador.",
+			"SessionExpired": "A sessão desta conta expirou. Entre novamente ou escolha outra conta."
+			,"AuthorizationRequestInvalid": "Esta solicitação de autorização não é mais válida. Volte ao aplicativo e tente novamente."
     }
   },
   "Modules": {
@@ -597,7 +602,11 @@
     "Navbar": {
       "Profile": "Perfil",
       "Sessions": "Sessões",
-      "Logout": "Sair",
+			"Logout": "Sair",
+			"CurrentAccount": "Conta atual",
+			"AddAccount": "Adicionar conta",
+			"LogoutCurrent": "Sair da conta atual",
+			"LogoutAll": "Sair de todas as contas",
       "Settings": "Configurações"
     },
     "Departments": "Departamentos",

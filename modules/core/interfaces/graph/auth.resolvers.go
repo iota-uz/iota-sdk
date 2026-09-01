@@ -12,10 +12,13 @@ import (
 	model "github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/gqlmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/mappers"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // Authenticate is the resolver for the authenticate field.
 func (r *mutationResolver) Authenticate(ctx context.Context, email string, password string) (*model.Session, error) {
+	const op serrors.Op = "core.graph.Authenticate"
+
 	writer, ok := composables.UseWriter(ctx)
 	if !ok {
 		return nil, fmt.Errorf("request params not found")
@@ -26,28 +29,13 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 		return nil, err
 	}
 
-	sidKey := "sid"
-	domain := ""
-	secure := false
-	if r.cookiesCfg != nil && r.cookiesCfg.SID != "" {
-		sidKey = r.cookiesCfg.SID
+	request, ok := composables.UseRequest(ctx)
+	if !ok {
+		return nil, fmt.Errorf("request not found")
 	}
-	if r.cookiesCfg != nil {
-		domain = r.cookiesCfg.Domain
-	}
-	if r.appCfg != nil {
-		secure = r.appCfg.IsProduction()
-	}
-
-	cookie := &http.Cookie{
-		Name:     sidKey,
-		Value:    sess.Token(),
-		Expires:  sess.ExpiresAt(),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   secure,
-		Domain:   domain,
-		Path:     "/",
+	cookie, err := r.browserSessions.AddFromRequest(ctx, request, sess)
+	if err != nil {
+		return nil, serrors.E(op, err)
 	}
 	http.SetCookie(writer, cookie)
 	return mappers.SessionToGraphModel(sess), nil

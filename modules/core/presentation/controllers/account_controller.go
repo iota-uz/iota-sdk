@@ -9,6 +9,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
@@ -21,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type AccountController struct {
@@ -209,14 +211,13 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Get current session token from cookie
-	cookie, err := r.Cookie(c.cfg.SID)
+	currentSession, err := c.currentSession(r)
 	if err != nil {
-		logger.WithError(err).Error("failed to get session cookie")
+		logger.WithError(err).Error("failed to get current session")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
 		return
 	}
-	currentToken := cookie.Value
+	currentToken := currentSession.Token()
 
 	// Fetch all sessions for the user
 	sessions, err := c.sessionService.GetByUserID(r.Context(), user.ID())
@@ -250,14 +251,13 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	vars := mux.Vars(r)
 	tokenHash := vars["token"]
 
-	// Get current session token from cookie
-	cookie, err := r.Cookie(c.cfg.SID)
+	currentSession, err := c.currentSession(r)
 	if err != nil {
-		logger.WithError(err).Error("failed to get session cookie")
+		logger.WithError(err).Error("failed to get current session")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
 		return
 	}
-	currentToken := cookie.Value
+	currentToken := currentSession.Token()
 
 	// Get current user
 	user, err := composables.UseUser(r.Context())
@@ -338,14 +338,13 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Get current session token from cookie
-	cookie, err := r.Cookie(c.cfg.SID)
+	currentSession, err := c.currentSession(r)
 	if err != nil {
-		logger.WithError(err).Error("failed to get session cookie")
+		logger.WithError(err).Error("failed to get current session")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
 		return
 	}
-	currentToken := cookie.Value
+	currentToken := currentSession.Token()
 
 	// Terminate all other sessions
 	count, err := c.sessionService.TerminateOtherSessions(r.Context(), user.ID(), currentToken)
@@ -365,4 +364,21 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 	}
 	htmx.SetTrigger(w, "success", string(successPayload))
 	htmx.Refresh(w)
+}
+
+func (c *AccountController) currentSession(r *http.Request) (session.Session, error) {
+	const op serrors.Op = "accountController.currentSession"
+
+	cookieName := "sid"
+	if c.cfg != nil && c.cfg.SID != "" {
+		cookieName = c.cfg.SID
+	}
+	if _, err := r.Cookie(cookieName); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	sess, err := composables.UseSession(r.Context())
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return sess, nil
 }

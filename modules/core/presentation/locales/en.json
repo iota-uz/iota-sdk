@@ -463,14 +463,19 @@
     "WelcomeBack": "Welcome back",
     "LoginToUse": "Log in to use IOTA ERP",
     "LoginWithGoogle": "Log in with Google",
-    "OrSignInWith": "Or sign in with...",
+		"OrSignInWith": "Or sign in with...",
+		"ChooseAccount": "Choose an account",
+		"UseAnotherAccount": "Use another account",
+		"ActiveAccount": "Active",
     "Errors": {
       "PasswordInvalid": "Email or password is invalid",
       "OauthStateNotFound": "oAuth state not found. Please, try again.",
       "OauthStateInvalid": "Invalid oAuth state. Please, try again.",
       "OauthCodeNotFound": "oAuth code not found. Please, try again.",
       "UserNotFound": "User not found",
-      "AccountBlocked": "Your account has been blocked. Please contact administrator."
+			"AccountBlocked": "Your account has been blocked. Please contact administrator.",
+			"SessionExpired": "That account session expired. Sign in again or choose another account."
+			,"AuthorizationRequestInvalid": "This authorization request is no longer valid. Return to the application and start again."
     }
   },
   "Modules": {
@@ -598,7 +603,11 @@
     "Navbar": {
       "Profile": "Profile",
       "Sessions": "Sessions",
-      "Logout": "Logout",
+			"Logout": "Logout",
+			"CurrentAccount": "Current account",
+			"AddAccount": "Add account",
+			"LogoutCurrent": "Logout current",
+			"LogoutAll": "Logout all accounts",
       "Settings": "Settings"
     },
     "Departments": "Departments"

@@ -463,14 +463,19 @@
     "WelcomeBack": "Добро пожаловать",
     "LoginToUse": "Войдите, чтобы использовать IOTA ERP",
     "LoginWithGoogle": "Войти через Google",
-    "OrSignInWith": "Или войдите через...",
+		"OrSignInWith": "Или войдите через...",
+		"ChooseAccount": "Выберите аккаунт",
+		"UseAnotherAccount": "Использовать другой аккаунт",
+		"ActiveAccount": "Активный",
     "Errors": {
       "PasswordInvalid": "Неверный пароль или электронная почта",
       "OauthStateNotFound": "Состояние oAuth не найдено. Пожалуйста, попробуйте еще раз.",
       "OauthStateInvalid": "Недопустимое состояние oAuth. Пожалуйста, попробуйте еще раз.",
       "OauthCodeNotFound": "Код oAuth не найден. Пожалуйста, попробуйте еще раз.",
       "UserNotFound": "Пользователь не найден",
-      "AccountBlocked": "Ваш аккаунт заблокирован. Обратитесь к администратору."
+			"AccountBlocked": "Ваш аккаунт заблокирован. Обратитесь к администратору.",
+			"SessionExpired": "Сессия этого аккаунта истекла. Войдите снова или выберите другой аккаунт."
+			,"AuthorizationRequestInvalid": "Запрос авторизации больше недействителен. Вернитесь в приложение и начните снова."
     }
   },
   "Modules": {
@@ -598,7 +603,11 @@
     "Navbar": {
       "Profile": "Профиль",
       "Sessions": "Сеансы",
-      "Logout": "Выйти",
+			"Logout": "Выйти",
+			"CurrentAccount": "Текущий аккаунт",
+			"AddAccount": "Добавить аккаунт",
+			"LogoutCurrent": "Выйти из текущего",
+			"LogoutAll": "Выйти из всех аккаунтов",
       "Settings": "Настройки"
     },
     "Departments": "Отделы"

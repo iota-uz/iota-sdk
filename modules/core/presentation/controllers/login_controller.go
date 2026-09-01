@@ -31,6 +31,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/login"
 )
 
@@ -96,6 +97,21 @@ func NewLoginController(
 	googleCfg *googleoauthconfig.Config,
 	opts ...*LoginControllerOptions,
 ) application.Controller {
+	return NewLoginControllerWithBrowserSessions(
+		authService, authFlowService, nil, httpCfg, cookiesCfg, headersCfg, googleCfg, opts...,
+	)
+}
+
+func NewLoginControllerWithBrowserSessions(
+	authService *services.AuthService,
+	authFlowService *services.AuthFlowService,
+	browserSessions *services.BrowserSessionService,
+	httpCfg *httpconfig.Config,
+	cookiesCfg *cookies.Config,
+	headersCfg *headers.Config,
+	googleCfg *googleoauthconfig.Config,
+	opts ...*LoginControllerOptions,
+) application.Controller {
 	options := &LoginControllerOptions{}
 	if len(opts) > 0 && opts[0] != nil {
 		options = opts[0]
@@ -103,6 +119,7 @@ func NewLoginController(
 	return &LoginController{
 		authService:     authService,
 		authFlowService: authFlowService,
+		browserSessions: browserSessions,
 		httpCfg:         httpCfg,
 		cookiesCfg:      cookiesCfg,
 		headersCfg:      headersCfg,
@@ -124,6 +141,7 @@ func (c *LoginController) SetTwoFactorService(service *twofactor.TwoFactorServic
 type LoginController struct {
 	authService      *services.AuthService
 	authFlowService  *services.AuthFlowService
+	browserSessions  *services.BrowserSessionService
 	twoFactorService *twofactor.TwoFactorService
 	httpCfg          *httpconfig.Config
 	cookiesCfg       *cookies.Config
@@ -145,6 +163,7 @@ func (c *LoginController) Register(r *mux.Router) {
 	postRouter := r.PathPrefix("/login").Subrouter()
 	postRouter.Use(c.PostMiddlewares()...)
 	postRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
+	postRouter.HandleFunc("/session", c.SelectSession).Methods(http.MethodPost)
 
 	for _, provider := range c.optionsOrDefault().MethodProviders {
 		if provider == nil {
@@ -197,8 +216,18 @@ func (c *LoginController) runLoginAccessCheck(ctx context.Context, u coreuser.Us
 func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	// Validate and sanitize the redirect URL to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+	savedNextURL, authRequestID := c.authService.OAuthContinuation(r)
+	if savedNextURL != "" {
+		nextURL = security.GetValidatedRedirect(savedNextURL)
+	}
+	if authRequestID != "" {
+		nextURL = fmt.Sprintf("/oidc/authorize/callback?id=%s", url.QueryEscape(authRequestID))
+	}
 	queryParams := url.Values{
 		"next": []string{nextURL},
+	}
+	if authRequestID != "" {
+		queryParams.Set("auth_request", authRequestID)
 	}
 	code := r.URL.Query().Get("code")
 	if code == "" {
@@ -237,8 +266,9 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 
 	loginRedirectURL := fmt.Sprintf("/login?%s", queryParams.Encode())
 	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
-		NextURL:     nextURL,
-		AccessCheck: c.runLoginAccessCheck,
+		NextURL:            nextURL,
+		SessionCookieValue: sessionCookieValue(r, c.sidCookieName()),
+		AccessCheck:        c.runLoginAccessCheck,
 	})
 	if err != nil {
 		c.handleFinalizeError(w, r, loginRedirectURL, err)
@@ -268,13 +298,34 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	logoComponent, _ := composables.UseLogo(r.Context())
+	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+	authRequestID := r.URL.Query().Get("auth_request")
+	authRequestInvalid := false
+	if authRequestID != "" && (c.browserSessions == nil || c.browserSessions.ValidateAuthorizationRequest(r.Context(), authRequestID) != nil) {
+		authRequestInvalid = true
+		errorMessage = []byte(intl.MustT(r.Context(), "Login.Errors.AuthorizationRequestInvalid"))
+	}
+	accounts, err := c.loginAccounts(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	selectionURL := fmt.Sprintf("/login/session?next=%s", url.QueryEscape(nextURL))
+	if authRequestID != "" {
+		selectionURL = fmt.Sprintf("/oidc/authorize/select?auth_request=%s", url.QueryEscape(authRequestID))
+	}
 
 	viewModel := LoginPageViewModel{
-		ErrorsMap:    errorsMap,
-		Email:        email,
-		ErrorMessage: string(errorMessage),
-		Methods:      methods,
-		Logo:         logoComponent,
+		ErrorsMap:                   errorsMap,
+		Email:                       email,
+		ErrorMessage:                string(errorMessage),
+		Methods:                     methods,
+		Logo:                        logoComponent,
+		Accounts:                    accounts,
+		NextURL:                     nextURL,
+		AuthRequestID:               authRequestID,
+		SelectionURL:                selectionURL,
+		AuthorizationRequestInvalid: authRequestInvalid,
 	}
 
 	if renderer := c.optionsOrDefault().Renderer; renderer != nil {
@@ -295,12 +346,64 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 
 func (c *LoginController) renderDefaultLogin(w http.ResponseWriter, r *http.Request, vm LoginPageViewModel) error {
 	return c.renderLoginComponent(w, r, login.Index(&login.LoginProps{
-		ErrorsMap:    vm.ErrorsMap,
-		Email:        vm.Email,
-		ErrorMessage: vm.ErrorMessage,
-		Methods:      toTemplateLoginMethods(vm.Methods),
-		Logo:         vm.Logo,
+		ErrorsMap:                   vm.ErrorsMap,
+		Email:                       vm.Email,
+		ErrorMessage:                vm.ErrorMessage,
+		Methods:                     toTemplateLoginMethods(vm.Methods),
+		Logo:                        vm.Logo,
+		Accounts:                    toTemplateLoginAccounts(vm.Accounts),
+		NextURL:                     vm.NextURL,
+		AuthRequestID:               vm.AuthRequestID,
+		SelectionURL:                vm.SelectionURL,
+		AuthorizationRequestInvalid: vm.AuthorizationRequestInvalid,
 	}))
+}
+
+func (c *LoginController) loginAccounts(w http.ResponseWriter, r *http.Request) ([]LoginAccount, error) {
+	if c.browserSessions == nil {
+		return nil, nil
+	}
+	resolved, err := c.browserSessions.Resolve(w, r)
+	if err != nil {
+		return nil, err
+	}
+	accounts := make([]LoginAccount, 0, len(resolved))
+	for _, browserSession := range resolved {
+		if !browserSession.Session.IsActive() {
+			continue
+		}
+		u := mappers.UserToViewModel(browserSession.User)
+		avatarURL := ""
+		if u.Avatar != nil {
+			avatarURL = u.Avatar.URL
+		}
+		accounts = append(accounts, LoginAccount{
+			SessionReference: browserSession.Reference(),
+			UserID:           browserSession.Session.UserID(),
+			TenantID:         browserSession.Session.TenantID().String(),
+			FullName:         u.Title(),
+			Email:            u.Email,
+			AvatarURL:        avatarURL,
+			Initials:         shared.GetInitials(u.FirstName, u.LastName),
+			Active:           browserSession.Active,
+		})
+	}
+	return accounts, nil
+}
+
+func toTemplateLoginAccounts(accounts []LoginAccount) []login.Account {
+	mapped := make([]login.Account, 0, len(accounts))
+	for _, account := range accounts {
+		mapped = append(mapped, login.Account{
+			SessionReference: account.SessionReference,
+			FullName:         account.FullName,
+			Email:            account.Email,
+			AvatarURL:        account.AvatarURL,
+			Initials:         account.Initials,
+			Active:           account.Active,
+		})
+	}
+	return mapped
 }
 
 func (c *LoginController) renderLoginComponent(w http.ResponseWriter, r *http.Request, component interface {
@@ -340,7 +443,11 @@ func (c *LoginController) buildLoginMethods(w http.ResponseWriter, r *http.Reque
 	}
 
 	if c.includeGoogleMethod() && c.googleCfg.IsConfigured() {
-		codeURL, err := c.authService.GoogleAuthenticate(w)
+		codeURL, err := c.authService.GoogleAuthenticateFor(
+			w,
+			security.GetValidatedRedirect(r.URL.Query().Get("next")),
+			r.URL.Query().Get("auth_request"),
+		)
 		if err != nil {
 			composables.UseLogger(r.Context()).Error("failed to build google login method", "error", err)
 		} else {
@@ -429,7 +536,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	}
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		shared.SetFlashMap(w, "errorsMap", errorsMap)
-		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
+		http.Redirect(w, r, buildLoginRedirectURL(dto.Email, nextURL, authRequestID), http.StatusFound)
 		return
 	}
 
@@ -443,14 +550,15 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		} else {
 			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
 		}
-		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
+		http.Redirect(w, r, buildLoginRedirectURL(dto.Email, nextURL, authRequestID), http.StatusFound)
 		return
 	}
 
-	loginRedirectURL := fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL))
+	loginRedirectURL := buildLoginRedirectURL(dto.Email, nextURL, authRequestID)
 	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
-		NextURL:     postLoginRedirectURL,
-		AccessCheck: c.runLoginAccessCheck,
+		NextURL:            postLoginRedirectURL,
+		SessionCookieValue: sessionCookieValue(r, c.sidCookieName()),
+		AccessCheck:        c.runLoginAccessCheck,
 	})
 	if err != nil {
 		c.handleFinalizeError(w, r, loginRedirectURL, err)
@@ -489,8 +597,9 @@ func (c *LoginController) FinalizeAuthentication(
 	loginRedirectURL := fmt.Sprintf("/login?next=%s", url.QueryEscape(validatedNextURL))
 
 	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
-		NextURL:     validatedNextURL,
-		AccessCheck: c.runLoginAccessCheck,
+		NextURL:            validatedNextURL,
+		SessionCookieValue: sessionCookieValue(r, c.sidCookieName()),
+		AccessCheck:        c.runLoginAccessCheck,
 	})
 	if err != nil {
 		c.handleFinalizeError(w, r, loginRedirectURL, err)
@@ -498,6 +607,49 @@ func (c *LoginController) FinalizeAuthentication(
 	}
 
 	c.applyFinalizeResult(w, r, finalizeResult)
+}
+
+func (c *LoginController) SelectSession(w http.ResponseWriter, r *http.Request) {
+	if c.browserSessions == nil {
+		http.Error(w, "account switching unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+	if _, err := c.browserSessions.Activate(w, r, r.FormValue("SessionReference")); err != nil {
+		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.SessionExpired")))
+		http.Redirect(w, r, fmt.Sprintf("/login?next=%s", url.QueryEscape(nextURL)), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, nextURL, http.StatusSeeOther)
+}
+
+func sessionCookieValue(r *http.Request, name string) string {
+	if cookie, err := r.Cookie(name); err == nil {
+		return cookie.Value
+	}
+	return ""
+}
+
+func (c *LoginController) sidCookieName() string {
+	if c.cookiesCfg != nil && c.cookiesCfg.SID != "" {
+		return c.cookiesCfg.SID
+	}
+	return "sid"
+}
+
+func buildLoginRedirectURL(email, nextURL, authRequestID string) string {
+	query := url.Values{"next": []string{security.GetValidatedRedirect(nextURL)}}
+	if email != "" {
+		query.Set("email", email)
+	}
+	if authRequestID != "" {
+		query.Set("auth_request", authRequestID)
+	}
+	return "/login?" + query.Encode()
 }
 
 func (c *LoginController) handleFinalizeError(

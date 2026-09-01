@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -71,6 +72,8 @@ func InstallStaticFilesController() Installer {
 
 func InstallCoreControllers() Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
+		const op serrors.Op = "bootstrap.InstallCoreControllers"
+
 		container := rt.Container()
 		if container == nil {
 			return fmt.Errorf("install components before core controllers")
@@ -90,6 +93,10 @@ func InstallCoreControllers() Installer {
 		if err != nil {
 			return fmt.Errorf("resolve AuthService for GraphQL controller: %w", err)
 		}
+		browserSessions, err := composition.Resolve[*coreservices.BrowserSessionService](container)
+		if err != nil {
+			return serrors.E(op, err)
+		}
 		httpCfg, err := composition.Resolve[*httpconfig.Config](container)
 		if err != nil {
 			return fmt.Errorf("resolve httpconfig.Config for GraphQL controller: %w", err)
@@ -108,7 +115,7 @@ func InstallCoreControllers() Installer {
 		}
 		container.AppendControllers(
 			controllers.NewStaticFilesController(container.HashFSAssets()),
-			controllers.NewGraphQLController(rt.App, userService, uploadService, authService, httpCfg, cookiesCfg, appCfg, uploadsCfg),
+			controllers.NewGraphQLController(rt.App, userService, uploadService, authService, browserSessions, httpCfg, cookiesCfg, appCfg, uploadsCfg),
 		)
 		return nil
 	})

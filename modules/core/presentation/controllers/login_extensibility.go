@@ -50,11 +50,27 @@ type LoginMethod struct {
 	Attributes templ.Attributes
 }
 
+type LoginAccount struct {
+	SessionReference string
+	UserID           uint
+	TenantID         string
+	FullName         string
+	Email            string
+	AvatarURL        string
+	Initials         string
+	Active           bool
+}
+
 // LoginPageViewModel contains data required to render a login page.
 type LoginPageViewModel struct {
-	ErrorsMap    map[string]string
-	ErrorMessage string
-	Email        string
-	Methods      []LoginMethod
-	Logo         templ.Component
+	ErrorsMap                   map[string]string
+	ErrorMessage                string
+	Email                       string
+	Methods                     []LoginMethod
+	Logo                        templ.Component
+	Accounts                    []LoginAccount
+	NextURL                     string
+	AuthRequestID               string
+	SelectionURL                string
+	AuthorizationRequestInvalid bool
 }

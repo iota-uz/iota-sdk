@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -445,11 +447,51 @@ func (s *AuthService) generateStateOauthCookie() (*http.Cookie, error) {
 }
 
 func (s *AuthService) GoogleAuthenticate(w http.ResponseWriter) (string, error) {
+	return s.GoogleAuthenticateFor(w, "", "")
+}
+
+type oauthContinuation struct {
+	NextURL       string `json:"next_url"`
+	AuthRequestID string `json:"auth_request_id"`
+}
+
+func (s *AuthService) GoogleAuthenticateFor(w http.ResponseWriter, nextURL, authRequestID string) (string, error) {
+	const op serrors.Op = "AuthService.GoogleAuthenticateFor"
 	cookie, err := s.generateStateOauthCookie()
 	if err != nil {
-		return "", err
+		return "", serrors.E(op, err)
 	}
 	http.SetCookie(w, cookie)
+	payload, err := json.Marshal(oauthContinuation{NextURL: nextURL, AuthRequestID: authRequestID})
+	if err != nil {
+		return "", serrors.E(op, err)
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     s.cookiesCfg.OAuthState + "-continuation",
+		Value:    base64.RawURLEncoding.EncodeToString(payload),
+		Expires:  cookie.Expires,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   s.appCfg.IsProduction(),
+		Domain:   s.cookiesCfg.Domain,
+		Path:     "/",
+	})
 	u := s.oAuthConfig.AuthCodeURL(cookie.Value, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 	return u, nil
+}
+
+func (s *AuthService) OAuthContinuation(r *http.Request) (string, string) {
+	cookie, err := r.Cookie(s.cookiesCfg.OAuthState + "-continuation")
+	if err != nil {
+		return "", ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(cookie.Value)
+	if err != nil {
+		return "", ""
+	}
+	var continuation oauthContinuation
+	if err := json.Unmarshal(payload, &continuation); err != nil {
+		return "", ""
+	}
+	return continuation.NextURL, continuation.AuthRequestID
 }

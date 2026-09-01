@@ -22,7 +22,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/oidc/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/oidc/services"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
@@ -85,8 +84,8 @@ func TestOIDCCallbackCompletesStoredAuthorizationRequest(t *testing.T) {
 		&oidcconfig.Config{IssuerURL: "https://issuer.example.test/oidc", CryptoKey: cryptoKey},
 		services.NewOIDCService(clientRepo, authRequestRepo),
 		nil,
+		nil,
 		&httpconfig.Config{},
-		&cookies.Config{SID: "sid"},
 	)
 	router := mux.NewRouter()
 	controller.Register(router)

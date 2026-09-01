@@ -98,9 +98,10 @@ func (c *component) Build(builder *composition.Builder) error {
 			storage *oidcinfra.Storage,
 			oidcService *services.OIDCService,
 			sessionService *coreservices.SessionService,
+			browserSessions *coreservices.BrowserSessionService,
 		) []application.Controller {
 			return []application.Controller{
-				controllers.NewOIDCController(storage, cfg, oidcService, sessionService, httpCfg, cookiesCfg),
+				controllers.NewOIDCController(storage, cfg, oidcService, sessionService, browserSessions, httpCfg),
 			}
 		})
 	}

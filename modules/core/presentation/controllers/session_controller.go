@@ -100,8 +100,8 @@ func (c *SessionController) List(
 
 	// Get current user's session token for highlighting
 	currentToken := ""
-	if cookie, err := r.Cookie(c.cfg.SID); err == nil {
-		currentToken = cookie.Value
+	if currentSession, err := composables.UseSession(r.Context()); err == nil {
+		currentToken = currentSession.Token()
 	}
 
 	// Build admin session view models with user info

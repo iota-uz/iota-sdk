@@ -146,10 +146,16 @@ func (s *PopulateService) setupTenant(ctx context.Context, tenantSpec *schemas.T
 }
 
 func (s *PopulateService) populateData(ctx context.Context, data *schemas.DataSpec) error {
+	const op serrors.Op = "PopulateService.populateData"
 	// Create users first as they're referenced by other entities
 	if len(data.Users) > 0 {
 		if err := s.createUsers(ctx, data.Users); err != nil {
 			return fmt.Errorf("failed to create users: %w", err)
+		}
+	}
+	if len(data.OIDCClients) > 0 {
+		if err := s.createOIDCClients(ctx, data.OIDCClients); err != nil {
+			return serrors.E(op, err)
 		}
 	}
 
@@ -174,6 +180,43 @@ func (s *PopulateService) populateData(ctx context.Context, data *schemas.DataSp
 		}
 	}
 
+	return nil
+}
+
+func (s *PopulateService) createOIDCClients(ctx context.Context, clients []schemas.OIDCClientSpec) error {
+	const op serrors.Op = "PopulateService.createOIDCClients"
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	for _, clientSpec := range clients {
+		scopes := clientSpec.Scopes
+		if len(scopes) == 0 {
+			scopes = []string{"openid", "profile", "email"}
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO oidc.clients (
+				client_id, name, application_type, redirect_uris, grant_types,
+				response_types, scopes, auth_method, require_pkce, is_active
+			) VALUES ($1, $2, 'web', $3, ARRAY['authorization_code'], ARRAY['code'], $4, 'none', true, true)
+				ON CONFLICT (client_id) DO UPDATE SET
+					name = EXCLUDED.name,
+					application_type = EXCLUDED.application_type,
+					redirect_uris = EXCLUDED.redirect_uris,
+					grant_types = EXCLUDED.grant_types,
+					response_types = EXCLUDED.response_types,
+					scopes = EXCLUDED.scopes,
+				auth_method = 'none',
+				require_pkce = true,
+				is_active = true`,
+			clientSpec.ClientID,
+			clientSpec.Name,
+			clientSpec.RedirectURIs,
+			scopes,
+		); err != nil {
+			return serrors.E(op, err)
+		}
+	}
 	return nil
 }
 
