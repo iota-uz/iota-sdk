@@ -90,6 +90,10 @@ func InstallCoreControllers() Installer {
 		if err != nil {
 			return fmt.Errorf("resolve AuthService for GraphQL controller: %w", err)
 		}
+		browserSessions, err := composition.Resolve[*coreservices.BrowserSessionService](container)
+		if err != nil {
+			return fmt.Errorf("resolve BrowserSessionService for GraphQL controller: %w", err)
+		}
 		httpCfg, err := composition.Resolve[*httpconfig.Config](container)
 		if err != nil {
 			return fmt.Errorf("resolve httpconfig.Config for GraphQL controller: %w", err)
@@ -108,7 +112,7 @@ func InstallCoreControllers() Installer {
 		}
 		container.AppendControllers(
 			controllers.NewStaticFilesController(container.HashFSAssets()),
-			controllers.NewGraphQLController(rt.App, userService, uploadService, authService, httpCfg, cookiesCfg, appCfg, uploadsCfg),
+			controllers.NewGraphQLController(rt.App, userService, uploadService, authService, browserSessions, httpCfg, cookiesCfg, appCfg, uploadsCfg),
 		)
 		return nil
 	})

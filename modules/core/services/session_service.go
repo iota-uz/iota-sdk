@@ -39,6 +39,10 @@ func (s *SessionService) GetByToken(ctx context.Context, id string) (session.Ses
 	return s.repo.GetByToken(ctx, id)
 }
 
+func (s *SessionService) GetBrowserSessionByToken(ctx context.Context, token string) (session.Session, error) {
+	return s.repo.GetByTokenAnyTenant(ctx, token)
+}
+
 func (s *SessionService) GetPaginated(
 	ctx context.Context, params *session.FindParams,
 ) ([]session.Session, error) {

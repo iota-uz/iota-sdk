@@ -9,8 +9,10 @@ import (
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/components/spotlight"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
+	"net/url"
 )
 
 var (
@@ -131,6 +133,13 @@ templ SidebarTrigger(class string) {
 }
 
 templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
+	{{
+		browserSessions := services.UseBrowserSessions(ctx)
+		nextURL := "/"
+		if pageCtx.GetURL() != nil {
+			nextURL = pageCtx.GetURL().RequestURI()
+		}
+	}}
 	<section class="h-16 shadow-b-lg border-b w-full flex items-center px-4 md:px-8 bg-surface-300 border-b-primary">
 		if navbarLeft != nil {
 			@navbarLeft
@@ -153,8 +162,32 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 				@base.DropdownItem(base.DropdownItemProps{Href: "/settings"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Settings") }
 				}
+				if len(browserSessions) > 0 {
+					<li class="border-t border-secondary my-1"></li>
+					for _, browserSession := range browserSessions {
+						if browserSession.Session.IsActive() {
+							{{ account := mappers.UserToViewModel(browserSession.User) }}
+							@base.DropdownFormItem(base.DropdownFormItemProps{
+								Action: "/login/session?next=" + url.QueryEscape(nextURL),
+								Method: "post",
+								Fields: map[string]string{"session_ref": browserSession.Reference()},
+							}) {
+								<span class="block truncate">{ account.Title() }</span>
+								if browserSession.Active {
+									<span class="block text-xs text-200">{ pageCtx.T("NavigationLinks.Navbar.CurrentAccount") }</span>
+								}
+							}
+						}
+					}
+					@base.DropdownItem(base.DropdownItemProps{Href: "/login?next=" + url.QueryEscape(nextURL) + "#login-methods"}) {
+						{ pageCtx.T("NavigationLinks.Navbar.AddAccount") }
+					}
+				}
 				@base.DropdownFormItem(base.DropdownFormItemProps{Action: "/logout", Method: "post"}) {
-					{ pageCtx.T("NavigationLinks.Navbar.Logout") }
+					{ pageCtx.T("NavigationLinks.Navbar.LogoutCurrent") }
+				}
+				@base.DropdownFormItem(base.DropdownFormItemProps{Action: "/logout/all", Method: "post"}) {
+					{ pageCtx.T("NavigationLinks.Navbar.LogoutAll") }
 				}
 			}
 			@SidebarTrigger("lg:hidden")

@@ -20,10 +20,18 @@ type TenantSpec struct {
 }
 
 type DataSpec struct {
-	Users     []UserSpec     `json:"users,omitempty"`
-	Finance   *FinanceSpec   `json:"finance,omitempty"`
-	CRM       *CRMSpec       `json:"crm,omitempty"`
-	Warehouse *WarehouseSpec `json:"warehouse,omitempty"`
+	Users       []UserSpec       `json:"users,omitempty"`
+	Finance     *FinanceSpec     `json:"finance,omitempty"`
+	CRM         *CRMSpec         `json:"crm,omitempty"`
+	Warehouse   *WarehouseSpec   `json:"warehouse,omitempty"`
+	OIDCClients []OIDCClientSpec `json:"oidcClients,omitempty"`
+}
+
+type OIDCClientSpec struct {
+	ClientID     string   `json:"clientId"`
+	Name         string   `json:"name"`
+	RedirectURIs []string `json:"redirectUris"`
+	Scopes       []string `json:"scopes,omitempty"`
 }
 
 type UserSpec struct {

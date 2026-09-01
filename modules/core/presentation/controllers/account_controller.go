@@ -209,14 +209,13 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Get current session token from cookie
-	cookie, err := r.Cookie(c.cfg.SID)
+	currentSession, err := composables.UseSession(r.Context())
 	if err != nil {
-		logger.WithError(err).Error("failed to get session cookie")
+		logger.WithError(err).Error("failed to get current session")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
 		return
 	}
-	currentToken := cookie.Value
+	currentToken := currentSession.Token()
 
 	// Fetch all sessions for the user
 	sessions, err := c.sessionService.GetByUserID(r.Context(), user.ID())
@@ -250,14 +249,13 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	vars := mux.Vars(r)
 	tokenHash := vars["token"]
 
-	// Get current session token from cookie
-	cookie, err := r.Cookie(c.cfg.SID)
+	currentSession, err := composables.UseSession(r.Context())
 	if err != nil {
-		logger.WithError(err).Error("failed to get session cookie")
+		logger.WithError(err).Error("failed to get current session")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
 		return
 	}
-	currentToken := cookie.Value
+	currentToken := currentSession.Token()
 
 	// Get current user
 	user, err := composables.UseUser(r.Context())
@@ -338,14 +336,13 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Get current session token from cookie
-	cookie, err := r.Cookie(c.cfg.SID)
+	currentSession, err := composables.UseSession(r.Context())
 	if err != nil {
-		logger.WithError(err).Error("failed to get session cookie")
+		logger.WithError(err).Error("failed to get current session")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
 		return
 	}
-	currentToken := cookie.Value
+	currentToken := currentSession.Token()
 
 	// Terminate all other sessions
 	count, err := c.sessionService.TerminateOtherSessions(r.Context(), user.ID(), currentToken)

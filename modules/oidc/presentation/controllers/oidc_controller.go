@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/gorilla/mux"
 	"github.com/zitadel/oidc/v3/pkg/op"
@@ -16,8 +17,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 // CallbackQueryDTO represents the query parameters for the OIDC callback endpoint
@@ -26,13 +27,13 @@ type CallbackQueryDTO struct {
 }
 
 type OIDCController struct {
-	storage     *oidc.Storage
-	oidcCfg     *oidcconfig.Config
-	httpCfg     *httpconfig.Config
-	cookiesCfg  *cookies.Config
-	oidcService *oidcservices.OIDCService
-	sessionSvc  *coreservices.SessionService
-	provider    op.OpenIDProvider
+	storage         *oidc.Storage
+	oidcCfg         *oidcconfig.Config
+	httpCfg         *httpconfig.Config
+	oidcService     *oidcservices.OIDCService
+	sessionSvc      *coreservices.SessionService
+	browserSessions *coreservices.BrowserSessionService
+	provider        op.OpenIDProvider
 }
 
 func NewOIDCController(
@@ -40,16 +41,19 @@ func NewOIDCController(
 	oidcCfg *oidcconfig.Config,
 	oidcService *oidcservices.OIDCService,
 	sessionService *coreservices.SessionService,
+	browserSessions *coreservices.BrowserSessionService,
 	httpCfg *httpconfig.Config,
-	cookiesCfg *cookies.Config,
 ) *OIDCController {
+	if browserSessions != nil {
+		browserSessions.SetAuthorizationRequestValidator(oidcService)
+	}
 	return &OIDCController{
-		storage:     storage,
-		oidcCfg:     oidcCfg,
-		httpCfg:     httpCfg,
-		cookiesCfg:  cookiesCfg,
-		oidcService: oidcService,
-		sessionSvc:  sessionService,
+		storage:         storage,
+		oidcCfg:         oidcCfg,
+		httpCfg:         httpCfg,
+		oidcService:     oidcService,
+		sessionSvc:      sessionService,
+		browserSessions: browserSessions,
 	}
 }
 
@@ -123,9 +127,40 @@ func (c *OIDCController) Register(r *mux.Router) {
 	// This is called after user successfully logs in via /login
 	// IMPORTANT: Must be registered before PathPrefix("/oidc/") to avoid being shadowed
 	r.HandleFunc("/oidc/authorize/callback", c.handleCallback).Methods(http.MethodGet)
+	r.HandleFunc("/oidc/authorize/select", c.handleAccountSelection).Methods(http.MethodPost)
 
 	// Register catch-all OIDC provider routes last
 	r.PathPrefix("/oidc/").Handler(http.StripPrefix("/oidc", provider))
+}
+
+func (c *OIDCController) handleAccountSelection(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid account selection", http.StatusBadRequest)
+		return
+	}
+	authRequestID := r.URL.Query().Get("auth_request")
+	authReq, err := c.oidcService.GetAuthRequest(r.Context(), authRequestID)
+	if err != nil || authReq.IsExpired() || authReq.IsAuthenticated() || authReq.IsCodeUsed() || authReq.Code() != nil {
+		http.Error(w, "This authorization request is no longer valid. Return to the application and start again.", http.StatusBadRequest)
+		return
+	}
+
+	browserSession, err := c.browserSessions.Activate(w, r, r.FormValue("session_ref"))
+	if err != nil || !browserSession.Session.IsActive() {
+		shared.SetFlash(w, "error", []byte("That account session expired. Sign in again or choose another account."))
+		http.Redirect(w, r, "/login?auth_request="+url.QueryEscape(authRequestID), http.StatusSeeOther)
+		return
+	}
+	if err := c.oidcService.CompleteAuthRequest(
+		r.Context(),
+		authRequestID,
+		int(browserSession.Session.UserID()),
+		browserSession.Session.TenantID(),
+	); err != nil {
+		http.Error(w, "This authorization request is no longer valid. Return to the application and start again.", http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/oidc/authorize/callback?id="+url.QueryEscape(authRequestID), http.StatusSeeOther)
 }
 
 // handleCallback completes the authorization flow after successful login
@@ -153,23 +188,21 @@ func (c *OIDCController) handleCallback(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Invalid auth request", http.StatusBadRequest)
 		return
 	}
+	if authReq.IsExpired() || authReq.IsCodeUsed() || authReq.Code() != nil {
+		http.Error(w, "This authorization request is no longer valid. Return to the application and start again.", http.StatusBadRequest)
+		return
+	}
 
 	// Complete auth request from active session if not already authenticated.
 	// This ensures users finish 2FA before OIDC authorization can proceed.
 	if !authReq.IsAuthenticated() {
-		sessionCookie, err := r.Cookie(c.cookiesCfg.SID)
-		if err != nil {
-			logger.WithError(err).Error("Missing session cookie for OIDC callback")
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		sess, err := c.sessionSvc.GetByToken(r.Context(), sessionCookie.Value)
+		browserSession, err := c.browserSessions.Active(w, r)
 		if err != nil {
 			logger.WithError(err).Error("Failed to load session for OIDC callback")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
+		sess := browserSession.Session
 
 		if sess.Status() != session.StatusActive {
 			logger.Error("Session not active for OIDC callback", "status", sess.Status())

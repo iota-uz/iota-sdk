@@ -195,6 +195,17 @@ func (g *SessionRepository) GetByToken(ctx context.Context, token string) (sessi
 	return sessions[0], nil
 }
 
+func (g *SessionRepository) GetByTokenAnyTenant(ctx context.Context, token string) (session.Session, error) {
+	sessions, err := g.querySessions(ctx, repo.Join(selectSessionQuery, "WHERE token = $1"), token)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get browser session by token")
+	}
+	if len(sessions) == 0 {
+		return nil, ErrSessionNotFound
+	}
+	return sessions[0], nil
+}
+
 func (g *SessionRepository) GetByTokenAndAudience(ctx context.Context, token string, audience session.SessionAudience) (session.Session, error) {
 	// First try with tenant from context
 	tenantID, err := composables.UseTenantID(ctx)

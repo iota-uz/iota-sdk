@@ -463,14 +463,19 @@
     "WelcomeBack": "欢迎回来",
     "LoginToUse": "登录以使用 IOTA ERP",
     "LoginWithGoogle": "使用 Google 登录",
-    "OrSignInWith": "或使用...登录",
+		"OrSignInWith": "或使用...登录",
+		"ChooseAccount": "选择账户",
+		"UseAnotherAccount": "使用其他账户",
+		"ActiveAccount": "当前",
     "Errors": {
       "PasswordInvalid": "电子邮件或密码无效",
       "OauthStateNotFound": "未找到 oAuth 状态。请重试。",
       "OauthStateInvalid": "无效的 oAuth 状态。请重试。",
       "OauthCodeNotFound": "未找到 oAuth 代码。请重试。",
       "UserNotFound": "未找到用户",
-      "AccountBlocked": "您的账户已被封禁。请联系管理员。"
+			"AccountBlocked": "您的账户已被封禁。请联系管理员。",
+			"SessionExpired": "该账户会话已过期。请重新登录或选择其他账户。"
+			,"AuthorizationRequestInvalid": "此授权请求已失效。请返回应用并重新开始。"
     }
   },
   "Modules": {
@@ -602,7 +607,11 @@
     "Navbar": {
       "Profile": "个人资料",
       "Sessions": "会话",
-      "Logout": "退出登录",
+			"Logout": "退出登录",
+			"CurrentAccount": "当前账户",
+			"AddAccount": "添加账户",
+			"LogoutCurrent": "退出当前账户",
+			"LogoutAll": "退出所有账户",
       "Settings": "设置"
     },
     "Departments": "部门"

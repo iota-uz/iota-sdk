@@ -2,30 +2,24 @@
 package controllers
 
 import (
-	"errors"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 )
 
 type LogoutController struct {
-	cfg        *httpconfig.Config
-	cookiesCfg *cookies.Config
-	appCfg     *appconfig.Config
+	cfg             *httpconfig.Config
+	browserSessions *services.BrowserSessionService
 }
 
-func NewLogoutController(cfg *httpconfig.Config, cookiesCfg *cookies.Config, appCfg *appconfig.Config) application.Controller {
-	return &LogoutController{cfg: cfg, cookiesCfg: cookiesCfg, appCfg: appCfg}
+func NewLogoutController(cfg *httpconfig.Config, browserSessions *services.BrowserSessionService) application.Controller {
+	return &LogoutController{cfg: cfg, browserSessions: browserSessions}
 }
 
 func (c *LogoutController) Descriptor() application.ControllerDescriptor {
@@ -34,6 +28,7 @@ func (c *LogoutController) Descriptor() application.ControllerDescriptor {
 
 func (c *LogoutController) Register(r *mux.Router) {
 	r.HandleFunc("/logout", di.H(c.Logout)).Methods(http.MethodPost)
+	r.HandleFunc("/logout/all", di.H(c.LogoutAll)).Methods(http.MethodPost)
 	r.HandleFunc("/logout", c.MethodNotAllowed).Methods(http.MethodGet)
 }
 
@@ -45,33 +40,32 @@ func (c *LogoutController) MethodNotAllowed(w http.ResponseWriter, _ *http.Reque
 func (c *LogoutController) Logout(
 	w http.ResponseWriter,
 	r *http.Request,
-	sessionService *services.SessionService,
 	logger *logrus.Entry,
 ) {
-	if cookie, err := r.Cookie(c.cookiesCfg.SID); err == nil && cookie.Value != "" {
-		if err := sessionService.Delete(r.Context(), cookie.Value); err != nil && !errors.Is(err, persistence.ErrSessionNotFound) {
-			logger.WithError(err).Warn("failed to delete session on logout")
-		}
+	sessions, err := c.browserSessions.RemoveCurrent(w, r)
+	if err != nil {
+		logger.WithError(err).Warn("failed to delete current session on logout")
 	}
 
-	http.SetCookie(
-		w, &http.Cookie{
-			Name:     c.cookiesCfg.SID,
-			Value:    "",
-			Domain:   c.cookiesCfg.Domain,
-			Path:     "/",
-			MaxAge:   -1,
-			Expires:  time.Unix(0, 0),
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-			Secure:   c.appCfg.IsProduction(),
-		},
-	)
+	setLogoutHeaders(w)
+	redirectURL := "/login"
+	if len(sessions) > 0 {
+		redirectURL = "/"
+	}
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+}
 
+func (c *LogoutController) LogoutAll(w http.ResponseWriter, r *http.Request, logger *logrus.Entry) {
+	if err := c.browserSessions.RemoveAll(w, r); err != nil {
+		logger.WithError(err).Warn("failed to delete all sessions on logout")
+	}
+	setLogoutHeaders(w)
+	w.Header().Set("Clear-Site-Data", `"cache", "cookies", "storage"`)
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
+
+func setLogoutHeaders(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, private")
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
-	w.Header().Set("Clear-Site-Data", `"cache", "cookies", "storage"`)
-
-	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }

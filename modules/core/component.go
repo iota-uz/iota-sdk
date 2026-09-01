@@ -139,12 +139,13 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, services.NewUploadService)
 	composition.ProvideFunc(builder, services.NewSessionService)
 	composition.ProvideFunc(builder, newCoreUserService)
+	composition.ProvideFunc(builder, services.NewBrowserSessionService)
 	composition.ProvideFunc(builder, services.NewUserQueryService)
 	composition.ProvideFunc(builder, services.NewGroupQueryService)
 	composition.ProvideFunc(builder, services.NewRoleQueryService)
 	composition.ProvideFunc(builder, services.NewExcelExportService)
 	composition.ProvideFunc(builder, newCoreAuthService)
-	composition.ProvideFunc(builder, services.NewAuthFlowService)
+	composition.ProvideFunc(builder, services.NewAuthFlowServiceWithBrowserSessions)
 	composition.ProvideFunc(builder, services.NewCurrencyService)
 	composition.ProvideFunc(builder, services.NewRoleService)
 	composition.ProvideFunc(builder, services.NewPermissionService)
@@ -204,6 +205,10 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
+		browserSessions, err := composition.Resolve[*services.BrowserSessionService](container)
+		if err != nil {
+			return nil, err
+		}
 		httpCfg, err := composition.Resolve[*httpconfig.Config](container)
 		if err != nil {
 			return nil, err
@@ -219,7 +224,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		return []application.GraphSchema{
 			{
 				Value: graph.NewExecutableSchema(graph.Config{
-					Resolvers: graph.NewResolver(app, userSvc, uploadSvc, authSvc, httpCfg, cookiesCfg, appCfg),
+					Resolvers: graph.NewResolver(app, userSvc, uploadSvc, authSvc, browserSessions, httpCfg, cookiesCfg, appCfg),
 				}),
 				BasePath: "/",
 			},
@@ -266,6 +271,7 @@ func (c *component) Build(builder *composition.Builder) error {
 			userService *services.UserService,
 			authService *services.AuthService,
 			authFlowService *services.AuthFlowService,
+			browserSessions *services.BrowserSessionService,
 			tenantService *services.TenantService,
 			groupService *services.GroupService,
 			roleService *services.RoleService,
@@ -292,11 +298,11 @@ func (c *component) Build(builder *composition.Builder) error {
 			// Auth and infrastructure controllers — always registered.
 			ctrls := []application.Controller{
 				controllers.NewHealthController(app),
-				controllers.NewLoginController(authService, authFlowService, httpCfg, cookiesCfg, headersCfg, googleCfg, opts.LoginControllerOptions),
-				controllers.NewTwoFactorSetupController(twoFactorService, sessionService, userService, httpCfg, cookiesCfg, sessionCfg, appCfg),
-				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService, httpCfg, cookiesCfg, sessionCfg, appCfg),
+				controllers.NewLoginControllerWithBrowserSessions(authService, authFlowService, browserSessions, httpCfg, cookiesCfg, headersCfg, googleCfg, opts.LoginControllerOptions),
+				controllers.NewTwoFactorSetupController(twoFactorService, sessionService, userService, httpCfg, sessionCfg, browserSessions),
+				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService, httpCfg, sessionCfg, browserSessions),
 				controllers.NewAccountController(app, userService, tenantService, uploadService, sessionService, cookiesCfg),
-				controllers.NewLogoutController(httpCfg, cookiesCfg, appCfg),
+				controllers.NewLogoutController(httpCfg, browserSessions),
 				controllers.NewUploadController(uploadService, uploadsCfg),
 			}
 			if opts.UploadsAuthorizer != nil || opts.DefaultTenantID != uuid.Nil {

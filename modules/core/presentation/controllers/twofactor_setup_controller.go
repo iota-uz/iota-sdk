@@ -2,7 +2,6 @@
 package controllers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -18,9 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
-	httpcookies "github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	httpsession "github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/session"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -43,18 +40,16 @@ func NewTwoFactorSetupController(
 	sessionService *services.SessionService,
 	userService *services.UserService,
 	httpCfg *httpconfig.Config,
-	cookiesCfg *httpcookies.Config,
 	sessionCfg *httpsession.Config,
-	appCfg *appconfig.Config,
+	browserSessions *services.BrowserSessionService,
 ) application.Controller {
 	return &TwoFactorSetupController{
 		twoFactorService: twoFactorService,
 		sessionService:   sessionService,
 		userService:      userService,
 		httpCfg:          httpCfg,
-		cookiesCfg:       cookiesCfg,
 		sessionCfg:       sessionCfg,
-		appCfg:           appCfg,
+		browserSessions:  browserSessions,
 	}
 }
 
@@ -66,9 +61,8 @@ type TwoFactorSetupController struct {
 	sessionService   *services.SessionService
 	userService      *services.UserService
 	httpCfg          *httpconfig.Config
-	cookiesCfg       *httpcookies.Config
 	sessionCfg       *httpsession.Config
-	appCfg           *appconfig.Config
+	browserSessions  *services.BrowserSessionService
 }
 
 type methodChoiceDTO struct {
@@ -110,7 +104,7 @@ func requireTwoFactorSetupSession(w http.ResponseWriter, logger *logrus.Entry, r
 	return sess, true
 }
 
-func (c *TwoFactorSetupController) activateSession(ctx context.Context, w http.ResponseWriter, sess session.Session) (session.Session, error) {
+func (c *TwoFactorSetupController) activateSession(w http.ResponseWriter, r *http.Request, sess session.Session) (session.Session, error) {
 	updatedSession := session.New(
 		sess.Token(),
 		sess.UserID(),
@@ -123,20 +117,14 @@ func (c *TwoFactorSetupController) activateSession(ctx context.Context, w http.R
 		session.WithCreatedAt(sess.CreatedAt()),
 	)
 
-	if err := c.sessionService.Update(ctx, updatedSession); err != nil {
+	if err := c.sessionService.Update(r.Context(), updatedSession); err != nil {
 		return nil, err
 	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     c.cookiesCfg.SID,
-		Value:    updatedSession.Token(),
-		Expires:  updatedSession.ExpiresAt(),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   c.appCfg.IsProduction(),
-		Domain:   c.cookiesCfg.Domain,
-		Path:     "/",
-	})
+	cookie, err := c.browserSessions.AddFromRequest(r.Context(), r, updatedSession)
+	if err != nil {
+		return nil, err
+	}
+	http.SetCookie(w, cookie)
 
 	return updatedSession, nil
 }
@@ -460,7 +448,7 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 		return
 	}
 
-	if _, err := c.activateSession(r.Context(), w, sess); err != nil {
+	if _, err := c.activateSession(w, r, sess); err != nil {
 		logger.WithError(err).Error("failed to update session to active")
 		http.Error(w, "failed to activate session", http.StatusInternalServerError)
 		return
@@ -587,7 +575,7 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 		return
 	}
 
-	if _, err := c.activateSession(r.Context(), w, sess); err != nil {
+	if _, err := c.activateSession(w, r, sess); err != nil {
 		logger.WithError(err).Error("failed to update session to active")
 		http.Error(w, "failed to activate session", http.StatusInternalServerError)
 		return

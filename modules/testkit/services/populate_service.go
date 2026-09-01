@@ -152,6 +152,11 @@ func (s *PopulateService) populateData(ctx context.Context, data *schemas.DataSp
 			return fmt.Errorf("failed to create users: %w", err)
 		}
 	}
+	if len(data.OIDCClients) > 0 {
+		if err := s.createOIDCClients(ctx, data.OIDCClients); err != nil {
+			return fmt.Errorf("failed to create OIDC clients: %w", err)
+		}
+	}
 
 	// Create finance entities
 	if data.Finance != nil {
@@ -174,6 +179,39 @@ func (s *PopulateService) populateData(ctx context.Context, data *schemas.DataSp
 		}
 	}
 
+	return nil
+}
+
+func (s *PopulateService) createOIDCClients(ctx context.Context, clients []schemas.OIDCClientSpec) error {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+	for _, clientSpec := range clients {
+		scopes := clientSpec.Scopes
+		if len(scopes) == 0 {
+			scopes = []string{"openid", "profile", "email"}
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO oidc.clients (
+				client_id, name, application_type, redirect_uris, grant_types,
+				response_types, scopes, auth_method, require_pkce, is_active
+			) VALUES ($1, $2, 'web', $3, ARRAY['authorization_code'], ARRAY['code'], $4, 'none', true, true)
+			ON CONFLICT (client_id) DO UPDATE SET
+				name = EXCLUDED.name,
+				redirect_uris = EXCLUDED.redirect_uris,
+				scopes = EXCLUDED.scopes,
+				auth_method = 'none',
+				require_pkce = true,
+				is_active = true`,
+			clientSpec.ClientID,
+			clientSpec.Name,
+			clientSpec.RedirectURIs,
+			scopes,
+		); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
