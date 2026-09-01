@@ -80,13 +80,18 @@ func (s *BrowserSessionService) SetAuthorizationRequestValidator(validator Autho
 }
 
 func (s *BrowserSessionService) ValidateAuthorizationRequest(ctx context.Context, id string) error {
+	const op serrors.Op = "core.BrowserSessionService.ValidateAuthorizationRequest"
+
 	if strings.TrimSpace(id) == "" {
 		return nil
 	}
 	if s.authorizationRequests == nil {
-		return errors.New("authorization requests are unavailable")
+		return serrors.E(op, errors.New("authorization requests are unavailable"))
 	}
-	return s.authorizationRequests.ValidateAuthorizationRequest(ctx, id)
+	if err := s.authorizationRequests.ValidateAuthorizationRequest(ctx, id); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
 }
 
 func NewBrowserSessionService(
@@ -105,16 +110,18 @@ func NewBrowserSessionService(
 }
 
 func (s *BrowserSessionService) Resolve(w http.ResponseWriter, r *http.Request) ([]BrowserSession, error) {
+	const op serrors.Op = "core.BrowserSessionService.Resolve"
+
 	value := ""
 	if cookie, err := r.Cookie(s.sidName()); err == nil {
 		value = cookie.Value
 	} else if !errors.Is(err, http.ErrNoCookie) {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	state, sessions, changed, err := s.resolveValue(r.Context(), value)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	if changed && w != nil {
 		http.SetCookie(w, s.cookie(state, sessions))
@@ -123,22 +130,26 @@ func (s *BrowserSessionService) Resolve(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *BrowserSessionService) Active(w http.ResponseWriter, r *http.Request) (BrowserSession, error) {
+	const op serrors.Op = "core.BrowserSessionService.Active"
+
 	sessions, err := s.Resolve(w, r)
 	if err != nil {
-		return BrowserSession{}, err
+		return BrowserSession{}, serrors.E(op, err)
 	}
 	for _, browserSession := range sessions {
 		if browserSession.Active {
 			return browserSession, nil
 		}
 	}
-	return BrowserSession{}, persistence.ErrSessionNotFound
+	return BrowserSession{}, serrors.E(op, persistence.ErrSessionNotFound)
 }
 
 func (s *BrowserSessionService) Add(ctx context.Context, cookieValue string, sess session.Session) (*http.Cookie, error) {
+	const op serrors.Op = "core.BrowserSessionService.Add"
+
 	state, sessions, _, err := s.resolveValue(ctx, cookieValue)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	now := s.now().UnixNano()
@@ -162,7 +173,7 @@ func (s *BrowserSessionService) Add(ctx context.Context, cookieValue string, ses
 		sessions = sessions[:MaxBrowserSessions]
 		for _, entry := range evicted {
 			if err := s.deleteToken(ctx, entry.Token); err != nil && !errors.Is(err, persistence.ErrSessionNotFound) {
-				return nil, serrors.E("core.BrowserSessionService.Add", err)
+				return nil, serrors.E(op, err)
 			}
 		}
 	}
@@ -179,9 +190,11 @@ func (s *BrowserSessionService) AddFromRequest(ctx context.Context, r *http.Requ
 }
 
 func (s *BrowserSessionService) Activate(w http.ResponseWriter, r *http.Request, reference string) (BrowserSession, error) {
+	const op serrors.Op = "core.BrowserSessionService.Activate"
+
 	state, sessions, changed, err := s.resolveRequest(r)
 	if err != nil {
-		return BrowserSession{}, err
+		return BrowserSession{}, serrors.E(op, err)
 	}
 	for i, browserSession := range sessions {
 		if browserSession.Reference() != reference || !browserSession.Session.IsActive() {
@@ -203,18 +216,20 @@ func (s *BrowserSessionService) Activate(w http.ResponseWriter, r *http.Request,
 	if changed {
 		http.SetCookie(w, s.cookie(state, sessions))
 	}
-	return BrowserSession{}, persistence.ErrSessionNotFound
+	return BrowserSession{}, serrors.E(op, persistence.ErrSessionNotFound)
 }
 
 func (s *BrowserSessionService) RemoveCurrent(w http.ResponseWriter, r *http.Request) ([]BrowserSession, error) {
+	const op serrors.Op = "core.BrowserSessionService.RemoveCurrent"
+
 	state, sessions, _, err := s.resolveRequest(r)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	activeToken := state.Active
 	if activeToken != "" {
 		if err := s.deleteToken(r.Context(), activeToken); err != nil && !errors.Is(err, persistence.ErrSessionNotFound) {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 	}
 	state.Entries = withoutEntry(state.Entries, activeToken)
@@ -231,13 +246,15 @@ func (s *BrowserSessionService) RemoveCurrent(w http.ResponseWriter, r *http.Req
 }
 
 func (s *BrowserSessionService) RemoveAll(w http.ResponseWriter, r *http.Request) error {
+	const op serrors.Op = "core.BrowserSessionService.RemoveAll"
+
 	state, _, _, err := s.resolveRequest(r)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 	for _, entry := range state.Entries {
 		if err := s.deleteToken(r.Context(), entry.Token); err != nil && !errors.Is(err, persistence.ErrSessionNotFound) {
-			return err
+			return serrors.E(op, err)
 		}
 	}
 	http.SetCookie(w, s.clearCookie())

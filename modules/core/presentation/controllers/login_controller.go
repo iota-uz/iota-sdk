@@ -619,7 +619,7 @@ func (c *LoginController) SelectSession(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
-	if _, err := c.browserSessions.Activate(w, r, r.FormValue("SessionRef")); err != nil {
+	if _, err := c.browserSessions.Activate(w, r, r.FormValue("SessionReference")); err != nil {
 		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.SessionExpired")))
 		http.Redirect(w, r, fmt.Sprintf("/login?next=%s", url.QueryEscape(nextURL)), http.StatusSeeOther)
 		return

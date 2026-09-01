@@ -51,8 +51,9 @@ templ DropdownFormItem(props DropdownFormItemProps) {
 }
 
 type DetailsDropdownProps struct {
-	Summary templ.Component
-	Classes templ.CSSClasses
+	Summary     templ.Component
+	Classes     templ.CSSClasses
+	MenuClasses templ.CSSClasses
 }
 
 func newDetailsDropdown(props *DetailsDropdownProps) *DetailsDropdownProps {
@@ -68,7 +69,7 @@ templ (p *DetailsDropdownProps) render() {
 			if p.Summary != nil {
 				@p.Summary
 			}
-			<ul class="flex flex-col gap-1 mt-1 absolute bg-surface-300 right-0 text-sm rounded-md w-44 overflow-hidden shadow-sm border border-secondary p-1">
+			<ul class={ "flex flex-col gap-1 mt-1 absolute bg-surface-300 right-0 text-sm rounded-md w-44 overflow-hidden shadow-sm border border-secondary p-1", p.MenuClasses }>
 				{ children... }
 			</ul>
 		</details>

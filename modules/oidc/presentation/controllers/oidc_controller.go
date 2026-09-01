@@ -145,7 +145,7 @@ func (c *OIDCController) handleAccountSelection(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	browserSession, err := c.browserSessions.Activate(w, r, r.FormValue("SessionRef"))
+	browserSession, err := c.browserSessions.Activate(w, r, r.FormValue("SessionReference"))
 	if err != nil || !browserSession.Session.IsActive() {
 		shared.SetFlash(w, "error", []byte("That account session expired. Sign in again or choose another account."))
 		http.Redirect(w, r, "/login?auth_request="+url.QueryEscape(authRequestID), http.StatusSeeOther)

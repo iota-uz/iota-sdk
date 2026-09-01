@@ -27,7 +27,7 @@ templ Avatar() {
 			url = u.Avatar.URL
 		}
 	}}
-	<summary class="flex items-center justify-center cursor-pointer">
+	<summary class="flex items-center justify-center cursor-pointer" aria-label={ u.Title() }>
 		@avatar.Avatar(avatar.Props{
 			ImageURL: url,
 			Initials: u.Initials(),
@@ -150,8 +150,9 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 			</div>
 			@ThemeSwitcher()
 			@base.DetailsDropdown(&base.DetailsDropdownProps{
-				Summary: Avatar(),
-				Classes: templ.Classes("z-[80]"),
+				Summary:     Avatar(),
+				Classes:     templ.Classes("z-[80]"),
+				MenuClasses: templ.Classes("w-64"),
 			}) {
 				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Profile") }
@@ -166,16 +167,28 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 					<li class="border-t border-secondary my-1"></li>
 					for _, browserSession := range browserSessions {
 						if browserSession.Session.IsActive() {
-							{{ account := mappers.UserToViewModel(browserSession.User) }}
+							{{
+								account := mappers.UserToViewModel(browserSession.User)
+								avatarURL := ""
+								if account.Avatar != nil {
+									avatarURL = account.Avatar.URL
+								}
+							}}
 							@base.DropdownFormItem(base.DropdownFormItemProps{
 								Action: "/login/session?next=" + url.QueryEscape(nextURL),
 								Method: "post",
-								Fields: map[string]string{"SessionRef": browserSession.Reference()},
+								Fields: map[string]string{"SessionReference": browserSession.Reference()},
 							}) {
-								<span class="block truncate">{ account.Title() }</span>
-								if browserSession.Active {
-									<span class="block text-xs text-200">{ pageCtx.T("NavigationLinks.Navbar.CurrentAccount") }</span>
-								}
+								<span class="flex items-center gap-3">
+									@avatar.Avatar(avatar.Props{ImageURL: avatarURL, Initials: account.Initials(), Class: templ.Classes("w-8 h-8 text-xs")})
+									<span class="min-w-0 flex-1">
+										<span class="block truncate font-medium">{ account.Title() }</span>
+										<span class="block truncate text-xs text-200">{ account.Email }</span>
+										if browserSession.Active {
+											<span class="block text-xs text-200">{ pageCtx.T("NavigationLinks.Navbar.CurrentAccount") }</span>
+										}
+									</span>
+								</span>
 							}
 						}
 					}

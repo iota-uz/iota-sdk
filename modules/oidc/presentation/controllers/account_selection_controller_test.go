@@ -31,8 +31,44 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
-func TestOIDCAccountSelectionDerivesIdentityFromBrowserSession(t *testing.T) {
+func TestOIDCAccountSelection_Scenarios(t *testing.T) {
 	t.Parallel()
+	tests := []struct {
+		name string
+		run  func(*testing.T)
+	}{
+		{name: "derives identity from browser session", run: testOIDCAccountSelectionDerivesIdentityFromBrowserSession},
+		{name: "rejects expired authorization request", run: testOIDCAccountSelectionRejectsExpiredAuthorizationRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, tt.run)
+	}
+}
+
+func newAccountSelectionRouter(
+	env *itf.TestEnvironment,
+	clientRepo client.Repository,
+	authRequestRepo authrequest.Repository,
+) *mux.Router {
+	cryptoKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
+	storage := oidcstorage.NewStorage(
+		clientRepo, authRequestRepo, persistence.NewTokenRepository(), nil, env.Pool,
+		cryptoKey, "https://issuer.example.test/oidc", 0, 0,
+	)
+	controller := controllers.NewOIDCController(
+		storage,
+		&oidcconfig.Config{IssuerURL: "https://issuer.example.test/oidc", CryptoKey: cryptoKey},
+		oidcservices.NewOIDCService(clientRepo, authRequestRepo),
+		itf.GetService[coreservices.SessionService](env),
+		itf.GetService[coreservices.BrowserSessionService](env),
+		&httpconfig.Config{},
+	)
+	router := mux.NewRouter()
+	controller.Register(router)
+	return router
+}
+
+func testOIDCAccountSelectionDerivesIdentityFromBrowserSession(t *testing.T) {
 	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 	clientRepo := persistence.NewClientRepository()
 	authRequestRepo := persistence.NewAuthRequestRepository()
@@ -74,26 +110,12 @@ func TestOIDCAccountSelectionDerivesIdentityFromBrowserSession(t *testing.T) {
 	)
 	require.NoError(t, authRequestRepo.Create(env.Ctx, request))
 
-	cryptoKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
-	storage := oidcstorage.NewStorage(
-		clientRepo, authRequestRepo, persistence.NewTokenRepository(), nil, env.Pool,
-		cryptoKey, "https://issuer.example.test/oidc", 0, 0,
-	)
-	controller := controllers.NewOIDCController(
-		storage,
-		&oidcconfig.Config{IssuerURL: "https://issuer.example.test/oidc", CryptoKey: cryptoKey},
-		oidcservices.NewOIDCService(clientRepo, authRequestRepo),
-		coreSessionService,
-		browserSessions,
-		&httpconfig.Config{},
-	)
-	router := mux.NewRouter()
-	controller.Register(router)
+	router := newAccountSelectionRouter(env, clientRepo, authRequestRepo)
 
 	form := url.Values{
-		"SessionRef": {coreservices.BrowserSessionReference(token)},
-		"user_id":    {"999999"},
-		"tenant_id":  {uuid.NewString()},
+		"SessionReference": {coreservices.BrowserSessionReference(token)},
+		"user_id":          {"999999"},
+		"tenant_id":        {uuid.NewString()},
 	}
 	recorder := httptest.NewRecorder()
 	requestContext := context.WithValue(env.Ctx, constants.LoggerKey, logrus.New().WithField("test", true))
@@ -117,8 +139,7 @@ func TestOIDCAccountSelectionDerivesIdentityFromBrowserSession(t *testing.T) {
 	require.Equal(t, "challenge", *completed.CodeChallenge())
 }
 
-func TestOIDCAccountSelectionRejectsExpiredAuthorizationRequest(t *testing.T) {
-	t.Parallel()
+func testOIDCAccountSelectionRejectsExpiredAuthorizationRequest(t *testing.T) {
 	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 	clientRepo := persistence.NewClientRepository()
 	authRequestRepo := persistence.NewAuthRequestRepository()
@@ -135,27 +156,13 @@ func TestOIDCAccountSelectionRejectsExpiredAuthorizationRequest(t *testing.T) {
 	)
 	require.NoError(t, authRequestRepo.Create(env.Ctx, request))
 
-	cryptoKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
-	storage := oidcstorage.NewStorage(
-		clientRepo, authRequestRepo, persistence.NewTokenRepository(), nil, env.Pool,
-		cryptoKey, "https://issuer.example.test/oidc", 0, 0,
-	)
-	controller := controllers.NewOIDCController(
-		storage,
-		&oidcconfig.Config{IssuerURL: "https://issuer.example.test/oidc", CryptoKey: cryptoKey},
-		oidcservices.NewOIDCService(clientRepo, authRequestRepo),
-		itf.GetService[coreservices.SessionService](env),
-		itf.GetService[coreservices.BrowserSessionService](env),
-		&httpconfig.Config{},
-	)
-	router := mux.NewRouter()
-	controller.Register(router)
+	router := newAccountSelectionRouter(env, clientRepo, authRequestRepo)
 
 	recorder := httptest.NewRecorder()
 	httpRequest := httptest.NewRequest(
 		http.MethodPost,
 		"/oidc/authorize/select?auth_request="+request.ID().String(),
-		strings.NewReader(url.Values{"SessionRef": {"untrusted"}}.Encode()),
+		strings.NewReader(url.Values{"SessionReference": {"untrusted"}}.Encode()),
 	).WithContext(context.WithValue(env.Ctx, constants.LoggerKey, logrus.New().WithField("test", true)))
 	httpRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	router.ServeHTTP(recorder, httpRequest)

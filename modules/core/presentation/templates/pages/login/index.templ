@@ -4,6 +4,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/alert"
 	"github.com/iota-uz/iota-sdk/components/base/avatar"
+	"github.com/iota-uz/iota-sdk/components/base/badge"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/internal/assets"
@@ -136,19 +137,29 @@ templ Index(p *LoginProps) {
 					} else if len(p.Accounts) > 0 {
 						<div class="flex flex-col gap-2" data-testid="account-picker">
 							for _, account := range p.Accounts {
+								{{ accountAttrs := templ.Attributes{"type": "submit", "data-testid": "account-card"} }}
+								if account.Active {
+									{{ accountAttrs["aria-current"] = "true" }}
+								}
 								<form method="post" action={ templ.URL(p.SelectionURL) }>
 									@composables.CSRFTokenField()
-									<input type="hidden" name="SessionRef" value={ account.SessionReference }/>
-									<button type="submit" class="w-full flex items-center gap-3 rounded-lg border border-primary p-3 text-left hover:bg-surface-200" data-testid="account-card">
+									<input type="hidden" name="SessionReference" value={ account.SessionReference }/>
+									@button.Secondary(button.Props{
+										Size:  button.SizeNormal,
+										Class: "w-full !h-auto min-h-16 justify-start gap-3 p-3 text-left",
+										Attrs: accountAttrs,
+									}) {
 										@avatar.Avatar(avatar.Props{ImageURL: account.AvatarURL, Initials: account.Initials})
 										<span class="min-w-0 flex-1">
 											<span class="block truncate text-100 font-medium">{ account.FullName }</span>
 											<span class="block truncate text-sm text-200">{ account.Email }</span>
 										</span>
 										if account.Active {
-											<span class="text-xs text-200">{ pageCtx.T("Login.ActiveAccount") }</span>
+											@badge.New(badge.Props{Variant: badge.VariantGreen, Class: templ.Classes("!h-6 px-2 text-xs")}) {
+												{ pageCtx.T("Login.ActiveAccount") }
+											}
 										}
-									</button>
+									}
 								</form>
 							}
 						</div>
