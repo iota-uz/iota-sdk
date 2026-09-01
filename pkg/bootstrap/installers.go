@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -71,6 +72,8 @@ func InstallStaticFilesController() Installer {
 
 func InstallCoreControllers() Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
+		const op serrors.Op = "bootstrap.InstallCoreControllers"
+
 		container := rt.Container()
 		if container == nil {
 			return fmt.Errorf("install components before core controllers")
@@ -92,7 +95,7 @@ func InstallCoreControllers() Installer {
 		}
 		browserSessions, err := composition.Resolve[*coreservices.BrowserSessionService](container)
 		if err != nil {
-			return fmt.Errorf("resolve BrowserSessionService for GraphQL controller: %w", err)
+			return serrors.E(op, err)
 		}
 		httpCfg, err := composition.Resolve[*httpconfig.Config](container)
 		if err != nil {

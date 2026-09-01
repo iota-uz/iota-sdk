@@ -12,10 +12,13 @@ import (
 	model "github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/gqlmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/mappers"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // Authenticate is the resolver for the authenticate field.
 func (r *mutationResolver) Authenticate(ctx context.Context, email string, password string) (*model.Session, error) {
+	const op serrors.Op = "core.graph.Authenticate"
+
 	writer, ok := composables.UseWriter(ctx)
 	if !ok {
 		return nil, fmt.Errorf("request params not found")
@@ -32,7 +35,7 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 	}
 	cookie, err := r.browserSessions.AddFromRequest(ctx, request, sess)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	http.SetCookie(writer, cookie)
 	return mappers.SessionToGraphModel(sess), nil
