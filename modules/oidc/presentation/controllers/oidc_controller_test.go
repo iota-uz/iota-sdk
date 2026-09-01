@@ -1,6 +1,7 @@
 package controllers_test
 
 import (
+	"context"
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
@@ -8,7 +9,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules"
@@ -21,6 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
@@ -41,6 +45,19 @@ func TestOIDCCallbackCompletesStoredAuthorizationRequest(t *testing.T) {
 	testClient := client.New("callback-client", "Callback client", "web", []string{callbackURL})
 	_, err := clientRepo.Create(env.Ctx, testClient)
 	require.NoError(t, err)
+	tenantID := uuid.New()
+	_, err = env.Tx.Exec(env.Ctx, `INSERT INTO tenants (id, name) VALUES ($1, $2)`, tenantID, "OIDC callback tenant")
+	require.NoError(t, err)
+	var userID int
+	err = env.Tx.QueryRow(
+		env.Ctx,
+		`INSERT INTO users (tenant_id, type, first_name, last_name, email, ui_language)
+		 VALUES ($1, 'user', 'OIDC', 'Callback', $2, 'en')
+		 RETURNING id`,
+		tenantID,
+		"oidc-callback-"+uuid.NewString()+"@example.test",
+	).Scan(&userID)
+	require.NoError(t, err)
 
 	request := authrequest.New(
 		testClient.ClientID(),
@@ -48,7 +65,7 @@ func TestOIDCCallbackCompletesStoredAuthorizationRequest(t *testing.T) {
 		[]string{"openid"},
 		"code",
 		authrequest.WithState("state-123"),
-	).CompleteAuthentication(int(env.User.ID()), env.TenantID())
+	).CompleteAuthentication(userID, tenantID)
 	require.NoError(t, authRequestRepo.Create(env.Ctx, request))
 
 	cryptoKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
@@ -75,11 +92,12 @@ func TestOIDCCallbackCompletesStoredAuthorizationRequest(t *testing.T) {
 	controller.Register(router)
 
 	recorder := httptest.NewRecorder()
+	requestContext := context.WithValue(env.Ctx, constants.LoggerKey, logrus.New().WithField("test", true))
 	httpRequest := httptest.NewRequest(
 		http.MethodGet,
 		"/oidc/authorize/callback?id="+url.QueryEscape(request.ID().String()),
 		nil,
-	).WithContext(env.Ctx)
+	).WithContext(requestContext)
 	router.ServeHTTP(recorder, httpRequest)
 
 	require.Equal(t, http.StatusFound, recorder.Code)
