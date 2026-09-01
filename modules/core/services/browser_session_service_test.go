@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,17 +48,36 @@ func TestBrowserSessionReferenceDoesNotExposeToken(t *testing.T) {
 	require.NotEqual(t, reference, BrowserSessionReference(token+"-other"))
 }
 
-func TestBrowserSessionCookieCapsDecodedEntries(t *testing.T) {
+func TestBrowserSessionCookieCapsDecodedEntries_Scenarios(t *testing.T) {
 	t.Parallel()
-	state := browserSessionState{Version: browserSessionCookieVersion, Active: "token-9"}
-	for i := int64(0); i < 10; i++ {
-		state.Entries = append(state.Entries, browserSessionEntry{Token: fmt.Sprintf("token-%d", i), LastActive: i})
+	tests := []struct {
+		name          string
+		entryCount    int64
+		activeToken   string
+		expectedToken string
+	}{
+		{
+			name:          "caps decoded entries and retains the most recent token",
+			entryCount:    10,
+			activeToken:   "token-9",
+			expectedToken: "token-9",
+		},
 	}
-	encoded, err := encodeBrowserSessionState(state)
-	require.NoError(t, err)
 
-	decoded, changed := decodeBrowserSessionState(encoded, time.Now())
-	require.True(t, changed)
-	require.Len(t, decoded.Entries, MaxBrowserSessions)
-	require.Equal(t, "token-9", decoded.Entries[0].Token)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := browserSessionState{Version: browserSessionCookieVersion, Active: tt.activeToken}
+			for i := int64(0); i < tt.entryCount; i++ {
+				state.Entries = append(state.Entries, browserSessionEntry{Token: fmt.Sprintf("token-%d", i), LastActive: i})
+			}
+			encoded, err := encodeBrowserSessionState(state)
+			require.NoError(t, err)
+
+			decoded, changed := decodeBrowserSessionState(encoded, time.Now())
+			assert.True(t, changed)
+			assert.Len(t, decoded.Entries, MaxBrowserSessions)
+			require.NotEmpty(t, decoded.Entries)
+			assert.Equal(t, tt.expectedToken, decoded.Entries[0].Token)
+		})
+	}
 }

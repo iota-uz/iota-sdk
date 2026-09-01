@@ -22,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type AccountController struct {
@@ -366,12 +367,18 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 }
 
 func (c *AccountController) currentSession(r *http.Request) (session.Session, error) {
+	const op serrors.Op = "accountController.currentSession"
+
 	cookieName := "sid"
 	if c.cfg != nil && c.cfg.SID != "" {
 		cookieName = c.cfg.SID
 	}
 	if _, err := r.Cookie(cookieName); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
-	return composables.UseSession(r.Context())
+	sess, err := composables.UseSession(r.Context())
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return sess, nil
 }
