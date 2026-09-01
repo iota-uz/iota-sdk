@@ -53,8 +53,8 @@ func getToken(w http.ResponseWriter, r *http.Request, container *composition.Con
 	if err != nil {
 		return "", nil, err
 	}
-	browserSessionService, resolveErr := composition.Resolve[*services.BrowserSessionService](container)
-	if resolveErr != nil || browserSessionService == nil {
+	browserSessionService, _ := composition.Resolve[*services.BrowserSessionService](container)
+	if browserSessionService == nil {
 		return token.Value, nil, nil
 	}
 	browserSessions, err := browserSessionService.Resolve(w, r)
