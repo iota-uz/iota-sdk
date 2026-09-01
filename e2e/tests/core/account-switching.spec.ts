@@ -43,7 +43,22 @@ test.describe.serial('browser account switching', () => {
 
 		await page.goto('/login');
 		await expect(page.getByTestId('account-card')).toHaveCount(2);
-		await expect(page.getByTestId('use-another-account')).toBeVisible();
+		// This would be falsely green if saved sessions replaced the credential
+		// form. Both entry paths must remain visible in the same rendered state.
+		await expect(page.getByTestId('account-picker')).toBeVisible();
+		await expect(page.getByTestId('login-form')).toBeVisible();
+		await expect(page.locator('form#login-methods [type=email]')).toBeVisible();
+		await page.setViewportSize({ width: 390, height: 844 });
+		const mobileLayout = await page.evaluate(() => {
+			const picker = document.querySelector<HTMLElement>('[data-testid="account-picker"]');
+			const form = document.querySelector<HTMLElement>('[data-testid="login-form"]');
+			return {
+				stacked: Boolean(picker && form && picker.getBoundingClientRect().bottom <= form.getBoundingClientRect().top),
+				overflows: document.body.scrollWidth > window.innerWidth,
+			};
+		});
+		expect(mobileLayout).toEqual({ stacked: true, overflows: false });
+		await page.setViewportSize({ width: 1280, height: 720 });
 
 		await Promise.all([
 			page.waitForURL((url) => url.pathname === '/'),
