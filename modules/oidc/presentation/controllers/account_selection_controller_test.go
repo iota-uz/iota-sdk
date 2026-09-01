@@ -69,6 +69,8 @@ func newAccountSelectionRouter(
 }
 
 func testOIDCAccountSelectionDerivesIdentityFromBrowserSession(t *testing.T) {
+	t.Helper()
+
 	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 	clientRepo := persistence.NewClientRepository()
 	authRequestRepo := persistence.NewAuthRequestRepository()
@@ -140,6 +142,8 @@ func testOIDCAccountSelectionDerivesIdentityFromBrowserSession(t *testing.T) {
 }
 
 func testOIDCAccountSelectionRejectsExpiredAuthorizationRequest(t *testing.T) {
+	t.Helper()
+
 	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
 	clientRepo := persistence.NewClientRepository()
 	authRequestRepo := persistence.NewAuthRequestRepository()
