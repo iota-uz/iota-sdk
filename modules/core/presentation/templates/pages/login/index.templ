@@ -114,14 +114,18 @@ templ Index(p *LoginProps) {
 	@layouts.Base(&layouts.BaseProps{Title: pageCtx.T("Login.Meta.Title"), WebsocketURL: "/ws"}) {
 		<div class="flex flex-col h-screen overflow-y-auto">
 			@Header(p.Logo)
-			<div class="flex-1 flex items-center justify-center">
-				<div class="mx-4 max-w-md w-full p-6 md:p-11 flex flex-col gap-4 bg-surface-300 rounded-xl shadow-[0_20px_20px_0px_rgba(0,0,0,0.08),0_0_0_7px_rgba(255,255,255,0.5)]">
+			<div class="flex-1 flex items-center justify-center py-8 md:py-12">
+				<div
+					class={ templ.Classes(
+					"mx-4 w-full p-6 md:p-10 flex flex-col gap-6 bg-surface-300 rounded-xl shadow-[0_20px_20px_0px_rgba(0,0,0,0.08),0_0_0_7px_rgba(255,255,255,0.5)]",
+					templ.KV("max-w-4xl", len(p.Accounts) > 0 && !p.AuthorizationRequestInvalid),
+					templ.KV("max-w-md", len(p.Accounts) == 0 || p.AuthorizationRequestInvalid),
+				) }
+				>
 					<div class="text-center">
 						<h1 class="text-2xl text-100">
 							if p.AuthorizationRequestInvalid {
 								{ pageCtx.T("Login.Login") }
-							} else if len(p.Accounts) > 0 {
-								{ pageCtx.T("Login.ChooseAccount") }
 							} else {
 								{ pageCtx.T("Login.WelcomeBack") }
 							}
@@ -134,100 +138,108 @@ templ Index(p *LoginProps) {
 							<p class="text-red-600">{ p.ErrorMessage }</p>
 							<a href="/login" class="text-primary-600 hover:underline">{ pageCtx.T("Login.Login") }</a>
 						</div>
-					} else if len(p.Accounts) > 0 {
-						<div class="flex flex-col gap-2" data-testid="account-picker">
-							for _, account := range p.Accounts {
-								{{ accountAttrs := templ.Attributes{"type": "submit", "data-testid": "account-card"} }}
-								if account.Active {
-									{{ accountAttrs["aria-current"] = "true" }}
-								}
-								<form method="post" action={ templ.URL(p.SelectionURL) }>
-									@composables.CSRFTokenField()
-									<input type="hidden" name="SessionReference" value={ account.SessionReference }/>
-									@button.Secondary(button.Props{
-										Size:  button.SizeNormal,
-										Class: "w-full !h-auto min-h-16 justify-start gap-3 p-3 text-left",
-										Attrs: accountAttrs,
-									}) {
-										@avatar.Avatar(avatar.Props{ImageURL: account.AvatarURL, Initials: account.Initials})
-										<span class="min-w-0 flex-1">
-											<span class="block truncate text-100 font-medium">{ account.FullName }</span>
-											<span class="block truncate text-sm text-200">{ account.Email }</span>
-										</span>
-										if account.Active {
-											@badge.New(badge.Props{Variant: badge.VariantGreen, Class: templ.Classes("!h-6 px-2 text-xs")}) {
-												{ pageCtx.T("Login.ActiveAccount") }
+					} else {
+						<div class={ templ.Classes("grid gap-6", templ.KV("md:grid-cols-2 md:gap-10", len(p.Accounts) > 0)) }>
+							if len(p.Accounts) > 0 {
+								<section class="min-w-0" aria-labelledby="saved-accounts-heading">
+									<h2 id="saved-accounts-heading" class="mb-3 text-base font-semibold text-100">{ pageCtx.T("Login.ChooseAccount") }</h2>
+									<div class="flex flex-col gap-2" data-testid="account-picker">
+										for _, account := range p.Accounts {
+											{{ accountAttrs := templ.Attributes{"type": "submit", "data-testid": "account-card"} }}
+											if account.Active {
+												{{ accountAttrs["aria-current"] = "true" }}
 											}
+											<form method="post" action={ templ.URL(p.SelectionURL) }>
+												@composables.CSRFTokenField()
+												<input type="hidden" name="SessionReference" value={ account.SessionReference }/>
+												@button.Secondary(button.Props{
+													Size:  button.SizeNormal,
+													Class: "w-full !h-auto min-h-16 justify-start gap-3 p-3 text-left",
+													Attrs: accountAttrs,
+												}) {
+													@avatar.Avatar(avatar.Props{ImageURL: account.AvatarURL, Initials: account.Initials})
+													<span class="min-w-0 flex-1">
+														<span class="block truncate text-100 font-medium">{ account.FullName }</span>
+														<span class="block truncate text-sm text-200">{ account.Email }</span>
+													</span>
+													if account.Active {
+														@badge.New(badge.Props{Variant: badge.VariantGreen, Class: templ.Classes("!h-6 px-2 text-xs")}) {
+															{ pageCtx.T("Login.ActiveAccount") }
+														}
+													}
+												}
+											</form>
+										}
+									</div>
+								</section>
+							}
+							<section class={ templ.Classes("min-w-0", templ.KV("border-t border-primary pt-6 md:border-l md:border-t-0 md:pl-10 md:pt-0", len(p.Accounts) > 0)) } aria-labelledby="login-methods-heading">
+								if len(p.Accounts) > 0 {
+									<h2 id="login-methods-heading" class="mb-3 text-base font-semibold text-100">{ pageCtx.T("Login.UseAnotherAccount") }</h2>
+								}
+								<form id="login-methods" data-testid="login-form" class="flex flex-col gap-4" method="post">
+									@composables.CSRFTokenField()
+									if hasExternalMethod {
+										for _, method := range p.Methods {
+											if method.ID != "password" {
+												{{ attrs := templ.Attributes{} }}
+												if method.Href == "" {
+													{{ attrs["type"] = "button" }}
+												}
+												for key, value := range method.Attributes {
+													{{ attrs[key] = value }}
+												}
+												@button.Secondary(button.Props{
+													Size:  button.SizeNormal,
+													Class: "justify-center items-center gap-3",
+													Href:  method.Href,
+													Attrs: attrs,
+												}) {
+													if method.Icon != nil {
+														@method.Icon
+													}
+													{ method.Label }
+												}
+											}
+										}
+										if hasPasswordMethod {
+											<p class="text-xs text-200 text-center">{ pageCtx.T("Login.OrSignInWith") }</p>
+										}
+									}
+									if len(p.ErrorMessage) > 0 {
+										@alert.Error() {
+											{ p.ErrorMessage }
+										}
+									}
+									if hasPasswordMethod {
+										@input.Email(&input.Props{
+											Label: pageCtx.T("Login.Email"),
+											Attrs: templ.Attributes{
+												"name":  "Email",
+												"value": p.Email,
+											},
+											Error: p.ErrorsMap["Email"],
+										})
+										@input.Password(&input.Props{
+											Label: pageCtx.T("Login.Password"),
+											Attrs: templ.Attributes{
+												"name": "Password",
+											},
+											Error: p.ErrorsMap["Password"],
+										})
+										@button.Primary(button.Props{
+											Size:  button.SizeNormal,
+											Class: "justify-center",
+											Attrs: templ.Attributes{
+												"type": "submit",
+											},
+										}) {
+											{ pageCtx.T("Login.Login") }
 										}
 									}
 								</form>
-							}
+							</section>
 						</div>
-						<a href="#login-methods" class="text-center text-sm text-primary-600 hover:underline" data-testid="use-another-account">{ pageCtx.T("Login.UseAnotherAccount") }</a>
-						<hr class="border border-primary"/>
-					}
-					if !p.AuthorizationRequestInvalid {
-						<form id="login-methods" class="flex flex-col gap-4" method="post">
-							@composables.CSRFTokenField()
-							if hasExternalMethod {
-								for _, method := range p.Methods {
-									if method.ID != "password" {
-										{{ attrs := templ.Attributes{} }}
-										if method.Href == "" {
-											{{ attrs["type"] = "button" }}
-										}
-										for key, value := range method.Attributes {
-											{{ attrs[key] = value }}
-										}
-										@button.Secondary(button.Props{
-											Size:  button.SizeNormal,
-											Class: "justify-center items-center gap-3",
-											Href:  method.Href,
-											Attrs: attrs,
-										}) {
-											if method.Icon != nil {
-												@method.Icon
-											}
-											{ method.Label }
-										}
-									}
-								}
-								if hasPasswordMethod {
-									<p class="text-xs text-200 text-center">{ pageCtx.T("Login.OrSignInWith") }</p>
-								}
-							}
-							if len(p.ErrorMessage) > 0 {
-								@alert.Error() {
-									{ p.ErrorMessage }
-								}
-							}
-							if hasPasswordMethod {
-								@input.Email(&input.Props{
-									Label: pageCtx.T("Login.Email"),
-									Attrs: templ.Attributes{
-										"name":  "Email",
-										"value": p.Email,
-									},
-									Error: p.ErrorsMap["Email"],
-								})
-								@input.Password(&input.Props{
-									Label: pageCtx.T("Login.Password"),
-									Attrs: templ.Attributes{
-										"name": "Password",
-									},
-									Error: p.ErrorsMap["Password"],
-								})
-								@button.Primary(button.Props{
-									Size:  button.SizeNormal,
-									Class: "justify-center",
-									Attrs: templ.Attributes{
-										"type": "submit",
-									},
-								}) {
-									{ pageCtx.T("Login.Login") }
-								}
-							}
-						</form>
 					}
 				</div>
 			</div>
