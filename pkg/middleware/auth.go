@@ -41,21 +41,30 @@ func resolveSIDKey(ctx context.Context) string {
 	return cfg.SID
 }
 
-func getToken(w http.ResponseWriter, r *http.Request, container *composition.Container, sidKey string) (string, []services.BrowserSession, error) {
+func getToken(r *http.Request, sidKey string) (string, bool, error) {
 	token, err := r.Cookie(sidKey)
 	if errors.Is(err, http.ErrNoCookie) {
 		v := r.Header.Get("Authorization")
 		if v == "" {
-			return "", nil, errors.New("no token found")
+			return "", false, errors.New("no token found")
 		}
-		return v, nil, nil
+		return v, false, nil
 	}
 	if err != nil {
-		return "", nil, err
+		return "", false, err
 	}
+	return token.Value, true, nil
+}
+
+func resolveBrowserToken(
+	w http.ResponseWriter,
+	r *http.Request,
+	container *composition.Container,
+	fallback string,
+) (string, []services.BrowserSession, error) {
 	browserSessionService, _ := composition.Resolve[*services.BrowserSessionService](container)
 	if browserSessionService == nil {
-		return token.Value, nil, nil
+		return fallback, nil, nil
 	}
 	browserSessions, err := browserSessionService.Resolve(w, r)
 	if err != nil {
@@ -74,16 +83,24 @@ func Authorize() mux.MiddlewareFunc {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				ctx := r.Context()
+				token, fromCookie, err := getToken(r, resolveSIDKey(ctx))
+				if err != nil {
+					next.ServeHTTP(w, r)
+					return
+				}
 				container, err := composition.UseContainer(ctx)
 				if err != nil {
 					composables.UseLogger(ctx).WithError(err).Error("Authorize: composition container not found in context")
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 					return
 				}
-				token, browserSessions, err := getToken(w, r, container, resolveSIDKey(ctx))
-				if err != nil {
-					next.ServeHTTP(w, r)
-					return
+				var browserSessions []services.BrowserSession
+				if fromCookie {
+					token, browserSessions, err = resolveBrowserToken(w, r, container, token)
+					if err != nil {
+						next.ServeHTTP(w, r)
+						return
+					}
 				}
 				ctx = services.WithBrowserSessions(ctx, browserSessions)
 				authService, err := composition.Resolve[*services.AuthService](container)
@@ -129,16 +146,24 @@ func AuthorizeAnySession() mux.MiddlewareFunc {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				ctx := r.Context()
+				token, fromCookie, err := getToken(r, resolveSIDKey(ctx))
+				if err != nil {
+					next.ServeHTTP(w, r)
+					return
+				}
 				container, err := composition.UseContainer(ctx)
 				if err != nil {
 					composables.UseLogger(ctx).WithError(err).Error("AuthorizeAnySession: composition container not found in context")
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 					return
 				}
-				token, browserSessions, err := getToken(w, r, container, resolveSIDKey(ctx))
-				if err != nil {
-					next.ServeHTTP(w, r)
-					return
+				var browserSessions []services.BrowserSession
+				if fromCookie {
+					token, browserSessions, err = resolveBrowserToken(w, r, container, token)
+					if err != nil {
+						next.ServeHTTP(w, r)
+						return
+					}
 				}
 				ctx = services.WithBrowserSessions(ctx, browserSessions)
 				authService, err := composition.Resolve[*services.AuthService](container)

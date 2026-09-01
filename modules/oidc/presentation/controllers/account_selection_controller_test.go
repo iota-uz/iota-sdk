@@ -24,6 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/oidc/presentation/controllers"
 	oidcservices "github.com/iota-uz/iota-sdk/modules/oidc/services"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -54,7 +55,7 @@ func TestOIDCAccountSelectionDerivesIdentityFromBrowserSession(t *testing.T) {
 	coreSessionService := itf.GetService[coreservices.SessionService](env)
 	browserSessions := itf.GetService[coreservices.BrowserSessionService](env)
 	token := "oidc-picker-" + uuid.NewString()
-	require.NoError(t, coreSessionService.Create(env.Ctx, &coresession.CreateDTO{
+	require.NoError(t, coreSessionService.Create(composables.WithTenantID(env.Ctx, tenantID), &coresession.CreateDTO{
 		Token: token, UserID: userID, TenantID: tenantID, IP: "127.0.0.1", UserAgent: "controller-test",
 	}))
 	sess, err := coreSessionService.GetBrowserSessionByToken(env.Ctx, token)

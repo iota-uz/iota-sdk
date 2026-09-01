@@ -9,6 +9,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
@@ -209,7 +210,7 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	currentSession, err := composables.UseSession(r.Context())
+	currentSession, err := c.currentSession(r)
 	if err != nil {
 		logger.WithError(err).Error("failed to get current session")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
@@ -249,7 +250,7 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	vars := mux.Vars(r)
 	tokenHash := vars["token"]
 
-	currentSession, err := composables.UseSession(r.Context())
+	currentSession, err := c.currentSession(r)
 	if err != nil {
 		logger.WithError(err).Error("failed to get current session")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
@@ -336,7 +337,7 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	currentSession, err := composables.UseSession(r.Context())
+	currentSession, err := c.currentSession(r)
 	if err != nil {
 		logger.WithError(err).Error("failed to get current session")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
@@ -362,4 +363,15 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 	}
 	htmx.SetTrigger(w, "success", string(successPayload))
 	htmx.Refresh(w)
+}
+
+func (c *AccountController) currentSession(r *http.Request) (session.Session, error) {
+	cookieName := "sid"
+	if c.cfg != nil && c.cfg.SID != "" {
+		cookieName = c.cfg.SID
+	}
+	if _, err := r.Cookie(cookieName); err != nil {
+		return nil, err
+	}
+	return composables.UseSession(r.Context())
 }
