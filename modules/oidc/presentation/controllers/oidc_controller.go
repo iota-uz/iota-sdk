@@ -184,8 +184,8 @@ func (c *OIDCController) handleCallback(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	// Redirect back to the OIDC authorize endpoint to complete the flow
-	// The zitadel library will handle generating the authorization code and redirecting to client
-	redirectURL := fmt.Sprintf("/oidc/authorize?id=%s", query.ID)
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	// Resume the stored authorization request through the provider callback.
+	// The public authorize endpoint expects the original OIDC parameters and
+	// cannot resume an existing request from its internal ID.
+	op.AuthorizeCallback(w, r, c.provider)
 }
