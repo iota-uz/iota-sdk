@@ -153,6 +153,13 @@ test('OIDC uses the shared picker and preserves state, nonce, and PKCE', async (
 	const tokens = await tokenResponse.json();
 	const claims = JSON.parse(Buffer.from(tokens.id_token.split('.')[1], 'base64url').toString('utf8'));
 	expect(claims.nonce).toBe(nonce);
-	expect(claims.email).toBe('oidc-one@example.test');
-	expect(claims.tenant_id).toBe('00000000-0000-0000-0000-000000000001');
+
+	const userInfoResponse = await request.get('/oidc/userinfo', {
+		headers: { Authorization: `Bearer ${tokens.access_token}` },
+		failOnStatusCode: false,
+	});
+	expect(userInfoResponse.ok(), await userInfoResponse.text()).toBeTruthy();
+	const userInfo = await userInfoResponse.json();
+	expect(userInfo.email).toBe('oidc-one@example.test');
+	expect(userInfo.tenant_id).toBe('00000000-0000-0000-0000-000000000001');
 });
