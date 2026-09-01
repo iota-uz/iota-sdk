@@ -1,6 +1,7 @@
 package controllers_test
 
 import (
+	"context"
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules"
@@ -22,6 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
@@ -89,11 +92,12 @@ func TestOIDCCallbackCompletesStoredAuthorizationRequest(t *testing.T) {
 	controller.Register(router)
 
 	recorder := httptest.NewRecorder()
+	requestContext := context.WithValue(env.Ctx, constants.LoggerKey, logrus.New().WithField("test", true))
 	httpRequest := httptest.NewRequest(
 		http.MethodGet,
 		"/oidc/authorize/callback?id="+url.QueryEscape(request.ID().String()),
 		nil,
-	).WithContext(env.Ctx)
+	).WithContext(requestContext)
 	router.ServeHTTP(recorder, httpRequest)
 
 	require.Equal(t, http.StatusFound, recorder.Code)
