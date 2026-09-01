@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 
@@ -41,6 +42,19 @@ func TestOIDCCallbackCompletesStoredAuthorizationRequest(t *testing.T) {
 	testClient := client.New("callback-client", "Callback client", "web", []string{callbackURL})
 	_, err := clientRepo.Create(env.Ctx, testClient)
 	require.NoError(t, err)
+	tenantID := uuid.New()
+	_, err = env.Tx.Exec(env.Ctx, `INSERT INTO tenants (id, name) VALUES ($1, $2)`, tenantID, "OIDC callback tenant")
+	require.NoError(t, err)
+	var userID int
+	err = env.Tx.QueryRow(
+		env.Ctx,
+		`INSERT INTO users (tenant_id, type, first_name, last_name, email, ui_language)
+		 VALUES ($1, 'user', 'OIDC', 'Callback', $2, 'en')
+		 RETURNING id`,
+		tenantID,
+		"oidc-callback-"+uuid.NewString()+"@example.test",
+	).Scan(&userID)
+	require.NoError(t, err)
 
 	request := authrequest.New(
 		testClient.ClientID(),
@@ -48,7 +62,7 @@ func TestOIDCCallbackCompletesStoredAuthorizationRequest(t *testing.T) {
 		[]string{"openid"},
 		"code",
 		authrequest.WithState("state-123"),
-	).CompleteAuthentication(int(env.User.ID()), env.TenantID())
+	).CompleteAuthentication(userID, tenantID)
 	require.NoError(t, authRequestRepo.Create(env.Ctx, request))
 
 	cryptoKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
