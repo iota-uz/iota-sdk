@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
@@ -640,6 +642,9 @@ func (s *Storage) SetUserinfoFromScopes(
 			userinfo.AppendClaims("roles", roleNames)
 		}
 	}
+	if permissions, requested := permissionClaims(u, scopes); requested {
+		userinfo.AppendClaims("permissions", permissions)
+	}
 
 	return nil
 }
@@ -749,8 +754,34 @@ func (s *Storage) GetPrivateClaimsFromScopes(
 			claims["roles"] = roleNames
 		}
 	}
+	if permissions, requested := permissionClaims(u, scopes); requested {
+		claims["permissions"] = permissions
+	}
 
 	return claims, nil
+}
+
+const permissionScopePrefix = "permission:"
+
+func permissionClaims(u user.User, scopes []string) ([]string, bool) {
+	requested := make(map[string]struct{})
+	for _, scope := range scopes {
+		if name := strings.TrimPrefix(scope, permissionScopePrefix); name != scope && name != "" {
+			requested[name] = struct{}{}
+		}
+	}
+	if len(requested) == 0 {
+		return nil, false
+	}
+
+	granted := make([]string, 0, len(requested))
+	for _, permission := range user.EffectivePermissions(u) {
+		if _, ok := requested[permission.Name()]; ok {
+			granted = append(granted, permission.Name())
+		}
+	}
+	sort.Strings(granted)
+	return granted, true
 }
 
 // GetKeyByIDAndClientID retrieves a specific key for a client
