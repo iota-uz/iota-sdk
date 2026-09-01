@@ -170,7 +170,7 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 							@base.DropdownFormItem(base.DropdownFormItemProps{
 								Action: "/login/session?next=" + url.QueryEscape(nextURL),
 								Method: "post",
-								Fields: map[string]string{"session_ref": browserSession.Reference()},
+								Fields: map[string]string{"SessionRef": browserSession.Reference()},
 							}) {
 								<span class="block truncate">{ account.Title() }</span>
 								if browserSession.Active {

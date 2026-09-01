@@ -244,6 +244,10 @@ func (s *BrowserSessionService) RemoveAll(w http.ResponseWriter, r *http.Request
 	return nil
 }
 
+func (s *BrowserSessionService) Clear(w http.ResponseWriter) {
+	http.SetCookie(w, s.clearCookie())
+}
+
 func (s *BrowserSessionService) resolveRequest(r *http.Request) (browserSessionState, []BrowserSession, bool, error) {
 	value := ""
 	if cookie, err := r.Cookie(s.sidName()); err == nil {
@@ -259,13 +263,27 @@ func (s *BrowserSessionService) resolveValue(ctx context.Context, value string) 
 	validEntries := make([]browserSessionEntry, 0, len(state.Entries))
 	for _, entry := range state.Entries {
 		sess, err := s.sessionService.GetBrowserSessionByToken(ctx, entry.Token)
-		if err != nil || sess.IsExpired() || (!sess.IsActive() && !sess.IsPending()) {
+		if errors.Is(err, persistence.ErrSessionNotFound) {
+			changed = true
+			continue
+		}
+		if err != nil {
+			return state, nil, changed, serrors.E("core.BrowserSessionService.resolveValue", err)
+		}
+		if sess.Audience() != "" || sess.IsExpired() || (!sess.IsActive() && !sess.IsPending()) {
 			changed = true
 			continue
 		}
 		userCtx := composables.WithTenantID(ctx, sess.TenantID())
 		u, err := s.userRepo.GetByID(userCtx, sess.UserID())
-		if err != nil || u.IsBlocked() {
+		if errors.Is(err, persistence.ErrUserNotFound) {
+			changed = true
+			continue
+		}
+		if err != nil {
+			return state, nil, changed, serrors.E("core.BrowserSessionService.resolveValue", err)
+		}
+		if u.IsBlocked() {
 			changed = true
 			continue
 		}
@@ -304,7 +322,10 @@ func (s *BrowserSessionService) cookie(state browserSessionState, sessions []Bro
 			expires = browserSession.Session.ExpiresAt()
 		}
 	}
-	encoded, _ := encodeBrowserSessionState(state)
+	encoded, err := encodeBrowserSessionState(state)
+	if err != nil {
+		return s.clearCookie()
+	}
 	return &http.Cookie{
 		Name:     s.sidName(),
 		Value:    encoded,
@@ -381,6 +402,10 @@ func decodeBrowserSessionState(value string, now time.Time) (browserSessionState
 	}
 	state.Entries = entries
 	sortEntries(state.Entries)
+	if len(state.Entries) > MaxBrowserSessions {
+		state.Entries = state.Entries[:MaxBrowserSessions]
+		return state, true
+	}
 	return state, false
 }
 

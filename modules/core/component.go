@@ -207,7 +207,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		}
 		browserSessions, err := composition.Resolve[*services.BrowserSessionService](container)
 		if err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 		httpCfg, err := composition.Resolve[*httpconfig.Config](container)
 		if err != nil {

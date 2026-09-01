@@ -2,7 +2,6 @@ import { createHash, randomBytes } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { populateTestData, resetTestDatabase } from '../../fixtures/test-data';
 
-const baseURL = process.env.BASE_URL ?? 'http://localhost:3201';
 const password = 'TestPass123!';
 
 async function credentialLogin(page: Page, email: string) {
@@ -82,84 +81,86 @@ test.describe.serial('browser account switching', () => {
 		await expect(page.getByTestId('account-card')).toHaveCount(5);
 		await expect(page.getByTestId('account-card').filter({ hasText: 'picker-1@example.test' })).toHaveCount(0);
 	});
-});
 
-test('OIDC uses the shared picker and preserves state, nonce, and PKCE', async ({ page, request }) => {
-	const redirectURI = `${baseURL}/__test__/oidc-callback`;
-	await resetTestDatabase(request, { reseedMinimal: true });
-	await populateTestData(request, {
-		version: '1.0',
-		tenant: {
-			id: '00000000-0000-0000-0000-000000000001',
-			name: 'OIDC Picker Tenant',
-			domain: 'localhost',
-		},
-		data: {
-			users: [
-				{ email: 'oidc-one@example.test', password, firstName: 'OIDC One', lastName: 'Account', language: 'en' },
-				{ email: 'oidc-two@example.test', password, firstName: 'OIDC Two', lastName: 'Account', language: 'en' },
-			],
-			oidcClients: [{
-				clientId: 'account-picker-e2e',
-				name: 'Account Picker E2E',
-				redirectUris: [redirectURI],
-				scopes: ['openid', 'profile', 'email', 'tenant_id'],
-			}],
-		},
-	});
-	await credentialLogin(page, 'oidc-one@example.test');
-	await credentialLogin(page, 'oidc-two@example.test');
+	test('OIDC uses the shared picker and preserves state, nonce, and PKCE', async ({ page, request, baseURL }) => {
+		expect(baseURL).toBeTruthy();
+		const applicationURL = baseURL!;
+		const redirectURI = `${applicationURL}/__test__/oidc-callback`;
+		await resetTestDatabase(request, { reseedMinimal: true });
+		await populateTestData(request, {
+			version: '1.0',
+			tenant: {
+				id: '00000000-0000-0000-0000-000000000001',
+				name: 'OIDC Picker Tenant',
+				domain: 'localhost',
+			},
+			data: {
+				users: [
+					{ email: 'oidc-one@example.test', password, firstName: 'OIDC One', lastName: 'Account', language: 'en' },
+					{ email: 'oidc-two@example.test', password, firstName: 'OIDC Two', lastName: 'Account', language: 'en' },
+				],
+				oidcClients: [{
+					clientId: 'account-picker-e2e',
+					name: 'Account Picker E2E',
+					redirectUris: [redirectURI],
+					scopes: ['openid', 'profile', 'email', 'tenant_id'],
+				}],
+			},
+		});
+		await credentialLogin(page, 'oidc-one@example.test');
+		await credentialLogin(page, 'oidc-two@example.test');
 
-	const verifier = randomBytes(32).toString('base64url');
-	const challenge = createHash('sha256').update(verifier).digest('base64url');
-	const state = `state-${randomBytes(8).toString('hex')}`;
-	const nonce = `nonce-${randomBytes(8).toString('hex')}`;
-	const authorize = new URL('/oidc/authorize', baseURL);
-	authorize.search = new URLSearchParams({
-		client_id: 'account-picker-e2e',
-		redirect_uri: redirectURI,
-		response_type: 'code',
-		scope: 'openid profile email tenant_id',
-		state,
-		nonce,
-		code_challenge: challenge,
-		code_challenge_method: 'S256',
-	}).toString();
-
-	await page.goto(authorize.toString());
-	await expect(page).toHaveURL(/\/login\?auth_request=/);
-	await expect(page.getByTestId('account-card')).toHaveCount(2);
-	await Promise.all([
-		page.waitForURL((url) => url.pathname === '/__test__/oidc-callback'),
-		page.getByTestId('account-card').filter({ hasText: 'oidc-one@example.test' }).click(),
-	]);
-
-	const callback = new URL(page.url());
-	expect(callback.searchParams.get('state')).toBe(state);
-	const code = callback.searchParams.get('code');
-	expect(code).toBeTruthy();
-
-	const tokenResponse = await request.post('/oidc/oauth/token', {
-		form: {
-			grant_type: 'authorization_code',
+		const verifier = randomBytes(32).toString('base64url');
+		const challenge = createHash('sha256').update(verifier).digest('base64url');
+		const state = `state-${randomBytes(8).toString('hex')}`;
+		const nonce = `nonce-${randomBytes(8).toString('hex')}`;
+		const authorize = new URL('/oidc/authorize', applicationURL);
+		authorize.search = new URLSearchParams({
 			client_id: 'account-picker-e2e',
 			redirect_uri: redirectURI,
-			code: code!,
-			code_verifier: verifier,
-		},
-		failOnStatusCode: false,
-	});
-	expect(tokenResponse.ok(), await tokenResponse.text()).toBeTruthy();
-	const tokens = await tokenResponse.json();
-	const claims = JSON.parse(Buffer.from(tokens.id_token.split('.')[1], 'base64url').toString('utf8'));
-	expect(claims.nonce).toBe(nonce);
-	expect(claims.tenant_id).toBe('00000000-0000-0000-0000-000000000001');
+			response_type: 'code',
+			scope: 'openid profile email tenant_id',
+			state,
+			nonce,
+			code_challenge: challenge,
+			code_challenge_method: 'S256',
+		}).toString();
 
-	const userInfoResponse = await request.get('/oidc/userinfo', {
-		headers: { Authorization: `Bearer ${tokens.access_token}` },
-		failOnStatusCode: false,
+		await page.goto(authorize.toString());
+		await expect(page).toHaveURL(/\/login\?auth_request=/);
+		await expect(page.getByTestId('account-card')).toHaveCount(2);
+		await Promise.all([
+			page.waitForURL((url) => url.pathname === '/__test__/oidc-callback'),
+			page.getByTestId('account-card').filter({ hasText: 'oidc-one@example.test' }).click(),
+		]);
+
+		const callback = new URL(page.url());
+		expect(callback.searchParams.get('state')).toBe(state);
+		const code = callback.searchParams.get('code');
+		expect(code).toBeTruthy();
+
+		const tokenResponse = await request.post('/oidc/oauth/token', {
+			form: {
+				grant_type: 'authorization_code',
+				client_id: 'account-picker-e2e',
+				redirect_uri: redirectURI,
+				code: code!,
+				code_verifier: verifier,
+			},
+			failOnStatusCode: false,
+		});
+		expect(tokenResponse.ok(), await tokenResponse.text()).toBeTruthy();
+		const tokens = await tokenResponse.json();
+		const claims = JSON.parse(Buffer.from(tokens.id_token.split('.')[1], 'base64url').toString('utf8'));
+		expect(claims.nonce).toBe(nonce);
+		expect(claims.tenant_id).toBe('00000000-0000-0000-0000-000000000001');
+
+		const userInfoResponse = await request.get('/oidc/userinfo', {
+			headers: { Authorization: `Bearer ${tokens.access_token}` },
+			failOnStatusCode: false,
+		});
+		expect(userInfoResponse.ok(), await userInfoResponse.text()).toBeTruthy();
+		const userInfo = await userInfoResponse.json();
+		expect(userInfo.email).toBe('oidc-one@example.test');
 	});
-	expect(userInfoResponse.ok(), await userInfoResponse.text()).toBeTruthy();
-	const userInfo = await userInfoResponse.json();
-	expect(userInfo.email).toBe('oidc-one@example.test');
 });

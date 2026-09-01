@@ -22,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/security"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
@@ -105,6 +106,7 @@ func requireTwoFactorSetupSession(w http.ResponseWriter, logger *logrus.Entry, r
 }
 
 func (c *TwoFactorSetupController) activateSession(w http.ResponseWriter, r *http.Request, sess session.Session) (session.Session, error) {
+	const op serrors.Op = "TwoFactorSetupController.activateSession"
 	updatedSession := session.New(
 		sess.Token(),
 		sess.UserID(),
@@ -118,11 +120,11 @@ func (c *TwoFactorSetupController) activateSession(w http.ResponseWriter, r *htt
 	)
 
 	if err := c.sessionService.Update(r.Context(), updatedSession); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	cookie, err := c.browserSessions.AddFromRequest(r.Context(), r, updatedSession)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	http.SetCookie(w, cookie)
 

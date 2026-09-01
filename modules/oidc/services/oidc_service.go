@@ -85,12 +85,13 @@ func (s *OIDCService) GetAuthRequest(ctx context.Context, authRequestID string) 
 }
 
 func (s *OIDCService) ValidateAuthorizationRequest(ctx context.Context, authRequestID string) error {
+	const op serrors.Op = "OIDCService.ValidateAuthorizationRequest"
 	authReq, err := s.GetAuthRequest(ctx, authRequestID)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 	if authReq.IsExpired() || authReq.IsAuthenticated() || authReq.IsCodeUsed() || authReq.Code() != nil {
-		return serrors.E("OIDCService.ValidateAuthorizationRequest", serrors.KindValidation, "auth request is no longer valid")
+		return serrors.E(op, serrors.KindValidation, "auth request is no longer valid")
 	}
 	return nil
 }

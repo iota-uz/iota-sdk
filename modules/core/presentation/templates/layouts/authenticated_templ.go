@@ -437,7 +437,7 @@ func Navbar(pageCtx types.PageContext, navbarLeft templ.Component) templ.Compone
 						templ_7745c5c3_Err = base.DropdownFormItem(base.DropdownFormItemProps{
 							Action: "/login/session?next=" + url.QueryEscape(nextURL),
 							Method: "post",
-							Fields: map[string]string{"session_ref": browserSession.Reference()},
+							Fields: map[string]string{"SessionRef": browserSession.Reference()},
 						}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err

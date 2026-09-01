@@ -79,7 +79,7 @@ func TestLoginController_CustomRendererReceivesAccountPickerContext(t *testing.T
 
 	suite.POST("/login/session?next=/users").
 		Cookie(cookiesCfg.SID, browserCookie.Value).
-		FormString("session_ref", captured.Accounts[0].SessionReference).
+		FormString("SessionRef", captured.Accounts[0].SessionReference).
 		Expect(t).
 		Status(http.StatusSeeOther).
 		RedirectTo("/users")

@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -455,14 +456,15 @@ type oauthContinuation struct {
 }
 
 func (s *AuthService) GoogleAuthenticateFor(w http.ResponseWriter, nextURL, authRequestID string) (string, error) {
+	const op serrors.Op = "AuthService.GoogleAuthenticateFor"
 	cookie, err := s.generateStateOauthCookie()
 	if err != nil {
-		return "", err
+		return "", serrors.E(op, err)
 	}
 	http.SetCookie(w, cookie)
 	payload, err := json.Marshal(oauthContinuation{NextURL: nextURL, AuthRequestID: authRequestID})
 	if err != nil {
-		return "", err
+		return "", serrors.E(op, err)
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     s.cookiesCfg.OAuthState + "-continuation",

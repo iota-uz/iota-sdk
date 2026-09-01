@@ -117,7 +117,9 @@ templ Index(p *LoginProps) {
 				<div class="mx-4 max-w-md w-full p-6 md:p-11 flex flex-col gap-4 bg-surface-300 rounded-xl shadow-[0_20px_20px_0px_rgba(0,0,0,0.08),0_0_0_7px_rgba(255,255,255,0.5)]">
 					<div class="text-center">
 						<h1 class="text-2xl text-100">
-							if len(p.Accounts) > 0 {
+							if p.AuthorizationRequestInvalid {
+								{ pageCtx.T("Login.Login") }
+							} else if len(p.Accounts) > 0 {
 								{ pageCtx.T("Login.ChooseAccount") }
 							} else {
 								{ pageCtx.T("Login.WelcomeBack") }
@@ -126,12 +128,17 @@ templ Index(p *LoginProps) {
 						<p class="mt-2 text-200">{ pageCtx.T("Login.LoginToUse") }</p>
 					</div>
 					<hr class="border border-primary"/>
-					if !p.AuthorizationRequestInvalid && len(p.Accounts) > 0 {
+					if p.AuthorizationRequestInvalid {
+						<div class="flex flex-col gap-4 text-center" role="alert">
+							<p class="text-red-600">{ p.ErrorMessage }</p>
+							<a href="/login" class="text-primary-600 hover:underline">{ pageCtx.T("Login.Login") }</a>
+						</div>
+					} else if len(p.Accounts) > 0 {
 						<div class="flex flex-col gap-2" data-testid="account-picker">
 							for _, account := range p.Accounts {
-								<form method="post" action={ templ.SafeURL(p.SelectionURL) }>
+								<form method="post" action={ templ.URL(p.SelectionURL) }>
 									@composables.CSRFTokenField()
-									<input type="hidden" name="session_ref" value={ account.SessionReference }/>
+									<input type="hidden" name="SessionRef" value={ account.SessionReference }/>
 									<button type="submit" class="w-full flex items-center gap-3 rounded-lg border border-primary p-3 text-left hover:bg-surface-200" data-testid="account-card">
 										@avatar.Avatar(avatar.Props{ImageURL: account.AvatarURL, Initials: account.Initials})
 										<span class="min-w-0 flex-1">

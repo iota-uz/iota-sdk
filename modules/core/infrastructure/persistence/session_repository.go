@@ -195,6 +195,9 @@ func (g *SessionRepository) GetByToken(ctx context.Context, token string) (sessi
 	return sessions[0], nil
 }
 
+// GetByTokenAnyTenant intentionally bypasses tenant filtering for opaque browser-cookie resolution.
+// Callers must re-scope subsequent tenant access with the returned session's TenantID.
+// Use GetByToken for ordinary tenant-scoped lookups.
 func (g *SessionRepository) GetByTokenAnyTenant(ctx context.Context, token string) (session.Session, error) {
 	sessions, err := g.querySessions(ctx, repo.Join(selectSessionQuery, "WHERE token = $1"), token)
 	if err != nil {

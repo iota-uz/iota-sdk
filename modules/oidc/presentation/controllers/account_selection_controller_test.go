@@ -91,9 +91,9 @@ func TestOIDCAccountSelectionDerivesIdentityFromBrowserSession(t *testing.T) {
 	controller.Register(router)
 
 	form := url.Values{
-		"session_ref": {coreservices.BrowserSessionReference(token)},
-		"user_id":     {"999999"},
-		"tenant_id":   {uuid.NewString()},
+		"SessionRef": {coreservices.BrowserSessionReference(token)},
+		"user_id":    {"999999"},
+		"tenant_id":  {uuid.NewString()},
 	}
 	recorder := httptest.NewRecorder()
 	requestContext := context.WithValue(env.Ctx, constants.LoggerKey, logrus.New().WithField("test", true))
@@ -155,7 +155,7 @@ func TestOIDCAccountSelectionRejectsExpiredAuthorizationRequest(t *testing.T) {
 	httpRequest := httptest.NewRequest(
 		http.MethodPost,
 		"/oidc/authorize/select?auth_request="+request.ID().String(),
-		strings.NewReader(url.Values{"session_ref": {"untrusted"}}.Encode()),
+		strings.NewReader(url.Values{"SessionRef": {"untrusted"}}.Encode()),
 	).WithContext(context.WithValue(env.Ctx, constants.LoggerKey, logrus.New().WithField("test", true)))
 	httpRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	router.ServeHTTP(recorder, httpRequest)

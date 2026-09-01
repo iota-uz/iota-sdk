@@ -45,6 +45,7 @@ func (c *LogoutController) Logout(
 	sessions, err := c.browserSessions.RemoveCurrent(w, r)
 	if err != nil {
 		logger.WithError(err).Warn("failed to delete current session on logout")
+		c.browserSessions.Clear(w)
 	}
 
 	setLogoutHeaders(w)
@@ -58,6 +59,7 @@ func (c *LogoutController) Logout(
 func (c *LogoutController) LogoutAll(w http.ResponseWriter, r *http.Request, logger *logrus.Entry) {
 	if err := c.browserSessions.RemoveAll(w, r); err != nil {
 		logger.WithError(err).Warn("failed to delete all sessions on logout")
+		c.browserSessions.Clear(w)
 	}
 	setLogoutHeaders(w)
 	w.Header().Set("Clear-Site-Data", `"cache", "cookies", "storage"`)

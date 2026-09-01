@@ -146,6 +146,7 @@ func (s *PopulateService) setupTenant(ctx context.Context, tenantSpec *schemas.T
 }
 
 func (s *PopulateService) populateData(ctx context.Context, data *schemas.DataSpec) error {
+	const op serrors.Op = "PopulateService.populateData"
 	// Create users first as they're referenced by other entities
 	if len(data.Users) > 0 {
 		if err := s.createUsers(ctx, data.Users); err != nil {
@@ -154,7 +155,7 @@ func (s *PopulateService) populateData(ctx context.Context, data *schemas.DataSp
 	}
 	if len(data.OIDCClients) > 0 {
 		if err := s.createOIDCClients(ctx, data.OIDCClients); err != nil {
-			return fmt.Errorf("failed to create OIDC clients: %w", err)
+			return serrors.E(op, err)
 		}
 	}
 
@@ -183,9 +184,10 @@ func (s *PopulateService) populateData(ctx context.Context, data *schemas.DataSp
 }
 
 func (s *PopulateService) createOIDCClients(ctx context.Context, clients []schemas.OIDCClientSpec) error {
+	const op serrors.Op = "PopulateService.createOIDCClients"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 	for _, clientSpec := range clients {
 		scopes := clientSpec.Scopes
@@ -197,10 +199,13 @@ func (s *PopulateService) createOIDCClients(ctx context.Context, clients []schem
 				client_id, name, application_type, redirect_uris, grant_types,
 				response_types, scopes, auth_method, require_pkce, is_active
 			) VALUES ($1, $2, 'web', $3, ARRAY['authorization_code'], ARRAY['code'], $4, 'none', true, true)
-			ON CONFLICT (client_id) DO UPDATE SET
-				name = EXCLUDED.name,
-				redirect_uris = EXCLUDED.redirect_uris,
-				scopes = EXCLUDED.scopes,
+				ON CONFLICT (client_id) DO UPDATE SET
+					name = EXCLUDED.name,
+					application_type = EXCLUDED.application_type,
+					redirect_uris = EXCLUDED.redirect_uris,
+					grant_types = EXCLUDED.grant_types,
+					response_types = EXCLUDED.response_types,
+					scopes = EXCLUDED.scopes,
 				auth_method = 'none',
 				require_pkce = true,
 				is_active = true`,
@@ -209,7 +214,7 @@ func (s *PopulateService) createOIDCClients(ctx context.Context, clients []schem
 			clientSpec.RedirectURIs,
 			scopes,
 		); err != nil {
-			return err
+			return serrors.E(op, err)
 		}
 	}
 	return nil

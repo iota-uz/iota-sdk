@@ -169,6 +169,8 @@ func TestOIDCService_CompleteAuthRequest_AlreadyAuthenticated(t *testing.T) {
 
 	unchanged, err := authRequestRepo.GetByID(env.Ctx, testAuthReq.ID())
 	require.NoError(t, err)
+	require.NotNil(t, unchanged.UserID())
+	require.NotNil(t, unchanged.TenantID())
 	require.Equal(t, 101, *unchanged.UserID())
 	require.Equal(t, originalTenantID, *unchanged.TenantID())
 }
