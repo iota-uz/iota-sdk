@@ -47,7 +47,21 @@ test.describe.serial('browser account switching', () => {
 		// form. Both entry paths must remain visible in the same rendered state.
 		await expect(page.getByTestId('account-picker')).toBeVisible();
 		await expect(page.getByTestId('login-form')).toBeVisible();
+		await expect(page.getByTestId('account-login-divider')).toHaveText('Or');
 		await expect(page.locator('form#login-methods [type=email]')).toBeVisible();
+		const desktopLayout = await page.evaluate(() => {
+			const picker = document.querySelector<HTMLElement>('[data-testid="account-picker"]');
+			const divider = document.querySelector<HTMLElement>('[data-testid="account-login-divider"]');
+			const form = document.querySelector<HTMLElement>('[data-testid="login-form"]');
+			return Boolean(
+				picker && divider && form &&
+				picker.getBoundingClientRect().bottom <= divider.getBoundingClientRect().top &&
+				divider.getBoundingClientRect().bottom <= form.getBoundingClientRect().top
+			);
+		});
+		// This would be falsely green if only the mobile breakpoint stacked the
+		// choices. Saved sessions stay above the form at desktop widths too.
+		expect(desktopLayout).toBe(true);
 		await page.setViewportSize({ width: 390, height: 844 });
 		const mobileLayout = await page.evaluate(() => {
 			const picker = document.querySelector<HTMLElement>('[data-testid="account-picker"]');

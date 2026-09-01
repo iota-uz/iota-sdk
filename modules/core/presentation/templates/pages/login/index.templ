@@ -116,11 +116,7 @@ templ Index(p *LoginProps) {
 			@Header(p.Logo)
 			<div class="flex-1 flex items-center justify-center py-8 md:py-12">
 				<div
-					class={ templ.Classes(
-					"mx-4 w-full p-6 md:p-10 flex flex-col gap-6 bg-surface-300 rounded-xl shadow-[0_20px_20px_0px_rgba(0,0,0,0.08),0_0_0_7px_rgba(255,255,255,0.5)]",
-					templ.KV("max-w-4xl", len(p.Accounts) > 0 && !p.AuthorizationRequestInvalid),
-					templ.KV("max-w-md", len(p.Accounts) == 0 || p.AuthorizationRequestInvalid),
-				) }
+					class="mx-4 w-full max-w-md p-6 md:p-10 flex flex-col gap-6 bg-surface-300 rounded-xl shadow-[0_20px_20px_0px_rgba(0,0,0,0.08),0_0_0_7px_rgba(255,255,255,0.5)]"
 				>
 					<div class="text-center">
 						<h1 class="text-2xl text-100">
@@ -139,7 +135,7 @@ templ Index(p *LoginProps) {
 							<a href="/login" class="text-primary-600 hover:underline">{ pageCtx.T("Login.Login") }</a>
 						</div>
 					} else {
-						<div class={ templ.Classes("grid gap-6", templ.KV("md:grid-cols-2 md:gap-10", len(p.Accounts) > 0)) }>
+						<div class="flex flex-col gap-6">
 							if len(p.Accounts) > 0 {
 								<section class="min-w-0" aria-labelledby="saved-accounts-heading">
 									<h2 id="saved-accounts-heading" class="mb-3 text-base font-semibold text-100">{ pageCtx.T("Login.ChooseAccount") }</h2>
@@ -172,11 +168,13 @@ templ Index(p *LoginProps) {
 										}
 									</div>
 								</section>
+								<div class="flex items-center gap-4" role="separator" aria-label={ pageCtx.T("Login.Or") } data-testid="account-login-divider">
+									<span class="flex-1 border-t border-subtle" aria-hidden="true"></span>
+									<span class="text-sm text-200">{ pageCtx.T("Login.Or") }</span>
+									<span class="flex-1 border-t border-subtle" aria-hidden="true"></span>
+								</div>
 							}
-							<section class={ templ.Classes("min-w-0", templ.KV("border-t border-primary pt-6 md:border-l md:border-t-0 md:pl-10 md:pt-0", len(p.Accounts) > 0)) } aria-labelledby="login-methods-heading">
-								if len(p.Accounts) > 0 {
-									<h2 id="login-methods-heading" class="mb-3 text-base font-semibold text-100">{ pageCtx.T("Login.UseAnotherAccount") }</h2>
-								}
+							<div class="min-w-0">
 								<form id="login-methods" data-testid="login-form" class="flex flex-col gap-4" method="post">
 									@composables.CSRFTokenField()
 									if hasExternalMethod {
@@ -238,7 +236,7 @@ templ Index(p *LoginProps) {
 										}
 									}
 								</form>
-							</section>
+							</div>
 						</div>
 					}
 				</div>

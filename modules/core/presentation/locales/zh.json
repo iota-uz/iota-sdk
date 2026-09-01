@@ -464,6 +464,7 @@
     "LoginToUse": "登录以使用 IOTA ERP",
     "LoginWithGoogle": "使用 Google 登录",
 		"OrSignInWith": "或使用...登录",
+		"Or": "或",
 		"ChooseAccount": "选择账户",
 		"UseAnotherAccount": "使用其他账户",
 		"ActiveAccount": "当前",
