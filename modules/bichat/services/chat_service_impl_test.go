@@ -1025,7 +1025,10 @@ func TestChatService_SendMessageStream_RecoversOrphanedRedisRun(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, store.CreateRun(t.Context(), orphanedRun))
 
-	chatRepo := newMockChatRepository()
+	chatRepo := &tenantCheckingRunRepository{
+		mockChatRepository: newMockChatRepository(),
+		tenantID:           tenantID,
+	}
 	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
 	agentSvc := &stubAgentService{processEvents: []agents.ExecutorEvent{
 		{Type: agents.EventTypeContent, Content: "recovered response"},
@@ -1038,7 +1041,8 @@ func TestChatService_SendMessageStream_RecoversOrphanedRedisRun(t *testing.T) {
 	var replacementRunID uuid.UUID
 	// Falsely green if SendMessageStream bypasses PostgreSQL run creation or
 	// the real Redis SETNX conflict that guards one active run per session.
-	err = svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{
+	ctx := composables.WithTenantID(t.Context(), tenantID)
+	err = svc.SendMessageStream(ctx, bichatservices.SendMessageRequest{
 		SessionID: session.ID(),
 		Content:   "continue",
 	}, func(chunk bichatservices.StreamChunk) {
@@ -1058,6 +1062,22 @@ func TestChatService_SendMessageStream_RecoversOrphanedRedisRun(t *testing.T) {
 	assert.Equal(t, domain.GenerationRunStatusCompleted, replacement.Status())
 	_, err = store.GetActiveRunBySession(t.Context(), tenantID, session.ID())
 	require.ErrorIs(t, err, domain.ErrNoActiveRun)
+}
+
+type tenantCheckingRunRepository struct {
+	*mockChatRepository
+	tenantID uuid.UUID
+}
+
+func (r *tenantCheckingRunRepository) CompleteRun(ctx context.Context, runID uuid.UUID) error {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return err
+	}
+	if tenantID != r.tenantID {
+		return errors.New("run finalization used the wrong tenant context")
+	}
+	return r.mockChatRepository.CompleteRun(ctx, runID)
 }
 
 func TestChatService_RejectPendingQuestionAsync_PersistsSubmittedStateBeforeWorkerCompletes(t *testing.T) {

@@ -1611,7 +1611,7 @@ func (s *chatServiceImpl) runStreamLoop(
 			WithField("generation_ms", generationMs).
 			Error("bichat: failed to persist assistant message; answer discarded")
 		active.Broadcast(streamingsvc.TerminalChunk(err, 0))
-		runStateCtx, runStateCancel := context.WithTimeout(context.Background(), streamPersistenceTimeout)
+		runStateCtx, runStateCancel := context.WithTimeout(context.WithoutCancel(persistCtx), streamPersistenceTimeout)
 		defer runStateCancel()
 		_ = s.cancelRunState(runStateCtx, session.TenantID(), req.SessionID, runID)
 		return
@@ -1633,7 +1633,7 @@ func (s *chatServiceImpl) runStreamLoop(
 		}
 	}
 
-	runStateCtx, runStateCancel := context.WithTimeout(context.Background(), streamPersistenceTimeout)
+	runStateCtx, runStateCancel := context.WithTimeout(context.WithoutCancel(persistCtx), streamPersistenceTimeout)
 	defer runStateCancel()
 	_ = s.completeRunState(runStateCtx, session.TenantID(), req.SessionID, runID)
 	if emitDoneChunk {
