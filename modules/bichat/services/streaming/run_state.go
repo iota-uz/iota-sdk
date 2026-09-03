@@ -31,6 +31,11 @@ func NewRunStateManager(store RunStateStore) *RunStateManager {
 	return &RunStateManager{store: store}
 }
 
+// Enabled reports whether generation run state is backed by a store.
+func (m *RunStateManager) Enabled() bool {
+	return m != nil && m.store != nil
+}
+
 func (m *RunStateManager) CreateRunState(ctx context.Context, run domain.GenerationRun) (bool, error) {
 	const op serrors.Op = "runStateManager.CreateRunState"
 	if m == nil || m.store == nil {

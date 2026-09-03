@@ -438,6 +438,8 @@ func (s *chatServiceImpl) finalizeRunState(
 	terminalStatus string,
 	finalize func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error,
 ) error {
+	const op serrors.Op = "chatServiceImpl.finalizeRunState"
+
 	var finalErr error
 	for attempt := 1; attempt <= runStateFinalizationAttempts; attempt++ {
 		finalErr = finalize(ctx, tenantID, sessionID, runID)
@@ -465,7 +467,7 @@ func (s *chatServiceImpl) finalizeRunState(
 		"terminal_status": terminalStatus,
 		"attempts":        runStateFinalizationAttempts,
 	}).Error("bichat: failed to finalize generation run state")
-	return finalErr
+	return serrors.E(op, finalErr)
 }
 
 // publishTerminalStatus is the single choke point for emitting the last
@@ -1167,6 +1169,11 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		})
 		if err != nil {
 			return serrors.E(op, serrors.KindValidation, err)
+		}
+		if s.runState.Enabled() {
+			if err := s.chatRepo.CreateRun(txCtx, run); err != nil {
+				return serrors.E(op, err)
+			}
 		}
 		runStateCreated, err = s.createRunStateRecoveringOrphan(txCtx, run)
 		if err != nil {

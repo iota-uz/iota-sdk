@@ -1002,6 +1002,64 @@ func TestChatService_ResumeWithAnswerAsync_RecoversOrphanedRedisRun(t *testing.T
 	assert.Equal(t, domain.GenerationRunStatusFailed, recovered.Status())
 }
 
+func TestChatService_SendMessageStream_RecoversOrphanedRedisRun(t *testing.T) {
+	t.Parallel()
+
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+	store, err := newRedisGenerationRunStore(redisGenerationRunStoreConfig{Client: client})
+	require.NoError(t, err)
+
+	tenantID := uuid.New()
+	session := mustSession(t,
+		withSessionTenantID(tenantID),
+		withSessionUserID(1),
+		withSessionTitle("send after orphaned redis run"),
+	)
+	orphanedRun, err := domain.NewGenerationRun(domain.GenerationRunSpec{
+		SessionID: session.ID(),
+		TenantID:  tenantID,
+		UserID:    session.UserID(),
+	})
+	require.NoError(t, err)
+	require.NoError(t, store.CreateRun(t.Context(), orphanedRun))
+
+	chatRepo := newMockChatRepository()
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+	agentSvc := &stubAgentService{processEvents: []agents.ExecutorEvent{
+		{Type: agents.EventTypeContent, Content: "recovered response"},
+		{Type: agents.EventTypeDone},
+	}}
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
+	svc.runState = streamingsvc.NewRunStateManager(store)
+
+	var replacementRunID uuid.UUID
+	// Falsely green if SendMessageStream bypasses PostgreSQL run creation or
+	// the real Redis SETNX conflict that guards one active run per session.
+	err = svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{
+		SessionID: session.ID(),
+		Content:   "continue",
+	}, func(chunk bichatservices.StreamChunk) {
+		if chunk.Type == bichatservices.ChunkTypeStreamStarted {
+			replacementRunID = uuid.MustParse(chunk.RunID)
+		}
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, replacementRunID)
+	assert.NotEqual(t, orphanedRun.ID(), replacementRunID)
+
+	recovered, err := store.GetRunByID(t.Context(), tenantID, orphanedRun.ID())
+	require.NoError(t, err)
+	assert.Equal(t, domain.GenerationRunStatusFailed, recovered.Status())
+	replacement, err := chatRepo.GetRunByID(t.Context(), replacementRunID)
+	require.NoError(t, err)
+	assert.Equal(t, domain.GenerationRunStatusCompleted, replacement.Status())
+	_, err = store.GetActiveRunBySession(t.Context(), tenantID, session.ID())
+	require.ErrorIs(t, err, domain.ErrNoActiveRun)
+}
+
 func TestChatService_RejectPendingQuestionAsync_PersistsSubmittedStateBeforeWorkerCompletes(t *testing.T) {
 	t.Parallel()
 
