@@ -33,6 +33,8 @@ const streamPersistenceTimeout = 30 * time.Second
 const titleGenerationFallbackTimeout = 15 * time.Second
 const streamSnapshotThrottle = 2 * time.Second
 const remoteResumePollInterval = time.Second
+const runStateFinalizationAttempts = 3
+const runStateFinalizationRetryDelay = 25 * time.Millisecond
 
 // chatServiceImpl is the production implementation of ChatService.
 // It orchestrates chat sessions, messages, and agent execution.
@@ -320,6 +322,64 @@ func (s *chatServiceImpl) createRunState(ctx context.Context, run domain.Generat
 	return created, nil
 }
 
+func (s *chatServiceImpl) createRunStateRecoveringOrphan(
+	ctx context.Context,
+	run domain.GenerationRun,
+) (bool, error) {
+	created, err := s.createRunState(ctx, run)
+	if err == nil || !errors.Is(err, domain.ErrActiveRunExists) {
+		return created, err
+	}
+
+	persistedRun, persistedErr := s.runState.GetPersistedRunForSession(
+		ctx,
+		run.TenantID(),
+		run.SessionID(),
+	)
+	if persistedErr != nil {
+		return false, err
+	}
+	databaseRun, databaseErr := s.chatRepo.GetActiveRunBySession(ctx, run.SessionID())
+	if databaseErr != nil || databaseRun == nil {
+		return false, err
+	}
+
+	// PostgreSQL owns the durable run lifecycle. CreateRun has already inserted
+	// the new row in this transaction, so a different Redis run for the same
+	// session can only be residue from a finalization that completed in SQL but
+	// failed before clearing Redis. A genuinely concurrent run would have
+	// prevented the PostgreSQL insert through its unique active-run constraint.
+	if databaseRun.ID() != run.ID() || persistedRun.ID() == run.ID() {
+		return false, err
+	}
+
+	if clearErr := s.finalizeRunState(
+		ctx,
+		run.TenantID(),
+		run.SessionID(),
+		persistedRun.ID(),
+		string(domain.GenerationRunStatusFailed),
+		s.runState.FailRunState,
+	); clearErr != nil {
+		return false, serrors.E("chatServiceImpl.createRunStateRecoveringOrphan", clearErr)
+	}
+	s.publishTerminalStatus(
+		ctx,
+		run.TenantID(),
+		run.SessionID(),
+		persistedRun.ID(),
+		string(domain.GenerationRunStatusFailed),
+	)
+	s.log().WithFields(logrus.Fields{
+		"tenant_id":          run.TenantID().String(),
+		"session_id":         run.SessionID().String(),
+		"orphaned_run_id":    persistedRun.ID().String(),
+		"replacement_run_id": run.ID().String(),
+	}).Warn("bichat: recovered orphaned redis generation run")
+
+	return s.createRunState(ctx, run)
+}
+
 func (s *chatServiceImpl) getPersistedRun(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
 	return s.runState.GetPersistedRun(ctx, sessionID)
 }
@@ -338,7 +398,14 @@ func (s *chatServiceImpl) completeRunState(ctx context.Context, tenantID, sessio
 	}); err != nil {
 		return err
 	}
-	err := s.runState.CompleteRunState(ctx, tenantID, sessionID, runID)
+	err := s.finalizeRunState(
+		ctx,
+		tenantID,
+		sessionID,
+		runID,
+		string(domain.GenerationRunStatusCompleted),
+		s.runState.CompleteRunState,
+	)
 	if err == nil {
 		s.publishTerminalStatus(ctx, tenantID, sessionID, runID, string(domain.GenerationRunStatusCompleted))
 	}
@@ -351,11 +418,59 @@ func (s *chatServiceImpl) cancelRunState(ctx context.Context, tenantID, sessionI
 	}); err != nil {
 		return err
 	}
-	err := s.runState.CancelRunState(ctx, tenantID, sessionID, runID)
+	err := s.finalizeRunState(
+		ctx,
+		tenantID,
+		sessionID,
+		runID,
+		string(domain.GenerationRunStatusCancelled),
+		s.runState.CancelRunState,
+	)
 	if err == nil {
 		s.publishTerminalStatus(ctx, tenantID, sessionID, runID, string(domain.GenerationRunStatusCancelled))
 	}
 	return err
+}
+
+func (s *chatServiceImpl) finalizeRunState(
+	ctx context.Context,
+	tenantID, sessionID, runID uuid.UUID,
+	terminalStatus string,
+	finalize func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error,
+) error {
+	const op serrors.Op = "chatServiceImpl.finalizeRunState"
+
+	var finalErr error
+	for attempt := 1; attempt <= runStateFinalizationAttempts; attempt++ {
+		finalErr = finalize(ctx, tenantID, sessionID, runID)
+		if finalErr == nil {
+			return nil
+		}
+		if attempt == runStateFinalizationAttempts || ctx.Err() != nil {
+			break
+		}
+
+		timer := time.NewTimer(time.Duration(attempt) * runStateFinalizationRetryDelay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			finalErr = errors.Join(finalErr, ctx.Err())
+			attempt = runStateFinalizationAttempts
+		case <-timer.C:
+		}
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil && !errors.Is(finalErr, ctxErr) {
+		finalErr = errors.Join(finalErr, ctxErr)
+	}
+
+	s.log().WithError(finalErr).WithFields(logrus.Fields{
+		"tenant_id":       tenantID.String(),
+		"session_id":      sessionID.String(),
+		"run_id":          runID.String(),
+		"terminal_status": terminalStatus,
+		"attempts":        runStateFinalizationAttempts,
+	}).Error("bichat: failed to finalize generation run state")
+	return serrors.E(op, finalErr)
 }
 
 // publishTerminalStatus is the single choke point for emitting the last
@@ -486,7 +601,7 @@ func (s *chatServiceImpl) startAsyncRun(
 				return serrors.E(op, err)
 			}
 		}
-		_, err = s.createRunState(txCtx, run)
+		_, err = s.createRunStateRecoveringOrphan(txCtx, run)
 		if err != nil {
 			return serrors.E(op, err)
 		}
@@ -1058,7 +1173,12 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		if err != nil {
 			return serrors.E(op, serrors.KindValidation, err)
 		}
-		runStateCreated, err = s.createRunState(txCtx, run)
+		if s.runState.Enabled() {
+			if err := s.chatRepo.CreateRun(txCtx, run); err != nil {
+				return serrors.E(op, err)
+			}
+		}
+		runStateCreated, err = s.createRunStateRecoveringOrphan(txCtx, run)
 		if err != nil {
 			return err
 		}
@@ -1494,7 +1614,7 @@ func (s *chatServiceImpl) runStreamLoop(
 			WithField("generation_ms", generationMs).
 			Error("bichat: failed to persist assistant message; answer discarded")
 		active.Broadcast(streamingsvc.TerminalChunk(err, 0))
-		runStateCtx, runStateCancel := context.WithTimeout(context.Background(), streamPersistenceTimeout)
+		runStateCtx, runStateCancel := context.WithTimeout(context.WithoutCancel(persistCtx), streamPersistenceTimeout)
 		defer runStateCancel()
 		_ = s.cancelRunState(runStateCtx, session.TenantID(), req.SessionID, runID)
 		return
@@ -1516,7 +1636,7 @@ func (s *chatServiceImpl) runStreamLoop(
 		}
 	}
 
-	runStateCtx, runStateCancel := context.WithTimeout(context.Background(), streamPersistenceTimeout)
+	runStateCtx, runStateCancel := context.WithTimeout(context.WithoutCancel(persistCtx), streamPersistenceTimeout)
 	defer runStateCancel()
 	_ = s.completeRunState(runStateCtx, session.TenantID(), req.SessionID, runID)
 	if emitDoneChunk {
