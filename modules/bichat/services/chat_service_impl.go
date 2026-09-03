@@ -459,6 +459,9 @@ func (s *chatServiceImpl) finalizeRunState(
 		case <-timer.C:
 		}
 	}
+	if ctxErr := ctx.Err(); ctxErr != nil && !errors.Is(finalErr, ctxErr) {
+		finalErr = errors.Join(finalErr, ctxErr)
+	}
 
 	s.log().WithError(finalErr).WithFields(logrus.Fields{
 		"tenant_id":       tenantID.String(),
