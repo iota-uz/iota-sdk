@@ -1,13 +1,16 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules"
+	streamingsvc "github.com/iota-uz/iota-sdk/modules/bichat/services/streaming"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
@@ -15,9 +18,28 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/redis/go-redis/v9"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type failingCompleteRunStore struct {
+	generationRunStore
+	completeCalls int
+	failures      int
+}
+
+func (s *failingCompleteRunStore) CompleteRun(
+	ctx context.Context,
+	tenantID, sessionID, runID uuid.UUID,
+) error {
+	s.completeCalls++
+	if s.completeCalls <= s.failures {
+		return errors.New("temporary redis finalization failure")
+	}
+	return s.generationRunStore.CompleteRun(ctx, tenantID, sessionID, runID)
+}
 
 func mustQuestionData(t *testing.T, checkpointID string) *types.QuestionData {
 	t.Helper()
@@ -845,6 +867,139 @@ func TestChatService_ResumeWithAnswerAsync_PersistsSubmittedStateBeforeWorkerCom
 	require.ErrorIs(t, err, domain.ErrNoPendingQuestion)
 
 	close(release)
+}
+
+func TestChatService_CompleteRunState_RetriesRedisFinalization(t *testing.T) {
+	t.Parallel()
+
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+	baseStore, err := newRedisGenerationRunStore(redisGenerationRunStoreConfig{Client: client})
+	require.NoError(t, err)
+	store := &failingCompleteRunStore{generationRunStore: baseStore, failures: 1}
+
+	tenantID := uuid.New()
+	sessionID := uuid.New()
+	run, err := domain.NewGenerationRun(domain.GenerationRunSpec{
+		SessionID: sessionID,
+		TenantID:  tenantID,
+		UserID:    1,
+	})
+	require.NoError(t, err)
+
+	chatRepo := newMockChatRepository()
+	require.NoError(t, chatRepo.CreateRun(t.Context(), run))
+	require.NoError(t, baseStore.CreateRun(t.Context(), run))
+
+	svc, err := NewChatService(chatRepo, nil, nil, nil, nil)
+	require.NoError(t, err)
+	svc.runState = streamingsvc.NewRunStateManager(store)
+
+	// Falsely green if the store never fails between SQL completion and Redis cleanup.
+	require.NoError(t, svc.completeRunState(t.Context(), tenantID, sessionID, run.ID()))
+	assert.Equal(t, 2, store.completeCalls)
+
+	databaseRun, err := chatRepo.GetRunByID(t.Context(), run.ID())
+	require.NoError(t, err)
+	assert.Equal(t, domain.GenerationRunStatusCompleted, databaseRun.Status())
+	_, err = baseStore.GetActiveRunBySession(t.Context(), tenantID, sessionID)
+	require.ErrorIs(t, err, domain.ErrNoActiveRun)
+}
+
+func TestChatService_CompleteRunState_LogsTerminalRedisFailure(t *testing.T) {
+	t.Parallel()
+
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+	baseStore, err := newRedisGenerationRunStore(redisGenerationRunStoreConfig{Client: client})
+	require.NoError(t, err)
+	store := &failingCompleteRunStore{
+		generationRunStore: baseStore,
+		failures:           runStateFinalizationAttempts,
+	}
+
+	tenantID := uuid.New()
+	sessionID := uuid.New()
+	run, err := domain.NewGenerationRun(domain.GenerationRunSpec{
+		SessionID: sessionID,
+		TenantID:  tenantID,
+		UserID:    1,
+	})
+	require.NoError(t, err)
+
+	chatRepo := newMockChatRepository()
+	require.NoError(t, chatRepo.CreateRun(t.Context(), run))
+	require.NoError(t, baseStore.CreateRun(t.Context(), run))
+
+	var logs bytes.Buffer
+	logger := logrus.New()
+	logger.SetOutput(&logs)
+	logger.SetFormatter(&logrus.JSONFormatter{})
+	svc, err := NewChatService(chatRepo, nil, nil, nil, nil)
+	require.NoError(t, err)
+	svc.WithLogger(logger)
+	svc.runState = streamingsvc.NewRunStateManager(store)
+
+	// Falsely green if terminal Redis errors are swallowed without identifiers.
+	require.Error(t, svc.completeRunState(t.Context(), tenantID, sessionID, run.ID()))
+	assert.Equal(t, runStateFinalizationAttempts, store.completeCalls)
+	assert.Contains(t, logs.String(), "failed to finalize generation run state")
+	assert.Contains(t, logs.String(), tenantID.String())
+	assert.Contains(t, logs.String(), sessionID.String())
+	assert.Contains(t, logs.String(), run.ID().String())
+}
+
+func TestChatService_ResumeWithAnswerAsync_RecoversOrphanedRedisRun(t *testing.T) {
+	t.Parallel()
+
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+	store, err := newRedisGenerationRunStore(redisGenerationRunStoreConfig{Client: client})
+	require.NoError(t, err)
+
+	tenantID := uuid.New()
+	session := mustSession(t,
+		withSessionTenantID(tenantID),
+		withSessionUserID(1),
+		withSessionTitle("resume after orphaned redis run"),
+	)
+	orphanedRun, err := domain.NewGenerationRun(domain.GenerationRunSpec{
+		SessionID: session.ID(),
+		TenantID:  tenantID,
+		UserID:    session.UserID(),
+	})
+	require.NoError(t, err)
+	require.NoError(t, store.CreateRun(t.Context(), orphanedRun))
+
+	chatRepo := newMockChatRepository()
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+	require.NoError(t, chatRepo.SaveMessage(t.Context(), types.NewMessage(
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("Need scope"),
+		types.WithQuestionData(mustQuestionData(t, "cp-orphaned-redis-run")),
+	)))
+
+	agentSvc := &stubAgentService{resumeEvents: []agents.ExecutorEvent{{Type: agents.EventTypeDone}}}
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
+	svc.runState = streamingsvc.NewRunStateManager(store)
+
+	// Falsely green if resume bypasses the real Redis SETNX conflict.
+	accepted, err := svc.ResumeWithAnswerAsync(t.Context(), bichatservices.ResumeRequest{
+		SessionID:    session.ID(),
+		CheckpointID: "cp-orphaned-redis-run",
+		Answers:      map[string]string{"scope": "all"},
+	})
+	require.NoError(t, err)
+	assert.NotEqual(t, orphanedRun.ID(), accepted.RunID)
+
+	recovered, err := store.GetRunByID(t.Context(), tenantID, orphanedRun.ID())
+	require.NoError(t, err)
+	assert.Equal(t, domain.GenerationRunStatusFailed, recovered.Status())
 }
 
 func TestChatService_RejectPendingQuestionAsync_PersistsSubmittedStateBeforeWorkerCompletes(t *testing.T) {
