@@ -974,9 +974,9 @@ func (c *ClientController) UpdatePersonal(
 
 	clientVM := mappers.ClientToViewModel(entity)
 	htmx.Retarget(w, "#personal-info-card")
+	htmx.Reswap(w, "outerHTML")
 	templ.Handler(clients.PersonalInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
-
 func (c *ClientController) UpdatePassport(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -1050,9 +1050,9 @@ func (c *ClientController) UpdatePassport(
 
 	clientVM := mappers.ClientToViewModel(entity)
 	htmx.Retarget(w, "#passport-info-card")
+	htmx.Reswap(w, "outerHTML")
 	templ.Handler(clients.PassportInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
-
 func (c *ClientController) UpdateTax(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -1126,9 +1126,9 @@ func (c *ClientController) UpdateTax(
 
 	clientVM := mappers.ClientToViewModel(entity)
 	htmx.Retarget(w, "#tax-info-card")
+	htmx.Reswap(w, "outerHTML")
 	templ.Handler(clients.TaxInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
-
 func (c *ClientController) UpdateNotes(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -1163,15 +1163,15 @@ func (c *ClientController) UpdateNotes(
 		}
 
 		clientVM := mappers.ClientToViewModel(entity)
-		props := &clients.TaxInfoEditProps{
+		clientVM.Comments = dto.Comments
+		props := &clients.NotesInfoEditProps{
 			Client: clientVM,
 			Errors: errorsMap,
 			Form:   "notes-info-edit-form",
 		}
-		templ.Handler(clients.TaxInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(clients.NotesInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
-
 	entity, err := clientService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v", err)
@@ -1201,9 +1201,9 @@ func (c *ClientController) UpdateNotes(
 
 	clientVM := mappers.ClientToViewModel(entity)
 	htmx.Retarget(w, "#notes-info-card")
+	htmx.Reswap(w, "outerHTML")
 	templ.Handler(clients.NotesInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
-
 func (c *ClientController) Delete(
 	r *http.Request,
 	w http.ResponseWriter,
