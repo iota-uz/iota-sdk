@@ -84,6 +84,46 @@ func TestUploadController_FileAccess_ReturnsFile(t *testing.T) {
 	require.Contains(t, response.Body(), testContent)
 }
 
+// Falsely green if the fixture is absent or the request never reaches the public file handler.
+func TestUploadController_PrivateFileAccess_Returns404(t *testing.T) {
+	uploadsPath := "test-uploads"
+	testSubDir := strings.ReplaceAll(t.Name(), "/", "-")
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	})).Build()
+	uploadService := itf.GetService[services.UploadService](suite.Environment())
+	uploadsCfg := itf.GetService[uploadsconfig.Config](suite.Environment())
+	suite.Register(controllers.NewUploadController(uploadService, uploadsCfg))
+
+	cases := []struct {
+		name        string
+		fixtureRoot string
+		urlPath     string
+	}{
+		{
+			name:        "private namespace",
+			fixtureRoot: filepath.Join(uploadsPath, uploadsconfig.PrivateDirectory, testSubDir),
+			urlPath:     "/" + filepath.ToSlash(filepath.Join(uploadsPath, uploadsconfig.PrivateDirectory, testSubDir, "confidential.pdf")),
+		},
+		{
+			name:        "adjacent URL prefix",
+			fixtureRoot: filepath.Join(uploadsPath+"private", testSubDir),
+			urlPath:     "/" + filepath.ToSlash(filepath.Join(uploadsPath+"private", testSubDir, "confidential.pdf")),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.NoError(t, os.MkdirAll(tc.fixtureRoot, 0700))
+			t.Cleanup(func() { require.NoError(t, os.RemoveAll(tc.fixtureRoot)) })
+			filePath := filepath.Join(tc.fixtureRoot, "confidential.pdf")
+			require.NoError(t, os.WriteFile(filePath, []byte("private evidence"), 0600))
+			_, err := os.ReadFile(filePath)
+			require.NoError(t, err)
+			suite.GET(tc.urlPath).Expect(t).Status(http.StatusNotFound)
+		})
+	}
+}
+
 func TestUploadController_SubdirectoryListing_Returns404(t *testing.T) {
 	// Use consistent uploads path (singleton configuration)
 	uploadsPath := "test-uploads"

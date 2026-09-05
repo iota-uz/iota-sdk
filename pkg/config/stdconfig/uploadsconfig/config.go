@@ -2,6 +2,10 @@
 // It is a stdconfig package intended to be registered via config.Register[uploadsconfig.Config].
 package uploadsconfig
 
+import "path/filepath"
+
+const PrivateDirectory = ".private"
+
 // Config holds file upload path and size constraints.
 //
 // Env prefix: "uploads" (e.g. UPLOADS_PATH → uploads.path,
@@ -14,3 +18,12 @@ type Config struct {
 
 // ConfigPrefix returns the koanf prefix for uploadsconfig ("uploads").
 func (Config) ConfigPrefix() string { return "uploads" }
+
+// PrivatePath returns the non-public namespace inside the configured storage root.
+func (c Config) PrivatePath() string {
+	root := c.Path
+	if root == "" {
+		root = "static"
+	}
+	return filepath.Join(root, PrivateDirectory)
+}

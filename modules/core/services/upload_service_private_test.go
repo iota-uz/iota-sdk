@@ -1,0 +1,112 @@
+package services_test
+
+import (
+	"bytes"
+	"context"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/gabriel-vasile/mimetype"
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+)
+
+func TestUploadServiceCreatePrivate_DoesNotReusePublicHash(t *testing.T) {
+	// This test would be falsely green if CreatePrivate queried the global hash
+	// but the mock happened to return not found.
+	ctx := context.Background()
+	repo := new(MockUploadRepository)
+	storage := new(MockUploadStorage)
+	service := services.NewUploadService(repo, storage, eventbus.NewEventPublisher(logrus.New()))
+	content := []byte("%PDF-1.7\nprivate")
+	privatePath := filepath.Join(t.TempDir(), ".private")
+	slug := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	created := upload.NewWithID(7, uuid.New(), "hash", filepath.Join(privatePath, slug+".pdf"), "policy.pdf", slug, len(content), mimetype.Detect(content), upload.UploadTypeDocument, time.Now(), time.Now())
+
+	repo.On("GetBySlug", ctx, slug).Return(nil, persistence.ErrUploadNotFound).Once()
+	storage.On("Save", ctx, filepath.Join(privatePath, slug+".pdf"), content).Return(nil).Once()
+	repo.On("Create", ctx, mock.MatchedBy(func(entity upload.Upload) bool {
+		return entity.Path() == filepath.Join(privatePath, slug+".pdf")
+	})).Return(created, nil).Once()
+
+	result, err := service.CreatePrivate(ctx, &upload.CreateDTO{
+		File: bytes.NewReader(content), Name: "policy.pdf", Size: len(content), Slug: slug,
+	}, privatePath)
+	require.NoError(t, err)
+	require.Equal(t, created, result)
+	repo.AssertNotCalled(t, "GetByHash", mock.Anything, mock.Anything)
+	repo.AssertExpectations(t)
+	storage.AssertExpectations(t)
+}
+
+func TestUploadServiceCreatePrivate_RejectsInvalidRequests(t *testing.T) {
+	// These cases would be falsely green if failures came from unconfigured
+	// repository or storage mocks instead of the intended validation boundary.
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T, repo *MockUploadRepository) (*upload.CreateDTO, string)
+		expected error
+	}{
+		{
+			name: "slug replacement",
+			setup: func(t *testing.T, repo *MockUploadRepository) (*upload.CreateDTO, string) {
+				t.Helper()
+				privatePath := filepath.Join(t.TempDir(), ".private")
+				slug := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+				existing := upload.New("different-hash", filepath.Join(privatePath, slug+".pdf"), "old.pdf", slug, 3, mimetype.Detect([]byte("old")))
+				repo.On("GetBySlug", mock.Anything, slug).Return(existing, nil).Once()
+				return &upload.CreateDTO{File: bytes.NewReader([]byte("%PDF-new")), Name: "new.pdf", Size: 8, Slug: slug}, privatePath
+			},
+			expected: services.ErrUploadSlugConflict,
+		},
+		{
+			name: "public slug match",
+			setup: func(t *testing.T, repo *MockUploadRepository) (*upload.CreateDTO, string) {
+				t.Helper()
+				content := []byte("%PDF-same")
+				privatePath := filepath.Join(t.TempDir(), ".private")
+				slug := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+				public := upload.New("635b3969c08c7cac341c01f017ab0e0a", filepath.Join(t.TempDir(), slug+".pdf"), "public.pdf", slug, len(content), mimetype.Detect(content))
+				repo.On("GetBySlug", mock.Anything, slug).Return(public, nil).Once()
+				return &upload.CreateDTO{File: bytes.NewReader(content), Name: "private.pdf", Size: len(content), Slug: slug}, privatePath
+			},
+			expected: services.ErrUploadSlugConflict,
+		},
+		{
+			name: "missing namespace",
+			setup: func(t *testing.T, _ *MockUploadRepository) (*upload.CreateDTO, string) {
+				t.Helper()
+				return &upload.CreateDTO{File: bytes.NewReader([]byte("%PDF")), Name: "private.pdf", Size: 4}, ""
+			},
+			expected: services.ErrPrivateUploadPathRequired,
+		},
+		{
+			name: "path traversal",
+			setup: func(t *testing.T, _ *MockUploadRepository) (*upload.CreateDTO, string) {
+				t.Helper()
+				return &upload.CreateDTO{File: bytes.NewReader([]byte("%PDF")), Name: "private.pdf", Size: 4, Slug: "../escaped"}, filepath.Join(t.TempDir(), ".private")
+			},
+			expected: services.ErrPrivateUploadPathInvalid,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := new(MockUploadRepository)
+			storage := new(MockUploadStorage)
+			service := services.NewUploadService(repo, storage, eventbus.NewEventPublisher(logrus.New()))
+			data, privatePath := tt.setup(t, repo)
+			_, err := service.CreatePrivate(context.Background(), data, privatePath)
+			require.ErrorIs(t, err, tt.expected)
+			repo.AssertNotCalled(t, "GetByHash", mock.Anything, mock.Anything)
+			repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+			storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
+}

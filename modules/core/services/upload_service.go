@@ -4,11 +4,19 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
+
+var ErrUploadSlugConflict = errors.New("upload slug already belongs to different content")
+var ErrPrivateUploadPathRequired = errors.New("private upload path is required")
+var ErrPrivateUploadPathInvalid = errors.New("private upload path escapes namespace")
 
 type UploadService struct {
 	repo      upload.Repository
@@ -62,9 +70,35 @@ func (s *UploadService) GetPaginated(ctx context.Context, params *upload.FindPar
 }
 
 func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error) {
+	return s.create(ctx, data, true, true)
+}
+
+// CreatePrivate stores an upload in a caller-provided non-public namespace.
+// Hash deduplication is intentionally limited to the deterministic slug so a
+// private upload can never resolve to content from the public namespace.
+func (s *UploadService) CreatePrivate(ctx context.Context, data *upload.CreateDTO, privatePath string) (upload.Upload, error) {
+	const op serrors.Op = "UploadService.CreatePrivate"
+	if privatePath == "" {
+		return nil, serrors.E(op, ErrPrivateUploadPathRequired)
+	}
+	privateData := *data
+	privateData.UploadsPath = privatePath
+	return s.create(ctx, &privateData, false, false, privatePath)
+}
+
+func pathWithin(root, candidate string) bool {
+	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(candidate))
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, deduplicateByHash, replaceSlug bool, requiredPath ...string) (upload.Upload, error) {
+	const op serrors.Op = "UploadService.create"
 	entity, bytes, err := data.ToEntity()
 	if err != nil {
 		return nil, err
+	}
+	if len(requiredPath) > 0 && !pathWithin(requiredPath[0], entity.Path()) {
+		return nil, serrors.E(op, ErrPrivateUploadPathInvalid)
 	}
 
 	up, err := s.repo.GetBySlug(ctx, entity.Slug())
@@ -72,14 +106,20 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upl
 		return nil, err
 	}
 
-	if up == nil {
+	if up == nil && deduplicateByHash {
 		up, err = s.repo.GetByHash(ctx, entity.Hash())
 		if err != nil && !errors.Is(err, persistence.ErrUploadNotFound) {
 			return nil, err
 		}
 	}
 	if up != nil {
+		if len(requiredPath) > 0 && !pathWithin(requiredPath[0], up.Path()) {
+			return nil, serrors.E(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug()))
+		}
 		if up.Hash() != entity.Hash() {
+			if !replaceSlug {
+				return nil, serrors.E(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug()))
+			}
 			existing, err := s.repo.GetByHash(ctx, entity.Hash())
 			if err != nil && !errors.Is(err, persistence.ErrUploadNotFound) {
 				return nil, err
