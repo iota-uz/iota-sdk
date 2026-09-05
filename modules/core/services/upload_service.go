@@ -16,6 +16,7 @@ import (
 
 var ErrUploadSlugConflict = errors.New("upload slug already belongs to different content")
 var ErrPrivateUploadPathRequired = errors.New("private upload path is required")
+var ErrPrivateUploadPathInvalid = errors.New("private upload path escapes namespace")
 
 type UploadService struct {
 	repo      upload.Repository
@@ -95,6 +96,9 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 	entity, bytes, err := data.ToEntity()
 	if err != nil {
 		return nil, err
+	}
+	if len(requiredPath) > 0 && !pathWithin(requiredPath[0], entity.Path()) {
+		return nil, serrors.E(op, ErrPrivateUploadPathInvalid)
 	}
 
 	up, err := s.repo.GetBySlug(ctx, entity.Slug())

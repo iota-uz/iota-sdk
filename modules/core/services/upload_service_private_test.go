@@ -46,54 +46,67 @@ func TestUploadServiceCreatePrivate_DoesNotReusePublicHash(t *testing.T) {
 	storage.AssertExpectations(t)
 }
 
-func TestUploadServiceCreatePrivate_RejectsSlugReplacement(t *testing.T) {
-	// This test would be falsely green if the replacement path failed only
-	// because storage or repository mutation mocks were incomplete.
-	ctx := context.Background()
-	repo := new(MockUploadRepository)
-	storage := new(MockUploadStorage)
-	service := services.NewUploadService(repo, storage, eventbus.NewEventPublisher(logrus.New()))
-	privatePath := filepath.Join(t.TempDir(), ".private")
-	slug := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	existing := upload.New("different-hash", filepath.Join(privatePath, slug+".pdf"), "old.pdf", slug, 3, mimetype.Detect([]byte("old")))
-	repo.On("GetBySlug", ctx, slug).Return(existing, nil).Once()
-
-	_, err := service.CreatePrivate(ctx, &upload.CreateDTO{
-		File: bytes.NewReader([]byte("%PDF-new")), Name: "new.pdf", Size: 8, Slug: slug,
-	}, privatePath)
-	require.ErrorIs(t, err, services.ErrUploadSlugConflict)
-	require.NotErrorIs(t, err, persistence.ErrUploadNotFound)
-	repo.AssertNotCalled(t, "GetByHash", mock.Anything, mock.Anything)
-	repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
-	storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything, mock.Anything)
-}
-
-func TestUploadServiceCreatePrivate_RejectsPublicSlugMatch(t *testing.T) {
-	// This test would be falsely green if matching content were accepted without
-	// checking that the existing upload belongs to the private namespace.
-	ctx := context.Background()
-	repo := new(MockUploadRepository)
-	storage := new(MockUploadStorage)
-	service := services.NewUploadService(repo, storage, eventbus.NewEventPublisher(logrus.New()))
-	content := []byte("%PDF-same")
-	privatePath := filepath.Join(t.TempDir(), ".private")
-	slug := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	public := upload.New("635b3969c08c7cac341c01f017ab0e0a", filepath.Join(t.TempDir(), slug+".pdf"), "public.pdf", slug, len(content), mimetype.Detect(content))
-	repo.On("GetBySlug", ctx, slug).Return(public, nil).Once()
-
-	_, err := service.CreatePrivate(ctx, &upload.CreateDTO{
-		File: bytes.NewReader(content), Name: "private.pdf", Size: len(content), Slug: slug,
-	}, privatePath)
-	require.ErrorIs(t, err, services.ErrUploadSlugConflict)
-	storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything, mock.Anything)
-}
-
-func TestUploadServiceCreatePrivate_RequiresNamespace(t *testing.T) {
-	// This test would be falsely green if an empty path reached ToEntity and
-	// another dependency happened to reject the upload first.
-	service := services.NewUploadService(new(MockUploadRepository), new(MockUploadStorage), eventbus.NewEventPublisher(logrus.New()))
-	_, err := service.CreatePrivate(context.Background(), &upload.CreateDTO{
-		File: bytes.NewReader([]byte("%PDF")), Name: "private.pdf", Size: 4,
-	}, "")
-	require.ErrorIs(t, err, services.ErrPrivateUploadPathRequired)
+func TestUploadServiceCreatePrivate_RejectsInvalidRequests(t *testing.T) {
+	// These cases would be falsely green if failures came from unconfigured
+	// repository or storage mocks instead of the intended validation boundary.
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T, repo *MockUploadRepository) (*upload.CreateDTO, string)
+		expected error
+	}{
+		{
+			name: "slug replacement",
+			setup: func(t *testing.T, repo *MockUploadRepository) (*upload.CreateDTO, string) {
+				t.Helper()
+				privatePath := filepath.Join(t.TempDir(), ".private")
+				slug := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+				existing := upload.New("different-hash", filepath.Join(privatePath, slug+".pdf"), "old.pdf", slug, 3, mimetype.Detect([]byte("old")))
+				repo.On("GetBySlug", mock.Anything, slug).Return(existing, nil).Once()
+				return &upload.CreateDTO{File: bytes.NewReader([]byte("%PDF-new")), Name: "new.pdf", Size: 8, Slug: slug}, privatePath
+			},
+			expected: services.ErrUploadSlugConflict,
+		},
+		{
+			name: "public slug match",
+			setup: func(t *testing.T, repo *MockUploadRepository) (*upload.CreateDTO, string) {
+				t.Helper()
+				content := []byte("%PDF-same")
+				privatePath := filepath.Join(t.TempDir(), ".private")
+				slug := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+				public := upload.New("635b3969c08c7cac341c01f017ab0e0a", filepath.Join(t.TempDir(), slug+".pdf"), "public.pdf", slug, len(content), mimetype.Detect(content))
+				repo.On("GetBySlug", mock.Anything, slug).Return(public, nil).Once()
+				return &upload.CreateDTO{File: bytes.NewReader(content), Name: "private.pdf", Size: len(content), Slug: slug}, privatePath
+			},
+			expected: services.ErrUploadSlugConflict,
+		},
+		{
+			name: "missing namespace",
+			setup: func(t *testing.T, _ *MockUploadRepository) (*upload.CreateDTO, string) {
+				t.Helper()
+				return &upload.CreateDTO{File: bytes.NewReader([]byte("%PDF")), Name: "private.pdf", Size: 4}, ""
+			},
+			expected: services.ErrPrivateUploadPathRequired,
+		},
+		{
+			name: "path traversal",
+			setup: func(t *testing.T, _ *MockUploadRepository) (*upload.CreateDTO, string) {
+				t.Helper()
+				return &upload.CreateDTO{File: bytes.NewReader([]byte("%PDF")), Name: "private.pdf", Size: 4, Slug: "../escaped"}, filepath.Join(t.TempDir(), ".private")
+			},
+			expected: services.ErrPrivateUploadPathInvalid,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := new(MockUploadRepository)
+			storage := new(MockUploadStorage)
+			service := services.NewUploadService(repo, storage, eventbus.NewEventPublisher(logrus.New()))
+			data, privatePath := tt.setup(t, repo)
+			_, err := service.CreatePrivate(context.Background(), data, privatePath)
+			require.ErrorIs(t, err, tt.expected)
+			repo.AssertNotCalled(t, "GetByHash", mock.Anything, mock.Anything)
+			repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+			storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
 }
