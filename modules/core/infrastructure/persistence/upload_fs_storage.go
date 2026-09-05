@@ -20,8 +20,18 @@ func NewFSStorage(cfg *uploadsconfig.Config) (*FSStorage, error) {
 	if err != nil {
 		return nil, err
 	}
-	fullPath := filepath.Join(workDir, uploadsPath)
+	fullPath := uploadsPath
+	if !filepath.IsAbs(fullPath) {
+		fullPath = filepath.Join(workDir, fullPath)
+	}
 	if err := os.MkdirAll(fullPath, 0777); err != nil {
+		return nil, err
+	}
+	privatePath := filepath.Join(fullPath, uploadsconfig.PrivateDirectory)
+	if err := os.MkdirAll(privatePath, 0700); err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(privatePath, 0700); err != nil {
 		return nil, err
 	}
 	return &FSStorage{}, nil

@@ -84,6 +84,30 @@ func TestUploadController_FileAccess_ReturnsFile(t *testing.T) {
 	require.Contains(t, response.Body(), testContent)
 }
 
+// Falsely green if the fixture is absent or the request never reaches the public file handler.
+func TestUploadController_PrivateFileAccess_Returns404(t *testing.T) {
+	uploadsPath := "test-uploads"
+	testSubDir := strings.ReplaceAll(t.Name(), "/", "-")
+	privatePath := filepath.Join(uploadsPath, uploadsconfig.PrivateDirectory, testSubDir)
+	require.NoError(t, os.MkdirAll(privatePath, 0700))
+	t.Cleanup(func() { require.NoError(t, os.RemoveAll(privatePath)) })
+
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	})).Build()
+	uploadService := itf.GetService[services.UploadService](suite.Environment())
+	uploadsCfg := itf.GetService[uploadsconfig.Config](suite.Environment())
+	suite.Register(controllers.NewUploadController(uploadService, uploadsCfg))
+
+	filePath := filepath.Join(privatePath, "confidential.pdf")
+	require.NoError(t, os.WriteFile(filePath, []byte("private evidence"), 0600))
+	_, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+
+	urlPath := "/" + filepath.ToSlash(filepath.Join(uploadsPath, uploadsconfig.PrivateDirectory, testSubDir, "confidential.pdf"))
+	suite.GET(urlPath).Expect(t).Status(http.StatusNotFound)
+}
+
 func TestUploadController_SubdirectoryListing_Returns404(t *testing.T) {
 	// Use consistent uploads path (singleton configuration)
 	uploadsPath := "test-uploads"

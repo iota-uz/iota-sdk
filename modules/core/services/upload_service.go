@@ -4,11 +4,14 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
+
+var ErrUploadSlugConflict = errors.New("upload slug already belongs to different content")
 
 type UploadService struct {
 	repo      upload.Repository
@@ -62,6 +65,19 @@ func (s *UploadService) GetPaginated(ctx context.Context, params *upload.FindPar
 }
 
 func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error) {
+	return s.create(ctx, data, true, true)
+}
+
+// CreatePrivate stores an upload in a caller-provided non-public namespace.
+// Hash deduplication is intentionally limited to the deterministic slug so a
+// private upload can never resolve to content from the public namespace.
+func (s *UploadService) CreatePrivate(ctx context.Context, data *upload.CreateDTO, privatePath string) (upload.Upload, error) {
+	privateData := *data
+	privateData.UploadsPath = privatePath
+	return s.create(ctx, &privateData, false, false)
+}
+
+func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, deduplicateByHash, replaceSlug bool) (upload.Upload, error) {
 	entity, bytes, err := data.ToEntity()
 	if err != nil {
 		return nil, err
@@ -72,7 +88,7 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upl
 		return nil, err
 	}
 
-	if up == nil {
+	if up == nil && deduplicateByHash {
 		up, err = s.repo.GetByHash(ctx, entity.Hash())
 		if err != nil && !errors.Is(err, persistence.ErrUploadNotFound) {
 			return nil, err
@@ -80,6 +96,9 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upl
 	}
 	if up != nil {
 		if up.Hash() != entity.Hash() {
+			if !replaceSlug {
+				return nil, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug())
+			}
 			existing, err := s.repo.GetByHash(ctx, entity.Hash())
 			if err != nil && !errors.Is(err, persistence.ErrUploadNotFound) {
 				return nil, err

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -52,10 +53,21 @@ func (c *UploadController) Register(r *mux.Router) {
 	if err != nil {
 		panic(err)
 	}
-	fullPath := filepath.Join(workDir, c.cfg.Path)
+	fullPath := c.cfg.Path
+	if !filepath.IsAbs(fullPath) {
+		fullPath = filepath.Join(workDir, fullPath)
+	}
 	prefix := path.Join("/", c.cfg.Path, "/")
+	privatePrefix := path.Join(prefix, uploadsconfig.PrivateDirectory)
 	neuteredFS := multifs.NewNeuteredFileSystem(http.Dir(fullPath))
-	r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, http.FileServer(neuteredFS)))
+	publicFiles := http.StripPrefix(prefix, http.FileServer(neuteredFS))
+	r.PathPrefix(prefix).Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == privatePrefix || strings.HasPrefix(r.URL.Path, privatePrefix+"/") {
+			http.NotFound(w, r)
+			return
+		}
+		publicFiles.ServeHTTP(w, r)
+	}))
 }
 
 func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
