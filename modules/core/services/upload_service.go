@@ -12,6 +12,7 @@ import (
 )
 
 var ErrUploadSlugConflict = errors.New("upload slug already belongs to different content")
+var ErrPrivateUploadPathRequired = errors.New("private upload path is required")
 
 type UploadService struct {
 	repo      upload.Repository
@@ -72,6 +73,9 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upl
 // Hash deduplication is intentionally limited to the deterministic slug so a
 // private upload can never resolve to content from the public namespace.
 func (s *UploadService) CreatePrivate(ctx context.Context, data *upload.CreateDTO, privatePath string) (upload.Upload, error) {
+	if privatePath == "" {
+		return nil, ErrPrivateUploadPathRequired
+	}
 	privateData := *data
 	privateData.UploadsPath = privatePath
 	return s.create(ctx, &privateData, false, false)

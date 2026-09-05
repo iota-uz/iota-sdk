@@ -68,3 +68,13 @@ func TestUploadServiceCreatePrivateRejectsSlugReplacement(t *testing.T) {
 	repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 	storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything, mock.Anything)
 }
+
+func TestUploadServiceCreatePrivateRequiresNamespace(t *testing.T) {
+	// This test would be falsely green if an empty path reached ToEntity and
+	// another dependency happened to reject the upload first.
+	service := services.NewUploadService(new(MockUploadRepository), new(MockUploadStorage), eventbus.NewEventPublisher(logrus.New()))
+	_, err := service.CreatePrivate(context.Background(), &upload.CreateDTO{
+		File: bytes.NewReader([]byte("%PDF")), Name: "private.pdf", Size: 4,
+	}, "")
+	require.ErrorIs(t, err, services.ErrPrivateUploadPathRequired)
+}
