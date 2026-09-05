@@ -3,7 +3,6 @@ package services_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -63,7 +62,7 @@ func TestUploadServiceCreatePrivateRejectsSlugReplacement(t *testing.T) {
 		File: bytes.NewReader([]byte("%PDF-new")), Name: "new.pdf", Size: 8, Slug: slug,
 	}, privatePath)
 	require.ErrorIs(t, err, services.ErrUploadSlugConflict)
-	require.False(t, errors.Is(err, persistence.ErrUploadNotFound))
+	require.NotErrorIs(t, err, persistence.ErrUploadNotFound)
 	repo.AssertNotCalled(t, "GetByHash", mock.Anything, mock.Anything)
 	repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 	storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything, mock.Anything)
