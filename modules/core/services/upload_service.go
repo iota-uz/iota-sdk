@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
@@ -78,10 +80,15 @@ func (s *UploadService) CreatePrivate(ctx context.Context, data *upload.CreateDT
 	}
 	privateData := *data
 	privateData.UploadsPath = privatePath
-	return s.create(ctx, &privateData, false, false)
+	return s.create(ctx, &privateData, false, false, privatePath)
 }
 
-func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, deduplicateByHash, replaceSlug bool) (upload.Upload, error) {
+func pathWithin(root, candidate string) bool {
+	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(candidate))
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, deduplicateByHash, replaceSlug bool, requiredPath ...string) (upload.Upload, error) {
 	entity, bytes, err := data.ToEntity()
 	if err != nil {
 		return nil, err
@@ -99,6 +106,9 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 		}
 	}
 	if up != nil {
+		if len(requiredPath) > 0 && !pathWithin(requiredPath[0], up.Path()) {
+			return nil, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug())
+		}
 		if up.Hash() != entity.Hash() {
 			if !replaceSlug {
 				return nil, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug())
