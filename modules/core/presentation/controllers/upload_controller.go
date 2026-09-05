@@ -57,7 +57,7 @@ func (c *UploadController) Register(r *mux.Router) {
 	if !filepath.IsAbs(fullPath) {
 		fullPath = filepath.Join(workDir, fullPath)
 	}
-	prefix := path.Join("/", c.cfg.Path, "/")
+	prefix := path.Join("/", c.cfg.Path) + "/"
 	privatePrefix := path.Join(prefix, uploadsconfig.PrivateDirectory)
 	neuteredFS := multifs.NewNeuteredFileSystem(http.Dir(fullPath))
 	publicFiles := http.StripPrefix(prefix, http.FileServer(neuteredFS))

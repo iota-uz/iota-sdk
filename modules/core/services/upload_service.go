@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 var ErrUploadSlugConflict = errors.New("upload slug already belongs to different content")
@@ -75,8 +76,9 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upl
 // Hash deduplication is intentionally limited to the deterministic slug so a
 // private upload can never resolve to content from the public namespace.
 func (s *UploadService) CreatePrivate(ctx context.Context, data *upload.CreateDTO, privatePath string) (upload.Upload, error) {
+	const op serrors.Op = "UploadService.CreatePrivate"
 	if privatePath == "" {
-		return nil, ErrPrivateUploadPathRequired
+		return nil, serrors.E(op, ErrPrivateUploadPathRequired)
 	}
 	privateData := *data
 	privateData.UploadsPath = privatePath
@@ -89,6 +91,7 @@ func pathWithin(root, candidate string) bool {
 }
 
 func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, deduplicateByHash, replaceSlug bool, requiredPath ...string) (upload.Upload, error) {
+	const op serrors.Op = "UploadService.create"
 	entity, bytes, err := data.ToEntity()
 	if err != nil {
 		return nil, err
@@ -107,11 +110,11 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 	}
 	if up != nil {
 		if len(requiredPath) > 0 && !pathWithin(requiredPath[0], up.Path()) {
-			return nil, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug())
+			return nil, serrors.E(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug()))
 		}
 		if up.Hash() != entity.Hash() {
 			if !replaceSlug {
-				return nil, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug())
+				return nil, serrors.E(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug()))
 			}
 			existing, err := s.repo.GetByHash(ctx, entity.Hash())
 			if err != nil && !errors.Is(err, persistence.ErrUploadNotFound) {

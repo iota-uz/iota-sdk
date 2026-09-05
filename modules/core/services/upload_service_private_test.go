@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestUploadServiceCreatePrivateDoesNotReusePublicHash(t *testing.T) {
+func TestUploadServiceCreatePrivate_DoesNotReusePublicHash(t *testing.T) {
 	// This test would be falsely green if CreatePrivate queried the global hash
 	// but the mock happened to return not found.
 	ctx := context.Background()
@@ -46,7 +46,7 @@ func TestUploadServiceCreatePrivateDoesNotReusePublicHash(t *testing.T) {
 	storage.AssertExpectations(t)
 }
 
-func TestUploadServiceCreatePrivateRejectsSlugReplacement(t *testing.T) {
+func TestUploadServiceCreatePrivate_RejectsSlugReplacement(t *testing.T) {
 	// This test would be falsely green if the replacement path failed only
 	// because storage or repository mutation mocks were incomplete.
 	ctx := context.Background()
@@ -68,7 +68,7 @@ func TestUploadServiceCreatePrivateRejectsSlugReplacement(t *testing.T) {
 	storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything, mock.Anything)
 }
 
-func TestUploadServiceCreatePrivateRejectsPublicSlugMatch(t *testing.T) {
+func TestUploadServiceCreatePrivate_RejectsPublicSlugMatch(t *testing.T) {
 	// This test would be falsely green if matching content were accepted without
 	// checking that the existing upload belongs to the private namespace.
 	ctx := context.Background()
@@ -88,7 +88,7 @@ func TestUploadServiceCreatePrivateRejectsPublicSlugMatch(t *testing.T) {
 	storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything, mock.Anything)
 }
 
-func TestUploadServiceCreatePrivateRequiresNamespace(t *testing.T) {
+func TestUploadServiceCreatePrivate_RequiresNamespace(t *testing.T) {
 	// This test would be falsely green if an empty path reached ToEntity and
 	// another dependency happened to reject the upload first.
 	service := services.NewUploadService(new(MockUploadRepository), new(MockUploadStorage), eventbus.NewEventPublisher(logrus.New()))

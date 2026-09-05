@@ -21,6 +21,9 @@ func TestNewFSStorage_RestrictsExistingPrivateDirectory(t *testing.T) {
 	_, err := persistence.NewFSStorage(&uploadsconfig.Config{Path: root})
 	require.NoError(t, err)
 
+	rootInfo, err := os.Stat(root)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0755), rootInfo.Mode().Perm())
 	info, err := os.Stat(privatePath)
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0700), info.Mode().Perm())

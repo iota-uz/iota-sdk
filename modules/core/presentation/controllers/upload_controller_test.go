@@ -88,10 +88,6 @@ func TestUploadController_FileAccess_ReturnsFile(t *testing.T) {
 func TestUploadController_PrivateFileAccess_Returns404(t *testing.T) {
 	uploadsPath := "test-uploads"
 	testSubDir := strings.ReplaceAll(t.Name(), "/", "-")
-	privatePath := filepath.Join(uploadsPath, uploadsconfig.PrivateDirectory, testSubDir)
-	require.NoError(t, os.MkdirAll(privatePath, 0700))
-	t.Cleanup(func() { require.NoError(t, os.RemoveAll(privatePath)) })
-
 	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
@@ -99,13 +95,33 @@ func TestUploadController_PrivateFileAccess_Returns404(t *testing.T) {
 	uploadsCfg := itf.GetService[uploadsconfig.Config](suite.Environment())
 	suite.Register(controllers.NewUploadController(uploadService, uploadsCfg))
 
-	filePath := filepath.Join(privatePath, "confidential.pdf")
-	require.NoError(t, os.WriteFile(filePath, []byte("private evidence"), 0600))
-	_, err := os.ReadFile(filePath)
-	require.NoError(t, err)
-
-	urlPath := "/" + filepath.ToSlash(filepath.Join(uploadsPath, uploadsconfig.PrivateDirectory, testSubDir, "confidential.pdf"))
-	suite.GET(urlPath).Expect(t).Status(http.StatusNotFound)
+	cases := []struct {
+		name        string
+		fixtureRoot string
+		urlPath     string
+	}{
+		{
+			name:        "private namespace",
+			fixtureRoot: filepath.Join(uploadsPath, uploadsconfig.PrivateDirectory, testSubDir),
+			urlPath:     "/" + filepath.ToSlash(filepath.Join(uploadsPath, uploadsconfig.PrivateDirectory, testSubDir, "confidential.pdf")),
+		},
+		{
+			name:        "adjacent URL prefix",
+			fixtureRoot: filepath.Join(uploadsPath+"private", testSubDir),
+			urlPath:     "/" + filepath.ToSlash(filepath.Join(uploadsPath+"private", testSubDir, "confidential.pdf")),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.NoError(t, os.MkdirAll(tc.fixtureRoot, 0700))
+			t.Cleanup(func() { require.NoError(t, os.RemoveAll(tc.fixtureRoot)) })
+			filePath := filepath.Join(tc.fixtureRoot, "confidential.pdf")
+			require.NoError(t, os.WriteFile(filePath, []byte("private evidence"), 0600))
+			_, err := os.ReadFile(filePath)
+			require.NoError(t, err)
+			suite.GET(tc.urlPath).Expect(t).Status(http.StatusNotFound)
+		})
+	}
 }
 
 func TestUploadController_SubdirectoryListing_Returns404(t *testing.T) {
