@@ -56,6 +56,7 @@ func (g GitHub) Prepare(ctx context.Context, runID string, retry bool) (*Candida
 	if err != nil {
 		return nil, err
 	}
+	expectedCandidate := state.Candidate
 	if len(state.Requests) == 0 && state.Candidate == nil {
 		return nil, nil
 	}
@@ -79,9 +80,11 @@ func (g GitHub) Prepare(ctx context.Context, runID string, retry bool) (*Candida
 				return nil, nil
 			}
 			candidate.Phase = "failed"
-			if err := g.saveCandidate(ctx, candidate); err != nil {
+			if err := g.saveCandidate(ctx, candidate, expectedCandidate); err != nil {
 				return nil, err
 			}
+			savedCandidate := candidate
+			expectedCandidate = &savedCandidate
 		}
 		// Publication is retried at the same SHA even when main advances.
 		if candidate.Phase != "failed" || candidate.Source == source {
@@ -90,7 +93,7 @@ func (g GitHub) Prepare(ctx context.Context, runID string, retry bool) (*Candida
 			}
 			candidate.RunID = runID
 			candidate.Phase = "testing"
-			return &candidate, g.saveCandidate(ctx, candidate)
+			return &candidate, g.saveCandidate(ctx, candidate, expectedCandidate)
 		}
 	}
 	needed := false
@@ -237,13 +240,16 @@ func (g GitHub) Prepare(ctx context.Context, runID string, retry bool) (*Candida
 		}
 	}
 	candidate := Candidate{Version: version, Source: source, SHA: sha, Phase: "testing", RunID: runID}
-	return &candidate, g.saveCandidate(ctx, candidate)
+	return &candidate, g.saveCandidate(ctx, candidate, expectedCandidate)
 }
 
-func (g GitHub) saveCandidate(ctx context.Context, candidate Candidate) error {
+func (g GitHub) saveCandidate(ctx context.Context, candidate Candidate, expected *Candidate) error {
 	return g.UpdateState(ctx, func(state *State) error {
-		if state.Candidate != nil && state.Candidate.Phase == "publishing" && state.Candidate.SHA != candidate.SHA {
-			return fmt.Errorf("a partially published release must be resumed, never superseded")
+		if (state.Candidate == nil) != (expected == nil) || state.Candidate != nil && *state.Candidate != *expected {
+			if state.Candidate != nil && state.Candidate.Phase == "publishing" {
+				return fmt.Errorf("a partially published release must be resumed, never superseded")
+			}
+			return fmt.Errorf("release candidate changed while preparing; retry")
 		}
 		state.Candidate = &candidate
 		return nil

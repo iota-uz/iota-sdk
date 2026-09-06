@@ -237,7 +237,6 @@ func (g GitHub) Promote(ctx context.Context, root string, retry bool, out io.Wri
 				if _, err = g.runner().Run(ctx, "", nil, "gh", "run", "watch", fmt.Sprint(run.ID), "--repo", g.Repo, "--exit-status"); err != nil {
 					return fmt.Errorf("SDK release failed or waiting was interrupted; rerun promote to resume (use --retry after fixing infrastructure): %w", err)
 				}
-				dispatched = false
 				break
 			}
 		}
@@ -267,13 +266,6 @@ func (g GitHub) Promote(ctx context.Context, root string, retry bool, out io.Wri
 		dispatched = true
 		// Dispatch becomes visible asynchronously; wait for a run or ready state.
 		for attempt := 0; attempt < 12; attempt++ {
-			timer := time.NewTimer(5 * time.Second)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				return ctx.Err()
-			case <-timer.C:
-			}
 			if err = g.API(ctx, "GET", "actions/workflows/release.yml/runs?branch=main&event=workflow_dispatch&per_page=100", nil, &runs); err != nil {
 				return err
 			}
@@ -286,6 +278,13 @@ func (g GitHub) Promote(ctx context.Context, root string, retry bool, out io.Wri
 			}
 			if found {
 				break
+			}
+			timer := time.NewTimer(5 * time.Second)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
 			}
 		}
 	}

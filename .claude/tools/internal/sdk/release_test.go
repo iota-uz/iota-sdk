@@ -118,12 +118,12 @@ func TestSetPhase_PartialPublicationCannotBeSuperseded(t *testing.T) {
 // False green: SetPhase protection alone would still let candidate creation overwrite publishing state.
 func TestSaveCandidate_PartialPublicationCannotBeSuperseded(t *testing.T) {
 	publishing := strings.Repeat("a", 40)
-	replacement := strings.Repeat("b", 40)
+	expected := &Candidate{SHA: publishing, Phase: "testing"}
 	runner := fakeRunner{call: func(_ string, _ []byte, _ string, args []string) ([]byte, error) {
 		require.Equal(t, "GET", args[2])
 		return fileResponse(State{Candidate: &Candidate{SHA: publishing, Phase: "publishing"}}, "state"), nil
 	}}
-	err := (GitHub{Runner: runner, Repo: Repository}).saveCandidate(context.Background(), Candidate{SHA: replacement, Phase: "testing"})
+	err := (GitHub{Runner: runner, Repo: Repository}).saveCandidate(context.Background(), Candidate{SHA: publishing, Phase: "testing"}, expected)
 	require.ErrorContains(t, err, "never superseded")
 }
 

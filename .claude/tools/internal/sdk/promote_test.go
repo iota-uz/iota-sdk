@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// False green: returning a ready release before watch would never exercise resume.
-func TestPromote_ResumesActiveReleaseAndIsIdempotent(t *testing.T) {
+// False green: returning a ready release before watch would never exercise dispatch and waiting.
+func TestPromote_DispatchesWaitsAndIsIdempotent(t *testing.T) {
 	root := t.TempDir()
 	d := Dependency{PR: 12, Channel: "preview", GoDir: "."}
 	require.NoError(t, WriteDependency(root, d))
@@ -23,8 +23,6 @@ func TestPromote_ResumesActiveReleaseAndIsIdempotent(t *testing.T) {
 	ready := &Candidate{Version: "0.6.0", SHA: sha, Source: sha, Phase: "ready"}
 	watched, updates := false, 0
 	dispatched := false
-	firstCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	runner := fakeRunner{call: func(_ string, _ []byte, name string, args []string) ([]byte, error) {
 		if name == "git" {
 			require.Equal(t, "status", args[0])
@@ -54,7 +52,6 @@ func TestPromote_ResumesActiveReleaseAndIsIdempotent(t *testing.T) {
 			require.False(t, dispatched)
 			require.Equal(t, "repos/"+Repository+"/actions/workflows/release.yml/dispatches", args[3])
 			dispatched = true
-			cancel()
 			return nil, nil
 		}
 		require.Equal(t, "GET", args[2], "promotion must not modify a consumer repository")
@@ -83,9 +80,8 @@ func TestPromote_ResumesActiveReleaseAndIsIdempotent(t *testing.T) {
 		return nil, fmt.Errorf("unexpected API %s", endpoint)
 	}}
 	g := GitHub{Runner: runner, Repo: Repository}
-	require.ErrorIs(t, g.Promote(firstCtx, root, false, io.Discard), context.Canceled)
-	require.True(t, dispatched)
 	require.NoError(t, g.Promote(context.Background(), root, false, io.Discard))
+	require.True(t, dispatched)
 	got, err := ReadDependency(root)
 	require.NoError(t, err)
 	require.Equal(t, "release", got.Channel)
@@ -151,4 +147,43 @@ func TestPromote_RejectsUnmergedPR(t *testing.T) {
 		return encoded(Pull{State: "open"}), nil
 	}}
 	require.Error(t, (GitHub{Runner: runner, Repo: Repository}).Promote(context.Background(), root, false, io.Discard))
+}
+
+// False green: observing only the first dispatch would miss an unbounded second release run.
+func TestPromote_DoesNotRedispatchWhenItsRunFinishesWithoutReadyRelease(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, WriteDependency(root, Dependency{PR: 12, Channel: "preview", GoDir: "."}))
+	sha := strings.Repeat("a", 40)
+	dispatches := 0
+	watched := false
+	runner := fakeRunner{call: func(_ string, _ []byte, name string, args []string) ([]byte, error) {
+		if name == "gh" && args[0] == "run" {
+			watched = true
+			return nil, nil
+		}
+		if name != "gh" || args[0] != "api" {
+			return nil, fmt.Errorf("unexpected command %s %v", name, args)
+		}
+		method := args[2]
+		endpoint := strings.TrimPrefix(args[3], "repos/"+Repository+"/")
+		if method == "POST" {
+			dispatches++
+			return nil, nil
+		}
+		switch {
+		case endpoint == "pulls/12":
+			return encoded(Pull{Merged: true, Merge: sha}), nil
+		case strings.HasPrefix(endpoint, "contents/state.json"):
+			return fileResponse(State{}, "state"), nil
+		case strings.HasPrefix(endpoint, "actions/workflows/"):
+			if dispatches == 0 || watched {
+				return []byte(`{"workflow_runs":[]}`), nil
+			}
+			return []byte(`{"workflow_runs":[{"id":123,"status":"in_progress"}]}`), nil
+		}
+		return nil, fmt.Errorf("unexpected API %s %s", method, endpoint)
+	}}
+	err := (GitHub{Runner: runner, Repo: Repository}).Promote(context.Background(), root, false, io.Discard)
+	require.Error(t, err)
+	require.Equal(t, 1, dispatches)
 }
