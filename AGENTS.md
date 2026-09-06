@@ -123,6 +123,17 @@ modules/{module}/
 
 ## Build/Lint/Test Commands
 
+## SDK release workflow
+
+Every PR adds `.changes/<name>.json` with `bump` (`none`, `patch`, `minor`, or
+`major`) and a non-empty `summary`. Existing declarations are append-only.
+Do not push version tags manually. PRs run service-free checks; a consumer request
+runs full CI on an immutable candidate before publication. Use
+`sdk-tools sdk use <SDK-PR>` for preview and `sdkctl promote`
+to wait for a verified release and update local production dependencies. See [docs/sdk-releases.md](docs/sdk-releases.md).
+
+## Quality commands
+
 ### Code Quality Commands:
 - Format Go code and templates: `just fix fmt`
 - Organize and format Go imports: `just fix imports`

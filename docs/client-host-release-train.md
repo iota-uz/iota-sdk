@@ -36,10 +36,11 @@ Lens or ECharts into the initial bundle.
 ## Production release
 
 The `v<version>` tag must point at the release commit and match both
-`web/sdk/package.json` and `pkg/sdkidentity.ReleaseVersion`. One workflow tests
-the Go and JavaScript graphs, builds the canonical tarball, publishes it through
-npm trusted publishing with provenance, verifies registry metadata, and creates
-the GitHub release.
+`web/sdk/package.json` and `pkg/sdkidentity.ReleaseVersion`. The demand-driven
+release workflow verifies the complete candidate before creating the tag. It
+publishes the verified tarball through npm trusted publishing with provenance,
+checks both registries, and records completion. See [SDK releases](sdk-releases.md)
+for commands, state transitions, consumer installation, and recovery.
 
 Consumers update `go.mod`, `go.sum`, `package.json`, and the JavaScript lockfile
 in one transaction. Production must never use preview tarballs, release-asset

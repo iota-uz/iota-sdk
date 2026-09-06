@@ -28,6 +28,19 @@ sdk-tools --help
 
 ### Commands
 
+#### Verified SDK dependencies
+
+```sh
+sdk-tools sdk use 1234 --go-dir back --web-dir frontend
+sdk-tools sdk preview
+sdk-tools sdk promote
+sdk-tools sdk status
+sdk-tools sdk finalize
+```
+
+Promotion uses your local gh login, waits for release CI, and updates local locks. See
+[SDK releases](../../docs/sdk-releases.md) for configuration and recovery.
+
 #### Authentication
 
 ```bash
