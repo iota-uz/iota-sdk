@@ -155,3 +155,54 @@ func TestChatService_TailRunEvents_NoLogReturnsSentinel(t *testing.T) {
 	})
 	require.ErrorIs(t, err, bichatservices.ErrRunEventLogUnavailable)
 }
+
+func TestChatService_TailRunEvents_ContextEndsBeforeTerminal(t *testing.T) {
+	t.Parallel()
+	for _, phase := range []string{"replay", "live_tail"} {
+		for _, deadline := range []bool{false, true} {
+			name := phase + "/cancelled"
+			if deadline {
+				name = phase + "/deadline"
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				// False-green guard: seed a real journal but no terminal event;
+				// otherwise a missing journal or normal completion masks the deadline.
+				svc, _, store, log := newTailTestService(t)
+				tenant, session, run := uuid.New(), uuid.New(), uuid.New()
+				seedTailRun(t, store, tenant, session, run)
+				for range 2 {
+					_, err := log.Append(t.Context(), tenant, run, RunEvent{Type: "content", Payload: json.RawMessage(`{}`)})
+					require.NoError(t, err)
+				}
+				parent := composables.WithTenantID(t.Context(), tenant)
+				ctx, cancel := context.WithTimeout(parent, 200*time.Millisecond)
+				defer cancel()
+				seen := 0
+				err := svc.TailRunEvents(ctx, session, run, "", func(bichatservices.RunEventDelivery) {
+					seen++
+					if phase == "replay" && seen == 1 {
+						if !deadline {
+							cancel()
+						}
+						<-ctx.Done()
+					} else if phase == "live_tail" && seen == 2 && !deadline {
+						cancel()
+					}
+				})
+				if deadline {
+					require.ErrorIs(t, err, bichatservices.ErrRunEventStreamInterrupted)
+					require.ErrorIs(t, ctx.Err(), context.DeadlineExceeded)
+				} else {
+					require.NoError(t, err)
+					require.ErrorIs(t, ctx.Err(), context.Canceled)
+				}
+				if phase == "replay" {
+					assert.Equal(t, 1, seen)
+				} else {
+					assert.Equal(t, 2, seen)
+				}
+			})
+		}
+	}
+}

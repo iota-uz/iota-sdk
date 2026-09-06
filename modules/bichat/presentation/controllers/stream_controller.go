@@ -609,7 +609,17 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if c.logger != nil {
-			c.logger.WithError(serrors.E(op, err)).Error("TailEvents failed")
+			c.logger.WithError(serrors.E(op, err)).
+				WithField("session_id", sessionID.String()).
+				WithField("run_id", runID.String()).
+				WithField("stage", "event_log_tail").Error("TailEvents failed")
+		}
+		if r.Context().Err() == nil {
+			writeMu.Lock()
+			defer writeMu.Unlock()
+			c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
+				Type: "error", Error: "run event stream interrupted", Timestamp: time.Now().UnixMilli(),
+			})
 		}
 	}
 }

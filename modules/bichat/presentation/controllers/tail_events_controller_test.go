@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -187,4 +188,23 @@ func TestTailEvents_UnavailableEmitsErrorEvent(t *testing.T) {
 	body := rw.Body.String()
 	assert.Contains(t, body, "event: error", "must emit SSE error event when log unavailable")
 	assert.Contains(t, body, "unavailable", "error payload must mention unavailable")
+}
+
+// False-green guard: an HTTP 200 alone misses the silent EOF; require a
+// terminal SSE error even when the service returns an unexpected failure.
+func TestTailEvents_UnexpectedFailureEmitsTerminal(t *testing.T) {
+	t.Parallel()
+	commands := &fakeStreamCommands{tailRunEventsFunc: func(context.Context, uuid.UUID, uuid.UUID, string, func(bichatservices.RunEventDelivery)) error {
+		return errors.New("storage unavailable")
+	}}
+	controller := NewStreamController(commands, &fakeSessionQueries{}, nil)
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/stream/events?sessionId=%s&runId=%s", uuid.New(), uuid.New()), nil)
+	req = req.WithContext(composables.WithUser(req.Context(), testUser(t)))
+	rw := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/stream/events", controller.TailEvents).Methods("GET")
+	router.ServeHTTP(rw, req)
+	require.Equal(t, http.StatusOK, rw.Code)
+	require.Contains(t, rw.Body.String(), "event: error\n")
+	require.NotContains(t, rw.Body.String(), "storage unavailable", "internal errors must not leak into the stream")
 }
