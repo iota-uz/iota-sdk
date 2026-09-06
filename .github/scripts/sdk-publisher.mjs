@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-export async function publishSDK({ sha, version, manifest, bytes, api, registry, publish, verifyGo, pause }) {
+export async function publishSDK({ sha, version, manifest, bytes, api, backup, registry, publish, verifyGo, complete, pause }) {
   if (!/^[a-f0-9]{40}$/.test(sha ?? '') || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version ?? '')) {
     throw new Error('Invalid release identity')
   }
@@ -16,6 +16,7 @@ export async function publishSDK({ sha, version, manifest, bytes, api, registry,
   } else {
     await api('POST', 'git/refs', { ref: `refs/tags/${tag}`, sha })
   }
+  await backup(tag, manifest, bytes)
   let published = await registry(version)
   if (!published) await publish(manifest.file)
   for (let attempt = 0; attempt < 12; attempt++) {
@@ -28,11 +29,6 @@ export async function publishSDK({ sha, version, manifest, bytes, api, registry,
   }
   await verifyGo(version)
   const body = `sdk-ready:${tag}\n\nVerified source: ${sha}\n\nGo and @iota-uz/sdk share version ${version}.`
-  const release = await api('GET', `releases/tags/${tag}`, undefined, true)
-  if (release) {
-    if (release.draft || release.prerelease || release.body !== body) throw new Error('Existing release completion record differs')
-  } else {
-    await api('POST', 'releases', { tag_name: tag, target_commitish: sha, name: tag, body, draft: false, prerelease: false })
-  }
+  await complete(tag, sha, body)
   return tag
 }

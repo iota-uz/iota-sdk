@@ -7,12 +7,18 @@ on:
         description: Reviewed immutable SDK commit (pin alongside the workflow uses ref)
         required: true
         type: string
-      app-id:
-        description: GitHub App installed on both SDK and consumer repositories
+      consumer-app-id:
+        description: GitHub App installed only on the consumer repository
+        required: true
+        type: string
+      requester-app-id:
+        description: Least-privileged GitHub App installed only on iota-sdk
         required: true
         type: string
     secrets:
-      app-private-key:
+      consumer-app-private-key:
+        required: true
+      requester-app-private-key:
         required: true
 
 permissions:
@@ -28,38 +34,38 @@ jobs:
     steps:
       - name: Create consumer installation token
         id: consumer
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
         with:
-          app-id: ${{ inputs.app-id }}
-          private-key: ${{ secrets.app-private-key }}
+          app-id: ${{ inputs.consumer-app-id }}
+          private-key: ${{ secrets.consumer-app-private-key }}
           permission-contents: write
           permission-pull-requests: read
           permission-statuses: write
       - name: Create SDK installation token
         id: sdk
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
         with:
-          app-id: ${{ inputs.app-id }}
-          private-key: ${{ secrets.app-private-key }}
+          app-id: ${{ inputs.requester-app-id }}
+          private-key: ${{ secrets.requester-app-private-key }}
           owner: iota-uz
           repositories: iota-sdk
           permission-contents: read
           permission-pull-requests: read
           permission-actions: write
       - name: Checkout the trusted controller implementation
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: iota-uz/iota-sdk
           ref: ${{ inputs.sdk-ref }}
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: .claude/tools/go.mod
           cache-dependency-path: .claude/tools/go.sum
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # v3
         with:
           version: '9.15.0'
       - name: Reconcile open same-repository PRs

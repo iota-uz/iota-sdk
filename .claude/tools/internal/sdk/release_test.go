@@ -17,6 +17,7 @@ import (
 // bytes or creating a public tag before verification. Inspect the API writes.
 func TestPrepare_CreatesVersionedCandidateWithoutPublishing(t *testing.T) {
 	source, baseline, sha := strings.Repeat("a", 40), strings.Repeat("b", 40), strings.Repeat("c", 40)
+	packageSource := "{\n  \"name\": \"@iota-uz/sdk\",\n  \"exports\": {\n    \".\": {\n      \"types\": \"./dist/index.d.ts\",\n      \"import\": \"./dist/index.js\",\n      \"default\": \"./dist/index.js\"\n    }\n  },\n  \"version\": \"0.5.6\"\n}"
 	state := State{Requests: []int{12, 13}}
 	var committedFiles map[string]string
 	var createdRefs []string
@@ -41,7 +42,7 @@ func TestPrepare_CreatesVersionedCandidateWithoutPublishing(t *testing.T) {
 		case strings.HasPrefix(endpoint, "compare/"):
 			return []byte(`{"status":"identical"}`), nil
 		case strings.HasPrefix(endpoint, "contents/web/sdk/package.json"):
-			return fileResponse(map[string]string{"name": "@iota-uz/sdk", "version": "0.5.6"}, "package"), nil
+			return encoded(content{SHA: "package", Content: base64.StdEncoding.EncodeToString([]byte(packageSource))}), nil
 		case strings.HasPrefix(endpoint, "contents/pkg/sdkidentity/identity.go"):
 			return encoded(content{Content: base64.StdEncoding.EncodeToString([]byte("package sdkidentity\nconst ReleaseVersion = \"0.5.6\"\n"))}), nil
 		case endpoint == "git/trees/"+baseline+"?recursive=1":
@@ -90,10 +91,11 @@ func TestPrepare_CreatesVersionedCandidateWithoutPublishing(t *testing.T) {
 	require.Equal(t, candidate, state.Candidate)
 	require.Equal(t, []int{12, 13}, state.Requests)
 	require.Equal(t, []string{"refs/heads/sdk-candidates/v0.6.0-" + source[:12]}, createdRefs)
-	var pkg map[string]string
+	var pkg map[string]any
 	require.NoError(t, json.Unmarshal([]byte(committedFiles["web/sdk/package.json"]), &pkg))
 	require.Equal(t, "0.6.0", pkg["version"])
 	require.Contains(t, committedFiles["pkg/sdkidentity/identity.go"], `"0.6.0"`)
+	require.Equal(t, strings.Replace(packageSource, `"version": "0.5.6"`, `"version": "0.6.0"`, 1)+"\n", committedFiles["web/sdk/package.json"])
 	var metadata struct {
 		Version, Source string
 		Changes         []Change
@@ -111,6 +113,18 @@ func TestSetPhase_PartialPublicationCannotBeSuperseded(t *testing.T) {
 		return fileResponse(State{Candidate: &Candidate{SHA: sha, Phase: "publishing"}}, "state"), nil
 	}}
 	require.Error(t, (GitHub{Runner: runner, Repo: Repository}).SetPhase(context.Background(), sha, "failed"))
+}
+
+// False green: SetPhase protection alone would still let candidate creation overwrite publishing state.
+func TestSaveCandidate_PartialPublicationCannotBeSuperseded(t *testing.T) {
+	publishing := strings.Repeat("a", 40)
+	replacement := strings.Repeat("b", 40)
+	runner := fakeRunner{call: func(_ string, _ []byte, _ string, args []string) ([]byte, error) {
+		require.Equal(t, "GET", args[2])
+		return fileResponse(State{Candidate: &Candidate{SHA: publishing, Phase: "publishing"}}, "state"), nil
+	}}
+	err := (GitHub{Runner: runner, Repo: Repository}).saveCandidate(context.Background(), Candidate{SHA: replacement, Phase: "testing"})
+	require.ErrorContains(t, err, "never superseded")
 }
 
 // False green: a backup-only assertion would not prove rollback of partially written locks.

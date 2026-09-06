@@ -169,6 +169,8 @@ func TestResolve_RequiresAncestryAndAnUnchangedTag(t *testing.T) {
 // False green: a clean-only fixture would not detect destructive declaration edits.
 func TestCheckChanges_UsesRealGitDiff(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(t.TempDir(), "gitconfig"))
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	git := func(args ...string) {
 		cmd := exec.Command("git", args...)
 		cmd.Dir = root
@@ -178,6 +180,8 @@ func TestCheckChanges_UsesRealGitDiff(t *testing.T) {
 	git("init", "-q")
 	git("config", "user.name", "Test")
 	git("config", "user.email", "test@example.invalid")
+	git("config", "commit.gpgsign", "false")
+	git("config", "core.hooksPath", os.DevNull)
 	require.NoError(t, os.Mkdir(filepath.Join(root, ".changes"), 0755))
 	path := filepath.Join(root, ".changes", "one.json")
 	require.NoError(t, os.WriteFile(path, []byte(`{"bump":"patch","summary":"fix"}`), 0644))
@@ -192,6 +196,34 @@ func TestCheckChanges_UsesRealGitDiff(t *testing.T) {
 	git("add", ".")
 	git("commit", "-qm", "rewrite")
 	require.Error(t, CheckChanges(context.Background(), ExecRunner{}, root, "baseline"))
+}
+
+// False green: ASCII-only paths do not exercise git's quoting behavior.
+func TestCheckChanges_HandlesSpecialCharactersInPath(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(t.TempDir(), "gitconfig"))
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	git := func(args ...string) {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	git("init", "-q")
+	git("config", "user.name", "Test")
+	git("config", "user.email", "test@example.invalid")
+	git("config", "commit.gpgsign", "false")
+	git("config", "core.hooksPath", os.DevNull)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "README"), []byte("fixture"), 0644))
+	git("add", ".")
+	git("commit", "-qm", "baseline")
+	git("branch", "baseline")
+	require.NoError(t, os.Mkdir(filepath.Join(root, ".changes"), 0755))
+	path := filepath.Join(root, ".changes", "фича\tстрока\n.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"bump":"patch","summary":"fix"}`), 0644))
+	git("add", ".")
+	git("commit", "-qm", "feature")
+	require.NoError(t, CheckChanges(context.Background(), ExecRunner{}, root, "baseline"))
 }
 
 // False green: lexical checks alone accept a symlink escaping the consumer root.

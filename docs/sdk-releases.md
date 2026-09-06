@@ -37,14 +37,17 @@ sdk-tools sdk status
 The numeric argument is an iota-uz/iota-sdk PR. Omit `--web-dir` for Go-only
 consumers. `--go-dir` defaults to the repository root. The first implementation
 supports a standalone pnpm package with its lockfile in `--web-dir`, not an
-arbitrary nested pnpm workspace. It builds the preview locally from the public
-PR SHA; it does not require a frontend-only change to have produced an artifact.
+arbitrary nested pnpm workspace. Frontend preview packages are built by the
+SDK's unprivileged `frontend-packages.yml` workflow at the exact same-repository
+PR SHA. The local command only downloads that successful artifact and installs
+it with lifecycle scripts and `.pnpmfile.cjs` disabled.
 
 `use` writes `.sdk/dependency.json`, checks out the SDK in ignored `.sdk/cache/`,
-and creates a managed, ignored `go.work`. It builds and installs a SHA-stamped
+and creates a managed, ignored `go.work`. It downloads and installs a SHA-stamped
 frontend preview when requested, restoring the consumer's package manifest and
-lockfile afterwards. Only the dependency declaration is committed. An existing
-unmanaged Go workspace is never overwritten. To refresh the preview, run
+lockfile afterwards. Fork SDK PRs are rejected because their head cannot be
+bound to the trusted artifact workflow. Only the dependency declaration is
+committed. An existing unmanaged Go workspace is never overwritten. To refresh the preview, run
 `sdk-tools sdk preview`; this is also the setup command for a consumer preview CI
 job. Run your normal consumer build/tests after it with the workspace enabled.
 
@@ -60,12 +63,13 @@ appear. To request another SDK change, use its PR number and promote again.
 
 ## Install the consumer workflow
 
-Create one GitHub App, install it on the SDK and participating consumers, and
-grant repository Contents (read/write), Actions (read/write), Pull requests
-(read), and Commit statuses (read/write). Each workflow requests only the
-permissions it needs. Separate installation tokens support consumers in another
-organization. Store `SDK_APP_ID` as a repository variable and
-`SDK_APP_PRIVATE_KEY` as an Actions secret in each participating repository.
+Create two least-privileged GitHub Apps for consumers. Install the consumer App
+only on participating consumer repositories and grant Contents (read/write),
+Pull requests (read), and Commit statuses (read/write). Install the requester App
+only on `iota-uz/iota-sdk` and grant Contents (read), Pull requests (read), and
+Actions (write). Store the two App IDs as `SDK_CONSUMER_APP_ID` and
+`SDK_REQUESTER_APP_ID`, and their private keys as separate Actions secrets in
+each participating consumer.
 
 Put this file on the consumer's **default branch** as
 `.github/workflows/sdk-dependency.yml`. Replace both `REVIEWED_SDK_SHA` entries
@@ -88,9 +92,11 @@ jobs:
     uses: iota-uz/iota-sdk/.github/workflows/sdk-consumer.yml@REVIEWED_SDK_SHA
     with:
       sdk-ref: REVIEWED_SDK_SHA
-      app-id: ${{ vars.SDK_APP_ID }}
+      consumer-app-id: ${{ vars.SDK_CONSUMER_APP_ID }}
+      requester-app-id: ${{ vars.SDK_REQUESTER_APP_ID }}
     secrets:
-      app-private-key: ${{ secrets.SDK_APP_PRIVATE_KEY }}
+      consumer-app-private-key: ${{ secrets.SDK_CONSUMER_APP_PRIVATE_KEY }}
+      requester-app-private-key: ${{ secrets.SDK_REQUESTER_APP_PRIVATE_KEY }}
 ```
 
 The controller reconciles all open same-repository PRs, so dispatches can be
@@ -137,6 +143,9 @@ Publication creates an immutable tag through the GitHub App, publishes the
 already verified tarball using npm OIDC, checks registry integrity/provenance,
 checks that the Go module is retrievable, then creates the GitHub Release and
 marks the candidate ready. A tag alone is never sufficient for consumers.
+Before npm publication it creates a draft GitHub Release and uploads the exact
+verified manifest and tarball. On success that same draft becomes the public
+completion record.
 
 ## Recovery and rollout
 
@@ -145,16 +154,21 @@ marks the candidate ready. A tag alone is never sufficient for consumers.
   `gh workflow run release.yml -R iota-uz/iota-sdk --ref main -f retry=true`.
 - Once publication starts, every retry uses the original SHA and artifact run,
   skips full CI and packaging, and never overwrites a tag or npm version. The
-  release artifact is retained for 90 days. If it expires before recovery,
-  restore the exact verified artifact; do not substitute a rebuilt tarball.
+  Actions copy is retained for 90 days. If it expires, the workflow restores and
+  verifies the exact manifest and tarball from the durable draft GitHub Release.
+  Never substitute a rebuilt tarball. If the draft or either asset was manually
+  deleted, recover those exact bytes from a repository backup before retrying.
 - If the agent pushes while the consumer bot is finalizing, the bot's
   non-fast-forward update is rejected. The next reconciliation starts from the
   new PR head. It never force-pushes or merges the PR.
-- Install the App credentials in the SDK before the first request. Keep npm's
+- Install the dedicated publisher App credentials in the SDK only before the
+  first request. Grant it SDK Contents (write), without consumer access. Keep
+  npm's
   trusted publisher bound to `iota-uz/iota-sdk`, `release.yml`; publishing remains
   on a standard GitHub runner in that workflow.
 - Protect `v*` tag creation with a ruleset restricting creation to the publisher
-  App; prohibit tag updates/deletions. Require the new PR release-contract check.
+  App; prohibit tag updates/deletions. On SDK `main`, require the
+  `Release contract and tooling` check from `test.yml`.
   Protect controller/candidate branches from manual edits/deletion as appropriate.
 - Existing production pins are not changed by merging this PR. Adopt the consumer
   workflow and SemVer policy per consumer; preview pins remain development-only.

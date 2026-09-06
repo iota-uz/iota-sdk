@@ -66,6 +66,9 @@ func (g GitHub) Preview(ctx context.Context, root string, d Dependency) (resultE
 	if err != nil {
 		return err
 	}
+	if pr.Head.Repo.FullName != g.Repo {
+		return fmt.Errorf("preview requires a same-repository SDK PR")
+	}
 	if !shaPattern.MatchString(pr.Head.SHA) || (pr.State == "closed" && !pr.Merged) {
 		return fmt.Errorf("SDK PR has no usable preview")
 	}
@@ -136,13 +139,39 @@ func (g GitHub) Preview(ctx context.Context, root string, d Dependency) (resultE
 	}
 	// The consumer's production lockfiles remain untouched. Only node_modules
 	// receives the local preview; CI repeats this from the committed declaration.
-	if _, err = g.Runner.Run(ctx, cache, nil, "pnpm", "install", "--frozen-lockfile", "--ignore-scripts"); err != nil {
+	artifactDir := filepath.Join(cache, "artifacts", "frontend")
+	if err = os.RemoveAll(artifactDir); err != nil {
 		return err
 	}
-	if _, err = g.Runner.Run(ctx, cache, nil, "node", "scripts/package-frontends.mjs", "artifacts/frontend"); err != nil {
+	if err = os.MkdirAll(artifactDir, 0755); err != nil {
 		return err
 	}
-	manifestData, err := os.ReadFile(filepath.Join(cache, "artifacts/frontend/frontend-artifacts.json"))
+	var runs []struct {
+		DatabaseID int    `json:"databaseId"`
+		Conclusion string `json:"conclusion"`
+		HeadSHA    string `json:"headSha"`
+	}
+	out, err := g.runner().Run(ctx, "", nil, "gh", "run", "list", "--repo", Repository, "--workflow", "frontend-packages.yml", "--commit", pr.Head.SHA, "--limit", "20", "--json", "databaseId,conclusion,headSha")
+	if err != nil {
+		return err
+	}
+	if err = json.Unmarshal(out, &runs); err != nil {
+		return err
+	}
+	runID := 0
+	for _, run := range runs {
+		if run.Conclusion == "success" && run.HeadSHA == pr.Head.SHA {
+			runID = run.DatabaseID
+			break
+		}
+	}
+	if runID == 0 {
+		return fmt.Errorf("no successful frontend preview artifact exists for SDK PR head %s", pr.Head.SHA)
+	}
+	if _, err = g.runner().Run(ctx, "", nil, "gh", "run", "download", fmt.Sprint(runID), "--repo", Repository, "--name", "frontend-"+pr.Head.SHA, "--dir", artifactDir); err != nil {
+		return err
+	}
+	manifestData, err := os.ReadFile(filepath.Join(artifactDir, "frontend-artifacts.json"))
 	if err != nil {
 		return err
 	}
@@ -163,7 +192,7 @@ func (g GitHub) Preview(ctx context.Context, root string, d Dependency) (resultE
 	defer func() {
 		resultErr = errors.Join(resultErr, restoreFiles(backups))
 	}()
-	_, err = g.Runner.Run(ctx, webDir, nil, "pnpm", "add", "--ignore-workspace", "--ignore-scripts", "--ignore-pnpmfile", "--save-exact", filepath.Join(cache, "artifacts/frontend", manifest.File))
+	_, err = g.Runner.Run(ctx, webDir, nil, "pnpm", "add", "--ignore-workspace", "--ignore-scripts", "--ignore-pnpmfile", "--save-exact", filepath.Join(artifactDir, manifest.File))
 	return err
 }
 
@@ -287,7 +316,7 @@ func (g GitHub) ResolveDependency(ctx context.Context, d Dependency) (*Candidate
 		return nil, err
 	}
 	if !pr.Merged {
-		return nil, fmt.Errorf("pinned release requires an unmerged SDK PR")
+		return nil, fmt.Errorf("pinned release requires a merged SDK PR")
 	}
 	contains, err := g.Contains(ctx, sha, pr.Merge)
 	if err != nil {

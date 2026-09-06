@@ -12,20 +12,21 @@ func CheckChanges(ctx context.Context, runner Runner, root, base string) error {
 	if strings.HasPrefix(base, "-") {
 		return fmt.Errorf("invalid base ref")
 	}
-	out, err := runner.Run(ctx, root, nil, "git", "diff", "--name-status", "--no-renames", base+"...HEAD", "--", ".changes")
+	out, err := runner.Run(ctx, root, nil, "git", "diff", "--name-status", "--no-renames", "-z", base+"...HEAD", "--", ".changes")
 	if err != nil {
 		return err
 	}
 	count := 0
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		fields := strings.SplitN(line, "\t", 2)
-		if len(fields) != 2 || !strings.HasSuffix(fields[1], ".json") {
+	records := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
+	for index := 0; index+1 < len(records); index += 2 {
+		status, path := records[index], records[index+1]
+		if !strings.HasSuffix(path, ".json") {
 			continue
 		}
-		if fields[0] != "A" {
-			return fmt.Errorf("change declarations are append-only: %s", fields[1])
+		if status != "A" {
+			return fmt.Errorf("change declarations are append-only: %s", path)
 		}
-		data, err := os.ReadFile(filepath.Join(root, fields[1]))
+		data, err := os.ReadFile(filepath.Join(root, path))
 		if err != nil {
 			return err
 		}

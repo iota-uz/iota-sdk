@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 type Runner interface {
@@ -46,6 +47,13 @@ type GitHub struct {
 	Repo   string
 }
 
+func (g GitHub) runner() Runner {
+	if _, ok := g.Runner.(ExecRunner); ok && g.Repo == Repository && os.Getenv("SDK_GH_TOKEN") != "" {
+		return ExecRunner{Token: os.Getenv("SDK_GH_TOKEN")}
+	}
+	return g.Runner
+}
+
 func (g GitHub) API(ctx context.Context, method, endpoint string, body any, result any) error {
 	var input []byte
 	args := []string{"api", "--method", method, strings.TrimSuffix("repos/"+g.Repo+"/"+endpoint, "/")}
@@ -57,11 +65,7 @@ func (g GitHub) API(ctx context.Context, method, endpoint string, body any, resu
 		}
 		args = append(args, "--input", "-")
 	}
-	runner := g.Runner
-	if _, ok := runner.(ExecRunner); ok && g.Repo == Repository && os.Getenv("SDK_GH_TOKEN") != "" {
-		runner = ExecRunner{Token: os.Getenv("SDK_GH_TOKEN")}
-	}
-	out, err := runner.Run(ctx, "", input, "gh", args...)
+	out, err := g.runner().Run(ctx, "", input, "gh", args...)
 	if err != nil {
 		return err
 	}
@@ -173,6 +177,15 @@ func (g GitHub) UpdateState(ctx context.Context, update func(*State) error) erro
 		}
 		if !strings.Contains(err.Error(), "HTTP 409") && !strings.Contains(err.Error(), "HTTP 422") {
 			return err
+		}
+		if attempt < 5 {
+			timer := time.NewTimer(time.Duration(1<<attempt) * 200 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+			}
 		}
 	}
 	return fmt.Errorf("release state changed repeatedly; retry reconciliation")

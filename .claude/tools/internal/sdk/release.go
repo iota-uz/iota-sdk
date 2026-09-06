@@ -140,12 +140,14 @@ func (g GitHub) Prepare(ctx context.Context, runID string, retry bool) (*Candida
 	if err != nil {
 		return nil, err
 	}
-	var pkg map[string]any
+	var pkg struct {
+		Version string `json:"version"`
+	}
 	if err = json.Unmarshal(packageData, &pkg); err != nil {
 		return nil, err
 	}
-	current, ok := pkg["version"].(string)
-	if !ok {
+	current := pkg.Version
+	if current == "" {
 		return nil, fmt.Errorf("canonical package has no version")
 	}
 	baseline := ""
@@ -198,11 +200,11 @@ func (g GitHub) Prepare(ctx context.Context, runID string, retry bool) (*Candida
 	if err != nil {
 		return nil, err
 	}
-	pkg["version"] = version
-	packageData, err = json.MarshalIndent(pkg, "", "  ")
-	if err != nil {
-		return nil, err
+	versionField := regexp.MustCompile(`("version"\s*:\s*)"[^"]+"`)
+	if len(versionField.FindAllIndex(packageData, -1)) != 1 {
+		return nil, fmt.Errorf("canonical package must contain exactly one version field")
 	}
+	packageData = versionField.ReplaceAll(packageData, []byte(`${1}"`+version+`"`))
 	identity, _, err := g.File(ctx, "pkg/sdkidentity/identity.go", source)
 	if err != nil {
 		return nil, err
@@ -240,6 +242,9 @@ func (g GitHub) Prepare(ctx context.Context, runID string, retry bool) (*Candida
 
 func (g GitHub) saveCandidate(ctx context.Context, candidate Candidate) error {
 	return g.UpdateState(ctx, func(state *State) error {
+		if state.Candidate != nil && state.Candidate.Phase == "publishing" && state.Candidate.SHA != candidate.SHA {
+			return fmt.Errorf("a partially published release must be resumed, never superseded")
+		}
 		state.Candidate = &candidate
 		return nil
 	})

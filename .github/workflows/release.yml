@@ -23,6 +23,7 @@ jobs:
   prepare:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: write
       actions: read
@@ -33,10 +34,10 @@ jobs:
       publish_only: ${{ steps.candidate.outputs.publish_only }}
       artifact_run: ${{ steps.candidate.outputs.artifact_run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: .claude/tools/go.mod
           cache-dependency-path: .claude/tools/go.sum
@@ -61,17 +62,17 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.prepare.outputs.sha }}
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # v3
         with:
           version: '9.15.0'
       - run: pnpm install --frozen-lockfile
@@ -84,7 +85,7 @@ jobs:
         run: |
           node scripts/package-frontends.mjs artifacts/frontend
           node scripts/verify-frontend-artifacts.mjs artifacts/frontend
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sdk-release-${{ needs.prepare.outputs.sha }}
           overwrite: true
@@ -104,29 +105,37 @@ jobs:
     steps:
       - name: Create tag publisher token
         id: publisher
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
         with:
           app-id: ${{ vars.SDK_APP_ID }}
           private-key: ${{ secrets.SDK_APP_PRIVATE_KEY }}
           permission-contents: write
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ needs.prepare.outputs.sha }}
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: .claude/tools/go.mod
           cache-dependency-path: .claude/tools/go.sum
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           registry-url: https://registry.npmjs.org
       - run: npm install --global npm@11.5.1
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        continue-on-error: true
         with:
           name: sdk-release-${{ needs.prepare.outputs.sha }}
           path: artifacts/frontend
           github-token: ${{ github.token }}
           run-id: ${{ needs.prepare.outputs.artifact_run }}
+      - name: Restore and verify the exact release artifact
+        env:
+          GH_TOKEN: ${{ steps.publisher.outputs.token }}
+          CANDIDATE_SHA: ${{ needs.prepare.outputs.sha }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: node .github/scripts/restore-sdk-artifact.mjs
       - name: Persist publication phase before creating a public tag
         working-directory: .claude/tools
         env:
@@ -150,13 +159,14 @@ jobs:
     needs: [prepare, verify, package]
     if: always() && needs.prepare.outputs.needed == 'true' && (needs.verify.result == 'failure' || needs.package.result == 'failure' || needs.verify.result == 'cancelled' || needs.package.result == 'cancelled')
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: .claude/tools/go.mod
           cache-dependency-path: .claude/tools/go.sum
