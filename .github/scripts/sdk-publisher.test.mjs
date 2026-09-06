@@ -11,7 +11,7 @@ function fixture() {
   const bytes = Buffer.from('verified tarball')
   const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`
   const registryValue = { dist: { integrity, attestations: { provenance: { predicateType: 'https://slsa.dev/provenance/v1' } } } }
-  const state = { tag: null, release: null, npm: null, publishCount: 0, backupCount: 0, writes: [] }
+  const state = { tag: null, release: null, npm: null, publishCount: 0, writes: [] }
   return {
     state, registryValue,
     args: {
@@ -26,17 +26,8 @@ function fixture() {
         else throw new Error(`Unexpected API ${method} ${path}`)
       },
       async registry() { return state.npm },
-      async backup() { state.backupCount++ },
       async publish() { state.publishCount++; state.npm = registryValue },
       async verifyGo() {},
-      async complete(tag, sha, body) {
-        if (state.release) {
-          if (state.release.tag_name !== tag || state.release.target_commitish !== sha || state.release.body !== body) throw new Error('Existing release completion record differs')
-          return
-        }
-        state.writes.push('releases')
-        state.release = { tag_name: tag, target_commitish: sha, body }
-      },
       async pause() {},
     },
   }
@@ -47,28 +38,27 @@ test('publishes once and resumes after completion without another npm write', as
   await publishSDK(f.args)
   await publishSDK(f.args)
   assert.equal(f.state.publishCount, 1)
-  assert.deepEqual(f.state.writes, ['git/refs', 'releases'])
-  assert.equal(f.state.backupCount, 2)
+  assert.deepEqual(f.state.writes, ['git/refs'])
 })
 
 test('resumes a tag-only partial release at the same SHA', async () => {
   const f = fixture()
   f.state.tag = { object: { type: 'commit', sha: f.args.sha } }
   await publishSDK(f.args)
-  assert.deepEqual(f.state.writes, ['releases'])
+  assert.deepEqual(f.state.writes, [])
   assert.equal(f.state.publishCount, 1)
 })
 
-test('resumes npm success followed by GitHub failure without republishing', async () => {
+test('resumes npm success followed by Go lookup failure without republishing', async () => {
   const f = fixture()
-  const complete = f.args.complete
-  f.args.complete = async () => { throw new Error('GitHub unavailable') }
-  await assert.rejects(publishSDK(f.args), /GitHub unavailable/)
+  const verifyGo = f.args.verifyGo
+  f.args.verifyGo = async () => { throw new Error('Go unavailable') }
+  await assert.rejects(publishSDK(f.args), /Go unavailable/)
   assert.equal(f.state.release, null)
-  f.args.complete = complete
+  f.args.verifyGo = verifyGo
   await publishSDK(f.args)
   assert.equal(f.state.publishCount, 1)
-  assert.ok(f.state.release)
+  assert.equal(f.state.publishCount, 1)
 })
 
 test('rejects a conflicting tag without publishing npm', async () => {
@@ -99,15 +89,6 @@ test('rejects a corrupted artifact before creating any public version', async ()
   f.args.bytes = Buffer.from('corrupted')
   await assert.rejects(publishSDK(f.args), /checksum/)
   assert.deepEqual(f.state.writes, [])
-  assert.equal(f.state.backupCount, 0)
-})
-
-// False green: a backup attempted after npm publish would still leave an unrecoverable version.
-test('does not publish when the durable backup cannot be created', async () => {
-  const f = fixture()
-  f.args.backup = async () => { throw new Error('backup unavailable') }
-  await assert.rejects(publishSDK(f.args), /backup unavailable/)
-  assert.equal(f.state.publishCount, 0)
 })
 
 test('does not declare completion until the Go module is retrievable', async () => {

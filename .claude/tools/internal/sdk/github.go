@@ -47,12 +47,7 @@ type GitHub struct {
 	Repo   string
 }
 
-func (g GitHub) runner() Runner {
-	if _, ok := g.Runner.(ExecRunner); ok && g.Repo == Repository && os.Getenv("SDK_GH_TOKEN") != "" {
-		return ExecRunner{Token: os.Getenv("SDK_GH_TOKEN")}
-	}
-	return g.Runner
-}
+func (g GitHub) runner() Runner { return g.Runner }
 
 func (g GitHub) API(ctx context.Context, method, endpoint string, body any, result any) error {
 	var input []byte

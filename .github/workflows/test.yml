@@ -54,7 +54,7 @@ jobs:
           node --check .github/scripts/restore-sdk-artifact.mjs
           node --test .github/scripts/sdk-publisher.test.mjs
       - name: Validate CI and release workflows
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= .github/workflows/test.yml .github/workflows/ci-full.yml .github/workflows/release.yml .github/workflows/sdk-request.yml .github/workflows/sdk-consumer.yml .github/workflows/frontend-packages.yml
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= .github/workflows/test.yml .github/workflows/ci-full.yml .github/workflows/release.yml .github/workflows/frontend-packages.yml
 
   changes:
     runs-on: ubuntu-24.04

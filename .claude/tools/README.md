@@ -33,12 +33,12 @@ sdk-tools --help
 ```sh
 sdk-tools sdk use 1234 --go-dir back --web-dir frontend
 sdk-tools sdk preview
-sdk-tools sdk promote --pr 4567
+sdk-tools sdk promote
 sdk-tools sdk status
 sdk-tools sdk finalize
 ```
 
-Install the consumer workflow before promotion. See
+Promotion uses your local gh login, waits for release CI, and updates local locks. See
 [SDK releases](../../docs/sdk-releases.md) for configuration and recovery.
 
 #### Authentication

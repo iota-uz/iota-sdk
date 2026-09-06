@@ -1,179 +1,113 @@
 # Verified SDK releases
 
-SDK PRs run service-free checks on standard GitHub runners. Merging accepts a
-change; it does not certify a production version. A consumer request causes one
-immutable candidate to run the complete suite before a public version exists.
+PRs run service-free checks on standard GitHub runners. A release runs full CI
+once on an immutable candidate before publishing matching Go/npm SemVer versions.
+Merge does not launch a release. There are no scheduled release jobs, GitHub Apps,
+consumer bots, or cross-repository CI secrets.
 
 ## Agent workflow
 
-Install the existing Go CLI from a reviewed SDK checkout:
+Install from a reviewed SDK checkout using your existing Go toolchain and gh login:
 
 ```sh
 cd .claude/tools
-GOWORK=off go install .
+GOWORK=off go install ./cmd/sdkctl
 ```
 
-Every SDK PR adds an immutable `.changes/<descriptive-name>.json` file:
+Each SDK PR adds an append-only `.changes/<name>.json` declaration:
 
 ```json
 {"bump":"minor","summary":"Add upload cancellation."}
 ```
 
-Use `patch` for compatible fixes, `minor` for compatible features, `major` for
-breaking changes, and `none` with a reason for changes needing no release.
-Declarations are append-only. The greatest bump in the batch wins. During v0,
-breaking changes advance the minor version; automation never declares v1 API
-stability. After v1, a major bump stops for an explicit Go module-path migration.
+Use patch for compatible fixes, minor for features, major for breaking changes,
+and none with a reason when no release is needed. The largest bump since the
+previous release wins. During v0 a breaking change advances minor; after v1 a
+major change requires an explicit Go module-path migration.
 
-In a consumer repository, after installing the consumer workflow below:
+In the consumer repository:
 
 ```sh
-sdk-tools sdk use 1234 --go-dir back --web-dir frontend
-# Develop and test the consumer, then commit .sdk/dependency.json with its PR.
-sdk-tools sdk promote --pr 4567
-sdk-tools sdk status
+sdkctl use 1234 --go-dir back --web-dir frontend
+# Develop, test, and commit the consumer changes and .sdk/dependency.json.
+# Merge SDK PR 1234 through its normal review process.
+sdkctl promote
+# Review local dependency changes, then commit and push normally.
 ```
 
-The numeric argument is an iota-uz/iota-sdk PR. Omit `--web-dir` for Go-only
-consumers. `--go-dir` defaults to the repository root. The first implementation
-supports a standalone pnpm package with its lockfile in `--web-dir`, not an
-arbitrary nested pnpm workspace. Frontend preview packages are built by the
-SDK's unprivileged `frontend-packages.yml` workflow at the exact same-repository
-PR SHA. The local command only downloads that successful artifact and installs
-it with lifecycle scripts and `.pnpmfile.cjs` disabled.
+Omit web-dir for Go-only consumers; go-dir defaults to `.`. Web consumers currently
+require a standalone pnpm package and lockfile, not a nested pnpm workspace.
+`sdk-tools sdk` remains an equivalent spelling of `sdkctl`.
 
-`use` writes `.sdk/dependency.json`, checks out the SDK in ignored `.sdk/cache/`,
-and creates a managed, ignored `go.work`. It downloads and installs a SHA-stamped
-frontend preview when requested, restoring the consumer's package manifest and
-lockfile afterwards. Fork SDK PRs are rejected because their head cannot be
-bound to the trusted artifact workflow. Only the dependency declaration is
-committed. An existing unmanaged Go workspace is never overwritten. To refresh the preview, run
-`sdk-tools sdk preview`; this is also the setup command for a consumer preview CI
-job. Run your normal consumer build/tests after it with the workspace enabled.
+`use` creates an ignored SDK checkout and managed go.work. Frontend preview is
+an artifact from successful frontend-packages.yml at the exact same-repository
+SDK PR head, installed without lifecycle scripts or pnpmfile execution. Production
+lockfiles stay unchanged. Refresh with `sdkctl preview`. Fork SDK PRs and unmanaged
+existing workspaces are rejected.
 
-`promote` changes the consumer PR's declaration to `release` and wakes its
-workflow. It does not merge either PR or deploy the application. The durable
-declaration survives a terminated agent session. The controller waits for the
-SDK PR to merge, requests a release if needed, and commits exact Go/npm versions
-and lockfiles to the consumer PR when ready. The GitHub App commit triggers the
-consumer's normal CI. Local fallback: `sdk-tools sdk finalize`.
+`promote` requires the SDK PR to be merged. It reuses a ready release containing
+that merge, or joins an active release workflow, or dispatches release.yml using
+your local gh authorization. Creating a release requires permission to dispatch
+SDK Actions. An interrupted session is resumed by running the same command.
+The remote release continues after the terminal closes.
 
-An already finalized PR stays on its verified version even if later SDK releases
-appear. To request another SDK change, use its PR number and promote again.
+After successful publication, promote updates local Go/npm locks and the release
+identity in .sdk/dependency.json, verifies matching versions, runs GOWORK=off go vet,
+and removes the managed preview workspace. Errors restore the dependency files.
+Commit dependency files before promotion; dirty locks are never overwritten.
+Run your normal consumer tests, review, commit and push. The normal push triggers
+consumer CI. The command neither commits nor pushes nor merges a PR.
+An already finalized dependency stays on its version even after newer releases.
 
-## Install the consumer workflow
+## Consumer CI
 
-Create two least-privileged GitHub Apps for consumers. Install the consumer App
-only on participating consumer repositories and grant Contents (read/write),
-Pull requests (read), and Commit statuses (read/write). Install the requester App
-only on `iota-uz/iota-sdk` and grant Contents (read), Pull requests (read), and
-Actions (write). Store the two App IDs as `SDK_CONSUMER_APP_ID` and
-`SDK_REQUESTER_APP_ID`, and their private keys as separate Actions secrets in
-each participating consumer.
+No privileged consumer workflow is installed. Production checks must use
+GOWORK=off and reject a preview declaration. A normal unprivileged CI job can run
+`sdkctl verify` from reviewed tooling to check the committed release record, tag,
+Go version (without replace), and exact npm version and pnpm lockfile. Make this
+job required for production-bound PRs. Preview CI can use `sdkctl preview` and run
+consumer tests with the workspace enabled; it does not make a preview releasable.
+Disable existing automated SHA finalizers when adopting this model.
 
-Put this file on the consumer's **default branch** as
-`.github/workflows/sdk-dependency.yml`. Replace both `REVIEWED_SDK_SHA` entries
-with the same reviewed full commit hash before installing it:
+## Release workflow and recovery
 
-```yaml
-name: SDK dependency
-on:
-  workflow_dispatch:
-    inputs:
-      pr:
-        description: Consumer PR that requested promotion
-        type: string
-  schedule:
-    - cron: '*/5 * * * *'
-permissions:
-  contents: read
-jobs:
-  reconcile:
-    uses: iota-uz/iota-sdk/.github/workflows/sdk-consumer.yml@REVIEWED_SDK_SHA
-    with:
-      sdk-ref: REVIEWED_SDK_SHA
-      consumer-app-id: ${{ vars.SDK_CONSUMER_APP_ID }}
-      requester-app-id: ${{ vars.SDK_REQUESTER_APP_ID }}
-    secrets:
-      consumer-app-private-key: ${{ secrets.SDK_CONSUMER_APP_PRIVATE_KEY }}
-      requester-app-private-key: ${{ secrets.SDK_REQUESTER_APP_PRIVATE_KEY }}
+Only workflow_dispatch starts release.yml. The input is the required public SDK
+PR number; no consumer details are sent upstream. Requests and candidate state
+live on sdk-release-state, with optimistic concurrency. Candidates contain matching
+Go/npm versions and release metadata, on sdk-candidates/v<VERSION>-<SOURCE_PREFIX>.
+Version commits are not merged into main. Full integration/E2E, migration, Lens VR,
+coverage, lint and generation checks run on the candidate SHA.
+
+Publication uses the SDK repository GITHUB_TOKEN for the immutable Git tag and
+npm trusted publishing with OIDC. It verifies npm integrity/provenance and Go
+module availability before writing the ready record into release state. Historical
+ready records remain available for pinned consumers. GitHub Releases are not a
+required part of publication. A tag by itself is insufficient proof of readiness.
+
+If verification fails, fix the SDK and merge the fix. For an infrastructure failure
+at unchanged source, explicitly run `sdkctl promote --retry`. Publication retries
+always use the same SHA and original Actions artifact and never overwrite a tag
+or npm version. The artifact is retained for 90 days. If it is deleted or expires
+during an incomplete publication, recovery stops: restore the exact verified
+artifact before retrying; do not substitute a new build or move the version tag.
+
+For a manual release or recovery:
+
+```sh
+gh workflow run release.yml -R iota-uz/iota-sdk --ref main -f sdk_pr=1234 -f retry=true
 ```
 
-The controller reconciles all open same-repository PRs, so dispatches can be
-coalesced without losing requests. Fork PRs are intentionally not modified.
-The normal path starts immediately on `promote`; subsequent reconciliation is
-scheduled every five minutes, subject to GitHub scheduling delays. No private
-consumer names, URLs or source code are stored in the public SDK queue.
+For full pre-merge verification without publication:
 
-Require `sdk/release` plus the consumer's normal quality checks before merging a
-production-bound PR. The controller verifies exact Go/npm versions, rejects Go
-`replace` directives, and checks the pnpm lockfile. Production checks and builds
-must use `GOWORK=off`. This SDK PR provides the reusable workflow; consumers must
-adopt it in their own repositories. Existing SHA finalizers must be disabled in
-that same consumer migration to avoid two bots updating the same dependency.
+```sh
+gh workflow run ci-full.yml -R iota-uz/iota-sdk --ref main -f sha=<FULL_SHA>
+```
 
-The scheduled privileged controller runs trusted SDK tooling and never executes
-consumer npm lifecycle scripts or consumer test commands with App credentials.
-Consumer tests run in the consumer's ordinary CI after the dependency commit.
+## Rollout
 
-## Release controller
-
-`sdk-request.yml` durably registers only a public SDK PR number and dispatches
-`release.yml`. Requests live in `state.json` on `sdk-release-state`. Optimistic
-file-SHA updates preserve concurrent registrations. This branch is controller
-state, never application source; do not delete or manually rewrite it.
-
-`release.yml` wakes on a request, a main push, or its half-hour recovery schedule.
-Without an unsatisfied request it runs only the small controller job. Pending
-requests are batched into one candidate rooted at the current main SHA. The
-controller creates a commit containing matching Go/npm versions and release
-notes at `.sdk/release.json`, on `sdk-candidates/v<VERSION>-<SOURCE_PREFIX>`.
-Version commits are not merged back into main: the published tag and ready state
-are the release history; main remains the development source. `.changes` files
-are accounted for relative to the previous release's source commit.
-
-The release workflow calls `ci-full.yml` with the exact candidate SHA, builds and
-verifies the canonical tarball, and only then allows publication. Full CI retains
-integration tests, migration/seed checks, four E2E shards, Lens VR, coverage,
-lint, generation and docs checks. Main advancing neither cancels the current
-candidate nor changes its contents. An additional consumer requiring a later
-merge waits for the next candidate.
-
-Publication creates an immutable tag through the GitHub App, publishes the
-already verified tarball using npm OIDC, checks registry integrity/provenance,
-checks that the Go module is retrievable, then creates the GitHub Release and
-marks the candidate ready. A tag alone is never sufficient for consumers.
-Before npm publication it creates a draft GitHub Release and uploads the exact
-verified manifest and tarball. On success that same draft becomes the public
-completion record.
-
-## Recovery and rollout
-
-- Failed verification remains failed at that source SHA. A new main commit can
-  produce a corrected candidate. Deliberate retry after an infrastructure fix:
-  `gh workflow run release.yml -R iota-uz/iota-sdk --ref main -f retry=true`.
-- Once publication starts, every retry uses the original SHA and artifact run,
-  skips full CI and packaging, and never overwrites a tag or npm version. The
-  Actions copy is retained for 90 days. If it expires, the workflow restores and
-  verifies the exact manifest and tarball from the durable draft GitHub Release.
-  Never substitute a rebuilt tarball. If the draft or either asset was manually
-  deleted, recover those exact bytes from a repository backup before retrying.
-- If the agent pushes while the consumer bot is finalizing, the bot's
-  non-fast-forward update is rejected. The next reconciliation starts from the
-  new PR head. It never force-pushes or merges the PR.
-- Install the dedicated publisher App credentials in the SDK only before the
-  first request. Grant it SDK Contents (write), without consumer access. Keep
-  npm's
-  trusted publisher bound to `iota-uz/iota-sdk`, `release.yml`; publishing remains
-  on a standard GitHub runner in that workflow.
-- Protect `v*` tag creation with a ruleset restricting creation to the publisher
-  App; prohibit tag updates/deletions. On SDK `main`, require the
-  `Release contract and tooling` check from `test.yml`.
-  Protect controller/candidate branches from manual edits/deletion as appropriate.
-- Existing production pins are not changed by merging this PR. Adopt the consumer
-  workflow and SemVer policy per consumer; preview pins remain development-only.
-
-For an explicit pre-merge full check, use
-`gh workflow run ci-full.yml -R iota-uz/iota-sdk --ref main -f sha=<FULL_SHA>`.
-For Linux Lens baseline candidates, add `-f lens_vr_update=true`. Such a run never
-publishes anything and is not a substitute for the release workflow's gate.
+Configure npm trusted publishing for iota-uz/iota-sdk / release.yml on a standard
+GitHub runner. Allow the release workflow contents write. Protect v* against
+updates/deletions and protect state/candidate branches from manual changes while
+allowing the workflow to create and update its state. Require `Release contract
+and tooling` from test.yml on main. No App credentials are needed.
+Existing consumer pins remain unchanged until their own explicit promotion.

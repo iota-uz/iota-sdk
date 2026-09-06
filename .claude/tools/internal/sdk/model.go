@@ -79,9 +79,10 @@ type Candidate struct {
 }
 
 type State struct {
-	Requests  []int      `json:"requests"`
-	Candidate *Candidate `json:"candidate,omitempty"`
-	Ready     *Candidate `json:"ready,omitempty"`
+	Releases  map[string]*Candidate `json:"releases,omitempty"`
+	Requests  []int                 `json:"requests"`
+	Candidate *Candidate            `json:"candidate,omitempty"`
+	Ready     *Candidate            `json:"ready,omitempty"`
 }
 
 type Dependency struct {

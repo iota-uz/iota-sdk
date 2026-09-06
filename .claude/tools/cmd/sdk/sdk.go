@@ -50,23 +50,19 @@ func NewCommand() *cobra.Command {
 		}
 		return upstream.Preview(cmd.Context(), root, d)
 	}})
-	var consumerPR int
-	promote := &cobra.Command{Use: "promote", Args: cobra.NoArgs, Short: "Persist release intent on the consumer PR and wake its workflow", RunE: func(cmd *cobra.Command, _ []string) error {
-		if consumerPR <= 0 {
-			return fmt.Errorf("--pr must be positive")
-		}
-		out, err := runner.Run(cmd.Context(), "", nil, "gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner")
+	var promoteRetry bool
+	promote := &cobra.Command{Use: "promote", Args: cobra.NoArgs, Short: "Wait for a verified SDK release and update local production dependencies", RunE: func(cmd *cobra.Command, _ []string) error {
+		root, err := repositoryRoot(cmd, runner)
 		if err != nil {
 			return err
 		}
-		consumer := core.GitHub{Runner: runner, Repo: strings.TrimSpace(string(out))}
-		if err = consumer.Promote(cmd.Context(), consumerPR); err != nil {
+		if err = upstream.Promote(cmd.Context(), root, promoteRetry, cmd.OutOrStdout()); err != nil {
 			return err
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), "Release requested. The consumer workflow continues independently of this session.")
+		fmt.Fprintln(cmd.OutOrStdout(), "Verified release pinned locally. Review, commit and push the dependency changes.")
 		return nil
 	}}
-	promote.Flags().IntVar(&consumerPR, "pr", 0, "Consumer PR number")
+	promote.Flags().BoolVar(&promoteRetry, "retry", false, "Retry failed verification after fixing infrastructure")
 	command.AddCommand(promote)
 	command.AddCommand(&cobra.Command{Use: "status", Args: cobra.NoArgs, Short: "Print durable SDK release state as JSON", RunE: func(cmd *cobra.Command, _ []string) error {
 		state, _, err := upstream.ReadState(cmd.Context())
@@ -85,6 +81,27 @@ func NewCommand() *cobra.Command {
 			return err
 		}
 		return output(cmd, "changed", strconv.FormatBool(changed))
+	}})
+	command.AddCommand(&cobra.Command{Use: "verify", Args: cobra.NoArgs, Short: "Verify committed production SDK dependencies without changing pins", RunE: func(cmd *cobra.Command, _ []string) error {
+		root, err := repositoryRoot(cmd, runner)
+		if err != nil {
+			return err
+		}
+		d, err := core.ReadDependency(root)
+		if err != nil {
+			return err
+		}
+		if d.Channel != "release" || d.Version == "" || d.SHA == "" {
+			return fmt.Errorf("SDK preview is not production-ready; run sdkctl promote")
+		}
+		ready, err := upstream.ResolveDependency(cmd.Context(), d)
+		if err != nil {
+			return err
+		}
+		if ready == nil {
+			return fmt.Errorf("SDK release is not ready")
+		}
+		return core.VerifyLocks(cmd.Context(), runner, root, d)
 	}})
 	var base string
 	check := &cobra.Command{Use: "check-changes", Args: cobra.NoArgs, Short: "Validate additive release declarations in a PR", RunE: func(cmd *cobra.Command, _ []string) error {
@@ -129,15 +146,6 @@ func NewCommand() *cobra.Command {
 	controller.AddCommand(&cobra.Command{Use: "phase <sha> <failed|publishing|ready>", Args: cobra.ExactArgs(2), RunE: func(cmd *cobra.Command, args []string) error {
 		return upstream.SetPhase(cmd.Context(), args[0], args[1])
 	}})
-	var repo string
-	reconcile := &cobra.Command{Use: "consumers", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		if repo == "" {
-			return fmt.Errorf("--repo is required")
-		}
-		return (core.GitHub{Runner: runner, Repo: repo}).ReconcileConsumers(cmd.Context())
-	}}
-	reconcile.Flags().StringVar(&repo, "repo", "", "Consumer repository")
-	controller.AddCommand(reconcile)
 	command.AddCommand(controller)
 	return command
 }

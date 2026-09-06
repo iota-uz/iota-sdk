@@ -129,8 +129,8 @@ Every PR adds `.changes/<name>.json` with `bump` (`none`, `patch`, `minor`, or
 `major`) and a non-empty `summary`. Existing declarations are append-only.
 Do not push version tags manually. PRs run service-free checks; a consumer request
 runs full CI on an immutable candidate before publication. Use
-`sdk-tools sdk use <SDK-PR>` for preview and `sdk-tools sdk promote --pr <consumer-PR>`
-to request a verified production dependency. See [docs/sdk-releases.md](docs/sdk-releases.md).
+`sdk-tools sdk use <SDK-PR>` for preview and `sdkctl promote`
+to wait for a verified release and update local production dependencies. See [docs/sdk-releases.md](docs/sdk-releases.md).
 
 ## Quality commands
 

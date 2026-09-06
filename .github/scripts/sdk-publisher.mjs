@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-export async function publishSDK({ sha, version, manifest, bytes, api, backup, registry, publish, verifyGo, complete, pause }) {
+export async function publishSDK({ sha, version, manifest, bytes, api, registry, publish, verifyGo, pause }) {
   if (!/^[a-f0-9]{40}$/.test(sha ?? '') || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version ?? '')) {
     throw new Error('Invalid release identity')
   }
@@ -16,7 +16,6 @@ export async function publishSDK({ sha, version, manifest, bytes, api, backup, r
   } else {
     await api('POST', 'git/refs', { ref: `refs/tags/${tag}`, sha })
   }
-  await backup(tag, manifest, bytes)
   let published = await registry(version)
   if (!published) await publish(manifest.file)
   for (let attempt = 0; attempt < 12; attempt++) {
@@ -28,7 +27,5 @@ export async function publishSDK({ sha, version, manifest, bytes, api, backup, r
     throw new Error('npm release integrity or provenance does not match the verified tarball')
   }
   await verifyGo(version)
-  const body = `sdk-ready:${tag}\n\nVerified source: ${sha}\n\nGo and @iota-uz/sdk share version ${version}.`
-  await complete(tag, sha, body)
   return tag
 }

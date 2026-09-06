@@ -263,6 +263,10 @@ func (g GitHub) SetPhase(ctx context.Context, sha, phase string) error {
 		}
 		state.Candidate.Phase = phase
 		if phase == "ready" {
+			if state.Releases == nil {
+				state.Releases = map[string]*Candidate{}
+			}
+			state.Releases[state.Candidate.Version] = state.Candidate
 			state.Ready, state.Candidate = state.Candidate, nil
 		}
 		return nil

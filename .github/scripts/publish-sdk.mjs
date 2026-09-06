@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { publishSDK } from './sdk-publisher.mjs'
@@ -16,28 +16,6 @@ const api = async (method, path, body, optional = false) => {
     throw error
   }
 }
-const releases = () => api('GET', 'releases?per_page=100')
-const releaseFor = async tag => (await releases()).find(release => release.tag_name === tag)
-const downloadAsset = asset => execFileSync('gh', ['api', '-H', 'Accept: application/octet-stream', `repos/${repository}/releases/assets/${asset.id}`])
-const uploadAsset = (release, name, bytes) => {
-  const dir = mkdtempSync(join(tmpdir(), 'iota-sdk-upload-'))
-  try {
-    const file = join(dir, name)
-    writeFileSync(file, bytes)
-    run('gh', ['api', '--method', 'POST', '-H', 'Content-Type: application/octet-stream', `repos/${repository}/releases/${release.id}/assets?name=${encodeURIComponent(name)}`, '--input', file])
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-}
-const ensureAsset = async (release, name, bytes) => {
-  const existing = release.assets?.find(asset => asset.name === name)
-  if (existing) {
-    if (!downloadAsset(existing).equals(bytes)) throw new Error(`Durable release asset ${name} differs from the verified artifact`)
-    return
-  }
-  uploadAsset(release, name, bytes)
-}
-
 const manifest = JSON.parse(readFileSync('artifacts/frontend/frontend-artifacts.json', 'utf8'))
 if (!/^[\w.-]+\.tgz$/.test(manifest.file)) throw new Error('Invalid artifact filename')
 const tag = await publishSDK({
@@ -46,19 +24,6 @@ const tag = await publishSDK({
   manifest,
   bytes: readFileSync(`artifacts/frontend/${manifest.file}`),
   api,
-  async backup(tag, manifest, bytes) {
-    let release = await releaseFor(tag)
-    if (release && !release.draft) return
-    if (!release) {
-      release = await api('POST', 'releases', {
-        tag_name: tag, target_commitish: process.env.CANDIDATE_SHA, name: tag,
-        body: `Publication in progress for ${process.env.CANDIDATE_SHA}.`, draft: true, prerelease: false,
-      })
-    }
-    await ensureAsset(release, 'frontend-artifacts.json', Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`))
-    release = await releaseFor(tag)
-    await ensureAsset(release, manifest.file, bytes)
-  },
   async registry(version) {
     const response = await fetch(`https://registry.npmjs.org/@iota-uz%2fsdk/${version}`)
     if (response.status === 404) return null
@@ -75,15 +40,6 @@ const tag = await publishSDK({
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
-  },
-  async complete(tag, sha, body) {
-    const release = await releaseFor(tag)
-    if (!release) throw new Error('Durable release backup is missing')
-    if (!release.draft) {
-      if (release.prerelease || release.body !== body) throw new Error('Existing release completion record differs')
-      return
-    }
-    await api('PATCH', `releases/${release.id}`, { tag_name: tag, target_commitish: sha, name: tag, body, draft: false, prerelease: false })
   },
   pause: () => new Promise(resolve => setTimeout(resolve, 5000)),
 })

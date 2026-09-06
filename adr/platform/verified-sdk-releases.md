@@ -1,7 +1,7 @@
 ---
 id: verified-sdk-releases
 title: Проверенный релиз SDK по запросу потребителя
-status: accepted
+status: superseded
 date: 2026-09-06
 deciders: [unknown]
 area: platform
@@ -15,7 +15,7 @@ applies_to:
 tags: [ci, releases, semver, agents]
 refs: []
 supersedes: []
-superseded_by: []
+superseded_by: [local-sdk-promotion]
 ---
 
 ## Контекст

@@ -2,4 +2,5 @@
 
 ## Platform
 
-- **Проверенный релиз SDK по запросу потребителя** — [запись](adr/platform/verified-sdk-releases.md) · accepted · 2026-09-06
+- **Проверенный релиз SDK по запросу потребителя** — [запись](adr/platform/verified-sdk-releases.md) · superseded · 2026-09-06
+- **Локальное возобновляемое продвижение SDK** — [запись](adr/platform/local-sdk-promotion.md) · accepted · 2026-09-06

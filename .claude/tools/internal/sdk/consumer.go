@@ -2,13 +2,14 @@ package sdk
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const DependencyPath = ".sdk/dependency.json"
@@ -196,65 +197,100 @@ func (g GitHub) Preview(ctx context.Context, root string, d Dependency) (resultE
 	return err
 }
 
-func (g GitHub) RequestRelease(ctx context.Context, number int) error {
-	state, _, err := g.ReadState(ctx)
+// Promote resumes remote release work and only modifies the local consumer.
+func (g GitHub) Promote(ctx context.Context, root string, retry bool, out io.Writer) error {
+	d, err := ReadDependency(root)
 	if err != nil {
 		return err
 	}
-	for _, pending := range state.Requests {
-		if pending == number {
-			return nil
-		}
-	}
-	return g.API(ctx, "POST", "actions/workflows/sdk-request.yml/dispatches", map[string]any{
-		"ref": "main", "inputs": map[string]string{"sdk_pr": fmt.Sprint(number)},
-	}, nil)
-}
-
-func (g GitHub) Promote(ctx context.Context, number int) error {
-	var repository struct {
-		DefaultBranch string `json:"default_branch"`
-	}
-	if err := g.API(ctx, "GET", "", nil, &repository); err != nil {
-		return err
-	}
-	if repository.DefaultBranch == "" {
-		return fmt.Errorf("consumer has no default branch")
-	}
-	if _, _, err := g.File(ctx, ".github/workflows/sdk-dependency.yml", "HEAD"); err != nil {
-		return fmt.Errorf("install the SDK consumer workflow first: %w", err)
-	}
-	pr, err := g.Pull(ctx, number)
+	pr, err := g.Pull(ctx, d.PR)
 	if err != nil {
 		return err
 	}
-	if pr.State != "open" || pr.Head.Repo.FullName != g.Repo {
-		return fmt.Errorf("promotion requires an open same-repository consumer PR")
+	if !pr.Merged {
+		return fmt.Errorf("merge SDK PR #%d before promoting", d.PR)
 	}
-	data, fileSHA, err := g.File(ctx, DependencyPath, pr.Head.SHA)
-	if err != nil {
-		return err
-	}
-	d, err := Decode[Dependency](data)
-	if err != nil {
-		return err
-	}
-	if err = d.Validate(); err != nil {
-		return err
-	}
-	if d.Channel != "release" {
-		d.Channel = "release"
-		data, _ = json.MarshalIndent(d, "", "  ")
-		if err = g.API(ctx, "PUT", "contents/"+DependencyPath, map[string]string{
-			"branch": pr.Head.Ref, "sha": fileSHA, "message": "chore: request verified SDK dependency",
-			"content": base64.StdEncoding.EncodeToString(append(data, '\n')),
-		}, nil); err != nil {
+	dispatched := false
+	for {
+		ready, err := g.ResolveDependency(ctx, d)
+		if err != nil {
 			return err
 		}
+		if ready != nil {
+			break
+		}
+		var runs struct {
+			Runs []struct {
+				ID     int64  `json:"id"`
+				Status string `json:"status"`
+				URL    string `json:"html_url"`
+			} `json:"workflow_runs"`
+		}
+		if err = g.API(ctx, "GET", "actions/workflows/release.yml/runs?branch=main&event=workflow_dispatch&per_page=100", nil, &runs); err != nil {
+			return err
+		}
+		active := false
+		for _, run := range runs.Runs {
+			if run.Status != "completed" {
+				active = true
+				fmt.Fprintf(out, "Waiting for SDK release: %s\n", run.URL)
+				if _, err = g.runner().Run(ctx, "", nil, "gh", "run", "watch", fmt.Sprint(run.ID), "--repo", g.Repo, "--exit-status"); err != nil {
+					return fmt.Errorf("SDK release failed or waiting was interrupted; rerun promote to resume (use --retry after fixing infrastructure): %w", err)
+				}
+				dispatched = false
+				break
+			}
+		}
+		if active {
+			continue
+		}
+		if dispatched {
+			return fmt.Errorf("release finished without a ready version containing SDK PR #%d; inspect release.yml and rerun promote", d.PR)
+		}
+		state, _, err := g.ReadState(ctx)
+		if err != nil {
+			return err
+		}
+		if state.Candidate != nil && state.Candidate.Phase == "failed" && !retry {
+			main, err := g.Ref(ctx, "main")
+			if err != nil {
+				return err
+			}
+			if main == state.Candidate.Source {
+				return fmt.Errorf("SDK verification failed; fix SDK or use promote --retry after an infrastructure fix")
+			}
+		}
+		if err = g.API(ctx, "POST", "actions/workflows/release.yml/dispatches", map[string]any{"ref": "main", "inputs": map[string]string{"sdk_pr": fmt.Sprint(d.PR), "retry": fmt.Sprint(retry)}}, nil); err != nil {
+			return err
+		}
+		fmt.Fprintln(out, "SDK release requested. Rerun promote if this session is interrupted.")
+		dispatched = true
+		// Dispatch becomes visible asynchronously; wait for a run or ready state.
+		for attempt := 0; attempt < 12; attempt++ {
+			timer := time.NewTimer(5 * time.Second)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+			}
+			if err = g.API(ctx, "GET", "actions/workflows/release.yml/runs?branch=main&event=workflow_dispatch&per_page=100", nil, &runs); err != nil {
+				return err
+			}
+			found := false
+			for _, run := range runs.Runs {
+				if run.Status != "completed" {
+					found = true
+					break
+				}
+			}
+			if found {
+				break
+			}
+		}
 	}
-	return g.API(ctx, "POST", "actions/workflows/sdk-dependency.yml/dispatches", map[string]any{
-		"ref": repository.DefaultBranch, "inputs": map[string]string{"pr": fmt.Sprint(number)},
-	}, nil)
+	_, err = g.Finalize(ctx, root)
+	return err
 }
 
 func (g GitHub) Resolve(ctx context.Context, number int) (*Candidate, error) {
@@ -293,15 +329,15 @@ func (g GitHub) ResolveDependency(ctx context.Context, d Dependency) (*Candidate
 	if !versionPattern.MatchString(d.Version) || !shaPattern.MatchString(d.SHA) {
 		return nil, fmt.Errorf("invalid pinned release identity")
 	}
-	var release struct {
-		Body       string `json:"body"`
-		Draft      bool   `json:"draft"`
-		Prerelease bool   `json:"prerelease"`
-	}
-	if err := g.API(ctx, "GET", "releases/tags/v"+d.Version, nil, &release); err != nil {
+	state, _, err := g.ReadState(ctx)
+	if err != nil {
 		return nil, err
 	}
-	if release.Draft || release.Prerelease || !strings.HasPrefix(release.Body, ReadyMarker(d.Version)+"\n\nVerified source: "+d.SHA+"\n") {
+	ready := state.Releases[d.Version]
+	if ready == nil && state.Ready != nil && state.Ready.Version == d.Version {
+		ready = state.Ready
+	}
+	if ready == nil || ready.SHA != d.SHA || ready.Phase != "ready" {
 		return nil, fmt.Errorf("release has no matching completion record")
 	}
 	sha, err := g.Ref(ctx, "v"+d.Version)
@@ -333,15 +369,12 @@ func (g GitHub) Finalize(ctx context.Context, root string) (changed bool, result
 	if err != nil {
 		return false, err
 	}
-	if d.Channel != "release" {
-		return false, nil
-	}
 	ready, err := g.ResolveDependency(ctx, d)
 	if err != nil {
 		return false, err
 	}
 	if ready == nil {
-		return false, g.RequestRelease(ctx, d.PR)
+		return false, fmt.Errorf("no verified release is ready; run sdk-tools sdk promote")
 	}
 	if d.Version == ready.Version && d.SHA == ready.SHA {
 		return false, VerifyLocks(ctx, g.Runner, root, d)
@@ -354,7 +387,7 @@ func (g GitHub) Finalize(ctx context.Context, root string) (changed bool, result
 	if len(status) != 0 {
 		return false, fmt.Errorf("commit dependency files before finalizing; refusing to overwrite local work")
 	}
-	backups, err := backupFiles(root, paths)
+	backups, err := backupFiles(root, append(paths, filepath.Join(d.GoDir, "go.work"), filepath.Join(d.GoDir, "go.work.sum")))
 	if err != nil {
 		return false, err
 	}
@@ -379,9 +412,25 @@ func (g GitHub) Finalize(ctx context.Context, root string) (changed bool, result
 			return false, err
 		}
 	}
-	d.Version, d.SHA = ready.Version, ready.SHA
+	d.Channel, d.Version, d.SHA = "release", ready.Version, ready.SHA
 	if err = VerifyLocks(ctx, g.Runner, root, d); err != nil {
 		return false, err
 	}
-	return true, WriteDependency(root, d)
+	if _, err = g.Runner.Run(ctx, goDir, nil, "env", "GOWORK=off", "go", "vet", "./..."); err != nil {
+		return false, err
+	}
+	if err = WriteDependency(root, d); err != nil {
+		return false, err
+	}
+	workspace := filepath.Join(goDir, "go.work")
+	if data, readErr := os.ReadFile(workspace); readErr == nil && strings.HasPrefix(string(data), "// Managed by sdk-tools sdk preview\n") {
+		if err = os.Remove(workspace); err != nil {
+			return false, err
+		}
+		if err = os.Remove(workspace + ".sum"); err != nil && !os.IsNotExist(err) {
+			return false, err
+		}
+	}
+	return true, nil
+
 }
