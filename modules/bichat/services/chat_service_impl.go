@@ -889,7 +889,7 @@ func (s *chatServiceImpl) TailRunEvents(
 		}
 	}
 	if ctx.Err() != nil {
-		return nil
+		return nil //nolint:nilerr // context cancelled — clean stop, not an error
 	}
 	return serrors.E(op, bichatservices.ErrRunEventStreamInterrupted)
 }
