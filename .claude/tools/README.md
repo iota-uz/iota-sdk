@@ -28,6 +28,19 @@ sdk-tools --help
 
 ### Commands
 
+#### Verified SDK dependencies
+
+```sh
+sdk-tools sdk use 1234 --go-dir back --web-dir frontend
+sdk-tools sdk preview
+sdk-tools sdk promote --pr 4567
+sdk-tools sdk status
+sdk-tools sdk finalize
+```
+
+Install the consumer workflow before promotion. See
+[SDK releases](../../docs/sdk-releases.md) for configuration and recovery.
+
 #### Authentication
 
 ```bash

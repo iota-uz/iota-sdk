@@ -1,0 +1,71 @@
+name: Reconcile SDK consumer
+
+on:
+  workflow_call:
+    inputs:
+      sdk-ref:
+        description: Reviewed immutable SDK commit (pin alongside the workflow uses ref)
+        required: true
+        type: string
+      app-id:
+        description: GitHub App installed on both SDK and consumer repositories
+        required: true
+        type: string
+    secrets:
+      app-private-key:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    concurrency:
+      group: sdk-consumer-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - name: Create consumer installation token
+        id: consumer
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ inputs.app-id }}
+          private-key: ${{ secrets.app-private-key }}
+          permission-contents: write
+          permission-pull-requests: read
+          permission-statuses: write
+      - name: Create SDK installation token
+        id: sdk
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ inputs.app-id }}
+          private-key: ${{ secrets.app-private-key }}
+          owner: iota-uz
+          repositories: iota-sdk
+          permission-contents: read
+          permission-pull-requests: read
+          permission-actions: write
+      - name: Checkout the trusted controller implementation
+        uses: actions/checkout@v4
+        with:
+          repository: iota-uz/iota-sdk
+          ref: ${{ inputs.sdk-ref }}
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: .claude/tools/go.mod
+          cache-dependency-path: .claude/tools/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v3
+        with:
+          version: '9.15.0'
+      - name: Reconcile open same-repository PRs
+        working-directory: .claude/tools
+        env:
+          GH_TOKEN: ${{ steps.consumer.outputs.token }}
+          SDK_GH_TOKEN: ${{ steps.sdk.outputs.token }}
+          CONSUMER_REPO: ${{ github.repository }}
+        run: go run . sdk controller consumers --repo "$CONSUMER_REPO"

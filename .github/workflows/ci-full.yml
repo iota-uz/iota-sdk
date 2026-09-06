@@ -1,0 +1,807 @@
+name: SDK full suite
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        required: true
+        type: string
+      lens_vr_update:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Immutable candidate or PR head SHA
+        required: true
+        type: string
+      lens_vr_update:
+        description: Generate Linux Lens VR candidates for manual promotion
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: .claude/tools/go.mod
+          cache-dependency-path: .claude/tools/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - working-directory: .claude/tools
+        run: |
+          go test -race ./...
+          go vet ./...
+      - run: node --test .github/scripts/sdk-publisher.test.mjs
+
+  lens-web:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 10
+    name: Lens Web
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.13"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: "1.46.0"
+
+      - name: Install Client Host dependencies
+        working-directory: web/client-host
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Client Host
+        working-directory: web/client-host
+        run: pnpm build
+
+      - name: Install Lens dependencies
+        working-directory: web/lens
+        run: pnpm install --frozen-lockfile
+
+      - name: Check generated Lens types
+        run: |
+          just lens typegen
+          git diff --exit-code -- web/lens/src/contract
+
+      - name: Verify clean-clone Go compatibility boundary
+        run: |
+          test "$(git ls-files pkg/lens/render/react/dist)" = "pkg/lens/render/react/dist/.keep"
+          test ! -f pkg/lens/render/react/dist/.vite/manifest.json
+          go test ./pkg/lens/render/react
+
+      - name: Build ignored Lens compatibility assets
+        run: just lens build
+
+      - name: Check Lens workspace
+        run: just lens check
+
+      - name: Verify Lens compatibility bundle builds
+        run: |
+          test -f pkg/lens/render/react/dist/.vite/manifest.json
+          git diff --exit-code -- pkg/lens/render/react/dist/.keep
+
+  lens-vr:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
+    name: Lens Visual Regression
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: "1.46.0"
+
+      - name: Install Client Host dependencies
+        working-directory: web/client-host
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Client Host
+        working-directory: web/client-host
+        run: pnpm build
+
+      - name: Install Lens dependencies
+        working-directory: web/lens
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-lens-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Chromium system dependencies
+        working-directory: web/lens
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Install Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        working-directory: web/lens
+        run: pnpm exec playwright install chromium
+
+      - name: Reject deleted approved Linux baselines
+        if: inputs.lens_vr_update != true
+        shell: bash
+        run: |
+          git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+          base_count="$(git ls-tree -r --name-only origin/main -- web/lens/vr/baselines/linux | awk '/\.png$/ { count++ } END { print count + 0 }')"
+          checkout_count=0
+          if [[ -d web/lens/vr/baselines/linux ]]; then
+            checkout_count="$(find web/lens/vr/baselines/linux -maxdepth 1 -type f -name '*.png' | wc -l | tr -d ' ')"
+          fi
+          if (( base_count > checkout_count )); then
+            echo "::error::Approved Lens VR baselines were removed: origin/main has ${base_count} Linux PNGs, but this checkout has ${checkout_count}. Bootstrap mode is only allowed when origin/main has no baselines."
+            exit 1
+          fi
+
+      - name: Detect approved Linux baselines
+        id: baselines
+        shell: bash
+        run: |
+          if compgen -G 'web/lens/vr/baselines/linux/*.png' > /dev/null; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compare visual regression baselines
+        if: inputs.lens_vr_update != true
+        run: just lens vr
+
+      - name: Detect generated missing-baseline candidates
+        id: missing-baselines
+        if: inputs.lens_vr_update != true
+        shell: bash
+        run: |
+          if [[ -s web/lens/vr/results/missing-baselines.txt ]]; then
+            echo 'generated=true' >> "$GITHUB_OUTPUT"
+            echo '::notice::New Lens stories generated Linux baseline candidates; review the candidate artifact and promote the approved PNGs.'
+          else
+            echo 'generated=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate visual regression candidates
+        if: inputs.lens_vr_update == true
+        run: just lens vr-update
+
+      - name: Upload visual regression diffs
+        if: failure() && steps.baselines.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lens-vr-linux-diffs-${{ inputs.sha }}
+          path: web/lens/vr/results/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Linux baseline candidates
+        if: ${{ always() && (steps.baselines.outputs.available != 'true' || steps.missing-baselines.outputs.generated == 'true' || inputs.lens_vr_update == true) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: lens-vr-linux-candidates-${{ inputs.sha }}
+          path: web/lens/vr/baselines/linux/
+          if-no-files-found: error
+          retention-days: 14
+
+  security-gosec:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 10
+    name: Security Scan (gosec)
+    env:
+      GOPRIVATE: github.com/iota-uz/*
+      GONOSUMDB: github.com/iota-uz/*
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.13"
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.2
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: "1.46.0"
+
+      - name: Run gosec (production entrypoints)
+        run: just gosec
+
+  lint-and-format:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
+    name: Code Quality & Formatting
+    env:
+      GOPRIVATE: github.com/iota-uz/*
+      GONOSUMDB: github.com/iota-uz/*
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.13"
+
+      - name: Install golangci-lint
+        run: |
+          if ! command -v golangci-lint >/dev/null; then
+            go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+          fi
+          golangci-lint version
+
+      - name: Install templ
+        run: |
+          go install github.com/a-h/templ/cmd/templ@v0.3.857
+          templ --help
+
+      - name: Install air
+        run: |
+          go install github.com/air-verse/air@latest
+          air -v
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
+
+      - name: Install pg_formatter for SQL formatting
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pgformatter
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: "1.46.0"
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Install applet CLI
+        run: go install github.com/iota-uz/applets/cmd/applet@latest
+
+      - name: Test generated files are up to date
+        run: |
+          just generate
+          git diff --exit-code
+
+      - name: Check translation files
+        run: just check tr
+
+      - name: Enforce applet SDK dependency policy
+        run: just applet deps-check
+
+      - name: Check templ files formatting
+        run: |
+          templ fmt .
+          if [ -n "$(git diff --name-only)" ]; then
+            echo "Error: Some templ files are not properly formatted"
+            git diff
+            exit 1
+          fi
+          echo "All templ files are properly formatted"
+
+      - name: Check Go files formatting
+        run: |
+          go fmt ./...
+          if [ -n "$(git diff --name-only)" ]; then
+            echo "Error: Some Go files are not properly formatted"
+            git diff
+            exit 1
+          fi
+          echo "All Go files are properly formatted"
+
+      - name: Check SQL files formatting
+        run: |
+          mkdir -p /tmp/formatted
+          find modules -name "*.sql" -type f | while read -r sqlfile; do
+            pg_format "$sqlfile" > "/tmp/formatted/$(basename "$sqlfile")"
+            if ! diff -q "$sqlfile" "/tmp/formatted/$(basename "$sqlfile")" > /dev/null; then
+              echo "Error: $sqlfile is not properly formatted"
+              diff "$sqlfile" "/tmp/formatted/$(basename "$sqlfile")"
+              exit 1
+            fi
+          done
+          echo "All SQL files are properly formatted"
+
+      - name: Run go vet
+        run: go vet -tags dev ./...
+
+      - name: Check applet RPC contracts
+        run: just applet rpc-check bichat
+
+      - name: Install root dependencies (for Tailwind CSS)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Install BiChat applet dependencies
+        run: pnpm install --frozen-lockfile --ignore-workspace -C modules/bichat/presentation/web
+
+      - name: Run applet DX guardrails
+        run: |
+          applet doctor
+
+      - name: Typecheck BiChat applet
+        run: pnpm -C modules/bichat/presentation/web exec tsc --noEmit
+
+      - name: Generate CSS files
+        run: just css
+
+      - name: Run golangci-lint (unused variables/functions)
+        run: just check lint
+
+  test-unit-integration:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 25
+    name: Unit & Integration Tests
+    env:
+      GOPRIVATE: github.com/iota-uz/*
+      GONOSUMDB: github.com/iota-uz/*
+
+    services:
+      postgres:
+        image: postgres:17
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: iota_erp
+          POSTGRES_INITDB_ARGS: "-c max_connections=1000 -c shared_buffers=2GB \
+                                 -c effective_cache_size=6GB -c maintenance_work_mem=512MB \
+                                 -c work_mem=32MB -c fsync=off -c synchronous_commit=off \
+                                 -c full_page_writes=off -c wal_buffers=64MB \
+                                 -c max_wal_size=4GB -c min_wal_size=1GB \
+                                 -c checkpoint_completion_target=0.9 -c wal_compression=on \
+                                 -c random_page_cost=1.0 -c seq_page_cost=1.0 \
+                                 -c cpu_tuple_cost=0.01 -c cpu_index_tuple_cost=0.001 \
+                                 -c cpu_operator_cost=0.0005 -c log_min_duration_statement=0 \
+                                 -c log_statement=none -c log_checkpoints=off \
+                                 -c log_connections=off -c log_disconnections=off \
+                                 -c autovacuum=off -c track_activities=off \
+                                 -c track_counts=off -c jit=off -c huge_pages=try \
+                                 -c temp_buffers=128MB -c max_prepared_transactions=0 \
+                                 -c bgwriter_delay=10000ms -c bgwriter_lru_maxpages=0 \
+                                 -c effective_io_concurrency=200 -c maintenance_io_concurrency=200 \
+                                 -c max_parallel_workers_per_gather=4 -c max_parallel_workers=8 \
+                                 -c max_parallel_maintenance_workers=4 -c default_statistics_target=10 \
+                                 -c enable_partitionwise_join=on -c enable_partitionwise_aggregate=on"
+        options: >-
+          --tmpfs /var/lib/postgresql/data:rw,size=6g,noatime
+          --health-cmd="pg_isready -U postgres -d iota_erp"
+          --health-interval=5s --health-timeout=5s --health-retries=5
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --tmpfs /data:rw,size=6g
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.13"
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: "1.46.0"
+
+      - name: Install tools
+        run: |
+          # Install templ (needed for CSS generation)
+          go install github.com/a-h/templ/cmd/templ@v0.3.857
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres -d iota_erp; do
+            echo "Waiting for postgres..."
+            sleep 1
+          done
+
+      - name: Validate PostgreSQL max connections
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: iota_erp
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+        run: |
+          max_connections=$(psql "host=$DB_HOST port=$DB_PORT dbname=$DB_NAME user=$DB_USER password=$DB_PASSWORD sslmode=disable" -tAc "SHOW max_connections;" | tr -d '[:space:]')
+          echo "PostgreSQL max_connections=$max_connections"
+          min_expected=300
+          if [ -z "$max_connections" ] || [ "$max_connections" -lt "$min_expected" ]; then
+            echo "Error: max_connections is too low (expected >= $min_expected, got ${max_connections:-empty})"
+            exit 1
+          fi
+
+      - name: Test just recipes
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: iota_erp
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+        run: |
+          just db migrate up
+          just db migrate up
+          just db seed
+          just db seed
+
+      - name: Run tests with coverage
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: iota_erp
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+        run: go test -tags dev -count=1 -v ./... -coverprofile=coverage.out -covermode=atomic
+
+      - name: Generate coverage report
+        env:
+          COVERAGE_THRESHOLD: 10
+          COVERAGE_MAX_FILES_DISPLAY: 100
+          COVERAGE_IGNORE_PATTERNS: "cmd/,*_templ.go,viewmodels/"
+        run: node ./.github/scripts/coverage-report.cjs --file coverage.out --output github
+
+      - name: Generate HTML coverage report
+        run: go tool cover -html=coverage.out -o coverage.html
+
+      - name: Upload coverage to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage
+          path: |
+            coverage.out
+            coverage.html
+
+      - name: Test database migrate down
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: iota_erp
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+        run: just db migrate down
+
+  test-e2e:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 20
+    name: E2E Tests (shard ${{ matrix.shard }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 1/4
+            shardIndex: 1
+          - shard: 2/4
+            shardIndex: 2
+          - shard: 3/4
+            shardIndex: 3
+          - shard: 4/4
+            shardIndex: 4
+    env:
+      GOPRIVATE: github.com/iota-uz/*
+      GONOSUMDB: github.com/iota-uz/*
+
+    services:
+      postgres:
+        image: postgres:17
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: iota_erp_e2e
+          POSTGRES_INITDB_ARGS: "-c max_connections=1000 -c shared_buffers=2GB \
+                                 -c effective_cache_size=6GB -c maintenance_work_mem=512MB \
+                                 -c work_mem=32MB -c fsync=off -c synchronous_commit=off \
+                                 -c full_page_writes=off -c wal_buffers=64MB \
+                                 -c max_wal_size=4GB -c min_wal_size=1GB \
+                                 -c checkpoint_completion_target=0.9 -c wal_compression=on \
+                                 -c random_page_cost=1.0 -c seq_page_cost=1.0 \
+                                 -c cpu_tuple_cost=0.01 -c cpu_index_tuple_cost=0.001 \
+                                 -c cpu_operator_cost=0.0005 -c log_min_duration_statement=0 \
+                                 -c log_statement=none -c log_checkpoints=off \
+                                 -c log_connections=off -c log_disconnections=off \
+                                 -c autovacuum=off -c track_activities=off \
+                                 -c track_counts=off -c jit=off -c huge_pages=try \
+                                 -c temp_buffers=128MB -c max_prepared_transactions=0 \
+                                 -c bgwriter_delay=10000ms -c bgwriter_lru_maxpages=0 \
+                                 -c effective_io_concurrency=200 -c maintenance_io_concurrency=200 \
+                                 -c max_parallel_workers_per_gather=4 -c max_parallel_workers=8 \
+                                 -c max_parallel_maintenance_workers=4 -c default_statistics_target=10 \
+                                 -c enable_partitionwise_join=on -c enable_partitionwise_aggregate=on"
+        options: >-
+          --tmpfs /var/lib/postgresql/data:rw,size=6g,noatime
+          --health-cmd="pg_isready -U postgres -d iota_erp_e2e"
+          --health-interval=5s --health-timeout=5s --health-retries=5
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --tmpfs /data:rw,size=6g
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.13"
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: '1.46.0'
+
+      - name: Install tools
+        run: |
+          # Install templ (needed for CSS generation)
+          go install github.com/a-h/templ/cmd/templ@v0.3.857
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
+
+      - name: Get pnpm store directory
+        id: pnpm-store
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-e2e-${{ hashFiles('pnpm-lock.yaml', 'e2e/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-e2e-
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Install root dependencies (for Tailwind CSS)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Generate CSS files
+        run: just css
+
+      - name: Install Client Host dependencies
+        working-directory: web/client-host
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Client Host
+        working-directory: web/client-host
+        run: pnpm build
+
+      - name: Install Lens dependencies
+        working-directory: web/lens
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Lens compatibility assets
+        run: just lens build
+
+      - name: Setup E2E database
+        env:
+          DB_NAME: iota_erp_e2e
+        run: |
+          just e2e reset
+
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile --ignore-workspace
+        working-directory: e2e
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('e2e/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright system dependencies
+        run: npx playwright install-deps chromium
+        working-directory: e2e
+
+      - name: Install Playwright Browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+        working-directory: e2e
+
+      - name: Start Go Server
+        env:
+          HTTP_SESSION_DURATION: 720h
+          HTTP_DOMAIN: localhost
+          HTTP_PORT: 3201
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: iota_erp_e2e
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          HTTP_COOKIES_SID: sid
+          APP_ENVIRONMENT: production
+          APP_ENABLETESTENDPOINTS: true
+          TWOFACTOR_ENCRYPTIONKEY: e2e-test-encryption-key-32bytes!!
+          OIDC_ISSUERURL: https://localhost:3201/oidc
+          OIDC_CRYPTOKEY: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
+        run: |
+          go run -tags dev cmd/server/main.go > /tmp/server.log 2>&1 &
+          SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+
+          # Leave enough time for a cold Go build on a fresh runner.
+          if ! timeout 180 bash -c 'until curl -s http://localhost:3201 > /dev/null; do sleep 1; done'; then
+            echo "Server did not become ready within 180 seconds"
+            cat /tmp/server.log || echo "No server logs found"
+            exit 1
+          fi
+          echo "Server started successfully"
+
+      - name: Run Playwright Tests
+        env:
+          BASE_URL: http://localhost:3201
+          OIDC_ISSUERURL: https://localhost:3201/oidc
+        run: npx playwright test --shard=${{ matrix.shard }}
+        working-directory: e2e
+
+      - name: Stop Go Server
+        if: always()
+        run: kill ${{ env.SERVER_PID }} || true
+
+      - name: Show Server Logs
+        if: failure()
+        run: |
+          echo "=== Server Logs ==="
+          cat /tmp/server.log || echo "No server logs found"
+
+      - name: Upload Playwright Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.shardIndex }}
+          path: e2e/playwright-report/
+          retention-days: 7
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.shardIndex }}
+          path: e2e/test-results/
+          retention-days: 7
+
+      - name: Upload Server Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs-${{ matrix.shardIndex }}
+          path: /tmp/server.log
+          retention-days: 7
+
+  docs-build:
+    name: Documentation Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
+
+      - name: Install documentation dependencies
+        working-directory: ./docs
+        run: pnpm install --frozen-lockfile --ignore-workspace
+
+      - name: Validate Mermaid diagrams
+        working-directory: ./docs
+        run: pnpm run check:mermaid
+
+      - name: Build documentation
+        working-directory: ./docs
+        run: pnpm build
+
+      - name: Check documentation build artifacts
+        run: |
+          if [ ! -d "docs/out" ]; then
+            echo "Error: Documentation build output not found"
+            exit 1
+          fi
+          if [ ! -f "docs/out/index.html" ]; then
+            echo "Error: Documentation index.html not found"
+            exit 1
+          fi
+          echo "Documentation build successful"
