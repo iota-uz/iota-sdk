@@ -605,6 +605,13 @@ func (s *chatServiceImpl) startAsyncRun(
 		if err != nil {
 			return serrors.E(op, err)
 		}
+		// Create the journal before accepting the run. HITL may produce no
+		// chunks while the model is working; an absent key ends Redis tailing.
+		if err := s.appendRunEvent(txCtx, session.TenantID(), sessionID, run.ID(), bichatservices.StreamChunk{
+			Type: bichatservices.ChunkTypeStreamStarted, RunID: run.ID().String(), Timestamp: time.Now(),
+		}); err != nil {
+			return serrors.E(op, err)
+		}
 		if prepare != nil {
 			if err := prepare(txCtx, session); err != nil {
 				return err
@@ -636,7 +643,11 @@ func (s *chatServiceImpl) startAsyncRun(
 
 	persistCtx := context.WithoutCancel(ctx)
 	persistCtx = context.WithValue(persistCtx, constants.TxKey, nil)
-	go worker(processCtx, persistCtx, run.ID(), session, active)
+	s.mirrorRunEvents(persistCtx, session.TenantID(), active)
+	go func() {
+		defer s.expireRunEvents(persistCtx, session.TenantID(), sessionID, run.ID())
+		worker(processCtx, persistCtx, run.ID(), session, active)
+	}()
 
 	return bichatservices.AsyncRunAccepted{
 		Accepted:  true,
@@ -873,8 +884,14 @@ func (s *chatServiceImpl) TailRunEvents(
 			Type:     evt.Type,
 			Payload:  append([]byte(nil), evt.Payload...),
 		})
+		if IsRunEventTerminal(evt.Type) {
+			return nil
+		}
 	}
-	return nil
+	if ctx.Err() != nil {
+		return nil
+	}
+	return serrors.E(op, bichatservices.ErrRunEventStreamInterrupted)
 }
 
 // TailActiveRuns delivers the per-tenant sidebar view: snapshot rows
@@ -1250,27 +1267,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// Clear TxKey so persistence always opens its own durable transaction.
 	persistCtx = context.WithValue(persistCtx, constants.TxKey, nil)
 
-	// When a Redis event log is configured, mirror every broadcast into
-	// bichat:run-events:{tenant}:{run_id} so out-of-process readers (the
-	// SSE controller on a reconnect, or another replica of the server)
-	// can tail/replay via Last-Event-ID. Mirror failures are logged
-	// implicitly by the log implementation and deliberately do not break
-	// the in-memory path — an error appending to Redis should not abort
-	// a live agent streaming to its primary client.
-	if s.eventLog != nil {
-		tenantID := session.TenantID()
-		runID := run.ID()
-		active.SetMirror(func(chunk bichatservices.StreamChunk) {
-			eventType, body, err := encodeRunEventFromChunk(chunk)
-			if err != nil {
-				return
-			}
-			_, _ = s.eventLog.Append(persistCtx, tenantID, runID, RunEvent{
-				Type:    eventType,
-				Payload: body,
-			})
-		})
-	}
+	s.mirrorRunEvents(persistCtx, session.TenantID(), active)
 
 	go s.runStreamLoop(processCtx, persistCtx, run.ID(), req, session, domainAttachments, startedAt, active)
 

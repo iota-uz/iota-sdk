@@ -55,9 +55,6 @@ func (s *chatServiceImpl) ContinueSession(
 				active.CloseAllSubscribers()
 				s.runRegistry.Remove(active.RunID)
 				s.unregisterStreamCancel(req.SessionID)
-				if s.eventLog != nil {
-					_ = s.eventLog.DropAfterTerminal(persistCtx, session.TenantID(), runID, 5*time.Minute)
-				}
 			}()
 
 			if req.ReasoningEffort != nil {
@@ -65,18 +62,6 @@ func (s *chatServiceImpl) ContinueSession(
 			}
 			if req.Model != nil {
 				processCtx = bichatservices.WithModelOverride(processCtx, *req.Model)
-			}
-			if s.eventLog != nil {
-				active.SetMirror(func(chunk bichatservices.StreamChunk) {
-					eventType, body, err := encodeRunEventFromChunk(chunk)
-					if err != nil {
-						return
-					}
-					_, _ = s.eventLog.Append(persistCtx, session.TenantID(), runID, RunEvent{
-						Type:    eventType,
-						Payload: body,
-					})
-				})
 			}
 
 			startedAt := time.Now()
