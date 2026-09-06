@@ -163,7 +163,7 @@ func (g GitHub) Preview(ctx context.Context, root string, d Dependency) (resultE
 	defer func() {
 		resultErr = errors.Join(resultErr, restoreFiles(backups))
 	}()
-	_, err = g.Runner.Run(ctx, webDir, nil, "pnpm", "add", "--ignore-workspace", "--ignore-scripts", "--save-exact", filepath.Join(cache, "artifacts/frontend", manifest.File))
+	_, err = g.Runner.Run(ctx, webDir, nil, "pnpm", "add", "--ignore-workspace", "--ignore-scripts", "--ignore-pnpmfile", "--save-exact", filepath.Join(cache, "artifacts/frontend", manifest.File))
 	return err
 }
 
@@ -346,7 +346,7 @@ func (g GitHub) Finalize(ctx context.Context, root string) (changed bool, result
 		if err != nil {
 			return false, err
 		}
-		if _, err = g.Runner.Run(ctx, webDir, nil, "pnpm", "add", "--ignore-workspace", "--ignore-scripts", "--save-exact", "@iota-uz/sdk@"+ready.Version); err != nil {
+		if _, err = g.Runner.Run(ctx, webDir, nil, "pnpm", "add", "--ignore-workspace", "--ignore-scripts", "--ignore-pnpmfile", "--save-exact", "@iota-uz/sdk@"+ready.Version); err != nil {
 			return false, err
 		}
 	}

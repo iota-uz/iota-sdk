@@ -154,7 +154,7 @@ func VerifyLocks(ctx context.Context, runner Runner, root string, d Dependency) 
 			return fmt.Errorf("npm production version must exactly match Go")
 		}
 		// Validate that the lockfile agrees without executing consumer scripts.
-		if _, err = runner.Run(ctx, webDir, nil, "pnpm", "install", "--ignore-workspace", "--ignore-scripts", "--frozen-lockfile", "--lockfile-only"); err != nil {
+		if _, err = runner.Run(ctx, webDir, nil, "pnpm", "install", "--ignore-workspace", "--ignore-scripts", "--ignore-pnpmfile", "--frozen-lockfile", "--lockfile-only"); err != nil {
 			return err
 		}
 	}

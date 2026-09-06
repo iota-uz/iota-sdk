@@ -20,13 +20,15 @@ type ExecRunner struct{ Token string }
 
 func (r ExecRunner) Run(ctx context.Context, dir string, input []byte, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
-	if name == "gh" && r.Token != "" {
+	if name != "gh" || r.Token != "" {
 		for _, entry := range os.Environ() {
-			if !strings.HasPrefix(entry, "GH_TOKEN=") && !strings.HasPrefix(entry, "GITHUB_TOKEN=") {
+			if !strings.HasPrefix(entry, "GH_TOKEN=") && !strings.HasPrefix(entry, "GITHUB_TOKEN=") && !strings.HasPrefix(entry, "SDK_GH_TOKEN=") {
 				cmd.Env = append(cmd.Env, entry)
 			}
 		}
-		cmd.Env = append(cmd.Env, "GH_TOKEN="+r.Token)
+		if name == "gh" {
+			cmd.Env = append(cmd.Env, "GH_TOKEN="+r.Token)
+		}
 	}
 	cmd.Dir = dir
 	cmd.Stdin = bytes.NewReader(input)

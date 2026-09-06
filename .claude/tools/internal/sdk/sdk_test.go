@@ -209,3 +209,13 @@ func TestDecode_RejectsUnknownFieldsAndTrailingValues(t *testing.T) {
 	_, err = Decode[Change]([]byte(`{"bump":"patch","summary":"fix"} {}`))
 	require.Error(t, err)
 }
+
+// False green: empty parent credentials would not prove subprocess isolation.
+func TestExecRunner_DoesNotExposeGitHubCredentialsToPackageTools(t *testing.T) {
+	t.Setenv("GH_TOKEN", "consumer-test-token")
+	t.Setenv("SDK_GH_TOKEN", "sdk-test-token")
+	t.Setenv("GITHUB_TOKEN", "workflow-test-token")
+	out, err := (ExecRunner{}).Run(context.Background(), "", nil, "sh", "-c", `printf '%s|%s|%s' "$GH_TOKEN" "$SDK_GH_TOKEN" "$GITHUB_TOKEN"`)
+	require.NoError(t, err)
+	require.Equal(t, "||", string(out))
+}
