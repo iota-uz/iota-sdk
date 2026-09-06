@@ -42,11 +42,12 @@ func (s *chatServiceImpl) mirrorRunEvents(ctx context.Context, tenantID uuid.UUI
 }
 
 func (s *chatServiceImpl) expireRunEvents(ctx context.Context, tenantID, sessionID, runID uuid.UUID) {
+	const op serrors.Op = "chatServiceImpl.expireRunEvents"
 	if s.eventLog == nil {
 		return
 	}
 	if err := s.eventLog.DropAfterTerminal(ctx, tenantID, runID, 5*time.Minute); err != nil {
-		s.log().WithError(err).WithFields(logrus.Fields{
+		s.log().WithError(serrors.E(op, err)).WithFields(logrus.Fields{
 			"tenant_id": tenantID.String(), "session_id": sessionID.String(), "run_id": runID.String(),
 			"stage": "event_log_expire",
 		}).Warn("bichat: failed to expire run events")

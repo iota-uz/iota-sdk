@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	api "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,7 +46,7 @@ func TestAsyncRunEvents_IdleWorkerThenTerminalReplay(t *testing.T) {
 			replay, err := log.Replay(ctx, session.TenantID(), accepted.RunID, "")
 			require.NoError(t, err)
 			require.Len(t, replay, 1, "the journal must exist before the worker produces output")
-			require.Equal(t, "stream_started", replay[0].Type)
+			assert.Equal(t, "stream_started", replay[0].Type)
 			// An idle tail must survive longer than Redis's BLOCK interval.
 			tailCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 			defer cancel()
@@ -61,11 +62,11 @@ func TestAsyncRunEvents_IdleWorkerThenTerminalReplay(t *testing.T) {
 			for event := range tail {
 				types = append(types, event.Type)
 			}
-			require.Equal(t, []string{"content", "done"}, types)
+			assert.Equal(t, []string{"content", "done"}, types)
 			<-finished
 			replay, err = log.Replay(ctx, session.TenantID(), accepted.RunID, replay[0].StreamID)
 			require.NoError(t, err)
-			require.Len(t, replay, 2, "reconnecting readers must recover the terminal event")
+			assert.Len(t, replay, 2, "reconnecting readers must recover the terminal event")
 		})
 	}
 }
@@ -80,5 +81,5 @@ func TestTailRunEvents_MissingJournalIsNotSuccessfulEOF(t *testing.T) {
 	defer cancel()
 	err := svc.TailRunEvents(ctx, session, run, "", func(api.RunEventDelivery) { t.Error("unexpected event") })
 	require.Error(t, err)
-	require.NoError(t, ctx.Err(), "must detect missing journal before the request times out")
+	assert.NoError(t, ctx.Err(), "must detect missing journal before the request times out")
 }
