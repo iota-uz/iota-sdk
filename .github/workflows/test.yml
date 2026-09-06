@@ -189,9 +189,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     name: Security Scan (gosec)
-    env:
-      GOPRIVATE: github.com/iota-uz/*
-      GONOSUMDB: github.com/iota-uz/*
 
     steps:
       - name: Checkout repository
@@ -227,9 +224,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     name: Code Quality & Formatting
-    env:
-      GOPRIVATE: github.com/iota-uz/*
-      GONOSUMDB: github.com/iota-uz/*
 
     steps:
       - name: Checkout repository
@@ -329,6 +323,9 @@ jobs:
 
       - name: Run go vet
         run: go vet -tags dev ./...
+
+      - name: Run service-free Go contract tests
+        run: go test ./pkg/sdkidentity ./pkg/mapping
 
       - name: Check applet RPC contracts
         run: just applet rpc-check bichat
