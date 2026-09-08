@@ -82,7 +82,7 @@ func TestNotLikeFilter(t *testing.T) {
 	assert.Equal(t, []any{"%test%"}, filter.Value())
 }
 
-func TestComplexFilterPlaceholderRebasing(t *testing.T) {
+func TestRebasePlaceholders_MultiDigitPlaceholders(t *testing.T) {
 	values := make([]any, 10)
 	tests := []struct {
 		name     string
