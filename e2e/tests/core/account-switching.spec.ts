@@ -83,6 +83,27 @@ test.describe.serial('browser account switching', () => {
 		await expect(page.getByTestId('account-card').filter({ hasText: 'picker-1@example.test' })).toContainText('Active');
 		await page.goto('/');
 		await page.locator('details[name="details-dropdown"] > summary').first().click();
+		const accountDisclosure = page.getByTestId('navbar-account-disclosure');
+		const accountDisclosureToggle = page.getByTestId('navbar-account-disclosure-toggle');
+		await expect(accountDisclosureToggle).toBeVisible();
+		await expect(page.getByTestId('navbar-account-disclosure-panel')).toBeHidden();
+		await expect(page.getByTestId('navbar-account-switch')).toBeHidden();
+		await expect(page.getByTestId('navbar-add-account')).toBeHidden();
+		await expect(page.getByTestId('navbar-logout-all')).toBeHidden();
+
+		await accountDisclosureToggle.click();
+		await expect(accountDisclosure).toHaveAttribute('open', '');
+		await expect(page.getByTestId('navbar-account-switch')).toHaveCount(1);
+		await expect(page.getByTestId('navbar-account-switch')).toBeVisible();
+		await expect(page.getByTestId('navbar-add-account')).toBeVisible();
+		await expect(page.getByTestId('navbar-logout-all')).toBeVisible();
+
+		const switchAccountButton = page.locator('form[action^="/login/session"] button');
+		await switchAccountButton.focus();
+		await expect(switchAccountButton).toBeFocused();
+		await switchAccountButton.press('Escape');
+		await expect(accountDisclosure).not.toHaveAttribute('open', '');
+		await expect(accountDisclosureToggle).toBeFocused();
 		await Promise.all([
 			page.waitForURL((url) => url.pathname === '/'),
 			page.locator('form[action="/logout"] button').click(),
@@ -94,6 +115,7 @@ test.describe.serial('browser account switching', () => {
 
 		await page.goto('/');
 		await page.locator('details[name="details-dropdown"] > summary').first().click();
+		await page.getByTestId('navbar-account-disclosure-toggle').click();
 		await Promise.all([
 			page.waitForURL((url) => url.pathname === '/login'),
 			page.locator('form[action="/logout/all"] button').click(),

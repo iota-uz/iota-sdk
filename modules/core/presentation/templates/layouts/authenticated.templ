@@ -152,8 +152,88 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 			@base.DetailsDropdown(&base.DetailsDropdownProps{
 				Summary:     Avatar(),
 				Classes:     templ.Classes("z-[80]"),
-				MenuClasses: templ.Classes("w-64"),
+				MenuClasses: templ.Classes("w-72"),
 			}) {
+				if len(browserSessions) > 0 {
+					<li class="pb-1 border-b border-secondary">
+						<details
+							class="group"
+							data-testid="navbar-account-disclosure"
+							x-data
+							@keydown.escape.stop="$el.removeAttribute('open'); $el.querySelector('[data-testid=navbar-account-disclosure-toggle]').focus()"
+						>
+							for _, browserSession := range browserSessions {
+								if browserSession.Active {
+									{{
+										account := mappers.UserToViewModel(browserSession.User)
+										avatarURL := ""
+										if account.Avatar != nil {
+											avatarURL = account.Avatar.URL
+										}
+									}}
+									<summary
+										class="flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-md p-2 duration-200 hover:bg-surface-400 [&::-webkit-details-marker]:hidden"
+										data-testid="navbar-account-disclosure-toggle"
+									>
+										@avatar.Avatar(avatar.Props{ImageURL: avatarURL, Initials: account.Initials(), Class: templ.Classes("w-10 h-10 text-sm")})
+										<span class="min-w-0 flex-1">
+											<span class="block truncate font-medium">{ account.Title() }</span>
+											<span class="block truncate text-xs text-200">{ account.Email }</span>
+										</span>
+										<span class="shrink-0 transition-transform duration-200 group-open:rotate-180" aria-hidden="true">
+											@icons.CaretDown(icons.Props{Size: "18"})
+										</span>
+									</summary>
+								}
+							}
+							<ul class="mt-1 flex flex-col gap-1" data-testid="navbar-account-disclosure-panel">
+								for _, browserSession := range browserSessions {
+									if browserSession.Session.IsActive() && !browserSession.Active {
+										{{
+											account := mappers.UserToViewModel(browserSession.User)
+											avatarURL := ""
+											if account.Avatar != nil {
+												avatarURL = account.Avatar.URL
+											}
+										}}
+										@base.DropdownFormItem(base.DropdownFormItemProps{
+											Action: "/login/session?next=" + url.QueryEscape(nextURL),
+											Method: "post",
+											Fields: map[string]string{"SessionReference": browserSession.Reference()},
+										}) {
+											<span class="flex items-center gap-3" data-testid="navbar-account-switch">
+												@avatar.Avatar(avatar.Props{ImageURL: avatarURL, Initials: account.Initials(), Class: templ.Classes("w-8 h-8 text-xs")})
+												<span class="min-w-0 flex-1">
+													<span class="block truncate font-medium">{ account.Title() }</span>
+													<span class="block truncate text-xs text-200">{ account.Email }</span>
+												</span>
+												<span class="shrink-0 text-200" aria-hidden="true">
+													@icons.SignIn(icons.Props{Size: "18"})
+												</span>
+											</span>
+										}
+									}
+								}
+								@base.DropdownItem(base.DropdownItemProps{Href: "/login?next=" + url.QueryEscape(nextURL) + "#login-methods"}) {
+									<span class="flex items-center gap-3" data-testid="navbar-add-account">
+										<span class="text-200" aria-hidden="true">
+											@icons.PlusCircle(icons.Props{Size: "20"})
+										</span>
+										{ pageCtx.T("NavigationLinks.Navbar.AddAccount") }
+									</span>
+								}
+								@base.DropdownFormItem(base.DropdownFormItemProps{Action: "/logout/all", Method: "post"}) {
+									<span class="flex items-center gap-3" data-testid="navbar-logout-all">
+										<span class="text-200" aria-hidden="true">
+											@icons.SignOut(icons.Props{Size: "20"})
+										</span>
+										{ pageCtx.T("NavigationLinks.Navbar.LogoutAll") }
+									</span>
+								}
+							</ul>
+						</details>
+					</li>
+				}
 				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Profile") }
 				}
@@ -163,44 +243,13 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 				@base.DropdownItem(base.DropdownItemProps{Href: "/settings"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Settings") }
 				}
-				if len(browserSessions) > 0 {
-					<li class="border-t border-secondary my-1"></li>
-					for _, browserSession := range browserSessions {
-						if browserSession.Session.IsActive() {
-							{{
-								account := mappers.UserToViewModel(browserSession.User)
-								avatarURL := ""
-								if account.Avatar != nil {
-									avatarURL = account.Avatar.URL
-								}
-							}}
-							@base.DropdownFormItem(base.DropdownFormItemProps{
-								Action: "/login/session?next=" + url.QueryEscape(nextURL),
-								Method: "post",
-								Fields: map[string]string{"SessionReference": browserSession.Reference()},
-							}) {
-								<span class="flex items-center gap-3">
-									@avatar.Avatar(avatar.Props{ImageURL: avatarURL, Initials: account.Initials(), Class: templ.Classes("w-8 h-8 text-xs")})
-									<span class="min-w-0 flex-1">
-										<span class="block truncate font-medium">{ account.Title() }</span>
-										<span class="block truncate text-xs text-200">{ account.Email }</span>
-										if browserSession.Active {
-											<span class="block text-xs text-200">{ pageCtx.T("NavigationLinks.Navbar.CurrentAccount") }</span>
-										}
-									</span>
-								</span>
-							}
-						}
-					}
-					@base.DropdownItem(base.DropdownItemProps{Href: "/login?next=" + url.QueryEscape(nextURL) + "#login-methods"}) {
-						{ pageCtx.T("NavigationLinks.Navbar.AddAccount") }
-					}
-				}
 				@base.DropdownFormItem(base.DropdownFormItemProps{Action: "/logout", Method: "post"}) {
-					{ pageCtx.T("NavigationLinks.Navbar.LogoutCurrent") }
-				}
-				@base.DropdownFormItem(base.DropdownFormItemProps{Action: "/logout/all", Method: "post"}) {
-					{ pageCtx.T("NavigationLinks.Navbar.LogoutAll") }
+					<span class="flex items-center gap-3" data-testid="navbar-logout-current">
+						<span class="text-200" aria-hidden="true">
+							@icons.SignOut(icons.Props{Size: "20"})
+						</span>
+						{ pageCtx.T("NavigationLinks.Navbar.LogoutCurrent") }
+					</span>
 				}
 			}
 			@SidebarTrigger("lg:hidden")
