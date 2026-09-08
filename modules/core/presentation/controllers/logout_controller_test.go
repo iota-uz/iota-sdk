@@ -88,11 +88,22 @@ func TestLogoutController_Scenarios(t *testing.T) {
 			name: "post removes only current account and activates remaining account",
 			run: func(t *testing.T, suite *itf.Suite, cfg cfgBundle, sessionService *services.SessionService, browserSessions *services.BrowserSessionService) {
 				t.Helper()
+				secondUserID := suite.Env().User.ID() + 10_000
+				_, err := suite.Env().Pool.Exec(suite.Env().Ctx, `
+					INSERT INTO users (id, type, first_name, last_name, email, password, tenant_id, ui_language, created_at, updated_at)
+					VALUES ($1, 'user', 'Second', 'Account', $2, '', $3, 'en', NOW(), NOW())`,
+					secondUserID, "logout-second-account@example.com", suite.Env().Tenant.ID,
+				)
+				require.NoError(t, err)
 				firstToken := "logout-first-session-token"
 				secondToken := "logout-second-session-token"
-				for _, token := range []string{firstToken, secondToken} {
+				for i, token := range []string{firstToken, secondToken} {
+					userID := suite.Env().User.ID()
+					if i == 1 {
+						userID = secondUserID
+					}
 					require.NoError(t, sessionService.Create(suite.Env().Ctx, &session.CreateDTO{
-						UserID: suite.Env().User.ID(), TenantID: suite.Env().Tenant.ID,
+						UserID: userID, TenantID: suite.Env().Tenant.ID,
 						IP: "127.0.0.1", UserAgent: "logout-test-agent", Token: token,
 					}))
 				}

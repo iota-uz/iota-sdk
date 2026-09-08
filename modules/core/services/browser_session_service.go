@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
@@ -40,6 +41,11 @@ type BrowserSession struct {
 	Session session.Session
 	User    coreuser.User
 	Active  bool
+}
+
+type browserAccountKey struct {
+	TenantID uuid.UUID
+	UserID   uint
 }
 
 func (s BrowserSession) Reference() string {
@@ -155,17 +161,24 @@ func (s *BrowserSessionService) Add(ctx context.Context, cookieValue string, ses
 	now := s.now().UnixNano()
 	entries := make([]browserSessionEntry, 0, len(state.Entries)+1)
 	entries = append(entries, browserSessionEntry{Token: sess.Token(), LastActive: now})
-	for _, entry := range state.Entries {
-		if entry.Token != sess.Token() {
-			entries = append(entries, entry)
+	retainedSessions := make([]BrowserSession, 0, len(sessions)+1)
+	retainedSessions = append(retainedSessions, BrowserSession{Session: sess, Active: true})
+	for i, browserSession := range sessions {
+		if accountKey(browserSession.Session) == accountKey(sess) {
+			if browserSession.Session.Token() != sess.Token() {
+				if err := s.deleteToken(ctx, browserSession.Session.Token()); err != nil && !errors.Is(err, persistence.ErrSessionNotFound) {
+					return nil, serrors.E(op, err)
+				}
+			}
+			continue
 		}
+		entries = append(entries, state.Entries[i])
+		browserSession.Active = false
+		retainedSessions = append(retainedSessions, browserSession)
 	}
 	state.Active = sess.Token()
 	state.Entries = entries
-	sessions = append([]BrowserSession{{Session: sess, Active: true}}, withoutToken(sessions, sess.Token())...)
-	for i := 1; i < len(sessions); i++ {
-		sessions[i].Active = false
-	}
+	sessions = retainedSessions
 
 	if len(state.Entries) > MaxBrowserSessions {
 		evicted := state.Entries[MaxBrowserSessions:]
@@ -278,6 +291,7 @@ func (s *BrowserSessionService) resolveValue(ctx context.Context, value string) 
 	changed := migrated
 	resolved := make([]BrowserSession, 0, len(state.Entries))
 	validEntries := make([]browserSessionEntry, 0, len(state.Entries))
+	accountIndexes := make(map[browserAccountKey]int, len(state.Entries))
 	for _, entry := range state.Entries {
 		sess, err := s.sessionService.GetBrowserSessionByToken(ctx, entry.Token)
 		if errors.Is(err, persistence.ErrSessionNotFound) {
@@ -304,8 +318,19 @@ func (s *BrowserSessionService) resolveValue(ctx context.Context, value string) 
 			changed = true
 			continue
 		}
+		browserSession := BrowserSession{Session: sess, User: u, Active: entry.Token == state.Active}
+		key := accountKey(sess)
+		if index, ok := accountIndexes[key]; ok {
+			changed = true
+			if browserSession.Active {
+				validEntries[index] = entry
+				resolved[index] = browserSession
+			}
+			continue
+		}
+		accountIndexes[key] = len(resolved)
 		validEntries = append(validEntries, entry)
-		resolved = append(resolved, BrowserSession{Session: sess, User: u, Active: entry.Token == state.Active})
+		resolved = append(resolved, browserSession)
 	}
 	state.Entries = validEntries
 	if !containsToken(state.Entries, state.Active) {
@@ -319,6 +344,10 @@ func (s *BrowserSessionService) resolveValue(ctx context.Context, value string) 
 		resolved[i].Active = resolved[i].Session.Token() == state.Active
 	}
 	return state, resolved, changed, nil
+}
+
+func accountKey(sess session.Session) browserAccountKey {
+	return browserAccountKey{TenantID: sess.TenantID(), UserID: sess.UserID()}
 }
 
 func (s *BrowserSessionService) deleteToken(ctx context.Context, token string) error {
