@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Keep only the newest browser session for each account in the login account picker."
+}

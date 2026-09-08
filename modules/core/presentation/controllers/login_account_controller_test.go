@@ -14,6 +14,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
@@ -24,13 +25,13 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
-func TestLoginController_CustomRendererReceivesAccountPickerContext_Scenarios(t *testing.T) {
+func TestLoginController_CustomRendererDeduplicatesRepeatedAccountLogin_Scenarios(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
 		nextURL string
 	}{
-		{name: "renders and activates a stored account", nextURL: "/users"},
+		{name: "renders and activates only the newest session for an account", nextURL: "/users"},
 	}
 
 	for _, tt := range tests {
@@ -42,15 +43,19 @@ func TestLoginController_CustomRendererReceivesAccountPickerContext_Scenarios(t 
 
 			sessionService := itf.GetService[services.SessionService](suite.Env())
 			browserSessions := itf.GetService[services.BrowserSessionService](suite.Env())
-			token := "login-renderer-" + uuid.NewString()
-			require.NoError(t, sessionService.Create(suite.Env().Ctx, &session.CreateDTO{
-				Token: token, UserID: suite.Env().User.ID(), TenantID: suite.Env().Tenant.ID,
-				IP: "127.0.0.1", UserAgent: "login-renderer-test",
-			}))
-			sess, err := sessionService.GetBrowserSessionByToken(suite.Env().Ctx, token)
-			require.NoError(t, err)
-			browserCookie, err := browserSessions.Add(suite.Env().Ctx, "", sess)
-			require.NoError(t, err)
+			oldToken := "login-renderer-old-" + uuid.NewString()
+			token := "login-renderer-new-" + uuid.NewString()
+			browserCookie := &http.Cookie{}
+			for _, sessionToken := range []string{oldToken, token} {
+				require.NoError(t, sessionService.Create(suite.Env().Ctx, &session.CreateDTO{
+					Token: sessionToken, UserID: suite.Env().User.ID(), TenantID: suite.Env().Tenant.ID,
+					IP: "127.0.0.1", UserAgent: "login-renderer-test",
+				}))
+				sess, err := sessionService.GetBrowserSessionByToken(suite.Env().Ctx, sessionToken)
+				require.NoError(t, err)
+				browserCookie, err = browserSessions.Add(suite.Env().Ctx, browserCookie.Value, sess)
+				require.NoError(t, err)
+			}
 
 			var captured controllers.LoginPageViewModel
 			options := &controllers.LoginControllerOptions{
@@ -80,11 +85,16 @@ func TestLoginController_CustomRendererReceivesAccountPickerContext_Scenarios(t 
 				Expect(t).
 				Status(http.StatusOK)
 
+			// Falsely green if the renderer hides duplicate cards while the browser
+			// session state still retains multiple tokens for the same account.
 			require.Len(t, captured.Accounts, 1)
 			assert.Equal(t, tt.nextURL, captured.NextURL)
 			assert.Equal(t, suite.Env().User.ID(), captured.Accounts[0].UserID)
 			assert.Equal(t, suite.Env().Tenant.ID.String(), captured.Accounts[0].TenantID)
 			assert.NotEqual(t, token, captured.Accounts[0].SessionReference)
+			assert.Equal(t, services.BrowserSessionReference(token), captured.Accounts[0].SessionReference)
+			_, err := sessionService.GetBrowserSessionByToken(suite.Env().Ctx, oldToken)
+			require.ErrorIs(t, err, persistence.ErrSessionNotFound)
 			assert.Contains(t, response.Body(), "accounts=1 next="+tt.nextURL)
 
 			suite.POST("/login/session?next="+tt.nextURL).
