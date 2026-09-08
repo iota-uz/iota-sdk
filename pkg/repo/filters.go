@@ -3,8 +3,12 @@ package repo
 import (
 	"fmt"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 )
+
+var positionalPlaceholderPattern = regexp.MustCompile(`\$[1-9][0-9]*`)
 
 type FieldFilter[T any] struct {
 	Column T
@@ -289,15 +293,7 @@ type existsFilter struct {
 }
 
 func (f *existsFilter) String(column string, argIdx int) string {
-	// Replace placeholders in subquery with actual argument indices
-	// IMPORTANT: Iterate in reverse order to avoid cascading replacements
-	subquery := f.subquery
-	for i := len(f.values) - 1; i >= 0; i-- {
-		placeholder := fmt.Sprintf("$%d", i+1)
-		actualPlaceholder := fmt.Sprintf("$%d", argIdx+i)
-		subquery = strings.ReplaceAll(subquery, placeholder, actualPlaceholder)
-	}
-	return subquery
+	return rebasePlaceholders(f.subquery, len(f.values), argIdx)
 }
 
 func (f *existsFilter) Value() []any {
@@ -311,14 +307,7 @@ type subqueryFilter struct {
 }
 
 func (f *subqueryFilter) String(column string, argIdx int) string {
-	// Replace placeholders in subquery with actual argument indices
-	// IMPORTANT: Iterate in reverse order to avoid cascading replacements
-	subquery := f.subquery
-	for i := len(f.values) - 1; i >= 0; i-- {
-		placeholder := fmt.Sprintf("$%d", i+1)
-		actualPlaceholder := fmt.Sprintf("$%d", argIdx+i)
-		subquery = strings.ReplaceAll(subquery, placeholder, actualPlaceholder)
-	}
+	subquery := rebasePlaceholders(f.subquery, len(f.values), argIdx)
 	return fmt.Sprintf("%s IN (%s)", column, subquery)
 }
 
@@ -334,20 +323,21 @@ type rawFilter struct {
 }
 
 func (f *rawFilter) String(column string, argIdx int) string {
-	// Replace placeholders in SQL with actual argument indices
-	// IMPORTANT: Iterate in reverse order to avoid cascading replacements
-	// (e.g., $1 -> $2, then $2 -> $3 would incorrectly change the first replacement)
-	sql := f.sql
-	for i := len(f.values) - 1; i >= 0; i-- {
-		placeholder := fmt.Sprintf("$%d", i+1)
-		actualPlaceholder := fmt.Sprintf("$%d", argIdx+i)
-		sql = strings.ReplaceAll(sql, placeholder, actualPlaceholder)
-	}
-	return sql
+	return rebasePlaceholders(f.sql, len(f.values), argIdx)
 }
 
 func (f *rawFilter) Value() []any {
 	return f.values
+}
+
+func rebasePlaceholders(query string, valueCount, argIdx int) string {
+	return positionalPlaceholderPattern.ReplaceAllStringFunc(query, func(placeholder string) string {
+		position, err := strconv.Atoi(placeholder[1:])
+		if err != nil || position > valueCount {
+			return placeholder
+		}
+		return fmt.Sprintf("$%d", argIdx+position-1)
+	})
 }
 
 // ==============================
