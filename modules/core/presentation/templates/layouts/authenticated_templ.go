@@ -297,7 +297,7 @@ func Navbar(pageCtx types.PageContext, navbarLeft templ.Component) templ.Compone
 			}
 			ctx = templ.InitializeContext(ctx)
 			if len(browserSessions) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<li class=\"pb-1 border-b border-secondary\"><details class=\"group\" data-testid=\"navbar-account-disclosure\" x-data @keydown.escape.stop=\"$el.removeAttribute(&#39;open&#39;)\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<li class=\"pb-1 border-b border-secondary\"><details class=\"group\" data-testid=\"navbar-account-disclosure\" x-data @keydown.escape.stop=\"$el.removeAttribute(&#39;open&#39;); $el.querySelector(&#39;[data-testid=navbar-account-disclosure-toggle]&#39;).focus()\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

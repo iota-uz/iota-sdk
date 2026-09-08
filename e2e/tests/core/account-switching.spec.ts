@@ -98,7 +98,10 @@ test.describe.serial('browser account switching', () => {
 		await expect(page.getByTestId('navbar-add-account')).toBeVisible();
 		await expect(page.getByTestId('navbar-logout-all')).toBeVisible();
 
-		await accountDisclosureToggle.press('Escape');
+		const switchAccountButton = page.locator('form[action^="/login/session"] button');
+		await switchAccountButton.focus();
+		await expect(switchAccountButton).toBeFocused();
+		await switchAccountButton.press('Escape');
 		await expect(accountDisclosure).not.toHaveAttribute('open', '');
 		await expect(accountDisclosureToggle).toBeFocused();
 		await Promise.all([

@@ -160,7 +160,7 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 							class="group"
 							data-testid="navbar-account-disclosure"
 							x-data
-							@keydown.escape.stop="$el.removeAttribute('open')"
+							@keydown.escape.stop="$el.removeAttribute('open'); $el.querySelector('[data-testid=navbar-account-disclosure-toggle]').focus()"
 						>
 							for _, browserSession := range browserSessions {
 								if browserSession.Active {
