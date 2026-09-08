@@ -216,13 +216,17 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 								}
 								@base.DropdownItem(base.DropdownItemProps{Href: "/login?next=" + url.QueryEscape(nextURL) + "#login-methods"}) {
 									<span class="flex items-center gap-3" data-testid="navbar-add-account">
-										<span class="text-200" aria-hidden="true">@icons.PlusCircle(icons.Props{Size: "20"})</span>
+										<span class="text-200" aria-hidden="true">
+											@icons.PlusCircle(icons.Props{Size: "20"})
+										</span>
 										{ pageCtx.T("NavigationLinks.Navbar.AddAccount") }
 									</span>
 								}
 								@base.DropdownFormItem(base.DropdownFormItemProps{Action: "/logout/all", Method: "post"}) {
 									<span class="flex items-center gap-3" data-testid="navbar-logout-all">
-										<span class="text-200" aria-hidden="true">@icons.SignOut(icons.Props{Size: "20"})</span>
+										<span class="text-200" aria-hidden="true">
+											@icons.SignOut(icons.Props{Size: "20"})
+										</span>
 										{ pageCtx.T("NavigationLinks.Navbar.LogoutAll") }
 									</span>
 								}
@@ -241,7 +245,9 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 				}
 				@base.DropdownFormItem(base.DropdownFormItemProps{Action: "/logout", Method: "post"}) {
 					<span class="flex items-center gap-3" data-testid="navbar-logout-current">
-						<span class="text-200" aria-hidden="true">@icons.SignOut(icons.Props{Size: "20"})</span>
+						<span class="text-200" aria-hidden="true">
+							@icons.SignOut(icons.Props{Size: "20"})
+						</span>
 						{ pageCtx.T("NavigationLinks.Navbar.LogoutCurrent") }
 					</span>
 				}

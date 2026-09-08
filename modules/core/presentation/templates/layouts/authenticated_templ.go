@@ -466,7 +466,7 @@ func Navbar(pageCtx types.PageContext, navbarLeft templ.Component) templ.Compone
 					var templ_7745c5c3_Var16 string
 					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NavigationLinks.Navbar.AddAccount"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 220, Col: 58}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 222, Col: 58}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 					if templ_7745c5c3_Err != nil {
@@ -509,7 +509,7 @@ func Navbar(pageCtx types.PageContext, navbarLeft templ.Component) templ.Compone
 					var templ_7745c5c3_Var18 string
 					templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NavigationLinks.Navbar.LogoutAll"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 226, Col: 57}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 230, Col: 57}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 					if templ_7745c5c3_Err != nil {
@@ -549,7 +549,7 @@ func Navbar(pageCtx types.PageContext, navbarLeft templ.Component) templ.Compone
 				var templ_7745c5c3_Var20 string
 				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NavigationLinks.Navbar.Profile"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 234, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 238, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {
@@ -580,7 +580,7 @@ func Navbar(pageCtx types.PageContext, navbarLeft templ.Component) templ.Compone
 				var templ_7745c5c3_Var22 string
 				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NavigationLinks.Navbar.Sessions"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 237, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 241, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 				if templ_7745c5c3_Err != nil {
@@ -611,7 +611,7 @@ func Navbar(pageCtx types.PageContext, navbarLeft templ.Component) templ.Compone
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NavigationLinks.Navbar.Settings"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 240, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 244, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -654,7 +654,7 @@ func Navbar(pageCtx types.PageContext, navbarLeft templ.Component) templ.Compone
 				var templ_7745c5c3_Var26 string
 				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NavigationLinks.Navbar.LogoutCurrent"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 245, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 251, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 				if templ_7745c5c3_Err != nil {
@@ -925,7 +925,7 @@ func Authenticated(props AuthenticatedProps) templ.Component {
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(string(sidebarProps.InitialState))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 320, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 326, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {
