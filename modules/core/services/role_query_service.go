@@ -19,3 +19,7 @@ func NewRoleQueryService(repo query.RoleQueryRepository) *RoleQueryService {
 func (s *RoleQueryService) GetRolesWithCounts(ctx context.Context) ([]*viewmodels.Role, error) {
 	return s.repo.FindRolesWithCounts(ctx)
 }
+
+func (s *RoleQueryService) FindAssignmentOptions(ctx context.Context) ([]*viewmodels.AssignmentOption, error) {
+	return s.repo.FindAssignmentOptions(ctx)
+}

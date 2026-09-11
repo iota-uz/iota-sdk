@@ -3,6 +3,7 @@ package query
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
@@ -85,6 +86,7 @@ type FindParams struct {
 type UserQueryRepository interface {
 	FindUsers(ctx context.Context, params *FindParams) ([]*viewmodels.User, int, error)
 	FindUserByID(ctx context.Context, userID int) (*viewmodels.User, error)
+	CanDeleteUser(ctx context.Context, userID int) (bool, error)
 	SearchUsers(ctx context.Context, params *FindParams) ([]*viewmodels.User, int, error)
 	FindUsersWithRoles(ctx context.Context, params *FindParams) ([]*viewmodels.User, int, error)
 }
@@ -319,6 +321,22 @@ func (r *pgUserQueryRepository) FindUserByID(ctx context.Context, userID int) (*
 	return r.loadUserWithRelations(ctx, dbUser)
 }
 
+func (r *pgUserQueryRepository) CanDeleteUser(ctx context.Context, userID int) (bool, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get transaction")
+	}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get tenant ID")
+	}
+	var canDelete bool
+	err = tx.QueryRow(ctx, `SELECT u.type <> 'system' AND
+		(SELECT COUNT(*) FROM users WHERE tenant_id = $2) > 1
+		FROM users u WHERE u.id = $1 AND u.tenant_id = $2`, userID, tenantID).Scan(&canDelete)
+	return canDelete, errors.Wrap(err, "failed to determine whether user can be deleted")
+}
+
 func (r *pgUserQueryRepository) SearchUsers(ctx context.Context, params *FindParams) ([]*viewmodels.User, int, error) {
 	if params.Search == "" {
 		return r.FindUsers(ctx, params)
@@ -353,59 +371,82 @@ func (r *pgUserQueryRepository) FindUsersWithRoles(ctx context.Context, params *
 	return r.FindUsers(ctx, params)
 }
 
-func (r *pgUserQueryRepository) loadUploadByID(ctx context.Context, uploadID int) (*models.Upload, error) {
-	tx, err := composables.UseTx(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUsers []*models.User, users []*viewmodels.User) error {
+	if len(users) == 0 {
+		return nil
 	}
-
-	tenantID, err := composables.UseTenantID(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant ID")
-	}
-
-	var upload models.Upload
-	err = tx.QueryRow(ctx, selectUploadByIDSQL, uploadID, tenantID).Scan(
-		&upload.ID,
-		&upload.TenantID,
-		&upload.Hash,
-		&upload.Path,
-		&upload.Name,
-		&upload.Size,
-		&upload.Mimetype,
-		&upload.Type,
-		&upload.CreatedAt,
-		&upload.UpdatedAt,
-	)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to load upload")
-	}
-
-	return &upload, nil
-}
-
-func (r *pgUserQueryRepository) loadUserRolesAndPermissions(ctx context.Context, user *viewmodels.User) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
 	}
 
-	userID, err := strconv.Atoi(user.ID)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return errors.Wrap(err, "invalid user ID")
+		return errors.Wrap(err, "failed to get tenant ID")
+	}
+	byID := make(map[uint]*viewmodels.User, len(users))
+	userIDs := make([]uint, 0, len(users))
+	avatarIDs := make([]uint, 0)
+	blockedByIDs := make([]uint, 0)
+	for i, item := range users {
+		id := dbUsers[i].ID
+		byID[id] = item
+		userIDs = append(userIDs, id)
+		item.Roles = make([]*viewmodels.Role, 0)
+		item.Permissions = make([]*viewmodels.Permission, 0)
+		item.DirectPermissions = make([]*viewmodels.Permission, 0)
+		item.EffectivePermissions = make([]*viewmodels.Permission, 0)
+		item.GroupIDs = make([]string, 0)
+		if dbUsers[i].AvatarID.Valid {
+			avatarIDs = append(avatarIDs, uint(dbUsers[i].AvatarID.Int32))
+		}
+		if dbUsers[i].BlockedBy.Valid {
+			blockedByIDs = append(blockedByIDs, uint(dbUsers[i].BlockedBy.Int64))
+		}
 	}
 
-	// Load roles
-	rows, err := tx.Query(ctx, selectUserRolesSQL, userID)
+	if len(avatarIDs) > 0 {
+		rows, queryErr := tx.Query(ctx, `SELECT id, tenant_id, hash, path, name, size, mimetype, type, created_at, updated_at
+			FROM uploads WHERE id = ANY($1::int[]) AND tenant_id = $2`, avatarIDs, tenantID)
+		if queryErr != nil {
+			return errors.Wrap(queryErr, "failed to query avatars")
+		}
+		uploads := make(map[uint]*models.Upload, len(avatarIDs))
+		for rows.Next() {
+			var upload models.Upload
+			if scanErr := rows.Scan(&upload.ID, &upload.TenantID, &upload.Hash, &upload.Path, &upload.Name, &upload.Size, &upload.Mimetype, &upload.Type, &upload.CreatedAt, &upload.UpdatedAt); scanErr != nil {
+				rows.Close()
+				return errors.Wrap(scanErr, "failed to scan avatar")
+			}
+			uploads[upload.ID] = &upload
+		}
+		if rowsErr := rows.Err(); rowsErr != nil {
+			rows.Close()
+			return errors.Wrap(rowsErr, "failed to iterate avatars")
+		}
+		rows.Close()
+		for i, dbUser := range dbUsers {
+			if dbUser.AvatarID.Valid {
+				if avatar := uploads[uint(dbUser.AvatarID.Int32)]; avatar != nil {
+					mapped := mapToUserViewModel(*dbUser, true, avatar)
+					users[i].Avatar = mapped.Avatar
+				}
+			}
+		}
+	}
+
+	rows, err := tx.Query(ctx, `SELECT ur.user_id, r.id, r.type, r.name, r.description, r.created_at, r.updated_at
+		FROM user_roles ur JOIN users u ON u.id = ur.user_id
+		JOIN roles r ON r.id = ur.role_id AND r.tenant_id = u.tenant_id
+		WHERE ur.user_id = ANY($1::int[]) AND u.tenant_id = $2 ORDER BY ur.user_id, r.id`, userIDs, tenantID)
 	if err != nil {
 		return errors.Wrap(err, "failed to query roles")
 	}
-	defer rows.Close()
-
-	user.Roles = make([]*viewmodels.Role, 0)
 	for rows.Next() {
+		var userID uint
 		var role models.Role
 		err := rows.Scan(
+			&userID,
 			&role.ID,
 			&role.Type,
 			&role.Name,
@@ -417,57 +458,128 @@ func (r *pgUserQueryRepository) loadUserRolesAndPermissions(ctx context.Context,
 			return errors.Wrap(err, "failed to scan role")
 		}
 
-		user.Roles = append(user.Roles, mapToRoleViewModel(role))
+		byID[userID].Roles = append(byID[userID].Roles, mapToRoleViewModel(role))
 	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return errors.Wrap(err, "failed to iterate roles")
+	}
+	rows.Close()
 
-	// Load permissions (both direct and through roles)
-	permRows, err := tx.Query(ctx, selectUserPermissionsSQL, userID)
+	permRows, err := tx.Query(ctx, `SELECT grants.user_id, p.id, p.name, p.resource, p.action, p.modifier,
+		BOOL_OR(grants.is_direct), BOOL_OR(grants.in_legacy_projection)
+		FROM (
+			SELECT up.user_id, up.permission_id, TRUE AS is_direct, TRUE AS in_legacy_projection FROM user_permissions up
+			UNION
+			SELECT ur.user_id, rp.permission_id, FALSE, TRUE FROM user_roles ur JOIN role_permissions rp ON rp.role_id = ur.role_id
+			UNION
+			SELECT gu.user_id, rp.permission_id, FALSE, FALSE FROM group_users gu
+			JOIN user_groups g ON g.id = gu.group_id
+			JOIN group_roles gr ON gr.group_id = g.id
+			JOIN roles r ON r.id = gr.role_id AND r.tenant_id = g.tenant_id
+			JOIN role_permissions rp ON rp.role_id = r.id
+		) grants
+		JOIN users u ON u.id = grants.user_id
+		JOIN permissions p ON p.id = grants.permission_id
+		WHERE grants.user_id = ANY($1::int[]) AND u.tenant_id = $2
+		GROUP BY grants.user_id, p.id, p.name, p.resource, p.action, p.modifier
+		ORDER BY grants.user_id, p.name, p.id`, userIDs, tenantID)
 	if err != nil {
 		return errors.Wrap(err, "failed to query permissions")
 	}
-	defer permRows.Close()
-
-	user.Permissions = make([]*viewmodels.Permission, 0)
 	for permRows.Next() {
+		var userID uint
 		var perm models.Permission
+		var isDirect, inLegacyProjection bool
 		err := permRows.Scan(
+			&userID,
 			&perm.ID,
 			&perm.Name,
 			&perm.Resource,
 			&perm.Action,
 			&perm.Modifier,
+			&isDirect,
+			&inLegacyProjection,
 		)
 		if err != nil {
 			return errors.Wrap(err, "failed to scan permission")
 		}
 
-		user.Permissions = append(user.Permissions, mapToPermissionViewModel(perm))
+		mapped := mapToPermissionViewModel(perm)
+		byID[userID].EffectivePermissions = append(byID[userID].EffectivePermissions, mapped)
+		if inLegacyProjection {
+			byID[userID].Permissions = append(byID[userID].Permissions, mapped)
+		}
+		if isDirect {
+			byID[userID].DirectPermissions = append(byID[userID].DirectPermissions, mapped)
+		}
 	}
+	if err := permRows.Err(); err != nil {
+		permRows.Close()
+		return errors.Wrap(err, "failed to iterate permissions")
+	}
+	permRows.Close()
 
-	// Load group IDs
-	groupRows, err := tx.Query(ctx, selectUserGroupsSQL, userID)
+	groupRows, err := tx.Query(ctx, `SELECT gu.user_id, gu.group_id FROM group_users gu
+		JOIN users u ON u.id = gu.user_id JOIN user_groups g ON g.id = gu.group_id AND g.tenant_id = u.tenant_id
+		WHERE gu.user_id = ANY($1::int[]) AND u.tenant_id = $2 ORDER BY gu.user_id, gu.group_id`, userIDs, tenantID)
 	if err != nil {
 		return errors.Wrap(err, "failed to query groups")
 	}
-	defer groupRows.Close()
-
-	user.GroupIDs = make([]string, 0)
 	for groupRows.Next() {
-		var groupID string
-		if err := groupRows.Scan(&groupID); err != nil {
+		var userID uint
+		var groupID uuid.UUID
+		if err := groupRows.Scan(&userID, &groupID); err != nil {
 			return errors.Wrap(err, "failed to scan group ID")
 		}
-		user.GroupIDs = append(user.GroupIDs, groupID)
+		byID[userID].GroupIDs = append(byID[userID].GroupIDs, groupID.String())
+	}
+	if err := groupRows.Err(); err != nil {
+		groupRows.Close()
+		return errors.Wrap(err, "failed to iterate groups")
+	}
+	groupRows.Close()
+
+	if len(blockedByIDs) > 0 {
+		blockerRows, queryErr := tx.Query(ctx, `SELECT id, first_name, last_name, phone, email FROM users
+			WHERE id = ANY($1::int[]) AND tenant_id = $2`, blockedByIDs, tenantID)
+		if queryErr != nil {
+			return errors.Wrap(queryErr, "failed to query blocker labels")
+		}
+		labels := make(map[uint]string, len(blockedByIDs))
+		for blockerRows.Next() {
+			var id uint
+			var firstName, lastName, email string
+			var phone sql.NullString
+			if scanErr := blockerRows.Scan(&id, &firstName, &lastName, &phone, &email); scanErr != nil {
+				blockerRows.Close()
+				return errors.Wrap(scanErr, "failed to scan blocker label")
+			}
+			label := strings.TrimSpace(firstName + " " + lastName)
+			if label == "" && phone.Valid {
+				label = phone.String
+			}
+			if label == "" {
+				label = email
+			}
+			labels[id] = label
+		}
+		if rowsErr := blockerRows.Err(); rowsErr != nil {
+			blockerRows.Close()
+			return errors.Wrap(rowsErr, "failed to iterate blocker labels")
+		}
+		blockerRows.Close()
+		for i, dbUser := range dbUsers {
+			if dbUser.BlockedBy.Valid {
+				users[i].BlockedByUser = labels[uint(dbUser.BlockedBy.Int64)]
+			}
+		}
 	}
 
 	return nil
 }
 
-// scanAndLoadUsers scans user rows and loads related data (avatar, roles, permissions).
-// Scanning is fully drained into dbUsers before any relation is loaded: loadUserWithRelations
-// issues further queries on the same tx, and interleaving those with an open outer cursor
-// (calling rows.Next() again after a nested query) errors "conn busy" on a single-connection
-// transaction (e.g. a caller-supplied tx, or the itf test harness's per-test tx).
+// scanAndLoadUsers drains the base cursor before loading every relation in batches.
 func (r *pgUserQueryRepository) scanAndLoadUsers(ctx context.Context, rows interface {
 	Next() bool
 	Scan(...interface{}) error
@@ -485,14 +597,12 @@ func (r *pgUserQueryRepository) scanAndLoadUsers(ctx context.Context, rows inter
 
 	users := make([]*viewmodels.User, 0, len(dbUsers))
 	for _, dbUser := range dbUsers {
-		user, err := r.loadUserWithRelations(ctx, dbUser)
-		if err != nil {
-			return nil, err
-		}
-
-		users = append(users, user)
+		user := mapToUserViewModel(*dbUser, false, nil)
+		users = append(users, &user)
 	}
-
+	if err := r.loadUserRelationsBatch(ctx, dbUsers, users); err != nil {
+		return nil, err
+	}
 	return users, nil
 }
 
@@ -524,21 +634,8 @@ func (r *pgUserQueryRepository) scanUser(row interface{ Scan(...interface{}) err
 
 // loadUserWithRelations loads user with all related data (avatar, roles, permissions)
 func (r *pgUserQueryRepository) loadUserWithRelations(ctx context.Context, dbUser *models.User) (*viewmodels.User, error) {
-	// Load avatar if exists
-	var avatar *models.Upload
-	if dbUser.AvatarID.Valid {
-		var err error
-		avatar, err = r.loadUploadByID(ctx, int(dbUser.AvatarID.Int32))
-		if err != nil {
-			// Log error but don't fail the query
-			avatar = nil
-		}
-	}
-
-	user := mapToUserViewModel(*dbUser, avatar != nil, avatar)
-
-	// Load roles and permissions
-	if err := r.loadUserRolesAndPermissions(ctx, &user); err != nil {
+	user := mapToUserViewModel(*dbUser, false, nil)
+	if err := r.loadUserRelationsBatch(ctx, []*models.User{dbUser}, []*viewmodels.User{&user}); err != nil {
 		return nil, errors.Wrap(err, "failed to load roles and permissions")
 	}
 

@@ -4,6 +4,7 @@ package services
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 )
@@ -18,6 +19,14 @@ func NewGroupQueryService(repo query.GroupQueryRepository) *GroupQueryService {
 
 func (s *GroupQueryService) FindGroups(ctx context.Context, params *query.GroupFindParams) ([]*viewmodels.Group, int, error) {
 	return s.repo.FindGroups(ctx, params)
+}
+
+func (s *GroupQueryService) FindAssignmentOptions(ctx context.Context) ([]*viewmodels.AssignmentOption, error) {
+	return s.repo.FindAssignmentOptions(ctx)
+}
+
+func (s *GroupQueryService) FindGroupLabelsByIDs(ctx context.Context, groupIDs []uuid.UUID) ([]*viewmodels.Group, error) {
+	return s.repo.FindGroupLabelsByIDs(ctx, groupIDs)
 }
 
 func (s *GroupQueryService) FindGroupByID(ctx context.Context, groupID string) (*viewmodels.Group, error) {

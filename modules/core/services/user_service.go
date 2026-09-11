@@ -199,6 +199,9 @@ func (s *UserService) ChangePassword(ctx context.Context, currentPassword, newPa
 
 	var updated user.User
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if err := s.policy.LockUser(txCtx, currentUser.ID()); err != nil {
+			return serrors.E(op, err)
+		}
 		latest, err := s.repo.GetByID(txCtx, currentUser.ID())
 		if err != nil {
 			return serrors.E(op, err)
@@ -213,7 +216,7 @@ func (s *UserService) ChangePassword(ctx context.Context, currentPassword, newPa
 		if err := s.validator.ValidateUpdate(txCtx, updated); err != nil {
 			return serrors.E(op, err)
 		}
-		if err := s.repo.Update(txCtx, updated); err != nil {
+		if err := s.repo.UpdatePassword(txCtx, updated.ID(), updated.Password(), updated.UpdatedAt()); err != nil {
 			return serrors.E(op, err)
 		}
 		_, err = s.sessionService.DeleteByUserID(txCtx, currentUser.ID())

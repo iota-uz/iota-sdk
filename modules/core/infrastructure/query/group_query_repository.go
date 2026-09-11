@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -63,6 +65,8 @@ type GroupFindParams struct {
 
 type GroupQueryRepository interface {
 	FindGroups(ctx context.Context, params *GroupFindParams) ([]*viewmodels.Group, int, error)
+	FindAssignmentOptions(ctx context.Context) ([]*viewmodels.AssignmentOption, error)
+	FindGroupLabelsByIDs(ctx context.Context, groupIDs []uuid.UUID) ([]*viewmodels.Group, error)
 	FindGroupByID(ctx context.Context, groupID string) (*viewmodels.Group, error)
 	SearchGroups(ctx context.Context, params *GroupFindParams) ([]*viewmodels.Group, int, error)
 }
@@ -71,6 +75,114 @@ type pgGroupQueryRepository struct{}
 
 func NewPgGroupQueryRepository() GroupQueryRepository {
 	return &pgGroupQueryRepository{}
+}
+
+func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*viewmodels.AssignmentOption, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get transaction")
+	}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant ID")
+	}
+
+	rows, err := tx.Query(ctx, `
+		SELECT g.id, g.type, g.name, COALESCE(g.description, '')
+		FROM user_groups g
+		WHERE g.tenant_id = $1
+		ORDER BY LOWER(g.name), g.id`, tenantID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to list group assignment options")
+	}
+	defer rows.Close()
+
+	options := make([]*viewmodels.AssignmentOption, 0)
+	byID := make(map[uuid.UUID]*viewmodels.AssignmentOption)
+	ids := make([]uuid.UUID, 0)
+	for rows.Next() {
+		var id uuid.UUID
+		option := &viewmodels.AssignmentOption{Permissions: []permission.Permission{}}
+		if err := rows.Scan(&id, &option.Type, &option.Name, &option.Description); err != nil {
+			return nil, errors.Wrap(err, "failed to scan group assignment option")
+		}
+		option.ID = id.String()
+		options = append(options, option)
+		byID[id] = option
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errors.Wrap(err, "failed to iterate group assignment options")
+	}
+	if len(ids) == 0 {
+		return options, nil
+	}
+
+	permissionRows, err := tx.Query(ctx, `
+		SELECT gr.group_id, p.id, p.name, p.resource, p.action, p.modifier
+		FROM group_roles gr
+		JOIN user_groups g ON g.id = gr.group_id
+		JOIN roles r ON r.id = gr.role_id AND r.tenant_id = g.tenant_id
+		JOIN role_permissions rp ON rp.role_id = r.id
+		JOIN permissions p ON p.id = rp.permission_id
+		WHERE gr.group_id = ANY($1::uuid[]) AND g.tenant_id = $2
+		GROUP BY gr.group_id, p.id, p.name, p.resource, p.action, p.modifier
+		ORDER BY gr.group_id, p.name, p.id`, ids, tenantID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load group assignment permissions")
+	}
+	defer permissionRows.Close()
+	for permissionRows.Next() {
+		var groupID, id uuid.UUID
+		var name, resource, action, modifier string
+		if err := permissionRows.Scan(&groupID, &id, &name, &resource, &action, &modifier); err != nil {
+			return nil, errors.Wrap(err, "failed to scan group assignment permission")
+		}
+		if option := byID[groupID]; option != nil {
+			option.Permissions = append(option.Permissions, permission.New(
+				permission.WithID(id), permission.WithName(name), permission.WithResource(permission.Resource(resource)),
+				permission.WithAction(permission.Action(action)), permission.WithModifier(permission.Modifier(modifier)),
+			))
+		}
+	}
+	if err := permissionRows.Err(); err != nil {
+		return nil, errors.Wrap(err, "failed to iterate group assignment permissions")
+	}
+	return options, nil
+}
+
+func (r *pgGroupQueryRepository) FindGroupLabelsByIDs(ctx context.Context, groupIDs []uuid.UUID) ([]*viewmodels.Group, error) {
+	if len(groupIDs) == 0 {
+		return []*viewmodels.Group{}, nil
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get transaction")
+	}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant ID")
+	}
+	rows, err := tx.Query(ctx, `
+		SELECT g.id, g.type, g.name, COALESCE(g.description, '')
+		FROM user_groups g
+		WHERE g.tenant_id = $1 AND g.id = ANY($2::uuid[])
+		ORDER BY LOWER(g.name), g.id`, tenantID, groupIDs)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load group labels")
+	}
+	defer rows.Close()
+	groups := make([]*viewmodels.Group, 0, len(groupIDs))
+	for rows.Next() {
+		var id uuid.UUID
+		group := &viewmodels.Group{}
+		if err := rows.Scan(&id, &group.Type, &group.Name, &group.Description); err != nil {
+			return nil, errors.Wrap(err, "failed to scan group label")
+		}
+		group.ID = id.String()
+		groups = append(groups, group)
+	}
+	return groups, rows.Err()
 }
 
 func (r *pgGroupQueryRepository) fieldMapping() map[Field]string {
@@ -84,10 +196,10 @@ func (r *pgGroupQueryRepository) fieldMapping() map[Field]string {
 	}
 }
 
-func (r *pgGroupQueryRepository) filtersToSQL(ctx context.Context, filters []GroupFilter) ([]string, []interface{}) {
+func (r *pgGroupQueryRepository) filtersToSQL(ctx context.Context, filters []GroupFilter) ([]string, []interface{}, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return []string{}, []interface{}{}
+		return nil, nil, err
 	}
 
 	// Always include tenant filter as first condition
@@ -106,7 +218,7 @@ func (r *pgGroupQueryRepository) filtersToSQL(ctx context.Context, filters []Gro
 		}
 	}
 
-	return conditions, args
+	return conditions, args, nil
 }
 
 func (r *pgGroupQueryRepository) FindGroups(ctx context.Context, params *GroupFindParams) ([]*viewmodels.Group, int, error) {
@@ -115,7 +227,10 @@ func (r *pgGroupQueryRepository) FindGroups(ctx context.Context, params *GroupFi
 		return nil, 0, errors.Wrap(err, "failed to get transaction")
 	}
 
-	conditions, args := r.filtersToSQL(ctx, params.Filters)
+	conditions, args, err := r.filtersToSQL(ctx, params.Filters)
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "failed to get tenant ID")
+	}
 	whereClause := ""
 	if len(conditions) > 0 {
 		whereClause = " WHERE " + strings.Join(conditions, " AND ")
@@ -163,13 +278,13 @@ func (r *pgGroupQueryRepository) FindGroups(ctx context.Context, params *GroupFi
 		}
 
 		group := mapToGroupViewModel(dbGroup)
-
-		// Load users and roles
-		if err := r.loadGroupUsersAndRoles(ctx, &group); err != nil {
-			return nil, 0, errors.Wrap(err, "failed to load users and roles")
-		}
-
 		groups = append(groups, &group)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, errors.Wrap(err, "failed to iterate groups")
+	}
+	if err := r.loadGroupRelationsBatch(ctx, groups); err != nil {
+		return nil, 0, errors.Wrap(err, "failed to load users and roles")
 	}
 
 	return groups, count, nil
@@ -201,7 +316,7 @@ func (r *pgGroupQueryRepository) FindGroupByID(ctx context.Context, groupID stri
 	group := mapToGroupViewModel(dbGroup)
 
 	// Load users and roles
-	if err := r.loadGroupUsersAndRoles(ctx, &group); err != nil {
+	if err := r.loadGroupRelationsBatch(ctx, []*viewmodels.Group{&group}); err != nil {
 		return nil, errors.Wrap(err, "failed to load users and roles")
 	}
 
@@ -233,7 +348,10 @@ func (r *pgGroupQueryRepository) SearchGroups(ctx context.Context, params *Group
 	argIndex := 3
 
 	// Add additional filters if any
-	conditions, filterArgs := r.filtersToSQL(ctx, params.Filters)
+	conditions, filterArgs, err := r.filtersToSQL(ctx, params.Filters)
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "failed to get tenant ID")
+	}
 	// Skip the first condition since it's the tenant filter we already added
 	if len(conditions) > 1 {
 		additionalConditions := conditions[1:]
@@ -292,19 +410,22 @@ func (r *pgGroupQueryRepository) SearchGroups(ctx context.Context, params *Group
 		}
 
 		group := mapToGroupViewModel(dbGroup)
-
-		// Load users and roles
-		if err := r.loadGroupUsersAndRoles(ctx, &group); err != nil {
-			return nil, 0, errors.Wrap(err, "failed to load users and roles")
-		}
-
 		groups = append(groups, &group)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, errors.Wrap(err, "failed to iterate groups")
+	}
+	if err := r.loadGroupRelationsBatch(ctx, groups); err != nil {
+		return nil, 0, errors.Wrap(err, "failed to load users and roles")
 	}
 
 	return groups, count, nil
 }
 
-func (r *pgGroupQueryRepository) loadGroupUsersAndRoles(ctx context.Context, group *viewmodels.Group) error {
+func (r *pgGroupQueryRepository) loadGroupRelationsBatch(ctx context.Context, groups []*viewmodels.Group) error {
+	if len(groups) == 0 {
+		return nil
+	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
@@ -315,17 +436,38 @@ func (r *pgGroupQueryRepository) loadGroupUsersAndRoles(ctx context.Context, gro
 		return errors.Wrap(err, "failed to get tenant ID")
 	}
 
-	// Load users
-	userRows, err := tx.Query(ctx, selectGroupUsersSQL, group.ID, tenantID)
+	byID := make(map[string]*viewmodels.Group, len(groups))
+	ids := make([]uuid.UUID, 0, len(groups))
+	for _, item := range groups {
+		id, parseErr := uuid.Parse(item.ID)
+		if parseErr != nil {
+			return errors.Wrap(parseErr, "invalid group ID")
+		}
+		item.Users = make([]*viewmodels.User, 0)
+		item.Roles = make([]*viewmodels.Role, 0)
+		byID[item.ID] = item
+		ids = append(ids, id)
+	}
+
+	userRows, err := tx.Query(ctx, `SELECT gu.group_id,
+		u.id, u.tenant_id, u.type, u.first_name, u.last_name, u.middle_name,
+		u.email, u.phone, u.ui_language, u.avatar_id, u.last_login, u.last_action,
+		u.created_at, u.updated_at
+		FROM group_users gu
+		JOIN user_groups g ON g.id = gu.group_id
+		JOIN users u ON u.id = gu.user_id AND u.tenant_id = g.tenant_id
+		WHERE gu.group_id = ANY($1::uuid[]) AND g.tenant_id = $2
+		ORDER BY gu.group_id, u.id`, ids, tenantID)
 	if err != nil {
 		return errors.Wrap(err, "failed to query group users")
 	}
 	defer userRows.Close()
 
-	group.Users = make([]*viewmodels.User, 0)
 	for userRows.Next() {
+		var groupID uuid.UUID
 		var dbUser models.User
 		err := userRows.Scan(
+			&groupID,
 			&dbUser.ID, &dbUser.TenantID, &dbUser.Type, &dbUser.FirstName, &dbUser.LastName, &dbUser.MiddleName,
 			&dbUser.Email, &dbUser.Phone, &dbUser.UILanguage, &dbUser.AvatarID, &dbUser.LastLogin, &dbUser.LastAction,
 			&dbUser.CreatedAt, &dbUser.UpdatedAt,
@@ -336,20 +478,30 @@ func (r *pgGroupQueryRepository) loadGroupUsersAndRoles(ctx context.Context, gro
 
 		// For group users, we don't need to load avatars and full details
 		user := mapToUserViewModel(dbUser, false, nil)
-		group.Users = append(group.Users, &user)
+		byID[groupID.String()].Users = append(byID[groupID.String()].Users, &user)
+	}
+	if err := userRows.Err(); err != nil {
+		return errors.Wrap(err, "failed to iterate group users")
 	}
 
 	// Load roles
-	roleRows, err := tx.Query(ctx, selectGroupRolesSQL, group.ID, tenantID)
+	roleRows, err := tx.Query(ctx, `SELECT gr.group_id,
+		r.id, r.type, r.name, r.description, r.created_at, r.updated_at
+		FROM group_roles gr
+		JOIN user_groups g ON g.id = gr.group_id
+		JOIN roles r ON r.id = gr.role_id AND r.tenant_id = g.tenant_id
+		WHERE gr.group_id = ANY($1::uuid[]) AND g.tenant_id = $2
+		ORDER BY gr.group_id, r.id`, ids, tenantID)
 	if err != nil {
 		return errors.Wrap(err, "failed to query group roles")
 	}
 	defer roleRows.Close()
 
-	group.Roles = make([]*viewmodels.Role, 0)
 	for roleRows.Next() {
+		var groupID uuid.UUID
 		var dbRole models.Role
 		err := roleRows.Scan(
+			&groupID,
 			&dbRole.ID, &dbRole.Type, &dbRole.Name, &dbRole.Description,
 			&dbRole.CreatedAt, &dbRole.UpdatedAt,
 		)
@@ -357,10 +509,9 @@ func (r *pgGroupQueryRepository) loadGroupUsersAndRoles(ctx context.Context, gro
 			return errors.Wrap(err, "failed to scan role")
 		}
 
-		group.Roles = append(group.Roles, mapToRoleViewModel(dbRole))
+		byID[groupID.String()].Roles = append(byID[groupID.String()].Roles, mapToRoleViewModel(dbRole))
 	}
-
-	return nil
+	return errors.Wrap(roleRows.Err(), "failed to iterate group roles")
 }
 
 func mapToGroupViewModel(dbGroup models.Group) viewmodels.Group {

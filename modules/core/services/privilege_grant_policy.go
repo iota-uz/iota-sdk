@@ -159,6 +159,17 @@ func (p *PrivilegeGrantPolicy) actor(ctx context.Context, additionalUserIDs ...u
 	return p.users.GetByID(ctx, contextActor.ID())
 }
 
+func (p *PrivilegeGrantPolicy) LockUser(ctx context.Context, userID uint) error {
+	const op = serrors.Op("PrivilegeGrantPolicy.LockUser")
+	if err := p.locks.LockTenant(ctx); err != nil {
+		return serrors.E(op, err)
+	}
+	if err := p.locks.LockUsers(ctx, userID); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
+}
+
 func (p *PrivilegeGrantPolicy) validateTenant(ctx context.Context, actor user.User, tenantID uuid.UUID, action, targetType, targetID string) error {
 	contextTenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
@@ -313,7 +324,23 @@ func (p *PrivilegeGrantPolicy) AuthorizeUserUpdate(ctx context.Context, desired 
 	if current.Type() == user.TypeSystem || !Dominates(user.EffectivePermissions(actor), user.EffectivePermissions(current)) {
 		return nil, p.deny(actor, "user.update", "user", strconv.FormatUint(uint64(desired.ID()), 10), "target_dominance", denialTargetDominance)
 	}
-	return p.canonicalUser(ctx, actor, desired, "user.update")
+	canonical, err := p.canonicalUser(ctx, actor, desired, "user.update")
+	if err != nil {
+		return nil, err
+	}
+	if !containsPasswordChange(desired.Events()) {
+		canonical = canonical.SetPasswordUnsafe(current.Password())
+	}
+	return canonical, nil
+}
+
+func containsPasswordChange(events []interface{}) bool {
+	for _, event := range events {
+		if _, ok := event.(*user.UpdatedPasswordEvent); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // AuthorizeSelfUpdate joins the self-service path to the same tenant lock used
@@ -553,13 +580,7 @@ func (p *PrivilegeGrantPolicy) CanGrantRole(actor user.User, candidate role.Role
 }
 
 func (p *PrivilegeGrantPolicy) CanGrantRoleOption(actor user.User, roleType role.Type, permissions []permission.Permission) bool {
-	if actor == nil {
-		return false
-	}
-	if roleType == role.TypeSystem && !actor.Can(corepermissions.RoleAssignSystem) {
-		return false
-	}
-	return Dominates(user.EffectivePermissions(actor), permissions)
+	return canGrantAssignment(actor, string(roleType), string(role.TypeSystem), corepermissions.RoleAssignSystem, permissions)
 }
 
 func (p *PrivilegeGrantPolicy) CanGrantPermission(actor user.User, candidate permission.Permission) bool {
@@ -570,20 +591,21 @@ func (p *PrivilegeGrantPolicy) CanGrantGroup(actor user.User, candidate group.Gr
 	if actor == nil || candidate == nil {
 		return false
 	}
-	if candidate.Type() == group.TypeSystem && !actor.Can(corepermissions.GroupAssignSystem) {
-		return false
-	}
-	return Dominates(user.EffectivePermissions(actor), permissionsForRoles(candidate.Roles()))
+	return p.CanGrantGroupOption(actor, candidate.Type(), permissionsForRoles(candidate.Roles()))
 }
 
 func (p *PrivilegeGrantPolicy) CanGrantGroupOption(actor user.User, groupType group.Type, permissions []permission.Permission) bool {
+	return canGrantAssignment(actor, string(groupType), string(group.TypeSystem), corepermissions.GroupAssignSystem, permissions)
+}
+
+func canGrantAssignment(actor user.User, candidateType, systemType string, systemPermission permission.Permission, required []permission.Permission) bool {
 	if actor == nil {
 		return false
 	}
-	if groupType == group.TypeSystem && !actor.Can(corepermissions.GroupAssignSystem) {
+	if candidateType == systemType && !actor.Can(systemPermission) {
 		return false
 	}
-	return Dominates(user.EffectivePermissions(actor), permissions)
+	return Dominates(user.EffectivePermissions(actor), required)
 }
 
 func (p *PrivilegeGrantPolicy) CanGrantGroupID(ctx context.Context, actor user.User, id uuid.UUID) (bool, error) {
@@ -595,10 +617,17 @@ func (p *PrivilegeGrantPolicy) CanGrantGroupID(ctx context.Context, actor user.U
 }
 
 func (p *PrivilegeGrantPolicy) CanManageUser(actor user.User, target user.User) bool {
-	if actor == nil || target == nil || actor.ID() == target.ID() || target.Type() == user.TypeSystem {
+	if target == nil {
 		return false
 	}
-	return actor.TenantID() == target.TenantID() && Dominates(user.EffectivePermissions(actor), user.EffectivePermissions(target))
+	return p.CanManageUserProjection(actor, target.ID(), target.TenantID(), target.Type(), user.EffectivePermissions(target))
+}
+
+func (p *PrivilegeGrantPolicy) CanManageUserProjection(actor user.User, targetID uint, targetTenantID uuid.UUID, targetType user.Type, targetPermissions []permission.Permission) bool {
+	if actor == nil || actor.ID() == targetID || targetType == user.TypeSystem {
+		return false
+	}
+	return actor.TenantID() == targetTenantID && Dominates(user.EffectivePermissions(actor), targetPermissions)
 }
 
 func (p *PrivilegeGrantPolicy) CanManageRole(actor user.User, target role.Role) bool {

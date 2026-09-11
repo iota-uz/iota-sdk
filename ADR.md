@@ -7,4 +7,5 @@
 
 ## Core
 
-- **Проекции вариантов назначения в формах пользователя** — [запись](adr/core/user-form-assignment-options.md) · accepted · 2026-09-11
+- **Проекции вариантов назначения в формах пользователя** — [запись](adr/core/user-form-assignment-options.md) · superseded · 2026-09-11
+- **Проекции назначений в существующем query-слое** — [запись](adr/core/assignment-query-projections.md) · accepted · 2026-09-11

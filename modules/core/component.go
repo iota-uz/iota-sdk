@@ -131,7 +131,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, query.NewPgUserQueryRepository)
 	composition.ProvideFunc(builder, query.NewPgGroupQueryRepository)
 	composition.ProvideFunc(builder, query.NewPgRoleQueryRepository)
-	composition.ProvideFunc(builder, query.NewPgUserFormOptionsRepository)
 	composition.ProvideFunc(builder, query.NewPgOrgQueryRepository)
 
 	// ----- Services -----
@@ -144,7 +143,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, services.NewUserQueryService)
 	composition.ProvideFunc(builder, services.NewGroupQueryService)
 	composition.ProvideFunc(builder, services.NewRoleQueryService)
-	composition.ProvideFunc(builder, services.NewUserFormOptionsService)
 	composition.ProvideFunc(builder, services.NewExcelExportService)
 	composition.ProvideFunc(builder, newCoreAuthService)
 	composition.ProvideFunc(builder, services.NewAuthFlowServiceWithBrowserSessions)

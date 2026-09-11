@@ -24,6 +24,10 @@ func (s *UserQueryService) FindUserByID(ctx context.Context, userID int) (*viewm
 	return s.repo.FindUserByID(ctx, userID)
 }
 
+func (s *UserQueryService) CanDeleteUser(ctx context.Context, userID int) (bool, error) {
+	return s.repo.CanDeleteUser(ctx, userID)
+}
+
 func (s *UserQueryService) SearchUsers(ctx context.Context, params *query.FindParams) ([]*viewmodels.User, int, error) {
 	return s.repo.SearchUsers(ctx, params)
 }

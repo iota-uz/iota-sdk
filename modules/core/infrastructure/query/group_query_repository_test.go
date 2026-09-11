@@ -1,12 +1,78 @@
 package query_test
 
 import (
+	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 )
+
+type countingTx struct {
+	pgx.Tx
+	queries int
+}
+
+func (tx *countingTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	tx.queries++
+	return tx.Tx.Query(ctx, sql, args...)
+}
+
+func (tx *countingTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	tx.queries++
+	return tx.Tx.QueryRow(ctx, sql, args...)
+}
+
+func TestPgGroupQueryRepositoryRequiresTenantBeforeSQL(t *testing.T) {
+	// Falsely green if a transaction is not installed and UseTx fails before tenant validation.
+	fixtures := setupTest(t)
+	measured := &countingTx{Tx: fixtures.Tx}
+	ctx := composables.WithTx(context.Background(), measured)
+
+	_, _, err := query.NewPgGroupQueryRepository().FindGroups(ctx, &query.GroupFindParams{})
+	require.Error(t, err)
+	require.Zero(t, measured.queries)
+}
+
+func TestPgGroupQueryRepositoryBatchesRelationsAndAssignmentOptions(t *testing.T) {
+	// Falsely green if the list contains one group or the measured call bypasses the counting transaction.
+	fixtures := setupTest(t)
+	tenantID, err := composables.UseTenantID(fixtures.Ctx)
+	require.NoError(t, err)
+	prefix := uuid.NewString()
+	_, err = fixtures.Tx.Exec(fixtures.Ctx, `INSERT INTO user_groups
+		(id, type, tenant_id, name, description, created_at, updated_at)
+		SELECT gen_random_uuid(), 'user', $1, $2 || '-' || LPAD(n::text, 2, '0'), '', NOW(), NOW()
+		FROM generate_series(1, 30) n`, tenantID, prefix)
+	require.NoError(t, err)
+
+	repository := query.NewPgGroupQueryRepository()
+	queryCount := func(limit int) int {
+		measured := &countingTx{Tx: fixtures.Tx}
+		ctx := composables.WithTx(fixtures.Ctx, measured)
+		groups, _, findErr := repository.FindGroups(ctx, &query.GroupFindParams{Limit: limit, SortBy: query.SortBy{Fields: []repo.SortByField[query.Field]{{Field: query.GroupFieldID, Ascending: false}}}})
+		require.NoError(t, findErr)
+		require.Len(t, groups, limit)
+		return measured.queries
+	}
+	require.Equal(t, queryCount(1), queryCount(25))
+
+	measured := &countingTx{Tx: fixtures.Tx}
+	options, err := repository.FindAssignmentOptions(composables.WithTx(fixtures.Ctx, measured))
+	require.NoError(t, err)
+	require.Equal(t, 2, measured.queries)
+	found := 0
+	for _, option := range options {
+		if len(option.Name) >= len(prefix) && option.Name[:len(prefix)] == prefix {
+			found++
+		}
+	}
+	require.Equal(t, 30, found)
+}
 
 func TestPgGroupQueryRepository_FindGroups(t *testing.T) {
 	t.Parallel()
