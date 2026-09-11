@@ -393,6 +393,7 @@ function TabsGroup({ group, items, depth, panels, registry, filterToday }: {
             aria-controls={panelId(index)}
             aria-selected={tab === current}
             className="lens-tabstrip-tab"
+            data-testid={`lens-tabs-${group.id}-tab-${index}`}
             id={tabId(index)}
             key={tab}
             onClick={() => select(tab)}
