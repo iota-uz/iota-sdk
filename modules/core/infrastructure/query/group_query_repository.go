@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/pkg/errors"
 )
 
@@ -64,13 +65,14 @@ func NewPgGroupQueryRepository() GroupQueryRepository {
 }
 
 func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*viewmodels.AssignmentOption, error) {
+	const op = serrors.Op("GroupQueryRepository.FindAssignmentOptions")
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+		return nil, serrors.E(op, err)
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant ID")
+		return nil, serrors.E(op, err)
 	}
 
 	rows, err := tx.Query(ctx, `
@@ -79,7 +81,7 @@ func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*
 		WHERE g.tenant_id = $1
 		ORDER BY LOWER(g.name), g.id`, tenantID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to list group assignment options")
+		return nil, serrors.E(op, err)
 	}
 	defer rows.Close()
 
@@ -90,7 +92,7 @@ func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*
 		var id uuid.UUID
 		option := &viewmodels.AssignmentOption{Permissions: []permission.Permission{}}
 		if err := rows.Scan(&id, &option.Type, &option.Name, &option.Description); err != nil {
-			return nil, errors.Wrap(err, "failed to scan group assignment option")
+			return nil, serrors.E(op, err)
 		}
 		option.ID = id.String()
 		options = append(options, option)
@@ -98,7 +100,7 @@ func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*
 		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, errors.Wrap(err, "failed to iterate group assignment options")
+		return nil, serrors.E(op, err)
 	}
 	if len(ids) == 0 {
 		return options, nil
@@ -115,14 +117,14 @@ func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*
 		GROUP BY gr.group_id, p.id, p.name, p.resource, p.action, p.modifier
 		ORDER BY gr.group_id, p.name, p.id`, ids, tenantID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load group assignment permissions")
+		return nil, serrors.E(op, err)
 	}
 	defer permissionRows.Close()
 	for permissionRows.Next() {
 		var groupID, id uuid.UUID
 		var name, resource, action, modifier string
 		if err := permissionRows.Scan(&groupID, &id, &name, &resource, &action, &modifier); err != nil {
-			return nil, errors.Wrap(err, "failed to scan group assignment permission")
+			return nil, serrors.E(op, err)
 		}
 		if option := byID[groupID]; option != nil {
 			option.Permissions = append(option.Permissions, permission.New(
@@ -132,22 +134,23 @@ func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*
 		}
 	}
 	if err := permissionRows.Err(); err != nil {
-		return nil, errors.Wrap(err, "failed to iterate group assignment permissions")
+		return nil, serrors.E(op, err)
 	}
 	return options, nil
 }
 
 func (r *pgGroupQueryRepository) FindGroupLabelsByIDs(ctx context.Context, groupIDs []uuid.UUID) ([]*viewmodels.Group, error) {
+	const op = serrors.Op("GroupQueryRepository.FindGroupLabelsByIDs")
 	if len(groupIDs) == 0 {
 		return []*viewmodels.Group{}, nil
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+		return nil, serrors.E(op, err)
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant ID")
+		return nil, serrors.E(op, err)
 	}
 	rows, err := tx.Query(ctx, `
 		SELECT g.id, g.type, g.name, COALESCE(g.description, '')
@@ -155,7 +158,7 @@ func (r *pgGroupQueryRepository) FindGroupLabelsByIDs(ctx context.Context, group
 		WHERE g.tenant_id = $1 AND g.id = ANY($2::uuid[])
 		ORDER BY LOWER(g.name), g.id`, tenantID, groupIDs)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load group labels")
+		return nil, serrors.E(op, err)
 	}
 	defer rows.Close()
 	groups := make([]*viewmodels.Group, 0, len(groupIDs))
@@ -163,12 +166,15 @@ func (r *pgGroupQueryRepository) FindGroupLabelsByIDs(ctx context.Context, group
 		var id uuid.UUID
 		group := &viewmodels.Group{}
 		if err := rows.Scan(&id, &group.Type, &group.Name, &group.Description); err != nil {
-			return nil, errors.Wrap(err, "failed to scan group label")
+			return nil, serrors.E(op, err)
 		}
 		group.ID = id.String()
 		groups = append(groups, group)
 	}
-	return groups, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return groups, nil
 }
 
 func (r *pgGroupQueryRepository) fieldMapping() map[Field]string {

@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -96,6 +97,7 @@ func (c *UsersController) GetSingle(
 	slots.Async(
 		users.SingleSlotGroups,
 		func(ctx context.Context) (templ.Component, error) {
+			const op = serrors.Op("controllers.UsersController.GetSingle.groupsSlot")
 			if len(userViewModel.GroupIDs) == 0 {
 				return escapedText(""), nil
 			}
@@ -104,7 +106,7 @@ func (c *UsersController) GetSingle(
 			for _, value := range userViewModel.GroupIDs {
 				id, parseErr := uuid.Parse(value)
 				if parseErr != nil {
-					return nil, parseErr
+					return nil, serrors.E(op, parseErr)
 				}
 				groupIDs = append(groupIDs, id)
 			}

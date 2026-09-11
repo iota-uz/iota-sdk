@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/pkg/errors"
 )
 
@@ -300,19 +301,23 @@ func (r *pgUserQueryRepository) FindUserByID(ctx context.Context, userID int) (*
 }
 
 func (r *pgUserQueryRepository) CanDeleteUser(ctx context.Context, userID int) (bool, error) {
+	const op = serrors.Op("UserQueryRepository.CanDeleteUser")
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to get transaction")
+		return false, serrors.E(op, err)
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to get tenant ID")
+		return false, serrors.E(op, err)
 	}
 	var canDelete bool
 	err = tx.QueryRow(ctx, `SELECT u.type <> 'system' AND
 		(SELECT COUNT(*) FROM users WHERE tenant_id = $2) > 1
 		FROM users u WHERE u.id = $1 AND u.tenant_id = $2`, userID, tenantID).Scan(&canDelete)
-	return canDelete, errors.Wrap(err, "failed to determine whether user can be deleted")
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+	return canDelete, nil
 }
 
 func (r *pgUserQueryRepository) SearchUsers(ctx context.Context, params *FindParams) ([]*viewmodels.User, int, error) {
@@ -350,17 +355,18 @@ func (r *pgUserQueryRepository) FindUsersWithRoles(ctx context.Context, params *
 }
 
 func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUsers []*models.User, users []*viewmodels.User) error {
+	const op = serrors.Op("UserQueryRepository.loadUserRelationsBatch")
 	if len(users) == 0 {
 		return nil
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to get transaction")
+		return serrors.E(op, err)
 	}
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to get tenant ID")
+		return serrors.E(op, err)
 	}
 	byID := make(map[uint]*viewmodels.User, len(users))
 	userIDs := make([]uint, 0, len(users))
@@ -387,20 +393,20 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 		rows, queryErr := tx.Query(ctx, `SELECT id, tenant_id, hash, path, name, size, mimetype, type, created_at, updated_at
 			FROM uploads WHERE id = ANY($1::int[]) AND tenant_id = $2`, avatarIDs, tenantID)
 		if queryErr != nil {
-			return errors.Wrap(queryErr, "failed to query avatars")
+			return serrors.E(op, queryErr)
 		}
 		uploads := make(map[uint]*models.Upload, len(avatarIDs))
 		for rows.Next() {
 			var upload models.Upload
 			if scanErr := rows.Scan(&upload.ID, &upload.TenantID, &upload.Hash, &upload.Path, &upload.Name, &upload.Size, &upload.Mimetype, &upload.Type, &upload.CreatedAt, &upload.UpdatedAt); scanErr != nil {
 				rows.Close()
-				return errors.Wrap(scanErr, "failed to scan avatar")
+				return serrors.E(op, scanErr)
 			}
 			uploads[upload.ID] = &upload
 		}
 		if rowsErr := rows.Err(); rowsErr != nil {
 			rows.Close()
-			return errors.Wrap(rowsErr, "failed to iterate avatars")
+			return serrors.E(op, rowsErr)
 		}
 		rows.Close()
 		for i, dbUser := range dbUsers {
@@ -418,7 +424,7 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 		JOIN roles r ON r.id = ur.role_id AND r.tenant_id = u.tenant_id
 		WHERE ur.user_id = ANY($1::int[]) AND u.tenant_id = $2 ORDER BY ur.user_id, r.id`, userIDs, tenantID)
 	if err != nil {
-		return errors.Wrap(err, "failed to query roles")
+		return serrors.E(op, err)
 	}
 	for rows.Next() {
 		var userID uint
@@ -433,14 +439,14 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 			&role.UpdatedAt,
 		)
 		if err != nil {
-			return errors.Wrap(err, "failed to scan role")
+			return serrors.E(op, err)
 		}
 
 		byID[userID].Roles = append(byID[userID].Roles, mapToRoleViewModel(role))
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
-		return errors.Wrap(err, "failed to iterate roles")
+		return serrors.E(op, err)
 	}
 	rows.Close()
 
@@ -449,7 +455,10 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 		FROM (
 			SELECT up.user_id, up.permission_id, TRUE AS is_direct, TRUE AS in_legacy_projection FROM user_permissions up
 			UNION
-			SELECT ur.user_id, rp.permission_id, FALSE, TRUE FROM user_roles ur JOIN role_permissions rp ON rp.role_id = ur.role_id
+			SELECT ur.user_id, rp.permission_id, FALSE, TRUE FROM user_roles ur
+			JOIN users role_user ON role_user.id = ur.user_id
+			JOIN roles r ON r.id = ur.role_id AND r.tenant_id = role_user.tenant_id
+			JOIN role_permissions rp ON rp.role_id = r.id
 			UNION
 			SELECT gu.user_id, rp.permission_id, FALSE, FALSE FROM group_users gu
 			JOIN user_groups g ON g.id = gu.group_id
@@ -463,7 +472,7 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 		GROUP BY grants.user_id, p.id, p.name, p.resource, p.action, p.modifier
 		ORDER BY grants.user_id, p.name, p.id`, userIDs, tenantID)
 	if err != nil {
-		return errors.Wrap(err, "failed to query permissions")
+		return serrors.E(op, err)
 	}
 	for permRows.Next() {
 		var userID uint
@@ -480,7 +489,7 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 			&inLegacyProjection,
 		)
 		if err != nil {
-			return errors.Wrap(err, "failed to scan permission")
+			return serrors.E(op, err)
 		}
 
 		mapped := mapToPermissionViewModel(perm)
@@ -494,7 +503,7 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 	}
 	if err := permRows.Err(); err != nil {
 		permRows.Close()
-		return errors.Wrap(err, "failed to iterate permissions")
+		return serrors.E(op, err)
 	}
 	permRows.Close()
 
@@ -502,19 +511,19 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 		JOIN users u ON u.id = gu.user_id JOIN user_groups g ON g.id = gu.group_id AND g.tenant_id = u.tenant_id
 		WHERE gu.user_id = ANY($1::int[]) AND u.tenant_id = $2 ORDER BY gu.user_id, gu.group_id`, userIDs, tenantID)
 	if err != nil {
-		return errors.Wrap(err, "failed to query groups")
+		return serrors.E(op, err)
 	}
 	for groupRows.Next() {
 		var userID uint
 		var groupID uuid.UUID
 		if err := groupRows.Scan(&userID, &groupID); err != nil {
-			return errors.Wrap(err, "failed to scan group ID")
+			return serrors.E(op, err)
 		}
 		byID[userID].GroupIDs = append(byID[userID].GroupIDs, groupID.String())
 	}
 	if err := groupRows.Err(); err != nil {
 		groupRows.Close()
-		return errors.Wrap(err, "failed to iterate groups")
+		return serrors.E(op, err)
 	}
 	groupRows.Close()
 
@@ -522,7 +531,7 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 		blockerRows, queryErr := tx.Query(ctx, `SELECT id, first_name, last_name, phone, email FROM users
 			WHERE id = ANY($1::int[]) AND tenant_id = $2`, blockedByIDs, tenantID)
 		if queryErr != nil {
-			return errors.Wrap(queryErr, "failed to query blocker labels")
+			return serrors.E(op, queryErr)
 		}
 		labels := make(map[uint]string, len(blockedByIDs))
 		for blockerRows.Next() {
@@ -531,7 +540,7 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 			var phone sql.NullString
 			if scanErr := blockerRows.Scan(&id, &firstName, &lastName, &phone, &email); scanErr != nil {
 				blockerRows.Close()
-				return errors.Wrap(scanErr, "failed to scan blocker label")
+				return serrors.E(op, scanErr)
 			}
 			label := strings.TrimSpace(firstName + " " + lastName)
 			if label == "" && phone.Valid {
@@ -544,7 +553,7 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 		}
 		if rowsErr := blockerRows.Err(); rowsErr != nil {
 			blockerRows.Close()
-			return errors.Wrap(rowsErr, "failed to iterate blocker labels")
+			return serrors.E(op, rowsErr)
 		}
 		blockerRows.Close()
 		for i, dbUser := range dbUsers {

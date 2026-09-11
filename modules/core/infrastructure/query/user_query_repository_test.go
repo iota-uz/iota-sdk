@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	permissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/stretchr/testify/require"
 )
@@ -66,6 +67,36 @@ func TestPgUserQueryRepositoryIncludesGroupRolePermissions(t *testing.T) {
 	require.Empty(t, result.DirectPermissions)
 	require.Len(t, result.EffectivePermissions, 1)
 	require.Equal(t, permissionID.String(), result.EffectivePermissions[0].ID)
+}
+
+func TestPgUserQueryRepositoryExcludesCrossTenantRolePermissions(t *testing.T) {
+	// Falsely green if the foreign role has no permission or the stale user_roles row is rejected before the read.
+	fixtures := setupTest(t)
+	tenantID, err := composables.UseTenantID(fixtures.Ctx)
+	require.NoError(t, err)
+	require.NoError(t, persistence.NewPermissionRepository().Save(fixtures.Ctx, permissions.UserRead))
+	permissionID := permissions.UserRead.ID()
+	var userID uint
+	require.NoError(t, fixtures.Tx.QueryRow(fixtures.Ctx, `INSERT INTO users
+		(tenant_id, type, first_name, last_name, email, ui_language)
+		VALUES ($1, 'user', 'Tenant', 'Boundary', $2, 'en') RETURNING id`, tenantID, uuid.NewString()+"@example.test").Scan(&userID))
+
+	foreignTenant, err := itf.CreateTestTenant(fixtures.Ctx, fixtures.Pool)
+	require.NoError(t, err)
+	var foreignRoleID uint
+	require.NoError(t, fixtures.Tx.QueryRow(fixtures.Ctx, `INSERT INTO roles
+		(type, tenant_id, name, description) VALUES ('user', $1, $2, '') RETURNING id`, foreignTenant.ID, uuid.NewString()).Scan(&foreignRoleID))
+	_, err = fixtures.Tx.Exec(fixtures.Ctx, `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)`, foreignRoleID, permissionID)
+	require.NoError(t, err)
+	_, err = fixtures.Tx.Exec(fixtures.Ctx, `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, userID, foreignRoleID)
+	require.NoError(t, err)
+
+	result, err := query.NewPgUserQueryRepository().FindUserByID(fixtures.Ctx, int(userID))
+	require.NoError(t, err)
+	require.Empty(t, result.Roles)
+	require.Empty(t, result.Permissions)
+	require.Empty(t, result.DirectPermissions)
+	require.Empty(t, result.EffectivePermissions)
 }
 
 func TestPgUserQueryRepository_FindUsers(t *testing.T) {

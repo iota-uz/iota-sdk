@@ -291,11 +291,12 @@ func (c *UsersController) buildEditFormProps(
 }
 
 func permissionsFromViewModel(values []*viewmodels.Permission) ([]permission.Permission, error) {
+	const op = serrors.Op("controllers.permissionsFromViewModel")
 	result := make([]permission.Permission, 0, len(values))
 	for _, value := range values {
 		id, err := uuid.Parse(value.ID)
 		if err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 		result = append(result, permission.New(permission.WithID(id), permission.WithName(value.Name),
 			permission.WithResource(permission.Resource(value.Resource)), permission.WithAction(permission.Action(value.Action)),

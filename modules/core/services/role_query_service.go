@@ -6,6 +6,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type RoleQueryService struct {
@@ -21,5 +22,10 @@ func (s *RoleQueryService) GetRolesWithCounts(ctx context.Context) ([]*viewmodel
 }
 
 func (s *RoleQueryService) FindAssignmentOptions(ctx context.Context) ([]*viewmodels.AssignmentOption, error) {
-	return s.repo.FindAssignmentOptions(ctx)
+	const op = serrors.Op("RoleQueryService.FindAssignmentOptions")
+	options, err := s.repo.FindAssignmentOptions(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return options, nil
 }
