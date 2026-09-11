@@ -30,28 +30,6 @@ const (
 		u.created_at, u.updated_at, u.is_blocked, u.block_reason, u.blocked_at, u.blocked_by
 	FROM users u
 	WHERE u.id = $1 AND u.tenant_id = $2`
-
-	selectUploadByIDSQL = `SELECT
-		id, tenant_id, hash, path, name, size, mimetype, type, created_at, updated_at
-	FROM uploads
-	WHERE id = $1 AND tenant_id = $2`
-
-	selectUserRolesSQL = `SELECT r.id, r.type, r.name, r.description, r.created_at, r.updated_at
-		FROM roles r
-		JOIN user_roles ur ON r.id = ur.role_id
-		WHERE ur.user_id = $1`
-
-	selectUserPermissionsSQL = `SELECT DISTINCT p.id, p.name, p.resource, p.action, p.modifier
-		FROM permissions p
-		WHERE p.id IN (
-			SELECT permission_id FROM user_permissions WHERE user_id = $1
-			UNION
-			SELECT rp.permission_id FROM role_permissions rp
-			JOIN user_roles ur ON rp.role_id = ur.role_id
-			WHERE ur.user_id = $1
-		)`
-
-	selectUserGroupsSQL = `SELECT group_id FROM group_users WHERE user_id = $1`
 )
 
 type Field = string

@@ -27,20 +27,6 @@ const (
 		g.created_at, g.updated_at
 	FROM user_groups g
 	WHERE g.id = $1 AND g.tenant_id = $2`
-
-	selectGroupUsersSQL = `SELECT
-		u.id, u.tenant_id, u.type, u.first_name, u.last_name, u.middle_name,
-		u.email, u.phone, u.ui_language, u.avatar_id, u.last_login, u.last_action,
-		u.created_at, u.updated_at
-	FROM users u
-	JOIN group_users gu ON u.id = gu.user_id
-	WHERE gu.group_id = $1 AND u.tenant_id = $2`
-
-	selectGroupRolesSQL = `SELECT
-		r.id, r.type, r.name, r.description, r.created_at, r.updated_at
-	FROM roles r
-	JOIN group_roles gr ON r.id = gr.role_id
-	WHERE gr.group_id = $1 AND r.tenant_id = $2`
 )
 
 // Field constants for group sorting and filtering
