@@ -34,7 +34,32 @@ test.describe('user form scalability and self-service password change', () => {
 				[group.rows[0].id, tenantID],
 			);
 			const target = await db.query(`SELECT id FROM users WHERE tenant_id = $1 AND id <> $2 ORDER BY id LIMIT 1`, [tenantID, adminID]);
-			return { groupID: group.rows[0].id as string, targetID: target.rows[0].id as number };
+			const roles = await db.query(
+				`INSERT INTO roles (type, tenant_id, name, description, created_at, updated_at)
+				 SELECT 'user', $1, 'Form role ' || LPAD(n::text, 2, '0'), '', NOW(), NOW()
+				 FROM generate_series(1, 40) n
+				 RETURNING id, name`,
+				[tenantID],
+			);
+			const deniedPermissionID = 'd03121ab-1556-4c2b-93b1-141f77bcb845';
+			await db.query(
+				`INSERT INTO permissions (id, name, resource, action, modifier, description)
+				 VALUES ($1, 'form-retained-role-only', 'form-retained-secret', 'read', 'all', '')`,
+				[deniedPermissionID],
+			);
+			const retainedRole = await db.query(
+				`INSERT INTO roles (type, tenant_id, name, description, created_at, updated_at)
+				 VALUES ('user', $1, 'Previously assigned role', '', NOW(), NOW()) RETURNING id`,
+				[tenantID],
+			);
+			await db.query(`INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)`, [retainedRole.rows[0].id, deniedPermissionID]);
+			await db.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [target.rows[0].id, retainedRole.rows[0].id]);
+			return {
+				groupID: group.rows[0].id as string,
+				targetID: target.rows[0].id as number,
+				roleIDs: roles.rows.map((row) => String(row.id)),
+				retainedRoleID: String(retainedRole.rows[0].id),
+			};
 		});
 
 		await login(page, 'test@gmail.com', 'TestPass123!');
@@ -43,20 +68,29 @@ test.describe('user form scalability and self-service password change', () => {
 			await page.goto(path, { timeout: 3000 });
 			expect(Date.now() - started).toBeLessThan(3000);
 			await expect(page.locator(`select[name="GroupIDs"] option[value="${fixture.groupID}"]`)).toHaveText('Twenty thousand members');
+			for (const roleID of fixture.roleIDs) {
+				await expect(page.locator(`select[name="RoleIDs"] option[value="${roleID}"]`)).toHaveCount(1);
+			}
 		}
+		await expect(page.locator(`select[name="RoleIDs"] option[value="${fixture.retainedRoleID}"]`)).toBeSelected();
 		await page.locator('[name="LastName"]').fill('Preserved edit');
 		await page.locator('select[name="GroupIDs"]').selectOption(fixture.groupID);
+		await page.locator('select[name="RoleIDs"]').selectOption([fixture.retainedRoleID, fixture.roleIDs[0]]);
 		await page.locator('[name="FirstName"]').fill('');
 		await page.locator('#save-btn').click();
 		await expect(page.locator('[name="LastName"]')).toHaveValue('Preserved edit');
 		await expect(page.locator('select[name="GroupIDs"]')).toHaveValue(fixture.groupID);
+		await expect(page.locator(`select[name="RoleIDs"] option[value="${fixture.retainedRoleID}"]`)).toBeSelected();
+		await expect(page.locator(`select[name="RoleIDs"] option[value="${fixture.roleIDs[0]}"]`)).toBeSelected();
 
 		await page.goto('/users/new');
 		await page.locator('[name="FirstName"]').fill('Preserved');
 		await page.locator('select[name="GroupIDs"]').selectOption(fixture.groupID);
+		await page.locator('select[name="RoleIDs"]').selectOption(fixture.roleIDs[0]);
 		await page.locator('#save-btn').click();
 		await expect(page.locator('[name="FirstName"]')).toHaveValue('Preserved');
 		await expect(page.locator('select[name="GroupIDs"]')).toHaveValue(fixture.groupID);
+		await expect(page.locator(`select[name="RoleIDs"] option[value="${fixture.roleIDs[0]}"]`)).toBeSelected();
 	});
 
 	test('profile password form validates, revokes every session, and preserves password on profile edits', async ({ page, browser }) => {
