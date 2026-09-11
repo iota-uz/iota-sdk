@@ -5,9 +5,9 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
@@ -53,7 +53,7 @@ func loadUserFormOptions(
 		return nil, nil, serrors.E(op, err)
 	}
 
-	groups, _, err := groupQueryService.FindGroups(ctx, userGroupsFindParams(userFormGroupsLimit))
+	groupOptions, _, err := groupQueryService.FindGroupOptions(ctx, userGroupsFindParams(userFormGroupsLimit))
 	if err != nil {
 		return nil, nil, serrors.E(op, err)
 	}
@@ -63,15 +63,10 @@ func loadUserFormOptions(
 		return nil, nil, serrors.E(op, err)
 	}
 	grantableRoleEntities := grantableRoles(ctx, roles)
-	grantableGroups := groups[:0]
-	for _, candidate := range groups {
-		id, parseErr := uuid.Parse(candidate.ID)
-		if parseErr != nil {
-			continue
-		}
-		allowed, checkErr := policy.CanGrantGroupID(ctx, actor, id)
-		if checkErr == nil && allowed {
-			grantableGroups = append(grantableGroups, candidate)
+	grantableGroups := make([]*viewmodels.Group, 0, len(groupOptions))
+	for _, candidate := range groupOptions {
+		if policy.CanGrantGroupOption(actor, group.Type(candidate.Group.Type), candidate.Permissions) {
+			grantableGroups = append(grantableGroups, candidate.Group)
 		}
 	}
 

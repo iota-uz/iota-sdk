@@ -48,6 +48,7 @@
       "Placeholder": "Telefon raqamingizni kiriting"
     },
     "Password": "Parol",
+    "ChangePassword": {"Title":"Паролни ўзгартириш","DescText":"Парол ўзгартирилгач, барча фаол сеанслар якунланади.","CurrentPassword":"Жорий парол","NewPassword":"Янги парол","ConfirmPassword":"Янги паролни тасдиқлаш","Submit":"Паролни ўзгартириш","Errors":{"CurrentRequired":"Жорий паролни киритинг.","CurrentIncorrect":"Жорий парол нотўғри.","NewTooShort":"Янги парол камида 8 та белгидан иборат бўлиши керак.","ConfirmationMismatch":"Парол тасдиғи янги паролга мос келмайди."}},
     "Save": "Saqlash",
     "Logo": {
       "FullLogo": "To'liq logo",

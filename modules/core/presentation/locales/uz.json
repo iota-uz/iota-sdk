@@ -48,6 +48,7 @@
       "Placeholder": "Telefon raqamingizni kiriting"
     },
     "Password": "Parol",
+    "ChangePassword": {"Title":"Parolni o‘zgartirish","DescText":"Parol o‘zgartirilgach, barcha faol seanslar yakunlanadi.","CurrentPassword":"Joriy parol","NewPassword":"Yangi parol","ConfirmPassword":"Yangi parolni tasdiqlash","Submit":"Parolni o‘zgartirish","Errors":{"CurrentRequired":"Joriy parolni kiriting.","CurrentIncorrect":"Joriy parol noto‘g‘ri.","NewTooShort":"Yangi parol kamida 8 ta belgidan iborat bo‘lishi kerak.","ConfirmationMismatch":"Parol tasdig‘i yangi parolga mos kelmaydi."}},
     "Save": "Saqlash",
     "Logo": {
       "FullLogo": "To'liq logo",

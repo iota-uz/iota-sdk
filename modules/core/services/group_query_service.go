@@ -20,6 +20,10 @@ func (s *GroupQueryService) FindGroups(ctx context.Context, params *query.GroupF
 	return s.repo.FindGroups(ctx, params)
 }
 
+func (s *GroupQueryService) FindGroupOptions(ctx context.Context, params *query.GroupFindParams) ([]*query.GroupOption, int, error) {
+	return s.repo.FindGroupOptions(ctx, params)
+}
+
 func (s *GroupQueryService) FindGroupByID(ctx context.Context, groupID string) (*viewmodels.Group, error) {
 	return s.repo.FindGroupByID(ctx, groupID)
 }

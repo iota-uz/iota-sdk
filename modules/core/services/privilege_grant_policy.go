@@ -569,6 +569,16 @@ func (p *PrivilegeGrantPolicy) CanGrantGroup(actor user.User, candidate group.Gr
 	return Dominates(user.EffectivePermissions(actor), permissionsForRoles(candidate.Roles()))
 }
 
+func (p *PrivilegeGrantPolicy) CanGrantGroupOption(actor user.User, groupType group.Type, permissions []permission.Permission) bool {
+	if actor == nil {
+		return false
+	}
+	if groupType == group.TypeSystem && !actor.Can(corepermissions.GroupAssignSystem) {
+		return false
+	}
+	return Dominates(user.EffectivePermissions(actor), permissions)
+}
+
 func (p *PrivilegeGrantPolicy) CanGrantGroupID(ctx context.Context, actor user.User, id uuid.UUID) (bool, error) {
 	candidate, err := p.groups.GetByID(ctx, id)
 	if err != nil {

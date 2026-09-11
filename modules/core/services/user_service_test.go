@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
@@ -498,4 +499,45 @@ func TestUserService_UpdateSelf_SecurityValidation(t *testing.T) {
 		assert.Len(t, result.Permissions(), 1)
 		assert.Equal(t, permissions.UserRead.ID(), result.Permissions()[0].ID())
 	})
+}
+
+func TestUserService_ChangePassword(t *testing.T) {
+	// Falsely green if the assertions read the stale in-memory user or omit session persistence.
+	t.Parallel()
+	f := setupTestWithPermissions(t)
+	tenantID, err := composables.UseTenantID(f.Ctx)
+	require.NoError(t, err)
+
+	email, err := internet.NewEmail("change-password@example.test")
+	require.NoError(t, err)
+	initial, err := user.New("Password", "Owner", email, user.UILanguageEN, user.WithTenantID(tenantID)).SetPassword("OldPass123!")
+	require.NoError(t, err)
+	userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
+	created, err := userRepo.Create(f.Ctx, initial)
+	require.NoError(t, err)
+	ctx := composables.WithUser(f.Ctx, created)
+	userService := itf.GetService[services.UserService](f)
+	sessionService := itf.GetService[services.SessionService](f)
+
+	for _, token := range []string{"password-session-one", "password-session-two"} {
+		require.NoError(t, sessionService.Create(ctx, &session.CreateDTO{Token: token, UserID: created.ID(), TenantID: tenantID}))
+	}
+
+	err = userService.ChangePassword(ctx, "wrong password", "NewPass123!")
+	require.ErrorIs(t, err, services.ErrCurrentPasswordMismatch)
+	afterRejected, err := userRepo.GetByID(ctx, created.ID())
+	require.NoError(t, err)
+	require.True(t, afterRejected.CheckPassword("OldPass123!"))
+	sessionsAfterRejected, err := sessionService.GetByUserID(ctx, created.ID())
+	require.NoError(t, err)
+	require.Len(t, sessionsAfterRejected, 2)
+
+	require.NoError(t, userService.ChangePassword(ctx, "OldPass123!", "NewPass123!"))
+	afterChange, err := userRepo.GetByID(ctx, created.ID())
+	require.NoError(t, err)
+	require.False(t, afterChange.CheckPassword("OldPass123!"))
+	require.True(t, afterChange.CheckPassword("NewPass123!"))
+	sessionsAfterChange, err := sessionService.GetByUserID(ctx, created.ID())
+	require.NoError(t, err)
+	require.Empty(t, sessionsAfterChange)
 }

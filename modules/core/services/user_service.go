@@ -14,6 +14,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
+var ErrCurrentPasswordMismatch = errors.New("current password does not match")
+
 type UserService struct {
 	repo           user.Repository
 	validator      user.Validator
@@ -184,6 +186,44 @@ func (s *UserService) UpdateSelf(ctx context.Context, data user.User) (user.User
 		return err
 	})
 	return updated, err
+}
+
+func (s *UserService) ChangePassword(ctx context.Context, currentPassword, newPassword string) error {
+	currentUser, err := composables.UseUser(ctx)
+	if err != nil {
+		return err
+	}
+
+	var updated user.User
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		latest, err := s.repo.GetByID(txCtx, currentUser.ID())
+		if err != nil {
+			return err
+		}
+		if latest.TenantID() != currentUser.TenantID() || !latest.CheckPassword(currentPassword) {
+			return ErrCurrentPasswordMismatch
+		}
+		updated, err = latest.SetPassword(newPassword)
+		if err != nil {
+			return err
+		}
+		if err := s.validator.ValidateUpdate(txCtx, updated); err != nil {
+			return err
+		}
+		if err := s.repo.Update(txCtx, updated); err != nil {
+			return err
+		}
+		_, err = s.sessionService.DeleteByUserID(txCtx, currentUser.ID())
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	updatedEvent := user.NewUpdatedEvent(ctx, updated)
+	updatedEvent.Result = updated
+	s.publisher.Publish(updatedEvent)
+	return nil
 }
 
 // performUpdate executes the common update logic for both Update and UpdateSelf
