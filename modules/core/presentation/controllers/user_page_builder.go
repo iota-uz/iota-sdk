@@ -5,18 +5,16 @@ import (
 	"io"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -28,69 +26,6 @@ type userCreateFormState struct {
 type userEditFormState struct {
 	DTO    *dtos.UpdateUserDTO
 	Errors map[string]string
-}
-
-const userFormGroupsLimit = 1000
-
-func userGroupsFindParams(limit int) *query.GroupFindParams {
-	return &query.GroupFindParams{
-		Limit:   limit,
-		Offset:  0,
-		Filters: []query.GroupFilter{},
-	}
-}
-
-func loadUserFormOptions(
-	ctx context.Context,
-	roleService *services.RoleService,
-	groupQueryService *services.GroupQueryService,
-	policy *services.PrivilegeGrantPolicy,
-) ([]*viewmodels.Role, []*viewmodels.Group, error) {
-	const op = serrors.Op("controllers.loadUserFormOptions")
-
-	roles, err := roleService.GetAll(ctx)
-	if err != nil {
-		return nil, nil, serrors.E(op, err)
-	}
-
-	groupOptions, _, err := groupQueryService.FindGroupOptions(ctx, userGroupsFindParams(userFormGroupsLimit))
-	if err != nil {
-		return nil, nil, serrors.E(op, err)
-	}
-
-	actor, err := composables.UseUser(ctx)
-	if err != nil {
-		return nil, nil, serrors.E(op, err)
-	}
-	grantableRoleEntities := grantableRoles(ctx, roles)
-	grantableGroups := make([]*viewmodels.Group, 0, len(groupOptions))
-	for _, candidate := range groupOptions {
-		if policy.CanGrantGroupOption(actor, group.Type(candidate.Group.Type), candidate.Permissions) {
-			grantableGroups = append(grantableGroups, candidate.Group)
-		}
-	}
-
-	return mapping.MapViewModels(grantableRoleEntities, mappers.RoleToViewModel), grantableGroups, nil
-}
-
-func selectedRoleViewModels(allRoles []*viewmodels.Role, selectedIDs []uint) []*viewmodels.Role {
-	if len(selectedIDs) == 0 {
-		return nil
-	}
-
-	selected := make(map[string]struct{}, len(selectedIDs))
-	for _, roleID := range selectedIDs {
-		selected[strconv.FormatUint(uint64(roleID), 10)] = struct{}{}
-	}
-
-	selectedRoles := make([]*viewmodels.Role, 0, len(selectedIDs))
-	for _, role := range allRoles {
-		if _, ok := selected[role.ID]; ok {
-			selectedRoles = append(selectedRoles, role)
-		}
-	}
-
-	return selectedRoles
 }
 
 func (c *UsersController) selectedPermissionsFromIDs(permissionIDs []string) []permission.Permission {
@@ -150,14 +85,17 @@ func decorateBlockedByUser(
 
 func (c *UsersController) buildCreateFormProps(
 	ctx context.Context,
-	roleService *services.RoleService,
-	groupQueryService *services.GroupQueryService,
-	policy *services.PrivilegeGrantPolicy,
+	formOptionsService *services.UserFormOptionsService,
 	state *userCreateFormState,
 ) (*users.CreateFormProps, error) {
 	const op = serrors.Op("controllers.buildCreateFormProps")
 
-	roleViewModels, groups, err := loadUserFormOptions(ctx, roleService, groupQueryService, policy)
+	selection := services.UserFormSelection{}
+	if state != nil && state.DTO != nil {
+		selection.SelectedRoleIDs = state.DTO.RoleIDs
+		selection.SelectedGroupIDs = state.DTO.GroupIDs
+	}
+	options, err := formOptionsService.Build(ctx, selection)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -174,8 +112,8 @@ func (c *UsersController) buildCreateFormProps(
 				MiddleName: state.DTO.MiddleName,
 				Email:      state.DTO.Email,
 				Phone:      state.DTO.Phone,
-				GroupIDs:   state.DTO.GroupIDs,
-				Roles:      selectedRoleViewModels(roleViewModels, state.DTO.RoleIDs),
+				Roles:      options.SelectedRoles,
+				GroupIDs:   options.SelectedGroupIDs,
 				Language:   state.DTO.Language,
 				AvatarID:   strconv.FormatUint(uint64(state.DTO.AvatarID), 10),
 			}
@@ -184,8 +122,8 @@ func (c *UsersController) buildCreateFormProps(
 
 	return &users.CreateFormProps{
 		User:                     userViewModel,
-		Roles:                    roleViewModels,
-		Groups:                   groups,
+		Roles:                    options.Roles,
+		Groups:                   options.Groups,
 		ResourcePermissionGroups: c.grantableResourcePermissionGroups(ctx),
 		Errors:                   errors,
 	}, nil
@@ -195,20 +133,32 @@ func (c *UsersController) buildEditFormProps(
 	ctx context.Context,
 	logger *logrus.Entry,
 	userService *services.UserService,
-	roleService *services.RoleService,
-	groupQueryService *services.GroupQueryService,
+	formOptionsService *services.UserFormOptionsService,
 	policy *services.PrivilegeGrantPolicy,
 	userID uint,
 	state *userEditFormState,
 ) (*users.EditFormProps, error) {
 	const op = serrors.Op("controllers.buildEditFormProps")
 
-	roleViewModels, groups, err := loadUserFormOptions(ctx, roleService, groupQueryService, policy)
+	us, err := userService.GetByID(ctx, userID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-
-	us, err := userService.GetByID(ctx, userID)
+	currentRoleIDs := make([]uint, 0, len(us.Roles()))
+	for _, assignedRole := range us.Roles() {
+		currentRoleIDs = append(currentRoleIDs, assignedRole.ID())
+	}
+	selection := services.UserFormSelection{
+		SelectedRoleIDs:  currentRoleIDs,
+		SelectedGroupIDs: uuidStrings(us.GroupIDs()),
+		RetainedRoleIDs:  currentRoleIDs,
+		RetainedGroupIDs: us.GroupIDs(),
+	}
+	if state != nil && state.DTO != nil {
+		selection.SelectedRoleIDs = state.DTO.RoleIDs
+		selection.SelectedGroupIDs = state.DTO.GroupIDs
+	}
+	options, err := formOptionsService.Build(ctx, selection)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -219,6 +169,8 @@ func (c *UsersController) buildEditFormProps(
 	}
 
 	userViewModel := mappers.UserToViewModel(us)
+	userViewModel.Roles = options.SelectedRoles
+	userViewModel.GroupIDs = options.SelectedGroupIDs
 	actor, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, serrors.E(op, err)
@@ -242,21 +194,29 @@ func (c *UsersController) buildEditFormProps(
 			userViewModel.Email = state.DTO.Email
 			userViewModel.Phone = state.DTO.Phone
 			userViewModel.Language = state.DTO.Language
-			userViewModel.GroupIDs = state.DTO.GroupIDs
+			userViewModel.GroupIDs = options.SelectedGroupIDs
 			userViewModel.AvatarID = strconv.FormatUint(uint64(state.DTO.AvatarID), 10)
-			userViewModel.Roles = selectedRoleViewModels(roleViewModels, state.DTO.RoleIDs)
+			userViewModel.Roles = options.SelectedRoles
 			selectedPermissions = c.selectedPermissionsFromIDs(state.DTO.PermissionIDs)
 		}
 	}
 
 	return &users.EditFormProps{
 		User:                     userViewModel,
-		Roles:                    roleViewModels,
-		Groups:                   groups,
+		Roles:                    options.Roles,
+		Groups:                   options.Groups,
 		ResourcePermissionGroups: c.grantableResourcePermissionGroups(ctx, selectedPermissions...),
 		Errors:                   errors,
 		CanDelete:                canDelete,
 	}, nil
+}
+
+func uuidStrings(values []uuid.UUID) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		result = append(result, value.String())
+	}
+	return result
 }
 
 func renderBlockDrawer(

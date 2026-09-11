@@ -146,8 +146,7 @@ func (c *UsersController) GetEdit(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	userService *services.UserService,
-	roleService *services.RoleService,
-	groupQueryService *services.GroupQueryService,
+	formOptionsService *services.UserFormOptionsService,
 	policy *services.PrivilegeGrantPolicy,
 ) {
 	id, err := shared.ParseID(r)
@@ -157,7 +156,7 @@ func (c *UsersController) GetEdit(
 		return
 	}
 
-	props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, policy, id, nil)
+	props, err := c.buildEditFormProps(r.Context(), logger, userService, formOptionsService, policy, id, nil)
 	if err != nil {
 		logger.WithError(err).Error("error building edit form props")
 		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
@@ -209,8 +208,7 @@ func (c *UsersController) BlockUser(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	userService *services.UserService,
-	roleService *services.RoleService,
-	groupQueryService *services.GroupQueryService,
+	formOptionsService *services.UserFormOptionsService,
 	policy *services.PrivilegeGrantPolicy,
 ) {
 	if !htmx.IsHxRequest(r) {
@@ -293,7 +291,7 @@ func (c *UsersController) BlockUser(
 		WithField("action", "block").
 		Info("user blocked")
 
-	props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, policy, id, nil)
+	props, err := c.buildEditFormProps(r.Context(), logger, userService, formOptionsService, policy, id, nil)
 	if err != nil {
 		logger.WithError(err).Error("error building edit form props")
 		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
@@ -323,8 +321,7 @@ func (c *UsersController) UnblockUser(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	userService *services.UserService,
-	roleService *services.RoleService,
-	groupQueryService *services.GroupQueryService,
+	formOptionsService *services.UserFormOptionsService,
 	policy *services.PrivilegeGrantPolicy,
 ) {
 	if !htmx.IsHxRequest(r) {
@@ -360,7 +357,7 @@ func (c *UsersController) UnblockUser(
 		WithField("action", "unblock").
 		Info("user unblocked")
 
-	props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, policy, id, nil)
+	props, err := c.buildEditFormProps(r.Context(), logger, userService, formOptionsService, policy, id, nil)
 	if err != nil {
 		logger.WithError(err).Error("error building edit form props")
 		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)

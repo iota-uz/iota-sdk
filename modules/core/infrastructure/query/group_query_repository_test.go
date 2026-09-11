@@ -3,57 +3,10 @@ package query_test
 import (
 	"testing"
 
-	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/stretchr/testify/require"
 )
-
-func TestPgGroupQueryRepository_FindGroupOptionsDoesNotMaterializeRelations(t *testing.T) {
-	// Falsely green if the assertion inspects a different seeded group.
-	t.Parallel()
-	fixtures := setupTest(t)
-	tenantID, err := composables.UseTenantID(fixtures.Ctx)
-	require.NoError(t, err)
-
-	groupPermission := permission.New(
-		permission.WithID(uuid.New()), permission.WithName("group-option-test"),
-		permission.WithResource("group-option"), permission.WithAction(permission.ActionRead),
-		permission.WithModifier(permission.ModifierAll),
-	)
-	require.NoError(t, persistence.NewPermissionRepository().Save(fixtures.Ctx, groupPermission))
-	roleRepo := persistence.NewRoleRepository()
-	savedRole, err := roleRepo.Create(fixtures.Ctx, role.New("Group option role", role.WithTenantID(tenantID), role.WithPermissions([]permission.Permission{groupPermission})))
-	require.NoError(t, err)
-	userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
-	email, err := internet.NewEmail("group-option-member@example.test")
-	require.NoError(t, err)
-	member, err := userRepo.Create(fixtures.Ctx, user.New("Group", "Member", email, user.UILanguageEN, user.WithTenantID(tenantID)))
-	require.NoError(t, err)
-	groupRepo := persistence.NewGroupRepository(userRepo, roleRepo)
-	savedGroup, err := groupRepo.Save(fixtures.Ctx, group.New("Large group", group.WithTenantID(tenantID), group.WithRoles([]role.Role{savedRole}), group.WithUsers([]user.User{member})))
-	require.NoError(t, err)
-
-	options, _, err := query.NewPgGroupQueryRepository().FindGroupOptions(fixtures.Ctx, &query.GroupFindParams{Limit: 100})
-	require.NoError(t, err)
-	for _, option := range options {
-		if option.Group.ID != savedGroup.ID().String() {
-			continue
-		}
-		require.Empty(t, option.Group.Users)
-		require.Empty(t, option.Group.Roles)
-		require.Len(t, option.Permissions, 1)
-		return
-	}
-	t.Fatal("saved group option was not returned")
-}
 
 func TestPgGroupQueryRepository_FindGroups(t *testing.T) {
 	t.Parallel()

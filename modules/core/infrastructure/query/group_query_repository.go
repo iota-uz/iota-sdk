@@ -6,9 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/uuid"
-
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -66,104 +63,9 @@ type GroupFindParams struct {
 
 type GroupQueryRepository interface {
 	FindGroups(ctx context.Context, params *GroupFindParams) ([]*viewmodels.Group, int, error)
-	FindGroupOptions(ctx context.Context, params *GroupFindParams) ([]*GroupOption, int, error)
 	FindGroupByID(ctx context.Context, groupID string) (*viewmodels.Group, error)
 	SearchGroups(ctx context.Context, params *GroupFindParams) ([]*viewmodels.Group, int, error)
 }
-
-type GroupOption struct {
-	Group       *viewmodels.Group
-	Permissions []permission.Permission
-}
-
-// FindGroupOptions returns the group metadata and effective role permissions
-// needed by user forms, without materializing group members or role entities.
-func (r *pgGroupQueryRepository) FindGroupOptions(ctx context.Context, params *GroupFindParams) ([]*GroupOption, int, error) {
-	tx, err := composables.UseTx(ctx)
-	if err != nil {
-		return nil, 0, errors.Wrap(err, "failed to get transaction")
-	}
-	tenantID, err := composables.UseTenantID(ctx)
-	if err != nil {
-		return nil, 0, errors.Wrap(err, "failed to get tenant ID")
-	}
-
-	conditions, args := r.filtersToSQL(ctx, params.Filters)
-	whereClause := ""
-	if len(conditions) > 0 {
-		whereClause = " WHERE " + strings.Join(conditions, " AND ")
-	}
-
-	var count int
-	if err := tx.QueryRow(ctx, fmt.Sprintf("SELECT COUNT(DISTINCT g.id) FROM user_groups g %s", whereClause), args...).Scan(&count); err != nil {
-		return nil, 0, errors.Wrap(err, "failed to count groups")
-	}
-
-	queryParts := []string{selectGroupsSQL, whereClause, params.SortBy.ToSQL(r.fieldMapping())}
-	if limitOffset := repo.FormatLimitOffset(params.Limit, params.Offset); limitOffset != "" {
-		queryParts = append(queryParts, limitOffset)
-	}
-	rows, err := tx.Query(ctx, strings.Join(queryParts, " "), args...)
-	if err != nil {
-		return nil, 0, errors.Wrap(err, "failed to find group options")
-	}
-	defer rows.Close()
-
-	options := make([]*GroupOption, 0)
-	groupIDs := make([]uuid.UUID, 0)
-	byID := make(map[uuid.UUID]*GroupOption)
-	for rows.Next() {
-		var dbGroup models.Group
-		if err := rows.Scan(&dbGroup.ID, &dbGroup.Type, &dbGroup.TenantID, &dbGroup.Name, &dbGroup.Description, &dbGroup.CreatedAt, &dbGroup.UpdatedAt); err != nil {
-			return nil, 0, errors.Wrap(err, "failed to scan group option")
-		}
-		id, err := uuid.Parse(dbGroup.ID)
-		if err != nil {
-			return nil, 0, errors.Wrap(err, "failed to parse group option ID")
-		}
-		option := &GroupOption{Group: ptr(mapToGroupViewModel(dbGroup)), Permissions: []permission.Permission{}}
-		options = append(options, option)
-		groupIDs = append(groupIDs, id)
-		byID[id] = option
-	}
-	if err := rows.Err(); err != nil {
-		return nil, 0, errors.Wrap(err, "failed to iterate group options")
-	}
-	if len(groupIDs) == 0 {
-		return options, count, nil
-	}
-
-	permissionRows, err := tx.Query(ctx, `
-		SELECT DISTINCT gr.group_id, p.id, p.name, p.resource, p.action, p.modifier
-		FROM group_roles gr
-		JOIN user_groups g ON g.id = gr.group_id
-		JOIN roles r ON r.id = gr.role_id AND r.tenant_id = g.tenant_id
-		JOIN role_permissions rp ON rp.role_id = r.id
-		JOIN permissions p ON p.id = rp.permission_id
-		WHERE gr.group_id = ANY($1::uuid[]) AND g.tenant_id = $2`, groupIDs, tenantID)
-	if err != nil {
-		return nil, 0, errors.Wrap(err, "failed to load group option permissions")
-	}
-	defer permissionRows.Close()
-	for permissionRows.Next() {
-		var groupID, permissionID uuid.UUID
-		var name, resource, action, modifier string
-		if err := permissionRows.Scan(&groupID, &permissionID, &name, &resource, &action, &modifier); err != nil {
-			return nil, 0, errors.Wrap(err, "failed to scan group option permission")
-		}
-		byID[groupID].Permissions = append(byID[groupID].Permissions, permission.New(
-			permission.WithID(permissionID), permission.WithName(name),
-			permission.WithResource(permission.Resource(resource)), permission.WithAction(permission.Action(action)),
-			permission.WithModifier(permission.Modifier(modifier)),
-		))
-	}
-	if err := permissionRows.Err(); err != nil {
-		return nil, 0, errors.Wrap(err, "failed to iterate group option permissions")
-	}
-	return options, count, nil
-}
-
-func ptr[T any](value T) *T { return &value }
 
 type pgGroupQueryRepository struct{}
 

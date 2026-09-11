@@ -549,10 +549,17 @@ func (p *PrivilegeGrantPolicy) CanGrantRole(actor user.User, candidate role.Role
 	if actor == nil || candidate == nil {
 		return false
 	}
-	if candidate.Type() == role.TypeSystem && !actor.Can(corepermissions.RoleAssignSystem) {
+	return p.CanGrantRoleOption(actor, candidate.Type(), candidate.Permissions())
+}
+
+func (p *PrivilegeGrantPolicy) CanGrantRoleOption(actor user.User, roleType role.Type, permissions []permission.Permission) bool {
+	if actor == nil {
 		return false
 	}
-	return Dominates(user.EffectivePermissions(actor), candidate.Permissions())
+	if roleType == role.TypeSystem && !actor.Can(corepermissions.RoleAssignSystem) {
+		return false
+	}
+	return Dominates(user.EffectivePermissions(actor), permissions)
 }
 
 func (p *PrivilegeGrantPolicy) CanGrantPermission(actor user.User, candidate permission.Permission) bool {

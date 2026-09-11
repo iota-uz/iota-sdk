@@ -37,10 +37,18 @@ test.describe('user form scalability and self-service password change', () => {
 			);
 			await db.query(`INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)`, [retainedRole.rows[0].id, deniedPermissionID]);
 			await db.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [target.rows[0].id, retainedRole.rows[0].id]);
+			const retainedGroup = await db.query(
+				`INSERT INTO user_groups (type, tenant_id, name, description, created_at, updated_at)
+				 VALUES ('user', $1, 'Previously assigned group', '', NOW(), NOW()) RETURNING id`,
+				[tenantID],
+			);
+			await db.query(`INSERT INTO group_roles (group_id, role_id) VALUES ($1, $2)`, [retainedGroup.rows[0].id, retainedRole.rows[0].id]);
+			await db.query(`INSERT INTO group_users (group_id, user_id) VALUES ($1, $2)`, [retainedGroup.rows[0].id, target.rows[0].id]);
 			return {
 				targetID: target.rows[0].id as number,
 				roleIDs: roles.rows.map((row) => String(row.id)),
 				retainedRoleID: String(retainedRole.rows[0].id),
+				retainedGroupID: String(retainedGroup.rows[0].id),
 			};
 		});
 
@@ -50,13 +58,13 @@ test.describe('user form scalability and self-service password change', () => {
 			for (const roleID of fixture.roleIDs) {
 				await expect(page.locator(`select[name="RoleIDs"] option[value="${roleID}"]`)).toHaveCount(1);
 			}
+			if (path === '/users/new') {
+				await expect(page.locator(`select[name="RoleIDs"] option[value="${fixture.retainedRoleID}"]`)).toHaveCount(0);
+				await expect(page.locator(`select[name="GroupIDs"] option[value="${fixture.retainedGroupID}"]`)).toHaveCount(0);
+			}
 		}
 		await expect(page.locator(`select[name="RoleIDs"] option[value="${fixture.retainedRoleID}"]`)).toHaveAttribute('selected', '');
-		await page.locator('select[name="RoleIDs"]').selectOption([fixture.retainedRoleID, fixture.roleIDs[0]]);
-		await page.locator('[name="FirstName"]').fill('');
-		await page.locator('#save-btn').click();
-		await expect(page.locator(`select[name="RoleIDs"] option[value="${fixture.retainedRoleID}"]`)).toHaveAttribute('selected', '');
-		await expect(page.locator(`select[name="RoleIDs"] option[value="${fixture.roleIDs[0]}"]`)).toHaveAttribute('selected', '');
+		await expect(page.locator(`select[name="GroupIDs"] option[value="${fixture.retainedGroupID}"]`)).toHaveAttribute('selected', '');
 	});
 
 	test('create and edit forms stay responsive with a 20,000-member group', async ({ page }) => {
@@ -64,7 +72,6 @@ test.describe('user form scalability and self-service password change', () => {
 		const fixture = await withDatabase(async (db) => {
 			const tenant = await db.query(`SELECT tenant_id, id FROM users WHERE email = 'test@gmail.com' LIMIT 1`);
 			const tenantID = tenant.rows[0].tenant_id as string;
-			const adminID = tenant.rows[0].id as number;
 			const group = await db.query(
 				`INSERT INTO user_groups (type, tenant_id, name, description, created_at, updated_at)
 				 VALUES ('user', $1, 'Twenty thousand members', 'performance regression fixture', NOW(), NOW()) RETURNING id`,
@@ -81,8 +88,13 @@ test.describe('user form scalability and self-service password change', () => {
 				 SELECT $1, id FROM users WHERE tenant_id = $2 AND email LIKE 'bulk-member-%@example.test'`,
 				[group.rows[0].id, tenantID],
 			);
-			const target = await db.query(`SELECT id FROM users WHERE tenant_id = $1 AND id <> $2 ORDER BY id LIMIT 1`, [tenantID, adminID]);
-			return { groupID: group.rows[0].id as string, targetID: target.rows[0].id as number };
+			const target = await db.query(`SELECT id FROM users WHERE tenant_id = $1 AND email LIKE 'bulk-member-%@example.test' ORDER BY id LIMIT 1`, [tenantID]);
+			const role = await db.query(
+				`INSERT INTO roles (type, tenant_id, name, description, created_at, updated_at)
+				 VALUES ('user', $1, 'Validation preserved role', '', NOW(), NOW()) RETURNING id`,
+				[tenantID],
+			);
+			return { groupID: group.rows[0].id as string, targetID: target.rows[0].id as number, roleID: String(role.rows[0].id) };
 		});
 
 		await login(page, 'test@gmail.com', 'TestPass123!');
@@ -94,17 +106,21 @@ test.describe('user form scalability and self-service password change', () => {
 		}
 		await page.locator('[name="LastName"]').fill('Preserved edit');
 		await page.locator('select[name="GroupIDs"]').selectOption(fixture.groupID);
+		await page.locator('select[name="RoleIDs"]').selectOption(fixture.roleID);
 		await page.locator('[name="FirstName"]').fill('');
 		await page.locator('#save-btn').click();
 		await expect(page.locator('[name="LastName"]')).toHaveValue('Preserved edit');
 		await expect(page.locator('select[name="GroupIDs"]')).toHaveValue(fixture.groupID);
+		await expect(page.locator('select[name="RoleIDs"]')).toHaveValue(fixture.roleID);
 
 		await page.goto('/users/new');
 		await page.locator('[name="FirstName"]').fill('Preserved');
 		await page.locator('select[name="GroupIDs"]').selectOption(fixture.groupID);
+		await page.locator('select[name="RoleIDs"]').selectOption(fixture.roleID);
 		await page.locator('#save-btn').click();
 		await expect(page.locator('[name="FirstName"]')).toHaveValue('Preserved');
 		await expect(page.locator('select[name="GroupIDs"]')).toHaveValue(fixture.groupID);
+		await expect(page.locator('select[name="RoleIDs"]')).toHaveValue(fixture.roleID);
 	});
 
 	test('profile password form validates, revokes every session, and preserves password on profile edits', async ({ page, browser }) => {

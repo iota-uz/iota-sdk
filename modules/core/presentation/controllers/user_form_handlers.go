@@ -21,11 +21,9 @@ func (c *UsersController) GetNew(
 	r *http.Request,
 	w http.ResponseWriter,
 	logger *logrus.Entry,
-	roleService *services.RoleService,
-	groupQueryService *services.GroupQueryService,
-	policy *services.PrivilegeGrantPolicy,
+	formOptionsService *services.UserFormOptionsService,
 ) {
-	props, err := c.buildCreateFormProps(r.Context(), roleService, groupQueryService, policy, nil)
+	props, err := c.buildCreateFormProps(r.Context(), formOptionsService, nil)
 	if err != nil {
 		logger.WithError(err).Error("error building create form props")
 		http.Error(w, "Error retrieving user form options", http.StatusInternalServerError)
@@ -43,12 +41,10 @@ func (c *UsersController) Create(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	userService *services.UserService,
-	roleService *services.RoleService,
-	groupQueryService *services.GroupQueryService,
-	policy *services.PrivilegeGrantPolicy,
+	formOptionsService *services.UserFormOptionsService,
 ) {
 	respondWithForm := func(errors map[string]string, dto *dtos.CreateUserDTO) {
-		props, err := c.buildCreateFormProps(r.Context(), roleService, groupQueryService, policy, &userCreateFormState{
+		props, err := c.buildCreateFormProps(r.Context(), formOptionsService, &userCreateFormState{
 			DTO:    dto,
 			Errors: errors,
 		})
@@ -113,8 +109,7 @@ func (c *UsersController) Update(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	userService *services.UserService,
-	roleService *services.RoleService,
-	groupQueryService *services.GroupQueryService,
+	formOptionsService *services.UserFormOptionsService,
 	policy *services.PrivilegeGrantPolicy,
 ) {
 	id, err := shared.ParseID(r)
@@ -132,7 +127,7 @@ func (c *UsersController) Update(
 	}
 
 	respondWithForm := func(errors map[string]string, dto *dtos.UpdateUserDTO) {
-		props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, policy, id, &userEditFormState{
+		props, err := c.buildEditFormProps(r.Context(), logger, userService, formOptionsService, policy, id, &userEditFormState{
 			DTO:    dto,
 			Errors: errors,
 		})
