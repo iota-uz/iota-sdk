@@ -48,6 +48,7 @@
       "Placeholder": "Insira o número de telefone"
     },
     "Password": "Senha",
+    "ChangePassword": {"Title":"Alterar senha","DescText":"Alterar sua senha encerra todas as sessões ativas.","CurrentPassword":"Senha atual","NewPassword":"Nova senha","ConfirmPassword":"Confirmar nova senha","Submit":"Alterar senha","Errors":{"CurrentRequired":"Digite sua senha atual.","CurrentIncorrect":"A senha atual está incorreta.","NewTooShort":"A nova senha deve conter pelo menos 8 caracteres.","ConfirmationMismatch":"A confirmação da senha não corresponde."}},
     "Save": "Salvar",
     "Logo": {
       "FullLogo": "Logo completo",

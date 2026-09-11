@@ -12,7 +12,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
+
+var ErrCurrentPasswordMismatch = errors.New("current password does not match")
 
 type UserService struct {
 	repo           user.Repository
@@ -184,6 +187,52 @@ func (s *UserService) UpdateSelf(ctx context.Context, data user.User) (user.User
 		return err
 	})
 	return updated, err
+}
+
+func (s *UserService) ChangePassword(ctx context.Context, currentPassword, newPassword string) error {
+	const op = serrors.Op("UserService.ChangePassword")
+
+	currentUser, err := composables.UseUser(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	var updated user.User
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if err := s.policy.LockUser(txCtx, currentUser.ID()); err != nil {
+			return serrors.E(op, err)
+		}
+		latest, err := s.repo.GetByID(txCtx, currentUser.ID())
+		if err != nil {
+			return serrors.E(op, err)
+		}
+		if latest.TenantID() != currentUser.TenantID() || !latest.CheckPassword(currentPassword) {
+			return serrors.E(op, ErrCurrentPasswordMismatch)
+		}
+		updated, err = latest.SetPassword(newPassword)
+		if err != nil {
+			return serrors.E(op, err)
+		}
+		if err := s.validator.ValidateUpdate(txCtx, updated); err != nil {
+			return serrors.E(op, err)
+		}
+		if err := s.repo.UpdatePassword(txCtx, updated.ID(), updated.Password(), updated.UpdatedAt()); err != nil {
+			return serrors.E(op, err)
+		}
+		_, err = s.sessionService.DeleteByUserID(txCtx, currentUser.ID())
+		if err != nil {
+			return serrors.E(op, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	updatedEvent := user.NewUpdatedEvent(ctx, updated)
+	updatedEvent.Result = updated
+	s.publisher.Publish(updatedEvent)
+	return nil
 }
 
 // performUpdate executes the common update logic for both Update and UpdateSelf

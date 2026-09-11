@@ -48,6 +48,7 @@
       "Placeholder": "输入电话号码"
     },
     "Password": "密码",
+    "ChangePassword": {"Title":"更改密码","DescText":"更改密码后，所有活动会话都将退出。","CurrentPassword":"当前密码","NewPassword":"新密码","ConfirmPassword":"确认新密码","Submit":"更改密码","Errors":{"CurrentRequired":"请输入当前密码。","CurrentIncorrect":"当前密码不正确。","NewTooShort":"新密码必须至少包含 8 个字符。","ConfirmationMismatch":"两次输入的新密码不一致。"}},
     "Save": "保存",
     "Logo": {
       "FullLogo": "完整logo",

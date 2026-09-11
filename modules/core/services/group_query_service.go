@@ -4,8 +4,10 @@ package services
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type GroupQueryService struct {
@@ -18,6 +20,24 @@ func NewGroupQueryService(repo query.GroupQueryRepository) *GroupQueryService {
 
 func (s *GroupQueryService) FindGroups(ctx context.Context, params *query.GroupFindParams) ([]*viewmodels.Group, int, error) {
 	return s.repo.FindGroups(ctx, params)
+}
+
+func (s *GroupQueryService) FindAssignmentOptions(ctx context.Context) ([]*viewmodels.AssignmentOption, error) {
+	const op = serrors.Op("GroupQueryService.FindAssignmentOptions")
+	options, err := s.repo.FindAssignmentOptions(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return options, nil
+}
+
+func (s *GroupQueryService) FindGroupLabelsByIDs(ctx context.Context, groupIDs []uuid.UUID) ([]*viewmodels.Group, error) {
+	const op = serrors.Op("GroupQueryService.FindGroupLabelsByIDs")
+	groups, err := s.repo.FindGroupLabelsByIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return groups, nil
 }
 
 func (s *GroupQueryService) FindGroupByID(ctx context.Context, groupID string) (*viewmodels.Group, error) {

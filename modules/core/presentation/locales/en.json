@@ -48,6 +48,7 @@
       "Placeholder": "Enter phone number"
     },
     "Password": "Password",
+    "ChangePassword": {"Title":"Change password","DescText":"Changing your password signs you out on every device.","CurrentPassword":"Current password","NewPassword":"New password","ConfirmPassword":"Confirm new password","Submit":"Change password","Errors":{"CurrentRequired":"Enter your current password.","CurrentIncorrect":"The current password is incorrect.","NewTooShort":"The new password must contain at least 8 characters.","ConfirmationMismatch":"The password confirmation does not match."}},
     "Save": "Save",
     "Logo": {
       "FullLogo": "Full Logo",

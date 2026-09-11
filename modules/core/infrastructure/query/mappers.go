@@ -13,6 +13,7 @@ import (
 func mapToUserViewModel(dbUser models.User, hasAvatar bool, avatar *models.Upload) viewmodels.User {
 	user := viewmodels.User{
 		ID:           strconv.FormatUint(uint64(dbUser.ID), 10),
+		TenantID:     dbUser.TenantID,
 		Type:         dbUser.Type,
 		FirstName:    dbUser.FirstName,
 		LastName:     dbUser.LastName,
