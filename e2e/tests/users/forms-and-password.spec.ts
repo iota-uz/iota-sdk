@@ -51,12 +51,12 @@ test.describe('user form scalability and self-service password change', () => {
 				await expect(page.locator(`select[name="RoleIDs"] option[value="${roleID}"]`)).toHaveCount(1);
 			}
 		}
-		await expect(page.locator(`select[name="RoleIDs"] option[value="${fixture.retainedRoleID}"]`)).toBeSelected();
+		await expect(page.locator(`select[name="RoleIDs"] option[value="${fixture.retainedRoleID}"]`)).toHaveAttribute('selected', '');
 		await page.locator('select[name="RoleIDs"]').selectOption([fixture.retainedRoleID, fixture.roleIDs[0]]);
 		await page.locator('[name="FirstName"]').fill('');
 		await page.locator('#save-btn').click();
-		await expect(page.locator(`select[name="RoleIDs"] option[value="${fixture.retainedRoleID}"]`)).toBeSelected();
-		await expect(page.locator(`select[name="RoleIDs"] option[value="${fixture.roleIDs[0]}"]`)).toBeSelected();
+		await expect(page.locator(`select[name="RoleIDs"] option[value="${fixture.retainedRoleID}"]`)).toHaveAttribute('selected', '');
+		await expect(page.locator(`select[name="RoleIDs"] option[value="${fixture.roleIDs[0]}"]`)).toHaveAttribute('selected', '');
 	});
 
 	test('create and edit forms stay responsive with a 20,000-member group', async ({ page }) => {
