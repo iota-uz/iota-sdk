@@ -6,7 +6,7 @@
  */
 
 // Database operations
-export { resetDB, seedDB, getEnvInfo } from './database';
+export { resetDB, seedDB, getEnvInfo, withDatabase } from './database';
 
 // Authentication
 export { login, logout, waitForAlpine } from './auth';
