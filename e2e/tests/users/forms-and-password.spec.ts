@@ -44,6 +44,12 @@ test.describe('user form scalability and self-service password change', () => {
 			expect(Date.now() - started).toBeLessThan(3000);
 			await expect(page.locator(`select[name="GroupIDs"] option[value="${fixture.groupID}"]`)).toHaveText('Twenty thousand members');
 		}
+		await page.locator('[name="LastName"]').fill('Preserved edit');
+		await page.locator('select[name="GroupIDs"]').selectOption(fixture.groupID);
+		await page.locator('[name="FirstName"]').fill('');
+		await page.locator('#save-btn').click();
+		await expect(page.locator('[name="LastName"]')).toHaveValue('Preserved edit');
+		await expect(page.locator('select[name="GroupIDs"]')).toHaveValue(fixture.groupID);
 
 		await page.goto('/users/new');
 		await page.locator('[name="FirstName"]').fill('Preserved');
