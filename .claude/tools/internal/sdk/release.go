@@ -217,11 +217,21 @@ func (g GitHub) Prepare(ctx context.Context, runID string, retry bool) (*Candida
 		return nil, fmt.Errorf("expected exactly one Go release identity")
 	}
 	identity = pattern.ReplaceAll(identity, []byte(`ReleaseVersion  = "`+version+`"`))
+	clientHostIdentity, _, err := g.File(ctx, "web/client-host/src/identity.ts", source)
+	if err != nil {
+		return nil, err
+	}
+	clientHostPattern := regexp.MustCompile(`SDK_RELEASE_VERSION\s*=\s*'[^']+'`)
+	if len(clientHostPattern.FindAll(clientHostIdentity, -1)) != 1 {
+		return nil, fmt.Errorf("expected exactly one client-host release identity")
+	}
+	clientHostIdentity = clientHostPattern.ReplaceAll(clientHostIdentity, []byte(`SDK_RELEASE_VERSION = '`+version+`'`))
 	metadata, _ := json.MarshalIndent(map[string]any{"version": version, "source": source, "changes": changes}, "", "  ")
 	sha, err := g.CommitFiles(ctx, source, "chore: prepare SDK v"+version, map[string][]byte{
-		"web/sdk/package.json":        append(packageData, '\n'),
-		"pkg/sdkidentity/identity.go": identity,
-		".sdk/release.json":           append(metadata, '\n'),
+		"web/sdk/package.json":            append(packageData, '\n'),
+		"pkg/sdkidentity/identity.go":     identity,
+		"web/client-host/src/identity.ts": clientHostIdentity,
+		".sdk/release.json":               append(metadata, '\n'),
 	})
 	if err != nil {
 		return nil, err
