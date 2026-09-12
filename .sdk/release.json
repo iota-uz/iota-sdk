@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Keep the embedded client-host release identity aligned with Go and npm release candidates."
+    }
+  ],
+  "source": "06feaf2fcb45154b6ad3ec7a5fecc7d45167f9ed",
+  "version": "0.6.1"
+}
