@@ -45,6 +45,8 @@ func TestPrepare_CreatesVersionedCandidateWithoutPublishing(t *testing.T) {
 			return encoded(content{SHA: "package", Content: base64.StdEncoding.EncodeToString([]byte(packageSource))}), nil
 		case strings.HasPrefix(endpoint, "contents/pkg/sdkidentity/identity.go"):
 			return encoded(content{Content: base64.StdEncoding.EncodeToString([]byte("package sdkidentity\nconst ReleaseVersion = \"0.5.6\"\n"))}), nil
+		case strings.HasPrefix(endpoint, "contents/web/client-host/src/identity.ts"):
+			return encoded(content{Content: base64.StdEncoding.EncodeToString([]byte("export const SDK_RELEASE_VERSION = '0.5.6'\n"))}), nil
 		case endpoint == "git/trees/"+baseline+"?recursive=1":
 			return []byte(`{"tree":[]}`), nil
 		case endpoint == "git/trees/"+source+"?recursive=1":
@@ -95,6 +97,7 @@ func TestPrepare_CreatesVersionedCandidateWithoutPublishing(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(committedFiles["web/sdk/package.json"]), &pkg))
 	require.Equal(t, "0.6.0", pkg["version"])
 	require.Contains(t, committedFiles["pkg/sdkidentity/identity.go"], `"0.6.0"`)
+	require.Contains(t, committedFiles["web/client-host/src/identity.ts"], `'0.6.0'`)
 	require.Equal(t, strings.Replace(packageSource, `"version": "0.5.6"`, `"version": "0.6.0"`, 1)+"\n", committedFiles["web/sdk/package.json"])
 	var metadata struct {
 		Version, Source string
