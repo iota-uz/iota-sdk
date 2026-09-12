@@ -1,0 +1,34 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Keep only the newest browser session for each account in the login account picker."
+    },
+    {
+      "bump": "patch",
+      "summary": "Rebase multi-digit repository filter placeholders without corrupting their indices."
+    },
+    {
+      "bump": "patch",
+      "summary": "Expose stable test selectors and raw totals for Lens panels, legends, and tabs."
+    },
+    {
+      "bump": "minor",
+      "summary": "Collapse secondary accounts and global account actions in the authenticated navbar profile menu."
+    },
+    {
+      "bump": "patch",
+      "summary": "Paginate the roles list so roles past the first page are reachable."
+    },
+    {
+      "bump": "patch",
+      "summary": "Load complete, scalable role and group options in user forms and let signed-in users securely change their own password."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add demand-driven verified SDK releases and sdk-tools consumer preview/promotion commands."
+    }
+  ],
+  "source": "2ec551f5185b99b2d37dc58da6b7a9d643a91975",
+  "version": "0.6.0"
+}
