@@ -1,6 +1,7 @@
 {
   "requests": [
-    1072
+    1072,
+    1073
   ],
   "candidate": {
     "version": "0.6.0",
