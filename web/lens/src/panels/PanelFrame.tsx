@@ -262,6 +262,7 @@ export function PanelFrame({
       data-calculation-ms={frame.calculation?.durationMs}
       data-panel-kind={panel.kind}
       data-panel-id={panel.id}
+      data-testid={`lens-panel-${panel.id}`}
       data-stale={frame.isStale || undefined}
     >
       <header className="lens-panel-header">
@@ -281,7 +282,12 @@ export function PanelFrame({
         <div className="lens-panel-actions">
           {headerActions}
           {showTotal && (
-            <span className="lens-panel-total" title={`${totalLabel}: ${formatTotal(total)}`}>
+            <span
+              className="lens-panel-total"
+              data-testid={`lens-panel-${panel.id}-total`}
+              data-value={total}
+              title={`${totalLabel}: ${formatTotal(total)}`}
+            >
               <span className="lens-panel-total-label">{totalLabel}:</span>
               {' '}
               {formatTotal(total)}
