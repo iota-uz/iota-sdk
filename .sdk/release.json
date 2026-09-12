@@ -1,0 +1,38 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Keep only the newest browser session for each account in the login account picker."
+    },
+    {
+      "bump": "patch",
+      "summary": "Rebase multi-digit repository filter placeholders without corrupting their indices."
+    },
+    {
+      "bump": "patch",
+      "summary": "Keep local E2E database settings from overriding CI service ports."
+    },
+    {
+      "bump": "patch",
+      "summary": "Expose stable test selectors and raw totals for Lens panels, legends, and tabs."
+    },
+    {
+      "bump": "minor",
+      "summary": "Collapse secondary accounts and global account actions in the authenticated navbar profile menu."
+    },
+    {
+      "bump": "patch",
+      "summary": "Paginate the roles list so roles past the first page are reachable."
+    },
+    {
+      "bump": "patch",
+      "summary": "Load complete, scalable role and group options in user forms and let signed-in users securely change their own password."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add demand-driven verified SDK releases and sdk-tools consumer preview/promotion commands."
+    }
+  ],
+  "source": "ec24c67139b12fdcace97c19f5be2000f9d37f18",
+  "version": "0.6.0"
+}
