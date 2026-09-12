@@ -6,9 +6,9 @@
   ],
   "candidate": {
     "version": "0.6.0",
-    "source": "ec24c67139b12fdcace97c19f5be2000f9d37f18",
-    "sha": "878a19e51f6b1eba66c1fb806042feb4908d432a",
-    "phase": "failed",
-    "run_id": "34708201351"
+    "source": "8040ff2301500a20901ef40ddd899d3e1cf8ff64",
+    "sha": "6b7490fb17af61fd3d13d6009578b4a8997d80d0",
+    "phase": "testing",
+    "run_id": "34708670590"
   }
 }
