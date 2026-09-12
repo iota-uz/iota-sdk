@@ -1,5 +1,12 @@
 {
   "requests": [
     1072
-  ]
+  ],
+  "candidate": {
+    "version": "0.6.0",
+    "source": "2ec551f5185b99b2d37dc58da6b7a9d643a91975",
+    "sha": "a6fd8dd9267eca70ad7625047e50418635d302a8",
+    "phase": "testing",
+    "run_id": "34707190069"
+  }
 }
