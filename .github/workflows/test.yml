@@ -159,6 +159,10 @@ jobs:
           pnpm test
           pnpm build
 
+      - name: Check SDK package
+        working-directory: web/sdk
+        run: pnpm check
+
       - name: Install Chromium
         working-directory: web/client-host
         run: pnpm exec playwright install --with-deps chromium

@@ -230,6 +230,9 @@ func (c *Controller) handler(route Route) http.HandlerFunc {
 				return
 			}
 		}
+		if strings.TrimSpace(session.Locale) == "" {
+			session.Locale = "en"
+		}
 		if session.Theme != "dark" {
 			session.Theme = "light"
 		}

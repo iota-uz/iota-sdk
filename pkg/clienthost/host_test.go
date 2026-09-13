@@ -59,6 +59,28 @@ func TestController_ServesCanonicalBootstrapAndDescriptor(t *testing.T) {
 	require.NotContains(t, body, `{"value":"</script>"}`)
 }
 
+func TestController_DefaultsEmptySessionLocale(t *testing.T) {
+	t.Parallel()
+
+	spec := application.Get("/reports", application.ClientFeature("reports.configure", "reports"), application.Authenticated())
+	controller, err := NewController("reports", testManifest(), []Route{{
+		Spec: spec,
+		Build: func(_ context.Context, _ *http.Request) (RoutePayload, error) {
+			return RoutePayload{Initial: map[string]string{}}, nil
+		},
+	}}, WithSession(func(*http.Request) (SessionContext, error) {
+		return SessionContext{}, nil
+	}))
+	require.NoError(t, err)
+
+	router := mux.NewRouter()
+	controller.Register(router)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/reports", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Contains(t, recorder.Body.String(), `"language":"en"`)
+}
+
 func TestController_RejectsInvalidClientRoutesAndProtocolMismatch(t *testing.T) {
 	t.Parallel()
 

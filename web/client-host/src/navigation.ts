@@ -13,10 +13,11 @@ export class BrowserNavigationService implements NavigationService {
     event.returnValue = ''
   }
   private readonly click = (event: MouseEvent) => {
-    const target = event.target instanceof Element ? event.target.closest('a[href]') : null
+    const eventTarget = event.target as Element | null
+    const target = typeof eventTarget?.closest === 'function' ? eventTarget.closest('a[href]') : null
     if (!target || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
     const anchor = target as HTMLAnchorElement
-    if (anchor.target === '_blank' || anchor.download || anchor.origin !== window.location.origin) return
+    if (anchor.target === '_blank' || anchor.download || anchor.origin !== this.owner.location.origin) return
     if (!this.canNavigate()) event.preventDefault()
   }
 

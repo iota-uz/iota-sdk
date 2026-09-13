@@ -2,9 +2,11 @@ import { expect, test } from '@playwright/test'
 
 test('preserves nested input and field errors, then accepts the server save', async ({ page }) => {
   await page.goto('/')
-  await page.getByLabel('Factor').fill('0.5')
+  await page.getByLabel('Factor').fill('')
   await page.getByRole('button', { name: 'Save changes' }).click()
   await expect(page.getByText('Factor must be at least 1')).toBeFocused()
+  await page.getByLabel('Factor').fill('0.5')
+  await page.getByRole('button', { name: 'Save changes' }).click()
   await expect(page.getByLabel('Factor')).toHaveValue('0.5')
   await expect(page.getByText('Unsaved')).toBeVisible()
   await page.getByLabel('Factor').fill('5')

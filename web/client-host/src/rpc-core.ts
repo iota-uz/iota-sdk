@@ -26,6 +26,8 @@ export interface RPCClientOptions {
 
 export class RPCClient {
   readonly cache: QueryCache
+  private queryGeneration = 0
+  private readonly latestQueryGenerations = new Map<string, number>()
   constructor(readonly transport: RPCTransport, readonly options: RPCClientOptions = {}) {
     this.cache = options.cache ?? new MemoryQueryCache()
   }
@@ -37,28 +39,38 @@ export class RPCClient {
       const cached = this.cache.get<TResponse>(key)
       if (cached !== undefined) return cached
     }
+    const encodedKey = JSON.stringify(key)
+    const generation = ++this.queryGeneration
+    this.latestQueryGenerations.set(encodedKey, generation)
     let attempt = 0
-    const maxRetries = Math.max(0, Math.min(3, contract.maxRetries ?? 2))
-    for (;;) {
-      this.options.diagnostics?.call?.({ method: contract.method, key, state: 'start' })
-      try {
-        const response = await this.transport.call<TRequest, TResponse>(contract.method, request, signal)
-        if (contract.cacheable !== false) this.cache.set(key, response)
-        this.options.diagnostics?.call?.({ method: contract.method, key, state: 'success' })
-        return response
-      } catch (cause) {
-        if (signal.aborted) {
-          this.options.diagnostics?.call?.({ method: contract.method, key, state: 'cancelled' })
-          throw cause
+    const configuredRetries = contract.maxRetries ?? 2
+    const maxRetries = Number.isFinite(configuredRetries)
+      ? Math.max(0, Math.min(3, Math.trunc(configuredRetries)))
+      : 2
+    try {
+      for (;;) {
+        this.options.diagnostics?.call?.({ method: contract.method, key, state: 'start' })
+        try {
+          const response = await this.transport.call<TRequest, TResponse>(contract.method, request, signal)
+          if (contract.cacheable !== false && this.latestQueryGenerations.get(encodedKey) === generation) this.cache.set(key, response)
+          this.options.diagnostics?.call?.({ method: contract.method, key, state: 'success' })
+          return response
+        } catch (cause) {
+          if (signal.aborted) {
+            this.options.diagnostics?.call?.({ method: contract.method, key, state: 'cancelled' })
+            throw cause
+          }
+          const error = asHostError(cause)
+          if (!error.retryable || attempt >= maxRetries) {
+            dispatchHostError(error, this.options.errors)
+            this.options.diagnostics?.call?.({ method: contract.method, key, state: 'error', error })
+            throw error
+          }
+          attempt += 1
         }
-        const error = asHostError(cause)
-        if (!error.retryable || attempt >= maxRetries) {
-          dispatchHostError(error, this.options.errors)
-          this.options.diagnostics?.call?.({ method: contract.method, key, state: 'error', error })
-          throw error
-        }
-        attempt += 1
       }
+    } finally {
+      if (this.latestQueryGenerations.get(encodedKey) === generation) this.latestQueryGenerations.delete(encodedKey)
     }
   }
 

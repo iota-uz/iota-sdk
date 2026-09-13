@@ -15,7 +15,9 @@ function ProductEditor(props: { route: ClientRouteContext<Product> }) {
   const save = async () => {
     try {
       await draft.save(async (snapshot, signal) => {
-        if (snapshot.pricing.factor < 1) throw new HostError('field_validation', 'Review the highlighted fields', { 'pricing.factor': 'Factor must be at least 1' })
+        if (!Number.isFinite(snapshot.pricing.factor) || snapshot.pricing.factor < 1) {
+          throw new HostError('field_validation', 'Review the highlighted fields', { 'pricing.factor': 'Factor must be at least 1' })
+        }
         await new Promise<void>((resolve, reject) => {
           const timer = window.setTimeout(resolve, 180)
           signal.addEventListener('abort', () => { window.clearTimeout(timer); reject(new DOMException('Cancelled', 'AbortError')) }, { once: true })

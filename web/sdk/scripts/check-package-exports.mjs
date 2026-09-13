@@ -26,7 +26,7 @@ if (!packageJSON.peerDependencies?.react || !packageJSON.peerDependencies?.['rea
 if (!packageJSON.peerDependencies?.['solid-js']) {
   throw new Error('Solid must be a peer dependency')
 }
-if (!packageJSON.peerDependenciesMeta?.react?.optional || !packageJSON.peerDependenciesMeta?.['solid-js']?.optional) {
+if (!packageJSON.peerDependenciesMeta?.react?.optional || !packageJSON.peerDependenciesMeta?.['react-dom']?.optional || !packageJSON.peerDependenciesMeta?.['solid-js']?.optional) {
   throw new Error('renderer peers must be optional so consumers install only their selected renderer')
 }
 

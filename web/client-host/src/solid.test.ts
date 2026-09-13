@@ -39,4 +39,28 @@ describe('Solid client route host', () => {
     expect(services.dispose).toHaveBeenCalledTimes(1)
     expect(root.dataset.iotaClientOwner).toBeUndefined()
   })
+
+  it('releases ownership and services when rendering fails', () => {
+    const root = document.createElement('div')
+    const services = {
+      session: { snapshot: () => ({}), refresh: async () => ({}) },
+      navigation: { guard: () => () => undefined, canNavigate: () => true },
+      theme: { current: () => 'light' as const, set: () => undefined, subscribe: () => () => undefined },
+      locale: { language: 'en', t: (key: string) => key },
+      telemetry: { emit: () => undefined },
+      dispose: vi.fn(),
+    }
+    const context = {
+      bootstrapVersion: CLIENT_BOOTSTRAP_VERSION,
+      protocolVersion: SDK_IDENTITY.protocolVersion,
+      sdkReleaseVersion: SDK_IDENTITY.releaseVersion,
+      sdkCommit: SDK_IDENTITY.sourceCommit,
+      initial: {},
+      theme: 'light' as const,
+    }
+    const component: Component = () => { throw new Error('render failed') }
+    expect(() => mountSolidClientRoute({ root, component, props: {}, context, services })).toThrow('render failed')
+    expect(services.dispose).toHaveBeenCalledOnce()
+    expect(root.dataset.iotaClientOwner).toBeUndefined()
+  })
 })

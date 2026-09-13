@@ -28,22 +28,32 @@ export function mountSolidClientRoute<TInitial, TProps extends object>(options: 
   const currentOwner = options.root.dataset.iotaClientOwner
   if (currentOwner) throw new Error(`Client route root is already owned by ${currentOwner}`)
   options.root.dataset.iotaClientOwner = 'solid'
-  const services = options.services ?? createClientHostServices(options.context)
-  const Component = options.component
-  const dispose = render(
-    () => createComponent(ClientHostContext.Provider, {
-      value: services,
-      get children() { return createComponent(Component, { ...options.props, route: options.context }) },
-    }),
-    options.root,
-  )
-  let mounted = true
-  return () => {
-    if (!mounted) return
-    mounted = false
-    dispose()
-    services.dispose()
+  let services: ClientHostServices | undefined
+  try {
+    const owner = options.root.ownerDocument.defaultView
+    if (!options.services && !owner) throw new Error('Client route root is not attached to a browser realm')
+    services = options.services ?? createClientHostServices(options.context, owner!)
+    const mountedServices = services
+    const Component = options.component
+    const dispose = render(
+      () => createComponent(ClientHostContext.Provider, {
+        value: mountedServices,
+        get children() { return createComponent(Component, { ...options.props, route: options.context }) },
+      }),
+      options.root,
+    )
+    let mounted = true
+    return () => {
+      if (!mounted) return
+      mounted = false
+      dispose()
+      mountedServices.dispose()
+      delete options.root.dataset.iotaClientOwner
+    }
+  } catch (cause) {
+    services?.dispose()
     delete options.root.dataset.iotaClientOwner
+    throw cause
   }
 }
 
