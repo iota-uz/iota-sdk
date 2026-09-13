@@ -1,0 +1,61 @@
+---
+title: 'Solid Client Runtime'
+description: 'ADR for code-authored Solid routes beside Templ and HTMX'
+---
+
+# Solid client runtime
+
+Status: accepted for the client-route migration pilot.
+
+## Decision
+
+Use Templ, HTMX, and Alpine for server-owned pages. Use ordinary Solid TSX for
+routes whose interaction state is client-owned. A DOM subtree has exactly one
+renderer owner: do not mount Solid inside an HTMX swap target or mount React and
+Solid into the same root.
+
+The server remains authoritative for persisted data, RBAC, tenant identity,
+and business validation. Solid owns transient interaction state such as an
+editable draft, selection, pending input, and local preview. Route metadata and
+RPC contracts describe access and data, not the UI. There is no screen DSL,
+schema-driven layout, or feature-local host.
+
+## Public boundaries
+
+- `application.ClientFeature(routeID, featureID)` adds stable identity to a
+  client route. New client routes also declare `Public`, `Authenticated`,
+  `RequireAll`, or `RequireAny` explicitly.
+- `pkg/clienthost` renders the authenticated shell fragment and versioned JSON
+  bootstrap. It carries SDK identity, route identity, session/CSRF state,
+  locale messages, permissions, theme, and service endpoints.
+- `@iota-uz/sdk/solid` contains the Solid mount, host services, typed RPC
+  primitives, and the small draft primitive.
+- `@iota-uz/sdk/styles.css` publishes the same token source used by server
+  components. Features may compose normal CSS and Solid components but must not
+  introduce a competing global reset, font, palette, or theme model.
+
+`@iota-uz/sdk/client-host` remains available for existing React consumers
+during migration. React renderer metadata is accepted only as compatibility;
+new routes use the generic client renderer. The two renderers never share a
+mounted subtree.
+
+## Lifecycle and failure semantics
+
+The Solid host validates bootstrap protocol plus Go/npm/source identity before
+rendering. Mount fails if another renderer already owns the root. Dispose is
+idempotent and releases the Solid owner, session-independent host subscriptions,
+and dirty navigation listeners.
+
+Queries cancel the previous reactive request and ignore late results. Actions
+never retry implicitly and expose typed field errors. `createDraft` deep-clones
+the server snapshot, tracks nested changes, supports reset, and accepts a save
+response only when no newer edit occurred. A newer server snapshot is not
+merged into a dirty draft; the feature owns that merge policy.
+
+## Deliberate exclusions
+
+This runtime does not contain product or insurance code, a universal state
+framework, optimistic rollback policy, streaming cache merge, portal/widget
+work, or generated screen structure. Full RPC dispatcher hardening, locale TOML
+generation/validation, design-system parity inventory, and replacement of the
+remaining React features are separate follow-up work.

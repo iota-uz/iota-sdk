@@ -8,14 +8,21 @@ export type HostErrorCode =
   | 'unknown'
 
 export class HostError extends Error {
+  readonly fieldErrors: Readonly<Record<string, string>>
+
   constructor(
     readonly code: HostErrorCode,
     message: string,
     readonly details?: unknown,
-    readonly fieldErrors: Readonly<Record<string, string>> = {},
+    fieldErrors?: Readonly<Record<string, string>>,
   ) {
     super(message)
     this.name = 'HostError'
+    this.fieldErrors = fieldErrors ?? (
+      code === 'field_validation' && details && typeof details === 'object'
+        ? details as Record<string, string>
+        : {}
+    )
   }
 
   get retryable(): boolean { return this.code === 'transient' }
@@ -29,8 +36,10 @@ export interface HostErrorHandlers {
 
 export function asHostError(input: unknown): HostError {
   if (input instanceof HostError) return input
-  const candidate = input as { code?: unknown; message?: unknown; details?: unknown }
-  const raw = String(candidate?.code ?? 'unknown')
+  const candidate = input as { code?: unknown; message?: unknown; details?: unknown; data?: unknown }
+  const details = candidate?.details ?? candidate?.data
+  const detailRecord = details && typeof details === 'object' ? details as Record<string, unknown> : undefined
+  const raw = String(detailRecord?.code ?? candidate?.code ?? 'unknown')
   const code: HostErrorCode = raw === 'unauthenticated' || raw === 'unauthorized'
     ? 'unauthenticated'
     : raw === 'forbidden' || raw === 'permission_denied'
@@ -44,9 +53,9 @@ export function asHostError(input: unknown): HostError {
             : raw === 'protocol'
               ? 'protocol'
               : 'unknown'
-  const details = candidate?.details
-  const fieldErrors = code === 'field_validation' && details && typeof details === 'object'
-    ? details as Record<string, string>
+  const fields = detailRecord?.fieldErrors ?? detailRecord?.fields ?? details
+  const fieldErrors = code === 'field_validation' && fields && typeof fields === 'object'
+    ? fields as Record<string, string>
     : {}
   return new HostError(code, String(candidate?.message ?? input ?? 'Unknown host error'), details, fieldErrors)
 }

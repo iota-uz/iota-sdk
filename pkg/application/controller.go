@@ -38,6 +38,9 @@ type RouteSpec struct {
 	Prefix         bool
 	Host           string
 	Renderer       RouteRenderer
+	RouteID        string
+	FeatureID      string
+	AccessExplicit bool
 	AllowCollision bool
 	// Requirement is the canonical route access contract consumed by hosts.
 	Requirement AuthPolicy
@@ -47,13 +50,16 @@ type RouteSpec struct {
 }
 
 // RouteRenderer selects the owner of a route's page lifecycle. Server routes
-// are rendered by Templ/HTMX; client routes mount through the standard React
+// are rendered by Templ/HTMX; client routes mount through the standard client
 // host. It does not describe fragments returned inside a server route.
 type RouteRenderer string
 
 const (
 	RouteRendererServer RouteRenderer = "server"
-	RouteRendererReact  RouteRenderer = "react"
+	RouteRendererClient RouteRenderer = "client"
+	// RouteRendererReact is retained while existing React routes migrate. New
+	// client routes should use RouteRendererClient.
+	RouteRendererReact RouteRenderer = "react"
 )
 
 type Surface string
@@ -145,6 +151,7 @@ func WithAuth(auth AuthPolicy) RouteOption {
 	return func(route *RouteSpec) {
 		route.Requirement = auth
 		route.Auth = auth
+		route.AccessExplicit = true
 	}
 }
 
@@ -153,6 +160,22 @@ func RenderedBy(renderer RouteRenderer) RouteOption {
 	return func(route *RouteSpec) {
 		route.Renderer = renderer
 	}
+}
+
+// ClientFeature declares the stable identities used by the standard client
+// host. Screen layout and behavior remain in the feature's TypeScript code.
+func ClientFeature(routeID, featureID string) RouteOption {
+	return func(route *RouteSpec) {
+		route.Renderer = RouteRendererClient
+		route.RouteID = strings.TrimSpace(routeID)
+		route.FeatureID = strings.TrimSpace(featureID)
+	}
+}
+
+// Authenticated declares that a signed-in user may access the route without
+// an additional permission requirement.
+func Authenticated() RouteOption {
+	return WithAuth(AuthPolicy{})
 }
 
 func Public() RouteOption {

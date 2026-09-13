@@ -8,6 +8,8 @@ const expectedExports = [
   './package.json',
   './identity',
   './client-host',
+  './solid',
+  './styles.css',
   './lens',
   './lens/styles.css',
 ]
@@ -20,6 +22,12 @@ if (Object.keys(packageJSON.dependencies ?? {}).length !== 0) {
 }
 if (!packageJSON.peerDependencies?.react || !packageJSON.peerDependencies?.['react-dom']) {
   throw new Error('React and ReactDOM must remain peer dependencies')
+}
+if (!packageJSON.peerDependencies?.['solid-js']) {
+  throw new Error('Solid must be a peer dependency')
+}
+if (!packageJSON.peerDependenciesMeta?.react?.optional || !packageJSON.peerDependenciesMeta?.['react-dom']?.optional || !packageJSON.peerDependenciesMeta?.['solid-js']?.optional) {
+  throw new Error('renderer peers must be optional so consumers install only their selected renderer')
 }
 
 const targets = []

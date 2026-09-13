@@ -26,6 +26,7 @@ await rm(path.join(dist, 'lens'), { recursive: true, force: true })
 await mkdir(dist, { recursive: true })
 await cp(clientHostDist, path.join(dist, 'client-host'), { recursive: true })
 await cp(lensDist, path.join(dist, 'lens'), { recursive: true })
+await cp(path.join(repositoryRoot, 'styles/tailwind/iota.css'), path.join(dist, 'styles.css'))
 
 const identity = {
   releaseVersion,

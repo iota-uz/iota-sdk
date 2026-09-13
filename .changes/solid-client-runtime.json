@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add the standard Solid client-route host, versioned bootstrap services, typed RPC bindings, and nested draft primitive."
+}

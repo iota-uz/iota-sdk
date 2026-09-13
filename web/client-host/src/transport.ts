@@ -1,8 +1,9 @@
 import { asHostError, HostError } from './errors'
-import type { RPCTransport } from './rpc'
+import type { RPCTransport } from './rpc-core'
 
 export interface SessionState {
   csrf?: string
+  expiresAt?: string
   headers?: Readonly<Record<string, string>>
 }
 

@@ -5,19 +5,22 @@
 This repo ships one public NPM package alongside the Go module:
 
 - Client host: `@iota-uz/sdk/client-host`
+- Solid client runtime: `@iota-uz/sdk/solid`
+- Shared design tokens: `@iota-uz/sdk/styles.css`
 - Lens runtime: `@iota-uz/sdk/lens`
 - Lens styles: `@iota-uz/sdk/lens/styles.css`
 - Release identity: `@iota-uz/sdk/identity`
 
-Install it with React peers:
+Install it with the renderer used by the route:
 
 ```bash
-pnpm add @iota-uz/sdk@0.5.6 react react-dom
+pnpm add @iota-uz/sdk@0.5.6 solid-js
 ```
 
 ```ts
-import { ClientHostProvider } from '@iota-uz/sdk/client-host'
+import { mountSolidClientRouteFromDocument } from '@iota-uz/sdk/solid'
 import { LensDashboard } from '@iota-uz/sdk/lens'
+import '@iota-uz/sdk/styles.css'
 import '@iota-uz/sdk/lens/styles.css'
 ```
 

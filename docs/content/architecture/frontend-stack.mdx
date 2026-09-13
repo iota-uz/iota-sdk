@@ -1,11 +1,14 @@
 ---
 title: 'Frontend Stack'
-description: 'HTMX, Templ, and Alpine.js patterns'
+description: 'Templ/HTMX server pages and Solid client routes'
 ---
 
 # Frontend Stack
 
-IOTA SDK uses a modern, lightweight frontend stack focused on server-rendered HTML with progressive enhancement.
+IOTA SDK uses server-rendered HTML with progressive enhancement for
+server-owned pages and SolidJS for routes with substantial client-owned
+interaction state. See the [Solid client runtime](./solid-client-runtime) for
+the ownership and persistence boundaries.
 
 ## Stack Overview
 
@@ -35,6 +38,7 @@ graph TB
 | **HTMX** | AJAX via HTML | Minimal JS, progressive enhancement |
 | **Alpine.js** | Reactivity | Lightweight, declarative |
 | **Tailwind CSS** | Styling | Utility-first, rapid development |
+| **SolidJS** | Client routes | Direct reactive state for complex interaction |
 
 ## Request/Response Flow
 

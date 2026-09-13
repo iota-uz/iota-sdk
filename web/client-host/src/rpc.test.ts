@@ -34,6 +34,37 @@ describe('RPCClient', () => {
     expect(mutationCalls).toBe(1)
   })
 
+  it('normalizes non-finite retry counts to the default', async () => {
+    let calls = 0
+    const client = new RPCClient({ call: async () => {
+      calls += 1
+      throw new HostError('transient', 'later')
+    } })
+    await expect(client.query({ namespace: 'x', method: 'x.get', kind: 'query', maxRetries: Number.NaN }, {}, new AbortController().signal)).rejects.toThrow('later')
+    expect(calls).toBe(3)
+  })
+
+  it('keeps the newest response when matching queries complete out of order', async () => {
+    let resolveFirst!: (value: string) => void
+    let resolveSecond!: (value: string) => void
+    let calls = 0
+    const client = new RPCClient({ call: async <TRequest, TResponse>() => await new Promise<TResponse>((resolve) => {
+      calls += 1
+      if (calls === 1) resolveFirst = resolve as (value: string) => void
+      else resolveSecond = resolve as (value: string) => void
+    }) })
+    const contract: RPCMethodContract = { namespace: 'x', method: 'x.get', kind: 'query' }
+    const signal = new AbortController().signal
+    const first = client.query<{}, string>(contract, {}, signal)
+    const second = client.query<{}, string>(contract, {}, signal)
+    resolveSecond('new')
+    await expect(second).resolves.toBe('new')
+    resolveFirst('old')
+    await expect(first).resolves.toBe('old')
+    await expect(client.query<{}, string>(contract, {}, signal)).resolves.toBe('new')
+    expect(calls).toBe(2)
+  })
+
   it('invalidates only declared query families', async () => {
     const cache = new MemoryQueryCache()
     cache.set(queryKey('users', 'users.list', {}), 1)

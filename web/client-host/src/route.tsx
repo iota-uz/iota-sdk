@@ -1,24 +1,9 @@
 import type { ComponentType } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { ClientHostProvider, type WidgetSlotName } from './portals'
-import { assertSDKIdentity } from './identity'
-import { CLIENT_HOST_PROTOCOL_VERSION } from './protocol'
+import { assertClientBootstrap, type ClientRouteContext } from './bootstrap'
 
-export class ClientHostProtocolError extends Error {
-  constructor(readonly expected: string, readonly actual: string) {
-    super(`Client host protocol ${actual} is incompatible with ${expected}`)
-    this.name = 'ClientHostProtocolError'
-  }
-}
-
-export interface ClientRouteContext<TInitial = unknown> {
-  protocolVersion: string
-  sdkReleaseVersion: string
-  sdkCommit: string
-  initial: TInitial
-  theme: 'light' | 'dark'
-  csrf?: string
-}
+export { ClientHostProtocolError, assertClientHostProtocol, type ClientRouteContext } from './bootstrap'
 
 export interface MountClientRouteOptions<TInitial, TProps extends object> {
   root: HTMLElement
@@ -30,19 +15,11 @@ export interface MountClientRouteOptions<TInitial, TProps extends object> {
   context: ClientRouteContext<TInitial>
 }
 
-export function assertClientHostProtocol(actual: string): void {
-  if (actual.split('.', 1)[0] !== CLIENT_HOST_PROTOCOL_VERSION.split('.', 1)[0]) {
-    throw new ClientHostProtocolError(CLIENT_HOST_PROTOCOL_VERSION, actual)
-  }
-}
-
 export function mountClientRoute<TInitial, TProps extends object>(options: MountClientRouteOptions<TInitial, TProps>): () => void {
-  assertClientHostProtocol(options.context.protocolVersion)
-  assertSDKIdentity({
-    releaseVersion: options.context.sdkReleaseVersion,
-    sourceCommit: options.context.sdkCommit,
-    protocolVersion: options.context.protocolVersion,
-  })
+  assertClientBootstrap(options.context, false)
+  const currentOwner = options.root.dataset.iotaClientOwner
+  if (currentOwner) throw new Error(`Client route root is already owned by ${currentOwner}`)
+  options.root.dataset.iotaClientOwner = 'react'
   const root: Root = createRoot(options.root)
   const Component = options.component
   root.render(
@@ -50,5 +27,8 @@ export function mountClientRoute<TInitial, TProps extends object>(options: Mount
       <Component {...options.props} route={options.context} />
     </ClientHostProvider>,
   )
-  return () => root.unmount()
+  return () => {
+    root.unmount()
+    delete options.root.dataset.iotaClientOwner
+  }
 }
