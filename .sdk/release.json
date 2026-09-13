@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Add the standard Solid client-route host, versioned bootstrap services, typed RPC bindings, and nested draft primitive."
+    }
+  ],
+  "source": "923640663ba69486b865affae8371803a6fdafb9",
+  "version": "0.7.0"
+}

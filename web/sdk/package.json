@@ -1,6 +1,6 @@
 {
   "name": "@iota-uz/sdk",
-  "version": "0.5.6",
+  "version": "0.7.0",
   "description": "Canonical JavaScript distribution for iota-sdk.",
   "license": "MIT",
   "repository": {
@@ -62,3 +62,4 @@
     "solid-js": { "optional": true }
   }
 }
+
