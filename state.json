@@ -18,6 +18,13 @@
   "requests": [
     1076
   ],
+  "candidate": {
+    "version": "0.7.0",
+    "source": "923640663ba69486b865affae8371803a6fdafb9",
+    "sha": "40d8d87255b723420b70c3db5226a5fbbd6c5b8c",
+    "phase": "testing",
+    "run_id": "34755875016"
+  },
   "ready": {
     "version": "0.6.1",
     "source": "06feaf2fcb45154b6ad3ec7a5fecc7d45167f9ed",
