@@ -1,6 +1,6 @@
 ---
 title: 'NPM Package (@iota-uz/sdk)'
-description: 'Use the client host and Lens runtime from the canonical SDK release'
+description: 'Use Solid client routes, the React compatibility host, and Lens from the canonical SDK release'
 ---
 
 # NPM Package (`@iota-uz/sdk`)
@@ -13,12 +13,44 @@ Tailwind, or asset surfaces.
 ## Install
 
 ```bash
-pnpm add @iota-uz/sdk@0.5.6 react react-dom
+pnpm add @iota-uz/sdk@0.5.6 solid-js
 ```
 
 Production consumers should pin an exact SDK version matching their Go module.
 
-## Client host
+## Solid client route
+
+Declare the route once on the server:
+
+```go
+spec := application.Get(
+    "/products/{id}/configure",
+    application.ClientFeature("products.configure", "product-configurator"),
+    application.RequireAll(products.UpdatePermission),
+)
+```
+
+The feature entry is ordinary TSX and uses the standard document bootstrap:
+
+```tsx
+import { mountSolidClientRouteFromDocument } from '@iota-uz/sdk/solid'
+import '@iota-uz/sdk/styles.css'
+import { ProductEditor } from './ProductEditor'
+
+mountSolidClientRouteFromDocument(ProductEditor, {})
+```
+
+Inside a component, use `useClientHost()` for the current session, locale,
+theme, navigation guard, and telemetry. Construct `FetchRPCTransport` with the
+bootstrap RPC endpoint and `host.session`, then use `createRPCQuery` and
+`createRPCAction`. Use `createDraft` only for editable client state; call
+`draft.save` with the typed action and let the returned server value become the
+new baseline.
+
+The executable fixture is in `web/client-host/fixtures/product-editor`; run it
+with `pnpm --dir web/client-host test:browser`.
+
+## React compatibility host
 
 ```ts
 import {
@@ -26,6 +58,9 @@ import {
   ClientHostProvider,
 } from '@iota-uz/sdk/client-host'
 ```
+
+React and ReactDOM are optional peers retained for existing consumers. New
+client routes should use Solid. Never mount both renderers into one DOM root.
 
 ## Lens
 

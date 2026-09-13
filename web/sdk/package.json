@@ -28,6 +28,11 @@
       "types": "./dist/client-host/index.d.ts",
       "import": "./dist/client-host/index.js"
     },
+    "./solid": {
+      "types": "./dist/client-host/solid-index.d.ts",
+      "import": "./dist/client-host/solid-index.js"
+    },
+    "./styles.css": "./dist/styles.css",
     "./identity": {
       "types": "./dist/sdk-identity.d.ts",
       "import": "./dist/sdk-identity.js",
@@ -48,6 +53,12 @@
   },
   "peerDependencies": {
     "react": "^18.3.0 || ^19.0.0",
-    "react-dom": "^18.3.0 || ^19.0.0"
+    "react-dom": "^18.3.0 || ^19.0.0",
+    "solid-js": "^1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "react-dom": { "optional": true },
+    "solid-js": { "optional": true }
   }
 }

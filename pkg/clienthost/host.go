@@ -61,17 +61,56 @@ func ParseManifest(data []byte) (Manifest, error) {
 }
 
 type RouteContext struct {
-	ProtocolVersion   string          `json:"protocolVersion"`
-	SDKReleaseVersion string          `json:"sdkReleaseVersion"`
-	SDKCommit         string          `json:"sdkCommit"`
-	Initial           json.RawMessage `json:"initial"`
-	Theme             string          `json:"theme"`
-	CSRF              string          `json:"csrf,omitempty"`
+	BootstrapVersion  string           `json:"bootstrapVersion"`
+	ProtocolVersion   string           `json:"protocolVersion"`
+	SDKReleaseVersion string           `json:"sdkReleaseVersion"`
+	SDKCommit         string           `json:"sdkCommit"`
+	Initial           json.RawMessage  `json:"initial"`
+	Theme             string           `json:"theme"`
+	CSRF              string           `json:"csrf,omitempty"`
+	Route             RouteIdentity    `json:"route"`
+	Session           SessionState     `json:"session"`
+	Locale            LocaleContext    `json:"locale"`
+	User              any              `json:"user,omitempty"`
+	Tenant            any              `json:"tenant,omitempty"`
+	Permissions       []string         `json:"permissions"`
+	Services          ServiceEndpoints `json:"services"`
+}
+
+type RouteIdentity struct {
+	ID        string `json:"id"`
+	Path      string `json:"path"`
+	FeatureID string `json:"featureId"`
+}
+
+type SessionState struct {
+	CSRF            string `json:"csrf,omitempty"`
+	ExpiresAt       string `json:"expiresAt,omitempty"`
+	RefreshEndpoint string `json:"refreshEndpoint,omitempty"`
+	ReauthURL       string `json:"reauthUrl,omitempty"`
+}
+
+type LocaleContext struct {
+	Language string            `json:"language"`
+	Messages map[string]string `json:"messages"`
+}
+
+type ServiceEndpoints struct {
+	RPC       string `json:"rpc,omitempty"`
+	Telemetry string `json:"telemetry,omitempty"`
 }
 
 type SessionContext struct {
-	Theme string
-	CSRF  string
+	Theme       string
+	CSRF        string
+	ExpiresAt   string
+	RefreshURL  string
+	ReauthURL   string
+	Locale      string
+	Messages    map[string]string
+	User        any
+	Tenant      any
+	Permissions []string
 }
 
 type RoutePayload struct {
@@ -104,6 +143,7 @@ type Controller struct {
 	shell    Shell
 	session  SessionProvider
 	order    int
+	services ServiceEndpoints
 }
 
 type Option func(*Controller)
@@ -113,6 +153,9 @@ func WithSession(provider SessionProvider) Option {
 	return func(controller *Controller) { controller.session = provider }
 }
 func WithOrder(order int) Option { return func(controller *Controller) { controller.order = order } }
+func WithServices(services ServiceEndpoints) Option {
+	return func(controller *Controller) { controller.services = services }
+}
 
 func NewController(id string, manifest Manifest, routes []Route, options ...Option) (*Controller, error) {
 	if err := manifest.Validate(); err != nil {
@@ -122,10 +165,23 @@ func NewController(id string, manifest Manifest, routes []Route, options ...Opti
 	if controller.id == "" {
 		return nil, fmt.Errorf("clienthost controller: id is required")
 	}
+	routeIDs := make(map[string]struct{}, len(controller.routes))
 	for index := range controller.routes {
 		route := &controller.routes[index]
-		if route.Spec.Renderer != application.RouteRendererReact {
-			return nil, fmt.Errorf("clienthost controller %s: route %s must declare react renderer", controller.id, route.Spec.Path)
+		if route.Spec.Renderer != application.RouteRendererClient && route.Spec.Renderer != application.RouteRendererReact {
+			return nil, fmt.Errorf("clienthost controller %s: route %s must declare client renderer", controller.id, route.Spec.Path)
+		}
+		if route.Spec.Renderer == application.RouteRendererClient {
+			if route.Spec.RouteID == "" || route.Spec.FeatureID == "" {
+				return nil, fmt.Errorf("clienthost controller %s: route %s requires route and feature identity", controller.id, route.Spec.Path)
+			}
+			if !route.Spec.AccessExplicit {
+				return nil, fmt.Errorf("clienthost controller %s: route %s requires explicit access", controller.id, route.Spec.Path)
+			}
+			if _, exists := routeIDs[route.Spec.RouteID]; exists {
+				return nil, fmt.Errorf("clienthost controller %s: duplicate route id %s", controller.id, route.Spec.RouteID)
+			}
+			routeIDs[route.Spec.RouteID] = struct{}{}
 		}
 		if route.Build == nil {
 			return nil, fmt.Errorf("clienthost controller %s: route %s build is required", controller.id, route.Spec.Path)
@@ -166,7 +222,7 @@ func (c *Controller) handler(route Route) http.HandlerFunc {
 			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		session := SessionContext{Theme: "light"}
+		session := SessionContext{Theme: "light", Locale: "en", Messages: map[string]string{}}
 		if c.session != nil {
 			session, err = c.session(request)
 			if err != nil {
@@ -180,12 +236,19 @@ func (c *Controller) handler(route Route) http.HandlerFunc {
 		page := Page{
 			Title: payload.Title, MountID: "iota-client-route", Manifest: c.manifest,
 			Context: RouteContext{
+				BootstrapVersion:  BootstrapVersion,
 				ProtocolVersion:   ProtocolVersion,
 				SDKReleaseVersion: c.manifest.SDKReleaseVersion,
 				SDKCommit:         c.manifest.SDKCommit,
 				Initial:           initial,
 				Theme:             session.Theme,
 				CSRF:              session.CSRF,
+				Route:             RouteIdentity{ID: route.Spec.RouteID, Path: route.Spec.Path, FeatureID: route.Spec.FeatureID},
+				Session:           SessionState{CSRF: session.CSRF, ExpiresAt: session.ExpiresAt, RefreshEndpoint: session.RefreshURL, ReauthURL: session.ReauthURL},
+				Locale:            LocaleContext{Language: session.Locale, Messages: cloneMessages(session.Messages)},
+				User:              session.User, Tenant: session.Tenant,
+				Permissions: append([]string(nil), session.Permissions...),
+				Services:    c.services,
 			},
 		}
 		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -193,6 +256,14 @@ func (c *Controller) handler(route Route) http.HandlerFunc {
 			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}
+}
+
+func cloneMessages(messages map[string]string) map[string]string {
+	cloned := make(map[string]string, len(messages))
+	for key, value := range messages {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 // Bootstrap is the canonical mount/context/manifest fragment used by every

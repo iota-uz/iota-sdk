@@ -1,0 +1,19 @@
+// @vitest-environment jsdom
+import { describe, expect, it } from 'vitest'
+import { BrowserNavigationService } from './navigation'
+
+describe('browser navigation guard', () => {
+  it('blocks same-origin links while dirty and cleans up on dispose', () => {
+    const service = new BrowserNavigationService(window)
+    const release = service.guard(() => false)
+    const link = document.createElement('a')
+    link.href = '/next'
+    document.body.append(link)
+    const blocked = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })
+    link.dispatchEvent(blocked)
+    expect(blocked.defaultPrevented).toBe(true)
+    release()
+    expect(service.canNavigate()).toBe(true)
+    service.dispose()
+  })
+})
