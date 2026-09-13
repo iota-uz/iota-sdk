@@ -63,6 +63,7 @@ jobs:
       e2e: ${{ steps.filter.outputs.e2e }}
       docs: ${{ steps.filter.outputs.docs }}
       lens: ${{ steps.filter.outputs.lens }}
+      client_host: ${{ steps.filter.outputs.client_host }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -113,6 +114,58 @@ jobs:
               - 'Justfile'
               - '.github/workflows/test.yml'
               - '.github/workflows/ci-full.yml'
+            client_host:
+              - 'web/client-host/**'
+              - 'web/sdk/**'
+              - 'styles/tailwind/iota.css'
+              - 'scripts/package-frontends.mjs'
+              - 'scripts/verify-frontend-artifacts.mjs'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.github/workflows/test.yml'
+
+  client-host:
+    needs: changes
+    if: |
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft) &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || needs.changes.outputs.client_host == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    name: Client Host
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # v3
+        with:
+          version: 9.15.0
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check Client Host
+        working-directory: web/client-host
+        run: |
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
+      - name: Install Chromium
+        working-directory: web/client-host
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Test Client Host in Chromium
+        working-directory: web/client-host
+        run: pnpm test:browser
 
   lens-web:
     needs: changes
