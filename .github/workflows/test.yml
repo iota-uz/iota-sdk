@@ -159,6 +159,10 @@ jobs:
           pnpm test
           pnpm build
 
+      - name: Build SDK package
+        working-directory: web/sdk
+        run: pnpm build
+
       - name: Check SDK package
         working-directory: web/sdk
         run: pnpm check
