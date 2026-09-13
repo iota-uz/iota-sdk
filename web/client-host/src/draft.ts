@@ -43,6 +43,7 @@ export function createDraft<T extends object>(initial: T, options: DraftOptions 
   }
 
   const reset = () => accept(baseline())
+  const snapshot = () => clone(value as T)
   const offerServerSnapshot = (snapshot: T): boolean => {
     if (dirty()) return false
     accept(snapshot)
@@ -70,7 +71,7 @@ export function createDraft<T extends object>(initial: T, options: DraftOptions 
   }
 
   return {
-    value: value as Store<T>, set, baseline, dirty, pending, error,
+    value: value as Store<T>, set, snapshot, baseline, dirty, pending, error,
     fieldErrors: () => error()?.fieldErrors ?? {}, accept, reset, offerServerSnapshot, save,
     cancelSave: () => saveController?.abort(),
   }

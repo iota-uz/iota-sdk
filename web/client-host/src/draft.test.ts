@@ -16,6 +16,17 @@ describe('Solid draft', () => {
     dispose()
   }))
 
+  it('returns a detached plain snapshot that can cross an RPC boundary', () => createRoot((dispose) => {
+    const draft = createDraft({ name: 'Base', terms: [{ rate: 10 }] })
+    draft.set('terms', 0, 'rate', 15)
+    const snapshot = draft.snapshot()
+    expect(snapshot).toEqual({ name: 'Base', terms: [{ rate: 15 }] })
+    expect(() => structuredClone(snapshot)).not.toThrow()
+    snapshot.terms[0]!.rate = 20
+    expect(draft.value.terms[0]?.rate).toBe(15)
+    dispose()
+  }))
+
   it('keeps edits and field errors after a failed save', async () => {
     const { draft, dispose } = createRoot((dispose) => {
       const draft = createDraft({ name: 'Base' })
