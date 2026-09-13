@@ -18,21 +18,18 @@ describe('browser navigation guard', () => {
   })
 
   it('uses the owning window for links from another browser realm', () => {
-    const owner = {
-      document,
-      location: { origin: 'https://owner.example' },
-      addEventListener: window.addEventListener.bind(window),
-      removeEventListener: window.removeEventListener.bind(window),
-    } as unknown as Window
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const owner = frame.contentWindow!
     const service = new BrowserNavigationService(owner)
     service.guard(() => false)
-    const link = document.createElement('a')
-    link.href = 'https://owner.example/next'
-    document.body.append(link)
-    const blocked = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })
+    const link = owner.document.createElement('a')
+    link.href = 'about:blank#next'
+    owner.document.body.append(link)
+    const blocked = new (owner as Window & typeof globalThis).MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })
     link.dispatchEvent(blocked)
     expect(blocked.defaultPrevented).toBe(true)
     service.dispose()
-    link.remove()
+    frame.remove()
   })
 })

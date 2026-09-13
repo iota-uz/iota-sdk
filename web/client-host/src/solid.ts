@@ -46,13 +46,32 @@ export function mountSolidClientRoute<TInitial, TProps extends object>(options: 
     return () => {
       if (!mounted) return
       mounted = false
-      dispose()
-      mountedServices.dispose()
-      delete options.root.dataset.iotaClientOwner
+      let disposeError: unknown
+      let disposeFailed = false
+      try {
+        dispose()
+      } catch (cause) {
+        disposeFailed = true
+        disposeError = cause
+      }
+      try {
+        mountedServices.dispose()
+      } catch (cause) {
+        if (disposeFailed) throw new AggregateError([disposeError, cause], 'Client route cleanup failed', { cause: disposeError })
+        throw cause
+      } finally {
+        delete options.root.dataset.iotaClientOwner
+      }
+      if (disposeFailed) throw disposeError
     }
   } catch (cause) {
-    services?.dispose()
-    delete options.root.dataset.iotaClientOwner
+    try {
+      services?.dispose()
+    } catch (cleanupCause) {
+      throw new AggregateError([cause, cleanupCause], 'Client route mount and cleanup failed', { cause })
+    } finally {
+      delete options.root.dataset.iotaClientOwner
+    }
     throw cause
   }
 }
