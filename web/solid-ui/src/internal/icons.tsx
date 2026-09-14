@@ -1,20 +1,22 @@
-import type { JSX } from 'solid-js'
+import { splitProps, type JSX } from 'solid-js'
 
 export interface IconProps extends JSX.SvgSVGAttributes<SVGSVGElement> {
   size?: number | string
 }
 
 function Icon(props: IconProps & { children: JSX.Element }) {
+  const [local, native] = splitProps(props, ['children', 'size', 'class'])
   return (
     <svg
+      {...native}
       aria-hidden="true"
-      class={props.class}
-      height={props.size ?? 16}
+      class={local.class}
+      height={local.size ?? 16}
       viewBox="0 0 256 256"
-      width={props.size ?? 16}
+      width={local.size ?? 16}
       xmlns="http://www.w3.org/2000/svg"
     >
-      {props.children}
+      {local.children}
     </svg>
   )
 }
@@ -36,10 +38,11 @@ export function MinusIcon(props: IconProps) {
 }
 
 export function CaretDownIcon(props: IconProps) {
+  const [local, native] = splitProps(props, ['size', 'class'])
   return (
-    <Icon {...props}>
-      <polyline points="208 96 128 176 48 96" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" />
-    </Icon>
+    <svg {...native} aria-hidden="true" class={local.class} height={local.size ?? 16} viewBox="0 0 16 16" width={local.size ?? 16} xmlns="http://www.w3.org/2000/svg">
+      <polyline points="3 6 8 10 13 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+    </svg>
   )
 }
 

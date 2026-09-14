@@ -1,5 +1,6 @@
 import { createSignal, For, onCleanup, onMount, Show, splitProps, type JSX } from 'solid-js'
 import { classes } from '../internal/classes'
+import { createFloatingPlacement, floatingPlacementClasses } from '../internal/floating'
 
 const defaultHelpLabel = 'Open help article'
 
@@ -67,12 +68,14 @@ export function HelpContext(props: HelpContextProps) {
   const [internalOpen, setInternalOpen] = createSignal(local.defaultOpen ?? false)
   let root!: HTMLDivElement
   let trigger!: HTMLButtonElement
+  let popover: HTMLDivElement | undefined
   const open = () => local.open ?? internalOpen()
   const setOpen = (value: boolean, restoreFocus = false) => {
     if (local.open === undefined) setInternalOpen(value)
     local.onOpenChange?.(value)
     if (!value && restoreFocus) queueMicrotask(() => { if (trigger.isConnected && !open()) trigger.focus() })
   }
+  const floating = createFloatingPlacement(open, () => trigger, () => popover)
   onMount(() => {
     const outside = (event: PointerEvent) => { if (!root.contains(event.target as Node)) setOpen(false) }
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && open()) setOpen(false, true) }
@@ -86,7 +89,7 @@ export function HelpContext(props: HelpContextProps) {
         <QuestionIcon size={17} /><span class="sr-only">{local.label?.trim() || defaultHelpLabel}</span>
       </button>
       <Show when={open()}>
-        <div role="dialog" aria-modal="false" class="absolute left-0 top-full z-[90] mt-2 w-[min(23rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-subtle bg-surface-300 text-left shadow-xl">
+        <div ref={popover} role="dialog" aria-modal="false" class={classes('absolute z-[90] w-[min(23rem,calc(100vw-1rem))] max-h-[calc(100vh-1rem)] overflow-y-auto rounded-xl border border-subtle bg-surface-300 text-left shadow-xl', ...floatingPlacementClasses(floating.placement(), 'mt-2'))}>
           <div class="border-b border-subtle px-4 py-3.5"><div class="flex items-start gap-3"><div class="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg border border-brand bg-surface-400 text-brand-500"><QuestionIcon size={17} /></div><div class="min-w-0"><h2 class="text-sm font-semibold leading-5 text-gray-900">{local.title}</h2><Show when={local.summary}><p class="mt-1 text-xs leading-5 text-gray-700">{local.summary}</p></Show></div></div></div>
           <Show when={local.sections?.some((section) => section.items.length)}><div class="grid gap-3 px-4 py-3.5"><For each={local.sections}>{(section) => <Show when={section.items.length}><section><h3 class="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-700">{section.title}</h3><ul class="mt-1.5 grid gap-1.5"><For each={section.items}>{(item) => <li class="flex gap-2 text-xs leading-5 text-gray-700"><span class="mt-[0.45rem] size-1.5 shrink-0 rounded-full bg-brand-500"/><span>{item}</span></li>}</For></ul></section></Show>}</For></div></Show>
           <div class="flex flex-wrap items-center gap-2 border-t border-subtle bg-surface-400 px-4 py-3">
@@ -116,13 +119,15 @@ export function HelpHint(props: HelpHintProps) {
   const [internalOpen, setInternalOpen] = createSignal(local.defaultOpen ?? false)
   let root!: HTMLSpanElement
   let trigger!: HTMLButtonElement
+  let popover: HTMLSpanElement | undefined
   const open = () => local.open ?? internalOpen()
   const setOpen = (value: boolean, focus = false) => { if (local.open === undefined) setInternalOpen(value); local.onOpenChange?.(value); if (focus) queueMicrotask(() => { if (trigger.isConnected && !open()) trigger.focus() }) }
+  const floating = createFloatingPlacement(open, () => trigger, () => popover)
   onMount(() => {
     const outside = (event: PointerEvent) => { if (!root.contains(event.target as Node)) setOpen(false) }
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && open()) setOpen(false, true) }
     document.addEventListener('pointerdown', outside); document.addEventListener('keydown', escape)
     onCleanup(() => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape) })
   })
-  return <span {...native} ref={(element) => { root = element; if (typeof local.ref === 'function') local.ref(element) }} class={classes('relative inline-flex align-middle', local.class)} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)} onFocusIn={() => setOpen(true)} onFocusOut={(event) => { if (!root.contains(event.relatedTarget as Node | null)) setOpen(false) }}><button ref={trigger} type="button" class="inline-flex size-5 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-surface-400 hover:text-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" aria-haspopup="dialog" aria-expanded={open()} aria-label={local.label?.trim() || String(local.title)} onClick={() => setOpen(!open())}><InfoIcon size={14} /></button><Show when={open()}><span role="dialog" class="absolute left-0 top-full z-[90] mt-1.5 w-[min(19rem,calc(100vw-2rem))] rounded-lg border border-subtle bg-surface-300 p-3 text-left shadow-lg"><strong class="block text-xs font-semibold text-gray-900">{local.title}</strong><span class="mt-1 block text-xs leading-5 text-gray-700">{local.description}</span><Show when={local.next}><span class="mt-2 block border-l-2 border-brand pl-2 text-xs leading-5 text-gray-700">{local.next}</span></Show><Show when={local.articlePath}><a href={helpDocURL('', local.articlePath)} class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-500 hover:text-brand-600">{local.articleLabel}<span aria-hidden="true">→</span></a></Show></span></Show></span>
+  return <span {...native} ref={(element) => { root = element; if (typeof local.ref === 'function') local.ref(element) }} class={classes('relative inline-flex align-middle', local.class)} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)} onFocusIn={() => setOpen(true)} onFocusOut={(event) => { if (!root.contains(event.relatedTarget as Node | null)) setOpen(false) }}><button ref={trigger} type="button" class="inline-flex size-5 cursor-pointer items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-surface-400 hover:text-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" aria-haspopup="dialog" aria-expanded={open()} aria-label={local.label?.trim() || String(local.title)} onClick={() => setOpen(!open())}><InfoIcon size={14} /></button><Show when={open()}><span ref={popover} role="dialog" class={classes('absolute z-[90] w-[min(19rem,calc(100vw-1rem))] max-h-[calc(100vh-1rem)] overflow-y-auto rounded-lg border border-subtle bg-surface-300 p-3 text-left shadow-lg', ...floatingPlacementClasses(floating.placement()))}><strong class="block text-xs font-semibold text-gray-900">{local.title}</strong><span class="mt-1 block text-xs leading-5 text-gray-700">{local.description}</span><Show when={local.next}><span class="mt-2 block border-l-2 border-brand pl-2 text-xs leading-5 text-gray-700">{local.next}</span></Show><Show when={local.articlePath}><a href={helpDocURL('', local.articlePath)} class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-500 hover:text-brand-600">{local.articleLabel}<span aria-hidden="true">→</span></a></Show></span></Show></span>
 }

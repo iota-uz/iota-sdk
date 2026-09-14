@@ -1,6 +1,7 @@
 import { createEffect, createSignal, createUniqueId, For, onCleanup, onMount, Show, splitProps, type JSX } from 'solid-js'
 import { classes } from '../internal/classes'
 import { callHandler } from '../internal/events'
+import { createFloatingPlacement, floatingPlacementClasses } from '../internal/floating'
 
 export interface SearchSelectOption {
   value: string
@@ -57,6 +58,7 @@ export function SearchSelect(props: SearchSelectProps) {
   const [activeIndex, setActiveIndex] = createSignal(-1)
   let root!: HTMLDivElement
   let input!: HTMLInputElement
+  let list!: HTMLUListElement
   let timer: ReturnType<typeof setTimeout> | undefined
   let request: AbortController | undefined
   const id = () => local.id ?? `search-select-${generatedID}`
@@ -64,6 +66,7 @@ export function SearchSelect(props: SearchSelectProps) {
   const value = () => local.value ?? internalValue()
   const labels = () => ({ ...defaultLabels, ...local.labels })
   const inactive = () => Boolean(local.disabled || local.readOnly)
+  const floating = createFloatingPlacement(open, () => input, () => list)
 
   const fetchOptions = async (nextQuery: string) => {
     request?.abort()
@@ -177,7 +180,7 @@ export function SearchSelect(props: SearchSelectProps) {
       />
       <input type="hidden" name={local.name} form={local.form} value={value()} disabled={local.disabled} />
       <Show when={open() && !inactive()}>
-        <ul id={listID()} role="listbox" class="absolute border bg-white w-full mt-1 max-h-60 overflow-auto z-10">
+        <ul ref={list} id={listID()} role="listbox" class={classes('absolute z-10 max-h-[min(15rem,calc(100vh-1rem))] w-full max-w-[calc(100vw-1rem)] overflow-auto border bg-white', ...floatingPlacementClasses(floating.placement(), 'mt-1'))}>
           <Show when={loading()}><li class="p-2 text-gray-300" role="status">{labels().loading}</li></Show>
           <Show when={!loading() && failed()}><li class="p-2 text-gray-300" role="alert">{labels().loadError}</li></Show>
           <Show when={!loading() && !failed() && options().length === 0}><li class="p-2 text-gray-300">{labels().nothingFound}</li></Show>

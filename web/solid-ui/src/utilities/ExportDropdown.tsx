@@ -1,6 +1,7 @@
 import { createSignal, For, onCleanup, onMount, Show, splitProps, type JSX } from 'solid-js'
 import { Spinner } from '../display/Spinner'
 import { classes } from '../internal/classes'
+import { createFloatingPlacement, floatingPlacementClasses } from '../internal/floating'
 
 export type ExportFormat = 'excel' | 'csv' | 'json' | 'txt'
 export type ExportButtonSize = 'normal' | 'md' | 'sm' | 'xs'
@@ -93,11 +94,14 @@ export function ExportDropdown(props: ExportDropdownProps) {
   const [internalExporting, setInternalExporting] = createSignal(false)
   let request: AbortController | undefined
   let alive = true
+  let trigger!: HTMLElement
+  let menu!: HTMLUListElement
   const open = () => local.open ?? internalOpen()
   const exporting = () => local.exporting ?? internalExporting()
   const labels = () => ({ ...defaultLabels, ...local.labels, formats: { ...defaultLabels.formats, ...local.labels?.formats } })
   const setOpen = (value: boolean) => { if (local.open === undefined) setInternalOpen(value); local.onOpenChange?.(value) }
   const setExporting = (value: boolean) => { if (local.exporting === undefined) setInternalExporting(value); local.onExportingChange?.(value) }
+  const floating = createFloatingPlacement(open, () => trigger, () => menu)
   const run = async (format: ExportFormat) => {
     if (exporting()) return
     request?.abort()
@@ -135,11 +139,11 @@ export function ExportDropdown(props: ExportDropdownProps) {
       setOpen(event.currentTarget.open)
       if (local.open !== undefined) queueMicrotask(() => { event.currentTarget.open = open() })
     }}>
-      <summary class={classes('list-none cursor-pointer shrink-0 btn btn-secondary btn-with-icon flex items-center gap-2', `btn-${local.size ?? 'normal'}`)} aria-busy={exporting()}>
+      <summary ref={trigger} class={classes('list-none cursor-pointer shrink-0 btn btn-secondary btn-with-icon flex items-center gap-2', `btn-${local.size ?? 'normal'}`)} aria-busy={exporting()}>
         <Show when={!exporting()} fallback={<Spinner role="presentation" spinnerClass="w-[18px] h-[18px]" />}><span class="flex items-center"><DownloadIcon size={18} /></span></Show>
         {local.label ?? labels().title}<span class="ml-1"><span class="sr-only">Toggle</span>⌄</span>
       </summary>
-      <ul class="flex flex-col gap-1 mt-1 absolute bg-surface-300 right-0 text-sm rounded-md w-44 overflow-hidden shadow-sm border border-secondary p-1">
+      <ul ref={menu} class={classes('absolute flex max-h-[calc(100vh-1rem)] w-44 max-w-[calc(100vw-1rem)] flex-col gap-1 overflow-x-hidden overflow-y-auto rounded-md border border-secondary bg-surface-300 p-1 text-sm shadow-sm', ...floatingPlacementClasses(floating.placement(), 'mt-1'))}>
         <For each={local.formats}>{(format) => <li><button {...local.optionProps} type="button" class={classes('flex items-center gap-2 w-full text-left p-2 duration-200 hover:bg-surface-400 rounded-md disabled:opacity-50 disabled:cursor-not-allowed', local.optionProps?.class)} disabled={exporting() || local.optionProps?.disabled} onClick={() => void run(format)}><FileIcon size={16} />{labels().formats[format]}</button></li>}</For>
       </ul>
     </details>

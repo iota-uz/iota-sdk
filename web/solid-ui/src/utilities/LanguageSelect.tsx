@@ -42,7 +42,7 @@ export function LanguageSelect(props: LanguageSelectProps) {
         <Show when={local.placeholder}><option value="" disabled selected={!value()}>{local.placeholder}</option></Show>
         <For each={languages()}>{(language) => <option value={language.code} selected={value() === language.code}>{language.verboseName}</option>}</For>
       </select>
-      <CaretDownIcon class="absolute top-1/2 right-3 -translate-y-1/2 pointer-events-none" size={16} />
+      <CaretDownIcon class="absolute top-1/2 right-3 pointer-events-none" style={{ transform: 'translateY(-50%)' }} size={16} />
     </div>
   </Field>
 }

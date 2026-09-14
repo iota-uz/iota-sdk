@@ -24,7 +24,8 @@ export function DateRangeClearButton(props: DateRangeClearButtonProps) {
       <button
         {...native}
         type="button"
-        class={classes('absolute right-2 top-1/2 -translate-y-1/2 w-4.5 h-4.5 flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-gray-400 transition-all duration-150 cursor-pointer', local.class)}
+        class={classes('absolute right-2 top-1/2 w-4.5 h-4.5 flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-gray-400 transition-all duration-150 cursor-pointer', local.class)}
+        style={{ transform: 'translateY(-50%)' }}
         data-form-id={local.formId}
         aria-label={local['aria-label'] ?? 'Clear date range'}
         onClick={clear}

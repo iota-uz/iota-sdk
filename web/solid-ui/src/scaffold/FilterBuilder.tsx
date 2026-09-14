@@ -1,6 +1,7 @@
 import { createMemo, createSignal, createUniqueId, For, onCleanup, onMount, Show, splitProps, type JSX } from 'solid-js'
 import { Button } from '../forms/Button'
 import { classes } from '../internal/classes'
+import { createFloatingPlacement, floatingPlacementClasses } from '../internal/floating'
 
 export type FilterFieldType = 'reference' | 'date' | 'number' | 'bool' | 'text'
 export interface FilterBuilderOption { value: string; label: string; count?: number; disabled?: boolean; group?: string }
@@ -40,16 +41,19 @@ export interface FilterChipProps extends JSX.HTMLAttributes<HTMLDivElement> {
 export function FilterChip(props: FilterChipProps) {
   const [local, native] = splitProps(props, ['index', 'field', 'condition', 'encoded', 'summary', 'operatorLabel', 'editing', 'removeLabel', 'onEdit', 'onRemove', 'editor', 'class'])
   const editable = () => local.field.type !== 'bool'
+  let anchor!: HTMLDivElement
+  let popover!: HTMLDivElement
+  const floating = createFloatingPlacement(() => Boolean(local.editing), () => anchor, () => popover)
   return <div {...native} class={classes('relative', local.class)} data-fb-chip-wrapper>
     <input type="hidden" name="f" value={local.encoded} data-fb-chip={local.index} />
-    <div class="inline-flex h-8 items-stretch overflow-hidden rounded-lg border border-default bg-surface-100 text-sm">
+    <div ref={anchor} class="inline-flex h-8 items-stretch overflow-hidden rounded-lg border border-default bg-surface-100 text-sm">
       <button type="button" class={classes('inline-flex min-w-0 items-center gap-1.5 pl-3 pr-2 duration-150', editable() ? 'cursor-pointer hover:bg-surface-400' : 'cursor-default')} onClick={() => editable() && local.onEdit?.(local.index)}>
         <span class="font-medium whitespace-nowrap">{local.field.label}</span>
         {editable() && <><span class="text-200 whitespace-nowrap">{local.operatorLabel ?? local.condition.operator}</span><span class="max-w-56 truncate" title={local.summary}>{local.summary}</span></>}
       </button>
       <button type="button" class="inline-flex items-center border-l border-default px-1.5 text-200 hover:text-100 hover:bg-surface-400 cursor-pointer duration-150" aria-label={local.removeLabel ?? 'Remove filter'} onClick={() => local.onRemove(local.index)}><Icon type="x" size={14} /></button>
     </div>
-    {editable() && local.editing && <div role="dialog" aria-label={`Edit ${local.field.label}`} data-fb-popover class="absolute z-30 left-0 top-full mt-1 w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm p-3">{local.editor}</div>}
+    {editable() && local.editing && <div ref={popover} role="dialog" aria-label={`Edit ${local.field.label}`} data-fb-popover class={classes('absolute z-30 max-h-[calc(100vh-1rem)] w-80 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border border-secondary bg-surface-300 p-3 drop-shadow-sm', ...floatingPlacementClasses(floating.placement(), 'mt-1'))}>{local.editor}</div>}
   </div>
 }
 
@@ -99,6 +103,8 @@ export function FilterBuilder(props: FilterBuilderProps) {
   const visibleFields = createMemo(() => local.fields.filter((item) => item.label.toLowerCase().includes(search().toLowerCase())))
   let root!: HTMLDivElement
   let addTrigger!: HTMLButtonElement
+  let addPopover!: HTMLDivElement
+  const addFloating = createFloatingPlacement(adding, () => addTrigger, () => addPopover)
   const close = (restoreFocus = false) => { const wasOpen = adding() || editing() !== undefined; setAdding(false); setEditing(undefined); setDraftField(undefined); if (restoreFocus && wasOpen) queueMicrotask(() => addTrigger?.isConnected && addTrigger.focus()) }
   const add = (condition: FilterCondition) => { setConditions([...conditions(), condition]); close() }
   const replace = (index: number, condition: FilterCondition) => { const next = conditions(); next[index] = condition; setConditions(next); close() }
@@ -110,7 +116,7 @@ export function FilterBuilder(props: FilterBuilderProps) {
     <For each={conditions()}>{(condition, index) => { const definition = () => field(condition.field); return <Show when={definition()}>{(item) => <FilterChip index={index()} field={item()} condition={condition} encoded={(local.codec ?? defaultCodec).encode(condition)} summary={condition.values.join(', ')} editing={editing() === index()} onEdit={setEditing} onRemove={(target) => setConditions(conditions().filter((_, current) => current !== target))} editor={<FilterEditor field={item()} condition={condition} onApply={(next) => replace(index(), next)} />} />}</Show> }}</For>
     <div class="relative">
       <button ref={addTrigger} type="button" class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm cursor-pointer border border-dashed border-default text-200 hover:border-brand hover:text-100 hover:bg-surface-100 duration-150" aria-expanded={adding()} onClick={() => { setAdding(!adding()); setDraftField(undefined) }}><Icon type="plus" size={14} />{local.addLabel ?? 'Add filter'}</button>
-      {adding() && <div role="dialog" aria-label="Add filter" data-fb-popover class="absolute z-30 left-0 top-full mt-1 w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm">
+      {adding() && <div ref={addPopover} role="dialog" aria-label="Add filter" data-fb-popover class={classes('absolute z-30 max-h-[calc(100vh-1rem)] w-80 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border border-secondary bg-surface-300 drop-shadow-sm', ...floatingPlacementClasses(addFloating.placement(), 'mt-1'))}>
         {!draftField() ? <><div class="flex items-center gap-2 border-b border-secondary px-3 py-2"><Icon type="search" class="text-200 shrink-0" /><input type="text" class="w-full bg-transparent text-sm outline-none" placeholder={local.searchPlaceholder ?? 'Search fields'} value={search()} onInput={(event) => setSearch(event.currentTarget.value)} autocomplete="off" /></div><div class="max-h-72 overflow-y-auto p-1.5"><For each={visibleFields()}>{(item) => <button type="button" class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm cursor-pointer duration-100 hover:bg-surface-400" data-fb-label={item.label} onClick={() => item.type === 'bool' ? add({ field: item.key, operator: 'is', values: ['true'] }) : setDraftField(item)}><Icon type={item.type} class="text-200 shrink-0" />{item.label}</button>}</For></div></>
           : <div class="p-3"><button type="button" class="mb-2 inline-flex items-center gap-1 text-xs text-200 hover:text-100 cursor-pointer" onClick={() => setDraftField(undefined)}><Icon type="back" size={12} />{draftField()!.label}</button><FilterEditor field={draftField()!} onApply={add} /></div>}
       </div>}

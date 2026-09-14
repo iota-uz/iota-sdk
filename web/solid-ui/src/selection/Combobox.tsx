@@ -1,6 +1,7 @@
 import { createEffect, createMemo, createSignal, createUniqueId, For, onCleanup, onMount, Show, splitProps, type JSX } from 'solid-js'
 import { classes } from '../internal/classes'
 import { CaretDownIcon, CheckIcon } from '../internal/icons'
+import { createFloatingPlacement, floatingPlacementClasses } from '../internal/floating'
 
 export interface ComboboxOption {
   value: string
@@ -66,6 +67,8 @@ export function Combobox(props: ComboboxProps) {
   const [loading, setLoading] = createSignal(false)
   let root!: HTMLDivElement
   let input!: HTMLInputElement
+  let control!: HTMLDivElement
+  let list!: HTMLUListElement
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
   let request: AbortController | undefined
   const id = () => native.id ?? generatedID
@@ -81,6 +84,7 @@ export function Combobox(props: ComboboxProps) {
   })
   const selectedOptions = createMemo(() => selected().map((value) => sourceOptions().find((item) => item.value === value) ?? { value, label: value }))
   const inactive = () => Boolean(local.disabled || local.readOnly)
+  const floating = createFloatingPlacement(open, () => control, () => list)
 
   const update = (values: string[]) => {
     if (local.value === undefined) setInternalValue(values)
@@ -173,7 +177,7 @@ export function Combobox(props: ComboboxProps) {
       <select class="hidden" aria-hidden="true" tabindex="-1" multiple={local.multiple} name={local.name} form={local.form} disabled={inactive()} value={local.multiple ? selected() : selected()[0]}>
         <For each={local.options}>{(option) => <option value={option.value} selected={selected().includes(option.value)} disabled={option.disabled}>{option.label}</option>}</For>
       </select>
-      <div class="relative h-full">
+      <div ref={control} class="relative h-full">
         <div class="flex items-center w-full relative form-control flex-wrap gap-1 py-1">
           <ul class="contents">
             <For each={selectedOptions()}>{(item) => (
@@ -208,7 +212,7 @@ export function Combobox(props: ComboboxProps) {
           </button>
         </div>
         <Show when={open() && !inactive()}>
-          <ul id={listID()} role="listbox" aria-multiselectable={local.multiple || undefined} class={classes('combobox-dropdown bg-white z-10 m-0 flex flex-col gap-0.5 overflow-hidden overflow-y-auto border border-secondary p-1.5 rounded-md drop-shadow-sm', local.listClass)}>
+          <ul ref={list} id={listID()} role="listbox" aria-multiselectable={local.multiple || undefined} class={classes('combobox-dropdown absolute z-10 m-0 flex max-h-[min(20rem,calc(100vh-1rem))] w-full max-w-[calc(100vw-1rem)] flex-col gap-0.5 overflow-x-hidden overflow-y-auto rounded-md border border-secondary bg-white p-1.5 drop-shadow-sm', ...floatingPlacementClasses(floating.placement(), 'mt-1'), local.listClass)}>
             <Show when={loading()}><li class="px-4 py-2 text-sm text-200" role="status">{labels().loading}</li></Show>
             <For each={visibleOptions()}>{(item, index) => (
               <li

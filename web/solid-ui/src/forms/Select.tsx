@@ -80,7 +80,7 @@ export function Select(props: SelectProps) {
           <For each={local.options}>{(option) => <option value={option.value} disabled={option.disabled} selected={initiallySelected(option.value)}>{option.label}</option>}</For>
           {local.children}
         </select>
-        <CaretDownIcon class="absolute top-1/2 right-3 -translate-y-1/2 -mt-px pointer-events-none" size={16} />
+        <CaretDownIcon class="absolute top-1/2 right-3 pointer-events-none" style={{ transform: 'translateY(-50%)' }} size={16} />
       </div>
     </Field>
   )

@@ -138,6 +138,19 @@ describe('help utilities', () => {
     hint.dispatchEvent(new MouseEvent('mouseleave'))
     expect(host.querySelector('[role="dialog"]')).toBeNull()
   })
+
+  it('keeps an anchored hint inside the right and bottom viewport edges', async () => {
+    mount(() => <HelpHint title="Hint" description="Details" defaultOpen />)
+    const button = host.querySelector('button')!
+    const dialog = host.querySelector<HTMLElement>('[role="dialog"]')!
+    expect(button).toHaveClass('cursor-pointer')
+    button.getBoundingClientRect = () => ({ left: 990, right: 1010, top: 730, bottom: 750, width: 20, height: 20, x: 990, y: 730, toJSON() {} })
+    dialog.getBoundingClientRect = () => ({ left: 990, right: 1294, top: 756, bottom: 876, width: 304, height: 120, x: 990, y: 756, toJSON() {} })
+    window.dispatchEvent(new Event('resize'))
+    await Promise.resolve()
+    expect(dialog).toHaveClass('right-0', 'bottom-full')
+    expect(dialog).not.toHaveClass('left-0', 'top-full')
+  })
 })
 
 describe('Spotlight', () => {

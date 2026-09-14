@@ -1,5 +1,6 @@
 import { createEffect, createSignal, onCleanup, onMount, splitProps, type JSX } from 'solid-js'
 import { classes } from '../internal/classes'
+import { createFloatingPlacement, floatingPlacementClasses } from '../internal/floating'
 
 export interface DropdownProps extends Omit<JSX.HTMLAttributes<HTMLDivElement>, 'onChange'> {
   trigger: JSX.Element
@@ -16,10 +17,12 @@ export function Dropdown(props: DropdownProps) {
   const expanded = () => local.open ?? internal()
   let details!: HTMLDetailsElement
   let summary!: HTMLElement
+  let menu!: HTMLUListElement
   const setOpen = (open: boolean) => {
     if (local.open === undefined) setInternal(open)
     local.onOpenChange?.(open)
   }
+  const floating = createFloatingPlacement(expanded, () => summary, () => menu)
   createEffect(() => { if (details) details.open = expanded() })
   const onDocumentPointerDown = (event: PointerEvent) => {
     if (expanded() && !details.contains(event.target as Node)) setOpen(false)
@@ -52,7 +55,7 @@ export function Dropdown(props: DropdownProps) {
         onKeyDown={onKeyDown}
       >
         <summary ref={summary} aria-haspopup="menu" aria-expanded={expanded()} aria-label={local.label}>{local.trigger}</summary>
-        <ul role="menu" class={classes('flex flex-col gap-1 mt-1 absolute bg-surface-300 right-0 text-sm rounded-md w-44 overflow-hidden shadow-sm border border-secondary p-1', local.menuClass)}>{local.children}</ul>
+        <ul ref={menu} role="menu" class={classes('absolute flex max-h-[calc(100vh-1rem)] w-44 max-w-[calc(100vw-1rem)] flex-col gap-1 overflow-x-hidden overflow-y-auto rounded-md border border-secondary bg-surface-300 p-1 text-sm shadow-sm', ...floatingPlacementClasses(floating.placement(), 'mt-1'), local.menuClass)}>{local.children}</ul>
       </details>
       <details aria-hidden="true" class="hidden peer-open:block" name="details-dropdown"><summary class="fixed w-full h-full left-0 top-0" /></details>
     </div>

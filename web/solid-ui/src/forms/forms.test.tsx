@@ -75,6 +75,15 @@ describe('Input', () => {
     expect(host.querySelector('input')!.value).toBe('initial')
   })
 
+  it('centers select caret artwork inside its viewBox', () => {
+    mount(() => <Select options={[{ value: 'one', label: 'One' }]} />)
+    const caret = host.querySelector('select + svg')!
+    expect(caret.getAttribute('viewBox')).toBe('0 0 16 16')
+    expect(caret.querySelector('polyline')?.getAttribute('points')).toBe('3 6 8 10 13 6')
+    expect(caret).toHaveClass('top-1/2')
+    expect(caret).toHaveStyle({ transform: 'translateY(-50%)' })
+  })
+
   it('keeps addons inside the canonical form-control wrapper', () => {
     mount(() => <Input addonLeft={<span>UZS</span>} addonRight={<span>%</span>} />)
     const wrapper = host.querySelector('.form-control')!
