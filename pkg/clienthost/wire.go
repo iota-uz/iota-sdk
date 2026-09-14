@@ -139,7 +139,9 @@ func walkSafeIntegers(value reflect.Value, path string, seen map[visit]struct{})
 				return err
 			}
 		}
-	default:
+	case reflect.Invalid, reflect.Bool, reflect.Complex64, reflect.Complex128,
+		reflect.Chan, reflect.Func, reflect.Interface, reflect.Pointer,
+		reflect.String, reflect.UnsafePointer:
 		return nil
 	}
 	return nil
