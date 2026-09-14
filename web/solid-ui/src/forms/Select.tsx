@@ -1,4 +1,4 @@
-import { createEffect, createUniqueId, For, onMount, Show, splitProps, type JSX } from 'solid-js'
+import { children, createEffect, createUniqueId, For, onMount, Show, splitProps, type JSX } from 'solid-js'
 import { classes } from '../internal/classes'
 import { CaretDownIcon } from '../internal/icons'
 import { Field } from './Field'
@@ -27,6 +27,7 @@ export function Select(props: SelectProps) {
   ])
   const id = () => local.id ?? generatedID
   const errorID = () => `${id()}-error`
+  const resolvedChildren = children(() => local.children)
   const initiallySelected = (value: string) => {
     const selected = local.value ?? local.defaultValue
     return Array.isArray(selected) ? selected.map(String).includes(value) : selected !== undefined && String(selected) === value
@@ -47,6 +48,7 @@ export function Select(props: SelectProps) {
 
   createEffect(() => {
     const value = local.value
+    resolvedChildren()
     if (value !== undefined) assignValue(value as string | number | readonly string[])
   })
 

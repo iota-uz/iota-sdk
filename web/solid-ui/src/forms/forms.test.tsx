@@ -148,6 +148,30 @@ describe('Textarea, Select and Checkbox', () => {
     expect(select.value).toBe('voluntary')
   })
 
+  it('keeps a controlled value when asynchronous child options are replaced', () => {
+    let replaceOptions!: () => void
+    mount(() => {
+      const [value, setValue] = createSignal('voluntary')
+      const [options, setOptions] = createSignal([
+        { value: 'mandatory', label: 'Mandatory' },
+        { value: 'voluntary', label: 'Voluntary' },
+      ])
+      replaceOptions = () => setOptions([
+        { value: 'mandatory', label: 'Mandatory refreshed' },
+        { value: 'voluntary', label: 'Voluntary refreshed' },
+      ])
+      return (
+        <Select value={value()} onChange={(event) => setValue(event.currentTarget.value)}>
+          {options().map((option) => <option value={option.value}>{option.label}</option>)}
+        </Select>
+      )
+    })
+    const select = host.querySelector('select')!
+    expect(select.value).toBe('voluntary')
+    replaceOptions()
+    expect(select.value).toBe('voluntary')
+  })
+
   it('supports checked, indeterminate, native events and refs', () => {
     const changed = vi.fn()
     let ref!: HTMLInputElement
