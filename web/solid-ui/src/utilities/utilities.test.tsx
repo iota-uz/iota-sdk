@@ -129,6 +129,15 @@ describe('help utilities', () => {
     expect(changed).toHaveBeenCalledWith(false)
     expect(host.querySelector('[role="dialog"]')).not.toBeNull()
   })
+
+  it('opens a hint on hover and closes it after the pointer leaves', () => {
+    mount(() => <HelpHint title="Hint" description="Details" />)
+    const hint = host.firstElementChild!
+    hint.dispatchEvent(new MouseEvent('mouseenter'))
+    expect(host.querySelector('[role="dialog"]')).toHaveTextContent('Details')
+    hint.dispatchEvent(new MouseEvent('mouseleave'))
+    expect(host.querySelector('[role="dialog"]')).toBeNull()
+  })
 })
 
 describe('Spotlight', () => {

@@ -34,7 +34,7 @@ export function Field(props: FieldProps) {
     <div {...native} class={classes('flex flex-col w-full', local.class)}>
       <Show when={local.label !== undefined && local.label !== ''}>
         <div class="mb-2 flex items-center gap-1.5">
-          <Label class="mb-0" for={local.labelFor} required={local.required}>{local.label}</Label>
+          <Label class="mb-0!" for={local.labelFor} required={local.required}>{local.label}</Label>
           <Show when={local.description !== undefined && local.description !== ''}>
             <HelpHint
               data-field-help
