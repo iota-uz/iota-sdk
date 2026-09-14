@@ -1,5 +1,6 @@
 import { createUniqueId, Show, splitProps, type JSX } from 'solid-js'
 import { classes } from '../internal/classes'
+import { HelpHint } from '../utilities/Help'
 
 export interface LabelProps extends JSX.LabelHTMLAttributes<HTMLLabelElement> {
   required?: boolean
@@ -17,6 +18,8 @@ export function Label(props: LabelProps) {
 
 export interface FieldProps extends JSX.HTMLAttributes<HTMLDivElement> {
   label?: JSX.Element
+  description?: JSX.Element
+  helpLabel?: string
   labelFor?: string
   error?: JSX.Element
   errorId?: string
@@ -24,13 +27,23 @@ export interface FieldProps extends JSX.HTMLAttributes<HTMLDivElement> {
 }
 
 export function Field(props: FieldProps) {
-  const [local, native] = splitProps(props, ['children', 'class', 'label', 'labelFor', 'error', 'errorId', 'required'])
+  const [local, native] = splitProps(props, ['children', 'class', 'label', 'description', 'helpLabel', 'labelFor', 'error', 'errorId', 'required'])
   const generatedID = createUniqueId()
   const errorID = () => local.errorId ?? `${local.labelFor ?? generatedID}-error`
   return (
     <div {...native} class={classes('flex flex-col w-full', local.class)}>
       <Show when={local.label !== undefined && local.label !== ''}>
-        <Label for={local.labelFor} required={local.required}>{local.label}</Label>
+        <div class="mb-2 flex items-center gap-1.5">
+          <Label class="mb-0" for={local.labelFor} required={local.required}>{local.label}</Label>
+          <Show when={local.description !== undefined && local.description !== ''}>
+            <HelpHint
+              data-field-help
+              title={local.label}
+              description={local.description}
+              label={local.helpLabel ?? (typeof local.label === 'string' ? `More information about ${local.label}` : 'More information')}
+            />
+          </Show>
+        </div>
       </Show>
       {local.children}
       <Show when={local.error}>
@@ -41,4 +54,3 @@ export function Field(props: FieldProps) {
     </div>
   )
 }
-

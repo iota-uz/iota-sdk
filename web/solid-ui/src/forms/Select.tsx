@@ -12,6 +12,8 @@ export interface SelectOption {
 export interface SelectProps extends Omit<JSX.SelectHTMLAttributes<HTMLSelectElement>, 'prefix'> {
   defaultValue?: string
   label?: JSX.Element
+  description?: JSX.Element
+  helpLabel?: string
   error?: JSX.Element
   placeholder?: string
   prefix?: JSX.Element
@@ -23,7 +25,7 @@ export function Select(props: SelectProps) {
   let element!: HTMLSelectElement
   const generatedID = createUniqueId()
   const [local, native] = splitProps(props, [
-    'children', 'class', 'id', 'value', 'defaultValue', 'label', 'error', 'placeholder', 'prefix', 'wrapperClass', 'options', 'aria-describedby', 'ref',
+    'children', 'class', 'id', 'value', 'defaultValue', 'label', 'description', 'helpLabel', 'error', 'placeholder', 'prefix', 'wrapperClass', 'options', 'aria-describedby', 'ref',
   ])
   const id = () => local.id ?? generatedID
   const errorID = () => `${id()}-error`
@@ -53,7 +55,7 @@ export function Select(props: SelectProps) {
   })
 
   return (
-    <Field class={classes('shrink-0', local.wrapperClass)} label={local.label} labelFor={id()} error={local.error} errorId={errorID()} required={native.required}>
+    <Field class={classes('shrink-0', local.wrapperClass)} label={local.label} description={local.description} helpLabel={local.helpLabel} labelFor={id()} error={local.error} errorId={errorID()} required={native.required}>
       <div class="w-full relative flex items-center">
         <Show when={local.prefix !== undefined && local.prefix !== ''}>
           <label class="inline-flex items-center justify-center text-300 text-sm whitespace-nowrap h-[2.6875rem] border-l border-t border-b border-default rounded-l-lg px-[var(--form-control-size-x)]" for={id()}>

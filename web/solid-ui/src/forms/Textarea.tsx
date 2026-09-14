@@ -5,17 +5,19 @@ import { Field } from './Field'
 export interface TextareaProps extends JSX.TextareaHTMLAttributes<HTMLTextAreaElement> {
   defaultValue?: string
   label?: JSX.Element
+  description?: JSX.Element
+  helpLabel?: string
   error?: JSX.Element
   wrapperClass?: string
 }
 
 export function Textarea(props: TextareaProps) {
   const generatedID = createUniqueId()
-  const [local, native] = splitProps(props, ['label', 'error', 'wrapperClass', 'class', 'id', 'value', 'defaultValue', 'aria-describedby'])
+  const [local, native] = splitProps(props, ['label', 'description', 'helpLabel', 'error', 'wrapperClass', 'class', 'id', 'value', 'defaultValue', 'aria-describedby'])
   const id = () => local.id ?? generatedID
   const errorID = () => `${id()}-error`
   return (
-    <Field class={local.wrapperClass} label={local.label} labelFor={id()} error={local.error} errorId={errorID()} required={native.required}>
+    <Field class={local.wrapperClass} label={local.label} description={local.description} helpLabel={local.helpLabel} labelFor={id()} error={local.error} errorId={errorID()} required={native.required}>
       <textarea
         {...native}
         id={id()}

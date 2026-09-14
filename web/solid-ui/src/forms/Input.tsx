@@ -16,6 +16,8 @@ export interface InputProps extends Omit<JSX.InputHTMLAttributes<HTMLInputElemen
   type?: InputType
   defaultValue?: string | number
   label?: JSX.Element
+  description?: JSX.Element
+  helpLabel?: string
   error?: JSX.Element
   wrapperClass?: string
   controlClass?: string
@@ -29,7 +31,7 @@ export interface InputProps extends Omit<JSX.InputHTMLAttributes<HTMLInputElemen
 export function Input(props: InputProps) {
   const generatedID = createUniqueId()
   const [local, native] = splitProps(props, [
-    'type', 'defaultValue', 'value', 'label', 'error', 'class', 'id', 'wrapperClass', 'controlClass', 'wrapperProps',
+    'type', 'defaultValue', 'value', 'label', 'description', 'helpLabel', 'error', 'class', 'id', 'wrapperClass', 'controlClass', 'wrapperProps',
     'addonLeft', 'addonRight', 'addonLeftProps', 'addonRightProps', 'aria-describedby',
   ])
   const id = () => local.id ?? generatedID
@@ -58,7 +60,7 @@ export function Input(props: InputProps) {
   }
 
   return (
-    <Field class={local.wrapperClass} label={local.label} labelFor={id()} error={local.error} errorId={errorID()} required={native.required}>
+    <Field class={local.wrapperClass} label={local.label} description={local.description} helpLabel={local.helpLabel} labelFor={id()} error={local.error} errorId={errorID()} required={native.required}>
       <div
         {...local.wrapperProps}
         class={classes('flex items-center w-full relative form-control', local.controlClass, local.wrapperProps?.class)}

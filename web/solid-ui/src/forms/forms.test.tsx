@@ -82,6 +82,15 @@ describe('Input', () => {
     expect(wrapper.lastElementChild!.className).toBe('flex pr-2.5')
   })
 
+  it('opens an optional field description next to the label', () => {
+    mount(() => <Input label="Product code" description="Used by integrations" helpLabel="About product code" />)
+    const help = host.querySelector<HTMLButtonElement>('[data-field-help] button')!
+    expect(help.getAttribute('aria-label')).toBe('About product code')
+    expect(host.querySelector('[role="dialog"]')).toBeNull()
+    help.click()
+    expect(host.querySelector('[role="dialog"]')!.textContent).toContain('Used by integrations')
+  })
+
   it('toggles password visibility without losing native value', () => {
     mount(() => <PasswordInput defaultValue="secret" />)
     const password = host.querySelector('input:not(.password-lock)') as HTMLInputElement
