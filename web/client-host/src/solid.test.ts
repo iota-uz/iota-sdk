@@ -3,7 +3,7 @@ import { createComponent, type Component } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 import { CLIENT_BOOTSTRAP_VERSION } from './bootstrap'
 import { SDK_IDENTITY } from './identity'
-import { mountSolidClientRoute } from './solid'
+import { mountSolidClientRoute, mountSolidFeatureCatalogFromDocument } from './solid'
 import { Portal, WidgetSlot } from './solid-portals'
 
 describe('Solid client route host', () => {
@@ -293,5 +293,79 @@ describe('Solid client route host', () => {
     expect(portalOwner.dataset.theme).toBe('dark')
     disposeSecond()
     expect(portalOwner.dataset.theme).toBe('shell')
+  })
+})
+
+describe('generated Solid feature catalog host', () => {
+  function routeDocument(featureId = 'feature'): Document {
+    document.body.innerHTML = `
+      <main id="iota-client-route" data-client-route-background>
+        <div id="iota-client-route-mount"></div>
+      </main>
+      <div id="iota-client-route-portals"></div>
+      <script id="iota-client-context" type="application/json"></script>`
+    document.getElementById('iota-client-context')!.textContent = JSON.stringify({
+      bootstrapVersion: CLIENT_BOOTSTRAP_VERSION,
+      protocolVersion: SDK_IDENTITY.protocolVersion,
+      sdkReleaseVersion: SDK_IDENTITY.releaseVersion,
+      sdkCommit: SDK_IDENTITY.sourceCommit,
+      initial: { name: 'Granite' },
+      theme: 'light',
+      route: { id: 'route', path: '/route', featureId },
+      session: {}, locale: { language: 'en', messages: {} }, permissions: [], services: {},
+    })
+    return document
+  }
+
+  it('shows loading, mounts the generated feature and owns pagehide cleanup', async () => {
+    const owner = routeDocument()
+    let resolveModule!: (module: { default: Component<{ route: { initial: { name: string } } }> }) => void
+    const pending = new Promise<{ default: Component<{ route: { initial: { name: string } } }> }>((resolve) => { resolveModule = resolve })
+    const dispose = mountSolidFeatureCatalogFromDocument({ catalog: { feature: () => pending }, owner })
+    expect(owner.querySelector('[data-solid-route-loading]')?.getAttribute('role')).toBe('status')
+    resolveModule({ default: (props) => props.route.initial.name })
+    await pending
+    await Promise.resolve()
+    expect(owner.getElementById('iota-client-route-mount')?.textContent).toBe('Granite')
+    owner.defaultView?.dispatchEvent(new Event('pagehide'))
+    expect(owner.getElementById('iota-client-route-mount')?.childElementCount).toBe(0)
+    dispose()
+  })
+
+  it('ignores a module that resolves after route disposal', async () => {
+    const owner = routeDocument()
+    let resolveModule!: (module: { default: Component }) => void
+    const pending = new Promise<{ default: Component }>((resolve) => { resolveModule = resolve })
+    const dispose = mountSolidFeatureCatalogFromDocument({ catalog: { feature: () => pending }, owner })
+    dispose()
+    resolveModule({ default: () => 'late' })
+    await pending
+    await Promise.resolve()
+    expect(owner.getElementById('iota-client-route-mount')?.textContent).toBe('')
+  })
+
+  it('renders a bounded error and reloads with no private diagnostics', async () => {
+    const owner = routeDocument()
+    const load = vi.fn().mockRejectedValueOnce(new Error('private build path'))
+    const reload = vi.fn()
+    const consoleError = vi.spyOn(owner.defaultView!.console, 'error').mockImplementation(() => undefined)
+    const dispose = mountSolidFeatureCatalogFromDocument({ catalog: { feature: load }, owner, reload })
+    await Promise.resolve()
+    await Promise.resolve()
+    const alert = owner.querySelector('[data-solid-route-error]')
+    expect(alert?.textContent).toContain('could not be loaded')
+    expect(alert?.textContent).not.toContain('private build path')
+    ;(owner.querySelector('[data-solid-route-retry]') as HTMLButtonElement).click()
+    expect(load).toHaveBeenCalledOnce()
+    expect(reload).toHaveBeenCalledOnce()
+    consoleError.mockRestore()
+    dispose()
+  })
+
+  it('rejects catalog drift and duplicate ownership before loading', () => {
+    const owner = routeDocument('missing')
+    expect(() => mountSolidFeatureCatalogFromDocument({ catalog: {}, owner })).toThrow('absent from the generated catalog')
+    owner.getElementById('iota-client-route-mount')!.dataset.iotaClientOwner = 'react'
+    expect(() => mountSolidFeatureCatalogFromDocument({ catalog: { missing: async () => ({ default: () => null }) }, owner })).toThrow('already owned')
   })
 })

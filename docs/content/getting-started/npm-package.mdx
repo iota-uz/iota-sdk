@@ -20,25 +20,54 @@ Production consumers should pin an exact SDK version matching their Go module.
 
 ## Solid client route
 
-Declare the route once on the server:
+Declare the screen and route once in the owning Go package:
 
 ```go
+var ProductEditor = solid.Import[ProductEditorProps](
+    "./ProductEditor.tsx",
+    solid.WithRPC(
+        solid.Query[LoadProduct, Product]("products.load"),
+        solid.Action[SaveProduct, Product]("products.save", solid.Invalidates("products.load")),
+    ),
+)
+
 spec := application.Get(
     "/products/{id}/configure",
-    application.ClientFeature("products.configure", "product-configurator"),
+    application.ClientRoute("products.configure"),
     application.RequireAll(products.UpdatePermission),
 )
+
+route := clienthost.Route{
+    Spec: spec,
+    Feature: ProductEditor,
+    Build: func(ctx context.Context, request *http.Request) (clienthost.RoutePayload, error) {
+        props, err := loadProductEditorProps(ctx, request)
+        return clienthost.RoutePayload{Screen: ProductEditor.Render(props)}, err
+    },
+}
 ```
 
-The feature entry is ordinary TSX and uses the standard document bootstrap:
+Generate the colocated types and catalog, then import the generated Props from
+ordinary TSX:
 
 ```tsx
-import { mountSolidClientRouteFromDocument } from '@iota-uz/sdk/solid'
-import '@iota-uz/sdk/styles.css'
-import { ProductEditor } from './ProductEditor'
+import type { Props } from './ProductEditor.solid.generated'
+import type { SolidRouteProps } from '@iota-uz/sdk/solid'
 
-mountSolidClientRouteFromDocument(ProductEditor, {})
+export default function ProductEditor(props: SolidRouteProps<Props>) {
+  return <h1>{props.route.initial.productName}</h1>
+}
 ```
+
+```bash
+go run github.com/iota-uz/iota-sdk/cmd/iota-solid \
+  -module . -catalog web/src/solid-features.generated.ts
+```
+
+The app's frontend entry calls `mountSolidFeatureCatalogFromDocument` once with
+the generated catalog. New features do not edit that entry. Commit the generated
+bindings and catalog; run the same command with `-check` in CI and `-watch` in
+the shared dev command.
 
 Inside a component, use `useClientHost()` for the current session, locale,
 theme, navigation guard, and telemetry. Construct `FetchRPCTransport` with the

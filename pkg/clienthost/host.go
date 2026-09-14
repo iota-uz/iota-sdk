@@ -116,11 +116,27 @@ type SessionContext struct {
 type RoutePayload struct {
 	Title   string
 	Initial any
+	Screen  RenderedFeature
+}
+
+// Feature identifies one statically discovered client module. Implementations
+// are descriptors only: they do not mount UI, perform requests, or build
+// assets when a Go package initializes.
+type Feature interface {
+	FeatureID() string
+	SourcePath() string
+}
+
+// RenderedFeature is the request-specific props snapshot for a Feature.
+type RenderedFeature interface {
+	FeatureID() string
+	Props() any
 }
 
 type Route struct {
-	Spec  application.RouteSpec
-	Build func(context.Context, *http.Request) (RoutePayload, error)
+	Spec    application.RouteSpec
+	Feature Feature
+	Build   func(context.Context, *http.Request) (RoutePayload, error)
 }
 
 type Page struct {
@@ -172,6 +188,16 @@ func NewController(id string, manifest Manifest, routes []Route, options ...Opti
 			return nil, fmt.Errorf("clienthost controller %s: route %s must declare client renderer", controller.id, route.Spec.Path)
 		}
 		if route.Spec.Renderer == application.RouteRendererClient {
+			if route.Feature != nil {
+				featureID := strings.TrimSpace(route.Feature.FeatureID())
+				if featureID == "" || strings.TrimSpace(route.Feature.SourcePath()) == "" {
+					return nil, fmt.Errorf("clienthost controller %s: route %s has an invalid feature descriptor", controller.id, route.Spec.Path)
+				}
+				if route.Spec.FeatureID != "" && route.Spec.FeatureID != featureID {
+					return nil, fmt.Errorf("clienthost controller %s: route %s feature identity %q conflicts with imported feature %q", controller.id, route.Spec.Path, route.Spec.FeatureID, featureID)
+				}
+				route.Spec.FeatureID = featureID
+			}
 			if route.Spec.RouteID == "" || route.Spec.FeatureID == "" {
 				return nil, fmt.Errorf("clienthost controller %s: route %s requires route and feature identity", controller.id, route.Spec.Path)
 			}
@@ -217,7 +243,26 @@ func (c *Controller) handler(route Route) http.HandlerFunc {
 			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		initial, err := json.Marshal(payload.Initial)
+		initialValue := payload.Initial
+		if route.Feature != nil {
+			if payload.Screen == nil {
+				http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			if payload.Screen.FeatureID() != route.Feature.FeatureID() {
+				http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			initialValue = payload.Screen.Props()
+		} else if payload.Screen != nil {
+			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		if err := validateSafeIntegers(initialValue); err != nil {
+			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		initial, err := json.Marshal(initialValue)
 		if err != nil {
 			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return

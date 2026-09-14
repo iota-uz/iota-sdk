@@ -115,6 +115,111 @@ func TestController_RequiresExplicitAccessAndUniqueIdentity(t *testing.T) {
 	require.ErrorContains(t, err, "duplicate route id")
 }
 
+type testFeature struct {
+	id string
+}
+
+func (feature testFeature) FeatureID() string  { return feature.id }
+func (feature testFeature) SourcePath() string { return "./Screen.tsx" }
+
+type testRenderedFeature struct {
+	id    string
+	props any
+}
+
+func (feature testRenderedFeature) FeatureID() string { return feature.id }
+func (feature testRenderedFeature) Props() any        { return feature.props }
+
+func TestController_DerivesImportedFeatureAndRendersItsProps(t *testing.T) {
+	t.Parallel()
+	feature := testFeature{id: "solid-derived"}
+	spec := application.Get("/solid", application.ClientRoute("solid.route"), application.Authenticated())
+	controller, err := NewController("solid", testManifest(), []Route{{
+		Spec:    spec,
+		Feature: feature,
+		Build: func(_ context.Context, _ *http.Request) (RoutePayload, error) {
+			return RoutePayload{Title: "Solid", Screen: testRenderedFeature{id: feature.id, props: map[string]string{"name": "Granite"}}}, nil
+		},
+	}})
+	require.NoError(t, err)
+	require.Equal(t, feature.id, controller.Descriptor().Routes[0].FeatureID)
+
+	router := mux.NewRouter()
+	controller.Register(router)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/solid", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Contains(t, recorder.Body.String(), `"featureId":"solid-derived"`)
+	require.Contains(t, recorder.Body.String(), `"initial":{"name":"Granite"}`)
+}
+
+func TestController_RejectsMissingOrMismatchedImportedRender(t *testing.T) {
+	t.Parallel()
+	feature := testFeature{id: "solid-derived"}
+	spec := application.Get("/solid", application.ClientRoute("solid.route"), application.Authenticated())
+	for name, payload := range map[string]RoutePayload{
+		"missing":  {},
+		"mismatch": {Screen: testRenderedFeature{id: "other", props: struct{}{}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			controller, err := NewController("solid", testManifest(), []Route{{
+				Spec: spec, Feature: feature,
+				Build: func(_ context.Context, _ *http.Request) (RoutePayload, error) { return payload, nil },
+			}})
+			require.NoError(t, err)
+			router := mux.NewRouter()
+			controller.Register(router)
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/solid", nil))
+			require.Equal(t, http.StatusInternalServerError, recorder.Code)
+		})
+	}
+}
+
+func TestController_RejectsUnsafeJavaScriptIntegerProps(t *testing.T) {
+	t.Parallel()
+	feature := testFeature{id: "solid-derived"}
+	controller, err := NewController("solid", testManifest(), []Route{{
+		Spec:    application.Get("/solid", application.ClientRoute("solid.route"), application.Authenticated()),
+		Feature: feature,
+		Build: func(_ context.Context, _ *http.Request) (RoutePayload, error) {
+			return RoutePayload{Screen: testRenderedFeature{id: feature.id, props: struct {
+				Value uint64 `json:"value"`
+			}{Value: 1 << 63}}}, nil
+		},
+	}})
+	require.NoError(t, err)
+	router := mux.NewRouter()
+	controller.Register(router)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/solid", nil))
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
+}
+
+type unsafeNumberMarshaler struct{}
+
+func (unsafeNumberMarshaler) MarshalJSON() ([]byte, error) {
+	return []byte(`{"value":9007199254740993}`), nil
+}
+
+func TestController_RejectsUnsafeNumbersFromCustomJSONMarshalers(t *testing.T) {
+	t.Parallel()
+	feature := testFeature{id: "solid-derived"}
+	controller, err := NewController("solid", testManifest(), []Route{{
+		Spec:    application.Get("/solid", application.ClientRoute("solid.route"), application.Authenticated()),
+		Feature: feature,
+		Build: func(_ context.Context, _ *http.Request) (RoutePayload, error) {
+			return RoutePayload{Screen: testRenderedFeature{id: feature.id, props: unsafeNumberMarshaler{}}}, nil
+		},
+	}})
+	require.NoError(t, err)
+	router := mux.NewRouter()
+	controller.Register(router)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/solid", nil))
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
+}
+
 func TestManifest_RoundTripsProvenance(t *testing.T) {
 	t.Parallel()
 

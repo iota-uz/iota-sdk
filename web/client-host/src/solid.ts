@@ -206,3 +206,134 @@ export function mountSolidClientRouteFromDocument<TInitial, TProps extends objec
     widgetSlots: discoverWidgetSlots(owner),
   })
 }
+
+export interface SolidFeatureModule {
+  // The generated catalog erases each feature's concrete props only at this
+  // dispatch boundary; every module is checked against its generated Props.
+  default: Component<SolidRouteProps<never>>
+}
+
+export type SolidFeatureCatalog = Record<string, () => Promise<SolidFeatureModule>>
+
+export interface MountSolidFeatureCatalogOptions {
+  catalog: SolidFeatureCatalog
+  owner?: Document
+  reload?: () => void
+}
+
+function documentTheme(owner: Document, fallback: 'light' | 'dark'): 'light' | 'dark' {
+  const root = owner.documentElement
+  if (root.classList.contains('dark')) return 'dark'
+  if (root.classList.contains('light')) return 'light'
+  if (root.classList.contains('system') && owner.defaultView?.matchMedia?.('(prefers-color-scheme: dark)').matches) return 'dark'
+  return fallback
+}
+
+// mountSolidFeatureCatalogFromDocument owns route-level loading, bundle
+// failure/retry, mount and disposal for statically generated feature catalogs.
+// Feature code owns only states inside the loaded screen.
+export function mountSolidFeatureCatalogFromDocument(
+  options: MountSolidFeatureCatalogOptions,
+): () => void {
+  const owner = options.owner ?? document
+  const root = owner.getElementById('iota-client-route-mount')
+  if (!root) throw new Error('Client route mount element is missing')
+  const context = readClientBootstrap(owner)
+  context.theme = documentTheme(owner, context.theme)
+  const featureID = context.route?.featureId
+  if (!featureID) throw new Error('Client route feature identity is missing')
+  const load = options.catalog[featureID]
+  if (!load) throw new Error(`Solid feature ${featureID} is absent from the generated catalog`)
+  if (root.dataset.iotaClientOwner) {
+    throw new Error(`Client route root is already owned by ${root.dataset.iotaClientOwner}`)
+  }
+
+  let active = true
+  let generation = 0
+  let disposeMounted: (() => void) | undefined
+  root.dataset.iotaClientOwner = 'solid-loading'
+
+  const showLoading = () => {
+    root.setAttribute('aria-busy', 'true')
+    const status = owner.createElement('div')
+    status.dataset.solidRouteLoading = 'true'
+    status.setAttribute('role', 'status')
+    status.textContent = 'Loading…'
+    root.replaceChildren(status)
+  }
+
+  const start = () => {
+    if (!active) return
+    const current = ++generation
+    showLoading()
+    void load().then(
+      (module) => {
+        if (!active || current !== generation) return
+        if (!module || typeof module.default !== 'function') {
+          throw new Error(`Solid feature ${featureID} has no default component export`)
+        }
+        root.removeAttribute('aria-busy')
+        root.replaceChildren()
+        delete root.dataset.iotaClientOwner
+        disposeMounted = mountSolidClientRoute({
+          root,
+          component: module.default as Component<SolidRouteProps<unknown>>,
+          props: {},
+          context,
+        })
+      },
+      (cause: unknown) => {
+        if (!active || current !== generation) return
+        root.removeAttribute('aria-busy')
+        const alert = owner.createElement('div')
+        alert.dataset.solidRouteError = 'true'
+        alert.setAttribute('role', 'alert')
+        const message = owner.createElement('p')
+        message.textContent = 'The screen could not be loaded.'
+        const retry = owner.createElement('button')
+        retry.type = 'button'
+        retry.dataset.solidRouteRetry = 'true'
+        retry.textContent = 'Retry'
+        retry.addEventListener('click', () => {
+          // Browsers cache a rejected dynamic import for the lifetime of the
+          // document. Reloading creates a fresh module map, so Retry can
+          // actually request a chunk that became available after the failure.
+          const reload = options.reload ?? (() => owner.defaultView?.location.reload())
+          reload()
+        }, { once: true })
+        alert.append(message, retry)
+        root.replaceChildren(alert)
+        owner.defaultView?.console.error(`Failed to load Solid feature ${featureID}`, cause)
+      },
+    ).catch((cause: unknown) => {
+      if (!active || current !== generation) return
+      root.removeAttribute('aria-busy')
+      const alert = owner.createElement('div')
+      alert.dataset.solidRouteError = 'true'
+      alert.setAttribute('role', 'alert')
+      alert.textContent = 'The screen module is invalid.'
+      root.replaceChildren(alert)
+      owner.defaultView?.console.error(`Invalid Solid feature ${featureID}`, cause)
+    })
+  }
+
+  const dispose = () => {
+    if (!active) return
+    active = false
+    generation++
+    owner.defaultView?.removeEventListener('pagehide', dispose)
+    owner.removeEventListener('iota:client-route-unmount', dispose)
+    try {
+      disposeMounted?.()
+    } finally {
+      root.removeAttribute('aria-busy')
+      root.replaceChildren()
+      delete root.dataset.iotaClientOwner
+    }
+  }
+
+  owner.defaultView?.addEventListener('pagehide', dispose, { once: true })
+  owner.addEventListener('iota:client-route-unmount', dispose, { once: true })
+  start()
+  return dispose
+}
