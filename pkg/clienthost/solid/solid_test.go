@@ -38,7 +38,6 @@ func TestImportRejectsInvalidRPCDeclarations(t *testing.T) {
 		"unknown invalidation": func() { Import[props]("./Screen.tsx", WithRPC(Action[props, props]("save", Invalidates("missing")))) },
 	}
 	for name, run := range tests {
-		name, run := name, run
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			require.Panics(t, run)

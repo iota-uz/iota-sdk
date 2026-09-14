@@ -122,7 +122,8 @@ func validateMethods(methods []Method) error {
 			return fmt.Errorf("duplicate RPC method %q (%s and %s)", method.Name, previous, method.Kind)
 		}
 		seen[method.Name] = method.Kind
-		if method.Kind == MethodQuery {
+		switch method.Kind {
+		case MethodQuery:
 			queries[method.Name] = struct{}{}
 			if len(method.Invalidates) > 0 {
 				return fmt.Errorf("query %q cannot invalidate queries", method.Name)
@@ -130,11 +131,11 @@ func validateMethods(methods []Method) error {
 			if method.Cacheable && (method.MaxRetries < 0 || method.MaxRetries > 3) {
 				return fmt.Errorf("query %q retry count must be between 0 and 3", method.Name)
 			}
-		} else if method.Kind == MethodAction {
+		case MethodAction:
 			if method.Cacheable {
 				return fmt.Errorf("action %q cannot be cacheable", method.Name)
 			}
-		} else {
+		default:
 			return fmt.Errorf("RPC method %q has unsupported kind %q", method.Name, method.Kind)
 		}
 	}

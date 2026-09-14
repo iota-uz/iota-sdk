@@ -132,7 +132,7 @@ var Screen = solid.Import[Props]("./Screen.tsx")
 	require.NoError(t, os.WriteFile(filepath.Join(root, "feature", "Keep.solid.generated.ts"), []byte("// user-owned\n"), 0o644))
 
 	_, err := Run(Config{ModuleRoot: root, Catalog: "web/src/solid-features.generated.ts", Check: true})
-	require.ErrorContains(t, err, "Solid generated files are stale")
+	require.ErrorContains(t, err, "solid generated files are stale")
 	require.FileExists(t, filepath.Join(root, "feature", "Old.solid.generated.ts"))
 
 	_, err = Run(Config{ModuleRoot: root, Catalog: "web/src/solid-features.generated.ts"})

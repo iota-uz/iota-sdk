@@ -139,6 +139,8 @@ func walkSafeIntegers(value reflect.Value, path string, seen map[visit]struct{})
 				return err
 			}
 		}
+	default:
+		return nil
 	}
 	return nil
 }

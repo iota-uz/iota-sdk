@@ -572,7 +572,7 @@ func (emitter *typeEmitter) emit(value types.Type) (string, error) {
 		}
 		return "{ " + strings.Join(fields, "; ") + " }", nil
 	default:
-		return "never", fmt.Errorf("Go type %s is unsupported in Solid wire contracts", value.String())
+		return "never", fmt.Errorf("go type %s is unsupported in Solid wire contracts", value.String())
 	}
 }
 
@@ -637,16 +637,18 @@ func stringEnum(named *types.Named) []string {
 	return values
 }
 
-func jsonField(fallback, raw string) (name string, optional, asString, skip bool) {
+func jsonField(fallback, raw string) (string, bool, bool, bool) {
 	tag := reflect.StructTag(raw).Get("json")
 	parts := strings.Split(tag, ",")
-	name = fallback
+	name := fallback
 	if len(parts) > 0 && parts[0] != "" {
 		name = parts[0]
 	}
 	if name == "-" {
 		return "", false, false, true
 	}
+	optional := false
+	asString := false
 	for _, option := range parts[1:] {
 		switch option {
 		case "omitempty", "omitzero":
@@ -725,7 +727,7 @@ func reconcile(root string, expected map[string][]byte, check bool) error {
 		}
 	}
 	if check && (len(changed) > 0 || len(stale) > 0) {
-		return fmt.Errorf("Solid generated files are stale; run iota-solid (changed: %s; stale: %s)", joinRelative(root, changed), joinRelative(root, stale))
+		return fmt.Errorf("solid generated files are stale; run iota-solid (changed: %s; stale: %s)", joinRelative(root, changed), joinRelative(root, stale))
 	}
 	if !check {
 		for _, file := range stale {

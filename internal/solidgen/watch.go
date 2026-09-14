@@ -23,7 +23,9 @@ func Watch(ctx context.Context, cfg Config, report func(Result, error)) error {
 	if err != nil {
 		return err
 	}
-	defer watcher.Close()
+	defer func() {
+		_ = watcher.Close()
+	}()
 	if err := addWatchDirectories(watcher, root); err != nil {
 		return err
 	}
