@@ -40,7 +40,7 @@ describe('RadioGroup and Radio', () => {
     inputs[1]!.click()
     expect(inputs[1]!.checked).toBe(true)
     expect(changed).toHaveBeenCalledWith('pro')
-    expect(inputs[1]!.nextElementSibling!.className).toContain('peer-checked:after:bg-brand-500')
+    expect(inputs[1]!.nextElementSibling!.className).toContain('iota-radio-indicator')
   })
 
   it('supports standalone uncontrolled and disabled radios', () => {

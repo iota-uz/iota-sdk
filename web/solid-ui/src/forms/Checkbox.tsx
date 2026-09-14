@@ -34,9 +34,9 @@ export function Checkbox(props: CheckboxProps) {
           aria-invalid={local.error ? true : native['aria-invalid']}
           aria-describedby={[local['aria-describedby'], local.error ? errorID() : undefined].filter(Boolean).join(' ') || undefined}
         />
-        <div class="pointer-events-none w-5 h-5 rounded-[5px] border border-default duration-200 flex items-center justify-center hover:border-brand peer-disabled:border-disabled peer-indeterminate:bg-brand-500 peer-checked:border-brand peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white group">
-          <CheckIcon size={16} class="scale-0 peer-indeterminate:group-[]:hidden peer-checked:group-[]:scale-100" />
-          <MinusIcon size={16} class="scale-0 hidden peer-indeterminate:group-[]:inline peer-indeterminate:group-[]:scale-100" />
+        <div class="iota-checkbox-indicator pointer-events-none w-5 h-5 shrink-0 rounded-[5px] border border-default duration-200 flex items-center justify-center hover:border-brand peer-disabled:border-disabled peer-indeterminate:bg-brand-500 peer-checked:border-brand peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white">
+          <CheckIcon size={16} class="iota-checkbox-check" />
+          <MinusIcon size={16} class="iota-checkbox-minus" />
         </div>
         <Show when={local.label !== undefined && local.label !== ''}><span>{local.label}</span></Show>
         {local.children}

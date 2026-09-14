@@ -183,4 +183,14 @@ describe('Textarea, Select and Checkbox', () => {
     expect(changed).toHaveBeenCalledOnce()
     expect(host.querySelector('label')!.htmlFor).toBe(checkbox.id)
   })
+
+  it('keeps unchecked checkbox artwork empty', () => {
+    mount(() => <Checkbox label="Inactive" />)
+    const checkbox = host.querySelector('input')!
+    const indicator = checkbox.nextElementSibling!
+    expect(checkbox.checked).toBe(false)
+    expect(indicator.classList.contains('iota-checkbox-indicator')).toBe(true)
+    expect(indicator.querySelector('.iota-checkbox-check')).not.toBeNull()
+    expect(indicator.querySelector('.iota-checkbox-minus')).not.toBeNull()
+  })
 })
