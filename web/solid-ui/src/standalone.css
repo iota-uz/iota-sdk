@@ -1,0 +1,4 @@
+@config "../../../tailwind.config.js";
+@import "tailwindcss";
+@import "../../../styles/tailwind/iota.css";
+@source "./**/*.{ts,tsx}";

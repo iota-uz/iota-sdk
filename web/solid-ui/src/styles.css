@@ -1,0 +1,239 @@
+:root[data-theme="light"] {
+  --gallery-canvas: #f7f8fa;
+  --gallery-surface: #ffffff;
+  --gallery-surface-muted: #f0f2f5;
+  --gallery-border: #d8dde6;
+  --gallery-text: #1d2633;
+  --gallery-text-muted: #657286;
+  --gallery-accent: #5548d9;
+}
+
+:root[data-theme="dark"] {
+  --gallery-canvas: #11141a;
+  --gallery-surface: #191e27;
+  --gallery-surface-muted: #242b36;
+  --gallery-border: #394352;
+  --gallery-text: #f2f4f7;
+  --gallery-text-muted: #aab4c3;
+  --gallery-accent: #9288ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--gallery-canvas);
+  color: var(--gallery-text);
+  margin: 0;
+  min-width: 320px;
+}
+
+.gallery {
+  margin: 0 auto;
+  max-width: 1080px;
+  min-height: 100vh;
+  padding: 48px;
+}
+
+.gallery__header {
+  align-items: flex-end;
+  border-bottom: 1px solid var(--gallery-border);
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 24px;
+}
+
+.gallery__header p,
+.specimen__eyebrow {
+  color: var(--gallery-accent);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin: 0 0 8px;
+}
+
+.gallery h1,
+.gallery h2 {
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+
+.gallery h1 {
+  font-size: 28px;
+  line-height: 36px;
+}
+
+.theme-badge {
+  background: var(--gallery-surface-muted);
+  border: 1px solid var(--gallery-border);
+  border-radius: 999px;
+  color: var(--gallery-text-muted);
+  font-size: 13px;
+  padding: 6px 12px;
+}
+
+.gallery__description {
+  align-items: baseline;
+  color: var(--gallery-text-muted);
+  display: flex;
+  font-size: 13px;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.gallery__description strong {
+  color: var(--gallery-text);
+}
+
+.specimen {
+  background: var(--gallery-surface);
+  border: 1px solid var(--gallery-border);
+  border-radius: 12px;
+  color: oklch(var(--clr-text-100));
+  margin-top: 16px;
+  padding: 32px;
+}
+
+.specimen-row {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+}
+
+.specimen-row + .specimen-row,
+.specimen-row + .specimen-stack {
+  margin-top: 24px;
+}
+
+.specimen-row--wrap {
+  flex-wrap: wrap;
+}
+
+.specimen-grid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.specimen-stack {
+  display: grid;
+  gap: 24px;
+}
+
+.specimen-stack--compact {
+  gap: 16px;
+}
+
+.specimen-row--spread {
+  justify-content: space-between;
+}
+
+.specimen-date-control {
+  position: relative;
+}
+
+.specimen-date-control > button {
+  top: 51px;
+}
+
+.specimen-drawer-content {
+  display: grid;
+  gap: 8px;
+  padding: 24px;
+}
+
+.specimen-checks {
+  display: grid;
+  gap: 16px;
+}
+
+.specimen-skeleton {
+  flex: 1;
+}
+
+.specimen-tab-content {
+  background: oklch(var(--clr-surface-100));
+  border-radius: 8px;
+  color: oklch(var(--clr-text-200));
+  margin-top: 12px;
+  padding: 16px;
+}
+
+.specimen__heading {
+  max-width: 640px;
+}
+
+.specimen__heading h2 {
+  font-size: 22px;
+  line-height: 30px;
+}
+
+.specimen__heading > p:last-child {
+  color: var(--gallery-text-muted);
+  line-height: 24px;
+  margin: 8px 0 0;
+}
+
+.token-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 28px;
+}
+
+.token {
+  align-items: center;
+  background: var(--gallery-surface-muted);
+  border: 1px solid var(--gallery-border);
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  min-height: 72px;
+  padding: 16px;
+}
+
+.token span {
+  color: var(--gallery-text-muted);
+  font-size: 14px;
+}
+
+.token strong {
+  color: var(--gallery-accent);
+  font-size: 18px;
+}
+
+@media (max-width: 720px) {
+  .gallery {
+    padding: 24px 16px;
+  }
+
+  .gallery__header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .gallery__description {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .specimen {
+    padding: 20px;
+  }
+
+  .specimen-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .specimen-row:not(.specimen-row--wrap) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .token-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

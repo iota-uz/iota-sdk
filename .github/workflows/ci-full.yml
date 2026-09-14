@@ -9,6 +9,9 @@ on:
       lens_vr_update:
         type: boolean
         default: false
+      solid_ui_vr_update:
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       sha:
@@ -17,6 +20,10 @@ on:
         type: string
       lens_vr_update:
         description: Generate Linux Lens VR candidates for manual promotion
+        type: boolean
+        default: false
+      solid_ui_vr_update:
+        description: Generate Linux Solid UI VR candidates for manual promotion
         type: boolean
         default: false
 
@@ -224,6 +231,123 @@ jobs:
         with:
           name: lens-vr-linux-candidates-${{ inputs.sha }}
           path: web/lens/vr/baselines/linux/
+          if-no-files-found: error
+          retention-days: 14
+
+  solid-ui-vr:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
+    name: Solid UI Visual Regression
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: "1.24.13"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # v3
+        with:
+          version: 9.15.0
+
+      - name: Install just
+        uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3
+        with:
+          just-version: "1.46.0"
+
+      - name: Install Solid UI dependencies
+        working-directory: web/solid-ui
+        run: pnpm install --frozen-lockfile
+
+      - name: Check Solid UI workspace
+        run: just solid-ui check
+
+      - name: Cache Playwright browsers
+        id: solid-ui-playwright-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-solid-ui-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Chromium system dependencies
+        working-directory: web/solid-ui
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Install Chromium
+        if: steps.solid-ui-playwright-cache.outputs.cache-hit != 'true'
+        working-directory: web/solid-ui
+        run: pnpm exec playwright install chromium
+
+      - name: Reject deleted approved Linux baselines
+        if: inputs.solid_ui_vr_update != true
+        shell: bash
+        run: |
+          git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+          base_count="$(git ls-tree -r --name-only origin/main -- web/solid-ui/vr/baselines/linux | awk '/\.png$/ { count++ } END { print count + 0 }')"
+          checkout_count=0
+          if [[ -d web/solid-ui/vr/baselines/linux ]]; then
+            checkout_count="$(find web/solid-ui/vr/baselines/linux -maxdepth 1 -type f -name '*.png' | wc -l | tr -d ' ')"
+          fi
+          if (( base_count > checkout_count )); then
+            echo "::error::Approved Solid UI VR baselines were removed: origin/main has ${base_count} Linux PNGs, but this checkout has ${checkout_count}."
+            exit 1
+          fi
+
+      - name: Detect approved Linux baselines
+        id: solid-ui-baselines
+        shell: bash
+        run: |
+          if compgen -G 'web/solid-ui/vr/baselines/linux/*.png' > /dev/null; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compare visual regression baselines and templ parity
+        if: inputs.solid_ui_vr_update != true
+        run: just solid-ui vr
+
+      - name: Detect generated missing-baseline candidates
+        id: solid-ui-missing-baselines
+        if: inputs.solid_ui_vr_update != true
+        shell: bash
+        run: |
+          if [[ -s web/solid-ui/vr/results/missing-baselines.txt ]]; then
+            echo 'generated=true' >> "$GITHUB_OUTPUT"
+            echo '::notice::New Solid UI specimens generated Linux baseline candidates; review and promote the candidate PNGs.'
+          else
+            echo 'generated=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate visual regression candidates
+        if: inputs.solid_ui_vr_update == true
+        run: just solid-ui vr-update
+
+      - name: Upload visual regression diffs
+        if: failure() && steps.solid-ui-baselines.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: solid-ui-vr-linux-diffs-${{ inputs.sha }}
+          path: web/solid-ui/vr/results/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Linux baseline candidates
+        if: ${{ always() && (steps.solid-ui-baselines.outputs.available != 'true' || steps.solid-ui-missing-baselines.outputs.generated == 'true' || inputs.solid_ui_vr_update == true) }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: solid-ui-vr-linux-candidates-${{ inputs.sha }}
+          path: web/solid-ui/vr/baselines/linux/
           if-no-files-found: error
           retention-days: 14
 

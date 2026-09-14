@@ -1,0 +1,40 @@
+{
+  "name": "@iota-uz/sdk-solid-ui-internal",
+  "private": true,
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iota-uz/iota-sdk.git",
+    "directory": "web/solid-ui"
+  },
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "build:package": "vite build --config vite.package.config.ts && vite build --config vite.package.ssr.config.ts && tsc -p tsconfig.package.json && pnpm exec tailwindcss --input src/standalone.css --output package-dist/standalone.css --minify && node scripts/package-assets.mjs && node scripts/ssr-smoke.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "pnpm typecheck && pnpm test",
+    "vr": "node ./scripts/vr.mjs",
+    "vr-update": "node ./scripts/vr.mjs --update"
+  },
+  "dependencies": {
+    "solid-js": "1.9.15"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.1",
+    "@solidjs/testing-library": "0.8.10",
+    "@tailwindcss/cli": "4.1.18",
+    "@testing-library/jest-dom": "6.6.3",
+    "jsdom": "25.0.1",
+    "typescript": "5.7.2",
+    "vite": "5.4.21",
+    "vite-plugin-solid": "2.11.8",
+    "vitest": "2.1.9"
+  }
+}

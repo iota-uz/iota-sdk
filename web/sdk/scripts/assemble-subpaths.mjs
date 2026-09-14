@@ -8,6 +8,7 @@ const repositoryRoot = path.resolve(packageRoot, '../..')
 const dist = path.join(packageRoot, 'dist')
 const clientHostDist = path.resolve(packageRoot, '../client-host/dist')
 const lensDist = path.resolve(packageRoot, '../lens/package-dist')
+const solidUIDist = path.resolve(packageRoot, '../solid-ui/package-dist')
 const packageJSON = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'))
 const sourceCommit = process.env.SDK_SOURCE_SHA?.trim()
   || execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repositoryRoot, encoding: 'utf8' }).trim()
@@ -23,9 +24,11 @@ if (releaseVersion !== packageJSON.version) {
 
 await rm(path.join(dist, 'client-host'), { recursive: true, force: true })
 await rm(path.join(dist, 'lens'), { recursive: true, force: true })
+await rm(path.join(dist, 'solid-ui'), { recursive: true, force: true })
 await mkdir(dist, { recursive: true })
 await cp(clientHostDist, path.join(dist, 'client-host'), { recursive: true })
 await cp(lensDist, path.join(dist, 'lens'), { recursive: true })
+await cp(solidUIDist, path.join(dist, 'solid-ui'), { recursive: true })
 await cp(path.join(repositoryRoot, 'styles/tailwind/iota.css'), path.join(dist, 'styles.css'))
 
 const identity = {
@@ -82,5 +85,6 @@ async function replaceCommitMarker(directory) {
 }
 await replaceCommitMarker(path.join(dist, 'client-host'))
 await replaceCommitMarker(path.join(dist, 'lens'))
+await replaceCommitMarker(path.join(dist, 'solid-ui'))
 
 await writeFile(path.join(dist, 'sdk-identity.json'), `${JSON.stringify(identity, null, 2)}\n`)
