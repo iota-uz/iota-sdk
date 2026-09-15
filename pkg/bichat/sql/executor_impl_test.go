@@ -219,6 +219,59 @@ func TestValidateQuery_RejectsTenantEscalation(t *testing.T) {
 	}
 }
 
+func TestValidateQuery_RejectsServerFileFamily(t *testing.T) {
+	// Regression: pg_read_server_files / pg_read_binary_file were blocked
+	// by name, but the sibling readers on the same filesystem privilege
+	// (pg_read_file, pg_stat_file, the pg_ls_* directory listers,
+	// pg_current_logfile) were not. Each is a SELECT-shaped call that
+	// passes the read-only allowlist, so on a role with the filesystem
+	// grants it returns arbitrary file contents or directory listings.
+	e := NewSafeQueryExecutor(nil)
+	cases := []string{
+		"SELECT pg_read_file('/etc/passwd')",
+		"SELECT pg_read_file('server.key')",
+		"SELECT (pg_stat_file('/etc/passwd')).size",
+		"SELECT pg_ls_dir('/etc')",
+		"SELECT * FROM pg_ls_logdir()",
+		"SELECT * FROM pg_ls_waldir()",
+		"SELECT * FROM pg_ls_tmpdir()",
+		"SELECT * FROM pg_ls_archive_statusdir()",
+		"SELECT pg_current_logfile()",
+		"WITH x AS (SELECT pg_read_file('/etc/passwd') AS c) SELECT c FROM x",
+		// Whitespace before the paren must not evade the family match.
+		"SELECT pg_read_file ('/etc/passwd')",
+		// The already-covered readers stay covered.
+		"SELECT pg_read_server_files('/etc/passwd', 0, 100)",
+		"SELECT pg_read_binary_file('/etc/passwd')",
+	}
+	for _, sql := range cases {
+		if err := e.ValidateQuery(context.Background(), sql); !errors.Is(err, ErrDangerousPattern) {
+			t.Fatalf("want ErrDangerousPattern for %q, got %v", sql, err)
+		}
+	}
+}
+
+func TestValidateQuery_AllowsNonFileFunctionNames(t *testing.T) {
+	// The family matcher must not over-block: a string literal, a column
+	// or table identifier, or an unrelated function that merely contains
+	// one of the family names is legitimate read-only SQL. normalizeQuery
+	// strips literals and quoted identifiers before the scan, so these
+	// must still pass.
+	e := NewSafeQueryExecutor(nil)
+	cases := []string{
+		"SELECT 'pg_read_file is scary' AS note",
+		`SELECT "pg_read_file" FROM (SELECT 1 AS "pg_read_file") q`,
+		"SELECT pg_read_file_count FROM public.metrics",
+		"SELECT my_pg_read_file(1) FROM public.t",
+		"SELECT pg_ls_dir_summary FROM public.t",
+	}
+	for _, sql := range cases {
+		if err := e.ValidateQuery(context.Background(), sql); err != nil {
+			t.Fatalf("benign query rejected: %q -> %v", sql, err)
+		}
+	}
+}
+
 func TestValidateQuery_AllowsExplain(t *testing.T) {
 	// EXPLAIN-wrapped reads are a valid tool path (sql_execute
 	// explain_plan=true). The allowlist must let them through; the

@@ -528,14 +528,30 @@ var dangerousPatterns = []string{
 	"SET ROLE ",
 	"SET LOCAL ROLE ",
 	"SET SESSION AUTHORIZATION",
-	// Server-side file / large-object reads are a privilege-escalation
-	// surface even under read-only tx on roles with the filesystem
-	// grants. Rely on role grants as primary; block as belt.
-	"PG_READ_SERVER_FILES(",
-	"PG_READ_BINARY_FILE(",
+	// Large-object import/export shells the file bytes through the client
+	// protocol on a privileged role. Rely on role grants as primary; block
+	// as belt.
 	"LO_EXPORT(",
 	"LO_IMPORT(",
 }
+
+// serverFileFunctionRE matches the whole PostgreSQL server-side file and
+// directory reader family as a call. Enumerating only pg_read_server_files
+// and pg_read_binary_file by name left the sibling readers reachable even
+// though they expose the same filesystem-read privilege: pg_read_file (the
+// plain reader), pg_stat_file, and the pg_ls_* directory listers. All are
+// usable inside a bare SELECT, so they pass the read-only allowlist and
+// reach the database unless the blocklist covers them.
+//
+// The pattern requires a non-identifier byte (or start of input) before the
+// name and a paren after it, so a column or literal that merely contains one
+// of these names does not match. normalizeQuery has already blanked
+// double-quoted identifiers, single-quoted strings, and dollar-quoted
+// literals before this scan runs, so only real call tokens are seen.
+var serverFileFunctionRE = regexp.MustCompile(
+	`(?:^|[^A-Z0-9_])PG_(?:READ_FILE|READ_BINARY_FILE|READ_SERVER_FILES|STAT_FILE|` +
+		`LS_DIR|LS_LOGDIR|LS_WALDIR|LS_TMPDIR|LS_ARCHIVE_STATUSDIR|CURRENT_LOGFILE)\s*\(`,
+)
 
 func containsDangerousPatterns(normalized string) bool {
 	for _, p := range dangerousPatterns {
@@ -543,5 +559,8 @@ func containsDangerousPatterns(normalized string) bool {
 			return true
 		}
 	}
-	return false
+	// Match the server-side filesystem readers as a family so a new
+	// pg_read*/pg_stat_file/pg_ls_* sibling cannot slip past a literal
+	// name list.
+	return serverFileFunctionRE.MatchString(normalized)
 }
