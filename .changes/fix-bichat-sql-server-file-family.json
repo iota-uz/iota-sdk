@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Block the full PostgreSQL server-side file reader family in BiChat SQL validation."
+}
