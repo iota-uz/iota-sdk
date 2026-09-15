@@ -236,6 +236,10 @@ func TestValidateQuery_RejectsServerFileFamily(t *testing.T) {
 		"SELECT * FROM pg_ls_waldir()",
 		"SELECT * FROM pg_ls_tmpdir()",
 		"SELECT * FROM pg_ls_archive_statusdir()",
+		"SELECT * FROM pg_ls_logicalsnapdir()",
+		"SELECT * FROM pg_ls_logicalmapdir()",
+		"SELECT pg_ls_replslotdir('my_slot')",
+		"SELECT * FROM pg_ls_summariesdir()",
 		"SELECT pg_current_logfile()",
 		"WITH x AS (SELECT pg_read_file('/etc/passwd') AS c) SELECT c FROM x",
 		// Whitespace before the paren must not evade the family match.
@@ -263,6 +267,7 @@ func TestValidateQuery_AllowsNonFileFunctionNames(t *testing.T) {
 		`SELECT "pg_read_file" FROM (SELECT 1 AS "pg_read_file") q`,
 		"SELECT pg_read_file_count FROM public.metrics",
 		"SELECT my_pg_read_file(1) FROM public.t",
+		"SELECT my$pg_read_file(1) FROM public.t",
 		"SELECT pg_ls_dir_summary FROM public.t",
 	}
 	for _, sql := range cases {

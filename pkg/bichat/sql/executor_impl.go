@@ -539,18 +539,22 @@ var dangerousPatterns = []string{
 // directory reader family as a call. Enumerating only pg_read_server_files
 // and pg_read_binary_file by name left the sibling readers reachable even
 // though they expose the same filesystem-read privilege: pg_read_file (the
-// plain reader), pg_stat_file, and the pg_ls_* directory listers. All are
-// usable inside a bare SELECT, so they pass the read-only allowlist and
-// reach the database unless the blocklist covers them.
+// plain reader), pg_stat_file, and the pg_ls_* directory listers (including
+// the replication slot / logical snapshot / summary dirs). All are usable
+// inside a bare SELECT, so they pass the read-only allowlist and reach the
+// database unless the blocklist covers them.
 //
 // The pattern requires a non-identifier byte (or start of input) before the
 // name and a paren after it, so a column or literal that merely contains one
-// of these names does not match. normalizeQuery has already blanked
-// double-quoted identifiers, single-quoted strings, and dollar-quoted
-// literals before this scan runs, so only real call tokens are seen.
+// of these names does not match. PostgreSQL allows $ after the first
+// identifier character, so $ is treated as an identifier byte; otherwise
+// my$pg_read_file() would false-match on the PG_READ_FILE suffix.
+// normalizeQuery has already blanked double-quoted identifiers,
+// single-quoted strings, and dollar-quoted literals before this scan runs,
+// so only real call tokens are seen.
 var serverFileFunctionRE = regexp.MustCompile(
-	`(?:^|[^A-Z0-9_])PG_(?:READ_FILE|READ_BINARY_FILE|READ_SERVER_FILES|STAT_FILE|` +
-		`LS_DIR|LS_LOGDIR|LS_WALDIR|LS_TMPDIR|LS_ARCHIVE_STATUSDIR|CURRENT_LOGFILE)\s*\(`,
+	`(?:^|[^A-Z0-9_$])PG_(?:READ_FILE|READ_BINARY_FILE|READ_SERVER_FILES|STAT_FILE|` +
+		`LS_DIR|LS_LOGDIR|LS_WALDIR|LS_TMPDIR|LS_ARCHIVE_STATUSDIR|LS_LOGICALSNAPDIR|LS_LOGICALMAPDIR|LS_REPLSLOTDIR|LS_SUMMARIESDIR|CURRENT_LOGFILE)\s*\(`,
 )
 
 func containsDangerousPatterns(normalized string) bool {
