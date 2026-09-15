@@ -332,6 +332,20 @@ describe('generated Solid feature catalog host', () => {
     dispose()
   })
 
+  it('honors a data-theme value written by the server shell', async () => {
+    const owner = routeDocument()
+    owner.documentElement.dataset.theme = 'dark'
+    const dispose = mountSolidFeatureCatalogFromDocument({
+      catalog: { feature: async () => ({ default: (props) => props.route.theme }) },
+      owner,
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(owner.getElementById('iota-client-route-mount')?.textContent).toBe('dark')
+    dispose()
+    delete owner.documentElement.dataset.theme
+  })
+
   it('ignores a module that resolves after route disposal', async () => {
     const owner = routeDocument()
     let resolveModule!: (module: { default: Component }) => void

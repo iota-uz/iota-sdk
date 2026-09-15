@@ -70,9 +70,10 @@ function setPortalTheme(owner: HTMLElement, theme: 'light' | 'dark'): () => void
   }
 }
 
-function throwCleanupFailures(failures: unknown[], message: string): void {
-  if (failures.length === 1) throw failures[0]
-  if (failures.length > 1) throw new AggregateError(failures, message, { cause: failures[0] })
+function cleanupFailure(failures: unknown[], message: string): unknown | undefined {
+  if (failures.length === 1) return failures[0]
+  if (failures.length > 1) return new AggregateError(failures, message, { cause: failures[0] })
+  return undefined
 }
 
 function cleanupPortalHost(cleanups: Set<() => void> | undefined, registry: PortalRegistry | undefined): unknown[] {
@@ -165,7 +166,8 @@ export function mountSolidClientRoute<TInitial, TProps extends object>(options: 
       } finally {
         delete options.root.dataset.iotaClientOwner
       }
-      throwCleanupFailures(failures, 'Client route cleanup failed')
+      const failure = cleanupFailure(failures, 'Client route cleanup failed')
+      if (failure !== undefined) throw failure
     }
   } catch (cause) {
     const failures = [cause]
@@ -182,8 +184,8 @@ export function mountSolidClientRoute<TInitial, TProps extends object>(options: 
     } finally {
       delete options.root.dataset.iotaClientOwner
     }
-    throwCleanupFailures(failures, 'Client route mount and cleanup failed')
-    throw cause
+    if (failures.length === 1) throw cause
+    throw new AggregateError(failures, 'Client route mount and cleanup failed', { cause })
   }
 }
 
@@ -218,11 +220,14 @@ export type SolidFeatureCatalog = Record<string, () => Promise<SolidFeatureModul
 export interface MountSolidFeatureCatalogOptions {
   catalog: SolidFeatureCatalog
   owner?: Document
+  /** Must navigate or dispose the current mount so Retry does not retain ownership. */
   reload?: () => void
 }
 
 function documentTheme(owner: Document, fallback: 'light' | 'dark'): 'light' | 'dark' {
   const root = owner.documentElement
+  if (root.dataset.theme === 'dark') return 'dark'
+  if (root.dataset.theme === 'light') return 'light'
   if (root.classList.contains('dark')) return 'dark'
   if (root.classList.contains('light')) return 'light'
   if (root.classList.contains('system') && owner.defaultView?.matchMedia?.('(prefers-color-scheme: dark)').matches) return 'dark'

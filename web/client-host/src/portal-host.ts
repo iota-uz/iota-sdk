@@ -55,6 +55,8 @@ export class PortalRegistry {
 
   constructor(private readonly owner: HTMLElement, private readonly background?: HTMLElement) {}
 
+  get ownerDocument(): Document { return this.owner.ownerDocument }
+
   root(surface: PortalSurface): HTMLElement {
     let root = this.roots.get(surface)
     if (!root) {

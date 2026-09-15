@@ -118,7 +118,7 @@ export interface MoneyInputProps extends Omit<InputProps, 'type' | 'value' | 'de
   currency: string
   value?: number
   defaultValue?: number
-  onValueChange?: (value: number) => void
+  onValueChange?: (value: number | undefined) => void
   onInput?: JSX.EventHandler<HTMLInputElement, InputEvent>
   min?: number
   max?: number
@@ -136,20 +136,24 @@ function formatMoney(value: number, decimal: string, thousand: string, precision
   return precision > 0 ? `${grouped}${decimal}${fraction}` : grouped
 }
 
-function parseMoney(value: string, decimal: string, precision: number): number {
-  const normalized = value.replace(new RegExp(`[^0-9${decimal === '.' ? '\\.' : decimal}-]`, 'g'), '').replace(decimal, '.')
-  const parsed = Number.parseFloat(normalized)
-  return Number.isFinite(parsed) ? Math.round(parsed * 10 ** precision) : 0
+function parseMoney(value: string, decimal: string, thousand: string, precision: number): number | undefined | null {
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  const normalized = trimmed.split(thousand).join('').replace(decimal, '.')
+  if (!/^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) return null
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? Math.round(parsed * 10 ** precision) : null
 }
 
 export function MoneyInput(props: MoneyInputProps) {
   const generatedID = createUniqueId()
-  const [internalValue, setInternalValue] = createSignal(props.defaultValue ?? 0)
+  const [internalValue, setInternalValue] = createSignal<number | undefined>(props.defaultValue)
+  const [draft, setDraft] = createSignal<string | undefined>()
   const [validationError, setValidationError] = createSignal('')
   const [local, native] = splitProps(props, [
     'name', 'currency', 'value', 'defaultValue', 'onValueChange', 'onInput', 'min', 'max', 'decimal', 'thousand', 'precision',
     'convertTo', 'conversionRate', 'label', 'error', 'id', 'class', 'wrapperClass', 'controlClass', 'wrapperProps',
-    'addonLeft', 'addonRight', 'addonLeftProps', 'addonRightProps', 'readOnly', 'aria-describedby',
+    'addonLeft', 'addonRight', 'addonLeftProps', 'addonRightProps', 'readOnly', 'aria-describedby', 'onBlur',
   ])
   const id = () => local.id ?? generatedID
   const decimal = () => local.decimal ?? '.'
@@ -159,21 +163,38 @@ export function MoneyInput(props: MoneyInputProps) {
   const errorID = () => `${id()}-error`
   const validationErrorID = () => `${id()}-validation-error`
   const conversionID = () => `${id()}-conversion`
-  const converted = createMemo(() => local.conversionRate && local.convertTo ? cents() * local.conversionRate : 0)
+  const converted = createMemo(() => local.conversionRate && local.convertTo && cents() !== undefined ? cents()! * local.conversionRate : undefined)
   const describedBy = () => [
     local['aria-describedby'], local.error ? errorID() : undefined,
-    local.min !== undefined || local.max !== undefined ? validationErrorID() : undefined,
-    local.convertTo && local.conversionRate ? conversionID() : undefined,
+    validationError() ? validationErrorID() : undefined,
+    converted() !== undefined ? conversionID() : undefined,
   ].filter(Boolean).join(' ') || undefined
 
   const handleInput: JSX.EventHandler<HTMLInputElement, InputEvent> = (event) => {
-    const next = parseMoney(event.currentTarget.value, decimal(), precision())
+    const raw = event.currentTarget.value
+    setDraft(raw)
+    const next = parseMoney(raw, decimal(), thousand(), precision())
+    if (next === null) {
+      setValidationError('Enter a valid amount')
+      event.currentTarget.setCustomValidity('Enter a valid amount')
+      callHandler(local.onInput, event)
+      return
+    }
+    if (next === undefined) {
+      setValidationError('')
+      event.currentTarget.setCustomValidity('')
+      if (local.value === undefined) setInternalValue(undefined)
+      local.onValueChange?.(undefined)
+      callHandler(local.onInput, event)
+      return
+    }
     const invalid = local.min !== undefined && next < local.min
       ? `Minimum is ${formatMoney(local.min, decimal(), thousand(), precision())}`
       : local.max !== undefined && next > local.max
         ? `Maximum is ${formatMoney(local.max, decimal(), thousand(), precision())}`
         : ''
     setValidationError(invalid)
+    event.currentTarget.setCustomValidity(invalid)
     if (local.value === undefined) setInternalValue(next)
     local.onValueChange?.(next)
     callHandler(local.onInput, event)
@@ -182,7 +203,7 @@ export function MoneyInput(props: MoneyInputProps) {
   return (
     <Field class={local.wrapperClass} label={local.label} labelFor={id()} required={native.required}>
       <div class="w-full">
-        <input type="hidden" name={local.name} value={cents()} />
+        <input type="hidden" name={local.name} value={cents() ?? ''} />
         <div {...local.wrapperProps} class={classes('flex items-center w-full relative form-control', local.controlClass, local.wrapperProps?.class)}>
           <Show when={local.addonLeft}>
             <div {...local.addonLeftProps} class={classes('flex pl-2.5', local.addonLeftProps?.class)}>{local.addonLeft}</div>
@@ -194,8 +215,12 @@ export function MoneyInput(props: MoneyInputProps) {
             inputmode="decimal"
             autocomplete="off"
             class={classes('form-control-input outline-none w-full', local.class)}
-            value={formatMoney(cents(), decimal(), thousand(), precision())}
+            value={draft() ?? (cents() === undefined ? '' : formatMoney(cents()!, decimal(), thousand(), precision()))}
             onInput={handleInput}
+            onBlur={(event) => {
+              if (parseMoney(event.currentTarget.value, decimal(), thousand(), precision()) !== null) setDraft(undefined)
+              callHandler(local.onBlur, event)
+            }}
             readOnly={local.readOnly}
             aria-invalid={Boolean(local.error || validationError()) || undefined}
             aria-describedby={describedBy()}
@@ -210,8 +235,8 @@ export function MoneyInput(props: MoneyInputProps) {
         <Show when={validationError()}>
           <small id={validationErrorID()} class="text-xs text-red-500 mt-1" role="alert">{validationError()}</small>
         </Show>
-        <Show when={converted()}>
-          <small id={conversionID()} class="text-xs text-gray-300 mt-1">≈ {formatMoney(converted(), decimal(), thousand(), precision())} {local.convertTo}</small>
+        <Show when={converted() !== undefined}>
+          <small id={conversionID()} class="text-xs text-gray-300 mt-1">≈ {formatMoney(converted()!, decimal(), thousand(), precision())} {local.convertTo}</small>
         </Show>
       </div>
     </Field>

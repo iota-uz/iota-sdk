@@ -11,8 +11,11 @@ import (
 
 const maxSafeInteger = int64(1<<53 - 1)
 
-// validateSafeIntegers prevents Go integer values from silently losing
-// precision when encoding/json hands them to JavaScript as JSON numbers.
+// validateSafeIntegers prevents numeric values from silently losing precision
+// when encoding/json hands them to JavaScript. It deliberately rejects Go
+// integers tagged with ,string, text-marshaled numeric Go types, and JSON
+// floats outside the safe-integer range; use an explicit string type when the
+// wire contract needs any of those values.
 func validateSafeIntegers(value any) error {
 	if err := walkSafeIntegers(reflect.ValueOf(value), "$", make(map[visit]struct{})); err != nil {
 		return err

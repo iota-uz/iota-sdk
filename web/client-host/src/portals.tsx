@@ -18,10 +18,15 @@ export interface ClientHostProviderProps extends PropsWithChildren {
 export function ClientHostProvider({ portalOwner, background, widgetSlots = {}, theme, children }: ClientHostProviderProps) {
   const registry = useMemo(() => new PortalRegistry(portalOwner, background), [portalOwner, background])
   const slots = useMemo(() => new Map(Object.entries(widgetSlots) as [WidgetSlotName, HTMLElement][]), [widgetSlots])
+  useEffect(() => () => registry.destroy(), [registry])
   useEffect(() => {
+    const baseTheme = portalOwner.getAttribute('data-theme')
     if (theme) portalOwner.dataset.theme = theme
-    return () => { registry.destroy(); delete portalOwner.dataset.theme }
-  }, [portalOwner, registry, theme])
+    return () => {
+      if (baseTheme === null) delete portalOwner.dataset.theme
+      else portalOwner.setAttribute('data-theme', baseTheme)
+    }
+  }, [portalOwner, theme])
   return <PortalContext.Provider value={registry}><WidgetContext.Provider value={slots}>{children}</WidgetContext.Provider></PortalContext.Provider>
 }
 
@@ -32,7 +37,7 @@ export function Portal({ surface, label, className, onEscape, theme, children }:
   if (!registry) throw new Error('Portal must be rendered inside ClientHostProvider')
   const id = useId()
   const content = useRef<HTMLDivElement>(null)
-  useEffect(() => registry.mount({ id, surface, restore: document.activeElement as HTMLElement | null }), [id, registry, surface])
+  useEffect(() => registry.mount({ id, surface, restore: registry.ownerDocument.activeElement as HTMLElement | null }), [id, registry, surface])
   useEffect(() => {
     if (surface === 'toast') return
     const root = content.current
@@ -46,8 +51,8 @@ export function Portal({ surface, label, className, onEscape, theme, children }:
     if (focusable.length === 0) { event.preventDefault(); content.current?.focus(); return }
     const first = focusable[0]
     const last = focusable.at(-1)
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+    if (event.shiftKey && registry.ownerDocument.activeElement === first) { event.preventDefault(); last?.focus() }
+    else if (!event.shiftKey && registry.ownerDocument.activeElement === last) { event.preventDefault(); first?.focus() }
   }
   return createPortal(
     <div ref={content} role={surface === 'toast' ? 'status' : 'dialog'} aria-label={label} aria-modal={surface === 'toast' ? undefined : true} className={className} data-iota-surface={surface} data-theme={theme} onKeyDown={trapFocus} tabIndex={-1}>{children}</div>,

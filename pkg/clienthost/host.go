@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/sdkidentity"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 )
 
 type Manifest struct {
@@ -160,6 +161,7 @@ type Controller struct {
 	session  SessionProvider
 	order    int
 	services ServiceEndpoints
+	logger   logrus.FieldLogger
 }
 
 type Option func(*Controller)
@@ -172,20 +174,33 @@ func WithOrder(order int) Option { return func(controller *Controller) { control
 func WithServices(services ServiceEndpoints) Option {
 	return func(controller *Controller) { controller.services = services }
 }
+func WithLogger(logger logrus.FieldLogger) Option {
+	return func(controller *Controller) {
+		if logger != nil {
+			controller.logger = logger
+		}
+	}
+}
 
 func NewController(id string, manifest Manifest, routes []Route, options ...Option) (*Controller, error) {
 	if err := manifest.Validate(); err != nil {
 		return nil, err
 	}
-	controller := &Controller{id: strings.TrimSpace(id), manifest: manifest, routes: append([]Route(nil), routes...), shell: StandaloneShell}
+	controller := &Controller{id: strings.TrimSpace(id), manifest: manifest, routes: append([]Route(nil), routes...), shell: StandaloneShell, logger: logrus.StandardLogger()}
 	if controller.id == "" {
 		return nil, fmt.Errorf("clienthost controller: id is required")
 	}
 	routeIDs := make(map[string]struct{}, len(controller.routes))
+	var controllerRenderer application.RouteRenderer
 	for index := range controller.routes {
 		route := &controller.routes[index]
 		if route.Spec.Renderer != application.RouteRendererClient && route.Spec.Renderer != application.RouteRendererReact {
 			return nil, fmt.Errorf("clienthost controller %s: route %s must declare client renderer", controller.id, route.Spec.Path)
+		}
+		if controllerRenderer == "" {
+			controllerRenderer = route.Spec.Renderer
+		} else if route.Spec.Renderer != controllerRenderer {
+			return nil, fmt.Errorf("clienthost controller %s mixes %s and %s renderers", controller.id, controllerRenderer, route.Spec.Renderer)
 		}
 		if route.Spec.Renderer == application.RouteRendererClient {
 			if route.Feature != nil {
@@ -238,40 +253,49 @@ func (c *Controller) Register(router *mux.Router) {
 
 func (c *Controller) handler(route Route) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
+		fail := func(stage string, cause error) {
+			c.logger.WithFields(logrus.Fields{
+				"controller.id": c.id,
+				"route.id":      route.Spec.RouteID,
+				"route.path":    route.Spec.Path,
+				"stage":         stage,
+			}).WithError(cause).Error("client route rendering failed")
+			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
 		payload, err := route.Build(request.Context(), request)
 		if err != nil {
-			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			fail("build", err)
 			return
 		}
 		initialValue := payload.Initial
 		if route.Feature != nil {
 			if payload.Screen == nil {
-				http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				fail("screen", fmt.Errorf("route payload is missing its rendered feature"))
 				return
 			}
 			if payload.Screen.FeatureID() != route.Feature.FeatureID() {
-				http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				fail("screen", fmt.Errorf("rendered feature %q does not match route feature %q", payload.Screen.FeatureID(), route.Feature.FeatureID()))
 				return
 			}
 			initialValue = payload.Screen.Props()
 		} else if payload.Screen != nil {
-			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			fail("screen", fmt.Errorf("legacy route returned a rendered feature"))
 			return
 		}
 		if err := validateSafeIntegers(initialValue); err != nil {
-			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			fail("validate_props", err)
 			return
 		}
 		initial, err := json.Marshal(initialValue)
 		if err != nil {
-			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			fail("marshal_props", err)
 			return
 		}
 		session := SessionContext{Theme: "light", Locale: "en", Messages: map[string]string{}}
 		if c.session != nil {
 			session, err = c.session(request)
 			if err != nil {
-				http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				fail("session", err)
 				return
 			}
 		}
@@ -301,7 +325,7 @@ func (c *Controller) handler(route Route) http.HandlerFunc {
 		}
 		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := c.shell(request.Context(), page, Bootstrap(page)).Render(request.Context(), writer); err != nil {
-			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			fail("shell", err)
 		}
 	}
 }

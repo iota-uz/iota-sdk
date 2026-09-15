@@ -1,8 +1,10 @@
 package clienthost
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,6 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/sdkidentity"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -81,6 +84,29 @@ func TestController_DefaultsEmptySessionLocale(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `"language":"en"`)
 }
 
+func TestController_LogsRouteContextOnRenderFailure(t *testing.T) {
+	t.Parallel()
+	var output bytes.Buffer
+	logger := logrus.New()
+	logger.SetOutput(&output)
+	controller, err := NewController("reports", testManifest(), []Route{{
+		Spec: application.Get("/reports", application.ClientFeature("reports.configure", "reports"), application.Public()),
+		Build: func(_ context.Context, _ *http.Request) (RoutePayload, error) {
+			return RoutePayload{}, errors.New("build broke")
+		},
+	}}, WithLogger(logger))
+	require.NoError(t, err)
+	router := mux.NewRouter()
+	controller.Register(router)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/reports", nil))
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
+	require.Contains(t, output.String(), "controller.id=reports")
+	require.Contains(t, output.String(), "route.id=reports.configure")
+	require.Contains(t, output.String(), "stage=build")
+	require.Contains(t, output.String(), "build broke")
+}
+
 func TestController_RejectsInvalidClientRoutesAndProtocolMismatch(t *testing.T) {
 	t.Parallel()
 
@@ -100,6 +126,16 @@ func TestController_PreservesLegacyReactRoute(t *testing.T) {
 		Build: func(_ context.Context, _ *http.Request) (RoutePayload, error) { return RoutePayload{}, nil },
 	}})
 	require.NoError(t, err)
+}
+
+func TestController_RejectsMixedRenderers(t *testing.T) {
+	t.Parallel()
+	build := func(_ context.Context, _ *http.Request) (RoutePayload, error) { return RoutePayload{}, nil }
+	_, err := NewController("mixed", testManifest(), []Route{
+		{Spec: application.Get("/legacy", application.RenderedBy(application.RouteRendererReact)), Build: build},
+		{Spec: application.Get("/solid", application.ClientFeature("solid.route", "solid.feature"), application.Public()), Build: build},
+	})
+	require.ErrorContains(t, err, "mixes react and client renderers")
 }
 
 func TestController_RequiresExplicitAccessAndUniqueIdentity(t *testing.T) {

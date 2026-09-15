@@ -1,4 +1,4 @@
-import { children, createEffect, createUniqueId, For, onMount, Show, splitProps, type JSX } from 'solid-js'
+import { children, createEffect, createSignal, createUniqueId, For, Show, splitProps, type JSX } from 'solid-js'
 import { classes } from '../internal/classes'
 import { CaretDownIcon } from '../internal/icons'
 import { Field } from './Field'
@@ -25,8 +25,9 @@ export function Select(props: SelectProps) {
   let element!: HTMLSelectElement
   const generatedID = createUniqueId()
   const [local, native] = splitProps(props, [
-    'children', 'class', 'id', 'value', 'defaultValue', 'label', 'description', 'helpLabel', 'error', 'placeholder', 'prefix', 'wrapperClass', 'options', 'aria-describedby', 'ref',
+    'children', 'class', 'id', 'value', 'defaultValue', 'onChange', 'label', 'description', 'helpLabel', 'error', 'placeholder', 'prefix', 'wrapperClass', 'options', 'aria-describedby', 'ref',
   ])
+  const [uncontrolledValue, setUncontrolledValue] = createSignal(local.defaultValue ?? '')
   const id = () => local.id ?? generatedID
   const errorID = () => `${id()}-error`
   const resolvedChildren = children(() => local.children)
@@ -44,14 +45,11 @@ export function Select(props: SelectProps) {
     element.value = String(value)
   }
 
-  onMount(() => {
-    if (local.defaultValue !== undefined && local.value === undefined) assignValue(local.defaultValue)
-  })
-
   createEffect(() => {
-    const value = local.value
+    const value = local.value ?? uncontrolledValue()
+    local.options
     resolvedChildren()
-    if (value !== undefined) assignValue(value as string | number | readonly string[])
+    assignValue(value as string | number | readonly string[])
   })
 
   return (
@@ -69,7 +67,11 @@ export function Select(props: SelectProps) {
             if (typeof local.ref === 'function') local.ref(node)
           }}
           id={id()}
-          value={local.value}
+          value={local.value ?? uncontrolledValue()}
+          onChange={(event) => {
+            if (local.value === undefined) setUncontrolledValue(event.currentTarget.value)
+            if (typeof local.onChange === 'function') local.onChange(event)
+          }}
           class={classes('min-w-20 w-full appearance-none form-control form-control-input h-[2.6875rem] pr-8', local.prefix !== undefined && local.prefix !== '' && 'rounded-l-none', local.class)}
           aria-invalid={local.error ? true : native['aria-invalid']}
           aria-describedby={[local['aria-describedby'], local.error ? errorID() : undefined].filter(Boolean).join(' ') || undefined}

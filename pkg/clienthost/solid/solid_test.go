@@ -47,7 +47,7 @@ func TestImportRejectsInvalidRPCDeclarations(t *testing.T) {
 
 func TestImportRejectsUnsafeSourcePaths(t *testing.T) {
 	t.Parallel()
-	for _, source := range []string{"Screen.tsx", "./Screen.ts", "../Screen.tsx", " ./Screen.tsx"} {
+	for _, source := range []string{"Screen.tsx", "./Screen.ts", "../Screen.tsx", " ./Screen.tsx", "./a//Screen.tsx", "./a/../Screen.tsx"} {
 		t.Run(source, func(t *testing.T) {
 			require.Panics(t, func() { Import[props](source) })
 		})

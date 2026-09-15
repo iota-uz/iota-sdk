@@ -70,6 +70,20 @@ describe('Combobox', () => {
     expect(load).toHaveBeenCalledOnce()
     expect(host.querySelector('[role="option"]')?.textContent).toContain('AL')
   })
+
+  it('submits a selection loaded asynchronously through the native form control', async () => {
+    vi.useFakeTimers()
+    mount(() => <Combobox name="customer" searchable loadOptions={async () => [{ value: '42', label: 'Answer' }]} />)
+    const input = host.querySelector<HTMLInputElement>('[role="combobox"]')!
+    input.value = 'an'
+    input.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    await vi.advanceTimersByTimeAsync(250)
+    host.querySelector<HTMLElement>('[role="option"]')!.click()
+
+    const form = document.createElement('form')
+    form.append(host)
+    expect(new FormData(form).get('customer')).toBe('42')
+  })
 })
 
 describe('SearchSelect', () => {

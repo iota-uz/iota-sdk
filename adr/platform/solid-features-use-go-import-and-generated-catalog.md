@@ -26,7 +26,9 @@ superseded_by: []
 `solid.Import[Props]("./Screen.tsx", ...)` и передаёт initial props через
 `Screen.Render(props)`. Query/action contracts находятся в той же декларации.
 Фича использует Solid целиком либо Templ + HTMX целиком; общий server shell не
-считается смешиванием renderer.
+считается смешиванием renderer. `clienthost.NewController` отклоняет наборы
+маршрутов со смешанными client/React renderer; граница между Solid и отдельным
+Templ-контроллером остаётся архитектурным контрактом code review.
 
 `iota-solid` статически обнаруживает импорты, выпускает committed colocated
 bindings и один generated lazy catalog. Generated outputs детерминированы,

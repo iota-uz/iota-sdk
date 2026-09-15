@@ -54,7 +54,10 @@ func Watch(ctx context.Context, cfg Config, report func(Result, error)) error {
 					_ = addWatchDirectories(watcher, event.Name)
 				}
 			}
-			if relevantGraphFile(event.Name) {
+			if event.Op&fsnotify.Rename != 0 {
+				_ = addWatchDirectories(watcher, root)
+			}
+			if relevantGraphFile(event.Name) || event.Op&fsnotify.Rename != 0 {
 				debounce = time.After(120 * time.Millisecond)
 			}
 		case <-debounce:

@@ -224,6 +224,18 @@ var Screen = solid.Import[Props]("../Screen.tsx")
 		require.ErrorContains(t, err, "inside the declaring Go package")
 	})
 
+	t.Run("non-clean source", func(t *testing.T) {
+		t.Parallel()
+		root := fixtureModule(t, `package feature
+import solid "github.com/iota-uz/iota-sdk/pkg/clienthost/solid"
+type Props struct{}
+var Screen = solid.Import[Props]("./a/../Screen.tsx")
+`, `export default function Screen() { return null }
+`)
+		_, err := Run(Config{ModuleRoot: root})
+		require.ErrorContains(t, err, "clean relative ./path.tsx")
+	})
+
 	t.Run("duplicate rpc", func(t *testing.T) {
 		t.Parallel()
 		root := fixtureModule(t, `package feature
@@ -266,6 +278,15 @@ var Screen = solid.Import[Props]("./Screen.tsx", solid.WithRPC(
 		_, err := Run(Config{ModuleRoot: root})
 		require.ErrorContains(t, err, `invalidates unknown query "missing"`)
 	})
+}
+
+func TestJSONFieldOnlySkipsTheExactDashTag(t *testing.T) {
+	t.Parallel()
+	name, _, _, skipped := jsonField("Value", `json:"-,"`)
+	require.Equal(t, "-", name)
+	require.False(t, skipped)
+	_, _, _, skipped = jsonField("Value", `json:"-"`)
+	require.True(t, skipped)
 }
 
 func fixtureModule(t *testing.T, goSource, tsxSource string) string {

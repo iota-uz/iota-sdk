@@ -36,7 +36,7 @@ export function Portal(props: PortalProps): JSX.Element {
   if (!host) throw new Error('Portal must be rendered inside a mounted Solid client route with a portal owner')
 
   const id = createUniqueId()
-  const document = host.registry.root(props.surface).ownerDocument
+  const document = host.registry.ownerDocument
   const content = document.createElement('div')
   const marker = document.createTextNode('')
   const activeElement = document.activeElement
@@ -104,8 +104,12 @@ export function Portal(props: PortalProps): JSX.Element {
 
 export function WidgetSlot(props: { name: WidgetSlotName; children?: JSX.Element }): JSX.Element {
   const host = useContext(PortalHostContext)
-  const slot = host?.slots.get(props.name)
-  if (!slot) return undefined
+  if (!host) throw new Error('WidgetSlot must be rendered inside a mounted Solid client route with a portal owner')
+  const slot = host.slots.get(props.name)
+  if (!slot) {
+    host.registry.ownerDocument.defaultView?.console.warn(`Solid widget slot ${props.name} is unavailable`)
+    return undefined
+  }
   const container = slot.ownerDocument.createElement('div')
   const marker = slot.ownerDocument.createTextNode('')
   let unregisterHostCleanup: () => void = () => undefined
@@ -120,7 +124,7 @@ export function WidgetSlot(props: { name: WidgetSlotName; children?: JSX.Element
   }
   onMount(() => {
     slot.append(container)
-    unregisterHostCleanup = host?.registerCleanup(cleanup) ?? (() => undefined)
+    unregisterHostCleanup = host.registerCleanup(cleanup)
   })
   onCleanup(cleanup)
   return marker

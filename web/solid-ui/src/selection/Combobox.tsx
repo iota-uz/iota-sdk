@@ -76,6 +76,14 @@ export function Combobox(props: ComboboxProps) {
   const labels = () => ({ ...defaultLabels, ...local.labels })
   const selected = createMemo(() => normalizeValue(local.value === undefined ? internalValue() : local.value, Boolean(local.multiple)))
   const sourceOptions = () => remoteOptions() ?? local.options ?? []
+  const formOptions = createMemo<ComboboxOption[]>(() => {
+    const options = sourceOptions().filter((option) => !option.groupHeader)
+    const known = new Set(options.map((option) => option.value))
+    return [
+      ...options,
+      ...selected().filter((value) => !known.has(value)).map((value): ComboboxOption => ({ value, label: value })),
+    ]
+  })
   const visibleOptions = createMemo(() => {
     if (local.loadOptions || local.endpoint) return sourceOptions()
     const needle = query().trim().toLocaleLowerCase()
@@ -175,7 +183,7 @@ export function Combobox(props: ComboboxProps) {
     <div {...native} ref={(element) => { root = element; if (typeof local.ref === 'function') local.ref(element) }} id={id()} class={classes('w-full flex flex-col', local.class)} data-required={local.required || undefined}>
       <Show when={local.label}><label class="form-control-label mb-2" for={`${id()}-input`}>{local.label}</label></Show>
       <select class="hidden" aria-hidden="true" tabindex="-1" multiple={local.multiple} name={local.name} form={local.form} disabled={inactive()} value={local.multiple ? selected() : selected()[0]}>
-        <For each={local.options}>{(option) => <option value={option.value} selected={selected().includes(option.value)} disabled={option.disabled}>{option.label}</option>}</For>
+        <For each={formOptions()}>{(option) => <option value={option.value} selected={selected().includes(option.value)} disabled={option.disabled}>{option.label}</option>}</For>
       </select>
       <div ref={control} class="relative h-full">
         <div class="flex items-center w-full relative form-control flex-wrap gap-1 py-1">

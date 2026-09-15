@@ -37,6 +37,8 @@ func Cacheable(maxRetries int) MethodOption {
 	}
 }
 
+// Invalidates declares query names refreshed after an action. Names must be
+// string literals at the declaration site so iota-solid can resolve them.
 func Invalidates(names ...string) MethodOption {
 	return func(method *Method) {
 		method.Invalidates = append([]string(nil), names...)
@@ -79,7 +81,8 @@ type Component[Props any] struct {
 	methods    []Method
 }
 
-// Import declares a TSX module relative to the calling Go source file.
+// Import declares a TSX module relative to the calling Go source file. Call it
+// directly with a string literal; wrappers cannot be discovered by iota-solid.
 //
 //go:noinline
 func Import[Props any](source string, options ...Option) Component[Props] {
@@ -184,7 +187,7 @@ func validateSource(source string) error {
 		return fmt.Errorf("solid.Import: source %q must be a clean relative ./path.tsx", source)
 	}
 	clean := path.Clean(source)
-	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || source != "./"+clean {
 		return fmt.Errorf("solid.Import: source %q escapes the declaring Go package", source)
 	}
 	return nil

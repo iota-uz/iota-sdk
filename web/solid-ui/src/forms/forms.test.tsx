@@ -125,6 +125,25 @@ describe('MoneyInput', () => {
     expect(changed).toHaveBeenCalledWith(999999)
     expect(host.querySelector('[role="alert"]')!.textContent).toContain('Maximum')
   })
+
+  it('keeps an empty value empty and rejects malformed decimals', () => {
+    const changed = vi.fn()
+    mount(() => <MoneyInput name="amount" currency="UZS" defaultValue={12345} onValueChange={changed} />)
+    const hidden = host.querySelector('input[type="hidden"]') as HTMLInputElement
+    const visible = host.querySelector('input[type="text"]') as HTMLInputElement
+
+    visible.value = ''
+    visible.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    expect(visible.value).toBe('')
+    expect(hidden.value).toBe('')
+    expect(changed).toHaveBeenLastCalledWith(undefined)
+
+    visible.value = '1.2.3'
+    visible.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    expect(visible.value).toBe('1.2.3')
+    expect(hidden.value).toBe('')
+    expect(host.querySelector('[role="alert"]')).toHaveTextContent('Enter a valid amount')
+  })
 })
 
 describe('Textarea, Select and Checkbox', () => {
@@ -186,6 +205,26 @@ describe('Textarea, Select and Checkbox', () => {
     })
     const select = host.querySelector('select')!
     expect(select.value).toBe('voluntary')
+    replaceOptions()
+    expect(select.value).toBe('voluntary')
+  })
+
+  it('keeps an uncontrolled user selection when options are replaced', () => {
+    let replaceOptions!: () => void
+    mount(() => {
+      const [options, setOptions] = createSignal([
+        { value: 'mandatory', label: 'Mandatory' },
+        { value: 'voluntary', label: 'Voluntary' },
+      ])
+      replaceOptions = () => setOptions([
+        { value: 'mandatory', label: 'Mandatory refreshed' },
+        { value: 'voluntary', label: 'Voluntary refreshed' },
+      ])
+      return <Select defaultValue="mandatory" options={options()} />
+    })
+    const select = host.querySelector('select')!
+    select.value = 'voluntary'
+    select.dispatchEvent(new Event('change', { bubbles: true }))
     replaceOptions()
     expect(select.value).toBe('voluntary')
   })

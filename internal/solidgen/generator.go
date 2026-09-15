@@ -18,7 +18,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/iota-uz/iota-sdk/pkg/clienthost/solid"
 	"golang.org/x/tools/go/packages"
@@ -218,7 +217,7 @@ func scanFile(file string) ([]candidate, error) {
 		}
 		position := set.Position(call.Pos())
 		clean := path.Clean(source)
-		if strings.TrimSpace(source) != source || !strings.HasPrefix(source, "./") || path.Ext(source) != ".tsx" || clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
+		if strings.TrimSpace(source) != source || !strings.HasPrefix(source, "./") || path.Ext(source) != ".tsx" || clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || source != "./"+clean {
 			scanErr = fmt.Errorf("%s:%d: solid.Import source %q must be a clean relative ./path.tsx inside the declaring Go package", file, position.Line, source)
 			return false
 		}
@@ -644,7 +643,7 @@ func jsonField(fallback, raw string) (string, bool, bool, bool) {
 	if len(parts) > 0 && parts[0] != "" {
 		name = parts[0]
 	}
-	if name == "-" {
+	if tag == "-" {
 		return "", false, false, true
 	}
 	optional := false
@@ -747,12 +746,4 @@ func joinRelative(root string, files []string) string {
 	}
 	sort.Strings(values)
 	return strings.Join(values, ", ")
-}
-
-func ExportName(name string) string {
-	runes := []rune(name)
-	if len(runes) > 0 {
-		runes[0] = unicode.ToUpper(runes[0])
-	}
-	return string(runes)
 }
