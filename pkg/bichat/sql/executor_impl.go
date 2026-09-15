@@ -403,18 +403,38 @@ func stripSQLLiterals(s string) string {
 			}
 		case '"':
 			// Double-quoted identifier. `""` is an embedded quote.
+			// A quoted identifier in call position ("pg_read_file" (...))
+			// still resolves to the function in PostgreSQL, so it must
+			// stay visible to the blocklist scan. Quoted non-call
+			// identifiers are blanked as before so column/table names
+			// cannot false-match.
 			b.WriteByte(' ')
 			i++
+			var inner strings.Builder
+			closed := false
 			for i < len(s) {
 				if s[i] == '"' {
 					if i+1 < len(s) && s[i+1] == '"' {
+						inner.WriteByte('"')
 						i += 2
 						continue
 					}
 					i++
+					closed = true
 					break
 				}
+				inner.WriteByte(s[i])
 				i++
+			}
+			if closed {
+				j := i
+				for j < len(s) && (s[j] == ' ' || s[j] == '\t' || s[j] == '\n' || s[j] == '\r') {
+					j++
+				}
+				if j < len(s) && s[j] == '(' {
+					b.WriteString(inner.String())
+					b.WriteByte(' ')
+				}
 			}
 		case '$':
 			// Potential dollar-quoted literal: $tag$ ... $tag$ or $$ ... $$.

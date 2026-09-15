@@ -247,6 +247,10 @@ func TestValidateQuery_RejectsServerFileFamily(t *testing.T) {
 		// The already-covered readers stay covered.
 		"SELECT pg_read_server_files('/etc/passwd', 0, 100)",
 		"SELECT pg_read_binary_file('/etc/passwd')",
+		// Quoted identifiers in call position still resolve to the
+		// function, so they must be rejected too.
+		`SELECT "pg_read_file"('/etc/passwd')`,
+		`SELECT "pg_catalog"."pg_read_file"('/etc/passwd')`,
 	}
 	for _, sql := range cases {
 		if err := e.ValidateQuery(context.Background(), sql); !errors.Is(err, ErrDangerousPattern) {
