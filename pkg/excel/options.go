@@ -19,6 +19,9 @@ type ExportOptions struct {
 	DateTimeFormat string
 	// MaxRows limits the number of rows to export (0 = no limit)
 	MaxRows int
+	// FloatNumberFormat is an optional Excel number format code for floating-point
+	// cells. Values remain numeric and can be used in formulas.
+	FloatNumberFormat string
 	// DecimalComma renders numeric values with a comma decimal separator
 	// ("14773814,00") instead of a dot, so locale-neutral Excel (ru/uz) shows
 	// the expected separator. Numbers are emitted as text (Excel can't force a
