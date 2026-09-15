@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Keep buffered Excel values numeric while supporting custom float number formats."
+    }
+  ],
+  "source": "580b5e520bfcbc80ef563ddf75e7aa10c3962339",
+  "version": "0.8.0"
+}
