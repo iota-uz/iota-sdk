@@ -120,6 +120,9 @@ func (e *ExcelExporter) Export(ctx context.Context, datasource DataSource) ([]by
 			break
 		}
 
+		if err := e.applyDataStyle(f, sheetName, rowNum, len(headers)); err != nil {
+			return nil, fmt.Errorf("failed to style row %d: %w", rowNum, err)
+		}
 		if err := e.writeRow(f, sheetName, rowNum, row); err != nil {
 			return nil, fmt.Errorf("failed to write row %d: %w", rowNum, err)
 		}
@@ -128,8 +131,7 @@ func (e *ExcelExporter) Export(ctx context.Context, datasource DataSource) ([]by
 		rowCount++
 	}
 
-	// Apply styling
-	if err := e.applyStyles(f, sheetName, len(headers), rowNum-1); err != nil {
+	if err := e.applyHeaderStyle(f, sheetName, len(headers)); err != nil {
 		return nil, fmt.Errorf("failed to apply styles: %w", err)
 	}
 
@@ -206,7 +208,7 @@ func (e *ExcelExporter) ExportToWriter(ctx context.Context, w io.Writer, datasou
 	}
 
 	// Pre-create reusable styles once (StreamWriter attaches them per cell).
-	floatStyle, err := f.NewStyle(&excelize.Style{NumFmt: 2}) // 0.00
+	floatStyle, err := createNumberStyle(f, 2, e.options.FloatNumberFormat) // 0.00 by default
 	if err != nil {
 		return fmt.Errorf("failed to create numeric style: %w", err)
 	}
@@ -339,7 +341,7 @@ func (e *ExcelExporter) writeRow(f *excelize.File, sheet string, rowNum int, row
 		// Set number format for specific types
 		switch normalizedValue.(type) {
 		case time.Time, *time.Time:
-			if err := applyCellNumFmt(f, sheet, cell, 22); err != nil { // m/d/yy h:mm
+			if err := applyCellNumFmt(f, sheet, cell, 22, ""); err != nil { // m/d/yy h:mm
 				return err
 			}
 		case float64, float32:
@@ -348,11 +350,11 @@ func (e *ExcelExporter) writeRow(f *excelize.File, sheet string, rowNum int, row
 			if decimalComma {
 				break
 			}
-			if err := applyCellNumFmt(f, sheet, cell, 2); err != nil { // 0.00
+			if err := applyCellNumFmt(f, sheet, cell, 2, e.options.FloatNumberFormat); err != nil { // 0.00 by default
 				return err
 			}
 		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-			if err := applyCellNumFmt(f, sheet, cell, 1); err != nil { // 0
+			if err := applyCellNumFmt(f, sheet, cell, 1, ""); err != nil { // 0
 				return err
 			}
 		}
@@ -360,16 +362,39 @@ func (e *ExcelExporter) writeRow(f *excelize.File, sheet string, rowNum int, row
 	return nil
 }
 
-func applyCellNumFmt(f *excelize.File, sheet, cell string, numFmt int) error {
-	style, err := f.NewStyle(&excelize.Style{NumFmt: numFmt})
+func applyCellNumFmt(f *excelize.File, sheet, cell string, numFmt int, customNumFmt string) error {
+	styleID, err := f.GetCellStyle(sheet, cell)
 	if err != nil {
 		return err
 	}
-	return f.SetCellStyle(sheet, cell, cell, style)
+	style, err := f.GetStyle(styleID)
+	if err != nil {
+		return err
+	}
+	setNumberFormat(style, numFmt, customNumFmt)
+	styleID, err = f.NewStyle(style)
+	if err != nil {
+		return err
+	}
+	return f.SetCellStyle(sheet, cell, cell, styleID)
 }
 
-// applyStyles applies styling to the Excel file
-func (e *ExcelExporter) applyStyles(f *excelize.File, sheet string, colCount, rowCount int) error {
+func createNumberStyle(f *excelize.File, numFmt int, customNumFmt string) (int, error) {
+	style := &excelize.Style{}
+	setNumberFormat(style, numFmt, customNumFmt)
+	return f.NewStyle(style)
+}
+
+func setNumberFormat(style *excelize.Style, numFmt int, customNumFmt string) {
+	style.NumFmt = numFmt
+	style.CustomNumFmt = nil
+	if customNumFmt != "" {
+		style.NumFmt = 0
+		style.CustomNumFmt = &customNumFmt
+	}
+}
+
+func (e *ExcelExporter) applyHeaderStyle(f *excelize.File, sheet string, colCount int) error {
 	if e.styleOptions == nil {
 		return nil
 	}
@@ -387,49 +412,41 @@ func (e *ExcelExporter) applyStyles(f *excelize.File, sheet string, colCount, ro
 		}
 	}
 
-	// Apply data style and alternate row coloring
-	if e.styleOptions.DataStyle != nil || e.styleOptions.AlternateRow {
-		startRow := 1
-		if e.options.IncludeHeaders {
-			startRow = 2
-		}
+	return nil
+}
 
-		for row := startRow; row <= rowCount; row++ {
-			var style int
-			var err error
-
-			if e.styleOptions.AlternateRow && row%2 == 0 {
-				// Create alternate row style
-				altStyle := &CellStyle{
-					Font:      e.styleOptions.DataStyle.Font,
-					Alignment: e.styleOptions.DataStyle.Alignment,
-					Fill: &FillStyle{
-						Type:    "pattern",
-						Pattern: 1,
-						Color:   "#F5F5F5",
-					},
-				}
-				style, err = e.createStyle(f, altStyle)
-			} else if e.styleOptions.DataStyle != nil {
-				style, err = e.createStyle(f, e.styleOptions.DataStyle)
-			}
-
-			if err != nil {
-				return err
-			}
-
-			if style > 0 {
-				endCol, _ := excelize.ColumnNumberToName(colCount)
-				startCell := fmt.Sprintf("A%d", row)
-				endCell := fmt.Sprintf("%s%d", endCol, row)
-				if err := f.SetCellStyle(sheet, startCell, endCell, style); err != nil {
-					return err
-				}
-			}
-		}
+func (e *ExcelExporter) applyDataStyle(f *excelize.File, sheet string, row, colCount int) error {
+	if e.styleOptions == nil || (e.styleOptions.DataStyle == nil && !e.styleOptions.AlternateRow) {
+		return nil
 	}
 
-	return nil
+	var cellStyle *CellStyle
+	if e.styleOptions.AlternateRow && row%2 == 0 {
+		cellStyle = &CellStyle{
+			Fill: &FillStyle{Type: "pattern", Pattern: 1, Color: "#F5F5F5"},
+		}
+		if e.styleOptions.DataStyle != nil {
+			cellStyle.Font = e.styleOptions.DataStyle.Font
+			cellStyle.Alignment = e.styleOptions.DataStyle.Alignment
+		}
+	} else {
+		cellStyle = e.styleOptions.DataStyle
+	}
+	if cellStyle == nil {
+		return nil
+	}
+
+	styleID, err := e.createStyle(f, cellStyle)
+	if err != nil {
+		return err
+	}
+	endCol, _ := excelize.ColumnNumberToName(colCount)
+	return f.SetCellStyle(
+		sheet,
+		fmt.Sprintf("A%d", row),
+		fmt.Sprintf("%s%d", endCol, row),
+		styleID,
+	)
 }
 
 // createStyle creates an excelize style from CellStyle
