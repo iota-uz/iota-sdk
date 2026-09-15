@@ -1,78 +1,8 @@
 import { createContext, type KeyboardEvent, type PropsWithChildren, type ReactNode, useContext, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { PortalRegistry, type PortalSurface, type WidgetSlotName } from './portal-host'
 
-export type PortalSurface = 'modal' | 'drawer' | 'toast' | 'command'
-export type WidgetSlotName = 'navigation-leading' | 'navigation-trailing' | 'header-actions' | 'document-status'
-
-const zLayers: Record<PortalSurface, number> = { drawer: 600, modal: 700, command: 800, toast: 900 }
-
-interface OverlayEntry { id: string; surface: PortalSurface; restore: HTMLElement | null }
-
-class PortalRegistry {
-  private readonly roots = new Map<PortalSurface, HTMLElement>()
-  private readonly overlays: OverlayEntry[] = []
-  private lockState: { overflow: string; inert?: boolean; ariaHidden?: string | null } | undefined
-  constructor(private readonly owner: HTMLElement, private readonly background?: HTMLElement) {}
-
-  root(surface: PortalSurface): HTMLElement {
-    let root = this.roots.get(surface)
-    if (!root) {
-      root = document.createElement('div')
-      root.dataset.iotaPortal = surface
-      root.style.position = 'relative'
-      root.style.zIndex = String(zLayers[surface])
-      this.owner.append(root)
-      this.roots.set(surface, root)
-    }
-    return root
-  }
-
-  mount(entry: OverlayEntry): () => void {
-    this.overlays.push(entry)
-    this.sync()
-    return () => {
-      const index = this.overlays.findIndex((candidate) => candidate.id === entry.id)
-      const wasTop = index === this.overlays.length - 1
-      if (index >= 0) this.overlays.splice(index, 1)
-      this.sync()
-      if (wasTop) entry.restore?.focus()
-    }
-  }
-
-  destroy(): void {
-    this.overlays.splice(0)
-    this.sync()
-    for (const root of this.roots.values()) root.remove()
-    this.roots.clear()
-  }
-
-  private sync(): void {
-    const blocking = this.overlays.some(({ surface }) => surface === 'modal' || surface === 'drawer' || surface === 'command')
-    if (blocking && !this.lockState) {
-      this.lockState = {
-        overflow: document.documentElement.style.overflow,
-        ...(this.background ? {
-          inert: this.background.inert,
-          ariaHidden: this.background.getAttribute('aria-hidden'),
-        } : {}),
-      }
-      document.documentElement.style.overflow = 'hidden'
-      if (!this.background) return
-      this.background.inert = blocking
-      this.background.setAttribute('aria-hidden', 'true')
-      return
-    }
-    if (!blocking && this.lockState) {
-      document.documentElement.style.overflow = this.lockState.overflow
-      if (this.background) {
-        this.background.inert = this.lockState.inert ?? false
-        if (this.lockState.ariaHidden === null || this.lockState.ariaHidden === undefined) this.background.removeAttribute('aria-hidden')
-        else this.background.setAttribute('aria-hidden', this.lockState.ariaHidden)
-      }
-      this.lockState = undefined
-    }
-  }
-}
+export type { PortalSurface, WidgetSlotName } from './portal-host'
 
 const PortalContext = createContext<PortalRegistry | undefined>(undefined)
 const WidgetContext = createContext<ReadonlyMap<WidgetSlotName, HTMLElement>>(new Map())
@@ -88,10 +18,15 @@ export interface ClientHostProviderProps extends PropsWithChildren {
 export function ClientHostProvider({ portalOwner, background, widgetSlots = {}, theme, children }: ClientHostProviderProps) {
   const registry = useMemo(() => new PortalRegistry(portalOwner, background), [portalOwner, background])
   const slots = useMemo(() => new Map(Object.entries(widgetSlots) as [WidgetSlotName, HTMLElement][]), [widgetSlots])
+  useEffect(() => () => registry.destroy(), [registry])
   useEffect(() => {
+    const baseTheme = portalOwner.getAttribute('data-theme')
     if (theme) portalOwner.dataset.theme = theme
-    return () => { registry.destroy(); delete portalOwner.dataset.theme }
-  }, [portalOwner, registry, theme])
+    return () => {
+      if (baseTheme === null) delete portalOwner.dataset.theme
+      else portalOwner.setAttribute('data-theme', baseTheme)
+    }
+  }, [portalOwner, theme])
   return <PortalContext.Provider value={registry}><WidgetContext.Provider value={slots}>{children}</WidgetContext.Provider></PortalContext.Provider>
 }
 
@@ -102,7 +37,7 @@ export function Portal({ surface, label, className, onEscape, theme, children }:
   if (!registry) throw new Error('Portal must be rendered inside ClientHostProvider')
   const id = useId()
   const content = useRef<HTMLDivElement>(null)
-  useEffect(() => registry.mount({ id, surface, restore: document.activeElement as HTMLElement | null }), [id, registry, surface])
+  useEffect(() => registry.mount({ id, surface, restore: registry.ownerDocument.activeElement as HTMLElement | null }), [id, registry, surface])
   useEffect(() => {
     if (surface === 'toast') return
     const root = content.current
@@ -116,8 +51,8 @@ export function Portal({ surface, label, className, onEscape, theme, children }:
     if (focusable.length === 0) { event.preventDefault(); content.current?.focus(); return }
     const first = focusable[0]
     const last = focusable.at(-1)
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+    if (event.shiftKey && registry.ownerDocument.activeElement === first) { event.preventDefault(); last?.focus() }
+    else if (!event.shiftKey && registry.ownerDocument.activeElement === last) { event.preventDefault(); first?.focus() }
   }
   return createPortal(
     <div ref={content} role={surface === 'toast' ? 'status' : 'dialog'} aria-label={label} aria-modal={surface === 'toast' ? undefined : true} className={className} data-iota-surface={surface} data-theme={theme} onKeyDown={trapFocus} tabIndex={-1}>{children}</div>,

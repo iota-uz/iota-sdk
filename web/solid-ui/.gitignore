@@ -1,0 +1,8 @@
+node_modules/
+dist/
+gallery-dist/
+package-dist/
+playwright-report/
+vr/results/
+vr/baselines/darwin/
+vr/baselines/win32/

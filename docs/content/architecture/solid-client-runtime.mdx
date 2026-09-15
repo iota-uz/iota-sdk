@@ -20,10 +20,47 @@ editable draft, selection, pending input, and local preview. Route metadata and
 RPC contracts describe access and data, not the UI. There is no screen DSL,
 schema-driven layout, or feature-local host.
 
+## Go-owned feature API
+
+Keep a Solid screen beside its owning Go presentation code and declare the
+connection once:
+
+```go
+type Props struct {
+    ProductID string `json:"productId"`
+}
+
+var Editor = solid.Import[Props](
+    "./ProductEditor.tsx",
+    solid.WithRPC(
+        solid.Query[LoadRequest, LoadResponse]("products.load", solid.Cacheable(2)),
+        solid.Action[SaveRequest, SaveResponse]("products.save", solid.Invalidates("products.load")),
+    ),
+)
+```
+
+Use `application.ClientRoute("products.configure")` on the existing Go route,
+set `clienthost.Route.Feature` to `Editor`, and return
+`RoutePayload{Screen: Editor.Render(props)}`. The import is declarative and does
+no I/O at package initialization.
+
+Run `iota-solid` before frontend typecheck/build. It writes
+`ProductEditor.solid.generated.ts` beside the component and one generated lazy
+catalog in the frontend workspace. Both files are committed and checked with
+`iota-solid -check`. The generated module exports `Props`, `RPC`,
+`rpcContracts`, and a default component whose signature is checked against the
+Go props. `iota-solid -watch` reconciles add, move, and delete changes in dev.
+
+The standard catalog host owns lazy loading, safe bundle errors, Retry, mount,
+and dispose. A feature owns only the states inside its mounted screen. Adding a
+second feature must not require a handwritten central registry, mount function,
+asset tag, or TypeScript route table.
+
 ## Public boundaries
 
-- `application.ClientFeature(routeID, featureID)` adds stable identity to a
-  client route. New client routes also declare `Public`, `Authenticated`,
+- `application.ClientRoute(routeID)` declares a generated Solid feature route;
+  the imported descriptor supplies its stable feature identity. New client
+  routes also declare `Public`, `Authenticated`,
   `RequireAll`, or `RequireAny` explicitly.
 - `pkg/clienthost` renders the authenticated shell fragment and versioned JSON
   bootstrap. It carries SDK identity, route identity, session/CSRF state,
@@ -55,7 +92,7 @@ merged into a dirty draft; the feature owns that merge policy.
 ## Deliberate exclusions
 
 This runtime does not contain product or insurance code, a universal state
-framework, optimistic rollback policy, streaming cache merge, portal/widget
-work, or generated screen structure. Full RPC dispatcher hardening, locale TOML
-generation/validation, design-system parity inventory, and replacement of the
-remaining React features are separate follow-up work.
+framework, optimistic rollback policy, streaming cache merge, or generated
+screen structure. It generates data contracts and the lazy catalog, never UI
+layout. Full locale TOML generation/validation and replacement of the remaining
+React features are separate follow-up work.

@@ -9,6 +9,8 @@ const expectedExports = [
   './identity',
   './client-host',
   './solid',
+  './solid-ui',
+  './solid-ui/standalone.css',
   './styles.css',
   './lens',
   './lens/styles.css',
@@ -41,6 +43,19 @@ for (const value of Object.values(packageJSON.exports)) {
 for (const target of targets) {
   if (target.includes('*')) continue
   await access(path.resolve(root, target))
+}
+
+const solidUIStyles = await readFile(path.join(root, 'dist/solid-ui/standalone.css'), 'utf8')
+if (solidUIStyles.includes('/assets/fonts/')) {
+  throw new Error('Solid UI standalone CSS must use package-relative font URLs')
+}
+for (const font of [
+  'Inter.var.woff2',
+  'Gilroy/Gilroy-Regular.woff2',
+  'Gilroy/Gilroy-Medium.woff2',
+  'Gilroy/Gilroy-Semibold.woff2',
+]) {
+  await access(path.join(root, 'dist/solid-ui/fonts', font))
 }
 
 const identity = JSON.parse(await readFile(path.join(root, 'dist/sdk-identity.json'), 'utf8'))

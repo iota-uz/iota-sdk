@@ -5,6 +5,8 @@ subpath APIs are built from separate internal workspace modules:
 
 - `@iota-uz/sdk/client-host`
 - `@iota-uz/sdk/solid`
+- `@iota-uz/sdk/solid-ui`
+- `@iota-uz/sdk/solid-ui/standalone.css`
 - `@iota-uz/sdk/styles.css`
 - `@iota-uz/sdk/lens`
 - `@iota-uz/sdk/lens/styles.css`
@@ -15,3 +17,12 @@ exports are intentionally absent. Solid is the standard client-route renderer;
 React and ReactDOM remain optional peers for migration compatibility;
 Lens implementation dependencies are contained in lazy Lens chunks and are not
 loaded by client-host imports.
+
+Solid routes rendered inside the standard iota shell can use the component
+exports directly. Standalone applications and the component gallery import the
+compiled stylesheet once at their root:
+
+```ts
+import { Button, Input } from '@iota-uz/sdk/solid-ui'
+import '@iota-uz/sdk/solid-ui/standalone.css'
+```

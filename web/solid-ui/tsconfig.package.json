@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "noEmit": false,
+    "outDir": "package-dist",
+    "rootDir": "src"
+  },
+  "include": ["src/index.ts", "src/charts/**/*.ts", "src/charts/**/*.tsx", "src/data/**/*.ts", "src/data/**/*.tsx", "src/display/**/*.tsx", "src/forms/**/*.tsx", "src/forms-advanced/**/*.ts", "src/forms-advanced/**/*.tsx", "src/illustrations/**/*.tsx", "src/import/**/*.ts", "src/import/**/*.tsx", "src/internal/**/*.ts", "src/internal/**/*.tsx", "src/multilang/**/*.ts", "src/multilang/**/*.tsx", "src/navigation/**/*.tsx", "src/overlays/**/*.tsx", "src/scaffold/**/*.ts", "src/scaffold/**/*.tsx", "src/selection/**/*.ts", "src/selection/**/*.tsx", "src/shell/**/*.ts", "src/shell/**/*.tsx", "src/utilities/**/*.ts", "src/utilities/**/*.tsx"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+}

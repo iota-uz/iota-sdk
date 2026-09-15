@@ -1,0 +1,34 @@
+@config "../../../tailwind.config.js";
+@import "tailwindcss";
+@import "../../../styles/tailwind/iota.css";
+@source "./**/*.{ts,tsx}";
+
+.iota-radio-indicator::after {
+  background: transparent;
+  border-radius: 9999px;
+  content: "";
+  inset: 3px;
+  position: absolute;
+  transition: background-color 300ms;
+}
+
+.peer:checked + .iota-radio-indicator::after {
+  background: oklch(var(--primary-500));
+}
+
+.iota-checkbox-check,
+.iota-checkbox-minus {
+  display: none;
+}
+
+.peer:checked + .iota-checkbox-indicator .iota-checkbox-check {
+  display: block;
+}
+
+.peer:indeterminate + .iota-checkbox-indicator .iota-checkbox-check {
+  display: none;
+}
+
+.peer:indeterminate + .iota-checkbox-indicator .iota-checkbox-minus {
+  display: block;
+}

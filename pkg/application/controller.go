@@ -172,6 +172,17 @@ func ClientFeature(routeID, featureID string) RouteOption {
 	}
 }
 
+// ClientRoute declares a client-owned route identity. The frontend feature is
+// supplied by clienthost.Route.Feature, normally through solid.Import. Keeping
+// the route ID here avoids a second TypeScript route registry while letting the
+// SDK derive the feature identity from the owning Go package and TSX source.
+func ClientRoute(routeID string) RouteOption {
+	return func(route *RouteSpec) {
+		route.Renderer = RouteRendererClient
+		route.RouteID = strings.TrimSpace(routeID)
+	}
+}
+
 // Authenticated declares that a signed-in user may access the route without
 // an additional permission requirement.
 func Authenticated() RouteOption {

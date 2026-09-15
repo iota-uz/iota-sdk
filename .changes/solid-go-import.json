@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add Go-declared module-local Solid screens with generated TypeScript bindings, lazy catalog hosting, and build/watch tooling."
+}

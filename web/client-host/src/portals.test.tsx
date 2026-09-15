@@ -6,6 +6,7 @@ import { ClientHostProvider, Portal, WidgetSlot } from './portals'
 describe('ClientHostProvider', () => {
   it('keeps widgets separate and owns overlay lifecycle, inert and scroll lock', () => {
     const portalOwner = document.createElement('div')
+    portalOwner.dataset.theme = 'shell'
     const background = document.createElement('main')
     const widget = document.createElement('div')
     document.body.append(background, portalOwner, widget)
@@ -24,6 +25,7 @@ describe('ClientHostProvider', () => {
     expect(background.inert).toBe(false)
     expect(document.documentElement.style.overflow).toBe('')
     expect(portalOwner.childElementCount).toBe(0)
+    expect(portalOwner.dataset.theme).toBe('shell')
   })
 
   it('preserves shell state and restores focus only when the top overlay closes', () => {
