@@ -135,7 +135,8 @@ func TestExcelExporter_ExportToWriter(t *testing.T) {
 }
 
 func TestExcelExporter_BufferedPreservesNumericFormatWithDataStyles(t *testing.T) {
-	ds := NewMockDataSource([]string{"Amount"}, [][]interface{}{{1234.5}})
+	// This would be falsely green if equal row styles received distinct composed style IDs.
+	ds := NewMockDataSource([]string{"Amount"}, [][]interface{}{{1234.5}, {2.5}, {3.5}, {4.5}})
 	exporter := excel.NewExcelExporter(nil, nil)
 
 	data, err := exporter.Export(context.Background(), ds)
@@ -152,6 +153,15 @@ func TestExcelExporter_BufferedPreservesNumericFormatWithDataStyles(t *testing.T
 	require.NoError(t, err)
 	assert.Equal(t, 2, style.NumFmt)
 	assert.Contains(t, style.Fill.Color, "F5F5F5")
+
+	alternateStyleID, err := f.GetCellStyle("TestSheet", "A4")
+	require.NoError(t, err)
+	assert.Equal(t, styleID, alternateStyleID)
+	baseStyleID, err := f.GetCellStyle("TestSheet", "A3")
+	require.NoError(t, err)
+	repeatedBaseStyleID, err := f.GetCellStyle("TestSheet", "A5")
+	require.NoError(t, err)
+	assert.Equal(t, baseStyleID, repeatedBaseStyleID)
 }
 
 func TestExcelExporter_FloatNumberFormat(t *testing.T) {
