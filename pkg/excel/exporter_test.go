@@ -156,7 +156,7 @@ func TestExcelExporter_BufferedPreservesNumericFormatWithDataStyles(t *testing.T
 
 func TestExcelExporter_FloatNumberFormat(t *testing.T) {
 	opts := excel.DefaultOptions()
-	opts.FloatNumberFormat = "# ##0.00"
+	opts.FloatNumberFormat = "#,##0.00"
 	headers := []string{"Amount"}
 	rows := [][]interface{}{{1500.0}, {-200.0}}
 
@@ -176,7 +176,7 @@ func TestExcelExporter_FloatNumberFormat(t *testing.T) {
 			style, err := f.GetStyle(styleID)
 			require.NoError(t, err)
 			require.NotNil(t, style.CustomNumFmt)
-			assert.Equal(t, "# ##0.00", *style.CustomNumFmt)
+			assert.Equal(t, "#,##0.00", *style.CustomNumFmt)
 		}
 
 		require.NoError(t, f.SetCellFormula("TestSheet", "A4", "SUM(A2:A3)"))
