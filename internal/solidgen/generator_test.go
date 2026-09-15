@@ -285,8 +285,11 @@ func TestJSONFieldOnlySkipsTheExactDashTag(t *testing.T) {
 	name, _, _, skipped := jsonField("Value", `json:"-,"`)
 	require.Equal(t, "-", name)
 	require.False(t, skipped)
-	_, _, _, skipped = jsonField("Value", `json:"-"`)
-	require.True(t, skipped)
+	dashName, optional, asString, dashSkipped := jsonField("Value", `json:"-"`)
+	require.Empty(t, dashName)
+	require.False(t, optional)
+	require.False(t, asString)
+	require.True(t, dashSkipped)
 }
 
 func fixtureModule(t *testing.T, goSource, tsxSource string) string {
