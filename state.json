@@ -35,10 +35,10 @@
   ],
   "candidate": {
     "version": "0.9.0",
-    "source": "9f92134beae143fcaff9a699ab163b4ae748c34e",
-    "sha": "88b36bd515a89c68c463377e2ba30cdaeebebeee",
-    "phase": "failed",
-    "run_id": "35394089958"
+    "source": "27f7ab5396ed435431f7cdea0570555b10646df3",
+    "sha": "3a1e16e7bd004b02c27f688654321169d622cb0f",
+    "phase": "testing",
+    "run_id": "35397510747"
   },
   "ready": {
     "version": "0.8.0",
