@@ -1434,3 +1434,27 @@
 #infinite-scroll-spinner.htmx-request {
   display: table-row;
 }
+
+/*
+ * Checkbox indicator glyphs, shared by the templ Checkbox (components/base/input)
+ * and the Solid UI Checkbox (web/solid-ui/src/forms/Checkbox.tsx). Plain CSS on
+ * purpose: Tailwind v4 no longer emits the v3 `peer-checked:group-[]:*` hack,
+ * which left the templ checkmark at scale-0 when checked. Unlayered so it applies
+ * identically in the app bundle and in the Solid standalone stylesheet.
+ */
+.iota-checkbox-check,
+.iota-checkbox-minus {
+  display: none;
+}
+
+.peer:checked + .iota-checkbox-indicator .iota-checkbox-check {
+  display: block;
+}
+
+.peer:indeterminate + .iota-checkbox-indicator .iota-checkbox-check {
+  display: none;
+}
+
+.peer:indeterminate + .iota-checkbox-indicator .iota-checkbox-minus {
+  display: block;
+}
