@@ -183,14 +183,14 @@ func (e *CSVExporter) ExportToWriter(ctx context.Context, w io.Writer, datasourc
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		if e.options.MaxRows > 0 && rowCount >= e.options.MaxRows {
+			break
+		}
 		row, err := getRow()
 		if err != nil {
 			return fmt.Errorf("failed to get row: %w", err)
 		}
 		if row == nil {
-			break
-		}
-		if e.options.MaxRows > 0 && rowCount >= e.options.MaxRows {
 			break
 		}
 		if err := cw.WriteRow(row); err != nil {

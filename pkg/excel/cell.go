@@ -1,5 +1,7 @@
 package excel
 
+import "strings"
+
 // Formula marks an export cell as a spreadsheet formula. It is the only way a
 // cell becomes a formula: every plain string is data in both CSV and XLSX
 // output, whatever it starts with. Expression is stored without the leading
@@ -15,10 +17,11 @@ type Formula struct {
 // NeutralizeFormula makes a plain string safe to put in a CSV cell: it
 // prefixes an apostrophe when Excel, LibreOffice or Google Sheets would
 // evaluate the text as a formula (CSV/formula injection, OWASP). That is a
-// leading '=', '@', tab or carriage return, or a leading '+'/'-' followed by
-// anything but digits and number punctuation. Numbers and formatted numbers
-// such as "-5.00", "-1 234,56", "+998 90 123 45 67" and a lone "-" placeholder
-// stay untouched, so numeric columns and phone numbers keep their value.
+// leading '=', '@', tab or carriage return, or a leading '+'/'-' that does not
+// start a single value: after '-' only one (formatted) number may follow, after
+// '+' also phone punctuation. So "-5.00", "-1 234,56", "+998 (90) 123-45-67"
+// and a lone "-" placeholder keep their value, while "-1-1", which a
+// spreadsheet would compute, is prefixed.
 //
 // XLSX output does not need this: excelize stores a string as a string cell,
 // never as a formula.
@@ -29,8 +32,13 @@ func NeutralizeFormula(s string) string {
 	switch s[0] {
 	case '=', '@', '\t', '\r':
 		return "'" + s
-	case '+', '-':
-		if isNumberLike(s[1:]) {
+	case '-':
+		if isNumberBody(s[1:]) {
+			return s
+		}
+		return "'" + s
+	case '+':
+		if isPhoneBody(s[1:]) {
 			return s
 		}
 		return "'" + s
@@ -39,15 +47,24 @@ func NeutralizeFormula(s string) string {
 	}
 }
 
-// isNumberLike reports whether s holds only digits and the punctuation of a
-// formatted number or phone (space, no-break space, dot, comma, parentheses,
-// minus). A formula payload needs letters or other operators.
-func isNumberLike(s string) bool {
+// isNumberBody reports whether s is the unsigned part of one formatted number:
+// digits with group and decimal separators (space, no-break space, dot,
+// comma). It holds no operator, so "-" + s stays a single negative value.
+func isNumberBody(s string) bool {
+	return onlyDigitsAnd(s, " \u00a0.,")
+}
+
+// isPhoneBody is isNumberBody that also allows the parentheses and hyphens of
+// a phone number. None of these characters can form a function call, a cell
+// reference or a DDE link, so such a value is never an injection payload.
+func isPhoneBody(s string) bool {
+	return onlyDigitsAnd(s, " \u00a0.,()-")
+}
+
+// onlyDigitsAnd reports whether every rune of s is a digit or one of extra.
+func onlyDigitsAnd(s, extra string) bool {
 	for _, r := range s {
-		switch {
-		case r >= '0' && r <= '9':
-		case r == ' ', r == ' ', r == '.', r == ',', r == '(', r == ')', r == '-':
-		default:
+		if (r < '0' || r > '9') && !strings.ContainsRune(extra, r) {
 			return false
 		}
 	}

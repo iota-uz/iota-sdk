@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"errors"
 	"testing"
 	"time"
 
@@ -23,6 +24,8 @@ func TestNeutralizeFormula(t *testing.T) {
 		{"@SUM(A1:A2)", "'@SUM(A1:A2)"},
 		{"+1+cmd|' /C calc'!A0", "'+1+cmd|' /C calc'!A0"},
 		{"-2+3", "'-2+3"},
+		{"-1-1", "'-1-1"},
+		{"-(1)", "'-(1)"},
 		{"-SUM(1)", "'-SUM(1)"},
 		{"\t=1", "'\t=1"},
 		{"\r=1", "'\r=1"},
@@ -140,4 +143,41 @@ func TestExcelExporter_OnlyFormulaTypeIsAFormula(t *testing.T) {
 		assert.Equal(t, "1+2", formula, name)
 		require.NoError(t, f.Close())
 	}
+}
+
+// limitedSource serves rows until limit and fails any fetch past it.
+type limitedSource struct{ limit int }
+
+func (s limitedSource) GetHeaders() []string { return []string{"N"} }
+func (s limitedSource) GetSheetName() string { return "Sheet1" }
+func (s limitedSource) GetRows(context.Context) (func() ([]interface{}, error), error) {
+	fetched := 0
+	return func() ([]interface{}, error) {
+		fetched++
+		if fetched > s.limit {
+			return nil, errors.New("fetched past MaxRows")
+		}
+		return []interface{}{fetched}, nil
+	}, nil
+}
+
+// MaxRows caps what the exporters ask the source for, not only what they
+// write: a source that fails on the fetch after the limit must still export.
+// Falsely green if the source stopped by itself (returned nil) at the limit —
+// it errors instead.
+func TestExporters_MaxRowsStopsBeforeFetchingPastLimit(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	src := limitedSource{limit: 2}
+	xlsx := NewExcelExporter(&ExportOptions{IncludeHeaders: true, MaxRows: 2}, nil)
+	csvExporter := NewCSVExporter(&CSVOptions{IncludeHeaders: true, MaxRows: 2})
+
+	_, err := xlsx.Export(ctx, src)
+	require.NoError(t, err, "ExcelExporter.Export")
+	require.NoError(t, xlsx.ExportToWriter(ctx, &bytes.Buffer{}, src), "ExcelExporter.ExportToWriter")
+
+	var buf bytes.Buffer
+	require.NoError(t, csvExporter.ExportToWriter(ctx, &buf, src), "CSVExporter.ExportToWriter")
+	assert.Equal(t, "N\n1\n2\n", buf.String())
 }

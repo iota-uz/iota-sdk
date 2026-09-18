@@ -118,17 +118,16 @@ func (e *ExcelExporter) Export(ctx context.Context, datasource DataSource) ([]by
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-
+		// Stop before fetching: the limit also caps what the source is asked for.
+		if e.options.MaxRows > 0 && rowCount >= e.options.MaxRows {
+			break
+		}
 		row, err := getRow()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get row: %w", err)
 		}
 		if row == nil {
 			break // No more rows
-		}
-
-		if e.options.MaxRows > 0 && rowCount >= e.options.MaxRows {
-			break
 		}
 
 		if err := e.applyDataStyle(f, sheetName, rowNum, len(headers), dataStyleIDs); err != nil {
@@ -260,15 +259,14 @@ func (e *ExcelExporter) ExportToWriter(ctx context.Context, w io.Writer, datasou
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-
+		if e.options.MaxRows > 0 && rowCount >= e.options.MaxRows {
+			break
+		}
 		row, err := getRow()
 		if err != nil {
 			return fmt.Errorf("failed to get row: %w", err)
 		}
 		if row == nil {
-			break
-		}
-		if e.options.MaxRows > 0 && rowCount >= e.options.MaxRows {
 			break
 		}
 
