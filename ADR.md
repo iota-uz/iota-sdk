@@ -2,6 +2,7 @@
 
 ## Platform
 
+- **В выгрузках формула — только явный тип ячейки, строка всегда данные** — [запись](adr/platform/spreadsheet-export-formula-cells.md) · accepted · 2026-09-19
 - **Проверенный релиз SDK по запросу потребителя** — [запись](adr/platform/verified-sdk-releases.md) · superseded · 2026-09-06
 - **Локальное возобновляемое продвижение SDK** — [запись](adr/platform/local-sdk-promotion.md) · accepted · 2026-09-06
 
