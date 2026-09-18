@@ -30,7 +30,8 @@
     }
   },
   "requests": [
-    1080
+    1080,
+    1081
   ],
   "candidate": {
     "version": "0.9.0",
