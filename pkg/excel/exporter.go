@@ -300,9 +300,13 @@ func (e *ExcelExporter) ExportToWriter(ctx context.Context, w io.Writer, datasou
 }
 
 // streamCell wraps a normalized value in an excelize.Cell carrying the right
-// number format so numeric/date cells are typed (not text). Strings and other
-// types pass through unstyled.
+// number format so numeric/date cells are typed (not text). A Formula
+// becomes a formula cell; strings and other types pass through unstyled and
+// are stored as values, never evaluated.
 func streamCell(v interface{}, floatStyle, timeStyle, intStyle int) interface{} {
+	if formula, ok := asFormula(v); ok {
+		return excelize.Cell{Formula: formula}
+	}
 	switch t := v.(type) {
 	case time.Time:
 		return excelize.Cell{StyleID: timeStyle, Value: t}
@@ -342,6 +346,12 @@ func (e *ExcelExporter) writeRow(
 	for i, value := range row {
 		cell, _ := excelize.CoordinatesToCellName(i+1, rowNum)
 		normalizedValue := convertPgxValue(value)
+		if formula, ok := asFormula(normalizedValue); ok {
+			if err := f.SetCellFormula(sheet, cell, formula); err != nil {
+				return err
+			}
+			continue
+		}
 
 		// Format value based on type
 		formattedValue := formatValue(normalizedValue, e.options)
