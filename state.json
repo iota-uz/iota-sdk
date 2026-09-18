@@ -32,6 +32,13 @@
   "requests": [
     1080
   ],
+  "candidate": {
+    "version": "0.9.0",
+    "source": "9f92134beae143fcaff9a699ab163b4ae748c34e",
+    "sha": "88b36bd515a89c68c463377e2ba30cdaeebebeee",
+    "phase": "testing",
+    "run_id": "35394089958"
+  },
   "ready": {
     "version": "0.8.0",
     "source": "580b5e520bfcbc80ef563ddf75e7aa10c3962339",
