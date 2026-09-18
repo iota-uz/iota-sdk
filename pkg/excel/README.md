@@ -185,11 +185,11 @@ exporter := excel.NewExcelExporter(exportOpts, styleOpts)
 exports) write spreadsheet-safe CSV:
 
 - every plain value is data: text that Excel, LibreOffice or Google Sheets
-  would evaluate (`=`, `@`, tab, CR, a `-` not followed by one number, or a `+` not
-  followed by a number or phone) gets a leading apostrophe via
-  `NeutralizeFormula`; formatted amounts such as `-1 234,56`, a lone `-` and
-  phones such as `+998 (90) 123-45-67` stay as they are, while `-1-1` is
-  prefixed;
+  would evaluate (`=`, `@`, tab, CR, LF, their full-width forms, or a `+`/`-` not
+  followed by one number) gets a leading apostrophe via `NeutralizeFormula`;
+  amounts such as `-1 234,56`, a lone `-` and phones without hyphens such as
+  `+998 90 123 45 67` stay as they are, while `-1-1`, `+1-1` and a hyphenated
+  phone (`+998 (90) 123-45-67`, which Excel would compute) are prefixed;
 - a cell becomes a formula only when its value is `excel.Formula`. The same
   type writes a real formula in XLSX (`ExcelExporter.Export` and
   `ExportToWriter`), where plain strings are always stored as text.
