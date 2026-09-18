@@ -244,18 +244,12 @@ templ (p *CheckboxProps) render() {
 			checked?={ p.Checked }
 			{ p.Attrs... }
 		/>
-		<!-- Visual checkbox box -->
+		<!-- Visual checkbox box; glyph visibility comes from .iota-checkbox-* in styles/tailwind/iota.css -->
 		<div
-			class="w-5 h-5 rounded-[5px] border border-default duration-200 flex items-center justify-center hover:border-brand peer-disabled:border-disabled peer-indeterminate:bg-brand-500 peer-checked:border-brand peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white group"
+			class="iota-checkbox-indicator w-5 h-5 shrink-0 rounded-[5px] border border-default duration-200 flex items-center justify-center hover:border-brand peer-disabled:border-disabled peer-indeterminate:bg-brand-500 peer-checked:border-brand peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white"
 		>
-			@icons.Check(icons.Props{
-				Size:  "16",
-				Class: "scale-0 peer-indeterminate:group-[]:hidden peer-checked:group-[]:scale-100",
-			})
-			@icons.Minus(icons.Props{
-				Size:  "16",
-				Class: "scale-0 hidden peer-indeterminate:group-[]:inline peer-indeterminate:group-[]:scale-100",
-			})
+			@icons.Check(icons.Props{Size: "16", Class: "iota-checkbox-check"})
+			@icons.Minus(icons.Props{Size: "16", Class: "iota-checkbox-minus"})
 		</div>
 		<!-- Optional label text -->
 		if p.LabelComp != nil {

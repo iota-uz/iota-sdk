@@ -21,10 +21,12 @@ function Icon(props: IconProps & { children: JSX.Element }) {
   )
 }
 
+// Geometry mirrors github.com/iota-uz/icons/phosphor Check (regular variant),
+// which templ primitives render; templ-parity VR compares them pixel-for-pixel.
 export function CheckIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <polyline points="216 72 104 184 48 128" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" />
+      <polyline points="40 144 96 200 224 72" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" />
     </Icon>
   )
 }
