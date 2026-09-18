@@ -1,0 +1,26 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Block the full PostgreSQL server-side file reader family in BiChat SQL validation."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add Go-declared module-local Solid screens with generated TypeScript bindings, lazy catalog hosting, and build/watch tooling."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add a public SolidJS UI component library with the canonical iota-sdk visual contract, shared portal support, and deterministic browser visual regression coverage."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add spreadsheet-safe CSV export to pkg/excel (CSVExporter, CSVWriter, NeutralizeFormula) and the excel.Formula cell type; plain values never open as formulas in CSV or XLSX, and the CRM client CSV export uses the new writer."
+    },
+    {
+      "bump": "patch",
+      "summary": "Show the checkmark on checked templ checkboxes under Tailwind v4 and align the Solid UI check glyph with it."
+    }
+  ],
+  "source": "27f7ab5396ed435431f7cdea0570555b10646df3",
+  "version": "0.9.0"
+}
