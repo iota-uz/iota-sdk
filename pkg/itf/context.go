@@ -172,15 +172,18 @@ func (te *TestEnvironment) WithTx(ctx context.Context) context.Context {
 // to those readers once committed, while everything the test does afterwards
 // still rolls back cleanly.
 //
-// Seeded rows do NOT roll back with the test; the test owns cleaning them up
-// or must accept them in the (per-test-database) harness database.
+// Committing an already-closed transaction fails the test: ErrTxClosed does
+// not distinguish a prior commit from a prior rollback, so silently
+// continuing could skip the seed commit entirely. Seeded rows do NOT roll
+// back with the test; the test owns cleaning them up or must accept them in
+// the (per-test-database) harness database.
 func (te *TestEnvironment) CommitTx(tb testing.TB) {
 	tb.Helper()
 	if te.Tx == nil {
 		tb.Fatal("CommitTx: environment has no scope transaction")
 	}
-	if err := te.Tx.Commit(te.Ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
-		tb.Fatalf("CommitTx: failed to commit scope transaction: %v", err)
+	if err := te.Tx.Commit(te.Ctx); err != nil {
+		tb.Fatalf("CommitTx: failed to commit scope transaction (already closed?): %v", err)
 	}
 	te.beginScopeTx(tb)
 }
@@ -188,13 +191,17 @@ func (te *TestEnvironment) CommitTx(tb testing.TB) {
 // FreshTx rolls back the current scope transaction — discarding every
 // uncommitted change — and replaces it with a fresh one. Useful between
 // phases of a test that must not see each other's uncommitted writes.
+//
+// Rolling back an already-closed transaction fails the test: ErrTxClosed
+// does not distinguish a prior commit from a prior rollback, so silently
+// continuing could keep writes the caller believed discarded.
 func (te *TestEnvironment) FreshTx(tb testing.TB) {
 	tb.Helper()
 	if te.Tx == nil {
 		tb.Fatal("FreshTx: environment has no scope transaction")
 	}
-	if err := te.Tx.Rollback(te.Ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
-		tb.Fatalf("FreshTx: failed to roll back scope transaction: %v", err)
+	if err := te.Tx.Rollback(te.Ctx); err != nil {
+		tb.Fatalf("FreshTx: failed to roll back scope transaction (already closed?): %v", err)
 	}
 	te.beginScopeTx(tb)
 }

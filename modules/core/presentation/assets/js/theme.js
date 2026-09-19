@@ -76,7 +76,10 @@
 
   if (media) {
     var onOSChange = function () {
-      if (currentChoice() === "system") {
+      // choice (not currentChoice()): when storage is unavailable an
+      // explicit light/dark selection lives only in this variable, and an
+      // OS change must not override it.
+      if (choice === "system") {
         apply("system");
       }
     };

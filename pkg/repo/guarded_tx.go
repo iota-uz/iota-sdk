@@ -60,6 +60,12 @@ func (g *txGuard) leave() {
 //
 // Savepoint transactions returned by Begin share the parent's guard state,
 // because they share the parent's connection.
+//
+// LargeObjects is NOT guarded: it returns pgx's concrete LargeObjects value
+// bound to the wrapped transaction, which no wrapper can intercept. GuardedTx
+// covers every directly callable connection-driving method, but large-object
+// operations go through their own path — do not run them concurrently with
+// other calls on the same guarded transaction.
 type GuardedTx struct {
 	pgx.Tx
 	g *txGuard
