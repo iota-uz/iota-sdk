@@ -207,7 +207,6 @@
       "Type": "Tipo",
       "SelectType": "Selecione o tipo",
       "LegalType": "Tipo legal",
-      "SelectLegalType": "Selecione o tipo legal",
       "LegalAddress": "Endereço legal",
       "Delete": "Excluir contraparte",
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta contraparte?"
@@ -579,3 +578,4 @@
     "invalidTIN": "{{.Details}}"
   }
 }
+

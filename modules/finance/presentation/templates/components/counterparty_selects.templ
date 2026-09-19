@@ -2,6 +2,7 @@ package components
 
 import (
 	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/radio"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -40,23 +41,39 @@ templ CounterpartyTypeSelect(props *CounterpartyTypeSelectProps) {
 	}
 }
 
+// CounterpartyLegalTypeSelect renders the legal-form field as a radio group.
+// The option set is short and fixed (individual, LLC, JSC, sole
+// proprietorship), so one visible choice beats a dropdown. The form contract
+// is unchanged: the radios submit under the name from props.Attrs ("name",
+// defaulting to "LegalType") with the same option values the select sent, and
+// every other attr (e.g. "required") is applied to each radio input.
 templ CounterpartyLegalTypeSelect(props *CounterpartyLegalTypeSelectProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@base.Select(&base.SelectProps{
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+		name := "LegalType"
+		if n, ok := props.Attrs["name"].(string); ok && n != "" {
+			name = n
+		}
+		inputAttrs := make(templ.Attributes, len(props.Attrs))
+		for k, v := range props.Attrs {
+			if k != "name" {
+				inputAttrs[k] = v
+			}
+		}
+	}}
+	@radio.RadioGroup(radio.RadioGroupProps{
 		Label:       pageCtx.T("Counterparties.Single.LegalType"),
-		Placeholder: pageCtx.T("Counterparties.Single.SelectLegalType"),
 		Error:       props.Error,
-		Attrs:       props.Attrs,
+		Orientation: radio.OrientationHorizontal,
 	}) {
 		for _, legalTypeOption := range viewmodels.AllCounterpartyLegalTypes() {
-			if string(legalTypeOption) == props.Value {
-				<option value={ legalTypeOption.String() } selected>
-					{ legalTypeOption.LocalizedString(pageCtx) }
-				</option>
-			} else {
-				<option value={ legalTypeOption.String() }>
-					{ legalTypeOption.LocalizedString(pageCtx) }
-				</option>
+			@radio.CardItem(radio.CardItemProps{
+				Name:    name,
+				Value:   legalTypeOption.String(),
+				Checked: legalTypeOption.String() == props.Value,
+				Attrs:   inputAttrs,
+			}) {
+				{ legalTypeOption.LocalizedString(pageCtx) }
 			}
 		}
 	}

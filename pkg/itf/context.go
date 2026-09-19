@@ -3,6 +3,7 @@ package itf
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -11,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -103,7 +105,7 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 	tc.app = scope.App
 	tc.tenant = scope.Tenant
 
-	return &TestEnvironment{
+	env := &TestEnvironment{
 		Ctx:       scope.Ctx,
 		Pool:      scope.Pool,
 		Tx:        scope.Tx,
@@ -111,7 +113,9 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 		Container: scope.Container,
 		Tenant:    scope.Tenant,
 		User:      tc.user,
+		txCfg:     scope.TxConfig,
 	}
+	return env
 }
 
 // TestEnvironment contains all test dependencies
@@ -123,6 +127,11 @@ type TestEnvironment struct {
 	Container *composition.Container
 	Tenant    *composables.Tenant
 	User      user.User
+
+	// txCfg holds the isolation transaction settings so replacement
+	// transactions (CommitTx / FreshTx) reapply them, matching the initial
+	// scope transaction the harness configures.
+	txCfg TxConfig
 }
 
 // GetService is a generic helper that retrieves and casts a service. Resolves
@@ -154,4 +163,67 @@ func (te *TestEnvironment) TenantID() uuid.UUID {
 // WithTx returns a new context with the test transaction
 func (te *TestEnvironment) WithTx(ctx context.Context) context.Context {
 	return composables.WithTx(ctx, te.Tx)
+}
+
+// CommitTx commits the current scope transaction and replaces it with a fresh
+// rollback-scoped one. Use it after seeding inside the rollback scope when
+// code under test reads through the pool (repositories that call UsePool
+// directly, background workers, separate transactions): rows are only visible
+// to those readers once committed, while everything the test does afterwards
+// still rolls back cleanly.
+//
+// Committing an already-closed transaction fails the test: ErrTxClosed does
+// not distinguish a prior commit from a prior rollback, so silently
+// continuing could skip the seed commit entirely. Seeded rows do NOT roll
+// back with the test; the test owns cleaning them up or must accept them in
+// the (per-test-database) harness database.
+func (te *TestEnvironment) CommitTx(tb testing.TB) {
+	tb.Helper()
+	if te.Tx == nil {
+		tb.Fatal("CommitTx: environment has no scope transaction")
+	}
+	if err := te.Tx.Commit(te.Ctx); err != nil {
+		tb.Fatalf("CommitTx: failed to commit scope transaction (already closed?): %v", err)
+	}
+	te.beginScopeTx(tb)
+}
+
+// FreshTx rolls back the current scope transaction — discarding every
+// uncommitted change — and replaces it with a fresh one. Useful between
+// phases of a test that must not see each other's uncommitted writes.
+//
+// Rolling back an already-closed transaction fails the test: ErrTxClosed
+// does not distinguish a prior commit from a prior rollback, so silently
+// continuing could keep writes the caller believed discarded.
+func (te *TestEnvironment) FreshTx(tb testing.TB) {
+	tb.Helper()
+	if te.Tx == nil {
+		tb.Fatal("FreshTx: environment has no scope transaction")
+	}
+	if err := te.Tx.Rollback(te.Ctx); err != nil {
+		tb.Fatalf("FreshTx: failed to roll back scope transaction (already closed?): %v", err)
+	}
+	te.beginScopeTx(tb)
+}
+
+func (te *TestEnvironment) beginScopeTx(tb testing.TB) {
+	tb.Helper()
+	tx, err := te.Pool.Begin(te.Ctx)
+	if err != nil {
+		tb.Fatalf("failed to begin scope transaction: %v", err)
+	}
+	// Replacement transactions must behave like the initial scope
+	// transaction, configured timeouts included.
+	if err := applyTxSettings(te.Ctx, tx, te.txCfg); err != nil {
+		_ = tx.Rollback(te.Ctx)
+		tb.Fatalf("failed to apply scope tx settings: %v", err)
+	}
+	tx = repo.NewGuardedTx(tx)
+	te.Tx = tx
+	te.Ctx = composables.WithTx(te.Ctx, tx)
+	tb.Cleanup(func() {
+		if err := tx.Rollback(te.Ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			tb.Logf("warning: failed to roll back scope transaction: %v", err)
+		}
+	})
 }

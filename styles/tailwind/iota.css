@@ -1458,3 +1458,22 @@
 .peer:indeterminate + .iota-checkbox-indicator .iota-checkbox-minus {
   display: block;
 }
+
+/*
+ * Theme-toggle glyphs on the login page (modules/core/.../pages/login).
+ * Plain CSS for the same reason as the checkbox glyphs above: Tailwind v4
+ * does not emit the v3 `peer-checked/x:group-[]/x:scale-100` hack the markup
+ * used before, so each icon stayed at scale-0 and the toggle rendered empty.
+ * Each label is the next sibling of its named radio peer, so the sibling
+ * combinator reaches the icon without arbitrary-group variants.
+ */
+.iota-theme-icon {
+  scale: 0;
+  transition: scale 0.2s ease;
+}
+
+.peer\/system:checked + label .iota-theme-icon,
+.peer\/light:checked + label .iota-theme-icon,
+.peer\/dark:checked + label .iota-theme-icon {
+  scale: 1;
+}

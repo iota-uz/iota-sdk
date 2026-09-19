@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Resolve the theme switcher's 'system' choice against the OS color scheme with a live matchMedia listener shared by the app and the login page, restore the login theme-toggle icons Tailwind v4 never scaled up, and turn the counterparty legal-form select into a radio group with an unchanged form contract."
+}

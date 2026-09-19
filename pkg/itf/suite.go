@@ -76,6 +76,19 @@ func (s *Suite) Register(controller interface{ Register(*mux.Router) }) *Suite {
 	return s
 }
 
+// MountAll registers every controller of the compiled application on the
+// suite router, mirroring the route table pkg/server builds in production.
+// NewSuite mounts nothing on its own: component controllers contributed to the
+// container do not appear on the suite router until they are registered
+// through this method (or Suite.Register for a hand-picked subset), and an
+// unmounted route answers 404 with no hint about what is missing.
+func (s *Suite) MountAll() *Suite {
+	for _, controller := range s.env.App.Controllers() {
+		controller.Register(s.router)
+	}
+	return s
+}
+
 // WithMiddleware registers a custom middleware function that can modify the request context
 func (s *Suite) WithMiddleware(middleware MiddlewareFunc) *Suite {
 	s.middlewares = append(s.middlewares, middleware)
