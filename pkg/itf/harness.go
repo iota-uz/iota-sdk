@@ -25,6 +25,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -309,6 +310,7 @@ func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 		if err != nil {
 			tb.Fatalf("failed to begin rollback scope transaction: %v", err)
 		}
+		tx = repo.NewGuardedTx(tx)
 
 		scopeCtx := composables.WithTx(ctx, tx)
 		if err := applyTxSettings(scopeCtx, tx, h.cfg.Isolation.Tx); err != nil {

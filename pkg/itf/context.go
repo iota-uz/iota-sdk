@@ -3,6 +3,7 @@ package itf
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -11,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -154,4 +156,54 @@ func (te *TestEnvironment) TenantID() uuid.UUID {
 // WithTx returns a new context with the test transaction
 func (te *TestEnvironment) WithTx(ctx context.Context) context.Context {
 	return composables.WithTx(ctx, te.Tx)
+}
+
+// CommitTx commits the current scope transaction and replaces it with a fresh
+// rollback-scoped one. Use it after seeding inside the rollback scope when
+// code under test reads through the pool (repositories that call UsePool
+// directly, background workers, separate transactions): rows are only visible
+// to those readers once committed, while everything the test does afterwards
+// still rolls back cleanly.
+//
+// Seeded rows do NOT roll back with the test; the test owns cleaning them up
+// or must accept them in the (per-test-database) harness database.
+func (te *TestEnvironment) CommitTx(tb testing.TB) {
+	tb.Helper()
+	if te.Tx == nil {
+		tb.Fatal("CommitTx: environment has no scope transaction")
+	}
+	if err := te.Tx.Commit(te.Ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+		tb.Fatalf("CommitTx: failed to commit scope transaction: %v", err)
+	}
+	te.beginScopeTx(tb)
+}
+
+// FreshTx rolls back the current scope transaction — discarding every
+// uncommitted change — and replaces it with a fresh one. Useful between
+// phases of a test that must not see each other's uncommitted writes.
+func (te *TestEnvironment) FreshTx(tb testing.TB) {
+	tb.Helper()
+	if te.Tx == nil {
+		tb.Fatal("FreshTx: environment has no scope transaction")
+	}
+	if err := te.Tx.Rollback(te.Ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+		tb.Fatalf("FreshTx: failed to roll back scope transaction: %v", err)
+	}
+	te.beginScopeTx(tb)
+}
+
+func (te *TestEnvironment) beginScopeTx(tb testing.TB) {
+	tb.Helper()
+	tx, err := te.Pool.Begin(te.Ctx)
+	if err != nil {
+		tb.Fatalf("failed to begin scope transaction: %v", err)
+	}
+	tx = repo.NewGuardedTx(tx)
+	te.Tx = tx
+	te.Ctx = composables.WithTx(te.Ctx, tx)
+	tb.Cleanup(func() {
+		if err := tx.Rollback(te.Ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			tb.Logf("warning: failed to roll back scope transaction: %v", err)
+		}
+	})
 }
