@@ -207,7 +207,6 @@
       "Type": "Type",
       "SelectType": "Select type",
       "LegalType": "Legal type",
-      "SelectLegalType": "Select legal type",
       "LegalAddress": "Legal address",
       "Delete": "Delete counterparty",
       "DeleteConfirmation": "Are you sure you want to delete this counterparty?"

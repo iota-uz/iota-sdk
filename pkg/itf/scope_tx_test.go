@@ -145,4 +145,21 @@ func TestScopeTx_ComposablesUseTxSeesReplacement(t *testing.T) {
 	assert.Equal(t, env.Tx, tx)
 }
 
+func TestCommitTx_ReappliesTxSettings(t *testing.T) {
+	t.Parallel()
+
+	env := Setup(t, WithComponents(modules.Components()...))
+
+	env.CommitTx(t)
+
+	// applyTxSettings defaults: lock_timeout 2s. SET LOCAL is per
+	// transaction, so the replacement must have re-applied it.
+	var lockTimeout string
+	require.NoError(
+		t,
+		env.Tx.QueryRow(env.Ctx, "SHOW lock_timeout").Scan(&lockTimeout),
+	)
+	assert.Equal(t, "2s", lockTimeout, "replacement scope tx must re-apply tx settings")
+}
+
 var probeSeq uint32

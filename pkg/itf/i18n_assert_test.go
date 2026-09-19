@@ -72,6 +72,18 @@ func TestMessageResolves(t *testing.T) {
 	assert.True(t, MessageResolves(bundle, "ru", "Reserve.Export.Title"))
 }
 
+func TestMessageResolves_RejectsUnsupportedLocale(t *testing.T) {
+	t.Parallel()
+
+	bundle := testBundle(t)
+
+	// "fr" is not in the bundle: the localizer silently serves the default
+	// language (en) without an error, which must NOT count as resolved.
+	assert.False(t, MessageResolves(bundle, "fr", "Reserve.Export.Title"))
+	// Same rejection through the all-loacles helper's building block.
+	assert.False(t, MessageResolves(bundle, "fr", "Reserve.Export.Reason.Status"))
+}
+
 func TestRequireMessageAllLocales(t *testing.T) {
 	t.Parallel()
 

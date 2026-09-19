@@ -207,7 +207,6 @@
       "Type": "Тип",
       "SelectType": "Выберите тип",
       "LegalType": "Правовая форма",
-      "SelectLegalType": "Выберите правовую форму",
       "LegalAddress": "Юридический адрес",
       "Delete": "Удалить контрагента",
       "DeleteConfirmation": "Вы уверены что хотите удалить этого контрагента?"
@@ -579,3 +578,4 @@
     "invalidTIN": "{{.Details}}"
   }
 }
+

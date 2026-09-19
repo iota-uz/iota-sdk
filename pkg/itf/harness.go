@@ -199,9 +199,13 @@ type HarnessConfig struct {
 }
 
 type Scope struct {
-	Ctx       context.Context
-	Pool      *pgxpool.Pool
-	Tx        pgx.Tx
+	Ctx  context.Context
+	Pool *pgxpool.Pool
+	Tx   pgx.Tx
+	// TxConfig carries the isolation transaction settings so consumers that
+	// replace the scope transaction (TestEnvironment.CommitTx / FreshTx) can
+	// reapply them; the settings themselves only take effect per transaction.
+	TxConfig  TxConfig
 	App       application.Application
 	Container *composition.Container
 	Tenant    *composables.Tenant
@@ -335,6 +339,7 @@ func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 			Ctx:       scopeCtx,
 			Pool:      h.state.pool,
 			Tx:        tx,
+			TxConfig:  h.cfg.Isolation.Tx,
 			App:       h.state.app,
 			Container: h.state.container,
 			Tenant:    h.state.tenant,

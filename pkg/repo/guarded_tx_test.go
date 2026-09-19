@@ -38,6 +38,32 @@ func (t *gateTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row 
 	return fakeRow{}
 }
 
+// fakeRows is a scriptable pgx.Rows used to verify the guard's lifetime
+// around lazy result handles.
+type fakeRows struct {
+	pgx.Rows
+	remaining atomic.Int32
+	closed    atomic.Bool
+}
+
+func (r *fakeRows) Next() bool {
+	if r.closed.Load() {
+		return false
+	}
+	return r.remaining.Add(-1) >= 0
+}
+
+func (r *fakeRows) Close() { r.closed.Store(true) }
+
+type queryGateTx struct {
+	gateTx
+	rows fakeRows
+}
+
+func (t *queryGateTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	return &t.rows, nil
+}
+
 type fakeRow struct{}
 
 func (fakeRow) Scan(dest ...any) error { return nil }
@@ -193,4 +219,95 @@ func TestGuardedTx_ConcurrentUseAfterReleaseSucceeds(t *testing.T) {
 
 	_, err = tx.Exec(context.Background(), "SELECT 3")
 	require.NoError(t, err)
+}
+
+func TestGuardedTx_KeepsGuardWhileRowsOpen(t *testing.T) {
+	t.Parallel()
+
+	inner := &queryGateTx{}
+	inner.rows.remaining.Store(2)
+	tx := NewGuardedTx(inner)
+
+	rows, err := tx.Query(context.Background(), "SELECT 1")
+	require.NoError(t, err)
+
+	// Iteration not finished: the connection is still busy with the result
+	// set, so another call must fail fast instead of racing it.
+	require.True(t, rows.Next())
+	_, err = tx.Exec(context.Background(), "SELECT 2")
+	require.ErrorIs(t, err, ErrTxInUse)
+
+	// Terminal Next releases the guard.
+	require.True(t, rows.Next())
+	require.False(t, rows.Next())
+	_, err = tx.Exec(context.Background(), "SELECT 3")
+	require.NoError(t, err)
+}
+
+func TestGuardedTx_ReleasesGuardOnRowsClose(t *testing.T) {
+	t.Parallel()
+
+	inner := &queryGateTx{}
+	inner.rows.remaining.Store(5) // more rows than the test consumes
+	tx := NewGuardedTx(inner)
+
+	rows, err := tx.Query(context.Background(), "SELECT 1")
+	require.NoError(t, err)
+
+	require.True(t, rows.Next())
+	rows.Close()
+
+	_, err = tx.Exec(context.Background(), "SELECT 2")
+	require.NoError(t, err, "Close must release the guard even with rows left")
+}
+
+func TestGuardedTx_BeginSharesGuardWithParent(t *testing.T) {
+	t.Parallel()
+
+	inner := &gateTx{}
+	inner.hold.Store(true)
+	tx := NewGuardedTx(inner)
+
+	go func() {
+		_, _ = tx.Exec(context.Background(), "SELECT 1")
+	}()
+	waitFor(t, func() bool { return inner.inFlight.Load() == 1 })
+
+	// Begin while the parent is busy must fail fast…
+	_, err := tx.Begin(context.Background())
+	require.ErrorIs(t, err, ErrTxInUse)
+
+	inner.hold.Store(false)
+	waitFor(t, func() bool { return inner.inFlight.Load() == 0 })
+
+	// …and the savepoint it returns shares the parent's guard: a busy
+	// savepoint blocks the parent and vice versa.
+	inner.hold.Store(true)
+	go func() {
+		_, _ = tx.Exec(context.Background(), "SELECT 1")
+	}()
+	waitFor(t, func() bool { return inner.inFlight.Load() == 1 })
+
+	_, err = tx.Begin(context.Background())
+	require.ErrorIs(t, err, ErrTxInUse)
+
+	inner.hold.Store(false)
+}
+
+func TestGuardedTx_PrepareFailsFastWhenBusy(t *testing.T) {
+	t.Parallel()
+
+	inner := &gateTx{}
+	inner.hold.Store(true)
+	tx := NewGuardedTx(inner)
+
+	go func() {
+		_, _ = tx.Exec(context.Background(), "SELECT 1")
+	}()
+	waitFor(t, func() bool { return inner.inFlight.Load() == 1 })
+
+	_, err := tx.Prepare(context.Background(), "p1", "SELECT 1")
+	require.ErrorIs(t, err, ErrTxInUse)
+
+	inner.hold.Store(false)
 }

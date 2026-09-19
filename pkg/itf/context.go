@@ -105,7 +105,7 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 	tc.app = scope.App
 	tc.tenant = scope.Tenant
 
-	return &TestEnvironment{
+	env := &TestEnvironment{
 		Ctx:       scope.Ctx,
 		Pool:      scope.Pool,
 		Tx:        scope.Tx,
@@ -113,7 +113,9 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 		Container: scope.Container,
 		Tenant:    scope.Tenant,
 		User:      tc.user,
+		txCfg:     scope.TxConfig,
 	}
+	return env
 }
 
 // TestEnvironment contains all test dependencies
@@ -125,6 +127,11 @@ type TestEnvironment struct {
 	Container *composition.Container
 	Tenant    *composables.Tenant
 	User      user.User
+
+	// txCfg holds the isolation transaction settings so replacement
+	// transactions (CommitTx / FreshTx) reapply them, matching the initial
+	// scope transaction the harness configures.
+	txCfg TxConfig
 }
 
 // GetService is a generic helper that retrieves and casts a service. Resolves
@@ -197,6 +204,12 @@ func (te *TestEnvironment) beginScopeTx(tb testing.TB) {
 	tx, err := te.Pool.Begin(te.Ctx)
 	if err != nil {
 		tb.Fatalf("failed to begin scope transaction: %v", err)
+	}
+	// Replacement transactions must behave like the initial scope
+	// transaction, configured timeouts included.
+	if err := applyTxSettings(te.Ctx, tx, te.txCfg); err != nil {
+		_ = tx.Rollback(te.Ctx)
+		tb.Fatalf("failed to apply scope tx settings: %v", err)
 	}
 	tx = repo.NewGuardedTx(tx)
 	te.Tx = tx
