@@ -207,7 +207,6 @@
       "Type": "Turi",
       "SelectType": "Turini tanlang",
       "LegalType": "Yuridik shakli",
-      "SelectLegalType": "Yuridik shaklini tanlang",
       "LegalAddress": "Yuridik manzili",
       "Delete": "Kontragentni o'chirish",
       "DeleteConfirmation": "Ushbu kontragentni o'chirishni xohlaysizmi?"
@@ -579,3 +578,4 @@
     "invalidTIN": "{{.Details}}"
   }
 }
+

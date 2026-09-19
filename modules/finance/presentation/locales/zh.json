@@ -207,7 +207,6 @@
       "Type": "类型",
       "SelectType": "选择类型",
       "LegalType": "法人类型",
-      "SelectLegalType": "选择法人类型",
       "LegalAddress": "法定地址",
       "Delete": "删除交易对手",
       "DeleteConfirmation": "您确定要删除此交易对手吗？"
@@ -579,3 +578,4 @@
     "invalidTIN": "{{.Details}}"
   }
 }
+
