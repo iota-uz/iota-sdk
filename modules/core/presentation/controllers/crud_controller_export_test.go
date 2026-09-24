@@ -97,6 +97,7 @@ func (m *exportMapper) ToFieldValuesList(_ context.Context, entities ...exportEn
 type exportService struct {
 	entities  []exportEntity
 	listCalls int
+	sorts     []crud.SortBy
 }
 
 func (s *exportService) GetAll(context.Context) ([]exportEntity, error) { return s.entities, nil }
@@ -113,6 +114,9 @@ func (s *exportService) Count(_ context.Context, params *crud.FindParams) (int64
 
 func (s *exportService) List(_ context.Context, params *crud.FindParams) ([]exportEntity, error) {
 	s.listCalls++
+	if params != nil {
+		s.sorts = append(s.sorts, params.SortBy)
+	}
 	matching := s.filtered(params)
 	if params == nil {
 		return matching, nil
@@ -373,4 +377,37 @@ func TestCrudControllerExportProducesAnExcelWorkbook(t *testing.T) {
 	body := resp.Body()
 	assert.True(t, strings.HasPrefix(body, "PK"), "a xlsx file is a zip container")
 	assert.Greater(t, len(body), 1024)
+}
+
+// TestCrudControllerExportPagesOverATotalOrder pins what makes batched OFFSET
+// reads sound: every batch is ordered, and the primary key breaks ties, so no
+// row can move between batches and be written twice or not at all.
+//
+// Falsely green if the fixture fit in one batch — then no second read would
+// ever depend on the order of the first. 1200 rows are three batches.
+func TestCrudControllerExportPagesOverATotalOrder(t *testing.T) {
+	suite := newExportSuite(t)
+	service := seededExportService(1200)
+	controller := controllers.NewCrudController[exportEntity](
+		"/dictionary",
+		newExportBuilder(service),
+		controllers.WithExport[exportEntity](),
+	)
+	suite.Register(controller)
+
+	suite.GET("/dictionary/export?format=csv").Expect(t).Status(http.StatusOK)
+	require.Len(t, service.sorts, 3, "1200 rows are read in three batches")
+	for _, sortBy := range service.sorts {
+		require.NotEmpty(t, sortBy.Fields)
+		assert.Equal(t, "id", sortBy.Fields[len(sortBy.Fields)-1].Field, "the key breaks every tie")
+	}
+
+	service.sorts = nil
+	suite.GET("/dictionary/export?format=csv&sort=code&order=desc").Expect(t).Status(http.StatusOK)
+	require.NotEmpty(t, service.sorts)
+	fields := service.sorts[0].Fields
+	require.Len(t, fields, 2)
+	assert.Equal(t, "code", fields[0].Field, "the order the reader chose comes first")
+	assert.False(t, fields[0].Ascending)
+	assert.Equal(t, "id", fields[1].Field)
 }
