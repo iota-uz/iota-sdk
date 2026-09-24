@@ -96,6 +96,8 @@ pulling whole files into context. `Grep` is for strings; `LSP` is for symbols.
 - **Determine layers involved**: domain, service, repository, controller, ViewModel, template, migration, config
 - **Read relevant guides** based on task context (see Task-based guide routing above)
 - **Map dependencies**: aggregates, services, repository interfaces, auth requirements, organization vs tenant context
+- **For a defect found in a consumer**: check whether the behavior is a shared SDK capability or invariant before adding a local workaround. Implement shared behavior in the SDK and validate it in the affected consumer's preview workflow; keep product-specific policy in the consumer.
+- **For public SDK API replacement**: identify the owning API and extension points; inventory callers, exports, adapters, applets, examples, tests, docs, and affected consumers before editing. Record the migration and consumer preview needed.
 - **Plan test scenarios**: happy path, error cases, edge cases, permissions
 - **Use AskUserQuestion** if task scope or approach is ambiguous
 

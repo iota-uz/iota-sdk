@@ -10,6 +10,15 @@ iota-sdk is a general purpose ERP building engine/solution. When designing anyth
 - Apply dependency inversion and inject interfaces
 - Keep domain and services decoupled from infrastructure details
 
+## SDK and consumer ownership
+
+Before adding a consumer workaround for shared SDK behavior, trace the SDK API,
+available extension points, and affected consumers. Fix a reusable capability or
+invariant in the SDK; when a consumer exposed the defect, validate the fix in
+that consumer's preview workflow. Keep product-specific policy and workflow in
+the consumer. Decide from the actual ownership boundary, not from which
+repository first exposed the defect.
+
 ## Module Architecture
 
 Each module follows a strict **Domain-Driven Design (DDD)** pattern with clear layer separation:
@@ -115,11 +124,11 @@ modules/{module}/
 - **Multi-tenant isolation**: Always include `tenant_id` in WHERE clauses
 - **Error handling**: Use `pkg/serrors` - `serrors.E(op, err)` pattern
 - **HTMX**: Check `htmx.IsHxRequest(r)`, use `htmx.SetTrigger(w, "event", payload)`
-- **Never read `*_templ.go` files** - they're generated
+- **Templ**: Edit `.templ` sources, not generated `*_templ.go` files. Inspect generated diffs or compiler errors when validating a change, and exclude unrelated generator churn.
 
 ## Tool Use
 - DO NOT USE `sed` for file manipulation
-- Prefer `mcp__bloom__search_code(repo: "iota-uz/iota-sdk")` for semantic search when you do not know exact file names or need to explore the codebase
+- For code navigation, use symbol references/definitions when available; use `rg --files` for paths and `rg` for text.
 
 ## Build/Lint/Test Commands
 
