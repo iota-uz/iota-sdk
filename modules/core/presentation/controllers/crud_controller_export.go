@@ -165,13 +165,18 @@ func (c *CrudController[TEntity]) exportEntities(ctx context.Context, r *http.Re
 	if searchQuery := r.URL.Query().Get("Search"); searchQuery != "" {
 		params.Query = searchQuery
 	}
+	sortFields := make([]repo.SortByField[string], 0, 2)
 	if sortField := table.UseSortQuery(r); sortField != "" {
-		params.SortBy = crud.SortBy{
-			Fields: []repo.SortByField[string]{
-				{Field: sortField, Ascending: table.UseOrderQuery(r) == "asc"},
-			},
-		}
+		sortFields = append(sortFields, repo.SortByField[string]{Field: sortField, Ascending: table.UseOrderQuery(r) == "asc"})
 	}
+	// The export pages through the result with OFFSET, which is only sound over
+	// a total order: without ORDER BY, or over a column with ties, rows move
+	// between batches and the file repeats some and drops others. The primary
+	// key breaks every tie.
+	if key := c.primaryKeyField.Name(); len(sortFields) == 0 || sortFields[0].Field != key {
+		sortFields = append(sortFields, repo.SortByField[string]{Field: key, Ascending: true})
+	}
+	params.SortBy = crud.SortBy{Fields: sortFields}
 
 	entities := make([]TEntity, 0)
 	for {
