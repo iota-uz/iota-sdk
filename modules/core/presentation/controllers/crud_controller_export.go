@@ -11,6 +11,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/components/export"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/crud/models"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
@@ -150,9 +151,17 @@ func (c *CrudController[TEntity]) Export(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// exportEntities walks the full result set of the current search and sorting.
+// exportEntities walks the full result set the list is showing. The query is
+// read exactly as List reads it — anything less would export a different set of
+// rows than the page the export was started from — and only the page window is
+// dropped, because an export is every page.
 func (c *CrudController[TEntity]) exportEntities(ctx context.Context, r *http.Request) ([]TEntity, error) {
-	params := &crud.FindParams{Limit: crudExportBatchSize}
+	params, err := composables.UseQuery(&crud.FindParams{Limit: crudExportBatchSize}, r)
+	if err != nil {
+		return nil, err
+	}
+	params.Limit = crudExportBatchSize
+	params.Offset = 0
 	if searchQuery := r.URL.Query().Get("Search"); searchQuery != "" {
 		params.Query = searchQuery
 	}
