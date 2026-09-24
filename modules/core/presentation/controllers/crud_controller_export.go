@@ -368,11 +368,16 @@ func exportFieldLocales(field crud.Field, rows [][]crud.FieldValue) []string {
 	locales := make([]string, 0, len(present)+len(intl.SupportedLanguages))
 	seen := make(map[string]struct{}, len(present))
 	for _, lang := range intl.SupportedLanguages {
-		if _, ok := present[lang.Code]; !ok {
-			continue
+		for locale := range present {
+			// Stored codes are not always spelled as the language list spells
+			// them ("uz-cyrl" for "uz-Cyrl"), and the column is named after the
+			// code the data carries.
+			if !strings.EqualFold(lang.Code, locale) {
+				continue
+			}
+			locales = append(locales, locale)
+			seen[locale] = struct{}{}
 		}
-		locales = append(locales, lang.Code)
-		seen[lang.Code] = struct{}{}
 	}
 	extra := make([]string, 0, len(present))
 	for locale := range present {
