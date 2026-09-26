@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -33,7 +34,7 @@ templ EditForm(props *EditPageProps) {
 				Class:    "col-span-3",
 				Form:     "save-form",
 				Multiple: true,
-				Uploads:  props.Position.Images,
+				Uploads:  mappers.UploadsToCoreViewItems(props.Position.Images),
 			})
 			@input.Text(&input.Props{
 				Label:       pageCtx.T("WarehousePositions.Single.Title.Label"),
