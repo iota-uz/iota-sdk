@@ -10,8 +10,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/applets"
 	"github.com/sirupsen/logrus"
@@ -47,7 +50,33 @@ type Dispatcher struct {
 	maxBodySize    int64
 	beforeDispatch func(context.Context, string) error
 	bunCaller      BunPublicCaller
+	metrics        applets.MetricsRecorder
+	audit          AuditSink
 }
+
+// AuditSink receives one bounded, non-secret event per mutation dispatch so
+// applications can persist audit trails without the dispatcher knowing about
+// storage.
+type AuditSink interface {
+	RecordRPCMutation(event AuditEvent)
+}
+
+type AuditEvent struct {
+	Applet    string
+	Method    string
+	RequestID string
+	UserID    uint
+	// Authorized is false when the middleware chain or the permission check
+	// rejected the call.
+	Authorized bool
+	// ErrCode is the RPC error code when the call failed.
+	ErrCode string
+}
+
+// identityHeaders are never trusted by the dispatcher and never forwarded to
+// the bun runtime: user and tenant identity come only from the authenticated
+// server context.
+var identityHeaders = []string{"X-Iota-Tenant-Id", "X-Iota-User-Id"}
 
 type BunPublicCaller interface {
 	CallPublicMethod(ctx context.Context, appletID, method string, params json.RawMessage, headers http.Header) (any, error)
@@ -88,6 +117,17 @@ func (d *Dispatcher) SetBunPublicCaller(caller BunPublicCaller) {
 	d.bunCaller = caller
 }
 
+// SetMetricsRecorder attaches an optional metrics recorder. Every dispatch is
+// labeled by its bounded method name and kind.
+func (d *Dispatcher) SetMetricsRecorder(recorder applets.MetricsRecorder) {
+	d.metrics = recorder
+}
+
+// SetAuditSink attaches an optional mutation audit sink.
+func (d *Dispatcher) SetAuditSink(sink AuditSink) {
+	d.audit = sink
+}
+
 func (d *Dispatcher) handleHTTP(w http.ResponseWriter, r *http.Request, transport dispatchTransport) {
 	if r.Method != http.MethodPost {
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
@@ -121,7 +161,7 @@ func (d *Dispatcher) handleHTTP(w http.ResponseWriter, r *http.Request, transpor
 		return
 	}
 
-	ctx := d.ctxFromHeaders(r.Context(), r.Header)
+	ctx := d.ctxFromHeaders(r.Context(), r.Header, transport)
 	if trimmed[0] == '[' {
 		var batch []request
 		if err := json.Unmarshal(trimmed, &batch); err != nil || len(batch) == 0 {
@@ -152,6 +192,7 @@ func (d *Dispatcher) handleHTTP(w http.ResponseWriter, r *http.Request, transpor
 }
 
 func (d *Dispatcher) dispatch(baseCtx context.Context, req request, transport dispatchTransport, headers http.Header, httpReq *http.Request) response {
+	started := time.Now()
 	id := req.ID
 	methodName := strings.TrimSpace(req.Method)
 	if methodName == "" {
@@ -183,6 +224,13 @@ func (d *Dispatcher) dispatch(baseCtx context.Context, req request, transport di
 		}
 	}
 
+	// Identity headers are stripped before any cross-runtime forwarding; the
+	// bun runtime receives transport metadata only.
+	forwarded := headers.Clone()
+	for _, name := range identityHeaders {
+		forwarded.Del(name)
+	}
+
 	exec := func(ctx context.Context) (any, error) {
 		return method.Method.Handler(ctx, req.Params)
 	}
@@ -195,11 +243,23 @@ func (d *Dispatcher) dispatch(baseCtx context.Context, req request, transport di
 			}
 		}
 		exec = func(ctx context.Context) (any, error) {
-			return d.bunCaller.CallPublicMethod(ctx, method.AppletName, method.Name, req.Params, headers)
+			// The applet runtime still needs identity headers for its own
+			// context, but they are set from the authenticated server
+			// context here — never from the raw client request.
+			forward := forwarded.Clone()
+			if tenantID, ok := TenantIDFromContext(ctx); ok {
+				forward.Set("X-Iota-Tenant-Id", tenantID)
+			}
+			if userID, ok := UserIDFromContext(ctx); ok {
+				forward.Set("X-Iota-User-Id", userID)
+			}
+			return d.bunCaller.CallPublicMethod(ctx, method.AppletName, method.Name, req.Params, forward)
 		}
 	}
 
 	result, rpcErr := d.executeWithMiddleware(baseCtx, httpReq, method, exec)
+	requestID, _ := RequestIDFromContext(baseCtx)
+	d.observe(method, transport, requestID, started, rpcErr)
 	if rpcErr != nil {
 		return response{
 			ID:      id,
@@ -213,6 +273,54 @@ func (d *Dispatcher) dispatch(baseCtx context.Context, req request, transport di
 		Result:  result,
 		JSONRPC: "2.0",
 	}
+}
+
+// observe reports one completed dispatch to logs, metrics and the mutation
+// audit sink. Labels stay bounded: method, kind and error code.
+func (d *Dispatcher) observe(method Method, transport dispatchTransport, requestID string, started time.Time, rpcErr *rpcError) {
+	duration := time.Since(started)
+	code := ""
+	if rpcErr != nil {
+		code = fmt.Sprint(rpcErr.Code)
+	}
+	kind := string(method.Contract.Kind)
+	if kind == "" {
+		kind = string(MethodKindMutation)
+	}
+	if d.logger != nil {
+		fields := logrus.Fields{
+			"applet": method.AppletName, "method": method.Name, "kind": kind,
+			"transport": transportName(transport), "duration_ms": duration.Milliseconds(),
+		}
+		if requestID != "" {
+			fields["request_id"] = requestID
+		}
+		if code != "" {
+			fields["code"] = code
+		}
+		d.logger.WithFields(fields).Info("applet rpc dispatch")
+	}
+	if d.metrics != nil {
+		labels := map[string]string{"method": method.Name, "kind": kind, "code": code}
+		d.metrics.RecordDuration("appletengine.rpc.duration", duration, labels)
+		d.metrics.IncrementCounter("appletengine.rpc.requests", labels)
+	}
+	if d.audit != nil && method.Contract.Kind == MethodKindMutation {
+		d.audit.RecordRPCMutation(AuditEvent{
+			Applet:     method.AppletName,
+			Method:     method.Name,
+			RequestID:  requestID,
+			Authorized: rpcErr == nil,
+			ErrCode:    code,
+		})
+	}
+}
+
+func transportName(transport dispatchTransport) string {
+	if transport == transportInternal {
+		return "internal"
+	}
+	return "public"
 }
 
 func allowedOnTransport(v visibility, transport dispatchTransport) bool {
@@ -236,11 +344,12 @@ func (d *Dispatcher) executeWithMiddleware(baseCtx context.Context, httpReq *htt
 
 	finalHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ran = true
-		if err := d.requirePermissions(r.Context(), method.Method.RequirePermissions); err != nil {
+		ctx := d.identify(r.Context())
+		if err := d.requirePermissions(ctx, method.Method.RequirePermissions); err != nil {
 			handlerErr = err
 			return
 		}
-		result, handlerErr = execute(r.Context())
+		result, handlerErr = execute(ctx)
 	})
 
 	wrapped := applyMiddleware(finalHandler, method.Middlewares)
@@ -254,6 +363,11 @@ func (d *Dispatcher) executeWithMiddleware(baseCtx context.Context, httpReq *htt
 			return nil, &rpcError{Code: "unauthorized", Message: "authentication required"}
 		case recorder.Code == http.StatusForbidden:
 			return nil, &rpcError{Code: "forbidden", Message: "permission denied"}
+		case recorder.Code >= 300 && recorder.Code < 400:
+			// Auth middleware for browser sessions answers an expired
+			// session with a login redirect; RPC clients need the typed
+			// error, not an opaque internal failure.
+			return nil, &rpcError{Code: "unauthorized", Message: "authentication required"}
 		case recorder.Code == http.StatusTooManyRequests:
 			return nil, &rpcError{Code: "rate_limited", Message: "too many requests"}
 		case recorder.Code >= 400 && recorder.Code < 500:
@@ -373,6 +487,23 @@ func mapErrorMessage(code any) string {
 	}
 }
 
+// identify derives user and tenant only from the authenticated server
+// context: the auth middleware populates the request context and the host
+// services resolve the typed identity. Client-supplied identity headers are
+// never consulted.
+func (d *Dispatcher) identify(ctx context.Context) context.Context {
+	if d.host == nil {
+		return ctx
+	}
+	if user, err := d.host.ExtractUser(ctx); err == nil && user != nil {
+		ctx = WithUserID(ctx, strconv.FormatUint(uint64(user.ID()), 10))
+	}
+	if tenantID, err := d.host.ExtractTenantID(ctx); err == nil {
+		ctx = WithTenantID(ctx, tenantID.String())
+	}
+	return ctx
+}
+
 func (d *Dispatcher) writeJSON(w http.ResponseWriter, status int, payload any) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
@@ -386,15 +517,25 @@ func (d *Dispatcher) writeJSON(w http.ResponseWriter, status int, payload any) {
 	_, _ = w.Write(buf.Bytes())
 }
 
-func (d *Dispatcher) ctxFromHeaders(ctx context.Context, headers http.Header) context.Context {
-	if tenantID := strings.TrimSpace(headers.Get("X-Iota-Tenant-Id")); tenantID != "" {
-		ctx = WithTenantID(ctx, tenantID)
+// ctxFromHeaders takes only the request correlation ID from the client and
+// generates one when absent. On the public transport, tenant and user
+// identity headers are ignored: trusted identity is resolved from the
+// authenticated server context. The internal transport (unix-socket hop from
+// the applet runtime back into Go) may carry identity headers because only
+// the application process can reach it.
+func (d *Dispatcher) ctxFromHeaders(ctx context.Context, headers http.Header, transport dispatchTransport) context.Context {
+	requestID := strings.TrimSpace(headers.Get("X-Iota-Request-Id"))
+	if requestID == "" {
+		requestID = uuid.NewString()
 	}
-	if userID := strings.TrimSpace(headers.Get("X-Iota-User-Id")); userID != "" {
-		ctx = WithUserID(ctx, userID)
-	}
-	if requestID := strings.TrimSpace(headers.Get("X-Iota-Request-Id")); requestID != "" {
-		ctx = WithRequestID(ctx, requestID)
+	ctx = WithRequestID(ctx, requestID)
+	if transport == transportInternal {
+		if tenantID := strings.TrimSpace(headers.Get("X-Iota-Tenant-Id")); tenantID != "" {
+			ctx = WithTenantID(ctx, tenantID)
+		}
+		if userID := strings.TrimSpace(headers.Get("X-Iota-User-Id")); userID != "" {
+			ctx = WithUserID(ctx, userID)
+		}
 	}
 	return ctx
 }

@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Harden the applet RPC dispatcher: public methods now require an explicit access policy (non-empty permissions or explicit Public opt-in) and a declared query/mutation kind on the typed contract path, client identity headers are ignored on the public transport with trusted identity derived from the authenticated server context, login redirects surface as typed unauthorized errors instead of opaque -32603, namespaces reject cross-applet registration, and dispatches expose bounded method/kind/code labels to logs and metrics plus an optional mutation audit sink."
+}

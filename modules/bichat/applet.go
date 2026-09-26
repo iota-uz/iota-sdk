@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/assets"
 	bichatrpc "github.com/iota-uz/iota-sdk/modules/bichat/rpc"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	appletenginerpc "github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/sirupsen/logrus"
@@ -44,6 +45,13 @@ func (a *BiChatApplet) Name() string {
 // BasePath returns the URL path where BiChat is mounted.
 func (a *BiChatApplet) BasePath() string {
 	return "/bi-chat"
+}
+
+// RPCMethodContracts declares typed query/mutation contracts for the public
+// BiChat RPC methods so the applet RPC registry registers each of them with an
+// explicit kind.
+func (a *BiChatApplet) RPCMethodContracts() map[string]appletenginerpc.MethodContract {
+	return bichatrpc.MethodContracts()
 }
 
 // Config returns the applet configuration for BiChat.

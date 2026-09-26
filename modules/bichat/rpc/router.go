@@ -10,6 +10,7 @@ import (
 
 	"github.com/iota-uz/applets"
 	modulepermissions "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
+	appletenginerpc "github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -785,4 +786,49 @@ func Router(
 	}))
 
 	return r
+}
+
+// MethodContracts declares the typed query/mutation contracts for every public
+// BiChat RPC method. The composition builder feeds them into the applet RPC
+// registry so each method carries an explicit kind instead of a default.
+func MethodContracts() map[string]appletenginerpc.MethodContract {
+	contracts := make(map[string]appletenginerpc.MethodContract, len(methodKinds))
+	for name, kind := range methodKinds {
+		contracts[name] = appletenginerpc.MethodContract{
+			Namespace: "bichat",
+			Method:    name,
+			Kind:      kind,
+		}
+	}
+	return contracts
+}
+
+// methodKinds classifies every public BiChat RPC procedure. Queries are pure
+// reads; everything else mutates session, membership, artifact or HITL state.
+var methodKinds = map[string]appletenginerpc.MethodKind{
+	"bichat.ping":                       appletenginerpc.MethodKindQuery,
+	"bichat.session.list":               appletenginerpc.MethodKindQuery,
+	"bichat.session.listAll":            appletenginerpc.MethodKindQuery,
+	"bichat.user.list":                  appletenginerpc.MethodKindQuery,
+	"bichat.session.get":                appletenginerpc.MethodKindQuery,
+	"bichat.session.artifacts":          appletenginerpc.MethodKindQuery,
+	"bichat.session.members.list":       appletenginerpc.MethodKindQuery,
+	"bichat.session.create":             appletenginerpc.MethodKindMutation,
+	"bichat.session.updateTitle":        appletenginerpc.MethodKindMutation,
+	"bichat.session.clear":              appletenginerpc.MethodKindMutation,
+	"bichat.session.compact":            appletenginerpc.MethodKindMutation,
+	"bichat.session.delete":             appletenginerpc.MethodKindMutation,
+	"bichat.session.pin":                appletenginerpc.MethodKindMutation,
+	"bichat.session.unpin":              appletenginerpc.MethodKindMutation,
+	"bichat.session.uploadArtifacts":    appletenginerpc.MethodKindMutation,
+	"bichat.artifact.update":            appletenginerpc.MethodKindMutation,
+	"bichat.artifact.delete":            appletenginerpc.MethodKindMutation,
+	"bichat.session.archive":            appletenginerpc.MethodKindMutation,
+	"bichat.session.unarchive":          appletenginerpc.MethodKindMutation,
+	"bichat.session.regenerateTitle":    appletenginerpc.MethodKindMutation,
+	"bichat.question.submit":            appletenginerpc.MethodKindMutation,
+	"bichat.question.reject":            appletenginerpc.MethodKindMutation,
+	"bichat.session.members.add":        appletenginerpc.MethodKindMutation,
+	"bichat.session.members.updateRole": appletenginerpc.MethodKindMutation,
+	"bichat.session.members.remove":     appletenginerpc.MethodKindMutation,
 }
