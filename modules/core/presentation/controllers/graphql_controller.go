@@ -58,7 +58,11 @@ func (g *GraphQLController) Register(r *mux.Router) {
 			Resolvers: graph.NewResolver(g.app, g.userService, g.uploadService, g.authService, g.browserSessions, g.httpCfg, g.cookiesCfg, g.appCfg, g.resolverOptions...),
 		},
 	)
-	srv := graphql.NewBaseServer(schema, g.uploadsCfg)
+	srv := graphql.NewBaseServer(
+		schema,
+		g.uploadsCfg,
+		graphql.WithOriginValidator(graphql.SameOriginValidator(g.httpCfg, g.appCfg)),
+	)
 	for _, schema := range g.app.GraphSchemas() {
 		exec := executor.New(schema.Value)
 		if schema.ExecutorCb != nil {
@@ -87,7 +91,14 @@ func (g *GraphQLController) Register(r *mux.Router) {
 		if schema.ExecutorCb != nil {
 			schema.ExecutorCb(exec)
 		}
-		router.Handle(path.Join("/query", schema.BasePath), graphql.NewHandler(exec, g.uploadsCfg))
+		router.Handle(
+			path.Join("/query", schema.BasePath),
+			graphql.NewHandler(
+				exec,
+				g.uploadsCfg,
+				graphql.WithOriginValidator(graphql.SameOriginValidator(g.httpCfg, g.appCfg)),
+			),
+		)
 	}
 }
 

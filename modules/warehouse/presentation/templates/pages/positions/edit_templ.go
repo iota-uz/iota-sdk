@@ -16,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -72,7 +73,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				Class:    "col-span-3",
 				Form:     "save-form",
 				Multiple: true,
-				Uploads:  props.Position.Images,
+				Uploads:  mappers.UploadsToCoreViewItems(props.Position.Images),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -143,7 +144,7 @@ func EditForm(props *EditPageProps) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(props.DeleteURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 74, Col: 31}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 75, Col: 31}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -168,7 +169,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 91, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 92, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -196,7 +197,7 @@ func EditForm(props *EditPageProps) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.SaveURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 97, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 98, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -221,7 +222,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 110, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/edit.templ`, Line: 111, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {

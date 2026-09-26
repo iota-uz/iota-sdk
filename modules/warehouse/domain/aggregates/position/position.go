@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 )
 
@@ -46,7 +45,7 @@ func WithInStock(inStock uint) Option {
 	}
 }
 
-func WithImages(images []upload.Upload) Option {
+func WithImages(images []Upload) Option {
 	return func(p *position) {
 		p.images = images
 	}
@@ -81,7 +80,7 @@ type Position interface {
 	Unit() *unit.Unit
 	InStock() uint
 	Status() Status
-	Images() []upload.Upload
+	Images() []Upload
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 
@@ -92,7 +91,7 @@ type Position interface {
 	SetUnit(unit *unit.Unit) Position
 	SetInStock(inStock uint) Position
 	SetStatus(status Status) Position
-	SetImages(images []upload.Upload) Position
+	SetImages(images []Upload) Position
 }
 
 // --- Implementation ---
@@ -107,7 +106,7 @@ func New(title, barcode string, opts ...Option) Position {
 		unit:      nil,
 		inStock:   0,
 		status:    StatusAvailable,
-		images:    make([]upload.Upload, 0),
+		images:    make([]Upload, 0),
 		createdAt: time.Now(),
 		updatedAt: time.Now(),
 		events:    make([]interface{}, 0),
@@ -127,7 +126,7 @@ type position struct {
 	unit      *unit.Unit
 	inStock   uint
 	status    Status
-	images    []upload.Upload
+	images    []Upload
 	createdAt time.Time
 	updatedAt time.Time
 	events    []interface{}
@@ -165,7 +164,7 @@ func (p *position) Status() Status {
 	return p.status
 }
 
-func (p *position) Images() []upload.Upload {
+func (p *position) Images() []Upload {
 	return p.images
 }
 
@@ -219,7 +218,7 @@ func (p *position) SetStatus(status Status) Position {
 	return &result
 }
 
-func (p *position) SetImages(images []upload.Upload) Position {
+func (p *position) SetImages(images []Upload) Position {
 	result := *p
 	result.images = images
 	result.updatedAt = time.Now()
