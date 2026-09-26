@@ -108,6 +108,8 @@ type Debt struct {
 	Description              string
 	DueDate                  sql.NullTime
 	SettlementTransactionID  sql.NullString
+	MoneyAccountID           sql.NullString
+	ProjectID                sql.NullString
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
 }

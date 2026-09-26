@@ -108,7 +108,7 @@ CREATE TABLE debts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     type varchar(20) NOT NULL CHECK (type IN ('RECEIVABLE', 'PAYABLE')),
-    status varchar(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'SETTLED', 'PARTIAL', 'WRITTEN_OFF')),
+    status varchar(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'SETTLED', 'PARTIAL', 'WRITTEN_OFF', 'CANCELLED')),
     counterparty_id uuid NOT NULL REFERENCES counterparty (id) ON DELETE RESTRICT,
     original_amount bigint NOT NULL,
     original_amount_currency_id varchar(3) NOT NULL REFERENCES currencies (code) ON DELETE CASCADE,
@@ -117,6 +117,8 @@ CREATE TABLE debts (
     description text NOT NULL,
     due_date date,
     settlement_transaction_id uuid REFERENCES transactions (id) ON DELETE SET NULL,
+    money_account_id uuid REFERENCES money_accounts (id) ON DELETE SET NULL,
+    project_id uuid REFERENCES projects (id) ON DELETE SET NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
@@ -170,4 +172,8 @@ CREATE INDEX debts_settlement_transaction_id_idx ON debts (settlement_transactio
 CREATE INDEX debts_original_amount_currency_id_idx ON debts (original_amount_currency_id);
 
 CREATE INDEX debts_outstanding_currency_id_idx ON debts (outstanding_currency_id);
+
+CREATE INDEX debts_money_account_id_idx ON debts (money_account_id);
+
+CREATE INDEX debts_project_id_idx ON debts (project_id);
 

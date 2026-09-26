@@ -197,6 +197,7 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 			).
 			WithActions(actions.RenderAction(createAction)).
 			WithFilters(filters.CreatedAt()).
+			WithDeferredPanels(table.DeferredPanel{ID: "account-balances", URL: "/finance/balances"}).
 			WithInfiniteScroll(true).
 			Build()
 	} else {

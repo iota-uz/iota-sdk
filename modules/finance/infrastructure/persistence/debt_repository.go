@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/debt"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
@@ -23,6 +24,7 @@ const (
 			   original_amount, original_amount_currency_id,
 			   outstanding_amount, outstanding_currency_id,
 			   description, due_date, settlement_transaction_id,
+			   money_account_id, project_id,
 			   created_at, updated_at
 		FROM debts`
 	debtCountQuery     = `SELECT COUNT(*) as count FROM debts WHERE tenant_id = $1`
@@ -45,18 +47,27 @@ const (
 			original_amount, original_amount_currency_id,
 			outstanding_amount, outstanding_currency_id,
 			description, due_date, settlement_transaction_id,
+			money_account_id, project_id,
 			created_at, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`
 	debtUpdateQuery = `
 		UPDATE debts SET 
 			type = $1, status = $2, counterparty_id = $3,
 			original_amount = $4, original_amount_currency_id = $5,
 			outstanding_amount = $6, outstanding_currency_id = $7,
 			description = $8, due_date = $9, settlement_transaction_id = $10,
-			updated_at = $11
-		WHERE id = $12 AND tenant_id = $13`
-	debtDeleteQuery = `DELETE FROM debts WHERE id = $1 AND tenant_id = $2`
+			money_account_id = $11, project_id = $12,
+			updated_at = $13
+		WHERE id = $14 AND tenant_id = $15`
+	debtDeleteQuery      = `DELETE FROM debts WHERE id = $1 AND tenant_id = $2`
+	debtOpenPayableQuery = `
+		SELECT outstanding_currency_id, SUM(outstanding_amount)::bigint
+		FROM debts
+		WHERE tenant_id = $1 AND type = 'PAYABLE' AND status IN ('PENDING', 'PARTIAL')
+			AND ($2::uuid IS NULL OR money_account_id = $2)
+		GROUP BY outstanding_currency_id
+		ORDER BY outstanding_currency_id`
 )
 
 type GormDebtRepository struct{}
@@ -210,6 +221,35 @@ func (g *GormDebtRepository) GetCounterpartyAggregates(ctx context.Context) ([]d
 	return aggregates, nil
 }
 
+func (g *GormDebtRepository) OpenPayableTotals(ctx context.Context, accountID *uuid.UUID) ([]*money.Money, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, debtOpenPayableQuery, tenantID, accountID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to sum open payable debts")
+	}
+	defer rows.Close()
+
+	totals := make([]*money.Money, 0)
+	for rows.Next() {
+		var currency string
+		var amount int64
+		if err := rows.Scan(&currency, &amount); err != nil {
+			return nil, err
+		}
+		totals = append(totals, money.New(amount, currency))
+	}
+	return totals, rows.Err()
+}
+
 func (g *GormDebtRepository) Create(ctx context.Context, data debt.Debt) (debt.Debt, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
@@ -239,6 +279,8 @@ func (g *GormDebtRepository) Create(ctx context.Context, data debt.Debt) (debt.D
 		dbDebt.Description,
 		dbDebt.DueDate,
 		dbDebt.SettlementTransactionID,
+		dbDebt.MoneyAccountID,
+		dbDebt.ProjectID,
 		dbDebt.CreatedAt,
 		dbDebt.UpdatedAt,
 	)
@@ -272,6 +314,8 @@ func (g *GormDebtRepository) Update(ctx context.Context, data debt.Debt) (debt.D
 		dbDebt.Description,
 		dbDebt.DueDate,
 		dbDebt.SettlementTransactionID,
+		dbDebt.MoneyAccountID,
+		dbDebt.ProjectID,
 		dbDebt.UpdatedAt,
 		dbDebt.ID,
 		dbDebt.TenantID,
@@ -317,6 +361,8 @@ func (g *GormDebtRepository) queryDebts(ctx context.Context, query string, args 
 			&debtRow.Description,
 			&debtRow.DueDate,
 			&debtRow.SettlementTransactionID,
+			&debtRow.MoneyAccountID,
+			&debtRow.ProjectID,
 			&debtRow.CreatedAt,
 			&debtRow.UpdatedAt,
 		); err != nil {

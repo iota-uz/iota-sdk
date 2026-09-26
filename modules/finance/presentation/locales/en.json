@@ -504,15 +504,24 @@
       "Amount": "Amount",
       "OriginalAmount": "Original Amount",
       "OutstandingAmount": "Outstanding Amount",
+      "Currency": "Currency",
+      "SelectCurrency": "Select currency",
+      "Account": "Account",
+      "NoAccount": "No account",
+      "Project": "Project",
+      "NoProject": "No project",
       "_Description": "Description",
       "DueDate": "Due Date",
       "SettlementTransactionID": "Settlement Transaction",
       "Settle": "Settle Debt",
+      "SettlementAmount": "Amount to settle",
       "WriteOff": "Write Off",
+      "CancelDebt": "Cancel debt",
       "Delete": "Delete debt",
       "DeleteConfirmation": "Are you sure you want to delete this debt?",
       "SettleConfirmation": "Are you sure you want to settle this debt?",
       "WriteOffConfirmation": "Are you sure you want to write off this debt as uncollectible?",
+      "CancelDebtConfirmation": "Cancel this debt? It will no longer be owed or reserve money.",
       "SelectTransaction": "Select transaction"
     },
     "Types": {
@@ -523,7 +532,11 @@
       "PENDING": "Pending",
       "SETTLED": "Settled",
       "PARTIAL": "Partially Settled",
-      "WRITTEN_OFF": "Written Off"
+      "WRITTEN_OFF": "Written Off",
+      "CANCELLED": "Cancelled"
+    },
+    "Errors": {
+      "AccountCurrency": "The account holds a different currency than the debt"
     },
     "Actions": {
       "Created": "Debt created successfully",
@@ -572,6 +585,11 @@
       "AttachedFiles": "Attached Documents",
       "DeleteConfirmation": "Are you sure you want to delete this document?",
       "DeleteFile": "Delete Document"
+    },
+    "Balances": {
+      "OnAccounts": "On accounts",
+      "Reserved": "Reserved by obligations",
+      "Available": "Available"
     }
   },
   "ValidationErrors": {

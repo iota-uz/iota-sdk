@@ -504,15 +504,24 @@
       "Amount": "Сумма",
       "OriginalAmount": "Дастлабки сумма",
       "OutstandingAmount": "Қарз қолдиғи",
+      "Currency": "Валюта",
+      "SelectCurrency": "Валютани танланг",
+      "Account": "Ҳисоб",
+      "NoAccount": "Ҳисобсиз",
+      "Project": "Лойиҳа",
+      "NoProject": "Лойиҳасиз",
       "_Description": "Тавсиф",
       "DueDate": "Тўлов муддати",
       "SettlementTransactionID": "Тўлов транзаксияси",
       "Settle": "Қарзни тўлаш",
+      "SettlementAmount": "Тўлов суммаси",
       "WriteOff": "Ҳисобдан чиқариш",
+      "CancelDebt": "Қарзни бекор қилиш",
       "Delete": "Қарзни ўчириш",
       "DeleteConfirmation": "Ҳақиқатан ҳам бу қарзни ўчирмоқчимисиз?",
       "SettleConfirmation": "Ҳақиқатан ҳам бу қарзни тўламоқчимисиз?",
       "WriteOffConfirmation": "Ҳақиқатан ҳам бу қарзни ёмон қарз сифатида ҳисобдан чиқармоқчимисиз?",
+      "CancelDebtConfirmation": "Қарз бекор қилинсинми? У энди ҳисобланмайди ва пулни захирага олмайди.",
       "SelectTransaction": "Транзаксияни танлаш"
     },
     "Types": {
@@ -523,7 +532,11 @@
       "PENDING": "Кутилаётган",
       "SETTLED": "Тўланган",
       "PARTIAL": "Қисман тўланган",
-      "WRITTEN_OFF": "Ҳисобдан чиқарилган"
+      "WRITTEN_OFF": "Ҳисобдан чиқарилган",
+      "CANCELLED": "Бекор қилинган"
+    },
+    "Errors": {
+      "AccountCurrency": "Ҳисоб валютаси қарз валютасига мос келмайди"
     },
     "Actions": {
       "Created": "Қарз муваффақиятли яратилди",
@@ -572,6 +585,11 @@
       "AttachedFiles": "Бириктирилган ҳужжатлар",
       "DeleteConfirmation": "Ҳақиқатан ҳам бу ҳужжатни ўчирмоқчимисиз?",
       "DeleteFile": "Ҳужжатни ўчириш"
+    },
+    "Balances": {
+      "OnAccounts": "Ҳисобларда",
+      "Reserved": "Мажбуриятлар бўйича захирада",
+      "Available": "Мавжуд"
     }
   },
   "ValidationErrors": {

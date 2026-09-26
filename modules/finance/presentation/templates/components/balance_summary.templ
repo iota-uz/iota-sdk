@@ -1,0 +1,30 @@
+package components
+
+import (
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+// BalanceSummary shows, per currency, what is on the accounts, what open
+// payable debts have reserved of it and what is available to spend.
+templ BalanceSummary(balances []*viewmodels.Balance) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	if len(balances) > 0 {
+		<div class="flex flex-col gap-3">
+			for _, balance := range balances {
+				<dl class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+					@balanceFigure(pageCtx.T("Finance.Balances.OnAccounts"), balance.OnAccounts, false)
+					@balanceFigure(pageCtx.T("Finance.Balances.Reserved"), balance.Reserved, false)
+					@balanceFigure(pageCtx.T("Finance.Balances.Available"), balance.Available, balance.Overdrawn)
+				</dl>
+			}
+		</div>
+	}
+}
+
+templ balanceFigure(label, amount string, negative bool) {
+	<div class="bg-surface-600 border border-primary rounded-lg px-4 py-3">
+		<dt class="text-sm text-200">{ label }</dt>
+		<dd class={ "text-xl font-medium tabular-nums", templ.KV("text-red-500", negative) }>{ amount }</dd>
+	</div>
+}

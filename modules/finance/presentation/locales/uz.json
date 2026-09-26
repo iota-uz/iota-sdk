@@ -504,15 +504,24 @@
       "Amount": "Summa",
       "OriginalAmount": "Dastlabki summa",
       "OutstandingAmount": "Qarz qoldig'i",
+      "Currency": "Valyuta",
+      "SelectCurrency": "Valyutani tanlang",
+      "Account": "Hisob",
+      "NoAccount": "Hisobsiz",
+      "Project": "Loyiha",
+      "NoProject": "Loyihasiz",
       "_Description": "Tavsif",
       "DueDate": "To'lov muddati",
       "SettlementTransactionID": "To'lov tranzaksiyasi",
       "Settle": "Qarzni to'lash",
+      "SettlementAmount": "To'lov summasi",
       "WriteOff": "Hisobdan chiqarish",
+      "CancelDebt": "Qarzni bekor qilish",
       "Delete": "Qarzni o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu qarzni o'chirmoqchimisiz?",
       "SettleConfirmation": "Haqiqatan ham bu qarzni to'lamoqchimisiz?",
       "WriteOffConfirmation": "Haqiqatan ham bu qarzni yomon qarz sifatida hisobdan chiqarmoqchimisiz?",
+      "CancelDebtConfirmation": "Qarz bekor qilinsinmi? U endi hisoblanmaydi va pulni zaxiraga olmaydi.",
       "SelectTransaction": "Tranzaksiyani tanlash"
     },
     "Types": {
@@ -523,7 +532,11 @@
       "PENDING": "Kutilayotgan",
       "SETTLED": "To'langan",
       "PARTIAL": "Qisman to'langan",
-      "WRITTEN_OFF": "Hisobdan chiqarilgan"
+      "WRITTEN_OFF": "Hisobdan chiqarilgan",
+      "CANCELLED": "Bekor qilingan"
+    },
+    "Errors": {
+      "AccountCurrency": "Hisob valyutasi qarz valyutasiga mos kelmaydi"
     },
     "Actions": {
       "Created": "Qarz muvaffaqiyatli yaratildi",
@@ -572,6 +585,11 @@
       "AttachedFiles": "Biriktirilgan hujjatlar",
       "DeleteConfirmation": "Haqiqatan ham bu hujjatni o'chirmoqchimisiz?",
       "DeleteFile": "Hujjatni o'chirish"
+    },
+    "Balances": {
+      "OnAccounts": "Hisoblarda",
+      "Reserved": "Majburiyatlar bo'yicha zaxirada",
+      "Available": "Mavjud"
     }
   },
   "ValidationErrors": {

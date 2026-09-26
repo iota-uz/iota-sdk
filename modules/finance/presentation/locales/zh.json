@@ -504,15 +504,24 @@
       "Amount": "金额",
       "OriginalAmount": "原始金额",
       "OutstandingAmount": "未偿金额",
+      "Currency": "货币",
+      "SelectCurrency": "选择货币",
+      "Account": "账户",
+      "NoAccount": "无账户",
+      "Project": "项目",
+      "NoProject": "无项目",
       "_Description": "描述",
       "DueDate": "到期日期",
       "SettlementTransactionID": "结算交易",
       "Settle": "结算债务",
+      "SettlementAmount": "结算金额",
       "WriteOff": "核销",
+      "CancelDebt": "取消债务",
       "Delete": "删除债务",
       "DeleteConfirmation": "您确定要删除此债务吗？",
       "SettleConfirmation": "您确定要结算此债务吗？",
       "WriteOffConfirmation": "您确定要将此债务核销为无法收回吗？",
+      "CancelDebtConfirmation": "取消此债务？它将不再计为欠款，也不再预留资金。",
       "SelectTransaction": "选择交易"
     },
     "Types": {
@@ -523,7 +532,11 @@
       "PENDING": "待处理",
       "SETTLED": "已结算",
       "PARTIAL": "部分结算",
-      "WRITTEN_OFF": "已核销"
+      "WRITTEN_OFF": "已核销",
+      "CANCELLED": "已取消"
+    },
+    "Errors": {
+      "AccountCurrency": "账户货币与债务货币不一致"
     },
     "Actions": {
       "Created": "债务创建成功",
@@ -572,6 +585,11 @@
       "AttachedFiles": "已附加的文档",
       "DeleteConfirmation": "您确定要删除此文档吗？",
       "DeleteFile": "删除文档"
+    },
+    "Balances": {
+      "OnAccounts": "账户余额",
+      "Reserved": "义务预留",
+      "Available": "可用"
     }
   },
   "ValidationErrors": {
