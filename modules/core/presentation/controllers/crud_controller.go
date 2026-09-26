@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/iota-uz/iota-sdk/components/export"
 	"github.com/iota-uz/iota-sdk/components/multilang"
 
 	"github.com/a-h/templ"
@@ -65,6 +66,10 @@ type CrudController[TEntity any] struct {
 	enableEdit   bool
 	enableDelete bool
 	enableCreate bool
+	enableExport bool
+
+	// export: field names that never reach an exported file
+	exportExcluded map[string]struct{}
 
 	// permissions (nil means no check)
 	readPerm   permission.Permission
@@ -109,7 +114,7 @@ func WithoutCreate[TEntity any]() CrudOption[TEntity] {
 // WithMultiLangRenderer registers the MultiLang renderer for the showcase controller
 func WithMultiLangRenderer[TEntity any]() CrudOption[TEntity] {
 	return func(c *CrudController[TEntity]) {
-		c.RegisterRenderer("multilang", multilang.NewMultiLangRendererWithSchema(c.schema))
+		c.RegisterRenderer(multilangRendererType, multilang.NewMultiLangRendererWithSchema(c.schema))
 	}
 }
 
@@ -210,6 +215,10 @@ func (c *CrudController[TEntity]) Register(r *mux.Router) {
 
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
 	router.HandleFunc("/{id}/details", c.Details).Methods(http.MethodGet)
+
+	if c.enableExport {
+		router.HandleFunc("/export", c.Export).Methods(http.MethodGet)
+	}
 
 	if c.enableCreate {
 		router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
@@ -756,6 +765,16 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		for _, action := range headerActions {
 			cfg.AddActions(actions.RenderAction(action))
 		}
+	}
+
+	if c.enableExport {
+		// The export route repeats the list's own read permission, so the
+		// control belongs wherever the list itself is shown.
+		cfg.AddActions(export.ExportDropdown(export.ExportDropdownProps{
+			Formats:   []export.ExportFormat{export.ExportFormatExcel, export.ExportFormatCSV},
+			ExportURL: fmt.Sprintf("%s/export", c.basePath),
+			Download:  true,
+		}))
 	}
 
 	// Convert entities to table rows
