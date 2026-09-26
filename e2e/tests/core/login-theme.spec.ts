@@ -20,7 +20,7 @@ const THEME_STORAGE_KEY = 'iota-theme';
 test.describe('Login page theme toggle', () => {
 	test.beforeEach(async ({ page }) => {
 		await page.goto('/login');
-		await page.evaluate(() => window.localStorage.removeItem(THEME_STORAGE_KEY));
+		await page.evaluate((key) => window.localStorage.removeItem(key), THEME_STORAGE_KEY);
 		await page.reload();
 	});
 
@@ -51,11 +51,11 @@ test.describe('Login page theme toggle', () => {
 
 		await page.locator('#theme-dark').check();
 		await expect(page.locator('html')).toHaveClass(/(^|\s)dark($|\s)/);
-		expect(await page.evaluate(() => window.localStorage.getItem(THEME_STORAGE_KEY))).toBe('dark');
+		expect(await page.evaluate((key) => window.localStorage.getItem(key), THEME_STORAGE_KEY)).toBe('dark');
 
 		await page.locator('#theme-light').check();
 		await expect(page.locator('html')).toHaveClass(/(^|\s)light($|\s)/);
-		expect(await page.evaluate(() => window.localStorage.getItem(THEME_STORAGE_KEY))).toBe('light');
+		expect(await page.evaluate((key) => window.localStorage.getItem(key), THEME_STORAGE_KEY)).toBe('light');
 	});
 
 	test('shows the icon of the selected option at full scale', async ({ page }) => {

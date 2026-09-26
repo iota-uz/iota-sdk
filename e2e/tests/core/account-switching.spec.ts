@@ -133,7 +133,7 @@ test.describe.serial('browser account switching', () => {
 		await expect(page.getByTestId('account-card').filter({ hasText: 'picker-1@example.test' })).toHaveCount(0);
 	});
 
-	test('OIDC uses the shared picker and preserves state, nonce, and PKCE', async ({ page, request, baseURL }) => {
+	test('OIDC uses the active account without a picker and preserves state, nonce, and PKCE', async ({ page, request, baseURL }) => {
 		expect(baseURL).toBeTruthy();
 		const applicationURL = baseURL!;
 		const redirectURI = `${applicationURL}/__test__/oidc-callback`;
@@ -160,6 +160,9 @@ test.describe.serial('browser account switching', () => {
 		});
 		await credentialLogin(page, 'oidc-one@example.test');
 		await credentialLogin(page, 'oidc-two@example.test');
+		await page.goto('/login');
+		await expect(page.getByTestId('account-card')).toHaveCount(2);
+		await expect(page.getByTestId('account-card').filter({ hasText: 'oidc-two@example.test' })).toContainText('Active');
 
 		const verifier = randomBytes(32).toString('base64url');
 		const challenge = createHash('sha256').update(verifier).digest('base64url');
@@ -178,12 +181,10 @@ test.describe.serial('browser account switching', () => {
 		}).toString();
 
 		await page.goto(authorize.toString());
-		await expect(page).toHaveURL(/\/login\?auth_request=/);
-		await expect(page.getByTestId('account-card')).toHaveCount(2);
-		await Promise.all([
-			page.waitForURL((url) => url.pathname === '/__test__/oidc-callback'),
-			page.getByTestId('account-card').filter({ hasText: 'oidc-one@example.test' }).click(),
-		]);
+		// Falsely green if the active second account is not established above:
+		// the authorization must finish without rendering the account picker.
+		await expect(page).toHaveURL((url) => url.pathname === '/__test__/oidc-callback');
+		await expect(page.getByTestId('account-card')).toHaveCount(0);
 
 		const callback = new URL(page.url());
 		expect(callback.searchParams.get('state')).toBe(state);
@@ -212,6 +213,6 @@ test.describe.serial('browser account switching', () => {
 		});
 		expect(userInfoResponse.ok(), await userInfoResponse.text()).toBeTruthy();
 		const userInfo = await userInfoResponse.json();
-		expect(userInfo.email).toBe('oidc-one@example.test');
+		expect(userInfo.email).toBe('oidc-two@example.test');
 	});
 });
