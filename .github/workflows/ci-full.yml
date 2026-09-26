@@ -567,6 +567,16 @@ jobs:
         with:
           go-version: "1.24.13"
 
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # v3
+        with:
+          version: 9.15.0
+
       - name: Install just
         uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3
         with:
@@ -579,6 +589,21 @@ jobs:
 
       - name: Download Go dependencies
         run: go mod download
+
+      - name: Install Client Host dependencies
+        working-directory: web/client-host
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Client Host
+        working-directory: web/client-host
+        run: pnpm build
+
+      - name: Install Lens dependencies
+        working-directory: web/lens
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Lens compatibility assets for mounted controller tests
+        run: just lens build
 
       - name: Wait for PostgreSQL to be ready
         run: |
