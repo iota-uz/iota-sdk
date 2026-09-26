@@ -1,76 +1,71 @@
-import { BrowserRouter, MemoryRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { IotaContextProvider } from './contexts/IotaContext'
-import { ToastProvider } from './contexts/ToastContext'
-import { TouchProvider } from './contexts/TouchContext'
+import { Route, MemoryRouter, Router, useLocation, useNavigate } from '@solidjs/router'
+import { Dynamic } from 'solid-js/web'
+import { createEffect, type JSX } from 'solid-js'
+import { AppProvider, TouchProvider, resolveAppContext } from './context/appContext'
+import { I18nProvider, createTranslator } from './i18n/i18n'
 import { SessionEventProvider } from './contexts/SessionEventContext'
-import { ErrorBoundary, DefaultErrorContent } from '@iota-uz/sdk/bichat'
-import Layout from './components/Layout'
-import ChatPage from './pages/ChatPage'
-import HomePage from './pages/HomePage'
-import ArchivedPage from './pages/ArchivedPage'
-import { useNavigationGuard } from './hooks/useNavigationGuard'
+import { Layout } from './components/Layout'
+import { HomePage } from './pages/HomePage'
+import { ChatPage } from './pages/ChatPage'
+import { ArchivedPage } from './pages/ArchivedPage'
+import { ToastProvider } from './ui/toast'
+import { AppErrorBoundary } from './ui/ErrorBoundary'
 
-export interface AppProps {
-  basePath: string
-  routerMode: 'url' | 'memory'
+function inScope(pathname: string, basePath: string): boolean {
+  const withoutBase =
+    basePath && pathname.startsWith(basePath) ? pathname.slice(basePath.length) : pathname
+  return (
+    withoutBase === '/' ||
+    withoutBase === '' ||
+    withoutBase.startsWith('/session/') ||
+    withoutBase === '/archived'
+  )
 }
 
-const routerFuture = { v7_startTransition: true } as const
+function RouteGuard(props: { children: JSX.Element }): JSX.Element {
+  const ctx = resolveAppContext()
+  const location = useLocation()
+  const navigate = useNavigate()
+  createEffect(() => {
+    if (!inScope(location.pathname, ctx.config.basePath ?? '')) {
+      navigate('/', { replace: true })
+    }
+  })
+  return props.children
+}
 
-export default function App({ basePath, routerMode }: AppProps) {
-  const Router = routerMode === 'memory' ? MemoryRouter : BrowserRouter
+function RedirectHome(): JSX.Element {
+  const navigate = useNavigate()
+  createEffect(() => navigate('/', { replace: true }))
+  return null
+}
 
-  function GuardedRoutes() {
-    useNavigationGuard()
-    return (
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/session/:id" element={<ChatPage />} />
-          <Route path="/archived" element={<ArchivedPage />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    )
-  }
-
+export function App(props: { host: { basePath: string; routerMode: 'url' | 'memory' } }): JSX.Element {
+  const translator = createTranslator(resolveAppContext())
   return (
-    <IotaContextProvider>
-      <TouchProvider>
+    <AppProvider>
+      <I18nProvider value={translator}>
         <ToastProvider>
           <SessionEventProvider>
-            <Router future={routerFuture} {...(routerMode === 'url' ? { basename: basePath } : {})}>
-              <ErrorBoundary
-                fallback={(error, reset) => (
-                  <div className="flex h-full min-h-[50vh] items-center justify-center">
-                    <div className="w-full max-w-lg">
-                      <DefaultErrorContent error={error} onReset={reset} />
-                      <div className="mt-4 flex items-center justify-center gap-3">
-                        <button
-                          type="button"
-                          className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
-                          onClick={() => {
-                            if (routerMode === 'memory') {
-                              window.location.reload()
-                              return
-                            }
-                            const next = `${basePath || ''}/`.replace(/\/{2,}/g, '/')
-                            window.location.assign(next)
-                          }}
-                        >
-                          Go home
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              >
-                <GuardedRoutes />
-              </ErrorBoundary>
-            </Router>
+            <TouchProvider>
+            <Dynamic
+              component={props.host.routerMode === 'memory' ? MemoryRouter : Router}
+            >
+              <Layout>
+                <AppErrorBoundary>
+                  <RouteGuard>
+                    <Route path="/" component={HomePage} />
+                    <Route path="/session/:id" component={ChatPage} />
+                    <Route path="/archived" component={ArchivedPage} />
+                    <Route path="*" component={RedirectHome} />
+                  </RouteGuard>
+                </AppErrorBoundary>
+              </Layout>
+            </Dynamic>
+            </TouchProvider>
           </SessionEventProvider>
         </ToastProvider>
-      </TouchProvider>
-    </IotaContextProvider>
+      </I18nProvider>
+    </AppProvider>
   )
 }

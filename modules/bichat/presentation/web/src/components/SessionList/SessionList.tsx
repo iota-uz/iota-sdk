@@ -1,89 +1,61 @@
-/**
- * SessionList Component
- * Main list with date grouping for chat sessions
- */
-
-import { motion } from 'framer-motion'
-import SessionItem from './SessionItem'
-import DateGroupHeader from './DateGroupHeader'
-import { sessionListContainerVariants } from '../../animations/variants'
+import { createSignal, For, type Accessor, type JSX } from 'solid-js'
+import { useI18n } from '../../i18n/i18n'
 import type { ChatSession, SessionGroup } from '../../utils/sessionGrouping'
+import { DateGroupHeader } from './DateGroupHeader'
+import { SessionItem } from './SessionItem'
 
-interface SessionListProps {
-  groups: SessionGroup[]
-  pinnedSessions: ChatSession[]
-  activeSessionId: string | undefined
-  onTogglePin: (sessionId: string, isPinned: boolean, e: React.MouseEvent) => void
-  onRename: (sessionId: string, newTitle: string) => void
-  onArchive: (sessionId: string, e?: React.MouseEvent) => void
-  onNavigate?: () => void
+const GROUP_I18N_KEYS: Record<string, string> = {
+  Pinned: 'sidebar.pinned',
+  Today: 'sidebar.today',
+  Yesterday: 'sidebar.yesterday',
+  'Previous 7 Days': 'sidebar.previous7Days',
+  'Previous 30 Days': 'sidebar.previous30Days',
+  Older: 'sidebar.older',
 }
 
-export default function SessionList({
-  groups,
-  pinnedSessions,
-  activeSessionId,
-  onTogglePin,
-  onRename,
-  onArchive,
-  onNavigate,
-}: SessionListProps) {
+export function SessionList(props: {
+  groups: Accessor<SessionGroup[]>
+  activeId?: () => string | undefined
+  onSelect: (id: string) => void
+  onPin: (session: ChatSession) => void
+  onRename: (session: ChatSession, title: string) => void
+  onArchive: (session: ChatSession) => void
+}): JSX.Element {
+  const { t } = useI18n()
+  const [openMenuId, setOpenMenuId] = createSignal<string | null>(null)
+
+  const groupName = (name: string): string => {
+    const key = GROUP_I18N_KEYS[name]
+    return key ? t(key) : name
+  }
+
   return (
-    <>
-      {/* Pinned Sessions */}
-      {pinnedSessions.length > 0 && (
-        <div className="mb-4">
-          <DateGroupHeader groupName="Pinned" count={pinnedSessions.length} />
-          <motion.div
-            className="space-y-1 mt-2"
-            variants={sessionListContainerVariants}
-            initial="hidden"
-            animate="visible"
-            role="list"
-            aria-label="Pinned chats"
-          >
-            {pinnedSessions.map((session) => (
-              <SessionItem
-                key={session.id}
-                session={session}
-                isActive={session.id === activeSessionId}
-                onTogglePin={(e) => onTogglePin(session.id, session.pinned || false, e)}
-                onRename={(newTitle) => onRename(session.id, newTitle)}
-                onArchive={(e) => onArchive(session.id, e)}
-                onNavigate={onNavigate}
-              />
-            ))}
-          </motion.div>
-          <div className="border-b border-gray-200 dark:border-gray-700 my-3" />
+    <For each={props.groups()}>
+      {(group) => (
+        <div class="mb-4">
+          <DateGroupHeader name={groupName(group.name)} count={group.sessions.length} />
+          <div role="list" aria-label={groupName(group.name)} class="mt-2 space-y-1">
+            <For each={group.sessions}>
+              {(session) => (
+                <div role="listitem">
+                  <SessionItem
+                    session={session}
+                    active={props.activeId?.() === session.id}
+                    onSelect={() => props.onSelect(session.id)}
+                    onPin={() => props.onPin(session)}
+                    onRename={(title) => props.onRename(session, title)}
+                    onArchive={() => props.onArchive(session)}
+                    menuOpen={openMenuId() === session.id}
+                    onMenuToggle={() =>
+                      setOpenMenuId((current) => (current === session.id ? null : session.id))
+                    }
+                  />
+                </div>
+              )}
+            </For>
+          </div>
         </div>
       )}
-
-      {/* Grouped Sessions by Date */}
-      {groups.map((group) => (
-        <div key={group.name} className="mb-4">
-          <DateGroupHeader groupName={group.name} count={group.sessions.length} />
-          <motion.div
-            className="space-y-1 mt-2"
-            variants={sessionListContainerVariants}
-            initial="hidden"
-            animate="visible"
-            role="list"
-            aria-label={`${group.name} chats`}
-          >
-            {group.sessions.map((session) => (
-              <SessionItem
-                key={session.id}
-                session={session}
-                isActive={session.id === activeSessionId}
-                onTogglePin={(e) => onTogglePin(session.id, session.pinned || false, e)}
-                onRename={(newTitle) => onRename(session.id, newTitle)}
-                onArchive={(e) => onArchive(session.id, e)}
-                onNavigate={onNavigate}
-              />
-            ))}
-          </motion.div>
-        </div>
-      ))}
-    </>
+    </For>
   )
 }

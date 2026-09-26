@@ -1,9 +1,9 @@
-import { Fragment, useEffect, useId, useMemo, useState } from 'react'
 import ApexCharts from 'apexcharts'
-import ReactApexChart from 'react-apexcharts'
-import { DownloadSimple } from '@phosphor-icons/react'
-import { ErrorBoundary, type ChartData } from '@iota-uz/sdk/bichat'
+import { ErrorBoundary, For, Show } from 'solid-js'
+import { createEffect, createMemo, createSignal, onCleanup, onMount, type JSX } from 'solid-js'
+import type { ChartData } from '../../charts/sdk-types'
 import type { RichChartData } from '../../charts/chartData'
+import { useI18n } from '../../i18n/i18n'
 
 type ScaleMode = 'linear' | 'log'
 
@@ -297,58 +297,91 @@ interface EnhancedChartCardProps {
   chartData: ChartData
 }
 
-export default function EnhancedChartCard({ chartData }: EnhancedChartCardProps) {
-  const chartId = useId().replace(/:/g, '_')
-  const [isExporting, setIsExporting] = useState(false)
-  const [scaleMode, setScaleMode] = useState<ScaleMode>('linear')
-  const [renderNonce, setRenderNonce] = useState(0)
+let chartIdCounter = 0
 
-  const { options: baseOptions, chartType, title, warnings } = useMemo(
-    () => deriveChartState(chartData as RichChartData),
-    [chartData]
-  )
-  const series = Array.isArray(baseOptions.series) ? baseOptions.series : []
-  const yValues = useMemo(() => extractYValues(series, chartType), [series, chartType])
-  const hasData = hasRenderableData(series, chartType)
-  const canUseLog =
-    !isPieLike(chartType) &&
-    yValues.length >= 2 &&
-    yValues.every((value) => value > 0) &&
-    Math.max(...yValues) / Math.min(...yValues) >= 10
-  const storageKey = getScaleStorageKey(title, chartType)
+export default function EnhancedChartCard(props: EnhancedChartCardProps): JSX.Element {
+  const i18n = useI18n()
+  const chartId = `bichat-chart-${++chartIdCounter}`
+  const [isExporting, setIsExporting] = createSignal(false)
+  const [scaleMode, setScaleMode] = createSignal<ScaleMode>('linear')
+  const [renderNonce, setRenderNonce] = createSignal(0)
+  const [renderError, setRenderError] = createSignal(false)
+  let chartElement: HTMLDivElement | undefined
+  let instance: ApexCharts | undefined
 
-  useEffect(() => {
-    if (!canUseLog) {
+  const derived = createMemo(() => deriveChartState(props.chartData as RichChartData))
+  const series = createMemo(() => {
+    const options = derived().options
+    return Array.isArray(options.series) ? options.series : []
+  })
+  const yValues = createMemo(() => extractYValues(series(), derived().chartType))
+  const hasData = createMemo(() => hasRenderableData(series(), derived().chartType))
+  const canUseLog = createMemo(() => {
+    const values = yValues()
+    return (
+      !isPieLike(derived().chartType) &&
+      values.length >= 2 &&
+      values.every((value) => value > 0) &&
+      Math.max(...values) / Math.min(...values) >= 10
+    )
+  })
+  const storageKey = () => getScaleStorageKey(derived().title, derived().chartType)
+
+  createEffect(() => {
+    if (!canUseLog()) {
       setScaleMode('linear')
       return
     }
-    const saved = readScale(storageKey)
+    const saved = readScale(storageKey())
     if (saved) setScaleMode(saved)
-  }, [canUseLog, storageKey])
+  })
 
-  useEffect(() => {
-    if (canUseLog) persistScale(storageKey, scaleMode)
-  }, [canUseLog, storageKey, scaleMode])
+  createEffect(() => {
+    if (canUseLog()) persistScale(storageKey(), scaleMode())
+  })
 
-  const options = useMemo(() => {
-    const next = cloneDeep(baseOptions)
+  const options = createMemo(() => {
+    const next = cloneDeep(derived().options)
     const chart = isRecord(next.chart) ? { ...next.chart } : {}
     chart.id = chartId
-    chart.type = chartType
+    chart.type = derived().chartType
     if (!isRecord(chart.toolbar)) chart.toolbar = { show: false }
     if (!isRecord(chart.animations)) chart.animations = { enabled: false }
     if (typeof chart.fontFamily !== 'string') chart.fontFamily = 'inherit'
     if (!isFiniteNumber(chart.height)) chart.height = 350
     next.chart = chart
 
-    if (canUseLog) applyScale(next, scaleMode)
-    applyFormatter(next, buildMoneyFormatter(chartData, yValues))
+    if (canUseLog()) applyScale(next, scaleMode())
+    applyFormatter(next, buildMoneyFormatter(props.chartData, yValues()))
     return next
-  }, [baseOptions, chartId, chartType, canUseLog, scaleMode, chartData, yValues])
+  })
 
-  const fallbackTable = useMemo(() => buildTableRows(series, options, chartType), [series, options, chartType])
+  const fallbackTable = createMemo(() => buildTableRows(series(), options(), derived().chartType))
 
-  const handleExportPNG = async () => {
+  onMount(() => {
+    createEffect(() => {
+      const current = options()
+      if (!chartElement) return
+      if (!instance) {
+        instance = new ApexCharts(chartElement, current)
+        try {
+          instance.render()
+        } catch (cause) {
+          console.error('chart render failed', cause)
+          setRenderError(true)
+        }
+      } else {
+        void instance.updateOptions(current, false, true)
+      }
+    })
+  })
+
+  onCleanup(() => {
+    instance?.destroy()
+    instance = undefined
+  })
+
+  const handleExportPNG = async (): Promise<void> => {
     setIsExporting(true)
     try {
       const chart = ApexCharts.getChartByID(chartId)
@@ -357,7 +390,7 @@ export default function EnhancedChartCard({ chartData }: EnhancedChartCardProps)
       if (!('imgURI' in result)) return
       const link = document.createElement('a')
       link.href = result.imgURI
-      link.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_chart.png`
+      link.download = `${derived().title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_chart.png`
       link.click()
     } catch (error) {
       console.error('Failed to export chart:', error)
@@ -366,148 +399,140 @@ export default function EnhancedChartCard({ chartData }: EnhancedChartCardProps)
     }
   }
 
-  if (!hasData) {
+  const warningBlock = () => (
+    <Show when={derived().warnings.length > 0}>
+      <div class="mb-3 rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <For each={derived().warnings}>
+          {(warning, idx) => <p class={idx() === 0 ? '' : 'mt-1'}>{warning}</p>}
+        </For>
+      </div>
+    </Show>
+  )
+
+  const tableBlock = () => {
+    const table = fallbackTable()
+    if (!table) return null
     return (
-      <div className="rounded-xl border border-gray-200/80 bg-white p-4 shadow-sm dark:border-gray-700/60 dark:bg-gray-800">
-        {warnings.length > 0 && (
-          <div className="mb-3 rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/20 dark:text-amber-100">
-            {warnings.map((warning, idx) => (
-              <p key={`${warning}-${idx}`} className={idx === 0 ? '' : 'mt-1'}>
-                {warning}
-              </p>
-            ))}
-          </div>
-        )}
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {title && <span className="font-medium">{title}: </span>}
-          No chart data available.
-        </p>
+      <div class="overflow-auto rounded-lg border border-amber-200/80 bg-white">
+        <table class="min-w-full text-xs">
+          <thead>
+            <tr class="bg-amber-100/60">
+              <For each={table.headers}>
+                {(header, idx) => (
+                  <th class="whitespace-nowrap border-b border-amber-200 px-2 py-1 text-left font-semibold">
+                    {header}
+                    <span class="hidden">{idx()}</span>
+                  </th>
+                )}
+              </For>
+            </tr>
+          </thead>
+          <tbody>
+            <For each={table.rows}>
+              {(row, rowIdx) => (
+                <tr class={rowIdx() % 2 ? 'bg-white' : 'bg-gray-50/70'}>
+                  <For each={row}>
+                    {(cell) => (
+                      <td class="whitespace-nowrap border-b border-gray-100 px-2 py-1 text-gray-700">
+                        {cell ?? '-'}
+                      </td>
+                    )}
+                  </For>
+                </tr>
+              )}
+            </For>
+          </tbody>
+        </table>
       </div>
     )
   }
 
   return (
-    <div className="group/chart rounded-xl border border-gray-200/80 bg-white p-4 shadow-sm transition-shadow duration-200 hover:shadow dark:border-gray-700/60 dark:bg-gray-800">
-      {warnings.length > 0 && (
-        <div className="mb-3 rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/20 dark:text-amber-100">
-          {warnings.map((warning, idx) => (
-            <p key={`${warning}-${idx}`} className={idx === 0 ? '' : 'mt-1'}>
-              {warning}
-            </p>
-          ))}
+    <Show
+      when={hasData() && !renderError()}
+      fallback={
+        <div class="rounded-xl border border-gray-200/80 bg-white p-4 shadow-sm">
+          {warningBlock()}
+          <p class="text-sm text-gray-500">
+            {derived().title && <span class="font-medium">{derived().title}: </span>}
+            {i18n.t('chart.noData')}
+          </p>
         </div>
-      )}
+      }
+    >
+      <div class="group/chart rounded-xl border border-gray-200/80 bg-white p-4 shadow-sm transition-shadow duration-200 hover:shadow">
+        {warningBlock()}
+        <ErrorBoundary
+          fallback={(_error, reset) => (
+            <div class="space-y-3 rounded-xl border border-amber-200/80 bg-amber-50/80 p-3 text-sm text-amber-900">
+              <div class="flex items-start justify-between gap-3">
+                <p class="leading-relaxed">Chart preview failed. Showing table below.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRenderError(false)
+                    setRenderNonce((value) => value + 1)
+                    reset?.()
+                  }}
+                  class="rounded-lg border border-amber-300/80 px-2 py-1 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100"
+                >
+                  Retry
+                </button>
+              </div>
+              {tableBlock()}
+            </div>
+          )}
+        >
+          <div class="w-full min-w-0" ref={chartElement} data-chart-nonce={renderNonce()} />
+        </ErrorBoundary>
 
-      <ErrorBoundary
-        fallback={(error, reset) => (
-          <div className="space-y-3 rounded-xl border border-amber-200/80 bg-amber-50/80 p-3 text-sm text-amber-900 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-100">
-            <div className="flex items-start justify-between gap-3">
-              <p className="leading-relaxed">
-                Chart preview failed{error?.message ? `: ${error.message}` : ''}. Showing table below.
-              </p>
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <Show when={canUseLog()}>
+            <div class="inline-flex items-center rounded-lg border border-gray-200 p-0.5 text-xs">
               <button
                 type="button"
-                onClick={() => {
-                  setRenderNonce((value) => value + 1)
-                  reset?.()
-                }}
-                className="rounded-lg border border-amber-300/80 px-2 py-1 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-700 dark:text-amber-100 dark:hover:bg-amber-900/40"
+                onClick={() => setScaleMode('linear')}
+                class={`rounded-md px-2 py-1 transition-colors ${
+                  scaleMode() === 'linear'
+                    ? 'bg-gray-900 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
               >
-                Retry
+                {i18n.t('chart.linearScale')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setScaleMode('log')}
+                class={`rounded-md px-2 py-1 transition-colors ${
+                  scaleMode() === 'log'
+                    ? 'bg-gray-900 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {i18n.t('chart.logScale')}
               </button>
             </div>
-            {fallbackTable && (
-              <div className="overflow-auto rounded-lg border border-amber-200/80 bg-white dark:border-amber-800/50 dark:bg-gray-900">
-                <table className="min-w-full text-xs">
-                  <thead>
-                    <tr className="bg-amber-100/60 dark:bg-amber-900/30">
-                      {fallbackTable.headers.map((header, idx) => (
-                        <th
-                          key={`${header}-${idx}`}
-                          className="whitespace-nowrap border-b border-amber-200 px-2 py-1 text-left font-semibold dark:border-amber-800/50"
-                        >
-                          {header}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fallbackTable.rows.map((row, rowIdx) => (
-                      <tr key={rowIdx} className={rowIdx % 2 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/70 dark:bg-gray-900/70'}>
-                        {row.map((cell, cellIdx) => (
-                          <td
-                            key={`${rowIdx}-${cellIdx}`}
-                            className="whitespace-nowrap border-b border-gray-100 px-2 py-1 text-gray-700 dark:border-gray-800 dark:text-gray-200"
-                          >
-                            {cell ?? '-'}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      >
-        <div className="w-full min-w-0">
-          <ReactApexChart
-            key={`${chartId}-${renderNonce}`}
-            options={options as never}
-            series={series as never}
-            type={chartType as never}
-            width="100%"
-            height={isRecord(options.chart) && options.chart.height ? (options.chart.height as number) : 350}
-          />
+          </Show>
+
+          <button
+            type="button"
+            onClick={() => void handleExportPNG()}
+            disabled={isExporting()}
+            class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-400 opacity-0 transition-all duration-150 hover:bg-gray-100 hover:text-gray-600 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 group-hover/chart:opacity-100 disabled:opacity-50"
+            title={i18n.t('chart.download')}
+          >
+            <Show
+              when={!isExporting()}
+              fallback={<span class="text-gray-500">…</span>}
+            >
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" />
+              </svg>
+              <span>{i18n.t('chart.download')}</span>
+            </Show>
+          </button>
         </div>
-      </ErrorBoundary>
-
-      <div className="flex items-center justify-end gap-2 pt-2">
-        {canUseLog && (
-          <div className="inline-flex items-center rounded-lg border border-gray-200 p-0.5 text-xs dark:border-gray-700">
-            <button
-              type="button"
-              onClick={() => setScaleMode('linear')}
-              className={`rounded-md px-2 py-1 transition-colors ${
-                scaleMode === 'linear'
-                  ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
-                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-              }`}
-            >
-              Linear
-            </button>
-            <button
-              type="button"
-              onClick={() => setScaleMode('log')}
-              className={`rounded-md px-2 py-1 transition-colors ${
-                scaleMode === 'log'
-                  ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
-                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-              }`}
-            >
-              Log
-            </button>
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={handleExportPNG}
-          disabled={isExporting}
-          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-400 opacity-0 transition-all duration-150 hover:bg-gray-100 hover:text-gray-600 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 group-hover/chart:opacity-100 disabled:opacity-50 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-          title="Download chart"
-        >
-          {isExporting ? (
-            <span className="text-gray-500 dark:text-gray-400">Exporting...</span>
-          ) : (
-            <Fragment>
-              <DownloadSimple className="h-3.5 w-3.5" weight="bold" />
-              <span>Download PNG</span>
-            </Fragment>
-          )}
-        </button>
       </div>
-    </div>
+    </Show>
   )
 }
