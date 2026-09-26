@@ -60,10 +60,10 @@ type Registry struct {
 	reserved   map[string]bool      // reserved paths (built-in categories)
 }
 
-var globalRegistry = &Registry{
-	categories: make(map[string]*Category),
-	order:      make([]string, 0),
-	reserved: map[string]bool{
+// defaultReservedPaths returns the built-in showcase category paths
+// that cannot be used for custom registrations.
+func defaultReservedPaths() map[string]bool {
+	return map[string]bool{
 		"form":         true,
 		"loaders":      true,
 		"charts":       true,
@@ -71,7 +71,13 @@ var globalRegistry = &Registry{
 		"other":        true,
 		"kanban":       true,
 		"subscription": true,
-	},
+	}
+}
+
+var globalRegistry = &Registry{
+	categories: make(map[string]*Category),
+	order:      make([]string, 0),
+	reserved:   defaultReservedPaths(),
 }
 
 // GlobalRegistry returns the singleton registry instance
@@ -109,6 +115,14 @@ func (r *Registry) RegisterCategory(cat *Category) error {
 	op := serrors.Op("showcase.Registry.RegisterCategory")
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	// Support zero-value or directly constructed registries
+	if r.categories == nil {
+		r.categories = make(map[string]*Category)
+	}
+	if r.reserved == nil {
+		r.reserved = defaultReservedPaths()
+	}
 
 	// Validate category is not nil
 	if cat == nil {
