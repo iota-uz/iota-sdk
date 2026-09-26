@@ -1,0 +1,44 @@
+---
+title: 'Lens Solid Migration'
+description: 'Plan for migrating the Lens UI from React to Solid (issue #1064)'
+---
+
+# Lens Solid migration
+
+Status: draft plan — implementation has not started. This page records the surface inventory, phases and the breaking-change coordination for moving `web/lens` from React to Solid.
+
+## Goal
+
+The Lens UI moves to Solid: dashboard/panels, controls, explore/drill, overlays, chart bindings and component extensions. The Lens document/snapshot stays the domain data contract for reports — no screen DSL, no rewrite of server-side calculations, SQL or approved report formats.
+
+## Surface inventory (verify before transfer)
+
+Current `web/lens/src` (≈200 TS/TSX files, 19 Ladle stories):
+
+- `charts/` — chart bindings and adapters (Apex-based React adapters to replace).
+- `controls/` — filter and parameter controls.
+- `explore/` — explore/drill flow and focus ring.
+- `panels/`, `print/`, `runtime/` — dashboard panels, print composition, runtime bindings.
+- `contract/` — document/snapshot contract (data contract, stays).
+- 19 React-only Ladle stories — replaced by a Solid-compatible fixture/story harness (per #1065/#1064 acceptance; the shared harness requirement).
+
+React deps: `react`/`react-dom` (18||19) plus chart adapters — removed from the production bundle at cutover.
+
+## Phases
+
+1. **Inventory freeze** — verify actual usage on current main, list live surfaces, transfer applicable fixtures/baselines.
+2. **Foundation** — Solid-compatible fixture/story harness; runtime bindings (mount, portals, chart instance lifecycle) on the client-host runtime.
+3. **Core surfaces** — panels, controls, filters, URL/back/forward/deep links, cross-filter, drill, export: snapshot/display consistency preserved.
+4. **Cutover** — public Lens component API replaced by Solid, React removed from the production bundle, legacy renderers deleted (#902), QA loop over visual baselines (#901).
+
+## Breaking change
+
+The Solid Lens API replaces the React public component API with a coordinated release (PR #984 packaging identity: one public `@iota-uz/sdk`, stable subpath APIs). React does not remain a second permanent renderer. New Lens capabilities (#1056–#1061) are implemented on Solid after or during this migration — their business scope is not duplicated here.
+
+## Dependencies
+
+#949, #951–#954 (client runtime — code largely shipped), packaging/handshake #956, QA harness #901, legacy deletion #902. Parent: #947 and #887.
+
+## Acceptance
+
+Mirrors #1064: every panel kind with loading/empty/error/stale states works on Solid; filters, URL/deep links, cross-filter, drill and export keep snapshot/display consistency; chart instances, subscriptions and portals are released on unmount; custom panels are plain Solid components without a screen schema; browser parity compares old vs Solid behavior including late responses and navigation cleanup; both themes, four locales, keyboard/focus, narrow screens.
