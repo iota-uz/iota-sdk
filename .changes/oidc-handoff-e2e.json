@@ -1,0 +1,4 @@
+{
+  "bump": "none",
+  "summary": "Align the OIDC browser check with active-account handoff and pass the theme storage key into browser evaluations; test-only changes."
+}
