@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Continue OIDC authorization with the active browser account without showing the account picker."
+}
