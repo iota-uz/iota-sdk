@@ -72,9 +72,12 @@ the shared dev command.
 Inside a component, use `useClientHost()` for the current session, locale,
 theme, navigation guard, and telemetry. Construct `FetchRPCTransport` with the
 bootstrap RPC endpoint and `host.session`, then use `createRPCQuery` and
-`createRPCAction`. Use `createDraft` only for editable client state; call
-`draft.save` with the typed action and let the returned server value become the
-new baseline.
+`createRPCAction`. For authenticated server-sent events, use `useManagedStream`
+with a typed `StreamContract`: it sends session/CSRF headers, replays from the
+last cursor on reconnect, closes on route unmount, and can invalidate generated
+RPC query cache families from stream events. Use `createDraft` only for
+editable client state; call `draft.save` with the typed action and let the
+returned server value become the new baseline.
 
 The executable fixture is in `web/client-host/fixtures/product-editor`; run it
 with `pnpm --dir web/client-host test:browser`.
