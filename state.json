@@ -44,10 +44,10 @@
   ],
   "candidate": {
     "version": "0.10.0",
-    "source": "c4935e5597774104e3a578962fd4475f1a321c48",
-    "sha": "34715c5b76e04e2390c3c978d74c34aa12b77653",
-    "phase": "failed",
-    "run_id": "36247432026"
+    "source": "f7222ea928e89a3665e2b04bb5cd23c4268a86b2",
+    "sha": "35de5cc1603f5e484fd1fe630e421dd11952c72e",
+    "phase": "testing",
+    "run_id": "36248102851"
   },
   "ready": {
     "version": "0.9.0",
