@@ -39,8 +39,10 @@ type PaymentsController struct {
 }
 
 type PaymentPaginatedResponse struct {
-	Payments        []*viewmodels.Payment
-	PaginationState *pagination.State
+	Payments []*viewmodels.Payment
+	Page     int
+	// NextURL loads the chunk after Payments; empty on the last chunk.
+	NextURL string
 }
 
 func NewPaymentsController(
@@ -127,15 +129,10 @@ func (c *PaymentsController) viewModelPayments(r *http.Request) (*PaymentPaginat
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving payments")
 	}
-	viewPayments := mapping.MapViewModels(paymentEntities, mappers.PaymentToViewModel)
-	total, err := c.paymentService.Count(r.Context())
-	if err != nil {
-		return nil, errors.Wrap(err, "Error counting payments")
-	}
-
 	return &PaymentPaginatedResponse{
-		Payments:        viewPayments,
-		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
+		Payments: mapping.MapViewModels(paymentEntities, mappers.PaymentToViewModel),
+		Page:     paginationParams.Page,
+		NextURL:  pagination.NextChunkURL(r.URL, paginationParams.Page, params.Limit, len(paymentEntities)),
 	}, nil
 }
 
@@ -145,18 +142,19 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	isEmbedded := r.URL.Query().Get("embedded") == "true"
-
 	props := &payments.IndexPageProps{
-		Payments:        paginated.Payments,
-		PaginationState: paginated.PaginationState,
+		Payments: paginated.Payments,
+		NextURL:  paginated.NextURL,
 	}
 
-	if isEmbedded {
+	switch {
+	case htmx.IsHxRequest(r) && paginated.Page > 1:
+		templ.Handler(payments.PaymentRows(props), templ.WithStreaming()).ServeHTTP(w, r)
+	case r.URL.Query().Get("embedded") == "true":
 		templ.Handler(payments.PaymentsEmbedded(props), templ.WithStreaming()).ServeHTTP(w, r)
-	} else if htmx.IsHxRequest(r) {
+	case htmx.IsHxRequest(r):
 		templ.Handler(payments.PaymentsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
-	} else {
+	default:
 		templ.Handler(payments.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }

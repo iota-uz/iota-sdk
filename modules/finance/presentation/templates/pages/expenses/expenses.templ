@@ -10,15 +10,15 @@ import (
 	"github.com/iota-uz/iota-sdk/components/export"
 	"github.com/iota-uz/iota-sdk/components/filters"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
-	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type IndexPageProps struct {
-	Expenses        []*viewmodels.Expense
-	PaginationState *pagination.State
+	Expenses []*viewmodels.Expense
+	// NextURL loads the chunk after Expenses; empty on the last chunk.
+	NextURL string
 }
 
 templ ExpenseTableRow(expense *viewmodels.Expense, rowProps *base.TableRowProps) {
@@ -48,20 +48,12 @@ templ ExpenseTableRow(expense *viewmodels.Expense, rowProps *base.TableRowProps)
 }
 
 templ ExpenseRows(props *IndexPageProps) {
-	<tr class="hidden">
-		<td colspan="5">
-			@loaders.Spinner(loaders.SpinnerProps{
-				ContainerClass: templ.Classes(
-					"flex justify-center items-center py-4",
-				),
-			})
-		</td>
-	</tr>
 	for _, expense := range props.Expenses {
 		@ExpenseTableRow(expense, &base.TableRowProps{
 			Attrs: templ.Attributes{},
 		})
 	}
+	@pagination.InfiniteRow(pagination.InfiniteRowProps{NextURL: props.NextURL, Colspan: 5})
 }
 
 templ ExpensesTable(props *IndexPageProps) {
@@ -87,9 +79,6 @@ templ ExpensesTable(props *IndexPageProps) {
 			}) {
 				@ExpenseRows(props)
 			}
-			if len(props.PaginationState.Pages()) > 1 {
-				@pagination.Pagination(props.PaginationState)
-			}
 		}
 	</div>
 }
@@ -108,9 +97,9 @@ templ ExpensesContent(props *IndexPageProps) {
 				class="p-4 flex items-center gap-3"
 				hx-get="/finance/expenses"
 				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-				hx-target="#expenses-table-body"
-				hx-swap="innerHTML"
-				hx-indicator="#expenses-table-body"
+				hx-target="next .table-wrapper"
+				hx-swap="outerHTML"
+				hx-indicator="next .table-wrapper"
 			>
 				<input type="hidden" name="page" value="1"/>
 				<div class="flex-1">
@@ -161,9 +150,9 @@ templ ExpensesEmbedded(props *IndexPageProps) {
 			class="p-4 flex items-center gap-3"
 			hx-get="/finance/expenses"
 			hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-			hx-target="#expenses-table-body"
-			hx-swap="innerHTML"
-			hx-indicator="#expenses-table-body"
+			hx-target="next .table-wrapper"
+			hx-swap="outerHTML"
+			hx-indicator="next .table-wrapper"
 		>
 			<input type="hidden" name="page" value="1"/>
 			<div class="flex-1">

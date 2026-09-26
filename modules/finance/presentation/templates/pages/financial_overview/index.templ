@@ -1,8 +1,10 @@
 package financial_overview
 
 import (
+	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
+	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -39,36 +41,53 @@ templ Index(props *IndexPageProps) {
 					}
 				}
 				@tab.Content("transactions") {
-					<div
-						class="mt-5"
-						hx-get="/finance/transactions?embedded=true"
-						hx-trigger="load"
-						hx-swap="innerHTML"
-					>
-						<!-- Content will be loaded via HTMX -->
-					</div>
+					if props.ActiveTab == "transactions" {
+						@tabPanel("/finance/transactions?embedded=true")
+					}
 				}
 				@tab.Content("payments") {
-					<div
-						class="mt-5"
-						hx-get="/finance/payments?embedded=true"
-						hx-trigger="load"
-						hx-swap="innerHTML"
-					>
-						<!-- Content will be loaded via HTMX -->
-					</div>
+					if props.ActiveTab == "payments" {
+						@tabPanel("/finance/payments?embedded=true")
+					}
 				}
 				@tab.Content("expenses") {
-					<div
-						class="mt-5"
-						hx-get="/finance/expenses?embedded=true"
-						hx-trigger="load"
-						hx-swap="innerHTML"
-					>
-						<!-- Content will be loaded via HTMX -->
-					</div>
+					if props.ActiveTab == "expenses" {
+						@tabPanel("/finance/expenses?embedded=true")
+					}
 				}
 			}
 		</div>
 	}
+}
+
+// tabPanel loads a tab's list. Tabs switch by navigation, so only the active
+// one is rendered and fetched.
+templ tabPanel(url string) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div
+		class="mt-5"
+		hx-get={ url }
+		hx-trigger="load, overview:retry"
+		hx-swap="innerHTML"
+		x-data="{ failed: false }"
+		x-on:htmx:response-error.camel.self="failed = true"
+		x-on:htmx:send-error.camel.self="failed = true"
+	>
+		<div x-show="!failed" class="bg-surface-600 border border-primary rounded-lg p-4" aria-busy="true">
+			<span class="sr-only">{ pageCtx.T("Common.Loading") }</span>
+			@loaders.SkeletonTable(loaders.SkeletonProps{})
+		</div>
+		<div x-show="failed" x-cloak role="alert" class="flex items-center justify-center gap-3 py-12">
+			<span class="text-200">{ pageCtx.T("Common.LoadFailed") }</span>
+			@button.Secondary(button.Props{
+				Size: button.SizeSM,
+				Attrs: templ.Attributes{
+					"type":   "button",
+					"@click": "failed = false; htmx.trigger($root, 'overview:retry')",
+				},
+			}) {
+				{ pageCtx.T("Common.Retry") }
+			}
+		</div>
+	</div>
 }

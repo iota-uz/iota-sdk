@@ -143,7 +143,9 @@
   "Common": {
     "CloseNotification": "Билдиришномани ёпиш",
     "TabNavigation": "Ички бўлимлар навигацияси",
-    "Loading": "Yuklanmoqda..."
+    "Loading": "Yuklanmoqda...",
+    "LoadFailed": "Маълумотларни юклаб бўлмади",
+    "Retry": "Қайта уриниш"
   },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
