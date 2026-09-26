@@ -12,6 +12,7 @@ import (
 
 func dummyMethod() applets.RPCMethod {
 	return applets.RPCMethod{
+		RequirePermissions: []string{"test.access"},
 		Handler: func(_ context.Context, _ json.RawMessage) (any, error) {
 			return map[string]any{"ok": true}, nil
 		},
@@ -85,10 +86,10 @@ func TestRegistry_PublicContractCatalog(t *testing.T) {
 
 	registry := NewRegistry()
 	require.NoError(t, registry.RegisterPublicContract("users", "users.list", dummyMethod(), nil, Query(true, 9)))
-	require.NoError(t, registry.RegisterPublicContract("users", "users.save", dummyMethod(), nil, Invalidates("users.list", "users.list")))
+	require.NoError(t, registry.RegisterPublicContract("users", "users.save", dummyMethod(), nil, Mutation(), Invalidates("users.list", "users.list")))
 	require.Equal(t, []MethodContract{
-		{Namespace: "users", Method: "users.list", Kind: MethodKindQuery, Cacheable: true, MaxRetries: 3},
-		{Namespace: "users", Method: "users.save", Kind: MethodKindMutation, Invalidates: []string{"users.list"}},
+		{Namespace: "users", Method: "users.list", Kind: MethodKindQuery, Cacheable: true, MaxRetries: 3, kindExplicit: true},
+		{Namespace: "users", Method: "users.save", Kind: MethodKindMutation, Invalidates: []string{"users.list"}, kindExplicit: true},
 	}, registry.PublicContracts())
 	catalog := registry.PublicContracts()
 	catalog[1].Invalidates[0] = "changed"

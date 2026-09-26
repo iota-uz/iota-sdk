@@ -66,7 +66,7 @@ asset tag, or TypeScript route table.
   bootstrap. It carries SDK identity, route identity, session/CSRF state,
   locale messages, permissions, theme, and service endpoints.
 - `@iota-uz/sdk/solid` contains the Solid mount, host services, typed RPC
-  primitives, and the small draft primitive.
+  primitives, managed streaming subscriptions, and the small draft primitive.
 - `@iota-uz/sdk/styles.css` publishes the same token source used by server
   components. Features may compose normal CSS and Solid components but must not
   introduce a competing global reset, font, palette, or theme model.
@@ -88,6 +88,16 @@ never retry implicitly and expose typed field errors. `createDraft` deep-clones
 the server snapshot, tracks nested changes, supports reset, and accepts a save
 response only when no newer edit occurred. A newer server snapshot is not
 merged into a dirty draft; the feature owns that merge policy.
+
+`useManagedStream` subscribes to one authenticated SSE stream per route
+lifetime through the host: session/CSRF headers and typed 401 re-auth, bounded
+reconnect with jitter, heartbeat stale detection, `Last-Event-ID`/cursor
+replay, and one deduplicated terminal event. The subscription closes with the
+owning Solid root, so route unmount cancels the request and releases
+resources. Stream events fold into feature state through one callback; the
+contract may declare RPC cache families to invalidate, but never a universal
+merge policy. Lifecycle states are exposed as a signal and to host telemetry
+under `iota.stream.<state>` with the bounded stream identity.
 
 ## Deliberate exclusions
 
