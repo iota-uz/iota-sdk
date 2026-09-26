@@ -49,11 +49,15 @@ test.describe('Login page theme toggle', () => {
 	test('stores the raw choice and applies the resolved class', async ({ page }) => {
 		await page.emulateMedia({ colorScheme: 'dark' });
 
-		await page.locator('#theme-dark').check();
+		// Falsely green if the test changes hidden inputs directly: users can
+		// only move through the visible system → light → dark toggle labels.
+		await page.locator('label[for="theme-light"]').click();
+		await page.locator('label[for="theme-dark"]').click();
 		await expect(page.locator('html')).toHaveClass(/(^|\s)dark($|\s)/);
 		expect(await page.evaluate((key) => window.localStorage.getItem(key), THEME_STORAGE_KEY)).toBe('dark');
 
-		await page.locator('#theme-light').check();
+		await page.locator('label[for="theme-system"]').click();
+		await page.locator('label[for="theme-light"]').click();
 		await expect(page.locator('html')).toHaveClass(/(^|\s)light($|\s)/);
 		expect(await page.evaluate((key) => window.localStorage.getItem(key), THEME_STORAGE_KEY)).toBe('light');
 	});
