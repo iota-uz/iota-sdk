@@ -206,7 +206,10 @@ func TestDispatcher_AuditSinkReceivesMutationsOnly(t *testing.T) {
 	require.NoError(t, registry.RegisterPublicContract("bichat", "bichat.query", dummyMethod(), nil, Query(false, 0)))
 	require.NoError(t, registry.RegisterPublicContract("bichat", "bichat.save", dummyMethod(), nil, Mutation()))
 	audit := &auditRecorder{}
-	dispatcher := NewDispatcher(registry, authorizedHost(), logrus.New())
+	dispatcher := NewDispatcher(registry, &stubHost{
+		user:     &stubUser{id: 7, permissions: map[string]bool{"test.access": true}},
+		tenantID: uuid.MustParse("00000000-0000-0000-0000-000000000042"),
+	}, logrus.New())
 	dispatcher.SetAuditSink(audit)
 
 	doRPCRequest(t, dispatcher.HandlePublicHTTP, `{"id":"1","method":"bichat.query","params":{}}`)
@@ -217,6 +220,37 @@ func TestDispatcher_AuditSinkReceivesMutationsOnly(t *testing.T) {
 	assert.Equal(t, "bichat", audit.events[0].Applet)
 	assert.True(t, audit.events[0].Authorized)
 	assert.NotEmpty(t, audit.events[0].RequestID)
+	assert.Equal(t, uint(7), audit.events[0].UserID)
+	assert.Equal(t, "00000000-0000-0000-0000-000000000042", audit.events[0].TenantID)
+}
+
+func TestDispatcher_PermissionDeniedIsTypedForbidden(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRegistry()
+	require.NoError(t, registry.RegisterPublicContract("bichat", "bichat.admin.purge", applets.RPCMethod{
+		RequirePermissions: []string{"bichat.admin"},
+		Handler: func(_ context.Context, _ json.RawMessage) (any, error) {
+			return map[string]any{"purged": true}, nil
+		},
+	}, nil, Mutation()))
+	audit := &auditRecorder{}
+	dispatcher := NewDispatcher(registry, &stubHost{
+		user:     &stubUser{id: 9, permissions: map[string]bool{"bichat.read": true}},
+		tenantID: uuid.MustParse("00000000-0000-0000-0000-000000000043"),
+	}, logrus.New())
+	dispatcher.SetAuditSink(audit)
+
+	resp := doRPCRequest(t, dispatcher.HandlePublicHTTP, `{"id":"1","method":"bichat.admin.purge","params":{}}`)
+	decoded := decodeObject(t, resp.Body.Bytes())
+	errorObj := decoded["error"].(map[string]any)
+	assert.Equal(t, "forbidden", errorObj["code"])
+	assert.Contains(t, errorObj["message"], "permission denied")
+
+	require.Len(t, audit.events, 1)
+	assert.False(t, audit.events[0].Authorized, "a rejected mutation must be audited as unauthorized")
+	assert.Equal(t, "forbidden", audit.events[0].ErrCode)
+	assert.Equal(t, uint(9), audit.events[0].UserID)
 }
 
 func TestDispatcher_MetricsCarryMethodKindAndCode(t *testing.T) {

@@ -66,6 +66,7 @@ type AuditEvent struct {
 	Method    string
 	RequestID string
 	UserID    uint
+	TenantID  string
 	// Authorized is false when the middleware chain or the permission check
 	// rejected the call.
 	Authorized bool
@@ -73,9 +74,11 @@ type AuditEvent struct {
 	ErrCode string
 }
 
-// identityHeaders are never trusted by the dispatcher and never forwarded to
-// the bun runtime: user and tenant identity come only from the authenticated
-// server context.
+// identityHeaders carry user and tenant identity across hops. They are
+// stripped from the client request at the public transport and re-injected
+// from the authenticated server context when the bun runtime needs them.
+// The internal transport (unix-socket hop from the applet runtime back into
+// Go) accepts them because only the application process reaches it.
 var identityHeaders = []string{"X-Iota-Tenant-Id", "X-Iota-User-Id"}
 
 type BunPublicCaller interface {
@@ -191,6 +194,13 @@ func (d *Dispatcher) handleHTTP(w http.ResponseWriter, r *http.Request, transpor
 	d.writeJSON(w, http.StatusOK, resp)
 }
 
+// dispatchIdentity is the trusted identity snapshot of one dispatch, taken
+// after the middleware chain, used for the mutation audit trail.
+type dispatchIdentity struct {
+	userID   uint
+	tenantID string
+}
+
 func (d *Dispatcher) dispatch(baseCtx context.Context, req request, transport dispatchTransport, headers http.Header, httpReq *http.Request) response {
 	started := time.Now()
 	id := req.ID
@@ -257,9 +267,10 @@ func (d *Dispatcher) dispatch(baseCtx context.Context, req request, transport di
 		}
 	}
 
-	result, rpcErr := d.executeWithMiddleware(baseCtx, httpReq, method, exec)
+	identity := dispatchIdentity{}
+	result, rpcErr := d.executeWithMiddleware(baseCtx, httpReq, method, exec, &identity)
 	requestID, _ := RequestIDFromContext(baseCtx)
-	d.observe(method, transport, requestID, started, rpcErr)
+	d.observe(method, transport, requestID, started, rpcErr, identity)
 	if rpcErr != nil {
 		return response{
 			ID:      id,
@@ -277,7 +288,7 @@ func (d *Dispatcher) dispatch(baseCtx context.Context, req request, transport di
 
 // observe reports one completed dispatch to logs, metrics and the mutation
 // audit sink. Labels stay bounded: method, kind and error code.
-func (d *Dispatcher) observe(method Method, transport dispatchTransport, requestID string, started time.Time, rpcErr *rpcError) {
+func (d *Dispatcher) observe(method Method, transport dispatchTransport, requestID string, started time.Time, rpcErr *rpcError, identity dispatchIdentity) {
 	duration := time.Since(started)
 	code := ""
 	if rpcErr != nil {
@@ -310,6 +321,8 @@ func (d *Dispatcher) observe(method Method, transport dispatchTransport, request
 			Applet:     method.AppletName,
 			Method:     method.Name,
 			RequestID:  requestID,
+			UserID:     identity.userID,
+			TenantID:   identity.tenantID,
 			Authorized: rpcErr == nil,
 			ErrCode:    code,
 		})
@@ -335,7 +348,7 @@ func allowedOnTransport(v visibility, transport dispatchTransport) bool {
 	}
 }
 
-func (d *Dispatcher) executeWithMiddleware(baseCtx context.Context, httpReq *http.Request, method Method, execute func(context.Context) (any, error)) (any, *rpcError) {
+func (d *Dispatcher) executeWithMiddleware(baseCtx context.Context, httpReq *http.Request, method Method, execute func(context.Context) (any, error), identity *dispatchIdentity) (any, *rpcError) {
 	ctx := WithAppletID(baseCtx, method.AppletName)
 
 	var result any
@@ -344,7 +357,9 @@ func (d *Dispatcher) executeWithMiddleware(baseCtx context.Context, httpReq *htt
 
 	finalHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ran = true
-		ctx := d.identify(r.Context())
+		ctx, ident := d.identify(r.Context())
+		identity.userID = ident.userID
+		identity.tenantID = ident.tenantID
 		if err := d.requirePermissions(ctx, method.Method.RequirePermissions); err != nil {
 			handlerErr = err
 			return
@@ -490,18 +505,23 @@ func mapErrorMessage(code any) string {
 // identify derives user and tenant only from the authenticated server
 // context: the auth middleware populates the request context and the host
 // services resolve the typed identity. Client-supplied identity headers are
-// never consulted.
-func (d *Dispatcher) identify(ctx context.Context) context.Context {
+// never consulted. The derived identity is also returned for the audit
+// trail.
+func (d *Dispatcher) identify(ctx context.Context) (context.Context, dispatchIdentity) {
+	identity := dispatchIdentity{}
 	if d.host == nil {
-		return ctx
+		return ctx, identity
 	}
 	if user, err := d.host.ExtractUser(ctx); err == nil && user != nil {
-		ctx = WithUserID(ctx, strconv.FormatUint(uint64(user.ID()), 10))
+		id := strconv.FormatUint(uint64(user.ID()), 10)
+		ctx = WithUserID(ctx, id)
+		identity.userID = user.ID()
 	}
 	if tenantID, err := d.host.ExtractTenantID(ctx); err == nil {
 		ctx = WithTenantID(ctx, tenantID.String())
+		identity.tenantID = tenantID.String()
 	}
-	return ctx
+	return ctx, identity
 }
 
 func (d *Dispatcher) writeJSON(w http.ResponseWriter, status int, payload any) {
