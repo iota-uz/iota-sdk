@@ -504,15 +504,24 @@
       "Amount": "Valor",
       "OriginalAmount": "Valor original",
       "OutstandingAmount": "Valor pendente",
+      "Currency": "Moeda",
+      "SelectCurrency": "Escolha a moeda",
+      "Account": "Conta",
+      "NoAccount": "Sem conta",
+      "Project": "Projeto",
+      "NoProject": "Sem projeto",
       "_Description": "Descrição",
       "DueDate": "Data de vencimento",
       "SettlementTransactionID": "Transação de liquidação",
       "Settle": "Liquidar dívida",
+      "SettlementAmount": "Valor a liquidar",
       "WriteOff": "Baixar",
+      "CancelDebt": "Cancelar dívida",
       "Delete": "Excluir dívida",
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta dívida?",
       "SettleConfirmation": "Tem certeza de que deseja liquidar esta dívida?",
       "WriteOffConfirmation": "Tem certeza de que deseja baixar esta dívida como incobrável?",
+      "CancelDebtConfirmation": "Cancelar esta dívida? Ela deixará de ser devida e de reservar dinheiro.",
       "SelectTransaction": "Selecionar transação"
     },
     "Types": {
@@ -523,7 +532,11 @@
       "PENDING": "Pendente",
       "SETTLED": "Liquidada",
       "PARTIAL": "Parcialmente liquidada",
-      "WRITTEN_OFF": "Baixada"
+      "WRITTEN_OFF": "Baixada",
+      "CANCELLED": "Cancelada"
+    },
+    "Errors": {
+      "AccountCurrency": "A conta tem uma moeda diferente da dívida"
     },
     "Actions": {
       "Created": "Dívida criada com sucesso",
@@ -572,6 +585,11 @@
       "AttachedFiles": "Documentos anexados",
       "DeleteConfirmation": "Tem certeza de que deseja excluir este documento?",
       "DeleteFile": "Excluir documento"
+    },
+    "Balances": {
+      "OnAccounts": "Nas contas",
+      "Reserved": "Reservado para obrigações",
+      "Available": "Disponível"
     }
   },
   "ValidationErrors": {

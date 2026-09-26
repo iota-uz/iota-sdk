@@ -2,13 +2,18 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/financial_overview"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
@@ -19,6 +24,7 @@ type FinancialOverviewController struct {
 	counterpartyService    *services.CounterpartyService
 	paymentCategoryService *services.PaymentCategoryService
 	transactionService     *services.TransactionService
+	balanceService         *services.BalanceService
 }
 
 func NewFinancialOverviewController(
@@ -27,6 +33,7 @@ func NewFinancialOverviewController(
 	counterpartyService *services.CounterpartyService,
 	paymentCategoryService *services.PaymentCategoryService,
 	transactionService *services.TransactionService,
+	balanceService *services.BalanceService,
 ) application.Controller {
 	return &FinancialOverviewController{
 		basePath:               "/finance",
@@ -35,6 +42,7 @@ func NewFinancialOverviewController(
 		counterpartyService:    counterpartyService,
 		paymentCategoryService: paymentCategoryService,
 		transactionService:     transactionService,
+		balanceService:         balanceService,
 	}
 }
 
@@ -104,6 +112,27 @@ func (c *FinancialOverviewController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath + "/overview").Subrouter()
 	router.Use(commonMiddleware...)
 	router.HandleFunc("", c.Index).Methods(http.MethodGet)
+
+	balances := r.PathPrefix(c.basePath + "/balances").Subrouter()
+	balances.Use(commonMiddleware...)
+	balances.HandleFunc("", c.Balances).Methods(http.MethodGet)
+}
+
+// Balances renders the balance summary shared by the finance pages. Users who
+// cannot read debts get an empty fragment instead of an error.
+func (c *FinancialOverviewController) Balances(w http.ResponseWriter, r *http.Request) {
+	balances, err := c.balanceService.Balances(r.Context())
+	if errors.Is(err, composables.ErrForbidden) {
+		return
+	}
+	if err != nil {
+		http.Error(w, "Error retrieving balances", http.StatusInternalServerError)
+		return
+	}
+	templ.Handler(
+		components.BalanceSummary(mapping.MapViewModels(balances, mappers.BalanceToViewModel)),
+		templ.WithStreaming(),
+	).ServeHTTP(w, r)
 }
 
 func (c *FinancialOverviewController) Index(w http.ResponseWriter, r *http.Request) {

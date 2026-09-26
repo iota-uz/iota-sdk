@@ -6,25 +6,158 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	corecomponents "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
+	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
+	"time"
 )
 
-type DrawerEditProps struct {
-	Debt           *viewmodels.Debt
+// DrawerOptions are the choices the debt form offers. Projects is empty when
+// no module provides projects, and the form then has no project field.
+type DrawerOptions struct {
 	Counterparties []*viewmodels.Counterparty
-	Errors         map[string]string
+	Currencies     []*coreviewmodels.Currency
+	Accounts       []*viewmodels.MoneyAccount
+	Projects       []*viewmodels.ProjectOption
+}
+
+type DrawerEditProps struct {
+	Debt    *viewmodels.Debt
+	Options DrawerOptions
+	// SettlementAmount is what the user typed to settle; empty offers the
+	// whole outstanding amount.
+	SettlementAmount string
+	Errors           map[string]string
 }
 
 type DrawerCreateProps struct {
-	Debt           dtos.DebtCreateDTO
-	Counterparties []*viewmodels.Counterparty
-	Errors         map[string]string
+	Debt    dtos.DebtCreateDTO
+	Options DrawerOptions
+	Errors  map[string]string
+}
+
+type debtFieldValues struct {
+	CounterpartyID string
+	Type           string
+	Amount         string
+	CurrencyCode   string
+	MoneyAccountID string
+	ProjectID      string
+	Description    string
+	DueDate        string
+}
+
+func settlementValue(props *DrawerEditProps) string {
+	if props.SettlementAmount != "" {
+		return props.SettlementAmount
+	}
+	return props.Debt.OutstandingAmount
+}
+
+func dateValue(date shared.DateOnly) string {
+	if time.Time(date).IsZero() {
+		return ""
+	}
+	return time.Time(date).Format(time.DateOnly)
+}
+
+templ debtFields(values debtFieldValues, options DrawerOptions, errors map[string]string) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@base.Select(&base.SelectProps{
+		Label: pageCtx.T("Debts.Single.CounterpartyID"),
+		Attrs: templ.Attributes{"name": "CounterpartyID"},
+		Error: errors["CounterpartyID"],
+	}) {
+		<option value="">{ pageCtx.T("Debts.Single.SelectCounterparty") }</option>
+		for _, counterparty := range options.Counterparties {
+			<option value={ counterparty.ID } selected?={ counterparty.ID == values.CounterpartyID }>
+				{ counterparty.Name }
+			</option>
+		}
+	}
+	@base.Select(&base.SelectProps{
+		Label: pageCtx.T("Debts.Single.Type"),
+		Attrs: templ.Attributes{"name": "Type"},
+		Error: errors["Type"],
+	}) {
+		<option value="">{ pageCtx.T("Debts.Single.SelectType") }</option>
+		<option value="RECEIVABLE" selected?={ values.Type == "RECEIVABLE" }>
+			{ pageCtx.T("Debts.Types.RECEIVABLE") }
+		</option>
+		<option value="PAYABLE" selected?={ values.Type == "PAYABLE" }>
+			{ pageCtx.T("Debts.Types.PAYABLE") }
+		</option>
+	}
+	<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+		@input.Number(&input.Props{
+			Label: pageCtx.T("Debts.Single.OriginalAmount"),
+			Attrs: templ.Attributes{
+				"value": values.Amount,
+				"name":  "Amount",
+				"step":  "0.01",
+				"min":   "0",
+			},
+			Error: errors["Amount"],
+		})
+		@corecomponents.CurrencySelect(&corecomponents.CurrencySelectProps{
+			Label:       pageCtx.T("Debts.Single.Currency"),
+			Placeholder: pageCtx.T("Debts.Single.SelectCurrency"),
+			Value:       values.CurrencyCode,
+			Currencies:  options.Currencies,
+			Error:       errors["CurrencyCode"],
+			Attrs:       templ.Attributes{"name": "CurrencyCode"},
+		})
+	</div>
+	@base.Select(&base.SelectProps{
+		Label: pageCtx.T("Debts.Single.Account"),
+		Attrs: templ.Attributes{"name": "MoneyAccountID"},
+		Error: errors["MoneyAccountID"],
+	}) {
+		<option value="">{ pageCtx.T("Debts.Single.NoAccount") }</option>
+		for _, account := range options.Accounts {
+			<option value={ account.ID } selected?={ account.ID == values.MoneyAccountID }>
+				{ account.Name } · { account.CurrencyCode }
+			</option>
+		}
+	}
+	if len(options.Projects) > 0 {
+		@base.Select(&base.SelectProps{
+			Label: pageCtx.T("Debts.Single.Project"),
+			Attrs: templ.Attributes{"name": "ProjectID"},
+			Error: errors["ProjectID"],
+		}) {
+			<option value="">{ pageCtx.T("Debts.Single.NoProject") }</option>
+			for _, project := range options.Projects {
+				<option value={ project.ID } selected?={ project.ID == values.ProjectID }>
+					{ project.Name }
+				</option>
+			}
+		}
+	} else if values.ProjectID != "" {
+		<input type="hidden" name="ProjectID" value={ values.ProjectID }/>
+	}
+	@input.TextArea(&input.TextAreaProps{
+		Label: pageCtx.T("Debts.Single._Description"),
+		Attrs: templ.Attributes{"name": "Description"},
+		Value: values.Description,
+		Error: errors["Description"],
+	})
+	@input.Date(&input.Props{
+		Label: pageCtx.T("Debts.Single.DueDate"),
+		Attrs: templ.Attributes{
+			"value": values.DueDate,
+			"name":  "DueDate",
+		},
+		Error: errors["DueDate"],
+	})
 }
 
 templ EditDrawer(props *DrawerEditProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ formID := fmt.Sprintf("edit-form-%s", props.Debt.ID) }}
 	<div id={ fmt.Sprintf("debt-drawer-%s", props.Debt.ID) }>
 		@dialog.StdViewDrawer(dialog.StdDrawerProps{
 			ID:     fmt.Sprintf("debt-drawer-%s-dialog", props.Debt.ID),
@@ -36,85 +169,95 @@ templ EditDrawer(props *DrawerEditProps) {
 				"@closed":  fmt.Sprintf("document.getElementById('debt-drawer-%s').remove()", props.Debt.ID),
 			},
 		}) {
-			<form
-				id={ fmt.Sprintf("edit-form-%s", props.Debt.ID) }
-				method="post"
-				hx-post={ fmt.Sprintf("/finance/debts/%s", props.Debt.ID) }
-				hx-target={ fmt.Sprintf("#debt-drawer-%s", props.Debt.ID) }
-				hx-swap="outerHTML"
-				class="flex flex-col h-full"
-			>
-				<div class="flex-1 p-6 space-y-4">
-					@base.Select(&base.SelectProps{
-						Label: pageCtx.T("Debts.Single.CounterpartyID"),
-						Attrs: templ.Attributes{
-							"name": "CounterpartyID",
-						},
-						Error: props.Errors["CounterpartyID"],
-					}) {
-						<option value="">{ pageCtx.T("Debts.Single.SelectCounterparty") }</option>
-						for _, counterparty := range props.Counterparties {
-							<option
-								value={ counterparty.ID }
-								selected?={ counterparty.ID == props.Debt.CounterpartyID }
+			<div class="flex flex-col h-full">
+				<div class="flex-1 p-6 space-y-6">
+					<dl class="grid grid-cols-2 gap-4">
+						<div>
+							<dt class="text-sm text-200">{ pageCtx.T("Debts.Single.Status") }</dt>
+							<dd class="font-medium">{ pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", props.Debt.Status)) }</dd>
+						</div>
+						<div>
+							<dt class="text-sm text-200">{ pageCtx.T("Debts.Single.OutstandingAmount") }</dt>
+							<dd class="font-medium tabular-nums">{ props.Debt.OutstandingAmountWithCurrency }</dd>
+						</div>
+					</dl>
+					<form
+						id={ formID }
+						method="post"
+						hx-post={ fmt.Sprintf("/finance/debts/%s", props.Debt.ID) }
+						hx-target={ fmt.Sprintf("#debt-drawer-%s", props.Debt.ID) }
+						hx-swap="outerHTML"
+						class="space-y-4"
+					>
+						@debtFields(debtFieldValues{
+							CounterpartyID: props.Debt.CounterpartyID,
+							Type:           props.Debt.Type,
+							Amount:         props.Debt.OriginalAmount,
+							CurrencyCode:   props.Debt.CurrencyCode,
+							MoneyAccountID: props.Debt.MoneyAccountID,
+							ProjectID:      props.Debt.ProjectID,
+							Description:    props.Debt.Description,
+							DueDate:        props.Debt.DueDate,
+						}, props.Options, props.Errors)
+					</form>
+					if props.Debt.IsOpen() {
+						<section class="border-t border-subtle pt-6 space-y-3">
+							<h4 class="font-medium">{ pageCtx.T("Debts.Single.Settle") }</h4>
+							<form
+								method="post"
+								hx-post={ fmt.Sprintf("/finance/debts/%s/settle", props.Debt.ID) }
+								hx-target={ fmt.Sprintf("#debt-drawer-%s", props.Debt.ID) }
+								hx-swap="outerHTML"
+								class="flex items-start gap-3"
 							>
-								{ counterparty.Name }
-							</option>
-						}
+								<div class="flex-1">
+									@input.Number(&input.Props{
+										Attrs: templ.Attributes{
+											"value":      settlementValue(props),
+											"name":       "SettlementAmount",
+											"step":       "0.01",
+											"min":        "0",
+											"aria-label": pageCtx.T("Debts.Single.SettlementAmount"),
+										},
+										Error: props.Errors["SettlementAmount"],
+									})
+								</div>
+								@button.Secondary(button.Props{
+									Attrs: templ.Attributes{"type": "submit"},
+								}) {
+									{ pageCtx.T("Debts.Single.Settle") }
+								}
+							</form>
+						</section>
 					}
-					@base.Select(&base.SelectProps{
-						Label: pageCtx.T("Debts.Single.Type"),
-						Attrs: templ.Attributes{
-							"name": "Type",
-						},
-						Error: props.Errors["Type"],
-					}) {
-						<option value="RECEIVABLE" selected?={ props.Debt.Type == "RECEIVABLE" }>
-							{ pageCtx.T("Debts.Types.RECEIVABLE") }
-						</option>
-						<option value="PAYABLE" selected?={ props.Debt.Type == "PAYABLE" }>
-							{ pageCtx.T("Debts.Types.PAYABLE") }
-						</option>
-					}
-					@input.Number(&input.Props{
-						Label: pageCtx.T("Debts.Single.OriginalAmount"),
-						Attrs: templ.Attributes{
-							"value": props.Debt.OriginalAmount,
-							"name":  "Amount",
-							"step":  "0.01",
-							"min":   "0",
-						},
-						Error: props.Errors["Amount"],
-					})
-					@input.TextArea(&input.TextAreaProps{
-						Label: pageCtx.T("Debts.Single._Description"),
-						Attrs: templ.Attributes{
-							"name": "Description",
-						},
-						Value: props.Debt.Description,
-						Error: props.Errors["Description"],
-					})
-					@input.Date(&input.Props{
-						Label: pageCtx.T("Debts.Single.DueDate"),
-						Attrs: templ.Attributes{
-							"value": props.Debt.DueDate,
-							"name":  "DueDate",
-						},
-						Error: props.Errors["DueDate"],
-					})
 				</div>
-				<div class="p-6 border-t border-subtle flex justify-between">
-					@button.Danger(button.Props{
-						Attrs: templ.Attributes{
-							"type":       "button",
-							"hx-delete":  fmt.Sprintf("/finance/debts/%s", props.Debt.ID),
-							"hx-confirm": pageCtx.T("Debts.Single.DeleteConfirmation"),
-							"hx-target":  "body",
-							"hx-swap":    "beforeend",
-						},
-					}) {
-						{ pageCtx.T("Delete") }
-					}
+				<div class="p-6 border-t border-subtle flex flex-wrap justify-between gap-3">
+					<div class="flex gap-3">
+						@button.Danger(button.Props{
+							Attrs: templ.Attributes{
+								"type":       "button",
+								"hx-delete":  fmt.Sprintf("/finance/debts/%s", props.Debt.ID),
+								"hx-confirm": pageCtx.T("Debts.Single.DeleteConfirmation"),
+								"hx-target":  "body",
+								"hx-swap":    "beforeend",
+							},
+						}) {
+							{ pageCtx.T("Delete") }
+						}
+						if props.Debt.IsOpen() {
+							@button.Secondary(button.Props{
+								Attrs: templ.Attributes{
+									"type":       "button",
+									"hx-post":    fmt.Sprintf("/finance/debts/%s/cancel", props.Debt.ID),
+									"hx-confirm": pageCtx.T("Debts.Single.CancelDebtConfirmation"),
+									"hx-target":  fmt.Sprintf("#debt-drawer-%s", props.Debt.ID),
+									"hx-swap":    "outerHTML",
+								},
+							}) {
+								{ pageCtx.T("Debts.Single.CancelDebt") }
+							}
+						}
+					</div>
 					<div class="flex gap-3">
 						@button.Secondary(button.Props{
 							Attrs: templ.Attributes{
@@ -126,16 +269,15 @@ templ EditDrawer(props *DrawerEditProps) {
 						}
 						@button.Primary(button.Props{
 							Attrs: templ.Attributes{
-								"type":  "submit",
-								"name":  "_action",
-								"value": "save",
+								"type": "submit",
+								"form": formID,
 							},
 						}) {
 							{ pageCtx.T("Save") }
 						}
 					</div>
 				</div>
-			</form>
+			</div>
 		}
 	</div>
 }
@@ -162,64 +304,16 @@ templ CreateDrawer(props *DrawerCreateProps) {
 				class="flex flex-col h-full"
 			>
 				<div class="flex-1 p-6 space-y-4">
-					@base.Select(&base.SelectProps{
-						Label: pageCtx.T("Debts.Single.CounterpartyID"),
-						Attrs: templ.Attributes{
-							"name": "CounterpartyID",
-						},
-						Error: props.Errors["CounterpartyID"],
-					}) {
-						<option value="">{ pageCtx.T("Debts.Single.SelectCounterparty") }</option>
-						for _, counterparty := range props.Counterparties {
-							<option
-								value={ counterparty.ID }
-								selected?={ counterparty.ID == props.Debt.CounterpartyID }
-							>
-								{ counterparty.Name }
-							</option>
-						}
-					}
-					@base.Select(&base.SelectProps{
-						Label: pageCtx.T("Debts.Single.Type"),
-						Attrs: templ.Attributes{
-							"name": "Type",
-						},
-						Error: props.Errors["Type"],
-					}) {
-						<option value="">{ pageCtx.T("Debts.Single.SelectType") }</option>
-						<option value="RECEIVABLE" selected?={ props.Debt.Type == "RECEIVABLE" }>
-							{ pageCtx.T("Debts.Types.RECEIVABLE") }
-						</option>
-						<option value="PAYABLE" selected?={ props.Debt.Type == "PAYABLE" }>
-							{ pageCtx.T("Debts.Types.PAYABLE") }
-						</option>
-					}
-					@input.Number(&input.Props{
-						Label: pageCtx.T("Debts.Single.OriginalAmount"),
-						Attrs: templ.Attributes{
-							"value": fmt.Sprintf("%.2f", props.Debt.Amount),
-							"name":  "Amount",
-							"step":  "0.01",
-							"min":   "0",
-						},
-						Error: props.Errors["Amount"],
-					})
-					@input.TextArea(&input.TextAreaProps{
-						Label: pageCtx.T("Debts.Single._Description"),
-						Attrs: templ.Attributes{
-							"name": "Description",
-						},
-						Value: props.Debt.Description,
-						Error: props.Errors["Description"],
-					})
-					@input.Date(&input.Props{
-						Label: pageCtx.T("Debts.Single.DueDate"),
-						Attrs: templ.Attributes{
-							"value": props.Debt.DueDate,
-							"name":  "DueDate",
-						},
-						Error: props.Errors["DueDate"],
-					})
+					@debtFields(debtFieldValues{
+						CounterpartyID: props.Debt.CounterpartyID,
+						Type:           props.Debt.Type,
+						Amount:         fmt.Sprintf("%.2f", props.Debt.Amount),
+						CurrencyCode:   props.Debt.CurrencyCode,
+						MoneyAccountID: props.Debt.MoneyAccountID,
+						ProjectID:      props.Debt.ProjectID,
+						Description:    props.Debt.Description,
+						DueDate:        dateValue(props.Debt.DueDate),
+					}, props.Options, props.Errors)
 				</div>
 				<div class="p-6 border-t border-subtle flex justify-end gap-3">
 					@button.Secondary(button.Props{
@@ -232,9 +326,7 @@ templ CreateDrawer(props *DrawerCreateProps) {
 					}
 					@button.Primary(button.Props{
 						Attrs: templ.Attributes{
-							"type":  "submit",
-							"name":  "_action",
-							"value": "save",
+							"type": "submit",
 						},
 					}) {
 						{ pageCtx.T("Save") }

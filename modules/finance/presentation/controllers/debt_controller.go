@@ -2,6 +2,8 @@
 package controllers
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -9,11 +11,14 @@ import (
 	"github.com/iota-uz/iota-sdk/components/filters"
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
+	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/debt"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/debts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 
 	"github.com/a-h/templ"
@@ -29,7 +34,9 @@ import (
 type DebtsController struct {
 	debtService         *services.DebtService
 	counterpartyService *services.CounterpartyService
-	transactionService  *services.TransactionService
+	moneyAccountService *services.MoneyAccountService
+	currencyService     *coreservices.CurrencyService
+	projectDirectory    services.ProjectDirectory
 	basePath            string
 	tableDefinition     table.TableDefinition
 }
@@ -37,7 +44,9 @@ type DebtsController struct {
 func NewDebtsController(
 	debtService *services.DebtService,
 	counterpartyService *services.CounterpartyService,
-	transactionService *services.TransactionService,
+	moneyAccountService *services.MoneyAccountService,
+	currencyService *coreservices.CurrencyService,
+	projectDirectory services.ProjectDirectory,
 ) application.Controller {
 	basePath := "/finance/debts"
 
@@ -49,6 +58,8 @@ func NewDebtsController(
 			table.Column("original_amount", "Original Amount"),
 			table.Column("outstanding_amount", "Outstanding Amount"),
 			table.Column("status", "Status"),
+			table.Column("description", "Description"),
+			table.Column("due_date", "Due Date"),
 			table.Column("created_at", "Created At"),
 		).
 		WithInfiniteScroll(true).
@@ -57,7 +68,9 @@ func NewDebtsController(
 	return &DebtsController{
 		debtService:         debtService,
 		counterpartyService: counterpartyService,
-		transactionService:  transactionService,
+		moneyAccountService: moneyAccountService,
+		currencyService:     currencyService,
+		projectDirectory:    projectDirectory,
 		basePath:            basePath,
 		tableDefinition:     tableDefinition,
 	}
@@ -94,6 +107,7 @@ func (c *DebtsController) Register(r *mux.Router) {
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Delete).Methods(http.MethodDelete)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}/settle", c.Settle).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}/write-off", c.WriteOff).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/cancel", c.Cancel).Methods(http.MethodPost)
 }
 
 func (c *DebtsController) List(w http.ResponseWriter, r *http.Request) {
@@ -162,10 +176,13 @@ func (c *DebtsController) List(w http.ResponseWriter, r *http.Request) {
 				table.Column("original_amount", pageCtx.T("Debts.List.OriginalAmount")),
 				table.Column("outstanding_amount", pageCtx.T("Debts.List.OutstandingAmount")),
 				table.Column("status", pageCtx.T("Debts.List.Status")),
+				table.Column("description", pageCtx.T("Debts.List._Description")),
+				table.Column("due_date", pageCtx.T("Debts.List.DueDate")),
 				table.Column("created_at", pageCtx.T("CreatedAt")),
 			).
 			WithActions(actions.RenderAction(createAction)).
 			WithFilters(filters.CreatedAt()).
+			WithDeferredPanels(table.DeferredPanel{ID: "debt-balances", URL: "/finance/balances"}).
 			WithInfiniteScroll(true).
 			Build()
 	} else {
@@ -197,9 +214,11 @@ func (c *DebtsController) List(w http.ResponseWriter, r *http.Request) {
 		cells := []table.TableCell{
 			table.Cell(templ.Raw(debtVM.CounterpartyName), debtVM.CounterpartyName),
 			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Types.%s", debtVM.Type))), debtVM.Type),
-			table.Cell(templ.Raw(debtVM.OriginalAmount), debtVM.OriginalAmount),
-			table.Cell(templ.Raw(debtVM.OutstandingAmount), debtVM.OutstandingAmount),
+			table.Cell(templ.Raw(debtVM.OriginalAmountWithCurrency), debtVM.OriginalAmount),
+			table.Cell(templ.Raw(debtVM.OutstandingAmountWithCurrency), debtVM.OutstandingAmount),
 			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", debtVM.Status))), debtVM.Status),
+			table.Cell(templ.Raw(templ.EscapeString(debtVM.Description)), debtVM.Description),
+			table.Cell(templ.Raw(debtVM.DueDate), debtVM.DueDate),
 			table.Cell(table.DateTime(createdAt), createdAt),
 		}
 
@@ -225,6 +244,75 @@ func (c *DebtsController) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (c *DebtsController) drawerOptions(ctx context.Context) (debts.DrawerOptions, error) {
+	counterparties, err := c.counterpartyService.GetAll(ctx)
+	if err != nil {
+		return debts.DrawerOptions{}, fmt.Errorf("retrieving counterparties: %w", err)
+	}
+	currencies, err := c.currencyService.GetAll(ctx)
+	if err != nil {
+		return debts.DrawerOptions{}, fmt.Errorf("retrieving currencies: %w", err)
+	}
+	accounts, err := c.moneyAccountService.GetAll(ctx)
+	if err != nil {
+		return debts.DrawerOptions{}, fmt.Errorf("retrieving accounts: %w", err)
+	}
+	projects, err := c.projectDirectory.Projects(ctx)
+	if err != nil {
+		return debts.DrawerOptions{}, fmt.Errorf("retrieving projects: %w", err)
+	}
+	return debts.DrawerOptions{
+		Counterparties: mapping.MapViewModels(counterparties, mappers.CounterpartyToViewModel),
+		Currencies:     mapping.MapViewModels(currencies, coremappers.CurrencyToViewModel),
+		Accounts:       mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel),
+		Projects:       mapping.MapViewModels(projects, mappers.ProjectRefToViewModel),
+	}, nil
+}
+
+func (c *DebtsController) debtViewModel(ctx context.Context, entity debt.Debt) (*viewmodels.Debt, error) {
+	counterparty, err := c.counterpartyService.GetByID(ctx, entity.CounterpartyID())
+	if err != nil {
+		return nil, fmt.Errorf("retrieving counterparty: %w", err)
+	}
+	return mappers.DebtToViewModel(entity, counterparty.Name()), nil
+}
+
+func (c *DebtsController) renderEditDrawer(w http.ResponseWriter, r *http.Request, props *debts.DrawerEditProps) {
+	options, err := c.drawerOptions(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	props.Options = options
+	templ.Handler(debts.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+// withFormValues shows what the user typed instead of the saved values, so a
+// rejected form keeps its input.
+func withFormValues(vm *viewmodels.Debt, dto *dtos.DebtUpdateDTO) *viewmodels.Debt {
+	vm.CounterpartyID = dto.CounterpartyID
+	vm.Type = dto.Type
+	vm.OriginalAmount = fmt.Sprintf("%.2f", dto.Amount)
+	vm.CurrencyCode = dto.CurrencyCode
+	vm.MoneyAccountID = dto.MoneyAccountID
+	vm.ProjectID = dto.ProjectID
+	vm.Description = dto.Description
+	vm.DueDate = ""
+	if !time.Time(dto.DueDate).IsZero() {
+		vm.DueDate = time.Time(dto.DueDate).Format(time.DateOnly)
+	}
+	return vm
+}
+
+// accountError turns a debt/account currency mismatch into a form error.
+func accountError(ctx context.Context, err error) (map[string]string, bool) {
+	if !errors.Is(err, services.ErrDebtAccountCurrency) {
+		return nil, false
+	}
+	pageCtx := composables.UsePageCtx(ctx)
+	return map[string]string{"MoneyAccountID": pageCtx.T("Debts.Errors.AccountCurrency")}, true
+}
+
 func (c *DebtsController) GetEditDrawer(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
@@ -237,41 +325,40 @@ func (c *DebtsController) GetEditDrawer(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Error retrieving debt", http.StatusInternalServerError)
 		return
 	}
-
-	// Get counterparty name
-	counterparty, err := c.counterpartyService.GetByID(r.Context(), entity.CounterpartyID())
+	vm, err := c.debtViewModel(r.Context(), entity)
 	if err != nil {
-		http.Error(w, "Error retrieving counterparty", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Get all counterparties for dropdown
-	counterparties, err := c.counterpartyService.GetAll(r.Context())
-	if err != nil {
-		http.Error(w, "Error retrieving counterparties", http.StatusInternalServerError)
-		return
-	}
-
-	props := &debts.DrawerEditProps{
-		Debt:           mappers.DebtToViewModel(entity, counterparty.Name()),
-		Counterparties: mapping.MapViewModels(counterparties, mappers.CounterpartyToViewModel),
-		Errors:         map[string]string{},
-	}
-	templ.Handler(debts.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+	c.renderEditDrawer(w, r, &debts.DrawerEditProps{Debt: vm, Errors: map[string]string{}})
 }
 
 func (c *DebtsController) GetNewDrawer(w http.ResponseWriter, r *http.Request) {
-	// Get all counterparties for dropdown
-	counterparties, err := c.counterpartyService.GetAll(r.Context())
+	options, err := c.drawerOptions(r.Context())
 	if err != nil {
-		http.Error(w, "Error retrieving counterparties", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	props := &debts.DrawerCreateProps{
-		Errors:         map[string]string{},
-		Debt:           dtos.DebtCreateDTO{},
-		Counterparties: mapping.MapViewModels(counterparties, mappers.CounterpartyToViewModel),
+		Errors:  map[string]string{},
+		Debt:    dtos.DebtCreateDTO{},
+		Options: options,
+	}
+	templ.Handler(debts.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *DebtsController) renderCreateDrawer(w http.ResponseWriter, r *http.Request, dto *dtos.DebtCreateDTO, errorsMap map[string]string) {
+	options, err := c.drawerOptions(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	props := &debts.DrawerCreateProps{
+		Errors:  errorsMap,
+		Debt:    *dto,
+		Options: options,
 	}
 	templ.Handler(debts.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -287,19 +374,7 @@ func (c *DebtsController) Create(w http.ResponseWriter, r *http.Request) {
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		if isDrawer {
-			// Get counterparties for dropdown
-			counterparties, err := c.counterpartyService.GetAll(r.Context())
-			if err != nil {
-				http.Error(w, "Error retrieving counterparties", http.StatusInternalServerError)
-				return
-			}
-
-			props := &debts.DrawerCreateProps{
-				Errors:         errorsMap,
-				Debt:           *dto,
-				Counterparties: mapping.MapViewModels(counterparties, mappers.CounterpartyToViewModel),
-			}
-			templ.Handler(debts.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+			c.renderCreateDrawer(w, r, dto, errorsMap)
 		} else {
 			http.Error(w, "Create form not supported - use drawer", http.StatusBadRequest)
 		}
@@ -314,6 +389,10 @@ func (c *DebtsController) Create(w http.ResponseWriter, r *http.Request) {
 
 	entity := dto.ToEntity(tenantID)
 	if _, err := c.debtService.Create(r.Context(), entity); err != nil {
+		if errorsMap, ok := accountError(r.Context(), err); ok && isDrawer {
+			c.renderCreateDrawer(w, r, dto, errorsMap)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -342,59 +421,36 @@ func (c *DebtsController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isDrawer := htmx.Target(r) != "" && htmx.Target(r) != "edit-content"
+	existing, err := c.debtService.GetByID(ctx, id)
+	if err != nil {
+		http.Error(w, "Error retrieving debt", http.StatusInternalServerError)
+		return
+	}
 
-	if errorsMap, ok := dto.Ok(r.Context()); ok {
-		existing, err := c.debtService.GetByID(r.Context(), id)
-		if err != nil {
-			http.Error(w, "Error retrieving debt", http.StatusInternalServerError)
-			return
-		}
-
+	errorsMap, ok := dto.Ok(ctx)
+	if ok {
 		entity, err := dto.Apply(existing)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if _, err := c.debtService.Update(r.Context(), entity); err != nil {
+		_, err = c.debtService.Update(ctx, entity)
+		if err == nil {
+			shared.Redirect(w, r, c.basePath)
+			return
+		}
+		if errorsMap, ok = accountError(ctx, err); !ok {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		// Always redirect to refresh the table
-		shared.Redirect(w, r, c.basePath)
-	} else {
-		entity, err := c.debtService.GetByID(r.Context(), id)
-		if err != nil {
-			http.Error(w, "Error retrieving debt", http.StatusInternalServerError)
-			return
-		}
-
-		// Get counterparty name
-		counterparty, err := c.counterpartyService.GetByID(r.Context(), entity.CounterpartyID())
-		if err != nil {
-			http.Error(w, "Error retrieving counterparty", http.StatusInternalServerError)
-			return
-		}
-
-		// Get all counterparties for dropdown
-		counterparties, err := c.counterpartyService.GetAll(r.Context())
-		if err != nil {
-			http.Error(w, "Error retrieving counterparties", http.StatusInternalServerError)
-			return
-		}
-
-		if isDrawer {
-			props := &debts.DrawerEditProps{
-				Debt:           mappers.DebtToViewModel(entity, counterparty.Name()),
-				Counterparties: mapping.MapViewModels(counterparties, mappers.CounterpartyToViewModel),
-				Errors:         errorsMap,
-			}
-			templ.Handler(debts.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
-		} else {
-			http.Error(w, "Edit form not supported - use drawer", http.StatusBadRequest)
-		}
 	}
+
+	vm, err := c.debtViewModel(ctx, existing)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	c.renderEditDrawer(w, r, &debts.DrawerEditProps{Debt: withFormValues(vm, dto), Errors: errorsMap})
 }
 
 func (c *DebtsController) Settle(w http.ResponseWriter, r *http.Request) {
@@ -411,7 +467,21 @@ func (c *DebtsController) Settle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		http.Error(w, fmt.Sprintf("Validation errors: %v", errorsMap), http.StatusBadRequest)
+		entity, err := c.debtService.GetByID(r.Context(), id)
+		if err != nil {
+			http.Error(w, "Error retrieving debt", http.StatusInternalServerError)
+			return
+		}
+		vm, err := c.debtViewModel(r.Context(), entity)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		c.renderEditDrawer(w, r, &debts.DrawerEditProps{
+			Debt:             vm,
+			SettlementAmount: r.FormValue("SettlementAmount"),
+			Errors:           errorsMap,
+		})
 		return
 	}
 
@@ -433,6 +503,25 @@ func (c *DebtsController) WriteOff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := c.debtService.WriteOff(r.Context(), id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *DebtsController) Cancel(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseUUID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := c.debtService.Cancel(r.Context(), id); err != nil {
+		if errors.Is(err, services.ErrDebtNotOpen) {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

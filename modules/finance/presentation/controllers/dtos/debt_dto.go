@@ -19,11 +19,15 @@ import (
 )
 
 var debtFieldTranslations = map[string]string{
-	"CounterpartyID": "Debts.Single.CounterpartyID",
-	"Amount":         "Debts.Single.Amount",
-	"Type":           "Debts.Single.Type",
-	"Description":    "Debts.Single.Description",
-	"DueDate":        "Debts.Single.DueDate",
+	"CounterpartyID":   "Debts.Single.CounterpartyID",
+	"Amount":           "Debts.Single.Amount",
+	"CurrencyCode":     "Debts.Single.Currency",
+	"Type":             "Debts.Single.Type",
+	"Description":      "Debts.Single._Description",
+	"DueDate":          "Debts.Single.DueDate",
+	"MoneyAccountID":   "Debts.Single.Account",
+	"ProjectID":        "Debts.Single.Project",
+	"SettlementAmount": "Debts.Single.Amount",
 }
 
 func validateDebtDTO(ctx context.Context, data interface{}) (map[string]string, bool) {
@@ -67,19 +71,27 @@ func validateDebtDTO(ctx context.Context, data interface{}) (map[string]string, 
 
 type DebtCreateDTO struct {
 	Amount         float64 `validate:"required,gt=0"`
+	CurrencyCode   string  `validate:"required,len=3"`
 	CounterpartyID string  `validate:"required,uuid"`
 	Type           string  `validate:"required,oneof=RECEIVABLE PAYABLE"`
 	Description    string  `validate:"required"`
 	DueDate        shared.DateOnly
+	MoneyAccountID string `validate:"omitempty,uuid"`
+	ProjectID      string `validate:"omitempty,uuid"`
 }
 
+// DebtUpdateDTO leaves a field unchanged when it is empty, except the account
+// and the project: the form always sends them, and empty unlinks the debt.
 type DebtUpdateDTO struct {
 	Amount         float64 `validate:"gt=0"`
+	CurrencyCode   string  `validate:"omitempty,len=3"`
 	CounterpartyID string  `validate:"omitempty,uuid"`
 	Type           string  `validate:"omitempty,oneof=RECEIVABLE PAYABLE"`
 	Description    string
 	DueDate        shared.DateOnly
-	Status         string `validate:"omitempty,oneof=PENDING SETTLED PARTIAL WRITTEN_OFF"`
+	Status         string `validate:"omitempty,oneof=PENDING SETTLED PARTIAL WRITTEN_OFF CANCELLED"`
+	MoneyAccountID string `validate:"omitempty,uuid"`
+	ProjectID      string `validate:"omitempty,uuid"`
 }
 
 type DebtSettleDTO struct {
@@ -98,7 +110,7 @@ func (d *DebtCreateDTO) ToEntity(tenantID uuid.UUID) debt.Debt {
 	}
 
 	debtType := debt.DebtType(d.Type)
-	amount := money.NewFromFloat(d.Amount, "USD")
+	amount := money.NewFromFloat(d.Amount, d.CurrencyCode)
 
 	email, err := internet.NewEmail("debt@system.internal")
 	if err != nil {
@@ -110,6 +122,8 @@ func (d *DebtCreateDTO) ToEntity(tenantID uuid.UUID) debt.Debt {
 		debt.WithCounterpartyID(counterpartyID),
 		debt.WithDescription(d.Description),
 		debt.WithUser(user.New("", "", email, "")),
+		debt.WithMoneyAccountID(optionalUUID(d.MoneyAccountID)),
+		debt.WithProjectID(optionalUUID(d.ProjectID)),
 	}
 
 	if !time.Time(d.DueDate).IsZero() {
@@ -131,9 +145,22 @@ func (d *DebtUpdateDTO) Apply(existing debt.Debt) (debt.Debt, error) {
 
 	updated := existing
 
+	currency := existing.OriginalAmount().Currency().Code
+	if d.CurrencyCode != "" {
+		currency = d.CurrencyCode
+	}
 	if d.Amount > 0 {
-		amount := money.NewFromFloat(d.Amount, "USD")
-		updated = updated.UpdateOriginalAmount(amount).UpdateOutstandingAmount(amount)
+		updated = updated.UpdateOriginalAmount(money.NewFromFloat(d.Amount, currency))
+	} else {
+		updated = updated.UpdateOriginalAmount(money.New(existing.OriginalAmount().Amount(), currency))
+	}
+	if existing.Status().IsOpen() {
+		// What was already paid stays paid when the amount changes.
+		paid := existing.OriginalAmount().Amount() - existing.OutstandingAmount().Amount()
+		outstanding := max(updated.OriginalAmount().Amount()-paid, 0)
+		updated = updated.UpdateOutstandingAmount(money.New(outstanding, currency))
+	} else {
+		updated = updated.UpdateOutstandingAmount(money.New(existing.OutstandingAmount().Amount(), currency))
 	}
 
 	if d.CounterpartyID != "" {
@@ -163,7 +190,19 @@ func (d *DebtUpdateDTO) Apply(existing debt.Debt) (debt.Debt, error) {
 		updated = updated.UpdateDueDate(&dueDate)
 	}
 
+	updated = updated.
+		UpdateMoneyAccountID(optionalUUID(d.MoneyAccountID)).
+		UpdateProjectID(optionalUUID(d.ProjectID))
+
 	return updated, nil
+}
+
+func optionalUUID(value string) *uuid.UUID {
+	id, err := uuid.Parse(value)
+	if err != nil {
+		return nil
+	}
+	return &id
 }
 
 func (d *DebtSettleDTO) Ok(ctx context.Context) (map[string]string, bool) {

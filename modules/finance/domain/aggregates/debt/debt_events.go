@@ -92,6 +92,22 @@ func NewDebtWrittenOffEvent(ctx context.Context, result Debt) (*WrittenOff, erro
 	}, nil
 }
 
+func NewDebtCancelledEvent(ctx context.Context, result Debt) (*Cancelled, error) {
+	sender, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sess, err := composables.UseSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &Cancelled{
+		Session: sess,
+		Sender:  sender,
+		Result:  result,
+	}, nil
+}
+
 type Created struct {
 	Sender  user.User
 	Session session.Session
@@ -119,6 +135,12 @@ type Settled struct {
 }
 
 type WrittenOff struct {
+	Sender  user.User
+	Session session.Session
+	Result  Debt
+}
+
+type Cancelled struct {
 	Sender  user.User
 	Session session.Session
 	Result  Debt

@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 type DateRange struct {
@@ -31,6 +32,9 @@ type Repository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (Debt, error)
 	GetByCounterpartyID(ctx context.Context, counterpartyID uuid.UUID) ([]Debt, error)
 	GetCounterpartyAggregates(ctx context.Context) ([]CounterpartyAggregate, error)
+	// OpenPayableTotals sums what is still owed on open payable debts, one
+	// amount per currency. A non-nil accountID limits it to that account.
+	OpenPayableTotals(ctx context.Context, accountID *uuid.UUID) ([]*money.Money, error)
 	Create(ctx context.Context, debt Debt) (Debt, error)
 	Update(ctx context.Context, debt Debt) (Debt, error)
 	Delete(ctx context.Context, id uuid.UUID) error

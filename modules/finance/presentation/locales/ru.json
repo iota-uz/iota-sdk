@@ -504,15 +504,24 @@
       "Amount": "Сумма",
       "OriginalAmount": "Первоначальная сумма",
       "OutstandingAmount": "Остаток долга",
+      "Currency": "Валюта",
+      "SelectCurrency": "Выберите валюту",
+      "Account": "Счёт",
+      "NoAccount": "Без счёта",
+      "Project": "Проект",
+      "NoProject": "Без проекта",
       "_Description": "Описание",
       "DueDate": "Срок погашения",
       "SettlementTransactionID": "Транзакция погашения",
       "Settle": "Погасить долг",
+      "SettlementAmount": "Сумма погашения",
       "WriteOff": "Списать",
+      "CancelDebt": "Отменить долг",
       "Delete": "Удалить долг",
       "DeleteConfirmation": "Вы уверены, что хотите удалить этот долг?",
       "SettleConfirmation": "Вы уверены, что хотите погасить этот долг?",
       "WriteOffConfirmation": "Вы уверены, что хотите списать этот долг как безнадёжный?",
+      "CancelDebtConfirmation": "Отменить долг? Он перестанет числиться и резервировать деньги.",
       "SelectTransaction": "Выбрать транзакцию"
     },
     "Types": {
@@ -523,7 +532,11 @@
       "PENDING": "Ожидает",
       "SETTLED": "Погашен",
       "PARTIAL": "Частично погашен",
-      "WRITTEN_OFF": "Списан"
+      "WRITTEN_OFF": "Списан",
+      "CANCELLED": "Отменён"
+    },
+    "Errors": {
+      "AccountCurrency": "Валюта счёта не совпадает с валютой долга"
     },
     "Actions": {
       "Created": "Долг успешно создан",
@@ -572,6 +585,11 @@
       "AttachedFiles": "Прикрепленные документы",
       "DeleteConfirmation": "Вы уверены, что хотите удалить этот документ?",
       "DeleteFile": "Удалить документ"
+    },
+    "Balances": {
+      "OnAccounts": "На счетах",
+      "Reserved": "В резерве по обязательствам",
+      "Available": "Доступно"
     }
   },
   "ValidationErrors": {
