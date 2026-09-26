@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+import { createEffect, createSignal, onCleanup } from 'solid-js'
 import { Check, Copy } from '../icons'
 import { useTranslate } from '../runtime'
 
@@ -12,15 +13,15 @@ const copiedStatusDurationMs = 3000
 /** Copies the canonical browser URL, which is the Lens slice state contract. */
 export function ShareSliceButton() {
   const translate = useTranslate()
-  const [status, setStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const [status, setStatus] = createSignal<'idle' | 'copied' | 'error'>('idle')
   const label = translate('share.copy', 'Copy slice link')
   const copiedLabel = translate('share.copied', 'Link copied')
 
-  useEffect(() => {
-    if (status !== 'copied') return undefined
+  createEffect(() => {
+    if (status() !== 'copied') return
     const timeout = globalThis.setTimeout(() => setStatus('idle'), copiedStatusDurationMs)
-    return () => globalThis.clearTimeout(timeout)
-  }, [status])
+    onCleanup(() => globalThis.clearTimeout(timeout))
+  })
 
   const copy = async () => {
     try {
@@ -32,7 +33,7 @@ export function ShareSliceButton() {
   }
 
   return (
-    <div className="lens-export-control lens-share-control">
+    <div class="lens-export-control lens-share-control">
       {/* The glyph-only member of the secondary weight, not the icon-only weight:
           `.lens-action-square` keeps the box, the border and the 32px hit target
           of the labelled controls beside it, which is what a bare
@@ -46,24 +47,24 @@ export function ShareSliceButton() {
           confirmation that follows the press. */}
       <button
         aria-label={label}
-        className="lens-export-button lens-action-square"
+        class="lens-export-button lens-action-square"
         onClick={() => { void copy() }}
         title={label}
         type="button"
       >
-        {status === 'copied' ? <Check /> : <Copy />}
+        {status() === 'copied' ? <Check /> : <Copy />}
       </button>
       {/* Right-anchored to the trigger and sized to its own text: hung under a
           32px square at the trigger's width it would be one word per line. It
           floats rather than sitting in the flow because this is the dashboard
           header, where nothing clips and a reflow would shove the whole control
           bar sideways for the three seconds it shows. */}
-      {status !== 'idle' && (
+      {status() !== 'idle' && (
         <span
-          className={`lens-export-message${status === 'error' ? ' lens-export-message-error' : ''}`}
+          class={`lens-export-message${status() === 'error' ? ' lens-export-message-error' : ''}`}
           role="status"
         >
-          {status === 'error' ? translate('share.error', 'Unable to copy link') : copiedLabel}
+          {status() === 'error' ? translate('share.error', 'Unable to copy link') : copiedLabel}
         </span>
       )}
     </div>

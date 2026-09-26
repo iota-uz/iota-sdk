@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react'
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+import { createSignal, onCleanup } from 'solid-js'
 import { useTranslate } from '../runtime'
 import { copyText } from '../runtime/clipboard'
 import { Check, Copy } from '../icons'
@@ -17,18 +18,18 @@ export interface CopyValueButtonProps {
  * and the check it turns into is the only confirmation there is: nothing else
  * on screen changes when a copy succeeds.
  */
-export function CopyValueButton({ raw }: CopyValueButtonProps) {
+export function CopyValueButton(props: CopyValueButtonProps) {
   const translate = useTranslate()
-  const [copied, setCopied] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout>>()
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
-  const label = copied ? translate('explore.copied', 'Copied') : translate('explore.copyValue', 'Copy value')
+  const [copied, setCopied] = createSignal(false)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  onCleanup(() => { if (timer) clearTimeout(timer) })
+  const label = () => copied() ? translate('explore.copied', 'Copied') : translate('explore.copyValue', 'Copy value')
   return (
     <button
-      aria-label={label}
-      className="lens-icon-button lens-tooltip-copy"
-      data-copied={copied ? 'true' : undefined}
-      onClick={(event: MouseEvent<HTMLButtonElement>) => {
+      aria-label={label()}
+      class="lens-icon-button lens-tooltip-copy"
+      data-copied={copied() ? 'true' : undefined}
+      onClick={(event) => {
         // The tooltip floats over a column that is itself a drill target. A
         // copy is not a drill, so the activation stops here.
         event.stopPropagation()
@@ -37,15 +38,15 @@ export function CopyValueButton({ raw }: CopyValueButtonProps) {
         // rejecting, and a button that silently never confirms is worse than
         // one that confirms a write the browser then refused — the value is
         // still on screen either way.
-        void copyText(raw)
+        void copyText(props.raw)
         setCopied(true)
-        if (timer.current) clearTimeout(timer.current)
-        timer.current = setTimeout(() => setCopied(false), 1500)
+        if (timer) clearTimeout(timer)
+        timer = setTimeout(() => setCopied(false), 1500)
       }}
-      title={label}
+      title={label()}
       type="button"
     >
-      {copied ? <Check /> : <Copy />}
+      {copied() ? <Check /> : <Copy />}
     </button>
   )
 }

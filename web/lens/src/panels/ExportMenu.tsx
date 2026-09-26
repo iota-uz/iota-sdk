@@ -1,4 +1,6 @@
-import { createPortal } from 'react-dom'
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+import { For, Show } from 'solid-js'
+import { Portal } from 'solid-js/web'
 import { ArrowClockwise, CaretDown, CircleNotch, DownloadSimple } from '../icons'
 import { useExport, usePrint, useTranslate } from '../runtime'
 import { useMenuButton } from './useMenuButton'
@@ -33,106 +35,114 @@ export function ExportMenu() {
     closeAndFocusTrigger, container, itemRef, menu, menuPlacementProps, onMenuKeyDown, open, overlay, setOpen, trigger,
   } = useMenuButton('start')
 
-  const choices: ExportChoice[] = []
-  if (exportState.available) {
-    choices.push({
-      key: 'data',
-      label: translate('export.data', 'Data (XLSX)'),
-      pending: exportState.status === 'pending',
-      retry: exportState.status === 'retry',
-      message: exportState.message ?? undefined,
-      run: () => { void exportState.run() },
-    })
+  const choices = (): ExportChoice[] => {
+    const list: ExportChoice[] = []
+    if (exportState.available) {
+      list.push({
+        key: 'data',
+        label: translate('export.data', 'Data (XLSX)'),
+        pending: exportState.status === 'pending',
+        retry: exportState.status === 'retry',
+        message: exportState.message ?? undefined,
+        run: () => { void exportState.run() },
+      })
+    }
+    if (print.available) {
+      list.push({
+        key: 'report',
+        label: translate('export.report', 'Report (PDF)'),
+        pending: print.status === 'pending',
+        retry: false,
+        message: print.message ?? undefined,
+        run: () => { void print.run() },
+      })
+    }
+    return list
   }
-  if (print.available) {
-    choices.push({
-      key: 'report',
-      label: translate('export.report', 'Report (PDF)'),
-      pending: print.status === 'pending',
-      retry: false,
-      message: print.message ?? undefined,
-      run: () => { void print.run() },
-    })
-  }
-  if (choices.length === 0) return null
 
-  const busy = choices.find((choice) => choice.pending)
-  const status = busy ?? choices.find((choice) => choice.message)
-  const single = choices.length === 1 ? choices[0] : undefined
+  const busy = () => choices().find((choice) => choice.pending)
+  const status = () => busy() ?? choices().find((choice) => choice.message)
+  const single = () => choices().length === 1 ? choices()[0] : undefined
   // Retry only changes the trigger's face when it is also what a click does:
   // a click on a multi-choice trigger opens the menu regardless of whether
   // one of its choices needs retrying, so the retry label/icon belong to
   // `single` alone.
-  const retrying = Boolean(single?.retry)
-  const label = busy
-    ? (busy.key === 'report'
+  const retrying = () => Boolean(single()?.retry)
+  const label = () => busy()
+    ? (busy()!.key === 'report'
       ? translate('print.pending', 'Preparing report…')
       : translate('export.pending', 'Exporting…'))
-    : single
-      ? (retrying ? translate('export.retry', 'Retry export') : single.label)
+    : single()
+      ? (retrying() ? translate('export.retry', 'Retry export') : single()!.label)
       : translate('export.menu', 'Export')
 
   return (
-    <div className="lens-export-control" ref={container}>
-      <button
-        aria-busy={Boolean(busy)}
-        aria-expanded={single ? undefined : open}
-        aria-haspopup={single ? undefined : 'menu'}
-        className={`lens-export-button${retrying ? ' lens-export-button-retry' : ''}`}
-        disabled={Boolean(busy)}
-        onClick={() => {
-          if (single) {
-            single.run()
-            return
-          }
-          setOpen((current) => !current)
-        }}
-        ref={trigger}
-        title={status?.message ?? undefined}
-        type="button"
-      >
-        {busy
-          ? <CircleNotch className="lens-icon-spin" />
-          : retrying ? <ArrowClockwise /> : <DownloadSimple />}
-        <span>{label}</span>
-        {!single && !busy && <CaretDown className="lens-export-caret" />}
-      </button>
-      {open && !single && overlay && createPortal(
-        <div
-          className="lens-export-menu"
-          onKeyDown={onMenuKeyDown}
-          ref={menu}
-          role="menu"
-          tabIndex={-1}
-          {...menuPlacementProps}
+    <Show when={choices().length > 0}>
+      <div class="lens-export-control" ref={(el) => { container.current = el }}>
+        <button
+          aria-busy={Boolean(busy())}
+          aria-expanded={single() ? undefined : open()}
+          aria-haspopup={single() ? undefined : 'menu'}
+          class={`lens-export-button${retrying() ? ' lens-export-button-retry' : ''}`}
+          disabled={Boolean(busy())}
+          onClick={() => {
+            if (single()) {
+              single()!.run()
+              return
+            }
+            setOpen((current) => !current)
+          }}
+          ref={(el) => { trigger.current = el }}
+          title={status()?.message ?? undefined}
+          type="button"
         >
-          {choices.map((choice) => (
-            <button
-              className="lens-export-menu-item"
-              key={choice.key}
-              onClick={() => {
-                closeAndFocusTrigger()
-                choice.run()
-              }}
-              ref={itemRef(choice.key)}
-              role="menuitem"
-              type="button"
+          {busy()
+            ? <CircleNotch className="lens-icon-spin" />
+            : retrying() ? <ArrowClockwise /> : <DownloadSimple />}
+          <span>{label()}</span>
+          {!single() && !busy() && <CaretDown className="lens-export-caret" />}
+        </button>
+        <Show when={open() && !single() && overlay()}>
+          <Portal mount={overlay()}>
+            <div
+              class="lens-export-menu"
+              onKeyDown={onMenuKeyDown}
+              ref={(el) => { menu.current = el }}
+              role="menu"
+              tabIndex={-1}
+              data-align={menuPlacementProps().align}
+              data-side={menuPlacementProps().side}
+              style={menuPlacementProps().style}
             >
-              {choice.label}
-            </button>
-          ))}
-        </div>,
-        overlay,
-      )}
-      {(busy || status?.message) && (
-        <span
-          className={`lens-export-message${exportState.status === 'error' || print.status === 'error' ? ' lens-export-message-error' : ''}${
-            busy ? ' lens-export-message-pending' : ''}`}
-          role="status"
-        >
-          {busy ? label : status?.message}
-        </span>
-      )}
-    </div>
+              <For each={choices()}>
+                {(choice) => (
+                  <button
+                    class="lens-export-menu-item"
+                    onClick={() => {
+                      closeAndFocusTrigger()
+                      choice.run()
+                    }}
+                    ref={(el) => itemRef(choice.key)(el)}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {choice.label}
+                  </button>
+                )}
+              </For>
+            </div>
+          </Portal>
+        </Show>
+        {(busy() || status()?.message) && (
+          <span
+            class={`lens-export-message${exportState.status === 'error' || print.status === 'error' ? ' lens-export-message-error' : ''}${
+              busy() ? ' lens-export-message-pending' : ''}`}
+            role="status"
+          >
+            {busy() ? label() : status()?.message}
+          </span>
+        )}
+      </div>
+    </Show>
   )
 }

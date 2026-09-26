@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { createEffect, createSignal, onCleanup } from 'solid-js'
 import type { Filter } from '../contract'
 import { useDashboard } from '../runtime'
 
@@ -44,18 +44,18 @@ export function useFacetOptions(facet: NonNullable<Filter['facet']> | undefined)
   const { document: runtimeDocument } = useDashboard()
   const optionsEndpoint = facet?.optionsEndpoint ?? ''
   const searchParam = facet?.searchParam
-  const cache = useRef(new Map<string, FacetOptionsResponse>())
-  const inFlight = useRef(new Map<string, Promise<FacetOptionsResponse>>())
-  const [search, setSearch] = useState('')
-  const [options, setOptions] = useState<Array<FacetOption>>([])
-  const [applyTarget, setApplyTarget] = useState('')
-  const [status, setStatus] = useState<FacetOptionsStatus>('idle')
+  const cache = new Map<string, FacetOptionsResponse>()
+  const inFlight = new Map<string, Promise<FacetOptionsResponse>>()
+  const [search, setSearch] = createSignal('')
+  const [options, setOptions] = createSignal<Array<FacetOption>>([])
+  const [applyTarget, setApplyTarget] = createSignal('')
+  const [status, setStatus] = createSignal<FacetOptionsStatus>('idle')
 
-  const requestOptions = useCallback((query: string): Promise<FacetOptionsResponse> => {
+  const requestOptions = (query: string): Promise<FacetOptionsResponse> => {
     const target = optionsURL(optionsEndpoint, searchParam, query)
-    const cached = cache.current.get(target)
+    const cached = cache.get(target)
     if (cached) return Promise.resolve(cached)
-    const pending = inFlight.current.get(target)
+    const pending = inFlight.get(target)
     if (pending) return pending
     const request = fetch(target, {
       credentials: 'same-origin',
@@ -64,28 +64,29 @@ export function useFacetOptions(facet: NonNullable<Filter['facet']> | undefined)
       if (!response.ok) throw new Error(`facet options failed with ${response.status}`)
       return response.json() as Promise<FacetOptionsResponse>
     }).then((payload) => {
-      cache.current.set(target, payload)
+      cache.set(target, payload)
       return payload
-    }).finally(() => inFlight.current.delete(target))
-    inFlight.current.set(target, request)
+    }).finally(() => inFlight.delete(target))
+    inFlight.set(target, request)
     return request
-  }, [optionsEndpoint, searchParam])
+  }
 
-  useEffect(() => {
-    cache.current.clear()
-    inFlight.current.clear()
+  createEffect(() => {
+    cache.clear()
+    inFlight.clear()
     setOptions([])
     setApplyTarget('')
     setSearch('')
-  }, [optionsEndpoint])
+  })
 
-  useEffect(() => {
-    if (!optionsEndpoint) return undefined
+  createEffect(() => {
+    if (!optionsEndpoint) return
+    const query = search()
     let current = true
-    const target = optionsURL(optionsEndpoint, searchParam, search)
-    setStatus(cache.current.has(target) ? 'idle' : 'loading')
+    const target = optionsURL(optionsEndpoint, searchParam, query)
+    setStatus(cache.has(target) ? 'idle' : 'loading')
     const timer = globalThis.setTimeout(() => {
-      void requestOptions(search).then((payload) => {
+      void requestOptions(query).then((payload) => {
         if (!current) return
         setOptions(payload.options ?? [])
         setApplyTarget(payload.applyUrl)
@@ -93,12 +94,12 @@ export function useFacetOptions(facet: NonNullable<Filter['facet']> | undefined)
       }).catch(() => {
         if (current) setStatus('error')
       })
-    }, search.trim() ? (runtimeDocument.theme.debounceMs ?? 500) : 0)
-    return () => {
+    }, query.trim() ? (runtimeDocument.theme.debounceMs ?? 500) : 0)
+    onCleanup(() => {
       current = false
       globalThis.clearTimeout(timer)
-    }
-  }, [optionsEndpoint, requestOptions, runtimeDocument.theme.debounceMs, search, searchParam])
+    })
+  })
 
   return { applyTarget, options, search, setSearch, status }
 }

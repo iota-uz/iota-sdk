@@ -1,16 +1,18 @@
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
 import {
   createContext,
+  createMemo,
+  createSignal,
+  createUniqueId,
   lazy,
-  Suspense,
+  onCleanup,
+  onMount,
   useContext,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type CSSProperties,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
-} from 'react'
+  Suspense,
+  type Accessor,
+  type JSX,
+} from 'solid-js'
+import { For, Show } from 'solid-js'
 import type { Filter, LayoutGroup, LayoutItem, LayoutRow, Panel } from './contract'
 import { useDashboard, useDocumentState, useDrawer, useDrawerHeader, useFilters, usePrint, useTranslate } from './runtime'
 import { ExportMenu } from './panels/ExportMenu'
@@ -23,10 +25,15 @@ import { ExplorePanel } from './explore'
 import { FilterBar, FilterControls, type CalendarDate } from './controls'
 import { isVisualRegression } from './visualRegression'
 
+ 
+
+// Print keeps its React renderer during the migration; typed here so the
+// composition root compiles against the pending port.
+const LazyPrintReport = lazy(async () => ({
+  default: (await import('./print/PrintReport')).PrintReport as unknown as (props: object) => JSX.Element,
+}))
+
 /* eslint-disable react-refresh/only-export-components */
-
-const LazyPrintReport = lazy(() => import('./print/PrintReport').then(({ PrintReport }) => ({ default: PrintReport })))
-
 export interface DashboardPanelsProps {
   registry?: PanelRegistry
   /** Fixed calendar "today" for deterministic stories and visual regression. */
@@ -38,8 +45,8 @@ function boundedSpan(span: number): number {
   return Math.min(12, Math.max(1, Math.round(span)))
 }
 
-function spanStyle(span: number): CSSProperties {
-  return { '--lens-panel-span': boundedSpan(span) } as CSSProperties
+function spanStyle(span: number): JSX.CSSProperties {
+  return { '--lens-panel-span': boundedSpan(span) } as JSX.CSSProperties
 }
 
 interface LayoutCluster {
@@ -135,7 +142,7 @@ export function metricSpans(count: number, columns: number): number[] {
  * member can compute its span; 4 is the shape a producer chunks strips into
  * when nothing else is known.
  */
-const MetricColumnsContext = createContext(4)
+const MetricColumnsContext = createContext<number>(4)
 
 /**
  * Per-group active-tab memory keyed by group id, held for the dashboard's
@@ -145,69 +152,77 @@ const MetricColumnsContext = createContext(4)
  */
 const TabStateContext = createContext<Map<string, string> | null>(null)
 
-function PanelSlot({ panel, registry }: { panel: Panel; registry?: PanelRegistry }) {
-  return panel.drillRoot
-    ? <ExplorePanel panel={panel} registry={registry} />
-    : <RegisteredPanel panel={panel} registry={registry} />
+// The explore surface keeps its React signature during the Solid migration;
+// this typed bridge lets the composition root compile against the pending port.
+const ExplorePanelBridge = ExplorePanel as unknown as (props: { panel: Panel; registry?: PanelRegistry }) => JSX.Element
+
+function PanelSlot(props: { panel: Panel; registry?: PanelRegistry }) {
+  return props.panel.drillRoot
+    ? <ExplorePanelBridge panel={props.panel} registry={props.registry} />
+    : <RegisteredPanel panel={props.panel} registry={props.registry} />
 }
 
-function MissingPanel({ panelId }: { panelId: string }) {
+function MissingPanel(props: { panelId: string }) {
   const translate = useTranslate()
   return (
-    <div className="lens-panel-state" role="alert">
-      {translate('panel.missing', 'Panel “{id}” is missing.', { id: panelId })}
+    <div class="lens-panel-state" role="alert">
+      {translate('panel.missing', 'Panel “{id}” is missing.', { id: props.panelId })}
     </div>
   )
 }
 
-function GroupCard({ group, children }: { group: LayoutGroup; children: ReactNode }) {
+function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
   const { isRefreshing } = useDocumentState()
   return (
-    <div className="lens-grid-item" style={spanStyle(group.span)}>
+    <div class="lens-grid-item" style={spanStyle(props.group.span)}>
       <section
-        aria-label={group.label || undefined}
-        className={`lens-panel lens-panel-group ${group.kind === 'tabs' ? 'lens-panel-group-tabs' : 'lens-panel-group-metrics'}`}
+        aria-label={props.group.label || undefined}
+        class={`lens-panel lens-panel-group ${props.group.kind === 'tabs' ? 'lens-panel-group-tabs' : 'lens-panel-group-metrics'}`}
       >
-        {(group.label || group.status) && (
-          <header className="lens-panel-header lens-panel-group-header">
-            {group.label && <h3 className="lens-panel-title">{group.label}</h3>}
+        <Show when={Boolean(props.group.label || props.group.status)}>
+          <header class="lens-panel-header lens-panel-group-header">
+            <Show when={props.group.label}>
+              <h3 class="lens-panel-title">{props.group.label}</h3>
+            </Show>
             {/* A uniform-status group shows one hoisted chip here; the members
                 below then render without their own repeated chip. */}
-            {group.status && <StatusChip status={group.status} />}
+            <Show when={props.group.status}>
+              <StatusChip status={props.group.status!} />
+            </Show>
           </header>
-        )}
+        </Show>
         {/* A group's caption reads for the whole strip, so it sits under the
             heading rather than inside any one member's card. It is a
             server-produced string that names the period the figures below are
             for, so while a new document is in flight it describes the previous
             one — it dims with them rather than standing at full strength over
             superseded numbers. */}
-        {group.caption && (
-          <p className="lens-panel-caption" data-stale={isRefreshing || undefined}>{group.caption}</p>
-        )}
-        {children}
+        <Show when={props.group.caption}>
+          <p class="lens-panel-caption" data-stale={isRefreshing || undefined}>{props.group.caption}</p>
+        </Show>
+        {props.children}
       </section>
     </div>
   )
 }
 
 /** A single ungrouped panel occupying its own grid slot. */
-function LeafItem({ item, panels, registry }: {
+function LeafItem(props: {
   item: LayoutItem
   panels: Map<string, Panel>
   registry?: PanelRegistry
 }) {
-  const panel = panels.get(item.panelId)
+  const panel = props.panels.get(props.item.panelId)
   if (!panel) {
     return (
-      <div className="lens-panel lens-panel-unsupported lens-grid-item" style={spanStyle(item.span)}>
-        <MissingPanel panelId={item.panelId} />
+      <div class="lens-panel lens-panel-unsupported lens-grid-item" style={spanStyle(props.item.span)}>
+        <MissingPanel panelId={props.item.panelId} />
       </div>
     )
   }
   return (
-    <div className="lens-grid-item" style={spanStyle(item.span)}>
-      <PanelSlot panel={panel} registry={registry} />
+    <div class="lens-grid-item" style={spanStyle(props.item.span)}>
+      <PanelSlot panel={panel} registry={props.registry} />
     </div>
   )
 }
@@ -220,7 +235,7 @@ function LeafItem({ item, panels, registry }: {
  * arbitrary compositions (tabs-in-tabs, metrics-in-tabs, tabs after passthrough
  * containers, grouped mixed with ungrouped) fall out of one recursion.
  */
-function GroupChain({ items, depth, panels, registry, filterToday }: {
+function GroupChain(props: {
   items: LayoutItem[]
   depth: number
   panels: Map<string, Panel>
@@ -228,26 +243,27 @@ function GroupChain({ items, depth, panels, registry, filterToday }: {
   filterToday?: CalendarDate
 }) {
   return (
-    <>
-      {clusterAtDepth(items, depth).map((cluster, index) => {
+    <For each={clusterAtDepth(props.items, props.depth)}>
+      {(cluster) => {
         if (!cluster.group) {
-          return cluster.items.map((item) => (
-            <LeafItem item={item} key={item.panelId} panels={panels} registry={registry} />
-          ))
+          return (
+            <For each={cluster.items}>
+              {(item) => <LeafItem item={item} panels={props.panels} registry={props.registry} />}
+            </For>
+          )
         }
-        const key = `${cluster.group.id}-${depth}-${index}`
         if (cluster.group.kind === 'metrics') {
-          return <MetricsGroup group={cluster.group} items={cluster.items} key={key} panels={panels} registry={registry} />
+          return <MetricsGroup group={cluster.group} items={cluster.items} panels={props.panels} registry={props.registry} />
         }
         return (
-          <TabsGroup depth={depth} filterToday={filterToday} group={cluster.group} items={cluster.items} key={key} panels={panels} registry={registry} />
+          <TabsGroup depth={props.depth} filterToday={props.filterToday} group={cluster.group} items={cluster.items} panels={props.panels} registry={props.registry} />
         )
-      })}
-    </>
+      }}
+    </For>
   )
 }
 
-function MetricsGroup({ group, items, panels, registry }: {
+function MetricsGroup(props: {
   group: LayoutGroup
   items: LayoutItem[]
   panels: Map<string, Panel>
@@ -257,41 +273,42 @@ function MetricsGroup({ group, items, panels, registry }: {
   // One span per breakpoint: the document's own column count on a wide card,
   // two columns on a narrow one. The cell carries both, and the sheet picks
   // which one applies — a container query cannot compute an integer.
-  const spans = metricSpans(items.length, columns)
-  const spansNarrow = metricSpans(items.length, 2)
+  const spans = metricSpans(props.items.length, columns)
+  const spansNarrow = metricSpans(props.items.length, 2)
   return (
-    <GroupCard group={group}>
+    <GroupCard group={props.group}>
       {/* Class names stay literal: Tailwind's content scan cannot see an
           interpolated modifier and would drop the rule. */}
-      <div className={`lens-metric-row ${group.layout === 'rows' ? 'lens-metric-row-rows' : 'lens-metric-row-columns'}`}>
-        {items.map((item, index) => {
-          const panel = panels.get(item.panelId)
-          // Every member sits in the same kind of box, whatever it contains.
-          // A cell that wrapped its own content (a navigable stat used to) sized
-          // itself differently from one that did not, which is how one strip
-          // ended up with 447px and 480px cells side by side.
-          return (
-            <div
-              className="lens-metric-cell"
-              style={{
-                '--lens-metric-span': spans[index] ?? 1,
-                '--lens-metric-span-2': spansNarrow[index] ?? 1,
-              } as CSSProperties}
-              key={item.panelId}
-            >
-              {!panel
-                ? <MissingPanel panelId={item.panelId} />
-                // Only stat panels have a chrome-free metric form; anything else
-                // keeps its own card so the group degrades instead of breaking.
-                // A stat that hosts a drill root needs its card chrome (the trail
-                // and the breakdown affordance live there), so it opts out of the
-                // compact metric form rather than losing its exploration.
-                : panel.kind === 'stat' && !panel.drillRoot
-                  ? <StatMetric panel={panel} />
-                  : <PanelSlot panel={panel} registry={registry} />}
-            </div>
-          )
-        })}
+      <div class={`lens-metric-row ${props.group.layout === 'rows' ? 'lens-metric-row-rows' : 'lens-metric-row-columns'}`}>
+        <For each={props.items}>
+          {(item, index) => {
+            const panel = props.panels.get(item.panelId)
+            // Every member sits in the same kind of box, whatever it contains.
+            // A cell that wrapped its own content (a navigable stat used to) sized
+            // itself differently from one that did not, which is how one strip
+            // ended up with 447px and 480px cells side by side.
+            return (
+              <div
+                class="lens-metric-cell"
+                style={{
+                  '--lens-metric-span': spans[index()] ?? 1,
+                  '--lens-metric-span-2': spansNarrow[index()] ?? 1,
+                } as JSX.CSSProperties}
+              >
+                {!panel
+                  ? <MissingPanel panelId={item.panelId} />
+                  // Only stat panels have a chrome-free metric form; anything else
+                  // keeps its own card so the group degrades instead of breaking.
+                  // A stat that hosts a drill root needs its card chrome (the trail
+                  // and the breakdown affordance live there), so it opts out of the
+                  // compact metric form rather than losing its exploration.
+                  : panel.kind === 'stat' && !panel.drillRoot
+                    ? <StatMetric panel={panel} />
+                    : <PanelSlot panel={panel} registry={props.registry} />}
+              </div>
+            )
+          }}
+        </For>
       </div>
     </GroupCard>
   )
@@ -331,7 +348,7 @@ function namesItsOnlyPanel(
   return Boolean(title) && comparableTitle(title!) === comparableTitle(tab)
 }
 
-function TabsGroup({ group, items, depth, panels, registry, filterToday }: {
+function TabsGroup(props: {
   group: LayoutGroup
   items: LayoutItem[]
   depth: number
@@ -343,18 +360,18 @@ function TabsGroup({ group, items, depth, panels, registry, filterToday }: {
   const { filters } = useFilters()
   const print = usePrint()
   const store = useContext(TabStateContext)
-  const baseId = useId()
-  const tabs = [...new Set(items.map((item) => groupAt(item, depth)?.tab ?? ''))]
+  const baseId = createUniqueId()
+  const tabs = [...new Set(props.items.map((item) => groupAt(item, props.depth)?.tab ?? ''))]
   // The initial tab is restored from the per-group store so an inner group's
   // selection survives an outer tab switching away and back (which remounts it).
-  const [active, setActive] = useState(() => store?.get(group.id) ?? tabs[0] ?? '')
-  const current = tabs.includes(active) ? active : tabs[0] ?? ''
-  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const [focused, setFocused] = useState(current)
-  const focusCurrent = tabs.includes(focused) ? focused : current
+  const [active, setActive] = createSignal(store?.get(props.group.id) ?? tabs[0] ?? '')
+  const current = createMemo(() => tabs.includes(active()) ? active() : tabs[0] ?? '')
+  const tabRefs: Array<HTMLButtonElement | null> = []
+  const [focused, setFocused] = createSignal(current())
+  const focusCurrent = createMemo(() => tabs.includes(focused()) ? focused() : current())
 
   const select = (tab: string) => {
-    store?.set(group.id, tab)
+    store?.set(props.group.id, tab)
     setActive(tab)
     setFocused(tab)
   }
@@ -362,7 +379,7 @@ function TabsGroup({ group, items, depth, panels, registry, filterToday }: {
   // Roving-tabindex keyboard model (WAI-ARIA tabs). The handler is on each tab
   // button, and it stops propagation, so an inner tablist's arrow keys never
   // reach and move an ancestor tablist.
-  const onTabKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+  const onTabKeyDown = (event: KeyboardEvent, index: number) => {
     let next = index
     if (event.key === 'ArrowRight') next = (index + 1) % tabs.length
     else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length
@@ -374,43 +391,44 @@ function TabsGroup({ group, items, depth, panels, registry, filterToday }: {
     event.preventDefault()
     event.stopPropagation()
     setFocused(nextTab)
-    tabRefs.current[next]?.focus()
+    tabRefs[next]?.focus()
   }
 
   const tabId = (index: number) => `${baseId}-tab-${index}`
   const panelId = (index: number) => `${baseId}-panel-${index}`
   const filtersForTab = (tab: string): Filter[] => filters.filter((filter) => (
-    filter.placement?.groupId === group.id && filter.placement.tab === tab
+    filter.placement?.groupId === props.group.id && filter.placement.tab === tab
   ))
 
   return (
-    <GroupCard group={group}>
+    <GroupCard group={props.group}>
       {/* An unlabelled group would otherwise expose its raw id to a screen
           reader; a translated generic name is the honest fallback. */}
-      <div className="lens-tabstrip" role="tablist" aria-label={group.label || translate('dashboard.tabs', 'Tabs')}>
-        {tabs.map((tab, index) => (
-          <button
-            aria-controls={panelId(index)}
-            aria-selected={tab === current}
-            className="lens-tabstrip-tab"
-            data-testid={`lens-tabs-${group.id}-tab-${index}`}
-            id={tabId(index)}
-            key={tab}
-            onClick={() => select(tab)}
-            onKeyDown={(event) => onTabKeyDown(event, index)}
-            ref={(node) => { tabRefs.current[index] = node }}
-            role="tab"
-            tabIndex={tab === focusCurrent ? 0 : -1}
-            type="button"
-            onKeyUp={(event) => {
-              if (event.key !== 'Enter' && event.key !== ' ') return
-              event.preventDefault()
-              select(tab)
-            }}
-          >
-            {tab}
-          </button>
-        ))}
+      <div class="lens-tabstrip" role="tablist" aria-label={props.group.label || translate('dashboard.tabs', 'Tabs')}>
+        <For each={tabs}>
+          {(tab, index) => (
+            <button
+              aria-controls={panelId(index())}
+              aria-selected={tab === current()}
+              class="lens-tabstrip-tab"
+              data-testid={`lens-tabs-${props.group.id}-tab-${index()}`}
+              id={tabId(index())}
+              onClick={() => select(tab)}
+              onKeyDown={(event) => onTabKeyDown(event, index())}
+              ref={(node) => { tabRefs[index()] = node }}
+              role="tab"
+              tabIndex={tab === focusCurrent() ? 0 : -1}
+              type="button"
+              onKeyUp={(event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return
+                event.preventDefault()
+                select(tab)
+              }}
+            >
+              {tab}
+            </button>
+          )}
+        </For>
       </div>
       {/* Every tabpanel element exists so each tab's aria-controls resolves, but
           only the active one mounts its content — the inactive ones are hidden
@@ -418,36 +436,37 @@ function TabsGroup({ group, items, depth, panels, registry, filterToday }: {
           the report covers every tab, so the others mount to resolve their
           frames. They stay hidden while it does, or the dashboard behind the
           report flashes every tab at once. */}
-      {tabs.map((tab, index) => (
-        <div
-          aria-labelledby={tabId(index)}
-          className="lens-panel-grid lens-tab-panel"
-          hidden={tab !== current}
-          id={panelId(index)}
-          key={tab}
-          role="tabpanel"
-          tabIndex={0}
-        >
-          {(print.active || tab === current) && (
-            <>
-              {filtersForTab(tab).length > 0 && (
-                <div className="lens-tab-filter-bar" role="group">
-                  <FilterControls filters={filtersForTab(tab)} today={filterToday} />
-                </div>
-              )}
-              <PanelChromeContext.Provider value={namesItsOnlyPanel(tab, items, depth, panels) ? redundantTitle : undefined}>
-                <GroupChain
-                  depth={depth + 1}
-                  items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
-                  panels={panels}
-                  registry={registry}
-                  filterToday={filterToday}
-                />
-              </PanelChromeContext.Provider>
-            </>
-          )}
-        </div>
-      ))}
+      <For each={tabs}>
+        {(tab, index) => (
+          <div
+            aria-labelledby={tabId(index())}
+            class="lens-panel-grid lens-tab-panel"
+            hidden={tab !== current()}
+            id={panelId(index())}
+            role="tabpanel"
+            tabIndex={0}
+          >
+            {(print.active || tab === current()) && (
+              <>
+                {filtersForTab(tab).length > 0 && (
+                  <div class="lens-tab-filter-bar" role="group">
+                    <FilterControls filters={filtersForTab(tab)} today={props.filterToday} />
+                  </div>
+                )}
+                <PanelChromeContext.Provider value={namesItsOnlyPanel(tab, props.items, props.depth, props.panels) ? redundantTitle : undefined}>
+                  <GroupChain
+                    depth={props.depth + 1}
+                    items={props.items.filter((item) => (groupAt(item, props.depth)?.tab ?? '') === tab)}
+                    panels={props.panels}
+                    registry={props.registry}
+                    filterToday={props.filterToday}
+                  />
+                </PanelChromeContext.Provider>
+              </>
+            )}
+          </div>
+        )}
+      </For>
     </GroupCard>
   )
 }
@@ -483,28 +502,31 @@ const stalenessThresholdMs = 60 * 60_000
  * Ticks once a minute so the relative label stays current. Shared by the lone
  * freshness line and the header subtitle that folds it in.
  */
-function useFreshness(): { label: string; isRefreshing: boolean; absolute: string; stale: boolean } | null {
+function useFreshness(): Accessor<{ label: string; isRefreshing: boolean; absolute: string; stale: boolean } | null> {
   const { document } = useDashboard()
   const { isRefreshing } = useDocumentState()
   const drawer = useDrawer()
   const translate = useTranslate()
-  const [, tick] = useState(0)
+  const [tick, setTick] = createSignal(0)
 
-  useEffect(() => {
+  onMount(() => {
     if (isVisualRegression()) return
-    const id = setInterval(() => tick((value) => value + 1), 60_000)
-    return () => clearInterval(id)
-  }, [])
+    const id = setInterval(() => setTick((value) => value + 1), 60_000)
+    onCleanup(() => clearInterval(id))
+  })
 
-  if (drawer.depth > 0 || isVisualRegression()) return null
-  const generatedAt = Date.parse(document.meta.generatedAt)
-  if (!Number.isFinite(generatedAt)) return null
-  const label = isRefreshing
-    ? translate('panel.updating', 'Updating')
-    : translate('dashboard.updated', 'Updated {time}', { time: relativeTime(generatedAt, document.meta.locale) })
-  const absolute = new Intl.DateTimeFormat(document.meta.locale, { dateStyle: 'medium', timeStyle: 'short' })
-    .format(generatedAt)
-  return { label, isRefreshing, absolute, stale: Date.now() - generatedAt > stalenessThresholdMs }
+  return createMemo(() => {
+    void tick()
+    if (drawer.depth > 0 || isVisualRegression()) return null
+    const generatedAt = Date.parse(document.meta.generatedAt)
+    if (!Number.isFinite(generatedAt)) return null
+    const label = isRefreshing
+      ? translate('panel.updating', 'Updating')
+      : translate('dashboard.updated', 'Updated {time}', { time: relativeTime(generatedAt, document.meta.locale) })
+    const absolute = new Intl.DateTimeFormat(document.meta.locale, { dateStyle: 'medium', timeStyle: 'short' })
+      .format(generatedAt)
+    return { label, isRefreshing, absolute, stale: Date.now() - generatedAt > stalenessThresholdMs }
+  })
 }
 
 /**
@@ -535,48 +557,48 @@ function FreshnessControl() {
   const { isRecomputing, recompute, canRecompute } = useDashboard()
   const translate = useTranslate()
   const freshness = useFreshness()
-  const hintID = useId()
+  const hintID = createUniqueId()
 
-  if (!canRecompute) {
-    if (!freshness) return null
-    return (
-      <p
-        aria-live="polite"
-        className="lens-dashboard-updated"
-        data-refreshing={freshness.isRefreshing || undefined}
-        data-stale={freshness.stale || undefined}
-        title={freshness.absolute}
-      >
-        <Clock />
-        <span>{freshness.label}</span>
-      </p>
-    )
-  }
-
-  // A relative label alone reads as uptime: it ticks up with wall-clock time
-  // whether or not anything went stale, so the absolute timestamp is what the
-  // control actually claims, on hover and in the description.
-  const hint = isRecomputing
+  const hint = createMemo(() => isRecomputing
     ? translate('dashboard.recomputing', 'Recomputing…')
-    : translate('dashboard.recomputeHint', 'Refresh every figure, ignoring the cached results')
+    : translate('dashboard.recomputeHint', 'Refresh every figure, ignoring the cached results'))
+
   return (
-    <>
+    <Show when={canRecompute} fallback={
+      <Show when={freshness()}>
+        {(value) => (
+          <p
+            aria-live="polite"
+            class="lens-dashboard-updated"
+            data-refreshing={value().isRefreshing || undefined}
+            data-stale={value().stale || undefined}
+            title={value().absolute}
+          >
+            <Clock />
+            <span>{value().label}</span>
+          </p>
+        )}
+      </Show>
+    }>
+      {/* A relative label alone reads as uptime: it ticks up with wall-clock time
+          whether or not anything went stale, so the absolute timestamp is what the
+          control actually claims, on hover and in the description. */}
       <button
         aria-busy={isRecomputing}
         aria-describedby={hintID}
         aria-live="polite"
-        className="lens-export-button lens-recompute"
-        data-stale={freshness?.stale || undefined}
+        class="lens-export-button lens-recompute"
+        data-stale={freshness()?.stale || undefined}
         disabled={isRecomputing}
         onClick={recompute}
-        title={freshness ? `${freshness.absolute} — ${hint}` : hint}
+        title={freshness() ? `${freshness()!.absolute} — ${hint()}` : hint()}
         type="button"
       >
         {isRecomputing ? <CircleNotch className="lens-icon-spin" /> : <ArrowClockwise />}
-        <span>{freshness ? freshness.label : translate('dashboard.recompute', 'Recompute')}</span>
+        <span>{freshness() ? freshness()!.label : translate('dashboard.recompute', 'Recompute')}</span>
       </button>
-      <span className="lens-sr-only" id={hintID}>{hint}</span>
-    </>
+      <span class="lens-sr-only" id={hintID}>{hint()}</span>
+    </Show>
   )
 }
 
@@ -584,24 +606,25 @@ function DocumentRefetchError() {
   const { error, refresh, dismissError } = useDocumentState()
   const translate = useTranslate()
 
-  if (!error) return null
   return (
-    <div className="lens-document-refetch-error" role="alert">
-      <span>{translate('document.refetchFailed', 'Unable to refresh the dashboard. The previous data is still shown.')}</span>
-      <div className="lens-document-refetch-error-actions">
-        <button onClick={() => void refresh().catch(() => undefined)} type="button">
-          {translate('document.retry', 'Retry')}
-        </button>
-        <button
-          aria-label={translate('runtime.dismissNotice', 'Dismiss notice')}
-          className="lens-document-refetch-error-dismiss"
-          onClick={dismissError}
-          type="button"
-        >
-          <X />
-        </button>
+    <Show when={error}>
+      <div class="lens-document-refetch-error" role="alert">
+        <span>{translate('document.refetchFailed', 'Unable to refresh the dashboard. The previous data is still shown.')}</span>
+        <div class="lens-document-refetch-error-actions">
+          <button onClick={() => void refresh().catch(() => undefined)} type="button">
+            {translate('document.retry', 'Retry')}
+          </button>
+          <button
+            aria-label={translate('runtime.dismissNotice', 'Dismiss notice')}
+            class="lens-document-refetch-error-dismiss"
+            onClick={dismissError}
+            type="button"
+          >
+            <X />
+          </button>
+        </div>
       </div>
-    </div>
+    </Show>
   )
 }
 
@@ -615,124 +638,132 @@ function usePrintPreview(): void {
   const run = print.run
   const requested = typeof window !== 'undefined' &&
     new URL(window.location.href).searchParams.get('lens-print-preview') === '1'
-  const started = useRef(false)
-  useEffect(() => {
-    if (!requested || started.current) return
-    started.current = true
+  let started = false
+  onMount(() => {
+    if (!requested || started) return
+    started = true
     void run({ preview: true })
-  }, [requested, run])
+  })
 }
 
-export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps) {
+export function DashboardPanels(props: DashboardPanelsProps) {
   const { document, canRecompute } = useDashboard()
   const translate = useTranslate()
   const drawer = useDrawer()
   const drawerHeader = useDrawerHeader()
   const print = usePrint()
-  const panels = new Map(document.panels.map((panel) => [panel.id, panel]))
+  const panels = createMemo(() => new Map(document.panels.map((panel) => [panel.id, panel])))
   // First paint only: panels rise/fade in with a small per-panel stagger. The
   // value is fixed for this mount, so drill, perspective, drawer and refetch
   // re-renders keep the same class and never replay the animation. Off inside a
   // drawer and under visual regression, where the final state renders directly.
-  const entrance = useRef(!isVisualRegression() && drawer.depth === 0)
+  const entrance = !isVisualRegression() && drawer.depth === 0
   // Active-tab memory shared by every (possibly nested) tab group in this mount.
-  const tabState = useRef<Map<string, string>>(new Map()).current
+  const tabState = new Map<string, string>()
   usePrintPreview()
 
-  if (!document.layout.rows.length || !document.panels.length) {
-    return (
-      <div className="lens-placeholder-state">
-        {translate('dashboard.empty', 'The document contains no panels.')}
-      </div>
-    )
-  }
-
-  const header = document.header
-  // A drawer whose document carries a `drawer` block states its own identity in
-  // the chrome — eyebrow, title, caption and period. The document then printed
-  // its own title and subtitle directly underneath, so «Детализация /
-  // Бухгалтерские страховые выплаты / Период: 1 янв. — 2 авг. 2026» was followed
-  // by the same metric and the same period again. Where the chrome speaks, the
-  // contents do not: the identity belongs to the frame.
-  //
-  // Gated on the chrome actually carrying a title, not merely on being in a
-  // drawer. A document opened without a `drawer` block leaves the chrome's
-  // identity line empty, and suppressing the document's own heading there would
-  // take the drawer's only name away rather than de-duplicate it.
-  const inDrawer = drawer.depth > 0 && Boolean(drawerHeader?.title?.trim())
-  const identityTitle = inDrawer ? '' : (header?.title || document.meta.title)
-  const hasHeader = Boolean(identityTitle) || Boolean(document.endpoints.export) || print.available ||
-    (document.filters?.length ?? 0) > 0 || canRecompute
-  const columns = metricColumnCount(document.layout.rows)
+  const identityTitle = createMemo(() => {
+    // A drawer whose document carries a `drawer` block states its own identity
+    // in the chrome — eyebrow, title, caption and period. The document then
+    // printed its own title and subtitle directly underneath, so «Детализация /
+    // Бухгалтерские страховые выплаты / Период: 1 янв. — 2 авг. 2026» was
+    // followed by the same metric and the same period again. Where the chrome
+    // speaks, the contents do not: the identity belongs to the frame.
+    //
+    // Gated on the chrome actually carrying a title, not merely on being in a
+    // drawer. A document opened without a `drawer` block leaves the chrome's
+    // identity line empty, and suppressing the document's own heading there
+    // would take the drawer's only name away rather than de-duplicate it.
+    const inDrawer = drawer.depth > 0 && Boolean(drawerHeader?.title?.trim())
+    return inDrawer ? '' : (document.header?.title || document.meta.title)
+  })
+  const hasHeader = createMemo(() => Boolean(identityTitle()) || Boolean(document.endpoints.export) || print.available ||
+    (document.filters?.length ?? 0) > 0 || canRecompute)
+  const columns = createMemo(() => metricColumnCount(document.layout.rows))
   // Comparison is a property of the dashboard, not of the panels that happen to
   // carry a delta: with it on, every strip reserves the chip's row. Otherwise
   // turning it on grows one strip by 26px and leaves the strip beneath it where
   // it was, so two rows of the same component stop matching.
-  const comparing = (document.filters ?? []).some((filter) =>
-    filter.kind === 'compare' && filter.compare !== undefined && filter.compare.value.mode !== 'off')
+  const comparing = createMemo(() => (document.filters ?? []).some((filter) =>
+    filter.kind === 'compare' && filter.compare !== undefined && filter.compare.value.mode !== 'off'))
+
   return (
-    <TabStateContext.Provider value={tabState}>
-      <main
-        aria-label={identityTitle || undefined}
-        className={`lens-dashboard${comparing ? ' lens-dashboard-comparing' : ''}`}
-        style={{ '--lens-metric-columns': columns } as CSSProperties}
-      >
-        {hasHeader && (
-          <header className="lens-dashboard-header">
-            {/* Three rows, each answering one question, in the order a reader
-                asks them: what page is this and what can I do with it, what
-                slice am I looking at, and what is currently narrowing it.
-                They used to be two columns — identity opposite a single wrapping
-                cluster that mixed the controls changing the data with the verbs
-                carrying it away, at one weight and with no divider, so nothing
-                said which half did which. */}
-            <div className="lens-dashboard-headline">
-              {/* Without a title an empty slot lets a host page own the heading
-                  and keeps the dashboard's own chrome to the action row. */}
-              {identityTitle ? <h1 className="lens-dashboard-title">{identityTitle}</h1> : <span />}
-              {/* The actions travel as one block. Loose in the row they
-                  re-ordered themselves against the filters at every wrap, so the
-                  fourth control at 1440px was the second one at 1000px. */}
-              <div className="lens-dashboard-actions">
-                <FreshnessControl />
-                <ShareSliceButton />
-                <ExportMenu />
-              </div>
-            </div>
-            {/* The producer's own scope line rides with the controls that change
-                it rather than under the title: on the analytics boards it
-                restated the period the period control was already printing, so
-                the same fact occupied three surfaces. What is left of it is what
-                no control states — the date the data itself was cut. */}
-            <FilterBar subtitle={inDrawer ? undefined : header?.subtitle} today={filterToday} />
-          </header>
-        )}
-        {hasHeader && <DocumentRefetchError />}
-        <MetricColumnsContext.Provider value={columns}>
-          <div className="lens-dashboard-rows">
-            {document.layout.rows.map((row, rowIndex) => (
-              <section
-                className={`lens-dashboard-row${row.class ? ` ${row.class}` : ''}`}
-                id={row.anchor || undefined}
-                key={`${row.heading ?? 'row'}-${rowIndex}`}
-              >
-                {row.heading && <h2 className="lens-row-heading"><span>{row.heading}</span></h2>}
-                <div
-                  className={`lens-panel-grid${entrance.current ? ' lens-entrance' : ''}`}
-                  style={entrance.current ? ({ '--lens-row-delay': `${Math.min(rowIndex * 60, 180)}ms` } as CSSProperties) : undefined}
-                >
-                  <GroupChain depth={0} filterToday={filterToday} items={row.panels} panels={panels} registry={registry} />
+    <Show
+      when={document.layout.rows.length > 0 && document.panels.length > 0}
+      fallback={
+        <div class="lens-placeholder-state">
+          {translate('dashboard.empty', 'The document contains no panels.')}
+        </div>
+      }
+    >
+      <TabStateContext.Provider value={tabState}>
+        <main
+          aria-label={identityTitle() || undefined}
+          class={`lens-dashboard${comparing() ? ' lens-dashboard-comparing' : ''}`}
+          style={{ '--lens-metric-columns': columns() } as JSX.CSSProperties}
+        >
+          <Show when={hasHeader()}>
+            <header class="lens-dashboard-header">
+              {/* Three rows, each answering one question, in the order a reader
+                  asks them: what page is this and what can I do with it, what
+                  slice am I looking at, and what is currently narrowing it.
+                  They used to be two columns — identity opposite a single wrapping
+                  cluster that mixed the controls changing the data with the verbs
+                  carrying it away, at one weight and with no divider, so nothing
+                  said which half did which. */}
+              <div class="lens-dashboard-headline">
+                {/* Without a title an empty slot lets a host page own the heading
+                    and keeps the dashboard's own chrome to the action row. */}
+                {identityTitle() ? <h1 class="lens-dashboard-title">{identityTitle()}</h1> : <span />}
+                {/* The actions travel as one block. Loose in the row they
+                    re-ordered themselves against the filters at every wrap, so the
+                    fourth control at 1440px was the second one at 1000px. */}
+                <div class="lens-dashboard-actions">
+                  <FreshnessControl />
+                  <ShareSliceButton />
+                  <ExportMenu />
                 </div>
-              </section>
-            ))}
-          </div>
-        </MetricColumnsContext.Provider>
-        {print.active && (
-          <Suspense fallback={null}>
-            <LazyPrintReport />
-          </Suspense>
-        )}
-      </main>
-    </TabStateContext.Provider>
+              </div>
+              {/* The producer's own scope line rides with the controls that change
+                  it rather than under the title: on the analytics boards it
+                  restated the period the period control was already printing, so
+                  the same fact occupied three surfaces. What is left of it is what
+                  no control states — the date the data itself was cut. */}
+              <FilterBar subtitle={drawer.depth > 0 && Boolean(drawerHeader?.title?.trim()) ? undefined : document.header?.subtitle} today={props.filterToday} />
+            </header>
+          </Show>
+          <Show when={hasHeader()}>
+            <DocumentRefetchError />
+          </Show>
+          <MetricColumnsContext.Provider value={columns()}>
+            <div class="lens-dashboard-rows">
+              <For each={document.layout.rows}>
+                {(row, rowIndex) => (
+                  <section
+                    class={`lens-dashboard-row${row.class ? ` ${row.class}` : ''}`}
+                    id={row.anchor || undefined}
+                  >
+                    <Show when={row.heading}>
+                      <h2 class="lens-row-heading"><span>{row.heading}</span></h2>
+                    </Show>
+                    <div
+                      class={`lens-panel-grid${entrance ? ' lens-entrance' : ''}`}
+                      style={entrance ? ({ '--lens-row-delay': `${Math.min(rowIndex() * 60, 180)}ms` } as JSX.CSSProperties) : undefined}
+                    >
+                      <GroupChain depth={0} filterToday={props.filterToday} items={row.panels} panels={panels()} registry={props.registry} />
+                    </div>
+                  </section>
+                )}
+              </For>
+            </div>
+          </MetricColumnsContext.Provider>
+          <Show when={print.active}>
+            <Suspense fallback={null}>
+              <LazyPrintReport />
+            </Suspense>
+          </Show>
+        </main>
+      </TabStateContext.Provider>
+    </Show>
   )
 }

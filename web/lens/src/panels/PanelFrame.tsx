@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+import { createEffect, createSignal, Show } from 'solid-js'
+import type { JSX, JSXElement } from 'solid-js'
 import type { Frame, Panel } from '../contract'
 import { clampedDeltaPercent, type PanelFrameState, useDashboard, useFormat, useTranslate } from '../runtime'
 import { PanelExportMenu } from './PanelExportMenu'
@@ -12,11 +14,11 @@ import { PanelSkeletonBody } from './Skeleton'
 export interface PanelFrameProps {
   panel: Panel
   frame: PanelFrameState
-  children: ReactNode
+  children: JSXElement
   variant?: 'stat' | 'chart'
   allowEmptyContent?: boolean
   /** Reader controls that belong to this panel, placed before export chrome. */
-  headerActions?: ReactNode
+  headerActions?: JSXElement
   /**
    * The total the header badge prints. Overrides `panel.total`, which is the
    * root frame's total and is wrong once the panel is showing a drill level:
@@ -64,6 +66,7 @@ function trendPolarity(trend: NonNullable<Panel['trend']>): 'higher_better' | 'l
  * the reading actually moved that way. Everything else stays ink, which is what
  * keeps the tint worth reading.
  */
+/* eslint-disable react-refresh/only-export-components */
 export function trendTone(panel: Panel, frame: Frame | undefined): 'positive' | 'negative' | undefined {
   const trend = panel.trend
   if (!trend) return undefined
@@ -76,16 +79,16 @@ export function trendTone(panel: Panel, frame: Frame | undefined): 'positive' | 
   return (polarity === 'lower_better' ? !up : up) ? 'positive' : 'negative'
 }
 
-export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
-  const trend = panel.trend!
-  const absolute = numericFrameValue(frame, trend.absoluteField)
-  const framePercent = numericFrameValue(frame, trend.percentField)
-  const percent = framePercent ?? trend.percent
-  const formatAbsolute = useFormat(trend.absoluteField ? panel.format[trend.absoluteField] : undefined)
-  const formatValue = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
+export function TrendChip(props: { panel: Panel; frame?: Frame }) {
+  const trend = props.panel.trend!
+  const absolute = () => numericFrameValue(props.frame, trend.absoluteField)
+  const framePercent = () => numericFrameValue(props.frame, trend.percentField)
+  const percent = () => framePercent() ?? trend.percent
+  const formatAbsolute = useFormat(trend.absoluteField ? props.panel.format[trend.absoluteField] : undefined)
+  const formatValue = useFormat(props.panel.encoding.value ? props.panel.format[props.panel.encoding.value] : undefined)
   const formatPercentagePoints = useFormat({ kind: 'number', minorUnits: false, precision: 1 })
   const formatPercent = useFormat(trend.percentField
-    ? panel.format[trend.percentField]
+    ? props.panel.format[trend.percentField]
     : { kind: 'percent', minorUnits: false, precision: 1 })
   const translate = useTranslate()
   const { document } = useDashboard()
@@ -95,33 +98,21 @@ export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
   // A percentage-point delta is stated in the same units as the ratio it moved
   // («3,0 %» after «−21,1 pp» was «24,1 %»), so one subtraction covers both
   // kinds of delta.
-  const current = numericFrameValue(frame, panel.encoding.value)
-  const baseline = current !== undefined && absolute !== undefined
-    ? formatValue(current - absolute)
-    : undefined
-  if (trend.percentField && framePercent === undefined) {
-    const state = absolute !== undefined && absolute !== 0
-      ? translate('panel.trend.new', 'New')
-      : translate('panel.trend.notAvailable', 'N/A')
-    return (
-      <span className="lens-trend-chip lens-trend-chip-flat">
-        <strong>{state}</strong>
-        <span className="lens-trend-chip-label">{trend.label || translate('panel.trend.comparison', 'vs comparison')}</span>
-      </span>
-    )
+  const current = () => numericFrameValue(props.frame, props.panel.encoding.value)
+  const baseline = () => {
+    const base = current()
+    return base !== undefined && absolute() !== undefined ? formatValue(base - absolute()!) : undefined
   }
-  const movement = trend.absoluteDeltaUnit === 'percentage_points' && absolute !== undefined ? absolute : percent
-  const up = movement > 0
-  const flat = movement === 0
+  const movement = () => trend.absoluteDeltaUnit === 'percentage_points' && absolute() !== undefined ? absolute()! : percent()
+  const up = () => movement() > 0
+  const flat = () => movement() === 0
   // The polarity is the producer's; the arrow is always the sign's.
   const polarity = trendPolarity(trend)
-  const good = polarity === 'lower_better' ? !up : up
-  const tone = flat || polarity === 'neutral'
+  const good = () => polarity === 'lower_better' ? !up() : up()
+  const tone = () => flat() || polarity === 'neutral'
     ? 'lens-trend-chip-flat'
-    : good ? 'lens-trend-chip-positive' : 'lens-trend-chip-negative'
-  const sign = up ? '+' : ''
-  const formattedPercent = `${sign}${formatPercent(percent)}`
-  const TrendIcon = flat ? TrendFlat : up ? TrendUp : TrendDown
+    : good() ? 'lens-trend-chip-positive' : 'lens-trend-chip-negative'
+  const formattedPercent = () => `${up() ? '+' : ''}${formatPercent(percent())}`
   // A change, and the figure it is a change from — which is what the chip never
   // said: «−49,8 %» against nothing named is half a fact, and «Сравнение
   // тренда» beside it named the comparison without ever giving its value. Three
@@ -129,70 +120,86 @@ export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
   // reading sits directly above the chip, so the absolute delta is the
   // difference between the two figures already on screen. A trend with no
   // absolute delta to subtract keeps the producer's label.
-  const detail = baseline !== undefined
-    ? translate('panel.trend.baseline', 'was {value}', { value: baseline })
-    : undefined
-  const absoluteText = absolute === undefined
-    ? undefined
-    : `${absolute > 0 ? '+' : ''}${trend.absoluteDeltaUnit === 'percentage_points'
-      ? `${formatPercentagePoints(absolute)} ${translate('panel.trend.percentagePoints', 'pp')}`
-      : formatAbsolute(absolute)}`
-  const deltaText = trend.absoluteDeltaUnit === 'percentage_points' && absoluteText !== undefined
-    ? absoluteText
-    : clampedDeltaPercent(percent, document?.meta?.locale) ?? formattedPercent
-  const label = trend.label || translate('panel.trend.comparison', 'vs comparison')
+  const detail = () => {
+    const base = baseline()
+    return base !== undefined ? translate('panel.trend.baseline', 'was {value}', { value: base }) : undefined
+  }
+  const absoluteText = () => {
+    const value = absolute()
+    if (value === undefined) return undefined
+    return `${value > 0 ? '+' : ''}${trend.absoluteDeltaUnit === 'percentage_points'
+      ? `${formatPercentagePoints(value)} ${translate('panel.trend.percentagePoints', 'pp')}`
+      : formatAbsolute(value)}`
+  }
+  const deltaText = () => trend.absoluteDeltaUnit === 'percentage_points' && absoluteText() !== undefined
+    ? absoluteText()
+    : clampedDeltaPercent(percent(), document?.meta?.locale) ?? formattedPercent()
+  const label = () => trend.label || translate('panel.trend.comparison', 'vs comparison')
+
   return (
-    <span
-      className={`lens-trend-chip ${tone}`}
-      title={[deltaText, trend.absoluteDeltaUnit === 'percentage_points' ? undefined : absoluteText, detail ?? label].filter(Boolean).join(' · ')}
+    <Show
+      when={!(trend.percentField && framePercent() === undefined)}
+      fallback={
+        <span class="lens-trend-chip lens-trend-chip-flat">
+          <strong>
+            {absolute() !== undefined && absolute() !== 0
+              ? translate('panel.trend.new', 'New')
+              : translate('panel.trend.notAvailable', 'N/A')}
+          </strong>
+          <span class="lens-trend-chip-label">{trend.label || translate('panel.trend.comparison', 'vs comparison')}</span>
+        </span>
+      }
     >
-      <TrendIcon />
-      <strong>{deltaText}</strong>
-      {detail === undefined && absoluteText !== undefined && (
-        <span className="lens-trend-chip-absolute">({absoluteText})</span>
-      )}
-      <span className="lens-trend-chip-label">{detail ?? label}</span>
-    </span>
+      <span
+        class={`lens-trend-chip ${tone()}`}
+        title={[deltaText(), trend.absoluteDeltaUnit === 'percentage_points' ? undefined : absoluteText(), detail() ?? label()].filter(Boolean).join(' · ')}
+      >
+        {flat() ? <TrendFlat /> : up() ? <TrendUp /> : <TrendDown />}
+        <strong>{deltaText()}</strong>
+        <Show when={detail() === undefined && absoluteText() !== undefined}>
+          <span class="lens-trend-chip-absolute">({absoluteText()})</span>
+        </Show>
+        <span class="lens-trend-chip-label">{detail() ?? label()}</span>
+      </span>
+    </Show>
   )
 }
 
-export function PanelFrame({
-  panel, frame, children, variant = 'chart', allowEmptyContent = false, total: totalOverride, headerActions,
-}: PanelFrameProps) {
+export function PanelFrame(props: PanelFrameProps) {
   const translate = useTranslate()
   const { document: dashboard } = useDashboard()
   const chrome = usePanelChrome()
-  const [expanded, setExpanded] = useState(false)
-  const expandRef = useRef<HTMLButtonElement>(null)
-  const placeholderRef = useRef<HTMLDivElement>(null)
-  const restoreFocus = useRef(false)
-  useEffect(() => {
-    if (frame.error) console.error(`[lens] panel ${panel.id} request failed`, frame.error)
-  }, [frame.error, panel.id])
+  const [expanded, setExpanded] = createSignal(false)
+  let expandRef: HTMLButtonElement | undefined
+  let placeholderRef: HTMLDivElement | undefined
+  let restoreFocus = false
+  createEffect(() => {
+    if (props.frame.error) console.error(`[lens] panel ${props.panel.id} request failed`, props.frame.error)
+  })
   // What went wrong, said in the reader's terms. The panel used to print one
   // sentence for every cause — a slice too large to finish, a load the reader
   // themselves abandoned, a genuine fault — which told nobody what to do next.
-  const failure = panelFailureCopy(frame.error, translate)
+  const failure = () => panelFailureCopy(props.frame.error, translate)
   const retryLabel = translate('panel.retry', 'Retry')
-  const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
-  const total = totalOverride === undefined ? panel.total : totalOverride ?? undefined
-  const hasRows = Boolean(frame.data?.rows.length)
+  const formatTotal = useFormat(props.panel.encoding.value ? props.panel.format[props.panel.encoding.value] : undefined)
+  const total = () => props.total === undefined ? props.panel.total : props.total ?? undefined
+  const hasRows = () => Boolean(props.frame.data?.rows.length)
   // Loading is panel-local. A sibling calculation or a background document
   // refresh must never replace this panel's usable data with a skeleton.
-  const showLoading = frame.isLoading
+  const showLoading = () => props.frame.isLoading
   // Dimmed data being replaced is as busy as an empty skeleton is: the figures
   // under the cursor are not the answer to the question that was just asked.
   // An error left the panel stale with no request in flight, so that state is
   // idle — the retry control beside it is the thing to act on.
-  const busy = showLoading || (frame.isStale && !frame.error)
-  const badgePlacement = panel.presentation?.totalBadge ?? 'header'
-  const showTotal = variant === 'chart' && total !== undefined && badgePlacement === 'header'
+  const busy = () => showLoading() || (props.frame.isStale && !props.frame.error)
+  const badgePlacement = () => props.panel.presentation?.totalBadge ?? 'header'
+  const showTotal = () => props.variant === 'chart' && total() !== undefined && badgePlacement() === 'header'
   const totalLabel = translate('panel.total', 'Total')
-  const expandLabel = expanded ? translate('panel.collapse', 'Collapse panel') : translate('panel.expand', 'Expand panel')
+  const expandLabel = () => expanded() ? translate('panel.collapse', 'Collapse panel') : translate('panel.expand', 'Expand panel')
   // Opt-out chrome: a drawer-hosted panel disables expand (an overlay over a
   // modal is meaningless), and a derived/headline panel disables export.
-  const expandable = panel.presentation?.expandable !== false
-  const exportable = panel.presentation?.exportable !== false
+  const expandable = props.panel.presentation?.expandable !== false
+  const exportable = props.panel.presentation?.exportable !== false
   // A stat headline reads number-first: the value leads, and its supporting
   // caption (exact figure, then the muted explainer + period) sits beneath it
   // rather than pushing the number below the fold.
@@ -201,158 +208,170 @@ export function PanelFrame({
   // plot, a paragraph of prose above it is a permanent tax that pushes the
   // figure below the fold. The caption joins `info` behind the header's ⓘ,
   // which is what the templ runtime already does for stat descriptions.
-  const captionBelow = variant === 'stat'
-  const captionNode = captionBelow && panel.caption ? <p className="lens-panel-caption">{panel.caption}</p> : null
-  const calculationInfo = frame.calculation
+  const captionBelow = props.variant === 'stat'
+  const calculationInfo = () => props.frame.calculation
     ? translate('panel.calculation', 'Calculated in {duration} · cache {cache}', {
-      duration: frame.calculation.durationMs < 1000
-        ? `${frame.calculation.durationMs} ms`
-        : `${(frame.calculation.durationMs / 1000).toFixed(1)} s`,
-      cache: frame.calculation.cacheHit
+      duration: props.frame.calculation.durationMs < 1000
+        ? `${props.frame.calculation.durationMs} ms`
+        : `${(props.frame.calculation.durationMs / 1000).toFixed(1)} s`,
+      cache: props.frame.calculation.cacheHit
         ? translate('panel.cacheHit', 'hit')
         : translate('panel.cacheMiss', 'miss'),
     })
     : ''
-  const infoText = [variant === 'chart' ? panel.caption : '', panel.info, calculationInfo]
+  const infoText = () => [props.variant === 'chart' ? props.panel.caption : '', props.panel.info, calculationInfo()]
     .map((part) => part?.trim() ?? '')
     .filter(Boolean)
     .join('\n\n')
   // A drill trail replaces the static title: it says where the panel is and how
   // to get back without spending a row of the grid. A host that already prints
   // the name (a tab label naming its only panel) suppresses it entirely.
-  const titleNode = chrome?.trail
-    ?? (chrome?.titleIsRedundant ? undefined : <h3 className="lens-panel-title" title={panel.title}>{panel.title}</h3>)
+  const titleNode = (): JSX.Element => chrome?.trail
+    ?? (chrome?.titleIsRedundant ? undefined : <h3 class="lens-panel-title" title={props.panel.title}>{props.panel.title}</h3>)
+  const showHeading = () => Boolean(chrome?.trail) || !chrome?.titleIsRedundant || Boolean(infoText())
 
-  const toggleExpanded = useCallback(() => {
-    setExpanded((current) => {
-      if (current) return false
-      return true
-    })
-  }, [])
+  const toggleExpanded = () => setExpanded(true)
 
-  const collapse = useCallback(() => {
-    restoreFocus.current = true
+  const collapse = () => {
+    restoreFocus = true
     setExpanded(false)
-  }, [])
+  }
 
   // The button is re-parented out of the portal on collapse, so focus can only
-  // be restored once React has committed the node back into the grid.
-  useEffect(() => {
-    if (expanded || !restoreFocus.current) return
-    restoreFocus.current = false
-    expandRef.current?.focus()
-  }, [expanded])
+  // be restored once the node has been committed back into the grid.
+  createEffect(() => {
+    if (expanded() || !restoreFocus) return
+    restoreFocus = false
+    expandRef?.focus()
+  })
 
   const section = (
     <section
-      className={[
+      class={[
         'lens-panel',
-        variant === 'stat' ? 'lens-panel-stat' : 'lens-panel-chart',
+        props.variant === 'stat' ? 'lens-panel-stat' : 'lens-panel-chart',
         // The skeleton replaces the content outright, so it must not also carry
         // the stale dim — that treatment is only for the moment before a refetch
         // takes over the body.
-        frame.isStale && !showLoading ? 'lens-panel-stale' : '',
-        panel.presentation?.fill ? 'lens-panel-fill' : '',
-        expanded ? 'lens-panel-expanded' : '',
+        props.frame.isStale && !showLoading() ? 'lens-panel-stale' : '',
+        props.panel.presentation?.fill ? 'lens-panel-fill' : '',
+        expanded() ? 'lens-panel-expanded' : '',
       ].filter(Boolean).join(' ')}
-      data-expanded={expanded || undefined}
-      aria-label={panel.title}
-      aria-busy={busy}
-      data-calculation-cache={frame.calculation ? (frame.calculation.cacheHit ? 'hit' : 'miss') : undefined}
-      data-calculation-ms={frame.calculation?.durationMs}
-      data-panel-kind={panel.kind}
-      data-panel-id={panel.id}
-      data-testid={`lens-panel-${panel.id}`}
-      data-stale={frame.isStale || undefined}
+      data-expanded={expanded() || undefined}
+      aria-label={props.panel.title}
+      aria-busy={busy()}
+      data-calculation-cache={props.frame.calculation ? (props.frame.calculation.cacheHit ? 'hit' : 'miss') : undefined}
+      data-calculation-ms={props.frame.calculation?.durationMs}
+      data-panel-kind={props.panel.kind}
+      data-panel-id={props.panel.id}
+      data-testid={`lens-panel-${props.panel.id}`}
+      data-stale={props.frame.isStale || undefined}
     >
-      <header className="lens-panel-header">
+      <header class="lens-panel-header">
         {/* The panel's identity travels as one item. The note explains the
             panel's subject, so it hangs off the title rather than joining the
             controls: export and expand are things you do to the panel, this is
             something the panel says — and when the header wrapped, a loose ⓘ
             was reparented next to download/expand, where it read as a third
             action rather than an annotation. */}
-        {(titleNode || infoText) && (
-          <div className="lens-panel-heading">
-            {titleNode}
-            {infoText && <InfoTip subject={panel.title} text={infoText} />}
+        <Show when={showHeading()}>
+          <div class="lens-panel-heading">
+            {titleNode()}
+            <Show when={infoText()}>
+              <InfoTip subject={props.panel.title} text={infoText()} />
+            </Show>
           </div>
-        )}
+        </Show>
         {chrome?.explore}
-        <div className="lens-panel-actions">
-          {headerActions}
-          {showTotal && (
+        <div class="lens-panel-actions">
+          {props.headerActions}
+          <Show when={showTotal()}>
             <span
-              className="lens-panel-total"
-              data-testid={`lens-panel-${panel.id}-total`}
-              data-value={total}
-              title={`${totalLabel}: ${formatTotal(total)}`}
+              class="lens-panel-total"
+              data-testid={`lens-panel-${props.panel.id}-total`}
+              data-value={total() ?? undefined}
+              title={`${totalLabel}: ${formatTotal(total())}`}
             >
-              <span className="lens-panel-total-label">{totalLabel}:</span>
+              <span class="lens-panel-total-label">{totalLabel}:</span>
               {' '}
-              {formatTotal(total)}
+              {formatTotal(total())}
             </span>
-          )}
-          {busy && !showLoading && <span className="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>}
-          {exportable && <PanelExportMenu panelId={panel.id} title={panel.title} />}
-          {expandable && (
+          </Show>
+          <Show when={busy() && !showLoading()}>
+            <span class="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>
+          </Show>
+          <Show when={exportable}>
+            <PanelExportMenu panelId={props.panel.id} title={props.panel.title} />
+          </Show>
+          <Show when={expandable}>
             <button
-              aria-label={expandLabel}
-              aria-expanded={expanded}
+              aria-label={expandLabel()}
+              aria-expanded={expanded()}
               aria-haspopup="dialog"
-              className="lens-export-button lens-icon-button"
-              onClick={expanded ? collapse : toggleExpanded}
-              ref={expandRef}
-              title={expandLabel}
+              class="lens-export-button lens-icon-button"
+              onClick={expanded() ? collapse : toggleExpanded}
+              ref={(el) => { expandRef = el }}
+              title={expandLabel()}
               type="button"
             >
-              {expanded ? <ArrowsIn /> : <ArrowsOut />}
+              {expanded() ? <ArrowsIn /> : <ArrowsOut />}
             </button>
-          )}
+          </Show>
         </div>
       </header>
-      {dashboard.header?.subtitle && <p className="lens-panel-export-scope">{dashboard.header.subtitle}</p>}
-      {panel.comparisonUnsupported && (
-        <p className="lens-panel-comparison-note" role="note">
+      <Show when={dashboard.header?.subtitle}>
+        <p class="lens-panel-export-scope">{dashboard.header?.subtitle}</p>
+      </Show>
+      <Show when={props.panel.comparisonUnsupported}>
+        <p class="lens-panel-comparison-note" role="note">
           {translate('panel.comparisonUnsupported', 'Comparison is not available for this panel.')}
         </p>
-      )}
-      <div className="lens-panel-body">
-        {showLoading ? (
-          <PanelSkeletonBody kind={panel.kind} />
-        ) : frame.error && !frame.data ? (
-          <div className="lens-panel-state lens-panel-state-error" role={failure.alert ? 'alert' : undefined}>
-            <span>{failure.message}</span>
-            <button type="button" onClick={frame.retry}>{retryLabel}</button>
-          </div>
-        ) : !hasRows && !allowEmptyContent ? (
-          <div className="lens-panel-state lens-panel-state-empty">
-            <ChartLine className="lens-empty-mark" />
-            <span>{translate('panel.empty', 'No data')}</span>
-          </div>
-        ) : children}
+      </Show>
+      <div class="lens-panel-body">
+        <Show when={showLoading()} fallback={
+          <Show when={props.frame.error && !props.frame.data} fallback={
+            <Show when={!hasRows() && !props.allowEmptyContent} fallback={props.children}>
+              <div class="lens-panel-state lens-panel-state-empty">
+                <ChartLine className="lens-empty-mark" />
+                <span>{translate('panel.empty', 'No data')}</span>
+              </div>
+            </Show>
+          }>
+            <div class="lens-panel-state lens-panel-state-error" role={failure().alert ? 'alert' : undefined}>
+              <span>{failure().message}</span>
+              <button type="button" onClick={props.frame.retry}>{retryLabel}</button>
+            </div>
+          </Show>
+        }>
+          <PanelSkeletonBody kind={props.panel.kind} />
+        </Show>
       </div>
-      {captionBelow && captionNode}
-      {panel.trend && hasRows && (
-        <footer className="lens-panel-footer"><TrendChip panel={panel} frame={frame.data} /></footer>
-      )}
-      {frame.error && frame.data && (
-        <div className="lens-panel-error" role={failure.alert ? 'alert' : undefined}>
-          <span>{failure.message}</span>
-          <button type="button" onClick={frame.retry}>{retryLabel}</button>
+      <Show when={captionBelow && props.panel.caption}>
+        <p class="lens-panel-caption">{props.panel.caption}</p>
+      </Show>
+      <Show when={props.panel.trend && hasRows()}>
+        <footer class="lens-panel-footer"><TrendChip panel={props.panel} frame={props.frame.data} /></footer>
+      </Show>
+      <Show when={props.frame.error && props.frame.data}>
+        <div class="lens-panel-error" role={failure().alert ? 'alert' : undefined}>
+          <span>{failure().message}</span>
+          <button type="button" onClick={props.frame.retry}>{retryLabel}</button>
         </div>
-      )}
+      </Show>
     </section>
   )
 
-  if (!expanded) return section
   return (
-    <>
-      {/* A placeholder keeps the grid from reflowing while the panel is away. */}
-      <div aria-hidden="true" className="lens-panel-placeholder" ref={placeholderRef} />
-      <PanelOverlay label={panel.title} sourceRef={placeholderRef} onClose={collapse}>
-        {section}
-      </PanelOverlay>
-    </>
+    <Show when={!expanded()} fallback={
+      <>
+        {/* A placeholder keeps the grid from reflowing while the panel is away. */}
+        <div aria-hidden="true" class="lens-panel-placeholder" ref={(el) => { placeholderRef = el }} />
+        <PanelOverlay label={props.panel.title} source={() => placeholderRef} onClose={collapse}>
+          {section}
+        </PanelOverlay>
+      </>
+    }>
+      {section}
+    </Show>
   )
 }
