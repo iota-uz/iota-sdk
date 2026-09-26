@@ -16,33 +16,34 @@
     "build": "pnpm run build:css && tsc && vite build && node ./scripts/ensure-dist-markers.mjs",
     "build:watch": "chokidar \"src/**\" \"*.config.*\" \"index.html\" \"tailwind.config.js\" \"tsconfig.json\" \"vite.config.ts\" -c \"pnpm run build\"",
     "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "codegen": "echo \"codegen removed (RPC-only)\""
   },
   "dependencies": {
-    "@headlessui/react": "^2.2.0",
     "@iota-uz/sdk": "0.4.39",
-    "@phosphor-icons/react": "^2.1.10",
     "apexcharts": "^4.7.0",
     "date-fns": "^3.6.0",
-    "framer-motion": "^11.0.0",
+    "dompurify": "^3.4.16",
     "fuse.js": "^7.0.0",
-    "react": "^18.3.1",
-    "react-apexcharts": "^1.7.0",
-    "react-dom": "^18.3.1",
-    "react-markdown": "^9.0.1",
-    "react-router-dom": "^6.26.0",
-    "react-syntax-highlighter": "^15.5.0"
+    "highlight.js": "^11.12.0",
+    "marked": "^14.1.4",
+    "solid-js": "^1.9.15"
   },
   "devDependencies": {
+    "@solidjs/router": "^0.15.4",
+    "@solidjs/testing-library": "^0.8.10",
     "@tailwindcss/cli": "4.1.18",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@testing-library/jest-dom": "^6.6.3",
     "autoprefixer": "^10.4.20",
     "chokidar-cli": "^3.0.0",
+    "jsdom": "^25.0.1",
     "postcss": "^8.4.41",
     "tailwindcss": "4.1.18",
     "typescript": "^5.5.3",
-    "vite": "^5.4.2"
+    "vite": "^5.4.2",
+    "vite-plugin-solid": "^2.11.8",
+    "vitest": "^2.1.9"
   }
 }

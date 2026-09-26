@@ -1,43 +1,38 @@
-import { createContext, useContext, useMemo, useRef, type ReactNode } from 'react'
+import { createContext, useContext, type JSX, type Accessor } from 'solid-js'
+import { createSignal } from 'solid-js'
 
-type SessionCreatedCallback = (sessionId: string) => void
-
-export interface SessionEventContextValue {
+export interface SessionEvents {
+  /** Notifies listeners that a session was created (sidebar reload). */
   notifySessionCreated: (sessionId: string) => void
-  onSessionCreated: (cb: SessionCreatedCallback) => () => void
+  /** Subscribes to session-created notifications; returns unsubscribe. */
+  onSessionCreated: (listener: (sessionId: string) => void) => () => void
 }
 
-const SessionEventContext = createContext<SessionEventContextValue | null>(null)
+const SessionEventContext = createContext<SessionEvents>()
 
-export function SessionEventProvider({ children }: { children: ReactNode }) {
-  const listenersRef = useRef(new Set<SessionCreatedCallback>())
-
-  const value = useMemo<SessionEventContextValue>(() => {
-    return {
-      notifySessionCreated: (sessionId: string) => {
-        listenersRef.current.forEach((cb) => cb(sessionId))
-      },
-      onSessionCreated: (cb: SessionCreatedCallback) => {
-        listenersRef.current.add(cb)
-        return () => {
-          listenersRef.current.delete(cb)
-        }
-      },
-    }
-  }, [])
-
-  return (
-    <SessionEventContext.Provider value={value}>
-      {children}
-    </SessionEventContext.Provider>
-  )
-}
-
-export function useSessionEvents(): SessionEventContextValue {
-  const ctx = useContext(SessionEventContext)
-  if (!ctx) {
-    throw new Error('useSessionEvents must be used within SessionEventProvider')
+export function SessionEventProvider(props: { children: JSX.Element }): JSX.Element {
+  const listeners = new Set<(sessionId: string) => void>()
+  const events: SessionEvents = {
+    notifySessionCreated(sessionId) {
+      for (const listener of listeners) listener(sessionId)
+    },
+    onSessionCreated(listener) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
   }
-  return ctx
+  return <SessionEventContext.Provider value={events}>{props.children}</SessionEventContext.Provider>
 }
 
+export function useSessionEvents(): SessionEvents {
+  const events = useContext(SessionEventContext)
+  if (!events) throw new Error('useSessionEvents must be used within SessionEventProvider')
+  return events
+}
+
+export function createSessionCreatedSignal(): Accessor<string | undefined> {
+  const events = useSessionEvents()
+  const [last, setLast] = createSignal<string | undefined>(undefined)
+  void events.onSessionCreated((sessionId) => setLast(sessionId))
+  return last
+}
