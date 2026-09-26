@@ -1,0 +1,54 @@
+package pagination
+
+import (
+	"strconv"
+
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/loaders"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type InfiniteRowProps struct {
+	// NextURL comes from NextChunkURL; the row is not rendered when it is empty.
+	NextURL string
+	Colspan int
+}
+
+// InfiniteRow closes a table body. When it scrolls into view it loads the
+// next chunk and replaces itself with those rows, which end with the next
+// InfiniteRow until the data runs out. A failed load stays in place with a
+// retry button instead of silently ending the list.
+templ InfiniteRow(props InfiniteRowProps) {
+	if props.NextURL != "" {
+		{{ pageCtx := composables.UsePageCtx(ctx) }}
+		<tr
+			hx-get={ props.NextURL }
+			hx-trigger="intersect once, pagination:retry"
+			hx-swap="outerHTML"
+			x-data="{ failed: false }"
+			x-on:htmx:response-error.camel="failed = true"
+			x-on:htmx:send-error.camel="failed = true"
+		>
+			<td colspan={ strconv.Itoa(props.Colspan) } class="p-4">
+				<div x-show="!failed" aria-live="polite">
+					@loaders.Spinner(loaders.SpinnerProps{
+						ContainerClass: templ.Classes("flex justify-center items-center"),
+						SpinnerClass:   templ.Classes("w-6 h-6"),
+					})
+				</div>
+				<div x-show="failed" x-cloak role="alert" class="flex items-center justify-center gap-3">
+					<span class="text-200">{ pageCtx.T("Common.LoadFailed") }</span>
+					@button.Secondary(button.Props{
+						Size: button.SizeSM,
+						Attrs: templ.Attributes{
+							"type":   "button",
+							"@click": "failed = false; htmx.trigger($root, 'pagination:retry')",
+						},
+					}) {
+						{ pageCtx.T("Common.Retry") }
+					}
+				</div>
+			</td>
+		</tr>
+	}
+}

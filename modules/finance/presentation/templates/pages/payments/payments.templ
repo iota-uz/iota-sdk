@@ -16,8 +16,37 @@ import (
 
 type IndexPageProps struct {
 	types.PageContext
-	Payments        []*viewmodels.Payment
-	PaginationState *pagination.State
+	Payments []*viewmodels.Payment
+	// NextURL loads the chunk after Payments; empty on the last chunk.
+	NextURL string
+}
+
+templ PaymentRows(props *IndexPageProps) {
+	for _, payment := range props.Payments {
+		@base.TableRow(base.TableRowProps{
+			Attrs: templ.Attributes{"class": "hide-on-load"},
+		}) {
+			@base.TableCell(base.TableCellProps{}) {
+				{ payment.AmountWithCurrency }
+			}
+			@base.TableCell(base.TableCellProps{}) {
+				<div x-data="relativeformat">
+					<span x-text={ fmt.Sprintf("format('%s')", payment.UpdatedAt) }></span>
+				</div>
+			}
+			@base.TableCell(base.TableCellProps{}) {
+				@button.Secondary(button.Props{
+					Fixed: true,
+					Size:  button.SizeSM,
+					Class: "btn-fixed",
+					Href:  fmt.Sprintf("/finance/payments/%s", payment.ID),
+				}) {
+					@icons.PencilSimple(icons.Props{Size: "20"})
+				}
+			}
+		}
+	}
+	@pagination.InfiniteRow(pagination.InfiniteRowProps{NextURL: props.NextURL, Colspan: 3})
 }
 
 templ PaymentsTable(props *IndexPageProps) {
@@ -36,31 +65,7 @@ templ PaymentsTable(props *IndexPageProps) {
 					{Label: pageCtx.T("Actions"), Class: "w-16"},
 				},
 			}) {
-				for _, payment := range props.Payments {
-					@base.TableRow(base.TableRowProps{}) {
-						@base.TableCell(base.TableCellProps{}) {
-							{ payment.AmountWithCurrency }
-						}
-						@base.TableCell(base.TableCellProps{}) {
-							<div x-data="relativeformat">
-								<span x-text={ fmt.Sprintf("format('%s')", payment.UpdatedAt) }></span>
-							</div>
-						}
-						@base.TableCell(base.TableCellProps{}) {
-							@button.Secondary(button.Props{
-								Fixed: true,
-								Size:  button.SizeSM,
-								Class: "btn-fixed",
-								Href:  fmt.Sprintf("/finance/payments/%s", payment.ID),
-							}) {
-								@icons.PencilSimple(icons.Props{Size: "20"})
-							}
-						}
-					}
-				}
-			}
-			if len(props.PaginationState.Pages()) > 1 {
-				@pagination.Pagination(props.PaginationState)
+				@PaymentRows(props)
 			}
 		}
 	</div>
@@ -98,8 +103,9 @@ templ PaymentsContent(props *IndexPageProps) {
 				class="p-4 flex items-center gap-3"
 				hx-get="/finance/payments"
 				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-				hx-target=".table-wrapper"
+				hx-target="next .table-wrapper"
 				hx-swap="outerHTML"
+				hx-indicator="next .table-wrapper"
 			>
 				@filters.Default(&filters.Props{
 					Fields: []filters.SearchField{
@@ -129,8 +135,9 @@ templ PaymentsEmbedded(props *IndexPageProps) {
 			class="p-4 flex items-center gap-3"
 			hx-get="/finance/payments"
 			hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-			hx-target=".table-wrapper"
+			hx-target="next .table-wrapper"
 			hx-swap="outerHTML"
+			hx-indicator="next .table-wrapper"
 		>
 			@filters.Default(&filters.Props{
 				Fields: []filters.SearchField{

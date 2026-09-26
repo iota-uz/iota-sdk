@@ -136,27 +136,19 @@ func (c *ExpenseController) List(
 		return
 	}
 
-	total, err := expenseService.Count(r.Context(), &expense.FindParams{})
-	if err != nil {
-		logger.Errorf("Error counting expenses: %v", err)
-		http.Error(w, "Error counting expenses", http.StatusInternalServerError)
-		return
-	}
-
 	props := &expensesui.IndexPageProps{
-		Expenses:        mapping.MapViewModels(expenseEntities, mappers.ExpenseToViewModel),
-		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+		Expenses: mapping.MapViewModels(expenseEntities, mappers.ExpenseToViewModel),
+		NextURL:  pagination.NextChunkURL(r.URL, params.Page, params.Limit, len(expenseEntities)),
 	}
 
-	// Check if this is an embedded request
-	isEmbedded := r.URL.Query().Get("embedded") == "true"
-
-	if isEmbedded {
-		// For embedded view, just return the content without the full layout
+	switch {
+	case htmx.IsHxRequest(r) && params.Page > 1:
+		templ.Handler(expensesui.ExpenseRows(props), templ.WithStreaming()).ServeHTTP(w, r)
+	case r.URL.Query().Get("embedded") == "true":
 		templ.Handler(expensesui.ExpensesEmbedded(props), templ.WithStreaming()).ServeHTTP(w, r)
-	} else if htmx.IsHxRequest(r) {
+	case htmx.IsHxRequest(r):
 		templ.Handler(expensesui.ExpensesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
-	} else {
+	default:
 		templ.Handler(expensesui.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }

@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Load finance expenses and payments in chunks while scrolling, keep search and filters on every chunk, and show a retry when a chunk fails; adds pagination.InfiniteRow and pagination.NextChunkURL, and replaces PaginationState with NextURL on the expenses and payments page props."
+}
