@@ -68,6 +68,10 @@ const (
 			AND ($2::uuid IS NULL OR money_account_id = $2)
 		GROUP BY outstanding_currency_id
 		ORDER BY outstanding_currency_id`
+	debtOpenPayablesWhere = `
+		WHERE tenant_id = $1 AND type = 'PAYABLE' AND status IN ('PENDING', 'PARTIAL')
+			AND money_account_id = $2
+		ORDER BY due_date NULLS LAST, created_at`
 )
 
 type GormDebtRepository struct{}
@@ -248,6 +252,16 @@ func (g *GormDebtRepository) OpenPayableTotals(ctx context.Context, accountID *u
 		totals = append(totals, money.New(amount, currency))
 	}
 	return totals, rows.Err()
+}
+
+func (g *GormDebtRepository) OpenPayables(ctx context.Context, accountID uuid.UUID) ([]debt.Debt, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
+	query := repo.Join(debtFindQuery, debtOpenPayablesWhere)
+	return g.queryDebts(ctx, query, tenantID, accountID)
 }
 
 func (g *GormDebtRepository) Create(ctx context.Context, data debt.Debt) (debt.Debt, error) {

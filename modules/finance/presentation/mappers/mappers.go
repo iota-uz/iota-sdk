@@ -168,6 +168,8 @@ func TransactionToViewModel(entity transaction.Transaction) *viewmodels.Transact
 		DestinationAmountWithCurrency: "",
 		Category:                      nil,
 		Counterparty:                  nil,
+		PaymentID:                     "",
+		ExpenseID:                     "",
 	}
 
 	// Set type badge class
@@ -180,6 +182,8 @@ func TransactionToViewModel(entity transaction.Transaction) *viewmodels.Transact
 		vm.TypeBadgeClass = "badge-info"
 	case transaction.Exchange:
 		vm.TypeBadgeClass = "badge-warning"
+	case transaction.Adjustment:
+		vm.TypeBadgeClass = "badge-primary"
 	default:
 		vm.TypeBadgeClass = "badge-primary"
 	}
@@ -218,6 +222,11 @@ func TransactionToListItem(vm *viewmodels.Transaction) *viewmodels.TransactionLi
 		item.Account = vm.OriginAccount
 	} else if vm.TransactionType == string(transaction.Deposit) || vm.TransactionType == string(transaction.Exchange) {
 		item.Account = vm.DestinationAccount
+	} else if vm.TransactionType == string(transaction.Adjustment) {
+		item.Account = vm.DestinationAccount
+		if item.Account == nil {
+			item.Account = vm.OriginAccount
+		}
 	}
 
 	return item

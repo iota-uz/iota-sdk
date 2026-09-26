@@ -10,11 +10,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/financial_overview"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 type FinancialOverviewController struct {
@@ -116,6 +118,7 @@ func (c *FinancialOverviewController) Register(r *mux.Router) {
 	balances := r.PathPrefix(c.basePath + "/balances").Subrouter()
 	balances.Use(commonMiddleware...)
 	balances.HandleFunc("", c.Balances).Methods(http.MethodGet)
+	balances.HandleFunc("/{id:[0-9a-fA-F-]+}", c.AccountBalance).Methods(http.MethodGet)
 }
 
 // Balances renders the balance summary shared by the finance pages. Users who
@@ -133,6 +136,49 @@ func (c *FinancialOverviewController) Balances(w http.ResponseWriter, r *http.Re
 		components.BalanceSummary(mapping.MapViewModels(balances, mappers.BalanceToViewModel)),
 		templ.WithStreaming(),
 	).ServeHTTP(w, r)
+}
+
+// AccountBalance renders one account's balance and the obligations reserving
+// it. Users who cannot read debts see only what is on the account.
+func (c *FinancialOverviewController) AccountBalance(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := shared.ParseUUID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	props := components.AccountBalanceProps{}
+	balance, err := c.balanceService.AccountBalance(ctx, id)
+	switch {
+	case errors.Is(err, composables.ErrForbidden):
+		account, err := c.moneyAccountService.GetByID(ctx, id)
+		if err != nil {
+			http.Error(w, "Error retrieving money account", http.StatusInternalServerError)
+			return
+		}
+		props.Balance = &viewmodels.Balance{OnAccounts: account.Balance().Display()}
+	case err != nil:
+		http.Error(w, "Error retrieving balance", http.StatusInternalServerError)
+		return
+	default:
+		props.Balance = mappers.BalanceToViewModel(balance)
+		reserves, err := c.balanceService.Reserves(ctx, id)
+		if err != nil {
+			http.Error(w, "Error retrieving reserves", http.StatusInternalServerError)
+			return
+		}
+		props.Reserves = make([]*viewmodels.Debt, 0, len(reserves))
+		for _, reserve := range reserves {
+			counterparty, err := c.counterpartyService.GetByID(ctx, reserve.CounterpartyID())
+			if err != nil {
+				http.Error(w, "Error retrieving counterparty", http.StatusInternalServerError)
+				return
+			}
+			props.Reserves = append(props.Reserves, mappers.DebtToViewModel(reserve, counterparty.Name()))
+		}
+	}
+	templ.Handler(components.AccountBalance(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *FinancialOverviewController) Index(w http.ResponseWriter, r *http.Request) {

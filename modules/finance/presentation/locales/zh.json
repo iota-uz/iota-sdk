@@ -265,7 +265,8 @@
     "Transactions": {
       "NoTransactions": "还没有交易",
       "NoTransactionsDescription": "此账户没有交易。当您添加支出、付款或转账时，交易将显示在这里。",
-      "ViewAll": "查看所有交易"
+      "ViewAll": "查看所有交易",
+      "Loading": "加载中…"
     }
   },
   "Transfers": {
@@ -408,7 +409,8 @@
       "DEPOSIT": "存款",
       "WITHDRAWAL": "提款",
       "TRANSFER": "转账",
-      "EXCHANGE": "兑换"
+      "EXCHANGE": "兑换",
+      "ADJUSTMENT": "调整"
     }
   },
   "Reports": {
@@ -589,11 +591,11 @@
     "Balances": {
       "OnAccounts": "账户余额",
       "Reserved": "义务预留",
-      "Available": "可用"
+      "Available": "可用",
+      "Reserves": "从该账户支付的义务"
     }
   },
   "ValidationErrors": {
     "invalidTIN": "{{.Details}}"
   }
 }
-
