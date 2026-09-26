@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+import { createContext, createEffect, createMemo, createSignal, For, onCleanup, Show, untrack, useContext, type JSX } from 'solid-js'
 import type { Column, FieldFormat, Frame, Level, Panel, TableColumn } from '../contract'
 import { actionForRow, resolveColumnActionURL, resolveRowLeafActionURL } from '../explore/actions'
 import { ArrowUpRight, ArrowsLeftRight, CaretDown, CaretRight } from '../icons'
@@ -95,15 +96,15 @@ function compare(left: number | string, right: number | string): number {
  *
  * The element is decorative; `aria-sort` on the `th` carries the state.
  */
-function SortIndicator({ direction }: { direction?: SortDirection }) {
+function SortIndicator(props: { direction?: SortDirection }) {
   return (
     <span
       aria-hidden="true"
-      className={`lens-table-sort${direction ? ` lens-table-sort-${direction}` : ''}`}
+      class={`lens-table-sort${props.direction ? ` lens-table-sort-${props.direction}` : ''}`}
     >
-      {direction === 'ascending' && <CaretDown className="lens-table-sort-up" />}
-      {direction === 'descending' && <CaretDown />}
-      {!direction && <ArrowsLeftRight className="lens-table-sort-neutral" />}
+      {props.direction === 'ascending' && <CaretDown className="lens-table-sort-up" />}
+      {props.direction === 'descending' && <CaretDown />}
+      {!props.direction && <ArrowsLeftRight className="lens-table-sort-neutral" />}
     </span>
   )
 }
@@ -131,27 +132,27 @@ function isRightAligned(column: TableColumn, frame: Frame): boolean {
   return frame.columns.find((candidate) => candidate.name === column.field)?.type === 'number'
 }
 
-function TableCell({ column, format, value }: { column: Column; format?: FieldFormat; value: unknown }) {
-  const display = useCellFormat(column.name, format ?? inferredFormat(column))
+function TableCell(props: { column: Column; format?: FieldFormat; value: unknown }) {
+  const display = useCellFormat(props.column.name, props.format ?? inferredFormat(props.column))
   const translate = useTranslate()
-  if (column.type === 'bool') {
-    if (value === null || value === undefined || value === '') return <span className="lens-table-null">—</span>
-    const checked = value === true || value === 1 || value === 'true'
-    return <span className="lens-table-bool" data-value={checked}>
+  if (props.column.type === 'bool') {
+    if (props.value === null || props.value === undefined || props.value === '') return <span class="lens-table-null">—</span>
+    const checked = props.value === true || props.value === 1 || props.value === 'true'
+    return <span class="lens-table-bool" data-value={checked}>
       {checked ? translate('table.boolean.yes', 'Yes') : translate('table.boolean.no', 'No')}
     </span>
   }
-  const text = display(value)
-  if (column.type === 'time' && text !== '—') {
-    return <time dateTime={typeof value === 'string' ? value : undefined}>{text}</time>
+  const text = display(props.value)
+  if (props.column.type === 'time' && text !== '—') {
+    return <time datetime={typeof props.value === 'string' ? props.value : undefined}>{text}</time>
   }
   return <>{text}</>
 }
 
-function BarCell({ field, format, value, max }: { field?: string; format?: FieldFormat; value: unknown; max: number }) {
-  const display = useCellFormat(field, format)
-  const number = numericValue(value)
-  const ratio = max > 0 && number !== undefined ? Math.max(0, Math.min(1, Math.abs(number) / max)) : 0
+function BarCell(props: { field?: string; format?: FieldFormat; value: unknown; max: number }) {
+  const display = useCellFormat(props.field, props.format)
+  const number = numericValue(props.value)
+  const ratio = props.max > 0 && number !== undefined ? Math.max(0, Math.min(1, Math.abs(number) / props.max)) : 0
   const negative = number !== undefined && number < 0
   // An empty track is a bar that is loading, not a bar that is zero: five rows
   // of «0 / 0.0%» drew five full-width grey rails with nothing in them, which is
@@ -159,18 +160,18 @@ function BarCell({ field, format, value, max }: { field?: string; format?: Field
   // draws none and the numeral carries the row.
   const drawn = number !== undefined && number !== 0
   return (
-    <div className="lens-table-bar">
+    <div class="lens-table-bar">
       {drawn && (
-        <span className="lens-table-bar-track" aria-hidden="true">
+        <span class="lens-table-bar-track" aria-hidden="true">
           {/* The magnitude is drawn from the track's midpoint outwards so a
               negative value cannot look identical to its positive twin. */}
           <span
-            className={`lens-table-bar-fill${negative ? ' lens-table-bar-fill-negative' : ''}`}
+            class={`lens-table-bar-fill${negative ? ' lens-table-bar-fill-negative' : ''}`}
             style={{ width: `${ratio * 50}%`, [negative ? 'right' : 'left']: '50%' }}
           />
         </span>
       )}
-      <span className="lens-table-bar-value">{display(value)}</span>
+      <span class="lens-table-bar-value">{display(props.value)}</span>
     </div>
   )
 }
@@ -181,65 +182,63 @@ function BarCell({ field, format, value, max }: { field?: string; format?: Field
  * into something indistinguishable from a stray hyphen as soon as one row
  * dominates the column, which is exactly what the legacy treatment avoids.
  */
-function UnderlineCell({ field, format, value }: { field?: string; format?: FieldFormat; value: unknown }) {
-  const display = useCellFormat(field, format)
-  const number = numericValue(value)
+function UnderlineCell(props: { field?: string; format?: FieldFormat; value: unknown }) {
+  const display = useCellFormat(props.field, props.format)
+  const number = numericValue(props.value)
   const negative = number !== undefined && number < 0
   const blank = number === undefined
   return (
-    <span className="lens-table-underline">
-      <span className="lens-table-underline-value">{display(value)}</span>
+    <span class="lens-table-underline">
+      <span class="lens-table-underline-value">{display(props.value)}</span>
       {!blank && (
         <span
           aria-hidden="true"
-          className={`lens-table-underline-rule${negative ? ' lens-table-underline-rule-negative' : ''}`}
+          class={`lens-table-underline-rule${negative ? ' lens-table-underline-rule-negative' : ''}`}
         />
       )}
     </span>
   )
 }
 
-function DeltaCell({
-  valueFormat, value, secondaryFormat, secondaryValue, stacked,
-}: {
+function DeltaCell(props: {
   valueFormat?: FieldFormat
   value: unknown
   secondaryFormat?: FieldFormat
   secondaryValue: unknown
   stacked?: boolean
 }) {
-  const displayValue = useFormat(valueFormat)
-  const displaySecondary = useFormat(secondaryFormat)
+  const displayValue = useFormat(props.valueFormat)
+  const displaySecondary = useFormat(props.secondaryFormat)
   const translate = useTranslate()
   const { document } = useDashboard()
-  const absolute = numericValue(value)
-  const secondary = numericValue(secondaryValue)
-  const hasSecondary = secondaryValue !== null && secondaryValue !== undefined && secondaryValue !== ''
+  const absolute = numericValue(props.value)
+  const secondary = numericValue(props.secondaryValue)
+  const hasSecondary = props.secondaryValue !== null && props.secondaryValue !== undefined && props.secondaryValue !== ''
   const isNew = !hasSecondary && absolute !== undefined && absolute !== 0
   const negative = secondary !== undefined && secondary < 0
   // Percent changes beyond ±999.9% clamp to «>999%» / «<−999%»: a precise
   // «+13 417.3%» is noise, and the absolute value beside it carries the story.
   const clamped = secondary !== undefined ? clampedDeltaPercent(secondary, document.meta.locale) : undefined
   const percent = (hasSecondary || isNew) && (
-    <span className={`lens-table-delta-pct${negative ? ' lens-table-delta-pct-negative' : ''}`}>
+    <span class={`lens-table-delta-pct${negative ? ' lens-table-delta-pct-negative' : ''}`}>
       {isNew
         ? translate('panel.trend.new', 'New')
-        : clamped ?? <>{secondary !== undefined && secondary > 0 ? '+' : ''}{displaySecondary(secondaryValue)}</>}
+        : clamped ?? <>{secondary !== undefined && secondary > 0 ? '+' : ''}{displaySecondary(props.secondaryValue)}</>}
     </span>
   )
-  if (stacked) {
+  if (props.stacked) {
     // Stacked reads top-down: the relative change first, the absolute
     // amount beneath it as supporting detail.
     return (
-      <span className="lens-table-delta lens-table-delta-stacked">
+      <span class="lens-table-delta lens-table-delta-stacked">
         {percent}
-        <span className="lens-table-delta-value">{displayValue(value)}</span>
+        <span class="lens-table-delta-value">{displayValue(props.value)}</span>
       </span>
     )
   }
   return (
-    <span className="lens-table-delta">
-      <span className="lens-table-delta-value">{displayValue(value)}</span>
+    <span class="lens-table-delta">
+      <span class="lens-table-delta-value">{displayValue(props.value)}</span>
       {percent}
     </span>
   )
@@ -256,51 +255,58 @@ function rowFieldString(frame: Frame, row: Array<unknown>, field?: string): stri
   return typeof value === 'string' ? value : ''
 }
 
-function ColumnCell({
-  column, frame, row, panel, location, max,
-}: { column: TableColumn; frame: Frame; row: Array<unknown>; panel: Panel; location: URL; max: number }) {
-  const activation = useActionActivation(column.action)
+function ColumnCell(props: {
+  column: TableColumn
+  frame: Frame
+  row: Array<unknown>
+  panel: Panel
+  location: URL
+  max: number
+}) {
+  const activation = useActionActivation(props.column.action)
   const translate = useTranslate()
-  const index = frame.columns.findIndex((candidate) => candidate.name === column.field)
-  const type = frame.columns[index]?.type ?? 'string'
-  const value = index >= 0 ? row[index] : undefined
-  const format = panel.format[column.field]
+  const index = props.frame.columns.findIndex((candidate) => candidate.name === props.column.field)
+  const type = props.frame.columns[index]?.type ?? 'string'
+  const value = index >= 0 ? props.row[index] : undefined
+  const format = props.panel.format[props.column.field]
 
-  let content
-  if (!column.field.trim() && column.text) {
+  let content: JSX.Element
+  if (!props.column.field.trim() && props.column.text) {
     // An action-only column carries its own literal label; there is no field
     // to read and no value to format.
-    content = <span className="lens-table-cell-text">{column.text}</span>
-  } else if (column.cell.kind === 'bar') {
-    content = <BarCell field={column.field} format={format} value={value} max={max} />
-  } else if (column.cell.kind === 'underline') {
-    content = <UnderlineCell field={column.field} format={format} value={value} />
-  } else if (column.cell.kind === 'delta') {
-    const secondaryField = column.cell.secondaryField
-    const secondaryIndex = secondaryField ? frame.columns.findIndex((candidate) => candidate.name === secondaryField) : -1
+    content = <span class="lens-table-cell-text">{props.column.text}</span>
+  } else if (props.column.cell.kind === 'bar') {
+    content = <BarCell field={props.column.field} format={format} value={value} max={props.max} />
+  } else if (props.column.cell.kind === 'underline') {
+    content = <UnderlineCell field={props.column.field} format={format} value={value} />
+  } else if (props.column.cell.kind === 'delta') {
+    const secondaryField = props.column.cell.secondaryField
+    const secondaryIndex = secondaryField ? props.frame.columns.findIndex((candidate) => candidate.name === secondaryField) : -1
     content = (
       <DeltaCell
         valueFormat={format}
         value={value}
-        secondaryFormat={secondaryField ? panel.format[secondaryField] : undefined}
-        secondaryValue={secondaryIndex >= 0 ? row[secondaryIndex] : undefined}
-        stacked={column.cell.layout === 'stacked'}
+        secondaryFormat={secondaryField ? props.panel.format[secondaryField] : undefined}
+        secondaryValue={secondaryIndex >= 0 ? props.row[secondaryIndex] : undefined}
+        stacked={props.column.cell.layout === 'stacked'}
       />
     )
   } else {
-    content = <TableCell column={{ name: column.field, type }} format={format} value={value} />
+    content = <TableCell column={{ name: props.column.field, type }} format={format} value={value} />
   }
 
   // A per-row status tone tints only the value's color; the producer sets it
   // from its own business thresholds (e.g. a loss ratio over 100%).
-  const tone = rowFieldString(frame, row, column.cell.toneField)
+  const tone = rowFieldString(props.frame, props.row, props.column.cell.toneField)
   if (tone === 'pos' || tone === 'warn' || tone === 'neg') {
-    content = <span className={`lens-table-tone lens-table-tone-${tone}`}>{content}</span>
+    content = <span class={`lens-table-tone lens-table-tone-${tone}`}>{content}</span>
   }
 
-  const href = column.action && activation.available ? resolveColumnActionURL(column.action, frame, row, location) : undefined
+  const href = props.column.action && untrack(activation.available)
+    ? resolveColumnActionURL(props.column.action, props.frame, props.row, props.location)
+    : undefined
 
-  if (column.clamp) {
+  if (props.column.clamp) {
     const fullText = typeof value === 'string' ? value : undefined
     // A clamp with no way to see what it cut is the defect, not the clamp. Two
     // lines of a 160px column hold about 21 of the 92 characters of «ОБ-10-1.
@@ -314,13 +320,13 @@ function ColumnCell({
     const clamped = (
       <>
         <span
-          className="lens-table-clamp"
-          style={{ WebkitLineClamp: column.clamp } as CSSProperties}
+          class="lens-table-clamp"
+          style={{ '-webkit-line-clamp': props.column.clamp } as JSX.CSSProperties}
           title={fullText}
         >
           {content}
         </span>
-        {fullText && <span className="lens-table-clamp-full">{fullText}</span>}
+        {fullText && <span class="lens-table-clamp-full">{fullText}</span>}
       </>
     )
     // A cell that drills already has something focusable in it, and revealing
@@ -328,51 +334,51 @@ function ColumnCell({
     // not is given a real control — a disclosure — rather than a focusable
     // `span`, which is a tab stop that announces nothing.
     content = href || !fullText
-      ? <span className="lens-table-clamp-host">{clamped}</span>
+      ? <span class="lens-table-clamp-host">{clamped}</span>
       : (
-        <button className="lens-table-clamp-host" type="button">
+        <button class="lens-table-clamp-host" type="button">
           {clamped}
         </button>
       )
   }
-  const pill = column.affordance === 'pill'
-  const quiet = column.affordance === 'quiet'
-  let rendered
+  const pill = props.column.affordance === 'pill'
+  const quiet = props.column.affordance === 'quiet'
+  let rendered: JSX.Element
   if (href && quiet) {
     // The whole cell is the drill target; the underline and arrow stay hidden
     // until hover/focus so a dense table of quiet numerals reads as data first.
     rendered = (
-      <a className="lens-table-cell-quiet" href={href} onClick={activation.onClick(href)}>
-        <span className="lens-table-cell-quiet-value">{content}</span>
-        <span aria-hidden="true" className="lens-table-cell-quiet-arrow"><ArrowUpRight /></span>
+      <a class="lens-table-cell-quiet" href={href} onClick={activation.onClick(href)}>
+        <span class="lens-table-cell-quiet-value">{content}</span>
+        <span aria-hidden="true" class="lens-table-cell-quiet-arrow"><ArrowUpRight /></span>
       </a>
     )
   } else if (href) {
     rendered = (
-      <a className={`lens-table-cell-link${pill ? ' lens-table-cell-pill' : ''}`} href={href} onClick={activation.onClick(href)}>
+      <a class={`lens-table-cell-link${pill ? ' lens-table-cell-pill' : ''}`} href={href} onClick={activation.onClick(href)}>
         {content}
         {/* The arrow claims the cell opens something, so it only appears when
             a target actually resolved. */}
-        <span className="lens-table-cell-link-arrow">{pill ? <ArrowUpRight /> : <CaretRight />}</span>
+        <span class="lens-table-cell-link-arrow">{pill ? <ArrowUpRight /> : <CaretRight />}</span>
       </a>
     )
   } else if (pill) {
     // A pill without a resolvable target still marks the column as a drill
     // surface (the action may be renderer-local), but it does not pretend to
     // be a link.
-    rendered = <span className="lens-table-cell-pill">{content}</span>
+    rendered = <span class="lens-table-cell-pill">{content}</span>
   } else {
     rendered = content
   }
 
   // A badge (e.g. an unmatched-source marker) rides beside the value; its
   // tooltip carries the producer's explanation.
-  const badge = rowFieldString(frame, row, column.badgeField)
-  const sampleIndex = column.sampleSizeField
-    ? frame.columns.findIndex((candidate) => candidate.name === column.sampleSizeField)
+  const badge = rowFieldString(props.frame, props.row, props.column.badgeField)
+  const sampleIndex = props.column.sampleSizeField
+    ? props.frame.columns.findIndex((candidate) => candidate.name === props.column.sampleSizeField)
     : -1
-  const sampleSize = sampleIndex >= 0 ? numericValue(row[sampleIndex]) : undefined
-  const minimum = (column.minSampleSize ?? 0) > 0 ? column.minSampleSize! : defaultMinimumSampleSize
+  const sampleSize = sampleIndex >= 0 ? numericValue(props.row[sampleIndex]) : undefined
+  const minimum = (props.column.minSampleSize ?? 0) > 0 ? props.column.minSampleSize! : defaultMinimumSampleSize
   if (sampleSize !== undefined && sampleSize < minimum) {
     const smallSampleLabel = translate(
       'table.smallSample',
@@ -380,9 +386,9 @@ function ColumnCell({
       { count: sampleSize, minimum },
     )
     rendered = (
-      <span className="lens-table-small-sample">
+      <span class="lens-table-small-sample">
         {rendered}
-        <span className="lens-table-small-sample-marker">
+        <span class="lens-table-small-sample-marker">
           {translate('table.smallSampleShort', 'n<{minimum}', { minimum })}
           <InfoTip inline text={smallSampleLabel} />
         </span>
@@ -391,9 +397,9 @@ function ColumnCell({
   }
   if (!badge) return rendered
   return (
-    <span className="lens-table-cell-badged">
+    <span class="lens-table-cell-badged">
       {rendered}
-      <span className="lens-table-cell-badge" title={badge}><InfoTip inline text={badge} /></span>
+      <span class="lens-table-cell-badge" title={badge}><InfoTip inline text={badge} /></span>
     </span>
   )
 }
@@ -417,6 +423,7 @@ interface NumericRange {
  *
  * Ties share a rank, so two equal amounts cannot take different shades.
  */
+/* eslint-disable react-refresh/only-export-components */
 export function heatRank(value: number, sorted: readonly number[]): number {
   if (sorted.length <= 1) return 0.5
   const first = sorted.indexOf(value)
@@ -425,7 +432,7 @@ export function heatRank(value: number, sorted: readonly number[]): number {
   return ((first + last) / 2) / (sorted.length - 1)
 }
 
-function heatCellStyle(column: TableColumn, frame: Frame, row: Array<unknown>, ranges: Map<string, NumericRange>): CSSProperties | undefined {
+function heatCellStyle(column: TableColumn, frame: Frame, row: Array<unknown>, ranges: Map<string, NumericRange>): JSX.CSSProperties | undefined {
   if (!column.heat) return undefined
   const index = frame.columns.findIndex((candidate) => candidate.name === column.field)
   const value = index >= 0 ? numericValue(row[index]) : undefined
@@ -433,7 +440,7 @@ function heatCellStyle(column: TableColumn, frame: Frame, row: Array<unknown>, r
   if (value === undefined || !range) return undefined
   const intensity = heatRank(value, range.sorted)
   const percentage = Math.round(heatMinimumMixPercent + Math.max(0, Math.min(1, intensity)) * heatMixRangePercent)
-  return { backgroundColor: `color-mix(in srgb, var(--lens-accent-500) ${percentage}%, var(--lens-bg-card))` }
+  return { 'background-color': `color-mix(in srgb, var(--lens-accent-500) ${percentage}%, var(--lens-bg-card))` }
 }
 
 function sortedRows(frame: Frame, sort: SortState | undefined): Array<{ row: Array<unknown>; index: number }> {
@@ -453,9 +460,9 @@ export interface TablePanelProps {
   panel: Panel
 }
 
-function TableSummaryCell({ panel, field, value }: { panel: Panel; field: string; value: unknown }) {
-  const display = useFormat(panel.format[field])
-  return <>{value === undefined ? <SummaryVoid /> : display(value)}</>
+function TableSummaryCell(props: { panel: Panel; field: string; value: unknown }) {
+  const display = useFormat(props.panel.format[props.field])
+  return <>{props.value === undefined ? <SummaryVoid /> : display(props.value)}</>
 }
 
 /**
@@ -478,10 +485,10 @@ function TableSummaryCell({ panel, field, value }: { panel: Panel; field: string
 function SummaryVoid() {
   const translate = useTranslate()
   return (
-    <span className="lens-table-summary-void">
+    <span class="lens-table-summary-void">
       <span aria-hidden="true">—</span>
       {/* TODO(i18n): register `table.notSummable` (en «Not summable», ru «Не суммируется»). */}
-      <span className="lens-sr-only">{translate('table.notSummable', 'Not summable')}</span>
+      <span class="lens-sr-only">{translate('table.notSummable', 'Not summable')}</span>
     </span>
   )
 }
@@ -490,21 +497,22 @@ type RenderRow =
   | { row: Array<unknown>; index: number; kind: 'normal' | 'member' }
   | { row: Array<unknown>; index: number; kind: 'toggle'; group: string; expanded: boolean }
 
-export function TablePanel({ panel }: TablePanelProps) {
+export function TablePanel(props: TablePanelProps) {
+  const panel = props.panel
   const frame = usePanelFrame(panel.id)
   const { document, navigation } = useDashboard()
   const pagination = usePanelPagination()
   const translate = useTranslate()
-  const [sort, setSort] = useState<SortState>()
-  const [search, setSearch] = useState('')
-  const [locationHref, setLocationHref] = useState(() => globalThis.location.href)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [scrollEdges, setScrollEdges] = useState({ left: false, right: false })
-  const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false)
-  const searchInitialized = useRef(false)
-  const [requestedPage, setRequestedPage] = useState(frame.page?.number ?? 1)
-  const requestedSnapshotId = useRef(document.snapshotId)
-  const level: Level | undefined = navigation.panelId === panel.id && navigation.path.length
+  const [sort, setSort] = createSignal<SortState>()
+  const [search, setSearch] = createSignal('')
+  const [locationHref, setLocationHref] = createSignal(globalThis.location.href)
+  let scrollRef: HTMLDivElement | undefined
+  const [scrollEdges, setScrollEdges] = createSignal({ left: false, right: false })
+  const [hasHorizontalOverflow, setHasHorizontalOverflow] = createSignal(false)
+  let searchInitialized = false
+  const [requestedPage, setRequestedPage] = createSignal(frame.page?.number ?? 1)
+  let requestedSnapshotId = document.snapshotId
+  const level = (): Level | undefined => navigation.panelId === panel.id && navigation.path.length
     ? levelForPath(document, navigation.path)
     : undefined
   // A static identity table (a fixed decomposition, not a record list) declares
@@ -514,22 +522,22 @@ export function TablePanel({ panel }: TablePanelProps) {
   const sortEnabled = panel.presentation?.sortable !== false && (!frame.page || serverSort)
   // A server-searchable table is ordered by the same producer over the same
   // result scope; only an entirely static frame is safe to reorder locally.
-  const rows = useMemo(() => frame.data ? sortedRows(frame.data, !serverSort && sortEnabled ? sort : undefined) : [], [frame.data, serverSort, sort, sortEnabled])
-  const page = frame.page?.number ?? 1
+  const rows = createMemo(() => frame.data ? sortedRows(frame.data, !serverSort && sortEnabled ? sort() : undefined) : [])
+  const page = () => frame.page?.number ?? 1
   const pageSize = frame.page?.size
-  const loadingPage = requestedSnapshotId.current === document.snapshotId ? requestedPage : 1
+  const loadingPage = () => requestedSnapshotId === document.snapshotId ? requestedPage() : 1
   // The row-count check keeps pagination working with older servers that omit hasNext.
-  const hasNext = frame.page?.hasNext ?? Boolean(pageSize && (frame.data?.rows.length ?? 0) >= pageSize)
-  useEffect(() => {
+  const hasNext = () => frame.page?.hasNext ?? Boolean(pageSize && (frame.data?.rows.length ?? 0) >= pageSize)
+  createEffect(() => {
     const syncLocation = () => setLocationHref(globalThis.location.href)
     globalThis.addEventListener('popstate', syncLocation)
-    return () => globalThis.removeEventListener('popstate', syncLocation)
-  }, [])
-  const location = useMemo(() => new URL(locationHref), [locationHref])
+    onCleanup(() => globalThis.removeEventListener('popstate', syncLocation))
+  })
+  const location = createMemo(() => new URL(locationHref()))
   const columns = panel.columns?.length ? panel.columns : undefined
   // Column maxima scale bar cells. Computing them per cell is quadratic in
   // row count, so they are derived once per frame.
-  const columnStats = useMemo(() => {
+  const columnStats = createMemo(() => {
     const maxima = new Map<string, number>()
     const ranges = new Map<string, NumericRange>()
     // References are keyed off the frame, not the column specs: a table
@@ -560,7 +568,7 @@ export function TablePanel({ panel }: TablePanelProps) {
       }
     }
     return { maxima, ranges, references }
-  }, [columns, frame.data, panel.format])
+  })
   // A panel-level leaf action applies to whole rows. In columns mode it has
   // no column of its own, so the table appends one; otherwise the action the
   // document declares would never reach the DOM.
@@ -570,18 +578,18 @@ export function TablePanel({ panel }: TablePanelProps) {
 
   // Row grouping collapses tagged member rows behind a synthetic toggle row.
   // The tag lives in a companion frame column named by presentation.rowGroupField.
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+  const [expandedGroups, setExpandedGroups] = createSignal<Record<string, boolean>>({})
   const rowGroupField = panel.presentation?.rowGroupField
   const groupIndex = columns && frame.data && rowGroupField
     ? frame.data.columns.findIndex((candidate) => candidate.name === rowGroupField)
     : -1
   const toggleGroup = (group: string) => setExpandedGroups((current) => ({ ...current, [group]: !current[group] }))
-  const renderRows = useMemo<Array<RenderRow>>(() => {
-    if (groupIndex < 0) return rows.map((entry) => ({ ...entry, kind: 'normal' as const }))
+  const renderRows = createMemo<Array<RenderRow>>(() => {
+    if (groupIndex < 0) return rows().map((entry) => ({ ...entry, kind: 'normal' as const }))
     const normal: Array<RenderRow> = []
     const toggles: Array<{ entry: { row: Array<unknown>; index: number }; group: string }> = []
     const members = new Map<string, Array<{ row: Array<unknown>; index: number }>>()
-    for (const entry of rows) {
+    for (const entry of rows()) {
       const raw = entry.row[groupIndex]
       const tag = typeof raw === 'string' ? raw : ''
       if (!tag) { normal.push({ ...entry, kind: 'normal' }); continue }
@@ -594,12 +602,12 @@ export function TablePanel({ panel }: TablePanelProps) {
     // sort never scatters the collapsed tail through the live rows.
     const out: Array<RenderRow> = [...normal]
     for (const { entry, group } of toggles) {
-      const expanded = Boolean(expandedGroups[group])
+      const expanded = Boolean(expandedGroups()[group])
       out.push({ ...entry, kind: 'toggle', group, expanded })
       if (expanded) for (const member of members.get(group) ?? []) out.push({ ...member, kind: 'member' })
     }
     return out
-  }, [rows, groupIndex, expandedGroups])
+  })
   // The footer's "N rows" counts real data rows, never the synthetic toggle.
   const dataRowCount = groupIndex < 0
     ? (frame.data?.rows.length ?? 0)
@@ -613,26 +621,27 @@ export function TablePanel({ panel }: TablePanelProps) {
   // to say, so the band and its only two occupants appear and vanish together.
   const showsRowCount = (frame.summary?.filteredRows ?? dataRowCount) > rowCountDisclosureThreshold
 
-  useEffect(() => {
-    if (requestedSnapshotId.current !== document.snapshotId) {
-      requestedSnapshotId.current = document.snapshotId
+  createEffect(() => {
+    if (requestedSnapshotId !== document.snapshotId) {
+      requestedSnapshotId = document.snapshotId
       setRequestedPage(1)
       setSearch('')
-      searchInitialized.current = false
+      searchInitialized = false
       return
     }
     if (frame.page?.number) setRequestedPage(frame.page.number)
-  }, [document.snapshotId, frame.page?.number])
+  })
 
-  useEffect(() => {
-    if (!panel.table?.searchable) return undefined
-    if (!searchInitialized.current) {
-      searchInitialized.current = true
-      return undefined
+  createEffect(() => {
+    if (!panel.table?.searchable) return
+    if (!searchInitialized) {
+      searchInitialized = true
+      return
     }
-    const timeout = globalThis.setTimeout(() => { void pagination.search(panel.id, search) }, document.theme.debounceMs ?? 500)
-    return () => globalThis.clearTimeout(timeout)
-  }, [document.theme.debounceMs, pagination, panel.id, panel.table?.searchable, search])
+    const currentSearch = search()
+    const timeout = globalThis.setTimeout(() => { void pagination.search(panel.id, currentSearch) }, document.theme.debounceMs ?? 500)
+    onCleanup(() => globalThis.clearTimeout(timeout))
+  })
 
   const changePage = (next: number) => {
     setRequestedPage(next)
@@ -640,19 +649,20 @@ export function TablePanel({ panel }: TablePanelProps) {
   }
 
   const changeSort = (column: string) => {
-    const next: SortState = sort?.column === column
-      ? { column, direction: sort.direction === 'ascending' ? 'descending' : 'ascending' }
+    const next: SortState = sort()?.column === column
+      ? { column, direction: sort()!.direction === 'ascending' ? 'descending' : 'ascending' }
       : { column, direction: 'ascending' as const }
     setSort(next)
     if (serverSort) void pagination.sort(panel.id, { field: column, direction: next.direction === 'ascending' ? 'asc' : 'desc' })
   }
 
-  const sortDirection = (name: string) => sortEnabled && sort?.column === name ? sort.direction : undefined
+  const sortDirection = (name: string) => sortEnabled && sort()?.column === name ? sort()!.direction : undefined
   const columnCount = columns ? columns.length + (rowLeafAction ? 1 : 0) : (frame.data?.columns.length ?? 0) + 1
 
-  useLayoutEffect(() => {
-    const scroller = scrollRef.current
-    if (!scroller) return undefined
+  createEffect(() => {
+    const data = frame.data
+    const scroller = scrollRef
+    if (!data || !scroller) return
     let animationFrame: number | undefined
     const measure = () => {
       const sticky = scroller.querySelector<HTMLElement>('thead th:first-child')
@@ -664,7 +674,7 @@ export function TablePanel({ panel }: TablePanelProps) {
       // The trailing spacer is part of the table's real scroll box, but must
       // not create overflow on a table whose data columns fit. Remove its
       // known width when deciding whether the spacer remains necessary.
-      const contentWidth = Math.max(0, tableWidth - (hasHorizontalOverflow ? stickyWidth : 0))
+      const contentWidth = Math.max(0, tableWidth - (untrack(hasHorizontalOverflow) ? stickyWidth : 0))
       const overflowing = contentWidth > scroller.clientWidth + 1
       setHasHorizontalOverflow((current) => current === overflowing ? current : overflowing)
       // A translated sticky first column contributes its width to Chromium's
@@ -697,16 +707,16 @@ export function TablePanel({ panel }: TablePanelProps) {
     const sticky = scroller.querySelector<HTMLElement>('thead th:first-child')
     if (table) observer?.observe(table)
     if (sticky) observer?.observe(sticky)
-    return () => {
+    onCleanup(() => {
       scroller.removeEventListener('scroll', measure)
       observer?.disconnect()
       if (animationFrame !== undefined) globalThis.cancelAnimationFrame(animationFrame)
       scroller.parentElement?.style.removeProperty('--lens-table-sticky-width')
-    }
-  }, [columnCount, frame.data, hasHorizontalOverflow])
+    })
+  })
 
   const scrollHorizontally = (direction: -1 | 1) => {
-    const scroller = scrollRef.current
+    const scroller = scrollRef
     if (!scroller) return
     const tableWidth = scroller.querySelector<HTMLTableElement>('table')?.scrollWidth || scroller.scrollWidth
     const headers = Array.from(scroller.querySelectorAll<HTMLElement>('thead th:not(.lens-table-scroll-spacer):not(.lens-table-action-heading)'))
@@ -738,204 +748,211 @@ export function TablePanel({ panel }: TablePanelProps) {
 
   return (
     <PanelFrame panel={panel} frame={frame} allowEmptyContent={Boolean(frame.page)}>
-      {frame.data && (
-        <ColumnReferences.Provider value={columnStats.references}>
-          <div className="lens-table-view">
+      <Show when={frame.data}>
+        <ColumnReferences.Provider value={columnStats().references}>
+          <div class="lens-table-view">
             {panel.table?.searchable && (
-              <label className="lens-table-search">
-                <span className="lens-sr-only">{translate('table.search', 'Search table')}</span>
+              <label class="lens-table-search">
+                <span class="lens-sr-only">{translate('table.search', 'Search table')}</span>
                 <input
                   aria-label={translate('table.search', 'Search table')}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder={translate('table.searchPlaceholder', 'Search all rows…')}
                   type="search"
-                  value={search}
+                  value={search()}
                 />
               </label>
             )}
             <div
-              className="lens-table-scroll-frame"
-              data-overflow-left={scrollEdges.left}
-              data-overflow-right={scrollEdges.right}
+              class="lens-table-scroll-frame"
+              data-overflow-left={scrollEdges().left}
+              data-overflow-right={scrollEdges().right}
             >
               {/* eslint-disable jsx-a11y/no-noninteractive-tabindex -- overflowing native scroll regions must be keyboard-focusable. */}
               <div
                 aria-label={translate('table.scrollRegion', 'Scrollable table')}
-                className="lens-table-scroll"
-                ref={scrollRef}
+                class="lens-table-scroll"
+                ref={(el) => { scrollRef = el }}
                 role="region"
-                tabIndex={scrollEdges.left || scrollEdges.right ? 0 : undefined}
+                tabIndex={scrollEdges().left || scrollEdges().right ? 0 : undefined}
               >
                 {/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
-                <table className={`lens-table${columnCount >= 4 ? ' lens-table-wide' : ''}`}>
+                <table class={`lens-table${columnCount >= 4 ? ' lens-table-wide' : ''}`}>
                   <thead>
                     <tr>
                       {columns ? (
                         <>
-                          {columns.map((column, columnIndex) => {
-                            // An action-only column has no field to sort by, and a
-                            // static table offers no sort at all; either way the
-                            // heading is a plain label, not a control.
-                            const sortable = sortEnabled && Boolean(column.field.trim())
-                            return (
-                              <th
-                                aria-sort={sortable ? (sort?.column === column.field ? sort.direction : 'none') : undefined}
-                                className={isRightAligned(column, frame.data!) ? 'lens-table-col-right' : undefined}
-                                key={column.field || `column-${columnIndex}`}
-                                scope="col"
-                                style={column.widthPx ? { minWidth: `${column.widthPx}px` } : undefined}
-                              >
-                                {sortable ? (
-                                  <button type="button" onClick={() => changeSort(column.field)}>
-                                    <span>{column.label}</span>
-                                    <SortIndicator direction={sortDirection(column.field)} />
-                                  </button>
-                                ) : (
-                                  <span className="lens-table-heading-static">{column.label}</span>
-                                )}
-                              </th>
-                            )
-                          })}
+                          <For each={columns}>
+                            {(column) => {
+                              // An action-only column has no field to sort by, and a
+                              // static table offers no sort at all; either way the
+                              // heading is a plain label, not a control.
+                              const sortable = sortEnabled && Boolean(column.field.trim())
+                              return (
+                                <th
+                                  aria-sort={sortable ? (sort()?.column === column.field ? sort()!.direction : 'none') : undefined}
+                                  class={frame.data && isRightAligned(column, frame.data) ? 'lens-table-col-right' : undefined}
+                                  scope="col"
+                                  style={column.widthPx ? { 'min-width': `${column.widthPx}px` } : undefined}
+                                >
+                                  {sortable ? (
+                                    <button type="button" onClick={() => changeSort(column.field)}>
+                                      <span>{column.label}</span>
+                                      <SortIndicator direction={sortDirection(column.field)} />
+                                    </button>
+                                  ) : (
+                                    <span class="lens-table-heading-static">{column.label}</span>
+                                  )}
+                                </th>
+                              )
+                            }}
+                          </For>
                           {rowLeafAction && (
-                            <th className="lens-table-action-heading" scope="col">
-                              <span className="lens-sr-only">{translate('table.actions', 'Actions')}</span>
+                            <th class="lens-table-action-heading" scope="col">
+                              <span class="lens-sr-only">{translate('table.actions', 'Actions')}</span>
                             </th>
                           )}
                         </>
                       ) : (
                         <>
-                          {frame.data.columns.map((column) => (
-                            <th
-                              aria-sort={sortEnabled ? (sort?.column === column.name ? sort.direction : 'none') : undefined}
-                              /* The body cell for these types is right-aligned
-                               (`.lens-table-cell-number`, `-time`); the header
-                               follows the data it heads. */
-                              className={column.type === 'number' || column.type === 'time' ? 'lens-table-col-right' : undefined}
-                              key={column.name}
-                              scope="col"
-                            >
-                              {sortEnabled ? (
-                                <button type="button" onClick={() => changeSort(column.name)}>
-                                  <span>{column.name}</span>
-                                  <SortIndicator direction={sortDirection(column.name)} />
-                                </button>
-                              ) : (
-                                <span className="lens-table-heading-static">{column.name}</span>
-                              )}
-                            </th>
-                          ))}
-                          <th className="lens-table-action-heading" scope="col">
-                            <span className="lens-sr-only">{translate('table.actions', 'Actions')}</span>
+                          <For each={frame.data?.columns ?? []}>
+                            {(column) => (
+                              <th
+                                aria-sort={sortEnabled ? (sort()?.column === column.name ? sort()!.direction : 'none') : undefined}
+                                /* The body cell for these types is right-aligned
+                                 (`.lens-table-cell-number`, `-time`); the header
+                                 follows the data it heads. */
+                                class={column.type === 'number' || column.type === 'time' ? 'lens-table-col-right' : undefined}
+                                scope="col"
+                              >
+                                {sortEnabled ? (
+                                  <button type="button" onClick={() => changeSort(column.name)}>
+                                    <span>{column.name}</span>
+                                    <SortIndicator direction={sortDirection(column.name)} />
+                                  </button>
+                                ) : (
+                                  <span class="lens-table-heading-static">{column.name}</span>
+                                )}
+                              </th>
+                            )}
+                          </For>
+                          <th class="lens-table-action-heading" scope="col">
+                            <span class="lens-sr-only">{translate('table.actions', 'Actions')}</span>
                           </th>
                         </>
                       )}
-                      {hasHorizontalOverflow && <th aria-hidden="true" className="lens-table-scroll-spacer" />}
+                      {hasHorizontalOverflow() && <th aria-hidden="true" class="lens-table-scroll-spacer" />}
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.length === 0 ? (
+                    {rows().length === 0 ? (
                       <tr>
-                        <td className="lens-table-empty" colSpan={columnCount}>
+                        <td class="lens-table-empty" colSpan={columnCount}>
                           {translate('table.emptyPage', 'No records on this page')}
                         </td>
-                        {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
+                        {hasHorizontalOverflow() && <td aria-hidden="true" class="lens-table-scroll-spacer" />}
                       </tr>
-                    ) : renderRows.map((entry) => !columns ? (
-                      <FrameRow
-                        frame={frame.data!}
-                        row={entry.row}
-                        index={entry.index}
-                        panel={panel}
-                        location={location}
-                        level={level}
-                        openRecordLabel={translate('table.openRecord', 'Open record')}
-                        trailingSpacer={hasHorizontalOverflow}
-                        key={entry.index}
-                      />
-                    ) : entry.kind === 'toggle' ? (
-                      <GroupToggleRow
-                        columns={columns}
-                        frame={frame.data!}
-                        row={entry.row}
-                        panel={panel}
-                        location={location}
-                        columnMaxima={columnStats.maxima}
-                        columnRanges={columnStats.ranges}
-                        expanded={entry.expanded}
-                        onToggle={() => toggleGroup(entry.group)}
-                        trailingSpacer={hasHorizontalOverflow}
-                        key={`toggle-${entry.group}`}
-                      />
                     ) : (
-                      <tr className={entry.kind === 'member' ? 'lens-table-group-member' : undefined} key={entry.index}>
-                        {columns.map((column, columnIndex) => (
-                          <td
-                            className={`lens-table-cell${isRightAligned(column, frame.data!) ? ' lens-table-col-right' : ''}`}
-                            key={column.field || `column-${columnIndex}`}
-                            style={{
-                              ...(column.widthPx ? { minWidth: `${column.widthPx}px` } : {}),
-                              ...heatCellStyle(column, frame.data!, entry.row, columnStats.ranges),
-                            }}
-                          >
-                            <ColumnCell
-                              column={column}
-                              frame={frame.data!}
-                              row={entry.row}
-                              panel={panel}
-                              location={location}
-                              max={columnStats.maxima.get(column.field) ?? 0}
-                            />
-                          </td>
-                        ))}
-                        {rowLeafAction && (
-                          <td className="lens-table-action-cell">
-                            <RowLeafAction
-                              frame={frame.data!}
-                              row={entry.row}
-                              panel={panel}
-                              location={location}
-                              level={level}
-                              label={translate('table.openRecord', 'Open record')}
-                            />
-                          </td>
+                      <For each={renderRows()}>
+                        {(entry) => !columns ? (
+                          <FrameRow
+                            frame={frame.data!}
+                            index={entry.index}
+                            location={location()}
+                            openRecordLabel={translate('table.openRecord', 'Open record')}
+                            panel={panel}
+                            row={entry.row}
+                            trailingSpacer={hasHorizontalOverflow()}
+                          />
+                        ) : entry.kind === 'toggle' ? (
+                          <GroupToggleRow
+                            columnMaxima={columnStats().maxima}
+                            columnRanges={columnStats().ranges}
+                            columns={columns}
+                            expanded={entry.expanded}
+                            frame={frame.data!}
+                            location={location()}
+                            onToggle={() => toggleGroup(entry.group)}
+                            panel={panel}
+                            row={entry.row}
+                            trailingSpacer={hasHorizontalOverflow()}
+                          />
+                        ) : (
+                          <tr class={entry.kind === 'member' ? 'lens-table-group-member' : undefined}>
+                            <For each={columns}>
+                              {(column) => (
+                                <td
+                                  class={`lens-table-cell${frame.data && isRightAligned(column, frame.data) ? ' lens-table-col-right' : ''}`}
+                                  style={{
+                                    ...(column.widthPx ? { 'min-width': `${column.widthPx}px` } : {}),
+                                    ...(frame.data ? heatCellStyle(column, frame.data, entry.row, columnStats().ranges) : {}),
+                                  }}
+                                >
+                                  <ColumnCell
+                                    column={column}
+                                    frame={frame.data!}
+                                    location={location()}
+                                    max={columnStats().maxima.get(column.field) ?? 0}
+                                    panel={panel}
+                                    row={entry.row}
+                                  />
+                                </td>
+                              )}
+                            </For>
+                            {rowLeafAction && (
+                              <td class="lens-table-action-cell">
+                                <RowLeafAction
+                                  frame={frame.data!}
+                                  label={translate('table.openRecord', 'Open record')}
+                                  level={level()}
+                                  location={location()}
+                                  panel={panel}
+                                  row={entry.row}
+                                />
+                              </td>
+                            )}
+                            {hasHorizontalOverflow() && <td aria-hidden="true" class="lens-table-scroll-spacer" />}
+                          </tr>
                         )}
-                        {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
-                      </tr>
-                    ))}
+                      </For>
+                    )}
                   </tbody>
                   {columns && frame.summary && Object.keys(frame.summary.values).length > 0 && (
                     <tfoot>
                       <tr>
-                        {columns.map((column, index) => (
-                          <td
-                            className={`lens-table-cell${isRightAligned(column, frame.data!) ? ' lens-table-col-right' : ''}`}
-                            key={column.field || `summary-${index}`}
-                          >
-                            {index === 0
-                              ? frame.summary?.fullValues
-                                ? translate('table.filteredTotal', 'Filtered total')
-                                : translate('table.total', 'Total')
-                              : column.total === true
-                                ? <TableSummaryCell panel={panel} field={column.field} value={frame.summary?.values[column.field]} />
-                                : <SummaryVoid />}
-                          </td>
-                        ))}
-                        {rowLeafAction && <td />}
-                        {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
-                      </tr>
-                      {frame.summary.fullValues && (
-                        <tr className="lens-table-summary-all">
-                          {columns.map((column, index) => (
-                            <td className={`lens-table-cell${isRightAligned(column, frame.data!) ? ' lens-table-col-right' : ''}`} key={column.field || `full-summary-${index}`}>
-                              {index === 0
-                                ? translate('table.allRowsTotal', 'All rows total')
+                        <For each={columns}>
+                          {(column, index) => (
+                            <td
+                              class={`lens-table-cell${frame.data && isRightAligned(column, frame.data) ? ' lens-table-col-right' : ''}`}
+                            >
+                              {index() === 0
+                                ? frame.summary?.fullValues
+                                  ? translate('table.filteredTotal', 'Filtered total')
+                                  : translate('table.total', 'Total')
                                 : column.total === true
-                                  ? <TableSummaryCell panel={panel} field={column.field} value={frame.summary?.fullValues?.[column.field]} />
+                                  ? <TableSummaryCell field={column.field} panel={panel} value={frame.summary?.values[column.field]} />
                                   : <SummaryVoid />}
                             </td>
-                          ))}
+                          )}
+                        </For>
+                        {rowLeafAction && <td />}
+                        {hasHorizontalOverflow() && <td aria-hidden="true" class="lens-table-scroll-spacer" />}
+                      </tr>
+                      {frame.summary.fullValues && (
+                        <tr class="lens-table-summary-all">
+                          <For each={columns}>
+                            {(column, index) => (
+                              <td class={`lens-table-cell${frame.data && isRightAligned(column, frame.data) ? ' lens-table-col-right' : ''}`}>
+                                {index() === 0
+                                  ? translate('table.allRowsTotal', 'All rows total')
+                                  : column.total === true
+                                    ? <TableSummaryCell field={column.field} panel={panel} value={frame.summary?.fullValues?.[column.field]} />
+                                    : <SummaryVoid />}
+                              </td>
+                            )}
+                          </For>
                           {rowLeafAction && <td />}
-                          {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
+                          {hasHorizontalOverflow() && <td aria-hidden="true" class="lens-table-scroll-spacer" />}
                         </tr>
                       )}
                     </tfoot>
@@ -944,28 +961,28 @@ export function TablePanel({ panel }: TablePanelProps) {
               </div>
               <button
                 aria-label={translate('table.scrollLeft', 'Scroll table left')}
-                className="lens-table-overflow-edge lens-table-overflow-edge-left"
-                disabled={!scrollEdges.left}
+                class="lens-table-overflow-edge lens-table-overflow-edge-left"
+                disabled={!scrollEdges().left}
                 onClick={() => scrollHorizontally(-1)}
                 type="button"
               />
               <button
                 aria-label={translate('table.scrollRight', 'Scroll table right')}
-                className="lens-table-overflow-edge lens-table-overflow-edge-right"
-                disabled={!scrollEdges.right}
+                class="lens-table-overflow-edge lens-table-overflow-edge-right"
+                disabled={!scrollEdges().right}
                 onClick={() => scrollHorizontally(1)}
                 type="button"
               />
             </div>
             {(showsRowCount || frame.page) && (
-              <footer className="lens-table-footer">
-                <span className="lens-table-footer-notes">
+              <footer class="lens-table-footer">
+                <span class="lens-table-footer-notes">
                   {/* Only a paginated table has a "this page" to scope sorting to.
                   On a table that shows every row at once the caveat describes a
                   limit that does not exist, and reads as a warning that some of
                   the data is out of sight. */}
                   {showsRowCount && (
-                    <span className="lens-table-rowcount">
+                    <span class="lens-table-rowcount">
                       {frame.summary && frame.summary.totalRows > frame.summary.filteredRows
                         ? translate('table.filteredRowCount', '{filtered} of {total} rows', { filtered: frame.summary.filteredRows, total: frame.summary.totalRows })
                         : translate('table.rowCount', '{count} rows', { count: frame.summary?.filteredRows ?? dataRowCount })}
@@ -975,17 +992,17 @@ export function TablePanel({ panel }: TablePanelProps) {
                 {frame.page && (
                   <nav
                     aria-label={translate('table.pages', '{name} pages', { name: panel.title })}
-                    className="lens-table-pagination"
+                    class="lens-table-pagination"
                   >
-                    <button disabled={frame.isLoading || page <= 1} onClick={() => changePage(page - 1)} type="button">
+                    <button disabled={frame.isLoading || page() <= 1} onClick={() => changePage(page() - 1)} type="button">
                       {translate('table.previous', 'Previous')}
                     </button>
                     <span aria-live="polite">
-                      {frame.isLoading && loadingPage !== page
-                        ? translate('table.loadingPage', 'Loading page {n}', { n: loadingPage })
-                        : translate('table.page', 'Page {n}', { n: page })}
+                      {frame.isLoading && loadingPage() !== page()
+                        ? translate('table.loadingPage', 'Loading page {n}', { n: loadingPage() })
+                        : translate('table.page', 'Page {n}', { n: page() })}
                     </span>
-                    <button disabled={frame.isLoading || !hasNext} onClick={() => changePage(page + 1)} type="button">
+                    <button disabled={frame.isLoading || !hasNext()} onClick={() => changePage(page() + 1)} type="button">
                       {translate('table.next', 'Next')}
                     </button>
                   </nav>
@@ -994,7 +1011,7 @@ export function TablePanel({ panel }: TablePanelProps) {
             )}
           </div>
         </ColumnReferences.Provider>
-      )}
+      </Show>
     </PanelFrame>
   )
 }
@@ -1003,9 +1020,7 @@ export function TablePanel({ panel }: TablePanelProps) {
 // group. Its first cell is the toggle control (a chevron plus the producer's
 // label, e.g. "Discontinued products (12)"); the remaining cells render the
 // row's aggregate values (e.g. the group's total delta) without drill chrome.
-function GroupToggleRow({
-  columns, frame, row, panel, location, columnMaxima, columnRanges, expanded, onToggle, trailingSpacer,
-}: {
+function GroupToggleRow(props: {
   columns: Array<TableColumn>
   frame: Frame
   row: Array<unknown>
@@ -1018,57 +1033,61 @@ function GroupToggleRow({
   trailingSpacer: boolean
 }) {
   return (
-    <tr className="lens-table-group-toggle">
-      {columns.map((column, columnIndex) => {
-        const index = frame.columns.findIndex((candidate) => candidate.name === column.field)
-        const rawLabel = index >= 0 ? row[index] : undefined
-        const label = typeof rawLabel === 'string' ? rawLabel : ''
-        return (
-          <td
-            className={`lens-table-cell${isRightAligned(column, frame) ? ' lens-table-col-right' : ''}`}
-            key={column.field || `column-${columnIndex}`}
-            style={{
-              ...(column.widthPx ? { minWidth: `${column.widthPx}px` } : {}),
-              ...heatCellStyle(column, frame, row, columnRanges),
-            }}
-          >
-            {columnIndex === 0 ? (
-              <button aria-expanded={expanded} className="lens-table-group-toggle-btn" onClick={onToggle} type="button">
-                <span aria-hidden="true" className={`lens-table-group-chevron${expanded ? ' lens-table-group-chevron-open' : ''}`}>
-                  <CaretRight />
-                </span>
-                <span>{label}</span>
-              </button>
-            ) : (
-              <ColumnCell
-                column={column}
-                frame={frame}
-                row={row}
-                panel={panel}
-                location={location}
-                max={columnMaxima.get(column.field) ?? 0}
-              />
-            )}
-          </td>
-        )
-      })}
-      {trailingSpacer && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
+    <tr class="lens-table-group-toggle">
+      <For each={props.columns}>
+        {(column, columnIndex) => {
+          const index = props.frame.columns.findIndex((candidate) => candidate.name === column.field)
+          const rawLabel = index >= 0 ? props.row[index] : undefined
+          const label = typeof rawLabel === 'string' ? rawLabel : ''
+          return (
+            <td
+              class={`lens-table-cell${isRightAligned(column, props.frame) ? ' lens-table-col-right' : ''}`}
+              style={{
+                ...(column.widthPx ? { 'min-width': `${column.widthPx}px` } : {}),
+                ...heatCellStyle(column, props.frame, props.row, props.columnRanges),
+              }}
+            >
+              {columnIndex() === 0 ? (
+                <button aria-expanded={props.expanded} class="lens-table-group-toggle-btn" onClick={props.onToggle} type="button">
+                  <span aria-hidden="true" class={`lens-table-group-chevron${props.expanded ? ' lens-table-group-chevron-open' : ''}`}>
+                    <CaretRight />
+                  </span>
+                  <span>{label}</span>
+                </button>
+              ) : (
+                <ColumnCell
+                  column={column}
+                  frame={props.frame}
+                  location={props.location}
+                  max={props.columnMaxima.get(column.field) ?? 0}
+                  panel={props.panel}
+                  row={props.row}
+                />
+              )}
+            </td>
+          )
+        }}
+      </For>
+      {props.trailingSpacer && <td aria-hidden="true" class="lens-table-scroll-spacer" />}
     </tr>
   )
 }
 
-function RowLeafAction({
-  frame, row, panel, location, level, label,
-}: { frame: Frame; row: Array<unknown>; panel: Panel; location: URL; level?: Level; label: string }) {
-  const action = actionForRow(panel, frame, row, level)
+function RowLeafAction(props: {
+  frame: Frame
+  row: Array<unknown>
+  panel: Panel
+  location: URL
+  level?: Level
+  label: string
+}) {
+  const action = actionForRow(props.panel, props.frame, props.row, props.level)
   const activation = useActionActivation(action)
-  const href = activation.available ? resolveRowLeafActionURL(panel, frame, row, location, level) : undefined
-  return href ? <a className="lens-leaf-action" href={href} onClick={activation.onClick(href)}>{label}</a> : null
+  const href = untrack(activation.available) ? resolveRowLeafActionURL(props.panel, props.frame, props.row, props.location, props.level) : undefined
+  return href ? <a class="lens-leaf-action" href={href} onClick={activation.onClick(href)}>{props.label}</a> : null
 }
 
-function FrameRow({
-  frame, row, index, panel, location, level, openRecordLabel, trailingSpacer,
-}: {
+function FrameRow(props: {
   frame: Frame
   row: Array<unknown>
   index: number
@@ -1078,20 +1097,22 @@ function FrameRow({
   openRecordLabel: string
   trailingSpacer: boolean
 }) {
-  const action = actionForRow(panel, frame, row, level)
+  const action = actionForRow(props.panel, props.frame, props.row, props.level)
   const activation = useActionActivation(action)
-  const href = activation.available ? resolveRowLeafActionURL(panel, frame, row, location, level) : undefined
+  const href = untrack(activation.available) ? resolveRowLeafActionURL(props.panel, props.frame, props.row, props.location, props.level) : undefined
   return (
-    <tr key={index}>
-      {frame.columns.map((column, columnIndex) => (
-        <td className={`lens-table-cell-${column.type}`} key={column.name}>
-          <TableCell column={column} format={panel.format[column.name]} value={row[columnIndex]} />
-        </td>
-      ))}
-      <td className="lens-table-action-cell">
-        {href && <a className="lens-leaf-action" href={href} onClick={activation.onClick(href)}>{openRecordLabel}</a>}
+    <tr>
+      <For each={props.frame.columns}>
+        {(column, columnIndex) => (
+          <td class={`lens-table-cell-${column.type}`}>
+            <TableCell column={column} format={props.panel.format[column.name]} value={props.row[columnIndex()]} />
+          </td>
+        )}
+      </For>
+      <td class="lens-table-action-cell">
+        {href && <a class="lens-leaf-action" href={href} onClick={activation.onClick(href)}>{props.openRecordLabel}</a>}
       </td>
-      {trailingSpacer && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
+      {props.trailingSpacer && <td aria-hidden="true" class="lens-table-scroll-spacer" />}
     </tr>
   )
 }

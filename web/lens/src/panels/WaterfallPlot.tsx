@@ -1,16 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-  type RefObject,
-} from 'react'
-import { createPortal } from 'react-dom'
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+import { createEffect, createSignal, onCleanup, Show, type JSX } from 'solid-js'
+import { For, children as useChildren } from 'solid-js'
+import { Portal } from 'solid-js/web'
 import { ArrowUpRight } from '../icons'
-import { hoverBridgeDelay, useOverlayContainer } from '../runtime/overlayContainer'
+import { hoverBridgeDelay, useOverlayContainer } from './overlayContainer'
 import { CopyValueButton } from './CopyValueButton'
 import { useIsClamped } from './useIsClamped'
 import type { WaterfallItem, WaterfallModel } from './CascadePanel'
@@ -47,7 +40,7 @@ export interface WaterfallPlotProps {
    * where the dash and the stage's own badge carry the meaning.
    */
   unknownLabel?: string
-  children?: ReactNode
+  children?: JSX.Element
 }
 
 const tipGap = 8
@@ -65,6 +58,7 @@ export interface WaterfallTipPosition {
  * to sit above: the band is at the top of its bar, and below it would cover the
  * rest of the movement it is a part of.
  */
+/* eslint-disable react-refresh/only-export-components */
 export function positionWaterfallTip(
   anchor: Pick<DOMRect, 'left' | 'width' | 'top' | 'bottom'>,
   tip: Pick<DOMRect, 'width' | 'height'>,
@@ -82,7 +76,7 @@ export function positionWaterfallTip(
 }
 
 interface WaterfallTipProps {
-  anchor: RefObject<HTMLElement | null>
+  anchor: () => HTMLElement | null | undefined
   open: boolean
   item: WaterfallItem
   actionHint?: string
@@ -102,19 +96,19 @@ interface WaterfallTipProps {
  * answers to a pointer (every ECharts tooltip) already use, and no card clips
  * it.
  */
-function WaterfallTip({ anchor, open, item, actionHint, onMouseEnter, onMouseLeave }: WaterfallTipProps) {
-  const container = useOverlayContainer(open, anchor, 'lens-waterfall-tip-overlay-root')
-  const tip = useRef<HTMLSpanElement>(null)
-  const [position, setPosition] = useState<WaterfallTipPosition>()
+function WaterfallTip(props: WaterfallTipProps) {
+  const container = useOverlayContainer(() => props.open, props.anchor, 'lens-waterfall-tip-overlay-root')
+  let tip: HTMLSpanElement | undefined
+  const [position, setPosition] = createSignal<WaterfallTipPosition>()
 
-  const reposition = useCallback(() => {
-    const anchored = anchor.current?.getBoundingClientRect()
-    const box = tip.current?.getBoundingClientRect()
+  const reposition = () => {
+    const anchored = props.anchor()?.getBoundingClientRect()
+    const box = tip?.getBoundingClientRect()
     if (!anchored || !box) return
     // The column prints its own total just above the bar, and the band is at the
     // bar's top — so a tip placed off the band alone lands squarely on that
     // figure. Clearing whichever of the two sits higher keeps both readable.
-    const printed = anchor.current?.closest('.lens-waterfall-bar')?.querySelector('strong')
+    const printed = props.anchor()?.closest('.lens-waterfall-bar')?.querySelector('strong')
     const top = Math.min(anchored.top, printed?.getBoundingClientRect().top ?? anchored.top)
     const next = positionWaterfallTip(
       { left: anchored.left, width: anchored.width, top, bottom: anchored.bottom },
@@ -124,63 +118,71 @@ function WaterfallTip({ anchor, open, item, actionHint, onMouseEnter, onMouseLea
     setPosition((current) => current?.left === next.left && current.top === next.top && current.side === next.side
       ? current
       : next)
-  }, [anchor])
+  }
 
-  useLayoutEffect(() => {
-    if (container) reposition()
-  }, [container, reposition])
+  createEffect(() => {
+    if (container()) reposition()
+  })
 
-  useEffect(() => {
-    if (!open) setPosition(undefined)
-  }, [open])
+  createEffect(() => {
+    if (!props.open) setPosition(undefined)
+  })
 
-  useEffect(() => {
-    if (!container) return undefined
+  createEffect(() => {
+    if (!container()) return
     // A fixed portal has to follow its anchor through the dashboard's own
     // scroll container as well as the document's.
     globalThis.addEventListener('resize', reposition)
     globalThis.addEventListener('scroll', reposition, true)
-    return () => {
+    onCleanup(() => {
       globalThis.removeEventListener('resize', reposition)
       globalThis.removeEventListener('scroll', reposition, true)
-    }
-  }, [container, reposition])
+    })
+  })
 
-  if (!open || !container) return null
-  const amount = item.exactValue ?? item.formattedValue
-  const split = item.exactSplit ?? item.formattedSplit
-  return createPortal(
-    <span
-      className="lens-waterfall-tip"
-      data-side={position?.side ?? 'above'}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      ref={tip}
-      role="tooltip"
-      style={{
-        left: position?.left ?? 0,
-        top: position?.top ?? 0,
-        visibility: position ? 'visible' : 'hidden',
-      }}
-    >
-      <span aria-hidden="true" className="lens-waterfall-tip-tail" />
-      <span className="lens-waterfall-tip-head">{item.label}</span>
-      <span className="lens-waterfall-tip-amount">
-        <strong>{amount}</strong>
-        {item.rawValue !== undefined && <CopyValueButton raw={item.rawValue} />}
-      </span>
-      {split !== undefined && (
-        <>
-          {item.splitLabel && <span className="lens-waterfall-tip-label">{item.splitLabel}</span>}
-          <span className="lens-waterfall-tip-amount" data-split="true">
-            <strong>{split}</strong>
-            {item.rawSplit !== undefined && <CopyValueButton raw={item.rawSplit} />}
+  return (
+    <Show when={props.open && container()}>
+      <Portal mount={container()}>
+        <span
+          class="lens-waterfall-tip"
+          data-side={position()?.side ?? 'above'}
+          onMouseEnter={props.onMouseEnter}
+          onMouseLeave={props.onMouseLeave}
+          ref={(el) => { tip = el }}
+          role="tooltip"
+          style={{
+            left: `${position()?.left ?? 0}px`,
+            top: `${position()?.top ?? 0}px`,
+            visibility: position() ? 'visible' : 'hidden',
+          }}
+        >
+          <span aria-hidden="true" class="lens-waterfall-tip-tail" />
+          <span class="lens-waterfall-tip-head">{props.item.label}</span>
+          <span class="lens-waterfall-tip-amount">
+            <strong>{props.item.exactValue ?? props.item.formattedValue}</strong>
+            <Show when={props.item.rawValue !== undefined}>
+              <CopyValueButton raw={props.item.rawValue!} />
+            </Show>
           </span>
-        </>
-      )}
-      {actionHint && <span className="lens-waterfall-tip-foot">{actionHint}</span>}
-    </span>,
-    container,
+          <Show when={(props.item.exactSplit ?? props.item.formattedSplit) !== undefined}>
+            <>
+              <Show when={props.item.splitLabel}>
+                <span class="lens-waterfall-tip-label">{props.item.splitLabel}</span>
+              </Show>
+              <span class="lens-waterfall-tip-amount" data-split="true">
+                <strong>{props.item.exactSplit ?? props.item.formattedSplit}</strong>
+                <Show when={props.item.rawSplit !== undefined}>
+                  <CopyValueButton raw={props.item.rawSplit!} />
+                </Show>
+              </span>
+            </>
+          </Show>
+          <Show when={props.actionHint}>
+            <span class="lens-waterfall-tip-foot">{props.actionHint}</span>
+          </Show>
+        </span>
+      </Portal>
+    </Show>
   )
 }
 
@@ -210,106 +212,109 @@ interface WaterfallColumnProps {
  * step's bar and make it un-comparable with the one beside it.
  */
 
-function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint, unknownLabel }: WaterfallColumnProps) {
-  const [pointed, setPointed] = useState(false)
-  const bar = useRef<HTMLDivElement>(null)
-  const label = useRef<HTMLSpanElement>(null)
-  const labelClamped = useIsClamped(label)
-  const closeTimer = useRef<ReturnType<typeof setTimeout>>()
+function WaterfallColumn(props: WaterfallColumnProps) {
+  const [pointed, setPointed] = createSignal(false)
+  let bar: HTMLDivElement | undefined
+  let label: HTMLSpanElement | undefined
+  const labelClamped = useIsClamped(() => label)
+  let closeTimer: ReturnType<typeof setTimeout> | undefined
   // The card carries buttons, so it has to survive the pointer leaving the
   // column to reach them: it lives in a body portal with a deliberate visual
   // gap, and closing on the column's own mouseleave would unmount it mid-travel.
   const show = () => {
-    if (closeTimer.current) clearTimeout(closeTimer.current)
+    if (closeTimer) clearTimeout(closeTimer)
     setPointed(true)
   }
   const hide = () => {
-    if (closeTimer.current) clearTimeout(closeTimer.current)
-    closeTimer.current = setTimeout(() => setPointed(false), hoverBridgeDelay)
+    if (closeTimer) clearTimeout(closeTimer)
+    closeTimer = setTimeout(() => setPointed(false), hoverBridgeDelay)
   }
-  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current) }, [])
+  onCleanup(() => { if (closeTimer) clearTimeout(closeTimer) })
   // The callout leans away from the nearer plot edge, so a split on the last
   // columns does not run off a printed chart.
-  const calloutSide = index * 2 >= count ? 'start' : 'end'
-  const splitText = `${item.splitLabel ? `${item.splitLabel} ` : ''}${item.formattedSplit ?? ''}`
+  const calloutSide = props.index * 2 >= props.count ? 'start' : 'end'
+  const splitText = `${props.item.splitLabel ? `${props.item.splitLabel} ` : ''}${props.item.formattedSplit ?? ''}`
+  const chrome = props.chrome ?? {}
   return (
     <div
-      className="lens-waterfall-column"
+      class="lens-waterfall-column"
       onBlur={hide}
       onFocus={show}
       onMouseEnter={show}
       onMouseLeave={hide}
       {...chrome}
     >
-      <div className="lens-waterfall-column-plot">
-        {item.underlayHeight !== undefined && (
+      <div class="lens-waterfall-column-plot">
+        <Show when={props.item.underlayHeight !== undefined}>
           <span
             aria-hidden="true"
-            className="lens-waterfall-underlay"
+            class="lens-waterfall-underlay"
             style={{
-              top: `${item.top + item.height}%`,
-              height: `${item.underlayHeight}%`,
+              top: `${props.item.top + props.item.height}%`,
+              height: `${props.item.underlayHeight}%`,
             }}
           />
-        )}
-        {index < count - 1 && (
+        </Show>
+        <Show when={props.index < props.count - 1}>
           <span
-            className="lens-waterfall-connector"
-            style={{ top: `${item.connectorTop}%` }}
+            class="lens-waterfall-connector"
+            style={{ top: `${props.item.connectorTop}%` }}
           />
-        )}
+        </Show>
         <div
-          className="lens-waterfall-bar"
-          ref={bar}
-          data-checkpoint={item.checkpoint}
-          data-kind={item.kind}
-          data-label-row={index % 2}
-          data-no-movement={item.noMovement}
-          data-terminal={!chrome || undefined}
-          data-tone={item.tone}
-          data-unknown={item.unknown}
+          class="lens-waterfall-bar"
+          ref={(el) => { bar = el }}
+          data-checkpoint={props.item.checkpoint}
+          data-kind={props.item.kind}
+          data-label-row={props.index % 2}
+          data-no-movement={props.item.noMovement}
+          data-terminal={!props.chrome || undefined}
+          data-tone={props.item.tone}
+          data-unknown={props.item.unknown}
           style={{
-            top: `${item.top}%`,
-            height: `${item.height}%`,
+            top: `${props.item.top}%`,
+            height: `${props.item.height}%`,
           }}
         >
           <strong>
-            {item.formattedValue}
-            {item.unknown && unknownLabel && <span className="lens-sr-only">{unknownLabel}</span>}
+            {props.item.formattedValue}
+            <Show when={props.item.unknown && props.unknownLabel}>
+              <span class="lens-sr-only">{props.unknownLabel}</span>
+            </Show>
           </strong>
-          {item.splitHeight !== undefined && (
+          <Show when={props.item.splitHeight !== undefined}>
             <span
-              className="lens-waterfall-bar-split"
-              style={{ height: `${item.splitHeight}%` }}
+              class="lens-waterfall-bar-split"
+              style={{ height: `${props.item.splitHeight}%` }}
             >
               {/* The amount stays in the accessibility tree whether or not a
                   pointer exists: the tooltip only ever exists while one hovers. */}
-              {splitCallout === 'hover'
-                ? <span className="lens-sr-only">{splitText}</span>
-                : (
-                  <span
-                    className="lens-waterfall-split-callout"
-                    data-reveal="always"
-                    data-side={calloutSide}
-                  >
-                    {splitText}
-                  </span>
-                )}
+              <Show when={props.splitCallout === 'hover'} fallback={
+                <span
+                  class="lens-waterfall-split-callout"
+                  data-reveal="always"
+                  data-side={calloutSide}
+                >
+                  {splitText}
+                </span>
+              }>
+                <span class="lens-sr-only">{splitText}</span>
+              </Show>
             </span>
-          )}
+          </Show>
         </div>
-        {splitCallout === 'hover' && (
+        <Show when={props.splitCallout === 'hover'}>
           <WaterfallTip
-            actionHint={chrome ? actionHint : undefined}
-            anchor={bar}
-            item={item}
+            actionHint={props.chrome ? props.actionHint : undefined}
+            anchor={() => bar}
+            item={props.item}
             onMouseEnter={show}
             onMouseLeave={hide}
-            open={pointed}
+            open={pointed()}
           />
-        )}
+        </Show>
       </div>
-      <span className="lens-waterfall-label">
+      <span class="lens-waterfall-label">
         {/* Clamped to two lines rather than wrapped at any character: the band
             was uniform because every label broke mid-word, so «Исходящее
             перестрахование» read as three lines ending in an orphaned «е». The
@@ -317,10 +322,10 @@ function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint,
             only while there is a clamp to see behind, which is a question about
             the rendered box (a name that fits at 1400px is cut at 900px) and
             not about the string. */}
-        <span ref={label} title={labelClamped ? item.label : undefined}>{item.label}</span>
-        {item.annotation && (
-          <small className="lens-waterfall-annotation">
-            {item.annotation}
+        <span ref={(el) => { label = el }} title={labelClamped() ? props.item.label : undefined}>{props.item.label}</span>
+        <Show when={props.item.annotation}>
+          <small class="lens-waterfall-annotation">
+            {props.item.annotation}
             {/* The badge is the only solid shape in a column whose bar may be an
                 empty dashed gap, so it is what a reader aims at — and a chip
                 that looks the same whether or not the step opens anything is
@@ -328,9 +333,9 @@ function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint,
                 there is somewhere to go, and it is drawn on the same condition
                 a drill cell's pill draws it: a destination actually resolved
                 (`chrome`), never merely a status worth stating. */}
-            {chrome && <ArrowUpRight size={10} />}
+            <Show when={props.chrome}><ArrowUpRight size={10} /></Show>
           </small>
-        )}
+        </Show>
       </span>
     </div>
   )
@@ -342,71 +347,66 @@ function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint,
  * clickable dashboard column and an inert printed one — the printed report gets
  * the real bridge instead of a table of the same numbers.
  */
-export function WaterfallPlot({
-  model,
-  label,
-  interaction,
-  role = 'img',
-  splitCallout = 'hover',
-  axisUnit,
-  actionHint,
-  unknownLabel,
-  children,
-}: WaterfallPlotProps) {
+export function WaterfallPlot(props: WaterfallPlotProps) {
+  const slotted = useChildren(() => props.children)
   return (
     <div
-      aria-label={label}
-      className="lens-waterfall"
-      data-lens-waterfall
-      role={role}
+      aria-label={props.label}
+      class="lens-waterfall"
+      data-lens-waterfall=""
+      role={props.role ?? 'img'}
       style={{
-        '--lens-waterfall-count': model.items.length,
-        '--lens-waterfall-zero': `${model.zero}%`,
-      } as CSSProperties}
+        '--lens-waterfall-count': props.model.items.length,
+        '--lens-waterfall-zero': `${props.model.zero}%`,
+      } as JSX.CSSProperties}
     >
-      <div className="lens-waterfall-chart">
-        <div className="lens-waterfall-axis" aria-hidden="true">
+      <div class="lens-waterfall-chart">
+        <div class="lens-waterfall-axis" aria-hidden="true">
           {/* Stated once, at the head of the axis, rather than on all eight
               gridlines — the same convention every ECharts axis here follows. */}
-          {axisUnit && <span className="lens-waterfall-axis-unit">{axisUnit}</span>}
-          {model.ticks.map((tick) => (
-            <span key={tick.value} style={{ top: `${tick.top}%` }}>{tick.label}</span>
-          ))}
+          <Show when={props.axisUnit}>
+            <span class="lens-waterfall-axis-unit">{props.axisUnit}</span>
+          </Show>
+          <For each={props.model.ticks}>
+            {(tick) => <span style={{ top: `${tick.top}%` }}>{tick.label}</span>}
+          </For>
         </div>
         {/* The rules are the chart's own layer rather than children of the plot:
             the plot spans the label band now, so a `top: 40%` measured against
             it would draw the gridline through the names. This box takes the
             plot row alone — the height those percentages have always meant —
             and the plot, which comes after it, draws over it. */}
-        <div aria-hidden="true" className="lens-waterfall-rules">
-          {model.ticks.map((tick) => (
-            <span
-              className="lens-waterfall-gridline"
-              key={`grid-${tick.value}`}
-              style={{ top: `${tick.top}%` }}
-            />
-          ))}
-          <div className="lens-waterfall-zero" />
+        <div aria-hidden="true" class="lens-waterfall-rules">
+          <For each={props.model.ticks}>
+            {(tick) => (
+              <span
+                class="lens-waterfall-gridline"
+                style={{ top: `${tick.top}%` }}
+              />
+            )}
+          </For>
+          <div class="lens-waterfall-zero" />
         </div>
-        <div className="lens-waterfall-plot">
-          {model.items.map((item, index) => (
-            <WaterfallColumn
-              // The whole column is the target, not the bar: a step worth 1,07
-              // of a 201 opening draws four pixels tall, and nobody should have
-              // to aim at four pixels to open it.
-              actionHint={actionHint}
-              chrome={interaction?.(item, index)}
-              count={model.items.length}
-              index={index}
-              item={item}
-              key={`${item.label}-${index}`}
-              splitCallout={splitCallout}
-              unknownLabel={unknownLabel}
-            />
-          ))}
+        <div class="lens-waterfall-plot">
+          <For each={props.model.items}>
+            {(item, index) => (
+              <WaterfallColumn
+                // The whole column is the target, not the bar: a step worth 1,07
+                // of a 201 opening draws four pixels tall, and nobody should have
+                // to aim at four pixels to open it.
+                actionHint={props.actionHint}
+                chrome={props.interaction?.(item, index())}
+                count={props.model.items.length}
+                index={index()}
+                item={item}
+                splitCallout={props.splitCallout ?? 'hover'}
+                unknownLabel={props.unknownLabel}
+              />
+            )}
+          </For>
         </div>
       </div>
-      {children}
+      {slotted()}
     </div>
   )
 }

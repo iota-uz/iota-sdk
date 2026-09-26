@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from 'react'
+import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js'
 
 /**
  * Whether an element's own box is hiding some of its text.
@@ -13,17 +13,17 @@ import { useEffect, useState, type RefObject } from 'react'
  * same thing of its native tooltip: the tooltip is the full name behind a clamp,
  * so where there is no clamp there is nothing for it to say.
  */
-export function useIsClamped(target: RefObject<HTMLElement | null>): boolean {
-  const [clamped, setClamped] = useState(false)
-  useEffect(() => {
-    const element = target.current
-    if (!element) return undefined
+export function useIsClamped(target: () => HTMLElement | null | undefined): Accessor<boolean> {
+  const [clamped, setClamped] = createSignal(false)
+  createEffect(() => {
+    const element = target()
+    if (!element) return
     const measure = () => setClamped(element.scrollHeight - element.clientHeight > 1)
     measure()
-    if (typeof ResizeObserver === 'undefined') return undefined
+    if (typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(measure)
     observer.observe(element)
-    return () => observer.disconnect()
+    onCleanup(() => observer.disconnect())
   })
   return clamped
 }

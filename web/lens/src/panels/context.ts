@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext, type JSXElement } from 'solid-js'
 import type { NodeKey } from '../contract'
 import type { ChartAnchor } from '../charts/adapter'
 
@@ -8,8 +8,8 @@ import type { ChartAnchor } from '../charts/adapter'
  * instead of adding rows around the card.
  */
 export interface PanelChrome {
-  trail?: ReactNode
-  explore?: ReactNode
+  trail?: JSXElement
+  explore?: JSXElement
   /**
    * The panel's name is already on screen, so its own header must not repeat
    * it. Set by a tab group whose active tab label names the single panel

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+import { createEffect, createSignal, onCleanup, onMount, Show } from 'solid-js'
 import type { NodeKey } from '../contract'
 import type { ChartActivation, ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../charts/adapter'
 import { useTranslate } from '../runtime'
@@ -14,77 +15,75 @@ export interface ChartHostProps {
   resetZoomKey?: number
 }
 
-export function ChartHost({ input, panelId, onSelect, onHover, adapter, label, drillable = false, resetZoomKey = 0 }: ChartHostProps) {
-  const hostRef = useRef<HTMLDivElement>(null)
-  const instanceRef = useRef<ChartInstance>()
-  const inputRef = useRef(input)
-  const eventsRef = useRef({ onSelect, onHover })
-  const [loadError, setLoadError] = useState<Error>()
+export function ChartHost(props: ChartHostProps) {
+  let hostRef: HTMLDivElement | undefined
+  let instance: ChartInstance | undefined
+  const [loadError, setLoadError] = createSignal<Error>()
   const translate = useTranslate()
-  inputRef.current = input
-  eventsRef.current = { onSelect, onHover }
 
-  const reportError = useCallback((cause: unknown, fallback: string): Error => {
+  const reportError = (cause: unknown, fallback: string): Error => {
     const error = cause instanceof Error ? cause : new Error(fallback)
-    console.error(`[lens] chart panel ${panelId ?? '(unknown)'} failed to render`, error)
+    console.error(`[lens] chart panel ${props.panelId ?? '(unknown)'} failed to render`, error)
     return error
-  }, [panelId])
+  }
 
-  useEffect(() => {
-    let active = true
+  // Only the adapter drives remount; inputs and handlers are read through the
+  // reactive props so a new frame updates in place instead of tearing down the
+  // chart.
+  onMount(() => {
     const events: ChartEvents = {
-      onSelect: (key, anchor, activation) => eventsRef.current.onSelect?.(key, anchor, activation),
-      onHover: (key) => eventsRef.current.onHover?.(key),
+      onSelect: (key, anchor, activation) => props.onSelect?.(key, anchor, activation),
+      onHover: (key) => props.onHover?.(key),
     }
 
-    void (adapter ? Promise.resolve(adapter) : import('../charts').then(({ getChartAdapter }) => getChartAdapter(inputRef.current.kind)))
+    void (props.adapter ? Promise.resolve(props.adapter) : import('../charts').then(({ getChartAdapter }) => getChartAdapter(props.input.kind)))
       .then((resolved) => {
-        if (!active || !hostRef.current) return
+        if (!hostRef) return
         setLoadError(undefined)
         try {
-          instanceRef.current = resolved.mount(hostRef.current, inputRef.current, events)
+          instance = resolved.mount(hostRef, props.input, events)
         } catch (cause: unknown) {
           setLoadError(reportError(cause, 'chart failed to render'))
         }
       })
       .catch((cause: unknown) => {
-        if (active) setLoadError(reportError(cause, 'chart adapter failed to load'))
+        setLoadError(reportError(cause, 'chart adapter failed to load'))
       })
 
-    return () => {
-      active = false
-      instanceRef.current?.dispose()
-      instanceRef.current = undefined
-    }
-    // Only the adapter drives remount; inputs and handlers are read through
-    // refs so a new frame updates in place instead of tearing down the chart.
-  }, [adapter, reportError])
+    onCleanup(() => {
+      instance?.dispose()
+      instance = undefined
+    })
+  })
 
-  useEffect(() => {
-    if (!instanceRef.current) return
+  createEffect(() => {
+    const input = props.input
+    if (!instance) return
     try {
-      instanceRef.current.update(input)
+      instance.update(input)
     } catch (cause: unknown) {
       setLoadError(reportError(cause, 'chart failed to update'))
     }
-  }, [input, reportError])
+  })
 
-  useEffect(() => {
-    if (resetZoomKey > 0) instanceRef.current?.resetZoom?.()
-  }, [resetZoomKey])
+  createEffect(() => {
+    if ((props.resetZoomKey ?? 0) > 0) instance?.resetZoom?.()
+  })
 
   return (
     <div
-      className={`lens-chart-host${drillable ? ' lens-chart-host-drillable' : ''}`}
-      aria-label={label}
+      class={`lens-chart-host${props.drillable ? ' lens-chart-host-drillable' : ''}`}
+      aria-label={props.label}
       role="img"
-      data-drillable={drillable || undefined}
+      data-drillable={props.drillable || undefined}
     >
-      <div ref={hostRef} className="lens-chart-canvas" />
-      {loadError && (
-        <div className="lens-chart-load-error" role="alert">
-          <span className="lens-chart-load-error-message">{translate('chart.error', 'Unable to render chart.')}</span>
-          {loadError.message && <span className="lens-chart-load-error-detail">{loadError.message}</span>}
+      <div ref={(el) => { hostRef = el }} class="lens-chart-canvas" />
+      {loadError() && (
+        <div class="lens-chart-load-error" role="alert">
+          <span class="lens-chart-load-error-message">{translate('chart.error', 'Unable to render chart.')}</span>
+          <Show when={loadError()?.message}>
+            <span class="lens-chart-load-error-detail">{loadError()!.message}</span>
+          </Show>
         </div>
       )}
     </div>

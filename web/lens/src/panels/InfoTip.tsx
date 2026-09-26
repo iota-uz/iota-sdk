@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
-import { createPortal } from 'react-dom'
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+import { createEffect, createSignal, createUniqueId, on, onCleanup, untrack } from 'solid-js'
+import { Portal } from 'solid-js/web'
+import type { JSX } from 'solid-js'
+import { Show, For } from 'solid-js'
 import { useTranslate } from '../runtime'
-import { hoverBridgeDelay, useOverlayContainer } from '../runtime/overlayContainer'
+import { hoverBridgeDelay, useOverlayContainer } from './overlayContainer'
 import { Info } from '../icons'
 
 export interface InfoTipProps {
@@ -40,6 +43,7 @@ const tailInset = 14
  * below-and-left-aligned placement. The note flips above the trigger when the
  * remaining space below would clip it.
  */
+/* eslint-disable react-refresh/only-export-components */
 export function positionInfoTip(
   anchor: Pick<DOMRect, 'left' | 'top' | 'bottom'>,
   bubble: Pick<DOMRect, 'width' | 'height'>,
@@ -73,31 +77,31 @@ export function infoTipTailOffset(anchorCenter: number, bubbleLeft: number, bubb
  * Hover and focus open it; a click pins it open so the text can be read on a
  * touch screen and selected with the pointer.
  */
-export function InfoTip({ text, subject, inline }: InfoTipProps) {
+export function InfoTip(props: InfoTipProps) {
   const translate = useTranslate()
-  const [pinned, setPinned] = useState(false)
-  const [hovered, setHovered] = useState(false)
-  const [position, setPosition] = useState<FloatingPosition>()
-  const [tailOffset, setTailOffset] = useState(tailInset)
-  const wrapperRef = useRef<HTMLSpanElement>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const bubbleRef = useRef<HTMLSpanElement>(null)
-  const closeTimer = useRef<ReturnType<typeof globalThis.setTimeout>>()
-  const bubbleId = useId()
+  const [pinned, setPinned] = createSignal(false)
+  const [hovered, setHovered] = createSignal(false)
+  const [position, setPosition] = createSignal<FloatingPosition>()
+  const [tailOffset, setTailOffset] = createSignal(tailInset)
+  let wrapperRef: HTMLSpanElement | undefined
+  let buttonRef: HTMLButtonElement | undefined
+  let bubbleRef: HTMLSpanElement | undefined
+  let closeTimer: ReturnType<typeof globalThis.setTimeout> | undefined
+  const bubbleId = createUniqueId()
   const label = translate('panel.info', 'About this metric')
-  const accessibleLabel = inline
-    ? text
-    : subject ? translate('panel.infoAbout', 'About {name}', { name: subject }) : label
-  const open = pinned || hovered
-  const container = useOverlayContainer(open, wrapperRef, 'lens-info-tip-overlay-root')
+  const accessibleLabel = () => props.inline
+    ? props.text
+    : props.subject ? translate('panel.infoAbout', 'About {name}', { name: props.subject }) : label
+  const open = () => pinned() || hovered()
+  const container = useOverlayContainer(open, () => wrapperRef, 'lens-info-tip-overlay-root')
 
-  useEffect(() => {
-    if (!open) setPosition(undefined)
-  }, [open])
+  createEffect(() => {
+    if (!open()) setPosition(undefined)
+  })
 
-  const reposition = useCallback(() => {
-    const anchor = buttonRef.current?.getBoundingClientRect()
-    const bubble = bubbleRef.current?.getBoundingClientRect()
+  const reposition = () => {
+    const anchor = buttonRef?.getBoundingClientRect()
+    const bubble = bubbleRef?.getBoundingClientRect()
     if (!anchor || !bubble) return
     const next = positionInfoTip(
       anchor,
@@ -108,31 +112,31 @@ export function InfoTip({ text, subject, inline }: InfoTipProps) {
       ? current
       : next)
     setTailOffset(infoTipTailOffset((anchor.left + anchor.right) / 2, next.left, bubble.width))
-  }, [])
+  }
 
-  useLayoutEffect(() => {
-    if (container) reposition()
-  }, [container, reposition])
+  createEffect(on(container, (current) => {
+    if (current) untrack(reposition)
+  }))
 
-  useEffect(() => {
-    if (!container) return undefined
+  createEffect(() => {
+    if (!container()) return
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reposition)
-    if (bubbleRef.current) observer?.observe(bubbleRef.current)
+    if (bubbleRef) observer?.observe(bubbleRef)
     globalThis.addEventListener('resize', reposition)
     // Capture scrolls from the dashboard's own scroll container as well as the
     // document; a fixed portal must continue to follow its trigger.
     globalThis.addEventListener('scroll', reposition, true)
-    return () => {
+    onCleanup(() => {
       observer?.disconnect()
       globalThis.removeEventListener('resize', reposition)
       globalThis.removeEventListener('scroll', reposition, true)
-    }
-  }, [container, reposition])
+    })
+  })
 
   // An open bubble is dismissed the way every other transient surface in the
   // runtime is: Escape, or a click that lands anywhere else.
-  useEffect(() => {
-    if (!open) return
+  createEffect(() => {
+    if (!open()) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setPinned(false)
@@ -141,88 +145,89 @@ export function InfoTip({ text, subject, inline }: InfoTipProps) {
     }
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node
-      if (!wrapperRef.current?.contains(target) && !bubbleRef.current?.contains(target)) setPinned(false)
+      if (!wrapperRef?.contains(target) && !bubbleRef?.contains(target)) setPinned(false)
     }
     document.addEventListener('keydown', onKeyDown)
     document.addEventListener('pointerdown', onPointerDown)
-    return () => {
+    onCleanup(() => {
       document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('pointerdown', onPointerDown)
-    }
-  }, [open])
+    })
+  })
 
-  const paragraphs = text.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean)
+  const paragraphs = () => props.text.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean)
   const cancelClose = () => {
-    if (closeTimer.current !== undefined) globalThis.clearTimeout(closeTimer.current)
-    closeTimer.current = undefined
+    if (closeTimer !== undefined) globalThis.clearTimeout(closeTimer)
+    closeTimer = undefined
   }
-  const leavingSurface = (event: ReactMouseEvent, other: HTMLElement | null) => {
+  const leavingSurface = (event: MouseEvent, other: HTMLElement | null | undefined) => {
     const next = event.relatedTarget
     if (next instanceof Node && other?.contains(next)) return
     cancelClose()
-    closeTimer.current = globalThis.setTimeout(() => setHovered(false), hoverBridgeDelay)
+    closeTimer = globalThis.setTimeout(() => setHovered(false), hoverBridgeDelay)
   }
 
-  useEffect(() => () => cancelClose(), [])
+  onCleanup(() => cancelClose())
 
-  const bubbleStyle: CSSProperties = {
-    left: position?.left ?? 0,
-    top: position?.top ?? 0,
-    pointerEvents: 'auto',
-    visibility: position ? 'visible' : 'hidden',
-    '--lens-info-tip-tail': `${tailOffset}px`,
-  } as CSSProperties
+  const bubbleStyle = (): JSX.CSSProperties => ({
+    left: position()?.left ?? 0,
+    top: position()?.top ?? 0,
+    'pointer-events': 'auto',
+    visibility: position() ? 'visible' : 'hidden',
+    '--lens-info-tip-tail': `${tailOffset()}px`,
+  } as JSX.CSSProperties)
 
   return (
     <span
       // Class names stay literal: Tailwind's content scan cannot see an
       // interpolated modifier and would drop the rule.
-      className={inline ? 'lens-info-tip lens-info-tip-inline' : 'lens-info-tip'}
-      ref={wrapperRef}
+      class={props.inline ? 'lens-info-tip lens-info-tip-inline' : 'lens-info-tip'}
       onMouseEnter={() => { cancelClose(); setHovered(true) }}
-      onMouseLeave={(event) => leavingSurface(event, bubbleRef.current)}
+      onMouseLeave={(event) => leavingSurface(event, bubbleRef)}
+      ref={(el) => { wrapperRef = el }}
     >
       <button
-        aria-describedby={open ? bubbleId : undefined}
-        aria-expanded={open}
-        aria-label={accessibleLabel}
+        aria-describedby={open() ? bubbleId : undefined}
+        aria-expanded={open()}
+        aria-label={accessibleLabel()}
         // An open bubble has to say which glyph opened it: a strip of four
         // metrics with four ⓘ and one floating note left nothing on screen
         // tying the two together. Class names stay literal for Tailwind's scan.
-        className={inline
-          ? `lens-export-button lens-icon-button lens-info-tip-button lens-info-tip-button-inline${open ? ' lens-info-tip-button-open' : ''}`
-          : `lens-export-button lens-icon-button lens-info-tip-button${open ? ' lens-info-tip-button-open' : ''}`}
+        class={props.inline
+          ? `lens-export-button lens-icon-button lens-info-tip-button lens-info-tip-button-inline${open() ? ' lens-info-tip-button-open' : ''}`
+          : `lens-export-button lens-icon-button lens-info-tip-button${open() ? ' lens-info-tip-button-open' : ''}`}
         onBlur={() => setHovered(false)}
         onClick={() => setPinned((current) => !current)}
         onFocus={() => setHovered(true)}
-        ref={buttonRef}
+        ref={(el) => { buttonRef = el }}
         type="button"
       >
         <Info />
       </button>
-      {open && container && createPortal(
-        <span
-          className="lens-info-tip-bubble"
-          data-side={position?.side ?? 'below'}
-          id={bubbleId}
-          onMouseEnter={() => { cancelClose(); setHovered(true) }}
-          onMouseLeave={(event) => leavingSurface(event, wrapperRef.current)}
-          ref={bubbleRef}
-          role="tooltip"
-          style={bubbleStyle}
-        >
-          <span aria-hidden="true" className="lens-info-tip-tail" />
-          {/* The scroll box is inside the bubble, not the bubble itself: a
-              scroll container clips on both axes, and the tail hangs over the
-              edge it points from. */}
-          <span className="lens-info-tip-body">
-            {paragraphs.map((paragraph, index) => (
-              <span className="lens-info-tip-text" key={index}>{paragraph}</span>
-            ))}
+      <Show when={open() && container()}>
+        <Portal mount={container()}>
+          <span
+            class="lens-info-tip-bubble"
+            data-side={position()?.side ?? 'below'}
+            id={bubbleId}
+            onMouseEnter={() => { cancelClose(); setHovered(true) }}
+            onMouseLeave={(event) => leavingSurface(event, wrapperRef)}
+            ref={(el) => { bubbleRef = el }}
+            role="tooltip"
+            style={bubbleStyle()}
+          >
+            <span aria-hidden="true" class="lens-info-tip-tail" />
+            {/* The scroll box is inside the bubble, not the bubble itself: a
+                scroll container clips on both axes, and the tail hangs over the
+                edge it points from. */}
+            <span class="lens-info-tip-body">
+              <For each={paragraphs()}>
+                {(paragraph) => <span class="lens-info-tip-text">{paragraph}</span>}
+              </For>
+            </span>
           </span>
-        </span>,
-        container,
-      )}
+        </Portal>
+      </Show>
     </span>
   )
 }
