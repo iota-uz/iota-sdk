@@ -279,6 +279,15 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
+	authRequestID := r.URL.Query().Get("auth_request")
+	if authRequestID != "" && c.browserSessions != nil &&
+		c.browserSessions.ValidateAuthorizationRequest(r.Context(), authRequestID) == nil {
+		if active, err := c.browserSessions.Active(w, r); err == nil && active.Session.IsActive() {
+			http.Redirect(w, r, "/oidc/authorize/callback?id="+url.QueryEscape(authRequestID), http.StatusSeeOther)
+			return
+		}
+	}
+
 	email := r.URL.Query().Get("email")
 	errorsMap, err := composables.UseFlashMap[string, string](w, r, "errorsMap")
 	if err != nil {
@@ -299,7 +308,6 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 
 	logoComponent, _ := composables.UseLogo(r.Context())
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
-	authRequestID := r.URL.Query().Get("auth_request")
 	authRequestInvalid := false
 	if authRequestID != "" && (c.browserSessions == nil || c.browserSessions.ValidateAuthorizationRequest(r.Context(), authRequestID) != nil) {
 		authRequestInvalid = true
