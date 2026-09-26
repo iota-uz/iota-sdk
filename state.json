@@ -1,5 +1,12 @@
 {
   "releases": {
+    "0.10.0": {
+      "version": "0.10.0",
+      "source": "f7222ea928e89a3665e2b04bb5cd23c4268a86b2",
+      "sha": "35de5cc1603f5e484fd1fe630e421dd11952c72e",
+      "phase": "ready",
+      "run_id": "36248102851"
+    },
     "0.6.0": {
       "version": "0.6.0",
       "source": "8040ff2301500a20901ef40ddd899d3e1cf8ff64",
@@ -42,18 +49,11 @@
     1098,
     1099
   ],
-  "candidate": {
+  "ready": {
     "version": "0.10.0",
     "source": "f7222ea928e89a3665e2b04bb5cd23c4268a86b2",
     "sha": "35de5cc1603f5e484fd1fe630e421dd11952c72e",
-    "phase": "publishing",
-    "run_id": "36248102851"
-  },
-  "ready": {
-    "version": "0.9.0",
-    "source": "27f7ab5396ed435431f7cdea0570555b10646df3",
-    "sha": "3a1e16e7bd004b02c27f688654321169d622cb0f",
     "phase": "ready",
-    "run_id": "35397510747"
+    "run_id": "36248102851"
   }
 }
