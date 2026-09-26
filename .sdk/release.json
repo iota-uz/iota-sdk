@@ -1,0 +1,34 @@
+{
+  "changes": [
+    {
+      "bump": "none",
+      "summary": "Refresh agent guidance for SDK ownership, API migration coverage, delegation, code navigation, and generated template review; no runtime or public API change."
+    },
+    {
+      "bump": "minor",
+      "summary": "Harden the itf testing framework: Suite.MountAll mirrors the production route table, TestEnvironment.CommitTx/FreshTx formalize committed-seed scopes with rollback isolation, rollback-scope transactions gain a fail-fast concurrency guard (repo.GuardedTx / repo.ErrTxInUse), and i18n assertions (RequireMessage, MessageResolves) catch dot-path and partial-translation traps."
+    },
+    {
+      "bump": "patch",
+      "summary": "Continue OIDC authorization with the active browser account without showing the account picker."
+    },
+    {
+      "bump": "none",
+      "summary": "Align the OIDC browser check with active-account handoff and pass the theme storage key into browser evaluations; test-only changes."
+    },
+    {
+      "bump": "patch",
+      "summary": "Resolve the theme switcher's 'system' choice against the OS color scheme with a live matchMedia listener shared by the app and the login page, restore the login theme-toggle icons Tailwind v4 never scaled up, and turn the counterparty legal-form select into a radio group with an unchanged form contract."
+    },
+    {
+      "bump": "none",
+      "summary": "Exercise the visible login theme toggle labels in browser checks; test-only change."
+    },
+    {
+      "bump": "none",
+      "summary": "Build Lens compatibility assets before full-suite mounted controller tests."
+    }
+  ],
+  "source": "f7222ea928e89a3665e2b04bb5cd23c4268a86b2",
+  "version": "0.10.0"
+}
