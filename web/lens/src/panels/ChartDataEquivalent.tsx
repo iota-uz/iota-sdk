@@ -1,8 +1,10 @@
-/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+import { For } from 'solid-js'
 import type { Frame, NodeKey, Panel } from '../contract'
 import { radialNodeKey, type ChartFormatResolver } from '../charts/adapter'
 import { fallbackMarkKey } from '../charts/keys'
 
+/* eslint-disable react-refresh/only-export-components */
 interface ChartDataEquivalentProps {
   actionable: boolean
   format: ChartFormatResolver
@@ -58,36 +60,39 @@ export function chartDatumLabel(frame: Frame, panel: Panel, format: ChartFormatR
  * NodeKey and selection callback as pointer activation; inert marks remain
  * readable without adding stops to the keyboard tab order.
  */
-export function ChartDataEquivalent({ actionable, format, frame, label, onHover, onSelect, panel, translate }: ChartDataEquivalentProps) {
+export function ChartDataEquivalent(props: ChartDataEquivalentProps) {
   return (
-    <div aria-label={label} className="lens-chart-keyboard-actions" role="list">
-      {frame.rows.map((_, index) => {
-        const key = chartRowKey(frame, panel, index)
-        const datum = chartDatumLabel(frame, panel, format, index) || String(key ?? index + 1)
-        return (
-          <div key={`${String(key)}-${index}`} role="listitem">
-            {actionable && key !== undefined ? (
-              <button
-                onBlur={() => onHover?.(null)}
-                onClick={() => onSelect(key)}
-                onFocus={() => onHover?.(key)}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Enter' && event.key !== ' ') return
-                  event.preventDefault()
-                  onSelect(key)
-                }}
-                onPointerEnter={() => onHover?.(key)}
-                onPointerLeave={() => onHover?.(null)}
-                type="button"
-              >
-                {translate('chart.openMark', 'Open {name}', { name: datum })}
-              </button>
-            ) : (
-              <span className="lens-sr-only">{datum}</span>
-            )}
-          </div>
-        )
-      })}
+    <div aria-label={props.label} class="lens-chart-keyboard-actions" role="list">
+      <For each={props.frame.rows}>
+        {(_, index) => {
+          const i = index()
+          const key = chartRowKey(props.frame, props.panel, i)
+          const datum = chartDatumLabel(props.frame, props.panel, props.format, i) || String(key ?? i + 1)
+          return (
+            <div role="listitem">
+              {props.actionable && key !== undefined ? (
+                <button
+                  onBlur={() => props.onHover?.(null)}
+                  onClick={() => props.onSelect(key)}
+                  onFocus={() => props.onHover?.(key)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return
+                    event.preventDefault()
+                    props.onSelect(key)
+                  }}
+                  onPointerEnter={() => props.onHover?.(key)}
+                  onPointerLeave={() => props.onHover?.(null)}
+                  type="button"
+                >
+                  {props.translate('chart.openMark', 'Open {name}', { name: datum })}
+                </button>
+              ) : (
+                <span class="lens-sr-only">{datum}</span>
+              )}
+            </div>
+          )
+        }}
+      </For>
     </div>
   )
 }

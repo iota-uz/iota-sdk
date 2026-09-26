@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { createPortal } from 'react-dom'
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+import { createEffect, createSignal, createUniqueId, on, onCleanup, untrack, For, Show } from 'solid-js'
+import { Portal } from 'solid-js/web'
 import type { CompareMode, Filter } from '../contract'
 import { CaretDown, Check } from '../icons'
 import { useFilters, useTranslate } from '../runtime'
-import { useFocusTrap } from '../runtime/focusTrap'
-import { useOverlayContainer } from '../runtime/overlayContainer'
+import { useFocusTrap } from '../panels/focusTrap'
+import { useOverlayContainer } from '../panels/overlayContainer'
 import { formatDisplayDate, maskDisplayInput, parseDisplayDate, positionPopover } from './PeriodFilterControl'
 import { formatISODate, parseISODate } from './model'
 
@@ -20,25 +21,21 @@ const typeAheadResetMs = 500
  * calendar of its own three controls away. The value on the wire is unchanged —
  * ISO, or empty while the text does not parse.
  */
-function CompareDateField({ label, value, onChange }: {
-  label: string
-  value: string
-  onChange: (iso: string) => void
-}) {
+function CompareDateField(props: { label: string; value: string; onChange: (iso: string) => void }) {
   const translate = useTranslate()
-  const parsed = parseISODate(value)
-  const [text, setText] = useState(parsed ? formatDisplayDate(parsed) : '')
-  const [invalid, setInvalid] = useState(false)
-  useEffect(() => {
-    const next = parseISODate(value)
+  const parsed = parseISODate(props.value)
+  const [text, setText] = createSignal(parsed ? formatDisplayDate(parsed) : '')
+  const [invalid, setInvalid] = createSignal(false)
+  createEffect(() => {
+    const next = parseISODate(props.value)
     setText(next ? formatDisplayDate(next) : '')
     setInvalid(false)
-  }, [value])
+  })
   const commit = () => {
-    const trimmed = text.trim()
+    const trimmed = text().trim()
     if (trimmed === '') {
       setInvalid(false)
-      onChange('')
+      props.onChange('')
       return
     }
     const date = parseDisplayDate(trimmed)
@@ -47,13 +44,13 @@ function CompareDateField({ label, value, onChange }: {
       return
     }
     setInvalid(false)
-    onChange(formatISODate(date))
+    props.onChange(formatISODate(date))
   }
   return (
-    <span className="lens-compare-date" data-invalid={invalid || undefined}>
+    <span class="lens-compare-date" data-invalid={invalid() || undefined}>
       <input
-        aria-label={label}
-        inputMode="numeric"
+        aria-label={props.label}
+        inputmode="numeric"
         onBlur={commit}
         onChange={(event) => {
           setText(maskDisplayInput(event.currentTarget.value))
@@ -66,7 +63,7 @@ function CompareDateField({ label, value, onChange }: {
         }}
         placeholder={translate('filter.period.dateFormat', 'dd.mm.yyyy')}
         type="text"
-        value={text}
+        value={text()}
       />
     </span>
   )
@@ -95,52 +92,52 @@ interface CompareOption {
  * relative mode applies and closes; selecting "custom" opens the two date fields
  * inside the popover, which is where the one commit path (Apply) lives.
  */
-export function CompareFilterControl({ filter }: { filter: Filter }) {
-  const comparison = filter.compare
+export function CompareFilterControl(props: { filter: Filter }) {
+  const comparison = props.filter.compare
   const { setCompare } = useFilters()
   const translate = useTranslate()
   const serverMode = comparison?.value.mode ?? 'off'
-  const popoverID = useId()
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const popoverRef = useRef<HTMLDivElement>(null)
-  const optionRefs = useRef(new Map<CompareMode, HTMLDivElement | null>())
-  const focusedOptionRef = useRef<HTMLDivElement | null>(null)
-  const typeAhead = useRef({ text: '', at: 0 })
-  const [open, setOpen] = useState(false)
+  const popoverID = createUniqueId()
+  let triggerRef: HTMLButtonElement | undefined
+  let popoverRef: HTMLDivElement | undefined
+  const optionRefs = new Map<CompareMode, HTMLDivElement | null>()
+  let focusedOption: HTMLDivElement | null = null
+  const typeAhead = { text: '', at: 0 }
+  const [open, setOpen] = createSignal(false)
   // `mode` is what the control would apply; `focused` is only where the roving
   // tabindex currently sits. Keeping them apart is what lets a keyboard user
   // walk the list and leave with Escape without having changed anything — the
   // selection does not follow focus, because a comparison mode is a slice of the
   // whole dashboard and browsing it must not restate it.
-  const [mode, setMode] = useState<CompareMode>(serverMode)
-  const [focused, setFocused] = useState<CompareMode>(serverMode)
-  const [start, setStart] = useState(comparison?.value.start ?? '')
-  const [end, setEnd] = useState(comparison?.value.end ?? '')
-  const [position, setPosition] = useState({ left: 0, top: 0 })
-  const closePopover = useCallback(() => setOpen(false), [])
-  const container = useOverlayContainer(open, triggerRef)
-  useFocusTrap(popoverRef, open && Boolean(container), closePopover, focusedOptionRef, triggerRef)
+  const [mode, setMode] = createSignal<CompareMode>(serverMode)
+  const [focused, setFocused] = createSignal<CompareMode>(serverMode)
+  const [start, setStart] = createSignal(comparison?.value.start ?? '')
+  const [end, setEnd] = createSignal(comparison?.value.end ?? '')
+  const [position, setPosition] = createSignal({ left: 0, top: 0 })
+  const closePopover = () => setOpen(false)
+  const container = useOverlayContainer(open, () => triggerRef)
+  useFocusTrap(() => popoverRef, open() && Boolean(untrack(container)), closePopover, () => focusedOption, () => triggerRef)
 
   const serverStart = comparison?.value.start ?? ''
   const serverEnd = comparison?.value.end ?? ''
-  useEffect(() => setMode(serverMode), [serverMode])
-  useEffect(() => setStart(serverStart), [serverStart])
-  useEffect(() => setEnd(serverEnd), [serverEnd])
+  createEffect(() => setMode(serverMode))
+  createEffect(() => setStart(serverStart))
+  createEffect(() => setEnd(serverEnd))
   // Closing without applying drops the staged state, so the trigger can never
   // name a comparison the document is not actually showing.
-  useEffect(() => {
-    if (open) {
+  createEffect(() => {
+    if (open()) {
       setFocused(serverMode)
       return
     }
     setMode(serverMode)
     setStart(serverStart)
     setEnd(serverEnd)
-  }, [open, serverEnd, serverMode, serverStart])
+  })
 
-  const reposition = useCallback(() => {
-    const trigger = triggerRef.current
-    const popover = popoverRef.current
+  const reposition = () => {
+    const trigger = triggerRef
+    const popover = popoverRef
     if (!trigger || !popover) return
     const anchor = trigger.getBoundingClientRect()
     const size = popover.getBoundingClientRect()
@@ -149,41 +146,39 @@ export function CompareFilterControl({ filter }: { filter: Filter }) {
       { width: size.width, height: size.height },
       { width: globalThis.innerWidth || 1024, height: globalThis.innerHeight || 768 },
     ))
-  }, [])
+  }
 
-  useLayoutEffect(() => {
-    if (container) reposition()
-  }, [container, reposition])
+  createEffect(on(container, (current) => {
+    if (current) reposition()
+  }))
 
-  useEffect(() => {
-    if (!container) return undefined
+  createEffect(() => {
+    if (!container()) return
     const frame = globalThis.requestAnimationFrame(reposition)
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reposition)
-    if (triggerRef.current) observer?.observe(triggerRef.current)
-    if (popoverRef.current) observer?.observe(popoverRef.current)
+    if (triggerRef) observer?.observe(triggerRef)
+    if (popoverRef) observer?.observe(popoverRef)
     globalThis.addEventListener('resize', reposition)
     globalThis.addEventListener('scroll', reposition, true)
-    return () => {
+    onCleanup(() => {
       globalThis.cancelAnimationFrame(frame)
       observer?.disconnect()
       globalThis.removeEventListener('resize', reposition)
       globalThis.removeEventListener('scroll', reposition, true)
-    }
-  }, [container, reposition])
+    })
+  })
 
-  useEffect(() => {
-    if (!open) return undefined
+  createEffect(() => {
+    if (!open()) return
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target
       if (!(target instanceof Node)) return
-      const root = triggerRef.current?.closest('.lens-compare-filter')
-      if (!root?.contains(target) && !popoverRef.current?.contains(target)) setOpen(false)
+      const root = triggerRef?.closest('.lens-compare-filter')
+      if (!root?.contains(target) && !popoverRef?.contains(target)) setOpen(false)
     }
     globalThis.document.addEventListener('pointerdown', onPointerDown)
-    return () => globalThis.document.removeEventListener('pointerdown', onPointerDown)
-  }, [open])
-
-  if (!comparison) return null
+    onCleanup(() => globalThis.document.removeEventListener('pointerdown', onPointerDown))
+  })
 
   const options: Array<CompareOption> = [
     { value: 'off', label: translate('filter.compare.off', 'Comparison off') },
@@ -191,7 +186,7 @@ export function CompareFilterControl({ filter }: { filter: Filter }) {
     { value: 'year_ago', label: translate('filter.compare.yearAgo', 'Year ago') },
     { value: 'custom', label: translate('filter.compare.custom', 'Custom interval') },
   ]
-  const activeLabel = options.find((option) => option.value === mode)?.label ?? options[0]!.label
+  const activeLabel = () => options.find((option) => option.value === mode())?.label ?? options[0]!.label
 
   // A relative mode is a single unambiguous choice, so it commits on selection.
   // "custom" only stages: it has two more values to collect, and the Apply
@@ -200,20 +195,20 @@ export function CompareFilterControl({ filter }: { filter: Filter }) {
     setMode(next)
     setFocused(next)
     if (next === 'custom') {
-      optionRefs.current.get(next)?.focus()
+      optionRefs.get(next)?.focus()
       return
     }
-    setCompare(filter, { mode: next })
+    setCompare(props.filter, { mode: next })
     setOpen(false)
   }
 
   const focusOption = (next: CompareMode) => {
     setFocused(next)
-    optionRefs.current.get(next)?.focus()
+    optionRefs.get(next)?.focus()
   }
 
-  const onOptionKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const index = options.findIndex((option) => option.value === focused)
+  const onOptionKeyDown = (event: KeyboardEvent) => {
+    const index = options.findIndex((option) => option.value === focused())
     const step = (delta: number) => {
       event.preventDefault()
       const size = options.length
@@ -233,7 +228,7 @@ export function CompareFilterControl({ filter }: { filter: Filter }) {
       case 'Enter':
       case ' ': {
         event.preventDefault()
-        return select(focused)
+        return select(focused())
       }
       default: break
     }
@@ -241,8 +236,9 @@ export function CompareFilterControl({ filter }: { filter: Filter }) {
     // with what has been typed so far, the way a native listbox does.
     if (event.key.length !== 1 || event.altKey || event.ctrlKey || event.metaKey) return
     const now = Date.now()
-    const text = (now - typeAhead.current.at > typeAheadResetMs ? '' : typeAhead.current.text) + event.key.toLowerCase()
-    typeAhead.current = { text, at: now }
+    const text = (now - typeAhead.at > typeAheadResetMs ? '' : typeAhead.text) + event.key.toLowerCase()
+    typeAhead.text = text
+    typeAhead.at = now
     const match = options.find((option) => option.label.toLowerCase().startsWith(text))
     if (match) {
       event.preventDefault()
@@ -250,86 +246,88 @@ export function CompareFilterControl({ filter }: { filter: Filter }) {
     }
   }
 
-  const onTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+  const onTriggerKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
     event.preventDefault()
     setOpen(true)
   }
 
-  const rangeInvalid = !start || !end || end < start
+  const rangeInvalid = () => !start() || !end() || end() < start()
 
   return (
-    <div className="lens-compare-filter">
+    <div class="lens-compare-filter">
       <button
         aria-controls={popoverID}
-        aria-expanded={open}
+        aria-expanded={open()}
         aria-haspopup="listbox"
-        className="lens-compare-trigger"
+        class="lens-compare-trigger"
         onClick={() => setOpen((value) => !value)}
         onKeyDown={onTriggerKeyDown}
-        ref={triggerRef}
+        ref={(el) => { triggerRef = el }}
         type="button"
       >
-        <span className="lens-compare-trigger-label">{filter.label}</span>
-        <span className="lens-compare-trigger-value">{activeLabel}</span>
+        <span class="lens-compare-trigger-label">{props.filter.label}</span>
+        <span class="lens-compare-trigger-value">{activeLabel()}</span>
         <CaretDown aria-hidden="true" />
       </button>
-      {open && container && createPortal(
-        <div
-          className="lens-compare-popover"
-          ref={popoverRef}
-          style={{ left: position.left, top: position.top }}
-        >
-          <div aria-label={filter.label} className="lens-compare-options" id={popoverID} role="listbox">
-            {options.map((option) => (
-              <div
-                aria-selected={option.value === mode}
-                className="lens-facet-option lens-compare-option"
-                key={option.value}
-                onClick={() => select(option.value)}
-                onKeyDown={onOptionKeyDown}
-                ref={(element) => {
-                  optionRefs.current.set(option.value, element)
-                  if (option.value === focused) focusedOptionRef.current = element
-                }}
-                role="option"
-                tabIndex={option.value === focused ? 0 : -1}
-              >
-                <span className="lens-compare-option-mark">
-                  {option.value === mode && <Check aria-hidden="true" />}
-                </span>
-                <span className="lens-facet-option-label">{option.label}</span>
-              </div>
-            ))}
-          </div>
-          {mode === 'custom' && (
-            <div className="lens-compare-custom">
-              <CompareDateField
-                label={translate('filter.compare.start', 'Comparison start')}
-                onChange={setStart}
-                value={start}
-              />
-              <CompareDateField
-                label={translate('filter.compare.end', 'Comparison end')}
-                onChange={setEnd}
-                value={end}
-              />
-              <button
-                className="lens-compare-apply"
-                disabled={rangeInvalid}
-                onClick={() => {
-                  setCompare(filter, { mode: 'custom', start, end })
-                  setOpen(false)
-                }}
-                type="button"
-              >
-                {translate('filter.period.apply', 'Apply')}
-              </button>
+      <Show when={open() && container()}>
+        <Portal mount={container()}>
+          <div
+            class="lens-compare-popover"
+            ref={(el) => { popoverRef = el }}
+            style={{ left: `${position().left}px`, top: `${position().top}px` }}
+          >
+            <div aria-label={props.filter.label} class="lens-compare-options" id={popoverID} role="listbox">
+              <For each={options}>
+                {(option) => (
+                  <div
+                    aria-selected={option.value === mode()}
+                    class="lens-facet-option lens-compare-option"
+                    onClick={() => select(option.value)}
+                    onKeyDown={onOptionKeyDown}
+                    ref={(element) => {
+                      optionRefs.set(option.value, element)
+                      if (option.value === focused()) focusedOption = element
+                    }}
+                    role="option"
+                    tabIndex={option.value === focused() ? 0 : -1}
+                  >
+                    <span class="lens-compare-option-mark">
+                      {option.value === mode() && <Check aria-hidden="true" />}
+                    </span>
+                    <span class="lens-facet-option-label">{option.label}</span>
+                  </div>
+                )}
+              </For>
             </div>
-          )}
-        </div>,
-        container,
-      )}
+            <Show when={mode() === 'custom'}>
+              <div class="lens-compare-custom">
+                <CompareDateField
+                  label={translate('filter.compare.start', 'Comparison start')}
+                  onChange={setStart}
+                  value={start()}
+                />
+                <CompareDateField
+                  label={translate('filter.compare.end', 'Comparison end')}
+                  onChange={setEnd}
+                  value={end()}
+                />
+                <button
+                  class="lens-compare-apply"
+                  disabled={rangeInvalid()}
+                  onClick={() => {
+                    setCompare(props.filter, { mode: 'custom', start: start(), end: end() })
+                    setOpen(false)
+                  }}
+                  type="button"
+                >
+                  {translate('filter.period.apply', 'Apply')}
+                </button>
+              </div>
+            </Show>
+          </div>
+        </Portal>
+      </Show>
     </div>
   )
 }

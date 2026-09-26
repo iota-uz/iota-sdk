@@ -1,5 +1,5 @@
-/* eslint-disable react-refresh/only-export-components */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-js'
 import type { Frame, GeoJSONFeatureCollection, GeoJSONSource, MapConfig, NodeKey, Panel } from '../contract'
 import type { ChartActivation, ChartAdapter, ChartInput, ChartFormatResolver } from '../charts/adapter'
 import { useDashboard, useDrill, useFormat, usePanelFrame, useTranslate, type PanelFrameState } from '../runtime'
@@ -8,6 +8,7 @@ import { ChartHost } from './ChartHost'
 import { usePanelNavigation } from './actions'
 import { PanelFrame } from './PanelFrame'
 
+/* eslint-disable react-refresh/only-export-components */
 export const MAX_MAP_GEOJSON_BYTES = 5 * 1024 * 1024
 
 /** Selects the localized GeoJSON label without ever mixing in another locale. */
@@ -152,27 +153,29 @@ type GeometryState = { loading: true; data?: undefined; error?: undefined }
   | { loading: false; data: GeoJSONFeatureCollection; error?: undefined }
   | { loading: false; data?: undefined; error: Error }
 
-export function MapPanel({ panel, adapter, fetcher, frame: frameOverride }: MapPanelProps) {
+export function MapPanel(props: MapPanelProps) {
+  const panel = props.panel
   const runtimeFrame = usePanelFrame(panel.id)
-  const frame = frameOverride ?? runtimeFrame
+  const frame = props.frame ?? runtimeFrame
   const { document } = useDashboard()
   const { drillInto } = useDrill()
   const translate = useTranslate()
   const formatValue = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
   const navigation = usePanelNavigation(panel)
-  const [attempt, setAttempt] = useState(0)
-  const [geometry, setGeometry] = useState<GeometryState>({ loading: true })
+  const [attempt, setAttempt] = createSignal(0)
+  const [geometry, setGeometry] = createSignal<GeometryState>({ loading: true })
   const config = panel.map
   const labelProperty = config ? resolveMapLabelProperty(config, document.meta?.locale ?? '') : undefined
 
-  useEffect(() => {
+  createEffect(() => {
+    void attempt()
     const controller = new AbortController()
     setGeometry({ loading: true })
     if (!config) {
       setGeometry({ loading: false, error: new Error('Map panel has no map config') })
-      return () => controller.abort()
+      return
     }
-    void loadMapGeometry(config.source, config.featureProperty, fetcher, controller.signal)
+    void loadMapGeometry(config.source, config.featureProperty, props.fetcher, controller.signal)
       .then((data) => setGeometry({ loading: false, data }))
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) {
@@ -180,17 +183,17 @@ export function MapPanel({ panel, adapter, fetcher, frame: frameOverride }: MapP
           setGeometry({ loading: false, error: cause instanceof Error ? cause : new Error('Map geometry failed') })
         }
       })
-    return () => controller.abort()
-  }, [attempt, config, fetcher, labelProperty, panel.id])
+    onCleanup(() => controller.abort())
+  })
 
-  const joinError = useMemo(() => geometry.data && frame.data ? mapJoinError(panel, frame.data, geometry.data) : undefined, [frame.data, geometry.data, panel])
-  useEffect(() => {
-    if (joinError) console.error(`[lens] map ${panel.id} data join failed`, joinError)
-  }, [joinError, panel.id])
-  const sourceFrame = useMemo(() => {
+  const joinError = createMemo(() => geometry().data && frame.data ? mapJoinError(panel, frame.data, geometry().data!) : undefined)
+  createEffect(() => {
+    if (joinError()) console.error(`[lens] map ${panel.id} data join failed`, joinError())
+  })
+  const sourceFrame = createMemo((): PanelFrameState => {
     if (frame.isLoading || (frame.error && !frame.data) || !frame.data || frame.data.rows.length === 0) return frame
-    if (geometry.loading) return { ...frame, isLoading: true }
-    const error = geometry.error ?? joinError
+    if (geometry().loading) return { ...frame, isLoading: true }
+    const error = geometry().error ?? joinError()
     if (error) return {
       isLoading: false,
       isStale: false,
@@ -198,24 +201,24 @@ export function MapPanel({ panel, adapter, fetcher, frame: frameOverride }: MapP
       retry: () => setAttempt((value) => value + 1),
     }
     return frame
-  }, [frame, geometry, joinError, translate])
+  })
 
-  const input = useMemo<ChartInput | undefined>(() => {
-    if (!frame.data || frame.data.rows.length === 0 || !geometry.data || joinError || !config) return undefined
+  const input = createMemo<ChartInput | undefined>(() => {
+    if (!frame.data || frame.data.rows.length === 0 || !geometry().data || joinError() || !config) return undefined
     const format: ChartFormatResolver = (_field, value) => formatValue(value)
     return {
       kind: 'map', frame: frame.data, encoding: panel.encoding, format, formatAxis: format,
       labels: { noData: translate('panel.empty', 'No data') },
       theme: document.theme,
       map: {
-        name: `lens-map:${panel.id}`, geoJSON: geometry.data, featureProperty: config.featureProperty,
+        name: `lens-map:${panel.id}`, geoJSON: geometry().data!, featureProperty: config.featureProperty,
         labelProperty, fallbackLabelProperty: config.labelProperty,
       },
     }
-  }, [config, document.theme, formatValue, frame.data, geometry.data, joinError, labelProperty, panel.encoding, panel.id, translate])
+  })
 
-  const interactive = Boolean(panel.drillRoot || navigation.action)
-  const select = useCallback((key: NodeKey, _anchor?: unknown, activation?: ChartActivation) => {
+  const interactive = () => Boolean(panel.drillRoot || navigation.action)
+  const select = (key: NodeKey, _anchor?: unknown, activation?: ChartActivation) => {
     if (panel.drillRoot) {
       drillInto(key, panel.id)
       return
@@ -224,36 +227,38 @@ export function MapPanel({ panel, adapter, fetcher, frame: frameOverride }: MapP
     const idIndex = frame.data.columns.findIndex(({ name }) => name === panel.encoding.id)
     const row = frame.data.rows.find((candidate) => candidate[idIndex] === key)
     navigation.activate(navigation.urlForRow(frame.data, row), undefined, { newTab: activation?.newTab })
-  }, [drillInto, frame.data, navigation, panel.drillRoot, panel.encoding.id, panel.id])
+  }
 
   return (
-    <PanelFrame panel={panel} frame={sourceFrame}>
-      {input && (
-        <>
-          <ChartDataEquivalent
-            actionable={interactive}
-            format={input.format}
-            frame={input.frame}
-            label={translate('chart.data', 'Chart data for {name}', { name: panel.title })}
-            onSelect={select}
-            panel={panel}
-            translate={translate}
-          />
-          <ChartHost
-            adapter={adapter}
-            drillable={interactive}
-            input={input}
-            label={translate('chart.label', '{name} chart', { name: panel.title })}
-            onSelect={interactive ? select : undefined}
-            panelId={panel.id}
-          />
-          {config?.attribution && (
-            <p aria-label={translate('map.attribution', 'Map attribution')} className="lens-map-attribution" role="note">
-              {config.attribution}
-            </p>
-          )}
-        </>
-      )}
+    <PanelFrame panel={panel} frame={sourceFrame()}>
+      <Show when={input()}>
+        {(resolved) => (
+          <>
+            <ChartDataEquivalent
+              actionable={interactive()}
+              format={resolved().format}
+              frame={resolved().frame}
+              label={translate('chart.data', 'Chart data for {name}', { name: panel.title })}
+              onSelect={select}
+              panel={panel}
+              translate={translate}
+            />
+            <ChartHost
+              adapter={props.adapter}
+              drillable={interactive()}
+              input={resolved()}
+              label={translate('chart.label', '{name} chart', { name: panel.title })}
+              onSelect={interactive() ? select : undefined}
+              panelId={panel.id}
+            />
+            <Show when={config?.attribution}>
+              <p aria-label={translate('map.attribution', 'Map attribution')} class="lens-map-attribution" role="note">
+                {config?.attribution}
+              </p>
+            </Show>
+          </>
+        )}
+      </Show>
     </PanelFrame>
   )
 }

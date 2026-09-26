@@ -1,4 +1,8 @@
-import { useCallback, type KeyboardEvent, type MouseEvent } from 'react'
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+import { For } from 'solid-js'
+
+type SolidKeyboardEvent<T = Element> = KeyboardEvent & { currentTarget: T }
+type SolidMouseEvent<T = Element> = MouseEvent & { currentTarget: T }
 import type { Frame, Panel } from '../contract'
 import { ArrowUpRight } from '../icons'
 import { axisUnit, useAxisFormat, useFormat, useFormatExact, usePanelFrame, useTranslate } from '../runtime'
@@ -8,8 +12,9 @@ import { columnIndex, displayText, finiteNumber, panelField } from './data'
 import { PanelFrame } from './PanelFrame'
 import { WaterfallPlot } from './WaterfallPlot'
 
-/* eslint-disable react-refresh/only-export-components */
+ 
 
+/* eslint-disable react-refresh/only-export-components */
 const widthFloor = 2
 
 function numeric(value: unknown): number {
@@ -579,7 +584,8 @@ export interface CascadePanelProps {
   panel: Panel
 }
 
-export function CascadePanel({ panel }: CascadePanelProps) {
+export function CascadePanel(props: CascadePanelProps) {
+  const panel = props.panel
   const frame = usePanelFrame(panel.id)
   const translate = useTranslate()
   const valueField = panelField(panel, 'value') ?? 'value'
@@ -590,20 +596,17 @@ export function CascadePanel({ panel }: CascadePanelProps) {
   // The plot draws compact figures and the tooltip un-abbreviates them; the
   // clipboard gets the machine value behind both.
   const formatExact = useFormatExact(panel.format[valueField])
-  const rawValue = useCallback(
-    (value: unknown) => rawValueText(value, panel.format[valueField]),
-    [panel.format, valueField],
-  )
+  const rawValue = (value: unknown) => rawValueText(value, panel.format[valueField])
   const unit = axisUnit(panel.format[valueField])
-  const stages = frame.data ? buildCascadeStages(panel, frame.data, formatValue, formatCut) : []
-  const waterfall = panel.presentation?.bridgeLayout === 'waterfall'
-    ? buildWaterfallModel(stages, formatValue, formatTick, { formatExact, rawValue })
+  const stages = () => frame.data ? buildCascadeStages(panel, frame.data, formatValue, formatCut) : []
+  const waterfall = () => panel.presentation?.bridgeLayout === 'waterfall'
+    ? buildWaterfallModel(stages(), formatValue, formatTick, { formatExact, rawValue })
     : { items: [], ticks: [], zero: 100 }
   // The hollow column and the solid one are a real distinction — a total the
   // cascade carries on past, and the one it stops at — stated nowhere on the
   // panel. An encoding no one can look up is decoration, and this panel had no
   // legend, caption or footer of any kind to look it up in.
-  const hasCheckpoint = waterfall.items.some((item) => item.checkpoint)
+  const hasCheckpoint = () => waterfall().items.some((item) => item.checkpoint)
 
   // Per-stage navigation: the panel-wide navigate/open-drawer action resolved
   // against the stage's own frame row, exactly like chart marks. A stage whose
@@ -616,7 +619,7 @@ export function CascadePanel({ panel }: CascadePanelProps) {
   const stageInteraction = (rowIndex: number | undefined, label: string) => {
     const href = stageURL(rowIndex)
     if (!href) return undefined
-    const activate = (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => {
+    const activate = (event: SolidMouseEvent<HTMLElement> | SolidKeyboardEvent<HTMLElement>) => {
       navigation.activate(href, event.currentTarget as HTMLElement)
     }
     return {
@@ -624,15 +627,15 @@ export function CascadePanel({ panel }: CascadePanelProps) {
       tabIndex: 0,
       'aria-label': translate('cascade.openStage', 'Open {name}', { name: label }),
       onClick: activate,
-      onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      onKeyDown: (event: SolidKeyboardEvent<HTMLElement>) => {
         if (event.key !== 'Enter' && event.key !== ' ') return
         event.preventDefault()
         activate(event)
       },
     }
   }
-  const anyInteractive = Boolean(navigation.action) &&
-    stages.some((stage) => stageURL(stage.rowIndex) !== undefined)
+  const anyInteractive = () => Boolean(navigation.action) &&
+    stages().some((stage) => stageURL(stage.rowIndex) !== undefined)
   // An em dash is a glyph, not a word: a reader who cannot see it is owed the
   // sentence it stands for. The same key the metric panels speak an absent
   // amount with, so the board has one word for "not known".
@@ -646,18 +649,18 @@ export function CascadePanel({ panel }: CascadePanelProps) {
           axisUnit={unit}
           interaction={(item) => stageInteraction(item.rowIndex, item.label)}
           label={translate('cascade.stages', '{name} stages', { name: panel.title })}
-          model={waterfall}
+          model={waterfall()}
           // An image exposes no children to assistive tech; once the columns
           // are activatable the container must group them instead.
-          role={anyInteractive ? 'group' : 'img'}
+          role={anyInteractive() ? 'group' : 'img'}
           unknownLabel={unavailable}
         >
-          {hasCheckpoint && (
-            <p className="lens-waterfall-key">
-              <span className="lens-waterfall-key-item" data-mark="checkpoint">
+          {hasCheckpoint() && (
+            <p class="lens-waterfall-key">
+              <span class="lens-waterfall-key-item" data-mark="checkpoint">
                 {translate('cascade.checkpoint', 'Interim total')}
               </span>
-              <span className="lens-waterfall-key-item" data-mark="result">
+              <span class="lens-waterfall-key-item" data-mark="result">
                 {translate('cascade.result', 'Closing total')}
               </span>
             </p>
@@ -666,58 +669,60 @@ export function CascadePanel({ panel }: CascadePanelProps) {
       ) : (
         <div
           aria-label={translate('cascade.stages', '{name} stages', { name: panel.title })}
-          className="lens-cascade"
+          class="lens-cascade"
           role="list"
         >
-          {stages.map((stage, index) => {
-            const interaction = stageInteraction(stage.rowIndex, stage.label)
-            return (
-              <div className="lens-cascade-step" key={`${stage.label}-${index}`} role="listitem">
-                {index > 0 && stage.cutLabel && (
-                  <div className="lens-cascade-connector">
-                    <span>{stage.cutLabel}</span>
-                    <strong
-                      data-direction={!stage.hasValue ? 'unknown' : stage.cut > 0 ? 'down' : stage.cut < 0 ? 'up' : 'flat'}
-                    >
-                      {stage.formattedCut}
-                    </strong>
-                  </div>
-                )}
-                <div
-                  className={`lens-cascade-stage${stage.final ? ' lens-cascade-stage-final' : ''}`}
-                  data-final={stage.final || undefined}
-                  data-tone={stage.tone}
-                  data-unknown={!stage.hasValue || undefined}
-                  {...interaction}
-                >
-                  <div className="lens-cascade-stage-label">
-                    <span className="lens-cascade-stage-title">
-                      <span>{stage.label}</span>
-                      {stage.annotation && (
-                        <small className="lens-cascade-stage-annotation">
-                          {stage.annotation}
-                          {/* The same claim the waterfall's badge makes, on the
+          <For each={stages()}>
+            {(stage, index) => {
+              const interaction = stageInteraction(stage.rowIndex, stage.label)
+              return (
+                <div class="lens-cascade-step" role="listitem">
+                  {index() > 0 && stage.cutLabel && (
+                    <div class="lens-cascade-connector">
+                      <span>{stage.cutLabel}</span>
+                      <strong
+                        data-direction={!stage.hasValue ? 'unknown' : stage.cut > 0 ? 'down' : stage.cut < 0 ? 'up' : 'flat'}
+                      >
+                        {stage.formattedCut}
+                      </strong>
+                    </div>
+                  )}
+                  <div
+                    class={`lens-cascade-stage${stage.final ? ' lens-cascade-stage-final' : ''}`}
+                    data-final={stage.final || undefined}
+                    data-tone={stage.tone}
+                    data-unknown={!stage.hasValue || undefined}
+                    {...interaction}
+                  >
+                    <div class="lens-cascade-stage-label">
+                      <span class="lens-cascade-stage-title">
+                        <span>{stage.label}</span>
+                        {stage.annotation && (
+                          <small class="lens-cascade-stage-annotation">
+                            {stage.annotation}
+                            {/* The same claim the waterfall's badge makes, on the
                               same condition: an arrow only where this stage
                               resolved a destination. The row's plate is a hover
                               state and says nothing at rest, so without this the
                               list has no mark at all for "there is somewhere to
                               go from here". */}
-                          {interaction && <ArrowUpRight size={10} />}
-                        </small>
-                      )}
-                    </span>
-                    <strong data-negative={(stage.hasValue && stage.value < 0) || undefined}>
-                      {stage.formattedValue}
-                      {!stage.hasValue && <span className="lens-sr-only">{unavailable}</span>}
-                    </strong>
-                  </div>
-                  <div className="lens-cascade-track" aria-hidden="true">
-                    <span style={{ width: `${stage.width}%` }} />
+                            {interaction && <ArrowUpRight size={10} />}
+                          </small>
+                        )}
+                      </span>
+                      <strong data-negative={(stage.hasValue && stage.value < 0) || undefined}>
+                        {stage.formattedValue}
+                        {!stage.hasValue && <span class="lens-sr-only">{unavailable}</span>}
+                      </strong>
+                    </div>
+                    <div class="lens-cascade-track" aria-hidden="true">
+                      <span style={{ width: `${stage.width}%` }} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            }}
+          </For>
         </div>
       )}
     </PanelFrame>

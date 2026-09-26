@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type KeyboardEvent } from 'react'
-import { createPortal } from 'react-dom'
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+import { createEffect, createMemo, createSignal, on, onCleanup, Show, For } from 'solid-js'
+import { Portal } from 'solid-js/web'
+import type { JSX } from 'solid-js'
 import type { Filter, PeriodValue } from '../contract'
 import {
   CalendarBlank,
@@ -12,7 +14,7 @@ import {
   type IconProps,
 } from '../icons'
 import { currentPeriodValue, useDashboard, useFilters, useTranslate } from '../runtime'
-import { useOverlayContainer } from '../runtime/overlayContainer'
+import { useOverlayContainer } from '../panels/overlayContainer'
 import { isVisualRegression } from '../visualRegression'
 import { Calendar } from './Calendar'
 import {
@@ -55,6 +57,7 @@ interface PopoverPosition {
  * clicked. Left-aligned it hangs off the control it belongs to, and only a
  * trigger close to the right edge falls back.
  */
+/* eslint-disable react-refresh/only-export-components */
 export function positionPopover(
   anchor: { left: number; right: number; bottom: number },
   size: { width: number; height: number },
@@ -90,7 +93,7 @@ interface RenderablePreset {
   /** Completed past period — rendered after the rail's divider. */
   past?: boolean
   /** Leading glyph in the rail. Absent for the producer's own periods. */
-  icon?: ComponentType<IconProps>
+  icon?: (props: IconProps) => JSX.Element
 }
 
 /**
@@ -103,7 +106,7 @@ interface RenderablePreset {
  * The producer's declared periods (the year chips) carry none: a year names
  * itself, and a glyph beside «2025» would only say "this is a date".
  */
-const presetGlyphs: Readonly<Record<string, ComponentType<IconProps>>> = {
+const presetGlyphs: Readonly<Record<string, (props: IconProps) => JSX.Element>> = {
   thisMonth: CalendarBlank,
   lastMonth: CalendarBlank,
   last30days: Clock,
@@ -113,9 +116,10 @@ const presetGlyphs: Readonly<Record<string, ComponentType<IconProps>>> = {
 }
 
 /** The rail's leading glyph slot. Always rendered, so labels share one column. */
-function PresetIcon({ glyph: Glyph }: { glyph?: ComponentType<IconProps> }) {
+function PresetIcon(props: { glyph?: (props: IconProps) => JSX.Element }) {
+  const Glyph = props.glyph
   return (
-    <span aria-hidden="true" className="lens-filter-preset-icon">
+    <span aria-hidden="true" class="lens-filter-preset-icon">
       {Glyph ? <Glyph size={15} /> : null}
     </span>
   )
@@ -251,59 +255,60 @@ function fieldFromDate(date: CalendarDate | undefined): DateFieldState {
  * state it commits goes through the filters context, i.e. into the URL — the
  * control itself owns nothing but the open popover's in-progress range.
  */
-export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps) {
+export function PeriodFilterControl(props: PeriodFilterControlProps) {
   const { values, setPeriod } = useFilters()
   const { document: dashboardDocument } = useDashboard()
   const translate = useTranslate()
   const locale = dashboardDocument.meta.locale
-  const period = filter.period
-  const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState<RangeDraft>({})
-  const [fields, setFields] = useState<{ start: DateFieldState; end: DateFieldState }>({
+  const period = props.filter.period
+  const [open, setOpen] = createSignal(false)
+  const [draft, setDraft] = createSignal<RangeDraft>({})
+  const [fields, setFields] = createSignal<{ start: DateFieldState; end: DateFieldState }>({
     start: fieldFromDate(undefined),
     end: fieldFromDate(undefined),
   })
-  const [position, setPosition] = useState<PopoverPosition>({ left: 0, top: 0 })
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const dialogRef = useRef<HTMLDivElement>(null)
-  const container = useOverlayContainer(open, triggerRef)
-  const [animate] = useState(() => {
-    if (isVisualRegression()) return false
-    return !globalThis.window?.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  })
+  const [position, setPosition] = createSignal<PopoverPosition>({ left: 0, top: 0 })
+  let triggerRef: HTMLButtonElement | undefined
+  let dialogRef: HTMLDivElement | undefined
+  const container = useOverlayContainer(open, () => triggerRef)
+  const animate = isVisualRegression()
+    ? false
+    : !globalThis.window?.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-  const value = period ? currentPeriodValue(period, values) : { start: '', end: '' }
+  const value = () => period ? currentPeriodValue(period, values) : { start: '', end: '' }
 
-  const close = useCallback((restoreFocus = true) => {
+  const close = (restoreFocus = true) => {
     setOpen(false)
-    if (restoreFocus) triggerRef.current?.focus()
-  }, [])
+    if (restoreFocus) triggerRef?.focus()
+  }
 
-  const openPopover = useCallback(() => {
+  const openPopover = () => {
     const next = draftFromValue(period ? currentPeriodValue(period, values) : { start: '', end: '' })
     setDraft(next)
     // Reset explicitly: the draft may be unchanged since the last open, which
     // would leave a previously typed (possibly invalid) text in place.
     setFields({ start: fieldFromDate(next.start), end: fieldFromDate(next.end) })
     setOpen(true)
-  }, [period, values])
+  }
 
   // The typed fields mirror the draft: any draft change (calendar pick, a
   // fresh open, a preset) rewrites both texts and clears the invalid marks.
   // While the user is typing the draft does not move, so nothing clobbers the
   // in-progress text — only a successful blur/Enter commit does.
-  const draftStartISO = draft.start ? formatISODate(draft.start) : ''
-  const draftEndISO = draft.end ? formatISODate(draft.end) : ''
-  useEffect(() => {
+  const draftStartISO = () => draft().start ? formatISODate(draft().start!) : ''
+  const draftEndISO = () => draft().end ? formatISODate(draft().end!) : ''
+  createEffect(() => {
+    const startISO = draftStartISO()
+    const endISO = draftEndISO()
     setFields({
-      start: fieldFromDate(parseISODate(draftStartISO)),
-      end: fieldFromDate(parseISODate(draftEndISO)),
+      start: fieldFromDate(parseISODate(startISO)),
+      end: fieldFromDate(parseISODate(endISO)),
     })
-  }, [draftStartISO, draftEndISO])
+  })
 
-  const reposition = useCallback(() => {
-    const dialog = dialogRef.current
-    const trigger = triggerRef.current
+  const reposition = () => {
+    const dialog = dialogRef
+    const trigger = triggerRef
     if (!dialog || !trigger) return
     const anchor = trigger.getBoundingClientRect()
     const rect = dialog.getBoundingClientRect()
@@ -313,45 +318,44 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
       { width: globalThis.innerWidth || 1024, height: globalThis.innerHeight || 768 },
     )
     setPosition((current) => (current.left === next.left && current.top === next.top ? current : next))
-  }, [])
+  }
 
-  useLayoutEffect(() => {
-    if (container) reposition()
-  }, [container, reposition])
+  createEffect(on(container, (current) => {
+    if (current) reposition()
+  }))
 
-  useEffect(() => {
-    if (!container) return undefined
+  createEffect(() => {
+    const current = container()
+    if (!current) return
     let frame = globalThis.requestAnimationFrame(() => {
       frame = globalThis.requestAnimationFrame(reposition)
     })
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reposition)
-    if (dialogRef.current) observer?.observe(dialogRef.current)
+    if (dialogRef) observer?.observe(dialogRef)
     globalThis.addEventListener('resize', reposition)
     const fonts = (globalThis.document as Document & { fonts?: FontFaceSet }).fonts
     void fonts?.ready.then(reposition)
-    return () => {
+    onCleanup(() => {
       globalThis.cancelAnimationFrame(frame)
       observer?.disconnect()
       globalThis.removeEventListener('resize', reposition)
-    }
-  }, [container, reposition])
+    })
+  })
 
-  useEffect(() => {
-    if (container) dialogRef.current?.focus()
-  }, [container])
+  createEffect(on(container, (current) => {
+    if (current) dialogRef?.focus()
+  }))
 
-  useEffect(() => {
-    if (!open || typeof document === 'undefined') return undefined
+  createEffect(() => {
+    if (!open() || typeof document === 'undefined') return
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.stopPropagation()
       close()
     }
     document.addEventListener('keydown', onKeyDown, true)
-    return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [close, open])
-
-  if (!period) return null
+    onCleanup(() => document.removeEventListener('keydown', onKeyDown, true))
+  })
 
   // Calendar picks build the draft and nothing else: the popover has exactly
   // one commit path (Apply), so a mis-clicked start date costs a correction
@@ -368,9 +372,9 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
     close()
   }
 
-  const applyValue = (value: PeriodValue) => {
-    setPeriod(filter, value)
-    if (open) close(false)
+  const applyValue = (next: PeriodValue) => {
+    setPeriod(props.filter, next)
+    if (open()) close(false)
   }
 
   // Typed entry updates the in-progress draft only; the calendar commits on
@@ -384,7 +388,7 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
   }
 
   const commitField = (edge: 'start' | 'end') => {
-    const text = fields[edge].text.trim()
+    const text = fields()[edge].text.trim()
     if (text === '') {
       setDraft((current) => (edge === 'start' ? { end: current.end } : { start: current.start }))
       setFields((current) => ({ ...current, [edge]: { text: '', invalid: false } }))
@@ -399,7 +403,7 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
     setFields((current) => ({ ...current, [edge]: fieldFromDate(parsed) }))
   }
 
-  const onFieldKeyDown = (edge: 'start' | 'end') => (event: KeyboardEvent<HTMLInputElement>) => {
+  const onFieldKeyDown = (edge: 'start' | 'end') => (event: KeyboardEvent) => {
     if (event.key !== 'Enter') return
     event.preventDefault()
     commitField(edge)
@@ -408,53 +412,57 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
   const applyDraft = () => {
     // An invalid typed field reverts to the last valid draft value instead of
     // silently applying something other than what the field shows.
-    if (fields.start.invalid || fields.end.invalid) {
-      setFields({ start: fieldFromDate(draft.start), end: fieldFromDate(draft.end) })
+    if (fields().start.invalid || fields().end.invalid) {
+      setFields({ start: fieldFromDate(draft().start), end: fieldFromDate(draft().end) })
       return
     }
-    if (draft.start && draft.end && compareDates(draft.start, draft.end) <= 0) {
-      applyValue({ start: formatISODate(draft.start), end: formatISODate(draft.end) })
+    const current = draft()
+    if (current.start && current.end && compareDates(current.start, current.end) <= 0) {
+      applyValue({ start: formatISODate(current.start), end: formatISODate(current.end) })
     }
   }
 
-  const resolvedToday = today ?? localToday()
-  const presets = declaredPresets(period)
-  const relativePresets = popoverPresets(period, resolvedToday, translate, presets)
-  const toDatePresets = relativePresets.filter((preset) => !preset.past)
-  const pastPresets = relativePresets.filter((preset) => preset.past)
-  const draftComplete = Boolean(draft.start && draft.end && compareDates(draft.start, draft.end) <= 0)
+  const resolvedToday = () => props.today ?? localToday()
+  const presets = period ? declaredPresets(period) : []
+  const relativePresets = () => period ? popoverPresets(period, resolvedToday(), translate, presets) : []
+  const toDatePresets = () => relativePresets().filter((preset) => !preset.past)
+  const pastPresets = () => relativePresets().filter((preset) => preset.past)
+  const draftComplete = createMemo(() => {
+    const current = draft()
+    return Boolean(current.start && current.end && compareDates(current.start, current.end) <= 0)
+  })
 
   const allTime = translate('filter.period.allTime', 'All time')
-  const start = parseISODate(value.start)
-  const end = parseISODate(value.end)
-  const triggerLabel = value.start === '' && value.end === ''
+  const start = () => parseISODate(value().start)
+  const end = () => parseISODate(value().end)
+  const triggerLabel = () => value().start === '' && value().end === ''
     ? allTime
-    : start && end
-      ? compactRangeLabel(start, end)
+    : start() && end()
+      ? compactRangeLabel(start()!, end()!)
       : translate('filter.period.custom', 'Custom range')
-  const min = period.min ? parseISODate(period.min) : undefined
-  const max = period.max ? parseISODate(period.max) : undefined
+  const min = () => period?.min ? parseISODate(period.min) : undefined
+  const max = () => period?.max ? parseISODate(period.max) : undefined
 
   // A step is offered only for a resolved range: "all time" has no length to
   // step by, and a step landing wholly outside the document's own bounds is not
   // a period this dashboard can show.
   const step = (direction: 1 | -1) => {
-    if (!start || !end) return undefined
-    const next = shiftPeriodRange(start, end, direction, resolvedToday)
-    if (min && compareDates(next.end, min) < 0) return undefined
-    if (max && compareDates(next.start, max) > 0) return undefined
+    if (!start() || !end()) return undefined
+    const next = shiftPeriodRange(start()!, end()!, direction, resolvedToday())
+    if (min() && compareDates(next.end, min()!) < 0) return undefined
+    if (max() && compareDates(next.start, max()!) > 0) return undefined
     return next
   }
-  const stepBack = step(-1)
-  const stepForward = step(1)
+  const stepBack = () => step(-1)
+  const stepForward = () => step(1)
   const stepLabel = (target: { start: CalendarDate; end: CalendarDate } | undefined, key: string, fallback: string) =>
     target ? `${translate(key, fallback)}: ${compactRangeLabel(target.start, target.end)}` : translate(key, fallback)
 
   return (
     <div
-      aria-label={filter.label || translate('filter.bar.label', 'Dashboard filters')}
-      className="lens-period-filter"
-      data-filter-id={filter.id}
+      aria-label={props.filter.label || translate('filter.bar.label', 'Dashboard filters')}
+      class="lens-period-filter"
+      data-filter-id={props.filter.id}
       role="group"
     >
       {/* One control that states the period and two that move it. The arrows
@@ -462,21 +470,21 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
           ~210px instead of ~600, and they keep working on a range a reader drew
           by hand or on a dashboard that declares no presets at all. */}
       <button
-        aria-label={stepLabel(stepBack, 'filter.period.previous', 'Previous period')}
-        className="lens-filter-step"
-        disabled={!stepBack}
-        onClick={() => stepBack && applyValue({ start: formatISODate(stepBack.start), end: formatISODate(stepBack.end) })}
+        aria-label={stepLabel(stepBack(), 'filter.period.previous', 'Previous period')}
+        class="lens-filter-step"
+        disabled={!stepBack()}
+        onClick={() => stepBack() && applyValue({ start: formatISODate(stepBack()!.start), end: formatISODate(stepBack()!.end) })}
         type="button"
       >
         <CaretLeft size={12} />
       </button>
       <button
-        aria-expanded={open}
+        aria-expanded={open()}
         aria-haspopup="dialog"
-        aria-label={`${translate('filter.period.open', 'Change period')}: ${triggerLabel}`}
-        className="lens-filter-trigger"
-        onClick={() => (open ? close(false) : openPopover())}
-        ref={triggerRef}
+        aria-label={`${translate('filter.period.open', 'Change period')}: ${triggerLabel()}`}
+        class="lens-filter-trigger"
+        onClick={() => (open() ? close(false) : openPopover())}
+        ref={(el) => { triggerRef = el }}
         type="button"
       >
         <CalendarBlank className="lens-filter-trigger-icon" size={14} />
@@ -485,137 +493,140 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
             checks before quoting a number — which days these are — lived in the
             trigger's aria-label. «30 дней» is not a period; 03.07.2026 –
             01.08.2026 is. */}
-        <span className="lens-filter-trigger-label">{triggerLabel}</span>
+        <span class="lens-filter-trigger-label">{triggerLabel()}</span>
         <CaretDown className="lens-filter-trigger-caret" size={11} />
       </button>
       <button
-        aria-label={stepLabel(stepForward, 'filter.period.next', 'Next period')}
-        className="lens-filter-step"
-        disabled={!stepForward}
-        onClick={() => stepForward && applyValue({ start: formatISODate(stepForward.start), end: formatISODate(stepForward.end) })}
+        aria-label={stepLabel(stepForward(), 'filter.period.next', 'Next period')}
+        class="lens-filter-step"
+        disabled={!stepForward()}
+        onClick={() => stepForward() && applyValue({ start: formatISODate(stepForward()!.start), end: formatISODate(stepForward()!.end) })}
         type="button"
       >
         <CaretRight size={12} />
       </button>
-      {open && container && createPortal(
-        <>
-          <div aria-hidden="true" className="lens-filter-scrim" onMouseDown={() => close(false)} />
+      <Show when={open() && container()}>
+        <Portal mount={container()}>
+          <div aria-hidden="true" class="lens-filter-scrim" onMouseDown={() => close(false)} />
           <div
-            aria-label={filter.label || translate('calendar.label', 'Calendar')}
+            aria-label={props.filter.label || translate('calendar.label', 'Calendar')}
             aria-modal="false"
-            className={`lens-filter-popover${animate ? ' lens-filter-popover-enter' : ''}`}
-            ref={dialogRef}
+            class={`lens-filter-popover${animate ? ' lens-filter-popover-enter' : ''}`}
+            ref={(el) => { dialogRef = el }}
             role="dialog"
-            style={{ left: position.left, top: position.top }}
+            style={{ left: `${position().left}px`, top: `${position().top}px` }}
             tabIndex={-1}
           >
-            {(presets.length > 0 || relativePresets.length > 0 || period.allowEmpty) && (
+            {(presets.length > 0 || relativePresets().length > 0 || period?.allowEmpty) && (
               // The rail leads with the producer's own periods, unheaded because
               // a list of years names itself, then two headed groups of relative
               // ones — still running, then completed. All time closes the
               // completed group as its last entry: it is the widest finished
               // period this dashboard can be read over, not a group of one.
-              <div className="lens-filter-popover-side">
-                {presets.map((preset) => (
-                  <button
-                    aria-pressed={sameValue(preset.value, value)}
-                    className="lens-filter-preset"
-                    key={preset.id}
-                    onClick={() => applyValue(preset.value)}
-                    type="button"
-                  >
-                    <PresetIcon glyph={preset.icon} />
-                    <span className="lens-filter-preset-label">{preset.label}</span>
-                  </button>
-                ))}
-                {toDatePresets.length > 0 && (
-                  <span className="lens-filter-preset-heading">
+              <div class="lens-filter-popover-side">
+                <For each={presets}>
+                  {(preset) => (
+                    <button
+                      aria-pressed={sameValue(preset.value, value())}
+                      class="lens-filter-preset"
+                      onClick={() => applyValue(preset.value)}
+                      type="button"
+                    >
+                      <PresetIcon glyph={preset.icon} />
+                      <span class="lens-filter-preset-label">{preset.label}</span>
+                    </button>
+                  )}
+                </For>
+                <Show when={toDatePresets().length > 0}>
+                  <span class="lens-filter-preset-heading">
                     {translate('filter.period.quickSelect', 'Quick select')}
                   </span>
-                )}
-                {toDatePresets.map((preset) => (
-                  <button
-                    aria-pressed={sameValue(preset.value, value)}
-                    className="lens-filter-preset"
-                    key={preset.id}
-                    onClick={() => applyValue(preset.value)}
-                    type="button"
-                  >
-                    <PresetIcon glyph={preset.icon} />
-                    <span className="lens-filter-preset-label">{preset.label}</span>
-                  </button>
-                ))}
-                {pastPresets.length > 0 && (
-                  <span className="lens-filter-preset-heading">
+                </Show>
+                <For each={toDatePresets()}>
+                  {(preset) => (
+                    <button
+                      aria-pressed={sameValue(preset.value, value())}
+                      class="lens-filter-preset"
+                      onClick={() => applyValue(preset.value)}
+                      type="button"
+                    >
+                      <PresetIcon glyph={preset.icon} />
+                      <span class="lens-filter-preset-label">{preset.label}</span>
+                    </button>
+                  )}
+                </For>
+                <Show when={pastPresets().length > 0}>
+                  <span class="lens-filter-preset-heading">
                     {translate('filter.period.completed', 'Completed')}
                   </span>
-                )}
-                {pastPresets.map((preset) => (
+                </Show>
+                <For each={pastPresets()}>
+                  {(preset) => (
+                    <button
+                      aria-pressed={sameValue(preset.value, value())}
+                      class="lens-filter-preset"
+                      onClick={() => applyValue(preset.value)}
+                      type="button"
+                    >
+                      <PresetIcon glyph={preset.icon} />
+                      <span class="lens-filter-preset-label">{preset.label}</span>
+                    </button>
+                  )}
+                </For>
+                <Show when={period?.allowEmpty}>
                   <button
-                    aria-pressed={sameValue(preset.value, value)}
-                    className="lens-filter-preset"
-                    key={preset.id}
-                    onClick={() => applyValue(preset.value)}
-                    type="button"
-                  >
-                    <PresetIcon glyph={preset.icon} />
-                    <span className="lens-filter-preset-label">{preset.label}</span>
-                  </button>
-                ))}
-                {period.allowEmpty && (
-                  <button
-                    aria-pressed={value.start === '' && value.end === ''}
-                    className="lens-filter-preset lens-filter-preset-clear"
+                    aria-pressed={value().start === '' && value().end === ''}
+                    class="lens-filter-preset lens-filter-preset-clear"
                     onClick={() => applyValue({ start: '', end: '' })}
                     type="button"
                   >
                     <PresetIcon glyph={InfinityLoop} />
-                    <span className="lens-filter-preset-label">{allTime}</span>
+                    <span class="lens-filter-preset-label">{allTime}</span>
                   </button>
-                )}
+                </Show>
               </div>
             )}
-            <div className="lens-filter-popover-main">
+            <div class="lens-filter-popover-main">
               <Calendar
-                draft={draft}
+                draft={draft()}
                 locale={locale}
-                max={max}
-                min={min}
+                max={max()}
+                min={min()}
                 onPick={onPick}
-                today={today}
+                today={props.today}
                 translate={translate}
               />
-              <div className="lens-filter-range">
-                <label className="lens-filter-range-field">
-                  <span className="lens-filter-range-caption">{translate('filter.period.from', 'From')}</span>
-                  <span className="lens-filter-range-input" data-invalid={fields.start.invalid || undefined}>
+              <div class="lens-filter-range">
+                <label class="lens-filter-range-field">
+                  <span class="lens-filter-range-caption">{translate('filter.period.from', 'From')}</span>
+                  <span class="lens-filter-range-input" data-invalid={fields().start.invalid || undefined}>
                     <CalendarBlank className="lens-filter-range-icon" size={14} />
                     <input
-                      className="lens-filter-input"
-                      inputMode="numeric"
+                      class="lens-filter-input"
+                      inputmode="numeric"
                       onBlur={() => commitField('start')}
                       onChange={(event) => onFieldChange('start', event.target.value)}
                       onKeyDown={onFieldKeyDown('start')}
                       placeholder={translate('filter.period.dateFormat', 'dd.mm.yyyy')}
                       type="text"
-                      value={fields.start.text}
+                      value={fields().start.text}
                     />
                   </span>
                 </label>
-                <span aria-hidden="true" className="lens-filter-range-sep">—</span>
-                <label className="lens-filter-range-field">
-                  <span className="lens-filter-range-caption">{translate('filter.period.to', 'To')}</span>
-                  <span className="lens-filter-range-input" data-invalid={fields.end.invalid || undefined}>
+                <span aria-hidden="true" class="lens-filter-range-sep">—</span>
+                <label class="lens-filter-range-field">
+                  <span class="lens-filter-range-caption">{translate('filter.period.to', 'To')}</span>
+                  <span class="lens-filter-range-input" data-invalid={fields().end.invalid || undefined}>
                     <CalendarBlank className="lens-filter-range-icon" size={14} />
                     <input
-                      className="lens-filter-input"
-                      inputMode="numeric"
+                      class="lens-filter-input"
+                      inputmode="numeric"
                       onBlur={() => commitField('end')}
                       onChange={(event) => onFieldChange('end', event.target.value)}
                       onKeyDown={onFieldKeyDown('end')}
                       placeholder={translate('filter.period.dateFormat', 'dd.mm.yyyy')}
                       type="text"
-                      value={fields.end.text}
+                      value={fields().end.text}
                     />
                   </span>
                 </label>
@@ -623,23 +634,23 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
               {/* The footer states what the draft currently is — the day count
                   once it is a range, the next step while it is not — so the
                   summary has a home instead of dangling under the grid. */}
-              <div className="lens-filter-popover-footer">
-                <span aria-hidden="true" className="lens-filter-summary-badge">
+              <div class="lens-filter-popover-footer">
+                <span aria-hidden="true" class="lens-filter-summary-badge">
                   <Clock size={14} />
                 </span>
-                <span className="lens-filter-summary" data-complete={draftComplete || undefined}>
-                  {rangeHint(draft, translate)}
+                <span class="lens-filter-summary" data-complete={draftComplete() || undefined}>
+                  {rangeHint(draft(), translate)}
                 </span>
                 <button
-                  className="lens-filter-chip lens-filter-cancel"
+                  class="lens-filter-chip lens-filter-cancel"
                   onClick={cancel}
                   type="button"
                 >
                   {translate('filter.period.cancel', 'Cancel')}
                 </button>
                 <button
-                  className="lens-filter-chip lens-filter-apply"
-                  disabled={!draftComplete}
+                  class="lens-filter-chip lens-filter-apply"
+                  disabled={!draftComplete()}
                   onClick={applyDraft}
                   type="button"
                 >
@@ -648,9 +659,8 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
               </div>
             </div>
           </div>
-        </>,
-        container,
-      )}
+        </Portal>
+      </Show>
     </div>
   )
 }
