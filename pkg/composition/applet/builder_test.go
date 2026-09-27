@@ -29,7 +29,9 @@ func TestContractOptionsPreserveAnyPermissions(t *testing.T) {
 		AnyPermissions: []string{"dashboards.read", "dashboards.manage"},
 	}
 	require.NoError(t, registry.RegisterPublicContract("dashboard", "dashboard.viewer", applets.RPCMethod{
-		Handler: func(_ context.Context, _ json.RawMessage) (any, error) { return nil, nil },
+		Handler: func(_ context.Context, _ json.RawMessage) (any, error) {
+			return map[string]any{"ok": true}, nil
+		},
 	}, nil, contractOptions(contract)...))
 	method, ok := registry.Get("dashboard.viewer")
 	require.True(t, ok)
