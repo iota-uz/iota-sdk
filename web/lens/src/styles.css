@@ -1,6 +1,8 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind v4: the runtime opts out of preflight by importing the theme and
+   utility layers directly — embedded dashboards keep the host page's reset. */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@config "../tailwind.config.ts";
 
 @layer base {
   /* The printed report is a lens surface that lives outside .lens-root (it is
@@ -230,17 +232,17 @@
 
 @layer components {
   .lens-root {
-    @apply lens-box-border lens-min-h-32 lens-min-w-0 lens-bg-page lens-p-4 lens-font-sans lens-text-text;
+    @apply lens:box-border lens:min-h-32 lens:min-w-0 lens:bg-page lens:p-4 lens:font-sans lens:text-text;
   }
 
   .lens-dashboard {
-    @apply lens-mx-auto lens-w-full lens-min-w-0 lens-max-w-screen-2xl;
+    @apply lens:mx-auto lens:w-full lens:min-w-0 lens:max-w-(--breakpoint-2xl);
 
     container: lens-dashboard / inline-size;
   }
 
   .lens-drawer-backdrop {
-    @apply lens-fixed lens-inset-0 lens-z-[1000] lens-flex lens-justify-end;
+    @apply lens:fixed lens:inset-0 lens:z-[1000] lens:flex lens:justify-end;
     background: rgb(15 23 42 / 0.42);
     backdrop-filter: blur(2px);
     animation: lens-backdrop-fade 180ms ease-out;
@@ -256,38 +258,38 @@
      its floor (the width every drawer was designed against) and grows with the
      viewport up to a ceiling, so the page behind it is still visibly the page. */
   .lens-drawer {
-    @apply lens-flex lens-h-[100dvh] lens-w-full lens-flex-col lens-bg-card lens-text-text lens-shadow-2xl;
+    @apply lens:flex lens:h-[100dvh] lens:w-full lens:flex-col lens:bg-card lens:text-text lens:shadow-2xl;
 
     max-width: min(clamp(720px, 56vw, 1040px), calc(100vw - 24px));
     animation: lens-drawer-enter 180ms ease-out;
   }
 
   .lens-drawer:focus {
-    @apply lens-outline-none;
+    @apply lens:outline-none;
   }
 
   .lens-drawer-header {
-    @apply lens-sticky lens-top-0 lens-z-10 lens-flex lens-min-h-14 lens-items-start lens-justify-between lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-card lens-px-5 lens-py-3;
+    @apply lens:sticky lens:top-0 lens:z-10 lens:flex lens:min-h-14 lens:items-start lens:justify-between lens:gap-3 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:bg-card lens:px-5 lens:py-3;
     box-shadow: inset 3px 0 0 var(--lens-accent-500);
   }
 
   .lens-drawer-identity {
-    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-0.5;
+    @apply lens:flex lens:min-w-0 lens:flex-col lens:gap-0.5;
   }
 
   .lens-drawer-eyebrow {
-    @apply lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens:font-semibold lens:uppercase lens:tracking-wider lens:text-muted;
     font-size: var(--lens-type-sm);
     line-height: 1.3;
   }
 
   .lens-drawer-title {
-    @apply lens-truncate lens-text-lg lens-font-semibold lens-text-strong;
+    @apply lens:truncate lens:text-lg lens:font-semibold lens:text-strong;
     line-height: 1.3;
   }
 
   .lens-drawer-caption {
-    @apply lens-text-base lens-text-muted;
+    @apply lens:text-base lens:text-muted;
     white-space: pre-line;
     line-height: 1.35;
   }
@@ -296,21 +298,21 @@
      large control height like every other hit area; the matching min-width keeps
      it square, since only the height is on the scale. */
   .lens-drawer-close {
-    @apply lens-inline-flex lens-min-h-control-lg lens-cursor-pointer lens-items-center lens-justify-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-text-muted;
+    @apply lens:inline-flex lens:min-h-control-lg lens:cursor-pointer lens:items-center lens:justify-center lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:text-muted;
     min-width: var(--lens-control-h-lg);
   }
 
   .lens-drawer-close:hover {
-    @apply lens-border-strong lens-bg-inset lens-text-strong;
+    @apply lens:border-strong lens:bg-inset lens:text-strong;
   }
 
   .lens-drawer-document {
-    @apply lens-min-h-0 lens-flex-1 lens-overflow-y-auto lens-p-5;
+    @apply lens:min-h-0 lens:flex-1 lens:overflow-y-auto lens:p-5;
     overscroll-behavior: contain;
   }
 
   .lens-drawer-document .lens-dashboard {
-    @apply lens-max-w-none;
+    @apply lens:max-w-none;
   }
 
   /* A long record table inside a drawer keeps its header on screen while the
@@ -318,7 +320,7 @@
      own scroll box, or the drawer body). A solid card background keeps the
      scrolled rows from bleeding through the sticky row. */
   .lens-drawer .lens-table thead th {
-    @apply lens-sticky lens-top-0 lens-z-10;
+    @apply lens:sticky lens:top-0 lens:z-10;
     background: var(--lens-bg-card);
   }
 
@@ -326,7 +328,7 @@
      short drawer ends cleanly after its content instead of trailing dead space
      under a fill-stretched panel. */
   .lens-drawer-document .lens-panel-fill {
-    @apply lens-flex-none;
+    @apply lens:flex-none;
   }
 
   /* The wide variant hosts cross-metric detail views (a full focus canvas
@@ -367,7 +369,7 @@
     }
 
     .lens-drawer-document {
-      @apply lens-p-3;
+      @apply lens:p-3;
     }
   }
 
@@ -385,18 +387,18 @@
      weight, with no divider between them. Eight equal boxes on one baseline is
      what a reader had to sort out before reading anything. */
   .lens-dashboard-header {
-    @apply lens-mb-5 lens-flex lens-min-w-0 lens-max-w-full lens-flex-col lens-gap-2 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-3;
+    @apply lens:mb-5 lens:flex lens:min-w-0 lens:max-w-full lens:flex-col lens:gap-2 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:pb-3;
   }
 
   .lens-dashboard-header h1 {
-    @apply lens-m-0 lens-text-xl lens-font-semibold lens-tracking-tight lens-text-strong;
+    @apply lens:m-0 lens:text-xl lens:font-semibold lens:tracking-tight lens:text-strong;
   }
 
   /* Row A: the page names itself, and the verbs sit opposite. Aligned on the
      first line rather than the last, so a title that wraps to two lines drops
      downward and leaves the action row where it was. */
   .lens-dashboard-headline {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-start lens-justify-between lens-gap-4;
+    @apply lens:flex lens:min-w-0 lens:max-w-full lens:items-start lens:justify-between lens:gap-4;
   }
 
   /* The page's typographic anchor. At the `lg` step the h1 was smaller than
@@ -405,7 +407,7 @@
      looked at. `xl` is the step below a KPI reading: the page names itself
      without competing with the figures it introduces. */
   .lens-dashboard-header .lens-dashboard-title {
-    @apply lens-m-0 lens-font-semibold lens-tracking-tight lens-text-strong;
+    @apply lens:m-0 lens:font-semibold lens:tracking-tight lens:text-strong;
     font-size: var(--lens-type-xl);
     line-height: 1.2;
   }
@@ -414,7 +416,7 @@
      before it cannot state. It is the one member of that row with no affordance,
      so it takes the row's height without the chip's padding or hover. */
   .lens-dashboard-subtitle {
-    @apply lens-m-0 lens-inline-flex lens-min-h-control-sm lens-items-center lens-text-muted;
+    @apply lens:m-0 lens:inline-flex lens:min-h-control-sm lens:items-center lens:text-muted;
     font-size: var(--lens-type-base);
     line-height: 1.3;
   }
@@ -423,20 +425,20 @@
      same baseline as the button it replaces, without a frame that would promise
      a press that does nothing. */
   .lens-dashboard-updated {
-    @apply lens-m-0 lens-inline-flex lens-min-h-control-md lens-items-center lens-gap-1.5 lens-whitespace-nowrap lens-text-base lens-font-medium lens-text-muted;
+    @apply lens:m-0 lens:inline-flex lens:min-h-control-md lens:items-center lens:gap-1.5 lens:whitespace-nowrap lens:text-base lens:font-medium lens:text-muted;
   }
 
   /* Escalation, and only past the threshold: colouring every reading would make
      the colour mean "this dashboard has a timestamp". */
   .lens-dashboard-updated[data-stale] {
-    @apply lens-text-warn;
+    @apply lens:text-warn;
   }
 
   /* Rows B and C. The scope row never moves when a chip is added or dropped: a
      chip used to be injected among the triggers, so applying one filter
      re-wrapped the bar and the next trigger the reader was aiming at had moved. */
   .lens-filter-bar {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-col lens-items-start lens-gap-1.5;
+    @apply lens:flex lens:min-w-0 lens:max-w-full lens:flex-col lens:items-start lens:gap-1.5;
   }
 
   /* Row B: what is on screen, as a sentence whose every clause is editable in
@@ -444,12 +446,12 @@
      to the controls, so a control can be added or hidden without either end of
      the line growing a stray separator. */
   .lens-dashboard-scope {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center;
+    @apply lens:flex lens:min-w-0 lens:max-w-full lens:flex-wrap lens:items-center;
     gap: 2px 6px;
   }
 
   .lens-dashboard-scope > * + *::before {
-    @apply lens-select-none lens-text-faint;
+    @apply lens:select-none lens:text-faint;
     content: '·';
     margin-inline-end: 6px;
   }
@@ -460,44 +462,44 @@
      which is unreadable on a board dashboard. */
   @media (max-width: 1100px) {
     .lens-dashboard-headline {
-      @apply lens-flex-col lens-items-stretch lens-gap-2;
+      @apply lens:flex-col lens:items-stretch lens:gap-2;
     }
 
     .lens-dashboard-actions {
-      @apply lens-justify-start;
+      @apply lens:justify-start;
     }
   }
 
   @container lens-dashboard (max-width: 1100px) {
     .lens-dashboard-headline {
-      @apply lens-flex-col lens-items-stretch lens-gap-2;
+      @apply lens:flex-col lens:items-stretch lens:gap-2;
     }
 
     .lens-dashboard-actions {
-      @apply lens-justify-start;
+      @apply lens:justify-start;
     }
   }
 
   .lens-filter-bar-chips {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-1.5;
+    @apply lens:flex lens:min-w-0 lens:max-w-full lens:flex-wrap lens:items-center lens:gap-1.5;
   }
 
   /* A filter that only changes one tab belongs with that tab's content, not in
      the dashboard-wide scope line. It spans the tab grid and stays aligned to
      the content edge, close to the figures it controls. */
   .lens-tab-filter-bar {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-justify-end lens-gap-2 lens-px-4 lens-pt-3;
+    @apply lens:flex lens:min-w-0 lens:max-w-full lens:flex-wrap lens:items-center lens:justify-end lens:gap-2 lens:px-4 lens:pt-3;
     grid-column: 1 / -1;
   }
 
   /* The actions cluster wraps as one unit, so its members keep one order at
      every width. */
   .lens-dashboard-actions {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-justify-end lens-gap-2;
+    @apply lens:flex lens:min-w-0 lens:max-w-full lens:flex-wrap lens:items-center lens:justify-end lens:gap-2;
   }
 
   .lens-compare-filter {
-    @apply lens-relative lens-flex lens-min-w-0 lens-max-w-full lens-items-center;
+    @apply lens:relative lens:flex lens:min-w-0 lens:max-w-full lens:items-center;
   }
 
   /* The comparison trigger prints its own label because, unlike a facet, the
@@ -507,12 +509,12 @@
      «Сравнить с Год назад» — so the label takes the muted voice of everything
      else in that line and the value the strong one. */
   .lens-compare-trigger-label {
-    @apply lens-font-medium lens-text-muted;
+    @apply lens:font-medium lens:text-muted;
     font-size: var(--lens-type-base);
   }
 
   .lens-compare-trigger-value {
-    @apply lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-text-strong;
+    @apply lens:overflow-hidden lens:text-ellipsis lens:whitespace-nowrap lens:text-strong;
   }
 
   /* The labelled segmented control. It owns no chrome of its own: the track is
@@ -522,34 +524,34 @@
      trigger's small-caps voice — for the same reason: «По кварталам» does not
      say what it is a choice about. */
   .lens-segmented-filter {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-gap-2;
+    @apply lens:flex lens:min-w-0 lens:max-w-full lens:items-center lens:gap-2;
   }
 
   /* Same voice as the comparison label it shares the scope line with: two
      clauses of one sentence cannot be set in two different registers. */
   .lens-segmented-label {
-    @apply lens-flex-none lens-font-medium lens-text-muted;
+    @apply lens:flex-none lens:font-medium lens:text-muted;
     font-size: var(--lens-type-base);
   }
 
   /* Two or three permanent segments never overflow, so the track does not
      carry the period tray's scroll affordances. */
   .lens-segmented-track {
-    @apply lens-flex-none;
+    @apply lens:flex-none;
   }
 
   .lens-compare-option-mark {
-    @apply lens-flex lens-size-4 lens-flex-none lens-items-center lens-justify-center lens-text-accent-700;
+    @apply lens:flex lens:size-4 lens:flex-none lens:items-center lens:justify-center lens:text-accent-700;
   }
 
   .lens-compare-custom {
-    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-border-border lens-p-2;
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-2 lens:border-0 lens:border-t lens:border-solid lens:border-border lens:p-2;
   }
 
   /* The masked date field that replaced <input type="date">: the wrapper only
      carries the invalid ring, the box itself is the shared field rule below. */
   .lens-compare-date {
-    @apply lens-flex lens-min-w-0 lens-flex-1 lens-items-center;
+    @apply lens:flex lens:min-w-0 lens:flex-1 lens:items-center;
     border-radius: var(--lens-radius-control);
   }
 
@@ -562,16 +564,16 @@
   }
 
   .lens-compare-custom input {
-    @apply lens-min-h-control-md lens-min-w-0 lens-flex-1 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-font-sans lens-text-base lens-text-text;
+    @apply lens:min-h-control-md lens:min-w-0 lens:flex-1 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2 lens:font-sans lens:text-base lens:text-text;
   }
 
   /* PRIMARY: the popover's one commit path, same weight as the facet's Apply. */
   .lens-compare-apply {
-    @apply lens-min-h-control-md lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-accent-600 lens-bg-accent-600 lens-px-3 lens-font-sans lens-text-base lens-font-semibold lens-text-on-accent;
+    @apply lens:min-h-control-md lens:cursor-pointer lens:rounded-control lens:border lens:border-solid lens:border-accent-600 lens:bg-accent-600 lens:px-3 lens:font-sans lens:text-base lens:font-semibold lens:text-on-accent;
   }
 
   .lens-compare-apply:disabled {
-    @apply lens-cursor-not-allowed lens-opacity-50;
+    @apply lens:cursor-not-allowed lens:opacity-50;
   }
 
   @media (max-width: 768px) {
@@ -583,11 +585,11 @@
 
   /* In the notes row, not over the plot. See `.lens-chart-notes`. */
   .lens-chart-reset-zoom {
-    @apply lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-sm lens-font-medium lens-text-muted;
+    @apply lens:cursor-pointer lens:rounded-badge lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2.5 lens:py-1 lens:font-sans lens:text-sm lens:font-medium lens:text-muted;
   }
 
   .lens-chart-reset-zoom:hover {
-    @apply lens-border-strong lens-text-strong;
+    @apply lens:border-strong lens:text-strong;
   }
 
   .lens-trend-chip-absolute {
@@ -602,7 +604,7 @@
      It held the period's year chips too until those moved into the picker; the
      labelled segmented control (grain, on Trends) is what wears it now. */
   .lens-filter {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-rounded-control lens-border lens-border-solid lens-border-border;
+    @apply lens:flex lens:min-w-0 lens:max-w-full lens:items-center lens:rounded-control lens:border lens:border-solid lens:border-border;
     --lens-seg-tray: rgb(15 23 42 / 0.05);
     --lens-seg-raised: var(--lens-bg-card);
     background: var(--lens-seg-tray);
@@ -614,14 +616,14 @@
      border — the arrows and the range read as one phrase with a step either
      side of it. */
   .lens-period-filter {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center;
+    @apply lens:flex lens:min-w-0 lens:max-w-full lens:items-center;
   }
 
   /* Every declared facet lives behind this one trigger. The trigger remains in
      the flow while the popover is portalled out of overflow-clipping dashboard
      containers and positioned against the trigger by useMenuButton. */
   .lens-filter-menu {
-    @apply lens-relative lens-flex lens-min-w-0 lens-items-center;
+    @apply lens:relative lens:flex lens:min-w-0 lens:items-center;
   }
 
   /* One trigger implementation for every popover-menu control in the scope row:
@@ -631,32 +633,32 @@
      local. */
   .lens-facet-trigger,
   .lens-compare-trigger {
-    @apply lens-gap-1.5;
+    @apply lens:gap-1.5;
     padding-inline: 8px 6px;
   }
 
   .lens-facet-count {
-    @apply lens-flex lens-min-w-4 lens-items-center lens-justify-center lens-rounded-full lens-px-1 lens-text-xs lens-text-accent-700;
+    @apply lens:flex lens:min-w-4 lens:items-center lens:justify-center lens:rounded-full lens:px-1 lens:text-xs lens:text-accent-700;
 
     background: var(--lens-accent-100);
   }
 
   .lens-filter-menu-popover,
   .lens-compare-popover {
-    @apply lens-z-[1100] lens-flex lens-max-w-[calc(100vw-24px)] lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card;
+    @apply lens:z-[1100] lens:flex lens:max-w-[calc(100vw-24px)] lens:flex-col lens:overflow-hidden lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card;
 
     box-shadow: var(--lens-shadow-popover);
   }
 
   .lens-compare-popover {
-    @apply lens-fixed lens-w-max lens-min-w-52;
+    @apply lens:fixed lens:w-max lens:min-w-52;
   }
 
   /* Anchored to the trigger on both axes, by the same measured rule the export
      and panel menus use: one edge flush with the trigger's, flipped only when
      the viewport demands it. */
   .lens-filter-menu-popover {
-    @apply lens-fixed lens-w-max;
+    @apply lens:fixed lens:w-max;
   }
 
   /* The last step of the placement rule: alignment picks an edge, the shift
@@ -670,14 +672,14 @@
   .lens-filter-menu-popover[data-side] { bottom: auto; }
 
   .lens-filter-menu-body {
-    @apply lens-flex lens-min-h-0 lens-items-stretch;
+    @apply lens:flex lens:min-h-0 lens:items-stretch;
   }
 
   /* The dimensions, listed. The rail is what replaced nine sibling triggers:
      the reader picks the dimension here and edits it beside, so the header row
      carries one control instead of a Hick's-law problem. */
   .lens-filter-menu-rail {
-    @apply lens-flex lens-flex-col lens-gap-px lens-overflow-y-auto lens-border-0 lens-border-r lens-border-solid lens-bg-inset;
+    @apply lens:flex lens:flex-col lens:gap-px lens:overflow-y-auto lens:border-0 lens:border-r lens:border-solid lens:bg-inset;
     flex: 0 0 176px;
     max-height: 320px;
     padding: 6px;
@@ -685,41 +687,41 @@
   }
 
   .lens-filter-menu-rail-item {
-    @apply lens-flex lens-w-full lens-min-h-control-md lens-items-center lens-gap-1.5 lens-border-0 lens-bg-transparent lens-text-left lens-font-sans lens-text-base lens-font-medium lens-text-text lens-transition-colors;
+    @apply lens:flex lens:w-full lens:min-h-control-md lens:items-center lens:gap-1.5 lens:border-0 lens:bg-transparent lens:text-left lens:font-sans lens:text-base lens:font-medium lens:text-text lens:transition-colors;
     border-radius: var(--lens-radius-badge);
     padding: 6px 8px;
   }
 
   .lens-filter-menu-rail-item:hover {
-    @apply lens-text-strong;
+    @apply lens:text-strong;
     background: var(--lens-bg-card);
   }
 
   .lens-filter-menu-rail-item[aria-selected='true'] {
-    @apply lens-font-semibold lens-text-strong;
+    @apply lens:font-semibold lens:text-strong;
     background: var(--lens-bg-card);
     box-shadow: inset 2px 0 0 var(--lens-accent-500);
   }
 
   .lens-filter-menu-rail-label {
-    @apply lens-min-w-0 lens-flex-1 lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap;
+    @apply lens:min-w-0 lens:flex-1 lens:overflow-hidden lens:text-ellipsis lens:whitespace-nowrap;
   }
 
   .lens-filter-menu-pane-host {
-    @apply lens-flex lens-min-w-0 lens-flex-col;
+    @apply lens:flex lens:min-w-0 lens:flex-col;
   }
 
   /* One width for every dimension, wide enough that an option label is a label
      and not a five-line paragraph with its count floating against the middle
      of it. */
   .lens-filter-menu-pane {
-    @apply lens-flex lens-min-w-0 lens-flex-col;
+    @apply lens:flex lens:min-w-0 lens:flex-col;
     width: 360px;
     max-width: 100%;
   }
 
   .lens-filter-menu-pane-title {
-    @apply lens-m-0 lens-font-semibold lens-uppercase lens-text-faint;
+    @apply lens:m-0 lens:font-semibold lens:uppercase lens:text-faint;
     font-size: var(--lens-type-xs);
     letter-spacing: 0.06em;
     padding: 10px 12px 0;
@@ -727,43 +729,43 @@
 
   /* The staged size of what Apply will do, stated before it is done. */
   .lens-facet-staged {
-    @apply lens-mr-auto lens-text-base lens-text-muted;
+    @apply lens:mr-auto lens:text-base lens:text-muted;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-facet-staged[data-staged] {
-    @apply lens-font-medium lens-text-strong;
+    @apply lens:font-medium lens:text-strong;
   }
 
   .lens-compare-options {
-    @apply lens-flex lens-flex-col lens-p-1;
+    @apply lens:flex lens:flex-col lens:p-1;
   }
 
   .lens-facet-search {
-    @apply lens-m-2 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-font-sans lens-text-md lens-text-strong;
+    @apply lens:m-2 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2.5 lens:py-2 lens:font-sans lens:text-md lens:text-strong;
   }
 
   .lens-facet-options {
-    @apply lens-max-h-72 lens-overflow-y-auto lens-border-0 lens-border-t lens-border-solid lens-border-border lens-p-1;
+    @apply lens:max-h-72 lens:overflow-y-auto lens:border-0 lens:border-t lens:border-solid lens:border-border lens:p-1;
   }
 
   .lens-facet-option {
-    @apply lens-relative lens-isolate lens-flex lens-min-h-control-lg lens-cursor-pointer lens-items-center lens-gap-2 lens-overflow-hidden lens-rounded-control lens-px-2 lens-py-1.5 lens-text-md lens-text-text;
+    @apply lens:relative lens:isolate lens:flex lens:min-h-control-lg lens:cursor-pointer lens:items-center lens:gap-2 lens:overflow-hidden lens:rounded-control lens:px-2 lens:py-1.5 lens:text-md lens:text-text;
   }
 
   .lens-facet-option:hover,
   .lens-compare-option[aria-selected='true'] {
-    @apply lens-bg-accent-50 lens-text-strong;
+    @apply lens:bg-accent-50 lens:text-strong;
   }
 
   .lens-facet-option > input {
-    @apply lens-relative lens-z-10 lens-size-4 lens-flex-none lens-cursor-pointer;
+    @apply lens:relative lens:z-10 lens:size-4 lens:flex-none lens:cursor-pointer;
 
     accent-color: var(--lens-accent-500);
   }
 
   .lens-facet-option-bar {
-    @apply lens-pointer-events-none lens-absolute lens-inset-y-0 lens-left-0 lens-z-0 lens-rounded-control;
+    @apply lens:pointer-events-none lens:absolute lens:inset-y-0 lens:left-0 lens:z-0 lens:rounded-control;
 
     background: color-mix(in srgb, var(--lens-accent-500) 10%, transparent);
     transition: width var(--lens-dur-base) var(--lens-ease-standard);
@@ -773,7 +775,7 @@
      long product name used to wrap to six lines in a 288px popover and leave
      its count optically centred against a 112px row. */
   .lens-facet-option-label {
-    @apply lens-relative lens-z-10 lens-min-w-0 lens-flex-1 lens-overflow-hidden lens-break-words;
+    @apply lens:relative lens:z-10 lens:min-w-0 lens:flex-1 lens:overflow-hidden lens:break-words;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -783,44 +785,44 @@
   /* A column, not a trailing word: every count in the list starts on the same
      line and keeps a gutter from the label beside it. */
   .lens-facet-option-count {
-    @apply lens-relative lens-z-10 lens-flex-none lens-self-start lens-pl-3 lens-text-right lens-tabular-nums lens-text-base lens-text-muted;
+    @apply lens:relative lens:z-10 lens:flex-none lens:self-start lens:pl-3 lens:text-right lens:tabular-nums lens:text-base lens:text-muted;
     min-width: 3.5rem;
   }
 
   .lens-facet-actions {
-    @apply lens-flex lens-items-center lens-justify-end lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-border-border lens-p-2;
+    @apply lens:flex lens:items-center lens:justify-end lens:gap-2 lens:border-0 lens:border-t lens:border-solid lens:border-border lens:p-2;
   }
 
   .lens-facet-actions button {
-    @apply lens-min-h-control-md lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-font-sans lens-text-base lens-font-semibold lens-text-muted;
+    @apply lens:min-h-control-md lens:cursor-pointer lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-3 lens:font-sans lens:text-base lens:font-semibold lens:text-muted;
   }
 
   .lens-facet-actions .lens-facet-apply {
-    @apply lens-border-accent-600 lens-bg-accent-600 lens-text-on-accent;
+    @apply lens:border-accent-600 lens:bg-accent-600 lens:text-on-accent;
   }
 
   .lens-facet-actions button:disabled {
-    @apply lens-cursor-not-allowed lens-opacity-50;
+    @apply lens:cursor-not-allowed lens:opacity-50;
   }
 
   .lens-facet-state {
-    @apply lens-p-4 lens-text-center lens-text-md lens-text-muted;
+    @apply lens:p-4 lens:text-center lens:text-md lens:text-muted;
   }
 
   .lens-facet-error {
-    @apply lens-text-neg;
+    @apply lens:text-neg;
   }
 
   .lens-facet-active-chip {
-    @apply lens-flex lens-min-h-control-sm lens-min-w-0 lens-max-w-56 lens-items-center lens-gap-1 lens-rounded-badge lens-bg-accent-50 lens-px-2 lens-text-base lens-font-medium lens-text-accent-700 lens-no-underline;
+    @apply lens:flex lens:min-h-control-sm lens:min-w-0 lens:max-w-56 lens:items-center lens:gap-1 lens:rounded-badge lens:bg-accent-50 lens:px-2 lens:text-base lens:font-medium lens:text-accent-700 lens:no-underline;
   }
 
   .lens-facet-active-chip span {
-    @apply lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap;
+    @apply lens:overflow-hidden lens:text-ellipsis lens:whitespace-nowrap;
   }
 
   .lens-facet-active-chip svg {
-    @apply lens-size-3.5 lens-flex-none;
+    @apply lens:size-3.5 lens:flex-none;
   }
 
   /* CHIP, and now a <button>. It dismisses the chips it sits beside — it does
@@ -830,11 +832,11 @@
      clears them. It also sits at the end of the chip row, so it stops relocating
      every time a chip is added. */
   .lens-facet-clear {
-    @apply lens-flex lens-min-h-control-sm lens-cursor-pointer lens-items-center lens-whitespace-nowrap lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-transparent lens-px-2 lens-font-sans lens-text-base lens-font-medium lens-text-muted lens-no-underline;
+    @apply lens:flex lens:min-h-control-sm lens:cursor-pointer lens:items-center lens:whitespace-nowrap lens:rounded-badge lens:border lens:border-solid lens:border-border lens:bg-transparent lens:px-2 lens:font-sans lens:text-base lens:font-medium lens:text-muted lens:no-underline;
   }
 
   .lens-facet-clear:hover {
-    @apply lens-border-strong lens-bg-inset lens-text-strong;
+    @apply lens:border-strong lens:bg-inset lens:text-strong;
   }
 
   .lens-root[data-theme='dark'] .lens-filter-segments {
@@ -855,7 +857,7 @@
   .lens-filter-step,
   .lens-compare-trigger,
   .lens-facet-trigger {
-    @apply lens-flex lens-flex-none lens-items-center lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-font-sans lens-text-base lens-font-semibold lens-text-muted;
+    @apply lens:flex lens:flex-none lens:items-center lens:whitespace-nowrap lens:border-0 lens:bg-transparent lens:font-sans lens:text-base lens:font-semibold lens:text-muted;
     border-radius: var(--lens-radius-badge);
     min-height: var(--lens-control-h-sm);
     transition: background-color var(--lens-dur-fast) var(--lens-ease-standard),
@@ -863,7 +865,7 @@
   }
 
   .lens-filter-chip {
-    @apply lens-justify-center;
+    @apply lens:justify-center;
     padding-inline: 9px;
   }
 
@@ -872,7 +874,7 @@
   .lens-filter-step:hover:not(:disabled),
   .lens-compare-trigger:hover,
   .lens-facet-trigger:hover {
-    @apply lens-text-strong;
+    @apply lens:text-strong;
     background: rgb(15 23 42 / 0.06);
   }
 
@@ -888,7 +890,7 @@
      repaint the raised card. */
   .lens-filter-chip[aria-pressed='true'],
   .lens-filter-chip[aria-pressed='true']:hover {
-    @apply lens-text-strong;
+    @apply lens:text-strong;
     background: var(--lens-seg-raised);
     box-shadow: var(--lens-shadow-card);
   }
@@ -898,12 +900,12 @@
   .lens-filter-trigger[aria-expanded='true'],
   .lens-compare-trigger[aria-expanded='true'],
   .lens-facet-trigger[aria-expanded='true'] {
-    @apply lens-text-strong;
+    @apply lens:text-strong;
     box-shadow: inset 0 0 0 1px var(--lens-accent-500);
   }
 
   .lens-filter-trigger {
-    @apply lens-flex-none lens-gap-1.5 lens-text-strong;
+    @apply lens:flex-none lens:gap-1.5 lens:text-strong;
     padding-inline: 8px 6px;
   }
 
@@ -912,11 +914,11 @@
      the label it moves. Disabled they stay in place — a step that vanishes at
      the edge of the document's bounds moves the range under the pointer. */
   .lens-filter-step {
-    @apply lens-w-6 lens-justify-center;
+    @apply lens:w-6 lens:justify-center;
   }
 
   .lens-filter-step:disabled {
-    @apply lens-cursor-default lens-opacity-40;
+    @apply lens:cursor-default lens:opacity-40;
   }
 
   .lens-filter-trigger-label {
@@ -925,7 +927,7 @@
 
   .lens-filter-trigger-icon,
   .lens-filter-trigger-caret {
-    @apply lens-flex-none lens-text-faint;
+    @apply lens:flex-none lens:text-faint;
   }
 
   .lens-filter-trigger:hover .lens-filter-trigger-icon,
@@ -934,11 +936,11 @@
   .lens-filter-trigger[data-active] .lens-filter-trigger-caret,
   .lens-filter-trigger[aria-expanded='true'] .lens-filter-trigger-icon,
   .lens-filter-trigger[aria-expanded='true'] .lens-filter-trigger-caret {
-    @apply lens-text-muted;
+    @apply lens:text-muted;
   }
 
   .lens-filter-scrim {
-    @apply lens-fixed lens-inset-0;
+    @apply lens:fixed lens:inset-0;
   }
 
   /* The picker popover: a two-pane card. The left rail lists the relative
@@ -953,7 +955,7 @@
      square at this width) and every region around the grid was given room on
      the same scale. */
   .lens-filter-popover {
-    @apply lens-fixed lens-flex lens-flex-row lens-items-stretch lens-overflow-hidden lens-border lens-border-solid lens-border-border lens-bg-card lens-p-0 lens-outline-none;
+    @apply lens:fixed lens:flex lens:flex-row lens:items-stretch lens:overflow-hidden lens:border lens:border-solid lens:border-border lens:bg-card lens:p-0 lens:outline-none;
     width: 860px;
     border-radius: var(--lens-radius-card);
     box-shadow: var(--lens-shadow-popover);
@@ -970,7 +972,7 @@
      is the mark of a list that was cut off, which is why the entry that closes
      the rail carries none. */
   .lens-filter-popover-side {
-    @apply lens-flex lens-flex-col lens-overflow-y-auto lens-border-0 lens-border-r lens-border-solid lens-bg-inset;
+    @apply lens:flex lens:flex-col lens:overflow-y-auto lens:border-0 lens:border-r lens:border-solid lens:bg-inset;
     flex: 0 0 232px;
     gap: var(--lens-space-0-5);
     padding: var(--lens-space-3) var(--lens-space-2);
@@ -981,7 +983,7 @@
      lists — the producer's own periods, the running ones, the completed ones —
      and until the divider they ran together as one column of look-alike rows. */
   .lens-filter-preset-heading {
-    @apply lens-flex-none lens-border-0 lens-border-t lens-border-solid lens-font-semibold lens-uppercase lens-text-muted;
+    @apply lens:flex-none lens:border-0 lens:border-t lens:border-solid lens:font-semibold lens:uppercase lens:text-muted;
     border-color: var(--lens-border);
     font-size: var(--lens-type-xs);
     letter-spacing: 0.1em;
@@ -990,13 +992,13 @@
   }
 
   .lens-filter-preset-heading:first-child {
-    @apply lens-border-t-0;
+    @apply lens:border-t-0;
     margin-top: 0;
     padding-top: var(--lens-space-1);
   }
 
   .lens-filter-preset {
-    @apply lens-relative lens-flex lens-w-full lens-flex-none lens-items-center lens-border-0 lens-bg-transparent lens-text-left lens-font-sans lens-text-md lens-font-medium lens-text-text lens-transition-colors;
+    @apply lens:relative lens:flex lens:w-full lens:flex-none lens:items-center lens:border-0 lens:bg-transparent lens:text-left lens:font-sans lens:text-md lens:font-medium lens:text-text lens:transition-colors;
     gap: var(--lens-space-2);
     border-radius: var(--lens-radius-control);
     padding: var(--lens-space-2);
@@ -1007,17 +1009,17 @@
      which carry no glyph: a number names its own period, and a rail whose
      labels start at two different x-positions reads as two lists. */
   .lens-filter-preset-icon {
-    @apply lens-flex lens-flex-none lens-items-center lens-justify-center lens-text-faint;
+    @apply lens:flex lens:flex-none lens:items-center lens:justify-center lens:text-faint;
     width: 16px;
     height: 16px;
   }
 
   .lens-filter-preset-label {
-    @apply lens-min-w-0 lens-flex-1;
+    @apply lens:min-w-0 lens:flex-1;
   }
 
   .lens-filter-preset:hover {
-    @apply lens-text-strong;
+    @apply lens:text-strong;
     background: var(--lens-bg-card);
   }
 
@@ -1027,7 +1029,7 @@
      read as "this is the applied period" instead looked like the one row they
      could type into. */
   .lens-filter-preset[aria-pressed='true'] {
-    @apply lens-font-semibold;
+    @apply lens:font-semibold;
     background: var(--lens-accent-50);
     color: var(--lens-accent-700);
     box-shadow: inset 3px 0 0 var(--lens-accent-600);
@@ -1051,11 +1053,11 @@
      list that had stopped mid-draw. Pinning it to that floor instead (the other
      thing tried here) only moved the hole into the middle of the rail. */
   .lens-filter-preset-clear {
-    @apply lens-text-muted;
+    @apply lens:text-muted;
   }
 
   .lens-filter-popover-main {
-    @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col;
+    @apply lens:flex lens:min-w-0 lens:flex-1 lens:flex-col;
     gap: var(--lens-space-4);
     padding: var(--lens-space-5) 22px;
   }
@@ -1070,13 +1072,13 @@
      the one thing in this card with no mark of what it is. The row stands on a
      rule of its own: calendar, then dates, then actions. */
   .lens-filter-range {
-    @apply lens-flex lens-items-center lens-border-0 lens-border-t lens-border-solid;
+    @apply lens:flex lens:items-center lens:border-0 lens:border-t lens:border-solid;
     border-color: var(--lens-border);
     padding-top: var(--lens-space-4);
   }
 
   .lens-filter-range-field {
-    @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col;
+    @apply lens:flex lens:min-w-0 lens:flex-1 lens:flex-col;
     gap: var(--lens-space-1);
   }
 
@@ -1084,33 +1086,33 @@
      one outer border read as a printed summary of the range, not as two places
      a date can be typed — which is what they are. */
   .lens-filter-range-field .lens-filter-range-input {
-    @apply lens-border lens-border-solid lens-border-border lens-bg-card;
+    @apply lens:border lens:border-solid lens:border-border lens:bg-card;
     min-height: var(--lens-control-h-md);
     padding: var(--lens-space-1) var(--lens-space-2);
     border-radius: var(--lens-radius-control);
   }
 
   .lens-filter-range-field .lens-filter-range-input:hover {
-    @apply lens-border-strong;
+    @apply lens:border-strong;
   }
 
   /* Same tracking as the weekday headers and the rail's group captions: the
      picker has one caption voice. */
   .lens-filter-range-caption {
-    @apply lens-font-semibold lens-uppercase lens-text-muted;
+    @apply lens:font-semibold lens:uppercase lens:text-muted;
     font-size: var(--lens-type-xs);
     letter-spacing: 0.1em;
   }
 
   .lens-filter-range-input {
-    @apply lens-flex lens-items-center;
+    @apply lens:flex lens:items-center;
     gap: var(--lens-space-2);
     padding: 1px 2px;
     border-radius: var(--lens-radius-badge);
   }
 
   .lens-filter-range-icon {
-    @apply lens-flex-none lens-text-faint;
+    @apply lens:flex-none lens:text-faint;
   }
 
   .lens-filter-range-input[data-invalid] {
@@ -1126,7 +1128,7 @@
      caption+input stack: it aligns to the field's second row instead of being
      nudged by a magic offset. */
   .lens-filter-range-sep {
-    @apply lens-flex lens-flex-none lens-flex-col lens-justify-center lens-self-stretch lens-text-faint;
+    @apply lens:flex lens:flex-none lens:flex-col lens:justify-center lens:self-stretch lens:text-faint;
     font-size: var(--lens-type-md);
     line-height: 1;
     padding-inline: var(--lens-space-3);
@@ -1134,7 +1136,7 @@
   }
 
   .lens-filter-input {
-    @apply lens-w-full lens-border-0 lens-bg-transparent lens-p-0 lens-font-sans lens-text-md lens-font-medium lens-text-strong;
+    @apply lens:w-full lens:border-0 lens:bg-transparent lens:p-0 lens:font-sans lens:text-md lens:font-medium lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -1152,7 +1154,7 @@
        rules above rather than relying on source order. A sheet has no anchor,
        so the measured shift is switched off with them. */
     .lens-filter-menu-popover[data-side][data-align] {
-      @apply lens-fixed lens-w-auto;
+      @apply lens:fixed lens:w-auto;
       top: auto;
       right: 12px;
       bottom: 12px;
@@ -1163,29 +1165,29 @@
     }
 
     .lens-filter-menu-body {
-      @apply lens-min-h-0 lens-flex-col;
+      @apply lens:min-h-0 lens:flex-col;
     }
 
     .lens-filter-menu-rail {
-      @apply lens-flex-row lens-overflow-x-auto lens-overflow-y-hidden lens-border-r-0 lens-border-b;
+      @apply lens:flex-row lens:overflow-x-auto lens:overflow-y-hidden lens:border-r-0 lens:border-b;
       flex: none;
       max-height: none;
     }
 
     .lens-filter-menu-rail-item {
-      @apply lens-w-auto lens-flex-none;
+      @apply lens:w-auto lens:flex-none;
     }
 
     .lens-filter-menu-pane-host {
-      @apply lens-min-h-0 lens-flex-1;
+      @apply lens:min-h-0 lens:flex-1;
     }
 
     .lens-filter-menu-pane {
-      @apply lens-min-h-0 lens-w-full;
+      @apply lens:min-h-0 lens:w-full;
     }
 
     .lens-filter-menu-pane .lens-facet-options {
-      @apply lens-max-h-none lens-flex-1;
+      @apply lens:max-h-none lens:flex-1;
     }
   }
 
@@ -1195,35 +1197,35 @@
      wider: 860px plus its viewport gutters no longer fits below 884. */
   @media (max-width: 884px) {
     .lens-filter-popover {
-      @apply lens-flex-col;
+      @apply lens:flex-col;
       width: min(380px, calc(100vw - 24px));
     }
 
     .lens-filter-popover-side {
-      @apply lens-flex-row lens-items-center lens-overflow-x-auto lens-overflow-y-hidden lens-border-r-0 lens-border-b;
+      @apply lens:flex-row lens:items-center lens:overflow-x-auto lens:overflow-y-hidden lens:border-r-0 lens:border-b;
       flex: none;
       border-color: var(--lens-divider);
     }
 
     .lens-filter-preset-heading {
-      @apply lens-hidden;
+      @apply lens:hidden;
     }
 
     /* Stacked, the rail is a scrolling row of labels: the glyph column is
        vertical rhythm for a list, and a list is exactly what this is not. */
     .lens-filter-preset {
-      @apply lens-w-auto lens-flex-none;
+      @apply lens:w-auto lens:flex-none;
     }
 
     .lens-filter-preset-icon {
-      @apply lens-hidden;
+      @apply lens:hidden;
     }
 
     /* Stacked, the rail is one scrolling row with no headings to group it, so
        All time keeps a separation the column no longer needs — taken on its
        leading edge, at the end of the row. */
     .lens-filter-preset-clear {
-      @apply lens-border-0 lens-border-l lens-border-solid;
+      @apply lens:border-0 lens:border-l lens:border-solid;
       border-color: var(--lens-border);
       margin-left: auto;
       padding-left: var(--lens-space-3);
@@ -1252,7 +1254,7 @@
   }
 
   .lens-filter-popover-footer {
-    @apply lens-flex lens-items-center lens-border-0 lens-border-t lens-border-solid;
+    @apply lens:flex lens:items-center lens:border-0 lens:border-t lens:border-solid;
     gap: var(--lens-space-2);
     border-color: var(--lens-border);
     padding-top: var(--lens-space-4);
@@ -1263,18 +1265,18 @@
      buttons beside it rather than as the fact the whole grid was drawn to
      produce. */
   .lens-filter-summary-badge {
-    @apply lens-flex lens-flex-none lens-items-center lens-justify-center lens-rounded-full lens-bg-inset lens-text-muted;
+    @apply lens:flex lens:flex-none lens:items-center lens:justify-center lens:rounded-full lens:bg-inset lens:text-muted;
     width: var(--lens-control-h-sm);
     height: var(--lens-control-h-sm);
   }
 
   .lens-filter-summary {
-    @apply lens-mr-auto lens-text-md lens-text-muted;
+    @apply lens:mr-auto lens:text-md lens:text-muted;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-filter-summary[data-complete] {
-    @apply lens-font-medium lens-text-text;
+    @apply lens:font-medium lens:text-text;
   }
 
   /* The footer buttons are dialog actions, not tray segments: they carry their
@@ -1283,20 +1285,20 @@
      32px Apply under a 40px day grid reads as the smaller decision. */
   .lens-filter-cancel,
   .lens-filter-apply {
-    @apply lens-justify-center lens-text-md;
+    @apply lens:justify-center lens:text-md;
     min-height: var(--lens-control-h-lg);
     border-radius: var(--lens-radius-control);
   }
 
   .lens-filter-cancel {
-    @apply lens-border lens-border-solid lens-border-border lens-text-muted;
+    @apply lens:border lens:border-solid lens:border-border lens:text-muted;
     background: var(--lens-bg-card);
     padding-inline: var(--lens-space-4);
     box-shadow: none;
   }
 
   .lens-filter-cancel:hover {
-    @apply lens-border-strong lens-text-strong;
+    @apply lens:border-strong lens:text-strong;
     background: var(--lens-bg-inset);
   }
 
@@ -1330,35 +1332,35 @@
      overflow clip, and a commit action that is not on screen is not one. */
   @media (max-width: 884px) {
     .lens-filter-summary-badge {
-      @apply lens-hidden;
+      @apply lens:hidden;
     }
 
     .lens-filter-summary {
-      @apply lens-min-w-0 lens-truncate lens-text-base;
+      @apply lens:min-w-0 lens:truncate lens:text-base;
     }
 
     .lens-filter-cancel,
     .lens-filter-apply {
-      @apply lens-text-base;
+      @apply lens:text-base;
       min-height: var(--lens-control-h-md);
       padding-inline: var(--lens-space-3);
     }
   }
 
   .lens-calendar {
-    @apply lens-flex lens-flex-col;
+    @apply lens:flex lens:flex-col;
     gap: var(--lens-space-2);
   }
 
   /* Two consecutive month panes side by side; the stacked breakpoint drops
      the calendar to a single pane (decided in JS with the same media query). */
   .lens-calendar-panes {
-    @apply lens-flex lens-items-start;
+    @apply lens:flex lens:items-start;
     gap: 28px;
   }
 
   .lens-calendar-pane {
-    @apply lens-flex lens-min-w-0 lens-flex-col;
+    @apply lens:flex lens:min-w-0 lens:flex-col;
     gap: var(--lens-space-2);
     flex: 1 1 0;
   }
@@ -1369,30 +1371,30 @@
      pair of panes, which is where a reader reaches for "the month before this
      window" and "the month after it". */
   .lens-calendar-header {
-    @apply lens-items-center;
+    @apply lens:items-center;
     display: grid;
     grid-template-columns: var(--lens-control-h-md) 1fr var(--lens-control-h-md);
   }
 
   .lens-calendar-nav-group {
-    @apply lens-flex lens-items-center;
+    @apply lens:flex lens:items-center;
     gap: var(--lens-space-0-5);
   }
 
   .lens-calendar-nav-group:last-child {
-    @apply lens-justify-end;
+    @apply lens:justify-end;
   }
 
   /* The heading is the way into the month/year panel — the only way to travel
      more than a month at a time, so it has to look pressable. */
   .lens-calendar-month {
-    @apply lens-mx-auto lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-text-center lens-font-sans lens-text-lg lens-font-semibold lens-text-strong lens-transition-colors;
+    @apply lens:mx-auto lens:whitespace-nowrap lens:border-0 lens:bg-transparent lens:text-center lens:font-sans lens:text-lg lens:font-semibold lens:text-strong lens:transition-colors;
     border-radius: var(--lens-radius-control);
     padding: var(--lens-space-1) var(--lens-space-3);
   }
 
   .lens-calendar-month:hover {
-    @apply lens-bg-inset;
+    @apply lens:bg-inset;
   }
 
   /* A bordered square, not a bare caret. Unbordered, the two glyphs that move
@@ -1400,14 +1402,14 @@
      title and a 40px day grid — the only two controls in the picker a reader
      could fail to see were the two they need most often. */
   .lens-calendar-nav {
-    @apply lens-flex lens-items-center lens-justify-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-font-sans lens-leading-none lens-text-muted lens-transition-colors;
+    @apply lens:flex lens:items-center lens:justify-center lens:rounded-control lens:border lens:border-solid lens:border-border lens:font-sans lens:leading-none lens:text-muted lens:transition-colors;
     width: var(--lens-control-h-md);
     height: var(--lens-control-h-md);
     background: var(--lens-bg-card);
   }
 
   .lens-calendar-nav:hover {
-    @apply lens-border-strong lens-text-strong;
+    @apply lens:border-strong lens:text-strong;
     background: var(--lens-bg-inset);
   }
 
@@ -1426,7 +1428,7 @@
   }
 
   .lens-calendar-weekday {
-    @apply lens-text-center lens-font-semibold lens-uppercase lens-text-muted;
+    @apply lens:text-center lens:font-semibold lens:uppercase lens:text-muted;
     font-size: var(--lens-type-sm);
     letter-spacing: 0.1em;
     padding-block: var(--lens-space-2);
@@ -1437,7 +1439,7 @@
      pill), with the day number lifted above both. Out-of-month padding days
      are decorative spans on the same footprint: faint, inert, never washed. */
   .lens-calendar-day {
-    @apply lens-relative lens-inline-flex lens-items-center lens-justify-center lens-border-0 lens-bg-transparent lens-p-0 lens-text-center lens-font-sans lens-font-medium lens-text-text;
+    @apply lens:relative lens:inline-flex lens:items-center lens:justify-center lens:border-0 lens:bg-transparent lens:p-0 lens:text-center lens:font-sans lens:font-medium lens:text-text;
     height: 40px;
     font-size: var(--lens-type-md);
     border-radius: 0;
@@ -1445,19 +1447,19 @@
   }
 
   .lens-calendar-day-label {
-    @apply lens-relative;
+    @apply lens:relative;
     z-index: 1;
   }
 
   .lens-calendar-day[data-outside] {
-    @apply lens-text-faint;
+    @apply lens:text-faint;
     background: none;
     opacity: 0.55;
     pointer-events: none;
   }
 
   .lens-calendar-day:hover:not(:disabled):not([data-state]) {
-    @apply lens-bg-inset;
+    @apply lens:bg-inset;
     border-radius: var(--lens-radius-sm);
   }
 
@@ -1550,14 +1552,14 @@
   }
 
   .lens-calendar-day:disabled {
-    @apply lens-text-faint;
+    @apply lens:text-faint;
     opacity: 0.4;
   }
 
   /* The month/year jump panel: it stands in for the day grid on the same
      footprint, so the popover does not resize when the user travels. */
   .lens-calendar-jump {
-    @apply lens-flex lens-flex-col;
+    @apply lens:flex lens:flex-col;
     gap: var(--lens-space-2);
     min-height: 332px;
   }
@@ -1572,7 +1574,7 @@
      product's periods are actually cut on — and four rows fill the day grid's
      height instead of floating as a band in the middle of it. */
   .lens-calendar-jump-grid {
-    @apply lens-mx-auto lens-grid lens-w-full lens-flex-1 lens-content-center;
+    @apply lens:mx-auto lens:grid lens:w-full lens:flex-1 lens:content-center;
     grid-template-columns: repeat(3, 1fr);
     grid-auto-rows: 56px;
     gap: var(--lens-space-2) var(--lens-space-3);
@@ -1580,19 +1582,19 @@
   }
 
   .lens-calendar-jump-cell {
-    @apply lens-flex lens-items-center lens-justify-center lens-border-0 lens-bg-transparent lens-font-sans lens-text-md lens-font-medium lens-text-text lens-transition-colors;
+    @apply lens:flex lens:items-center lens:justify-center lens:border-0 lens:bg-transparent lens:font-sans lens:text-md lens:font-medium lens:text-text lens:transition-colors;
     border-radius: var(--lens-radius-sm);
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-calendar-jump-cell:hover:not(:disabled) {
-    @apply lens-bg-inset lens-text-strong;
+    @apply lens:bg-inset lens:text-strong;
   }
 
   /* The month or year the window is on: marked, not filled — a solid accent
      block at this size would outweigh the twelve choices around it. */
   .lens-calendar-jump-cell[aria-pressed='true'] {
-    @apply lens-font-semibold;
+    @apply lens:font-semibold;
     background: var(--lens-accent-50);
     color: var(--lens-accent-600);
     box-shadow: inset 0 0 0 1px var(--lens-accent-300);
@@ -1603,7 +1605,7 @@
   }
 
   .lens-calendar-jump-cell:disabled {
-    @apply lens-text-faint;
+    @apply lens:text-faint;
     opacity: 0.4;
   }
 
@@ -1644,17 +1646,17 @@
   }
 
   .lens-dashboard-updated[data-refreshing] {
-    @apply lens-text-faint;
+    @apply lens:text-faint;
   }
 
   .lens-dashboard-rows {
-    @apply lens-flex lens-flex-col lens-gap-6;
+    @apply lens:flex lens:flex-col lens:gap-6;
   }
 
   /* A row can be a link target (LayoutRow.anchor). Host pages carry a sticky
      top bar, so land the section below it rather than under it. */
   .lens-dashboard-row {
-    @apply lens-min-w-0;
+    @apply lens:min-w-0;
 
     scroll-margin-top: 5rem;
   }
@@ -1669,7 +1671,7 @@
      legible at a glance rather than on comparison. The rule to the edge stays:
      it is what turns the heading into a band instead of a floating label. */
   .lens-row-heading {
-    @apply lens-m-0 lens-mb-3 lens-flex lens-items-center lens-gap-3 lens-font-semibold lens-text-strong;
+    @apply lens:m-0 lens:mb-3 lens:flex lens:items-center lens:gap-3 lens:font-semibold lens:text-strong;
     font-size: var(--lens-type-md);
     letter-spacing: -0.01em;
     line-height: 1.2;
@@ -1680,7 +1682,7 @@
      panel's own hairline divider. */
   .lens-row-heading::after {
     content: '';
-    @apply lens-flex-1;
+    @apply lens:flex-1;
     height: 1px;
     background: var(--lens-border-strong);
   }
@@ -1688,11 +1690,20 @@
   /* One analytical row is one visual band: every card stretches to the tallest
      sibling, so a short plot cannot leave a misleading hole beneath itself. */
   .lens-panel-grid {
-    @apply lens-grid lens-grid-cols-1 lens-items-stretch lens-gap-4 md:lens-grid-cols-12;
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 1rem;
+
+    /* Tailwind's md: 768px. Stated longhand: prefixed utilities cannot stack
+       a breakpoint variant inside @apply. */
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
   }
 
   .lens-grid-item {
-    @apply lens-col-span-1 lens-h-full lens-min-w-0;
+    @apply lens:col-span-1 lens:h-full lens:min-w-0;
   }
 
   @media (max-width: 768px) {
@@ -1708,7 +1719,7 @@
   }
 
   .lens-panel {
-    @apply lens-box-border lens-flex lens-h-full lens-min-h-44 lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-shadow-card;
+    @apply lens:box-border lens:flex lens:h-full lens:min-h-44 lens:flex-col lens:overflow-hidden lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card lens:shadow-card;
   }
 
   /* A board arrives one panel at a time — the progressive shell hydrates them
@@ -1734,11 +1745,11 @@
   }
 
   .lens-panel-stat {
-    @apply lens-min-h-40;
+    @apply lens:min-h-40;
   }
 
   .lens-panel-header {
-    @apply lens-flex lens-flex-wrap lens-items-center lens-justify-between lens-gap-x-3 lens-gap-y-1 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-4;
+    @apply lens:flex lens:flex-wrap lens:items-center lens:justify-between lens:gap-x-3 lens:gap-y-1 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:px-4;
     min-height: var(--lens-panel-header-h);
     /* Named container so the drill trail can decide whether its label still
        fits, which no amount of flex shrinking can express. */
@@ -1755,7 +1766,7 @@
      that the name comes first, and a control cluster that cannot fit beside it
      wraps to its own line instead of painting over the last word. */
   .lens-panel-heading {
-    @apply lens-flex lens-min-w-0 lens-flex-1 lens-items-center lens-gap-1.5 lens-py-1;
+    @apply lens:flex lens:min-w-0 lens:flex-1 lens:items-center lens:gap-1.5 lens:py-1;
     min-width: 12rem;
   }
 
@@ -1767,7 +1778,7 @@
   /* Shrinks, never grows: a title that took the whole row pushed the ⓘ to the
      far edge of the card, where it annotates nothing. */
   .lens-panel-title {
-    @apply lens-m-0 lens-min-w-0 lens-shrink lens-grow-0 lens-basis-auto lens-overflow-hidden lens-text-base lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens:m-0 lens:min-w-0 lens:shrink lens:grow-0 lens:basis-auto lens:overflow-hidden lens:text-base lens:font-semibold lens:uppercase lens:tracking-wider lens:text-muted;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -1796,7 +1807,7 @@
      as a ceiling; it already wraps, so it spends that ceiling on a second row
      of its own instead of on the card's edge. */
   .lens-panel-actions {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-none lens-flex-wrap lens-items-center lens-justify-end lens-gap-2 lens-py-1;
+    @apply lens:flex lens:min-w-0 lens:max-w-full lens:flex-none lens:flex-wrap lens:items-center lens:justify-end lens:gap-2 lens:py-1;
   }
 
   /* Four-up KPI cards are narrow even on a desktop viewport, so viewport
@@ -1805,7 +1816,7 @@
      The title stays complete; export/expand controls remain reachable. */
   @container lens-panel-header (max-width: 320px) {
     .lens-panel-heading {
-      @apply lens-flex-none;
+      @apply lens:flex-none;
       flex-basis: 100%;
       min-width: 0;
     }
@@ -1818,7 +1829,7 @@
     }
 
     .lens-panel-actions {
-      @apply lens-pb-1;
+      @apply lens:pb-1;
       flex-basis: 100%;
     }
   }
@@ -1827,7 +1838,7 @@
   .lens-panel-actions > .lens-icon-button,
   .lens-panel-actions > .lens-export-button,
   .lens-panel-actions > .lens-panel-status {
-    @apply lens-flex-none;
+    @apply lens:flex-none;
   }
 
   /* Export and fullscreen answer a question a reader has already decided to
@@ -1864,7 +1875,7 @@
      it. The wrapper is the positioning context, so the bubble hangs off the
      glyph and grows rightwards into the card. */
   .lens-info-tip {
-    @apply lens-relative lens-flex lens-flex-none lens-items-center;
+    @apply lens:relative lens:flex lens:flex-none lens:items-center;
   }
 
   /* Inside a metric strip the glyph rides a 10px label, so it shrinks to match
@@ -1880,14 +1891,14 @@
      own font size, so the rule holds in a 10px strip label and a 12px table
      cell alike. */
   .lens-info-tip-inline {
-    @apply lens-z-20 lens-items-center lens-self-start;
+    @apply lens:z-20 lens:items-center lens:self-start;
     height: var(--lens-info-tip-line, 1.2em);
   }
 
   /* Higher specificity than .lens-icon-button, which is declared later in this
      sheet and would otherwise keep the glyph at its 28px header size. */
   .lens-icon-button.lens-info-tip-button-inline {
-    @apply lens-size-4 lens-min-h-0 lens-flex-none lens-text-base;
+    @apply lens:size-4 lens:min-h-0 lens:flex-none lens:text-base;
   }
 
   /* The portal host fills the viewport only to carry theme variables. It must
@@ -1904,14 +1915,14 @@
        with — on a floating card carrying the popover shadow it read as a
        drawn-on frame rather than an edge. The shadow is what separates a
        popover from the page; the border only has to close it. */
-    @apply lens-pointer-events-auto lens-fixed lens-z-tooltip lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
+    @apply lens:pointer-events-auto lens:fixed lens:z-tooltip lens:flex lens:w-80 lens:max-w-[min(20rem,80vw)] lens:flex-col lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card lens:p-3 lens:text-left lens:font-sans lens:normal-case lens:tracking-normal;
 
     max-height: calc(100vh - 1rem);
     box-shadow: var(--lens-shadow-popover);
   }
 
   .lens-info-tip-body {
-    @apply lens-flex lens-min-h-0 lens-flex-col lens-gap-1.5 lens-overflow-y-auto;
+    @apply lens:flex lens:min-h-0 lens:flex-col lens:gap-1.5 lens:overflow-y-auto;
   }
 
   /* The note points back at the glyph that opened it. A floating rectangle
@@ -1919,7 +1930,7 @@
      metrics with four ⓘ; the tail and the trigger's own open state are the two
      halves of that attribution. */
   .lens-info-tip-tail {
-    @apply lens-absolute lens-size-2 lens-rotate-45 lens-border lens-border-solid lens-border-border lens-bg-card;
+    @apply lens:absolute lens:size-2 lens:rotate-45 lens:border lens:border-solid lens:border-border lens:bg-card;
     left: calc(var(--lens-info-tip-tail, 14px) - 4px);
   }
 
@@ -1936,15 +1947,15 @@
   }
 
   .lens-info-tip-text {
-    @apply lens-whitespace-pre-line lens-text-base lens-font-medium lens-leading-relaxed lens-text-strong;
+    @apply lens:whitespace-pre-line lens:text-base lens:font-medium lens:leading-relaxed lens:text-strong;
   }
 
   .lens-panel-caption {
-    @apply lens-m-0 lens-whitespace-pre-line lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-4 lens-py-3 lens-text-md lens-leading-relaxed lens-text-muted;
+    @apply lens:m-0 lens:whitespace-pre-line lens:border-0 lens:border-b lens:border-solid lens:border-border lens:px-4 lens:py-3 lens:text-md lens:leading-relaxed lens:text-muted;
   }
 
   .lens-panel-comparison-note {
-    @apply lens-m-0 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-inset lens-px-4 lens-py-2 lens-text-base lens-font-medium lens-text-muted;
+    @apply lens:m-0 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:bg-inset lens:px-4 lens:py-2 lens:text-base lens:font-medium lens:text-muted;
   }
 
   /* ── The control vocabulary ─────────────────────────────────────────────
@@ -1988,12 +1999,12 @@
      tokens, the focus ring from the one rule at the end of the sheet. */
 
   .lens-export-control {
-    @apply lens-relative lens-flex lens-items-center;
+    @apply lens:relative lens:flex lens:items-center;
   }
 
   /* SECONDARY */
   .lens-export-button {
-    @apply lens-inline-flex lens-min-h-control-md lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-base lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens:inline-flex lens:min-h-control-md lens:items-center lens:gap-1.5 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2.5 lens:font-sans lens:text-base lens:font-semibold lens:text-muted lens:transition-colors;
   }
 
   /* The icon-only member of the secondary weight: same box, same border, no
@@ -2001,30 +2012,30 @@
      peer of the labelled ones beside it, so it keeps their frame instead of
      dropping to the icon-only weight and reading as half-disabled. */
   .lens-action-square {
-    @apply lens-w-8 lens-justify-center lens-gap-0 lens-px-0 lens-text-lg;
+    @apply lens:w-8 lens:justify-center lens:gap-0 lens:px-0 lens:text-lg;
   }
 
   /* ICON-ONLY */
   .lens-icon-button {
-    @apply lens-size-7 lens-min-h-0 lens-justify-center lens-border-transparent lens-bg-transparent lens-px-0 lens-text-lg lens-text-faint;
+    @apply lens:size-7 lens:min-h-0 lens:justify-center lens:border-transparent lens:bg-transparent lens:px-0 lens:text-lg lens:text-faint;
   }
 
   .lens-icon-button:hover:not(:disabled) {
-    @apply lens-border-transparent lens-bg-inset lens-text-strong;
+    @apply lens:border-transparent lens:bg-inset lens:text-strong;
   }
 
   /* The panel export trigger contains two glyphs (download + disclosure), so
      it is a compact oblong rather than an icon square. Keeping both inside the
      trigger's box makes its hover/focus boundary describe the whole action. */
   .lens-panel-export-button {
-    @apply lens-w-9 lens-gap-0.5;
+    @apply lens:w-9 lens:gap-0.5;
   }
 
   /* A pressed ⓘ. Declared after the icon-only weight it overrides, so the open
      glyph is visibly the one the floating note belongs to — four metrics in a
      strip carry four of these, and only the tail and this fill say which. */
   .lens-info-tip-button-open {
-    @apply lens-bg-inset lens-text-strong;
+    @apply lens:bg-inset lens:text-strong;
   }
 
   /* Preflight is off, so a <button> keeps the UA's arrow cursor and only
@@ -2058,7 +2069,7 @@
   .lens-calendar-month,
   .lens-calendar-jump-cell,
   .lens-calendar-day {
-    @apply lens-cursor-pointer;
+    @apply lens:cursor-pointer;
   }
 
   /* A card-wide navigate action: a transparent anchor covers the card, and the
@@ -2066,11 +2077,11 @@
      than in the corner, where it was a 10px arrow far from the figure it
      opened and overlapping the ⓘ button's hit area. */
   .lens-stat-linked {
-    @apply lens-relative lens-flex lens-min-w-0 lens-flex-1 lens-flex-col;
+    @apply lens:relative lens:flex lens:min-w-0 lens:flex-1 lens:flex-col;
   }
 
   .lens-card-link {
-    @apply lens-absolute lens-inset-0 lens-z-10 lens-block lens-rounded-card;
+    @apply lens:absolute lens:inset-0 lens:z-10 lens:block lens:rounded-card;
   }
 
   /* A cell that opens something should answer the pointer. It used to change
@@ -2082,7 +2093,7 @@
 
   .lens-stat-linked:hover,
   .lens-stat-linked:has(.lens-card-link:focus-visible) {
-    @apply lens-bg-inset;
+    @apply lens:bg-inset;
   }
 
   /* The track has no link of its own: a row-scoped action makes each legend row
@@ -2091,32 +2102,32 @@
      Two rules for `.lens-coverage-track-segment-link` used to live here anyway,
      describing a hover nobody could ever reach. */
   .lens-coverage-legend-link {
-    @apply lens-relative lens-z-20 lens-flex lens-flex-1 lens-items-center lens-gap-3 lens-rounded-md lens-no-underline lens-text-inherit;
+    @apply lens:relative lens:z-20 lens:flex lens:flex-1 lens:items-center lens:gap-3 lens:rounded-md lens:no-underline lens:text-inherit;
   }
 
   .lens-coverage-legend-link:hover {
-    @apply lens-bg-inset;
+    @apply lens:bg-inset;
   }
 
   /* Icon specimen grid — story-only surface that pins every glyph's rendered
      size so visual regression catches path or weight drift. */
   .lens-icon-specimens {
-    @apply lens-flex lens-flex-wrap lens-gap-4;
+    @apply lens:flex lens:flex-wrap lens:gap-4;
   }
 
   .lens-icon-specimens > li {
-    @apply lens-flex lens-items-center lens-gap-2 lens-text-base lens-text-muted;
+    @apply lens:flex lens:items-center lens:gap-2 lens:text-base lens:text-muted;
   }
 
   .lens-icon-specimen-size {
-    @apply lens-text-faint;
+    @apply lens:text-faint;
   }
 
   /* The portal host. It leaves the dashboard subtree entirely, so it must
      re-declare the Lens root context and sit above every page stacking
      context, including the host application's chrome. */
   .lens-overlay-root {
-    @apply lens-fixed lens-inset-0 lens-min-h-0 lens-bg-transparent lens-p-0;
+    @apply lens:fixed lens:inset-0 lens:min-h-0 lens:bg-transparent lens:p-0;
     z-index: var(--lens-overlay-z, 2147483000);
   }
 
@@ -2126,7 +2137,7 @@
      `--lens-overlay-z`. The backdrop inside keeps its own fixed/inset, but the
      effective top of the stack comes from this container's z-index. */
   .lens-drawer-root {
-    @apply lens-fixed lens-inset-0 lens-min-h-0 lens-bg-transparent lens-p-0;
+    @apply lens:fixed lens:inset-0 lens:min-h-0 lens:bg-transparent lens:p-0;
     z-index: var(--lens-drawer-z, 2147483640);
   }
 
@@ -2138,26 +2149,26 @@
   }
 
   .lens-panel-overlay {
-    @apply lens-fixed lens-inset-0 lens-flex lens-items-center lens-justify-center lens-p-6;
+    @apply lens:fixed lens:inset-0 lens:flex lens:items-center lens:justify-center lens:p-6;
     /* Near-opaque: a sibling card behind the dialog must not read as content. */
     background: var(--lens-scrim);
   }
 
   .lens-panel-overlay-frame {
-    @apply lens-flex lens-max-h-full lens-w-full lens-outline-none;
+    @apply lens:flex lens:max-h-full lens:w-full lens:outline-none;
     width: min(1280px, 100%);
     height: min(90vh, 100%);
   }
 
   .lens-panel-overlay-frame > .lens-panel {
-    @apply lens-max-h-full lens-min-h-0 lens-flex-1 lens-shadow-lg;
+    @apply lens:max-h-full lens:min-h-0 lens:flex-1 lens:shadow-lg;
   }
 
   /* On the scrim, above the card: the way out of the dialog is the one control
      that does not belong to the panel being read. It is inside the dialog
      element, so the focus trap still holds it. */
   .lens-panel-overlay-close {
-    @apply lens-fixed lens-right-3 lens-top-3 lens-z-10 lens-inline-flex lens-min-h-control-md lens-cursor-pointer lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-px-2.5 lens-font-sans lens-text-base lens-font-semibold;
+    @apply lens:fixed lens:right-3 lens:top-3 lens:z-10 lens:inline-flex lens:min-h-control-md lens:cursor-pointer lens:items-center lens:gap-1.5 lens:rounded-control lens:border lens:border-solid lens:px-2.5 lens:font-sans lens:text-base lens:font-semibold;
     border-color: var(--lens-on-scrim-border);
     background: var(--lens-on-scrim-fill);
     color: var(--lens-on-scrim);
@@ -2170,25 +2181,25 @@
   /* Long content scrolls inside the dialog instead of overflowing the
      viewport; charts follow the card and resize through their observer. */
   .lens-panel-expanded .lens-panel-body {
-    @apply lens-min-h-0 lens-overflow-auto;
+    @apply lens:min-h-0 lens:overflow-auto;
   }
 
   .lens-panel-expanded .lens-chart-host {
-    @apply lens-min-h-0;
+    @apply lens:min-h-0;
   }
 
   .lens-panel-expanded .lens-chart-canvas {
-    @apply lens-min-h-64;
+    @apply lens:min-h-64;
   }
 
   /* The panel is rendered in the dialog, so its grid slot keeps its size
      without painting anything. */
   .lens-panel-placeholder {
-    @apply lens-h-full lens-min-h-44;
+    @apply lens:h-full lens:min-h-44;
   }
 
   .lens-panel-footer {
-    @apply lens-flex lens-items-center lens-justify-end lens-px-4 lens-pb-3;
+    @apply lens:flex lens:items-center lens:justify-end lens:px-4 lens:pb-3;
   }
 
   /* ── Where the row's slack goes ──────────────────────────────────────────
@@ -2226,11 +2237,11 @@
   .lens-panel-body:has(.lens-gauge),
   .lens-panel-body:has(.lens-relationship),
   .lens-panel-body:has(.lens-flow) {
-    @apply lens-flex-none;
+    @apply lens:flex-none;
   }
 
   .lens-panel > .lens-panel-footer {
-    @apply lens-mt-0;
+    @apply lens:mt-0;
   }
 
   .lens-panel-export-scope {
@@ -2246,7 +2257,7 @@
      a strip stood 16px taller than the two next to it. The figures keep their
      width; the comparison label is what gives ground. */
   .lens-trend-chip {
-    @apply lens-box-border lens-inline-flex lens-max-w-full lens-min-w-0 lens-items-center lens-gap-1.5 lens-overflow-hidden lens-whitespace-nowrap lens-rounded-badge lens-px-2 lens-py-1 lens-text-base lens-font-semibold;
+    @apply lens:box-border lens:inline-flex lens:max-w-full lens:min-w-0 lens:items-center lens:gap-1.5 lens:overflow-hidden lens:whitespace-nowrap lens:rounded-badge lens:px-2 lens:py-1 lens:text-base lens:font-semibold;
     background: var(--lens-bg-inset);
     color: var(--lens-text-muted);
     min-height: var(--lens-control-h-xs);
@@ -2255,7 +2266,7 @@
   .lens-trend-chip > svg,
   .lens-trend-chip strong,
   .lens-trend-chip-absolute {
-    @apply lens-flex-none;
+    @apply lens:flex-none;
   }
 
   .lens-trend-chip strong {
@@ -2273,11 +2284,11 @@
   }
 
   .lens-trend-chip-label {
-    @apply lens-min-w-0 lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-font-medium lens-opacity-80;
+    @apply lens:min-w-0 lens:overflow-hidden lens:text-ellipsis lens:whitespace-nowrap lens:font-medium lens:opacity-80;
   }
 
   .lens-status-chip {
-    @apply lens-inline-flex lens-shrink-0 lens-rounded-badge lens-px-1.5 lens-py-0.5 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider;
+    @apply lens:inline-flex lens:shrink-0 lens:rounded-badge lens:px-1.5 lens:py-0.5 lens:text-xs lens:font-semibold lens:uppercase lens:tracking-wider;
     background: var(--lens-bg-inset);
     color: var(--lens-text-muted);
   }
@@ -2303,7 +2314,7 @@
   }
 
   .lens-panel-group {
-    @apply lens-min-h-0;
+    @apply lens:min-h-0;
   }
 
   .lens-panel-group-metrics {
@@ -2313,11 +2324,11 @@
   /* A group's heading keeps its title left and sets its hoisted status chip
      right beside it, rather than pushing it to the far edge. */
   .lens-panel-group-header {
-    @apply lens-justify-start;
+    @apply lens:justify-start;
   }
 
   .lens-metric-row {
-    @apply lens-flex lens-flex-1 lens-flex-col;
+    @apply lens:flex lens:flex-1 lens:flex-col;
     border-radius: inherit;
   }
 
@@ -2354,13 +2365,13 @@
   }
 
   .lens-metric-cell {
-    @apply lens-relative lens-flex lens-min-w-0;
+    @apply lens:relative lens:flex lens:min-w-0;
     background: var(--lens-bg-card);
     grid-column: span var(--lens-metric-span, 1);
   }
 
   .lens-metric-cell > * {
-    @apply lens-min-w-0 lens-flex-1;
+    @apply lens:min-w-0 lens:flex-1;
   }
 
   /* Four board KPIs need room for their full business labels. At tablet-sized
@@ -2419,11 +2430,11 @@
    * scans a straight line.
    */
   .lens-stat-metric {
-    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-2 lens-px-4 lens-py-3;
+    @apply lens:flex lens:min-w-0 lens:flex-col lens:gap-2 lens:px-4 lens:py-3;
   }
 
   .lens-stat-metric-label {
-    @apply lens-m-0 lens-flex lens-min-w-0 lens-items-start lens-gap-1.5 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens:m-0 lens:flex lens:min-w-0 lens:items-start lens:gap-1.5 lens:text-xs lens:font-semibold lens:uppercase lens:tracking-wider lens:text-muted;
     /* Two lines, reserved whether this name needs them or not. */
     min-height: calc(var(--lens-type-xs) * 2.4);
   }
@@ -2432,7 +2443,7 @@
      more than a truncated «ОПЛАЧЕННАЯ УБЫТОЧНОСТЬ ПО ЗАРАБОТА…». The full text
      stays reachable through the element's title attribute. */
   .lens-stat-metric-label-text {
-    @apply lens-min-w-0 lens-overflow-hidden;
+    @apply lens:min-w-0 lens:overflow-hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -2452,7 +2463,7 @@
    * a top edge either way.
    */
   .lens-stat-metric-value {
-    @apply lens-m-0 lens-min-w-0 lens-shrink lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
+    @apply lens:m-0 lens:min-w-0 lens:shrink lens:text-2xl lens:font-semibold lens:tracking-tight lens:text-strong;
     min-height: calc(var(--lens-type-2xl) * 1.25);
     font-variant-numeric: tabular-nums lining-nums;
   }
@@ -2461,7 +2472,7 @@
      label beside it and there is no neighbouring cell to line up with. */
   @container lens-metric-group (max-width: 34rem) {
     .lens-stat-metric-value {
-      @apply lens-text-xl;
+      @apply lens:text-xl;
       min-height: calc(var(--lens-type-xl) * 1.25);
     }
   }
@@ -2495,7 +2506,7 @@
      sentence. Two lines is the slot; the ⓘ beside the name carries the note in
      full, which is where anything the clamp cut can be read. */
   .lens-stat-metric-caption {
-    @apply lens-m-0 lens-min-w-0 lens-overflow-hidden lens-whitespace-pre-line lens-text-sm lens-leading-tight lens-text-muted;
+    @apply lens:m-0 lens:min-w-0 lens:overflow-hidden lens:whitespace-pre-line lens:text-sm lens:leading-tight lens:text-muted;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -2515,12 +2526,12 @@
   }
 
   .lens-stat-metric-delta {
-    @apply lens-min-w-0;
+    @apply lens:min-w-0;
   }
 
   .lens-metric-row:has(.lens-trend-chip) .lens-stat-metric-delta:empty,
   .lens-dashboard-comparing .lens-stat-metric-delta:empty {
-    @apply lens-block;
+    @apply lens:block;
     min-height: var(--lens-control-h-xs);
   }
 
@@ -2532,13 +2543,13 @@
      figure's first baseline so a wrapped amount cannot drag them down with its
      second line. */
   .lens-stat-metric-main {
-    @apply lens-flex lens-min-w-0 lens-gap-3;
+    @apply lens:flex lens:min-w-0 lens:gap-3;
     align-items: baseline;
   }
 
   .lens-stat-metric-main > .lens-stat-sparkline,
   .lens-stat-metric-main > .lens-stat-drill-mark {
-    @apply lens-flex-none;
+    @apply lens:flex-none;
   }
 
   /* The mark that says this figure opens: beside the value, where the reader is
@@ -2546,7 +2557,7 @@
      the ⓘ. It sits above the card-wide anchor so it cannot swallow its own
      click target. */
   .lens-stat-drill-mark {
-    @apply lens-inline-flex lens-items-center lens-text-faint;
+    @apply lens:inline-flex lens:items-center lens:text-faint;
     transition:
       color var(--lens-dur-fast) var(--lens-ease-standard),
       transform var(--lens-dur-fast) var(--lens-ease-out);
@@ -2567,15 +2578,15 @@
      two-option navigation. It scrolls rather than stretches when the tabs
      outgrow the card. */
   .lens-tabstrip {
-    @apply lens-m-3 lens-mb-0 lens-flex lens-w-max lens-max-w-[calc(100%-1.5rem)] lens-gap-1 lens-overflow-x-auto lens-rounded-control lens-bg-inset lens-p-1;
+    @apply lens:m-3 lens:mb-0 lens:flex lens:w-max lens:max-w-[calc(100%-1.5rem)] lens:gap-1 lens:overflow-x-auto lens:rounded-control lens:bg-inset lens:p-1;
   }
 
   .lens-tabstrip-tab {
-    @apply lens-min-h-control-md lens-flex-none lens-whitespace-nowrap lens-rounded-control lens-border lens-border-solid lens-border-transparent lens-bg-transparent lens-px-3 lens-font-sans lens-text-md lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens:min-h-control-md lens:flex-none lens:whitespace-nowrap lens:rounded-control lens:border lens:border-solid lens:border-transparent lens:bg-transparent lens:px-3 lens:font-sans lens:text-md lens:font-semibold lens:text-muted lens:transition-colors;
   }
 
   .lens-tabstrip-tab[aria-selected='true'] {
-    @apply lens-border-border lens-bg-card lens-text-strong lens-shadow-card;
+    @apply lens:border-border lens:bg-card lens:text-strong lens:shadow-card;
   }
 
   /* The selected tab's content takes the whole card, not the height its plot
@@ -2584,36 +2595,36 @@
      while the panel beside it was full — the plot grows into the height its
      own card was already given. */
   .lens-tab-panel {
-    @apply lens-min-h-0 lens-flex-1 lens-p-3;
+    @apply lens:min-h-0 lens:flex-1 lens:p-3;
   }
 
   .lens-export-button:hover:not(:disabled) {
-    @apply lens-border-strong lens-bg-inset lens-text-strong;
+    @apply lens:border-strong lens:bg-inset lens:text-strong;
   }
 
   /* Panel chrome is deliberately quieter than a header-level secondary
      action. The local selector also wins over the generic export hover above. */
   .lens-panel-export-button:hover:not(:disabled) {
-    @apply lens-border-border;
+    @apply lens:border-border;
   }
 
   .lens-export-button:disabled {
-    @apply lens-cursor-wait lens-opacity-60;
+    @apply lens:cursor-wait lens:opacity-60;
   }
 
   .lens-export-button-retry {
-    @apply lens-border-accent-500 lens-bg-accent-50 lens-text-accent-700;
+    @apply lens:border-accent-500 lens:bg-accent-50 lens:text-accent-700;
   }
 
   /* Recompute has a resting state and a raised one. It escalates only once the
      freshness stamp beside it does — colouring it permanently would make the
      colour mean "this dashboard can be recomputed", which every dashboard can. */
   .lens-recompute[data-stale] {
-    @apply lens-border-warn lens-text-warn;
+    @apply lens:border-warn lens:text-warn;
   }
 
   .lens-recompute:disabled {
-    @apply lens-cursor-wait;
+    @apply lens:cursor-wait;
   }
 
   /* The pending note is a quiet inline chip, not the bordered card an error
@@ -2621,7 +2632,7 @@
   /* One trigger, one menu: the formats a dashboard can produce are a choice,
      not a row of competing buttons. */
   .lens-export-caret {
-    @apply lens-text-faint;
+    @apply lens:text-faint;
   }
 
   /* Anchored to its trigger on both axes: one edge is flush with the trigger's
@@ -2641,7 +2652,7 @@
   }
 
   .lens-export-menu {
-    @apply lens-pointer-events-auto lens-fixed lens-z-popover lens-flex lens-w-max lens-min-w-40 lens-flex-col lens-gap-0.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-p-1 lens-shadow-popover;
+    @apply lens:pointer-events-auto lens:fixed lens:z-popover lens:flex lens:w-max lens:min-w-40 lens:flex-col lens:gap-0.5 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:p-1 lens:shadow-popover;
     animation: lens-menu-in var(--lens-dur-fast) var(--lens-ease-out);
     transform-origin: var(--lens-menu-origin-x, left) var(--lens-menu-origin-y, top);
   }
@@ -2675,12 +2686,12 @@
   }
 
   .lens-export-menu-item {
-    @apply lens-w-full lens-rounded-control lens-border-0 lens-bg-transparent lens-px-2.5 lens-py-2 lens-text-left lens-font-sans lens-text-base lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens:w-full lens:rounded-control lens:border-0 lens:bg-transparent lens:px-2.5 lens:py-2 lens:text-left lens:font-sans lens:text-base lens:font-semibold lens:text-muted lens:transition-colors;
   }
 
   .lens-export-menu-item:hover,
   .lens-export-menu-item:focus-visible {
-    @apply lens-bg-inset lens-text-strong;
+    @apply lens:bg-inset lens:text-strong;
   }
 
   /* In the flow, not hung below the trigger. Every Lens panel hides its
@@ -2691,11 +2702,11 @@
      dashboard header, where nothing clips and a reflow would shove the whole
      control bar. */
   .lens-export-message {
-    @apply lens-mt-1 lens-block lens-max-w-64 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-text-base lens-font-medium lens-text-accent-700 lens-shadow-card;
+    @apply lens:mt-1 lens:block lens:max-w-64 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2.5 lens:py-2 lens:text-base lens:font-medium lens:text-accent-700 lens:shadow-card;
   }
 
   .lens-export-message-pending {
-    @apply lens-mt-0 lens-border-0 lens-bg-transparent lens-px-0 lens-py-0 lens-text-base lens-font-medium lens-text-muted lens-shadow-none;
+    @apply lens:mt-0 lens:border-0 lens:bg-transparent lens:px-0 lens:py-0 lens:text-base lens:font-medium lens:text-muted lens:shadow-none;
   }
 
   /* Right-anchored to the square that produced it and sized to its own text.
@@ -2703,19 +2714,19 @@
      32px button; growing leftwards from its right edge keeps it clear of the
      export menu, which is the only thing to its right. */
   .lens-share-control .lens-export-message {
-    @apply lens-absolute lens-right-0 lens-top-full lens-z-sticky lens-w-max lens-max-w-none lens-text-center;
+    @apply lens:absolute lens:right-0 lens:top-full lens:z-sticky lens:w-max lens:max-w-none lens:text-center;
   }
 
   .lens-export-message-error {
-    @apply lens-text-neg;
+    @apply lens:text-neg;
   }
 
   .lens-panel-status {
-    @apply lens-inline-flex lens-rounded-badge lens-bg-inset lens-px-2 lens-py-1 lens-text-base lens-font-semibold lens-text-muted;
+    @apply lens:inline-flex lens:rounded-badge lens:bg-inset lens:px-2 lens:py-1 lens:text-base lens:font-semibold lens:text-muted;
   }
 
   .lens-panel-total-label {
-    @apply lens-font-medium lens-text-muted;
+    @apply lens:font-medium lens:text-muted;
   }
 
   /* The badge is a number, and half a number is not a smaller number — it is a
@@ -2729,33 +2740,33 @@
      reading as one — «Итого: 88» is neither pressable nor pending. It is type
      now: a muted label and a strong number on the header's own baseline. */
   .lens-panel-total {
-    @apply lens-block lens-flex-none lens-whitespace-nowrap lens-px-1 lens-py-1 lens-text-base lens-font-semibold lens-text-strong;
+    @apply lens:block lens:flex-none lens:whitespace-nowrap lens:px-1 lens:py-1 lens:text-base lens:font-semibold lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-panel-body {
-    @apply lens-relative lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
+    @apply lens:relative lens:flex lens:min-h-0 lens:flex-1 lens:flex-col;
     /* Named container so a chart can decide whether the panel is wide enough to
        carry its legend in a right-hand column instead of below the plot. */
     container: lens-panel-body / inline-size;
   }
 
   .lens-placeholder-state {
-    @apply lens-box-border lens-flex lens-flex-wrap lens-items-center lens-justify-between lens-gap-3 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-5 lens-font-sans lens-text-md lens-text-muted lens-shadow-card;
+    @apply lens:box-border lens:flex lens:flex-wrap lens:items-center lens:justify-between lens:gap-3 lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card lens:p-5 lens:font-sans lens:text-md lens:text-muted lens:shadow-card;
   }
 
   .lens-placeholder-retry {
-    @apply lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-strong lens-bg-card lens-px-3 lens-py-1 lens-font-sans lens-text-md lens-font-semibold lens-text-text;
+    @apply lens:cursor-pointer lens:rounded-control lens:border lens:border-solid lens:border-strong lens:bg-card lens:px-3 lens:py-1 lens:font-sans lens:text-md lens:font-semibold lens:text-text;
   }
 
   /* Sits above the skeleton rather than replacing it: the layout stays put and
      only gains a line explaining why it is still empty. */
   .lens-loading-notice {
-    @apply lens-m-0 lens-mb-3 lens-font-sans lens-text-md lens-text-muted;
+    @apply lens:m-0 lens:mb-3 lens:font-sans lens:text-md lens:text-muted;
   }
 
   .lens-panel-stale {
-    @apply lens-opacity-60 lens-transition-opacity;
+    @apply lens:opacity-60 lens:transition-opacity;
   }
 
   /* Superseded figures are readable but not interrogable: a tooltip, a legend
@@ -2769,34 +2780,34 @@
   /* The same treatment for the chrome-free metric form: a figure being replaced
      says so wherever it is drawn. */
   .lens-stat-metric-stale {
-    @apply lens-opacity-60 lens-transition-opacity;
+    @apply lens:opacity-60 lens:transition-opacity;
   }
 
   .lens-panel-error {
-    @apply lens-flex lens-items-center lens-justify-between lens-gap-3 lens-border-0 lens-border-t lens-border-solid lens-border-border lens-bg-inset lens-p-3 lens-text-md lens-text-neg;
+    @apply lens:flex lens:items-center lens:justify-between lens:gap-3 lens:border-0 lens:border-t lens:border-solid lens:border-border lens:bg-inset lens:p-3 lens:text-md lens:text-neg;
   }
 
   .lens-panel-error button {
-    @apply lens-rounded-control lens-border lens-border-solid lens-border-strong lens-bg-card lens-px-3 lens-py-1 lens-font-semibold lens-text-text;
+    @apply lens:rounded-control lens:border lens:border-solid lens:border-strong lens:bg-card lens:px-3 lens:py-1 lens:font-semibold lens:text-text;
   }
 
   .lens-panel-state {
-    @apply lens-flex lens-min-h-32 lens-flex-1 lens-items-center lens-justify-center lens-gap-3 lens-p-5 lens-text-center lens-text-md lens-text-muted;
+    @apply lens:flex lens:min-h-32 lens:flex-1 lens:items-center lens:justify-center lens:gap-3 lens:p-5 lens:text-center lens:text-md lens:text-muted;
   }
 
   .lens-panel-state-error {
-    @apply lens-flex-col lens-text-neg;
+    @apply lens:flex-col lens:text-neg;
   }
 
   .lens-panel-state-error button {
-    @apply lens-rounded-control lens-border lens-border-solid lens-border-strong lens-bg-card lens-px-3 lens-py-1.5 lens-font-semibold lens-text-text;
+    @apply lens:rounded-control lens:border lens:border-solid lens:border-strong lens:bg-card lens:px-3 lens:py-1.5 lens:font-semibold lens:text-text;
   }
 
   /* The empty state reads top-down: a quiet mark, then the localized text,
      both centered — not the inline row the shared .lens-panel-state gives
      every other state. */
   .lens-panel-state-empty {
-    @apply lens-flex-col lens-gap-2;
+    @apply lens:flex-col lens:gap-2;
   }
 
   .lens-empty-mark {
@@ -2804,14 +2815,14 @@
   }
 
   .lens-panel-skeleton {
-    @apply lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
+    @apply lens:flex lens:min-h-0 lens:flex-1 lens:flex-col;
   }
 
   /* A sweeping gradient reads as "in flight" on a white card, where a plain
      gray pulse is nearly invisible. Matches the server fallback shimmer so
      the pre-document and runtime placeholders are indistinguishable. */
   .lens-shimmer {
-    @apply lens-block lens-rounded-full;
+    @apply lens:block lens:rounded-full;
     background-color: var(--lens-border);
     background-image: linear-gradient(90deg, rgba(226, 232, 240, 0) 0%, rgba(148, 163, 184, .85) 50%, rgba(226, 232, 240, 0) 100%);
     background-size: 200% 100%;
@@ -2819,7 +2830,7 @@
   }
 
   .lens-shimmer-label {
-    @apply lens-h-3;
+    @apply lens:h-3;
   }
 
   /* A placeholder reserves what the panel it stands in for will occupy, and it
@@ -2841,20 +2852,20 @@
      header's hairline, what a chart, table or map is before a single row of
      data exists — and a kind earns another shape by having a rule of its own. */
   .lens-skeleton-card {
-    @apply lens-box-border lens-flex lens-h-full lens-flex-col lens-gap-4 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-4 lens-shadow-card;
+    @apply lens:box-border lens:flex lens:h-full lens:flex-col lens:gap-4 lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card lens:p-4 lens:shadow-card;
     min-height: calc(var(--lens-panel-header-h) + var(--lens-plot-min-h) + 1px);
   }
 
   /* `.lens-panel-stat`'s floor. */
   .lens-skeleton-card:where([data-kind="stat"]) {
-    @apply lens-min-h-40 lens-justify-between lens-gap-2.5 lens-px-3.5 lens-py-3;
+    @apply lens:min-h-40 lens:justify-between lens:gap-2.5 lens:px-3.5 lens:py-3;
   }
 
   /* Cascade and coverage keep `.lens-panel`'s own floor: their settled panels
      are exactly that tall, so the floor is the whole statement. */
   .lens-skeleton-card:where([data-kind="cascade"]),
   .lens-skeleton-card:where([data-kind="coverage"]) {
-    @apply lens-min-h-44 lens-gap-3 lens-p-4;
+    @apply lens:min-h-44 lens:gap-3 lens:p-4;
   }
 
   /* A metric strip is several stat cells in one card: two reserved label lines
@@ -2862,7 +2873,7 @@
      kind of its own — it arrives as stat panels under a layout group — so it
      comes last and outranks whichever kind carries it. */
   .lens-skeleton-card:where([data-metrics]) {
-    @apply lens-min-h-60 lens-justify-between lens-gap-2.5 lens-px-3.5 lens-py-3;
+    @apply lens:min-h-60 lens:justify-between lens:gap-2.5 lens:px-3.5 lens:py-3;
   }
 
   /* The two bars inside follow the same shape: a caption line over a body that
@@ -2873,23 +2884,23 @@
   }
 
   .lens-skeleton-card > .lens-shimmer-body {
-    @apply lens-min-h-32 lens-flex-1 lens-rounded-lg;
+    @apply lens:min-h-32 lens:flex-1 lens:rounded-lg;
   }
 
   .lens-skeleton-card[data-kind="stat"] > .lens-shimmer-body,
   .lens-skeleton-card[data-metrics] > .lens-shimmer-body {
-    @apply lens-h-7 lens-min-h-0 lens-flex-initial lens-rounded-md;
+    @apply lens:h-7 lens:min-h-0 lens:flex-initial lens:rounded-md;
     width: 70%;
   }
 
   .lens-skeleton-card[data-kind="cascade"] > .lens-shimmer-body,
   .lens-skeleton-card[data-kind="coverage"] > .lens-shimmer-body {
-    @apply lens-h-3 lens-min-h-0 lens-w-full lens-flex-initial lens-rounded-full;
+    @apply lens:h-3 lens:min-h-0 lens:w-full lens:flex-initial lens:rounded-full;
   }
 
   /* Inside a real panel the card chrome already exists. */
   .lens-panel-skeleton .lens-skeleton-card {
-    @apply lens-min-h-0 lens-border-0 lens-shadow-none;
+    @apply lens:min-h-0 lens:border-0 lens:shadow-none;
   }
 
   /* …and so does the header, so a plot-shaped body placeholder reserves the plot
@@ -2899,24 +2910,24 @@
      class specific and these two, being two, win here whatever the source
      order. `:not(:where(…))` keeps this one level with the rule above it. */
   .lens-panel-skeleton .lens-skeleton-card:not(:where([data-kind="stat"], [data-kind="cascade"], [data-kind="coverage"], [data-metrics])) {
-    @apply lens-p-2;
+    @apply lens:p-2;
     min-height: var(--lens-plot-min-h);
   }
 
   .lens-dashboard-skeleton {
-    @apply lens-flex lens-flex-col lens-gap-6;
+    @apply lens:flex lens:flex-col lens:gap-6;
   }
 
   .lens-loading {
-    @apply lens-block;
+    @apply lens:block;
   }
 
   .lens-skeleton-heading {
-    @apply lens-mb-3 lens-flex lens-items-center lens-gap-3;
+    @apply lens:mb-3 lens:flex lens:items-center lens:gap-3;
   }
 
   .lens-skeleton-heading-rule {
-    @apply lens-h-px lens-flex-1 lens-bg-border;
+    @apply lens:h-px lens:flex-1 lens:bg-border;
   }
 
   @keyframes lens-shimmer-sweep {
@@ -2937,17 +2948,17 @@
   }
 
   .lens-stat-content {
-    @apply lens-flex lens-min-h-28 lens-flex-1 lens-flex-col lens-justify-center lens-gap-3 lens-p-4;
+    @apply lens:flex lens:min-h-28 lens:flex-1 lens:flex-col lens:justify-center lens:gap-3 lens:p-4;
   }
 
   .lens-stat-label {
-    @apply lens-m-0 lens-flex lens-items-center lens-gap-1.5 lens-text-md lens-font-medium lens-text-muted;
+    @apply lens:m-0 lens:flex lens:items-center lens:gap-1.5 lens:text-md lens:font-medium lens:text-muted;
   }
 
   /* Wrap the label to two tight lines rather than letting a long KPI name run
      under the value. The full string stays reachable via the title attribute. */
   .lens-stat-label-text {
-    @apply lens-min-w-0 lens-overflow-hidden;
+    @apply lens:min-w-0 lens:overflow-hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -2956,16 +2967,16 @@
   }
 
   .lens-stat-value-row {
-    @apply lens-flex lens-flex-wrap lens-items-baseline lens-gap-3;
+    @apply lens:flex lens:flex-wrap lens:items-baseline lens:gap-3;
   }
 
   .lens-stat-value {
-    @apply lens-m-0 lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
+    @apply lens:m-0 lens:text-2xl lens:font-semibold lens:tracking-tight lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-stat-delta {
-    @apply lens-rounded-badge lens-px-2 lens-py-1 lens-text-base lens-font-semibold;
+    @apply lens:rounded-badge lens:px-2 lens:py-1 lens:text-base lens:font-semibold;
     background: var(--lens-pos-soft);
     color: var(--lens-pos);
   }
@@ -3084,7 +3095,7 @@
   }
 
   .lens-chart-area {
-    @apply lens-relative lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
+    @apply lens:relative lens:flex lens:min-h-0 lens:flex-1 lens:flex-col;
   }
 
   /* A logarithmic bar is deliberately non-linear. Keep that warning on the
@@ -3099,17 +3110,17 @@
      to read the chart, printed on top of the chart. Nothing can be under a row
      that takes its own height. */
   .lens-chart-notes {
-    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-1 lens-px-2 lens-pb-1 lens-pt-1;
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-1 lens:px-2 lens:pb-1 lens:pt-1;
   }
 
   /* The plot-local actions end the row, so notes read from the left and
      controls sit where a toolbar is looked for — neither on the data. */
   .lens-chart-notes-actions {
-    @apply lens-ml-auto lens-flex lens-flex-wrap lens-items-center lens-justify-end lens-gap-1;
+    @apply lens:ml-auto lens:flex lens:flex-wrap lens:items-center lens:justify-end lens:gap-1;
   }
 
   .lens-chart-log-scale {
-    @apply lens-inline-flex lens-items-center lens-gap-1 lens-rounded-full lens-border lens-border-solid lens-px-2.5 lens-py-1 lens-text-sm lens-font-medium;
+    @apply lens:inline-flex lens:items-center lens:gap-1 lens:rounded-full lens:border lens:border-solid lens:px-2.5 lens:py-1 lens:text-sm lens:font-medium;
     border-color: color-mix(in srgb, var(--lens-warn) 35%, var(--lens-border));
     background: var(--lens-warn-soft);
     color: var(--lens-warn);
@@ -3118,11 +3129,11 @@
   /* Which period is still filling in, stated once for the whole panel. The
      hatch repeats the band drawn behind that period on the plot. */
   .lens-chart-period-note {
-    @apply lens-inline-flex lens-items-center lens-gap-1 lens-rounded-full lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-text-sm lens-font-medium lens-text-muted;
+    @apply lens:inline-flex lens:items-center lens:gap-1 lens:rounded-full lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2.5 lens:py-1 lens:text-sm lens:font-medium lens:text-muted;
   }
 
   .lens-chart-period-note::before {
-    @apply lens-h-3 lens-w-2 lens-flex-none lens-rounded-badge;
+    @apply lens:h-3 lens:w-2 lens:flex-none lens:rounded-badge;
     content: '';
     background: repeating-linear-gradient(
       -45deg,
@@ -3134,15 +3145,15 @@
   }
 
   .lens-chart-log-scale svg {
-    @apply lens-size-3 lens-flex-none;
+    @apply lens:size-3 lens:flex-none;
   }
 
   .lens-chart-collapse-other {
-    @apply lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-sm lens-font-medium lens-text-muted;
+    @apply lens:cursor-pointer lens:rounded-badge lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2.5 lens:py-1 lens:font-sans lens:text-sm lens:font-medium lens:text-muted;
   }
 
   .lens-axis-label-tooltip {
-    @apply lens-pointer-events-none lens-fixed lens-z-50 lens-max-w-64 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-base lens-text-text lens-shadow-card;
+    @apply lens:pointer-events-none lens:fixed lens:z-50 lens:max-w-64 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2.5 lens:py-1.5 lens:font-sans lens:text-base lens:text-text lens:shadow-card;
   }
 
   /* The copy affordance both tooltip families share — the React one over the
@@ -3151,7 +3162,7 @@
      tokens: the ECharts node is appended to `body`, outside `.lens-root`, where
      none of this runtime's custom properties resolve. `currentColor` does. */
   .lens-tooltip-copy {
-    @apply lens-inline-flex lens-size-5 lens-min-h-0 lens-flex-none lens-cursor-pointer lens-items-center lens-justify-center lens-rounded-control lens-border-0 lens-p-0 lens-opacity-50;
+    @apply lens:inline-flex lens:size-5 lens:min-h-0 lens:flex-none lens:cursor-pointer lens:items-center lens:justify-center lens:rounded-control lens:border-0 lens:p-0 lens:opacity-50;
     background: transparent;
     color: inherit;
     transition: opacity var(--lens-dur-fast, 120ms) ease-out, background-color var(--lens-dur-fast, 120ms) ease-out;
@@ -3159,14 +3170,14 @@
 
   .lens-tooltip-copy:hover,
   .lens-tooltip-copy:focus-visible {
-    @apply lens-opacity-100;
+    @apply lens:opacity-100;
     background: color-mix(in srgb, currentColor 12%, transparent);
   }
 
   /* Confirmation is the whole payoff: nothing else on screen changes when a
      copy succeeds, so the tick holds full strength for its second and a half. */
   .lens-tooltip-copy[data-copied='true'] {
-    @apply lens-opacity-100;
+    @apply lens:opacity-100;
     color: var(--lens-pos, #16a34a);
     background: transparent;
   }
@@ -3175,31 +3186,31 @@
      room a full chart card needs (~300px tall pies) and keeps the padding
      tight. The legend below and the in-plot badge sit outside this box. */
   .lens-chart-host {
-    @apply lens-relative lens-flex lens-flex-1 lens-p-2;
+    @apply lens:relative lens:flex lens:flex-1 lens:p-2;
     min-height: var(--lens-plot-min-h);
   }
 
   .lens-map-attribution {
-    @apply lens-m-0 lens-px-3 lens-pb-2 lens-text-right lens-text-base lens-text-muted;
+    @apply lens:m-0 lens:px-3 lens:pb-2 lens:text-right lens:text-base lens:text-muted;
   }
 
   .lens-panel-fill .lens-chart-host {
-    @apply lens-p-0;
+    @apply lens:p-0;
   }
 
   /* In flow at the top of the plot column, aligned right. Never absolute: an
      overlay only ever moves the collision somewhere else. */
   .lens-plot-total {
-    @apply lens-pointer-events-none lens-mr-3 lens-mt-3 lens-self-end lens-rounded-badge lens-bg-inset lens-px-2 lens-py-1 lens-text-base lens-font-semibold lens-text-muted;
+    @apply lens:pointer-events-none lens:mr-3 lens:mt-3 lens:self-end lens:rounded-badge lens:bg-inset lens:px-2 lens:py-1 lens:text-base lens:font-semibold lens:text-muted;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-chart-legend {
-    @apply lens-m-0 lens-flex lens-list-none lens-flex-wrap lens-items-start lens-justify-start lens-gap-x-4 lens-gap-y-1 lens-px-3 lens-pb-3 lens-pt-1 lens-text-base lens-text-muted;
+    @apply lens:m-0 lens:flex lens:list-none lens:flex-wrap lens:items-start lens:justify-start lens:gap-x-4 lens:gap-y-1 lens:px-3 lens:pb-3 lens:pt-1 lens:text-base lens:text-muted;
   }
 
   .lens-chart-legend-shell {
-    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-1;
+    @apply lens:flex lens:min-w-0 lens:flex-col lens:gap-1;
   }
 
   /* ── The legend column's control header ─────────────────────────────────
@@ -3208,7 +3219,7 @@
      rules of alignment in a 240px column. One padding, stated once, and the
      rows below inherit the same inline edge. */
   .lens-chart-legend-controls {
-    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-1 lens-px-2 lens-pt-1;
+    @apply lens:flex lens:min-w-0 lens:flex-col lens:gap-1 lens:px-2 lens:pt-1;
   }
 
   /* Utilities over a list, not a control bar above a chart.
@@ -3219,12 +3230,12 @@
      bolted on. They are quiet text now: the type the legend rows use, no fill
      and no edge until pointed at, and a pressed member simply goes strong. */
   .lens-chart-legend-tools {
-    @apply lens-flex lens-w-full lens-min-w-0 lens-items-center;
+    @apply lens:flex lens:w-full lens:min-w-0 lens:items-center;
     gap: 2px;
   }
 
   .lens-chart-legend-tools button {
-    @apply lens-flex lens-min-w-0 lens-cursor-pointer lens-items-center lens-justify-center lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1.5 lens-font-sans lens-text-sm lens-font-medium lens-text-muted;
+    @apply lens:flex lens:min-w-0 lens:cursor-pointer lens:items-center lens:justify-center lens:overflow-hidden lens:text-ellipsis lens:whitespace-nowrap lens:rounded-badge lens:border-0 lens:bg-transparent lens:px-1.5 lens:font-sans lens:text-sm lens:font-medium lens:text-muted;
     flex: 0 1 auto;
     min-height: var(--lens-control-h-xs);
     transition: background-color var(--lens-dur-fast) var(--lens-ease-standard),
@@ -3232,29 +3243,29 @@
   }
 
   .lens-chart-legend-tools button:hover {
-    @apply lens-bg-inset lens-text-strong;
+    @apply lens:bg-inset lens:text-strong;
   }
 
   /* «All shown» is the resting state of most legends, so a pressed member is
      stated by ink alone. A filled chip here would put a permanent highlight on
      the panel for saying nothing has been touched. */
   .lens-chart-legend-tools button[aria-pressed='true'] {
-    @apply lens-text-strong;
+    @apply lens:text-strong;
   }
 
   /* Invert is neither of the two states, so it keeps to the far end of the
      line, away from the pair it does not belong to. */
   .lens-chart-legend-tools .lens-chart-legend-invert {
-    @apply lens-ml-auto;
+    @apply lens:ml-auto;
   }
 
   .lens-chart-legend-invert {
-    @apply lens-flex-none;
+    @apply lens:flex-none;
     padding-inline: 0.375rem;
   }
 
   .lens-chart-legend-invert svg {
-    @apply lens-size-3;
+    @apply lens:size-3;
   }
 
   /* The count the fade could not give. A bottom fade says "there is more";
@@ -3263,11 +3274,11 @@
      cap instead of scrolling for them, so the whole legend can be read at once
      — which is what the reader wanted when they asked how much was missing. */
   .lens-chart-legend-overflow {
-    @apply lens-mx-2 lens-cursor-pointer lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1 lens-text-left lens-font-sans lens-text-sm lens-font-medium lens-text-accent-700;
+    @apply lens:mx-2 lens:cursor-pointer lens:rounded-badge lens:border-0 lens:bg-transparent lens:px-1.5 lens:py-1 lens:text-left lens:font-sans lens:text-sm lens:font-medium lens:text-accent-700;
   }
 
   .lens-chart-legend-overflow:hover {
-    @apply lens-bg-inset;
+    @apply lens:bg-inset;
   }
 
   /* One search field in this runtime, declared once with the facet popover's:
@@ -3275,15 +3286,15 @@
      names too long to scan — and they were two lookalike inputs with different
      type sizes and paddings sitting a few hundred pixels apart. */
   .lens-chart-legend-search {
-    @apply lens-flex lens-min-w-0 lens-flex-col;
+    @apply lens:flex lens:min-w-0 lens:flex-col;
   }
 
   .lens-chart-legend-search .lens-facet-search {
-    @apply lens-m-0 lens-box-border lens-w-full;
+    @apply lens:m-0 lens:box-border lens:w-full;
   }
 
   .lens-chart-legend-item {
-    @apply lens-flex lens-min-w-0 lens-items-start;
+    @apply lens:flex lens:min-w-0 lens:items-start;
   }
 
   /* ONE row format, at every width.
@@ -3295,7 +3306,7 @@
      same order, same left edge, always: the width decides how many rows fit on
      a line, not what a row looks like. */
   .lens-chart-legend-toggle {
-    @apply lens-grid lens-min-w-0 lens-cursor-pointer lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1 lens-text-left lens-font-sans lens-text-base lens-text-muted lens-transition-colors;
+    @apply lens:grid lens:min-w-0 lens:cursor-pointer lens:rounded-badge lens:border-0 lens:bg-transparent lens:px-1.5 lens:py-1 lens:text-left lens:font-sans lens:text-base lens:text-muted lens:transition-colors;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: start;
     column-gap: 0.375rem;
@@ -3303,7 +3314,7 @@
   }
 
   .lens-chart-legend-toggle:hover:not(:disabled) {
-    @apply lens-bg-inset;
+    @apply lens:bg-inset;
   }
 
   /* The row's own state, in the row's last column, spanning its lines so a
@@ -3312,7 +3323,7 @@
      the series is off the plot, because that glyph is not decoration then: it
      is the reason the series is missing from the chart. */
   .lens-chart-legend-toggle > .lens-chart-legend-visibility {
-    @apply lens-flex lens-flex-none lens-items-center lens-justify-center lens-self-start lens-text-faint;
+    @apply lens:flex lens:flex-none lens:items-center lens:justify-center lens:self-start lens:text-faint;
     grid-column: 3;
     grid-row: 1 / -1;
     margin-top: 0.125rem;
@@ -3324,25 +3335,25 @@
 
   .lens-chart-legend-toggle:hover > .lens-chart-legend-visibility,
   .lens-chart-legend-toggle:focus-visible > .lens-chart-legend-visibility {
-    @apply lens-text-muted lens-opacity-100;
+    @apply lens:text-muted lens:opacity-100;
   }
 
   .lens-chart-legend-hidden > .lens-chart-legend-visibility {
-    @apply lens-text-muted lens-opacity-100;
+    @apply lens:text-muted lens:opacity-100;
   }
 
   .lens-chart-legend-toggle:disabled {
-    @apply lens-cursor-default;
+    @apply lens:cursor-default;
   }
 
   /* A hidden series keeps its value on screen so the user can see what was
      taken out of the total, and stays clickable to bring it back. */
   .lens-chart-legend-hidden {
-    @apply lens-opacity-50;
+    @apply lens:opacity-50;
   }
 
   .lens-chart-legend-hidden .lens-chart-legend-label {
-    @apply lens-line-through;
+    @apply lens:line-through;
   }
 
   .lens-chart-legend-hidden .lens-chart-legend-mark {
@@ -3350,11 +3361,11 @@
   }
 
   .lens-chart-legend-heading {
-    @apply lens-mt-2 lens-w-full lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-1 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens:mt-2 lens:w-full lens:border-0 lens:border-b lens:border-solid lens:border-border lens:pb-1 lens:text-xs lens:font-semibold lens:uppercase lens:tracking-wider lens:text-muted;
   }
 
   .lens-chart-legend-mark {
-    @apply lens-size-2 lens-shrink-0 lens-rounded-sm;
+    @apply lens:size-2 lens:shrink-0 lens:rounded-sm;
     background: var(--lens-accent-500);
   }
 
@@ -3368,7 +3379,7 @@
      same ink, same stroke — so a line in the plot can be matched to its name
      without reading it. */
   .lens-chart-overlay-legend {
-    @apply lens-items-center lens-gap-x-3 lens-pb-2 lens-pt-0;
+    @apply lens:items-center lens:gap-x-3 lens:pb-2 lens:pt-0;
     border-top: 1px solid var(--lens-border);
     margin-inline: 0.75rem;
     padding-inline: 0;
@@ -3376,22 +3387,22 @@
   }
 
   .lens-chart-overlay-legend .lens-chart-legend-toggle {
-    @apply lens-inline-flex lens-items-center;
+    @apply lens:inline-flex lens:items-center;
   }
 
   /* The strip names itself in place of a heading row: a key with its own rule
      above it and its own label at the start of the line. */
   .lens-chart-overlay-legend > .lens-chart-legend-heading {
-    @apply lens-m-0 lens-w-auto lens-border-0 lens-p-0;
+    @apply lens:m-0 lens:w-auto lens:border-0 lens:p-0;
   }
 
   .lens-chart-overlay-mark {
-    @apply lens-relative lens-h-2 lens-w-4 lens-shrink-0;
+    @apply lens:relative lens:h-2 lens:w-4 lens:shrink-0;
     color: var(--lens-overlay-ink, var(--lens-text-faint));
   }
 
   .lens-chart-overlay-mark::before {
-    @apply lens-absolute lens-inset-x-0 lens-top-1/2 lens-block lens-h-0;
+    @apply lens:absolute lens:inset-x-0 lens:top-1/2 lens:block lens:h-0;
     content: '';
     border-top: 2px solid currentcolor;
   }
@@ -3413,7 +3424,7 @@
   /* A region, not a value: the swatch is filled rather than stroked. */
   .lens-chart-overlay-mark[data-stroke='band']::before,
   .lens-chart-overlay-mark[data-stroke='hatch']::before {
-    @apply lens-inset-y-0 lens-h-auto lens-rounded-badge;
+    @apply lens:inset-y-0 lens:h-auto lens:rounded-badge;
     border: 0;
     background: color-mix(in srgb, currentcolor 22%, transparent);
   }
@@ -3429,14 +3440,14 @@
   }
 
   .lens-chart-legend-value {
-    @apply lens-font-semibold lens-text-strong;
+    @apply lens:font-semibold lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   /* Label and figure both sit in the grid's second column, so the figure lines
      up under the name it belongs to rather than beside the swatch. */
   .lens-chart-legend-toggle > .lens-chart-legend-label {
-    @apply lens-min-w-0;
+    @apply lens:min-w-0;
     line-height: 1.35;
   }
 
@@ -3452,31 +3463,31 @@
   }
 
   .lens-chart-legend-separator {
-    @apply lens-text-faint;
+    @apply lens:text-faint;
   }
 
   /* Nothing on the plot, and the panel says which of "filtered" and "broken"
      it is. It stands where the plot stood so the card keeps its height. */
   .lens-chart-empty {
-    @apply lens-m-2 lens-flex lens-flex-1 lens-flex-col lens-items-center lens-justify-center lens-gap-2 lens-rounded-card lens-border lens-border-dashed lens-border-border lens-bg-inset lens-p-4 lens-text-center;
+    @apply lens:m-2 lens:flex lens:flex-1 lens:flex-col lens:items-center lens:justify-center lens:gap-2 lens:rounded-card lens:border lens:border-dashed lens:border-border lens:bg-inset lens:p-4 lens:text-center;
     min-height: calc(var(--lens-plot-min-h) - 1rem);
   }
 
   .lens-chart-empty-note {
-    @apply lens-text-md lens-text-muted;
+    @apply lens:text-md lens:text-muted;
   }
 
   .lens-chart-empty-action {
-    @apply lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-font-sans lens-text-base lens-font-semibold lens-text-strong;
+    @apply lens:cursor-pointer lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-3 lens:font-sans lens:text-base lens:font-semibold lens:text-strong;
     min-height: var(--lens-control-h-md);
   }
 
   .lens-chart-empty-action:hover {
-    @apply lens-border-strong;
+    @apply lens:border-strong;
   }
 
   .lens-chart-compact {
-    @apply lens-m-4 lens-flex lens-min-h-24 lens-flex-col lens-items-center lens-justify-center lens-gap-1 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-inset lens-p-4 lens-text-center;
+    @apply lens:m-4 lens:flex lens:min-h-24 lens:flex-col lens:items-center lens:justify-center lens:gap-1 lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-inset lens:p-4 lens:text-center;
   }
 
   .lens-chart-compact-action {
@@ -3493,21 +3504,21 @@
 
   .lens-chart-compact-label,
   .lens-chart-compact-empty {
-    @apply lens-max-w-full lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-text-md lens-text-muted;
+    @apply lens:max-w-full lens:overflow-hidden lens:text-ellipsis lens:whitespace-nowrap lens:text-md lens:text-muted;
   }
 
   .lens-chart-compact-value {
-    @apply lens-text-xl lens-font-semibold lens-text-strong;
+    @apply lens:text-xl lens:font-semibold lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-gauge {
-    @apply lens-relative lens-mx-auto lens-flex lens-w-full lens-max-w-sm lens-flex-1 lens-flex-col lens-items-center lens-justify-center lens-p-5;
+    @apply lens:relative lens:mx-auto lens:flex lens:w-full lens:max-w-sm lens:flex-1 lens:flex-col lens:items-center lens:justify-center lens:p-5;
     min-height: 14rem;
   }
 
   .lens-gauge-arc {
-    @apply lens-w-full;
+    @apply lens:w-full;
     overflow: visible;
   }
 
@@ -3528,21 +3539,21 @@
   }
 
   .lens-gauge-reading {
-    @apply lens-absolute lens-bottom-12 lens-flex lens-flex-col lens-items-center lens-gap-0.5;
+    @apply lens:absolute lens:bottom-12 lens:flex lens:flex-col lens:items-center lens:gap-0.5;
   }
 
   .lens-gauge-reading strong {
-    @apply lens-text-2xl lens-font-semibold lens-text-strong;
+    @apply lens:text-2xl lens:font-semibold lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-gauge-reading span,
   .lens-gauge-scale {
-    @apply lens-text-base lens-text-muted;
+    @apply lens:text-base lens:text-muted;
   }
 
   .lens-gauge-scale {
-    @apply lens-flex lens-w-[88%] lens-justify-between;
+    @apply lens:flex lens:w-[88%] lens:justify-between;
     margin-top: -0.75rem;
   }
 
@@ -3553,27 +3564,27 @@
   }
 
   .lens-coverage {
-    @apply lens-flex lens-flex-1 lens-flex-col lens-gap-1 lens-p-4;
+    @apply lens:flex lens:flex-1 lens:flex-col lens:gap-1 lens:p-4;
   }
 
   /* A compact stat headline: the total leads, a muted «Итого»-style label
      trails it on the same baseline. ~20px keeps a two-segment card at
      ~120-140px total height. */
   .lens-coverage-headline {
-    @apply lens-m-0 lens-flex lens-items-baseline lens-gap-2;
+    @apply lens:m-0 lens:flex lens:items-baseline lens:gap-2;
   }
 
   .lens-coverage-headline-value {
-    @apply lens-text-xl lens-font-bold lens-leading-none lens-tracking-tight lens-text-strong;
+    @apply lens:text-xl lens:font-bold lens:leading-none lens:tracking-tight lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-coverage-headline-label {
-    @apply lens-text-base lens-font-medium lens-uppercase lens-tracking-wide lens-text-faint;
+    @apply lens:text-base lens:font-medium lens:uppercase lens:tracking-wide lens:text-faint;
   }
 
   .lens-coverage-track {
-    @apply lens-mt-2 lens-flex lens-h-2.5 lens-w-full lens-gap-0.5 lens-overflow-hidden lens-rounded-full lens-bg-inset;
+    @apply lens:mt-2 lens:flex lens:h-2.5 lens:w-full lens:gap-0.5 lens:overflow-hidden lens:rounded-full lens:bg-inset;
     /* The track is what grows, not the segment: it owns the pill silhouette and
        clips its children to it, so a segment that grew on its own would square
        off the rounded ends. Growing the track keeps the shape and gives the
@@ -3584,11 +3595,11 @@
   }
 
   .lens-coverage[data-segment-active='true'] .lens-coverage-track {
-    @apply lens-h-4;
+    @apply lens:h-4;
   }
 
   .lens-coverage-track-segment {
-    @apply lens-block lens-h-full lens-transition-[filter,opacity,box-shadow,transform];
+    @apply lens:block lens:h-full lens:transition-[filter,opacity,box-shadow,transform];
     background: var(--lens-accent-500);
     /* Guarantee a thin slice (e.g. a 0.3% remainder) stays visible and
        hoverable; flexbox lets the larger segments absorb the difference. */
@@ -3629,7 +3640,7 @@
      It keeps the colour treatment and forgoes the growth. */
   .lens-coverage-bullet .lens-coverage-track,
   .lens-coverage[data-segment-active='true'] .lens-coverage-bullet .lens-coverage-track {
-    @apply lens-h-2.5;
+    @apply lens:h-2.5;
   }
 
   .lens-coverage[data-segment-active='true'] .lens-coverage-bullet .lens-coverage-track-segment {
@@ -3644,42 +3655,42 @@
   }
 
   .lens-coverage-legend {
-    @apply lens-m-0 lens-mt-2 lens-list-none lens-p-0;
+    @apply lens:m-0 lens:mt-2 lens:list-none lens:p-0;
   }
 
   .lens-coverage-legend-row {
-    @apply lens-flex lens-items-center lens-gap-3 lens-rounded-md lens-border-0 lens-border-b lens-border-solid lens-py-1.5 lens-text-md lens-transition-colors;
+    @apply lens:flex lens:items-center lens:gap-3 lens:rounded-md lens:border-0 lens:border-b lens:border-solid lens:py-1.5 lens:text-md lens:transition-colors;
     border-color: var(--lens-divider);
   }
 
   .lens-coverage-legend-row[data-highlighted='true'] {
-    @apply lens-bg-inset;
+    @apply lens:bg-inset;
   }
 
   .lens-coverage-legend-row[data-highlighted='true'] .lens-coverage-legend-label {
-    @apply lens-text-strong;
+    @apply lens:text-strong;
   }
 
   .lens-coverage-legend-row:last-child {
-    @apply lens-border-b-0;
+    @apply lens:border-b-0;
   }
 
   .lens-coverage-legend-bullet {
-    @apply lens-size-2 lens-shrink-0 lens-rounded-full;
+    @apply lens:size-2 lens:shrink-0 lens:rounded-full;
     background: var(--lens-accent-500);
   }
 
   .lens-coverage-legend-label {
-    @apply lens-mr-auto lens-min-w-0 lens-truncate lens-text-muted;
+    @apply lens:mr-auto lens:min-w-0 lens:truncate lens:text-muted;
   }
 
   .lens-coverage-legend-value {
-    @apply lens-font-semibold lens-text-strong;
+    @apply lens:font-semibold lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-coverage-legend-share {
-    @apply lens-w-12 lens-shrink-0 lens-text-right lens-text-base lens-font-semibold lens-text-faint;
+    @apply lens:w-12 lens:shrink-0 lens:text-right lens:text-base lens:font-semibold lens:text-faint;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -3693,7 +3704,7 @@
      pointer or holds focus — a quiet ring on the chart's own frame: an edge
      treatment, so nothing repaints the data or shifts its perceived colours. */
   .lens-chart-host-drillable {
-    @apply lens-cursor-pointer lens-rounded-control;
+    @apply lens:cursor-pointer lens:rounded-control;
     outline: 1px solid transparent;
     outline-offset: -1px;
     transition: outline-color var(--lens-dur-fast) var(--lens-ease-standard);
@@ -3705,11 +3716,11 @@
   }
 
   .lens-chart-keyboard-actions {
-    @apply lens-absolute lens-left-2 lens-top-2 lens-z-20 lens-flex lens-flex-col lens-gap-1;
+    @apply lens:absolute lens:left-2 lens:top-2 lens:z-20 lens:flex lens:flex-col lens:gap-1;
   }
 
   .lens-chart-keyboard-actions button {
-    @apply lens-sr-only lens-rounded-control lens-border lens-border-solid lens-border-accent-500 lens-bg-card lens-px-2 lens-py-1 lens-text-base lens-font-semibold lens-text-accent-700 lens-shadow-card;
+    @apply lens:sr-only lens:rounded-control lens:border lens:border-solid lens:border-accent-500 lens:bg-card lens:px-2 lens:py-1 lens:text-base lens:font-semibold lens:text-accent-700 lens:shadow-card;
   }
 
   .lens-chart-keyboard-actions button:focus {
@@ -3723,16 +3734,16 @@
   }
 
   .lens-chart-canvas {
-    @apply lens-w-full lens-flex-1;
+    @apply lens:w-full lens:flex-1;
     min-height: 17rem;
   }
 
   .lens-chart-load-error {
-    @apply lens-absolute lens-inset-3 lens-flex lens-flex-col lens-items-center lens-justify-center lens-gap-1 lens-rounded-control lens-bg-inset lens-p-3 lens-text-center lens-text-md lens-text-neg;
+    @apply lens:absolute lens:inset-3 lens:flex lens:flex-col lens:items-center lens:justify-center lens:gap-1 lens:rounded-control lens:bg-inset lens:p-3 lens:text-center lens:text-md lens:text-neg;
   }
 
   .lens-chart-load-error-detail {
-    @apply lens-max-w-full lens-truncate lens-text-base lens-text-muted;
+    @apply lens:max-w-full lens:truncate lens:text-base lens:text-muted;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -3743,7 +3754,7 @@
      be told what to avoid and that list only ever grows; a row that takes its
      own height cannot have anything under it. */
   .lens-chart-source-note {
-    @apply lens-inline-flex lens-items-center lens-gap-1 lens-rounded-badge lens-px-2 lens-py-1 lens-text-sm lens-font-medium lens-text-muted;
+    @apply lens:inline-flex lens:items-center lens:gap-1 lens:rounded-badge lens:px-2 lens:py-1 lens:text-sm lens:font-medium lens:text-muted;
   }
 
   /* A panel that is the SOURCE of the page's cross-filter keeps every category
@@ -3752,28 +3763,28 @@
      category, because an unmarked full distribution beside filtered neighbours
      otherwise reads as a panel that failed to update. */
   .lens-chart-source-note {
-    @apply lens-text-faint;
+    @apply lens:text-faint;
   }
 
   .lens-cascade {
-    @apply lens-flex lens-flex-1 lens-flex-col lens-gap-0.5 lens-p-4;
+    @apply lens:flex lens:flex-1 lens:flex-col lens:gap-0.5 lens:p-4;
   }
 
   .lens-cascade-step {
-    @apply lens-flex lens-flex-col;
+    @apply lens:flex lens:flex-col;
   }
 
   .lens-cascade-connector {
-    @apply lens-ml-1.5 lens-flex lens-items-baseline lens-justify-between lens-gap-3 lens-border-0 lens-border-l-2 lens-border-solid lens-border-border lens-py-1.5 lens-pl-4 lens-text-base lens-font-medium lens-text-muted;
+    @apply lens:ml-1.5 lens:flex lens:items-baseline lens:justify-between lens:gap-3 lens:border-0 lens:border-l-2 lens:border-solid lens:border-border lens:py-1.5 lens:pl-4 lens:text-base lens:font-medium lens:text-muted;
   }
 
   .lens-cascade-connector strong {
-    @apply lens-shrink-0 lens-font-semibold;
+    @apply lens:shrink-0 lens:font-semibold;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-cascade-connector strong[data-direction='down'] {
-    @apply lens-text-neg;
+    @apply lens:text-neg;
   }
 
   .lens-cascade-connector strong[data-direction='up'] {
@@ -3781,18 +3792,18 @@
   }
 
   .lens-cascade-connector strong[data-direction='flat'] {
-    @apply lens-text-faint;
+    @apply lens:text-faint;
   }
 
   /* A movement nobody knows the size of. It prints the em dash rather than the
      «0 UZS» a coerced null used to, and takes the same quiet ink as a flat step
      without borrowing its claim that the step came to nothing. */
   .lens-cascade-connector strong[data-direction='unknown'] {
-    @apply lens-text-faint lens-font-normal;
+    @apply lens:text-faint lens:font-normal;
   }
 
   .lens-cascade-stage {
-    @apply lens-flex lens-flex-col lens-gap-2 lens-py-1.5;
+    @apply lens:flex lens:flex-col lens:gap-2 lens:py-1.5;
   }
 
   /* A stage that opens something. This is the same panel as the waterfall — the
@@ -3808,7 +3819,7 @@
      stopping at the glyphs. The bleed lives on this rule with the padding that
      cancels it, so an inert cascade keeps its geometry to the pixel. */
   .lens-cascade-stage[role='button'] {
-    @apply lens-rounded-control;
+    @apply lens:rounded-control;
     margin-inline: -0.5rem;
     padding-inline: 0.5rem;
     transition: background-color var(--lens-dur-fast) var(--lens-ease-standard);
@@ -3816,24 +3827,24 @@
 
   .lens-cascade-stage[role='button']:hover,
   .lens-cascade-stage[role='button']:focus-visible {
-    @apply lens-bg-inset;
+    @apply lens:bg-inset;
   }
 
   .lens-cascade-stage-label {
-    @apply lens-flex lens-items-baseline lens-justify-between lens-gap-4 lens-text-md lens-font-medium lens-text-text;
+    @apply lens:flex lens:items-baseline lens:justify-between lens:gap-4 lens:text-md lens:font-medium lens:text-text;
   }
 
   .lens-cascade-stage-label strong {
-    @apply lens-shrink-0 lens-font-semibold lens-text-strong;
+    @apply lens:shrink-0 lens:font-semibold lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-cascade-stage-label strong[data-negative='true'] {
-    @apply lens-text-neg;
+    @apply lens:text-neg;
   }
 
   .lens-cascade-stage-title {
-    @apply lens-flex lens-min-w-0 lens-flex-wrap lens-items-center lens-gap-1.5;
+    @apply lens:flex lens:min-w-0 lens:flex-wrap lens:items-center lens:gap-1.5;
   }
 
   /* The badge under a step's name — «Нет данных», «Настроить», «12 сверх
@@ -3848,7 +3859,7 @@
      states below can be mixed from the resting one instead of restating it. */
   .lens-cascade-stage-annotation,
   .lens-waterfall-annotation {
-    @apply lens-inline-flex lens-w-fit lens-max-w-full lens-items-center lens-gap-1 lens-rounded lens-border lens-border-solid lens-px-1.5 lens-py-0.5 lens-text-xs lens-font-semibold lens-leading-3;
+    @apply lens:inline-flex lens:w-fit lens:max-w-full lens:items-center lens:gap-1 lens:rounded lens:border lens:border-solid lens:px-1.5 lens:py-0.5 lens:text-xs lens:font-semibold lens:leading-3;
     --lens-annotation-ink: #b91c1c;
     --lens-annotation-fill: #fef2f2;
     --lens-annotation-edge: #fecaca;
@@ -3888,7 +3899,7 @@
      compresses under a narrow column, hence the floor on its box. */
   .lens-cascade-stage-annotation .lens-icon,
   .lens-waterfall-annotation .lens-icon {
-    @apply lens-shrink-0;
+    @apply lens:shrink-0;
     transition: transform var(--lens-dur-fast) var(--lens-ease-out);
   }
 
@@ -3920,15 +3931,15 @@
   }
 
   .lens-cascade-track {
-    @apply lens-h-2.5 lens-w-full lens-overflow-hidden lens-rounded-full lens-bg-inset;
+    @apply lens:h-2.5 lens:w-full lens:overflow-hidden lens:rounded-full lens:bg-inset;
   }
 
   .lens-cascade-track span {
-    @apply lens-block lens-h-full lens-rounded-full lens-bg-accent-500;
+    @apply lens:block lens:h-full lens:rounded-full lens:bg-accent-500;
   }
 
   .lens-cascade-stage-final .lens-cascade-stage-label {
-    @apply lens-font-semibold lens-text-strong;
+    @apply lens:font-semibold lens:text-strong;
   }
 
   .lens-cascade-stage-final .lens-cascade-track span {
@@ -3975,11 +3986,11 @@
      Last of the cascade rules on purpose: the tone declarations above are the
      ones it has to beat, and they match at the same specificity. */
   .lens-cascade-stage[data-unknown='true'] .lens-cascade-stage-label strong {
-    @apply lens-font-normal lens-text-faint;
+    @apply lens:font-normal lens:text-faint;
   }
 
   .lens-cascade-stage[data-unknown='true'] .lens-cascade-track {
-    @apply lens-border lens-border-dashed lens-border-border lens-bg-transparent;
+    @apply lens:border lens:border-dashed lens:border-border lens:bg-transparent;
   }
 
   /* The cascade used to reserve 7rem per step whatever the panel measured, and
@@ -3992,7 +4003,7 @@
      the scroll remains for the genuinely unfittable case and says so with a
      scrollbar that is always drawn. */
   .lens-waterfall {
-    @apply lens-flex lens-flex-1 lens-flex-col lens-overflow-x-auto lens-p-4;
+    @apply lens:flex lens:flex-1 lens:flex-col lens:overflow-x-auto lens:p-4;
     --lens-waterfall-column-width: 4.5rem;
     /* Widest a single column's bar may be drawn. A three-step reconciliation
        shared the plot between three bars 148px wide — wider than tall, and no
@@ -4022,7 +4033,7 @@
      matching left margin — two rulers for one row of steps, and a step that
      was activatable over its bar and inert over its own name. */
   .lens-waterfall-chart {
-    @apply lens-grid lens-min-h-0 lens-flex-1;
+    @apply lens:grid lens:min-h-0 lens:flex-1;
     grid-template-columns: 96px minmax(0, 1fr);
     grid-template-rows: minmax(var(--lens-waterfall-plot-h), 1fr) auto;
     row-gap: 0.5rem;
@@ -4034,25 +4045,25 @@
      alone — stretched over the label band too, every percentage would land low
      by the height of a name. */
   .lens-waterfall-axis {
-    @apply lens-relative lens-h-full;
+    @apply lens:relative lens:h-full;
     grid-row: 1;
   }
 
   .lens-waterfall-axis span {
-    @apply lens-absolute lens-right-3 lens-whitespace-nowrap lens-text-sm lens-text-muted;
+    @apply lens:absolute lens:right-3 lens:whitespace-nowrap lens:text-sm lens:text-muted;
     transform: translateY(-50%);
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   /* The unit the ticks stopped repeating, stated once above the topmost one. */
   .lens-waterfall-axis-unit {
-    @apply lens-text-xs lens-font-medium lens-text-faint;
+    @apply lens:text-xs lens:font-medium lens:text-faint;
     top: -1.25rem;
     transform: none;
   }
 
   .lens-waterfall-plot {
-    @apply lens-relative;
+    @apply lens:relative;
     display: grid;
     grid-column: 2;
     grid-row: 1 / -1;
@@ -4068,24 +4079,24 @@
      implicit tracks of its own and packed the bridge into the right half of the
      card. */
   .lens-waterfall-rules {
-    @apply lens-relative lens-z-0;
+    @apply lens:relative lens:z-0;
     grid-row: 1;
     grid-column: 2;
   }
 
   .lens-waterfall-gridline {
-    @apply lens-absolute lens-left-0 lens-right-0 lens-z-0 lens-border-0 lens-border-t lens-border-solid lens-border-border;
+    @apply lens:absolute lens:left-0 lens:right-0 lens:z-0 lens:border-0 lens:border-t lens:border-solid lens:border-border;
   }
 
   .lens-waterfall-zero {
-    @apply lens-absolute lens-left-0 lens-right-0 lens-z-0 lens-border-0 lens-border-t lens-border-solid lens-border-border;
+    @apply lens:absolute lens:left-0 lens:right-0 lens:z-0 lens:border-0 lens:border-t lens:border-solid lens:border-border;
     top: var(--lens-waterfall-zero);
   }
 
   /* The whole step: its bar band and its name, taking both of the chart's rows
      through the plot's subgrid. */
   .lens-waterfall-column {
-    @apply lens-relative lens-min-w-0;
+    @apply lens:relative lens:min-w-0;
     display: grid;
     grid-row: 1 / -1;
     grid-template-rows: subgrid;
@@ -4095,7 +4106,7 @@
      one of them by a percentage, which is why this box exists rather than the
      column's whole height being the basis. */
   .lens-waterfall-column-plot {
-    @apply lens-relative lens-min-w-0;
+    @apply lens:relative lens:min-w-0;
     grid-row: 1;
   }
 
@@ -4105,7 +4116,7 @@
      opened, and a pointer that only changed shape over four pixels was a
      promise the reader had to hunt for. */
   .lens-waterfall-column[role='button']::before {
-    @apply lens-pointer-events-none lens-absolute lens-inset-0 lens-z-0 lens-rounded-control lens-opacity-0;
+    @apply lens:pointer-events-none lens:absolute lens:inset-0 lens:z-0 lens:rounded-control lens:opacity-0;
     /* A plate, and it has to survive being drawn over the column's own underlay
        — which is this same accent at 0.1. A tint alone cannot: 7% of a hue over
        10% of that hue moved the strongest channel by 14/255, and the underlay
@@ -4120,7 +4131,7 @@
 
   .lens-waterfall-column[role='button']:hover::before,
   .lens-waterfall-column[role='button']:focus-visible::before {
-    @apply lens-opacity-100;
+    @apply lens:opacity-100;
   }
 
   /* The bar lifts off the plate rather than changing colour on it. A halo in the
@@ -4145,13 +4156,13 @@
   /* Runs from this column's bar to the next one's, so it follows the cap
      above rather than assuming the bar fills half the column. */
   .lens-waterfall-connector {
-    @apply lens-absolute lens-z-[1] lens-border-0 lens-border-t lens-border-dashed lens-border-border;
+    @apply lens:absolute lens:z-[1] lens:border-0 lens:border-t lens:border-dashed lens:border-border;
     left: calc(50% + var(--lens-waterfall-bar-width) / 2);
     width: calc(100% + 12px - var(--lens-waterfall-bar-width));
   }
 
   .lens-waterfall-bar {
-    @apply lens-absolute lens-z-[2] lens-rounded-t-sm;
+    @apply lens:absolute lens:z-[2] lens:rounded-t-sm;
     left: 50%;
     width: var(--lens-waterfall-bar-width);
     margin-left: calc(var(--lens-waterfall-bar-width) / -2);
@@ -4194,7 +4205,7 @@
      colour rather than a new hue: it is still the same cost, told apart, not a
      different thing on the chart. */
   .lens-waterfall-bar-split {
-    @apply lens-absolute lens-left-0 lens-right-0 lens-top-0 lens-rounded-t-sm;
+    @apply lens:absolute lens:left-0 lens:right-0 lens:top-0 lens:rounded-t-sm;
     /* A band thinner than this is a colour no one can see. A small share of a
        short bar is exactly when the reader most needs telling it is there. */
     min-height: 3px;
@@ -4212,7 +4223,7 @@
      two collide in the gutter between columns; a few pixels lower it clears
      that band and lands against the neighbour's empty plot area instead. */
   .lens-waterfall-split-callout {
-    @apply lens-pointer-events-none lens-absolute lens-z-[3] lens-whitespace-nowrap lens-rounded lens-border lens-border-solid lens-border-border lens-bg-card lens-px-1 lens-py-px lens-text-xs lens-font-semibold;
+    @apply lens:pointer-events-none lens:absolute lens:z-[3] lens:whitespace-nowrap lens:rounded lens:border lens:border-solid lens:border-border lens:bg-card lens:px-1 lens:py-px lens:text-xs lens:font-semibold;
     top: calc(100% + 3px);
     color: var(--lens-neg-alt);
     font-variant-numeric: tabular-nums lining-nums;
@@ -4245,44 +4256,44 @@
   }
 
   .lens-waterfall-tip {
-    @apply lens-pointer-events-auto lens-fixed lens-z-tooltip lens-flex lens-flex-col lens-gap-0.5 lens-whitespace-nowrap lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-text-left lens-font-sans lens-text-base lens-normal-case lens-tracking-normal;
+    @apply lens:pointer-events-auto lens:fixed lens:z-tooltip lens:flex lens:flex-col lens:gap-0.5 lens:whitespace-nowrap lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2.5 lens:py-2 lens:text-left lens:font-sans lens:text-base lens:normal-case lens:tracking-normal;
     box-shadow: var(--lens-shadow-popover);
   }
 
   .lens-waterfall-tip-head {
-    @apply lens-text-base lens-font-medium lens-text-muted;
+    @apply lens:text-base lens:font-medium lens:text-muted;
   }
 
   /* The figure and its copy button on one line, the button hard right of the
      number it takes — never between the number and the next line of the card. */
   .lens-waterfall-tip-amount {
-    @apply lens-flex lens-items-center lens-gap-1.5;
+    @apply lens:flex lens:items-center lens:gap-1.5;
   }
 
   .lens-waterfall-tip-amount > strong {
-    @apply lens-text-lg lens-font-semibold lens-text-strong;
+    @apply lens:text-lg lens:font-semibold lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   /* The split is a part OF the amount above it, so it is drawn as the smaller
      thing it is and keeps the band's own ink. */
   .lens-waterfall-tip-amount[data-split='true'] > strong {
-    @apply lens-text-base;
+    @apply lens:text-base;
     color: var(--lens-neg-alt);
   }
 
   .lens-waterfall-tip-label {
-    @apply lens-mt-1 lens-text-sm lens-text-muted;
+    @apply lens:mt-1 lens:text-sm lens:text-muted;
   }
 
   .lens-waterfall-tip-foot {
-    @apply lens-mt-1.5 lens-border-0 lens-border-t lens-border-solid lens-border-border lens-pt-1.5 lens-text-sm lens-text-faint;
+    @apply lens:mt-1.5 lens:border-0 lens:border-t lens:border-solid lens:border-border lens:pt-1.5 lens:text-sm lens:text-faint;
   }
 
   /* The tip points back at the band it explains; a rectangle floating over a
      ten-column plot names no column on its own. */
   .lens-waterfall-tip-tail {
-    @apply lens-absolute lens-left-1/2 lens-size-2 lens-rotate-45 lens-border lens-border-solid lens-border-border lens-bg-card;
+    @apply lens:absolute lens:left-1/2 lens:size-2 lens:rotate-45 lens:border lens:border-solid lens:border-border lens:bg-card;
     margin-left: -4px;
   }
 
@@ -4308,7 +4319,7 @@
      red column eats into the blue premium standing under it. 0.1 is the alpha
      that reads as a column and still sits under the lightest bar. */
   .lens-waterfall-underlay {
-    @apply lens-absolute lens-z-0;
+    @apply lens:absolute lens:z-0;
     left: 50%;
     width: var(--lens-waterfall-bar-width);
     margin-left: calc(var(--lens-waterfall-bar-width) / -2);
@@ -4317,7 +4328,7 @@
   }
 
   .lens-waterfall-bar strong {
-    @apply lens-absolute lens-left-1/2 lens-text-center lens-text-sm lens-font-semibold lens-leading-tight lens-text-strong;
+    @apply lens:absolute lens:left-1/2 lens:text-center lens:text-sm lens:font-semibold lens:leading-tight lens:text-strong;
     top: -4px;
     width: 200%;
     overflow-wrap: anywhere;
@@ -4382,7 +4393,7 @@
   }
 
   .lens-waterfall-bar[data-no-movement='true'] strong {
-    @apply lens-font-normal;
+    @apply lens:font-normal;
     color: var(--lens-text-faint);
   }
 
@@ -4390,16 +4401,16 @@
      good and stated nowhere on a panel that had no legend, caption or footer of
      any kind — an unexplained encoding is decoration. */
   .lens-waterfall-key {
-    @apply lens-m-0 lens-mt-3 lens-flex lens-flex-wrap lens-items-center lens-gap-4 lens-text-sm lens-text-muted;
+    @apply lens:m-0 lens:mt-3 lens:flex lens:flex-wrap lens:items-center lens:gap-4 lens:text-sm lens:text-muted;
     margin-left: 96px;
   }
 
   .lens-waterfall-key-item {
-    @apply lens-inline-flex lens-items-center lens-gap-1.5;
+    @apply lens:inline-flex lens:items-center lens:gap-1.5;
   }
 
   .lens-waterfall-key-item::before {
-    @apply lens-h-3 lens-w-2.5 lens-flex-none lens-rounded-badge;
+    @apply lens:h-3 lens:w-2.5 lens:flex-none lens:rounded-badge;
     content: '';
   }
 
@@ -4450,7 +4461,7 @@
   }
 
   .lens-waterfall-bar[data-unknown='true'] strong {
-    @apply lens-font-normal;
+    @apply lens:font-normal;
     color: var(--lens-text-faint);
   }
 
@@ -4478,7 +4489,7 @@
      the column count the parallel grid below the plot used to carry to stay in
      line with the bar it names. */
   .lens-waterfall-label {
-    @apply lens-flex lens-min-w-0 lens-flex-col lens-items-center lens-gap-1 lens-text-center lens-text-base lens-font-medium lens-leading-4 lens-text-muted;
+    @apply lens:flex lens:min-w-0 lens:flex-col lens:items-center lens:gap-1 lens:text-center lens:text-base lens:font-medium lens:leading-4 lens:text-muted;
     grid-row: 2;
   }
 
@@ -4489,7 +4500,7 @@
      two lines for every column, so the row stays flush without being made flush
      by mutilating the words. */
   .lens-waterfall-label > span {
-    @apply lens-min-w-0 lens-overflow-hidden;
+    @apply lens:min-w-0 lens:overflow-hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -4502,11 +4513,11 @@
   }
 
   .lens-table-view {
-    @apply lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
+    @apply lens:flex lens:min-h-0 lens:flex-1 lens:flex-col;
   }
 
   .lens-table-scroll-frame {
-    @apply lens-relative lens-flex lens-min-h-0 lens-flex-1;
+    @apply lens:relative lens:flex lens:min-h-0 lens:flex-1;
   }
 
   /* A column cut mid-glyph («74 357 UZ») reads as a rendering fault, not as a
@@ -4515,7 +4526,7 @@
      cut lands on a fade instead of on a letter. */
   .lens-table-scroll-frame::before,
   .lens-table-scroll-frame::after {
-    @apply lens-pointer-events-none lens-absolute lens-inset-y-0;
+    @apply lens:pointer-events-none lens:absolute lens:inset-y-0;
     content: '';
     opacity: 0;
     transition: opacity var(--lens-dur-fast) var(--lens-ease-standard);
@@ -4543,11 +4554,11 @@
      browser's own ring is a `:focus-visible` ring too, so the rule below simply
      replaces it — there is nothing to suppress. */
   .lens-table-scroll {
-    @apply lens-min-h-0 lens-flex-1 lens-overflow-auto;
+    @apply lens:min-h-0 lens:flex-1 lens:overflow-auto;
   }
 
   .lens-table-overflow-edge {
-    @apply lens-pointer-events-none lens-absolute lens-m-0 lens-rounded-full lens-border lens-border-solid lens-border-border lens-bg-card lens-p-0;
+    @apply lens:pointer-events-none lens:absolute lens:m-0 lens:rounded-full lens:border lens:border-solid lens:border-border lens:bg-card lens:p-0;
     appearance: none;
     color: var(--lens-text-muted);
     cursor: pointer;
@@ -4562,7 +4573,7 @@
   }
 
   .lens-table-overflow-edge::after {
-    @apply lens-absolute lens-inset-0;
+    @apply lens:absolute lens:inset-0;
     background-color: currentcolor;
     content: '';
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 16'%3E%3Cpath d='M4 2l4 6-4 6' fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'/%3E%3C/svg%3E") center / 12px 16px no-repeat;
@@ -4583,7 +4594,7 @@
 
   .lens-table-scroll-frame[data-overflow-left='true'] .lens-table-overflow-edge-left,
   .lens-table-scroll-frame[data-overflow-right='true'] .lens-table-overflow-edge-right {
-    @apply lens-pointer-events-auto;
+    @apply lens:pointer-events-auto;
     opacity: 1;
   }
 
@@ -4597,11 +4608,11 @@
   }
 
   .lens-table-search {
-    @apply lens-block lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-card lens-p-3;
+    @apply lens:block lens:border-0 lens:border-b lens:border-solid lens:border-border lens:bg-card lens:p-3;
   }
 
   .lens-table-search input {
-    @apply lens-w-full lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-py-2 lens-font-sans lens-text-md lens-text-strong;
+    @apply lens:w-full lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-3 lens:py-2 lens:font-sans lens:text-md lens:text-strong;
   }
 
   /* Focus is the shared ring, not a border swap. This field used to suppress the
@@ -4613,7 +4624,7 @@
   }
 
   .lens-table {
-    @apply lens-w-full lens-border-collapse lens-text-left lens-text-md;
+    @apply lens:w-full lens:border-collapse lens:text-left lens:text-md;
   }
 
   .lens-table-wide {
@@ -4636,23 +4647,23 @@
   }
 
   .lens-table th {
-    @apply lens-sticky lens-top-0 lens-z-10 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-inset lens-p-0 lens-text-base lens-font-semibold lens-text-muted;
+    @apply lens:sticky lens:top-0 lens:z-10 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:bg-inset lens:p-0 lens:text-base lens:font-semibold lens:text-muted;
   }
 
   .lens-table th:first-child {
-    @apply lens-left-0 lens-z-20;
+    @apply lens:left-0 lens:z-20;
   }
 
   /* A header is a control, so it takes a control height from the token layer:
      12/16 type plus py-2.5 already measures the lg step exactly, and stating it
      keeps the mark inside from being what decides how tall a header is. */
   .lens-table th button {
-    @apply lens-flex lens-w-full lens-items-center lens-justify-between lens-gap-2 lens-border-0 lens-bg-transparent lens-px-3 lens-py-2.5 lens-text-left lens-font-sans lens-text-base lens-font-semibold lens-text-muted;
+    @apply lens:flex lens:w-full lens:items-center lens:justify-between lens:gap-2 lens:border-0 lens:bg-transparent lens:px-3 lens:py-2.5 lens:text-left lens:font-sans lens:text-base lens:font-semibold lens:text-muted;
     min-height: var(--lens-control-h-lg);
   }
 
   .lens-table th button:hover {
-    @apply lens-text-strong;
+    @apply lens:text-strong;
   }
 
   /* The sort affordance. One box of a fixed width per sortable header whatever
@@ -4660,7 +4671,7 @@
      beside it — a moving label in a right-aligned header would undo the
      alignment it was placed there for. */
   .lens-table-sort {
-    @apply lens-flex lens-flex-none lens-items-center lens-justify-center lens-text-faint;
+    @apply lens:flex lens:flex-none lens:items-center lens:justify-center lens:text-faint;
     width: var(--lens-type-md);
     opacity: 0;
     transition: opacity var(--lens-dur-fast) var(--lens-ease-standard);
@@ -4700,7 +4711,7 @@
   }
 
   .lens-table td {
-    @apply lens-border-0 lens-border-b lens-border-solid lens-px-3 lens-py-2.5 lens-text-text;
+    @apply lens:border-0 lens:border-b lens:border-solid lens:px-3 lens:py-2.5 lens:text-text;
     border-color: var(--lens-divider);
   }
 
@@ -4726,16 +4737,16 @@
   }
 
   .lens-table tfoot td {
-    @apply lens-sticky lens-bottom-0 lens-z-10 lens-bg-inset lens-font-semibold lens-text-strong;
+    @apply lens:sticky lens:bottom-0 lens:z-10 lens:bg-inset lens:font-semibold lens:text-strong;
     border-top: 1px solid var(--lens-border);
   }
 
   .lens-table tfoot td:first-child {
-    @apply lens-z-20 lens-bg-inset;
+    @apply lens:z-20 lens:bg-inset;
   }
 
   .lens-table td:first-child {
-    @apply lens-sticky lens-left-0 lens-z-[1] lens-bg-card;
+    @apply lens:sticky lens:left-0 lens:z-[1] lens:bg-card;
   }
 
   .lens-table-scroll-frame:is([data-overflow-left='true'], [data-overflow-right='true']) .lens-table :is(th, td):first-child {
@@ -4744,25 +4755,25 @@
   }
 
   .lens-table tbody tr:hover {
-    @apply lens-bg-accent-50;
+    @apply lens:bg-accent-50;
   }
 
   .lens-table tbody tr:hover td:first-child {
-    @apply lens-bg-accent-50;
+    @apply lens:bg-accent-50;
   }
 
   .lens-table-cell-number,
   .lens-table-cell-time {
-    @apply lens-text-right;
+    @apply lens:text-right;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-table-cell-bool {
-    @apply lens-text-center;
+    @apply lens:text-center;
   }
 
   .lens-table-bool {
-    @apply lens-inline-flex lens-rounded-badge lens-bg-inset lens-px-2 lens-py-0.5 lens-text-base lens-font-semibold lens-text-muted;
+    @apply lens:inline-flex lens:rounded-badge lens:bg-inset lens:px-2 lens:py-0.5 lens:text-base lens:font-semibold lens:text-muted;
   }
 
   .lens-table-bool[data-value='true'] {
@@ -4771,11 +4782,11 @@
   }
 
   .lens-table-null {
-    @apply lens-text-faint;
+    @apply lens:text-faint;
   }
 
   .lens-table-col-right {
-    @apply lens-text-right;
+    @apply lens:text-right;
   }
 
   /* `th` is in this selector because without it the rule was dead. Its job is
@@ -4789,7 +4800,7 @@
      the element takes this rule to (0,2,2), which is what an override has to
      do — the same lesson the focus-ring block records further down. */
   .lens-table th.lens-table-col-right button {
-    @apply lens-justify-end;
+    @apply lens:justify-end;
   }
 
   /* In a right-aligned column the label's *right* edge is what has to line up
@@ -4803,7 +4814,7 @@
   /* A compact number that wraps doubles the row height and stops reading as
      one value, so numeric cells never break. */
   .lens-table-cell.lens-table-col-right {
-    @apply lens-whitespace-nowrap;
+    @apply lens:whitespace-nowrap;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -4813,23 +4824,23 @@
   .lens-table-delta-value,
   .lens-table-delta-pct,
   .lens-table-cell-pill {
-    @apply lens-whitespace-nowrap;
+    @apply lens:whitespace-nowrap;
   }
 
   .lens-table-bar {
-    @apply lens-flex lens-items-center lens-justify-end lens-gap-2;
+    @apply lens:flex lens:items-center lens:justify-end lens:gap-2;
   }
 
   .lens-table-bar-track {
-    @apply lens-h-1.5 lens-w-24 lens-min-w-16 lens-overflow-hidden lens-rounded-full lens-bg-inset;
+    @apply lens:h-1.5 lens:w-24 lens:min-w-16 lens:overflow-hidden lens:rounded-full lens:bg-inset;
   }
 
   .lens-table-bar-track {
-    @apply lens-relative;
+    @apply lens:relative;
   }
 
   .lens-table-bar-fill {
-    @apply lens-absolute lens-inset-y-0 lens-block lens-h-full lens-rounded-full lens-bg-accent-500;
+    @apply lens:absolute lens:inset-y-0 lens:block lens:h-full lens:rounded-full lens:bg-accent-500;
   }
 
   .lens-table-bar-fill-negative {
@@ -4837,17 +4848,17 @@
   }
 
   .lens-table-underline {
-    @apply lens-inline-flex lens-flex-col lens-items-stretch lens-gap-1 lens-whitespace-nowrap;
+    @apply lens:inline-flex lens:flex-col lens:items-stretch lens:gap-1 lens:whitespace-nowrap;
   }
 
   .lens-table-underline-value {
-    @apply lens-whitespace-nowrap lens-font-medium lens-text-strong;
+    @apply lens:whitespace-nowrap lens:font-medium lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   /* The rule spans the value it underlines; sign is the only thing it encodes. */
   .lens-table-underline-rule {
-    @apply lens-block lens-h-0.5 lens-w-full lens-rounded-full;
+    @apply lens:block lens:h-0.5 lens:w-full lens:rounded-full;
     background: var(--lens-accent-500);
   }
 
@@ -4856,15 +4867,15 @@
   }
 
   .lens-table-clamp-host {
-    @apply lens-relative lens-block lens-w-full lens-min-w-0 lens-border-0 lens-bg-transparent lens-p-0 lens-text-left lens-font-sans lens-text-base lens-text-inherit;
+    @apply lens:relative lens:block lens:w-full lens:min-w-0 lens:border-0 lens:bg-transparent lens:p-0 lens:text-left lens:font-sans lens:text-base lens:text-inherit;
   }
 
   button.lens-table-clamp-host {
-    @apply lens-cursor-pointer;
+    @apply lens:cursor-pointer;
   }
 
   .lens-table-clamp {
-    @apply lens-block lens-overflow-hidden;
+    @apply lens:block lens:overflow-hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
   }
@@ -4872,7 +4883,7 @@
   /* What the clamp cut, on the runtime's own popover chrome rather than the
      browser's tooltip: reachable by keyboard, instant, and legible. */
   .lens-table-clamp-full {
-    @apply lens-pointer-events-none lens-invisible lens-absolute lens-left-0 lens-top-0 lens-w-max lens-max-w-80 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-2 lens-text-base lens-text-text lens-opacity-0;
+    @apply lens:pointer-events-none lens:invisible lens:absolute lens:left-0 lens:top-0 lens:w-max lens:max-w-80 lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card lens:p-2 lens:text-base lens:text-text lens:opacity-0;
     box-shadow: var(--lens-shadow-popover);
     transition: opacity var(--lens-dur-fast) var(--lens-ease-standard);
     z-index: var(--lens-z-popover);
@@ -4881,15 +4892,15 @@
   .lens-table-clamp-host:hover .lens-table-clamp-full,
   .lens-table-clamp-host:focus-visible .lens-table-clamp-full,
   .lens-table-clamp-host:focus-within .lens-table-clamp-full {
-    @apply lens-visible lens-opacity-100;
+    @apply lens:visible lens:opacity-100;
   }
 
   .lens-table-small-sample {
-    @apply lens-inline-flex lens-items-center lens-justify-end lens-gap-1.5 lens-text-muted;
+    @apply lens:inline-flex lens:items-center lens:justify-end lens:gap-1.5 lens:text-muted;
   }
 
   .lens-table-small-sample-marker {
-    @apply lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-1.5 lens-py-0.5 lens-text-xs lens-font-semibold lens-leading-none lens-text-faint;
+    @apply lens:rounded-badge lens:border lens:border-solid lens:border-border lens:bg-inset lens:px-1.5 lens:py-0.5 lens:text-xs lens:font-semibold lens:leading-none lens:text-faint;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -4897,29 +4908,29 @@
      statement, so it takes the muted ink of a stated absence rather than the
      bold of the figures beside it. */
   .lens-table tfoot td .lens-table-summary-void {
-    @apply lens-font-normal lens-text-faint;
+    @apply lens:font-normal lens:text-faint;
   }
 
   .lens-table-heading-static {
-    @apply lens-block lens-px-3 lens-py-2.5 lens-text-base lens-font-semibold lens-text-muted;
+    @apply lens:block lens:px-3 lens:py-2.5 lens:text-base lens:font-semibold lens:text-muted;
   }
 
   .lens-table-bar-value {
-    @apply lens-shrink-0 lens-text-right lens-font-medium lens-text-strong;
+    @apply lens:shrink-0 lens:text-right lens:font-medium lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-table-delta {
-    @apply lens-inline-flex lens-items-baseline lens-justify-end lens-gap-2;
+    @apply lens:inline-flex lens:items-baseline lens:justify-end lens:gap-2;
   }
 
   .lens-table-delta-value {
-    @apply lens-font-medium lens-text-strong;
+    @apply lens:font-medium lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-table-delta-pct {
-    @apply lens-rounded-badge lens-px-1.5 lens-py-0.5 lens-text-base lens-font-semibold;
+    @apply lens:rounded-badge lens:px-1.5 lens:py-0.5 lens:text-base lens:font-semibold;
     background: var(--lens-pos-soft);
     color: var(--lens-pos);
     font-variant-numeric: tabular-nums lining-nums;
@@ -4931,43 +4942,43 @@
   }
 
   .lens-table-delta-stacked {
-    @apply lens-flex lens-flex-col lens-items-end lens-gap-0.5;
+    @apply lens:flex lens:flex-col lens:items-end lens:gap-0.5;
   }
 
   /* Stacked deltas lead with the percent, so the chip background would fight
      the row; the color alone carries the sign. */
   .lens-table-delta-stacked .lens-table-delta-pct {
-    @apply lens-bg-transparent lens-p-0 lens-text-md;
+    @apply lens:bg-transparent lens:p-0 lens:text-md;
   }
 
   .lens-table-delta-stacked .lens-table-delta-value {
-    @apply lens-text-base lens-font-normal lens-text-muted;
+    @apply lens:text-base lens:font-normal lens:text-muted;
   }
 
   .lens-table .lens-table-cell-pill {
-    @apply lens-inline-flex lens-items-center lens-gap-1 lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-2 lens-py-0.5 lens-text-text;
+    @apply lens:inline-flex lens:items-center lens:gap-1 lens:rounded-badge lens:border lens:border-solid lens:border-border lens:bg-inset lens:px-2 lens:py-0.5 lens:text-text;
   }
 
   .lens-table .lens-table-cell-pill:hover {
-    @apply lens-bg-accent-50 lens-text-accent-700;
+    @apply lens:bg-accent-50 lens:text-accent-700;
   }
 
   .lens-table .lens-table-cell-link {
-    @apply lens-inline-flex lens-items-center lens-gap-1 lens-bg-transparent lens-text-accent-700;
+    @apply lens:inline-flex lens:items-center lens:gap-1 lens:bg-transparent lens:text-accent-700;
   }
 
   .lens-table-cell-link-arrow {
-    @apply lens-text-base lens-text-accent-700;
+    @apply lens:text-base lens:text-accent-700;
   }
 
   /* Quiet drill cell: the whole cell is the target, but it reads as a plain
      numeral until hover/focus reveals the underline and the trailing arrow. */
   .lens-table-cell-quiet {
-    @apply lens-flex lens-w-full lens-items-center lens-gap-1 lens-bg-transparent lens-text-text lens-no-underline;
+    @apply lens:flex lens:w-full lens:items-center lens:gap-1 lens:bg-transparent lens:text-text lens:no-underline;
   }
 
   .lens-table-cell-quiet-value {
-    @apply lens-min-w-0 lens-flex-1 lens-whitespace-nowrap;
+    @apply lens:min-w-0 lens:flex-1 lens:whitespace-nowrap;
     text-align: inherit;
     text-decoration: underline;
     text-decoration-color: transparent;
@@ -4976,7 +4987,7 @@
   }
 
   .lens-table-cell-quiet-arrow {
-    @apply lens-flex-none lens-text-base lens-text-accent-700;
+    @apply lens:flex-none lens:text-base lens:text-accent-700;
     opacity: 0;
     transition: opacity 120ms ease;
   }
@@ -5005,26 +5016,26 @@
   }
 
   .lens-table-cell-badged {
-    @apply lens-inline-flex lens-items-center lens-gap-1.5;
+    @apply lens:inline-flex lens:items-center lens:gap-1.5;
   }
 
   .lens-table-cell-badge {
-    @apply lens-inline-flex lens-h-4 lens-w-4 lens-flex-none lens-items-center lens-justify-center lens-rounded-full lens-bg-inset lens-text-base lens-font-semibold lens-text-muted;
+    @apply lens:inline-flex lens:h-4 lens:w-4 lens:flex-none lens:items-center lens:justify-center lens:rounded-full lens:bg-inset lens:text-base lens:font-semibold lens:text-muted;
     cursor: help;
   }
 
   /* Group toggle row: a chevron + label control standing in for a collapsed
      tail of rows. Its aggregate cells render through the normal cell path. */
   .lens-table-group-toggle > td {
-    @apply lens-bg-inset;
+    @apply lens:bg-inset;
   }
 
   .lens-table-group-toggle-btn {
-    @apply lens-flex lens-w-full lens-items-center lens-gap-2 lens-bg-transparent lens-text-left lens-font-sans lens-text-md lens-font-medium lens-text-strong;
+    @apply lens:flex lens:w-full lens:items-center lens:gap-2 lens:bg-transparent lens:text-left lens:font-sans lens:text-md lens:font-medium lens:text-strong;
   }
 
   .lens-table-group-chevron {
-    @apply lens-flex lens-text-muted;
+    @apply lens:flex lens:text-muted;
     transition: transform 120ms ease;
   }
 
@@ -5033,43 +5044,43 @@
   }
 
   .lens-table-rowcount {
-    @apply lens-text-base lens-text-muted;
+    @apply lens:text-base lens:text-muted;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-table-footer-notes {
-    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-3;
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-3;
   }
 
   .lens-table-action-heading,
   .lens-table-action-cell {
-    @apply lens-w-px lens-whitespace-nowrap lens-text-right;
+    @apply lens:w-px lens:whitespace-nowrap lens:text-right;
   }
 
   .lens-table .lens-leaf-action {
-    @apply lens-bg-transparent lens-px-2 lens-py-1 lens-text-base lens-text-accent-700;
+    @apply lens:bg-transparent lens:px-2 lens:py-1 lens:text-base lens:text-accent-700;
   }
 
   .lens-table-empty {
-    @apply lens-h-28 lens-text-center lens-text-md lens-text-muted;
+    @apply lens:h-28 lens:text-center lens:text-md lens:text-muted;
   }
 
   .lens-table-footer {
-    @apply lens-flex lens-min-h-11 lens-flex-wrap lens-items-center lens-justify-between lens-gap-3 lens-border-0 lens-border-t lens-border-solid lens-border-border lens-bg-inset lens-px-3 lens-py-2;
+    @apply lens:flex lens:min-h-11 lens:flex-wrap lens:items-center lens:justify-between lens:gap-3 lens:border-0 lens:border-t lens:border-solid lens:border-border lens:bg-inset lens:px-3 lens:py-2;
   }
 
   .lens-table-pagination {
-    @apply lens-flex lens-items-center lens-gap-2 lens-text-base lens-font-semibold lens-text-muted;
+    @apply lens:flex lens:items-center lens:gap-2 lens:text-base lens:font-semibold lens:text-muted;
   }
 
   .lens-table-pagination button {
-    @apply lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-base lens-font-semibold lens-text-text;
+    @apply lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2.5 lens:py-1.5 lens:font-sans lens:text-base lens:font-semibold lens:text-text;
   }
 
   /* There is no page to go to: the fade says so, and the cursor must not keep
      promising a click. */
   .lens-table-pagination button:disabled {
-    @apply lens-cursor-not-allowed lens-opacity-40;
+    @apply lens:cursor-not-allowed lens:opacity-40;
   }
 
   .lens-sr-only {
@@ -5085,132 +5096,132 @@
   }
 
   .lens-panel-unsupported {
-    @apply lens-border-dashed;
+    @apply lens:border-dashed;
   }
 
   .lens-story-matrix {
-    @apply lens-min-w-max lens-p-6;
+    @apply lens:min-w-max lens:p-6;
   }
 
   .lens-story-matrix-grid {
-    @apply lens-grid lens-items-stretch lens-gap-3;
+    @apply lens:grid lens:items-stretch lens:gap-3;
     grid-template-columns: 5rem repeat(5, minmax(16rem, 1fr));
   }
 
   .lens-story-matrix-grid > strong {
-    @apply lens-pb-1 lens-text-base lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens:pb-1 lens:text-base lens:font-semibold lens:uppercase lens:tracking-wider lens:text-muted;
   }
 
   .lens-story-row-label {
-    @apply lens-flex lens-items-center;
+    @apply lens:flex lens:items-center;
   }
 
   .lens-story-cell {
-    @apply lens-flex lens-min-h-72 lens-flex-col lens-gap-2;
+    @apply lens:flex lens:min-h-72 lens:flex-col lens:gap-2;
   }
 
   .lens-story-cell-label {
-    @apply lens-text-base lens-text-faint;
+    @apply lens:text-base lens:text-faint;
   }
 
   .lens-explore-story {
-    @apply lens-flex lens-flex-col lens-gap-4;
+    @apply lens:flex lens:flex-col lens:gap-4;
   }
 
   .lens-story-guide {
-    @apply lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-md lens-leading-6 lens-text-muted lens-shadow-card;
+    @apply lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:p-3 lens:text-md lens:leading-6 lens:text-muted lens:shadow-card;
   }
 
   .lens-story-guide strong {
-    @apply lens-text-strong;
+    @apply lens:text-strong;
   }
 
   .lens-fake-chart {
-    @apply lens-flex lens-h-full lens-min-h-48 lens-flex-col lens-gap-3;
+    @apply lens:flex lens:h-full lens:min-h-48 lens:flex-col lens:gap-3;
   }
 
   .lens-fake-chart-plot {
-    @apply lens-flex lens-min-h-32 lens-flex-1 lens-items-end lens-justify-around lens-gap-2 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-3 lens-pt-3;
+    @apply lens:flex lens:min-h-32 lens:flex-1 lens:items-end lens:justify-around lens:gap-2 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:px-3 lens:pt-3;
   }
 
   .lens-fake-chart-mark {
-    @apply lens-flex lens-min-h-8 lens-flex-1 lens-items-start lens-justify-center lens-rounded-badge lens-border-0 lens-bg-accent-500 lens-p-1 lens-text-base lens-font-semibold lens-text-on-accent lens-opacity-80;
+    @apply lens:flex lens:min-h-8 lens:flex-1 lens:items-start lens:justify-center lens:rounded-badge lens:border-0 lens:bg-accent-500 lens:p-1 lens:text-base lens:font-semibold lens:text-on-accent lens:opacity-80;
     height: var(--lens-mark-size);
   }
 
   .lens-fake-chart-pie .lens-fake-chart-plot,
   .lens-fake-chart-donut .lens-fake-chart-plot {
-    @apply lens-items-center lens-border-0;
+    @apply lens:items-center lens:border-0;
   }
 
   .lens-fake-chart-pie .lens-fake-chart-mark,
   .lens-fake-chart-donut .lens-fake-chart-mark {
-    @apply lens-aspect-square lens-flex-none lens-rounded-full;
+    @apply lens:aspect-square lens:flex-none lens:rounded-full;
     width: calc(var(--lens-mark-size) * .62);
     height: auto;
   }
 
   .lens-fake-chart-line .lens-fake-chart-mark,
   .lens-fake-chart-area .lens-fake-chart-mark {
-    @apply lens-relative lens-h-2 lens-min-h-2 lens-rounded-full;
+    @apply lens:relative lens:h-2 lens:min-h-2 lens:rounded-full;
     margin-bottom: calc(var(--lens-mark-size) * .65);
   }
 
   .lens-fake-chart-footer {
-    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-2 lens-text-base lens-text-muted;
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-2 lens:text-base lens:text-muted;
   }
 
   .lens-fake-chart-footer > span {
-    @apply lens-mr-auto lens-font-semibold lens-text-strong;
+    @apply lens:mr-auto lens:font-semibold lens:text-strong;
   }
 
   .lens-fake-chart-footer button {
-    @apply lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-py-1 lens-font-sans lens-text-base lens-text-muted;
+    @apply lens:rounded-badge lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2 lens:py-1 lens:font-sans lens:text-base lens:text-muted;
   }
 
   .lens-fake-chart-footer button[aria-pressed='false'] {
-    @apply lens-line-through lens-opacity-50;
+    @apply lens:line-through lens:opacity-50;
   }
 
   .lens-runtime-notice {
-    @apply lens-mb-3 lens-flex lens-items-center lens-justify-between lens-gap-3 lens-rounded-control lens-bg-accent-50 lens-p-3 lens-text-md lens-text-accent-700;
+    @apply lens:mb-3 lens:flex lens:items-center lens:justify-between lens:gap-3 lens:rounded-control lens:bg-accent-50 lens:p-3 lens:text-md lens:text-accent-700;
   }
 
   .lens-runtime-notice button {
-    @apply lens-border-0 lens-bg-transparent lens-text-lg lens-text-accent-700;
+    @apply lens:border-0 lens:bg-transparent lens:text-lg lens:text-accent-700;
   }
 
   .lens-document-refetch-error {
-    @apply lens-mb-4 lens-flex lens-items-center lens-justify-between lens-gap-3 lens-rounded-control lens-border lens-border-solid lens-border-border-strong lens-px-3 lens-py-2 lens-font-mono lens-text-base lens-font-medium lens-text-strong;
+    @apply lens:mb-4 lens:flex lens:items-center lens:justify-between lens:gap-3 lens:rounded-control lens:border lens:border-solid lens:border-border-strong lens:px-3 lens:py-2 lens:font-mono lens:text-base lens:font-medium lens:text-strong;
     background: var(--lens-neg-soft);
     box-shadow: inset 3px 0 0 var(--lens-neg);
   }
 
   .lens-document-refetch-error-actions {
-    @apply lens-flex lens-shrink-0 lens-items-center lens-gap-1;
+    @apply lens:flex lens:shrink-0 lens:items-center lens:gap-1;
   }
 
   .lens-document-refetch-error-actions button {
-    @apply lens-rounded-badge lens-border lens-border-solid lens-border-border-strong lens-bg-card lens-px-2 lens-py-1 lens-font-mono lens-text-base lens-font-semibold lens-text-text;
+    @apply lens:rounded-badge lens:border lens:border-solid lens:border-border-strong lens:bg-card lens:px-2 lens:py-1 lens:font-mono lens:text-base lens:font-semibold lens:text-text;
   }
 
   .lens-document-refetch-error-actions button:hover {
-    @apply lens-text-strong;
+    @apply lens:text-strong;
     border-color: var(--lens-text-muted);
   }
 
   .lens-document-refetch-error-actions .lens-document-refetch-error-dismiss {
-    @apply lens-border-transparent lens-bg-transparent lens-text-lg lens-leading-none lens-text-muted;
+    @apply lens:border-transparent lens:bg-transparent lens:text-lg lens:leading-none lens:text-muted;
   }
 
   .lens-explore {
-    @apply lens-flex lens-h-full lens-min-w-0 lens-flex-col;
+    @apply lens:flex lens:h-full lens:min-w-0 lens:flex-col;
   }
 
   /* Drill chrome lives in the panel header: a back control, crumbs, and the
      applied perspective as a muted suffix on the current crumb. */
   .lens-panel-trail {
-    @apply lens-flex lens-min-w-0 lens-flex-1 lens-items-center lens-gap-1;
+    @apply lens:flex lens:min-w-0 lens:flex-1 lens:items-center lens:gap-1;
   }
 
   /* Readable text or nothing: the level name keeps a legible floor, and in a
@@ -5218,12 +5229,12 @@
      label steps aside entirely, leaving the back button — never a one-letter
      stump. The full path stays one click away in the overlay. */
   .lens-trail-current {
-    @apply lens-min-w-0 lens-max-w-full lens-truncate lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1 lens-font-sans lens-text-base lens-font-semibold lens-uppercase lens-tracking-wider lens-text-strong;
+    @apply lens:min-w-0 lens:max-w-full lens:truncate lens:rounded-badge lens:border-0 lens:bg-transparent lens:px-1 lens:font-sans lens:text-base lens:font-semibold lens:uppercase lens:tracking-wider lens:text-strong;
     min-width: 5rem;
   }
 
   .lens-trail-current:hover {
-    @apply lens-bg-inset;
+    @apply lens:bg-inset;
   }
 
   @container lens-panel-header (max-width: 220px) {
@@ -5243,50 +5254,50 @@
 
   .lens-trail-back,
   .lens-explore-affordance {
-    @apply lens-shrink-0;
+    @apply lens:shrink-0;
   }
 
   /* A fork in the drill path: the level owns no data, its perspectives do. */
   .lens-explore-awaiting {
-    @apply lens-flex lens-min-h-40 lens-flex-1 lens-flex-col lens-items-center lens-justify-center lens-gap-3 lens-p-4 lens-text-center;
+    @apply lens:flex lens:min-h-40 lens:flex-1 lens:flex-col lens:items-center lens:justify-center lens:gap-3 lens:p-4 lens:text-center;
   }
 
   .lens-explore-awaiting-text {
-    @apply lens-m-0 lens-font-sans lens-text-md lens-text-muted;
+    @apply lens:m-0 lens:font-sans lens:text-md lens:text-muted;
   }
 
   .lens-explore-awaiting-action {
-    @apply lens-inline-flex lens-items-center lens-gap-1 lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-3 lens-py-1.5 lens-font-sans lens-text-base lens-font-semibold lens-text-strong;
+    @apply lens:inline-flex lens:items-center lens:gap-1 lens:rounded-badge lens:border lens:border-solid lens:border-border lens:bg-inset lens:px-3 lens:py-1.5 lens:font-sans lens:text-base lens:font-semibold lens:text-strong;
   }
 
   .lens-explore-awaiting-action:hover {
-    @apply lens-border-strong;
+    @apply lens:border-strong;
   }
 
   .lens-drill-path {
-    @apply lens-m-0 lens-flex lens-list-none lens-flex-col lens-gap-0.5 lens-p-0;
+    @apply lens:m-0 lens:flex lens:list-none lens:flex-col lens:gap-0.5 lens:p-0;
   }
 
   .lens-drill-path-step {
-    @apply lens-flex lens-w-full lens-items-center lens-gap-1 lens-rounded-md lens-border-0 lens-bg-transparent lens-px-1 lens-py-1 lens-text-left lens-font-sans lens-text-base lens-text-muted;
+    @apply lens:flex lens:w-full lens:items-center lens:gap-1 lens:rounded-md lens:border-0 lens:bg-transparent lens:px-1 lens:py-1 lens:text-left lens:font-sans lens:text-base lens:text-muted;
   }
 
   .lens-drill-path-step:hover:not(:disabled) {
-    @apply lens-bg-inset lens-text-strong;
+    @apply lens:bg-inset lens:text-strong;
   }
 
   .lens-drill-path-step[aria-current='page'] {
-    @apply lens-font-semibold lens-text-strong;
+    @apply lens:font-semibold lens:text-strong;
   }
 
   /* The current step is where you already are, not a broken control: it drops
      the pointer without the "forbidden" reading of not-allowed. */
   .lens-drill-path-step:disabled {
-    @apply lens-cursor-default;
+    @apply lens:cursor-default;
   }
 
   .lens-drill-scrim {
-    @apply lens-fixed lens-inset-0;
+    @apply lens:fixed lens:inset-0;
     appearance: none;
     padding: 0;
     border: 0;
@@ -5296,7 +5307,7 @@
   /* The popover is anchored to the mark, so it must never cover it: the
      placement logic keeps it beside the pointer and inside the viewport. */
   .lens-drill-overlay {
-    @apply lens-fixed lens-flex lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-shadow-lg lens-outline-none;
+    @apply lens:fixed lens:flex lens:flex-col lens:overflow-hidden lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card lens:shadow-lg lens:outline-none;
     max-height: min(60vh, 420px);
   }
 
@@ -5322,140 +5333,140 @@
      (later siblings paint over it), so the card's own border cuts its base
      into a clean triangle and only the two outer faces show. */
   .lens-drill-caret {
-    @apply lens-fixed lens-h-2.5 lens-w-2.5 lens-border lens-border-solid lens-border-border lens-bg-card;
+    @apply lens:fixed lens:h-2.5 lens:w-2.5 lens:border lens:border-solid lens:border-border lens:bg-card;
     transform: translate(-50%, -50%) rotate(45deg);
     pointer-events: none;
   }
 
   .lens-drill-header {
-    @apply lens-flex lens-items-start lens-justify-between lens-gap-2 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-3 lens-py-2.5;
+    @apply lens:flex lens:items-start lens:justify-between lens:gap-2 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:px-3 lens:py-2.5;
   }
 
   .lens-drill-heading {
-    @apply lens-min-w-0;
+    @apply lens:min-w-0;
   }
 
   /* Small-caps eyebrow naming what the card describes, above the segment
      title and its figure. */
   .lens-drill-eyebrow {
-    @apply lens-m-0 lens-text-xs lens-font-semibold lens-uppercase lens-text-faint;
+    @apply lens:m-0 lens:text-xs lens:font-semibold lens:uppercase lens:text-faint;
     letter-spacing: 0.14em;
   }
 
   .lens-drill-title {
-    @apply lens-m-0 lens-mt-0.5 lens-truncate lens-text-md lens-font-semibold lens-text-strong;
+    @apply lens:m-0 lens:mt-0.5 lens:truncate lens:text-md lens:font-semibold lens:text-strong;
   }
 
   /* The figure the click asked for: a swatch tying it to the slice's color,
      then the value, prominent and tabular so digits do not jitter. */
   .lens-drill-value {
-    @apply lens-m-0 lens-mt-1.5 lens-flex lens-items-center lens-gap-2;
+    @apply lens:m-0 lens:mt-1.5 lens:flex lens:items-center lens:gap-2;
   }
 
   .lens-drill-swatch {
-    @apply lens-h-3 lens-w-3 lens-shrink-0;
+    @apply lens:h-3 lens:w-3 lens:shrink-0;
     border-radius: 3px;
     box-shadow: inset 0 0 0 1px var(--lens-border);
   }
 
   .lens-drill-value-figure {
-    @apply lens-text-xl lens-font-semibold lens-tracking-tight lens-text-strong;
+    @apply lens:text-xl lens:font-semibold lens:tracking-tight lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-drill-share {
-    @apply lens-m-0 lens-mt-1 lens-text-base lens-font-medium lens-text-muted;
+    @apply lens:m-0 lens:mt-1 lens:text-base lens:font-medium lens:text-muted;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-drill-section {
-    @apply lens-min-h-0 lens-overflow-auto lens-border-0 lens-border-b lens-border-solid lens-px-3 lens-py-2;
+    @apply lens:min-h-0 lens:overflow-auto lens:border-0 lens:border-b lens:border-solid lens:px-3 lens:py-2;
     border-color: var(--lens-divider);
   }
 
   .lens-drill-section-label {
-    @apply lens-m-0 lens-mb-1 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-faint;
+    @apply lens:m-0 lens:mb-1 lens:text-xs lens:font-semibold lens:uppercase lens:tracking-wider lens:text-faint;
   }
 
   .lens-drill-rows {
-    @apply lens-m-0 lens-list-none lens-p-0;
+    @apply lens:m-0 lens:list-none lens:p-0;
   }
 
   .lens-drill-row {
-    @apply lens-relative lens-flex lens-w-full lens-cursor-pointer lens-items-center lens-gap-2 lens-overflow-hidden lens-rounded-control lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1.5 lens-text-left lens-font-sans lens-text-md lens-text-text lens-transition-colors;
+    @apply lens:relative lens:flex lens:w-full lens:cursor-pointer lens:items-center lens:gap-2 lens:overflow-hidden lens:rounded-control lens:border-0 lens:bg-transparent lens:px-1.5 lens:py-1.5 lens:text-left lens:font-sans lens:text-md lens:text-text lens:transition-colors;
   }
 
   .lens-drill-row:hover {
-    @apply lens-bg-inset;
+    @apply lens:bg-inset;
   }
 
   .lens-drill-row-label {
-    @apply lens-min-w-0 lens-flex-1 lens-truncate;
+    @apply lens:min-w-0 lens:flex-1 lens:truncate;
   }
 
   .lens-drill-row-value {
-    @apply lens-shrink-0 lens-font-medium lens-text-strong;
+    @apply lens:shrink-0 lens:font-medium lens:text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-drill-row-share {
-    @apply lens-w-10 lens-shrink-0 lens-text-right lens-text-base lens-text-faint;
+    @apply lens:w-10 lens:shrink-0 lens:text-right lens:text-base lens:text-faint;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   /* The chevron is a quiet affordance at rest and steps toward its edge on
      hover, so an interactive row reads as a way in without shouting. */
   .lens-drill-row-chevron {
-    @apply lens-flex lens-shrink-0 lens-items-center lens-text-faint lens-transition-transform;
+    @apply lens:flex lens:shrink-0 lens:items-center lens:text-faint lens:transition-transform;
   }
 
   .lens-drill-row:hover .lens-drill-row-chevron {
-    @apply lens-text-muted;
+    @apply lens:text-muted;
     transform: translateX(2px);
   }
 
   /* The share bar sits under the row content at low alpha, so it reads as
      weight rather than as another control. */
   .lens-drill-row-bar {
-    @apply lens-absolute lens-bottom-0 lens-left-0 lens-h-0.5 lens-rounded-full lens-bg-accent-500 lens-opacity-30;
+    @apply lens:absolute lens:bottom-0 lens:left-0 lens:h-0.5 lens:rounded-full lens:bg-accent-500 lens:opacity-30;
   }
 
   .lens-drill-perspectives {
-    @apply lens-flex lens-flex-wrap lens-gap-1;
+    @apply lens:flex lens:flex-wrap lens:gap-1;
   }
 
   .lens-drill-perspective {
-    @apply lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-py-1 lens-font-sans lens-text-base lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens:cursor-pointer lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2 lens:py-1 lens:font-sans lens:text-base lens:font-semibold lens:text-muted lens:transition-colors;
   }
 
   .lens-drill-perspective:hover {
-    @apply lens-bg-inset lens-text-strong;
+    @apply lens:bg-inset lens:text-strong;
   }
 
   .lens-drill-perspective[aria-selected='true'] {
-    @apply lens-border-accent-500 lens-bg-accent-50 lens-text-accent-700;
+    @apply lens:border-accent-500 lens:bg-accent-50 lens:text-accent-700;
   }
 
   .lens-drill-footer {
-    @apply lens-flex lens-flex-col lens-gap-1 lens-px-3 lens-py-2;
+    @apply lens:flex lens:flex-col lens:gap-1 lens:px-3 lens:py-2;
   }
 
   .lens-drill-action {
-    @apply lens-flex lens-cursor-pointer lens-items-center lens-justify-between lens-gap-2 lens-rounded-control lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1.5 lens-font-sans lens-text-md lens-font-semibold lens-text-accent-700 lens-no-underline lens-transition-colors;
+    @apply lens:flex lens:cursor-pointer lens:items-center lens:justify-between lens:gap-2 lens:rounded-control lens:border-0 lens:bg-transparent lens:px-1.5 lens:py-1.5 lens:font-sans lens:text-md lens:font-semibold lens:text-accent-700 lens:no-underline lens:transition-colors;
   }
 
   .lens-drill-action:hover {
-    @apply lens-bg-accent-50;
+    @apply lens:bg-accent-50;
   }
 
   /* The one action the segment resolves to leads: a filled brand button that
      outranks the perspective pills and the quiet copy control beneath it. */
   .lens-drill-action-primary {
-    @apply lens-bg-accent-500 lens-px-2.5 lens-py-2 lens-text-on-accent;
+    @apply lens:bg-accent-500 lens:px-2.5 lens:py-2 lens:text-on-accent;
   }
 
   .lens-drill-action-primary:hover {
-    @apply lens-bg-accent-600 lens-text-on-accent;
+    @apply lens:bg-accent-600 lens:text-on-accent;
   }
 
   /* Copy is a utility, not a destination: an icon-only button riding beside
@@ -5463,7 +5474,7 @@
      value stays the headline. It flips to the positive color while the
      "copied" confirmation is showing. */
   .lens-drill-copy {
-    @apply lens-size-6 lens-shrink-0 lens-text-md;
+    @apply lens:size-6 lens:shrink-0 lens:text-md;
   }
 
   .lens-drill-copy[data-copied='true'],
@@ -5473,11 +5484,11 @@
   }
 
   .lens-drill-empty {
-    @apply lens-m-0 lens-px-1.5 lens-py-1 lens-text-md lens-text-faint;
+    @apply lens:m-0 lens:px-1.5 lens:py-1 lens:text-md lens:text-faint;
   }
 
   .lens-icon {
-    @apply lens-inline-block lens-shrink-0 lens-align-middle;
+    @apply lens:inline-block lens:shrink-0 lens:align-middle;
   }
 
   .lens-icon-spin {
@@ -5501,11 +5512,11 @@
      keeps the row's height instead of collapsing to its own text and leaving
      a hole beside a full-height sibling. */
   .lens-explore-level {
-    @apply lens-flex lens-h-full lens-min-w-0 lens-flex-1 lens-flex-col lens-rounded-card;
+    @apply lens:flex lens:h-full lens:min-w-0 lens:flex-1 lens:flex-col lens:rounded-card;
   }
 
   .lens-explore-level > .lens-panel {
-    @apply lens-flex-1;
+    @apply lens:flex-1;
   }
 
   .lens-explore-level-enter {
@@ -5523,7 +5534,7 @@
   }
 
   .lens-leaf-action {
-    @apply lens-shrink-0 lens-rounded-control lens-bg-accent-600 lens-px-3 lens-py-2 lens-text-md lens-font-semibold lens-text-on-accent lens-no-underline;
+    @apply lens:shrink-0 lens:rounded-control lens:bg-accent-600 lens:px-3 lens:py-2 lens:text-md lens:font-semibold lens:text-on-accent lens:no-underline;
   }
 
   /* ── The keyboard-focus ring ────────────────────────────────────────────
@@ -6810,21 +6821,21 @@
      board wide. They are content-sized, so they wrap with the cluster around
      them rather than driving it past the header's left edge. */
   .lens-temporal-controls {
-    @apply lens-flex lens-min-w-0 lens-flex-wrap lens-items-center lens-justify-end lens-gap-1;
+    @apply lens:flex lens:min-w-0 lens:flex-wrap lens:items-center lens:justify-end lens:gap-1;
   }
 
   .lens-temporal-toggle,
   .lens-temporal-select {
-    @apply lens-min-h-control-md lens-max-w-full lens-truncate lens-rounded-control lens-border lens-border-border lens-bg-card lens-px-2 lens-text-sm lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens:min-h-control-md lens:max-w-full lens:truncate lens:rounded-control lens:border lens:border-border lens:bg-card lens:px-2 lens:text-sm lens:font-semibold lens:text-muted lens:transition-colors;
   }
 
   .lens-temporal-toggle:hover,
   .lens-temporal-select:hover {
-    @apply lens-border-strong lens-bg-inset lens-text-strong;
+    @apply lens:border-strong lens:bg-inset lens:text-strong;
   }
 
   .lens-temporal-toggle[aria-pressed="true"] {
-    @apply lens-bg-accent-50 lens-text-accent-700;
+    @apply lens:bg-accent-50 lens:text-accent-700;
     border-color: var(--lens-accent-300);
   }
 }

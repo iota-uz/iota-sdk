@@ -2,10 +2,7 @@ import type { Config } from 'tailwindcss'
 
 export default {
   content: ['./index.html', './stories.html', './src/**/*.{ts,tsx}'],
-  prefix: 'lens-',
-  corePlugins: {
-    preflight: false,
-  },
+  prefix: 'lens',
   theme: {
     // The Lens type scale, reachable as `lens-text-3xs … lens-text-3xl`. It sits
     // on `theme.fontSize` rather than `theme.extend.fontSize` on purpose: this
