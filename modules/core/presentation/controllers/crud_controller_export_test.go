@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	corepermissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/crud/models"
@@ -220,7 +221,7 @@ func csvRecords(t *testing.T, body string) [][]string {
 // were visible: then "all pages" and "hidden fields too" would be free.
 func TestCrudControllerExportWritesEveryRowOfTheFilteredSet(t *testing.T) {
 	suite := newExportSuite(t)
-	service := seededExportService(120)
+	service := seededExportService(1001)
 	controller := controllers.NewCrudController[exportEntity](
 		"/dictionary",
 		newExportBuilder(service),
@@ -234,13 +235,14 @@ func TestCrudControllerExportWritesEveryRowOfTheFilteredSet(t *testing.T) {
 		Body()
 
 	records := csvRecords(t, body)
-	require.Len(t, records, 121, "header plus every seeded row, not one page")
+	require.Len(t, records, 1002, "header plus every seeded row, not one page")
+	assert.Equal(t, 3, service.listCalls, "1001 rows are read in batches of 500, 500 and 1")
 
 	header := records[0]
 	assert.Contains(t, header, "note", "a field hidden from the table still belongs to the record")
 	assert.NotContains(t, header, "secret", "an excluded field never reaches the file")
 	for _, column := range header {
-		assert.NotEqual(t, "", column)
+		assert.NotEmpty(t, column)
 	}
 	assert.NotContains(t, body, "token-0", "excluded values are gone with their column")
 }
@@ -299,14 +301,29 @@ func TestCrudControllerExportNeutralizesFormulasAndHonoursSearch(t *testing.T) {
 		Expect(t).
 		Status(http.StatusOK).
 		Body()
-	assert.NotContains(t, body, "\"=cmd", "a value that looks like a formula must not open as one")
-	assert.Contains(t, body, "cmd|'/c calc'!A1")
+	records := csvRecords(t, body)
+	codeColumn := -1
+	for i, column := range records[0] {
+		if column == "code" {
+			codeColumn = i
+		}
+	}
+	require.GreaterOrEqual(t, codeColumn, 0)
+	neutralized := false
+	for _, record := range records[1:] {
+		cell := record[codeColumn]
+		assert.False(t, strings.HasPrefix(cell, "="), "cell %q opens as a formula", cell)
+		if strings.Contains(cell, "cmd|'/c calc'!A1") {
+			neutralized = true
+		}
+	}
+	assert.True(t, neutralized, "the value is kept, only disarmed")
 
 	filtered := suite.GET("/dictionary/export?format=csv&Search=CODE-002").
 		Expect(t).
 		Status(http.StatusOK).
 		Body()
-	records := csvRecords(t, filtered)
+	records = csvRecords(t, filtered)
 	assert.Len(t, records, 2, "the export carries the searched rows and nothing else")
 	assert.Contains(t, filtered, "CODE-002")
 	assert.NotContains(t, filtered, "CODE-001")
@@ -410,4 +427,46 @@ func TestCrudControllerExportPagesOverATotalOrder(t *testing.T) {
 	assert.Equal(t, "code", fields[0].Field, "the order the reader chose comes first")
 	assert.False(t, fields[0].Ascending)
 	assert.Equal(t, "id", fields[1].Field)
+}
+
+// TestCrudControllerExportRefusesWhatItWillNotBuild covers the two requests an
+// export turns down before reading a row: a query List itself would reject,
+// and a result set larger than one file may hold in memory.
+//
+// Falsely green if the oversized fixture sat at the limit rather than above it.
+func TestCrudControllerExportRefusesWhatItWillNotBuild(t *testing.T) {
+	suite := newExportSuite(t)
+	service := seededExportService(50001)
+	controller := controllers.NewCrudController[exportEntity](
+		"/dictionary",
+		newExportBuilder(service),
+		controllers.WithExport[exportEntity](),
+	)
+	suite.Register(controller)
+
+	suite.GET("/dictionary/export?format=csv&Limit=bad").Expect(t).Status(http.StatusBadRequest)
+
+	suite.GET("/dictionary/export?format=csv").Expect(t).Status(http.StatusBadRequest)
+	assert.Zero(t, service.listCalls, "an oversized export is refused on the count, before any row is read")
+}
+
+// TestCrudControllerExportIsBehindTheReadPermission: the file holds everything
+// the list holds, so a user who may not read the list may not download it.
+//
+// Falsely green if the controller had no read permission configured — then
+// Export could drop its check and nothing here would notice. The fixture's
+// user holds no role, so the configured permission is one it lacks.
+func TestCrudControllerExportIsBehindTheReadPermission(t *testing.T) {
+	suite := newExportSuite(t)
+	service := seededExportService(3)
+	controller := controllers.NewCrudController[exportEntity](
+		"/dictionary",
+		newExportBuilder(service),
+		controllers.WithExport[exportEntity](),
+		controllers.WithReadPermission[exportEntity](corepermissions.UserRead),
+	)
+	suite.Register(controller)
+
+	suite.GET("/dictionary/export?format=csv").Expect(t).Status(http.StatusForbidden)
+	assert.Zero(t, service.listCalls, "nothing is read for a user who may not read the list")
 }

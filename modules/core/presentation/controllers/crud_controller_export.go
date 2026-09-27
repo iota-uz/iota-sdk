@@ -17,12 +17,18 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/excel"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // crudExportBatchSize is how many records one service call fetches while the
 // export walks the whole result set. The page size of the list is irrelevant
 // here: an export covers every row the current search and sorting select.
 const crudExportBatchSize = 500
+
+// crudExportMaxRows bounds one export. The file is built in memory, so an
+// unbounded read is an unbounded allocation behind a read permission; a
+// dictionary that outgrows this is one to be filtered before it is exported.
+const crudExportMaxRows = 50000
 
 // crudExportDateTimeFormat keeps CSV and XLSX showing the same instant the same
 // way; excel.DefaultOptions() applies it to XLSX, CSVOptions has to be told.
@@ -67,6 +73,7 @@ type exportColumn struct {
 
 // Export streams the whole filtered result set as CSV or XLSX.
 func (c *CrudController[TEntity]) Export(w http.ResponseWriter, r *http.Request) {
+	const op = serrors.Op("CrudController.Export")
 	if c.accessDenied(w, r, c.readPerm) {
 		return
 	}
@@ -74,16 +81,38 @@ func (c *CrudController[TEntity]) Export(w http.ResponseWriter, r *http.Request)
 
 	format, ok := export.GetExportFormat(r)
 	if !ok || (format != export.ExportFormatExcel && format != export.ExportFormatCSV) {
-		// An unsupported format is a bad request, not a silent fallback to one
-		// of the two: the caller would save a file it did not ask for.
-		errorMsg, _ := c.localize(ctx, "Errors.InvalidExportFormat", "Unsupported export format")
+		c.exportUnsupportedFormat(ctx, w)
+		return
+	}
+
+	params, err := c.exportParams(r)
+	if err != nil {
+		// A malformed query is the caller's, as it is for List.
+		log.Printf("[CrudController.Export] Failed to parse query params: %v", serrors.E(op, err))
+		errorMsg, _ := c.localize(ctx, "Errors.InvalidQueryParams", "Invalid query parameters")
 		http.Error(w, errorMsg, http.StatusBadRequest)
 		return
 	}
 
-	entities, err := c.exportEntities(ctx, r)
+	// The file is assembled in memory — multilingual columns are known only once
+	// every row is read — so the size of what is read is bounded up front.
+	total, err := c.service.Count(ctx, params)
 	if err != nil {
-		log.Printf("[CrudController.Export] Failed to list entities: %v", err)
+		log.Printf("[CrudController.Export] Failed to count entities: %v", serrors.E(op, err))
+		errorMsg, _ := c.localize(ctx, errFailedToRetrieve, "Failed to retrieve data")
+		http.Error(w, errorMsg, http.StatusInternalServerError)
+		return
+	}
+	if total > crudExportMaxRows {
+		errorMsg, _ := c.localize(ctx, "Errors.ExportTooLarge",
+			fmt.Sprintf("Too many rows to export (%d, at most %d); narrow the search", total, crudExportMaxRows))
+		http.Error(w, errorMsg, http.StatusBadRequest)
+		return
+	}
+
+	entities, err := c.exportEntities(ctx, params)
+	if err != nil {
+		log.Printf("[CrudController.Export] Failed to list entities: %v", serrors.E(op, err))
 		errorMsg, _ := c.localize(ctx, errFailedToRetrieve, "Failed to retrieve data")
 		http.Error(w, errorMsg, http.StatusInternalServerError)
 		return
@@ -91,7 +120,7 @@ func (c *CrudController[TEntity]) Export(w http.ResponseWriter, r *http.Request)
 
 	rowValues, err := c.exportFieldValues(ctx, entities)
 	if err != nil {
-		log.Printf("[CrudController.Export] Failed to map entities: %v", err)
+		log.Printf("[CrudController.Export] Failed to map entities: %v", serrors.E(op, err))
 		errorMsg, _ := c.localize(ctx, errFailedToRetrieve, "Failed to retrieve data")
 		http.Error(w, errorMsg, http.StatusInternalServerError)
 		return
@@ -119,23 +148,23 @@ func (c *CrudController[TEntity]) Export(w http.ResponseWriter, r *http.Request)
 		// string cell so none of them opens as a spreadsheet formula.
 		writer, err := excel.NewCSVWriter(w, opts)
 		if err != nil {
-			log.Printf("[CrudController.Export] Failed to start CSV: %v", err)
+			log.Printf("[CrudController.Export] Failed to start CSV: %v", serrors.E(op, err))
 			return
 		}
 		if err := writer.WriteHeader(headers); err != nil {
-			log.Printf("[CrudController.Export] Failed to write CSV header: %v", err)
+			log.Printf("[CrudController.Export] Failed to write CSV header: %v", serrors.E(op, err))
 			return
 		}
 		for _, row := range rows {
 			if err := writer.WriteRow(row); err != nil {
-				log.Printf("[CrudController.Export] Failed to write CSV row: %v", err)
+				log.Printf("[CrudController.Export] Failed to write CSV row: %v", serrors.E(op, err))
 				return
 			}
 		}
 		if err := writer.Flush(); err != nil {
-			log.Printf("[CrudController.Export] Failed to flush CSV: %v", err)
+			log.Printf("[CrudController.Export] Failed to flush CSV: %v", serrors.E(op, err))
 		}
-	default:
+	case export.ExportFormatExcel:
 		w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 		w.Header().Set("Content-Disposition", "attachment; filename="+filename)
 
@@ -146,19 +175,31 @@ func (c *CrudController[TEntity]) Export(w http.ResponseWriter, r *http.Request)
 			return rows, nil
 		}).WithSheetName(c.exportSheetName())
 		if err := exporter.ExportToWriter(ctx, w, datasource); err != nil {
-			log.Printf("[CrudController.Export] Failed to write XLSX: %v", err)
+			log.Printf("[CrudController.Export] Failed to write XLSX: %v", serrors.E(op, err))
 		}
+	case export.ExportFormatJSON, export.ExportFormatTXT:
+		// Refused above; kept so a format added to the enum is a decision here,
+		// not a silent fall-through into one of the two files.
+		c.exportUnsupportedFormat(ctx, w)
 	}
 }
 
-// exportEntities walks the full result set the list is showing. The query is
-// read exactly as List reads it — anything less would export a different set of
-// rows than the page the export was started from — and only the page window is
-// dropped, because an export is every page.
-func (c *CrudController[TEntity]) exportEntities(ctx context.Context, r *http.Request) ([]TEntity, error) {
+// exportUnsupportedFormat refuses a format the export does not write. A bad
+// request, not a fallback to one of the two: the caller would otherwise save a
+// file in a format it did not ask for.
+func (c *CrudController[TEntity]) exportUnsupportedFormat(ctx context.Context, w http.ResponseWriter) {
+	errorMsg, _ := c.localize(ctx, "Errors.InvalidExportFormat", "Unsupported export format")
+	http.Error(w, errorMsg, http.StatusBadRequest)
+}
+
+// exportParams reads the query exactly as List reads it — anything less would
+// export a different set of rows than the page the export was started from —
+// and orders it totally, because the export pages through it with OFFSET.
+func (c *CrudController[TEntity]) exportParams(r *http.Request) (*crud.FindParams, error) {
+	const op = serrors.Op("CrudController.exportParams")
 	params, err := composables.UseQuery(&crud.FindParams{Limit: crudExportBatchSize}, r)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	params.Limit = crudExportBatchSize
 	params.Offset = 0
@@ -177,12 +218,17 @@ func (c *CrudController[TEntity]) exportEntities(ctx context.Context, r *http.Re
 		sortFields = append(sortFields, repo.SortByField[string]{Field: key, Ascending: true})
 	}
 	params.SortBy = crud.SortBy{Fields: sortFields}
+	return params, nil
+}
 
+// exportEntities walks every page of params, a batch at a time.
+func (c *CrudController[TEntity]) exportEntities(ctx context.Context, params *crud.FindParams) ([]TEntity, error) {
+	const op = serrors.Op("CrudController.exportEntities")
 	entities := make([]TEntity, 0)
 	for {
 		batch, err := c.service.List(ctx, params)
 		if err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 		entities = append(entities, batch...)
 		if len(batch) < crudExportBatchSize {
@@ -193,11 +239,12 @@ func (c *CrudController[TEntity]) exportEntities(ctx context.Context, r *http.Re
 }
 
 func (c *CrudController[TEntity]) exportFieldValues(ctx context.Context, entities []TEntity) ([][]crud.FieldValue, error) {
+	const op = serrors.Op("CrudController.exportFieldValues")
 	rows := make([][]crud.FieldValue, 0, len(entities))
 	for _, entity := range entities {
 		fieldValues, err := c.schema.Mapper().ToFieldValues(ctx, entity)
 		if err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 		rows = append(rows, fieldValues)
 	}
@@ -281,6 +328,13 @@ func (c *CrudController[TEntity]) exportCell(ctx context.Context, col exportColu
 	if t, ok := value.Value().(time.Time); ok {
 		return t
 	}
+	// Numbers and booleans keep theirs for the same reason: as text they would
+	// neither sort nor add up in the sheet.
+	if fieldType := col.field.Type(); fieldType == crud.IntFieldType ||
+		fieldType == crud.FloatFieldType ||
+		fieldType == crud.BoolFieldType {
+		return value.Value()
+	}
 	return c.convertValueToString(value.Value(), col.field.Type())
 }
 
@@ -318,8 +372,13 @@ func (c *CrudController[TEntity]) exportFilename(format export.ExportFormat) str
 	return fmt.Sprintf("%s_%s.%s", exportSlug(c.schema.Name()), time.Now().Format("20060102_150405"), extension)
 }
 
+// exportSheetName is the schema name made acceptable to Excel, which rejects a
+// sheet name holding any of \ / ? * [ ] : or longer than 31 characters. A
+// rejected name would fail the workbook after the response headers were sent.
 func (c *CrudController[TEntity]) exportSheetName() string {
-	name := c.schema.Name()
+	name := strings.NewReplacer(
+		`\`, "_", "/", "_", "?", "_", "*", "_", "[", "_", "]", "_", ":", "_",
+	).Replace(c.schema.Name())
 	if len(name) > 31 {
 		return name[:31]
 	}
