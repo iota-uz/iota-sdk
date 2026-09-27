@@ -21,6 +21,7 @@ templ TransactionTypeFilter() {
 		<option value={ string(transaction.Withdrawal) }>{ pageCtx.T("Transactions.Types." + string(transaction.Withdrawal)) }</option>
 		<option value={ string(transaction.Transfer) }>{ pageCtx.T("Transactions.Types." + string(transaction.Transfer)) }</option>
 		<option value={ string(transaction.Exchange) }>{ pageCtx.T("Transactions.Types." + string(transaction.Exchange)) }</option>
+		<option value={ string(transaction.Adjustment) }>{ pageCtx.T("Transactions.Types." + string(transaction.Adjustment)) }</option>
 	}
 }
 

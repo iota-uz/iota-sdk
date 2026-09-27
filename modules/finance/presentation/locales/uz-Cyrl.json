@@ -266,7 +266,8 @@
     "Transactions": {
       "NoTransactions": "Ҳозирча транзаксиялар йўқ",
       "NoTransactionsDescription": "Бу ҳисобда транзаксиялар йўқ. Транзаксиялар сиз харажат, тўлов ёки ўтказмалар қўшганингизда бу йерда кўринади.",
-      "ViewAll": "Барча транзаксияларни кўриш"
+      "ViewAll": "Барча транзаксияларни кўриш",
+      "Loading": "Юкланмоқда…"
     }
   },
   "Transfers": {
@@ -409,7 +410,8 @@
       "DEPOSIT": "Кирим",
       "WITHDRAWAL": "Чиқим",
       "TRANSFER": "Ўтказма",
-      "EXCHANGE": "Айирбошлаш"
+      "EXCHANGE": "Айирбошлаш",
+      "ADJUSTMENT": "Тузатиш"
     }
   },
   "Reports": {
@@ -505,15 +507,24 @@
       "Amount": "Сумма",
       "OriginalAmount": "Дастлабки сумма",
       "OutstandingAmount": "Қарз қолдиғи",
+      "Currency": "Валюта",
+      "SelectCurrency": "Валютани танланг",
+      "Account": "Ҳисоб",
+      "NoAccount": "Ҳисобсиз",
+      "Project": "Лойиҳа",
+      "NoProject": "Лойиҳасиз",
       "_Description": "Тавсиф",
       "DueDate": "Тўлов муддати",
       "SettlementTransactionID": "Тўлов транзаксияси",
       "Settle": "Қарзни тўлаш",
+      "SettlementAmount": "Тўлов суммаси",
       "WriteOff": "Ҳисобдан чиқариш",
+      "CancelDebt": "Қарзни бекор қилиш",
       "Delete": "Қарзни ўчириш",
       "DeleteConfirmation": "Ҳақиқатан ҳам бу қарзни ўчирмоқчимисиз?",
       "SettleConfirmation": "Ҳақиқатан ҳам бу қарзни тўламоқчимисиз?",
       "WriteOffConfirmation": "Ҳақиқатан ҳам бу қарзни ёмон қарз сифатида ҳисобдан чиқармоқчимисиз?",
+      "CancelDebtConfirmation": "Қарз бекор қилинсинми? У энди ҳисобланмайди ва пулни захирага олмайди.",
       "SelectTransaction": "Транзаксияни танлаш"
     },
     "Types": {
@@ -524,7 +535,12 @@
       "PENDING": "Кутилаётган",
       "SETTLED": "Тўланган",
       "PARTIAL": "Қисман тўланган",
-      "WRITTEN_OFF": "Ҳисобдан чиқарилган"
+      "WRITTEN_OFF": "Ҳисобдан чиқарилган",
+      "CANCELLED": "Бекор қилинган"
+    },
+    "Errors": {
+      "AccountCurrency": "Ҳисоб валютаси қарз валютасига мос келмайди",
+      "AmountBelowPaid": "Сумма аллақачон тўланганидан кам"
     },
     "Actions": {
       "Created": "Қарз муваффақиятли яратилди",
@@ -581,10 +597,15 @@
       "Open": "Қабул қилинмаган",
       "Invoiced": "Ҳисоб-фактура берилган",
       "Paid": "Тўланган"
+    },
+    "Balances": {
+      "OnAccounts": "Ҳисобларда",
+      "Reserved": "Мажбуриятлар бўйича захирада",
+      "Available": "Мавжуд",
+      "Reserves": "Ушбу ҳисобдан тўланадиган мажбуриятлар"
     }
   },
   "ValidationErrors": {
     "invalidTIN": "Нотўғри СТИР формати: {{.Details}}"
   }
 }
-

@@ -42,6 +42,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideDefault[services.InvoiceSource](builder, services.NewNoInvoices())
 	composition.ProvideFunc(builder, services.NewRevenueService)
 	composition.ProvideFunc(builder, services.NewClientRevenue)
+	composition.ProvideFunc(builder, services.NewProjectDirectory)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.AddControllers(builder,
