@@ -1,1 +1,1 @@
-{"bump":"patch","summary":"Keep shared integration-test database waiters attached to the current harness entry during parallel tests, and restore the Lens web build by removing duplicate legend helpers."}
+{"bump":"patch","summary":"Keep shared integration-test database waiters attached to the current harness entry during parallel tests, and restore Lens builds by removing duplicate legend helpers and an accidentally committed generated bundle."}
