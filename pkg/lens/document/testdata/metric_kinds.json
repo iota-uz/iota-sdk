@@ -1,0 +1,1112 @@
+{
+  "version": "1.0.0",
+  "snapshotId": "metric-kinds",
+  "meta": {
+    "dashboardId": "metric-kinds",
+    "title": "Metric kinds",
+    "generatedAt": "1970-01-01T00:00:01Z",
+    "locale": "en"
+  },
+  "layout": {
+    "rows": [
+      {
+        "panels": [
+          {
+            "panelId": "flow",
+            "span": 12
+          },
+          {
+            "panelId": "hierarchy",
+            "span": 6
+          },
+          {
+            "panelId": "relationship",
+            "span": 6
+          }
+        ]
+      },
+      {
+        "panels": [
+          {
+            "panelId": "stat-a",
+            "span": 6,
+            "groups": [
+              {
+                "id": "composition",
+                "kind": "tabs",
+                "label": "Composition",
+                "span": 12,
+                "tab": "Stock ratios"
+              },
+              {
+                "id": "stock-group",
+                "kind": "metrics",
+                "label": "Stock ratios",
+                "layout": "columns",
+                "span": 12
+              }
+            ]
+          },
+          {
+            "panelId": "stat-b",
+            "span": 6,
+            "groups": [
+              {
+                "id": "composition",
+                "kind": "tabs",
+                "label": "Composition",
+                "span": 12,
+                "tab": "Stock ratios"
+              },
+              {
+                "id": "stock-group",
+                "kind": "metrics",
+                "label": "Stock ratios",
+                "layout": "columns",
+                "span": 12
+              }
+            ]
+          },
+          {
+            "panelId": "inner-a",
+            "span": 6,
+            "groups": [
+              {
+                "id": "composition",
+                "kind": "tabs",
+                "label": "Composition",
+                "span": 12,
+                "tab": "Detail"
+              },
+              {
+                "id": "movement-detail",
+                "kind": "tabs",
+                "label": "Detail",
+                "span": 12,
+                "tab": "Inner A"
+              }
+            ]
+          },
+          {
+            "panelId": "inner-b",
+            "span": 6,
+            "groups": [
+              {
+                "id": "composition",
+                "kind": "tabs",
+                "label": "Composition",
+                "span": 12,
+                "tab": "Detail"
+              },
+              {
+                "id": "movement-detail",
+                "kind": "tabs",
+                "label": "Detail",
+                "span": 12,
+                "tab": "Inner B"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": "flow",
+      "kind": "metric_flow",
+      "title": "Flow",
+      "semantics": "reconciliation",
+      "frame": "panel:flow",
+      "encoding": {
+        "label": "label",
+        "value": "value",
+        "id": "id",
+        "share": "share",
+        "confidence": "confidence",
+        "availability": "availability"
+      },
+      "format": {},
+      "actions": [],
+      "metricFlow": {
+        "stages": [
+          {
+            "key": "in",
+            "label": "Input",
+            "role": "input"
+          },
+          {
+            "key": "add",
+            "label": "Add",
+            "role": "add",
+            "confidence": "calculated",
+            "availability": "available"
+          },
+          {
+            "key": "sub",
+            "label": "Subtract",
+            "role": "subtract",
+            "caption": "movement"
+          },
+          {
+            "key": "result",
+            "label": "Result",
+            "role": "result",
+            "action": {
+              "kind": "navigate_to_leaf",
+              "method": "GET",
+              "urlTemplate": "/flow/result",
+              "params": [],
+              "payload": {}
+            }
+          }
+        ],
+        "reconcile": {
+          "tolerance": 0.5
+        }
+      },
+      "confidence": "verified",
+      "availability": "available"
+    },
+    {
+      "id": "hierarchy",
+      "kind": "metric_hierarchy",
+      "title": "Hierarchy",
+      "semantics": "series",
+      "frame": "panel:hierarchy",
+      "encoding": {
+        "label": "label",
+        "value": "value",
+        "id": "id",
+        "share": "share",
+        "confidence": "confidence",
+        "availability": "availability"
+      },
+      "format": {},
+      "actions": [],
+      "metricHierarchy": {
+        "rows": [
+          {
+            "key": "root",
+            "label": "Root"
+          },
+          {
+            "key": "mid",
+            "label": "Mid",
+            "parent": "root",
+            "depth": 1
+          },
+          {
+            "key": "leaf",
+            "label": "Leaf",
+            "parent": "mid",
+            "depth": 2
+          },
+          {
+            "key": "unalloc",
+            "label": "Unallocated",
+            "parent": "mid",
+            "depth": 2,
+            "unallocated": true
+          },
+          {
+            "key": "ghost",
+            "label": "Ghost (missing frame key)",
+            "parent": "root",
+            "depth": 1
+          }
+        ],
+        "reconcile": {
+          "tolerance": 0.1
+        }
+      },
+      "terminal": true
+    },
+    {
+      "id": "relationship",
+      "kind": "metric_relationship",
+      "title": "Relationship",
+      "semantics": "series",
+      "frame": "panel:relationship",
+      "encoding": {
+        "label": "label",
+        "value": "value",
+        "id": "id",
+        "share": "share",
+        "confidence": "confidence",
+        "availability": "availability"
+      },
+      "format": {},
+      "actions": [],
+      "metricRelationship": {
+        "source": {
+          "key": "src",
+          "label": "Source"
+        },
+        "target": {
+          "key": "tgt",
+          "label": "Target"
+        },
+        "type": "association",
+        "direction": "bidirectional"
+      },
+      "terminal": true
+    },
+    {
+      "id": "stat-a",
+      "kind": "stat",
+      "title": "Stat A",
+      "semantics": "series",
+      "frame": "panel:stat-a",
+      "encoding": {
+        "label": "label",
+        "value": "value",
+        "id": "id",
+        "share": "share",
+        "confidence": "confidence",
+        "availability": "availability"
+      },
+      "format": {},
+      "actions": [],
+      "terminal": true
+    },
+    {
+      "id": "stat-b",
+      "kind": "stat",
+      "title": "Stat B",
+      "semantics": "series",
+      "frame": "panel:stat-b",
+      "encoding": {
+        "label": "label",
+        "value": "value",
+        "id": "id",
+        "share": "share",
+        "confidence": "confidence",
+        "availability": "availability"
+      },
+      "format": {},
+      "actions": [],
+      "terminal": true
+    },
+    {
+      "id": "inner-a",
+      "kind": "stat",
+      "title": "Inner A",
+      "semantics": "series",
+      "frame": "panel:inner-a",
+      "encoding": {
+        "label": "label",
+        "value": "value",
+        "id": "id",
+        "share": "share",
+        "confidence": "confidence",
+        "availability": "availability"
+      },
+      "format": {},
+      "actions": [],
+      "terminal": true
+    },
+    {
+      "id": "inner-b",
+      "kind": "stat",
+      "title": "Inner B",
+      "semantics": "series",
+      "frame": "panel:inner-b",
+      "encoding": {
+        "label": "label",
+        "value": "value",
+        "id": "id",
+        "share": "share",
+        "confidence": "confidence",
+        "availability": "availability"
+      },
+      "format": {},
+      "actions": [],
+      "terminal": true
+    }
+  ],
+  "frames": {
+    "panel:flow": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "number"
+        },
+        {
+          "name": "share",
+          "type": "number"
+        },
+        {
+          "name": "confidence",
+          "type": "string"
+        },
+        {
+          "name": "availability",
+          "type": "string"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        [
+          "in",
+          100,
+          1,
+          "verified",
+          "available",
+          "Input"
+        ],
+        [
+          "add",
+          20,
+          0.2,
+          "calculated",
+          "available",
+          "Add"
+        ],
+        [
+          "sub",
+          -5,
+          0.05,
+          "calculated",
+          "available",
+          "Subtract"
+        ],
+        [
+          "result",
+          115,
+          1,
+          "verified",
+          "available",
+          "Result"
+        ],
+        [
+          "root",
+          100,
+          1,
+          "verified",
+          "available",
+          "Root"
+        ],
+        [
+          "mid",
+          60,
+          0.6,
+          "calculated",
+          "available",
+          "Mid"
+        ],
+        [
+          "leaf",
+          0,
+          0,
+          "verified",
+          "available",
+          "Leaf"
+        ],
+        [
+          "unalloc",
+          40,
+          0.4,
+          "proxy",
+          "available",
+          "Unallocated"
+        ],
+        [
+          "src",
+          50,
+          0.5,
+          "verified",
+          "available",
+          "Source"
+        ],
+        [
+          "tgt",
+          50,
+          0.5,
+          "verified",
+          "available",
+          "Target"
+        ]
+      ]
+    },
+    "panel:hierarchy": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "number"
+        },
+        {
+          "name": "share",
+          "type": "number"
+        },
+        {
+          "name": "confidence",
+          "type": "string"
+        },
+        {
+          "name": "availability",
+          "type": "string"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        [
+          "in",
+          100,
+          1,
+          "verified",
+          "available",
+          "Input"
+        ],
+        [
+          "add",
+          20,
+          0.2,
+          "calculated",
+          "available",
+          "Add"
+        ],
+        [
+          "sub",
+          -5,
+          0.05,
+          "calculated",
+          "available",
+          "Subtract"
+        ],
+        [
+          "result",
+          115,
+          1,
+          "verified",
+          "available",
+          "Result"
+        ],
+        [
+          "root",
+          100,
+          1,
+          "verified",
+          "available",
+          "Root"
+        ],
+        [
+          "mid",
+          60,
+          0.6,
+          "calculated",
+          "available",
+          "Mid"
+        ],
+        [
+          "leaf",
+          0,
+          0,
+          "verified",
+          "available",
+          "Leaf"
+        ],
+        [
+          "unalloc",
+          40,
+          0.4,
+          "proxy",
+          "available",
+          "Unallocated"
+        ],
+        [
+          "src",
+          50,
+          0.5,
+          "verified",
+          "available",
+          "Source"
+        ],
+        [
+          "tgt",
+          50,
+          0.5,
+          "verified",
+          "available",
+          "Target"
+        ]
+      ]
+    },
+    "panel:inner-a": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "number"
+        },
+        {
+          "name": "share",
+          "type": "number"
+        },
+        {
+          "name": "confidence",
+          "type": "string"
+        },
+        {
+          "name": "availability",
+          "type": "string"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        [
+          "in",
+          100,
+          1,
+          "verified",
+          "available",
+          "Input"
+        ],
+        [
+          "add",
+          20,
+          0.2,
+          "calculated",
+          "available",
+          "Add"
+        ],
+        [
+          "sub",
+          -5,
+          0.05,
+          "calculated",
+          "available",
+          "Subtract"
+        ],
+        [
+          "result",
+          115,
+          1,
+          "verified",
+          "available",
+          "Result"
+        ],
+        [
+          "root",
+          100,
+          1,
+          "verified",
+          "available",
+          "Root"
+        ],
+        [
+          "mid",
+          60,
+          0.6,
+          "calculated",
+          "available",
+          "Mid"
+        ],
+        [
+          "leaf",
+          0,
+          0,
+          "verified",
+          "available",
+          "Leaf"
+        ],
+        [
+          "unalloc",
+          40,
+          0.4,
+          "proxy",
+          "available",
+          "Unallocated"
+        ],
+        [
+          "src",
+          50,
+          0.5,
+          "verified",
+          "available",
+          "Source"
+        ],
+        [
+          "tgt",
+          50,
+          0.5,
+          "verified",
+          "available",
+          "Target"
+        ]
+      ]
+    },
+    "panel:inner-b": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "number"
+        },
+        {
+          "name": "share",
+          "type": "number"
+        },
+        {
+          "name": "confidence",
+          "type": "string"
+        },
+        {
+          "name": "availability",
+          "type": "string"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        [
+          "in",
+          100,
+          1,
+          "verified",
+          "available",
+          "Input"
+        ],
+        [
+          "add",
+          20,
+          0.2,
+          "calculated",
+          "available",
+          "Add"
+        ],
+        [
+          "sub",
+          -5,
+          0.05,
+          "calculated",
+          "available",
+          "Subtract"
+        ],
+        [
+          "result",
+          115,
+          1,
+          "verified",
+          "available",
+          "Result"
+        ],
+        [
+          "root",
+          100,
+          1,
+          "verified",
+          "available",
+          "Root"
+        ],
+        [
+          "mid",
+          60,
+          0.6,
+          "calculated",
+          "available",
+          "Mid"
+        ],
+        [
+          "leaf",
+          0,
+          0,
+          "verified",
+          "available",
+          "Leaf"
+        ],
+        [
+          "unalloc",
+          40,
+          0.4,
+          "proxy",
+          "available",
+          "Unallocated"
+        ],
+        [
+          "src",
+          50,
+          0.5,
+          "verified",
+          "available",
+          "Source"
+        ],
+        [
+          "tgt",
+          50,
+          0.5,
+          "verified",
+          "available",
+          "Target"
+        ]
+      ]
+    },
+    "panel:relationship": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "number"
+        },
+        {
+          "name": "share",
+          "type": "number"
+        },
+        {
+          "name": "confidence",
+          "type": "string"
+        },
+        {
+          "name": "availability",
+          "type": "string"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        [
+          "in",
+          100,
+          1,
+          "verified",
+          "available",
+          "Input"
+        ],
+        [
+          "add",
+          20,
+          0.2,
+          "calculated",
+          "available",
+          "Add"
+        ],
+        [
+          "sub",
+          -5,
+          0.05,
+          "calculated",
+          "available",
+          "Subtract"
+        ],
+        [
+          "result",
+          115,
+          1,
+          "verified",
+          "available",
+          "Result"
+        ],
+        [
+          "root",
+          100,
+          1,
+          "verified",
+          "available",
+          "Root"
+        ],
+        [
+          "mid",
+          60,
+          0.6,
+          "calculated",
+          "available",
+          "Mid"
+        ],
+        [
+          "leaf",
+          0,
+          0,
+          "verified",
+          "available",
+          "Leaf"
+        ],
+        [
+          "unalloc",
+          40,
+          0.4,
+          "proxy",
+          "available",
+          "Unallocated"
+        ],
+        [
+          "src",
+          50,
+          0.5,
+          "verified",
+          "available",
+          "Source"
+        ],
+        [
+          "tgt",
+          50,
+          0.5,
+          "verified",
+          "available",
+          "Target"
+        ]
+      ]
+    },
+    "panel:stat-a": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "number"
+        },
+        {
+          "name": "share",
+          "type": "number"
+        },
+        {
+          "name": "confidence",
+          "type": "string"
+        },
+        {
+          "name": "availability",
+          "type": "string"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        [
+          "in",
+          100,
+          1,
+          "verified",
+          "available",
+          "Input"
+        ],
+        [
+          "add",
+          20,
+          0.2,
+          "calculated",
+          "available",
+          "Add"
+        ],
+        [
+          "sub",
+          -5,
+          0.05,
+          "calculated",
+          "available",
+          "Subtract"
+        ],
+        [
+          "result",
+          115,
+          1,
+          "verified",
+          "available",
+          "Result"
+        ],
+        [
+          "root",
+          100,
+          1,
+          "verified",
+          "available",
+          "Root"
+        ],
+        [
+          "mid",
+          60,
+          0.6,
+          "calculated",
+          "available",
+          "Mid"
+        ],
+        [
+          "leaf",
+          0,
+          0,
+          "verified",
+          "available",
+          "Leaf"
+        ],
+        [
+          "unalloc",
+          40,
+          0.4,
+          "proxy",
+          "available",
+          "Unallocated"
+        ],
+        [
+          "src",
+          50,
+          0.5,
+          "verified",
+          "available",
+          "Source"
+        ],
+        [
+          "tgt",
+          50,
+          0.5,
+          "verified",
+          "available",
+          "Target"
+        ]
+      ]
+    },
+    "panel:stat-b": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "number"
+        },
+        {
+          "name": "share",
+          "type": "number"
+        },
+        {
+          "name": "confidence",
+          "type": "string"
+        },
+        {
+          "name": "availability",
+          "type": "string"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        [
+          "in",
+          100,
+          1,
+          "verified",
+          "available",
+          "Input"
+        ],
+        [
+          "add",
+          20,
+          0.2,
+          "calculated",
+          "available",
+          "Add"
+        ],
+        [
+          "sub",
+          -5,
+          0.05,
+          "calculated",
+          "available",
+          "Subtract"
+        ],
+        [
+          "result",
+          115,
+          1,
+          "verified",
+          "available",
+          "Result"
+        ],
+        [
+          "root",
+          100,
+          1,
+          "verified",
+          "available",
+          "Root"
+        ],
+        [
+          "mid",
+          60,
+          0.6,
+          "calculated",
+          "available",
+          "Mid"
+        ],
+        [
+          "leaf",
+          0,
+          0,
+          "verified",
+          "available",
+          "Leaf"
+        ],
+        [
+          "unalloc",
+          40,
+          0.4,
+          "proxy",
+          "available",
+          "Unallocated"
+        ],
+        [
+          "src",
+          50,
+          0.5,
+          "verified",
+          "available",
+          "Source"
+        ],
+        [
+          "tgt",
+          50,
+          0.5,
+          "verified",
+          "available",
+          "Target"
+        ]
+      ]
+    }
+  },
+  "drill": {
+    "edges": {},
+    "inlineDepth": 0
+  },
+  "perspectives": [],
+  "endpoints": {},
+  "i18n": {},
+  "theme": {
+    "palette": {},
+    "series": {},
+    "debounceMs": 500
+  }
+}

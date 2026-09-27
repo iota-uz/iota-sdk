@@ -1,0 +1,143 @@
+import { describe, expect, it, vi } from 'vitest'
+import type { QueryRequest } from '../contract'
+import { QueryClient, SnapshotGoneError, queryCacheKey } from './query'
+
+const request: QueryRequest = {
+  snapshotId: 'snapshot-1',
+  path: ['root', 'detail'],
+  perspective: 'composition',
+  page: 2,
+}
+
+const response = {
+  frames: {
+    detail: {
+      columns: [{ name: 'value', type: 'number' as const }],
+      rows: [[42]],
+    },
+  },
+  page: { number: 2, size: 50 },
+}
+
+describe('QueryClient', () => {
+  it('deduplicates in-flight requests and returns cache hits without fetching', async () => {
+    let resolveResponse: ((value: Response) => void) | undefined
+    const fetcher = vi.fn(() => new Promise<Response>((resolve) => { resolveResponse = resolve }))
+    const client = new QueryClient('/lens/query', { csrf: 'token', fetcher })
+
+    const first = client.query(request)
+    const second = client.query({ ...request, path: [...request.path] })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    resolveResponse?.(new Response(JSON.stringify(response), { status: 200 }))
+
+    await expect(first).resolves.toEqual(response)
+    await expect(second).resolves.toEqual(response)
+    await expect(client.query(request)).resolves.toEqual(response)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(fetcher).toHaveBeenCalledWith('/lens/query', expect.objectContaining({
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': 'token' },
+      body: JSON.stringify(request),
+    }))
+  })
+
+  it('keys every snapshot-scoped dimension', () => {
+    const keys = [
+      request,
+      { ...request, snapshotId: 'snapshot-2' },
+      { ...request, path: ['root'] },
+      { ...request, perspective: 'evidence' },
+      { ...request, page: 3 },
+    ].map(queryCacheKey)
+    expect(new Set(keys)).toHaveLength(keys.length)
+    expect(queryCacheKey({ ...request, prefetch: true })).toBe(queryCacheKey(request))
+  })
+
+  it('sends interactive activation while the same path is being prefetched', async () => {
+    const resolvers: Array<(value: Response) => void> = []
+    const bodies: Array<QueryRequest> = []
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      bodies.push(JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as QueryRequest)
+      return new Promise<Response>((resolve) => resolvers.push(resolve))
+    })
+    const client = new QueryClient('/lens/query', { fetcher })
+
+    const prefetch = client.query({ ...request, prefetch: true })
+    const interactive = client.query(request)
+
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(bodies.map(({ prefetch }) => prefetch ?? false)).toEqual([true, false])
+    for (const resolve of resolvers) resolve(new Response(JSON.stringify(response), { status: 200 }))
+    await expect(prefetch).resolves.toEqual(response)
+    await expect(interactive).resolves.toEqual(response)
+    await client.query(request)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not attach a revisited path to an obsolete navigation flight', async () => {
+    const resolvers: Array<(value: Response) => void> = []
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() =>
+      new Promise<Response>((resolve) => resolvers.push(resolve)))
+    const client = new QueryClient('/lens/query', { fetcher })
+
+    const obsolete = client.query({ ...request, revision: 1 })
+    const revisited = client.query({ ...request, revision: 3 })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    for (const resolve of resolvers) resolve(new Response(JSON.stringify(response), { status: 200 }))
+    await expect(obsolete).resolves.toEqual(response)
+    await expect(revisited).resolves.toEqual(response)
+  })
+
+  it('evicts cached responses from prior snapshots', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify(response), { status: 200 })))
+    const client = new QueryClient('/lens/query', { fetcher })
+
+    await client.query(request)
+    await client.query({ ...request, snapshotId: 'snapshot-2' })
+    await client.query(request)
+
+    expect(fetcher).toHaveBeenCalledTimes(3)
+  })
+
+  it('recognizes only the exact 410 snapshot_gone protocol', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      error: 'snapshot_gone', message: 'expired',
+    }), { status: 410 }))
+    const client = new QueryClient('/lens/query', { fetcher })
+    await expect(client.query(request)).rejects.toEqual(expect.objectContaining<Partial<SnapshotGoneError>>({
+      name: 'SnapshotGoneError', code: 'snapshot_gone', status: 410,
+    }))
+  })
+
+  it('aborts pending work when disposed', () => {
+    let signal: AbortSignal | undefined
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      signal = init?.signal as AbortSignal
+      return new Promise<Response>(() => undefined)
+    })
+    const client = new QueryClient('/lens/query', { fetcher })
+    void client.query(request)
+    client.dispose()
+    expect(signal?.aborted).toBe(true)
+  })
+
+  it('propagates a caller abort signal to the request', async () => {
+    let signal: AbortSignal | undefined
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      signal = init?.signal as AbortSignal
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new DOMException('timed out', 'TimeoutError')), { once: true })
+      })
+    })
+    const client = new QueryClient('/lens/query', { fetcher })
+    const controller = new AbortController()
+    const pending = client.query(request, { signal: controller.signal })
+
+    controller.abort(new DOMException('timed out', 'TimeoutError'))
+
+    await expect(pending).rejects.toMatchObject({ name: 'TimeoutError' })
+    expect(signal?.aborted).toBe(true)
+  })
+})

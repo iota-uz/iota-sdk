@@ -273,7 +273,7 @@ func RunResult(state importpkg.RunState, confirmURL string) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					for _, c := range state.Result.Counts {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<li class=\"flex justify-between border-b border-gray-100 py-1\"><span>")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<li class=\"flex justify-between border-b border-subtle py-1\"><span>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}

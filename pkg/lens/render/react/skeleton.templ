@@ -1,0 +1,51 @@
+package react
+
+import (
+	"strings"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+)
+
+// DashboardSkeleton renders a layout-shaped fallback while the React runtime
+// fetches its first document.
+templ DashboardSkeleton(spec lens.DashboardSpec) {
+	<div class="lens-dashboard-skeleton" aria-hidden="true" role="presentation">
+		if len(spec.Rows) == 0 {
+			<section class="lens-dashboard-row">
+				<div class="lens-panel-grid">
+					<div class="lens-grid-item" style="--lens-panel-span:12">
+						<div class="lens-skeleton-card">
+							<span class="lens-shimmer lens-shimmer-label"></span>
+							<span class="lens-shimmer lens-shimmer-body"></span>
+						</div>
+					</div>
+				</div>
+			</section>
+		}
+		for _, row := range spec.Rows {
+			<section class="lens-dashboard-row">
+				if strings.TrimSpace(row.Heading) != "" {
+					<div class="lens-skeleton-heading">
+						<span class="lens-shimmer lens-shimmer-label" style="width:8rem"></span>
+						<span class="lens-skeleton-heading-rule"></span>
+					</div>
+				}
+				<div class="lens-panel-grid">
+					for _, panelSpec := range row.Panels {
+						@dashboardSkeletonPanel(panelSpec)
+					}
+				</div>
+			</section>
+		}
+	</div>
+}
+
+templ dashboardSkeletonPanel(spec panel.Spec) {
+	<div class="lens-grid-item" style={ skeletonSpanStyle(spec.Span) }>
+		<div { skeletonCardAttrs(spec.Kind)... }>
+			<span class="lens-shimmer lens-shimmer-label"></span>
+			<span class="lens-shimmer lens-shimmer-body"></span>
+		</div>
+	</div>
+}

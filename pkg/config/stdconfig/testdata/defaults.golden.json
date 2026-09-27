@@ -65,7 +65,8 @@
   },
   "Cookies": {
     "SID": "sid",
-    "OAuthState": "oauthState"
+    "OAuthState": "oauthState",
+    "Domain": ""
   },
   "Session": {
     "Duration": 2592000000000000

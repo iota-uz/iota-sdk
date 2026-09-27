@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add demand-driven verified SDK releases and sdk-tools consumer preview/promotion commands."
+}

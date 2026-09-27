@@ -103,7 +103,7 @@ templ RunResult(state importpkg.RunState, confirmURL string) {
 			if len(state.Result.Counts) > 0 {
 				<ul class="text-gray-700 mb-4 space-y-2">
 					for _, c := range state.Result.Counts {
-						<li class="flex justify-between border-b border-gray-100 py-1">
+						<li class="flex justify-between border-b border-subtle py-1">
 							<span>{ c.Label }</span>
 							<span class="font-medium">{ strconv.Itoa(c.Value) }</span>
 						</li>

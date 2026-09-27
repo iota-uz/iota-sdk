@@ -78,10 +78,10 @@ func linkAttrs(props LinkProps) templ.Attributes {
 
 func linkClass(props LinkProps) any {
 	if props.Class == nil {
-		return "inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+		return "inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-default bg-white text-gray-500 shadow-sm transition-colors hover:border-brand hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
 	}
 	return []any{
-		"inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+		"inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-default bg-white text-gray-500 shadow-sm transition-colors hover:border-brand hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
 		props.Class,
 	}
 }

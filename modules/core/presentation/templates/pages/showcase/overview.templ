@@ -36,7 +36,7 @@ templ OverviewContent() {
 		<!-- Component Categories -->
 		<div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
 			<!-- Form Components Card -->
-			<div class="bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-primary">
+			<div class="bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-subtle">
 				<div class="p-6">
 					<div class="flex items-center mb-4">
 						@icons.TextAa(icons.Props{Size: "32", Class: "text-blue"})
@@ -73,7 +73,7 @@ templ OverviewContent() {
 				</div>
 			</div>
 			<!-- Loaders Card -->
-			<div class="bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-primary">
+			<div class="bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-subtle">
 				<div class="p-6">
 					<div class="flex items-center mb-4">
 						@icons.CircleNotch(icons.Props{Size: "32", Class: "text-yellow"})
@@ -104,7 +104,7 @@ templ OverviewContent() {
 				</div>
 			</div>
 			<!-- Charts Card -->
-			<div class="bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-primary">
+			<div class="bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-subtle">
 				<div class="p-6">
 					<div class="flex items-center mb-4">
 						@icons.ChartBar(icons.Props{Size: "32", Class: "text-green"})
@@ -138,7 +138,7 @@ templ OverviewContent() {
 				</div>
 			</div>
 			<!-- Other Components Card -->
-			<div class="bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-primary">
+			<div class="bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-subtle">
 				<div class="p-6">
 					<div class="flex items-center mb-4">
 						@icons.PuzzlePiece(icons.Props{Size: "32", Class: "text-purple"})
@@ -172,6 +172,24 @@ templ OverviewContent() {
 				</div>
 			</div>
 		</div>
+		<section class="mb-12 rounded-xl border border-subtle bg-surface-300 p-6">
+			<h2 class="mb-2 text-2xl font-semibold text-100">Semantic border tokens</h2>
+			<p class="mb-6 text-200">The same contract is used in light and dark themes.</p>
+			<div class="grid gap-4 md:grid-cols-4">
+				<div class="rounded-lg border border-subtle p-4">Subtle<br/><span class="text-sm text-200">Cards and dividers</span></div>
+				<div class="rounded-lg border border-default p-4">Default<br/><span class="text-sm text-200">Controls and tables</span></div>
+				<div class="rounded-lg border-2 border-strong p-4">Strong<br/><span class="text-sm text-200">Selected regions</span></div>
+				<div class="rounded-lg border border-brand p-4">Brand<br/><span class="text-sm text-200">Active and focus</span></div>
+				<div class="rounded-lg border border-success p-4">Success</div>
+				<div class="rounded-lg border border-warning p-4">Warning</div>
+				<div class="rounded-lg border border-danger p-4">Danger</div>
+				<div class="rounded-lg border border-disabled p-4 opacity-50">Disabled</div>
+			</div>
+			<div class="mt-6 grid gap-4 md:grid-cols-2">
+				<div class="rounded-lg border border-subtle bg-surface-100 p-4"><div class="rounded-md border border-subtle bg-surface-300 p-4">Nested card</div></div>
+				<div class="rounded-lg border border-subtle bg-surface-300 p-4"><input class="form-control form-control-input w-full" placeholder="Default control"/><div class="mt-3 rounded-md border border-danger p-3 text-sm">Invalid state</div></div>
+			</div>
+		</section>
 		<!-- Getting Started -->
 		<div class="text-center">
 			<h2 class="text-2xl font-semibold text-gray-700 mb-4">Ready to Get Started?</h2>

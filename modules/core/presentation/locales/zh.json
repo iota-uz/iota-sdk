@@ -1,4 +1,19 @@
 {
+  "Authorization": {
+    "Errors": {
+      "Title": "不允许执行此操作",
+      "GrantCeiling": "无法授予此访问权限，因为其中包含您账户不具备的权限。更改未保存。",
+      "TargetDominance": "无法管理此用户、角色或组，因为其访问级别更高。更改未保存。",
+      "TenantBoundary": "此项目在您的组织中不可用。更改未保存。",
+      "SystemRole": "您不能分配此系统角色。更改未保存。",
+      "SystemGroup": "您不能分配此系统组。更改未保存。",
+      "SelfAdmin": "请使用账户设置编辑您自己的个人资料。管理更改未保存。",
+      "InvalidSelection": "所选访问选项之一无效或不可用。更改未保存。"
+    },
+    "Notices": {
+      "ReadOnlyTarget": "此项目具有更高的访问级别。您可以查看，但不能修改。"
+    }
+  },
   "Account": {
     "Meta": {
       "Index": {
@@ -33,6 +48,7 @@
       "Placeholder": "输入电话号码"
     },
     "Password": "密码",
+    "ChangePassword": {"Title":"更改密码","DescText":"更改密码后，所有活动会话都将退出。","CurrentPassword":"当前密码","NewPassword":"新密码","ConfirmPassword":"确认新密码","Submit":"更改密码","Errors":{"CurrentRequired":"请输入当前密码。","CurrentIncorrect":"当前密码不正确。","NewTooShort":"新密码必须至少包含 8 个字符。","ConfirmationMismatch":"两次输入的新密码不一致。"}},
     "Save": "保存",
     "Logo": {
       "FullLogo": "完整logo",
@@ -89,6 +105,9 @@
   "Chart": {
     "CloseFullScreen": "关闭全屏",
     "ExpandToFullScreen": "全屏展开",
+    "ExportExcel": "导出到 Excel",
+    "ExportGenerating": "正在生成 Excel 报表…",
+    "ExportFailed": "无法生成报告，请重试。",
     "LogScale": "对数刻度",
     "LogScaleHint": "这些数值使用对数刻度显示",
     "MetricInfo": "该指标的计算方式"
@@ -122,7 +141,11 @@
     }
   },
   "Common": {
-    "Loading": "加载中..."
+    "CloseNotification": "关闭通知",
+    "TabNavigation": "标签导航",
+    "Loading": "加载中...",
+    "LoadFailed": "无法加载数据",
+    "Retry": "重试"
   },
   "ConfirmDelete": "您确定要删除此项吗？",
   "Countries": {
@@ -443,14 +466,20 @@
     "WelcomeBack": "欢迎回来",
     "LoginToUse": "登录以使用 IOTA ERP",
     "LoginWithGoogle": "使用 Google 登录",
-    "OrSignInWith": "或使用...登录",
+		"OrSignInWith": "或使用...登录",
+		"Or": "或",
+		"ChooseAccount": "选择账户",
+		"UseAnotherAccount": "使用其他账户",
+		"ActiveAccount": "当前",
     "Errors": {
       "PasswordInvalid": "电子邮件或密码无效",
       "OauthStateNotFound": "未找到 oAuth 状态。请重试。",
       "OauthStateInvalid": "无效的 oAuth 状态。请重试。",
       "OauthCodeNotFound": "未找到 oAuth 代码。请重试。",
       "UserNotFound": "未找到用户",
-      "AccountBlocked": "您的账户已被封禁。请联系管理员。"
+			"AccountBlocked": "您的账户已被封禁。请联系管理员。",
+			"SessionExpired": "该账户会话已过期。请重新登录或选择其他账户。"
+			,"AuthorizationRequestInvalid": "此授权请求已失效。请返回应用并重新开始。"
     }
   },
   "Modules": {
@@ -582,7 +611,11 @@
     "Navbar": {
       "Profile": "个人资料",
       "Sessions": "会话",
-      "Logout": "退出登录",
+			"Logout": "退出登录",
+			"CurrentAccount": "当前账户",
+			"AddAccount": "添加账户",
+			"LogoutCurrent": "退出当前账户",
+			"LogoutAll": "退出所有账户",
       "Settings": "设置"
     },
     "Departments": "部门"
@@ -1086,11 +1119,17 @@
       "FullName": "全名",
       "Roles": "角色",
       "Email": "电子邮件",
-      "AllGroups": "所有组",
-      "AllRoles": "所有角色",
       "Filters": "筛选",
-      "ExpandFilters": "展开过滤器",
-      "CollapseFilters": "折叠过滤器"
+      "FilterRole": "角色",
+      "FilterGroup": "组",
+      "FilterCreatedAt": "创建时间",
+      "FilterUpdatedAt": "更新时间",
+      "FilterStatus": "状态",
+      "FilterStatusActive": "活跃",
+      "FilterStatusBlocked": "已封禁",
+      "FilterType": "类型",
+      "FilterTypeRegular": "普通",
+      "FilterTypeSystem": "系统"
     },
     "Cards": {
       "PersonalInfo": "个人信息",

@@ -85,7 +85,7 @@ func (m *OpenAIModel) buildReadyToolCallsFromAccum(accum map[string]*toolCallAcc
 	return calls
 }
 
-func functionCallItemKey(item responses.ResponseOutputItemUnion, fallback string) string {
+func functionCallItemKey(item responses.ResponseFunctionToolCall, fallback string) string {
 	if id := strings.TrimSpace(item.ID); id != "" {
 		return id
 	}

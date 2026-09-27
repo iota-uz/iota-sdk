@@ -49,7 +49,37 @@
       "SelectCounterparty": "Kontragentni tanlang",
       "NoCounterpartiesFound": "Kontragentlar topilmadi",
       "_Description": "Tavsif",
-      "DeleteConfirmation": "Ushbu loyihani o'chirishni xohlaysizmi?"
+      "DeleteConfirmation": "Ushbu loyihani o'chirishni xohlaysizmi?",
+      "General": "Loyiha",
+      "ContractAmount": "Shartnoma summasi",
+      "ContractCurrency": "Shartnoma valyutasi",
+      "SelectCurrency": "Valyutani tanlang"
+    },
+    "Acceptance": {
+      "Title": "Qabul qilish",
+      "New": "Yangi hujjat",
+      "Kind": "Turi",
+      "Number": "Raqami",
+      "Date": "Sana",
+      "Amount": "Summa",
+      "CurrencyCode": "Valyuta",
+      "_Description": "Tavsif",
+      "Add": "Qo'shish",
+      "Sign": "Imzolash",
+      "Cancel": "Bekor qilish",
+      "CancelConfirmation": "Hujjat bekor qilinsinmi?",
+      "DeleteConfirmation": "Hujjat o'chirilsinmi?",
+      "Empty": "Qabul hujjatlari hali yo'q",
+      "Kinds": {
+        "_ACT": "Bajarilgan ishlar dalolatnomasi",
+        "_DELIVERY_NOTE": "Yuk xati",
+        "_OTHER": "Boshqa hujjat"
+      },
+      "Statuses": {
+        "DRAFT": "Qoralama",
+        "SIGNED": "Imzolangan",
+        "CANCELLED": "Bekor qilingan"
+      }
     }
   },
   "ProjectStages": {

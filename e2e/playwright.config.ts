@@ -13,8 +13,9 @@ const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
 function loadEnvironmentConfig() {
 	const envPath = path.join(__dirname, '.env.e2e');
 
-	// Load .env.e2e if it exists (local development)
-	if (fs.existsSync(envPath)) {
+	// Load .env.e2e only for local development. CI provides its own service
+	// ports and credentials, which must not be overwritten by local defaults.
+	if (!isCI && fs.existsSync(envPath)) {
 		dotenv.config({ path: envPath });
 	}
 

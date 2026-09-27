@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -36,7 +37,7 @@ const (
 		t.comment,
 		t.created_at
 		FROM payments p LEFT JOIN transactions t ON t.id = p.transaction_id`
-	paymentCountQuery  = `SELECT COUNT(*) as count FROM payments p LEFT JOIN transactions t ON t.id = p.transaction_id WHERE t.tenant_id = $1`
+	paymentCountQuery  = `SELECT COUNT(*) as count FROM payments p LEFT JOIN transactions t ON t.id = p.transaction_id`
 	paymentInsertQuery = `
 	INSERT INTO payments (
 		tenant_id,
@@ -64,45 +65,61 @@ func NewPaymentRepository() payment.Repository {
 }
 
 func (g *GormPaymentRepository) GetPaginated(ctx context.Context, params *payment.FindParams) ([]payment.Payment, error) {
-	tenantID, err := composables.UseTenantID(ctx)
+	const op serrors.Op = "GormPaymentRepository.GetPaginated"
+	where, args, err := paymentFilters(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
-	where := []string{"t.tenant_id = $1"}
-	args := []interface{}{tenantID}
-
-	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		where = append(where, fmt.Sprintf("p.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2))
-		args = append(args, params.CreatedAt.From, params.CreatedAt.To)
-	}
-	if params.Query != "" && params.Field != "" {
-		where = append(where, fmt.Sprintf("p.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1))
-		args = append(args, "%"+params.Query+"%")
+		return nil, serrors.E(op, err)
 	}
 	q := repo.Join(
 		paymentFindQuery,
 		repo.JoinWhere(where...),
+		"ORDER BY p.created_at DESC, p.id DESC",
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 	return g.queryPayments(ctx, q, args...)
 }
 
-func (g *GormPaymentRepository) Count(ctx context.Context) (int64, error) {
-	tenantID, err := composables.UseTenantID(ctx)
+func (g *GormPaymentRepository) Count(ctx context.Context, params *payment.FindParams) (int64, error) {
+	const op serrors.Op = "GormPaymentRepository.Count"
+	where, args, err := paymentFilters(ctx, params)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
+		return 0, serrors.E(op, err)
 	}
-
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, err
+		return 0, serrors.E(op, err)
 	}
 	var count int64
-	if err := tx.QueryRow(ctx, paymentCountQuery, tenantID).Scan(&count); err != nil {
-		return 0, err
+	if err := tx.QueryRow(ctx, repo.Join(paymentCountQuery, repo.JoinWhere(where...)), args...).Scan(&count); err != nil {
+		return 0, serrors.E(op, err)
 	}
 	return count, nil
+}
+
+// paymentFilters scopes payments to the tenant and applies the search and
+// creation period, so a page and the count see the same payments.
+func paymentFilters(ctx context.Context, params *payment.FindParams) ([]string, []interface{}, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
+	where := []string{"t.tenant_id = $1"}
+	args := []interface{}{tenantID}
+
+	if params.CreatedAt.From != "" {
+		where = append(where, fmt.Sprintf("p.created_at >= $%d", len(args)+1))
+		args = append(args, params.CreatedAt.From)
+	}
+	if params.CreatedAt.To != "" {
+		where = append(where, fmt.Sprintf("p.created_at <= $%d", len(args)+1))
+		args = append(args, params.CreatedAt.To)
+	}
+	if params.Search != "" {
+		where = append(where, fmt.Sprintf("t.comment ILIKE $%d", len(args)+1))
+		args = append(args, "%"+params.Search+"%")
+	}
+	return where, args, nil
 }
 
 func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]payment.Payment, error) {

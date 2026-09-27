@@ -82,6 +82,37 @@ func TestNotLikeFilter(t *testing.T) {
 	assert.Equal(t, []any{"%test%"}, filter.Value())
 }
 
+func TestRebasePlaceholders_MultiDigitPlaceholders(t *testing.T) {
+	values := make([]any, 10)
+	tests := []struct {
+		name     string
+		filter   Filter
+		expected string
+	}{
+		{
+			name:     "raw filter",
+			filter:   RawFilter("first = $1 AND tenth = $10", values...),
+			expected: "first = $6 AND tenth = $15",
+		},
+		{
+			name:     "exists filter",
+			filter:   ExistsFilter("EXISTS (SELECT 1 WHERE first = $1 AND tenth = $10)", values...),
+			expected: "EXISTS (SELECT 1 WHERE first = $6 AND tenth = $15)",
+		},
+		{
+			name:     "subquery filter",
+			filter:   SubqueryFilter("SELECT id WHERE first = $1 AND tenth = $10", values...),
+			expected: "column IN (SELECT id WHERE first = $6 AND tenth = $15)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.filter.String("column", 6))
+		})
+	}
+}
+
 func TestOrFilter(t *testing.T) {
 	t.Run("simple OR", func(t *testing.T) {
 		filter := Or(Eq("test"), Like("%sample%"))

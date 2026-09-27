@@ -1,0 +1,626 @@
+{
+  "version": "1.0.0",
+  "snapshotId": "snapshot-panels-v1",
+  "meta": {
+    "dashboardId": "panel-kinds-v1",
+    "title": "Operations overview",
+    "generatedAt": "2026-07-19T12:00:00Z",
+    "locale": "en"
+  },
+  "layout": {
+    "rows": [
+      {
+        "heading": "Headline metrics",
+        "panels": [
+          {
+            "panelId": "revenue",
+            "span": 4
+          },
+          {
+            "panelId": "share",
+            "span": 4
+          },
+          {
+            "panelId": "mix",
+            "span": 4
+          }
+        ]
+      },
+      {
+        "heading": "Regional comparison",
+        "panels": [
+          {
+            "panelId": "sales",
+            "span": 6
+          },
+          {
+            "panelId": "inventory",
+            "span": 6
+          }
+        ]
+      },
+      {
+        "heading": "Performance over time",
+        "panels": [
+          {
+            "panelId": "trend",
+            "span": 6
+          },
+          {
+            "panelId": "forecast",
+            "span": 6
+          }
+        ]
+      },
+      {
+        "heading": "Reconciliation and evidence",
+        "panels": [
+          {
+            "panelId": "margin-bridge",
+            "span": 5
+          },
+          {
+            "panelId": "evidence",
+            "span": 7
+          }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": "revenue",
+      "kind": "stat",
+      "title": "Quarterly revenue",
+      "semantics": "series",
+      "frame": "panel:revenue",
+      "encoding": {
+        "label": "label",
+        "value": "value",
+        "final": "delta"
+      },
+      "format": {
+        "value": {
+          "kind": "money",
+          "currency": "USD",
+          "minorUnits": true,
+          "precision": 0
+        },
+        "delta": {
+          "kind": "percent",
+          "minorUnits": false,
+          "precision": 1
+        }
+      },
+      "actions": [],
+      "terminal": true
+    },
+    {
+      "id": "share",
+      "kind": "pie",
+      "title": "Revenue share",
+      "semantics": "partition",
+      "frame": "panel:regions",
+      "encoding": {
+        "id": "id",
+        "label": "label",
+        "value": "value"
+      },
+      "format": {
+        "value": {
+          "kind": "percent",
+          "minorUnits": false,
+          "precision": 0
+        }
+      },
+      "actions": [],
+      "terminal": true
+    },
+    {
+      "id": "mix",
+      "kind": "donut",
+      "title": "Product mix",
+      "semantics": "partition",
+      "frame": "panel:products",
+      "encoding": {
+        "id": "id",
+        "label": "label",
+        "value": "value"
+      },
+      "format": {},
+      "actions": [],
+      "terminal": true
+    },
+    {
+      "id": "sales",
+      "kind": "bar",
+      "title": "Sales by region",
+      "semantics": "series",
+      "frame": "panel:regions",
+      "encoding": {
+        "id": "id",
+        "category": "label",
+        "value": "sales"
+      },
+      "format": {
+        "sales": {
+          "kind": "money",
+          "currency": "USD",
+          "minorUnits": true,
+          "precision": 0
+        }
+      },
+      "actions": [],
+      "terminal": true
+    },
+    {
+      "id": "inventory",
+      "kind": "hbar",
+      "title": "Inventory by region",
+      "semantics": "series",
+      "frame": "panel:regions",
+      "encoding": {
+        "id": "id",
+        "category": "label",
+        "value": "inventory"
+      },
+      "format": {},
+      "actions": [],
+      "terminal": true
+    },
+    {
+      "id": "trend",
+      "kind": "line",
+      "title": "Monthly revenue",
+      "semantics": "series",
+      "frame": "panel:timeline",
+      "encoding": {
+        "category": "month",
+        "series": "series",
+        "value": "value"
+      },
+      "format": {
+        "month": {
+          "kind": "date",
+          "minorUnits": false,
+          "layout": "Jan"
+        },
+        "value": {
+          "kind": "money",
+          "currency": "USD",
+          "minorUnits": true,
+          "precision": 0
+        }
+      },
+      "actions": [],
+      "terminal": true
+    },
+    {
+      "id": "forecast",
+      "kind": "area",
+      "title": "Actual and forecast",
+      "semantics": "series",
+      "frame": "panel:timeline",
+      "encoding": {
+        "category": "month",
+        "series": "series",
+        "value": "value"
+      },
+      "format": {
+        "month": {
+          "kind": "date",
+          "minorUnits": false,
+          "layout": "Jan"
+        },
+        "value": {
+          "kind": "money",
+          "currency": "USD",
+          "minorUnits": true,
+          "precision": 0
+        }
+      },
+      "actions": [],
+      "terminal": true
+    },
+    {
+      "id": "margin-bridge",
+      "kind": "cascade",
+      "title": "Margin bridge",
+      "semantics": "reconciliation",
+      "frame": "panel:bridge",
+      "encoding": {
+        "label": "stage",
+        "value": "balance",
+        "cut": "movement",
+        "cutLabel": "movementLabel",
+        "final": "reconciled"
+      },
+      "format": {
+        "balance": {
+          "kind": "money",
+          "currency": "USD",
+          "minorUnits": false,
+          "precision": 0
+        },
+        "movement": {
+          "kind": "money",
+          "currency": "USD",
+          "minorUnits": false,
+          "precision": 0
+        }
+      },
+      "actions": [],
+      "terminal": true
+    },
+    {
+      "id": "evidence",
+      "kind": "table",
+      "title": "Recent evidence",
+      "semantics": "evidence",
+      "frame": "panel:evidence",
+      "encoding": {
+        "id": "transactionId",
+        "label": "counterparty",
+        "value": "amount"
+      },
+      "format": {
+        "amount": {
+          "kind": "money",
+          "currency": "USD",
+          "minorUnits": false,
+          "precision": 0
+        },
+        "postedAt": {
+          "kind": "date",
+          "minorUnits": false,
+          "layout": "2006-01-02"
+        }
+      },
+      "actions": [
+        {
+          "kind": "navigate_to_leaf",
+          "urlTemplate": "/transactions/{transactionId}",
+          "params": [
+            {
+              "name": "transactionId",
+              "source": {
+                "kind": "field",
+                "name": "transactionId"
+              }
+            }
+          ],
+          "payload": {},
+          "preserveQuery": true
+        }
+      ]
+    }
+  ],
+  "frames": {
+    "panel:revenue": {
+      "columns": [
+        {
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "number"
+        },
+        {
+          "name": "delta",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        [
+          "Net revenue",
+          428600000,
+          8.3
+        ]
+      ]
+    },
+    "panel:regions": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "number"
+        },
+        {
+          "name": "sales",
+          "type": "number"
+        },
+        {
+          "name": "inventory",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        [
+          "regions/north",
+          "North",
+          46,
+          197200000,
+          128
+        ],
+        [
+          "regions/south",
+          "South",
+          32,
+          137100000,
+          91
+        ],
+        [
+          "regions/east",
+          "East",
+          22,
+          94300000,
+          64
+        ]
+      ]
+    },
+    "panel:products": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        [
+          "core",
+          "Core",
+          58
+        ],
+        [
+          "growth",
+          "Growth",
+          27
+        ],
+        [
+          "new",
+          "New",
+          15
+        ]
+      ]
+    },
+    "panel:timeline": {
+      "columns": [
+        {
+          "name": "month",
+          "type": "time"
+        },
+        {
+          "name": "series",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        [
+          "2026-01-01T00:00:00Z",
+          "Actual",
+          116000000
+        ],
+        [
+          "2026-02-01T00:00:00Z",
+          "Actual",
+          143000000
+        ],
+        [
+          "2026-03-01T00:00:00Z",
+          "Actual",
+          169600000
+        ],
+        [
+          "2026-01-01T00:00:00Z",
+          "Plan",
+          120000000
+        ],
+        [
+          "2026-02-01T00:00:00Z",
+          "Plan",
+          138000000
+        ],
+        [
+          "2026-03-01T00:00:00Z",
+          "Plan",
+          155000000
+        ]
+      ]
+    },
+    "panel:bridge": {
+      "columns": [
+        {
+          "name": "stage",
+          "type": "string"
+        },
+        {
+          "name": "balance",
+          "type": "number"
+        },
+        {
+          "name": "movement",
+          "type": "number"
+        },
+        {
+          "name": "movementLabel",
+          "type": "string"
+        },
+        {
+          "name": "reconciled",
+          "type": "bool"
+        }
+      ],
+      "rows": [
+        [
+          "Gross margin",
+          3120000,
+          0,
+          "",
+          false
+        ],
+        [
+          "After claims",
+          2310000,
+          810000,
+          "Claims paid",
+          false
+        ],
+        [
+          "Operating margin",
+          1840000,
+          470000,
+          "Operating expenses",
+          true
+        ]
+      ]
+    },
+    "panel:evidence": {
+      "columns": [
+        {
+          "name": "transactionId",
+          "type": "string"
+        },
+        {
+          "name": "counterparty",
+          "type": "string"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        },
+        {
+          "name": "postedAt",
+          "type": "time"
+        },
+        {
+          "name": "reconciled",
+          "type": "bool"
+        }
+      ],
+      "rows": [
+        [
+          "TX-1042",
+          "Orion Services",
+          284000,
+          "2026-07-02T00:00:00Z",
+          true
+        ],
+        [
+          "TX-1098",
+          "Northstar Supply",
+          197000,
+          "2026-07-08T00:00:00Z",
+          false
+        ],
+        [
+          "TX-1131",
+          "Meridian Works",
+          163000,
+          "2026-07-12T00:00:00Z",
+          true
+        ]
+      ]
+    }
+  },
+  "drill": {
+    "edges": {
+      "regions": {
+        "path": [
+          "regions"
+        ],
+        "label": "All regions",
+        "children": [
+          {
+            "key": "regions/north",
+            "path": [
+              "regions",
+              "regions/north"
+            ],
+            "label": "North",
+            "target": "north"
+          },
+          {
+            "key": "regions/south",
+            "path": [
+              "regions",
+              "regions/south"
+            ],
+            "label": "South",
+            "target": "south"
+          },
+          {
+            "key": "regions/east",
+            "path": [
+              "regions",
+              "regions/east"
+            ],
+            "label": "East",
+            "target": "east"
+          }
+        ],
+        "perspectives": []
+      },
+      "north": {
+        "path": [
+          "regions",
+          "regions/north"
+        ],
+        "label": "North",
+        "children": [],
+        "perspectives": []
+      },
+      "south": {
+        "path": [
+          "regions",
+          "regions/south"
+        ],
+        "label": "South",
+        "children": [],
+        "perspectives": []
+      },
+      "east": {
+        "path": [
+          "regions",
+          "regions/east"
+        ],
+        "label": "East",
+        "children": [],
+        "perspectives": []
+      }
+    },
+    "inlineDepth": 0
+  },
+  "perspectives": [],
+  "endpoints": {},
+  "i18n": {},
+  "theme": {
+    "palette": {
+      "accent": "#2563eb",
+      "danger": "#dc2626"
+    },
+    "series": {
+      "Actual": "#2563eb",
+      "Plan": "#8b5cf6"
+    }
+  }
+}

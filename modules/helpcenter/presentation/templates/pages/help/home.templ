@@ -1,0 +1,266 @@
+package help
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type HomeProps struct {
+	BasePath string
+	Groups   []viewmodels.TaskGroup
+}
+
+var helpHomeStyles = templ.NewOnceHandle()
+
+templ Home(props HomeProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@helpHomeStyles.Once() {
+		<style>
+			.help-home {
+				width: min(100%, 78rem);
+				margin: 0 auto;
+				padding: clamp(2rem, 5vw, 4.5rem) clamp(1.25rem, 4vw, 4rem) 5rem;
+			}
+			.help-home-intro {
+				max-width: 47rem;
+			}
+			.help-home-kicker {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.45rem;
+				color: oklch(var(--primary-500));
+				font-size: 0.7rem;
+				font-weight: 750;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+			}
+			.help-home h1 {
+				max-width: 44rem;
+				margin-top: 0.8rem;
+				color: #101828;
+				font-size: clamp(2rem, 4vw, 3.4rem);
+				font-weight: 680;
+				line-height: 1.02;
+				letter-spacing: -0.055em;
+				text-wrap: balance;
+			}
+			.help-home-lead {
+				max-width: 40rem;
+				margin-top: 1.1rem;
+				color: #667085;
+				font-size: clamp(1rem, 1.5vw, 1.15rem);
+				line-height: 1.7;
+			}
+			.help-home-path {
+				display: grid;
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+				max-width: 42rem;
+				margin-top: 2rem;
+				overflow: hidden;
+				border: 1px solid #e4e7ec;
+				border-radius: 0.9rem;
+				background: white;
+				box-shadow: 0 4px 16px rgb(16 24 40 / 0.045);
+			}
+			.help-home-path > div {
+				position: relative;
+				padding: 0.75rem 1rem;
+				color: #475467;
+				font-size: 0.72rem;
+				font-weight: 650;
+			}
+			.help-home-path > div + div {
+				border-left: 1px solid #e4e7ec;
+			}
+			.help-home-path > div + div::before {
+				position: absolute;
+				top: 50%;
+				left: -0.35rem;
+				display: grid;
+				width: 0.7rem;
+				height: 0.7rem;
+				place-items: center;
+				transform: translateY(-50%) rotate(45deg);
+				border-top: 1px solid #e4e7ec;
+				border-right: 1px solid #e4e7ec;
+				background: white;
+				content: "";
+			}
+			.help-task-groups {
+				display: grid;
+				gap: 2.4rem;
+				margin-top: 3.5rem;
+			}
+			.help-task-group-heading {
+				display: flex;
+				align-items: center;
+				gap: 0.65rem;
+				margin-bottom: 0.9rem;
+				color: #344054;
+				font-size: 0.8rem;
+				font-weight: 750;
+				letter-spacing: 0.045em;
+				text-transform: uppercase;
+			}
+			.help-task-group-heading::after {
+				height: 1px;
+				flex: 1;
+				background: #e4e7ec;
+				content: "";
+			}
+			.help-task-grid {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 0.85rem;
+			}
+			.help-task-card {
+				display: flex;
+				min-width: 0;
+				flex-direction: column;
+				border: 1px solid #e4e7ec;
+				border-radius: 1rem;
+				background: white;
+				padding: 1.15rem;
+				box-shadow: 0 3px 12px rgb(16 24 40 / 0.035);
+				transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+			}
+			.help-task-card:hover {
+				transform: translateY(-1px);
+				border-color: color-mix(in srgb, oklch(var(--primary-500)) 34%, #e4e7ec);
+				box-shadow: 0 8px 24px rgb(16 24 40 / 0.07);
+			}
+			.help-task-title {
+				color: #101828;
+				font-size: 1rem;
+				font-weight: 650;
+				line-height: 1.35;
+			}
+			.help-task-description {
+				margin-top: 0.45rem;
+				color: #667085;
+				font-size: 0.8rem;
+				line-height: 1.55;
+			}
+			.help-task-outcome {
+				display: flex;
+				gap: 0.45rem;
+				margin-top: 0.8rem;
+				color: #475467;
+				font-size: 0.72rem;
+				line-height: 1.45;
+			}
+			.help-task-actions {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 0.55rem;
+				margin-top: auto;
+				padding-top: 1rem;
+			}
+			.help-task-action {
+				display: inline-flex;
+				min-height: 2rem;
+				align-items: center;
+				gap: 0.35rem;
+				border-radius: 0.55rem;
+				padding: 0 0.7rem;
+				font-size: 0.72rem;
+				font-weight: 650;
+				transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
+			}
+			.help-task-action-primary {
+				background: oklch(var(--primary-500));
+				color: white;
+			}
+			.help-task-action-primary:hover {
+				background: oklch(var(--primary-600));
+			}
+			.help-task-action-secondary {
+				border: 1px solid #d0d5dd;
+				background: white;
+				color: #475467;
+			}
+			.help-task-action-secondary:hover {
+				border-color: color-mix(in srgb, oklch(var(--primary-500)) 44%, #d0d5dd);
+				color: oklch(var(--primary-500));
+			}
+			@media (max-width: 760px) {
+				.help-task-grid {
+					grid-template-columns: minmax(0, 1fr);
+				}
+				.help-home-path {
+					grid-template-columns: minmax(0, 1fr);
+				}
+				.help-home-path > div + div {
+					border-top: 1px solid #e4e7ec;
+					border-left: 0;
+				}
+				.help-home-path > div + div::before {
+					display: none;
+				}
+			}
+			@media (prefers-reduced-motion: reduce) {
+				.help-task-card,
+				.help-task-action {
+					transition: none;
+				}
+			}
+		</style>
+	}
+	<div class="help-home">
+		<header class="help-home-intro">
+			<div class="help-home-kicker">
+				@icons.Compass(icons.Props{Size: "15", Variant: icons.DuoTone})
+				<span>{ pageCtx.T("HelpCenter.Tasks.Kicker") }</span>
+			</div>
+			<h1>{ pageCtx.T("HelpCenter.Tasks.Title") }</h1>
+			<p class="help-home-lead">{ pageCtx.T("HelpCenter.Tasks.Subtitle") }</p>
+			<div class="help-home-path" aria-label={ pageCtx.T("HelpCenter.Tasks.PathLabel") }>
+				<div>{ pageCtx.T("HelpCenter.Tasks.Path.Task") }</div>
+				<div>{ pageCtx.T("HelpCenter.Tasks.Path.Screen") }</div>
+				<div>{ pageCtx.T("HelpCenter.Tasks.Path.Result") }</div>
+			</div>
+		</header>
+		<div class="help-task-groups">
+			for _, group := range props.Groups {
+				<section>
+					<h2 class="help-task-group-heading">{ group.Title }</h2>
+					<div class="help-task-grid">
+						for _, task := range group.Tasks {
+							<article class="help-task-card">
+								<h3 class="help-task-title">{ task.Title }</h3>
+								<p class="help-task-description">{ task.Description }</p>
+								if task.Outcome != "" {
+									<div class="help-task-outcome">
+										@icons.CheckCircle(icons.Props{Size: "15", Variant: icons.DuoTone, Class: "mt-0.5 shrink-0 text-brand-500"})
+										<span>{ task.Outcome }</span>
+									</div>
+								}
+								<div class="help-task-actions">
+									if task.ScreenPath != "" {
+										<a class="help-task-action help-task-action-primary" href={ templ.URL(task.ScreenPath) }>
+											{ pageCtx.T("HelpCenter.Tasks.OpenScreen") }
+											@icons.ArrowRight(icons.Props{Size: "13"})
+										</a>
+									}
+									if task.ArticlePath != "" {
+										<a
+											class="help-task-action help-task-action-secondary"
+											href={ templ.URL(props.BasePath + "/doc/" + task.ArticlePath) }
+											hx-get={ props.BasePath + "/doc/" + task.ArticlePath }
+											hx-target="#help-doc-pane"
+											hx-push-url="true"
+										>
+											@icons.BookOpen(icons.Props{Size: "13"})
+											{ pageCtx.T("HelpCenter.Tasks.ReadGuide") }
+										</a>
+									}
+								</div>
+							</article>
+						}
+					</div>
+				</section>
+			}
+		</div>
+	</div>
+}
