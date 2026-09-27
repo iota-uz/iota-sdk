@@ -10,8 +10,8 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	"github.com/Oudwins/tailwind-merge-go/pkg/twmerge"
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/pkg/twmerge"
 )
 
 type Direction int

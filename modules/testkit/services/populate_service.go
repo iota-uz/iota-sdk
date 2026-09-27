@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -145,10 +146,16 @@ func (s *PopulateService) setupTenant(ctx context.Context, tenantSpec *schemas.T
 }
 
 func (s *PopulateService) populateData(ctx context.Context, data *schemas.DataSpec) error {
+	const op serrors.Op = "PopulateService.populateData"
 	// Create users first as they're referenced by other entities
 	if len(data.Users) > 0 {
 		if err := s.createUsers(ctx, data.Users); err != nil {
 			return fmt.Errorf("failed to create users: %w", err)
+		}
+	}
+	if len(data.OIDCClients) > 0 {
+		if err := s.createOIDCClients(ctx, data.OIDCClients); err != nil {
+			return serrors.E(op, err)
 		}
 	}
 
@@ -176,7 +183,46 @@ func (s *PopulateService) populateData(ctx context.Context, data *schemas.DataSp
 	return nil
 }
 
+func (s *PopulateService) createOIDCClients(ctx context.Context, clients []schemas.OIDCClientSpec) error {
+	const op serrors.Op = "PopulateService.createOIDCClients"
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	for _, clientSpec := range clients {
+		scopes := clientSpec.Scopes
+		if len(scopes) == 0 {
+			scopes = []string{"openid", "profile", "email"}
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO oidc.clients (
+				client_id, name, application_type, redirect_uris, grant_types,
+				response_types, scopes, auth_method, require_pkce, is_active
+			) VALUES ($1, $2, 'web', $3, ARRAY['authorization_code'], ARRAY['code'], $4, 'none', true, true)
+				ON CONFLICT (client_id) DO UPDATE SET
+					name = EXCLUDED.name,
+					application_type = EXCLUDED.application_type,
+					redirect_uris = EXCLUDED.redirect_uris,
+					grant_types = EXCLUDED.grant_types,
+					response_types = EXCLUDED.response_types,
+					scopes = EXCLUDED.scopes,
+				auth_method = 'none',
+				require_pkce = true,
+				is_active = true`,
+			clientSpec.ClientID,
+			clientSpec.Name,
+			clientSpec.RedirectURIs,
+			scopes,
+		); err != nil {
+			return serrors.E(op, err)
+		}
+	}
+	return nil
+}
+
 func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserSpec) error {
+	const op = serrors.Op("PopulateService.createUsers")
+
 	logger := composables.UseLogger(ctx)
 
 	// Get tenant ID from context
@@ -249,6 +295,13 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 		userOptions := []user.Option{
 			user.WithTenantID(tenantID),
 			user.WithType(user.TypeUser),
+		}
+		if len(userSpec.Permissions) > 0 {
+			requestedPermissions, err := resolvePermissions(ctx, permissionRepo, userSpec.Permissions)
+			if err != nil {
+				return serrors.E(op, err, fmt.Sprintf("failed to resolve permissions for user %s", userSpec.Email))
+			}
+			userOptions = append(userOptions, user.WithPermissions(requestedPermissions))
 		}
 
 		if userSpec.TwoFactorMethod != "" {
@@ -338,6 +391,39 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 	}
 
 	return nil
+}
+
+func resolvePermissions(
+	ctx context.Context,
+	repository permission.Repository,
+	names []string,
+) ([]permission.Permission, error) {
+	const op = serrors.Op("PopulateService.resolvePermissions")
+
+	available, err := repository.GetAll(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	byName := make(map[string]permission.Permission, len(available))
+	for _, candidate := range available {
+		byName[candidate.Name()] = candidate
+	}
+
+	requested := make([]permission.Permission, 0, len(names))
+	seen := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		if _, duplicate := seen[name]; duplicate {
+			continue
+		}
+		candidate, ok := byName[name]
+		if !ok {
+			return nil, serrors.E(op, serrors.NotFound, fmt.Sprintf("permission %q not found", name))
+		}
+		seen[name] = struct{}{}
+		requested = append(requested, candidate)
+	}
+	return requested, nil
 }
 
 func parseTwoFactorMethod(raw string) (pkgtwofactor.Method, error) {

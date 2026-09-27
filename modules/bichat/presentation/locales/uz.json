@@ -428,10 +428,54 @@
       "ReviewDescription": "Yuborishdan oldin javoblaringizni ko'rib chiqing",
       "Skip": "O'tkazib yuborish"
     },
-    "StreamError": {
-      "Retry": "Qayta urinish",
-      "Regenerate": "Qayta yaratish"
+  "StreamError": {
+    "Retry": "Qayta urinish",
+    "Regenerate": "Qayta yaratish",
+    "AdminAction": "Muammoni tizim administratori hal qilishi kerak.",
+    "OpenBilling": "OpenAI billingini ochish",
+    "OpenAPIKeys": "API kalitlarini ochish",
+    "OpenStatus": "OpenAI holatini tekshirish",
+    "ProviderBalance": {
+      "Title": "OpenAI balansidagi mablag‘ tugadi",
+      "Details": "OpenAI API hisobida mablag‘ qolmagani sababli AI so‘rovlari vaqtincha ishlamaydi."
     },
+    "ProviderBilling": {
+      "Title": "OpenAI moliyaviy limiti tugadi",
+      "Details": "Tashkilot yoki loyiha xarajat yoxud foydalanish limitiga yetdi."
+    },
+    "ProviderAuth": {
+      "Title": "OpenAI ruxsatlarini tekshirish kerak",
+      "Details": "API kaliti, tashkilot a’zoligi yoki ruxsat etilgan IP sozlamasi noto‘g‘ri."
+    },
+    "ProviderAccess": {
+      "Title": "OpenAI xizmatiga kirish cheklangan",
+      "Details": "Joriy hisob, tarmoq yoki hudud bu so‘rovni yubora olmaydi."
+    },
+    "ProviderRateLimit": {
+      "Title": "OpenAI so‘rovlari juda ko‘p",
+      "Details": "Biroz kuting va qayta urinib ko‘ring."
+    },
+    "ProviderContextLimit": {
+      "Title": "Suhbat hajmi juda katta",
+      "Details": "Qisqaroq suhbat boshlang, katta fayllarni olib tashlang yoki kontekstni qisqartiring."
+    },
+    "ProviderRequest": {
+      "Title": "OpenAI so‘rovi noto‘g‘ri sozlangan",
+      "Details": "Tizim administratori model va so‘rov parametrlarini tekshirishi kerak."
+    },
+    "ProviderConnection": {
+      "Title": "OpenAI bilan aloqa o‘rnatilmadi",
+      "Details": "So‘rov vaqti tugadi yoki aloqa uzildi. Qayta urinib ko‘ring."
+    },
+    "ProviderUnavailable": {
+      "Title": "OpenAI vaqtincha ishlamayapti",
+      "Details": "Provayder so‘rovni yakunlay olmadi. Birozdan so‘ng qayta urinib ko‘ring."
+    },
+    "ProviderIncomplete": {
+      "Title": "OpenAI javobi to‘liq emas",
+      "Details": "Javobning olingan qismi saqlandi. Davom ettiring yoki qayta urinib ko‘ring."
+    }
+  },
     "Chart": {
       "NoData": "Ma'lumotlar yo'q",
       "Download": "Grafikni yuklab olish",

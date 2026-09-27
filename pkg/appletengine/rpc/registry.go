@@ -3,6 +3,7 @@ package rpc
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -31,21 +32,123 @@ type Method struct {
 	Target      MethodTarget
 	Middlewares []mux.MiddlewareFunc
 	Method      applets.RPCMethod
+	Contract    MethodContract
+}
+
+type MethodKind string
+
+const (
+	MethodKindQuery    MethodKind = "query"
+	MethodKindMutation MethodKind = "mutation"
+)
+
+// MethodContract is the serializable server-state policy consumed by the
+// generated client-host RPC adapter. Request and response types still come
+// from the existing TypedRPCRouter generator.
+type MethodContract struct {
+	Namespace   string     `json:"namespace"`
+	Method      string     `json:"method"`
+	Kind        MethodKind `json:"kind"`
+	Cacheable   bool       `json:"cacheable,omitempty"`
+	MaxRetries  int        `json:"maxRetries,omitempty"`
+	Invalidates []string   `json:"invalidates,omitempty"`
+
+	// kindExplicit records whether the caller set the kind through Query or
+	// Mutation instead of relying on a default. It is not serialized.
+	kindExplicit bool
+	// public records the explicit anonymous-access opt-in. It is not serialized.
+	public bool
+}
+
+type ContractOption func(*MethodContract)
+
+func Query(cacheable bool, maxRetries int) ContractOption {
+	return func(contract *MethodContract) {
+		contract.Kind = MethodKindQuery
+		contract.kindExplicit = true
+		contract.Cacheable = cacheable
+		if maxRetries < 0 {
+			maxRetries = 0
+		}
+		if maxRetries > 3 {
+			maxRetries = 3
+		}
+		contract.MaxRetries = maxRetries
+	}
+}
+
+// Mutation declares the method kind explicitly. Methods registered through
+// RegisterPublicContract must pick Query or Mutation; there is no implicit
+// default on the typed path.
+func Mutation() ContractOption {
+	return func(contract *MethodContract) {
+		contract.Kind = MethodKindMutation
+		contract.kindExplicit = true
+	}
+}
+
+// Public explicitly opts a public method into anonymous access. Without it, a
+// registration whose RPCMethod carries no permissions is rejected.
+func Public() ContractOption {
+	return func(contract *MethodContract) {
+		contract.public = true
+	}
+}
+
+func Invalidates(methods ...string) ContractOption {
+	return func(contract *MethodContract) {
+		seen := make(map[string]struct{}, len(methods))
+		for _, method := range methods {
+			method = strings.TrimSpace(method)
+			if method == "" {
+				continue
+			}
+			if _, exists := seen[method]; exists {
+				continue
+			}
+			seen[method] = struct{}{}
+			contract.Invalidates = append(contract.Invalidates, method)
+		}
+	}
 }
 
 type Registry struct {
 	mu      sync.RWMutex
 	methods map[string]Method
+	owners  map[string]string
 }
 
 func NewRegistry() *Registry {
 	return &Registry{
 		methods: make(map[string]Method),
+		owners:  make(map[string]string),
 	}
 }
 
 func (r *Registry) RegisterPublic(appletName, methodName string, method applets.RPCMethod, middlewares []mux.MiddlewareFunc) error {
 	return r.RegisterPublicWithTarget(appletName, methodName, MethodTargetGo, method, middlewares)
+}
+
+// RegisterPublicContract registers a public method plus the policy used to
+// generate standard React query/mutation clients. The typed path: the kind is
+// mandatory (Query or Mutation) and so is the access policy — non-empty
+// RequirePermissions or an explicit Public opt-in.
+func (r *Registry) RegisterPublicContract(appletName, methodName string, method applets.RPCMethod, middlewares []mux.MiddlewareFunc, options ...ContractOption) error {
+	trimmed := strings.TrimSpace(methodName)
+	parts := strings.SplitN(trimmed, ".", 2)
+	contract := MethodContract{Method: trimmed}
+	if len(parts) == 2 {
+		contract.Namespace = parts[0]
+	}
+	for _, option := range options {
+		if option != nil {
+			option(&contract)
+		}
+	}
+	if !contract.kindExplicit {
+		return fmt.Errorf("rpc registry: method %q must declare an explicit kind: use Query or Mutation", trimmed)
+	}
+	return r.register(Method{AppletName: appletName, Name: methodName, Visibility: visibilityPublic, Target: MethodTargetGo, Middlewares: middlewares, Method: method, Contract: contract})
 }
 
 func (r *Registry) RegisterPublicWithTarget(appletName, methodName string, target MethodTarget, method applets.RPCMethod, middlewares []mux.MiddlewareFunc) error {
@@ -99,13 +202,47 @@ func (r *Registry) register(method Method) error {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if method.Visibility == visibilityPublic {
+		// An empty permission list must never bypass authentication: public
+		// methods require a non-empty RBAC requirement or an explicit Public
+		// opt-in. The compatibility path (no contract) cannot express the
+		// opt-in, so it always requires permissions.
+		if len(method.Method.RequirePermissions) == 0 && !method.Contract.public {
+			return fmt.Errorf("rpc registry: method %q has no access policy: set RequirePermissions or register with rpc.Public()", name)
+		}
+	}
+	if owner, exists := r.owners[parts[0]]; exists && owner != appletName {
+		return fmt.Errorf("rpc registry: namespace %q is owned by applet %q: applet %q cannot register method %q", parts[0], owner, appletName, name)
+	}
 	if _, exists := r.methods[name]; exists {
 		return fmt.Errorf("rpc registry: duplicate method %q", name)
 	}
 	method.Name = name
 	method.AppletName = appletName
+	if method.Contract.Method == "" {
+		method.Contract = MethodContract{Namespace: parts[0], Method: name, Kind: MethodKindMutation}
+	}
+	r.owners[parts[0]] = appletName
 	r.methods[name] = method
 	return nil
+}
+
+// PublicContracts returns a deterministic defensive catalog for typegen and
+// development diagnostics.
+func (r *Registry) PublicContracts() []MethodContract {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	contracts := make([]MethodContract, 0, len(r.methods))
+	for _, method := range r.methods {
+		if method.Visibility != visibilityPublic {
+			continue
+		}
+		contract := method.Contract
+		contract.Invalidates = append([]string(nil), contract.Invalidates...)
+		contracts = append(contracts, contract)
+	}
+	sort.Slice(contracts, func(i, j int) bool { return contracts[i].Method < contracts[j].Method })
+	return contracts
 }
 
 func (r *Registry) SetPublicTargetForApplet(appletName string, target MethodTarget) error {

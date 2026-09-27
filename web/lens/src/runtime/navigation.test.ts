@@ -1,0 +1,181 @@
+import { describe, expect, it } from 'vitest'
+import { createNavigationState, navigationActions, navigationReducer } from './navigation'
+
+describe('navigationReducer', () => {
+  it('drills by NodeKey and records the previous view', () => {
+    const initial = createNavigationState({ panelId: 'total', path: ['root'], perspectiveId: 'composition' })
+    const next = navigationReducer(initial, navigationActions.drillInto('detail'))
+
+    expect(next).toEqual({
+      panelId: 'total', path: ['root', 'detail'], perspectiveId: 'composition',
+      revision: 1,
+      history: [{ panelId: 'total', path: ['root'], perspectiveId: 'composition', revision: 0 }],
+    })
+    expect(initial.path).toEqual(['root'])
+  })
+
+  it('backs through history and is stable at the boundary', () => {
+    const root = createNavigationState({ path: ['root'] })
+    const detail = navigationReducer(root, navigationActions.drillInto('detail'))
+    const leaf = navigationReducer(detail, navigationActions.drillInto('leaf'))
+
+    const backToDetail = navigationReducer(leaf, navigationActions.back())
+    const backToRoot = navigationReducer(backToDetail, navigationActions.back())
+    expect(backToDetail.path).toEqual(['root', 'detail'])
+    expect(backToRoot.path).toEqual(['root'])
+    expect(navigationReducer(backToRoot, navigationActions.back())).toBe(backToRoot)
+  })
+
+  it.each([
+    { index: 0, expected: ['root'] },
+    { index: 1, expected: ['root', 'detail'] },
+  ])('jumps to breadcrumb $index and records history', ({ index, expected }) => {
+    const state = createNavigationState({ path: ['root', 'detail', 'leaf'] })
+    const next = navigationReducer(state, navigationActions.jumpTo(index))
+    expect(next.path).toEqual(expected)
+    expect(next.history).toHaveLength(1)
+  })
+
+  it.each([-1, 2, 3])('ignores breadcrumb edge index %s', (index) => {
+    const state = createNavigationState({ path: ['root', 'detail', 'leaf'] })
+    expect(navigationReducer(state, navigationActions.jumpTo(index))).toBe(state)
+  })
+
+  it('switches perspective without changing path and ignores an identical switch', () => {
+    const initial = createNavigationState({ path: ['root'], perspectiveId: 'old' })
+    const next = navigationReducer(initial, navigationActions.switchPerspective('new'))
+    expect(next.path).toEqual(['root'])
+    expect(next.perspectiveId).toBe('new')
+    expect(next.history).toHaveLength(1)
+    expect(navigationReducer(next, navigationActions.switchPerspective('new'))).toBe(next)
+  })
+
+  it('replaces a perspective without growing the in-app history', () => {
+    const initial = navigationReducer(
+      createNavigationState({ path: ['root'] }),
+      navigationActions.drillInto('branch'),
+    )
+    const next = navigationReducer(initial, navigationActions.switchPerspective('only', ['root', 'only'], true))
+
+    expect(next.path).toEqual(['root', 'only'])
+    expect(next.perspectiveId).toBe('only')
+    expect(next.history).toEqual(initial.history)
+  })
+
+  it('accepts resolved contract paths for drill and perspective transitions', () => {
+    const initial = createNavigationState({ panelId: 'host', path: ['root', 'branch'] })
+    const perspective = navigationReducer(initial, navigationActions.switchPerspective('composition', [
+      'root', 'branch', 'composition', 'composition/root',
+    ]))
+    const detail = navigationReducer(perspective, navigationActions.drillInto('point', 'host', [
+      'root', 'branch', 'composition', 'composition/detail',
+    ]))
+
+    expect(perspective.path).toEqual(['root', 'branch', 'composition', 'composition/root'])
+    expect(detail.path).toEqual(['root', 'branch', 'composition', 'composition/detail'])
+    expect(detail.history).toHaveLength(2)
+  })
+
+  it('resets the view and history', () => {
+    const state = navigationReducer(createNavigationState({ path: ['root'] }), navigationActions.drillInto('detail'))
+    expect(navigationReducer(state, navigationActions.reset())).toEqual({
+      panelId: undefined, path: [], perspectiveId: undefined, revision: 2, history: [],
+    })
+  })
+
+  it('opens one drawer without replacing the dashboard view', () => {
+    const initial = createNavigationState({ panelId: 'margin', path: ['root'], perspectiveId: 'trend' })
+    const opened = navigationReducer(initial, navigationActions.openDrawer('/drill/margin/lens/document?token=signed'))
+
+    expect(opened).toEqual({
+      panelId: 'margin',
+      path: ['root'],
+      perspectiveId: 'trend',
+      revision: 1,
+      drawer: { src: '/drill/margin/lens/document?token=signed', path: [], panelId: undefined, perspectiveId: undefined },
+      history: [{ panelId: 'margin', path: ['root'], perspectiveId: 'trend', revision: 0 }],
+    })
+    expect(navigationReducer(opened, navigationActions.openDrawer('/drill/other/lens/document'))).toBe(opened)
+  })
+
+  it('opens a drawer at the view declared by its source URL', () => {
+    const initial = createNavigationState({ path: ['dashboard'] })
+    const opened = navigationReducer(initial, navigationActions.openDrawer(
+      '/drill/expenses/lens/document?path=expenses&path=acquisition',
+      {
+        path: ['expenses', 'acquisition'],
+        perspectiveId: 'expenses/acquisition/composition',
+      },
+    ))
+
+    expect(opened.drawer).toEqual({
+      src: '/drill/expenses/lens/document?path=expenses&path=acquisition',
+      path: ['expenses', 'acquisition'],
+      perspectiveId: 'expenses/acquisition/composition',
+      panelId: undefined,
+    })
+  })
+
+  it('replaces an open drawer document while preserving the previous drawer for Back', () => {
+    const opened = navigationReducer(
+      createNavigationState({ path: ['dashboard'] }),
+      navigationActions.openDrawer('/drill/result/lens/document'),
+    )
+    const replaced = navigationReducer(opened, navigationActions.replaceDrawer('/drill/expenses/lens/document'))
+
+    expect(replaced.drawer?.src).toBe('/drill/expenses/lens/document')
+    expect(replaced.drawer?.path).toEqual([])
+    expect(replaced.history.at(-1)?.drawer?.src).toBe('/drill/result/lens/document')
+    expect(navigationReducer(replaced, navigationActions.back()).drawer?.src).toBe('/drill/result/lens/document')
+  })
+
+  it('replaces a drawer at the initial view declared by the next source', () => {
+    const opened = navigationReducer(
+      createNavigationState({ path: ['dashboard'] }),
+      navigationActions.openDrawer('/drill/result/lens/document'),
+    )
+    const replaced = navigationReducer(opened, navigationActions.replaceDrawer(
+      '/drill/expenses/lens/document?path=expenses&path=opex',
+      { path: ['expenses', 'opex'], perspectiveId: 'expenses/opex/accounts' },
+    ))
+
+    expect(replaced.drawer).toEqual({
+      src: '/drill/expenses/lens/document?path=expenses&path=opex',
+      path: ['expenses', 'opex'],
+      perspectiveId: 'expenses/opex/accounts',
+      panelId: undefined,
+    })
+  })
+
+  it('records drawer drill views in the same history and closes without adding an entry', () => {
+    const opened = navigationReducer(createNavigationState({ path: ['dashboard'] }), navigationActions.openDrawer('/drill/document'))
+    const drilled = navigationReducer(opened, navigationActions.updateDrawer({
+      panelId: 'evidence', path: ['root', 'claims'], perspectiveId: 'records',
+    }))
+    const closed = navigationReducer(drilled, navigationActions.closeDrawer())
+
+    expect(drilled.path).toEqual(['dashboard'])
+    expect(drilled.drawer).toEqual({
+      src: '/drill/document', panelId: 'evidence', path: ['root', 'claims'], perspectiveId: 'records',
+    })
+    expect(drilled.history).toHaveLength(2)
+    expect(closed).toEqual({ path: ['dashboard'], panelId: undefined, perspectiveId: undefined, revision: 3, history: drilled.history })
+  })
+
+  it('restores an external view without retaining internal history', () => {
+    const state = navigationReducer(createNavigationState({ path: ['root'] }), navigationActions.drillInto('detail'))
+    expect(navigationReducer(state, navigationActions.restore({ path: ['external'], perspectiveId: 'p' }))).toEqual({
+      path: ['external'], perspectiveId: 'p', revision: 2, history: [], panelId: undefined,
+    })
+  })
+
+  it('restores an external history stack without sharing its paths', () => {
+    const history = [{ panelId: 'total', path: ['root'] }]
+    const next = navigationReducer(createNavigationState(), navigationActions.restore({
+      panelId: 'total', path: ['root', 'detail'],
+    }, history))
+
+    expect(next.history).toEqual(history)
+    expect(next.history[0]?.path).not.toBe(history[0]?.path)
+  })
+})

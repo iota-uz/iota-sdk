@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,10 +28,11 @@ type mockModel struct {
 }
 
 type mockResponse struct {
-	content      string
-	toolCalls    []types.ToolCall
-	finishReason string
-	err          error
+	content            string
+	toolCalls          []types.ToolCall
+	finishReason       string
+	providerResponseID string
+	err                error
 }
 
 func newMockModel(responses ...mockResponse) *mockModel {
@@ -108,11 +110,12 @@ func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agen
 
 		// Final chunk with tool calls and metadata
 		finalChunk := agents.Chunk{
-			Delta:        "",
-			ToolCalls:    resp.toolCalls,
-			Usage:        &types.TokenUsage{PromptTokens: 10, CompletionTokens: 20, TotalTokens: 30},
-			FinishReason: resp.finishReason,
-			Done:         true,
+			Delta:              "",
+			ToolCalls:          resp.toolCalls,
+			Usage:              &types.TokenUsage{PromptTokens: 10, CompletionTokens: 20, TotalTokens: 30},
+			FinishReason:       resp.finishReason,
+			ProviderResponseID: resp.providerResponseID,
+			Done:               true,
 		}
 
 		if !yield(finalChunk) {
@@ -470,6 +473,63 @@ func TestExecutor_ToolCalls(t *testing.T) {
 		if toolEndEvent.DurationMs < 0 {
 			t.Error("Expected non-negative duration")
 		}
+	}
+}
+
+func TestExecutor_UsesIncrementalMessagesWithProviderContinuity(t *testing.T) {
+	t.Parallel()
+
+	tool := agents.NewTool(
+		"lookup",
+		"Looks up a value",
+		map[string]any{"type": "object"},
+		func(context.Context, string) (string, error) {
+			return `{"value":"found"}`, nil
+		},
+	)
+	agent := newMockAgent("continuity-agent", tool)
+	model := newMockModel(
+		mockResponse{
+			toolCalls: []types.ToolCall{{
+				ID: "call_continuity", Name: "lookup", Arguments: `{}`,
+			}},
+			finishReason:       "tool_calls",
+			providerResponseID: "resp_continuity",
+		},
+		mockResponse{content: "Done", finishReason: "stop"},
+	)
+	executor := agents.NewExecutor(agent, model)
+	ctx := context.Background()
+	gen := executor.Execute(ctx, agents.Input{
+		Messages: []types.Message{
+			types.SystemMessage("Keep this instruction."),
+			types.UserMessage("Find the value."),
+		},
+		SessionID: uuid.New(),
+		TenantID:  uuid.New(),
+	})
+	defer gen.Close()
+	for {
+		_, err := gen.Next(ctx)
+		if errors.Is(err, types.ErrGeneratorDone) {
+			break
+		}
+		require.NoError(t, err)
+	}
+
+	requests := model.capturedRequests()
+	require.Len(t, requests, 2)
+	require.Nil(t, requests[0].PreviousResponseID)
+	require.NotNil(t, requests[1].PreviousResponseID)
+	assert.Equal(t, "resp_continuity", *requests[1].PreviousResponseID)
+	require.Len(t, requests[1].Messages, 2)
+	assert.Equal(t, types.RoleSystem, requests[1].Messages[0].Role())
+	assert.Equal(t, "Keep this instruction.", requests[1].Messages[0].Content())
+	assert.Equal(t, types.RoleTool, requests[1].Messages[1].Role())
+	assert.Equal(t, "call_continuity", *requests[1].Messages[1].ToolCallID())
+	for _, message := range requests[1].Messages {
+		assert.NotEqual(t, types.RoleUser, message.Role())
+		assert.NotEqual(t, types.RoleAssistant, message.Role())
 	}
 }
 

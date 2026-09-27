@@ -26,6 +26,7 @@ templ DropdownItem(props DropdownItemProps) {
 type DropdownFormItemProps struct {
 	Action string
 	Method string
+	Fields map[string]string
 }
 
 func normalizeDropdownFormMethod(method string) string {
@@ -39,6 +40,9 @@ templ DropdownFormItem(props DropdownFormItemProps) {
 	<li>
 		<form action={ templ.SafeURL(props.Action) } method={ normalizeDropdownFormMethod(props.Method) }>
 			@composables.CSRFTokenField()
+			for name, value := range props.Fields {
+				<input type="hidden" name={ name } value={ value }/>
+			}
 			<button type="submit" class="block w-full p-2 text-left duration-200 hover:bg-surface-400 rounded-md">
 				{ children... }
 			</button>
@@ -47,8 +51,9 @@ templ DropdownFormItem(props DropdownFormItemProps) {
 }
 
 type DetailsDropdownProps struct {
-	Summary templ.Component
-	Classes templ.CSSClasses
+	Summary     templ.Component
+	Classes     templ.CSSClasses
+	MenuClasses templ.CSSClasses
 }
 
 func newDetailsDropdown(props *DetailsDropdownProps) *DetailsDropdownProps {
@@ -64,7 +69,7 @@ templ (p *DetailsDropdownProps) render() {
 			if p.Summary != nil {
 				@p.Summary
 			}
-			<ul class="flex flex-col gap-1 mt-1 absolute bg-surface-300 right-0 text-sm rounded-md w-44 overflow-hidden shadow-sm border border-secondary p-1">
+			<ul class={ "flex flex-col gap-1 mt-1 absolute bg-surface-300 right-0 text-sm rounded-md w-44 overflow-hidden shadow-sm border border-secondary p-1", p.MenuClasses }>
 				{ children... }
 			</ul>
 		</details>

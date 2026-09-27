@@ -201,6 +201,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		sessionCommands:      chatServices.SessionCommands,
 		sessionQueries:       chatServices.SessionQueries,
 		turnCommands:         chatServices.TurnCommands,
+		continuationCommands: chatServices.ContinuationCommands,
 		turnQueries:          chatServices.TurnQueries,
 		streamCommands:       chatServices.StreamCommands,
 		hitlCommands:         chatServices.HITLCommands,

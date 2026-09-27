@@ -1,0 +1,67 @@
+import { access, readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const packageJSON = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
+const expectedExports = [
+  './package.json',
+  './identity',
+  './client-host',
+  './solid',
+  './solid-ui',
+  './solid-ui/standalone.css',
+  './styles.css',
+  './lens',
+  './lens/styles.css',
+]
+
+if (JSON.stringify(Object.keys(packageJSON.exports).sort()) !== JSON.stringify(expectedExports.sort())) {
+  throw new Error(`unexpected public exports: ${Object.keys(packageJSON.exports).join(', ')}`)
+}
+if (Object.keys(packageJSON.dependencies ?? {}).length !== 0) {
+  throw new Error('the public package must not expose implementation dependencies')
+}
+if (!packageJSON.peerDependencies?.react || !packageJSON.peerDependencies?.['react-dom']) {
+  throw new Error('React and ReactDOM must remain peer dependencies')
+}
+if (!packageJSON.peerDependencies?.['solid-js']) {
+  throw new Error('Solid must be a peer dependency')
+}
+if (!packageJSON.peerDependenciesMeta?.react?.optional || !packageJSON.peerDependenciesMeta?.['react-dom']?.optional || !packageJSON.peerDependenciesMeta?.['solid-js']?.optional) {
+  throw new Error('renderer peers must be optional so consumers install only their selected renderer')
+}
+
+const targets = []
+for (const value of Object.values(packageJSON.exports)) {
+  if (typeof value === 'string') {
+    targets.push(value)
+    continue
+  }
+  targets.push(...Object.values(value))
+}
+for (const target of targets) {
+  if (target.includes('*')) continue
+  await access(path.resolve(root, target))
+}
+
+const solidUIStyles = await readFile(path.join(root, 'dist/solid-ui/standalone.css'), 'utf8')
+if (solidUIStyles.includes('/assets/fonts/')) {
+  throw new Error('Solid UI standalone CSS must use package-relative font URLs')
+}
+for (const font of [
+  'Inter.var.woff2',
+  'Gilroy/Gilroy-Regular.woff2',
+  'Gilroy/Gilroy-Medium.woff2',
+  'Gilroy/Gilroy-Semibold.woff2',
+]) {
+  await access(path.join(root, 'dist/solid-ui/fonts', font))
+}
+
+const identity = JSON.parse(await readFile(path.join(root, 'dist/sdk-identity.json'), 'utf8'))
+if (identity.releaseVersion !== packageJSON.version) {
+  throw new Error('package version and generated SDK identity differ')
+}
+if (!/^[0-9a-f]{40}$/.test(identity.sourceCommit)) {
+  throw new Error('generated SDK identity does not contain a full commit SHA')
+}

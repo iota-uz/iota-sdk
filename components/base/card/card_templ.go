@@ -8,7 +8,7 @@ package card
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import twmerge "github.com/Oudwins/tailwind-merge-go"
+import "github.com/iota-uz/iota-sdk/pkg/twmerge"
 
 type Props struct {
 	Class        string

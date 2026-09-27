@@ -428,10 +428,54 @@
       "ReviewDescription": "Please review your answers before submitting",
       "Skip": "Skip"
     },
-    "StreamError": {
-      "Retry": "Retry",
-      "Regenerate": "Regenerate"
+  "StreamError": {
+    "Retry": "Retry",
+    "Regenerate": "Regenerate",
+    "AdminAction": "A system administrator must resolve this issue.",
+    "OpenBilling": "Open OpenAI billing",
+    "OpenAPIKeys": "Open API keys",
+    "OpenStatus": "Check OpenAI status",
+    "ProviderBalance": {
+      "Title": "OpenAI balance has run out",
+      "Details": "AI requests are temporarily unavailable because the OpenAI API account has no remaining balance."
     },
+    "ProviderBilling": {
+      "Title": "OpenAI billing limit reached",
+      "Details": "The organization or project has reached an OpenAI spending or usage limit."
+    },
+    "ProviderAuth": {
+      "Title": "OpenAI credentials need attention",
+      "Details": "The API key, organization membership, or IP access configuration is invalid."
+    },
+    "ProviderAccess": {
+      "Title": "OpenAI access is restricted",
+      "Details": "The current account, network, or region is not permitted to make this request."
+    },
+    "ProviderRateLimit": {
+      "Title": "OpenAI is receiving too many requests",
+      "Details": "Wait briefly and try again. Repeated retries may make the delay longer."
+    },
+    "ProviderContextLimit": {
+      "Title": "The conversation is too large",
+      "Details": "Start a shorter conversation, remove large attachments, or compact the current context."
+    },
+    "ProviderRequest": {
+      "Title": "OpenAI request configuration is invalid",
+      "Details": "A system administrator must check the selected model and request configuration."
+    },
+    "ProviderConnection": {
+      "Title": "Could not reach OpenAI",
+      "Details": "The request timed out or the connection was interrupted. Try again."
+    },
+    "ProviderUnavailable": {
+      "Title": "OpenAI is temporarily unavailable",
+      "Details": "The provider could not complete the request. Try again shortly."
+    },
+    "ProviderIncomplete": {
+      "Title": "OpenAI returned an incomplete answer",
+      "Details": "The partial answer was preserved. Continue or retry to complete it."
+    }
+  },
     "Chart": {
       "NoData": "No data available",
       "Download": "Download chart",

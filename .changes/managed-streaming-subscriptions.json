@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add managed streaming subscriptions for Solid client routes: useManagedStream/createManagedStream publish one consistent connection state with cursor replay, bounded jittered reconnect, heartbeat stale detection, host session/CSRF re-auth and telemetry, owner-bound cleanup on route unmount, and RPC cache invalidation hooks; harden stream close during reconnect backoff and single-instance solid-js in client-host tests."
+}

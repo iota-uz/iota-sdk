@@ -39,6 +39,19 @@ func TestDocument_CompilesMetricExplorers(t *testing.T) {
 							Dataset: "data",
 							Fields:  lensspec.FieldMappingSpec{Label: "label", Value: "value", ID: "id"},
 						},
+						SourceData: &lensspec.ExplorerSourceData{
+							Label: lensspec.Text{Translations: map[string]string{"en": "Source data", "ru": "Исходные данные"}},
+							Panel: lensspec.PanelSpec{
+								ID:      "root-source",
+								Title:   lensspec.LiteralText("Source rows"),
+								Kind:    panel.KindTable,
+								Dataset: "data",
+								Columns: []lensspec.TableColumnSpec{
+									{Field: "label", Label: lensspec.LiteralText("Label")},
+									{Field: "value", Label: lensspec.LiteralText("Value")},
+								},
+							},
+						},
 						Edges: []lensspec.ExplorerEdge{{
 							PointKey: "leaf",
 							Action:   actionSpecPtr(action.Navigate("{{ portfolio_url }}")),
@@ -61,6 +74,13 @@ func TestDocument_CompilesMetricExplorers(t *testing.T) {
 	require.Equal(t, "premium", compiled.Spec.Explorers[0].ID)
 	require.Equal(t, "Сегмент", compiled.Spec.Explorers[0].Branches[0].Label)
 	require.Equal(t, "/portfolio", compiled.Spec.Explorers[0].Branches[0].Perspectives[0].Nodes[0].Edges[0].Action.URL)
+
+	sourceData := compiled.Spec.Explorers[0].Branches[0].Perspectives[0].Nodes[0].SourceData
+	require.NotNil(t, sourceData)
+	require.Equal(t, "Исходные данные", sourceData.Label)
+	require.Equal(t, "root-source", sourceData.Panel.ID)
+	require.Equal(t, panel.KindTable, sourceData.Panel.Kind)
+	require.Len(t, sourceData.Panel.Columns, 2)
 }
 
 func actionSpecPtr(spec action.Spec) *action.Spec { return &spec }

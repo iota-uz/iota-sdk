@@ -134,6 +134,82 @@ func TestExcelExporter_ExportToWriter(t *testing.T) {
 	assert.NotEqual(t, excelize.CellTypeInlineString, cellType)
 }
 
+func TestExcelExporter_BufferedPreservesNumericFormatWithDataStyles(t *testing.T) {
+	// This would be falsely green if equal row styles received distinct composed style IDs.
+	ds := NewMockDataSource([]string{"Amount"}, [][]interface{}{{1234.5}, {2.5}, {3.5}, {4.5}})
+	exporter := excel.NewExcelExporter(nil, nil)
+
+	data, err := exporter.Export(context.Background(), ds)
+	require.NoError(t, err)
+
+	f, err := excelize.OpenReader(bytes.NewReader(data))
+	require.NoError(t, err)
+	value, err := f.GetCellValue("TestSheet", "A2")
+	require.NoError(t, err)
+	assert.Equal(t, "1234.50", value)
+	styleID, err := f.GetCellStyle("TestSheet", "A2")
+	require.NoError(t, err)
+	style, err := f.GetStyle(styleID)
+	require.NoError(t, err)
+	assert.Equal(t, 2, style.NumFmt)
+	assert.Contains(t, style.Fill.Color, "F5F5F5")
+
+	alternateStyleID, err := f.GetCellStyle("TestSheet", "A4")
+	require.NoError(t, err)
+	assert.Equal(t, styleID, alternateStyleID)
+	baseStyleID, err := f.GetCellStyle("TestSheet", "A3")
+	require.NoError(t, err)
+	repeatedBaseStyleID, err := f.GetCellStyle("TestSheet", "A5")
+	require.NoError(t, err)
+	assert.Equal(t, baseStyleID, repeatedBaseStyleID)
+}
+
+func TestExcelExporter_FloatNumberFormat(t *testing.T) {
+	opts := excel.DefaultOptions()
+	opts.FloatNumberFormat = "#,##0.00"
+	headers := []string{"Amount"}
+	rows := [][]interface{}{{1500.0}, {-200.0}}
+
+	assertWorkbook := func(t *testing.T, data []byte) {
+		t.Helper()
+		f, err := excelize.OpenReader(bytes.NewReader(data))
+		require.NoError(t, err)
+
+		for _, cell := range []string{"A2", "A3"} {
+			cellType, err := f.GetCellType("TestSheet", cell)
+			require.NoError(t, err)
+			assert.NotEqual(t, excelize.CellTypeSharedString, cellType)
+			assert.NotEqual(t, excelize.CellTypeInlineString, cellType)
+
+			styleID, err := f.GetCellStyle("TestSheet", cell)
+			require.NoError(t, err)
+			style, err := f.GetStyle(styleID)
+			require.NoError(t, err)
+			require.NotNil(t, style.CustomNumFmt)
+			assert.Equal(t, "#,##0.00", *style.CustomNumFmt)
+		}
+
+		require.NoError(t, f.SetCellFormula("TestSheet", "A4", "SUM(A2:A3)"))
+		total, err := f.CalcCellValue("TestSheet", "A4")
+		require.NoError(t, err)
+		assert.Equal(t, "1300", total)
+	}
+
+	t.Run("buffered", func(t *testing.T) {
+		exporter := excel.NewExcelExporter(opts, nil)
+		data, err := exporter.Export(context.Background(), NewMockDataSource(headers, rows))
+		require.NoError(t, err)
+		assertWorkbook(t, data)
+	})
+
+	t.Run("streaming", func(t *testing.T) {
+		exporter := excel.NewExcelExporter(opts, nil)
+		var buf bytes.Buffer
+		require.NoError(t, exporter.ExportToWriter(context.Background(), &buf, NewMockDataSource(headers, rows)))
+		assertWorkbook(t, buf.Bytes())
+	})
+}
+
 // TestExcelExporter_DecimalComma verifies that with DecimalComma enabled, both
 // Go floats and pgx numeric-decimal strings render with a comma decimal
 // separator (as text), while dates and non-numeric text are left untouched.

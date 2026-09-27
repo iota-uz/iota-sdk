@@ -207,10 +207,10 @@
       "Type": "类型",
       "SelectType": "选择类型",
       "LegalType": "法人类型",
-      "SelectLegalType": "选择法人类型",
       "LegalAddress": "法定地址",
       "Delete": "删除交易对手",
-      "DeleteConfirmation": "您确定要删除此交易对手吗？"
+      "DeleteConfirmation": "您确定要删除此交易对手吗？",
+      "Revenue": "收入"
     },
     "Types": {
       "CUSTOMER": "客户",
@@ -266,7 +266,8 @@
     "Transactions": {
       "NoTransactions": "还没有交易",
       "NoTransactionsDescription": "此账户没有交易。当您添加支出、付款或转账时，交易将显示在这里。",
-      "ViewAll": "查看所有交易"
+      "ViewAll": "查看所有交易",
+      "Loading": "加载中…"
     }
   },
   "Transfers": {
@@ -409,7 +410,8 @@
       "DEPOSIT": "存款",
       "WITHDRAWAL": "提款",
       "TRANSFER": "转账",
-      "EXCHANGE": "兑换"
+      "EXCHANGE": "兑换",
+      "ADJUSTMENT": "调整"
     }
   },
   "Reports": {
@@ -505,15 +507,24 @@
       "Amount": "金额",
       "OriginalAmount": "原始金额",
       "OutstandingAmount": "未偿金额",
+      "Currency": "货币",
+      "SelectCurrency": "选择货币",
+      "Account": "账户",
+      "NoAccount": "无账户",
+      "Project": "项目",
+      "NoProject": "无项目",
       "_Description": "描述",
       "DueDate": "到期日期",
       "SettlementTransactionID": "结算交易",
       "Settle": "结算债务",
+      "SettlementAmount": "结算金额",
       "WriteOff": "核销",
+      "CancelDebt": "取消债务",
       "Delete": "删除债务",
       "DeleteConfirmation": "您确定要删除此债务吗？",
       "SettleConfirmation": "您确定要结算此债务吗？",
       "WriteOffConfirmation": "您确定要将此债务核销为无法收回吗？",
+      "CancelDebtConfirmation": "取消此债务？它将不再计为欠款，也不再预留资金。",
       "SelectTransaction": "选择交易"
     },
     "Types": {
@@ -524,7 +535,12 @@
       "PENDING": "待处理",
       "SETTLED": "已结算",
       "PARTIAL": "部分结算",
-      "WRITTEN_OFF": "已核销"
+      "WRITTEN_OFF": "已核销",
+      "CANCELLED": "已取消"
+    },
+    "Errors": {
+      "AccountCurrency": "账户货币与债务货币不一致",
+      "AmountBelowPaid": "金额少于已支付的金额"
     },
     "Actions": {
       "Created": "债务创建成功",
@@ -573,6 +589,20 @@
       "AttachedFiles": "已附加的文档",
       "DeleteConfirmation": "您确定要删除此文档吗？",
       "DeleteFile": "删除文档"
+    },
+    "Revenue": {
+      "Currency": "币种",
+      "Contract": "合同",
+      "Accepted": "已验收",
+      "Open": "未验收",
+      "Invoiced": "已开票",
+      "Paid": "已付款"
+    },
+    "Balances": {
+      "OnAccounts": "账户余额",
+      "Reserved": "义务预留",
+      "Available": "可用",
+      "Reserves": "从该账户支付的义务"
     }
   },
   "ValidationErrors": {

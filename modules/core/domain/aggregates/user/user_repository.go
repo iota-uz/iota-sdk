@@ -3,6 +3,7 @@ package user
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -49,6 +50,7 @@ type Repository interface {
 	EmailExists(ctx context.Context, email string) (bool, error)
 	Create(ctx context.Context, user User) (User, error)
 	Update(ctx context.Context, user User) error
+	UpdatePassword(ctx context.Context, userID uint, passwordHash string, updatedAt time.Time) error
 	Update2FASettings(ctx context.Context, userID uint, dto Update2FADTO) error
 	UpdateLastAction(ctx context.Context, id uint) error
 	UpdateLastLogin(ctx context.Context, id uint) error

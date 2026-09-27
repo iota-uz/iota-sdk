@@ -287,8 +287,6 @@ github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUq
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
-github.com/iota-uz/applets v0.4.30 h1:gf6Cg01vVnijrI2OYnuwDu0NDzrFZ2nW/O2BYvcOOzE=
-github.com/iota-uz/applets v0.4.30/go.mod h1:PnaI9UI+C+cnx9HaV8kTMzozO7h+ycBvQUn1hFHIARY=
 github.com/iota-uz/applets v0.4.32-0.20260621150342-5bc121489de1 h1:IBZOzA13zSdWGgqig0QJfFSzQKVgVaCIy0EcOWjTCL0=
 github.com/iota-uz/applets v0.4.32-0.20260621150342-5bc121489de1/go.mod h1:PnaI9UI+C+cnx9HaV8kTMzozO7h+ycBvQUn1hFHIARY=
 github.com/iota-uz/click v1.0.5-0.20260429132149-cf24863b0f7e h1:837CEXuzIT0a2l7Ll55Lyau6k4S1i+xIXy8lOfGakPU=
@@ -374,8 +372,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8m
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/openai/openai-go v1.3.0 h1:lBpvgXxGHUufk9DNTguval40y2oK0GHZwgWQyUtjPIQ=
 github.com/openai/openai-go v1.3.0/go.mod h1:g461MYGXEXBVdV5SaR/5tNzNbSfwTBBefwc+LlDCK0Y=
-github.com/openai/openai-go/v3 v3.18.0 h1:PpheJdvPgi8Ou77rJ1zsNmJTdmC7kvqDrGxbwAYq2nQ=
-github.com/openai/openai-go/v3 v3.18.0/go.mod h1:cdufnVK14cWcT9qA1rRtrXx4FTRsgbDPW7Ia7SS5cZo=
+github.com/openai/openai-go/v3 v3.44.0 h1:kkGh+jb/sKfSh5P74Jk5mCRufaQ0q7oH+lq+pNlWjsk=
+github.com/openai/openai-go/v3 v3.44.0/go.mod h1:cdufnVK14cWcT9qA1rRtrXx4FTRsgbDPW7Ia7SS5cZo=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkoukk/tiktoken-go v0.1.8 h1:85ENo+3FpWgAACBaEUVp+lctuTcYUO7BtmfhlN/QTRo=

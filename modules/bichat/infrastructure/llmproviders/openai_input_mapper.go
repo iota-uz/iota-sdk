@@ -192,6 +192,14 @@ func (m *OpenAIModel) buildInputItems(messages []types.Message) responses.Respon
 }
 
 func (m *OpenAIModel) buildInputItemsWithContext(ctx context.Context, messages []types.Message) responses.ResponseInputParam {
+	return m.buildInputItemsWithContextOptions(ctx, messages, false)
+}
+
+func (m *OpenAIModel) buildInputItemsWithContextOptions(
+	ctx context.Context,
+	messages []types.Message,
+	allowPreviousResponseToolOutputs bool,
+) responses.ResponseInputParam {
 	resolved := m.resolveImageUploadsForMessages(ctx, messages)
 	validToolCalls := m.validToolCallIDsFromMessages(messages)
 
@@ -253,10 +261,10 @@ func (m *OpenAIModel) buildInputItemsWithContext(ctx context.Context, messages [
 				continue
 			}
 			toolName, ok := validToolCalls[callID]
-			if !ok {
+			if !ok && !allowPreviousResponseToolOutputs {
 				continue
 			}
-			if toolName == webFetchToolName {
+			if ok && toolName == webFetchToolName {
 				if richOutput, ok := buildWebFetchFunctionCallOutput(ctx, msg.Content(), m.logger); ok {
 					items = append(items, responses.ResponseInputItemParamOfFunctionCallOutput(
 						callID,

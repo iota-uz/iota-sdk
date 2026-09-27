@@ -179,6 +179,35 @@ styleOpts := &excel.StyleOptions{
 exporter := excel.NewExcelExporter(exportOpts, styleOpts)
 ```
 
+## CSV Export and Formula Safety
+
+`CSVExporter` (for a `DataSource`) and `CSVWriter` (for hand-built streaming
+exports) write spreadsheet-safe CSV:
+
+- every plain value is data: text that Excel, LibreOffice or Google Sheets
+  would evaluate (`=`, `@`, tab, CR, LF, their full-width forms, or a `+`/`-` not
+  followed by one number) gets a leading apostrophe via `NeutralizeFormula`;
+  amounts such as `-1 234,56`, a lone `-` and phones without hyphens such as
+  `+998 90 123 45 67` stay as they are, while `-1-1`, `+1-1` and a hyphenated
+  phone (`+998 (90) 123-45-67`, which Excel would compute) are prefixed;
+- a cell becomes a formula only when its value is `excel.Formula`. The same
+  type writes a real formula in XLSX (`ExcelExporter.Export` and
+  `ExportToWriter`), where plain strings are always stored as text.
+
+```go
+exporter := excel.NewCSVExporter(excel.DefaultCSVOptions()) // BOM + headers
+err := exporter.ExportToWriter(ctx, w, datasource)
+
+// Streaming without a DataSource:
+cw, err := excel.NewCSVWriter(w, excel.DefaultCSVOptions())
+_ = cw.WriteHeader([]string{"Name", "Total"})
+_ = cw.WriteRow([]interface{}{userName, excel.Formula{Expression: "SUM(B2:B9)"}})
+err = cw.Flush()
+```
+
+Build `Formula.Expression` only from trusted parts; never concatenate user
+text into it.
+
 ## API Reference
 
 ### DataSource Interface

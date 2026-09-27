@@ -56,7 +56,14 @@ func NewStreamController(
 }
 
 func (c *StreamController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("bichat.stream", 0, application.Route("", c.opts.BasePath)).
+	return application.Descriptor("bichat.stream", 0,
+		application.BaseRoute(http.MethodPost, c.opts.BasePath, "/stream"),
+		application.BaseRoute(http.MethodPost, c.opts.BasePath, "/stream/stop"),
+		application.BaseRoute(http.MethodGet, c.opts.BasePath, "/stream/status"),
+		application.BaseRoute(http.MethodPost, c.opts.BasePath, "/stream/resume"),
+		application.BaseRoute(http.MethodGet, c.opts.BasePath, "/stream/events"),
+		application.BaseRoute(http.MethodGet, c.opts.BasePath, "/stream/active-runs"),
+	).
 		WithNav(application.NavNode{
 			ID:       "bichat.stream",
 			TitleKey: "NavigationLinks.BiChat",
@@ -602,7 +609,17 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if c.logger != nil {
-			c.logger.WithError(serrors.E(op, err)).Error("TailEvents failed")
+			c.logger.WithError(serrors.E(op, err)).
+				WithField("session_id", sessionID.String()).
+				WithField("run_id", runID.String()).
+				WithField("stage", "event_log_tail").Error("TailEvents failed")
+		}
+		if r.Context().Err() == nil {
+			writeMu.Lock()
+			defer writeMu.Unlock()
+			c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
+				Type: "error", Error: "run event stream interrupted", Timestamp: time.Now().UnixMilli(),
+			})
 		}
 	}
 }
@@ -731,30 +748,11 @@ func (c *StreamController) streamClientErrorMessage(err error, chunkType bichats
 		return sanitizeErrorString(err)
 	}
 
-	code, message, ok := parseProviderStreamError(err.Error())
-	if !ok {
-		return generic
+	code, _, _ := bichatmodsvcs.ParseProviderStreamError(err.Error())
+	if normalized := bichatmodsvcs.NormalizeProviderError(code, err.Error()); normalized != "" {
+		return normalized
 	}
-
-	switch strings.ToLower(code) {
-	case "insufficient_quota":
-		if strings.TrimSpace(message) != "" {
-			return message
-		}
-		return "You exceeded your current quota. Please check your plan and billing details."
-	case "rate_limit_exceeded", "rate_limit":
-		if strings.TrimSpace(message) != "" {
-			return message
-		}
-		return "Rate limit exceeded. Please retry shortly."
-	case "invalid_api_key", "authentication_error", "auth_error":
-		if strings.TrimSpace(message) != "" {
-			return message
-		}
-		return "Authentication failed with the model provider. Please verify API credentials."
-	default:
-		return generic
-	}
+	return generic
 }
 
 func sanitizeErrorString(err error) string {
@@ -762,39 +760,4 @@ func sanitizeErrorString(err error) string {
 		return ""
 	}
 	return "internal error"
-}
-
-// parseProviderStreamError expects provider errors to include a JSON fragment
-// containing "type"/"code"/"message". It scans the raw string for {"type": or
-// {"code":, then attempts to unmarshal that fragment. If parsing fails, it
-// intentionally returns ok=false so callers fall back to a generic safe message.
-func parseProviderStreamError(raw string) (string, string, bool) {
-	start := strings.Index(raw, "{\"type\":")
-	if start < 0 {
-		start = strings.Index(raw, "{\"code\":")
-	}
-	if start < 0 {
-		return "", "", false
-	}
-	fragment := raw[start:]
-	end := strings.LastIndex(fragment, "}")
-	if end < 0 {
-		return "", "", false
-	}
-	fragment = fragment[:end+1]
-
-	var providerErr struct {
-		Type    string `json:"type"`
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	}
-	if err := json.Unmarshal([]byte(fragment), &providerErr); err != nil {
-		return "", "", false
-	}
-
-	code := providerErr.Code
-	if strings.TrimSpace(code) == "" {
-		code = providerErr.Type
-	}
-	return code, providerErr.Message, strings.TrimSpace(code) != ""
 }

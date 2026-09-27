@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"strconv"
 
-	twmerge "github.com/Oudwins/tailwind-merge-go"
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/pkg/twmerge"
 )
 
 // truncateStyle returns an inline max-width style (px) for truncated labels.

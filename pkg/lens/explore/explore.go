@@ -44,14 +44,46 @@ type Perspective struct {
 }
 
 type Node struct {
-	Key            string        `json:"key"`
-	Label          string        `json:"label"`
-	Panel          *panel.Spec   `json:"panel,omitempty"`
-	Load           *LoadSpec     `json:"load,omitempty"`
-	Edges          []Edge        `json:"edges,omitempty"`
-	DynamicEdges   bool          `json:"dynamicEdges,omitempty"`
-	DynamicTargets []string      `json:"dynamicTargets,omitempty"`
-	Check          *BalanceCheck `json:"check,omitempty"`
+	Key             string           `json:"key"`
+	Label           string           `json:"label"`
+	Panel           *panel.Spec      `json:"panel,omitempty"`
+	Load            *LoadSpec        `json:"load,omitempty"`
+	Edges           []Edge           `json:"edges,omitempty"`
+	DynamicEdges    bool             `json:"dynamicEdges,omitempty"`
+	DynamicTargets  []string         `json:"dynamicTargets,omitempty"`
+	DynamicChildren *DynamicChildren `json:"dynamicChildren,omitempty"`
+	Check           *BalanceCheck    `json:"check,omitempty"`
+	// View, when set, names the chart kind the wire runtime should render this
+	// level with, instead of the drill host panel's own kind. Empty keeps
+	// today's host-kind rendering; the document contract restricts it to chart
+	// kinds (no tables or metric panels).
+	View panel.Kind `json:"view,omitempty"`
+	// Presentation, when set, carries opt-in rendering hints for this level.
+	Presentation *panel.PresentationHints `json:"presentation,omitempty"`
+	// Status, when set, is a data-quality chip rendered next to this level's
+	// heading (already localized by the producer).
+	Status *panel.StatusSpec `json:"status,omitempty"`
+	// SourceData, when set, declares this level's audit table: the source rows
+	// behind the level's aggregate, rendered behind a collapsed disclosure.
+	SourceData *SourceData `json:"sourceData,omitempty"`
+}
+
+// SourceData declares a level's audit table. Panel must be a table spec; its
+// executed frame, declared columns, and formats are carried onto the wire
+// level. Like inline level frames, the frame ships only when the runtime
+// result carries the panel's execution — a missing result drops the
+// declaration from the document instead of failing the build.
+type SourceData struct {
+	// Label is the already-localized disclosure heading (e.g. "Source data").
+	Label string     `json:"label,omitempty"`
+	Panel panel.Spec `json:"panel"`
+}
+
+type DynamicChildren struct {
+	Key    action.ValueSource  `json:"key"`
+	Label  action.ValueSource  `json:"label"`
+	Target *action.ValueSource `json:"target,omitempty"`
+	Action *action.Spec        `json:"action,omitempty"`
 }
 
 type PathStep struct {
@@ -195,6 +227,14 @@ func (n Node) validate(explorerID, branchKey, perspectiveKey string, nodes map[s
 			return fmt.Errorf("explorer %s branch %s perspective %s node %s is out of balance", explorerID, branchKey, perspectiveKey, n.Key)
 		}
 	}
+	if n.SourceData != nil {
+		if n.SourceData.Panel.Kind != panel.KindTable {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s source data requires a table panel", explorerID, branchKey, perspectiveKey, n.Key)
+		}
+		if strings.TrimSpace(n.SourceData.Panel.ID) == "" {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s source data requires a panel id", explorerID, branchKey, perspectiveKey, n.Key)
+		}
+	}
 	seen := make(map[string]struct{}, len(n.Edges))
 	for _, edge := range n.Edges {
 		if err := validKey("edge point key", edge.PointKey); err != nil {
@@ -228,6 +268,27 @@ func (n Node) validate(explorerID, branchKey, perspectiveKey string, nodes map[s
 	}
 	if len(n.DynamicTargets) > 0 && !n.DynamicEdges {
 		return fmt.Errorf("explorer %s branch %s perspective %s node %s has dynamic targets without dynamic edges", explorerID, branchKey, perspectiveKey, n.Key)
+	}
+	if n.DynamicChildren != nil {
+		if !n.DynamicEdges {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s has dynamic children without dynamic edges", explorerID, branchKey, perspectiveKey, n.Key)
+		}
+		if n.DynamicChildren.Key.Kind != action.SourceField || strings.TrimSpace(n.DynamicChildren.Key.Name) == "" {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s dynamic child key requires a field source", explorerID, branchKey, perspectiveKey, n.Key)
+		}
+		if n.DynamicChildren.Label.Kind != action.SourceField || strings.TrimSpace(n.DynamicChildren.Label.Name) == "" {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s dynamic child label requires a field source", explorerID, branchKey, perspectiveKey, n.Key)
+		}
+		if n.DynamicChildren.Target == nil && n.DynamicChildren.Action == nil {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s dynamic children require a target or an action", explorerID, branchKey, perspectiveKey, n.Key)
+		}
+		// Declaring both is how a level says its rows are individually either
+		// drillable or terminal; the per-row target field decides. A literal
+		// target would win on every row, so the action could never fire.
+		if n.DynamicChildren.Target != nil && n.DynamicChildren.Action != nil &&
+			n.DynamicChildren.Target.Kind != action.SourceField {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s declares both a dynamic target and an action, so the target must be a field source", explorerID, branchKey, perspectiveKey, n.Key)
+		}
 	}
 	return nil
 }

@@ -354,6 +354,7 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 		ctx,
 		req.SessionID,
 		bichatservices.AsyncRunOperationQuestionSubmit,
+		"",
 		func(txCtx context.Context, _ domain.Session) error {
 			pendingMsg, err := s.findLatestOpenQuestionMessage(txCtx, req.SessionID)
 			if err != nil {
@@ -638,6 +639,7 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 		ctx,
 		sessionID,
 		bichatservices.AsyncRunOperationQuestionReject,
+		"",
 		func(txCtx context.Context, _ domain.Session) error {
 			pendingMsg, err := s.findLatestOpenQuestionMessage(txCtx, sessionID)
 			if err != nil {

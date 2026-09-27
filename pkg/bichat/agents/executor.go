@@ -491,9 +491,21 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 		// Use input messages as-is (system prompt already included from context compilation)
 		messages := input.Messages
+		stickySystemMessages := make([]types.Message, 0, 1)
+		for _, message := range input.Messages {
+			if message.Role() == types.RoleSystem {
+				stickySystemMessages = append(stickySystemMessages, message)
+			}
+		}
 
 		// Track provider continuity across iterations in a single execution.
 		previousResponseID := input.PreviousResponseID
+		// Once a provider returns a continuity token, the provider already owns
+		// the response and everything that preceded it. Re-sending the full
+		// local transcript alongside previous_response_id duplicates context on
+		// every tool iteration and eventually grows it quadratically. Keep only
+		// developer instructions plus messages created after that response.
+		incrementalMessageStart := -1
 		reminderTracker := newReminderTracker()
 		turnToolCounts := make(map[string]int)
 
@@ -542,8 +554,15 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			batchToolNames := buildBatchToolNames(tools)
 
 			// Build model request
+			requestMessages := messages
+			if previousResponseID != nil && incrementalMessageStart >= 0 {
+				requestMessages = make([]types.Message, 0,
+					len(stickySystemMessages)+len(messages)-incrementalMessageStart)
+				requestMessages = append(requestMessages, stickySystemMessages...)
+				requestMessages = append(requestMessages, messages[incrementalMessageStart:]...)
+			}
 			req := Request{
-				Messages:           messages,
+				Messages:           requestMessages,
 				Tools:              tools,
 				PreviousResponseID: previousResponseID,
 			}
@@ -949,6 +968,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			if providerResponseID != "" {
 				id := providerResponseID
 				previousResponseID = &id
+				incrementalMessageStart = len(messages)
 			}
 
 			// Accumulate tokens for agent lifecycle tracking

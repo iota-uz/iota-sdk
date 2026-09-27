@@ -194,6 +194,9 @@ func (c *component) Build(builder *composition.Builder) error {
 	provideBundleField(builder, func(b *bichatBundle) bichatservices.SessionCommands { return b.services.SessionCommands() })
 	provideBundleField(builder, func(b *bichatBundle) bichatservices.SessionQueries { return b.services.SessionQueries() })
 	provideBundleField(builder, func(b *bichatBundle) bichatservices.TurnCommands { return b.services.TurnCommands() })
+	provideBundleField(builder, func(b *bichatBundle) bichatservices.ContinuationCommands {
+		return b.services.ContinuationCommands()
+	})
 	provideBundleField(builder, func(b *bichatBundle) bichatservices.TurnQueries { return b.services.TurnQueries() })
 	provideBundleField(builder, func(b *bichatBundle) bichatservices.StreamCommands { return b.services.StreamCommands() })
 	provideBundleField(builder, func(b *bichatBundle) bichatservices.HITLCommands { return b.services.HITLCommands() })

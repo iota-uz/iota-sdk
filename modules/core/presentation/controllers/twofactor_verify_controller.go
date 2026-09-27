@@ -15,9 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
-	httpcookies "github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	httpsession "github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/session"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -40,18 +38,16 @@ func NewTwoFactorVerifyController(
 	sessionService *services.SessionService,
 	userService *services.UserService,
 	httpCfg *httpconfig.Config,
-	cookiesCfg *httpcookies.Config,
 	sessionCfg *httpsession.Config,
-	appCfg *appconfig.Config,
+	browserSessions *services.BrowserSessionService,
 ) application.Controller {
 	return &TwoFactorVerifyController{
 		twoFactorService: twoFactorService,
 		sessionService:   sessionService,
 		userService:      userService,
 		httpCfg:          httpCfg,
-		cookiesCfg:       cookiesCfg,
 		sessionCfg:       sessionCfg,
-		appCfg:           appCfg,
+		browserSessions:  browserSessions,
 	}
 }
 
@@ -63,9 +59,8 @@ type TwoFactorVerifyController struct {
 	sessionService   *services.SessionService
 	userService      *services.UserService
 	httpCfg          *httpconfig.Config
-	cookiesCfg       *httpcookies.Config
 	sessionCfg       *httpsession.Config
-	appCfg           *appconfig.Config
+	browserSessions  *services.BrowserSessionService
 }
 
 // Descriptor returns the controller descriptor.
@@ -238,16 +233,11 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Update the session cookie with new expiry to match the extended DB session
-	sessionCookie := &http.Cookie{
-		Name:     c.cookiesCfg.SID,
-		Value:    updatedSession.Token(),
-		Expires:  updatedSession.ExpiresAt(),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   c.appCfg.IsProduction(),
-		Domain:   c.cookiesCfg.Domain,
-		Path:     "/",
+	sessionCookie, err := c.browserSessions.AddFromRequest(r.Context(), r, updatedSession)
+	if err != nil {
+		logger.Error("failed to update browser session cookie", "error", err)
+		http.Error(w, "failed to activate session", http.StatusInternalServerError)
+		return
 	}
 	http.SetCookie(w, sessionCookie)
 
@@ -366,16 +356,11 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Update the session cookie with new expiry to match the extended DB session
-	sessionCookie := &http.Cookie{
-		Name:     c.cookiesCfg.SID,
-		Value:    updatedSession.Token(),
-		Expires:  updatedSession.ExpiresAt(),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   c.appCfg.IsProduction(),
-		Domain:   c.cookiesCfg.Domain,
-		Path:     "/",
+	sessionCookie, err := c.browserSessions.AddFromRequest(r.Context(), r, updatedSession)
+	if err != nil {
+		logger.Error("failed to update browser session cookie", "error", err)
+		http.Error(w, "failed to activate session", http.StatusInternalServerError)
+		return
 	}
 	http.SetCookie(w, sessionCookie)
 

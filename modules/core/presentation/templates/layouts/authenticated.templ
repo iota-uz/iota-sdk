@@ -8,13 +8,17 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/toast"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/components/spotlight"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
+	"net/url"
 )
 
 var (
 	navbarOnce = templ.NewOnceHandle()
+	themeJs    = "/assets/" + assets.HashFS.HashName("js/theme.js")
 )
 
 templ Avatar() {
@@ -25,7 +29,7 @@ templ Avatar() {
 			url = u.Avatar.URL
 		}
 	}}
-	<summary class="flex items-center justify-center cursor-pointer">
+	<summary class="flex items-center justify-center cursor-pointer" aria-label={ u.Title() }>
 		@avatar.Avatar(avatar.Props{
 			ImageURL: url,
 			Initials: u.Initials(),
@@ -41,7 +45,7 @@ templ ThemeSwitcher() {
 			name="theme"
 			value="system"
 			id="theme-system"
-			onchange="onThemeChange(this)"
+			onchange="iotaTheme.onRadioChange(this)"
 			checked
 		/>
 		<label
@@ -59,7 +63,7 @@ templ ThemeSwitcher() {
 			name="theme"
 			value="light"
 			id="theme-light"
-			onchange="onThemeChange(this)"
+			onchange="iotaTheme.onRadioChange(this)"
 		/>
 		<label
 			for="theme-dark"
@@ -77,7 +81,7 @@ templ ThemeSwitcher() {
 			name="theme"
 			value="dark"
 			id="theme-dark"
-			onchange="onThemeChange(this)"
+			onchange="iotaTheme.onRadioChange(this)"
 		/>
 		<label
 			for="theme-system"
@@ -92,28 +96,7 @@ templ ThemeSwitcher() {
 		</label>
 	</div>
 	@navbarOnce.Once() {
-		<script>
-			let THEME_STORAGE_KEY = "iota-theme";
-			let savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-			let initialTheme = savedTheme ?? "system";
-			let root = document.documentElement;
-			let previousTheme = initialTheme;
-			let radioInput = document.getElementById(`theme-${initialTheme}`);
-			function changeTheme(theme) {
-				root.classList.remove(previousTheme);
-				if (!theme) theme = initialTheme;
-				window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-				root.classList.add(theme)
-				previousTheme = theme;
-			}
-			function onThemeChange(input) {
-				changeTheme(input.value);
-			}
-			if (radioInput) {
-				radioInput.checked = true;
-				changeTheme(initialTheme);
-			}
-		</script>
+		<script src={ themeJs }></script>
 	}
 }
 
@@ -131,6 +114,13 @@ templ SidebarTrigger(class string) {
 }
 
 templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
+	{{
+		browserSessions := services.UseBrowserSessions(ctx)
+		nextURL := "/"
+		if pageCtx.GetURL() != nil {
+			nextURL = pageCtx.GetURL().RequestURI()
+		}
+	}}
 	<section class="h-16 shadow-b-lg border-b w-full flex items-center px-4 md:px-8 bg-surface-300 border-b-primary">
 		if navbarLeft != nil {
 			@navbarLeft
@@ -141,9 +131,90 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 			</div>
 			@ThemeSwitcher()
 			@base.DetailsDropdown(&base.DetailsDropdownProps{
-				Summary: Avatar(),
-				Classes: templ.Classes("z-[80]"),
+				Summary:     Avatar(),
+				Classes:     templ.Classes("z-[80]"),
+				MenuClasses: templ.Classes("w-72"),
 			}) {
+				if len(browserSessions) > 0 {
+					<li class="pb-1 border-b border-secondary">
+						<details
+							class="group"
+							data-testid="navbar-account-disclosure"
+							x-data
+							@keydown.escape.stop="$el.removeAttribute('open'); $el.querySelector('[data-testid=navbar-account-disclosure-toggle]').focus()"
+						>
+							for _, browserSession := range browserSessions {
+								if browserSession.Active {
+									{{
+										account := mappers.UserToViewModel(browserSession.User)
+										avatarURL := ""
+										if account.Avatar != nil {
+											avatarURL = account.Avatar.URL
+										}
+									}}
+									<summary
+										class="flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-md p-2 duration-200 hover:bg-surface-400 [&::-webkit-details-marker]:hidden"
+										data-testid="navbar-account-disclosure-toggle"
+									>
+										@avatar.Avatar(avatar.Props{ImageURL: avatarURL, Initials: account.Initials(), Class: templ.Classes("w-10 h-10 text-sm")})
+										<span class="min-w-0 flex-1">
+											<span class="block truncate font-medium">{ account.Title() }</span>
+											<span class="block truncate text-xs text-200">{ account.Email }</span>
+										</span>
+										<span class="shrink-0 transition-transform duration-200 group-open:rotate-180" aria-hidden="true">
+											@icons.CaretDown(icons.Props{Size: "18"})
+										</span>
+									</summary>
+								}
+							}
+							<ul class="mt-1 flex flex-col gap-1" data-testid="navbar-account-disclosure-panel">
+								for _, browserSession := range browserSessions {
+									if browserSession.Session.IsActive() && !browserSession.Active {
+										{{
+											account := mappers.UserToViewModel(browserSession.User)
+											avatarURL := ""
+											if account.Avatar != nil {
+												avatarURL = account.Avatar.URL
+											}
+										}}
+										@base.DropdownFormItem(base.DropdownFormItemProps{
+											Action: "/login/session?next=" + url.QueryEscape(nextURL),
+											Method: "post",
+											Fields: map[string]string{"SessionReference": browserSession.Reference()},
+										}) {
+											<span class="flex items-center gap-3" data-testid="navbar-account-switch">
+												@avatar.Avatar(avatar.Props{ImageURL: avatarURL, Initials: account.Initials(), Class: templ.Classes("w-8 h-8 text-xs")})
+												<span class="min-w-0 flex-1">
+													<span class="block truncate font-medium">{ account.Title() }</span>
+													<span class="block truncate text-xs text-200">{ account.Email }</span>
+												</span>
+												<span class="shrink-0 text-200" aria-hidden="true">
+													@icons.SignIn(icons.Props{Size: "18"})
+												</span>
+											</span>
+										}
+									}
+								}
+								@base.DropdownItem(base.DropdownItemProps{Href: "/login?next=" + url.QueryEscape(nextURL) + "#login-methods"}) {
+									<span class="flex items-center gap-3" data-testid="navbar-add-account">
+										<span class="text-200" aria-hidden="true">
+											@icons.PlusCircle(icons.Props{Size: "20"})
+										</span>
+										{ pageCtx.T("NavigationLinks.Navbar.AddAccount") }
+									</span>
+								}
+								@base.DropdownFormItem(base.DropdownFormItemProps{Action: "/logout/all", Method: "post"}) {
+									<span class="flex items-center gap-3" data-testid="navbar-logout-all">
+										<span class="text-200" aria-hidden="true">
+											@icons.SignOut(icons.Props{Size: "20"})
+										</span>
+										{ pageCtx.T("NavigationLinks.Navbar.LogoutAll") }
+									</span>
+								}
+							</ul>
+						</details>
+					</li>
+				}
 				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Profile") }
 				}
@@ -154,7 +225,12 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 					{ pageCtx.T("NavigationLinks.Navbar.Settings") }
 				}
 				@base.DropdownFormItem(base.DropdownFormItemProps{Action: "/logout", Method: "post"}) {
-					{ pageCtx.T("NavigationLinks.Navbar.Logout") }
+					<span class="flex items-center gap-3" data-testid="navbar-logout-current">
+						<span class="text-200" aria-hidden="true">
+							@icons.SignOut(icons.Props{Size: "20"})
+						</span>
+						{ pageCtx.T("NavigationLinks.Navbar.LogoutCurrent") }
+					</span>
 				}
 			}
 			@SidebarTrigger("lg:hidden")

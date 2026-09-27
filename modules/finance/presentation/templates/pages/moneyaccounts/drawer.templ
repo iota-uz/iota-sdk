@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
 	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
@@ -15,11 +16,11 @@ import (
 )
 
 type DrawerEditProps struct {
-	Account      *viewmodels.MoneyAccount
-	UpdateData   *viewmodels.MoneyAccountUpdateDTO
-	Currencies   []*coreviewmodels.Currency
-	Transactions []*viewmodels.Transaction
-	Errors       map[string]string
+	Account    *viewmodels.MoneyAccount
+	UpdateData *viewmodels.MoneyAccountUpdateDTO
+	Currencies []*coreviewmodels.Currency
+	History    *TransactionsTabProps
+	Errors     map[string]string
 }
 
 type DrawerCreateProps struct {
@@ -41,7 +42,7 @@ templ EditDrawer(props *DrawerEditProps) {
 				"@closed":  fmt.Sprintf("document.getElementById('money-account-drawer-%s').remove()", props.Account.ID),
 			},
 		}) {
-			@tab.Root(tab.Props{DefaultValue: "general", Class: "flex flex-col h-full"}) {
+			@tab.Root(tab.Props{DefaultValue: defaultTab(props), Class: "flex flex-col h-full"}) {
 				<div class="border-b">
 					@tab.List(tab.ListProps{Class: "px-6"}) {
 						@tab.Button("general") {
@@ -61,10 +62,12 @@ templ EditDrawer(props *DrawerEditProps) {
 						<div class="text-center">
 							<h1 class="text-3xl font-bold text-gray-900">{ props.Account.Name }</h1>
 						</div>
-						<!-- Balance Display -->
-						<div class="text-center">
-							<div class="text-5xl font-bold text-gray-900 mb-1">{ props.Account.BalanceWithCurrency }</div>
-							<div class="w-16 h-1 bg-blue-500 mx-auto rounded-full"></div>
+						<div
+							hx-get={ fmt.Sprintf("/finance/balances/%s", props.Account.ID) }
+							hx-trigger="load"
+							hx-swap="innerHTML"
+						>
+							@table.DefaultPanelSkeleton()
 						</div>
 						<!-- Account Details -->
 						<div class="space-y-4">
@@ -110,10 +113,7 @@ templ EditDrawer(props *DrawerEditProps) {
 					</div>
 				}
 				@tab.Content("transactions") {
-					@TransactionsTab(&TransactionsTabProps{
-						AccountID:    props.Account.ID,
-						Transactions: props.Transactions,
-					})
+					@TransactionsTab(props.History)
 				}
 				@tab.Content("edit") {
 					<form
@@ -212,6 +212,14 @@ templ EditDrawer(props *DrawerEditProps) {
 			}
 		}
 	</div>
+}
+
+// defaultTab opens the form again when saving it failed, so the errors show.
+func defaultTab(props *DrawerEditProps) string {
+	if len(props.Errors) > 0 {
+		return "edit"
+	}
+	return "general"
 }
 
 templ CreateDrawer(props *DrawerCreateProps) {

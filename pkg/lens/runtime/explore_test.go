@@ -29,8 +29,8 @@ func TestExecuteExploration_LoadsOnlyRequestedPanel(t *testing.T) {
 	frames := testFrames(t, "detail-data")
 	detailDashboard := lensbuild.Dashboard("detail", "Detail",
 		lensbuild.Row(
-			panel.Pie("requested", "Requested", "detail-data").Build(),
-			panel.Pie("not-requested", "Not requested", "detail-data").Build(),
+			panel.Pie("requested", "Requested", "detail-data").Terminal().Build(),
+			panel.Pie("not-requested", "Not requested", "detail-data").Terminal().Build(),
 		),
 	).Datasets(lensbuild.StaticDataset("detail-data", frames)).Build()
 	loader := &explorationLoaderStub{definition: ExplorationDefinition{Dashboard: detailDashboard, PanelID: "requested"}}
@@ -53,7 +53,7 @@ func TestExplorationFragmentHandler_ReturnsScopedPanelResult(t *testing.T) {
 
 	frames := testFrames(t, "detail-data")
 	detailDashboard := lensbuild.Dashboard("detail", "Detail",
-		lensbuild.Row(panel.Pie("requested", "Requested", "detail-data").Build()),
+		lensbuild.Row(panel.Pie("requested", "Requested", "detail-data").Terminal().Build()),
 	).Datasets(lensbuild.StaticDataset("detail-data", frames)).Build()
 	handler := ExplorationFragmentHandler{
 		Runtime: New(Options{}),
@@ -93,7 +93,7 @@ func TestExecuteExploration_RejectsEdgeBearingLazyPanelWithoutStablePointID(t *t
 	t.Parallel()
 
 	frames := testFrames(t, "detail-data")
-	loadedPanel := panel.Pie("requested", "Requested", "detail-data").Build()
+	loadedPanel := panel.Pie("requested", "Requested", "detail-data").Terminal().Build()
 	loadedPanel.Fields.ID = ""
 	detailDashboard := lensbuild.Dashboard("detail", "Detail", lensbuild.Row(loadedPanel)).
 		Datasets(lensbuild.StaticDataset("detail-data", frames)).Build()
@@ -198,7 +198,7 @@ func explorerDashboard(t *testing.T) lens.DashboardSpec {
 	).ExpandedSpan(12).Build()
 	require.NoError(t, err)
 	return lensbuild.Dashboard("overview", "Overview",
-		lensbuild.Row(panel.Pie("host", "Host", "host-data").Build()),
+		lensbuild.Row(panel.Pie("host", "Host", "host-data").Terminal().Build()),
 	).Datasets(lensbuild.StaticDataset("host-data", frames)).Explorers(explorerSpec).Build()
 }
 
@@ -215,14 +215,14 @@ func dynamicExplorerDashboard(t *testing.T) lens.DashboardSpec {
 	).Build()
 	require.NoError(t, err)
 	return lensbuild.Dashboard("overview", "Overview",
-		lensbuild.Row(panel.Pie("host", "Host", "host-data").Build()),
+		lensbuild.Row(panel.Pie("host", "Host", "host-data").Terminal().Build()),
 	).Datasets(lensbuild.StaticDataset("host-data", frames)).Explorers(explorerSpec).Build()
 }
 
 func resolvedExplorationDefinition(t *testing.T, edges ...explore.Edge) ExplorationDefinition {
 	t.Helper()
 	frames := testFrames(t, "detail-data")
-	loadedPanel := panel.Pie("requested", "Requested", "detail-data").IDField("id").Build()
+	loadedPanel := panel.Pie("requested", "Requested", "detail-data").IDField("id").Terminal().Build()
 	dashboard := lensbuild.Dashboard("detail", "Detail", lensbuild.Row(loadedPanel)).
 		Datasets(lensbuild.StaticDataset("detail-data", frames)).Build()
 	return ExplorationDefinition{Dashboard: dashboard, PanelID: "requested", ResolvedEdges: edges}

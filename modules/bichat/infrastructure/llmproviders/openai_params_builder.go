@@ -21,15 +21,19 @@ func (m *OpenAIModel) buildResponseParams(ctx context.Context, req agents.Reques
 		Store: openai.Bool(true),
 	}
 
-	inputItems := m.buildInputItemsWithContext(ctx, req.Messages)
+	hasPreviousResponse := req.PreviousResponseID != nil &&
+		strings.TrimSpace(*req.PreviousResponseID) != ""
+	inputItems := m.buildInputItemsWithContextOptions(
+		ctx,
+		req.Messages,
+		hasPreviousResponse,
+	)
 	params.Input = responses.ResponseNewParamsInputUnion{
 		OfInputItemList: inputItems,
 	}
-	if req.PreviousResponseID != nil {
+	if hasPreviousResponse {
 		previousResponseID := strings.TrimSpace(*req.PreviousResponseID)
-		if previousResponseID != "" {
-			params.PreviousResponseID = openai.String(previousResponseID)
-		}
+		params.PreviousResponseID = openai.String(previousResponseID)
 	}
 
 	if config.MaxTokens != nil {

@@ -119,6 +119,7 @@ func (s *chatServiceImpl) CompactSessionHistoryAsync(ctx context.Context, sessio
 		ctx,
 		sessionID,
 		bichatservices.AsyncRunOperationSessionCompact,
+		"",
 		nil,
 		func(processCtx context.Context, persistCtx context.Context, runID uuid.UUID, session domain.Session, active *streamingsvc.ActiveRun) {
 			defer func() {

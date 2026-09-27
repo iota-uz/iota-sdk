@@ -15,6 +15,33 @@ func TestSpecValidate_AcceptsMultiPerspectiveGraph(t *testing.T) {
 	require.NoError(t, spec.Validate())
 }
 
+// TestNodeBuilder_FocusCanvasLevelDeclarations covers the level-declaration
+// builder methods: view, presentation hints, quality status, and source data
+// all land on the node, and a well-formed source table validates.
+func TestNodeBuilder_FocusCanvasLevelDeclarations(t *testing.T) {
+	t.Parallel()
+
+	table := panel.Table("root-source", "Source rows", "root-data").IDField("id").Terminal().Build()
+	rootPanel := panel.Pie("root-panel", "Root", "root-data").IDField("id").Terminal().Build()
+	node := PanelNode("root", "Root", rootPanel, ToNode("detail-point", "detail")).
+		WithView(panel.KindHorizontalBar).
+		WithPresentation(panel.PresentationHints{Waterfall: true}).
+		WithStatus("ПРОКСИ", panel.StatusWarning).
+		WithSourceData("Исходные данные", table)
+
+	require.Equal(t, panel.KindHorizontalBar, node.View)
+	require.NotNil(t, node.Presentation)
+	require.True(t, node.Presentation.Waterfall)
+	require.Equal(t, &panel.StatusSpec{Label: "ПРОКСИ", Tone: panel.StatusWarning}, node.Status)
+	require.NotNil(t, node.SourceData)
+	require.Equal(t, "Исходные данные", node.SourceData.Label)
+	require.Equal(t, "root-source", node.SourceData.Panel.ID)
+
+	spec := testSpec()
+	spec.Branches[0].Perspectives[0].Nodes[0] = node
+	require.NoError(t, spec.Validate())
+}
+
 func TestSpecValidate_RejectsInvalidGraphs(t *testing.T) {
 	t.Parallel()
 
@@ -57,6 +84,22 @@ func TestSpecValidate_RejectsInvalidGraphs(t *testing.T) {
 				spec.Branches[0].Perspectives[0].Nodes[0].Edges[0].Action = actionSpec(action.Navigate("/items"))
 			},
 			wantErr: "exactly one",
+		},
+		{
+			name: "source data with a non-table panel",
+			mutate: func(spec *Spec) {
+				audit := panel.Pie("audit", "Audit", "root-data").Terminal().Build()
+				spec.Branches[0].Perspectives[0].Nodes[0].SourceData = &SourceData{Label: "Source", Panel: audit}
+			},
+			wantErr: "source data requires a table panel",
+		},
+		{
+			name: "source data without a panel id",
+			mutate: func(spec *Spec) {
+				audit := panel.Table("", "Audit", "root-data").Terminal().Build()
+				spec.Branches[0].Perspectives[0].Nodes[0].SourceData = &SourceData{Label: "Source", Panel: audit}
+			},
+			wantErr: "source data requires a panel id",
 		},
 	}
 
@@ -183,9 +226,9 @@ func TestExportRequestFromState_CapturesCurrentNode(t *testing.T) {
 }
 
 func testSpec() Spec {
-	rootPanel := panel.Pie("root-panel", "Root", "root-data").IDField("id").Build()
-	detailPanel := panel.Bar("detail-panel", "Detail", "detail-data").Build()
-	trendPanel := panel.TimeSeries("trend-panel", "Trend", "trend-data").Build()
+	rootPanel := panel.Pie("root-panel", "Root", "root-data").IDField("id").Terminal().Build()
+	detailPanel := panel.Bar("detail-panel", "Detail", "detail-data").Terminal().Build()
+	trendPanel := panel.TimeSeries("trend-panel", "Trend", "trend-data").Terminal().Build()
 	return Spec{
 		ID:           "metric-explorer",
 		HostPanelID:  "host-panel",

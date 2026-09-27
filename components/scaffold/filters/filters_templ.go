@@ -9,11 +9,11 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/Oudwins/tailwind-merge-go"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/twmerge"
 	"github.com/iota-uz/utils/random"
 )
 
