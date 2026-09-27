@@ -13,6 +13,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	icons "github.com/iota-uz/icons/phosphor"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain/entities"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/templates/pages/tenants"
@@ -40,21 +41,25 @@ const (
 )
 
 type TenantsController struct {
-	app         application.Application
 	userService *coreservices.UserService
 	basePath    string
 }
 
-func NewTenantsController(app application.Application, userService *coreservices.UserService) application.Controller {
+func NewTenantsController(userService *coreservices.UserService) application.Controller {
 	return &TenantsController{
-		app:         app,
 		userService: userService,
 		basePath:    "/superadmin/tenants",
 	}
 }
 
-func (c *TenantsController) Key() string {
-	return c.basePath
+func (c *TenantsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("superadmin.tenants", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "superadmin.tenants",
+			TitleKey: "SuperAdmin.NavigationLinks.Tenants",
+			Path:     c.basePath,
+			Icon:     icons.Buildings(icons.Props{Size: "20"}),
+		})
 }
 
 func (c *TenantsController) Register(r *mux.Router) {
@@ -64,8 +69,7 @@ func (c *TenantsController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		superadminMiddleware.RequireSuperAdmin(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)

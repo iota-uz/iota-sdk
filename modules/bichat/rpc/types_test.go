@@ -81,9 +81,49 @@ func TestPendingQuestionFromMessages_SelectsLatestPending(t *testing.T) {
 	require.NotNil(t, pending)
 	assert.Equal(t, "checkpoint-new", pending.CheckpointID)
 	assert.Equal(t, userTurnBeforeLatest.ID().String(), pending.TurnID)
+	assert.Equal(t, string(types.QuestionStatusPending), pending.Status)
 	require.Len(t, pending.Questions, 1)
 	assert.Equal(t, "q-new", pending.Questions[0].ID)
 	assert.Equal(t, "MULTIPLE_CHOICE", pending.Questions[0].Type)
+}
+
+func TestPendingQuestionFromMessages_ReturnsLatestSubmittedOrFailedQuestion(t *testing.T) {
+	t.Parallel()
+
+	sessionID := uuid.New()
+	baseTime := time.Now().UTC()
+
+	failed := &types.QuestionData{
+		CheckpointID: "checkpoint-retry",
+		Status:       types.QuestionStatusAnswerFailed,
+		AgentName:    "planner",
+		Questions: []types.QuestionDataItem{
+			{
+				ID:   "q-retry",
+				Text: "Retry question",
+				Type: "SINGLE_CHOICE",
+				Options: []types.QuestionDataOption{
+					{ID: "opt-1", Label: "One"},
+					{ID: "opt-2", Label: "Two"},
+				},
+			},
+		},
+	}
+
+	messages := []types.Message{
+		types.UserMessage("hello", types.WithSessionID(sessionID), types.WithCreatedAt(baseTime)),
+		types.AssistantMessage(
+			"retry question",
+			types.WithSessionID(sessionID),
+			types.WithQuestionData(failed),
+			types.WithCreatedAt(baseTime.Add(time.Second)),
+		),
+	}
+
+	pending := pendingQuestionFromMessages(messages)
+	require.NotNil(t, pending)
+	assert.Equal(t, "checkpoint-retry", pending.CheckpointID)
+	assert.Equal(t, string(types.QuestionStatusAnswerFailed), pending.Status)
 }
 
 func TestPendingQuestionFromMessages_ReturnsNilWhenNoPending(t *testing.T) {

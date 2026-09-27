@@ -19,5 +19,5 @@ func TestMain(m *testing.M) {
 func setupTest(tb testing.TB) *itf.TestEnvironment {
 	tb.Helper()
 
-	return itf.Setup(tb, itf.WithModules(modules.BuiltInModules...))
+	return itf.Setup(tb, itf.WithComponents(modules.Components()...))
 }

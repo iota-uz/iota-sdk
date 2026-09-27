@@ -21,7 +21,6 @@ import (
 
 // ChatController handles HTTP endpoints for chat operations.
 type ChatController struct {
-	app               application.Application
 	sessionCommands   services.SessionCommands
 	sessionQueries    services.SessionQueries
 	turnCommands      services.TurnCommands
@@ -36,7 +35,6 @@ type ChatController struct {
 // NewChatController creates a new chat controller.
 // Services can be nil - they're optional for legacy REST endpoints.
 func NewChatController(
-	app application.Application,
 	sessionCommands services.SessionCommands,
 	sessionQueries services.SessionQueries,
 	turnCommands services.TurnCommands,
@@ -48,7 +46,6 @@ func NewChatController(
 	opts ...ControllerOption,
 ) *ChatController {
 	return &ChatController{
-		app:               app,
 		sessionCommands:   sessionCommands,
 		sessionQueries:    sessionQueries,
 		turnCommands:      turnCommands,
@@ -61,9 +58,8 @@ func NewChatController(
 	}
 }
 
-// Key returns the controller key for dependency injection.
-func (c *ChatController) Key() string {
-	return "bichat.ChatController"
+func (c *ChatController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("bichat.chat", 0, application.Route("", c.opts.BasePath))
 }
 
 // sessionResponse is the JSON shape for session endpoints
@@ -106,8 +102,7 @@ func (c *ChatController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

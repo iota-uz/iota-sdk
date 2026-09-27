@@ -1,0 +1,25 @@
+package components
+
+import "strings"
+import basebadge "github.com/iota-uz/iota-sdk/components/base/badge"
+
+type PlanBadgeProps struct {
+	PlanID string
+}
+
+func badgeVariant(planID string) basebadge.Variant {
+	switch strings.ToUpper(planID) {
+	case "PRO", "ENTERPRISE":
+		return basebadge.VariantGreen
+	case "BASIC", "STANDARD":
+		return basebadge.VariantBlue
+	default:
+		return basebadge.VariantGray
+	}
+}
+
+templ PlanBadge(props PlanBadgeProps) {
+	@basebadge.New(basebadge.Props{Variant: badgeVariant(props.PlanID), Size: basebadge.SizeNormal}) {
+		<div class="px-3">{ strings.ToUpper(props.PlanID) }</div>
+	}
+}

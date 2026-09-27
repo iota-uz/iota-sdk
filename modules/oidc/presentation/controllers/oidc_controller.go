@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/gorilla/mux"
 	"github.com/zitadel/oidc/v3/pkg/op"
@@ -15,38 +16,49 @@ import (
 	oidcservices "github.com/iota-uz/iota-sdk/modules/oidc/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 // CallbackQueryDTO represents the query parameters for the OIDC callback endpoint
 type CallbackQueryDTO struct {
-	ID string `schema:"id"`
+	ID string `form:"id"`
 }
 
 type OIDCController struct {
-	app         application.Application
-	storage     *oidc.Storage
-	config      *configuration.OIDCOptions
-	oidcService *oidcservices.OIDCService
-	provider    op.OpenIDProvider
+	storage         *oidc.Storage
+	oidcCfg         *oidcconfig.Config
+	httpCfg         *httpconfig.Config
+	oidcService     *oidcservices.OIDCService
+	sessionSvc      *coreservices.SessionService
+	browserSessions *coreservices.BrowserSessionService
+	provider        op.OpenIDProvider
 }
 
 func NewOIDCController(
-	app application.Application,
 	storage *oidc.Storage,
-	config *configuration.OIDCOptions,
+	oidcCfg *oidcconfig.Config,
 	oidcService *oidcservices.OIDCService,
+	sessionService *coreservices.SessionService,
+	browserSessions *coreservices.BrowserSessionService,
+	httpCfg *httpconfig.Config,
 ) *OIDCController {
+	if browserSessions != nil {
+		browserSessions.SetAuthorizationRequestValidator(oidcService)
+	}
 	return &OIDCController{
-		app:         app,
-		storage:     storage,
-		config:      config,
-		oidcService: oidcService,
+		storage:         storage,
+		oidcCfg:         oidcCfg,
+		httpCfg:         httpCfg,
+		oidcService:     oidcService,
+		sessionSvc:      sessionService,
+		browserSessions: browserSessions,
 	}
 }
 
-func (c *OIDCController) Key() string {
-	return "/oidc"
+func (c *OIDCController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("oidc.oidc", 0, application.Route("", "/oidc"))
 }
 
 // Register mounts the OIDC provider router and custom routes
@@ -54,7 +66,7 @@ func (c *OIDCController) Register(r *mux.Router) {
 	// Convert base64-encoded crypto key to [32]byte array
 	var cryptoKey [32]byte
 	// Decode base64 crypto key
-	decodedKey, err := base64.StdEncoding.DecodeString(c.config.CryptoKey)
+	decodedKey, err := base64.StdEncoding.DecodeString(c.oidcCfg.CryptoKey)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to decode crypto key (must be base64-encoded): %v", err))
 	}
@@ -74,7 +86,7 @@ func (c *OIDCController) Register(r *mux.Router) {
 	provider, err := op.NewProvider(
 		providerConfig,
 		c.storage,
-		op.StaticIssuer(c.config.IssuerURL),
+		op.StaticIssuer(c.oidcCfg.IssuerURL),
 		// op.WithAllowInsecure() can be added for development without HTTPS
 	)
 	if err != nil {
@@ -115,9 +127,40 @@ func (c *OIDCController) Register(r *mux.Router) {
 	// This is called after user successfully logs in via /login
 	// IMPORTANT: Must be registered before PathPrefix("/oidc/") to avoid being shadowed
 	r.HandleFunc("/oidc/authorize/callback", c.handleCallback).Methods(http.MethodGet)
+	r.HandleFunc("/oidc/authorize/select", c.handleAccountSelection).Methods(http.MethodPost)
 
 	// Register catch-all OIDC provider routes last
 	r.PathPrefix("/oidc/").Handler(http.StripPrefix("/oidc", provider))
+}
+
+func (c *OIDCController) handleAccountSelection(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid account selection", http.StatusBadRequest)
+		return
+	}
+	authRequestID := r.URL.Query().Get("auth_request")
+	authReq, err := c.oidcService.GetAuthRequest(r.Context(), authRequestID)
+	if err != nil || authReq.IsExpired() || authReq.IsAuthenticated() || authReq.IsCodeUsed() || authReq.Code() != nil {
+		http.Error(w, "This authorization request is no longer valid. Return to the application and start again.", http.StatusBadRequest)
+		return
+	}
+
+	browserSession, err := c.browserSessions.Activate(w, r, r.FormValue("SessionReference"))
+	if err != nil || !browserSession.Session.IsActive() {
+		shared.SetFlash(w, "error", []byte("That account session expired. Sign in again or choose another account."))
+		http.Redirect(w, r, "/login?auth_request="+url.QueryEscape(authRequestID), http.StatusSeeOther)
+		return
+	}
+	if err := c.oidcService.CompleteAuthRequest(
+		r.Context(),
+		authRequestID,
+		int(browserSession.Session.UserID()),
+		browserSession.Session.TenantID(),
+	); err != nil {
+		http.Error(w, "This authorization request is no longer valid. Return to the application and start again.", http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/oidc/authorize/callback?id="+url.QueryEscape(authRequestID), http.StatusSeeOther)
 }
 
 // handleCallback completes the authorization flow after successful login
@@ -145,24 +188,21 @@ func (c *OIDCController) handleCallback(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Invalid auth request", http.StatusBadRequest)
 		return
 	}
+	if authReq.IsExpired() || authReq.IsCodeUsed() || authReq.Code() != nil {
+		http.Error(w, "This authorization request is no longer valid. Return to the application and start again.", http.StatusBadRequest)
+		return
+	}
 
 	// Complete auth request from active session if not already authenticated.
 	// This ensures users finish 2FA before OIDC authorization can proceed.
 	if !authReq.IsAuthenticated() {
-		sessionCookie, err := r.Cookie(configuration.Use().SidCookieKey)
-		if err != nil {
-			logger.WithError(err).Error("Missing session cookie for OIDC callback")
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		sessionService := c.app.Service(coreservices.SessionService{}).(*coreservices.SessionService)
-		sess, err := sessionService.GetByToken(r.Context(), sessionCookie.Value)
+		browserSession, err := c.browserSessions.Active(w, r)
 		if err != nil {
 			logger.WithError(err).Error("Failed to load session for OIDC callback")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
+		sess := browserSession.Session
 
 		if sess.Status() != session.StatusActive {
 			logger.Error("Session not active for OIDC callback", "status", sess.Status())
@@ -177,8 +217,8 @@ func (c *OIDCController) handleCallback(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	// Redirect back to the OIDC authorize endpoint to complete the flow
-	// The zitadel library will handle generating the authorization code and redirecting to client
-	redirectURL := fmt.Sprintf("/oidc/authorize?id=%s", query.ID)
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	// Resume the stored authorization request through the provider callback.
+	// The public authorize endpoint expects the original OIDC parameters and
+	// cannot resume an existing request from its internal ID.
+	op.AuthorizeCallback(w, r, c.provider)
 }

@@ -13,22 +13,32 @@ This module includes essential features for api management.
 
 ## Usage
 
-The API module is registered automatically when you include it in your application setup. To register API-related components in your module:
+The API module is registered automatically when you include it in your application setup. Controllers and schemas are now contributed during component build:
 
 ```go
-func (m *Module) Register(app application.Application) error {
-    // Register API controllers
-    app.RegisterControllers(
-        controllers.NewApiController(app),
-    )
-    
-    // Register GraphQL schema if applicable
-    app.RegisterGraphSchema(application.GraphSchema{
-        Name:    "api",
-        Schema:  schema,
-        Handler: handler,
-    })
-    
-    return nil
+func (c *component) Build(builder *composition.Builder) error {
+	if !builder.Context().HasCapability(composition.CapabilityAPI) {
+		return nil
+	}
+	// ContributeControllersFunc resolves each constructor parameter from
+	// the container by type. application.Application is provided by the
+	// engine automatically.
+	composition.ContributeControllersFunc(builder, func(
+		app application.Application,
+		userService *services.UserService,
+		uploadService *services.UploadService,
+		authService *services.AuthService,
+	) []application.Controller {
+		return []application.Controller{
+			controllers.NewGraphQLController(app, userService, uploadService, authService),
+		}
+	})
+	composition.ContributeSchemas(builder, func(*composition.Container) ([]application.GraphSchema, error) {
+		return []application.GraphSchema{{
+			Value:    schema,
+			BasePath: "/api",
+		}}, nil
+	})
+	return nil
 }
 ```

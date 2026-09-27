@@ -3,6 +3,7 @@ package bichat
 import (
 	"io/fs"
 	"strings"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
@@ -207,6 +208,13 @@ func WithTokenEstimator(estimator agents.TokenEstimator) ConfigOption {
 	}
 }
 
+// WithExecutorOptions appends executor options used for each parent agent run.
+func WithExecutorOptions(options ...agents.ExecutorOption) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ExecutorOptions = append(c.ExecutorOptions, options...)
+	}
+}
+
 // WithObservability adds an observability provider for tracing, metrics, and cost tracking.
 // Providers are wrapped in AsyncHandler to prevent blocking the main execution path.
 // Multiple providers can be registered by calling this option multiple times.
@@ -279,5 +287,52 @@ func WithStreamRequireAccessPermission(p permission.Permission) ConfigOption {
 func WithStreamReadAllPermission(p permission.Permission) ConfigOption {
 	return func(c *ModuleConfig) {
 		c.StreamReadAllPermission = p
+	}
+}
+
+// WithReaperInterval sets the polling interval between stale-run reaper sweeps.
+// Default: 15s. Applies only when Redis is configured.
+func WithReaperInterval(d time.Duration) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ReaperInterval = d
+	}
+}
+
+// WithReaperStaleThreshold sets the maximum age of a run's last heartbeat
+// before the reaper considers it wedged and marks it failed.
+// Default: 60s. Applies only when Redis is configured.
+func WithReaperStaleThreshold(d time.Duration) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ReaperStaleThreshold = d
+	}
+}
+
+// WithReaperLockTTL sets the TTL of the single-writer reaper lock in Redis.
+// This bounds the time a crashed leader holds the lock before another replica
+// can take over. Default: 30s. Applies only when Redis is configured.
+func WithReaperLockTTL(d time.Duration) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ReaperLockTTL = d
+	}
+}
+
+// withAppletSettings sets the dev-mode Vite proxy settings and OpenAI key status
+// from the typed bichatconfig. Used internally by buildModuleConfig; not exported.
+func withAppletSettings(isDev bool, viteURL, entry, client string, openAIConfigured bool) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.IsDev = isDev
+		c.AppletViteURL = viteURL
+		c.AppletEntry = entry
+		c.AppletClient = client
+		c.OpenAIAPIKeyConfigured = openAIConfigured
+	}
+}
+
+// WithLangfuseBaseURL stores the Langfuse host URL so that debug traces include
+// a clickable trace link. The URL is forwarded to the underlying chat service
+// during BuildServices.
+func WithLangfuseBaseURL(rawURL string) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.LangfuseBaseURL = strings.TrimSpace(rawURL)
 	}
 }

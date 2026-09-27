@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Exercise hidden combobox backing selects reliably in user form E2E coverage."
+}

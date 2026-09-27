@@ -25,7 +25,7 @@ func NewRootCommand() *cobra.Command {
 
 	// Add all command groups
 	rootCmd.AddCommand(commands.NewUtilityCommands()...)
-	rootCmd.AddCommand(commands.NewE2ECommand())
+	rootCmd.AddCommand(commands.NewDBCtlCommand())
 	rootCmd.AddCommand(commands.NewMigrateCommand())
 	rootCmd.AddCommand(commands.NewKnowledgeCommand())
 	rootCmd.AddCommand(commands.NewBiChatCommand())

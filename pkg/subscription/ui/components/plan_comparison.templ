@@ -1,0 +1,59 @@
+package components
+
+import (
+	"fmt"
+	"sort"
+
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/pkg/subscription/ui/viewmodels"
+)
+
+type PlanComparisonProps struct {
+	Plans []viewmodels.PlanViewModel
+}
+
+templ PlanComparison(props PlanComparisonProps) {
+	@card.Card(card.Props{WrapperClass: "w-full", Class: "overflow-x-auto"}) {
+		<table class="table w-full text-sm">
+			<thead>
+				<tr>
+					<th scope="col">{ "Plan" }</th>
+					<th scope="col">{ "Price" }</th>
+					<th scope="col">{ "Features" }</th>
+					<th scope="col">{ "Limits" }</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, plan := range props.Plans {
+					<tr>
+						<td class="font-medium">{ plan.DisplayName }</td>
+						<td>{ plan.PriceLabel }</td>
+						<td>
+							<ul class="list-disc pl-4">
+								for _, feature := range plan.Features {
+									<li>{ feature }</li>
+								}
+							</ul>
+						</td>
+						<td>
+							{{ keys := make([]string, 0, len(plan.EntityLimits)) }}
+							for key := range plan.EntityLimits {
+								{{ keys = append(keys, key) }}
+							}
+							{{ sort.Strings(keys) }}
+							<ul class="list-disc pl-4">
+								for _, key := range keys {
+									if plan.EntityLimits[key] < 0 {
+										<li>{ fmt.Sprintf("%s: unlimited", key) }</li>
+									} else {
+										<li>{ fmt.Sprintf("%s: %d", key, plan.EntityLimits[key]) }</li>
+									}
+								}
+							</ul>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	}
+}

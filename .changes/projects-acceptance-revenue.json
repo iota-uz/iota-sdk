@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Projects: contract amount on the project, acceptance documents (acts, delivery notes) with draft, signed and cancelled statuses, and revenue split by contract, accepted, open, invoiced and paid per currency on the project and the client; invoices come through the projects InvoiceSource port."}

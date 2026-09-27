@@ -23,29 +23,30 @@ import (
 )
 
 type CreateUserDTO struct {
-	FirstName  string   `validate:"required"`
-	LastName   string   `validate:"required"`
-	MiddleName string   `validate:"omitempty"`
-	Email      string   `validate:"required,email"`
-	Phone      string   `validate:"required"`
-	Password   string   `validate:"required"`
-	RoleIDs    []uint   `validate:"omitempty,dive,required"`
-	GroupIDs   []string `validate:"omitempty,dive,required"`
-	AvatarID   uint     `validate:"omitempty,gt=0"`
-	Language   string   `validate:"required"`
+	FirstName  string   `form:"FirstName" validate:"required"`
+	LastName   string   `form:"LastName" validate:"required"`
+	MiddleName string   `form:"MiddleName" validate:"omitempty"`
+	Email      string   `form:"Email" validate:"required,email"`
+	Phone      string   `form:"Phone" validate:"omitempty"`
+	Password   string   `form:"Password" validate:"required"`
+	RoleIDs    []uint   `form:"RoleIDs" validate:"omitempty,dive,required"`
+	GroupIDs   []string `form:"GroupIDs" validate:"omitempty,dive,required"`
+	AvatarID   uint     `form:"AvatarID" validate:"omitempty,gt=0"`
+	Language   string   `form:"Language" validate:"required"`
 }
 
 type UpdateUserDTO struct {
-	FirstName  string   `validate:"required"`
-	LastName   string   `validate:"required"`
-	MiddleName string   `validate:"omitempty"`
-	Email      string   `validate:"required,email"`
-	Phone      string   `validate:"required"`
-	Password   string   `validate:"omitempty"`
-	RoleIDs    []uint   `validate:"omitempty,dive,required"`
-	GroupIDs   []string `validate:"omitempty,dive,required"`
-	AvatarID   uint     `validate:"omitempty,gt=0"`
-	Language   string   `validate:"required"`
+	FirstName     string   `form:"FirstName" validate:"required"`
+	LastName      string   `form:"LastName" validate:"required"`
+	MiddleName    string   `form:"MiddleName" validate:"omitempty"`
+	Email         string   `form:"Email" validate:"required,email"`
+	Phone         string   `form:"Phone" validate:"omitempty"`
+	Password      string   `form:"Password" validate:"omitempty"`
+	RoleIDs       []uint   `form:"RoleIDs" validate:"omitempty,dive,required"`
+	GroupIDs      []string `form:"GroupIDs" validate:"omitempty,dive,required"`
+	PermissionIDs []string `form:"PermissionIDs" validate:"omitempty,dive,uuid"`
+	AvatarID      uint     `form:"AvatarID" validate:"omitempty,gt=0"`
+	Language      string   `form:"Language" validate:"required"`
 }
 
 func (dto *CreateUserDTO) Ok(ctx context.Context) (map[string]string, bool) {
@@ -119,11 +120,6 @@ func (dto *CreateUserDTO) ToEntity(tenantID uuid.UUID) (user.User, error) {
 		return nil, err
 	}
 
-	p, err := phone.NewFromE164(dto.Phone)
-	if err != nil {
-		return nil, err
-	}
-
 	options := []user.Option{
 		user.WithTenantID(tenantID),
 		user.WithMiddleName(dto.MiddleName),
@@ -131,7 +127,14 @@ func (dto *CreateUserDTO) ToEntity(tenantID uuid.UUID) (user.User, error) {
 		user.WithRoles(roles),
 		user.WithGroupIDs(groupUUIDs),
 		user.WithAvatarID(dto.AvatarID),
-		user.WithPhone(p),
+	}
+
+	if dto.Phone != "" {
+		p, err := phone.NewFromE164(dto.Phone)
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, user.WithPhone(p))
 	}
 
 	u := user.New(
@@ -162,11 +165,6 @@ func (dto *UpdateUserDTO) Apply(u user.User, roles []role.Role, permissions []pe
 		return nil, err
 	}
 
-	p, err := phone.NewFromE164(dto.Phone)
-	if err != nil {
-		return nil, err
-	}
-
 	groupUUIDs := make([]uuid.UUID, len(dto.GroupIDs))
 	for i, gID := range dto.GroupIDs {
 		groupUUID, err := uuid.Parse(gID)
@@ -178,11 +176,20 @@ func (dto *UpdateUserDTO) Apply(u user.User, roles []role.Role, permissions []pe
 
 	u = u.SetName(dto.FirstName, dto.LastName, dto.MiddleName).
 		SetEmail(email).
-		SetPhone(p).
 		SetUILanguage(user.UILanguage(dto.Language)).
 		SetRoles(roles).
 		SetGroupIDs(groupUUIDs).
 		SetPermissions(permissions)
+
+	if dto.Phone != "" {
+		p, err := phone.NewFromE164(dto.Phone)
+		if err != nil {
+			return nil, err
+		}
+		u = u.SetPhone(p)
+	} else {
+		u = u.SetPhone(nil)
+	}
 
 	if dto.Password != "" {
 		u, err = u.SetPassword(dto.Password)

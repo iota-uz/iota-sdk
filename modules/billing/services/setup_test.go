@@ -20,10 +20,10 @@ func TestMain(m *testing.M) {
 func setupTest(t *testing.T) *itf.TestEnvironment {
 	t.Helper()
 
-	return itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	return itf.Setup(t, itf.WithComponents(modules.Components()...))
 }
 
 // Helper function to get BillingService from TestEnvironment
 func getBillingService(env *itf.TestEnvironment) *services.BillingService {
-	return env.Service(services.BillingService{}).(*services.BillingService)
+	return itf.GetService[services.BillingService](env)
 }

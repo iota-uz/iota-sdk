@@ -93,6 +93,59 @@ suite.POST("/submit").
 ### Database Name Truncation Fix
 Automatic database name handling for long test names.
 
+### Template Database Cloning
+
+Every harness provisions its own database. By default that database starts empty
+and the migration set is replayed into it — roughly a second per harness, taken
+under a cluster-wide advisory lock so that parallel harnesses do not race on the
+cluster-global objects migrations create.
+
+Point `ITF_TEMPLATE_DB` at a pre-migrated database and the harness clones it
+instead, at catalog speed:
+
+```bash
+# once, before the suite (CI does this in a setup step)
+createdb itf_template
+DB_NAME=itf_template go run cmd/command/main.go migrate up
+psql -d postgres -c "UPDATE pg_database SET datistemplate = true, datallowconn = false WHERE datname = 'itf_template'"
+
+# then
+ITF_TEMPLATE_DB=itf_template go test ./...
+```
+
+Measured on `modules/{core,finance,warehouse}` (5 packages, `-p 8`):
+**29.7s → 7.4s**.
+
+Notes:
+
+- **Unset is the default.** A clean checkout still runs `go test ./...` with no
+  extra preparation.
+- **Cloning is orthogonal to the migration policy.** With the default
+  `MigrationApplyOnce` the migrator still runs over the clone, plans zero
+  migrations, and therefore costs almost nothing — while bringing *that clone*
+  current if the template was built before the newest migration landed. It does
+  not repair the template: a stale template stays stale and every clone keeps
+  paying for the missing migrations until you rebuild it. `MigrationSkip` drops
+  even that probe, trusting the template to be current.
+- **The clone gets the template's rows, too.** `CREATE DATABASE ... TEMPLATE`
+  copies everything database-local — schema, extensions, RLS policies and table
+  contents. Build the template from migrations alone; a template made from a
+  seeded or restored database hands that data to every test.
+- **Cluster-global objects are not copied.** Roles, and the settings and grants
+  attached to them, live outside the database — so build the template against
+  the same cluster the tests run on, and do not expect a migration that only
+  ran into the template to have created the role its RLS policies reference.
+- **Nothing may be connected to the template — `datallowconn = false` is how
+  you guarantee it.** Postgres refuses to clone a database that any backend is
+  connected to, and the backend you forget about is autovacuum: it visits every
+  database on its own schedule, and at a few hundred clones per run it will
+  eventually land on the template. Marking the template the way `template0`
+  marks itself makes the collision impossible rather than rare. The harness also
+  evicts stragglers with `pg_terminate_backend` before each clone and retries
+  the residual race, but that is the safety net, not the design.
+- Per-suite override: `itf.WithTemplateDatabase("other_template")`, or
+  `HarnessConfig.Migration.TemplateDB`.
+
 ## Quick Start
 
 ### Basic Setup
@@ -129,7 +182,7 @@ suite.GET("/api/data").
 
 **Configuration:**
 - `NewSuiteBuilder(t testing.TB) *SuiteBuilder`
-- `WithModules(...application.Module) *SuiteBuilder`
+- `WithComponents(...composition.Component) *SuiteBuilder`
 - `WithUser(user.User) *SuiteBuilder`
 - `WithTenant(string) *SuiteBuilder`
 
@@ -143,6 +196,26 @@ suite.GET("/api/data").
 **Building:**
 - `Build() *Suite`
 - `BuildWithOptions(...Option) *Suite`
+
+**Route mounting:**
+- `Register(controller interface{ Register(*mux.Router) }) *Suite` — mount one hand-picked controller
+- `MountAll() *Suite` — mount every controller of the compiled application, mirroring the production route table (`pkg/server`). Without either, component routes answer 404.
+
+### Transaction Scope Methods (TestEnvironment)
+
+- `CommitTx(tb testing.TB)` — commit the scope transaction and replace it with a fresh rollback-scoped one. For seeding rows that must be visible to pool readers (repositories calling `UsePool`, workers, separate transactions) while later test work still rolls back.
+- `FreshTx(tb testing.TB)` — roll back the scope transaction, discarding uncommitted writes, and begin a new one.
+
+### i18n Assertions
+
+- `MessageResolves(bundle *i18n.Bundle, locale, messageID string) bool` — non-failing predicate; a key that only exists in another locale resolves to `false` even though the localizer can fall back.
+- `RequireMessage(tb, bundle, locale, messageID) string` — fail with a diagnostic hint (nested-path semantics, component LocaleFS coverage, per-locale presence).
+- `RequireMessages(tb, bundle, locale, ids...)` — plural form.
+- `RequireMessageAllLocales(tb, bundle, messageID, locales...)` — catches a key shipped in one language but forgotten in the others.
+
+### Concurrency Guard
+
+Rollback-scope transactions are wrapped in `repo.GuardedTx`: overlapping calls on one transaction fail fast with `repo.ErrTxInUse` instead of racing the connection (pgx transactions are single-connection; the classic trigger is an errgroup sharing an ambient request-scoped transaction). `repo.NewGuardedTx(tx)` brings the same fail-fast behaviour to application code.
 
 ### Request Methods
 

@@ -61,7 +61,10 @@ func TestBiChatApplet_Config(t *testing.T) {
 		assert.Equal(t, "index.html", config.Assets.Entrypoint)
 
 		require.NotNil(t, config.Assets.Dev)
-		assert.True(t, config.Assets.Dev.Enabled) // isDev() returns true when GO_APP_ENV is unset
+		// Dev mode is opt-in via ModuleConfig.IsDev (formerly inferred from
+		// GO_APP_ENV). The applet under test was constructed without IsDev
+		// set, so dev assets are disabled here.
+		assert.False(t, config.Assets.Dev.Enabled)
 		assert.Equal(t, "http://localhost:5173", config.Assets.Dev.TargetURL)
 		assert.Equal(t, "/src/main.tsx", config.Assets.Dev.EntryModule)
 		assert.Equal(t, "/@vite/client", config.Assets.Dev.ClientModule)
@@ -175,6 +178,10 @@ func TestBiChatApplet_buildCustomContext_WithConfig(t *testing.T) {
 			ContextWindow:     200000,
 			CompletionReserve: 8000,
 		},
+		// OpenAIAPIKeyConfigured is now an explicit ModuleConfig field
+		// populated by component_bootstrap from bichatconfig.OpenAI.IsConfigured().
+		// Tests must set it directly.
+		OpenAIAPIKeyConfigured: true,
 	}
 
 	bichatApplet := NewBiChatApplet(config, nil)

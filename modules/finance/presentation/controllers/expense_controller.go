@@ -11,8 +11,11 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/export"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
+	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/exportconfig"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
@@ -35,28 +38,21 @@ import (
 )
 
 type ExpenseController struct {
-	app      application.Application
 	basePath string
 }
 
-type ExpensePaginationResponse struct {
-	Expenses        []*viewmodels.Expense
-	PaginationState *pagination.State
-}
-
-func NewExpensesController(app application.Application) application.Controller {
+func NewExpensesController() application.Controller {
 	basePath := "/finance/expenses"
 
 	controller := &ExpenseController{
-		app:      app,
 		basePath: basePath,
 	}
 
 	return controller
 }
 
-func (c *ExpenseController) Key() string {
-	return c.basePath
+func (c *ExpenseController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.expense", 0, application.Route("", c.basePath))
 }
 
 func (c *ExpenseController) Register(r *mux.Router) {
@@ -65,8 +61,7 @@ func (c *ExpenseController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -139,29 +134,67 @@ func (c *ExpenseController) List(
 		return
 	}
 
-	total, err := expenseService.Count(r.Context(), &expense.FindParams{})
+	total, err := expenseService.Count(r.Context(), findParams)
 	if err != nil {
 		logger.Errorf("Error counting expenses: %v", err)
 		http.Error(w, "Error counting expenses", http.StatusInternalServerError)
 		return
 	}
 
-	props := &expensesui.IndexPageProps{
-		Expenses:        mapping.MapViewModels(expenseEntities, mappers.ExpenseToViewModel),
-		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+	cfg := c.tableConfig(r, params, int(total))
+	for _, e := range mapping.MapViewModels(expenseEntities, mappers.ExpenseToViewModel) {
+		cfg.AddRows(table.Row(
+			table.Cell(templ.Raw(templ.EscapeString(e.Category.Name)), e.Category.Name),
+			table.Cell(templ.Raw(e.AmountWithCurrency), e.AmountWithCurrency),
+			table.Cell(templ.Raw(e.AccountingPeriod), e.AccountingPeriod),
+			table.Cell(templ.Raw(e.Date), e.Date),
+			table.Cell(actions.RenderRowActions(actions.EditAction(fmt.Sprintf("%s/%s", c.basePath, e.ID))), nil),
+		))
 	}
 
-	// Check if this is an embedded request
-	isEmbedded := r.URL.Query().Get("embedded") == "true"
-
-	if isEmbedded {
-		// For embedded view, just return the content without the full layout
-		templ.Handler(expensesui.ExpensesEmbedded(props), templ.WithStreaming()).ServeHTTP(w, r)
-	} else if htmx.IsHxRequest(r) {
-		templ.Handler(expensesui.ExpensesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
-	} else {
-		templ.Handler(expensesui.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+	// The overview tab loads the first chunk embedded; later chunks and
+	// searches only need rows.
+	if r.URL.Query().Get("embedded") == "true" && params.Page == 1 {
+		templ.Handler(table.EmbeddedContent(cfg), templ.WithStreaming()).ServeHTTP(w, r)
+		return
 	}
+	templ.Handler(table.ContentHTMX(cfg), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *ExpenseController) tableConfig(r *http.Request, params composables.PaginationParams, total int) *table.TableConfig {
+	pageCtx := composables.UsePageCtx(r.Context())
+	cfg := table.NewTableConfig(
+		pageCtx.T("NavigationLinks.Expenses"),
+		c.basePath,
+		// The overview shows several tables on one address, so each keeps
+		// its column settings under its own key.
+		table.WithID("finance-expenses"),
+		table.WithSearchValue(table.UseSearchQuery(r)),
+		table.WithInfiniteScroll(total > params.Page*params.Limit, params.Page, params.Limit),
+	)
+	cfg.AddCols(
+		table.Column("category", pageCtx.T("Expenses.List.Category")),
+		table.Column("amount", pageCtx.T("Expenses.List.Amount")),
+		table.Column("accounting_period", pageCtx.T("Expenses.List.AccountingPeriod")),
+		table.Column("date", pageCtx.T("Expenses.List.Date")),
+		table.Column("actions", pageCtx.T("Actions"), table.WithClass("w-16")),
+	)
+	cfg.AddFilters(filters.CreatedAt())
+	cfg.AddActions(
+		export.ExportDropdown(export.ExportDropdownProps{
+			Formats:   []export.ExportFormat{export.ExportFormatExcel, export.ExportFormatCSV, export.ExportFormatJSON},
+			ExportURL: c.basePath + "/export",
+			Label:     pageCtx.T("Expenses.List.Export"),
+			Size:      button.SizeNormal,
+			Attrs: templ.Attributes{
+				"hx-include": "closest form",
+				"hx-target":  "body",
+				"hx-swap":    "none",
+			},
+		}),
+		actions.RenderAction(actions.CreateAction(pageCtx.T("Expenses.List.New"), c.basePath+"/new")),
+	)
+	return cfg
 }
 
 func (c *ExpenseController) Export(

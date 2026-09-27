@@ -27,11 +27,52 @@ const (
 )
 
 type ChartOptions struct {
-	Chart       ChartConfig    `json:"chart"`
-	Series      interface{}    `json:"series"`
+	Chart       ChartConfig            `json:"chart"`
+	Series      interface{}            `json:"series"`
+	Labels      []string               `json:"labels,omitempty"`
+	XAxis       XAxisConfig            `json:"xaxis"`
+	YAxis       []YAxisConfig          `json:"yaxis"`
+	Colors      []string               `json:"colors,omitempty"`
+	DataLabels  *DataLabels            `json:"dataLabels,omitempty"`
+	Grid        *GridConfig            `json:"grid,omitempty"`
+	PlotOptions *PlotOptions           `json:"plotOptions,omitempty"`
+	Tooltip     *TooltipConfig         `json:"tooltip,omitempty"`
+	Title       *TitleConfig           `json:"title,omitempty"`
+	Theme       *ThemeConfig           `json:"theme,omitempty"`
+	Stroke      *StrokeConfig          `json:"stroke,omitempty"`
+	Markers     *MarkersConfig         `json:"markers,omitempty"`
+	Legend      *LegendConfig          `json:"legend,omitempty"`
+	NoData      *NoDataConfig          `json:"noData,omitempty"`
+	States      *StatesConfig          `json:"states,omitempty"`
+	Fill        *FillConfig            `json:"fill,omitempty"`
+	Annotations *Annotations           `json:"annotations,omitempty"`
+	Responsive  []ResponsiveBreakpoint `json:"responsive,omitempty"`
+	SDK         *SDKOptions            `json:"_sdk,omitempty"`
+}
+
+// SDKOptions carries renderer metadata consumed by the SDK chart wrapper.
+// ApexCharts ignores this private top-level option; it lets the wrapper retain
+// semantic information that is lost after data is transformed for rendering.
+type SDKOptions struct {
+	ManualLogScale *ManualLogScaleOptions `json:"manualLogScale,omitempty"`
+}
+
+type ManualLogScaleOptions struct {
+	Base       int  `json:"base"`
+	Horizontal bool `json:"horizontal,omitempty"`
+}
+
+type ResponsiveBreakpoint struct {
+	Breakpoint int               `json:"breakpoint"`
+	Options    ResponsiveOptions `json:"options"`
+}
+
+type ResponsiveOptions struct {
+	Chart       *ChartConfig   `json:"chart,omitempty"`
+	Series      interface{}    `json:"series,omitempty"`
 	Labels      []string       `json:"labels,omitempty"`
-	XAxis       XAxisConfig    `json:"xaxis"`
-	YAxis       []YAxisConfig  `json:"yaxis"`
+	XAxis       *XAxisConfig   `json:"xaxis,omitempty"`
+	YAxis       []YAxisConfig  `json:"yaxis,omitempty"`
 	Colors      []string       `json:"colors,omitempty"`
 	DataLabels  *DataLabels    `json:"dataLabels,omitempty"`
 	Grid        *GridConfig    `json:"grid,omitempty"`
@@ -49,13 +90,15 @@ type ChartOptions struct {
 }
 
 type ChartConfig struct {
-	Type    ChartType    `json:"type"`
-	Height  string       `json:"height,omitempty"`
-	OffsetX int          `json:"offsetX,omitempty"`
-	OffsetY int          `json:"offsetY,omitempty"`
-	Toolbar Toolbar      `json:"toolbar,omitempty"`
-	Stacked bool         `json:"stacked,omitempty"`
-	Events  *ChartEvents `json:"events,omitempty"`
+	Type      ChartType        `json:"type"`
+	Height    string           `json:"height,omitempty"`
+	OffsetX   int              `json:"offsetX,omitempty"`
+	OffsetY   int              `json:"offsetY,omitempty"`
+	Toolbar   Toolbar          `json:"toolbar,omitempty"`
+	Zoom      *ZoomConfig      `json:"zoom,omitempty"`
+	Selection *SelectionConfig `json:"selection,omitempty"`
+	Stacked   bool             `json:"stacked,omitempty"`
+	Events    *ChartEvents     `json:"events,omitempty"`
 }
 
 type ChartEvents struct {
@@ -80,7 +123,30 @@ type ChartEvents struct {
 }
 
 type Toolbar struct {
-	Show bool `json:"show"`
+	Show         bool          `json:"show"`
+	AutoSelected *string       `json:"autoSelected,omitempty"`
+	Tools        *ToolbarTools `json:"tools,omitempty"`
+}
+
+type ToolbarTools struct {
+	Download  *bool `json:"download,omitempty"`
+	Selection *bool `json:"selection,omitempty"`
+	Zoom      *bool `json:"zoom,omitempty"`
+	ZoomIn    *bool `json:"zoomin,omitempty"`
+	ZoomOut   *bool `json:"zoomout,omitempty"`
+	Pan       *bool `json:"pan,omitempty"`
+	Reset     *bool `json:"reset,omitempty"`
+}
+
+type ZoomConfig struct {
+	Enabled        *bool   `json:"enabled,omitempty"`
+	Type           *string `json:"type,omitempty"`
+	AutoScaleYaxis *bool   `json:"autoScaleYaxis,omitempty"`
+}
+
+type SelectionConfig struct {
+	Enabled *bool   `json:"enabled,omitempty"`
+	Type    *string `json:"type,omitempty"`
 }
 
 type Series struct {
@@ -133,10 +199,21 @@ type DropShadow struct {
 }
 
 type GridConfig struct {
-	BorderColor string         `json:"borderColor,omitempty"`
-	Row         *GridRowColumn `json:"row,omitempty"`
-	Column      *GridRowColumn `json:"column,omitempty"`
-	Padding     *Padding       `json:"padding,omitempty"`
+	BorderColor string          `json:"borderColor,omitempty"`
+	Row         *GridRowColumn  `json:"row,omitempty"`
+	Column      *GridRowColumn  `json:"column,omitempty"`
+	Padding     *Padding        `json:"padding,omitempty"`
+	XAxis       *GridAxisConfig `json:"xaxis,omitempty"`
+	YAxis       *GridAxisConfig `json:"yaxis,omitempty"`
+}
+
+// GridAxisConfig controls per-axis gridline visibility (grid.xaxis / grid.yaxis).
+type GridAxisConfig struct {
+	Lines *GridLinesConfig `json:"lines,omitempty"`
+}
+
+type GridLinesConfig struct {
+	Show *bool `json:"show,omitempty"`
 }
 
 type GridRowColumn struct {
@@ -160,10 +237,14 @@ type PlotOptions struct {
 }
 
 type BarConfig struct {
-	BorderRadius int       `json:"borderRadius,omitempty"`
-	ColumnWidth  string    `json:"columnWidth,omitempty"`
-	DataLabels   BarLabels `json:"dataLabels,omitempty"`
-	Horizontal   *bool     `json:"horizontal,omitempty"`
+	BorderRadius int `json:"borderRadius,omitempty"`
+	// BorderRadiusApplication is 'around' or 'end' (round only the outer end of bars).
+	BorderRadiusApplication *string   `json:"borderRadiusApplication,omitempty"`
+	ColumnWidth             string    `json:"columnWidth,omitempty"`
+	BarHeight               *string   `json:"barHeight,omitempty"` // horizontal bars only
+	DataLabels              BarLabels `json:"dataLabels,omitempty"`
+	Distributed             *bool     `json:"distributed,omitempty"`
+	Horizontal              *bool     `json:"horizontal,omitempty"`
 }
 
 type BarLabels struct {
@@ -642,6 +723,7 @@ type TooltipConfig struct {
 	HideEmptySeries *bool                        `json:"hideEmptySeries,omitempty"`
 	FillSeriesColor *bool                        `json:"fillSeriesColor,omitempty"`
 	Theme           *string                      `json:"theme,omitempty"`
+	CSSClass        *string                      `json:"cssClass,omitempty"`
 	Style           *TooltipStyleConfig          `json:"style,omitempty"`
 	OnDatasetHover  *TooltipOnDatasetHoverConfig `json:"onDatasetHover,omitempty"`
 	X               *TooltipXConfig              `json:"x,omitempty"`
@@ -827,6 +909,10 @@ type LegendLabelsConfig struct {
 }
 
 type LegendMarkersConfig struct {
+	// Size and Shape follow the ApexCharts v4 legend marker API
+	// (legend.markers.size / legend.markers.shape).
+	Size        *int               `json:"size,omitempty"`
+	Shape       *string            `json:"shape,omitempty"` // 'circle', 'square', 'rect', 'line', ...
 	Width       *int               `json:"width,omitempty"`
 	Height      *int               `json:"height,omitempty"`
 	StrokeWidth *int               `json:"strokeWidth,omitempty"`

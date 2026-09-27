@@ -15,6 +15,7 @@ const (
 	ParamsKey       ContextKey = "params"
 	LoggerKey       ContextKey = "logger"
 	AppKey          ContextKey = "app"
+	ContainerKey    ContextKey = "container"
 	LogoKey         ContextKey = "logo"
 	HeadKey         ContextKey = "head"
 	SidebarPropsKey ContextKey = "sidebarProps"

@@ -1,18 +1,20 @@
 {
-  "name": "@iota-uz/iota-sdk-internal",
+  "name": "@iota-uz/iota-sdk-workspace",
   "version": "0.0.0",
   "private": true,
-  "description": "Internal workspace package for iota-sdk. Canonical @iota-uz/sdk package lives in ../applets.",
+  "description": "Private workspace for the Go SDK and its canonical frontend distribution.",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "build": "echo \"Canonical @iota-uz/sdk package is maintained in ../applets\"",
+    "build": "pnpm --filter @iota-uz/sdk build",
+    "pack:sdk": "pnpm --filter @iota-uz/sdk pack",
+    "check:sdk": "pnpm --filter @iota-uz/sdk check",
     "build:css": "node scripts/build-tailwind-css.mjs --minify",
     "build:css:watch": "node scripts/build-tailwind-css.mjs --watch",
-    "lint": "echo \"no lint\""
+    "lint": "echo \"no root lint\""
   },
   "devDependencies": {
     "@tailwindcss/cli": "4.1.18",

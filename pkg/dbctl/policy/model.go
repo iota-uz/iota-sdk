@@ -1,0 +1,30 @@
+package policy
+
+type Config struct {
+	Environments map[string]EnvironmentPolicy `yaml:"environments" json:"environments"`
+}
+
+type EnvironmentPolicy struct {
+	AllowedHosts     []string `yaml:"allowed_hosts" json:"allowed_hosts"`
+	AllowDestructive bool     `yaml:"allow_destructive" json:"allow_destructive"`
+}
+
+type Target struct {
+	Environment string
+	Host        string
+	Port        string
+	Name        string
+	User        string
+}
+
+type Decision struct {
+	Allowed          bool
+	AllowDestructive bool
+	Reasons          []string
+}
+
+func (d Decision) Denied(reason string) Decision {
+	d.Allowed = false
+	d.Reasons = append(d.Reasons, reason)
+	return d
+}

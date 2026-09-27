@@ -210,6 +210,7 @@ export interface PendingQuestion {
   agentName?: string
   turnId: string
   questions: PendingQuestionItem[]
+  status: string
 }
 
 export interface PendingQuestionItem {

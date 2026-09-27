@@ -20,26 +20,26 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 type SessionController struct {
-	app      application.Application
 	basePath string
+	cfg      *cookies.Config
 }
 
-func NewSessionController(app application.Application, basePath string) application.Controller {
+func NewSessionController(basePath string, cfg *cookies.Config) application.Controller {
 	return &SessionController{
-		app:      app,
 		basePath: basePath,
+		cfg:      cfg,
 	}
 }
 
-func (c *SessionController) Key() string {
-	return c.basePath
+func (c *SessionController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.session", 0, application.Route("", c.basePath))
 }
 
 func (c *SessionController) Register(r *mux.Router) {
@@ -48,8 +48,7 @@ func (c *SessionController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -100,10 +99,9 @@ func (c *SessionController) List(
 	}
 
 	// Get current user's session token for highlighting
-	config := configuration.Use()
 	currentToken := ""
-	if cookie, err := r.Cookie(config.SidCookieKey); err == nil {
-		currentToken = cookie.Value
+	if currentSession, err := composables.UseSession(r.Context()); err == nil {
+		currentToken = currentSession.Token()
 	}
 
 	// Build admin session view models with user info
@@ -179,8 +177,21 @@ func (c *SessionController) Revoke(
 		return
 	}
 
-	// Terminate session
-	if err := sessionService.TerminateSession(r.Context(), token); err != nil {
+	sess, err := sessionService.GetByToken(r.Context(), token)
+	if err != nil {
+		logger.WithError(err).Error("Failed to retrieve session")
+		if errors.Is(err, persistence.ErrSessionNotFound) {
+			http.Error(w, "Session not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Error terminating session", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if err := sessionService.TerminateUserSession(r.Context(), sess.UserID(), token); err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 		logger.WithError(err).Error("Failed to terminate session")
 		if errors.Is(err, persistence.ErrSessionNotFound) {
 			http.Error(w, "Session not found", http.StatusNotFound)

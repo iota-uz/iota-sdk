@@ -24,25 +24,30 @@ import (
 )
 
 type DebtAggregateController struct {
-	app                 application.Application
 	debtService         *services.DebtService
 	counterpartyService *services.CounterpartyService
 	basePath            string
 }
 
-func NewDebtAggregateController(app application.Application) application.Controller {
+func NewDebtAggregateController(debtService *services.DebtService, counterpartyService *services.CounterpartyService) application.Controller {
 	basePath := "/finance/debt-aggregates"
 
 	return &DebtAggregateController{
-		app:                 app,
-		debtService:         app.Service(services.DebtService{}).(*services.DebtService),
-		counterpartyService: app.Service(services.CounterpartyService{}).(*services.CounterpartyService),
+		debtService:         debtService,
+		counterpartyService: counterpartyService,
 		basePath:            basePath,
 	}
 }
 
-func (c *DebtAggregateController) Key() string {
-	return c.basePath
+func (c *DebtAggregateController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.debt_aggregate", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "finance.debt_aggregate",
+			Parent:   "finance",
+			TitleKey: "NavigationLinks.DebtAggregates",
+			Path:     c.basePath,
+			Order:    30,
+		})
 }
 
 func (c *DebtAggregateController) Register(r *mux.Router) {
@@ -50,8 +55,7 @@ func (c *DebtAggregateController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

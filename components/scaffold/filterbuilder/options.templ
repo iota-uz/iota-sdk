@@ -1,0 +1,33 @@
+package filterbuilder
+
+import "strconv"
+
+// GroupedOptions renders reference-field options as children for
+// base.Combobox. Group headings are emitted as disabled marker options
+// (data-fb-header) that the combobox list renders as non-interactive
+// headers; counts travel via data-fb-count and render as a dimmed badge.
+templ GroupedOptions(options []Option, selected []string) {
+	{{
+		isSelected := make(map[string]bool, len(selected))
+		for _, v := range selected {
+			isSelected[v] = true
+		}
+		prevGroup := ""
+	}}
+	for i, opt := range options {
+		if opt.Group != "" && (i == 0 || opt.Group != prevGroup) {
+			<option disabled data-fb-header="1" value={ "__group:" + opt.Group }>{ opt.Group }</option>
+		}
+		{{ prevGroup = opt.Group }}
+		<option
+			value={ opt.Value }
+			selected?={ isSelected[opt.Value] }
+			disabled?={ opt.Disabled }
+			if opt.Count >= 0 {
+				data-fb-count={ strconv.Itoa(opt.Count) }
+			}
+		>
+			{ opt.Label }
+		</option>
+	}
+}

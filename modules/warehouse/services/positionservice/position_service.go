@@ -13,7 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
@@ -29,14 +28,16 @@ type PositionService struct {
 func NewPositionService(
 	repo position.Repository,
 	publisher eventbus.EventBus,
-	app application.Application,
+	uploadService *coreservices.UploadService,
+	unitService *services.UnitService,
+	productService *productservice.ProductService,
 ) *PositionService {
 	return &PositionService{
 		repo:           repo,
 		publisher:      publisher,
-		uploadService:  app.Service(coreservices.UploadService{}).(*coreservices.UploadService),
-		unitService:    app.Service(services.UnitService{}).(*services.UnitService),
-		productService: app.Service(productservice.ProductService{}).(*productservice.ProductService),
+		uploadService:  uploadService,
+		unitService:    unitService,
+		productService: productService,
 	}
 }
 

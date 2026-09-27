@@ -101,15 +101,17 @@ func TestDispatcher_InvalidRequestMethodAndRequestIDPassthrough(t *testing.T) {
 }
 
 type bunCallerStub struct {
-	called     bool
-	lastApplet string
-	lastMethod string
+	called      bool
+	lastApplet  string
+	lastMethod  string
+	lastHeaders http.Header
 }
 
-func (s *bunCallerStub) CallPublicMethod(_ context.Context, appletID, method string, _ json.RawMessage, _ http.Header) (any, error) {
+func (s *bunCallerStub) CallPublicMethod(_ context.Context, appletID, method string, _ json.RawMessage, headers http.Header) (any, error) {
 	s.called = true
 	s.lastApplet = appletID
 	s.lastMethod = method
+	s.lastHeaders = headers
 	return map[string]any{"via": "bun"}, nil
 }
 
@@ -118,12 +120,13 @@ func TestDispatcher_PublicTargetBun_UsesBunCaller(t *testing.T) {
 
 	registry := NewRegistry()
 	require.NoError(t, registry.RegisterPublicWithTarget("bichat", "bichat.ping", MethodTargetBun, applets.RPCMethod{
+		RequirePermissions: []string{"test.access"},
 		Handler: func(_ context.Context, _ json.RawMessage) (any, error) {
 			return map[string]any{"via": "go"}, nil
 		},
 	}, nil))
 
-	dispatcher := NewDispatcher(registry, nil, logrus.New())
+	dispatcher := NewDispatcher(registry, authorizedHost(), logrus.New())
 	bunCaller := &bunCallerStub{}
 	dispatcher.SetBunPublicCaller(bunCaller)
 
@@ -142,12 +145,13 @@ func TestDispatcher_InternalTransport_CallsGoHandlerEvenWhenTargetBun(t *testing
 
 	registry := NewRegistry()
 	require.NoError(t, registry.RegisterPublicWithTarget("bichat", "bichat.ping", MethodTargetBun, applets.RPCMethod{
+		RequirePermissions: []string{"test.access"},
 		Handler: func(_ context.Context, _ json.RawMessage) (any, error) {
 			return map[string]any{"via": "go"}, nil
 		},
 	}, nil))
 
-	dispatcher := NewDispatcher(registry, nil, logrus.New())
+	dispatcher := NewDispatcher(registry, authorizedHost(), logrus.New())
 	bunCaller := &bunCallerStub{}
 	dispatcher.SetBunPublicCaller(bunCaller)
 
@@ -162,9 +166,9 @@ func TestDispatcher_InternalTransport_CallsGoHandlerEvenWhenTargetBun(t *testing
 func testDispatcherWithPublicMethod(t *testing.T, methodName string, handler func(context.Context, json.RawMessage) (any, error)) *Dispatcher {
 	t.Helper()
 	registry := NewRegistry()
-	err := registry.RegisterPublic("bichat", methodName, applets.RPCMethod{Handler: handler}, nil)
+	err := registry.RegisterPublic("bichat", methodName, applets.RPCMethod{RequirePermissions: []string{"test.access"}, Handler: handler}, nil)
 	require.NoError(t, err)
-	return NewDispatcher(registry, nil, logrus.New())
+	return NewDispatcher(registry, authorizedHost(), logrus.New())
 }
 
 func doRPCRequest(t *testing.T, handler http.HandlerFunc, body string) *httptest.ResponseRecorder {

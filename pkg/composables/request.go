@@ -104,6 +104,16 @@ func UsePageCtx(ctx context.Context) types.PageContext {
 	return v
 }
 
+// TryUsePageCtx returns the page context and true when present, or the zero
+// value and false otherwise. Unlike UsePageCtx it never panics, so layouts and
+// error pages can render on code paths where the WithPageContext middleware has
+// not run (e.g. a permission denial rendered from a middleware before the
+// page-context middleware in the chain).
+func TryUsePageCtx(ctx context.Context) (types.PageContext, bool) {
+	v, ok := ctx.Value(constants.PageContext).(types.PageContext)
+	return v, ok
+}
+
 // WithPageCtx returns a new context with the page context.
 // Accepts any type implementing PageContext interface for extensibility.
 func WithPageCtx(ctx context.Context, pageCtx types.PageContext) context.Context {

@@ -2,12 +2,61 @@
 package controllers
 
 import (
+	"context"
 	"sort"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	corepermissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 )
+
+func grantableRoles(ctx context.Context, roles []role.Role) []role.Role {
+	actor, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil
+	}
+	result := make([]role.Role, 0, len(roles))
+	for _, candidate := range roles {
+		if candidate.Type() == role.TypeSystem && !actor.Can(corepermissions.RoleAssignSystem) {
+			continue
+		}
+		if services.Dominates(user.EffectivePermissions(actor), candidate.Permissions()) {
+			result = append(result, candidate)
+		}
+	}
+	return result
+}
+
+func grantablePermissionSchema(ctx context.Context, schema *rbac.PermissionSchema) *rbac.PermissionSchema {
+	if schema == nil {
+		return nil
+	}
+	actor, err := composables.UseUser(ctx)
+	if err != nil {
+		return &rbac.PermissionSchema{}
+	}
+
+	filtered := &rbac.PermissionSchema{Sets: make([]rbac.PermissionSet, 0, len(schema.Sets))}
+	for _, set := range schema.Sets {
+		permissions := make([]permission.Permission, 0, len(set.Permissions))
+		for _, candidate := range set.Permissions {
+			if services.Dominates(user.EffectivePermissions(actor), []permission.Permission{candidate}) {
+				permissions = append(permissions, candidate)
+			}
+		}
+		if len(permissions) == 0 {
+			continue
+		}
+		set.Permissions = permissions
+		filtered.Sets = append(filtered.Sets, set)
+	}
+	return filtered
+}
 
 // BuildResourcePermissionGroups builds permission groups organized by resource
 // This is shared between RolesController and UsersController
@@ -90,6 +139,42 @@ func BuildResourcePermissionGroups(
 	})
 
 	return groups
+}
+
+// FilterCheckedResourcePermissionGroups returns a copy of groups containing only
+// checked permissions, sets that have at least one checked permission, and groups
+// that have at least one remaining set.
+func FilterCheckedResourcePermissionGroups(groups []*viewmodels.ResourcePermissionGroup) []*viewmodels.ResourcePermissionGroup {
+	out := make([]*viewmodels.ResourcePermissionGroup, 0, len(groups))
+	for _, g := range groups {
+		sets := make([]*viewmodels.PermissionSetItem, 0, len(g.PermissionSets))
+		for _, s := range g.PermissionSets {
+			if !s.Checked && !s.Partial {
+				continue
+			}
+			perms := make([]*viewmodels.PermissionItem, 0, len(s.Permissions))
+			for _, p := range s.Permissions {
+				if p.Checked {
+					perms = append(perms, p)
+				}
+			}
+			sets = append(sets, &viewmodels.PermissionSetItem{
+				Key:         s.Key,
+				Label:       s.Label,
+				Description: s.Description,
+				Checked:     s.Checked,
+				Partial:     s.Partial,
+				Permissions: perms,
+			})
+		}
+		if len(sets) > 0 {
+			out = append(out, &viewmodels.ResourcePermissionGroup{
+				Resource:       g.Resource,
+				PermissionSets: sets,
+			})
+		}
+	}
+	return out
 }
 
 // BuildModulePermissionGroups builds permission groups organized by module

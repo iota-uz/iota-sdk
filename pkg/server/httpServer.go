@@ -2,6 +2,7 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/NYTimes/gziphandler"
@@ -14,34 +15,46 @@ func NewHTTPServer(
 	notFoundHandler, methodNotAllowedHandler http.Handler,
 ) *HTTPServer {
 	return &HTTPServer{
-		Controllers:             app.Controllers(),
-		Middlewares:             app.Middleware(),
+		Application:             app,
 		NotFoundHandler:         notFoundHandler,
 		MethodNotAllowedHandler: methodNotAllowedHandler,
 	}
 }
 
 type HTTPServer struct {
-	Controllers             []application.Controller
-	Middlewares             []mux.MiddlewareFunc
+	Application             application.Application
 	NotFoundHandler         http.Handler
 	MethodNotAllowedHandler http.Handler
+	httpServer              *http.Server
 }
 
 func (s *HTTPServer) Start(socketAddress string) error {
+	s.httpServer = &http.Server{
+		Addr:    socketAddress,
+		Handler: s.handler(),
+	}
+	err := s.httpServer.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
+}
+
+func (s *HTTPServer) handler() http.Handler {
 	r := mux.NewRouter()
-	r.Use(s.Middlewares...)
-	for _, controller := range s.Controllers {
+	middlewares := s.Application.Middleware()
+	r.Use(middlewares...)
+	for _, controller := range s.Application.Controllers() {
 		controller.Register(r)
 	}
 
-	var notFoundHandler = s.NotFoundHandler
-	var notAllowedHandler = s.MethodNotAllowedHandler
-	for i := len(s.Middlewares) - 1; i >= 0; i-- {
-		notFoundHandler = s.Middlewares[i](notFoundHandler)
-		notAllowedHandler = s.Middlewares[i](notAllowedHandler)
+	notFoundHandler := s.NotFoundHandler
+	notAllowedHandler := s.MethodNotAllowedHandler
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		notFoundHandler = middlewares[i](notFoundHandler)
+		notAllowedHandler = middlewares[i](notAllowedHandler)
 	}
 	r.NotFoundHandler = notFoundHandler
 	r.MethodNotAllowedHandler = notAllowedHandler
-	return http.ListenAndServe(socketAddress, gziphandler.GzipHandler(r))
+	return gziphandler.GzipHandler(r)
 }

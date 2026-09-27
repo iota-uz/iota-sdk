@@ -26,7 +26,6 @@ import (
 )
 
 type InventoryController struct {
-	app              application.Application
 	inventoryService *services.InventoryService
 	currencyService  *coreservices.CurrencyService
 	basePath         string
@@ -37,17 +36,28 @@ type InventoryPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewInventoryController(app application.Application) application.Controller {
+func NewInventoryController(inventoryService *services.InventoryService, currencyService *coreservices.CurrencyService) application.Controller {
 	return &InventoryController{
-		app:              app,
-		inventoryService: app.Service(services.InventoryService{}).(*services.InventoryService),
-		currencyService:  app.Service(coreservices.CurrencyService{}).(*coreservices.CurrencyService),
+		inventoryService: inventoryService,
+		currencyService:  currencyService,
 		basePath:         "/finance/inventory",
 	}
 }
 
-func (c *InventoryController) Key() string {
-	return c.basePath
+func (c *InventoryController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.inventory", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "finance.inventory",
+			Parent:   "finance",
+			TitleKey: "NavigationLinks.Inventory",
+			Path:     c.basePath,
+			Order:    60,
+			Actions: []application.NavAction{{
+				ID:       "finance.inventory.new",
+				TitleKey: "Inventory.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *InventoryController) Register(r *mux.Router) {
@@ -56,8 +66,7 @@ func (c *InventoryController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)

@@ -85,9 +85,9 @@ func classifyUndefinedColumn(pgErr *pgconn.PgError) *SQLErrorDiagnosis {
 
 	if len(matches) > 1 {
 		column = matches[1]
-		suggestion = fmt.Sprintf("Column '%s' not found. Use schema_describe to verify available columns.", column)
+		suggestion = fmt.Sprintf("Column '%s' not found. Use schema_describe_batch to verify available columns.", column)
 	} else {
-		suggestion = "Referenced column does not exist. Use schema_describe to check table structure."
+		suggestion = "Referenced column does not exist. Use schema_describe_batch to check table structure."
 	}
 
 	// Try to extract table name from hint if available
@@ -134,7 +134,7 @@ func classifyTypeMismatch(pgErr *pgconn.PgError) *SQLErrorDiagnosis {
 	return &SQLErrorDiagnosis{
 		Code:       tools.ErrCodeTypeMismatch,
 		Message:    pgErr.Message,
-		Suggestion: "Column type does not match expected type. Use schema_describe to check types and add appropriate casts (e.g., column::text).",
+		Suggestion: "Column type does not match expected type. Use schema_describe_batch to check types and add appropriate casts (e.g., column::text).",
 		Hints:      []string{tools.HintCheckColumnTypes, tools.HintUseSchemaDescribe},
 	}
 }

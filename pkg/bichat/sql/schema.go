@@ -34,6 +34,11 @@ type TableSchema struct {
 	Indexes     []IndexInfo
 	PrimaryKey  []string // Column names in primary key
 	ForeignKeys []ForeignKeyInfo
+	// SampleRows, when populated, contains a small preview of actual
+	// rows from the table so the LLM can see example values alongside
+	// the schema. Opt in per-describer via WithDescribeSampleRows(n);
+	// stays nil when the feature is not enabled.
+	SampleRows []map[string]any
 }
 
 // ColumnInfo provides metadata about a table column

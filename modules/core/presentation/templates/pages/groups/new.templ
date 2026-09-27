@@ -3,6 +3,7 @@ package groups
 import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -53,14 +54,16 @@ templ CreateForm(props *CreateFormProps) {
 			</div>
 		</div>
 		<div class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4">
-			@button.Primary(button.Props{
-				Size:  button.SizeMD,
-				Class: "w-full bg-[#695eff] hover:bg-[#544bcc] text-white justify-center",
-				Attrs: templ.Attributes{
-					"id": "save-btn",
-				},
-			}) {
-				{ pageCtx.T("Save") }
+			if composables.CanUser(ctx, permissions.GroupCreate) == nil {
+				@button.Primary(button.Props{
+					Size:  button.SizeMD,
+					Class: "w-full bg-[#695eff] hover:bg-[#544bcc] text-white justify-center",
+					Attrs: templ.Attributes{
+						"id": "save-btn",
+					},
+				}) {
+					{ pageCtx.T("Save") }
+				}
 			}
 		</div>
 	</form>

@@ -251,8 +251,8 @@ func estimateJudgeCost(model string, promptTokens, completionTokens int64) (floa
 	pricing := map[string]judgePricing{
 		"gpt-5.2":            {Currency: "USD", InputPer1M: 1.75, OutputPer1M: 14.00},
 		"gpt-5.2-2025-12-11": {Currency: "USD", InputPer1M: 1.75, OutputPer1M: 14.00},
-		"gpt-5-mini":         {Currency: "USD", InputPer1M: 0.25, OutputPer1M: 2.00},
-		"gpt-5-nano":         {Currency: "USD", InputPer1M: 0.05, OutputPer1M: 0.40},
+		"gpt-5.4-mini":       {Currency: "USD", InputPer1M: 0.75, OutputPer1M: 4.50},
+		"gpt-5.4-nano":       {Currency: "USD", InputPer1M: 0.20, OutputPer1M: 1.25},
 	}
 
 	model = strings.TrimSpace(strings.ToLower(model))

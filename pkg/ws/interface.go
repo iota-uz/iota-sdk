@@ -35,4 +35,7 @@ type Huber interface {
 
 	ConnectionsInChannel(channel string) []*Connection
 	ConnectionsAll() []*Connection
+
+	// ConnectionCount returns the current number of active WebSocket connections.
+	ConnectionCount() int
 }

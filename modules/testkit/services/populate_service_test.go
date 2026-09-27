@@ -9,21 +9,103 @@ import (
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	corepermissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/testkit/domain/schemas"
 	"github.com/iota-uz/iota-sdk/modules/testkit/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestPopulateService_AssignsRequestedUserPermissionsWithoutAdminRole(t *testing.T) {
+	tests := []struct {
+		name            string
+		email           string
+		permissions     []string
+		wantPermissions []string
+		wantErrorKind   string
+	}{
+		{
+			name:            "assigns exact direct grants",
+			email:           "limited-admin-fixture@example.com",
+			permissions:     []string{corepermissions.UserRead.Name(), corepermissions.RoleRead.Name()},
+			wantPermissions: []string{corepermissions.UserRead.Name(), corepermissions.RoleRead.Name()},
+		},
+		{
+			name:            "deduplicates permission names",
+			email:           "duplicate-permissions-fixture@example.com",
+			permissions:     []string{corepermissions.UserRead.Name(), corepermissions.UserRead.Name()},
+			wantPermissions: []string{corepermissions.UserRead.Name()},
+		},
+		{
+			name:          "rejects unavailable permission names",
+			email:         "unavailable-permission-fixture@example.com",
+			permissions:   []string{"Missing.Read"},
+			wantErrorKind: "not_found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := setupTest(t)
+			tenantID := uuid.New()
+			ctx := context.WithValue(
+				composables.WithTenantID(f.Ctx, tenantID),
+				constants.LoggerKey,
+				logrus.NewEntry(logrus.New()),
+			)
+			populateService := services.NewPopulateService(f.Pool)
+
+			_, err := populateService.Execute(ctx, &schemas.PopulateRequest{
+				Version: "1.0",
+				Tenant: &schemas.TenantSpec{
+					ID:   tenantID.String(),
+					Name: "Limited administrator fixture",
+				},
+				Data: &schemas.DataSpec{Users: []schemas.UserSpec{{
+					Email:       tt.email,
+					Password:    "TestPass123!",
+					FirstName:   "Limited",
+					LastName:    "Administrator",
+					Permissions: tt.permissions,
+				}}},
+			})
+
+			if tt.wantErrorKind != "" {
+				require.Error(t, err)
+				var structuredErr *serrors.Error
+				require.ErrorAs(t, err, &structuredErr)
+				assert.Equal(t, serrors.Op("PopulateService.createUsers"), structuredErr.Op)
+				assert.Equal(t, tt.wantErrorKind, structuredErr.ErrorKind())
+				// Falsely green if unavailable names are silently ignored instead of rejecting the fixture.
+				return
+			}
+			require.NoError(t, err)
+
+			created, err := persistence.NewUserRepository(persistence.NewUploadRepository()).GetByEmail(ctx, tt.email)
+			require.NoError(t, err)
+			assert.Empty(t, created.Roles())
+			permissionNames := make([]string, 0, len(created.Permissions()))
+			for _, directPermission := range created.Permissions() {
+				permissionNames = append(permissionNames, directPermission.Name())
+			}
+			assert.ElementsMatch(t, tt.wantPermissions, permissionNames)
+
+			// Falsely green if direct grants are ignored or replaced with Admin: exact
+			// deduplicated grants and an empty role set define the test identity.
+		})
+	}
+}
+
 // setupTest creates all necessary dependencies for tests
 func setupTest(t *testing.T) *itf.TestEnvironment {
 	t.Helper()
-	return itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
+	return itf.Setup(t, itf.WithComponents(modules.Components()...))
 }
 
 func TestPopulateService_SetupTenant(t *testing.T) {
@@ -33,7 +115,7 @@ func TestPopulateService_SetupTenant(t *testing.T) {
 		f := setupTest(t)
 
 		// Create populate service
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		tenantRepo := persistence.NewTenantRepository()
 
 		// Define new tenant spec with unique ID
@@ -84,7 +166,7 @@ func TestPopulateService_SetupTenant(t *testing.T) {
 	t.Run("IdempotentTenantCreation", func(t *testing.T) {
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		tenantRepo := persistence.NewTenantRepository()
 
 		// Create tenant first time
@@ -135,7 +217,7 @@ func TestPopulateService_SetupTenant(t *testing.T) {
 	t.Run("InvalidTenantID", func(t *testing.T) {
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 
 		tenantSpec := &schemas.TenantSpec{
 			ID:   "invalid-uuid",
@@ -166,7 +248,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		// ensureAdminRole should seed permissions first
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		permissionRepo := persistence.NewPermissionRepository()
 		roleRepo := persistence.NewRoleRepository()
 
@@ -216,7 +298,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		assert.NotEmpty(t, allPermsAfter, "Should have permissions after seeding")
 
 		// Verify Admin role was created with permissions
-		roles, err := roleRepo.GetPaginated(f.Ctx, &role.FindParams{})
+		roles, err := roleRepo.GetPaginated(composables.WithTenantID(f.Ctx, tenantID), &role.FindParams{})
 		require.NoError(t, err)
 
 		var adminRole *interface{}
@@ -235,7 +317,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		// Test that ensureAdminRole is idempotent when permissions already exist
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		permissionRepo := persistence.NewPermissionRepository()
 		roleRepo := persistence.NewRoleRepository()
 
@@ -314,7 +396,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 
 		// Verify second tenant's Admin role was created (or reused existing one)
 		// Note: Each tenant should have their own Admin role
-		roles, err := roleRepo.GetPaginated(f.Ctx, &role.FindParams{})
+		roles, err := roleRepo.GetPaginated(composables.WithTenantID(f.Ctx, tenantID2), &role.FindParams{})
 		require.NoError(t, err)
 
 		adminRoleCount := 0
@@ -332,7 +414,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		// Verify that Admin role is created with ALL available permissions
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		permissionRepo := persistence.NewPermissionRepository()
 		roleRepo := persistence.NewRoleRepository()
 
@@ -374,7 +456,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		assert.Positive(t, totalPermCount, "Should have permissions")
 
 		// Get Admin role and verify it has all permissions
-		roles, err := roleRepo.GetPaginated(f.Ctx, &role.FindParams{})
+		roles, err := roleRepo.GetPaginated(composables.WithTenantID(f.Ctx, tenantID), &role.FindParams{})
 		require.NoError(t, err)
 
 		var adminRole interface{}
@@ -394,7 +476,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		// Test idempotency: if Admin role already exists, don't create another
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		roleRepo := persistence.NewRoleRepository()
 
 		tenantID := uuid.New()
@@ -430,7 +512,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		require.NoError(t, tx1.Commit(ctxWithTenant1))
 
 		// Count Admin roles after first run
-		roles1, err := roleRepo.GetPaginated(f.Ctx, &role.FindParams{})
+		roles1, err := roleRepo.GetPaginated(composables.WithTenantID(f.Ctx, tenantID), &role.FindParams{})
 		require.NoError(t, err)
 
 		adminCount1 := 0
@@ -470,7 +552,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		require.NoError(t, tx2.Commit(ctxWithTenant2))
 
 		// Count Admin roles after second run - should be same
-		roles2, err := roleRepo.GetPaginated(f.Ctx, &role.FindParams{})
+		roles2, err := roleRepo.GetPaginated(composables.WithTenantID(f.Ctx, tenantID), &role.FindParams{})
 		require.NoError(t, err)
 
 		adminCount2 := 0
@@ -490,7 +572,7 @@ func TestPopulateService_TenantWithUsers(t *testing.T) {
 	t.Run("CreateUserWithTwoFactorFields", func(t *testing.T) {
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
 
 		tenantID := uuid.New()
@@ -538,7 +620,7 @@ func TestPopulateService_TenantWithUsers(t *testing.T) {
 	t.Run("CreateTenantAndUsers", func(t *testing.T) {
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
 
 		// Define tenant and users
@@ -601,7 +683,7 @@ func TestPopulateService_TenantWithUsers(t *testing.T) {
 	t.Run("UserCreationWithoutTenantFails", func(t *testing.T) {
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 
 		// Try to create users without tenant - using a fresh context without tenant
 		req := &schemas.PopulateRequest{

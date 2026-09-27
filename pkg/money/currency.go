@@ -18,15 +18,60 @@ type Currency struct {
 
 type Currencies map[string]*Currency
 
-// CurrencyByNumericCode returns the currency given the numeric code defined in ISO-4271.
+// CurrencyByNumericCode returns the currency given the numeric code defined in
+// ISO-4217.
+//
+// A numeric code is not unique in this collection. "840" is declared by both
+// USD and USDSPACE, where USDSPACE is a thousands-separator variant rather than
+// a currency of its own, and "532" by both ANG and XCG, which is a genuine
+// succession in the standard. Ranging over the map and returning the first hit
+// answers with whichever entry Go's randomised iteration happened to visit
+// first, so the same numeric code yields a different currency between runs of
+// the same binary - and callers persist Currency.Code, so that reaches storage.
+//
+// The winner is therefore chosen rather than stumbled upon: an entry whose Code
+// is a three-letter ISO alphabetic code beats one that is not, and among those
+// the lexicographically smallest Code wins. The answer never varies.
 func (c Currencies) CurrencyByNumericCode(code string) *Currency {
+	var best *Currency
 	for _, sc := range c {
-		if sc.NumericCode == code {
-			return sc
+		if sc.NumericCode != code {
+			continue
+		}
+		if best == nil || preferredCurrency(sc, best) {
+			best = sc
 		}
 	}
 
-	return nil
+	return best
+}
+
+// preferredCurrency reports whether candidate should displace incumbent as the
+// answer for a numeric code both of them declare.
+func preferredCurrency(candidate, incumbent *Currency) bool {
+	candidateISO, incumbentISO := isISOAlphabeticCode(candidate.Code), isISOAlphabeticCode(incumbent.Code)
+	if candidateISO != incumbentISO {
+		return candidateISO
+	}
+
+	return candidate.Code < incumbent.Code
+}
+
+// isISOAlphabeticCode reports whether code has the shape ISO-4217 gives an
+// alphabetic currency code: exactly three capital letters. Formatting variants
+// carried in this collection - USDSPACE and anything a caller adds like it -
+// do not, which is what keeps them from answering a numeric-code lookup.
+func isISOAlphabeticCode(code string) bool {
+	if len(code) != 3 {
+		return false
+	}
+	for i := 0; i < len(code); i++ {
+		if code[i] < 'A' || code[i] > 'Z' {
+			return false
+		}
+	}
+
+	return true
 }
 
 // CurrencyByCode returns the currency given the currency code defined as a constant.

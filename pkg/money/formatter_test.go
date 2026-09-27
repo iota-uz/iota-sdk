@@ -1,7 +1,10 @@
 package money
 
 import (
+	"math/big"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFormatter_Format(t *testing.T) {
@@ -239,4 +242,98 @@ func TestFormatter_ToMajorUnits(t *testing.T) {
 			t.Errorf("Expected %d formatted to major units to be %f got %f", tc.amount, tc.expected, r)
 		}
 	}
+}
+
+func TestFormatBigInt(t *testing.T) {
+	tests := []struct {
+		name     string
+		frac     int
+		decimal  string
+		thousand string
+		grapheme string
+		template string
+		amount   *big.Int
+		expected string
+	}{
+		{"thousands", 2, ".", ",", "$", "1 $", setBigInt("123456789"), "1,234,567.89 $"},
+		{"negative", 2, ".", ",", "$", "1 $", setBigInt("-123456789"), "-1,234,567.89 $"},
+		{"currency template", 2, ".", ",", "£", "$1", setBigInt("123456789"), "£1,234,567.89"},
+		{"very large value", 2, ".", ",", "$", "1 $", setBigInt("99999999999999999999"), "999,999,999,999,999,999.99 $"},
+		{"nil amount", 2, ".", ",", "$", "1 $", nil, "0.00 $"},
+		{"zero fraction", 0, ".", ",", "NT$", "$1", setBigInt("1234567"), "NT$1,234,567"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			formatter := NewFormatter(tt.frac, tt.decimal, tt.thousand, tt.grapheme, tt.template)
+			result := formatter.FormatBigInt(tt.amount)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestFormatCompactBigInt(t *testing.T) {
+	tests := []struct {
+		name     string
+		frac     int
+		grapheme string
+		amount   *big.Int
+		decimals int
+		expected string
+	}{
+		{"small fallback", 2, "UZS", big.NewInt(123), 1, "1.23 UZS"},
+		{"thousands", 2, "UZS", big.NewInt(1234000), 1, "12.3K UZS"},
+		{"millions", 2, "UZS", setBigInt("125000000"), 1, "1.2M UZS"},
+		{"billions", 2, "UZS", setBigInt("1200000000000"), 1, "12B UZS"},
+		{"negative", 2, "UZS", setBigInt("-100000000"), 1, "-1M UZS"},
+		{"nil amount", 2, "UZS", nil, 1, "0.00 UZS"},
+		{"huge value no Inf", 2, "UZS", setBigInt("100000000000000000000"), 1, "1000000000B UZS"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			formatter := NewFormatter(tt.frac, ".", ",", tt.grapheme, "1 $")
+			result := formatter.FormatCompactBigInt(tt.amount, tt.decimals)
+			assert.NotContains(t, result, "Inf", "result must not contain Inf")
+			assert.NotContains(t, result, "NaN", "result must not contain NaN")
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestToMajorUnitsBigFloat(t *testing.T) {
+	tests := []struct {
+		name      string
+		frac      int
+		amount    *big.Int
+		expectStr string
+	}{
+		{"with fraction", 2, setBigInt("12345"), "123.45"},
+		{"no fraction", 0, setBigInt("12345"), "12345"},
+		{"nil input", 2, nil, "0"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			formatter := NewFormatter(tt.frac, ".", ",", "$", "1 $")
+			result := formatter.ToMajorUnitsBigFloat(tt.amount)
+			assert.NotNil(t, result)
+			expected, _, _ := new(big.Float).Parse(tt.expectStr, 10)
+			diff := new(big.Float).Sub(result, expected)
+			abs := new(big.Float).Abs(diff)
+			tolerance := new(big.Float).SetFloat64(0.001)
+			assert.LessOrEqual(t, abs.Cmp(tolerance), 0, "expected ~%s, got %s", tt.expectStr, result.String())
+		})
+	}
+}
+
+func TestAbsBigInt(t *testing.T) {
+	formatter := NewFormatter(2, ".", ",", "$", "1 $")
+
+	t.Run("negative to positive", func(t *testing.T) {
+		result := formatter.absBigInt(big.NewInt(-42))
+		assert.Equal(t, int64(42), result.Int64())
+	})
+
+	t.Run("nil returns zero", func(t *testing.T) {
+		result := formatter.absBigInt(nil)
+		assert.Equal(t, int64(0), result.Int64())
+	})
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -77,9 +78,12 @@ templ PositionsContent(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<div class="flex justify-between items-center gap-3">
-			<h1 class="text-2xl font-medium">
-				{ pageCtx.T("NavigationLinks.WarehousePositions") }
-			</h1>
+			<div class="flex items-center gap-2">
+				<h1 class="text-2xl font-medium">
+					{ pageCtx.T("NavigationLinks.WarehousePositions") }
+				</h1>
+				@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/warehouse.md"})
+			</div>
 			@button.Primary(button.Props{
 				Size: button.SizeNormal, Href: "/warehouse/positions/import",
 				Icon: icons.FileXls(icons.Props{Size: "18"}),

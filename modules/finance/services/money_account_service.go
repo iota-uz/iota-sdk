@@ -3,6 +3,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
@@ -83,6 +84,9 @@ func (s *MoneyAccountService) Update(ctx context.Context, entity moneyaccount.Ac
 
 	var updatedEntity moneyaccount.Account
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if err := s.recordAdjustment(txCtx, entity); err != nil {
+			return err
+		}
 		updatedEntity, err = s.repo.Update(txCtx, entity)
 		if err != nil {
 			return err
@@ -96,6 +100,45 @@ func (s *MoneyAccountService) Update(ctx context.Context, entity moneyaccount.Ac
 	updatedEvent.Result = updatedEntity
 	s.publisher.Publish(updatedEvent)
 	return updatedEntity, nil
+}
+
+// recordAdjustment keeps the balance explained by transactions: a balance
+// typed by hand is booked as an adjustment for the difference.
+func (s *MoneyAccountService) recordAdjustment(ctx context.Context, entity moneyaccount.Account) error {
+	if err := s.repo.RecalculateBalance(ctx, entity.ID()); err != nil {
+		return errors.Wrap(err, "accountRepo.RecalculateBalance")
+	}
+	current, err := s.repo.GetByID(ctx, entity.ID())
+	if err != nil {
+		return errors.Wrap(err, "accountRepo.GetByID")
+	}
+	if !current.Balance().SameCurrency(entity.Balance()) {
+		return nil
+	}
+	diff, err := entity.Balance().Subtract(current.Balance())
+	if err != nil {
+		return err
+	}
+	if diff.IsZero() {
+		return nil
+	}
+
+	side := transaction.WithDestinationAccountID(entity.ID())
+	if diff.IsNegative() {
+		side = transaction.WithOriginAccountID(entity.ID())
+	}
+	now := time.Now()
+	adjustment := transaction.New(
+		diff.Absolute(),
+		transaction.Adjustment,
+		side,
+		transaction.WithTransactionDate(now),
+		transaction.WithAccountingPeriod(now),
+	)
+	if _, err := s.transactionRepo.Create(ctx, adjustment); err != nil {
+		return errors.Wrap(err, "transactionRepo.Create")
+	}
+	return nil
 }
 
 func (s *MoneyAccountService) Delete(ctx context.Context, id uuid.UUID) (moneyaccount.Account, error) {

@@ -1,0 +1,354 @@
+{
+  "Resources": {
+    "product": "Mahsulotlar",
+    "unit": "O'lchov birliklari",
+    "position": "Lavozimlar",
+    "order": "Buyurtmalar",
+    "inventory": "Inventar"
+  },
+  "Permissions": {
+    "Product": {
+      "Create": "Mahsulot yaratish",
+      "Read": "Mahsulotni ko'rish",
+      "Update": "Mahsulotni tahrirlash",
+      "Delete": "Mahsulotni o'chirish"
+    },
+    "Unit": {
+      "Create": "O'lchov birligi yaratish",
+      "Read": "O'lchov birligini ko'rish",
+      "Update": "O'lchov birligini tahrirlash",
+      "Delete": "O'lchov birligini o'chirish"
+    },
+    "Position": {
+      "Create": "Lavozim yaratish",
+      "Read": "Lavozimni ko'rish",
+      "Update": "Lavozimni tahrirlash",
+      "Delete": "Lavozimni o'chirish"
+    },
+    "Order": {
+      "Create": "Buyurtma yaratish",
+      "Read": "Buyurtmani ko'rish",
+      "Update": "Buyurtmani tahrirlash",
+      "Delete": "Buyurtmani o'chirish"
+    },
+    "Inventory": {
+      "Create": "Inventar yaratish",
+      "Read": "Inventarni ko'rish",
+      "Update": "Inventarni tahrirlash",
+      "Delete": "Inventarni o'chirish"
+    }
+  },
+  "Errors": {
+    "ERR_DUPLICATE_RFID": "RFID {{.Rfid}} allaqachon mavjud",
+    "ERR_DUPLICATE_BARCODE": "Artikul {{.Barcode}} allaqachon mavjud",
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK": "Omborda mahsulot yetarli emas",
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT": "Ishlab chiqarishda mahsulot yetarli emas",
+    "ERR_ORDER_IS_ALREADY_COMPLETE": "Buyurtma allaqachon yakunlangan",
+    "ERR_PRODUCT_IS_SHIPPED": "Mahsulot allaqachon jo'natilgan"
+  },
+  "Error": {
+    "ValidationError": "Tekshirish xatolari topildi",
+    "ERR_INVALID_CELL": "{{.Col}}:{{.Row}} - Bu maydon majburiy va bo'sh bo'lishi mumkin emas",
+    "ERR_VALIDATION": "{{.Col}}:{{.RowNum}} - {{.Message}} (topilgan qiymat: '{{.Value}}')"
+  },
+  "NavigationLinks": {
+    "Warehouse": "Ombor",
+    "Products": "Mahsulotlar",
+    "WarehousePositions": "Nomlar",
+    "WarehouseInventory": "Inventarizatsiya",
+    "WarehouseOrders": "Nakladnoylar",
+    "WarehouseUnits": "O'lchov birliklari"
+  },
+  "Products": {
+    "List": {
+      "Meta": {
+        "Title": "Mahsulotlar"
+      },
+      "New": "Yangi mahsulot",
+      "Position": "Nomi",
+      "Status": "Holati",
+      "NoProducts": {
+        "Title": "Mahsulotlar topilmadi",
+        "_Description": "Hali mahsulotlar yo'q. Yangi yaratish uchun 'Yangi mahsulot' tugmasini bosing."
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "Yangi mahsulot"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Mahsulotni tahrirlash"
+      }
+    },
+    "Statuses": {
+      "in_stock": "Omborda",
+      "approved": "Tasdiqlangan",
+      "in_development": "Ishlab chiqarishda"
+    },
+    "Single": {
+      "Position": "Nomi",
+      "Rfid": "RFID",
+      "SearchPosition": "Nomini qidirish",
+      "NoPositionsFound": "Nomlar topilmadi",
+      "Status": "Holati",
+      "SelectStatus": "Holatni tanlang",
+      "Delete": "O'chirish",
+      "DeleteConfirmation": "Ushbu mahsulotni o'chirishni xohlaysizmi?"
+    }
+  },
+  "WarehousePositions": {
+    "List": {
+      "Meta": {
+        "Title": "Nomlar"
+      },
+      "New": "Yangi nom",
+      "Import": ".xlsx yuklash",
+      "Position": "Nomi",
+      "Barcode": "Artikul",
+      "Unit": "O'lchov birligi",
+      "NewIn": "Yangi kirish",
+      "NewOut": "Yangi chiqish",
+      "NoPositions": {
+        "Title": "Nomlar topilmadi",
+        "_Description": "Hali nomlar yo'q. Yangi yaratish uchun 'Yangi nom' tugmasini bosing."
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "Yangi nom"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Nomni tahrirlash"
+      }
+    },
+    "Single": {
+      "Images": "Rasmlar",
+      "Title": {
+        "Label": "Nomi",
+        "Placeholder": "mas.: Quvvat bloki"
+      },
+      "Barcode": {
+        "Label": "Artikul",
+        "Placeholder": "mas.: 123456"
+      },
+      "Unit": "Birlik",
+      "SelectUnit": "Birlikni tanlang",
+      "Delete": "O'chirish",
+      "DeleteConfirmation": "Ushbu nomni o'chirishni xohlaysizmi?",
+      "NothingFound": "Hech narsa topilmadi"
+    },
+    "Import": {
+      "Meta": {
+        "Title": ".xlsx yuklash"
+      },
+      "Title": "Nomlarni yuklash",
+      "_Description": "Excel fayldan ombor nomlarini import qilish",
+      "Example": {
+        "Title": "Excel yuklash",
+        "_Description": "Excel katakchalarining ketma-ketligi quyidagicha bo'lishi kerak:",
+        "ItemName": "Nomi",
+        "ItemNameDesc": "Mahsulotning to'liq nomi",
+        "ItemCode": "Artikul",
+        "ItemCodeDesc": "Noyob artikul yoki mahsulot kodi",
+        "Unit": "O'lchov birligi",
+        "UnitDesc": "O'lchov birligi (masalan, dona, kg, m)",
+        "Quantity": "Miqdori",
+        "QuantityDesc": "Import qilinadigan mahsulot miqdori",
+        "Below": "Quyida yuklash uchun Excel fayl namunasi keltirilgan"
+      },
+      "UploadLabel": "Faylni tanlang",
+      "UploadPlaceholder": "Faylni tanlang",
+      "Submit": "Yuklash",
+      "DownloadTemplate": "Shablonni yuklash",
+      "Error": {
+        "ValidationError": "Tekshirish xatolari topildi",
+        "Issues": "xatolar",
+        "ERR_INVALID_CELL": "{{.Col}}:{{.Row}} - Bu maydon majburiy va bo'sh bo'lishi mumkin emas",
+        "ERR_VALIDATION": "{{.Col}}:{{.RowNum}} - {{.Message}} (topilgan qiymat: '{{.Value}}')"
+      }
+    },
+    "Upload": {
+      "Title": "Nomlarni yuklash",
+      "_Description": "Excel fayldan ombor nomlarini import qilish",
+      "Example": {
+        "Title": "Excel yuklash",
+        "_Description": "Excel katakchalarining ketma-ketligi quyidagicha bo'lishi kerak:",
+        "ItemName": "Nomi",
+        "ItemCode": "Artikul",
+        "Unit": "O'lchov birligi",
+        "Quantity": "Miqdori",
+        "Below": "Quyida yuklash uchun Excel fayl namunasi keltirilgan"
+      },
+      "UploadLabel": "Faylni tanlang",
+      "UploadPlaceholder": "Faylni tanlang",
+      "Submit": "Yuklash"
+    }
+  },
+  "WarehouseUnits": {
+    "List": {
+      "Meta": {
+        "Title": "Ombor birliklari"
+      },
+      "New": "Yangi birlik",
+      "Title": "Nomi",
+      "ShortTitle": "Qisqa nomi",
+      "NoUnits": {
+        "Title": "Birliklar topilmadi",
+        "_Description": "Hali birliklar yo'q. Yangi yaratish uchun 'Yangi birlik' tugmasini bosing."
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "Yangi ombor birligi"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Ombor birligini tahrirlash"
+      }
+    },
+    "Single": {
+      "Title": {
+        "Label": "Nomi",
+        "Placeholder": "mas.: Kilogramm"
+      },
+      "ShortTitle": {
+        "Label": "Qisqa nomi",
+        "Placeholder": "mas.: kg"
+      },
+      "Delete": "O'chirish",
+      "DeleteConfirmation": "Ushbu o'lchov birligini o'chirishni xohlaysizmi?"
+    }
+  },
+  "WarehouseOrders": {
+    "List": {
+      "Meta": {
+        "Title": "Nakladnoylar"
+      },
+      "New": "Yangi nakladnoy",
+      "NewIn": "Qabul qilish",
+      "NewOut": "Jo'natish",
+      "Type": "Turi",
+      "Status": "Holati",
+      "Products": "Birliklar",
+      "Positions": "Nomlar",
+      "NoOrders": {
+        "Title": "Nakladnoylar topilmadi",
+        "_Description": "Hali nakladnoylar yo'q. Yangi yaratish uchun 'Yangi nakladnoy' tugmasini bosing."
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "Yangi nakladnoy"
+      }
+    },
+    "Out": {
+      "Meta": {
+        "Title": "Jo'natish"
+      }
+    },
+    "In": {
+      "Meta": {
+        "Title": "Qabul qilish"
+      }
+    },
+    "View": {
+      "Meta": {
+        "Title": "Nakladnoyni ko'rish"
+      },
+      "Title": "Nakladnoy #{{.ID}}",
+      "Status": "Holati",
+      "CreatedAt": "Yaratilgan sana",
+      "Position": "Nomi",
+      "Barcode": "Artikul",
+      "Quantity": "Miqdori",
+      "Unit": "O'lchov birligi",
+      "NoItems": "Nomlar yo'q"
+    },
+    "Types": {
+      "in": "Qabul qilish",
+      "out": "Jo'natish"
+    },
+    "Statuses": {
+      "pending": "Jarayonda",
+      "complete": "Yakunlangan"
+    },
+    "Single": {
+      "Type": "Turi",
+      "TypePlaceholder": "Turini tanlang",
+      "Status": "Holati",
+      "Quantity": "Miqdori",
+      "PositionIDs": "Nomlar",
+      "NoItems": "Nomlar yo'q",
+      "Position": "Nomi",
+      "SearchPosition": "Nomini qidirish",
+      "NoPositionsFound": "Nomlar topilmadi",
+      "Barcode": "Artikul",
+      "InStock": "Ombordagi miqdori",
+      "OrderedQuantity": "Jo'natish miqdori",
+      "Unit": "O'lchov birligi",
+      "Delete": "O'chirish",
+      "DeleteConfirmation": "Ushbu buyurtmani o'chirishni xohlaysizmi?"
+    }
+  },
+  "WarehouseInventory": {
+    "List": {
+      "Meta": {
+        "Title": "Inventarizatsiya"
+      },
+      "New": "Yangi inventarizatsiya",
+      "Name": "Nomi",
+      "Type": "Turi",
+      "Status": "Holati",
+      "CreatedBy": "Yaratgan",
+      "FinishedBy": "Yakunlagan",
+      "SelectStatus": "Holatni tanlang",
+      "SelectType": "Turini tanlang",
+      "NoInventory": {
+        "Title": "Inventarizatsiya topilmadi",
+        "_Description": "Hali inventarizatsiya yo'q. Yangi yaratish uchun 'Yangi inventarizatsiya' tugmasini bosing."
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "Yangi inventarizatsiya"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Inventarizatsiyani tahrirlash"
+      }
+    },
+    "Single": {
+      "Name": {
+        "Label": "Nomi",
+        "Placeholder": "mas.: 16.12.2024 dagi tekshiruv"
+      },
+      "Type": "Turi",
+      "Inventory": "Inventarizatsiya",
+      "FactualQuantity": "Haqiqiy miqdor/1C dagi miqdor",
+      "Difference": "Farq",
+      "Types": {
+        "full": "To'liq",
+        "partial": "Qisman"
+      },
+      "Statuses": {
+        "success": "Muvaffaqiyatli",
+        "incomplete": "Jarayonda",
+        "failed": "Muvaffaqiyatsiz"
+      },
+      "Positions": {
+        "Label": "Nomi",
+        "Placeholder": "Nomi yoki artikul..."
+      },
+      "Added": "Qo'shilganlar",
+      "AllPositions": "Barcha nomlar",
+      "Delete": "O'chirish",
+      "DeleteConfirmation": "Ushbu inventarizatsiyani o'chirishni xohlaysizmi?"
+    }
+  }
+}

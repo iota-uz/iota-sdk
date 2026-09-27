@@ -20,7 +20,7 @@
 // SQL Tools:
 //   - SQLExecuteTool: Execute read-only SQL queries
 //   - SchemaListTool: List all tables and views
-//   - SchemaDescribeTool: Describe table schema details
+//   - SchemaDescribeBatchTool: Describe one or more tables' schemas in a single call
 //
 // Utility Tools:
 //   - GetCurrentTimeTool: Get current time in various formats
@@ -43,7 +43,9 @@
 // custom implementations:
 //
 //	// SQL executor service (tools/sql sub-package)
-//	executor := toolsql.NewDefaultQueryExecutor(pool)
+//	executor := bichatsql.NewSafeQueryExecutor(pool,
+//	    bichatsql.WithTenantResolver(composables.UseTenantID),
+//	)
 //	sqlTool := toolsql.NewSQLExecuteTool(executor)
 //
 //	// Knowledge base searcher (tools/kb sub-package)

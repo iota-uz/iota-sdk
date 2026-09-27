@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/orders"
@@ -74,7 +75,6 @@ func OrderInItemToViewModel(item OrderItem) orderin.OrderItem {
 }
 
 type OrdersController struct {
-	app             application.Application
 	orderService    *orderservice.OrderService
 	positionService *positionservice.PositionService
 	productService  *productservice.ProductService
@@ -86,18 +86,33 @@ type OrderPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewOrdersController(app application.Application) application.Controller {
+func NewOrdersController(
+	orderService *orderservice.OrderService,
+	positionService *positionservice.PositionService,
+	productService *productservice.ProductService,
+) application.Controller {
 	return &OrdersController{
-		app:             app,
-		orderService:    app.Service(orderservice.OrderService{}).(*orderservice.OrderService),
-		positionService: app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
-		productService:  app.Service(productservice.ProductService{}).(*productservice.ProductService),
+		orderService:    orderService,
+		positionService: positionService,
+		productService:  productService,
 		basePath:        "/warehouse/orders",
 	}
 }
 
-func (c *OrdersController) Key() string {
-	return c.basePath
+func (c *OrdersController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("warehouse.order", 0, application.Route("", c.basePath, application.RequireAll(permissions.OrderRead))).
+		WithNav(application.NavNode{
+			ID:       "warehouse.order",
+			Parent:   "warehouse",
+			TitleKey: "NavigationLinks.WarehouseOrders",
+			Path:     c.basePath,
+			Order:    30,
+			Actions: []application.NavAction{{
+				ID:       "warehouse.order.new",
+				TitleKey: "WarehouseOrders.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *OrdersController) Register(r *mux.Router) {
@@ -105,8 +120,7 @@ func (c *OrdersController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

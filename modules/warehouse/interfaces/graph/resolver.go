@@ -21,12 +21,18 @@ type Resolver struct {
 	inventoryService *services.InventoryService
 }
 
-func NewResolver(app application.Application) *Resolver {
+func NewResolver(
+	app application.Application,
+	orderService *orderservice.OrderService,
+	productService *productservice.ProductService,
+	positionService *positionservice.PositionService,
+	inventoryService *services.InventoryService,
+) *Resolver {
 	return &Resolver{
 		app:              app,
-		orderService:     app.Service(orderservice.OrderService{}).(*orderservice.OrderService),
-		productService:   app.Service(productservice.ProductService{}).(*productservice.ProductService),
-		positionService:  app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
-		inventoryService: app.Service(services.InventoryService{}).(*services.InventoryService),
+		orderService:     orderService,
+		productService:   productService,
+		positionService:  positionService,
+		inventoryService: inventoryService,
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	inventory2 "github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/inventory"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
@@ -27,7 +28,6 @@ import (
 )
 
 type InventoryController struct {
-	app              application.Application
 	inventoryService *services.InventoryService
 	positionService  *positionservice.PositionService
 	basePath         string
@@ -38,17 +38,26 @@ type InventoryCheckPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewInventoryController(app application.Application) application.Controller {
+func NewInventoryController(
+	inventoryService *services.InventoryService,
+	positionService *positionservice.PositionService,
+) application.Controller {
 	return &InventoryController{
-		app:              app,
 		basePath:         "/warehouse/inventory",
-		inventoryService: app.Service(services.InventoryService{}).(*services.InventoryService),
-		positionService:  app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
+		inventoryService: inventoryService,
+		positionService:  positionService,
 	}
 }
 
-func (c *InventoryController) Key() string {
-	return c.basePath
+func (c *InventoryController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("warehouse.inventory", 0, application.Route("", c.basePath, application.RequireAll(permissions.InventoryRead))).
+		WithNav(application.NavNode{
+			ID:       "warehouse.inventory",
+			Parent:   "warehouse",
+			TitleKey: "NavigationLinks.WarehouseInventory",
+			Path:     c.basePath,
+			Order:    50,
+		})
 }
 
 func (c *InventoryController) Register(r *mux.Router) {
@@ -56,8 +65,7 @@ func (c *InventoryController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 var (
@@ -66,10 +67,20 @@ templ Base(props *BaseProps) {
 			bodyAttrs["hx-ext"] = "ws"
 			bodyAttrs["ws-connect"] = props.WebsocketURL
 		}
+		// Resolve the document language without requiring the page context: error
+		// pages (403/404) can render from a middleware that runs before the
+		// WithPageContext middleware, so UsePageCtx would panic. Fall back to the
+		// request locale, then to "en".
+		lang := "en"
+		if pageCtx, ok := composables.TryUsePageCtx(ctx); ok {
+			lang = pageCtx.GetLocale().String()
+		} else if tag, ok := intl.UseLocale(ctx); ok {
+			lang = tag.String()
+		}
 	}}
 	<!DOCTYPE html>
 	<html
-		lang={ composables.UsePageCtx(ctx).GetLocale().String() }
+		lang={ lang }
 		class="system bg-surface-100 text-100"
 	>
 		<head>

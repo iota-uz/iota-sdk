@@ -22,6 +22,7 @@ func DefaultFormatterRegistry() *context.FormatterRegistry {
 		r.Register(types.CodecExplainPlan, NewExplainPlanFormatter())
 		r.Register(types.CodecSchemaList, NewSchemaListFormatter())
 		r.Register(types.CodecSchemaDescribe, NewSchemaDescribeFormatter())
+		r.Register(types.CodecSchemaDescribeBatch, NewSchemaDescribeBatchFormatter())
 		r.Register(types.CodecToolError, NewToolErrorFormatter())
 		r.Register(types.CodecSQLDiagnosis, NewToolErrorFormatter()) // reuses same formatter
 		r.Register(types.CodecArtifactList, NewArtifactListFormatter())

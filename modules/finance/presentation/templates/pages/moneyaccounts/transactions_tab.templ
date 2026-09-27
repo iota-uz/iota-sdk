@@ -3,6 +3,7 @@ package moneyaccounts
 import (
 	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -11,104 +12,144 @@ import (
 type TransactionsTabProps struct {
 	AccountID    string
 	Transactions []*viewmodels.Transaction
+	// NextURL loads the next page of the history; empty on the last page.
+	NextURL string
 }
 
 templ TransactionsTab(props *TransactionsTabProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="flex-1 p-6">
-		if len(props.Transactions) == 0 {
-			<div class="text-center py-12">
-				<div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-					@icons.Receipt(icons.Props{Size: "32", Class: "text-gray-400"})
-				</div>
-				<h3 class="text-lg font-medium text-gray-900 mb-1">{ pageCtx.T("MoneyAccounts.Transactions.NoTransactions") }</h3>
-				<p class="text-gray-300">{ pageCtx.T("MoneyAccounts.Transactions.NoTransactionsDescription") }</p>
-			</div>
-		} else {
-			<div class="space-y-1">
-				for _, transaction := range props.Transactions {
-					@transactionListItem(transaction, pageCtx)
-				}
-			</div>
-			if len(props.Transactions) >= 10 {
-				<div class="pt-4 text-center">
-					<a
-						href={ templ.URL(fmt.Sprintf("/finance/transactions?account=%s", props.AccountID)) }
-						class="text-blue-600 hover:text-blue-800 text-sm font-medium"
-					>
-						{ pageCtx.T("MoneyAccounts.Transactions.ViewAll") }
-					</a>
-				</div>
-			}
-		}
-	</div>
-}
-
-templ transactionListItem(transaction *viewmodels.Transaction, pageCtx any) {
-	<div
-		class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow cursor-pointer"
-		hx-get={ fmt.Sprintf("/finance/transactions/%s/drawer", transaction.ID) }
-		hx-target="#view-drawer"
-		hx-swap="innerHTML"
-	>
-		<div class="flex items-center justify-between">
-			<div class="flex items-center gap-3 flex-1">
-				<div class="flex-shrink-0">
-					@components.TransactionTypeBadge(transaction.TransactionType)
-				</div>
-				<div class="flex-1 min-w-0">
-					<div class="flex items-center justify-between">
-						<div class="flex-1">
-							<p class="text-sm font-medium text-gray-900 truncate">
-								if transaction.Comment != "" {
-									{ transaction.Comment }
-								} else {
-									{ getTransactionLabel(transaction) }
-								}
-							</p>
-							<p class="text-xs text-gray-600">
-								{ transaction.TransactionDate.Format("Jan 2, 2006 3:04 PM") }
-							</p>
-						</div>
-						<div class="text-right ml-3">
-							<p class="text-sm font-semibold text-gray-900">{ transaction.AmountWithCurrency }</p>
-							if transaction.Category != nil {
-								<p class="text-xs text-gray-300 truncate max-w-24">{ transaction.Category.Name }</p>
-							}
-						</div>
-					</div>
-				</div>
-			</div>
+	<div class="flex-1 p-6 flex flex-col gap-4">
+		<form
+			class="flex flex-wrap gap-3"
+			hx-get={ fmt.Sprintf("/finance/accounts/%s/transactions", props.AccountID) }
+			hx-trigger="change delay:100ms"
+			hx-target={ "#" + historyListID(props.AccountID) }
+			hx-swap="innerHTML"
+		>
+			@components.TransactionTypeFilter()
+			@components.TransactionDateFilter()
+		</form>
+		<div id={ historyListID(props.AccountID) } class="flex flex-col gap-1">
+			@TransactionRows(props)
+		</div>
+		<div class="text-center">
+			<a
+				href={ templ.URL(fmt.Sprintf("/finance/transactions?account=%s", props.AccountID)) }
+				class="text-blue-600 hover:text-blue-800 text-sm font-medium"
+			>
+				{ pageCtx.T("MoneyAccounts.Transactions.ViewAll") }
+			</a>
 		</div>
 	</div>
 }
 
-func getTransactionLabel(transaction *viewmodels.Transaction) string {
-	switch transaction.TransactionType {
-	case "deposit":
-		if transaction.Counterparty != nil {
-			return "From " + transaction.Counterparty.Name
-		}
-		if transaction.DestinationAccount != nil {
-			return "Deposit to " + transaction.DestinationAccount.Name
-		}
-		return "Deposit"
-	case "withdrawal":
-		if transaction.Category != nil {
-			return transaction.Category.Name
-		}
-		if transaction.OriginAccount != nil {
-			return "From " + transaction.OriginAccount.Name
-		}
-		return "Withdrawal"
-	case "transfer":
-		if transaction.OriginAccount != nil && transaction.DestinationAccount != nil {
-			return "Transfer"
-		}
-		return "Transfer"
-	case "exchange":
-		return "Currency Exchange"
-	default:
-		return "Transaction"
+// TransactionRows renders one page of the account history and, when more
+// remain, a row that loads the next page once scrolled into view.
+templ TransactionRows(props *TransactionsTabProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	if len(props.Transactions) == 0 {
+		<div class="text-center py-12">
+			<div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+				@icons.Receipt(icons.Props{Size: "32", Class: "text-gray-400"})
+			</div>
+			<h3 class="text-lg font-medium text-gray-900 mb-1">{ pageCtx.T("MoneyAccounts.Transactions.NoTransactions") }</h3>
+			<p class="text-gray-300">{ pageCtx.T("MoneyAccounts.Transactions.NoTransactionsDescription") }</p>
+		</div>
 	}
+	for _, transaction := range props.Transactions {
+		@historyItem(transaction, props.AccountID)
+	}
+	if props.NextURL != "" {
+		<div
+			class="py-3 text-center text-sm text-gray-500"
+			hx-get={ props.NextURL }
+			hx-trigger="intersect once"
+			hx-swap="outerHTML"
+		>
+			{ pageCtx.T("MoneyAccounts.Transactions.Loading") }
+		</div>
+	}
+}
+
+// historyItem opens the document behind the transaction: the payment or the
+// expense it was booked from, otherwise the transaction itself.
+templ historyItem(transaction *viewmodels.Transaction, accountID string) {
+	{{ itemClass := "w-full text-left bg-white border border-subtle rounded-lg p-4 hover:shadow-sm transition-shadow flex items-center justify-between gap-3" }}
+	switch  {
+		case transaction.PaymentID != "":
+			<a href={ templ.URL("/finance/payments/" + transaction.PaymentID) } class={ itemClass }>
+				@historyItemBody(transaction, accountID)
+			</a>
+		case transaction.ExpenseID != "":
+			<a href={ templ.URL("/finance/expenses/" + transaction.ExpenseID) } class={ itemClass }>
+				@historyItemBody(transaction, accountID)
+			</a>
+		default:
+			<button
+				type="button"
+				class={ itemClass }
+				hx-get={ fmt.Sprintf("/finance/transactions/%s/drawer", transaction.ID) }
+				hx-target="#view-drawer"
+				hx-swap="innerHTML"
+			>
+				@historyItemBody(transaction, accountID)
+			</button>
+	}
+}
+
+templ historyItemBody(transaction *viewmodels.Transaction, accountID string) {
+	{{ incoming := isIncoming(transaction, accountID) }}
+	<div class="flex items-center gap-3 min-w-0">
+		<div class="flex-shrink-0">
+			@components.TransactionTypeBadge(transaction.TransactionType)
+		</div>
+		<div class="min-w-0">
+			<p class="text-sm font-medium text-gray-900 truncate">{ historyTitle(transaction, incoming) }</p>
+			<div class="text-xs text-gray-600 flex gap-2 min-w-0">
+				@table.DateTime(transaction.TransactionDate)
+				if transaction.Counterparty != nil {
+					<span class="truncate">{ transaction.Counterparty.Name }</span>
+				}
+			</div>
+		</div>
+	</div>
+	<span class={ "text-sm font-semibold tabular-nums whitespace-nowrap", templ.KV("text-green-600", incoming), templ.KV("text-gray-900", !incoming) }>
+		{ signedAmount(transaction, incoming) }
+	</span>
+}
+
+func historyListID(accountID string) string {
+	return "account-history-" + accountID
+}
+
+func isIncoming(transaction *viewmodels.Transaction, accountID string) bool {
+	return transaction.DestinationAccount != nil && transaction.DestinationAccount.ID == accountID
+}
+
+// signedAmount shows the amount as it moved this account: an exchange lands
+// in the destination currency.
+func signedAmount(transaction *viewmodels.Transaction, incoming bool) string {
+	if !incoming {
+		return "−" + transaction.AmountWithCurrency
+	}
+	if transaction.DestinationAmountWithCurrency != "" {
+		return "+" + transaction.DestinationAmountWithCurrency
+	}
+	return "+" + transaction.AmountWithCurrency
+}
+
+// historyTitle names what the money went to or came from: the category, the
+// account on the other side, or the comment.
+func historyTitle(transaction *viewmodels.Transaction, incoming bool) string {
+	if transaction.Category != nil {
+		return transaction.Category.Name
+	}
+	other := transaction.DestinationAccount
+	if incoming {
+		other = transaction.OriginAccount
+	}
+	if other != nil {
+		return other.Name
+	}
+	return transaction.Comment
 }

@@ -7,6 +7,7 @@ tmp/
 coverage
 node_modules
 static
+!pkg/config/providers/static/
 uploads
 *_templ.txt
 modules/core/presentation/assets/css/main.min.css
@@ -21,6 +22,10 @@ logs/
 # Build artifacts
 dist/
 **/dist/
+**/package-dist/
+!pkg/lens/render/react/dist/
+pkg/lens/render/react/dist/*
+!pkg/lens/render/react/dist/.keep
 
 
 # Applet embedded assets are build output; keep only a placeholder for go:embed.
@@ -44,10 +49,12 @@ storybook-static/
 # E2E test artifacts
 e2e/playwright-report/
 e2e/test-results/
-server
-
-# CLI binary (go build ./cmd/command/)
+web/client-host/playwright-report/
+web/client-host/test-results/
+# Binary artifacts (go build ./cmd/server/, go build ./cmd/command/)
+/server
 /command
 
 # Playwright CLI snapshots/artifacts
 .playwright-cli/
+.claude/scheduled_tasks.lock

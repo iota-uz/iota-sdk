@@ -5,17 +5,19 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -24,13 +26,33 @@ import (
 )
 
 // Mock application for testing
-type mockApp struct {
-	application.Application
-}
+type mockApp struct{}
 
 func (m *mockApp) Bundle() *i18n.Bundle {
 	bundle := i18n.NewBundle(language.English)
 	return bundle
+}
+
+type mockServiceResolver struct {
+	services map[reflect.Type]any
+}
+
+func (m *mockServiceResolver) ResolveType(t reflect.Type) (any, error) {
+	service, ok := m.services[t]
+	if !ok {
+		return nil, fmt.Errorf("service not found: %v", t)
+	}
+	return service, nil
+}
+
+type sampleInterfaceService interface {
+	Name() string
+}
+
+type sampleInterfaceServiceImpl struct{}
+
+func (sampleInterfaceServiceImpl) Name() string {
+	return "seed"
 }
 
 // Create a test context with necessary dependencies
@@ -180,4 +202,96 @@ func TestDIHandlerConcurrentRequests_NoDataRace(t *testing.T) {
 	if got := failed.Load(); got != 0 {
 		t.Fatalf("expected 0 failed responses, got %d", got)
 	}
+}
+
+func TestInvokeWithProviders_UsesOnlyExplicitProviders(t *testing.T) {
+	type sampleService struct {
+		Name string
+	}
+
+	service := &sampleService{Name: "seed"}
+	values, err := InvokeWithProviders(
+		context.Background(),
+		func(ctx context.Context, svc *sampleService) error {
+			if svc.Name != "seed" {
+				t.Fatalf("expected injected service name seed, got %s", svc.Name)
+			}
+			return nil
+		},
+		ValueProvider(service),
+	)
+	require.NoError(t, err)
+	require.Len(t, values, 1)
+	assert.Nil(t, values[0].Interface())
+
+	_, err = InvokeWithProviders(context.Background(), func(ctx context.Context, u user.User) error {
+		return nil
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no provider found")
+}
+
+func TestH_InjectsAppValueFromContext(t *testing.T) {
+	type bundleProvider interface {
+		Bundle() *i18n.Bundle
+	}
+
+	handler := H(func(w http.ResponseWriter, app bundleProvider) {
+		require.NotNil(t, app.Bundle())
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(setupTestContext())
+	rr := httptest.NewRecorder()
+	handler(rr, req)
+
+	require.Equal(t, http.StatusNoContent, rr.Code)
+}
+
+func TestH_InjectsInterfaceServiceFromContainer(t *testing.T) {
+	serviceType := reflect.TypeOf((*sampleInterfaceService)(nil)).Elem()
+	container := &mockServiceResolver{
+		services: map[reflect.Type]any{
+			serviceType: sampleInterfaceServiceImpl{},
+		},
+	}
+
+	handler := H(func(w http.ResponseWriter, svc sampleInterfaceService) {
+		_, _ = fmt.Fprint(w, svc.Name())
+	})
+
+	ctx := context.WithValue(setupTestContext(), constants.ContainerKey, container)
+	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+	rr := httptest.NewRecorder()
+	handler(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Equal(t, "seed", rr.Body.String())
+}
+
+func TestServiceProvider_Provide_RejectsNilService(t *testing.T) {
+	serviceType := reflect.TypeOf((*sampleInterfaceService)(nil)).Elem()
+	container := &mockServiceResolver{
+		services: map[reflect.Type]any{serviceType: nil},
+	}
+	ctx := context.WithValue(context.Background(), constants.ContainerKey, container)
+
+	_, err := (&serviceProvider{}).Provide(serviceType, ctx)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "nil service")
+}
+
+func TestServiceProvider_Provide_RejectsNonAssignableService(t *testing.T) {
+	serviceType := reflect.TypeOf((*sampleInterfaceService)(nil)).Elem()
+	container := &mockServiceResolver{
+		// A string does not satisfy sampleInterfaceService.
+		services: map[reflect.Type]any{serviceType: "not-a-service"},
+	}
+	ctx := context.WithValue(context.Background(), constants.ContainerKey, container)
+
+	_, err := (&serviceProvider{}).Provide(serviceType, ctx)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not assignable")
 }

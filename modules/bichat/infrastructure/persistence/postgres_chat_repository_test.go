@@ -968,6 +968,37 @@ func TestPostgresChatRepository_GetSessionMessages_Pagination(t *testing.T) {
 	assert.Len(t, retrieved, 2)
 }
 
+func TestPostgresChatRepository_GetSessionMessages_ZeroLimitReturnsAll(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+
+	repo := persistence.NewPostgresChatRepository()
+
+	session := mustSession(t,
+		withSessionTenantID(env.Tenant.ID),
+		withSessionUserID(int64(env.User.ID())),
+		withSessionTitle("Zero limit returns all"),
+	)
+	require.NoError(t, repo.CreateSession(env.Ctx, session))
+
+	baseTime := time.Now()
+	for i, content := range []string{"First", "Second", "Third"} {
+		msg := types.UserMessage(
+			content,
+			types.WithSessionID(session.ID()),
+			types.WithCreatedAt(baseTime.Add(time.Duration(i)*time.Millisecond)),
+		)
+		require.NoError(t, repo.SaveMessage(env.Ctx, msg))
+	}
+
+	messages, err := repo.GetSessionMessages(env.Ctx, session.ID(), domain.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, messages, 3)
+	assert.Equal(t, "First", messages[0].Content())
+	assert.Equal(t, "Second", messages[1].Content())
+	assert.Equal(t, "Third", messages[2].Content())
+}
+
 func TestPostgresChatRepository_TruncateMessagesFrom(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)
@@ -1668,7 +1699,7 @@ func TestPostgresChatRepository_PaginationBoundaries(t *testing.T) {
 		opts := domain.ListOptions{Limit: 0, Offset: 0}
 		messages, err := repo.GetSessionMessages(env.Ctx, session.ID(), opts)
 		require.NoError(t, err)
-		assert.Empty(t, messages)
+		assert.Len(t, messages, 3)
 	})
 
 	t.Run("Offset exceeds total", func(t *testing.T) {

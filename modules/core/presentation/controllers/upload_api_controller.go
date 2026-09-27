@@ -15,14 +15,15 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type UploadAPIController struct {
-	app             application.Application
+	uploadService   *services.UploadService
 	authorizer      types.UploadsAuthorizer
+	cfg             *uploadsconfig.Config
 	defaultTenantID uuid.UUID
 }
 
@@ -43,10 +44,11 @@ func WithDefaultTenantID(id uuid.UUID) UploadAPIControllerOption {
 	}
 }
 
-func NewUploadAPIController(app application.Application, opts ...UploadAPIControllerOption) application.Controller {
+func NewUploadAPIController(uploadService *services.UploadService, cfg *uploadsconfig.Config, opts ...UploadAPIControllerOption) application.Controller {
 	c := &UploadAPIController{
-		app:        app,
-		authorizer: authorizers.NewDefaultUploadsAuthorizer(),
+		uploadService: uploadService,
+		authorizer:    authorizers.NewDefaultUploadsAuthorizer(),
+		cfg:           cfg,
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -54,18 +56,17 @@ func NewUploadAPIController(app application.Application, opts ...UploadAPIContro
 	return c
 }
 
-func (c *UploadAPIController) Key() string {
-	return "/api/uploads"
+func (c *UploadAPIController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.upload_api", 0, application.Route("", "/api/uploads"))
 }
 
 func (c *UploadAPIController) Register(r *mux.Router) {
-	router := r.PathPrefix(c.Key()).Subrouter()
+	router := r.PathPrefix("/api/uploads").Subrouter()
 	router.Use(middleware.Authorize())
 	router.Use(middleware.ProvideUser())
 	if c.defaultTenantID != uuid.Nil {
 		router.Use(c.ensureTenantID())
 	}
-	router.Use(middleware.ProvideLocalizer(c.app))
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 }
 
@@ -100,8 +101,7 @@ type GeoPointResponse struct {
 }
 
 func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
-	conf := configuration.Use()
-	if err := r.ParseMultipartForm(conf.MaxUploadMemory); err != nil {
+	if err := r.ParseMultipartForm(c.cfg.MaxMemory); err != nil {
 		c.writeJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -174,11 +174,10 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create upload
-	uploadService := c.app.Service(services.UploadService{}).(*services.UploadService)
 	var uploadEntity upload.Upload
 	if err := composables.InTx(r.Context(), func(txCtx context.Context) error {
 		var createErr error
-		uploadEntity, createErr = uploadService.Create(txCtx, dto)
+		uploadEntity, createErr = c.uploadService.Create(txCtx, dto)
 		return createErr
 	}); err != nil {
 		c.writeJSONError(w, http.StatusInternalServerError, err.Error())

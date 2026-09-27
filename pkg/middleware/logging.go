@@ -2,14 +2,11 @@
 package middleware
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"encoding/xml"
-	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"runtime/debug"
@@ -24,7 +21,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
@@ -47,65 +44,33 @@ func DefaultLoggerOptions() LoggerOptions {
 }
 
 type responseCaptureWriter struct {
-	http.ResponseWriter
-	statusCode    int
-	statusWritten bool
-	body          *bytes.Buffer
-}
-
-func (w *responseCaptureWriter) WriteHeader(code int) {
-	if !w.statusWritten {
-		w.statusCode = code
-		w.statusWritten = true
-		w.ResponseWriter.WriteHeader(code)
-	}
-}
-
-// Status returns the HTTP status code
-func (w *responseCaptureWriter) Status() int {
-	if w.statusCode == 0 {
-		return http.StatusOK
-	}
-	return w.statusCode
+	*statusCaptureWriter
+	body *bytes.Buffer
 }
 
 func (w *responseCaptureWriter) Write(b []byte) (int, error) {
+	w.markStatus(http.StatusOK)
 	w.body.Write(b)
 	return w.ResponseWriter.Write(b)
 }
 
-func (w *responseCaptureWriter) Flush() {
-	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
-		flusher.Flush()
-	}
-}
-
-func (w *responseCaptureWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	if hijacker, ok := w.ResponseWriter.(http.Hijacker); ok {
-		return hijacker.Hijack()
-	}
-	return nil, nil, fmt.Errorf("underlying ResponseWriter does not implement http.Hijacker")
-}
-
 func wrapResponseWriter(w http.ResponseWriter) *responseCaptureWriter {
 	return &responseCaptureWriter{
-		ResponseWriter: w,
-		statusCode:     0,
-		statusWritten:  false,
-		body:           &bytes.Buffer{},
+		statusCaptureWriter: wrapStatusCaptureWriter(w),
+		body:                &bytes.Buffer{},
 	}
 }
 
-func getRealIP(r *http.Request, conf *configuration.Configuration) string {
-	if len(r.Header.Get(conf.RealIPHeader)) > 0 {
-		return r.Header.Get(conf.RealIPHeader)
+func getRealIP(r *http.Request, cfg *headers.Config) string {
+	if len(r.Header.Get(cfg.RealIP)) > 0 {
+		return r.Header.Get(cfg.RealIP)
 	}
 	return r.RemoteAddr
 }
 
-func getRequestID(r *http.Request, conf *configuration.Configuration) string {
-	if len(r.Header.Get(conf.RequestIDHeader)) > 0 {
-		return r.Header.Get(conf.RequestIDHeader)
+func getRequestID(r *http.Request, cfg *headers.Config) string {
+	if len(r.Header.Get(cfg.RequestID)) > 0 {
+		return r.Header.Get(cfg.RequestID)
 	}
 	return uuid.New().String()
 }
@@ -163,13 +128,12 @@ func shouldLogBody(contentType string) bool {
 		strings.Contains(contentType, "text/xml")
 }
 
-func WithLogger(logger *logrus.Logger, opts LoggerOptions) mux.MiddlewareFunc {
-	conf := configuration.Use()
+func WithLogger(logger *logrus.Logger, opts LoggerOptions, cfg *headers.Config) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				start := time.Now()
-				requestID := getRequestID(r, conf)
+				requestID := getRequestID(r, cfg)
 
 				fieldsLogger := logger.WithFields(logrus.Fields{
 					"request-id": requestID,
@@ -180,7 +144,7 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions) mux.MiddlewareFunc {
 				fieldsLogger.WithFields(logrus.Fields{
 					"timestamp":       start.UnixNano(),
 					"host":            r.Host,
-					"ip":              getRealIP(r, conf),
+					"ip":              getRealIP(r, cfg),
 					"user-agent":      r.UserAgent(),
 					"request-headers": formatHeaders(r.Header),
 				}).Info("request started")
@@ -243,7 +207,7 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions) mux.MiddlewareFunc {
 						attribute.String("http.user_agent", r.UserAgent()),
 						attribute.String("http.request_id", requestID),
 						attribute.String("net.host.name", r.Host),
-						attribute.String("net.peer.ip", getRealIP(r, conf)),
+						attribute.String("net.peer.ip", getRealIP(r, cfg)),
 					),
 				)
 				defer span.End()
@@ -288,7 +252,7 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions) mux.MiddlewareFunc {
 							"stack":       string(debug.Stack()),
 							"method":      r.Method,
 							"path":        r.URL.Path,
-							"remote_addr": getRealIP(r, conf),
+							"remote_addr": getRealIP(r, cfg),
 							"user_agent":  r.UserAgent(),
 							"status":      http.StatusInternalServerError,
 							"duration":    duration,

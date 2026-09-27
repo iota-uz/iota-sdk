@@ -2,189 +2,293 @@
 package controllers
 
 import (
-	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	icons "github.com/iota-uz/icons/phosphor"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/dashboard"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
+	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	lensdocument "github.com/iota-uz/iota-sdk/pkg/lens/document"
+	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lenspostgres "github.com/iota-uz/iota-sdk/pkg/lens/postgres"
+	lensreact "github.com/iota-uz/iota-sdk/pkg/lens/render/react"
+	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	lensserve "github.com/iota-uz/iota-sdk/pkg/lens/serve"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
-func NewDashboardController(app application.Application) application.Controller {
-	config := configuration.Use()
+const dashboardLensBasePath = "/dashboard"
+
+func NewDashboardController(dbCfg *dbconfig.Config, navPermissions ...[]permission.Permission) application.Controller {
+	perms := firstPermissionSet(navPermissions)
 	ds, err := lenspostgres.New(lenspostgres.Config{
-		ConnectionString: config.Database.ConnectionString(),
+		ConnectionString: dbCfg.ConnectionString(),
 		MaxConnections:   5,
 		MinConnections:   1,
 		QueryTimeout:     30 * time.Second,
+		RequiredParams:   []string{"tenant_id"},
 	})
 	if err != nil {
 		log.Printf("Failed to create lens data source for dashboard: %v", err)
-		return &DashboardController{app: app}
+		return &DashboardController{
+			navPermissions: perms,
+			runtime:        runtime.New(runtime.Options{}),
+			snapshots:      lensdocument.NewMemoryStore(30*time.Minute, 128),
+		}
 	}
-	return &DashboardController{app: app, ds: ds}
+	return &DashboardController{
+		ds:             ds,
+		navPermissions: perms,
+		runtime:        runtime.New(runtime.Options{}),
+		snapshots:      lensdocument.NewMemoryStore(30*time.Minute, 128),
+	}
 }
 
 type DashboardController struct {
-	app application.Application
-	ds  lens.DataSource
+	ds             datasource.DataSource
+	navPermissions []permission.Permission
+	runtime        *runtime.Runtime
+	snapshots      lensdocument.SnapshotStore
 }
 
-func (c *DashboardController) createFinanceDashboard() lens.Dashboard {
-	return lens.NewDashboard("Finance Overview",
-		lens.NewRow(
-			lens.Metric("total-balance", "Total Balance").
-				Query(`SELECT (SUM(ma.balance) / 100.0)::float8 as value FROM money_accounts ma`).
-				Unit("USD").Prefix("$").Color("#10b981").Span(3).Build(),
-			lens.Metric("monthly-expenses", "Monthly Expenses").
-				Query(`SELECT (SUM(t.amount) / 100.0)::float8 as value
-					FROM transactions t
-					JOIN expenses e ON t.id = e.transaction_id
-					WHERE t.transaction_date >= DATE_TRUNC('month', NOW())
-					AND t.transaction_type = 'expense'`).
-				Unit("USD").Prefix("$").Color("#ef4444").Span(3).Build(),
-			lens.Metric("monthly-income", "Monthly Income").
-				Query(`SELECT (SUM(t.amount) / 100.0)::float8 as value
-					FROM transactions t
-					WHERE t.transaction_date >= DATE_TRUNC('month', NOW())
-					AND t.transaction_type = 'income'`).
-				Unit("USD").Prefix("$").Color("#059669").Span(3).Build(),
-			lens.Metric("transaction-count", "Transactions This Month").
-				Query(`SELECT COUNT(*)::float8 as value
-					FROM transactions t
-					WHERE t.transaction_date >= DATE_TRUNC('month', NOW())`).
-				Color("#3b82f6").Span(3).Build(),
+func (c *DashboardController) createFinanceDashboard(tenantID uuid.UUID) lens.DashboardSpec {
+	return lensbuild.Dashboard("finance-overview", "Finance Overview",
+		lensbuild.Row(
+			panel.Stat("total-balance", "Total Balance", "total-balance").Span(3).Build(),
+			panel.Stat("monthly-expenses", "Monthly Expenses", "monthly-expenses").Span(3).Build(),
+			panel.Stat("monthly-income", "Monthly Income", "monthly-income").Span(3).Build(),
+			panel.Stat("transaction-count", "Transactions This Month", "transaction-count").Span(3).Build(),
 		),
-		lens.NewRow(
-			lens.Bar("monthly-expenses-chart", "Monthly Expenses Chart").
-				Query(`SELECT TO_CHAR(t.transaction_date, 'YYYY-MM') as label,
-					(SUM(t.amount) / 100.0)::float8 as value
-					FROM transactions t
-					JOIN expenses e ON t.id = e.transaction_id
-					WHERE t.transaction_date >= NOW() - INTERVAL '12 months'
-					AND t.transaction_type = 'expense'
-					GROUP BY TO_CHAR(t.transaction_date, 'YYYY-MM')
-					ORDER BY label`).
-				Colors("#ef4444").Span(6).Build(),
-			lens.StackedBar("monthly-expenses-by-category", "Monthly Expenses by Category").
-				Query(`SELECT TO_CHAR(t.transaction_date, 'YYYY-MM') as category,
-					ec.name as series,
-					(SUM(t.amount) / 100.0)::float8 as value
-					FROM transactions t
-					JOIN expenses e ON t.id = e.transaction_id
-					JOIN expense_categories ec ON e.category_id = ec.id
-					WHERE t.transaction_date >= NOW() - INTERVAL '6 months'
-					AND t.transaction_type = 'expense'
-					GROUP BY TO_CHAR(t.transaction_date, 'YYYY-MM'), ec.name
-					ORDER BY category, series`).
-				Legend().Span(6).Build(),
+		lensbuild.Row(
+			panel.Bar("monthly-expenses-chart", "Monthly Expenses Chart", "monthly-expenses-chart").Span(6).Build(),
+			panel.StackedBar("monthly-expenses-by-category", "Monthly Expenses by Category", "monthly-expenses-by-category").Legend().Span(6).Build(),
 		),
-		lens.NewRow(
-			lens.Line("account-balances", "Account Balances").
-				Query(`SELECT ma.name as label,
-					(ma.balance / 100.0)::float8 as value
-					FROM money_accounts ma
-					ORDER BY ma.balance DESC`).
-				Colors("#10b981", "#3b82f6", "#f59e0b").Span(12).Build(),
+		lensbuild.Row(
+			panel.Bar("account-balances", "Account Balances", "account-balances").Span(12).Build(),
 		),
-		lens.NewRow(
-			lens.Area("revenue-trend", "Revenue Trend").
-				Query(`SELECT DATE_TRUNC('day', t.transaction_date)::date as label,
-					(SUM(t.amount) / 100.0)::float8 as value
-					FROM transactions t
-					WHERE t.transaction_date >= NOW() - INTERVAL '30 days'
-					AND t.transaction_type = 'income'
-					GROUP BY DATE_TRUNC('day', t.transaction_date)
-					ORDER BY label`).
-				Colors("#10b981").Span(6).Build(),
-			lens.Bar("top-counterparties", "Top Counterparties").
-				Query(`SELECT c.name as label,
-					COUNT(p.id)::float as value
-					FROM counterparty c
-					JOIN payments p ON c.id = p.counterparty_id
-					JOIN transactions t ON p.transaction_id = t.id
-					WHERE t.transaction_date >= NOW() - INTERVAL '30 days'
-					GROUP BY c.name
-					ORDER BY value DESC`).
-				Colors("#06b6d4").Span(6).Build(),
+		lensbuild.Row(
+			panel.TimeSeries("revenue-trend", "Revenue Trend", "revenue-trend").Span(6).Build(),
+			panel.Bar("top-counterparties", "Top Counterparties", "top-counterparties").Span(6).Build(),
 		),
-		lens.NewRow(
-			lens.Gauge("expense-budget-usage", "Monthly Budget Usage").
-				Query(`SELECT CASE
-						WHEN budget.monthly_limit > 0 THEN
-							((current_expenses.total / budget.monthly_limit) * 100.0)::float8
-						ELSE 0.0
-					END as value
-					FROM (SELECT 50000.0 as monthly_limit) budget
-					CROSS JOIN (
-						SELECT COALESCE(SUM(t.amount) / 100.0, 0.0) as total
-						FROM transactions t
-						JOIN expenses e ON t.id = e.transaction_id
-						WHERE t.transaction_date >= DATE_TRUNC('month', NOW())
-						AND t.transaction_type = 'expense'
-					) current_expenses`).
-				Colors("#f59e0b").Span(4).Build(),
-			lens.Table("recent-transactions", "Recent Transactions").
-				Query(`SELECT t.transaction_date, t.transaction_type,
-					(t.amount / 100.0)::float8 as amount,
-					COALESCE(c.name, 'Internal') as counterparty,
-					t.comment
-					FROM transactions t
-					LEFT JOIN payments p ON t.id = p.transaction_id
-					LEFT JOIN counterparty c ON p.counterparty_id = c.id
-					ORDER BY t.transaction_date DESC, t.created_at DESC
-					LIMIT 20`).
-				Span(8).Build(),
+		lensbuild.Row(
+			panel.Gauge("expense-budget-usage", "Monthly Budget Usage", "expense-budget-usage").Span(4).Build(),
+			panel.Table("recent-transactions", "Recent Transactions", "recent-transactions").Span(8).Build(),
 		),
-	)
+	).Datasets(
+		queryDataset("total-balance", `SELECT COALESCE(SUM(ma.balance), 0)::float8 / 100.0 as value
+			FROM money_accounts ma
+			WHERE ma.tenant_id = @tenant_id`, tenantID),
+		queryDataset("monthly-expenses", `SELECT COALESCE(SUM(t.amount), 0)::float8 / 100.0 as value
+			FROM transactions t
+			JOIN expenses e ON t.id = e.transaction_id
+			WHERE t.tenant_id = @tenant_id
+			AND e.tenant_id = @tenant_id
+			AND t.transaction_date >= DATE_TRUNC('month', NOW())
+			AND t.transaction_type = 'expense'`, tenantID),
+		queryDataset("monthly-income", `SELECT COALESCE(SUM(t.amount), 0)::float8 / 100.0 as value
+			FROM transactions t
+			WHERE t.tenant_id = @tenant_id
+			AND t.transaction_date >= DATE_TRUNC('month', NOW())
+			AND t.transaction_type = 'income'`, tenantID),
+		queryDataset("transaction-count", `SELECT COUNT(*)::float8 as value
+			FROM transactions t
+			WHERE t.tenant_id = @tenant_id
+			AND t.transaction_date >= DATE_TRUNC('month', NOW())`, tenantID),
+		queryDataset("monthly-expenses-chart", `SELECT TO_CHAR(t.transaction_date, 'YYYY-MM') as label,
+			COALESCE(SUM(t.amount), 0)::float8 / 100.0 as value
+			FROM transactions t
+			JOIN expenses e ON t.id = e.transaction_id
+			WHERE t.tenant_id = @tenant_id
+			AND e.tenant_id = @tenant_id
+			AND t.transaction_date >= NOW() - INTERVAL '12 months'
+			AND t.transaction_type = 'expense'
+			GROUP BY TO_CHAR(t.transaction_date, 'YYYY-MM')
+			ORDER BY label`, tenantID),
+		queryDataset("monthly-expenses-by-category", `SELECT TO_CHAR(t.transaction_date, 'YYYY-MM') as category,
+			ec.name as series,
+			COALESCE(SUM(t.amount), 0)::float8 / 100.0 as value
+			FROM transactions t
+			JOIN expenses e ON t.id = e.transaction_id
+			JOIN expense_categories ec ON e.category_id = ec.id
+			WHERE t.tenant_id = @tenant_id
+			AND e.tenant_id = @tenant_id
+			AND ec.tenant_id = @tenant_id
+			AND t.transaction_date >= NOW() - INTERVAL '6 months'
+			AND t.transaction_type = 'expense'
+			GROUP BY TO_CHAR(t.transaction_date, 'YYYY-MM'), ec.name
+			ORDER BY category, series`, tenantID),
+		queryDataset("account-balances", `SELECT ma.name as label,
+			(ma.balance / 100.0)::float8 as value
+			FROM money_accounts ma
+			WHERE ma.tenant_id = @tenant_id
+			ORDER BY ma.balance DESC`, tenantID),
+		queryDataset("revenue-trend", `SELECT DATE_TRUNC('day', t.transaction_date)::date as label,
+			COALESCE(SUM(t.amount), 0)::float8 / 100.0 as value
+			FROM transactions t
+			WHERE t.tenant_id = @tenant_id
+			AND t.transaction_date >= NOW() - INTERVAL '30 days'
+			AND t.transaction_type = 'income'
+			GROUP BY DATE_TRUNC('day', t.transaction_date)
+			ORDER BY label`, tenantID),
+		queryDataset("top-counterparties", `SELECT c.name as label,
+			COUNT(p.id)::float8 as value
+			FROM counterparty c
+			JOIN payments p ON c.id = p.counterparty_id
+			JOIN transactions t ON p.transaction_id = t.id
+			WHERE c.tenant_id = @tenant_id
+			AND p.tenant_id = @tenant_id
+			AND t.tenant_id = @tenant_id
+			AND t.transaction_date >= NOW() - INTERVAL '30 days'
+			GROUP BY c.name
+			ORDER BY value DESC`, tenantID),
+		queryDataset("expense-budget-usage", `SELECT CASE
+				WHEN budget.monthly_limit > 0 THEN
+					((current_expenses.total / budget.monthly_limit) * 100.0)::float8
+				ELSE 0.0
+			END as value
+			FROM (SELECT 50000.0 as monthly_limit) budget
+			CROSS JOIN (
+				SELECT COALESCE(SUM(t.amount) / 100.0, 0.0) as total
+				FROM transactions t
+				JOIN expenses e ON t.id = e.transaction_id
+				WHERE t.tenant_id = @tenant_id
+				AND e.tenant_id = @tenant_id
+				AND t.transaction_date >= DATE_TRUNC('month', NOW())
+				AND t.transaction_type = 'expense'
+			) current_expenses`, tenantID),
+		queryDataset("recent-transactions", `SELECT t.transaction_date,
+			t.transaction_type,
+			(t.amount / 100.0)::float8 as amount,
+			COALESCE(c.name, 'Internal') as counterparty,
+			t.comment
+			FROM transactions t
+			LEFT JOIN payments p ON t.id = p.transaction_id
+			LEFT JOIN counterparty c ON p.counterparty_id = c.id
+			WHERE t.tenant_id = @tenant_id
+			AND (p.id IS NULL OR p.tenant_id = @tenant_id)
+			AND (c.id IS NULL OR c.tenant_id = @tenant_id)
+			ORDER BY t.transaction_date DESC, t.created_at DESC
+			LIMIT 20`, tenantID),
+	).Build()
 }
 
-func (c *DashboardController) Key() string {
-	return "/"
+func (c *DashboardController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.dashboard", 0, application.Route("", "/", navRouteOptions(c.navPermissions)...)).
+		WithNav(application.NavNode{
+			ID:         "core.dashboard",
+			TitleKey:   "NavigationLinks.Dashboard",
+			Path:       "/",
+			Icon:       icons.Gauge(icons.Props{Size: "20"}),
+			Order:      10,
+			Visibility: navAuthPolicy(c.navPermissions),
+		})
 }
 
 func (c *DashboardController) Register(r *mux.Router) {
-	router := r.Methods(http.MethodGet).Subrouter()
+	lensreact.NewStaticController().Register(r)
+	router := r.NewRoute().Subrouter()
 	router.Use(
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
-	router.HandleFunc("/", c.Get)
+	router.HandleFunc("/", c.Get).Methods(http.MethodGet)
+	router.HandleFunc(dashboardLensBasePath+"/document", c.Document).Methods(http.MethodGet)
+	router.HandleFunc(dashboardLensBasePath+"/lens/query", c.Query).Methods(http.MethodPost)
+	router.HandleFunc(dashboardLensBasePath+"/export", c.Export).Methods(http.MethodGet)
 }
 
 func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
-	dash := c.createFinanceDashboard()
-
-	var results *lens.Results
-	if c.ds != nil {
-		err := composables.InTx(r.Context(), func(txCtx context.Context) error {
-			ctx, cancel := context.WithTimeout(txCtx, 30*time.Second)
-			defer cancel()
-			results = lens.Execute(ctx, c.ds, dash)
-			return nil
-		})
-		if err != nil {
-			log.Printf("Dashboard transaction failed: %v", err)
-		}
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		log.Printf("Dashboard tenant lookup failed: %v", err)
+		http.Error(w, "tenant not found", http.StatusBadRequest)
+		return
 	}
+	dash := c.createFinanceDashboard(tenantID)
 
 	props := &dashboard.IndexPageProps{
-		Dashboard: dash,
-		Results:   results,
+		Dashboard:   dash,
+		DocumentURL: dashboardLensBasePath + "/document",
+		Available:   c.ds != nil,
 	}
 	templ.Handler(dashboard.Index(props)).ServeHTTP(w, r)
+}
+
+func (c *DashboardController) Document(w http.ResponseWriter, r *http.Request) {
+	handlers, err := c.lensHandlers(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	handlers.Document(w, r)
+}
+
+func (c *DashboardController) Query(w http.ResponseWriter, r *http.Request) {
+	handlers, err := c.lensHandlers(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	handlers.Query(w, r)
+}
+
+func (c *DashboardController) Export(w http.ResponseWriter, r *http.Request) {
+	handlers, err := c.lensHandlers(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	handlers.Export(w, r)
+}
+
+func (c *DashboardController) lensHandlers(r *http.Request) (*lensserve.Handlers, error) {
+	if c.ds == nil {
+		return nil, fmt.Errorf("dashboard data source is unavailable")
+	}
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		return nil, fmt.Errorf("dashboard tenant lookup: %w", err)
+	}
+	spec := c.createFinanceDashboard(tenantID)
+	return lensserve.New(lensserve.Config{
+		Spec:        spec,
+		Engine:      c.runtime,
+		Snapshots:   c.snapshots,
+		BasePath:    dashboardLensBasePath,
+		InlineDepth: 1,
+		Request: func(*http.Request) runtime.Request {
+			return runtime.Request{
+				DataSources:          map[string]datasource.DataSource{"primary": c.ds},
+				DataSourceIdentities: map[string]string{"primary": "core-postgres:v1"},
+				DataScope:            tenantID.String(),
+				Namespace:            "core.dashboard",
+			}
+		},
+	})
+}
+
+func queryDataset(name, text string, tenantID uuid.UUID) lens.DatasetSpec {
+	spec := lensbuild.QueryDataset(name, "primary", text)
+	if spec.Query != nil {
+		spec.Query.Params = map[string]lens.ParamValue{
+			"tenant_id": {Literal: tenantID},
+		}
+	}
+	return spec
 }

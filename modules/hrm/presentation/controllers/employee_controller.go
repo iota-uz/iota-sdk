@@ -30,21 +30,25 @@ import (
 )
 
 type EmployeeController struct {
-	app             application.Application
 	employeeService *services.EmployeeService
 	basePath        string
 }
 
-func NewEmployeeController(app application.Application) application.Controller {
+func NewEmployeeController(employeeService *services.EmployeeService) application.Controller {
 	return &EmployeeController{
-		app:             app,
-		employeeService: app.Service(services.EmployeeService{}).(*services.EmployeeService),
+		employeeService: employeeService,
 		basePath:        "/hrm/employees",
 	}
 }
 
-func (c *EmployeeController) Key() string {
-	return c.basePath
+func (c *EmployeeController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("hrm.employee", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "hrm.employee",
+			Parent:   "hrm",
+			TitleKey: "NavigationLinks.Employees",
+			Path:     c.basePath,
+		})
 }
 
 func (c *EmployeeController) Register(r *mux.Router) {
@@ -52,8 +56,7 @@ func (c *EmployeeController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

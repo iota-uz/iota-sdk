@@ -38,6 +38,10 @@ func NewKVStubWithStore(store KVStore) *KVStub {
 	return &KVStub{store: store}
 }
 
+func NewMemoryKVStore() KVStore {
+	return newMemoryKVStore()
+}
+
 func newMemoryKVStore() *memoryKVStore {
 	return &memoryKVStore{
 		store: make(map[string]map[string]any),

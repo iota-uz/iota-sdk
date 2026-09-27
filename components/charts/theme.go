@@ -1,6 +1,10 @@
 // Package charts provides this package.
 package charts
 
+import (
+	lenscolor "github.com/iota-uz/iota-sdk/pkg/lens/color"
+)
+
 // Common color constants used across charts
 const (
 	// Slate colors (text and borders)
@@ -40,15 +44,9 @@ const (
 	DonutSizeSmall    = "60%"
 )
 
-// DefaultChartColors returns the standard color palette used across charts
+// DefaultChartColors returns the standard color palette used across charts.
+// It delegates to the Lens categorical palette (pkg/lens/color) so the whole
+// SDK converges on one palette.
 func DefaultChartColors() []string {
-	return []string{
-		ColorBlue,
-		ColorGreen,
-		ColorOrange,
-		ColorRed,
-		ColorPurple,
-		ColorPink,
-		ColorCyan,
-	}
+	return lenscolor.Categorical(7)
 }

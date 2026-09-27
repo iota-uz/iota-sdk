@@ -12,7 +12,8 @@ import (
 	bichatservices "github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/spf13/cobra"
 )
 
@@ -22,14 +23,15 @@ type knowledgeBootstrapOptions struct {
 	IndexPath    string
 	MetadataDir  string
 	Rebuild      bool
+	// Resolved from config at the cobra RunE level.
+	BichatCfg *bichatconfig.Config
+	DBCfg     *dbconfig.Config
 }
 
 func runKnowledgeBootstrap(cmd *cobra.Command, opts knowledgeBootstrapOptions) error {
-	conf := configuration.Use()
-
 	knowledgeDir := strings.TrimSpace(opts.KnowledgeDir)
-	if knowledgeDir == "" {
-		knowledgeDir = strings.TrimSpace(conf.BiChatKnowledgeDir)
+	if knowledgeDir == "" && opts.BichatCfg != nil {
+		knowledgeDir = strings.TrimSpace(opts.BichatCfg.Knowledge.Dir)
 	}
 	if knowledgeDir == "" {
 		return fmt.Errorf("knowledge directory is required (--dir or BICHAT_KNOWLEDGE_DIR)")
@@ -45,19 +47,19 @@ func runKnowledgeBootstrap(cmd *cobra.Command, opts knowledgeBootstrapOptions) e
 	}
 
 	metadataDir := strings.TrimSpace(opts.MetadataDir)
-	if metadataDir == "" {
-		metadataDir = strings.TrimSpace(conf.BiChatSchemaMetadataDir)
+	if metadataDir == "" && opts.BichatCfg != nil {
+		metadataDir = strings.TrimSpace(opts.BichatCfg.Knowledge.SchemaMetadata)
 	}
 	if metadataDir == "" {
 		metadataDir = filepath.Join(knowledgeDir, "tables")
 	}
 
 	indexPath := strings.TrimSpace(opts.IndexPath)
-	if indexPath == "" {
-		indexPath = strings.TrimSpace(conf.BiChatKBIndexPath)
+	if indexPath == "" && opts.BichatCfg != nil {
+		indexPath = strings.TrimSpace(opts.BichatCfg.Knowledge.KBIndexPath)
 	}
 
-	pool, err := common.GetDefaultDatabasePool()
+	pool, err := common.GetDefaultDatabasePool(opts.DBCfg)
 	if err != nil {
 		return err
 	}

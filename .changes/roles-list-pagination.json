@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Paginate the roles list so roles past the first page are reachable."
+}

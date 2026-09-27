@@ -20,27 +20,41 @@ import (
 )
 
 type CashflowController struct {
-	app                    application.Application
 	financialReportService *services.FinancialReportService
 	moneyAccountService    *services.MoneyAccountService
 	queryRepo              query.FinancialReportsQueryRepository
 	basePath               string
 }
 
-func NewCashflowController(app application.Application) application.Controller {
+// NewCashflowController takes the query repository as a constructor
+// parameter so the composition container can swap it out. The previous
+// inline construction of query.NewPgFinancialReportsQueryRepository pulled
+// infrastructure into the presentation layer and blocked tests from
+// substituting a mock implementation.
+func NewCashflowController(
+	financialReportService *services.FinancialReportService,
+	moneyAccountService *services.MoneyAccountService,
+	queryRepo query.FinancialReportsQueryRepository,
+) application.Controller {
 	basePath := "/finance/reports"
 
 	return &CashflowController{
-		app:                    app,
-		financialReportService: app.Service(services.FinancialReportService{}).(*services.FinancialReportService),
-		moneyAccountService:    app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
-		queryRepo:              query.NewPgFinancialReportsQueryRepository(),
+		financialReportService: financialReportService,
+		moneyAccountService:    moneyAccountService,
+		queryRepo:              queryRepo,
 		basePath:               basePath,
 	}
 }
 
-func (c *CashflowController) Key() string {
-	return c.basePath + "/cashflow"
+func (c *CashflowController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.cashflow", 0, application.Route("", c.basePath+"/cashflow")).
+		WithNav(application.NavNode{
+			ID:       "finance.cashflow",
+			Parent:   "finance.reports",
+			TitleKey: "NavigationLinks.CashflowStatement",
+			Path:     c.basePath + "/cashflow",
+			Order:    20,
+		})
 }
 
 func (c *CashflowController) Register(r *mux.Router) {
@@ -48,8 +62,7 @@ func (c *CashflowController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

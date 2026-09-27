@@ -11,9 +11,20 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
+
+func newAccountController(suite *itf.Suite) application.Controller {
+	env := suite.Env()
+	userService := itf.GetService[services.UserService](env)
+	tenantService := itf.GetService[services.TenantService](env)
+	uploadService := itf.GetService[services.UploadService](env)
+	sessionService := itf.GetService[services.SessionService](env)
+	cookiesCfg := itf.GetService[cookies.Config](env)
+	return controllers.NewAccountController(env.App, userService, tenantService, uploadService, sessionService, cookiesCfg)
+}
 
 // ACCOUNT SESSION CONTROLLER TESTS
 // These tests validate session management from the user's account perspective
@@ -59,6 +70,22 @@ func persistTestUser(t *testing.T, env *itf.TestEnvironment) {
 	}
 }
 
+func persistWeakerSessionTarget(t *testing.T, env *itf.TestEnvironment) uint {
+	t.Helper()
+	targetID := env.User.ID() + 10_000
+	_, err := env.Pool.Exec(env.Ctx, `
+		INSERT INTO users (id, type, first_name, last_name, email, password, tenant_id, ui_language, created_at, updated_at)
+		VALUES ($1, 'user', 'Session', 'Target', $2, '', $3, 'en', NOW(), NOW())`,
+		targetID,
+		fmt.Sprintf("session-target-%d@example.com", targetID),
+		env.Tenant.ID,
+	)
+	if err != nil {
+		t.Fatalf("Failed to persist weaker session target: %v", err)
+	}
+	return targetID
+}
+
 func TestAccountController_GetSessions(t *testing.T) {
 	t.Parallel()
 
@@ -67,11 +94,11 @@ func TestAccountController_GetSessions(t *testing.T) {
 
 		// Create suite with authenticated user but no session cookie
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		// Request without session cookie
@@ -85,17 +112,17 @@ func TestAccountController_GetSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		// Persist test user to database (required for FK constraints)
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
-		config := configuration.Use()
+		cfg := itf.GetService[cookies.Config](suite.Env())
 		currentToken := "test-current-session-token"
 
 		// Create current session for the user
@@ -137,27 +164,27 @@ func TestAccountController_GetSessions(t *testing.T) {
 		}
 
 		response := suite.GET("/account/sessions").
-			Cookie(config.SidCookieKey, currentToken).
+			Cookie(cfg.SID, currentToken).
 			Expect(t)
 
 		response.Status(http.StatusOK)
-		// Should contain sessions list
+		response.Contains(fmt.Sprintf(`hx-delete="/account/sessions/%s"`, hashToken("other-token-1")))
 	})
 
 	t.Run("Correctly_Identifies_Current_Session_With_IsCurrent_Flag", func(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
-		config := configuration.Use()
+		cfg := itf.GetService[cookies.Config](suite.Env())
 		currentToken := "my-current-token"
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -188,7 +215,7 @@ func TestAccountController_GetSessions(t *testing.T) {
 		}
 
 		response := suite.GET("/account/sessions").
-			Cookie(config.SidCookieKey, currentToken).
+			Cookie(cfg.SID, currentToken).
 			Expect(t)
 
 		response.Status(http.StatusOK)
@@ -200,16 +227,16 @@ func TestAccountController_GetSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
-		config := configuration.Use()
+		cfg := itf.GetService[cookies.Config](suite.Env())
 		currentToken := "only-token"
 		sessionService := itf.GetService[services.SessionService](suite.Env())
 		ctx := suite.Env().Ctx
@@ -233,7 +260,7 @@ func TestAccountController_GetSessions(t *testing.T) {
 		}
 
 		response := suite.GET("/account/sessions").
-			Cookie(config.SidCookieKey, currentToken).
+			Cookie(cfg.SID, currentToken).
 			Expect(t)
 
 		response.Status(http.StatusOK)
@@ -248,11 +275,11 @@ func TestAccountController_RevokeSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		suite.DELETE("/account/sessions/dummy-token").
@@ -265,18 +292,18 @@ func TestAccountController_RevokeSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
 		ctx := suite.Env().Ctx
-		config := configuration.Use()
+		cfg := itf.GetService[cookies.Config](suite.Env())
 
 		// Create current session with known token
 		currentToken := "current-session-token-12345"
@@ -296,7 +323,7 @@ func TestAccountController_RevokeSession(t *testing.T) {
 
 		// Attempt to revoke current session
 		suite.DELETE(fmt.Sprintf("/account/sessions/%s", tokenHash)).
-			Cookie(config.SidCookieKey, currentToken).
+			Cookie(cfg.SID, currentToken).
 			Assert(t).
 			ExpectStatus(http.StatusForbidden)
 	})
@@ -305,18 +332,18 @@ func TestAccountController_RevokeSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
 		ctx := suite.Env().Ctx
-		config := configuration.Use()
+		cfg := itf.GetService[cookies.Config](suite.Env())
 
 		// Create current session
 		currentToken := "current-session-token"
@@ -349,7 +376,7 @@ func TestAccountController_RevokeSession(t *testing.T) {
 
 		// Revoke the other session (with current session cookie)
 		suite.DELETE(fmt.Sprintf("/account/sessions/%s", otherTokenHash)).
-			Cookie(config.SidCookieKey, currentToken).
+			Cookie(cfg.SID, currentToken).
 			Assert(t).
 			ExpectStatus(http.StatusOK)
 
@@ -364,16 +391,16 @@ func TestAccountController_RevokeSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
-		config := configuration.Use()
+		cfg := itf.GetService[cookies.Config](suite.Env())
 		sessionService := itf.GetService[services.SessionService](suite.Env())
 		ctx := suite.Env().Ctx
 
@@ -393,7 +420,7 @@ func TestAccountController_RevokeSession(t *testing.T) {
 		nonExistentHash := hashToken("non-existent-token")
 
 		suite.DELETE(fmt.Sprintf("/account/sessions/%s", nonExistentHash)).
-			Cookie(config.SidCookieKey, currentToken).
+			Cookie(cfg.SID, currentToken).
 			Assert(t).
 			ExpectStatus(http.StatusNotFound).
 			ExpectBodyContains("not found")
@@ -407,11 +434,11 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		suite.DELETE("/account/sessions/others").
@@ -424,18 +451,18 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
 		ctx := suite.Env().Ctx
-		config := configuration.Use()
+		cfg := itf.GetService[cookies.Config](suite.Env())
 
 		// Create current session
 		currentToken := "current-active-token"
@@ -466,7 +493,7 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 
 		// Revoke all other sessions
 		suite.DELETE("/account/sessions/others").
-			Cookie(config.SidCookieKey, currentToken).
+			Cookie(cfg.SID, currentToken).
 			Assert(t).
 			ExpectStatus(http.StatusOK)
 
@@ -491,18 +518,18 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser().
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewAccountController(suite.Env().App)
+		controller := newAccountController(suite)
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
 		ctx := suite.Env().Ctx
-		config := configuration.Use()
+		cfg := itf.GetService[cookies.Config](suite.Env())
 
 		// Delete all existing sessions first
 		_, err := sessionService.DeleteByUserID(ctx, suite.Env().User.ID())
@@ -524,7 +551,7 @@ func TestAccountController_RevokeAllOtherSessions(t *testing.T) {
 		}
 
 		response := suite.DELETE("/account/sessions/others").
-			Cookie(config.SidCookieKey, currentToken).
+			Cookie(cfg.SID, currentToken).
 			Expect(t)
 
 		response.Status(http.StatusOK)
@@ -543,11 +570,11 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 
 		// User without SessionDelete permission
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead). // Only read permission
 			Build()
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions", itf.GetService[cookies.Config](suite.Env()))
 		suite.Register(controller)
 
 		suite.DELETE("/sessions/dummy-token").
@@ -559,13 +586,14 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionDelete, permissions.SessionRead).
 			Build()
 
-		persistTestUser(t, suite.Env())
+		persistAdministrativeTestActor(t, suite, permissions.SessionDelete, permissions.SessionRead)
+		targetID := persistWeakerSessionTarget(t, suite.Env())
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions", itf.GetService[cookies.Config](suite.Env()))
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -574,7 +602,7 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 		// Create a session to revoke
 		testToken := "admin-revoke-test-token"
 		err := sessionService.Create(ctx, &session.CreateDTO{
-			UserID:    suite.Env().User.ID(),
+			UserID:    targetID,
 			TenantID:  suite.Env().Tenant.ID,
 			IP:        "10.10.10.10",
 			UserAgent: "test-browser",
@@ -600,11 +628,11 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionDelete, permissions.SessionRead).
 			Build()
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions", itf.GetService[cookies.Config](suite.Env()))
 		suite.Register(controller)
 
 		nonExistentToken := "non-existent-session-token"
@@ -622,11 +650,11 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(). // No permissions
 			Build()
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions", itf.GetService[cookies.Config](suite.Env()))
 		suite.Register(controller)
 
 		suite.GET("/sessions").
@@ -638,13 +666,13 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead).
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions", itf.GetService[cookies.Config](suite.Env()))
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -674,13 +702,13 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead, permissions.UserRead).
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions", itf.GetService[cookies.Config](suite.Env()))
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -713,13 +741,13 @@ func TestSessionController_GetAllSessions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead).
 			Build()
 
 		persistTestUser(t, suite.Env())
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions", itf.GetService[cookies.Config](suite.Env()))
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -770,11 +798,11 @@ func TestSessionController_Permissions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionRead). // Only read permission
 			Build()
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions", itf.GetService[cookies.Config](suite.Env()))
 		suite.Register(controller)
 
 		// Can view sessions
@@ -792,13 +820,14 @@ func TestSessionController_Permissions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(permissions.SessionDelete).
 			Build()
 
-		persistTestUser(t, suite.Env())
+		persistAdministrativeTestActor(t, suite, permissions.SessionDelete)
+		targetID := persistWeakerSessionTarget(t, suite.Env())
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions", itf.GetService[cookies.Config](suite.Env()))
 		suite.Register(controller)
 
 		sessionService := itf.GetService[services.SessionService](suite.Env())
@@ -807,7 +836,7 @@ func TestSessionController_Permissions(t *testing.T) {
 		// Create a session to revoke
 		testToken := "delete-perm-test-token"
 		err := sessionService.Create(ctx, &session.CreateDTO{
-			UserID:    suite.Env().User.ID(),
+			UserID:    targetID,
 			TenantID:  suite.Env().Tenant.ID,
 			IP:        "172.30.0.1",
 			UserAgent: "delete-test-agent",
@@ -827,11 +856,11 @@ func TestSessionController_Permissions(t *testing.T) {
 		t.Parallel()
 
 		suite := itf.NewSuiteBuilder(t).
-			WithModules(modules.BuiltInModules...).
+			WithComponents(modules.Components()...).
 			AsUser(). // No permissions
 			Build()
 
-		controller := controllers.NewSessionController(suite.Env().App, "/sessions")
+		controller := controllers.NewSessionController("/sessions", itf.GetService[cookies.Config](suite.Env()))
 		suite.Register(controller)
 
 		// Cannot view sessions

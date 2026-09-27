@@ -1,0 +1,44 @@
+// Package hrm provides this package.
+package hrm
+
+import (
+	"embed"
+
+	"github.com/iota-uz/iota-sdk/modules/hrm/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/modules/hrm/services"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
+)
+
+//go:embed presentation/locales/*.toml
+var LocaleFiles embed.FS
+
+func NewComponent() composition.Component {
+	return &component{}
+}
+
+type component struct{}
+
+func (c *component) Descriptor() composition.Descriptor {
+	return composition.Descriptor{
+		Name:     "hrm",
+		Requires: []string{"core"},
+	}
+}
+
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&LocaleFiles}
+}
+
+func (c *component) Build(builder *composition.Builder) error {
+	composition.AddNavNodes(builder, HRMNavNode)
+	composition.ProvideFunc(builder, persistence.NewPositionRepository)
+	composition.ProvideFunc(builder, persistence.NewEmployeeRepository)
+	composition.ProvideFunc(builder, services.NewPositionService)
+	composition.ProvideFunc(builder, services.NewEmployeeService)
+
+	if builder.Context().HasCapability(composition.CapabilityAPI) {
+		composition.ContributeControllersFunc(builder, controllers.NewEmployeeController)
+	}
+	return nil
+}

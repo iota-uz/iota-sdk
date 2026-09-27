@@ -17,8 +17,8 @@ type WebSocketController struct {
 	app application.Application
 }
 
-func (c *WebSocketController) Key() string {
-	return "/ws"
+func (c *WebSocketController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.websocket", 0, application.Prefix("/ws"))
 }
 
 func (c *WebSocketController) Register(r *mux.Router) {

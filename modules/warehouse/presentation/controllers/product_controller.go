@@ -12,6 +12,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/products"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
@@ -27,7 +28,6 @@ import (
 )
 
 type ProductsController struct {
-	app             application.Application
 	productService  *productservice.ProductService
 	positionService *positionservice.PositionService
 	basePath        string
@@ -38,17 +38,31 @@ type PaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewProductsController(app application.Application) application.Controller {
+func NewProductsController(
+	productService *productservice.ProductService,
+	positionService *positionservice.PositionService,
+) application.Controller {
 	return &ProductsController{
-		app:             app,
-		productService:  app.Service(productservice.ProductService{}).(*productservice.ProductService),
-		positionService: app.Service(positionservice.PositionService{}).(*positionservice.PositionService),
+		productService:  productService,
+		positionService: positionService,
 		basePath:        "/warehouse/products",
 	}
 }
 
-func (c *ProductsController) Key() string {
-	return c.basePath
+func (c *ProductsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("warehouse.product", 0, application.Route("", c.basePath, application.RequireAll(permissions.ProductRead))).
+		WithNav(application.NavNode{
+			ID:       "warehouse.product",
+			Parent:   "warehouse",
+			TitleKey: "NavigationLinks.Products",
+			Path:     c.basePath,
+			Order:    10,
+			Actions: []application.NavAction{{
+				ID:       "warehouse.product.new",
+				TitleKey: "Products.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *ProductsController) Register(r *mux.Router) {
@@ -56,8 +70,7 @@ func (c *ProductsController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

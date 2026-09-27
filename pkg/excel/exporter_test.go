@@ -92,6 +92,189 @@ func TestExcelExporter_Export(t *testing.T) {
 	}
 }
 
+func TestExcelExporter_ExportToWriter(t *testing.T) {
+	headers := []string{"ID", "Name", "Premium", "Created"}
+	now := time.Now()
+	rows := [][]interface{}{
+		{1, "John Doe", 1234.50, now},
+		{2, "Jane Smith", 9999.99, now.Add(24 * time.Hour)},
+	}
+
+	ds := NewMockDataSource(headers, rows)
+	exporter := excel.NewExcelExporter(nil, nil)
+
+	var buf bytes.Buffer
+	require.NoError(t, exporter.ExportToWriter(context.Background(), &buf, ds))
+	assert.NotEmpty(t, buf.Bytes())
+
+	f, err := excelize.OpenReader(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+
+	assert.Equal(t, "TestSheet", f.GetSheetName(0))
+
+	// Headers preserved.
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		value, err := f.GetCellValue("TestSheet", cell)
+		require.NoError(t, err)
+		assert.Equal(t, header, value)
+	}
+
+	// Money column stays a real number, not text (regression guard): a numeric
+	// cell with the 0.00 format renders "1234.50"; a text cell would render the
+	// raw "1234.5". Also assert it is not stored as a string-typed cell.
+	premiumCell, _ := excelize.CoordinatesToCellName(3, 2)
+	value, err := f.GetCellValue("TestSheet", premiumCell)
+	require.NoError(t, err)
+	assert.Equal(t, "1234.50", value)
+
+	cellType, err := f.GetCellType("TestSheet", premiumCell)
+	require.NoError(t, err)
+	assert.NotEqual(t, excelize.CellTypeSharedString, cellType)
+	assert.NotEqual(t, excelize.CellTypeInlineString, cellType)
+}
+
+func TestExcelExporter_BufferedPreservesNumericFormatWithDataStyles(t *testing.T) {
+	// This would be falsely green if equal row styles received distinct composed style IDs.
+	ds := NewMockDataSource([]string{"Amount"}, [][]interface{}{{1234.5}, {2.5}, {3.5}, {4.5}})
+	exporter := excel.NewExcelExporter(nil, nil)
+
+	data, err := exporter.Export(context.Background(), ds)
+	require.NoError(t, err)
+
+	f, err := excelize.OpenReader(bytes.NewReader(data))
+	require.NoError(t, err)
+	value, err := f.GetCellValue("TestSheet", "A2")
+	require.NoError(t, err)
+	assert.Equal(t, "1234.50", value)
+	styleID, err := f.GetCellStyle("TestSheet", "A2")
+	require.NoError(t, err)
+	style, err := f.GetStyle(styleID)
+	require.NoError(t, err)
+	assert.Equal(t, 2, style.NumFmt)
+	assert.Contains(t, style.Fill.Color, "F5F5F5")
+
+	alternateStyleID, err := f.GetCellStyle("TestSheet", "A4")
+	require.NoError(t, err)
+	assert.Equal(t, styleID, alternateStyleID)
+	baseStyleID, err := f.GetCellStyle("TestSheet", "A3")
+	require.NoError(t, err)
+	repeatedBaseStyleID, err := f.GetCellStyle("TestSheet", "A5")
+	require.NoError(t, err)
+	assert.Equal(t, baseStyleID, repeatedBaseStyleID)
+}
+
+func TestExcelExporter_FloatNumberFormat(t *testing.T) {
+	opts := excel.DefaultOptions()
+	opts.FloatNumberFormat = "#,##0.00"
+	headers := []string{"Amount"}
+	rows := [][]interface{}{{1500.0}, {-200.0}}
+
+	assertWorkbook := func(t *testing.T, data []byte) {
+		t.Helper()
+		f, err := excelize.OpenReader(bytes.NewReader(data))
+		require.NoError(t, err)
+
+		for _, cell := range []string{"A2", "A3"} {
+			cellType, err := f.GetCellType("TestSheet", cell)
+			require.NoError(t, err)
+			assert.NotEqual(t, excelize.CellTypeSharedString, cellType)
+			assert.NotEqual(t, excelize.CellTypeInlineString, cellType)
+
+			styleID, err := f.GetCellStyle("TestSheet", cell)
+			require.NoError(t, err)
+			style, err := f.GetStyle(styleID)
+			require.NoError(t, err)
+			require.NotNil(t, style.CustomNumFmt)
+			assert.Equal(t, "#,##0.00", *style.CustomNumFmt)
+		}
+
+		require.NoError(t, f.SetCellFormula("TestSheet", "A4", "SUM(A2:A3)"))
+		total, err := f.CalcCellValue("TestSheet", "A4")
+		require.NoError(t, err)
+		assert.Equal(t, "1300", total)
+	}
+
+	t.Run("buffered", func(t *testing.T) {
+		exporter := excel.NewExcelExporter(opts, nil)
+		data, err := exporter.Export(context.Background(), NewMockDataSource(headers, rows))
+		require.NoError(t, err)
+		assertWorkbook(t, data)
+	})
+
+	t.Run("streaming", func(t *testing.T) {
+		exporter := excel.NewExcelExporter(opts, nil)
+		var buf bytes.Buffer
+		require.NoError(t, exporter.ExportToWriter(context.Background(), &buf, NewMockDataSource(headers, rows)))
+		assertWorkbook(t, buf.Bytes())
+	})
+}
+
+// TestExcelExporter_DecimalComma verifies that with DecimalComma enabled, both
+// Go floats and pgx numeric-decimal strings render with a comma decimal
+// separator (as text), while dates and non-numeric text are left untouched.
+func TestExcelExporter_DecimalComma(t *testing.T) {
+	headers := []string{"Float", "NumericText", "Date", "Label", "Int"}
+	// "14773814.00" mimics a pgx numeric column (arrives as text to avoid
+	// precision loss); "21.01.2026" mimics a TO_CHAR date; "COBALT, 01Q" a label.
+	rows := [][]interface{}{
+		{1234.50, "14773814.00", "21.01.2026", "COBALT, 01Q", 42},
+	}
+
+	opts := excel.DefaultOptions()
+	opts.DecimalComma = true
+
+	assertComma := func(t *testing.T, data []byte) {
+		t.Helper()
+		f, err := excelize.OpenReader(bytes.NewReader(data))
+		require.NoError(t, err)
+		cellAt := func(col int) string {
+			cell, _ := excelize.CoordinatesToCellName(col, 2)
+			v, err := f.GetCellValue("TestSheet", cell)
+			require.NoError(t, err)
+			return v
+		}
+		assert.Equal(t, "1234,50", cellAt(1), "Go float should use comma")
+		assert.Equal(t, "14773814,00", cellAt(2), "numeric-decimal text should use comma")
+		assert.Equal(t, "21.01.2026", cellAt(3), "dates must be left untouched")
+		assert.Equal(t, "COBALT, 01Q", cellAt(4), "labels must be left untouched")
+		assert.Equal(t, "42", cellAt(5), "integers unaffected")
+	}
+
+	t.Run("buffered", func(t *testing.T) {
+		exporter := excel.NewExcelExporter(opts, nil)
+		data, err := exporter.Export(context.Background(), NewMockDataSource(headers, rows))
+		require.NoError(t, err)
+		assertComma(t, data)
+	})
+
+	t.Run("streaming", func(t *testing.T) {
+		exporter := excel.NewExcelExporter(opts, nil)
+		var buf bytes.Buffer
+		require.NoError(t, exporter.ExportToWriter(context.Background(), &buf, NewMockDataSource(headers, rows)))
+		assertComma(t, buf.Bytes())
+	})
+}
+
+func TestExcelExporter_ExportToWriter_MaxRows(t *testing.T) {
+	headers := []string{"ID", "Name"}
+	rows := [][]interface{}{{1, "A"}, {2, "B"}, {3, "C"}, {4, "D"}}
+
+	ds := NewMockDataSource(headers, rows)
+	exporter := excel.NewExcelExporter(&excel.ExportOptions{IncludeHeaders: true, MaxRows: 2}, nil)
+
+	var buf bytes.Buffer
+	require.NoError(t, exporter.ExportToWriter(context.Background(), &buf, ds))
+
+	f, err := excelize.OpenReader(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+
+	// 1 header + 2 data rows; row 4 must be empty.
+	v, err := f.GetCellValue("TestSheet", "A4")
+	require.NoError(t, err)
+	assert.Empty(t, v)
+}
+
 func TestExcelExporter_WithOptions(t *testing.T) {
 	headers := []string{"ID", "Name"}
 	rows := [][]interface{}{

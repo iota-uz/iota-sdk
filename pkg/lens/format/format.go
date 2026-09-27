@@ -1,0 +1,441 @@
+// Package format defines Lens formatter specs and value formatting helpers.
+package format
+
+import (
+	"fmt"
+	"math"
+	"strconv"
+	"strings"
+	"time"
+
+	sdkmoney "github.com/iota-uz/iota-sdk/pkg/money"
+)
+
+type Kind string
+
+const (
+	KindMoney            Kind = "money"
+	KindAbbreviatedMoney Kind = "abbreviated_money"
+	KindInteger          Kind = "integer"
+	KindPercent          Kind = "percent"
+	KindDate             Kind = "date"
+	KindMonthLabel       Kind = "month_label"
+	KindDuration         Kind = "duration"
+	KindLocalizedString  Kind = "localized_string"
+)
+
+type Spec struct {
+	Name       string
+	Kind       Kind
+	Currency   string
+	Precision  int
+	Layout     string
+	Dictionary map[string]string
+}
+
+type Formatter interface {
+	Format(value any, locale, timezone string) string
+}
+
+func MoneyCompact(currency string) Spec {
+	return Spec{Name: "money_compact", Kind: KindAbbreviatedMoney, Currency: currency, Precision: 2}
+}
+
+// NumberCompact abbreviates like MoneyCompact but without a currency suffix —
+// for dense table columns where repeating the currency on every cell is noise
+// and the surrounding panel already states it.
+func NumberCompact() Spec {
+	return Spec{Name: "number_compact", Kind: KindAbbreviatedMoney, Precision: 2}
+}
+
+func Money(currency string, precision int) Spec {
+	return Spec{Name: "money", Kind: KindMoney, Currency: currency, Precision: precision}
+}
+
+func Count() Spec {
+	return Spec{Name: "count", Kind: KindInteger}
+}
+
+func Percent(precision int) Spec {
+	return Spec{Name: "percent", Kind: KindPercent, Precision: precision}
+}
+
+func Date(layout string) Spec {
+	return Spec{Name: "date", Kind: KindDate, Layout: layout}
+}
+
+func Apply(spec *Spec, value any, locale, timezone string) string {
+	if spec == nil {
+		return defaultFormat(value)
+	}
+	switch spec.Kind {
+	case KindMoney:
+		number, ok := coerceNumber(value)
+		if !ok {
+			return defaultFormat(value)
+		}
+		return formatMoney(number, spec.Currency, spec.Precision, locale)
+	case KindAbbreviatedMoney:
+		number, ok := coerceNumber(value)
+		if !ok {
+			return defaultFormat(value)
+		}
+		if spec.Currency == "" {
+			return abbreviate(number, spec.Precision, locale)
+		}
+		return fmt.Sprintf("%s %s", abbreviate(number, spec.Precision, locale), spec.Currency)
+	case KindInteger:
+		number, ok := coerceNumber(value)
+		if !ok {
+			return defaultFormat(value)
+		}
+		return fmt.Sprintf("%.0f", math.Round(number))
+	case KindPercent:
+		number, ok := coerceNumber(value)
+		if !ok {
+			return defaultFormat(value)
+		}
+		precision := spec.Precision
+		if precision < 0 {
+			precision = 0
+		}
+		return localizedFixed(number, precision, locale) + "%"
+	case KindDate:
+		layout := spec.Layout
+		if layout == "" {
+			layout = "2006-01-02"
+		}
+		timestamp, ok := coerceTime(value, timezone)
+		if !ok {
+			return defaultFormat(value)
+		}
+		return timestamp.Format(layout)
+	case KindMonthLabel:
+		timestamp, ok := coerceTime(value, timezone)
+		if !ok {
+			return defaultFormat(value)
+		}
+		return timestamp.Format("Jan 2006")
+	case KindDuration:
+		duration, ok := coerceDuration(value)
+		if !ok {
+			return defaultFormat(value)
+		}
+		return duration.String()
+	case KindLocalizedString:
+		if text, ok := value.(string); ok {
+			if localized, exists := spec.Dictionary[text]; exists {
+				return localized
+			}
+			return text
+		}
+		return defaultFormat(value)
+	default:
+		return defaultFormat(value)
+	}
+}
+
+func formatMoney(number float64, currency string, precision int, locale string) string {
+	if precision < 0 {
+		precision = 0
+	}
+	amount := scaleMoneyAmount(number, precision)
+	formatter := moneyFormatter(currency, precision, locale)
+	return formatter.Format(amount)
+}
+
+func scaleMoneyAmount(number float64, precision int) int64 {
+	scale := math.Pow10(precision)
+	return int64(math.Round(number * scale))
+}
+
+func moneyFormatter(currency string, precision int, locale string) *sdkmoney.Formatter {
+	decimal := "."
+	thousand := moneyThousandSeparator(locale)
+	grapheme := strings.TrimSpace(currency)
+	template := "1 $"
+	if grapheme == "" {
+		grapheme = "—"
+	}
+	if definition := sdkmoney.GetCurrency(currency); definition != nil {
+		if definition.Decimal != "" {
+			decimal = definition.Decimal
+		}
+		if definition.Grapheme != "" {
+			grapheme = definition.Grapheme
+		}
+	}
+	return sdkmoney.NewFormatter(precision, decimal, thousand, grapheme, template)
+}
+
+func moneyThousandSeparator(locale string) string {
+	normalized := strings.ToLower(strings.TrimSpace(locale))
+	switch {
+	case strings.HasPrefix(normalized, "en"):
+		return ","
+	default:
+		return " "
+	}
+}
+
+func defaultFormat(value any) string {
+	if value == nil {
+		return ""
+	}
+	switch v := value.(type) {
+	case time.Time:
+		return v.Format("2006-01-02")
+	case *time.Time:
+		if v == nil {
+			return ""
+		}
+		return v.Format("2006-01-02")
+	case float64:
+		return fmt.Sprintf("%.2f", v)
+	case float32:
+		return fmt.Sprintf("%.2f", v)
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+// abbreviateSuffixes is one locale's compact-number suffix set (thousand,
+// million, billion, trillion) plus whether a space separates the number from
+// the suffix. English keeps the tight "12.50K" convention; the other
+// supported locales spell the magnitude as a word and space it out.
+type abbreviateSuffixes struct {
+	Thousand string
+	Million  string
+	Billion  string
+	Trillion string
+	Spaced   bool
+}
+
+var (
+	abbreviateSuffixesEn = abbreviateSuffixes{Thousand: "K", Million: "M", Billion: "B", Trillion: "T"}
+	abbreviateSuffixesRu = abbreviateSuffixes{Thousand: "тыс", Million: "млн", Billion: "млрд", Trillion: "трлн", Spaced: true}
+	abbreviateSuffixesUz = abbreviateSuffixes{Thousand: "ming", Million: "mln", Billion: "mlrd", Trillion: "trln", Spaced: true}
+	// abbreviateSuffixesUzCyrl is the Cyrillic Uzbek locale ("uz-Cyrl").
+	abbreviateSuffixesUzCyrl = abbreviateSuffixes{Thousand: "минг", Million: "млн", Billion: "млрд", Trillion: "трлн", Spaced: true}
+)
+
+// abbreviateSuffixesFor resolves a locale code to its compact-number suffix
+// set. Matching follows the moneyThousandSeparator convention: a
+// case-insensitive prefix match, with "uz-Cyrl" checked before the bare "uz"
+// prefix so the Cyrillic variant is not shadowed by the Latin one.
+func abbreviateSuffixesFor(locale string) abbreviateSuffixes {
+	normalized := strings.ToLower(strings.TrimSpace(locale))
+	switch {
+	case strings.HasPrefix(normalized, "ru"):
+		return abbreviateSuffixesRu
+	case strings.HasPrefix(normalized, "uz-cyrl"):
+		return abbreviateSuffixesUzCyrl
+	case strings.HasPrefix(normalized, "uz"):
+		return abbreviateSuffixesUz
+	default:
+		return abbreviateSuffixesEn
+	}
+}
+
+// abbreviationFloor is the magnitude below which compact formatting falls
+// back to the exact grouped integer: «12 500 UZS» reads better (and is more
+// honest) than «12.50 тыс UZS», while «106.03 млрд» stays compact.
+const abbreviationFloor = 100_000
+
+func abbreviate(value float64, precision int, locale string) string {
+	suffixes := abbreviateSuffixesFor(locale)
+	abs := math.Abs(value)
+	switch {
+	case abs >= 1_000_000_000_000:
+		return formatAbbreviated(value/1_000_000_000_000, precision, suffixes.Trillion, suffixes.Spaced, locale)
+	case abs >= 1_000_000_000:
+		return formatAbbreviated(value/1_000_000_000, precision, suffixes.Billion, suffixes.Spaced, locale)
+	case abs >= 1_000_000:
+		return formatAbbreviated(value/1_000_000, precision, suffixes.Million, suffixes.Spaced, locale)
+	case abs >= abbreviationFloor:
+		return formatAbbreviated(value/1_000, precision, suffixes.Thousand, suffixes.Spaced, locale)
+	default:
+		return groupedInteger(value, locale)
+	}
+}
+
+// groupedInteger renders the value rounded to a whole unit with the locale's
+// thousand separator and no fraction: 66064767693.59 → "66 064 767 694".
+func groupedInteger(value float64, locale string) string {
+	rounded := int64(math.Round(value))
+	negative := rounded < 0
+	if negative {
+		rounded = -rounded
+	}
+	digits := strconv.FormatInt(rounded, 10)
+	separator := moneyThousandSeparator(locale)
+	var b strings.Builder
+	if negative {
+		b.WriteByte('-')
+	}
+	for i, r := range digits {
+		if i > 0 && (len(digits)-i)%3 == 0 {
+			b.WriteString(separator)
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// MoneyExact renders the full-precision grouped value with the ISO currency
+// code suffix («66 064 767 694 UZS») — the exact companion to MoneyCompact,
+// for tooltips/captions that must preserve the un-abbreviated amount.
+func MoneyExact(value float64, currency, locale string) string {
+	text := groupedInteger(value, locale)
+	code := strings.TrimSpace(currency)
+	if code == "" {
+		return text
+	}
+	return text + " " + code
+}
+
+func formatAbbreviated(scaled float64, precision int, suffix string, spaced bool, locale string) string {
+	number := localizedFixed(scaled, precision, locale)
+	if spaced {
+		return number + " " + suffix
+	}
+	return number + suffix
+}
+
+func localizedFixed(value float64, precision int, locale string) string {
+	formatted := fmt.Sprintf("%.*f", precision, value)
+	normalized := strings.ToLower(strings.TrimSpace(locale))
+	if strings.HasPrefix(normalized, "ru") || strings.HasPrefix(normalized, "uz") {
+		return strings.Replace(formatted, ".", ",", 1)
+	}
+	return formatted
+}
+
+func coerceNumber(value any) (float64, bool) {
+	switch v := value.(type) {
+	case float64:
+		return v, true
+	case float32:
+		return float64(v), true
+	case int:
+		return float64(v), true
+	case int8:
+		return float64(v), true
+	case int16:
+		return float64(v), true
+	case int32:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	case uint:
+		return float64(v), true
+	case uint8:
+		return float64(v), true
+	case uint16:
+		return float64(v), true
+	case uint32:
+		return float64(v), true
+	case uint64:
+		return float64(v), true
+	case string:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		if err == nil {
+			return parsed, true
+		}
+		return 0, false
+	default:
+		return 0, false
+	}
+}
+
+func coerceTime(value any, timezone string) (time.Time, bool) {
+	switch v := value.(type) {
+	case time.Time:
+		return applyTimezone(v, timezone), true
+	case *time.Time:
+		if v == nil {
+			return time.Time{}, false
+		}
+		return applyTimezone(*v, timezone), true
+	case string:
+		trimmed := strings.TrimSpace(v)
+		if parsed, err := time.Parse(time.RFC3339, trimmed); err == nil {
+			return applyTimezone(parsed, timezone), true
+		}
+		for _, layout := range []string{"2006-01-02", "2006-01-02 15:04:05"} {
+			parsed, err := parseTimeInLocation(layout, trimmed, timezone)
+			if err == nil {
+				return applyTimezone(parsed, timezone), true
+			}
+		}
+		return time.Time{}, false
+	default:
+		return time.Time{}, false
+	}
+}
+
+func coerceDuration(value any) (time.Duration, bool) {
+	switch v := value.(type) {
+	case time.Duration:
+		return v, true
+	case int8:
+		return time.Duration(v) * time.Second, true
+	case int16:
+		return time.Duration(v) * time.Second, true
+	case int:
+		return time.Duration(v) * time.Second, true
+	case int32:
+		return time.Duration(v) * time.Second, true
+	case int64:
+		return time.Duration(v) * time.Second, true
+	case uint:
+		return time.Duration(v) * time.Second, true
+	case uint8:
+		return time.Duration(v) * time.Second, true
+	case uint16:
+		return time.Duration(v) * time.Second, true
+	case uint32:
+		return time.Duration(v) * time.Second, true
+	case uint64:
+		return time.Duration(v) * time.Second, true
+	case uintptr:
+		return time.Duration(v) * time.Second, true
+	case float32:
+		return time.Duration(float64(v) * float64(time.Second)), true
+	case float64:
+		return time.Duration(v * float64(time.Second)), true
+	case string:
+		trimmed := strings.TrimSpace(v)
+		if duration, err := time.ParseDuration(trimmed); err == nil {
+			return duration, true
+		}
+		if seconds, err := strconv.ParseFloat(trimmed, 64); err == nil {
+			return time.Duration(seconds * float64(time.Second)), true
+		}
+		return 0, false
+	default:
+		return 0, false
+	}
+}
+
+func applyTimezone(value time.Time, timezone string) time.Time {
+	if timezone == "" {
+		return value
+	}
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		return value
+	}
+	return value.In(location)
+}
+
+func parseTimeInLocation(layout, value, timezone string) (time.Time, error) {
+	if timezone == "" {
+		return time.Parse(layout, value)
+	}
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		return time.Parse(layout, value)
+	}
+	return time.ParseInLocation(layout, value, location)
+}

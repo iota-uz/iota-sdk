@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/groups"
@@ -21,7 +22,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -32,28 +32,18 @@ import (
 )
 
 type GroupRealtimeUpdates struct {
-	app          application.Application
-	groupService *services.GroupService
-	basePath     string
+	app    application.Application
+	logger *logrus.Logger
 }
 
-func NewGroupRealtimeUpdates(app application.Application, groupService *services.GroupService, basePath string) *GroupRealtimeUpdates {
+func NewGroupRealtimeUpdates(app application.Application, logger *logrus.Logger) *GroupRealtimeUpdates {
 	return &GroupRealtimeUpdates{
-		app:          app,
-		groupService: groupService,
-		basePath:     basePath,
+		app:    app,
+		logger: logger,
 	}
 }
 
-func (ru *GroupRealtimeUpdates) Register() {
-	ru.app.EventPublisher().Subscribe(ru.onGroupCreated)
-	ru.app.EventPublisher().Subscribe(ru.onGroupUpdated)
-	ru.app.EventPublisher().Subscribe(ru.onGroupDeleted)
-}
-
-func (ru *GroupRealtimeUpdates) onGroupCreated(event *group.CreatedEvent) {
-	logger := configuration.Use().Logger()
-
+func (ru *GroupRealtimeUpdates) OnGroupCreated(event *group.CreatedEvent) {
 	updatedGroup := event.Group
 	component := groups.GroupCreatedEvent(mappers.GroupToViewModel(updatedGroup), &base.TableRowProps{
 		Attrs: templ.Attributes{},
@@ -62,23 +52,21 @@ func (ru *GroupRealtimeUpdates) onGroupCreated(event *group.CreatedEvent) {
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
-			logger.WithError(err).Error("failed to render group created event for websocket")
+			ru.logger.WithError(err).Error("failed to render group created event for websocket")
 			return nil // Continue processing other connections
 		}
 		if err := conn.SendMessage(buf.Bytes()); err != nil {
-			logger.WithError(err).Error("failed to send group created event to websocket connection")
+			ru.logger.WithError(err).Error("failed to send group created event to websocket connection")
 			return nil // Continue processing other connections
 		}
 		return nil
 	}); err != nil {
-		logger.WithError(err).Error("failed to broadcast group created event to websocket")
+		ru.logger.WithError(err).Error("failed to broadcast group created event to websocket")
 		return
 	}
 }
 
-func (ru *GroupRealtimeUpdates) onGroupDeleted(event *group.DeletedEvent) {
-	logger := configuration.Use().Logger()
-
+func (ru *GroupRealtimeUpdates) OnGroupDeleted(event *group.DeletedEvent) {
 	component := groups.GroupRow(mappers.GroupToViewModel(event.Group), &base.TableRowProps{
 		Attrs: templ.Attributes{
 			"hx-swap-oob": "delete",
@@ -88,23 +76,21 @@ func (ru *GroupRealtimeUpdates) onGroupDeleted(event *group.DeletedEvent) {
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
-			logger.WithError(err).Error("failed to render group deleted event for websocket")
+			ru.logger.WithError(err).Error("failed to render group deleted event for websocket")
 			return nil // Continue processing other connections
 		}
 		if err := conn.SendMessage(buf.Bytes()); err != nil {
-			logger.WithError(err).Error("failed to send group deleted event to websocket connection")
+			ru.logger.WithError(err).Error("failed to send group deleted event to websocket connection")
 			return nil // Continue processing other connections
 		}
 		return nil
 	}); err != nil {
-		logger.WithError(err).Error("failed to broadcast group deleted event to websocket")
+		ru.logger.WithError(err).Error("failed to broadcast group deleted event to websocket")
 		return
 	}
 }
 
-func (ru *GroupRealtimeUpdates) onGroupUpdated(event *group.UpdatedEvent) {
-	logger := configuration.Use().Logger()
-
+func (ru *GroupRealtimeUpdates) OnGroupUpdated(event *group.UpdatedEvent) {
 	component := groups.GroupRow(mappers.GroupToViewModel(event.Group), &base.TableRowProps{
 		Attrs: templ.Attributes{},
 	})
@@ -112,16 +98,16 @@ func (ru *GroupRealtimeUpdates) onGroupUpdated(event *group.UpdatedEvent) {
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
-			logger.WithError(err).Error("failed to render group updated event for websocket")
+			ru.logger.WithError(err).Error("failed to render group updated event for websocket")
 			return nil // Continue processing other connections
 		}
 		if err := conn.SendMessage(buf.Bytes()); err != nil {
-			logger.WithError(err).Error("failed to send group updated event to websocket connection")
+			ru.logger.WithError(err).Error("failed to send group updated event to websocket connection")
 			return nil // Continue processing other connections
 		}
 		return nil
 	}); err != nil {
-		logger.WithError(err).Error("failed to broadcast group updated event to websocket")
+		ru.logger.WithError(err).Error("failed to broadcast group updated event to websocket")
 		return
 	}
 }
@@ -129,24 +115,28 @@ func (ru *GroupRealtimeUpdates) onGroupUpdated(event *group.UpdatedEvent) {
 type GroupsController struct {
 	app      application.Application
 	basePath string
-	realtime *GroupRealtimeUpdates
 }
 
 func NewGroupsController(app application.Application) application.Controller {
-	groupService := app.Service(services.GroupService{}).(*services.GroupService)
 	basePath := "/groups"
 
 	controller := &GroupsController{
 		app:      app,
 		basePath: basePath,
-		realtime: NewGroupRealtimeUpdates(app, groupService, basePath),
 	}
 
 	return controller
 }
 
-func (c *GroupsController) Key() string {
-	return c.basePath
+func (c *GroupsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.group", 0, application.Route("", c.basePath, application.RequireAll(permissions.GroupRead))).
+		WithNav(application.NavNode{
+			ID:       "core.groups",
+			Parent:   "core.administration",
+			TitleKey: "NavigationLinks.Groups",
+			Path:     c.basePath,
+			Order:    30,
+		})
 }
 
 func (c *GroupsController) Register(r *mux.Router) {
@@ -155,8 +145,7 @@ func (c *GroupsController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -167,8 +156,6 @@ func (c *GroupsController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[a-f0-9-]+}", di.H(c.Update)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[a-f0-9-]+}", di.H(c.Delete)).Methods(http.MethodDelete)
-
-	c.realtime.Register()
 }
 
 func (c *GroupsController) Groups(
@@ -176,7 +163,13 @@ func (c *GroupsController) Groups(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	groupQueryService *services.GroupQueryService,
+	groupService *services.GroupService,
+	policy *services.PrivilegeGrantPolicy,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.GroupRead); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
 	params := composables.UsePaginated(r)
 	search := r.URL.Query().Get("name")
 
@@ -224,6 +217,31 @@ func (c *GroupsController) Groups(
 		return
 	}
 
+	actor, err := composables.UseUser(r.Context())
+	if err != nil {
+		logger.WithError(err).Error("Error retrieving current user")
+		http.Error(w, "Error retrieving current user", http.StatusInternalServerError)
+		return
+	}
+	for _, groupViewModel := range groupViewModels {
+		groupID, parseErr := uuid.Parse(groupViewModel.ID)
+		if parseErr != nil {
+			groupViewModel.CanUpdate = false
+			groupViewModel.CanDelete = false
+			continue
+		}
+		groupEntity, loadErr := groupService.GetByID(r.Context(), groupID)
+		if loadErr != nil {
+			logger.WithField("groupID", groupViewModel.ID).WithError(loadErr).Warn("failed to evaluate group management actions")
+			groupViewModel.CanUpdate = false
+			groupViewModel.CanDelete = false
+			continue
+		}
+		canManage := policy.CanManageGroup(actor, groupEntity)
+		groupViewModel.CanUpdate = groupViewModel.CanUpdate && canManage
+		groupViewModel.CanDelete = groupViewModel.CanDelete && canManage
+	}
+
 	isHxRequest := htmx.IsHxRequest(r)
 
 	pageProps := &groups.IndexPageProps{
@@ -251,7 +269,13 @@ func (c *GroupsController) GetEdit(
 	logger *logrus.Entry,
 	groupQueryService *services.GroupQueryService,
 	roleService *services.RoleService,
+	groupService *services.GroupService,
+	policy *services.PrivilegeGrantPolicy,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.GroupRead); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
 	idStr := mux.Vars(r)["id"]
 
 	roles, err := roleService.GetAll(r.Context())
@@ -288,10 +312,30 @@ func (c *GroupsController) GetEdit(
 	}
 
 	groupViewModel := foundGroups[0]
+	groupID, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "Invalid group ID", http.StatusBadRequest)
+		return
+	}
+	groupEntity, err := groupService.GetByID(r.Context(), groupID)
+	if err != nil {
+		logger.WithError(err).Error("Error retrieving group authorization state")
+		http.Error(w, "Error retrieving group", http.StatusInternalServerError)
+		return
+	}
+	actor, err := composables.UseUser(r.Context())
+	if err != nil {
+		logger.WithError(err).Error("Error retrieving current user")
+		http.Error(w, "Error retrieving current user", http.StatusInternalServerError)
+		return
+	}
+	canManage := policy.CanManageGroup(actor, groupEntity)
+	groupViewModel.CanUpdate = groupViewModel.CanUpdate && canManage
+	groupViewModel.CanDelete = groupViewModel.CanDelete && canManage
 
 	props := &groups.EditFormProps{
 		Group:  groupViewModel,
-		Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		Roles:  mapping.MapViewModels(grantableRoles(r.Context(), roles), mappers.RoleToViewModel),
 		Errors: map[string]string{},
 	}
 
@@ -304,6 +348,10 @@ func (c *GroupsController) GetNew(
 	logger *logrus.Entry,
 	roleService *services.RoleService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.GroupCreate); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
 	roles, err := roleService.GetAll(r.Context())
 	if err != nil {
 		logger.Errorf("Error retrieving roles: %v", err)
@@ -313,7 +361,7 @@ func (c *GroupsController) GetNew(
 
 	props := &groups.CreateFormProps{
 		Group:  &groups.GroupFormData{},
-		Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		Roles:  mapping.MapViewModels(grantableRoles(r.Context(), roles), mappers.RoleToViewModel),
 		Errors: map[string]string{},
 	}
 	templ.Handler(groups.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -326,6 +374,10 @@ func (c *GroupsController) Create(
 	groupService *services.GroupService,
 	roleService *services.RoleService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.GroupCreate); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
 	dto, err := composables.UseForm(&dtos.CreateGroupDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -346,7 +398,7 @@ func (c *GroupsController) Create(
 				Description: dto.Description,
 				RoleIDs:     dto.RoleIDs,
 			},
-			Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Roles:  mapping.MapViewModels(grantableRoles(r.Context(), roles), mappers.RoleToViewModel),
 			Errors: errors,
 		}
 		templ.Handler(
@@ -370,20 +422,21 @@ func (c *GroupsController) Create(
 	}
 	groupEntity = groupEntity.SetTenantID(tenantID)
 
-	// Process role assignments
+	// Preserve every submitted ID so the service policy can reject an invalid
+	// selection atomically instead of silently accepting a partial request.
 	for _, roleIDStr := range dto.RoleIDs {
 		roleID, err := strconv.ParseUint(roleIDStr, 10, 64)
 		if err != nil {
-			continue
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
-		role, err := roleService.GetByID(r.Context(), uint(roleID))
-		if err != nil {
-			continue
-		}
-		groupEntity = groupEntity.AssignRole(role)
+		groupEntity = groupEntity.AssignRole(role.New("", role.WithID(uint(roleID))))
 	}
 
 	if _, err := groupService.Create(r.Context(), groupEntity); err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -404,6 +457,10 @@ func (c *GroupsController) Update(
 	groupService *services.GroupService,
 	roleService *services.RoleService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.GroupUpdate); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -435,7 +492,7 @@ func (c *GroupsController) Update(
 				Name:        dto.Name,
 				Description: dto.Description,
 			},
-			Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Roles:  mapping.MapViewModels(grantableRoles(r.Context(), roles), mappers.RoleToViewModel),
 			Errors: errors,
 		}
 
@@ -447,6 +504,7 @@ func (c *GroupsController) Update(
 	if err != nil {
 		logger.Errorf("Error retrieving group: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	roles := make([]role.Role, 0, len(dto.RoleIDs))
@@ -458,13 +516,7 @@ func (c *GroupsController) Update(
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		role, err := roleService.GetByID(r.Context(), uint(rUintID))
-		if err != nil {
-			logger.Errorf("Error getting role: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		roles = append(roles, role)
+		roles = append(roles, role.New("", role.WithID(uint(rUintID))))
 	}
 
 	groupEntity, err := dto.Apply(existingGroup, roles)
@@ -475,6 +527,9 @@ func (c *GroupsController) Update(
 	}
 
 	if _, err := groupService.Update(r.Context(), groupEntity); err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -490,6 +545,10 @@ func (c *GroupsController) Delete(
 	w http.ResponseWriter,
 	groupService *services.GroupService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.GroupDelete); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -498,6 +557,9 @@ func (c *GroupsController) Delete(
 	}
 
 	if err := groupService.Delete(r.Context(), id); err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

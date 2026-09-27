@@ -3,24 +3,25 @@ package controllers
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
-
+	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/login"
 )
 
@@ -49,6 +51,14 @@ type LoginControllerOptions struct {
 	// CustomizePostMiddlewares receives default middleware for /login POST route
 	// and returns the final chain.
 	CustomizePostMiddlewares MiddlewareChainCustomizer
+	// Renderer allows replacing the default SDK login page rendering while reusing controller logic.
+	Renderer LoginPageRenderer
+	// MethodProviders allows extending login with custom methods and routes.
+	MethodProviders []LoginMethodProvider
+	// IncludePasswordMethod controls whether the default password method is shown (defaults to true).
+	IncludePasswordMethod *bool
+	// IncludeGoogleMethod controls whether the default Google OAuth method is shown (defaults to true).
+	IncludeGoogleMethod *bool
 }
 
 func (e *LoginDTO) Ok(ctx context.Context) (map[string]string, bool) {
@@ -78,23 +88,49 @@ func (e *LoginDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func NewLoginController(app application.Application, opts ...*LoginControllerOptions) application.Controller {
+func NewLoginController(
+	authService *services.AuthService,
+	authFlowService *services.AuthFlowService,
+	httpCfg *httpconfig.Config,
+	cookiesCfg *cookies.Config,
+	headersCfg *headers.Config,
+	googleCfg *googleoauthconfig.Config,
+	opts ...*LoginControllerOptions,
+) application.Controller {
+	return NewLoginControllerWithBrowserSessions(
+		authService, authFlowService, nil, httpCfg, cookiesCfg, headersCfg, googleCfg, opts...,
+	)
+}
+
+func NewLoginControllerWithBrowserSessions(
+	authService *services.AuthService,
+	authFlowService *services.AuthFlowService,
+	browserSessions *services.BrowserSessionService,
+	httpCfg *httpconfig.Config,
+	cookiesCfg *cookies.Config,
+	headersCfg *headers.Config,
+	googleCfg *googleoauthconfig.Config,
+	opts ...*LoginControllerOptions,
+) application.Controller {
 	options := &LoginControllerOptions{}
 	if len(opts) > 0 && opts[0] != nil {
 		options = opts[0]
 	}
 	return &LoginController{
-		app:            app,
-		authService:    app.Service(services.AuthService{}).(*services.AuthService),
-		sessionService: app.Service(services.SessionService{}).(*services.SessionService),
-		userService:    app.Service(services.UserService{}).(*services.UserService),
-		options:        options,
+		authService:     authService,
+		authFlowService: authFlowService,
+		browserSessions: browserSessions,
+		httpCfg:         httpCfg,
+		cookiesCfg:      cookiesCfg,
+		headersCfg:      headersCfg,
+		googleCfg:       googleCfg,
+		options:         options,
 	}
 }
 
 // SetTwoFactorPolicy sets the 2FA policy for the controller.
 func (c *LoginController) SetTwoFactorPolicy(policy pkgtwofactor.TwoFactorPolicy) {
-	c.twoFactorPolicy = policy
+	c.authFlowService.SetTwoFactorPolicy(policy)
 }
 
 // SetTwoFactorService sets the 2FA service for the controller.
@@ -103,49 +139,71 @@ func (c *LoginController) SetTwoFactorService(service *twofactor.TwoFactorServic
 }
 
 type LoginController struct {
-	app              application.Application
 	authService      *services.AuthService
-	twoFactorPolicy  pkgtwofactor.TwoFactorPolicy
+	authFlowService  *services.AuthFlowService
+	browserSessions  *services.BrowserSessionService
 	twoFactorService *twofactor.TwoFactorService
-	sessionService   *services.SessionService
-	userService      *services.UserService
+	httpCfg          *httpconfig.Config
+	cookiesCfg       *cookies.Config
+	headersCfg       *headers.Config
+	googleCfg        *googleoauthconfig.Config
 	options          *LoginControllerOptions
 }
 
-func (c *LoginController) Key() string {
-	return "/login"
+func (c *LoginController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.login", 0, application.Route("", "/login"))
 }
 
 func (c *LoginController) Register(r *mux.Router) {
-	options := c.options
-	if options == nil {
-		options = &LoginControllerOptions{}
-	}
+	getRouter := r.PathPrefix("/").Subrouter()
+	getRouter.Use(c.GetMiddlewares()...)
+	getRouter.HandleFunc("/login", c.Get).Methods(http.MethodGet)
+	getRouter.HandleFunc("/oauth/google/callback", c.GoogleCallback).Methods(http.MethodGet)
 
-	getMiddlewares := []mux.MiddlewareFunc{
-		middleware.ProvideLocalizer(c.app),
+	postRouter := r.PathPrefix("/login").Subrouter()
+	postRouter.Use(c.PostMiddlewares()...)
+	postRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
+	postRouter.HandleFunc("/session", c.SelectSession).Methods(http.MethodPost)
+
+	for _, provider := range c.optionsOrDefault().MethodProviders {
+		if provider == nil {
+			continue
+		}
+		provider.RegisterRoutes(r, c)
+	}
+}
+
+// GetMiddlewares returns middleware used for login GET routes.
+func (c *LoginController) GetMiddlewares() []mux.MiddlewareFunc {
+	defaults := []mux.MiddlewareFunc{
 		middleware.WithPageContext(),
 	}
-	if options.CustomizeGetMiddlewares != nil {
-		getMiddlewares = options.CustomizeGetMiddlewares(append([]mux.MiddlewareFunc(nil), getMiddlewares...))
+	if c.optionsOrDefault().CustomizeGetMiddlewares != nil {
+		return c.optionsOrDefault().CustomizeGetMiddlewares(cloneMiddlewares(defaults))
 	}
+	return defaults
+}
 
-	getRouter := r.PathPrefix("/").Subrouter()
-	getRouter.Use(getMiddlewares...)
-	getRouter.HandleFunc("/login", c.Get).Methods(http.MethodGet)
-	getRouter.HandleFunc("/oauth/google/callback", c.GoogleCallback)
-
-	postMiddlewares := []mux.MiddlewareFunc{
-		middleware.ProvideLocalizer(c.app),
-		middleware.IPRateLimitPeriod(10, time.Minute), // 10 login attempts per minute per IP
+// PostMiddlewares returns middleware used for login POST routes.
+func (c *LoginController) PostMiddlewares() []mux.MiddlewareFunc {
+	defaults := []mux.MiddlewareFunc{
+		middleware.IPRateLimitPeriod(10, time.Minute, c.headersCfg), // 10 login attempts per minute per IP
 	}
-	if options.CustomizePostMiddlewares != nil {
-		postMiddlewares = options.CustomizePostMiddlewares(append([]mux.MiddlewareFunc(nil), postMiddlewares...))
+	if c.optionsOrDefault().CustomizePostMiddlewares != nil {
+		return c.optionsOrDefault().CustomizePostMiddlewares(cloneMiddlewares(defaults))
 	}
+	return defaults
+}
 
-	setRouter := r.PathPrefix("/login").Subrouter()
-	setRouter.Use(postMiddlewares...)
-	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
+func cloneMiddlewares(mws []mux.MiddlewareFunc) []mux.MiddlewareFunc {
+	return append([]mux.MiddlewareFunc(nil), mws...)
+}
+
+func (c *LoginController) optionsOrDefault() *LoginControllerOptions {
+	if c.options == nil {
+		return &LoginControllerOptions{}
+	}
+	return c.options
 }
 
 func (c *LoginController) runLoginAccessCheck(ctx context.Context, u coreuser.User) error {
@@ -158,8 +216,18 @@ func (c *LoginController) runLoginAccessCheck(ctx context.Context, u coreuser.Us
 func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	// Validate and sanitize the redirect URL to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+	savedNextURL, authRequestID := c.authService.OAuthContinuation(r)
+	if savedNextURL != "" {
+		nextURL = security.GetValidatedRedirect(savedNextURL)
+	}
+	if authRequestID != "" {
+		nextURL = fmt.Sprintf("/oidc/authorize/callback?id=%s", url.QueryEscape(authRequestID))
+	}
 	queryParams := url.Values{
 		"next": []string{nextURL},
+	}
+	if authRequestID != "" {
+		queryParams.Set("auth_request", authRequestID)
 	}
 	code := r.URL.Query().Get("code")
 	if code == "" {
@@ -173,8 +241,7 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
-	conf := configuration.Use()
-	oauthCookie, err := r.Cookie(conf.OauthStateCookieKey)
+	oauthCookie, err := r.Cookie(c.cookiesCfg.OAuthState)
 	if err != nil {
 		queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.OauthStateNotFound"))
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
@@ -186,8 +253,7 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Authenticate with Google OAuth (bypasses 2FA for OAuth method)
-	u, sess, err := c.authService.AuthenticateGoogle(r.Context(), code)
+	authResult, err := c.authFlowService.AuthenticateGoogle(r.Context(), code)
 	if err != nil {
 		if errors.Is(err, persistence.ErrUserNotFound) {
 			queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.UserNotFound"))
@@ -198,112 +264,30 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Run optional login gate before creating the session cookie.
-	if err := c.runLoginAccessCheck(r.Context(), u); err != nil {
-		shared.SetFlash(w, "error", []byte(err.Error()))
-		queryParams.Set("error", err.Error())
-		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+	loginRedirectURL := fmt.Sprintf("/login?%s", queryParams.Encode())
+	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
+		NextURL:            nextURL,
+		SessionCookieValue: sessionCookieValue(r, c.sidCookieName()),
+		AccessCheck:        c.runLoginAccessCheck,
+	})
+	if err != nil {
+		c.handleFinalizeError(w, r, loginRedirectURL, err)
 		return
 	}
 
-	// Evaluate 2FA requirement for OAuth authentication.
-	// By default, users with 2FA enabled must complete verification.
-	{
-		logger := composables.UseLogger(r.Context())
-		requires2FA := u.Has2FAEnabled()
+	c.applyFinalizeResult(w, r, finalizeResult)
+}
 
-		if c.twoFactorPolicy != nil {
-			// Build auth attempt for 2FA policy evaluation with OAuth method
-			ip, _ := composables.UseIP(r.Context())
-			userAgent, _ := composables.UseUserAgent(r.Context())
-
-			attempt := pkgtwofactor.AuthAttempt{
-				UserID:    userIDToNamespacedUUID(u.TenantID(), u.ID()),
-				Method:    pkgtwofactor.AuthMethodOAuth,
-				IPAddress: ip,
-				UserAgent: userAgent,
-				Timestamp: time.Now(),
-			}
-
-			// Policy can tighten/relax default requirement.
-			requires2FA, err = c.twoFactorPolicy.Requires(r.Context(), attempt)
-			if err != nil {
-				logger.Error("Failed to evaluate 2FA policy for OAuth", "error", err)
-				queryParams.Set("error", intl.MustT(r.Context(), "Errors.Internal"))
-				http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
-				return
-			}
-		}
-
-		if requires2FA {
-			// Create pending 2FA session with 10-minute TTL FIRST
-			pendingSession := session.New(
-				sess.Token(),
-				sess.UserID(),
-				sess.TenantID(),
-				sess.IP(),
-				sess.UserAgent(),
-				session.WithStatus(session.StatusPending2FA),
-				session.WithAudience(sess.Audience()),
-				session.WithExpiresAt(time.Now().Add(10*time.Minute)),
-				session.WithCreatedAt(sess.CreatedAt()),
-			)
-
-			// Update the session in the database
-			if err := c.sessionService.Update(r.Context(), pendingSession); err != nil {
-				logger.Error("Failed to update session to pending 2FA for OAuth", "error", err)
-				queryParams.Set("error", intl.MustT(r.Context(), "Errors.Internal"))
-				http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
-				return
-			}
-
-			// Create cookie using pending session's expiry (matches 10-min DB session)
-			sessionCookie := &http.Cookie{
-				Name:     conf.SidCookieKey,
-				Value:    pendingSession.Token(),
-				Expires:  pendingSession.ExpiresAt(),
-				HttpOnly: true,
-				SameSite: http.SameSiteLaxMode,
-				Secure:   conf.GoAppEnvironment == configuration.Production,
-				Domain:   conf.Domain,
-				Path:     "/",
-			}
-
-			// Set the session cookie
-			http.SetCookie(w, sessionCookie)
-
-			// Redirect to 2FA verification or setup based on user's 2FA status
-			// nextURL already validated at the beginning of the function
-			if u.Has2FAEnabled() {
-				// User has 2FA enabled, redirect to verification
-				http.Redirect(w, r, fmt.Sprintf("/login/2fa/verify?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
-			} else {
-				// User hasn't set up 2FA, redirect to setup
-				http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
-			}
+func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
+	authRequestID := r.URL.Query().Get("auth_request")
+	if authRequestID != "" && c.browserSessions != nil &&
+		c.browserSessions.ValidateAuthorizationRequest(r.Context(), authRequestID) == nil {
+		if active, err := c.browserSessions.Active(w, r); err == nil && active.Session.IsActive() {
+			http.Redirect(w, r, "/oidc/authorize/callback?id="+url.QueryEscape(authRequestID), http.StatusSeeOther)
 			return
 		}
 	}
 
-	// No 2FA required or policy not configured, create active session
-	sessionCookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
-		Value:    sess.Token(),
-		Expires:  sess.ExpiresAt(),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
-		Path:     "/",
-	}
-
-	http.SetCookie(w, sessionCookie)
-
-	// Use the validated redirect URL from earlier
-	http.Redirect(w, r, nextURL, http.StatusFound)
-}
-
-func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 	email := r.URL.Query().Get("email")
 	errorsMap, err := composables.UseFlashMap[string, string](w, r, "errorsMap")
 	if err != nil {
@@ -316,25 +300,225 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only get Google OAuth URL if Google OAuth is configured
-	conf := configuration.Use()
-	var codeURL string
-	if conf.Google.IsConfigured() {
-		codeURL, err = c.authService.GoogleAuthenticate(w)
-		if err != nil {
+	methods, err := c.buildLoginMethods(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	logoComponent, _ := composables.UseLogo(r.Context())
+	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+	authRequestInvalid := false
+	if authRequestID != "" && (c.browserSessions == nil || c.browserSessions.ValidateAuthorizationRequest(r.Context(), authRequestID) != nil) {
+		authRequestInvalid = true
+		errorMessage = []byte(intl.MustT(r.Context(), "Login.Errors.AuthorizationRequestInvalid"))
+	}
+	accounts, err := c.loginAccounts(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	selectionURL := fmt.Sprintf("/login/session?next=%s", url.QueryEscape(nextURL))
+	if authRequestID != "" {
+		selectionURL = fmt.Sprintf("/oidc/authorize/select?auth_request=%s", url.QueryEscape(authRequestID))
+	}
+
+	viewModel := LoginPageViewModel{
+		ErrorsMap:                   errorsMap,
+		Email:                       email,
+		ErrorMessage:                string(errorMessage),
+		Methods:                     methods,
+		Logo:                        logoComponent,
+		Accounts:                    accounts,
+		NextURL:                     nextURL,
+		AuthRequestID:               authRequestID,
+		SelectionURL:                selectionURL,
+		AuthorizationRequestInvalid: authRequestInvalid,
+	}
+
+	if renderer := c.optionsOrDefault().Renderer; renderer != nil {
+		if err := c.renderLoginComponent(w, r, renderer(r.Context(), viewModel)); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		}
+		return
+	}
+	if len(methods) == 0 {
+		http.Error(w, "no login methods configured", http.StatusInternalServerError)
+		return
+	}
+
+	if err := c.renderDefaultLogin(w, r, viewModel); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (c *LoginController) renderDefaultLogin(w http.ResponseWriter, r *http.Request, vm LoginPageViewModel) error {
+	return c.renderLoginComponent(w, r, login.Index(&login.LoginProps{
+		ErrorsMap:                   vm.ErrorsMap,
+		Email:                       vm.Email,
+		ErrorMessage:                vm.ErrorMessage,
+		Methods:                     toTemplateLoginMethods(vm.Methods),
+		Logo:                        vm.Logo,
+		Accounts:                    toTemplateLoginAccounts(vm.Accounts),
+		NextURL:                     vm.NextURL,
+		AuthRequestID:               vm.AuthRequestID,
+		SelectionURL:                vm.SelectionURL,
+		AuthorizationRequestInvalid: vm.AuthorizationRequestInvalid,
+	}))
+}
+
+func (c *LoginController) loginAccounts(w http.ResponseWriter, r *http.Request) ([]LoginAccount, error) {
+	if c.browserSessions == nil {
+		return nil, nil
+	}
+	resolved, err := c.browserSessions.Resolve(w, r)
+	if err != nil {
+		return nil, err
+	}
+	accounts := make([]LoginAccount, 0, len(resolved))
+	for _, browserSession := range resolved {
+		if !browserSession.Session.IsActive() {
+			continue
+		}
+		u := mappers.UserToViewModel(browserSession.User)
+		avatarURL := ""
+		if u.Avatar != nil {
+			avatarURL = u.Avatar.URL
+		}
+		accounts = append(accounts, LoginAccount{
+			SessionReference: browserSession.Reference(),
+			UserID:           browserSession.Session.UserID(),
+			TenantID:         browserSession.Session.TenantID().String(),
+			FullName:         u.Title(),
+			Email:            u.Email,
+			AvatarURL:        avatarURL,
+			Initials:         shared.GetInitials(u.FirstName, u.LastName),
+			Active:           browserSession.Active,
+		})
+	}
+	return accounts, nil
+}
+
+func toTemplateLoginAccounts(accounts []LoginAccount) []login.Account {
+	mapped := make([]login.Account, 0, len(accounts))
+	for _, account := range accounts {
+		mapped = append(mapped, login.Account{
+			SessionReference: account.SessionReference,
+			FullName:         account.FullName,
+			Email:            account.Email,
+			AvatarURL:        account.AvatarURL,
+			Initials:         account.Initials,
+			Active:           account.Active,
+		})
+	}
+	return mapped
+}
+
+func (c *LoginController) renderLoginComponent(w http.ResponseWriter, r *http.Request, component interface {
+	Render(context.Context, io.Writer) error
+}) error {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	return component.Render(r.Context(), w)
+}
+
+func toTemplateLoginMethods(methods []LoginMethod) []login.LoginMethod {
+	mapped := make([]login.LoginMethod, 0, len(methods))
+	for _, method := range methods {
+		mapped = append(mapped, login.LoginMethod{
+			ID:         method.ID,
+			Label:      method.Label,
+			Href:       method.Href,
+			Variant:    method.Variant,
+			Icon:       method.Icon,
+			Attributes: method.Attributes,
+		})
+	}
+	return mapped
+}
+
+func (c *LoginController) buildLoginMethods(w http.ResponseWriter, r *http.Request) ([]LoginMethod, error) {
+	methods := make([]LoginMethod, 0, len(c.optionsOrDefault().MethodProviders)+2)
+	seen := make(map[string]struct{}, len(c.optionsOrDefault().MethodProviders)+2)
+
+	if c.includePasswordMethod() {
+		method := LoginMethod{
+			ID:      "password",
+			Label:   intl.MustT(r.Context(), "Login.Login"),
+			Variant: "password",
+		}
+		methods = append(methods, method)
+		seen[method.ID] = struct{}{}
+	}
+
+	if c.includeGoogleMethod() && c.googleCfg.IsConfigured() {
+		codeURL, err := c.authService.GoogleAuthenticateFor(
+			w,
+			security.GetValidatedRedirect(r.URL.Query().Get("next")),
+			r.URL.Query().Get("auth_request"),
+		)
+		if err != nil {
+			composables.UseLogger(r.Context()).Error("failed to build google login method", "error", err)
+		} else {
+			method := LoginMethod{
+				ID:      "google",
+				Label:   intl.MustT(r.Context(), "Login.LoginWithGoogle"),
+				Href:    codeURL,
+				Variant: "oauth-google",
+				Icon:    login.GoogleIcon(),
+			}
+			methods = append(methods, method)
+			seen[method.ID] = struct{}{}
 		}
 	}
 
-	if err := login.Index(&login.LoginProps{
-		ErrorsMap:          errorsMap,
-		Email:              email,
-		ErrorMessage:       string(errorMessage),
-		GoogleOAuthCodeURL: codeURL,
-	}).Render(r.Context(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	for _, provider := range c.optionsOrDefault().MethodProviders {
+		if provider == nil {
+			continue
+		}
+
+		method, err := provider.BuildMethod(r.Context(), r)
+		if err != nil {
+			composables.UseLogger(r.Context()).Error("failed to build login method", "provider", provider.ID(), "error", err)
+			continue
+		}
+		if method == nil {
+			continue
+		}
+
+		builtMethod := *method
+		builtMethod.ID = strings.TrimSpace(builtMethod.ID)
+		if builtMethod.ID == "" {
+			composables.UseLogger(r.Context()).Warn("login method provider returned empty method id", "provider", provider.ID())
+			continue
+		}
+		if builtMethod.Href != "" && !security.IsValidRedirect(builtMethod.Href) {
+			composables.UseLogger(r.Context()).Warn("login method provider returned invalid method href", "provider", provider.ID(), "method", builtMethod.ID, "href", builtMethod.Href)
+			continue
+		}
+		if _, ok := seen[builtMethod.ID]; ok {
+			composables.UseLogger(r.Context()).Warn("login method provider returned duplicate method id", "provider", provider.ID(), "method", builtMethod.ID)
+			continue
+		}
+
+		methods = append(methods, builtMethod)
+		seen[builtMethod.ID] = struct{}{}
 	}
+
+	return methods, nil
+}
+
+func (c *LoginController) includePasswordMethod() bool {
+	if c.optionsOrDefault().IncludePasswordMethod == nil {
+		return true
+	}
+	return *c.optionsOrDefault().IncludePasswordMethod
+}
+
+func (c *LoginController) includeGoogleMethod() bool {
+	if c.optionsOrDefault().IncludeGoogleMethod == nil {
+		return true
+	}
+	return *c.optionsOrDefault().IncludeGoogleMethod
 }
 
 func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
@@ -360,12 +544,11 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	}
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		shared.SetFlashMap(w, "errorsMap", errorsMap)
-		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
+		http.Redirect(w, r, buildLoginRedirectURL(dto.Email, nextURL, authRequestID), http.StatusFound)
 		return
 	}
 
-	// Authenticate user
-	u, sess, err := c.authService.Authenticate(r.Context(), dto.Email, dto.Password)
+	authResult, err := c.authFlowService.AuthenticatePassword(r.Context(), dto.Email, dto.Password)
 	if err != nil {
 		logger.Error("POST /login: InTx failed", "error", err)
 		if errors.Is(err, composables.ErrInvalidPassword) {
@@ -375,115 +558,138 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		} else {
 			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
 		}
-		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
+		http.Redirect(w, r, buildLoginRedirectURL(dto.Email, nextURL, authRequestID), http.StatusFound)
 		return
 	}
 
-	// Run optional login gate before creating the session cookie.
-	if err := c.runLoginAccessCheck(r.Context(), u); err != nil {
-		shared.SetFlash(w, "error", []byte(err.Error()))
-		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
+	loginRedirectURL := buildLoginRedirectURL(dto.Email, nextURL, authRequestID)
+	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
+		NextURL:            postLoginRedirectURL,
+		SessionCookieValue: sessionCookieValue(r, c.sidCookieName()),
+		AccessCheck:        c.runLoginAccessCheck,
+	})
+	if err != nil {
+		c.handleFinalizeError(w, r, loginRedirectURL, err)
 		return
 	}
 
-	// Evaluate 2FA requirement for password authentication.
-	// By default, users with 2FA enabled must complete verification.
-	{
-		requires2FA := u.Has2FAEnabled()
-
-		// Build auth attempt for 2FA policy evaluation
-		if c.twoFactorPolicy != nil {
-			ip, _ := composables.UseIP(r.Context())
-			userAgent, _ := composables.UseUserAgent(r.Context())
-
-			attempt := pkgtwofactor.AuthAttempt{
-				UserID:    userIDToNamespacedUUID(u.TenantID(), u.ID()),
-				Method:    pkgtwofactor.AuthMethodPassword,
-				IPAddress: ip,
-				UserAgent: userAgent,
-				Timestamp: time.Now(),
-			}
-
-			// Policy can tighten/relax default requirement.
-			requires2FA, err = c.twoFactorPolicy.Requires(r.Context(), attempt)
-			if err != nil {
-				logger.Error("Failed to evaluate 2FA policy", "error", err)
-				shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
-				http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
-				return
-			}
-		}
-
-		if requires2FA {
-			// Create pending 2FA session with 10-minute TTL FIRST
-			pendingSession := session.New(
-				sess.Token(),
-				sess.UserID(),
-				sess.TenantID(),
-				sess.IP(),
-				sess.UserAgent(),
-				session.WithStatus(session.StatusPending2FA),
-				session.WithAudience(sess.Audience()),
-				session.WithExpiresAt(time.Now().Add(10*time.Minute)),
-				session.WithCreatedAt(sess.CreatedAt()),
-			)
-
-			// Update the session in the database
-			if err := c.sessionService.Update(r.Context(), pendingSession); err != nil {
-				logger.Error("Failed to update session to pending 2FA", "error", err)
-				shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
-				http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
-				return
-			}
-
-			// Create cookie using pending session's expiry (matches 10-min DB session)
-			conf := configuration.Use()
-			sessionCookie := &http.Cookie{
-				Name:     conf.SidCookieKey,
-				Value:    pendingSession.Token(),
-				Expires:  pendingSession.ExpiresAt(),
-				HttpOnly: true,
-				SameSite: http.SameSiteLaxMode,
-				Secure:   conf.GoAppEnvironment == configuration.Production,
-				Domain:   conf.Domain,
-				Path:     "/",
-			}
-
-			// Set the session cookie
-			http.SetCookie(w, sessionCookie)
-
-			// Redirect to 2FA verification or setup based on user's 2FA status
-			// Redirect destination is validated and may point to OIDC callback flow.
-			if u.Has2FAEnabled() {
-				// User has 2FA enabled, redirect to verification
-				http.Redirect(w, r, fmt.Sprintf("/login/2fa/verify?next=%s", url.QueryEscape(postLoginRedirectURL)), http.StatusFound)
-			} else {
-				// User hasn't set up 2FA, redirect to setup
-				http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(postLoginRedirectURL)), http.StatusFound)
-			}
-			return
-		}
-	}
-
-	// No 2FA required or policy not configured, create active session
-	conf := configuration.Use()
-	cookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
-		Value:    sess.Token(),
-		Expires:  sess.ExpiresAt(),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
-		Path:     "/",
-	}
-
-	http.SetCookie(w, cookie)
-	http.Redirect(w, r, postLoginRedirectURL, http.StatusFound)
+	c.applyFinalizeResult(w, r, finalizeResult)
 }
 
-func userIDToNamespacedUUID(tenantID uuid.UUID, userID uint) uuid.UUID {
-	var userIDData [8]byte
-	binary.LittleEndian.PutUint64(userIDData[:], uint64(userID))
-	return uuid.NewSHA1(tenantID, userIDData[:])
+// FinalizeAuthenticatedUser creates a session for an already-authenticated user and applies
+// login access checks, 2FA policy, pending-2FA handling, and cookie issuance.
+//
+// The route calling this must include GetMiddlewares() or PostMiddlewares() so that an i18n
+// localizer is present in the request context; without it, error-path translations will panic.
+func (c *LoginController) FinalizeAuthenticatedUser(
+	w http.ResponseWriter,
+	r *http.Request,
+	u coreuser.User,
+	method pkgtwofactor.AuthMethod,
+	nextURL string,
+) {
+	c.FinalizeAuthentication(w, r, &services.AuthenticationResult{
+		User:            u,
+		Method:          method,
+		AuthenticatorID: string(method),
+	}, nextURL)
+}
+
+func (c *LoginController) FinalizeAuthentication(
+	w http.ResponseWriter,
+	r *http.Request,
+	authResult *services.AuthenticationResult,
+	nextURL string,
+) {
+	validatedNextURL := security.GetValidatedRedirect(nextURL)
+	loginRedirectURL := fmt.Sprintf("/login?next=%s", url.QueryEscape(validatedNextURL))
+
+	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
+		NextURL:            validatedNextURL,
+		SessionCookieValue: sessionCookieValue(r, c.sidCookieName()),
+		AccessCheck:        c.runLoginAccessCheck,
+	})
+	if err != nil {
+		c.handleFinalizeError(w, r, loginRedirectURL, err)
+		return
+	}
+
+	c.applyFinalizeResult(w, r, finalizeResult)
+}
+
+func (c *LoginController) SelectSession(w http.ResponseWriter, r *http.Request) {
+	if c.browserSessions == nil {
+		http.Error(w, "account switching unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+	if _, err := c.browserSessions.Activate(w, r, r.FormValue("SessionReference")); err != nil {
+		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.SessionExpired")))
+		http.Redirect(w, r, fmt.Sprintf("/login?next=%s", url.QueryEscape(nextURL)), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, nextURL, http.StatusSeeOther)
+}
+
+func sessionCookieValue(r *http.Request, name string) string {
+	if cookie, err := r.Cookie(name); err == nil {
+		return cookie.Value
+	}
+	return ""
+}
+
+func (c *LoginController) sidCookieName() string {
+	if c.cookiesCfg != nil && c.cookiesCfg.SID != "" {
+		return c.cookiesCfg.SID
+	}
+	return "sid"
+}
+
+func buildLoginRedirectURL(email, nextURL, authRequestID string) string {
+	query := url.Values{"next": []string{security.GetValidatedRedirect(nextURL)}}
+	if email != "" {
+		query.Set("email", email)
+	}
+	if authRequestID != "" {
+		query.Set("auth_request", authRequestID)
+	}
+	return "/login?" + query.Encode()
+}
+
+func (c *LoginController) handleFinalizeError(
+	w http.ResponseWriter,
+	r *http.Request,
+	redirectURL string,
+	err error,
+) {
+	var userVisibleErr *services.UserVisibleError
+	if errors.As(err, &userVisibleErr) && strings.TrimSpace(userVisibleErr.Message) != "" {
+		shared.SetFlash(w, "error", []byte(userVisibleErr.Message))
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+		return
+	}
+
+	composables.UseLogger(r.Context()).Error("failed to finalize login", "error", err)
+	shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
+	http.Redirect(w, r, redirectURL, http.StatusFound)
+}
+
+func (c *LoginController) applyFinalizeResult(
+	w http.ResponseWriter,
+	r *http.Request,
+	result *services.FinalizeAuthenticationResult,
+) {
+	if result == nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	if result.Cookie != nil {
+		http.SetCookie(w, result.Cookie)
+	}
+	http.Redirect(w, r, result.RedirectURL, http.StatusFound)
 }

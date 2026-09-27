@@ -2,7 +2,6 @@
 package controllers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -18,10 +17,12 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	httpsession "github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/session"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/security"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
@@ -29,15 +30,27 @@ import (
 // NewTwoFactorSetupController creates a new TwoFactorSetupController.
 // Initializes the controller with required service dependencies.
 // Parameters:
-//   - app: The application instance providing service registry
+//   - app: The application instance providing services (localizer, middleware)
+//   - twoFactorService: The two-factor authentication service
+//   - sessionService: The session management service
+//   - userService: The user management service
 //
 // Returns a configured TwoFactorSetupController implementing the Controller interface.
-func NewTwoFactorSetupController(app application.Application) application.Controller {
+func NewTwoFactorSetupController(
+	twoFactorService *twofactor.TwoFactorService,
+	sessionService *services.SessionService,
+	userService *services.UserService,
+	httpCfg *httpconfig.Config,
+	sessionCfg *httpsession.Config,
+	browserSessions *services.BrowserSessionService,
+) application.Controller {
 	return &TwoFactorSetupController{
-		app:              app,
-		twoFactorService: app.Service(twofactor.TwoFactorService{}).(*twofactor.TwoFactorService),
-		sessionService:   app.Service(services.SessionService{}).(*services.SessionService),
-		userService:      app.Service(services.UserService{}).(*services.UserService),
+		twoFactorService: twoFactorService,
+		sessionService:   sessionService,
+		userService:      userService,
+		httpCfg:          httpCfg,
+		sessionCfg:       sessionCfg,
+		browserSessions:  browserSessions,
 	}
 }
 
@@ -45,10 +58,12 @@ func NewTwoFactorSetupController(app application.Application) application.Contro
 // Provides method selection, TOTP QR code display, OTP delivery, and setup confirmation.
 // Routes are mounted at /login/2fa/setup and require authentication.
 type TwoFactorSetupController struct {
-	app              application.Application
 	twoFactorService *twofactor.TwoFactorService
 	sessionService   *services.SessionService
 	userService      *services.UserService
+	httpCfg          *httpconfig.Config
+	sessionCfg       *httpsession.Config
+	browserSessions  *services.BrowserSessionService
 }
 
 type methodChoiceDTO struct {
@@ -90,8 +105,8 @@ func requireTwoFactorSetupSession(w http.ResponseWriter, logger *logrus.Entry, r
 	return sess, true
 }
 
-func (c *TwoFactorSetupController) activateSession(ctx context.Context, w http.ResponseWriter, sess session.Session) (session.Session, error) {
-	conf := configuration.Use()
+func (c *TwoFactorSetupController) activateSession(w http.ResponseWriter, r *http.Request, sess session.Session) (session.Session, error) {
+	const op serrors.Op = "TwoFactorSetupController.activateSession"
 	updatedSession := session.New(
 		sess.Token(),
 		sess.UserID(),
@@ -100,32 +115,26 @@ func (c *TwoFactorSetupController) activateSession(ctx context.Context, w http.R
 		sess.UserAgent(),
 		session.WithStatus(session.StatusActive),
 		session.WithAudience(sess.Audience()),
-		session.WithExpiresAt(time.Now().Add(conf.SessionDuration)),
+		session.WithExpiresAt(time.Now().Add(c.sessionCfg.Duration)),
 		session.WithCreatedAt(sess.CreatedAt()),
 	)
 
-	if err := c.sessionService.Update(ctx, updatedSession); err != nil {
-		return nil, err
+	if err := c.sessionService.Update(r.Context(), updatedSession); err != nil {
+		return nil, serrors.E(op, err)
 	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     conf.SidCookieKey,
-		Value:    updatedSession.Token(),
-		Expires:  updatedSession.ExpiresAt(),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
-		Path:     "/",
-	})
+	cookie, err := c.browserSessions.AddFromRequest(r.Context(), r, updatedSession)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	http.SetCookie(w, cookie)
 
 	return updatedSession, nil
 }
 
-// Key returns the base route path for this controller.
+// Descriptor returns the controller descriptor.
 // Implements the Controller interface.
-func (c *TwoFactorSetupController) Key() string {
-	return "/login/2fa/setup"
+func (c *TwoFactorSetupController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.twofactor_setup", 0, application.Route("", "/login/2fa/setup"))
 }
 
 // Register registers all HTTP routes for 2FA setup flows.
@@ -143,7 +152,6 @@ func (c *TwoFactorSetupController) Register(r *mux.Router) {
 	setupRouter := r.PathPrefix("/login/2fa/setup").Subrouter()
 	setupRouter.Use(
 		middleware.AuthorizeAnySession(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.WithPageContext(),
 	)
 
@@ -442,7 +450,7 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 		return
 	}
 
-	if _, err := c.activateSession(r.Context(), w, sess); err != nil {
+	if _, err := c.activateSession(w, r, sess); err != nil {
 		logger.WithError(err).Error("failed to update session to active")
 		http.Error(w, "failed to activate session", http.StatusInternalServerError)
 		return
@@ -569,7 +577,7 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 		return
 	}
 
-	if _, err := c.activateSession(r.Context(), w, sess); err != nil {
+	if _, err := c.activateSession(w, r, sess); err != nil {
 		logger.WithError(err).Error("failed to update session to active")
 		http.Error(w, "failed to activate session", http.StatusInternalServerError)
 		return

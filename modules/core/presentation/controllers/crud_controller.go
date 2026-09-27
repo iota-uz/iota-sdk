@@ -50,7 +50,6 @@ const (
 
 type CrudController[TEntity any] struct {
 	basePath string
-	app      application.Application
 	schema   crud.Schema[TEntity]
 	service  crud.Service[TEntity]
 
@@ -72,6 +71,11 @@ type CrudController[TEntity any] struct {
 	createPerm permission.Permission
 	updatePerm permission.Permission
 	deletePerm permission.Permission
+
+	// nav quick-link (Spotlight-only; sidebar-hidden)
+	navQuickLink bool
+	navTitleKey  string
+	navKeywords  []string
 
 	// custom actions
 	customHeaderActions []actions.ActionProps
@@ -137,6 +141,18 @@ func WithDeletePermission[TEntity any](perm permission.Permission) CrudOption[TE
 	}
 }
 
+// WithNavQuickLink declares a Spotlight quick-link (sidebar-hidden) for this
+// controller's list page so the page is searchable in the command palette.
+// Visibility is inherited from the read permission via the descriptor route
+// Auth, so callers should also set WithReadPermission to gate it.
+func WithNavQuickLink[TEntity any](titleKey string, keywords ...string) CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.navQuickLink = true
+		c.navTitleKey = titleKey
+		c.navKeywords = keywords
+	}
+}
+
 // WithCustomHeaderAction adds a custom header action to the list view
 func WithCustomHeaderAction[TEntity any](action actions.ActionProps) CrudOption[TEntity] {
 	return func(c *CrudController[TEntity]) {
@@ -153,13 +169,11 @@ func WithCustomRowAction[TEntity any](actionBuilder func(primaryKey any) actions
 
 func NewCrudController[TEntity any](
 	basePath string,
-	app application.Application,
 	builder crud.Builder[TEntity],
 	opts ...CrudOption[TEntity],
-) application.Controller {
+) *CrudController[TEntity] {
 	controller := &CrudController[TEntity]{
 		basePath:            basePath,
-		app:                 app,
 		schema:              builder.Schema(),
 		service:             builder.Service(),
 		rendererRegistry:    crud.NewRendererRegistry(),
@@ -189,8 +203,7 @@ func (c *CrudController[TEntity]) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app),
+		middleware.ProvideDynamicLogo(),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -213,8 +226,84 @@ func (c *CrudController[TEntity]) Register(r *mux.Router) {
 	}
 }
 
-func (c *CrudController[TEntity]) Key() string {
-	return c.basePath
+func (c *CrudController[TEntity]) Descriptor() application.ControllerDescriptor {
+	// The generic CRUD controller is instantiated once per entity, so its
+	// descriptor ID must be unique per instance — keying it on basePath (which
+	// is already unique per mount) avoids duplicate-ID collisions when an app
+	// registers many CRUD controllers.
+	//
+	// The read permission gates the list route at the descriptor layer (mirrors
+	// the handler-level accessDenied check) so descriptor-derived route auth and
+	// nav visibility stay consistent.
+	descriptor := application.Descriptor("core.crud:"+c.basePath, 0, c.RouteCatalog()...)
+	if c.navQuickLink {
+		descriptor = descriptor.WithNav(application.NavNode{
+			ID:       "core.crud.nav:" + c.basePath,
+			TitleKey: c.navTitleKey,
+			Path:     c.basePath,
+			Keywords: c.navKeywords,
+			// Spotlight-only: hidden from the sidebar, visible to the command
+			// palette (quick-link generation reads the spotlight surface, which
+			// defaults to visible when unset).
+			Surfaces: map[application.Surface]application.SurfaceOptions{
+				application.SurfaceSidebar: {Hidden: true},
+			},
+		})
+	}
+	return descriptor
+}
+
+// RouteCatalog returns every enabled CRUD operation with its actual method,
+// server renderer and operation-specific access requirement.
+func (c *CrudController[TEntity]) RouteCatalog() []application.RouteSpec {
+	routes := []application.RouteSpec{
+		c.operationRoute(http.MethodGet, "", c.readPerm),
+		c.operationRoute(http.MethodGet, "/{id}/details", c.readPerm),
+	}
+	if c.enableCreate {
+		routes = append(routes,
+			c.operationRoute(http.MethodGet, "/new", c.createPerm),
+			c.operationRoute(http.MethodPost, "", c.createPerm),
+		)
+	}
+	if c.enableEdit {
+		routes = append(routes,
+			c.operationRoute(http.MethodGet, "/{id}/edit", c.updatePerm),
+			c.operationRoute(http.MethodPost, "/{id}", c.updatePerm),
+		)
+	}
+	if c.enableDelete {
+		routes = append(routes, c.operationRoute(http.MethodDelete, "/{id}", c.deletePerm))
+	}
+	return routes
+}
+
+func (c *CrudController[TEntity]) operationRoute(method, suffix string, perm permission.Permission) application.RouteSpec {
+	opts := []application.RouteOption{application.RenderedBy(application.RouteRendererServer)}
+	if perm != nil {
+		opts = append(opts, application.RequireAll(perm))
+	}
+	return application.BaseRoute(method, c.basePath, suffix, opts...)
+}
+
+// ResourceDescriptor projects the existing load-bearing schema into the
+// renderer-neutral CRUD v2 contract. No mapper, hook, rule or component crosses
+// this boundary.
+func (c *CrudController[TEntity]) ResourceDescriptor() (crud.ResourceDescriptor, error) {
+	actions := []crud.ActionDescriptor{
+		{ID: "list"},
+		{ID: "details"},
+	}
+	if c.enableCreate {
+		actions = append(actions, crud.ActionDescriptor{ID: "new", Form: true}, crud.ActionDescriptor{ID: "create", Mutation: true, Form: true})
+	}
+	if c.enableEdit {
+		actions = append(actions, crud.ActionDescriptor{ID: "edit", Form: true}, crud.ActionDescriptor{ID: "update", Mutation: true, Form: true})
+	}
+	if c.enableDelete {
+		actions = append(actions, crud.ActionDescriptor{ID: "delete", Mutation: true, Destructive: true})
+	}
+	return crud.ProjectSchema(c.schema, crud.WithDescriptorActions(actions...))
 }
 
 // RegisterRenderer registers a custom field renderer for the given type

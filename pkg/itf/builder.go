@@ -8,15 +8,19 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config"
 )
 
 // SuiteBuilder provides a fluent API for building test suites with minimal boilerplate
 type SuiteBuilder struct {
-	t       testing.TB
-	modules []application.Module
-	user    user.User
-	dbName  string
+	t            testing.TB
+	components   []composition.Component
+	capabilities []composition.Capability
+	user         user.User
+	dbName       string
+	source       config.Source // optional; enables ProvideConfig[T] in component Build
+
 }
 
 // NewSuiteBuilder creates a new SuiteBuilder for HTTP controller testing
@@ -27,9 +31,21 @@ func NewSuiteBuilder(tb testing.TB) *SuiteBuilder {
 	}
 }
 
-// WithModules adds application modules to the test suite
-func (sb *SuiteBuilder) WithModules(modules ...application.Module) *SuiteBuilder {
-	sb.modules = append(sb.modules, modules...)
+// WithComponents adds composition components to the test suite.
+func (sb *SuiteBuilder) WithComponents(components ...composition.Component) *SuiteBuilder {
+	sb.components = append(sb.components, components...)
+	return sb
+}
+
+// WithCapabilities sets the composition capabilities used when compiling the
+// suite container. When unset (the default), Build / BuildWithOptions compile
+// with [CapabilityAPI, CapabilityWorker] — preserving the historical
+// behaviour. Pass a narrower set (for example, just composition.CapabilityAPI)
+// to verify that worker-only contributions stay inactive — useful for testing
+// CLI / API-only compositions that must not materialize NATS consumers,
+// periodic-task managers, file-locked indices, etc.
+func (sb *SuiteBuilder) WithCapabilities(caps ...composition.Capability) *SuiteBuilder {
+	sb.capabilities = append(sb.capabilities[:0], caps...)
 	return sb
 }
 
@@ -42,6 +58,23 @@ func (sb *SuiteBuilder) WithUser(u user.User) *SuiteBuilder {
 // WithTenant sets a custom database name (tenant isolation)
 func (sb *SuiteBuilder) WithTenant(name string) *SuiteBuilder {
 	sb.dbName = name
+	return sb
+}
+
+// WithSource attaches a config.Source to the test suite so that components
+// calling composition.ProvideConfig[T] inside their Build method can load
+// typed configuration from it. Intended for test setups that need to inject
+// config values without relying on environment variables or the legacy
+// configuration.Use() singleton.
+//
+// Example:
+//
+//	itf.NewSuiteBuilder(t).
+//	    WithSource(static.New(map[string]any{"db.host": "localhost"})).
+//	    WithComponents(myComponent).
+//	    Build()
+func (sb *SuiteBuilder) WithSource(src config.Source) *SuiteBuilder {
+	sb.source = src
 	return sb
 }
 
@@ -91,14 +124,41 @@ func (sb *SuiteBuilder) AsAnonymous() *SuiteBuilder {
 func (sb *SuiteBuilder) Build() *Suite {
 	sb.t.Helper()
 
-	// Create the base suite with modules
-	suite := NewSuite(sb.t, sb.modules...)
-
-	// Configure user if provided
-	if sb.user != nil {
-		suite = suite.AsUser(sb.user)
+	// When capabilities are explicitly set, route through BuildWithOptions to
+	// pass them down via the Option pipeline. Otherwise fall back to the
+	// original path for full backward compatibility.
+	if len(sb.capabilities) > 0 {
+		return sb.BuildWithOptions()
 	}
 
+	opts := make([]Option, 0, 4)
+	if len(sb.components) > 0 {
+		opts = append(opts, WithComponents(sb.components...))
+	}
+	if sb.user != nil {
+		opts = append(opts, WithUser(sb.user))
+	}
+	if sb.dbName != "" {
+		opts = append(opts, WithDatabase(sb.dbName))
+	}
+	if sb.source != nil {
+		opts = append(opts, WithSource(sb.source))
+	}
+
+	env := Setup(sb.t, opts...)
+
+	suite := &Suite{
+		t:           sb.t,
+		env:         env,
+		modules:     sb.components,
+		middlewares: make([]MiddlewareFunc, 0),
+		beforeEach:  make([]HookFunc, 0),
+	}
+	suite.router = mux.NewRouter()
+	if sb.user != nil {
+		suite.user = sb.user
+	}
+	suite.setupMiddleware()
 	return suite
 }
 
@@ -107,15 +167,21 @@ func (sb *SuiteBuilder) BuildWithOptions(opts ...Option) *Suite {
 	sb.t.Helper()
 
 	// Build options array
-	options := make([]Option, 0, len(opts)+2)
-	if len(sb.modules) > 0 {
-		options = append(options, WithModules(sb.modules...))
+	options := make([]Option, 0, len(opts)+5)
+	if len(sb.components) > 0 {
+		options = append(options, WithComponents(sb.components...))
+	}
+	if len(sb.capabilities) > 0 {
+		options = append(options, WithCapabilities(sb.capabilities...))
 	}
 	if sb.user != nil {
 		options = append(options, WithUser(sb.user))
 	}
 	if sb.dbName != "" {
 		options = append(options, WithDatabase(sb.dbName))
+	}
+	if sb.source != nil {
+		options = append(options, WithSource(sb.source))
 	}
 	options = append(options, opts...)
 
@@ -126,7 +192,7 @@ func (sb *SuiteBuilder) BuildWithOptions(opts ...Option) *Suite {
 	suite := &Suite{
 		t:           sb.t,
 		env:         env,
-		modules:     sb.modules,
+		modules:     sb.components,
 		middlewares: make([]MiddlewareFunc, 0),
 		beforeEach:  make([]HookFunc, 0),
 	}
@@ -156,10 +222,10 @@ func (sb *SuiteBuilder) Presets() *PresetBuilder {
 }
 
 // AdminWithAllModules creates an admin user with all common modules loaded
-func (pb *PresetBuilder) AdminWithAllModules(modules ...application.Module) *Suite {
+func (pb *PresetBuilder) AdminWithAllModules(modules ...composition.Component) *Suite {
 	return pb.sb.
 		AsAdmin().
-		WithModules(modules...).
+		WithComponents(modules...).
 		Build()
 }
 

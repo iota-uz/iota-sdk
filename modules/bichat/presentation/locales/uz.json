@@ -47,6 +47,9 @@
     "InlineQuestion": {
       "InputNeeded": "Kiritish kerak",
       "WaitingForDetails": "Yordamchidan savol tafsilotlari kutilmoqda...",
+      "AnswerSubmitted": "Javob yuborildi",
+      "DismissalSubmitted": "So'rov yopildi",
+      "ResumeInProgress": "Jarayon davom etmoqda",
       "Next": "Keyingisi",
       "Back": "Orqaga",
       "OtherOption": "Boshqa",
@@ -66,10 +69,14 @@
     "Tools": {
       "sql_execute": "Ma'lumotlar bazasiga so'rov yuborilmoqda",
       "schema_list": "Jadvallar ro'yxati olinmoqda",
-      "schema_describe": "Jadval tuzilishi tahlil qilinmoqda",
+      "schema_describe_batch": "Jadval tuzilishi tahlil qilinmoqda",
+      "load_skill": "Ko'nikma yo'riqnomasi yuklanmoqda",
       "draw_chart": "Grafik yaratilmoqda",
-      "draw_table": "Jadval qurilmoqda",
       "kb_search": "Bilimlar bazasida qidirilmoqda",
+      "search_learnings": "Saqlangan bilimlar qidirilmoqda",
+      "save_learning": "Bilim saqlanmoqda",
+      "search_validated_queries": "Tasdiqlangan so'rovlar qidirilmoqda",
+      "save_validated_query": "Tasdiqlangan so'rov saqlanmoqda",
       "web_search": "Internetda qidirilmoqda",
       "web_fetch": "Vebdan ma'lumot olinmoqda",
       "code_interpreter": "Kod bajarilmoqda",
@@ -78,9 +85,7 @@
       "export_to_pdf": "PDFga eksport qilinmoqda",
       "artifact_reader": "Yuklangan fayl o'qilmoqda",
       "ask_user_question": "Savol berilmoqda",
-      "final_answer": "Javob tayyorlanmoqda",
       "task": "Delegatsiya — {{agent}}",
-      "time": "Joriy vaqt tekshirilmoqda",
       "get_current_time": "Joriy vaqtni olish",
       "render_table": "Interaktiv jadval yaratish"
     },
@@ -329,7 +334,10 @@
       "LoadMore": "Ko'proq yuklash",
       "NoChatsFound": "Chatlar topilmadi",
       "NoChatsInOrg": "Ushbu tashkilotda hali chatlar yo'q",
-      "NoActiveChatsInOrg": "Ushbu tashkilotda faol chatlar yo'q"
+      "NoActiveChatsInOrg": "Ushbu tashkilotda faol chatlar yo'q",
+      "ChatFound": "{{count}} chat topildi",
+      "ChatsFound": "{{count}} chat topildi",
+      "NoChatsFromUser": "{{firstName}} {{lastName}} dan chatlar topilmadi"
     },
     "Artifacts": {
       "Title": "Artefaktlar",
@@ -420,10 +428,54 @@
       "ReviewDescription": "Yuborishdan oldin javoblaringizni ko'rib chiqing",
       "Skip": "O'tkazib yuborish"
     },
-    "StreamError": {
-      "Retry": "Qayta urinish",
-      "Regenerate": "Qayta yaratish"
+  "StreamError": {
+    "Retry": "Qayta urinish",
+    "Regenerate": "Qayta yaratish",
+    "AdminAction": "Muammoni tizim administratori hal qilishi kerak.",
+    "OpenBilling": "OpenAI billingini ochish",
+    "OpenAPIKeys": "API kalitlarini ochish",
+    "OpenStatus": "OpenAI holatini tekshirish",
+    "ProviderBalance": {
+      "Title": "OpenAI balansidagi mablag‘ tugadi",
+      "Details": "OpenAI API hisobida mablag‘ qolmagani sababli AI so‘rovlari vaqtincha ishlamaydi."
     },
+    "ProviderBilling": {
+      "Title": "OpenAI moliyaviy limiti tugadi",
+      "Details": "Tashkilot yoki loyiha xarajat yoxud foydalanish limitiga yetdi."
+    },
+    "ProviderAuth": {
+      "Title": "OpenAI ruxsatlarini tekshirish kerak",
+      "Details": "API kaliti, tashkilot a’zoligi yoki ruxsat etilgan IP sozlamasi noto‘g‘ri."
+    },
+    "ProviderAccess": {
+      "Title": "OpenAI xizmatiga kirish cheklangan",
+      "Details": "Joriy hisob, tarmoq yoki hudud bu so‘rovni yubora olmaydi."
+    },
+    "ProviderRateLimit": {
+      "Title": "OpenAI so‘rovlari juda ko‘p",
+      "Details": "Biroz kuting va qayta urinib ko‘ring."
+    },
+    "ProviderContextLimit": {
+      "Title": "Suhbat hajmi juda katta",
+      "Details": "Qisqaroq suhbat boshlang, katta fayllarni olib tashlang yoki kontekstni qisqartiring."
+    },
+    "ProviderRequest": {
+      "Title": "OpenAI so‘rovi noto‘g‘ri sozlangan",
+      "Details": "Tizim administratori model va so‘rov parametrlarini tekshirishi kerak."
+    },
+    "ProviderConnection": {
+      "Title": "OpenAI bilan aloqa o‘rnatilmadi",
+      "Details": "So‘rov vaqti tugadi yoki aloqa uzildi. Qayta urinib ko‘ring."
+    },
+    "ProviderUnavailable": {
+      "Title": "OpenAI vaqtincha ishlamayapti",
+      "Details": "Provayder so‘rovni yakunlay olmadi. Birozdan so‘ng qayta urinib ko‘ring."
+    },
+    "ProviderIncomplete": {
+      "Title": "OpenAI javobi to‘liq emas",
+      "Details": "Javobning olingan qismi saqlandi. Davom ettiring yoki qayta urinib ko‘ring."
+    }
+  },
     "Chart": {
       "NoData": "Ma'lumotlar yo'q",
       "Download": "Grafikni yuklab olish",

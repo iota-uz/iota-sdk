@@ -1,0 +1,10 @@
+{
+	"Resources": {
+		"logs": "Jurnal"
+	},
+	"Permissions": {
+		"Logs": {
+			"View": "Jurnalni ko'rish"
+		}
+	}
+}

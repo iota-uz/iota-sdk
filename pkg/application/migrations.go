@@ -13,7 +13,7 @@ import (
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/sirupsen/logrus"
 
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 )
 
 // MigrationStatus represents the status of a single migration
@@ -33,11 +33,12 @@ type MigrationManager interface {
 	Status(ctx context.Context) ([]MigrationStatus, error)
 }
 
-func NewMigrationManager(pool *pgxpool.Pool) MigrationManager {
-	conf := configuration.Use()
+// NewMigrationManager creates a MigrationManager driven by an explicit
+// dbconfig.Config. Prefer this over NewMigrationManagerLegacy in new code.
+func NewMigrationManager(pool *pgxpool.Pool, db dbconfig.Config, logger logrus.FieldLogger) MigrationManager {
 	return &migrationManager{
-		migrationsDir: conf.MigrationsDir,
-		logger:        conf.Logger(),
+		migrationsDir: db.MigrationsDir,
+		logger:        logger,
 		pool:          pool,
 	}
 }
@@ -205,4 +206,13 @@ func (m *migrationManager) Status(ctx context.Context) ([]MigrationStatus, error
 	}
 
 	return statuses, nil
+}
+
+// noopMigrationManager is a no-op implementation used when no DB config is provided.
+type noopMigrationManager struct{}
+
+func (n *noopMigrationManager) Run() error      { return nil }
+func (n *noopMigrationManager) Rollback() error { return nil }
+func (n *noopMigrationManager) Status(_ context.Context) ([]MigrationStatus, error) {
+	return nil, nil
 }

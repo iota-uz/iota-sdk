@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/telemetryconfig"
 )
 
 type LokiStream struct {
@@ -37,19 +37,18 @@ type LogCollector struct {
 	Labels    []string
 }
 
-// CollectLogs initializes and runs a log collector that forwards logs to Loki
-func CollectLogs(ctx context.Context, options ...func(*LogCollector)) error {
-	config := configuration.Use()
-
-	if config.Loki.URL == "" {
+// CollectLogs initializes and runs a log collector that forwards logs to Loki.
+// cfg provides typed Loki settings; options allow caller overrides.
+func CollectLogs(ctx context.Context, cfg *telemetryconfig.Config, options ...func(*LogCollector)) error {
+	if cfg.Loki.URL == "" {
 		return fmt.Errorf("loki URL is not configured")
 	}
 
-	if config.Loki.AppName == "" {
+	if cfg.Loki.AppName == "" {
 		return fmt.Errorf("loki app name is not configured")
 	}
 
-	logPath := config.Loki.LogPath
+	logPath := cfg.Loki.LogPath
 	if logPath == "" {
 		return fmt.Errorf("log path is not configured")
 	}
@@ -64,8 +63,8 @@ func CollectLogs(ctx context.Context, options ...func(*LogCollector)) error {
 	}
 
 	collector := &LogCollector{
-		LokiURL:   config.Loki.URL,
-		AppName:   config.Loki.AppName,
+		LokiURL:   cfg.Loki.URL,
+		AppName:   cfg.Loki.AppName,
 		LogPath:   logPath,
 		BatchSize: 100,
 		Timeout:   5 * time.Second,

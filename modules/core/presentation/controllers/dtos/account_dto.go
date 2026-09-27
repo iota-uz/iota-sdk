@@ -25,6 +25,30 @@ type SaveAccountDTO struct {
 	AvatarID   uint
 }
 
+type ChangePasswordDTO struct {
+	CurrentPassword string `form:"CurrentPassword"`
+	NewPassword     string `form:"NewPassword"`
+	ConfirmPassword string `form:"ConfirmPassword"`
+}
+
+func (d *ChangePasswordDTO) Ok(ctx context.Context) (map[string]string, bool) {
+	l, ok := intl.UseLocalizer(ctx)
+	if !ok {
+		panic(intl.ErrNoLocalizer)
+	}
+	errors := map[string]string{}
+	if d.CurrentPassword == "" {
+		errors["CurrentPassword"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Account.ChangePassword.Errors.CurrentRequired"})
+	}
+	if len(d.NewPassword) < 8 {
+		errors["NewPassword"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Account.ChangePassword.Errors.NewTooShort"})
+	}
+	if d.ConfirmPassword == "" || d.NewPassword != d.ConfirmPassword {
+		errors["ConfirmPassword"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Account.ChangePassword.Errors.ConfirmationMismatch"})
+	}
+	return errors, len(errors) == 0
+}
+
 func (d *SaveAccountDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	l, ok := intl.UseLocalizer(ctx)
 	if !ok {

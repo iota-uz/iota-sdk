@@ -2,56 +2,43 @@
 package commands
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
 
 	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/helpcenter"
 	"github.com/iota-uz/iota-sdk/modules/superadmin"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
-// NewUtilityCommands creates all utility commands (check_tr_keys, seed, seed_superadmin)
+// NewUtilityCommands creates utility commands.
 func NewUtilityCommands() []*cobra.Command {
 	return []*cobra.Command{
 		newCheckTrKeysCmd(),
-		newSeedCmd(),
-		newSeedSuperadminCmd(),
 	}
 }
 
 func newCheckTrKeysCmd() *cobra.Command {
-	return &cobra.Command{
+	var rootPath string
+	cmd := &cobra.Command{
 		Use:   "check_tr_keys",
 		Short: "Check translation key consistency across all locales",
 		Long:  `Validates that all translation keys are present across all configured locales and reports any missing translations.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			allModules := make([]application.Module, 0, len(modules.BuiltInModules)+1)
-
-			allModules = append(allModules, modules.BuiltInModules...)
-			allModules = append(allModules, superadmin.NewModule(&superadmin.ModuleOptions{}))
-
-			return CheckTrKeys(nil, allModules...)
+			if rootPath == "" {
+				wd, err := os.Getwd()
+				if err != nil {
+					return err
+				}
+				rootPath = wd
+			}
+			allComponents := append(modules.Components(),
+				superadmin.NewComponent(&superadmin.ModuleOptions{}),
+				helpcenter.NewComponent(helpcenter.ContentConfig{}),
+			)
+			return CheckTrKeys(nil, rootPath, allComponents...)
 		},
 	}
-}
-
-func newSeedCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "seed",
-		Short: "Seed the main database with initial data",
-		Long:  `Populates the main database with initial seed data including default tenant, users, permissions, and configuration.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return SeedDatabase(modules.BuiltInModules...)
-		},
-	}
-}
-
-func newSeedSuperadminCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "seed_superadmin",
-		Short: "Seed the database with a superadmin user",
-		Long:  `Creates a superadmin user with full permissions for accessing the Super Admin dashboard.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return SeedSuperadmin(modules.BuiltInModules...)
-		},
-	}
+	cmd.Flags().StringVar(&rootPath, "root", "", "Project root to scan for T()/TSafe() call sites (defaults to current working directory)")
+	return cmd
 }

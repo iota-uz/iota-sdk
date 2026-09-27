@@ -1,74 +1,63 @@
 // Package money provides this package.
 package money
 
-import "math"
+import "math/big"
 
 type calculator struct{}
 
-func (c *calculator) add(a, b Amount) Amount {
-	return a + b
+func (c *calculator) add(a, b *big.Int) *big.Int {
+	return new(big.Int).Add(a, b)
 }
 
-func (c *calculator) subtract(a, b Amount) Amount {
-	return a - b
+func (c *calculator) subtract(a, b *big.Int) *big.Int {
+	return new(big.Int).Sub(a, b)
 }
 
-func (c *calculator) multiply(a Amount, m int64) Amount {
-	return a * m
+func (c *calculator) multiply(a *big.Int, m int64) *big.Int {
+	return new(big.Int).Mul(a, big.NewInt(m))
 }
 
-func (c *calculator) divide(a Amount, d int64) Amount {
-	return a / d
+func (c *calculator) divide(a *big.Int, d int64) *big.Int {
+	return new(big.Int).Quo(a, big.NewInt(d))
 }
 
-func (c *calculator) modulus(a Amount, d int64) Amount {
-	return a % d
+func (c *calculator) modulus(a *big.Int, d int64) *big.Int {
+	return new(big.Int).Rem(a, big.NewInt(d))
 }
 
-func (c *calculator) allocate(a Amount, r, s int64) Amount {
-	if a == 0 || s == 0 {
-		return 0
+func (c *calculator) allocate(a *big.Int, r, s int64) *big.Int {
+	if a.Sign() == 0 || s == 0 {
+		return big.NewInt(0)
 	}
-
-	return a * r / s
+	result := new(big.Int).Mul(a, big.NewInt(r))
+	return result.Div(result, big.NewInt(s))
 }
 
-func (c *calculator) absolute(a Amount) Amount {
-	if a < 0 {
-		return -a
-	}
-
-	return a
+func (c *calculator) absolute(a *big.Int) *big.Int {
+	return new(big.Int).Abs(a)
 }
 
-func (c *calculator) negative(a Amount) Amount {
-	if a > 0 {
-		return -a
+func (c *calculator) negative(a *big.Int) *big.Int {
+	if a.Sign() > 0 {
+		return new(big.Int).Neg(a)
 	}
-
-	return a
+	return new(big.Int).Set(a)
 }
 
-func (c *calculator) round(a Amount, e int) Amount {
-	if a == 0 {
-		return 0
+func (c *calculator) round(a *big.Int, e int) *big.Int {
+	if a.Sign() == 0 {
+		return big.NewInt(0)
 	}
-
-	absam := c.absolute(a)
-	exp := int64(math.Pow(10, float64(e)))
-	m := absam % exp
-
-	if m > (exp / 2) {
-		absam += exp
+	exp := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(e)), nil)
+	half := new(big.Int).Div(exp, big.NewInt(2))
+	absA := new(big.Int).Abs(a)
+	mod := new(big.Int).Mod(absA, exp)
+	if mod.Cmp(half) > 0 {
+		absA.Add(absA, exp)
 	}
-
-	absam = (absam / exp) * exp
-
-	if a < 0 {
-		a = -absam
-	} else {
-		a = absam
+	absA.Div(absA, exp).Mul(absA, exp)
+	if a.Sign() < 0 {
+		return absA.Neg(absA)
 	}
-
-	return a
+	return absA
 }

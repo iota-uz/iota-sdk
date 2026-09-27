@@ -9,6 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"strings"
+
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 )
@@ -46,6 +48,12 @@ func ContentHTMX(config *TableConfig) templ.Component {
 			hxTarget = params.Request.Header.Get("HX-Target")
 			isHtmxRequest = htmx.IsHxRequest(params.Request)
 		}
+		// In stacked-toolbar mode the filter chips live outside the swap target,
+		// so re-render them out-of-band on the filter/search swap (hxTarget is
+		// the resolved row target) — but NOT on infinite scroll (targets a row)
+		// or sort (targets the table container), which keep their chips intact.
+		oobTargetID := strings.TrimPrefix(config.ResolvedHxTarget(), "#")
+		emitFiltersOOB := config.StackedToolbar && len(config.FiltersOOB) > 0 && hxTarget == oobTargetID
 		if isHtmxRequest {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " ")
 			if templ_7745c5c3_Err != nil {
@@ -78,9 +86,21 @@ func ContentHTMX(config *TableConfig) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, " ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if emitFiltersOOB {
+					for _, filter := range config.FiltersOOB {
+						templ_7745c5c3_Err = filter.Render(ctx, templ_7745c5c3_Buffer)
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+					}
+				}
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, " ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, " ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

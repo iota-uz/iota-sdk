@@ -13,8 +13,34 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/geopoint"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
+
+// ---- Upload config options ----
+
+// Option is a functional option for upload entity construction.
+type Option func(*upload)
+
+// WithUploadsPath sets the uploads base directory path.
+// Used by SetSlug to derive the stored file path.
+func WithUploadsPath(path string) Option {
+	return func(u *upload) {
+		u.uploadsPath = path
+	}
+}
+
+// WithDomain sets the HTTP domain used for URL generation.
+func WithDomain(domain string) Option {
+	return func(u *upload) {
+		u.domain = domain
+	}
+}
+
+// WithScheme sets the HTTP scheme ("http" or "https") for URL generation.
+func WithScheme(scheme string) Option {
+	return func(u *upload) {
+		u.scheme = scheme
+	}
+}
 
 // ---- Value Objects ----
 
@@ -69,10 +95,11 @@ type Upload interface {
 func New(
 	hash, path, name, slug string,
 	size int,
-	mimetype *mimetype.MIME,
+	mime *mimetype.MIME,
+	opts ...Option,
 ) Upload {
 	var t UploadType
-	if mimetype != nil && strings.HasPrefix(mimetype.String(), "image") {
+	if mime != nil && strings.HasPrefix(mime.String(), "image") {
 		t = UploadTypeImage
 	} else {
 		t = UploadTypeDocument
@@ -80,20 +107,27 @@ func New(
 	if slug == "" {
 		slug = hash
 	}
-	return &upload{
-		id:        0,
-		tenantID:  uuid.Nil,
-		hash:      hash,
-		slug:      slug,
-		path:      path,
-		name:      name,
-		size:      NewSize(size),
-		geoPoint:  nil,
-		mimetype:  mimetype,
-		_type:     t,
-		createdAt: time.Now(),
-		updatedAt: time.Now(),
+	u := &upload{
+		id:          0,
+		tenantID:    uuid.Nil,
+		hash:        hash,
+		slug:        slug,
+		path:        path,
+		name:        name,
+		size:        NewSize(size),
+		geoPoint:    nil,
+		mimetype:    mime,
+		_type:       t,
+		createdAt:   time.Now(),
+		updatedAt:   time.Now(),
+		uploadsPath: "static",
+		domain:      "localhost",
+		scheme:      "http",
 	}
+	for _, opt := range opts {
+		opt(u)
+	}
+	return u
 }
 
 func NewWithID(
@@ -101,42 +135,53 @@ func NewWithID(
 	tenantID uuid.UUID,
 	hash, path, name, slug string,
 	size int,
-	mimetype *mimetype.MIME,
+	mime *mimetype.MIME,
 	_type UploadType,
 	createdAt, updatedAt time.Time,
+	opts ...Option,
 ) Upload {
 	if slug == "" {
 		slug = hash
 	}
-	return &upload{
-		id:        id,
-		tenantID:  tenantID,
-		hash:      hash,
-		slug:      slug,
-		path:      path,
-		name:      name,
-		size:      NewSize(size),
-		geoPoint:  nil,
-		mimetype:  mimetype,
-		_type:     _type,
-		createdAt: createdAt,
-		updatedAt: updatedAt,
+	u := &upload{
+		id:          id,
+		tenantID:    tenantID,
+		hash:        hash,
+		slug:        slug,
+		path:        path,
+		name:        name,
+		size:        NewSize(size),
+		geoPoint:    nil,
+		mimetype:    mime,
+		_type:       _type,
+		createdAt:   createdAt,
+		updatedAt:   updatedAt,
+		uploadsPath: "static",
+		domain:      "localhost",
+		scheme:      "http",
 	}
+	for _, opt := range opts {
+		opt(u)
+	}
+	return u
 }
 
 type upload struct {
-	id        uint
-	tenantID  uuid.UUID
-	hash      string
-	path      string
-	slug      string
-	name      string
-	size      Size
-	geoPoint  geopoint.GeoPoint
-	_type     UploadType
-	mimetype  *mimetype.MIME
-	createdAt time.Time
-	updatedAt time.Time
+	id          uint
+	tenantID    uuid.UUID
+	hash        string
+	path        string
+	slug        string
+	name        string
+	size        Size
+	geoPoint    geopoint.GeoPoint
+	_type       UploadType
+	mimetype    *mimetype.MIME
+	createdAt   time.Time
+	updatedAt   time.Time
+	uploadsPath string // base directory for stored files (e.g. "static")
+	domain      string // HTTP domain for URL construction
+	scheme      string // HTTP scheme for URL construction ("http"/"https")
 }
 
 func (u *upload) ID() uint {
@@ -184,10 +229,9 @@ func (u *upload) SetName(name string) {
 }
 
 func (u *upload) SetSlug(slug string) {
-	conf := configuration.Use()
 	u.slug = slug
 	ext := filepath.Ext(u.name)
-	u.path = filepath.Join(conf.UploadsPath, u.slug+ext)
+	u.path = filepath.Join(u.uploadsPath, u.slug+ext)
 }
 
 func (u *upload) SetSize(size Size) {
@@ -203,10 +247,9 @@ func (u *upload) SetID(id uint) {
 }
 
 func (u *upload) URL() *url.URL {
-	conf := configuration.Use()
 	return &url.URL{
-		Scheme: conf.Scheme(),
-		Host:   conf.Domain,
+		Scheme: u.scheme,
+		Host:   u.domain,
 		Path:   u.path,
 	}
 }

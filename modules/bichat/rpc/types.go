@@ -263,6 +263,7 @@ type PendingQuestion struct {
 	AgentName    string                `json:"agentName,omitempty"`
 	TurnID       string                `json:"turnId"`
 	Questions    []PendingQuestionItem `json:"questions"`
+	Status       string                `json:"status"`
 }
 
 type SessionGetResult struct {
@@ -793,29 +794,33 @@ func parseUUID(s string) (uuid.UUID, error) {
 	return id, nil
 }
 
-// pendingQuestionFromMessages scans messages for pending question data
+// pendingQuestionFromMessages scans messages for the latest open question state
 // and builds the DTO with turn ID inference.
 func pendingQuestionFromMessages(msgs []types.Message) *PendingQuestion {
-	// Find the latest message with pending question data.
-	var pendingMsg types.Message
-	pendingIndex := -1
+	// Find the latest message with open question data.
+	var questionMsg types.Message
+	questionIndex := -1
 	for i := len(msgs) - 1; i >= 0; i-- {
 		m := msgs[i]
-		if m != nil && m.HasPendingQuestion() {
-			pendingMsg = m
-			pendingIndex = i
+		if m == nil {
+			continue
+		}
+		qd := m.QuestionData()
+		if qd != nil && qd.IsOpen() {
+			questionMsg = m
+			questionIndex = i
 			break
 		}
 	}
-	if pendingMsg == nil {
+	if questionMsg == nil {
 		return nil
 	}
-	qd := pendingMsg.QuestionData()
+	qd := questionMsg.QuestionData()
 
 	// Find the turn ID: look backward for the nearest user message
-	turnID := pendingMsg.ID().String()
-	for i := pendingIndex - 1; i >= 0; i-- {
-		if msgs[i] != nil && msgs[i].Role() == types.RoleUser && msgs[i].CreatedAt().Before(pendingMsg.CreatedAt()) {
+	turnID := questionMsg.ID().String()
+	for i := questionIndex - 1; i >= 0; i-- {
+		if msgs[i] != nil && msgs[i].Role() == types.RoleUser && msgs[i].CreatedAt().Before(questionMsg.CreatedAt()) {
 			turnID = msgs[i].ID().String()
 			break
 		}
@@ -837,5 +842,6 @@ func pendingQuestionFromMessages(msgs []types.Message) *PendingQuestion {
 		AgentName:    qd.AgentName,
 		TurnID:       turnID,
 		Questions:    questions,
+		Status:       string(qd.Status),
 	}
 }

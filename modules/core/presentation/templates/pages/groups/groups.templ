@@ -10,6 +10,8 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -41,10 +43,12 @@ templ GroupRow(group *viewmodels.Group, rowProps *base.TableRowProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 		rowProps.Attrs["id"] = fmt.Sprintf("group-%s", group.ID)
-		rowProps.Attrs["hx-get"] = fmt.Sprintf("/groups/%s", group.ID)
-		rowProps.Attrs["hx-target"] = "body"
-		rowProps.Attrs["hx-swap"] = "beforeend"
-		rowProps.Attrs["class"] = "cursor-pointer hover:bg-surface-600"
+		if group.CanUpdate {
+			rowProps.Attrs["hx-get"] = fmt.Sprintf("/groups/%s", group.ID)
+			rowProps.Attrs["hx-target"] = "body"
+			rowProps.Attrs["hx-swap"] = "beforeend"
+			rowProps.Attrs["class"] = "cursor-pointer hover:bg-surface-600"
+		}
 	}}
 	@base.TableRow(*rowProps) {
 		@base.TableCell(base.TableCellProps{}) {
@@ -137,9 +141,12 @@ templ GroupsContent(props *IndexPageProps) {
 	}
 	<div class="m-6">
 		<div class="flex justify-between md:justify-start">
-			<h1 class="text-2xl font-medium">
-				{ pageCtx.T("NavigationLinks.Groups") }
-			</h1>
+			<div class="flex items-center gap-2">
+				<h1 class="text-2xl font-medium">
+					{ pageCtx.T("NavigationLinks.Groups") }
+				</h1>
+				@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"})
+			</div>
 			<div class="flex md:hidden gap-2">
 				@button.Secondary(button.Props{
 					Size:  button.SizeNormal,
@@ -150,15 +157,17 @@ templ GroupsContent(props *IndexPageProps) {
 						"@click": "$dispatch('open-group-filters')",
 					},
 				})
-				@button.Primary(button.Props{
-					Size: button.SizeNormal,
-					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-					Attrs: templ.Attributes{
-						"type":   "button",
-						"x-data": "",
-						"@click": "$dispatch('new-group')",
-					},
-				})
+				if composables.CanUser(ctx, permissions.GroupCreate) == nil {
+					@button.Primary(button.Props{
+						Size: button.SizeNormal,
+						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+						Attrs: templ.Attributes{
+							"type":   "button",
+							"x-data": "",
+							"@click": "$dispatch('new-group')",
+						},
+					})
+				}
 			</div>
 		</div>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
@@ -184,16 +193,18 @@ templ GroupsContent(props *IndexPageProps) {
 				</div>
 				<div class="hidden md:flex gap-3">
 					@filters.CreatedAt()
-					@button.Primary(button.Props{
-						Size: button.SizeNormal,
-						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-						Attrs: templ.Attributes{
-							"type":   "button",
-							"x-data": "",
-							"@click": "$dispatch('new-group')",
-						},
-					}) {
-						{ pageCtx.T("Groups.List.New") }
+					if composables.CanUser(ctx, permissions.GroupCreate) == nil {
+						@button.Primary(button.Props{
+							Size: button.SizeNormal,
+							Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+							Attrs: templ.Attributes{
+								"type":   "button",
+								"x-data": "",
+								"@click": "$dispatch('new-group')",
+							},
+						}) {
+							{ pageCtx.T("Groups.List.New") }
+						}
 					}
 				</div>
 			</form>
@@ -226,7 +237,7 @@ templ NewGroupDrawer() {
 				</form>
 				<div class="flex-1 min-h-0" hx-get="/groups/new" hx-trigger="load" hx-swap="innerHTML">
 					<div class="flex justify-center items-center h-full">
-						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-strong"></div>
 					</div>
 				</div>
 			</div>

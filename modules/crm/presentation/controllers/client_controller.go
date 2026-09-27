@@ -4,7 +4,6 @@ package controllers
 import (
 	"bytes"
 	"context"
-	"encoding/csv"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,6 +16,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/components/export"
@@ -35,7 +35,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
@@ -60,13 +59,15 @@ type ClientRealtimeUpdates struct {
 	app           application.Application
 	clientService *services.ClientService
 	basePath      string
+	logger        *logrus.Logger
 }
 
-func NewClientRealtimeUpdates(app application.Application, clientService *services.ClientService, basePath string) *ClientRealtimeUpdates {
+func NewClientRealtimeUpdates(app application.Application, clientService *services.ClientService, basePath string, logger *logrus.Logger) *ClientRealtimeUpdates {
 	return &ClientRealtimeUpdates{
 		app:           app,
 		clientService: clientService,
 		basePath:      basePath,
+		logger:        logger,
 	}
 }
 
@@ -75,7 +76,7 @@ func (ru *ClientRealtimeUpdates) Register() {
 }
 
 func (ru *ClientRealtimeUpdates) onClientCreated(event *client.CreatedEvent) {
-	logger := configuration.Use().Logger()
+	logger := ru.logger
 
 	component := clients.ClientCreatedEvent(mappers.ClientToViewModel(event.Result), &base.TableRowProps{
 		Attrs: templ.Attributes{},
@@ -123,11 +124,13 @@ func DefaultClientControllerConfig() ClientControllerConfig {
 }
 
 type ClientController struct {
-	app       application.Application
-	config    ClientControllerConfig
-	realtime  *ClientRealtimeUpdates
-	tabsByID  map[string]TabDefinition
-	tabsOrder []TabDefinition
+	app           application.Application
+	clientService *services.ClientService
+	chatService   *services.ChatService
+	config        ClientControllerConfig
+	realtime      *ClientRealtimeUpdates
+	tabsByID      map[string]TabDefinition
+	tabsOrder     []TabDefinition
 }
 
 type ClientsPaginatedResponse struct {
@@ -137,20 +140,26 @@ type ClientsPaginatedResponse struct {
 	HasMore bool
 }
 
-func NewClientController(app application.Application, config ...ClientControllerConfig) application.Controller {
+func NewClientController(
+	app application.Application,
+	clientService *services.ClientService,
+	chatService *services.ChatService,
+	logger *logrus.Logger,
+	config ...ClientControllerConfig,
+) application.Controller {
 	// Use default config or the provided one
 	cfg := DefaultClientControllerConfig()
 	if len(config) > 0 {
 		cfg = config[0]
 	}
 
-	clientService := app.Service(services.ClientService{}).(*services.ClientService)
-
 	// Initialize controller
 	controller := &ClientController{
-		app:      app,
-		config:   cfg,
-		tabsByID: make(map[string]TabDefinition),
+		app:           app,
+		clientService: clientService,
+		chatService:   chatService,
+		config:        cfg,
+		tabsByID:      make(map[string]TabDefinition),
 	}
 
 	// Register provided tabs
@@ -160,72 +169,60 @@ func NewClientController(app application.Application, config ...ClientController
 
 	// Initialize realtime if enabled
 	if cfg.RealtimeBus {
-		controller.realtime = NewClientRealtimeUpdates(app, clientService, cfg.BasePath)
+		controller.realtime = NewClientRealtimeUpdates(app, clientService, cfg.BasePath, logger)
 	}
 
 	return controller
 }
 
-// Default tab definitions - exported for configuration
+func ProfileTab(basePath string, clientService *services.ClientService) TabDefinition {
+	return TabDefinition{
+		ID:        "profile",
+		NameKey:   "Clients.Tabs.Profile",
+		SortOrder: 10,
+		Permissions: []permission.Permission{
+			crmPermissions.ClientRead,
+		},
+		Component: func(r *http.Request, clientID uint) (templ.Component, error) {
+			clientEntity, err := clientService.GetByID(r.Context(), clientID)
+			if err != nil {
+				return nil, errors.Wrap(err, "Error retrieving client")
+			}
+			return clients.Profile(clients.ProfileProps{
+				ClientURL: basePath,
+				EditURL:   fmt.Sprintf("%s/%d/edit", basePath, clientID),
+				Client:    mappers.ClientToViewModel(clientEntity),
+			}), nil
+		},
+	}
+}
+
+func ChatTab(basePath string, clientService *services.ClientService, chatService *services.ChatService) TabDefinition {
+	return TabDefinition{
+		ID:        "chat",
+		NameKey:   "Clients.Tabs.Chat",
+		SortOrder: 20,
+		Permissions: []permission.Permission{
+			crmPermissions.ClientRead,
+		},
+		Component: func(r *http.Request, clientID uint) (templ.Component, error) {
+			clientEntity, err := clientService.GetByID(r.Context(), clientID)
+			if err != nil {
+				return nil, errors.Wrap(err, "Error retrieving client")
+			}
+			chatEntity, err := chatService.GetByClientIDOrCreate(r.Context(), clientID)
+			if err != nil {
+				return nil, errors.Wrap(err, "Error retrieving chat")
+			}
+			return clients.Chats(chatsui.SelectedChatProps{
+				Chat:       mappers.ChatToViewModel(chatEntity, clientEntity),
+				ClientsURL: basePath,
+			}), nil
+		},
+	}
+}
+
 var (
-	ProfileTab = func(basePath string) TabDefinition {
-		return TabDefinition{
-			ID:        "profile",
-			NameKey:   "Clients.Tabs.Profile",
-			SortOrder: 10,
-			Permissions: []permission.Permission{
-				crmPermissions.ClientRead,
-			},
-			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
-				app, err := application.UseApp(r.Context())
-				if err != nil {
-					return nil, errors.Wrap(err, "Error retrieving app")
-				}
-				clientService := app.Service(services.ClientService{}).(*services.ClientService)
-				clientEntity, err := clientService.GetByID(r.Context(), clientID)
-				if err != nil {
-					return nil, errors.Wrap(err, "Error retrieving client")
-				}
-				return clients.Profile(clients.ProfileProps{
-					ClientURL: basePath,
-					EditURL:   fmt.Sprintf("%s/%d/edit", basePath, clientID),
-					Client:    mappers.ClientToViewModel(clientEntity),
-				}), nil
-			},
-		}
-	}
-
-	ChatTab = func(basePath string) TabDefinition {
-		return TabDefinition{
-			ID:        "chat",
-			NameKey:   "Clients.Tabs.Chat",
-			SortOrder: 20,
-			Permissions: []permission.Permission{
-				crmPermissions.ClientRead,
-			},
-			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
-				app, err := application.UseApp(r.Context())
-				if err != nil {
-					return nil, errors.Wrap(err, "Error retrieving app")
-				}
-				clientService := app.Service(services.ClientService{}).(*services.ClientService)
-				chatService := app.Service(services.ChatService{}).(*services.ChatService)
-				clientEntity, err := clientService.GetByID(r.Context(), clientID)
-				if err != nil {
-					return nil, errors.Wrap(err, "Error retrieving client")
-				}
-				chatEntity, err := chatService.GetByClientIDOrCreate(r.Context(), clientID)
-				if err != nil {
-					return nil, errors.Wrap(err, "Error retrieving chat")
-				}
-				return clients.Chats(chatsui.SelectedChatProps{
-					Chat:       mappers.ChatToViewModel(chatEntity, clientEntity),
-					ClientsURL: basePath,
-				}), nil
-			},
-		}
-	}
-
 	ActionsTab = func() TabDefinition {
 		return TabDefinition{
 			ID:        "actions",
@@ -257,8 +254,15 @@ func (c *ClientController) RegisterTab(tab TabDefinition) {
 	})
 }
 
-func (c *ClientController) Key() string {
-	return c.config.BasePath
+func (c *ClientController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("crm.client", 0, application.Route("", c.config.BasePath)).
+		WithNav(application.NavNode{
+			ID:       "crm.client",
+			Parent:   "crm",
+			TitleKey: "NavigationLinks.Clients",
+			Path:     c.config.BasePath,
+			Icon:     icons.Users(icons.Props{Size: "20"}),
+		})
 }
 
 func (c *ClientController) Register(r *mux.Router) {
@@ -268,8 +272,7 @@ func (c *ClientController) Register(r *mux.Router) {
 			middleware.Authorize(),
 			middleware.RedirectNotAuthenticated(),
 			middleware.ProvideUser(),
-			middleware.ProvideDynamicLogo(c.app),
-			middleware.ProvideLocalizer(c.app),
+			middleware.ProvideDynamicLogo(),
 			middleware.WithPageContext(),
 		},
 		c.config.Middleware...,
@@ -438,7 +441,7 @@ func (c *ClientController) List(
 	}
 	isHxRequest := htmx.IsHxRequest(r)
 	if isHxRequest && r.URL.Query().Get("view") != "" {
-		c.View(r, w, user, logger, clientService, c.app.Service(services.ChatService{}).(*services.ChatService))
+		c.View(r, w, user, logger, clientService, c.chatService)
 		return
 	}
 	props := &clients.IndexPageProps{
@@ -525,8 +528,14 @@ func (c *ClientController) Export(
 		return
 	case export.ExportFormatCSV:
 		var buffer bytes.Buffer
-		writer := csv.NewWriter(&buffer)
-		if err := writer.Write([]string{
+		// Names and phones are user-entered: the SDK CSV writer keeps them from
+		// opening as spreadsheet formulas.
+		writer, err := excel.NewCSVWriter(&buffer, &excel.CSVOptions{IncludeBOM: true})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := writer.WriteHeader([]string{
 			pgCtx.T("Clients.List.FullName"),
 			pgCtx.T("Clients.List.Phone"),
 			pgCtx.T("UpdatedAt"),
@@ -541,13 +550,12 @@ func (c *ClientController) Export(
 		}
 
 		for _, client := range clients {
-			if err := writer.Write([]string{client.FullName(), client.Phone, client.UpdatedAt}); err != nil {
+			if err := writer.WriteRow([]interface{}{client.FullName(), client.Phone, client.UpdatedAt}); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}
-		writer.Flush()
-		if err := writer.Error(); err != nil {
+		if err := writer.Flush(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -970,9 +978,9 @@ func (c *ClientController) UpdatePersonal(
 
 	clientVM := mappers.ClientToViewModel(entity)
 	htmx.Retarget(w, "#personal-info-card")
+	htmx.Reswap(w, "outerHTML")
 	templ.Handler(clients.PersonalInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
-
 func (c *ClientController) UpdatePassport(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -1046,9 +1054,9 @@ func (c *ClientController) UpdatePassport(
 
 	clientVM := mappers.ClientToViewModel(entity)
 	htmx.Retarget(w, "#passport-info-card")
+	htmx.Reswap(w, "outerHTML")
 	templ.Handler(clients.PassportInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
-
 func (c *ClientController) UpdateTax(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -1122,9 +1130,9 @@ func (c *ClientController) UpdateTax(
 
 	clientVM := mappers.ClientToViewModel(entity)
 	htmx.Retarget(w, "#tax-info-card")
+	htmx.Reswap(w, "outerHTML")
 	templ.Handler(clients.TaxInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
-
 func (c *ClientController) UpdateNotes(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -1159,15 +1167,15 @@ func (c *ClientController) UpdateNotes(
 		}
 
 		clientVM := mappers.ClientToViewModel(entity)
-		props := &clients.TaxInfoEditProps{
+		clientVM.Comments = dto.Comments
+		props := &clients.NotesInfoEditProps{
 			Client: clientVM,
 			Errors: errorsMap,
 			Form:   "notes-info-edit-form",
 		}
-		templ.Handler(clients.TaxInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(clients.NotesInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
-
 	entity, err := clientService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v", err)
@@ -1197,9 +1205,9 @@ func (c *ClientController) UpdateNotes(
 
 	clientVM := mappers.ClientToViewModel(entity)
 	htmx.Retarget(w, "#notes-info-card")
+	htmx.Reswap(w, "outerHTML")
 	templ.Handler(clients.NotesInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
-
 func (c *ClientController) Delete(
 	r *http.Request,
 	w http.ResponseWriter,

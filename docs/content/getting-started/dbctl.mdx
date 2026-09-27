@@ -1,0 +1,60 @@
+---
+title: 'DBCTL Operations'
+description: 'Policy-first seed and database operations'
+---
+
+# DBCTL Operations
+
+`dbctl` is the only supported interface for seed/e2e database workflows.
+
+## Plan and apply
+
+```bash
+# Inspect execution graph and policy decision
+command dbctl plan seed.main
+
+# Preview execution without mutating state
+command dbctl apply seed.main --dry-run
+
+# Execute seed
+command dbctl apply seed.main
+
+# E2E destructive reset
+command dbctl apply db.e2e.reset --yes
+```
+
+## Defaults
+
+`dbctl` uses built-in safety defaults. No `.dbctl/policy.yaml` file is required.
+If you need to override those defaults, pass `--policy-path /path/to/policy.yaml`.
+
+`dbctl apply` fails when:
+
+- target host is not allowed for environment
+- destructive operation is not permitted
+- `--yes` is missing for a destructive operation
+
+## Diagnostics
+
+```bash
+# policy/target diagnostics
+command dbctl doctor
+```
+
+## Seed superadmin
+
+`seed.superadmin` requires `SUPERADMIN_PASSWORD` to be set explicitly before apply:
+
+```bash
+SUPERADMIN_PASSWORD='<secure-password>' command dbctl apply seed.superadmin
+```
+
+## Removed legacy commands
+
+The following command families are removed:
+
+- `command seed`
+- `command seed_superadmin`
+- `command e2e seed|create|drop|reset`
+
+Use `dbctl` operations instead.

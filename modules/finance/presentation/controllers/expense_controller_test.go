@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,19 +51,19 @@ func TestExpenseController_List_Success(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
-	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -124,19 +125,19 @@ func TestExpenseController_List_HTMX_Request(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
-	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"HTMX Test Account",
@@ -176,24 +177,110 @@ func TestExpenseController_List_HTMX_Request(t *testing.T) {
 		Contains("50.25")
 }
 
+func TestExpenseController_List_InfiniteScroll(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User(
+		permissions.ExpenseRead,
+		permissions.ExpenseCreate,
+	)
+
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewComponent()).Build().
+		AsUser(adminUser)
+
+	env := suite.Environment()
+	createCurrencies(t, env, currency.USD)
+
+	controller := controllers.NewExpensesController()
+	suite.Register(controller)
+
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+
+	createdAccount, err := moneyAccountService.Create(env.Ctx, moneyAccountEntity.New(
+		"Chunk Account",
+		money.NewFromFloat(1000.00, "USD"),
+		moneyAccountEntity.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+
+	createdCategory, err := persistence.NewExpenseCategoryRepository().Create(expenseCommittedCtx(env), expenseCategoryEntity.New(
+		"Chunk Category",
+		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+
+	for i, comment := range []string{"rent", "rent", "rent", "salary"} {
+		_, err = expenseService.Create(env.Ctx, expenseAggregate.New(
+			money.NewFromFloat(float64(i+1)*10, "USD"),
+			createdAccount,
+			createdCategory,
+			time.Now().AddDate(0, 0, -i),
+			expenseAggregate.WithTenantID(env.Tenant.ID),
+			expenseAggregate.WithComment(comment),
+		))
+		require.NoError(t, err)
+	}
+
+	html := suite.GET(ExpenseBasePath + "?Search=rent&limit=2").
+		Expect(t).
+		Status(200).
+		Contains("<html").
+		HTML()
+	require.Len(t, html.Elements("//tbody/tr[td[@data-col='amount']]"), 2)
+	next := html.Element("//tbody/tr[@hx-get]").Attr("hx-get")
+	require.Contains(t, next, "Search=rent")
+	require.Contains(t, next, "page=2")
+	html.Element("//tr[@id='infinite-scroll-spinner']").Exists()
+
+	last := suite.GET(ExpenseBasePath + "?Search=rent&limit=2&page=2").
+		HTMX().
+		Expect(t).
+		Status(200).
+		NotContains("<form").
+		NotContains("hx-get")
+	require.Equal(t, 1, strings.Count(last.Body(), `data-col="amount"`))
+
+	all := suite.GET(ExpenseBasePath + "?Search=rent&limit=3").
+		Expect(t).
+		Status(200).
+		HTML()
+	require.Len(t, all.Elements("//tbody/tr[td[@data-col='amount']]"), 3)
+	all.Element("//tbody/tr[@hx-get]").NotExists()
+
+	embedded := suite.GET(ExpenseBasePath + "?embedded=true&limit=2").
+		HTMX().
+		Expect(t).
+		Status(200).
+		Contains("<form").
+		NotContains("<html")
+	require.Len(t, embedded.HTML().Elements("//tbody/tr[td[@data-col='amount']]"), 2)
+	suite.GET(ExpenseBasePath + "?embedded=true&limit=2&page=2").
+		HTMX().
+		Expect(t).
+		Status(200).
+		NotContains("<form")
+}
+
 func TestExpenseController_GetNew_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User(
 		permissions.ExpenseRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -235,19 +322,19 @@ func TestExpenseController_Create_Success(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
-	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -294,19 +381,19 @@ func TestExpenseController_Create_ValidationError(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
-	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -356,19 +443,19 @@ func TestExpenseController_GetEdit_Success(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
-	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Edit Test Account",
@@ -424,15 +511,15 @@ func TestExpenseController_GetEdit_NotFound(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -449,19 +536,19 @@ func TestExpenseController_Update_Success(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
-	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Update Test Account",
@@ -519,19 +606,19 @@ func TestExpenseController_Update_ValidationError(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
-	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -593,19 +680,19 @@ func TestExpenseController_Delete_Success(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
-	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Delete Test Account",
@@ -656,15 +743,15 @@ func TestExpenseController_Delete_NotFound(t *testing.T) {
 		permissions.ExpenseDelete,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -679,15 +766,15 @@ func TestExpenseController_InvalidUUID(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	suite.GET(ExpenseBasePath + "/invalid-uuid").
@@ -702,19 +789,19 @@ func TestExpenseController_Export_Excel_Success(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
-	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
-	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
 
 	account := moneyAccountEntity.New(
 		"Export Test Account",
@@ -777,15 +864,15 @@ func TestExpenseController_Export_InvalidFormat(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	suite.POST(ExpenseBasePath + "/export?format=invalid-format").
@@ -800,15 +887,15 @@ func TestExpenseController_Export_MissingFormat(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	suite.POST(ExpenseBasePath + "/export").
@@ -821,15 +908,15 @@ func TestExpenseController_Export_Forbidden(t *testing.T) {
 	t.Parallel()
 	userWithoutPermission := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithModules(core.NewModule(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).Build().
+	}), finance.NewComponent()).Build().
 		AsUser(userWithoutPermission)
 
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	suite.POST(ExpenseBasePath + "/export?format=excel").

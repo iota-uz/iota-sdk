@@ -1,0 +1,91 @@
+[SuperAdmin.NavigationLinks]
+Dashboard = "Painel"
+Tenants = "Inquilinos"
+
+[SuperAdmin.Dashboard]
+Title = "Painel do Super Administrador"
+DateRange = "Período de datas"
+
+[SuperAdmin.Dashboard.Meta]
+Title = "Painel - Super Administrador"
+
+[SuperAdmin.Dashboard.Metrics]
+TotalTenants = "Total de inquilinos"
+TotalUsers = "Total de usuários"
+ActiveUsers = "Usuários ativos"
+DAU = "Usuários ativos diários"
+WAU = "Usuários ativos semanais"
+MAU = "Usuários ativos mensais"
+TotalSessions = "Total de sessões"
+
+[SuperAdmin.Dashboard.Charts]
+UserSignups = "Cadastros de usuários"
+TenantSignups = "Cadastros de inquilinos"
+
+[SuperAdmin.Tenants]
+Title = "Inquilinos"
+Name = "Nome do inquilino"
+Domain = "Domínio"
+Email = "E-mail"
+Phone = "Telefone"
+UserCount = "Contagem de usuários"
+StatusColumn = "Status"
+CreatedAt = "Data de criação"
+Actions = "Ações"
+ViewUsers = "Visualizar usuários"
+Export = "Exportar para Excel"
+FilterByDate = "Filtrar por período de datas"
+StartDate = "Data de início"
+EndDate = "Data de término"
+ClearFilter = "Limpar filtro"
+
+[SuperAdmin.Tenants.Meta]
+Title = "Inquilinos - Super Administrador"
+
+[SuperAdmin.Tenants.Status]
+Active = "Ativo"
+Inactive = "Inativo"
+
+[SuperAdmin.Tenants.Users]
+Title = "Usuários do inquilino"
+ViewUsers = "Visualizar usuários"
+BackToTenants = "Voltar para Tenants"
+TenantInfo = "Informações do inquilino"
+FullName = "Nome completo"
+FirstName = "Nome"
+LastName = "Sobrenome"
+Email = "E-mail"
+Phone = "Telefone"
+Role = "Função"
+CreatedAt = "Data de criação"
+LastLogin = "Último acesso"
+Status = "Status"
+Actions = "Ações"
+ResetPassword = "Redefinir senha"
+ConfirmResetPassword = "Tem certeza de que deseja redefinir a senha deste usuário?"
+ResetPasswordTitle = "Redefinir senha"
+ResetPasswordFor = "Redefinir senha para %s"
+NewPassword = "Nova senha"
+EnterNewPassword = "Digite a nova senha"
+GeneratePassword = "Gerar senha segura"
+GeneratedPassword = "Senha gerada"
+NewPasswordGenerated = "A nova senha foi gerada com sucesso"
+SetPassword = "Definir senha"
+CopyPassword = "Copiar senha"
+PasswordCopied = "Senha copiada para a área de transferência"
+PasswordResetSuccess = "Senha redefinida com sucesso"
+PasswordResetError = "Falha ao redefinir a senha"
+Cancel = "Cancelar"
+ManualEntry = "Entrada manual"
+AutoGenerate = "Gerar automaticamente"
+
+[SuperAdmin.Tenants.Users.Meta]
+Title = "Usuários do Tenant - Super Admin"
+
+[SuperAdmin.Tenants.Users.Errors]
+PasswordTooShort = "A senha deve ter pelo menos 8 caracteres"
+PasswordTooLong = "A senha não pode exceder 128 caracteres"
+PasswordEmpty = "A senha não pode estar vazia"
+InvalidContentType = "A requisição deve usar o formato JSON"
+NetworkError = "Ocorreu um erro de rede. Por favor, tente novamente"
+ServerError = "Ocorreu um erro no servidor. Por favor, entre em contato com o suporte"

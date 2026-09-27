@@ -1,0 +1,54 @@
+{
+  "NavigationLinks": {
+    "HelpCenter": "Yordam markazi"
+  },
+  "HelpCenter": {
+    "Meta": {
+      "Title": "Yordam markazi",
+      "Subtitle": "Mahsulot hujjatlari va amaliy qo'llanmalarni ko'rib chiqing."
+    },
+    "Search": {
+      "Placeholder": "Yordam maqolalarini qidirish",
+      "Unavailable": "Qidiruv mavjud emas.",
+      "NoResults": "Natijalar topilmadi."
+    },
+    "Categories": "Hujjatlar",
+    "Article": "Mahsulot qo‘llanmasi",
+    "OnThisPage": "Ushbu sahifada",
+    "Tasks": {
+      "Kicker": "Vazifalar navigatori",
+      "Title": "Nima qilmoqchisiz?",
+      "Subtitle": "Kerakli ekranni ochish yoki aniq yo‘riqnomani o‘qish uchun biznes vazifani tanlang.",
+      "PathLabel": "Vazifani bajarish yo‘li",
+      "Path": {
+        "Task": "Vazifani tanlang",
+        "Screen": "Kerakli ekranni oching",
+        "Result": "Natijani tekshiring"
+      },
+      "OpenScreen": "Ekranni ochish",
+      "ReadGuide": "Yo‘riqnomani o‘qish"
+    },
+    "ExpandNavigation": "Navigatsiyani ochish",
+    "CollapseNavigation": "Navigatsiyani yig‘ish",
+    "CloseNavigation": "Navigatsiyani yopish",
+    "CopyCode": "Nusxalash",
+    "Copied": "Nusxalandi",
+    "Diagram": {
+      "Label": "Jarayon diagrammasi",
+      "ZoomIn": "Kattalashtirish",
+      "ZoomOut": "Kichraytirish",
+      "ResetZoom": "Masshtabni tiklash",
+      "ZoomLevel": "Masshtab",
+      "EnterFullscreen": "To‘liq ekranda ochish",
+      "ExitFullscreen": "To‘liq ekrandan chiqish"
+    },
+    "Callouts": {
+      "Note": "Izoh",
+      "Tip": "Maslahat",
+      "Important": "Muhim",
+      "Warning": "Ogohlantirish",
+      "Caution": "Ehtiyot bo‘ling"
+    },
+    "Empty": "Yordam maqolalari hali mavjud emas."
+  }
+}

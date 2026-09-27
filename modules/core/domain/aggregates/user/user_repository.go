@@ -3,6 +3,7 @@ package user
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -44,10 +45,12 @@ type Repository interface {
 	GetByPhone(ctx context.Context, phone string) (User, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]User, error)
 	GetByID(ctx context.Context, id uint) (User, error)
+	GetByIDs(ctx context.Context, ids []uint) ([]User, error)
 	PhoneExists(ctx context.Context, phone string) (bool, error)
 	EmailExists(ctx context.Context, email string) (bool, error)
 	Create(ctx context.Context, user User) (User, error)
 	Update(ctx context.Context, user User) error
+	UpdatePassword(ctx context.Context, userID uint, passwordHash string, updatedAt time.Time) error
 	Update2FASettings(ctx context.Context, userID uint, dto Update2FADTO) error
 	UpdateLastAction(ctx context.Context, id uint) error
 	UpdateLastLogin(ctx context.Context, id uint) error

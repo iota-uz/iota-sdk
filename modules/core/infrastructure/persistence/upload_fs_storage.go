@@ -6,20 +6,38 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type FSStorage struct{}
 
-func NewFSStorage() (*FSStorage, error) {
-	conf := configuration.Use()
+func NewFSStorage(cfg *uploadsconfig.Config) (*FSStorage, error) {
+	const op serrors.Op = "persistence.NewFSStorage"
+	uploadsPath := "static"
+	if cfg != nil && cfg.Path != "" {
+		uploadsPath = cfg.Path
+	}
 	workDir, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
-	fullPath := filepath.Join(workDir, conf.UploadsPath)
-	if err := os.MkdirAll(fullPath, 0777); err != nil {
-		return nil, err
+	fullPath := uploadsPath
+	if !filepath.IsAbs(fullPath) {
+		fullPath = filepath.Join(workDir, fullPath)
+	}
+	if err := os.MkdirAll(fullPath, 0755); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if err := os.Chmod(fullPath, 0755); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	privatePath := filepath.Join(fullPath, uploadsconfig.PrivateDirectory)
+	if err := os.MkdirAll(privatePath, 0700); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if err := os.Chmod(privatePath, 0700); err != nil {
+		return nil, serrors.E(op, err)
 	}
 	return &FSStorage{}, nil
 }

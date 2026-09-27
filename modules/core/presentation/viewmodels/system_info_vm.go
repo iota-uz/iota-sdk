@@ -44,6 +44,7 @@ type SystemInfoMetrics struct {
 	Version             string
 	BranchName          string
 	GitCommit           string
+	GitCommitURL        string
 	BuildTime           string
 	BuildEnvironment    string
 	BuildGoVersion      string

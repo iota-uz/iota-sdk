@@ -1,0 +1,1803 @@
+// Package transform defines Lens frame transformation specs and helpers.
+package transform
+
+import (
+	"fmt"
+	"math"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+)
+
+type Kind string
+
+const (
+	KindFilterRows       Kind = "filter_rows"
+	KindProject          Kind = "project"
+	KindRename           Kind = "rename"
+	KindCast             Kind = "cast"
+	KindSort             Kind = "sort"
+	KindLimit            Kind = "limit"
+	KindGroupBy          Kind = "group_by"
+	KindAggregate        Kind = "aggregate"
+	KindJoin             Kind = "join"
+	KindUnion            Kind = "union"
+	KindPivot            Kind = "pivot"
+	KindUnpivot          Kind = "unpivot"
+	KindFillMissing      Kind = "fill_missing"
+	KindFormula          Kind = "formula"
+	KindBucketTime       Kind = "bucket_time"
+	KindTopN             Kind = "top_n"
+	KindBucketBounds     Kind = "bucket_bounds"
+	KindLookup           Kind = "lookup"
+	KindAgeRange         Kind = "age_range"
+	KindMoneyScale       Kind = "money_scale"
+	KindFilterZeroSeries Kind = "filter_zero_series"
+	KindMovingAverage    Kind = "moving_average"
+	KindLinearRegression Kind = "linear_regression"
+	KindLinearForecast   Kind = "linear_forecast"
+)
+
+type SortDirection string
+
+const (
+	SortAsc  SortDirection = "asc"
+	SortDesc SortDirection = "desc"
+)
+
+type Predicate struct {
+	Field string
+	Op    string
+	Value any
+}
+
+type SortField struct {
+	Field     string
+	Direction SortDirection
+}
+
+type Aggregate struct {
+	Field string
+	As    string
+	Func  string
+}
+
+type Formula struct {
+	As            string
+	Op            string
+	Left          string
+	Right         string
+	RightValue    float64
+	AbsoluteRight bool
+}
+
+type JoinConfig struct {
+	Other string
+	On    []string
+	How   string
+}
+
+type FillMissingConfig struct {
+	CategoryField string
+	SeriesField   string
+	ValueField    string
+	FillValue     any
+}
+
+type BucketTimeConfig struct {
+	Field    string
+	As       string
+	Interval string
+}
+
+type BucketBoundsConfig struct {
+	Field            string
+	GranularityField string
+	Granularity      string
+	StartAs          string
+	EndAs            string
+}
+
+type LookupConfig struct {
+	Other      string
+	LocalField string
+	OtherField string
+	Fields     map[string]string
+}
+
+type AgeRangeConfig struct {
+	Field string
+	MinAs string
+	MaxAs string
+}
+
+type MoneyScaleConfig struct {
+	Field  string
+	As     string
+	Factor float64
+}
+
+type FilterZeroSeriesConfig struct {
+	SeriesField string
+	ValueField  string
+}
+
+// MovingAverageConfig appends a simple moving average to the frame without
+// replacing the source values. Input order is the time order; SeriesField,
+// when set, gives each series an independent window.
+type MovingAverageConfig struct {
+	ValueField  string
+	SeriesField string
+	As          string
+	Window      int
+}
+
+// LinearRegressionConfig appends the least-squares trend evaluated at every
+// input position. SeriesField, when set, fits each series independently.
+type LinearRegressionConfig struct {
+	ValueField  string
+	SeriesField string
+	As          string
+}
+
+// LinearForecastConfig appends Horizon future time buckets and fills three
+// exportable metric fields with a least-squares extrapolation and its
+// two-sided prediction interval. ConfidenceZ defaults to 1.96 (95%).
+// SeriesField, when set, fits and advances each series independently.
+type LinearForecastConfig struct {
+	CategoryField string
+	ValueField    string
+	SeriesField   string
+	ValueAs       string
+	LowerAs       string
+	UpperAs       string
+	Interval      string
+	Horizon       int
+	ConfidenceZ   float64
+}
+
+type PivotConfig struct {
+	CategoryField string
+	SeriesField   string
+	ValueField    string
+}
+
+type UnpivotConfig struct {
+	LabelField string
+	ValueField string
+	Fields     []string
+}
+
+type Spec struct {
+	Kind             Kind
+	Predicates       []Predicate
+	Fields           []string
+	Aliases          map[string]string
+	Types            map[string]frame.FieldType
+	Sort             []SortField
+	Limit            int
+	GroupBy          []string
+	Aggregates       []Aggregate
+	Join             *JoinConfig
+	FillMissing      *FillMissingConfig
+	Formula          *Formula
+	BucketTime       *BucketTimeConfig
+	TopN             *TopNConfig
+	Pivot            *PivotConfig
+	Unpivot          *UnpivotConfig
+	BucketBounds     *BucketBoundsConfig
+	Lookup           *LookupConfig
+	AgeRange         *AgeRangeConfig
+	MoneyScale       *MoneyScaleConfig
+	FilterZeroSeries *FilterZeroSeriesConfig
+	MovingAverage    *MovingAverageConfig
+	LinearRegression *LinearRegressionConfig
+	LinearForecast   *LinearForecastConfig
+}
+
+type TopNConfig struct {
+	Field          string
+	N              int
+	Other          string
+	AdditiveFields map[string]bool
+	// RankByDataset fixes membership and ordering to an already-ranked frame.
+	// It is used by period comparison so both periods contain the same
+	// categories. KeyFields identify a category across the two frames.
+	RankByDataset string
+	KeyFields     []string
+	// Expandable keeps the tail rows on the frame and tags them for the React
+	// renderer to collapse into Other. The aggregate remains clickable because
+	// its source rows were not discarded by the transform.
+	Expandable bool
+}
+
+const TopNGroupField = "__lens_topn_group"
+
+func Apply(primary *frame.FrameSet, deps map[string]*frame.FrameSet, specs []Spec) (*frame.FrameSet, error) {
+	if primary == nil {
+		return &frame.FrameSet{}, nil
+	}
+	current := primary.Clone()
+	var err error
+	for _, spec := range specs {
+		current, err = applyOne(current, deps, spec)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return current, nil
+}
+
+func applyOne(primary *frame.FrameSet, deps map[string]*frame.FrameSet, spec Spec) (*frame.FrameSet, error) {
+	op := serrors.Op("lens/transform.applyOne")
+	switch spec.Kind {
+	case KindFilterRows:
+		return filterRows(primary, spec.Predicates)
+	case KindProject:
+		return project(primary, spec.Fields)
+	case KindRename:
+		return rename(primary, spec.Aliases)
+	case KindCast:
+		return cast(primary, spec.Types)
+	case KindSort:
+		return sortRows(primary, spec.Sort)
+	case KindLimit:
+		return limit(primary, spec.Limit)
+	case KindGroupBy, KindAggregate:
+		return groupBy(primary, spec.GroupBy, spec.Aggregates)
+	case KindUnion:
+		return union(primary, deps)
+	case KindJoin:
+		return join(primary, deps, spec.Join)
+	case KindFormula:
+		return formula(primary, spec.Formula)
+	case KindFillMissing:
+		return fillMissing(primary, spec.FillMissing)
+	case KindBucketTime:
+		return bucketTime(primary, spec.BucketTime)
+	case KindTopN:
+		return applyTopN(primary, deps, spec.TopN)
+	case KindPivot:
+		return pivot(primary, spec.Pivot)
+	case KindUnpivot:
+		return unpivot(primary, spec.Unpivot)
+	case KindBucketBounds:
+		return bucketBounds(primary, spec.BucketBounds)
+	case KindLookup:
+		return lookup(primary, deps, spec.Lookup)
+	case KindAgeRange:
+		return ageRange(primary, spec.AgeRange)
+	case KindMoneyScale:
+		return moneyScale(primary, spec.MoneyScale)
+	case KindFilterZeroSeries:
+		return filterZeroSeries(primary, spec.FilterZeroSeries)
+	case KindMovingAverage:
+		return movingAverage(primary, spec.MovingAverage)
+	case KindLinearRegression:
+		return linearRegression(primary, spec.LinearRegression)
+	case KindLinearForecast:
+		return linearForecast(primary, spec.LinearForecast)
+	default:
+		return nil, serrors.E(op, fmt.Errorf("unsupported transform kind %q", spec.Kind))
+	}
+}
+
+// MovingAverage appends an ungrouped SMA column.
+func MovingAverage(valueField, as string, window int) Spec {
+	return MovingAverageBy(valueField, "", as, window)
+}
+
+// MovingAverageBy appends an SMA column with one independent window per
+// series. A point is emitted only after the full window is available.
+func MovingAverageBy(valueField, seriesField, as string, window int) Spec {
+	return Spec{Kind: KindMovingAverage, MovingAverage: &MovingAverageConfig{
+		ValueField: valueField, SeriesField: seriesField, As: as, Window: window,
+	}}
+}
+
+// LinearRegression appends an ungrouped least-squares trend column.
+func LinearRegression(valueField, as string) Spec {
+	return LinearRegressionBy(valueField, "", as)
+}
+
+// LinearForecast appends future buckets with a server-computed linear
+// extrapolation and 95% prediction interval.
+func LinearForecast(categoryField, valueField, seriesField, valueAs, lowerAs, upperAs, interval string, horizon int) Spec {
+	return Spec{Kind: KindLinearForecast, LinearForecast: &LinearForecastConfig{
+		CategoryField: categoryField, ValueField: valueField, SeriesField: seriesField,
+		ValueAs: valueAs, LowerAs: lowerAs, UpperAs: upperAs,
+		Interval: interval, Horizon: horizon, ConfidenceZ: 1.96,
+	}}
+}
+
+// LinearRegressionBy appends one least-squares trend per series.
+func LinearRegressionBy(valueField, seriesField, as string) Spec {
+	return Spec{Kind: KindLinearRegression, LinearRegression: &LinearRegressionConfig{
+		ValueField: valueField, SeriesField: seriesField, As: as,
+	}}
+}
+
+func BucketBounds(field, startAs, endAs string) Spec {
+	return Spec{
+		Kind: KindBucketBounds,
+		BucketBounds: &BucketBoundsConfig{
+			Field:   field,
+			StartAs: startAs,
+			EndAs:   endAs,
+		},
+	}
+}
+
+func Lookup(other, localField, otherField string, fields map[string]string) Spec {
+	return Spec{
+		Kind: KindLookup,
+		Lookup: &LookupConfig{
+			Other:      other,
+			LocalField: localField,
+			OtherField: otherField,
+			Fields:     fields,
+		},
+	}
+}
+
+func ParseAgeRange(field, minAs, maxAs string) Spec {
+	return Spec{
+		Kind: KindAgeRange,
+		AgeRange: &AgeRangeConfig{
+			Field: field,
+			MinAs: minAs,
+			MaxAs: maxAs,
+		},
+	}
+}
+
+func MoneyScale(field, as string, factor float64) Spec {
+	return Spec{
+		Kind: KindMoneyScale,
+		MoneyScale: &MoneyScaleConfig{
+			Field:  field,
+			As:     as,
+			Factor: factor,
+		},
+	}
+}
+
+func TopN(field string, n int, other string) Spec {
+	return Spec{
+		Kind: KindTopN,
+		TopN: &TopNConfig{
+			Field: field,
+			N:     n,
+			Other: strings.TrimSpace(other),
+		},
+	}
+}
+
+func ExpandableTopN(field string, n int, other string) Spec {
+	spec := TopN(field, n, other)
+	spec.TopN.Expandable = true
+	return spec
+}
+
+func FilterZeroSeries(seriesField, valueField string) Spec {
+	return Spec{
+		Kind: KindFilterZeroSeries,
+		FilterZeroSeries: &FilterZeroSeriesConfig{
+			SeriesField: seriesField,
+			ValueField:  valueField,
+		},
+	}
+}
+
+func filterRows(primary *frame.FrameSet, predicates []Predicate) (*frame.FrameSet, error) {
+	fr := primary.Primary()
+	if fr == nil {
+		return primary.Clone(), nil
+	}
+	rows := fr.Rows()
+	out, err := frame.New(fr.Name)
+	if err != nil {
+		return nil, err
+	}
+	out.Fields = make([]frame.Field, len(fr.Fields))
+	for i, field := range fr.Fields {
+		out.Fields[i] = field.Clone()
+		out.Fields[i].Values = nil
+	}
+	for _, row := range rows {
+		if matches(row, predicates) {
+			if err := out.AppendRow(row); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, err
+	}
+	return frame.NewFrameSet(out)
+}
+
+func matches(row map[string]any, predicates []Predicate) bool {
+	for _, predicate := range predicates {
+		left := row[predicate.Field]
+		switch predicate.Op {
+		case "=", "==":
+			if fmt.Sprint(left) != fmt.Sprint(predicate.Value) {
+				return false
+			}
+		case "in":
+			if !containsValue(predicate.Value, left) {
+				return false
+			}
+		case "!=", "<>":
+			if fmt.Sprint(left) == fmt.Sprint(predicate.Value) {
+				return false
+			}
+		case "contains":
+			if !strings.Contains(strings.ToLower(fmt.Sprint(left)), strings.ToLower(fmt.Sprint(predicate.Value))) {
+				return false
+			}
+		case ">":
+			if toFloat(left) <= toFloat(predicate.Value) {
+				return false
+			}
+		case ">=":
+			if toFloat(left) < toFloat(predicate.Value) {
+				return false
+			}
+		case "<":
+			if toFloat(left) >= toFloat(predicate.Value) {
+				return false
+			}
+		case "<=":
+			if toFloat(left) > toFloat(predicate.Value) {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func containsValue(values any, needle any) bool {
+	needleText := fmt.Sprint(needle)
+	switch current := values.(type) {
+	case []string:
+		for _, value := range current {
+			if value == needleText {
+				return true
+			}
+		}
+	case []any:
+		for _, value := range current {
+			if fmt.Sprint(value) == needleText {
+				return true
+			}
+		}
+	default:
+		return fmt.Sprint(current) == needleText
+	}
+	return false
+}
+
+func project(primary *frame.FrameSet, fields []string) (*frame.FrameSet, error) {
+	fr := primary.Primary()
+	if fr == nil {
+		return primary.Clone(), nil
+	}
+	selected := make([]frame.Field, 0, len(fields))
+	for _, name := range fields {
+		field, ok := fr.Field(name)
+		if !ok {
+			return nil, fmt.Errorf("project field %q not found", name)
+		}
+		selected = append(selected, field.Clone())
+	}
+	next := &frame.Frame{Name: fr.Name, Fields: selected}
+	if err := next.Normalize(); err != nil {
+		return nil, err
+	}
+	return frame.NewFrameSet(next)
+}
+
+func rename(primary *frame.FrameSet, aliases map[string]string) (*frame.FrameSet, error) {
+	next := primary.Clone()
+	fr := next.Primary()
+	if fr == nil {
+		return next, nil
+	}
+	for i := range fr.Fields {
+		if alias, ok := aliases[fr.Fields[i].Name]; ok {
+			fr.Fields[i].Name = alias
+		}
+	}
+	return next, nil
+}
+
+func cast(primary *frame.FrameSet, types map[string]frame.FieldType) (*frame.FrameSet, error) {
+	next := primary.Clone()
+	fr := next.Primary()
+	if fr == nil {
+		return next, nil
+	}
+	for i := range fr.Fields {
+		target, ok := types[fr.Fields[i].Name]
+		if !ok {
+			continue
+		}
+		fr.Fields[i].Type = target
+		switch target {
+		case frame.FieldTypeNumber:
+			for idx, value := range fr.Fields[i].Values {
+				fr.Fields[i].Values[idx] = toFloat(value)
+			}
+		case frame.FieldTypeString:
+			for idx, value := range fr.Fields[i].Values {
+				fr.Fields[i].Values[idx] = fmt.Sprint(value)
+			}
+		case frame.FieldTypeBoolean, frame.FieldTypeTime, frame.FieldTypeUnknown, frame.FieldTypeLocalized:
+			// Keep existing values; only number and string casts currently coerce payloads.
+		}
+	}
+	return next, nil
+}
+
+func sortRows(primary *frame.FrameSet, fields []SortField) (*frame.FrameSet, error) {
+	fr := primary.Primary()
+	if fr == nil {
+		return primary.Clone(), nil
+	}
+	rows := fr.Rows()
+	sort.SliceStable(rows, func(i, j int) bool {
+		for _, field := range fields {
+			left := rows[i][field.Field]
+			right := rows[j][field.Field]
+			cmp := compare(left, right)
+			if cmp == 0 {
+				continue
+			}
+			if field.Direction == SortDesc {
+				return cmp > 0
+			}
+			return cmp < 0
+		}
+		return false
+	})
+	next, err := frame.New(fr.Name)
+	if err != nil {
+		return nil, err
+	}
+	next.Fields = cloneSchema(fr.Fields)
+	for _, row := range rows {
+		if err := next.AppendRow(row); err != nil {
+			return nil, err
+		}
+	}
+	if err := next.Normalize(); err != nil {
+		return nil, err
+	}
+	return frame.NewFrameSet(next)
+}
+
+func limit(primary *frame.FrameSet, limitValue int) (*frame.FrameSet, error) {
+	if limitValue <= 0 {
+		return primary.Clone(), nil
+	}
+	fr := primary.Primary()
+	if fr == nil || fr.RowCount <= limitValue {
+		return primary.Clone(), nil
+	}
+	next := fr.Clone()
+	for i := range next.Fields {
+		next.Fields[i].Values = next.Fields[i].Values[:limitValue]
+	}
+	next.RowCount = limitValue
+	return frame.NewFrameSet(next)
+}
+
+func groupBy(primary *frame.FrameSet, fields []string, aggregates []Aggregate) (*frame.FrameSet, error) {
+	fr := primary.Primary()
+	if fr == nil {
+		return primary.Clone(), nil
+	}
+	type bucket struct {
+		keys map[string]any
+		rows []map[string]any
+	}
+	groups := make(map[string]*bucket)
+	for _, row := range fr.Rows() {
+		keyParts := make([]string, 0, len(fields))
+		keyValues := make(map[string]any, len(fields))
+		for _, field := range fields {
+			keyValues[field] = row[field]
+			keyParts = append(keyParts, fmt.Sprint(row[field]))
+		}
+		key := strings.Join(keyParts, "\x00")
+		if _, ok := groups[key]; !ok {
+			groups[key] = &bucket{keys: keyValues}
+		}
+		groups[key].rows = append(groups[key].rows, row)
+	}
+	out, err := frame.New(fr.Name)
+	if err != nil {
+		return nil, err
+	}
+	for _, grp := range groups {
+		row := make(map[string]any, len(fields)+len(aggregates))
+		for _, field := range fields {
+			row[field] = grp.keys[field]
+		}
+		for _, agg := range aggregates {
+			row[agg.As] = aggregateRows(grp.rows, agg)
+		}
+		if err := out.AppendRow(row); err != nil {
+			return nil, err
+		}
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, err
+	}
+	return frame.NewFrameSet(out)
+}
+
+func aggregateRows(rows []map[string]any, agg Aggregate) any {
+	switch agg.Func {
+	case "count":
+		return float64(len(rows))
+	case "sum":
+		total := 0.0
+		for _, row := range rows {
+			total += toFloat(row[agg.Field])
+		}
+		return total
+	case "avg":
+		if len(rows) == 0 {
+			return 0.0
+		}
+		total := 0.0
+		for _, row := range rows {
+			total += toFloat(row[agg.Field])
+		}
+		return total / float64(len(rows))
+	case "min":
+		minValue := math.Inf(1)
+		for _, row := range rows {
+			value := toFloat(row[agg.Field])
+			if value < minValue {
+				minValue = value
+			}
+		}
+		return minValue
+	case "max":
+		maxValue := math.Inf(-1)
+		for _, row := range rows {
+			value := toFloat(row[agg.Field])
+			if value > maxValue {
+				maxValue = value
+			}
+		}
+		return maxValue
+	default:
+		return 0.0
+	}
+}
+
+func union(primary *frame.FrameSet, deps map[string]*frame.FrameSet) (*frame.FrameSet, error) {
+	out := primary.Clone()
+	for _, dep := range deps {
+		if dep == nil || dep.Primary() == nil {
+			continue
+		}
+		if out == nil || out.Primary() == nil {
+			out = dep.Clone()
+			continue
+		}
+		for _, row := range dep.Primary().Rows() {
+			if err := out.Primary().AppendRow(row); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if out != nil && out.Primary() != nil {
+		if err := out.Primary().Normalize(); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func join(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *JoinConfig) (*frame.FrameSet, error) {
+	if cfg == nil {
+		return primary.Clone(), nil
+	}
+	left := primary.Primary()
+	rightSet := deps[cfg.Other]
+	if left == nil || rightSet == nil || rightSet.Primary() == nil {
+		return primary.Clone(), nil
+	}
+	right := rightSet.Primary()
+	rows := left.Rows()
+	rightRows := right.Rows()
+	index := make(map[string][]map[string]any, len(rightRows))
+	for _, row := range rightRows {
+		key := joinKey(row, cfg.On)
+		index[key] = append(index[key], row)
+	}
+	out, err := frame.New(left.Name, joinFields(left, right, cfg.Other)...)
+	if err != nil {
+		return nil, err
+	}
+	how := strings.ToLower(strings.TrimSpace(cfg.How))
+	if how == "" {
+		how = "left"
+	}
+	for _, row := range rows {
+		matches := index[joinKey(row, cfg.On)]
+		if len(matches) == 0 {
+			if how == "inner" {
+				continue
+			}
+			if err := out.AppendRow(cloneRow(row)); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		for _, match := range matches {
+			merged := cloneRow(row)
+			for k, v := range match {
+				if _, exists := merged[k]; exists {
+					merged[cfg.Other+"_"+k] = v
+					continue
+				}
+				merged[k] = v
+			}
+			if err := out.AppendRow(merged); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, err
+	}
+	return frame.NewFrameSet(out)
+}
+
+func joinFields(left, right *frame.Frame, other string) []frame.Field {
+	fields := make([]frame.Field, 0, len(left.Fields)+len(right.Fields))
+	seen := make(map[string]struct{}, len(left.Fields)+len(right.Fields))
+	for _, field := range left.Fields {
+		cloned := field.Clone()
+		cloned.Values = nil
+		fields = append(fields, cloned)
+		seen[field.Name] = struct{}{}
+	}
+	for _, field := range right.Fields {
+		cloned := field.Clone()
+		cloned.Values = nil
+		if _, exists := seen[cloned.Name]; exists {
+			cloned.Name = other + "_" + cloned.Name
+		}
+		seen[cloned.Name] = struct{}{}
+		fields = append(fields, cloned)
+	}
+	return fields
+}
+
+func formula(primary *frame.FrameSet, cfg *Formula) (*frame.FrameSet, error) {
+	if cfg == nil {
+		return primary.Clone(), nil
+	}
+	next := primary.Clone()
+	fr := next.Primary()
+	if fr == nil {
+		return next, nil
+	}
+	values := make([]any, fr.RowCount)
+	for row := 0; row < fr.RowCount; row++ {
+		left := toFloat(valueAt(fr, cfg.Left, row))
+		right := cfg.RightValue
+		if cfg.Right != "" {
+			right = toFloat(valueAt(fr, cfg.Right, row))
+		}
+		if cfg.AbsoluteRight {
+			right = math.Abs(right)
+		}
+		switch cfg.Op {
+		case "+":
+			values[row] = left + right
+		case "-":
+			values[row] = left - right
+		case "*":
+			values[row] = left * right
+		case "/":
+			if right == 0 {
+				values[row] = nil
+			} else {
+				values[row] = left / right
+			}
+		default:
+			values[row] = left
+		}
+	}
+	fr.Fields = append(fr.Fields, frame.Field{Name: cfg.As, Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: values})
+	return next, fr.Normalize()
+}
+
+func fillMissing(primary *frame.FrameSet, cfg *FillMissingConfig) (*frame.FrameSet, error) {
+	if cfg == nil {
+		return primary.Clone(), nil
+	}
+	fr := primary.Primary()
+	if fr == nil {
+		return primary.Clone(), nil
+	}
+	rows := fr.Rows()
+	categories := make([]string, 0)
+	series := make([]string, 0)
+	categorySeen := map[string]bool{}
+	seriesSeen := map[string]bool{}
+	existing := map[string]map[string]any{}
+	for _, row := range rows {
+		cat := fmt.Sprint(row[cfg.CategoryField])
+		ser := fmt.Sprint(row[cfg.SeriesField])
+		if !categorySeen[cat] {
+			categorySeen[cat] = true
+			categories = append(categories, cat)
+		}
+		if !seriesSeen[ser] {
+			seriesSeen[ser] = true
+			series = append(series, ser)
+		}
+		existing[cat+"\x00"+ser] = row
+	}
+	out, err := frame.New(fr.Name)
+	if err != nil {
+		return nil, err
+	}
+	for _, cat := range categories {
+		for _, ser := range series {
+			key := cat + "\x00" + ser
+			if row, ok := existing[key]; ok {
+				if err := out.AppendRow(row); err != nil {
+					return nil, err
+				}
+				continue
+			}
+			row := map[string]any{
+				cfg.CategoryField: cat,
+				cfg.SeriesField:   ser,
+				cfg.ValueField:    cfg.FillValue,
+			}
+			if err := out.AppendRow(row); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, err
+	}
+	return frame.NewFrameSet(out)
+}
+
+func bucketTime(primary *frame.FrameSet, cfg *BucketTimeConfig) (*frame.FrameSet, error) {
+	if cfg == nil {
+		return primary.Clone(), nil
+	}
+	next := primary.Clone()
+	fr := next.Primary()
+	if fr == nil {
+		return next, nil
+	}
+	values := make([]any, fr.RowCount)
+	for row := 0; row < fr.RowCount; row++ {
+		raw, _ := valueAt(fr, cfg.Field, row).(time.Time)
+		switch cfg.Interval {
+		case "year":
+			values[row] = time.Date(raw.Year(), time.January, 1, 0, 0, 0, 0, raw.Location())
+		case "month":
+			values[row] = time.Date(raw.Year(), raw.Month(), 1, 0, 0, 0, 0, raw.Location())
+		default:
+			values[row] = time.Date(raw.Year(), raw.Month(), raw.Day(), 0, 0, 0, 0, raw.Location())
+		}
+	}
+	fr.Fields = append(fr.Fields, frame.Field{Name: cfg.As, Type: frame.FieldTypeTime, Role: frame.RoleTime, Values: values})
+	return next, fr.Normalize()
+}
+
+func applyTopN(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error) {
+	op := serrors.Op("lens/transform.applyTopN")
+	if cfg == nil {
+		return primary.Clone(), nil
+	}
+	if rankBy := strings.TrimSpace(cfg.RankByDataset); rankBy != "" {
+		ranked := deps[rankBy]
+		if ranked == nil {
+			return nil, serrors.E(op, fmt.Errorf("rank dataset %q is required", rankBy))
+		}
+		return applyTopNMembership(primary, ranked, cfg)
+	}
+	sorted, err := sortRows(primary, []SortField{{Field: cfg.Field, Direction: SortDesc}})
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if strings.TrimSpace(cfg.Other) == "" {
+		return limit(sorted, cfg.N)
+	}
+	if cfg.Expandable {
+		return markTopNRemainder(sorted, cfg)
+	}
+	fr := sorted.Primary()
+	if fr == nil {
+		return sorted.Clone(), nil
+	}
+	rows := fr.Rows()
+	keep := cfg.N
+	if keep < 0 {
+		keep = 0
+	}
+	if len(rows) <= keep {
+		return sorted, nil
+	}
+	// An "Other" row must be an actual bucket. Renaming a single remaining
+	// category makes the tail longer and less truthful while aggregating
+	// nothing, so retain that category verbatim.
+	if len(rows)-keep < 2 {
+		return sorted, nil
+	}
+	out, err := frame.New(fr.Name)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	out.Fields = make([]frame.Field, len(fr.Fields))
+	for i, field := range fr.Fields {
+		out.Fields[i] = field.Clone()
+		out.Fields[i].Values = nil
+	}
+	for idx := 0; idx < keep; idx++ {
+		if err := out.AppendRow(rows[idx]); err != nil {
+			return nil, serrors.E(op, err)
+		}
+	}
+	if err := out.AppendRow(topNOtherRow(fr, rows[keep:], cfg)); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	fs, err := frame.NewFrameSet(out)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return fs, nil
+}
+
+func applyTopNMembership(primary, ranked *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error) {
+	op := serrors.Op("lens/transform.applyTopNMembership")
+	if len(cfg.KeyFields) == 0 {
+		return nil, serrors.E(op, fmt.Errorf("key fields are required with rank dataset"))
+	}
+	primaryFrame, rankedFrame := primary.Primary(), ranked.Primary()
+	if primaryFrame == nil || rankedFrame == nil {
+		return primary.Clone(), nil
+	}
+	primaryRows, rankedRows := primaryFrame.Rows(), rankedFrame.Rows()
+	keep := max(cfg.N, 0)
+	if keep > len(rankedRows) {
+		keep = len(rankedRows)
+	}
+	byKey := make(map[string][]map[string]any, len(primaryRows))
+	for _, row := range primaryRows {
+		key := topNKey(row, cfg.KeyFields)
+		byKey[key] = append(byKey[key], row)
+	}
+	outRows := make([]frame.Row, 0, keep+1)
+	selected := make(map[string]struct{}, keep)
+	for _, rankedRow := range rankedRows[:keep] {
+		key := topNKey(rankedRow, cfg.KeyFields)
+		selected[key] = struct{}{}
+		if matches := byKey[key]; len(matches) > 0 {
+			for _, match := range matches {
+				outRows = append(outRows, frame.Row(match))
+			}
+		}
+	}
+	if len(rankedRows) > keep && strings.TrimSpace(cfg.Other) != "" {
+		tail := make([]map[string]any, 0, len(primaryRows))
+		for _, row := range primaryRows {
+			if _, ok := selected[topNKey(row, cfg.KeyFields)]; !ok {
+				tail = append(tail, row)
+			}
+		}
+		if len(tail) < 2 {
+			for _, row := range tail {
+				outRows = append(outRows, frame.Row(row))
+			}
+		} else {
+			outRows = append(outRows, frame.Row(topNOtherRow(primaryFrame, tail, cfg)))
+		}
+	}
+	out, err := frame.New(primaryFrame.Name)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	out.Fields = make([]frame.Field, len(primaryFrame.Fields))
+	for index, field := range primaryFrame.Fields {
+		out.Fields[index] = field.Clone()
+		out.Fields[index].Values = nil
+	}
+	for _, row := range outRows {
+		if err := out.AppendRow(row); err != nil {
+			return nil, serrors.E(op, err)
+		}
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	result, err := frame.NewFrameSet(out)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return result, nil
+}
+
+func topNKey(row map[string]any, fields []string) string {
+	var key strings.Builder
+	for _, field := range fields {
+		value := fmt.Sprintf("%T:%v", row[field], row[field])
+		fmt.Fprintf(&key, "%d:%s", len(value), value)
+	}
+	return key.String()
+}
+
+func markTopNRemainder(sorted *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error) {
+	next := sorted.Clone()
+	fr := next.Primary()
+	if fr == nil {
+		return next, nil
+	}
+	keep := cfg.N
+	if keep < 0 {
+		keep = 0
+	}
+	values := make([]any, fr.RowCount)
+	if fr.RowCount-keep >= 2 {
+		for row := keep; row < fr.RowCount; row++ {
+			values[row] = cfg.Other
+		}
+	}
+	fr.Fields = append(fr.Fields, frame.Field{
+		Name: TopNGroupField, Type: frame.FieldTypeString, Role: frame.RoleDimension, Values: values,
+	})
+	return next, fr.Normalize()
+}
+
+func topNOtherRow(fr *frame.Frame, rows []map[string]any, cfg *TopNConfig) map[string]any {
+	other := ""
+	if cfg != nil {
+		other = cfg.Other
+	}
+	row := make(map[string]any, len(fr.Fields))
+	for _, field := range fr.Fields {
+		switch field.Name {
+		case "label", "category":
+			row[field.Name] = other
+		case "filter_value", "id":
+			row[field.Name] = ""
+		case "color_value":
+			row[field.Name] = other
+		default:
+			if topNShouldAggregate(field, cfg) {
+				total := 0.0
+				for _, item := range rows {
+					total += toFloat(item[field.Name])
+				}
+				row[field.Name] = total
+				continue
+			}
+			row[field.Name] = nil
+		}
+	}
+	return row
+}
+
+func topNShouldAggregate(field frame.Field, cfg *TopNConfig) bool {
+	if field.Type != frame.FieldTypeNumber && field.Role != frame.RoleMetric {
+		return false
+	}
+	if cfg == nil || len(cfg.AdditiveFields) == 0 {
+		return true
+	}
+	return cfg.AdditiveFields[field.Name]
+}
+
+func pivot(primary *frame.FrameSet, cfg *PivotConfig) (*frame.FrameSet, error) {
+	if cfg == nil {
+		return primary.Clone(), nil
+	}
+	fr := primary.Primary()
+	if fr == nil {
+		return primary.Clone(), nil
+	}
+	rows := fr.Rows()
+	seriesSeen := map[string]bool{}
+	grouped := map[string]map[string]any{}
+	for _, row := range rows {
+		category := fmt.Sprint(row[cfg.CategoryField])
+		series := fmt.Sprint(row[cfg.SeriesField])
+		if !seriesSeen[series] {
+			seriesSeen[series] = true
+		}
+		if _, ok := grouped[category]; !ok {
+			grouped[category] = map[string]any{cfg.CategoryField: category}
+		}
+		grouped[category][series] = row[cfg.ValueField]
+	}
+	out, err := frame.New(fr.Name)
+	if err != nil {
+		return nil, err
+	}
+	categories := make([]string, 0, len(grouped))
+	for category := range grouped {
+		categories = append(categories, category)
+	}
+	sort.Strings(categories)
+	for _, category := range categories {
+		if err := out.AppendRow(grouped[category]); err != nil {
+			return nil, err
+		}
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, err
+	}
+	return frame.NewFrameSet(out)
+}
+
+func unpivot(primary *frame.FrameSet, cfg *UnpivotConfig) (*frame.FrameSet, error) {
+	if cfg == nil {
+		return primary.Clone(), nil
+	}
+	fr := primary.Primary()
+	if fr == nil {
+		return primary.Clone(), nil
+	}
+	out, err := frame.New(fr.Name)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range fr.Rows() {
+		for _, field := range cfg.Fields {
+			item := map[string]any{}
+			for key, value := range row {
+				item[key] = value
+			}
+			item[cfg.LabelField] = field
+			item[cfg.ValueField] = row[field]
+			if err := out.AppendRow(item); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, err
+	}
+	return frame.NewFrameSet(out)
+}
+
+func bucketBounds(primary *frame.FrameSet, cfg *BucketBoundsConfig) (*frame.FrameSet, error) {
+	if cfg == nil {
+		return primary.Clone(), nil
+	}
+	fr := primary.Primary()
+	if fr == nil {
+		return primary.Clone(), nil
+	}
+	out := &frame.Frame{Name: fr.Name, Fields: cloneSchema(fr.Fields)}
+	if startField, ok := fr.Field(cfg.StartAs); !ok || startField == nil {
+		out.Fields = append(out.Fields, frame.Field{Name: cfg.StartAs, Type: frame.FieldTypeString, Role: frame.RoleLinkParam})
+	}
+	if endField, ok := fr.Field(cfg.EndAs); !ok || endField == nil {
+		out.Fields = append(out.Fields, frame.Field{Name: cfg.EndAs, Type: frame.FieldTypeString, Role: frame.RoleLinkParam})
+	}
+	for _, row := range fr.Rows() {
+		start, end := computeBucketBounds(row[cfg.Field], bucketGranularity(row, cfg))
+		row[cfg.StartAs] = start
+		row[cfg.EndAs] = end
+		if err := out.AppendRow(row); err != nil {
+			return nil, err
+		}
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, err
+	}
+	return frame.NewFrameSet(out)
+}
+
+func lookup(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *LookupConfig) (*frame.FrameSet, error) {
+	if cfg == nil {
+		return primary.Clone(), nil
+	}
+	dep := deps[cfg.Other]
+	if dep == nil || dep.Primary() == nil {
+		return primary.Clone(), nil
+	}
+	source := dep.Primary()
+	index := make(map[string]map[string]any, source.RowCount)
+	for _, row := range source.Rows() {
+		key := fmt.Sprint(row[cfg.OtherField])
+		index[key] = row
+	}
+	fr := primary.Primary()
+	if fr == nil {
+		return primary.Clone(), nil
+	}
+	out := &frame.Frame{Name: fr.Name, Fields: cloneSchema(fr.Fields)}
+	for _, as := range cfg.Fields {
+		if _, ok := out.Field(as); !ok {
+			out.Fields = append(out.Fields, frame.Field{Name: as, Type: frame.FieldTypeString, Role: frame.RoleDimension})
+		}
+	}
+	for _, row := range fr.Rows() {
+		if match, ok := index[fmt.Sprint(row[cfg.LocalField])]; ok {
+			for sourceField, as := range cfg.Fields {
+				row[as] = match[sourceField]
+			}
+		}
+		if err := out.AppendRow(row); err != nil {
+			return nil, err
+		}
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, err
+	}
+	return frame.NewFrameSet(out)
+}
+
+func ageRange(primary *frame.FrameSet, cfg *AgeRangeConfig) (*frame.FrameSet, error) {
+	if cfg == nil {
+		return primary.Clone(), nil
+	}
+	fr := primary.Primary()
+	if fr == nil {
+		return primary.Clone(), nil
+	}
+	out := &frame.Frame{Name: fr.Name, Fields: cloneSchema(fr.Fields)}
+	if _, ok := out.Field(cfg.MinAs); !ok {
+		out.Fields = append(out.Fields, frame.Field{Name: cfg.MinAs, Type: frame.FieldTypeNumber, Role: frame.RoleLinkParam})
+	}
+	if _, ok := out.Field(cfg.MaxAs); !ok {
+		out.Fields = append(out.Fields, frame.Field{Name: cfg.MaxAs, Type: frame.FieldTypeNumber, Role: frame.RoleLinkParam})
+	}
+	for _, row := range fr.Rows() {
+		minAge, maxAge := parseAgeRange(fmt.Sprint(row[cfg.Field]))
+		row[cfg.MinAs] = minAge
+		row[cfg.MaxAs] = maxAge
+		if err := out.AppendRow(row); err != nil {
+			return nil, err
+		}
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, err
+	}
+	return frame.NewFrameSet(out)
+}
+
+func moneyScale(primary *frame.FrameSet, cfg *MoneyScaleConfig) (*frame.FrameSet, error) {
+	if cfg == nil || cfg.Factor == 0 {
+		return primary.Clone(), nil
+	}
+	fr := primary.Primary()
+	if fr == nil {
+		return primary.Clone(), nil
+	}
+	out := &frame.Frame{Name: fr.Name, Fields: cloneSchema(fr.Fields)}
+	target := cfg.Field
+	if cfg.As != "" && cfg.As != cfg.Field {
+		out.Fields = append(out.Fields, frame.Field{Name: cfg.As, Type: frame.FieldTypeNumber, Role: frame.RoleMetric})
+		target = cfg.As
+	}
+	for _, row := range fr.Rows() {
+		row[target] = toFloat(row[cfg.Field]) / cfg.Factor
+		if err := out.AppendRow(row); err != nil {
+			return nil, err
+		}
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, err
+	}
+	return frame.NewFrameSet(out)
+}
+
+func filterZeroSeries(primary *frame.FrameSet, cfg *FilterZeroSeriesConfig) (*frame.FrameSet, error) {
+	if cfg == nil {
+		return primary.Clone(), nil
+	}
+	fr := primary.Primary()
+	if fr == nil {
+		return primary.Clone(), nil
+	}
+	active := make(map[string]bool)
+	for _, row := range fr.Rows() {
+		if toFloat(row[cfg.ValueField]) != 0 {
+			active[fmt.Sprint(row[cfg.SeriesField])] = true
+		}
+	}
+	out := &frame.Frame{Name: fr.Name, Fields: cloneSchema(fr.Fields)}
+	for _, row := range fr.Rows() {
+		if !active[fmt.Sprint(row[cfg.SeriesField])] {
+			continue
+		}
+		if err := out.AppendRow(row); err != nil {
+			return nil, err
+		}
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, err
+	}
+	return frame.NewFrameSet(out)
+}
+
+func movingAverage(primary *frame.FrameSet, cfg *MovingAverageConfig) (*frame.FrameSet, error) {
+	if cfg == nil {
+		return primary.Clone(), nil
+	}
+	if cfg.Window <= 0 || strings.TrimSpace(cfg.As) == "" || strings.TrimSpace(cfg.ValueField) == "" {
+		return nil, fmt.Errorf("moving average requires value field, output field, and a positive window")
+	}
+	next := primary.Clone()
+	fr := next.Primary()
+	if fr == nil {
+		return next, nil
+	}
+	valueField, ok := fr.Field(cfg.ValueField)
+	if !ok {
+		return nil, fmt.Errorf("moving average field %q not found", cfg.ValueField)
+	}
+	if cfg.SeriesField != "" {
+		if _, ok := fr.Field(cfg.SeriesField); !ok {
+			return nil, fmt.Errorf("moving average series field %q not found", cfg.SeriesField)
+		}
+	}
+	values := make([]any, fr.RowCount)
+	windows := make(map[string][]float64)
+	for row := 0; row < fr.RowCount; row++ {
+		value, numeric := finiteFloat(valueField.Values[row])
+		key := seriesKey(fr, cfg.SeriesField, row)
+		if !numeric {
+			continue
+		}
+		window := append(windows[key], value)
+		if len(window) > cfg.Window {
+			window = window[len(window)-cfg.Window:]
+		}
+		windows[key] = window
+		if len(window) != cfg.Window {
+			continue
+		}
+		sum := 0.0
+		for _, item := range window {
+			sum += item
+		}
+		values[row] = sum / float64(cfg.Window)
+	}
+	fr.Fields = append(fr.Fields, frame.Field{Name: cfg.As, Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: values})
+	return next, fr.Normalize()
+}
+
+type regressionSums struct {
+	n            float64
+	sumX, sumY   float64
+	sumXX, sumXY float64
+}
+
+func linearRegression(primary *frame.FrameSet, cfg *LinearRegressionConfig) (*frame.FrameSet, error) {
+	if cfg == nil {
+		return primary.Clone(), nil
+	}
+	if strings.TrimSpace(cfg.As) == "" || strings.TrimSpace(cfg.ValueField) == "" {
+		return nil, fmt.Errorf("linear regression requires value and output fields")
+	}
+	next := primary.Clone()
+	fr := next.Primary()
+	if fr == nil {
+		return next, nil
+	}
+	valueField, ok := fr.Field(cfg.ValueField)
+	if !ok {
+		return nil, fmt.Errorf("linear regression field %q not found", cfg.ValueField)
+	}
+	if cfg.SeriesField != "" {
+		if _, ok := fr.Field(cfg.SeriesField); !ok {
+			return nil, fmt.Errorf("linear regression series field %q not found", cfg.SeriesField)
+		}
+	}
+	positions := make([]float64, fr.RowCount)
+	counts := make(map[string]int)
+	sums := make(map[string]regressionSums)
+	for row := 0; row < fr.RowCount; row++ {
+		key := seriesKey(fr, cfg.SeriesField, row)
+		x := float64(counts[key])
+		counts[key]++
+		positions[row] = x
+		y, numeric := finiteFloat(valueField.Values[row])
+		if !numeric {
+			continue
+		}
+		item := sums[key]
+		item.n++
+		item.sumX += x
+		item.sumY += y
+		item.sumXX += x * x
+		item.sumXY += x * y
+		sums[key] = item
+	}
+	values := make([]any, fr.RowCount)
+	for row := 0; row < fr.RowCount; row++ {
+		key := seriesKey(fr, cfg.SeriesField, row)
+		item := sums[key]
+		denominator := item.n*item.sumXX - item.sumX*item.sumX
+		if item.n < 2 || denominator == 0 {
+			continue
+		}
+		slope := (item.n*item.sumXY - item.sumX*item.sumY) / denominator
+		intercept := (item.sumY - slope*item.sumX) / item.n
+		values[row] = intercept + slope*positions[row]
+	}
+	fr.Fields = append(fr.Fields, frame.Field{Name: cfg.As, Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: values})
+	return next, fr.Normalize()
+}
+
+type forecastFit struct {
+	series       any
+	lastCategory any
+	values       []float64
+}
+
+func linearForecast(primary *frame.FrameSet, cfg *LinearForecastConfig) (*frame.FrameSet, error) {
+	if cfg == nil {
+		return primary.Clone(), nil
+	}
+	if strings.TrimSpace(cfg.CategoryField) == "" || strings.TrimSpace(cfg.ValueField) == "" ||
+		strings.TrimSpace(cfg.ValueAs) == "" || strings.TrimSpace(cfg.LowerAs) == "" || strings.TrimSpace(cfg.UpperAs) == "" ||
+		cfg.Horizon <= 0 {
+		return nil, fmt.Errorf("linear forecast requires category, value, three output fields, and a positive horizon")
+	}
+	if cfg.ValueAs == cfg.LowerAs || cfg.ValueAs == cfg.UpperAs || cfg.LowerAs == cfg.UpperAs {
+		return nil, fmt.Errorf("linear forecast output fields must be distinct")
+	}
+	next := primary.Clone()
+	fr := next.Primary()
+	if fr == nil {
+		return next, nil
+	}
+	categoryField, ok := fr.Field(cfg.CategoryField)
+	if !ok {
+		return nil, fmt.Errorf("linear forecast category field %q not found", cfg.CategoryField)
+	}
+	valueField, ok := fr.Field(cfg.ValueField)
+	if !ok {
+		return nil, fmt.Errorf("linear forecast value field %q not found", cfg.ValueField)
+	}
+	if cfg.SeriesField != "" {
+		if _, ok := fr.Field(cfg.SeriesField); !ok {
+			return nil, fmt.Errorf("linear forecast series field %q not found", cfg.SeriesField)
+		}
+	}
+	for _, name := range []string{cfg.ValueAs, cfg.LowerAs, cfg.UpperAs} {
+		if _, exists := fr.Field(name); exists {
+			return nil, fmt.Errorf("linear forecast output field %q already exists", name)
+		}
+	}
+
+	fits := make(map[string]*forecastFit)
+	for row := 0; row < fr.RowCount; row++ {
+		value, numeric := finiteFloat(valueField.Values[row])
+		if !numeric {
+			continue
+		}
+		key := seriesKey(fr, cfg.SeriesField, row)
+		fit := fits[key]
+		if fit == nil {
+			fit = &forecastFit{series: valueAt(fr, cfg.SeriesField, row)}
+			fits[key] = fit
+		}
+		fit.values = append(fit.values, value)
+		fit.lastCategory = categoryField.Values[row]
+	}
+	keys := make([]string, 0, len(fits))
+	for key, fit := range fits {
+		if len(fit.values) < 3 {
+			return nil, fmt.Errorf("linear forecast series %q requires at least three numeric observations", key)
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	existingRows := fr.RowCount
+	fr.Fields = append(fr.Fields,
+		frame.Field{Name: cfg.ValueAs, Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: make([]any, existingRows)},
+		frame.Field{Name: cfg.LowerAs, Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: make([]any, existingRows)},
+		frame.Field{Name: cfg.UpperAs, Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: make([]any, existingRows)},
+	)
+	if err := fr.Normalize(); err != nil {
+		return nil, err
+	}
+	confidenceZ := cfg.ConfidenceZ
+	if confidenceZ == 0 {
+		confidenceZ = 1.96
+	}
+	if confidenceZ < 0 || math.IsNaN(confidenceZ) || math.IsInf(confidenceZ, 0) {
+		return nil, fmt.Errorf("linear forecast confidence z-score must be positive and finite")
+	}
+	for _, key := range keys {
+		fit := fits[key]
+		n := float64(len(fit.values))
+		xMean := (n - 1) / 2
+		ySum := 0.0
+		for _, value := range fit.values {
+			ySum += value
+		}
+		yMean := ySum / n
+		sxx, sxy := 0.0, 0.0
+		for index, value := range fit.values {
+			dx := float64(index) - xMean
+			sxx += dx * dx
+			sxy += dx * (value - yMean)
+		}
+		if sxx == 0 {
+			return nil, fmt.Errorf("linear forecast series %q has no time variance", key)
+		}
+		slope := sxy / sxx
+		intercept := yMean - slope*xMean
+		sse := 0.0
+		for index, value := range fit.values {
+			residual := value - (intercept + slope*float64(index))
+			sse += residual * residual
+		}
+		residualStdErr := math.Sqrt(sse / (n - 2))
+		category := fit.lastCategory
+		for step := 0; step < cfg.Horizon; step++ {
+			nextCategory, err := advanceForecastCategory(category, cfg.Interval)
+			if err != nil {
+				return nil, fmt.Errorf("linear forecast series %q: %w", key, err)
+			}
+			category = nextCategory
+			x := n + float64(step)
+			predicted := intercept + slope*x
+			predictionStdErr := residualStdErr * math.Sqrt(1+1/n+(x-xMean)*(x-xMean)/sxx)
+			margin := confidenceZ * predictionStdErr
+			row := map[string]any{
+				cfg.CategoryField: category,
+				cfg.ValueAs:       predicted,
+				cfg.LowerAs:       predicted - margin,
+				cfg.UpperAs:       predicted + margin,
+			}
+			if cfg.SeriesField != "" {
+				row[cfg.SeriesField] = fit.series
+			}
+			if err := fr.AppendRow(row); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return next, fr.Normalize()
+}
+
+func advanceForecastCategory(value any, interval string) (any, error) {
+	var current time.Time
+	var format string
+	switch typed := value.(type) {
+	case time.Time:
+		current = typed
+	case string:
+		var err error
+		if len(typed) == len("2006-01-02") {
+			format = "2006-01-02"
+			current, err = time.Parse(format, typed)
+		} else {
+			format = time.RFC3339
+			current, err = time.Parse(format, typed)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("category %q is not an ISO date/time", typed)
+		}
+	default:
+		return nil, fmt.Errorf("category %v is not a time value", value)
+	}
+	switch interval {
+	case "day":
+		current = current.AddDate(0, 0, 1)
+	case "week":
+		current = current.AddDate(0, 0, 7)
+	case "month":
+		current = current.AddDate(0, 1, 0)
+	case "quarter":
+		current = current.AddDate(0, 3, 0)
+	case "year":
+		current = current.AddDate(1, 0, 0)
+	default:
+		return nil, fmt.Errorf("unsupported interval %q", interval)
+	}
+	if format != "" {
+		return current.Format(format), nil
+	}
+	return current, nil
+}
+
+func seriesKey(fr *frame.Frame, field string, row int) string {
+	if field == "" {
+		return ""
+	}
+	return fmt.Sprint(valueAt(fr, field, row))
+}
+
+func finiteFloat(value any) (float64, bool) {
+	if !isNumeric(value) {
+		return 0, false
+	}
+	number := toFloat(value)
+	return number, !math.IsNaN(number) && !math.IsInf(number, 0)
+}
+
+func cloneSchema(fields []frame.Field) []frame.Field {
+	out := make([]frame.Field, len(fields))
+	for i, field := range fields {
+		out[i] = field.Clone()
+		out[i].Values = nil
+	}
+	return out
+}
+
+func valueAt(fr *frame.Frame, fieldName string, index int) any {
+	field, ok := fr.Field(fieldName)
+	if !ok || index >= len(field.Values) {
+		return nil
+	}
+	return field.Values[index]
+}
+
+func joinKey(row map[string]any, keys []string) string {
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, fmt.Sprint(row[key]))
+	}
+	return strings.Join(parts, "|")
+}
+
+func compare(left, right any) int {
+	if isNumeric(left) && isNumeric(right) {
+		leftFloat := toFloat(left)
+		rightFloat := toFloat(right)
+		switch {
+		case leftFloat < rightFloat:
+			return -1
+		case leftFloat > rightFloat:
+			return 1
+		default:
+			return 0
+		}
+	}
+	leftStr := fmt.Sprint(left)
+	rightStr := fmt.Sprint(right)
+	switch {
+	case leftStr < rightStr:
+		return -1
+	case leftStr > rightStr:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func isNumeric(value any) bool {
+	switch value.(type) {
+	case float64, float32,
+		int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64:
+		return true
+	case string, []byte:
+		_, err := strconv.ParseFloat(strings.TrimSpace(fmt.Sprint(value)), 64)
+		return err == nil
+	default:
+		return false
+	}
+}
+
+func toFloat(value any) float64 {
+	switch v := value.(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case int8:
+		return float64(v)
+	case int16:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case int32:
+		return float64(v)
+	case uint:
+		return float64(v)
+	case uint8:
+		return float64(v)
+	case uint16:
+		return float64(v)
+	case uint64:
+		return float64(v)
+	case uint32:
+		return float64(v)
+	case string:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		if err == nil {
+			return parsed
+		}
+		return 0
+	case []byte:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(string(v)), 64)
+		if err == nil {
+			return parsed
+		}
+		return 0
+	default:
+		return 0
+	}
+}
+
+func cloneRow(row map[string]any) map[string]any {
+	cloned := make(map[string]any, len(row))
+	for k, v := range row {
+		cloned[k] = v
+	}
+	return cloned
+}
+
+func computeBucketBounds(raw any, granularity string) (string, string) {
+	value, ok := raw.(time.Time)
+	if !ok {
+		return fmt.Sprint(raw), fmt.Sprint(raw)
+	}
+	switch granularity {
+	case "year":
+		start := time.Date(value.Year(), time.January, 1, 0, 0, 0, 0, time.UTC)
+		end := time.Date(value.Year(), time.December, 31, 0, 0, 0, 0, time.UTC)
+		return start.Format("2006-01-02"), end.Format("2006-01-02")
+	case "month":
+		start := time.Date(value.Year(), value.Month(), 1, 0, 0, 0, 0, time.UTC)
+		end := time.Date(value.Year(), value.Month()+1, 0, 0, 0, 0, 0, time.UTC)
+		return start.Format("2006-01-02"), end.Format("2006-01-02")
+	default:
+		iso := value.Format("2006-01-02")
+		return iso, iso
+	}
+}
+
+func bucketGranularity(row map[string]any, cfg *BucketBoundsConfig) string {
+	if cfg.Granularity != "" {
+		return cfg.Granularity
+	}
+	if cfg.GranularityField != "" {
+		return fmt.Sprint(row[cfg.GranularityField])
+	}
+	return "day"
+}
+
+func parseAgeRange(raw string) (int, int) {
+	if strings.HasSuffix(raw, "+") {
+		minAge, _ := strconv.Atoi(strings.TrimSuffix(raw, "+"))
+		return minAge, 999
+	}
+	parts := strings.Split(raw, "-")
+	if len(parts) != 2 {
+		return 0, 0
+	}
+	minAge, _ := strconv.Atoi(parts[0])
+	maxAge, _ := strconv.Atoi(parts[1])
+	return minAge, maxAge
+}

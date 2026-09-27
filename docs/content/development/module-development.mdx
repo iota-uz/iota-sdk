@@ -67,7 +67,7 @@ modules/productcatalog/
 ├── permissions/
 │   └── constants.go                    # RBAC permissions
 ├── links.go                            # Navigation items
-└── module.go                           # Module registration
+└── component.go                        # Component registration
 ```
 
 ## Step 1: Domain Layer
@@ -913,58 +913,71 @@ var NavItems = []types.NavigationItem{
 }
 ```
 
-### 5.3 Module Registration
+### 5.3 Component Registration
 
-Create `modules/productcatalog/module.go`:
+Create `modules/productcatalog/component.go`:
 
 ```go
 package productcatalog
 
 import (
 	"embed"
+	"github.com/iota-uz/iota-sdk/modules/productcatalog/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/productcatalog/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/productcatalog/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/productcatalog/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 //go:embed presentation/locales/*.json
 var localeFiles embed.FS
 
-func NewModule() application.Module {
-	return &Module{}
+func NewComponent() composition.Component {
+	return &component{}
 }
 
-type Module struct{}
+type component struct{}
 
-func (m *Module) Register(app application.Application) error {
-	// Create repositories
-	productRepo := persistence.NewProductRepository()
+func (c *component) Descriptor() composition.Descriptor {
+	return composition.Descriptor{Name: "productcatalog"}
+}
 
-	// Register services
-	app.RegisterServices(
-		services.NewProductService(productRepo, app.EventPublisher()),
-	)
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&localeFiles}
+}
 
-	// Register controllers
-	app.RegisterControllers(
-		controllers.NewProductController(app),
-	)
+func (c *component) Build(builder *composition.Builder) error {
+	// Static contributions: zero closures for constant data.
+	composition.AddNavItems(builder, NavItems...)
+	composition.AddQuickLinks(builder, spotlight.NewQuickLink(NavItems[0].Name, NavItems[0].Href))
 
-	// Register quick links for Spotlight search (trKey = translation key, link = URL)
-	app.QuickLinks().Add(
-		spotlight.NewQuickLink(NavItems[0].Name, NavItems[0].Href),
-	)
+	// ProvideFuncAs registers both an interface key (product.Repository)
+	// and the constructor's concrete return type as provider keys, so
+	// consumers depending on either resolve the exact same instance. Use
+	// this when persistence.NewProductRepository returns a concrete type
+	// like *persistence.ProductRepositoryImpl — if the constructor already
+	// returns the interface, plain ProvideFunc is the right helper
+	// (ProvideFuncAs rejects an identical concrete+interface at
+	// registration time to prevent a redundant bridge).
+	composition.ProvideFuncAs[product.Repository](builder, persistence.NewProductRepository)
 
-	// Register locale files
-	app.RegisterLocaleFiles(&localeFiles)
+	// ProvideFunc inspects NewProductService's signature, resolves each
+	// parameter from the container by type (product.Repository and
+	// eventbus.EventBus — the latter comes from the engine's auto-providers),
+	// and registers *services.ProductService as a provider.
+	composition.ProvideFunc(builder, services.NewProductService)
+
+	if builder.Context().HasCapability(composition.CapabilityAPI) {
+		// ContributeControllersFunc uses the same reflection injector for
+		// controller factories. Types in the parameter list are resolved
+		// from the container at materialization time.
+		composition.ContributeControllersFunc(builder, controllers.NewProductController)
+	}
 
 	return nil
-}
-
-func (m *Module) Name() string {
-	return "productcatalog"
 }
 ```
 

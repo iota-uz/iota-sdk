@@ -14,7 +14,6 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/geopoint"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
@@ -23,12 +22,20 @@ type GeoPoint struct {
 	Lat float64
 	Lng float64
 }
+
+// CreateDTO carries data for upload creation.
+// UploadsPath, Domain, and Scheme are populated by the service layer from
+// uploadsconfig.Config and httpconfig.Config respectively. When zero, sane
+// defaults are applied ("static", "localhost", "http").
 type CreateDTO struct {
-	File     io.ReadSeeker `validate:"required"`
-	Name     string        `validate:"required"`
-	Size     int           `validate:"required"`
-	Slug     string        `validate:"omitempty,alphanum"`
-	GeoPoint *GeoPoint
+	File        io.ReadSeeker `validate:"required"`
+	Name        string        `validate:"required"`
+	Size        int           `validate:"required"`
+	Slug        string        `validate:"omitempty,alphanum"`
+	GeoPoint    *GeoPoint
+	UploadsPath string // populated by service from uploadsconfig.Config.Path
+	Domain      string // populated by service from httpconfig.Config.Domain
+	Scheme      string // populated by service from httpconfig.Config.Scheme()
 }
 
 func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
@@ -54,27 +61,42 @@ func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (d *CreateDTO) ToEntity() (Upload, []byte, error) {
-	conf := configuration.Use()
-	bytes, err := io.ReadAll(d.File)
+	uploadsPath := d.UploadsPath
+	if uploadsPath == "" {
+		uploadsPath = "static"
+	}
+	domain := d.Domain
+	if domain == "" {
+		domain = "localhost"
+	}
+	scheme := d.Scheme
+	if scheme == "" {
+		scheme = "http"
+	}
+
+	raw, err := io.ReadAll(d.File)
 	if err != nil {
 		return nil, nil, err
 	}
-	mdsum := md5.Sum(bytes)
+	mdsum := md5.Sum(raw)
 	hash := hex.EncodeToString(mdsum[:])
 	ext := filepath.Ext(d.Name)
 	if d.Slug == "" {
 		d.Slug = hash
 	}
-	upload := New(
+	u := New(
 		hash,
-		filepath.Join(conf.UploadsPath, d.Slug+ext),
+		filepath.Join(uploadsPath, d.Slug+ext),
 		d.Name,
 		d.Slug,
 		d.Size,
-		mimetype.Detect(bytes),
+		mimetype.Detect(raw),
+		WithUploadsPath(uploadsPath),
+		WithDomain(domain),
+		WithScheme(scheme),
 	)
 	if d.GeoPoint != nil {
-		upload.SetGeoPoint(geopoint.New(d.GeoPoint.Lat, d.GeoPoint.Lng))
+		u.SetGeoPoint(geopoint.New(d.GeoPoint.Lat, d.GeoPoint.Lng))
 	}
-	return upload, bytes, nil
+	return u, raw, nil
 }

@@ -5,20 +5,27 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 	"google.golang.org/api/people/v1"
 )
+
+var ErrGoogleEmailNotFound = errors.New("google account email not found")
 
 // IPBindingMode defines how strictly IP addresses are validated for sessions
 type IPBindingMode string
@@ -40,11 +47,14 @@ var (
 )
 
 type AuthService struct {
-	app            application.Application
 	oAuthConfig    *oauth2.Config
 	usersService   *UserService
 	sessionService *SessionService
 	ipBindingMode  IPBindingMode
+	httpCfg        *httpconfig.Config
+	cookiesCfg     *cookies.Config
+	appCfg         *appconfig.Config
+	logger         *logrus.Logger
 }
 
 // AuthServiceOption is a functional option for configuring AuthService
@@ -57,23 +67,34 @@ func WithIPBindingMode(mode IPBindingMode) AuthServiceOption {
 	}
 }
 
-func NewAuthService(app application.Application, opts ...AuthServiceOption) *AuthService {
-	conf := configuration.Use()
+func NewAuthService(
+	usersService *UserService,
+	sessionService *SessionService,
+	googleCfg *googleoauthconfig.Config,
+	httpCfg *httpconfig.Config,
+	cookiesCfg *cookies.Config,
+	appCfg *appconfig.Config,
+	logger *logrus.Logger,
+	opts ...AuthServiceOption,
+) *AuthService {
 	svc := &AuthService{
-		app: app,
 		oAuthConfig: &oauth2.Config{
-			RedirectURL:  conf.Google.RedirectURL,
-			ClientID:     conf.Google.ClientID,
-			ClientSecret: conf.Google.ClientSecret,
+			RedirectURL:  googleCfg.RedirectURL,
+			ClientID:     googleCfg.ClientID,
+			ClientSecret: googleCfg.ClientSecret,
 			Scopes: []string{
 				"https://www.googleapis.com/auth/userinfo.email",
 				"https://www.googleapis.com/auth/userinfo.profile",
 			},
 			Endpoint: google.Endpoint,
 		},
-		usersService:   app.Service(UserService{}).(*UserService),
-		sessionService: app.Service(SessionService{}).(*SessionService),
+		usersService:   usersService,
+		sessionService: sessionService,
 		ipBindingMode:  IPBindingDisabled, // Default to disabled for backward compatibility
+		httpCfg:        httpCfg,
+		cookiesCfg:     cookiesCfg,
+		appCfg:         appCfg,
+		logger:         logger,
 	}
 	for _, opt := range opts {
 		opt(svc)
@@ -82,21 +103,7 @@ func NewAuthService(app application.Application, opts ...AuthServiceOption) *Aut
 }
 
 func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (user.User, session.Session, error) {
-	// Use code to get token and get user info from Google.
-	token, err := s.oAuthConfig.Exchange(ctx, code)
-	if err != nil {
-		return nil, nil, err
-	}
-	client := s.oAuthConfig.Client(ctx, token)
-	svc, err := people.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		return nil, nil, err
-	}
-	p, err := svc.People.Get("people/me").PersonFields("emailAddresses,names").Do()
-	if err != nil {
-		return nil, nil, err
-	}
-	u, err := s.usersService.GetByEmail(ctx, p.EmailAddresses[0].Value)
+	u, err := s.VerifyGoogle(ctx, code)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -109,21 +116,7 @@ func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (user
 
 // AuthenticateGoogleWithAudience authenticates a user via Google OAuth and creates a session with a specific audience
 func (s *AuthService) AuthenticateGoogleWithAudience(ctx context.Context, code string, audience session.SessionAudience) (user.User, session.Session, error) {
-	// Use code to get token and get user info from Google.
-	token, err := s.oAuthConfig.Exchange(ctx, code)
-	if err != nil {
-		return nil, nil, err
-	}
-	client := s.oAuthConfig.Client(ctx, token)
-	svc, err := people.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		return nil, nil, err
-	}
-	p, err := svc.People.Get("people/me").PersonFields("emailAddresses,names").Do()
-	if err != nil {
-		return nil, nil, err
-	}
-	u, err := s.usersService.GetByEmail(ctx, p.EmailAddresses[0].Value)
+	u, err := s.VerifyGoogle(ctx, code)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -139,15 +132,14 @@ func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string)
 	if err != nil {
 		return nil, err
 	}
-	conf := configuration.Use()
 	cookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
+		Name:     s.cookiesCfg.SID,
 		Value:    sess.Token(),
 		Expires:  sess.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
+		Secure:   s.appCfg.IsProduction(),
+		Domain:   s.cookiesCfg.Domain,
 		Path:     "/",
 	}
 	return cookie, nil
@@ -160,9 +152,8 @@ func (s *AuthService) Authorize(ctx context.Context, token string) (session.Sess
 	}
 
 	if sess.IsExpired() {
-		logger := configuration.Use().Logger()
 		if deleteErr := s.sessionService.Delete(ctx, token); deleteErr != nil {
-			logger.WithError(deleteErr).Warn("failed to cleanup expired session")
+			s.logger.WithError(deleteErr).Warn("failed to cleanup expired session")
 		}
 		return nil, ErrSessionExpired
 	}
@@ -174,8 +165,7 @@ func (s *AuthService) Authorize(ctx context.Context, token string) (session.Sess
 				return nil, err
 			}
 			// Log warning but allow access in warn mode
-			logger := configuration.Use().Logger()
-			logger.Warnf("IP binding validation warning for session: %v", err)
+			s.logger.Warnf("IP binding validation warning for session: %v", err)
 		}
 	}
 
@@ -191,8 +181,7 @@ func (s *AuthService) AuthorizeWithAudience(ctx context.Context, token string, e
 
 	// Validate audience
 	if sess.Audience() != expectedAudience {
-		logger := configuration.Use().Logger()
-		logger.Warnf("Session audience mismatch: expected %s, got %s", expectedAudience, sess.Audience())
+		s.logger.Warnf("Session audience mismatch: expected %s, got %s", expectedAudience, sess.Audience())
 		return nil, ErrAudienceMismatch
 	}
 
@@ -201,7 +190,6 @@ func (s *AuthService) AuthorizeWithAudience(ctx context.Context, token string, e
 
 // validateIPBinding checks if the request IP matches the session IP
 func (s *AuthService) validateIPBinding(ctx context.Context, sess session.Session) error {
-	logger := configuration.Use().Logger()
 	currentIP, ok := composables.UseIP(ctx)
 	if !ok {
 		// Handle case when current IP cannot be retrieved
@@ -211,7 +199,7 @@ func (s *AuthService) validateIPBinding(ctx context.Context, sess session.Sessio
 			return ErrIPUnavailable
 		case IPBindingWarn:
 			// In warn mode, log warning and allow
-			logger.Warnf("IP binding validation: unable to retrieve current IP address")
+			s.logger.Warnf("IP binding validation: unable to retrieve current IP address")
 		case IPBindingDisabled:
 			// In disabled mode, allow the request
 		}
@@ -240,28 +228,32 @@ func (s *AuthService) newSessionToken() (string, error) {
 	return encoded, nil
 }
 
+// CreateSession creates a new session for an already-authenticated user.
+func (s *AuthService) CreateSession(ctx context.Context, u user.User) (session.Session, error) {
+	return s.authenticate(ctx, u, "")
+}
+
 func (s *AuthService) authenticate(ctx context.Context, u user.User, audience session.SessionAudience) (session.Session, error) {
-	logger := configuration.Use().Logger()
-	logger.Infof("Creating session for user ID: %d, tenant ID: %d, audience: %s", u.ID(), u.TenantID(), audience)
+	s.logger.Infof("Creating session for user ID: %d, tenant ID: %d, audience: %s", u.ID(), u.TenantID(), audience)
 	ctx = composables.WithTenantID(ctx, u.TenantID())
 
 	// Get IP and user agent
 	ip, ok := composables.UseIP(ctx)
 	if !ok {
-		logger.Warnf("Could not get IP, using default")
+		s.logger.Warnf("Could not get IP, using default")
 		ip = "0.0.0.0"
 	}
 
 	userAgent, ok := composables.UseUserAgent(ctx)
 	if !ok {
-		logger.Warnf("Could not get User-Agent, using default")
+		s.logger.Warnf("Could not get User-Agent, using default")
 		userAgent = "Unknown"
 	}
 
 	// Generate session token
 	token, err := s.newSessionToken()
 	if err != nil {
-		logger.Errorf("Failed to generate session token: %v", err)
+		s.logger.Errorf("Failed to generate session token: %v", err)
 		return nil, err
 	}
 
@@ -277,24 +269,24 @@ func (s *AuthService) authenticate(ctx context.Context, u user.User, audience se
 
 	// Update user last login
 	if err := s.usersService.UpdateLastLogin(ctx, u.ID()); err != nil {
-		logger.Errorf("Failed to update last login: %v", err)
+		s.logger.Errorf("Failed to update last login: %v", err)
 		return nil, err
 	}
 
 	// Update user last action
 	if err := s.usersService.UpdateLastAction(ctx, u.ID()); err != nil {
-		logger.Errorf("Failed to update last action: %v", err)
+		s.logger.Errorf("Failed to update last action: %v", err)
 		return nil, err
 	}
 
 	// Create the session
-	logger.Infof("Creating session in DB for user ID: %d, token: %s (partial)", u.ID(), token[:5])
+	s.logger.Infof("Creating session in DB for user ID: %d, token: %s (partial)", u.ID(), token[:5])
 	if err := s.sessionService.Create(ctx, sess); err != nil {
-		logger.Errorf("Failed to create session in DB: %v", err)
+		s.logger.Errorf("Failed to create session in DB: %v", err)
 		return nil, err
 	}
 
-	logger.Infof("Session created successfully")
+	s.logger.Infof("Session created successfully")
 	return sess.ToEntity(), nil
 }
 
@@ -334,60 +326,47 @@ func (s *AuthService) CookieAuthenticateWithUserID(ctx context.Context, id uint,
 	if err != nil {
 		return nil, err
 	}
-	conf := configuration.Use()
 	cookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
+		Name:     s.cookiesCfg.SID,
 		Value:    sess.Token(),
 		Expires:  sess.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
+		Secure:   s.appCfg.IsProduction(),
+		Domain:   s.cookiesCfg.Domain,
 		Path:     "/",
 	}
 	return cookie, nil
 }
 
 func (s *AuthService) Authenticate(ctx context.Context, email, password string) (user.User, session.Session, error) {
-	logger := configuration.Use().Logger()
-	logger.Infof("Authentication attempt for email: %s", email)
+	s.logger.Infof("Authentication attempt for email: %s", email)
 
-	u, err := s.usersService.GetByEmail(ctx, email)
+	u, err := s.VerifyPassword(ctx, email, password)
 	if err != nil {
-		logger.Errorf("Failed to get user by email: %v", err)
+		s.logger.Errorf("Failed to verify credentials: %v", err)
 		return nil, nil, err
 	}
 
-	if !u.CheckPassword(password) {
-		logger.Errorf("Invalid password for user: %s", email)
-		return nil, nil, composables.ErrInvalidPassword
-	}
-
-	logger.Infof("User authenticated, creating session for user ID: %d", u.ID())
+	s.logger.Infof("User authenticated, creating session for user ID: %d", u.ID())
 	sess, err := s.authenticate(ctx, u, "")
 	if err != nil {
-		logger.Errorf("Failed to create session: %v", err)
+		s.logger.Errorf("Failed to create session: %v", err)
 		return nil, nil, err
 	}
 
-	logger.Infof("Session created successfully with token: %s (partial)", sess.Token()[:5])
+	s.logger.Infof("Session created successfully with token: %s (partial)", sess.Token()[:5])
 	return u, sess, nil
 }
 
 // AuthenticateWithAudience authenticates a user by email and password, creating a session with a specific audience
 func (s *AuthService) AuthenticateWithAudience(ctx context.Context, email, password string, audience session.SessionAudience) (user.User, session.Session, error) {
-	logger := configuration.Use().Logger()
-	logger.Infof("Authentication attempt for email: %s, audience: %s", email, audience)
+	s.logger.Infof("Authentication attempt for email: %s, audience: %s", email, audience)
 
-	u, err := s.usersService.GetByEmail(ctx, email)
+	u, err := s.VerifyPassword(ctx, email, password)
 	if err != nil {
-		logger.Errorf("Failed to get user by email: %v", err)
+		s.logger.Errorf("Failed to verify credentials: %v", err)
 		return nil, nil, err
-	}
-
-	if !u.CheckPassword(password) {
-		logger.Errorf("Invalid password for user: %s", email)
-		return nil, nil, composables.ErrInvalidPassword
 	}
 
 	sess, err := s.authenticate(ctx, u, audience)
@@ -403,46 +382,116 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 	if err != nil {
 		return nil, err
 	}
-	conf := configuration.Use()
 	cookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
+		Name:     s.cookiesCfg.SID,
 		Value:    sess.Token(),
 		Expires:  sess.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
+		Secure:   s.appCfg.IsProduction(),
+		Domain:   s.cookiesCfg.Domain,
 		Path:     "/",
 	}
 	return cookie, nil
 }
 
-func generateStateOauthCookie() (*http.Cookie, error) {
+func (s *AuthService) VerifyGoogle(ctx context.Context, code string) (user.User, error) {
+	// Use code to get token and get user info from Google.
+	token, err := s.oAuthConfig.Exchange(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	client := s.oAuthConfig.Client(ctx, token)
+	svc, err := people.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return nil, err
+	}
+	p, err := svc.People.Get("people/me").PersonFields("emailAddresses,names").Do()
+	if err != nil {
+		return nil, err
+	}
+	if len(p.EmailAddresses) == 0 || p.EmailAddresses[0] == nil || p.EmailAddresses[0].Value == "" {
+		return nil, ErrGoogleEmailNotFound
+	}
+	return s.usersService.GetByEmail(ctx, p.EmailAddresses[0].Value)
+}
+
+func (s *AuthService) VerifyPassword(ctx context.Context, email, password string) (user.User, error) {
+	u, err := s.usersService.GetByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if !u.CheckPassword(password) {
+		return nil, composables.ErrInvalidPassword
+	}
+	return u, nil
+}
+
+func (s *AuthService) generateStateOauthCookie() (*http.Cookie, error) {
 	b := make([]byte, 16)
 	_, err := rand.Read(b)
 	if err != nil {
 		return nil, err
 	}
 	state := base64.URLEncoding.EncodeToString(b)
-	conf := configuration.Use()
 	cookie := &http.Cookie{
-		Name:     conf.OauthStateCookieKey,
+		Name:     s.cookiesCfg.OAuthState,
 		Value:    state,
 		Expires:  time.Now().Add(time.Minute * 5),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
+		Secure:   s.appCfg.IsProduction(),
+		Domain:   s.cookiesCfg.Domain,
 	}
 	return cookie, nil
 }
 
 func (s *AuthService) GoogleAuthenticate(w http.ResponseWriter) (string, error) {
-	cookie, err := generateStateOauthCookie()
+	return s.GoogleAuthenticateFor(w, "", "")
+}
+
+type oauthContinuation struct {
+	NextURL       string `json:"next_url"`
+	AuthRequestID string `json:"auth_request_id"`
+}
+
+func (s *AuthService) GoogleAuthenticateFor(w http.ResponseWriter, nextURL, authRequestID string) (string, error) {
+	const op serrors.Op = "AuthService.GoogleAuthenticateFor"
+	cookie, err := s.generateStateOauthCookie()
 	if err != nil {
-		return "", err
+		return "", serrors.E(op, err)
 	}
 	http.SetCookie(w, cookie)
+	payload, err := json.Marshal(oauthContinuation{NextURL: nextURL, AuthRequestID: authRequestID})
+	if err != nil {
+		return "", serrors.E(op, err)
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     s.cookiesCfg.OAuthState + "-continuation",
+		Value:    base64.RawURLEncoding.EncodeToString(payload),
+		Expires:  cookie.Expires,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   s.appCfg.IsProduction(),
+		Domain:   s.cookiesCfg.Domain,
+		Path:     "/",
+	})
 	u := s.oAuthConfig.AuthCodeURL(cookie.Value, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 	return u, nil
+}
+
+func (s *AuthService) OAuthContinuation(r *http.Request) (string, string) {
+	cookie, err := r.Cookie(s.cookiesCfg.OAuthState + "-continuation")
+	if err != nil {
+		return "", ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(cookie.Value)
+	if err != nil {
+		return "", ""
+	}
+	var continuation oauthContinuation
+	if err := json.Unmarshal(payload, &continuation); err != nil {
+		return "", ""
+	}
+	return continuation.NextURL, continuation.AuthRequestID
 }

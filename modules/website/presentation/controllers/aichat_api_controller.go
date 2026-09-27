@@ -18,32 +18,28 @@ import (
 	websiteServices "github.com/iota-uz/iota-sdk/modules/website/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/di"
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/sirupsen/logrus"
 )
 
 type AIChatAPIControllerConfig struct {
 	BasePath    string
-	App         application.Application
 	Middlewares []mux.MiddlewareFunc // Optional: Additional middleware to apply
 }
 
 type AIChatAPIController struct {
 	basePath    string
-	app         application.Application
 	middlewares []mux.MiddlewareFunc
 }
 
 func NewAIChatAPIController(cfg AIChatAPIControllerConfig) application.Controller {
 	return &AIChatAPIController{
 		basePath:    cfg.BasePath,
-		app:         cfg.App,
 		middlewares: cfg.Middlewares,
 	}
 }
 
-func (c *AIChatAPIController) Key() string {
-	return "AIChatAPIController"
+func (c *AIChatAPIController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("website.aichat_api", 0, application.Route("", c.basePath))
 }
 
 func (c *AIChatAPIController) Register(r *mux.Router) {
@@ -55,7 +51,6 @@ func (c *AIChatAPIController) Register(r *mux.Router) {
 	}
 
 	// Always apply localizer
-	router.Use(middleware.ProvideLocalizer(c.app))
 
 	router.HandleFunc("/messages", di.H(c.createThread)).Methods(http.MethodPost)
 	router.HandleFunc("/messages/{thread_id}", di.H(c.getThreadMessages)).Methods(http.MethodGet)

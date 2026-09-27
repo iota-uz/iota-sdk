@@ -52,7 +52,7 @@ templ base(props Props) {
 	if len(props.Href) > 0 {
 		<a
 			href={ templ.SafeURL(props.Href) }
-			class={ "shrink-0 btn",
+			class={ "shrink-0 btn cursor-pointer",
 			variants[props.variant],
 			sizes[props.Size],
 			templ.KV("btn-fixed", props.Fixed),
@@ -72,7 +72,7 @@ templ base(props Props) {
 	} else {
 		<button
 			disabled?={ props.Disabled }
-			class={ "shrink-0 btn",
+			class={ "shrink-0 btn cursor-pointer",
 				variants[props.variant],
 				sizes[props.Size],
 				templ.KV("btn-fixed", props.Fixed),

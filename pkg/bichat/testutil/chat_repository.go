@@ -126,11 +126,19 @@ func (m *NoOpChatRepository) GetRunByID(ctx context.Context, runID uuid.UUID) (d
 	return nil, domain.ErrRunNotFound
 }
 
+func (m *NoOpChatRepository) RestartRun(ctx context.Context, runID uuid.UUID, staleBefore time.Time) (domain.GenerationRun, error) {
+	return nil, domain.ErrRunNotFound
+}
+
 func (m *NoOpChatRepository) UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
 	return nil
 }
 
 func (m *NoOpChatRepository) CompleteRun(ctx context.Context, runID uuid.UUID) error {
+	return nil
+}
+
+func (m *NoOpChatRepository) FailRun(ctx context.Context, runID uuid.UUID) error {
 	return nil
 }
 

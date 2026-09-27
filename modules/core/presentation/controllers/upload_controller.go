@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -19,50 +20,58 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/multifs"
 )
 
 type UploadController struct {
-	app           application.Application
 	uploadService *services.UploadService
+	cfg           *uploadsconfig.Config
 	basePath      string
 }
 
-func NewUploadController(app application.Application) application.Controller {
+func NewUploadController(uploadService *services.UploadService, cfg *uploadsconfig.Config) application.Controller {
 	return &UploadController{
-		app:           app,
-		uploadService: app.Service(services.UploadService{}).(*services.UploadService),
+		uploadService: uploadService,
+		cfg:           cfg,
 		basePath:      "/uploads",
 	}
 }
 
-func (c *UploadController) Key() string {
-	return "/upload"
+func (c *UploadController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.upload", 0, application.Route("", "/upload"))
 }
 
 func (c *UploadController) Register(r *mux.Router) {
-	conf := configuration.Use()
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(middleware.Authorize())
-	router.Use(middleware.ProvideLocalizer(c.app))
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 
 	workDir, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
-	fullPath := filepath.Join(workDir, conf.UploadsPath)
-	prefix := path.Join("/", conf.UploadsPath, "/")
+	fullPath := c.cfg.Path
+	if !filepath.IsAbs(fullPath) {
+		fullPath = filepath.Join(workDir, fullPath)
+	}
+	prefix := path.Join("/", c.cfg.Path) + "/"
+	privatePrefix := path.Join(prefix, uploadsconfig.PrivateDirectory)
 	neuteredFS := multifs.NewNeuteredFileSystem(http.Dir(fullPath))
-	r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, http.FileServer(neuteredFS)))
+	publicFiles := http.StripPrefix(prefix, http.FileServer(neuteredFS))
+	r.PathPrefix(prefix).Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == privatePrefix || strings.HasPrefix(r.URL.Path, privatePrefix+"/") {
+			http.NotFound(w, r)
+			return
+		}
+		publicFiles.ServeHTTP(w, r)
+	}))
 }
 
 func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
-	conf := configuration.Use()
-	if err := r.ParseMultipartForm(conf.MaxUploadMemory); err != nil {
+	if err := r.ParseMultipartForm(c.cfg.MaxMemory); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
