@@ -73,7 +73,7 @@ agent, _ := bichatagents.NewDefaultBIAgent(
 ## Configuration
 
 - **Name**: `bi_agent`
-- **Model**: `gpt-5.2` (customizable)
+- **Model**: `gpt-6.0-sol` (customizable)
 - **Isolation**: Isolated (no parent context access)
 - **Completion**: implicit stop (model returns no tool calls)
 
