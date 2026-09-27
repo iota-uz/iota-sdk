@@ -1,0 +1,62 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Move BiChat OpenAI models from GPT-5.6 to GPT-6.0 (Sol flagship at $2/$10 and Luna at $0.10/$0.50 per 1M tokens) and make gpt-6.0-sol the provider and agent default."
+    },
+    {
+      "bump": "minor",
+      "summary": "The money account drawer opens as a card: money on the account, reserved by open obligations and available, the obligations reserving it, and a history of the account's transactions with type and date filters that loads more while scrolling and opens the payment or expense behind each entry. A balance typed in the account form is now booked as an ADJUSTMENT transaction for the difference, so the history always adds up to the balance. The transactions list `account` filter now matches both sides of a transaction. Adds transaction.Adjustment, query.FieldAccountID, debt.Repository.OpenPayables and BalanceService.Reserves; moneyaccounts.DrawerEditProps.Transactions is replaced by History."
+    },
+    {
+      "bump": "minor",
+      "summary": "Finance expenses and payments lists use the scaffold table with infinite scroll, keeping search and the date filter on every chunk; the overview loads only the active tab and offers a retry when it fails. payment.FindParams replaces Query and Field with Search, and payment Repository and PaymentService Count now take FindParams."
+    },
+    {
+      "bump": "minor",
+      "summary": "Track obligations to counterparties as debts with a currency, the account they reserve money on and an optional project; debts can be settled and cancelled from their drawer, and the overview, debts and accounts pages show money on accounts, reserved by open obligations and available per currency. Adds a migration, services.BalanceService and the services.ProjectDirectory port provided by the projects module; NewDebtService, NewDebtsController, NewFinancialOverviewController and the debt drawer props change signature."
+    },
+    {
+      "bump": "minor",
+      "summary": "Harden the applet RPC dispatcher: public methods now require an explicit access policy (non-empty permissions or explicit Public opt-in) and a declared query/mutation kind on the typed contract path, client identity headers are ignored on the public transport with trusted identity derived from the authenticated server context, login redirects surface as typed unauthorized errors instead of opaque -32603, namespaces reject cross-applet registration, and dispatches expose bounded method/kind/code labels to logs and metrics plus a mutation audit sink carrying user and tenant identity. Behavior change: an applet that previously registered a public RPC method with an empty permission list (anonymous access) now fails at boot — set RequirePermissions, or declare the method through RPCMethodContracts with rpc.Public() to keep it anonymous intentionally."
+    },
+    {
+      "bump": "patch",
+      "summary": "Fix duplicate legendSeriesIndex/legendEntryKey declarations in ChartPanel that broke the frontend package build on main."
+    },
+    {
+      "bump": "patch",
+      "summary": "Fix Lens category colors and map visibility: per-row frame colors, distributed bar colors, and corrected product palette."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add managed streaming subscriptions for Solid client routes: useManagedStream/createManagedStream publish one consistent connection state with cursor replay, bounded jittered reconnect, heartbeat stale detection, host session/CSRF re-auth and telemetry, owner-bound cleanup on route unmount, and RPC cache invalidation hooks; harden stream close during reconnect backoff and single-instance solid-js in client-host tests."
+    },
+    {
+      "bump": "minor",
+      "summary": "Projects: contract amount on the project, acceptance documents (acts, delivery notes) with draft, signed and cancelled statuses, and revenue split by contract, accepted, open, invoiced and paid per currency on the project and the client; invoices come through the projects InvoiceSource port."
+    },
+    {
+      "bump": "minor",
+      "summary": "Remove Granite-specific Lens color aliases and palettes; use stable generic categorical colors for scoped chart data."
+    },
+    {
+      "bump": "patch",
+      "summary": "Keep shared integration-test database waiters attached to the current harness entry during parallel tests, and restore Lens builds by removing duplicate legend helpers and an accidentally committed generated bundle."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add showcase controller extensibility for child projects: thread-safe pkg/showcase registry with validation, dynamic /_dev/components/{categoryPath} route and sidebar integration, custom category templ page."
+    },
+    {
+      "bump": "minor",
+      "summary": "Implement Stripe and Octo provider Cancel/Refund with PaymentIntentID persistence, restrict GraphQL WebSocket and POST transports to allowed origins via httpconfig, and decouple the warehouse module from core upload/user types behind local domain interfaces."
+    },
+    {
+      "bump": "none",
+      "summary": "Align Tailwind v4 generation flow: shared pipeline config, shared PostCSS setup, reusable CI action, and pinned toolchain. No runtime change."
+    }
+  ],
+  "source": "750b6a626a569822f3ff3741cbd41d01248784d8",
+  "version": "0.11.0"
+}
