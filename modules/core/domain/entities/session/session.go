@@ -164,10 +164,16 @@ type CreateDTO struct {
 	UserAgent string
 	Audience  SessionAudience
 	Status    SessionStatus
+	// ExpiresAt overrides the ordinary interactive-session lifetime. It is
+	// used by trusted background flows that need a narrowly bounded session.
+	ExpiresAt time.Time
 }
 
 func (d *CreateDTO) ToEntity() Session {
 	opts := []Option{}
+	if !d.ExpiresAt.IsZero() {
+		opts = append(opts, WithExpiresAt(d.ExpiresAt))
+	}
 	if d.Audience != "" {
 		opts = append(opts, WithAudience(d.Audience))
 	}

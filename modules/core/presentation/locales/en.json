@@ -1,4 +1,19 @@
 {
+  "Authorization": {
+    "Errors": {
+      "Title": "Action not allowed",
+      "GrantCeiling": "You cannot assign this access because it includes permissions your account does not have. Changes were not saved.",
+      "TargetDominance": "You cannot administer this user, role, or group because it has a higher access level. Changes were not saved.",
+      "TenantBoundary": "This item is not available in your organization. Changes were not saved.",
+      "SystemRole": "You cannot assign this system role. Changes were not saved.",
+      "SystemGroup": "You cannot assign this system group. Changes were not saved.",
+      "SelfAdmin": "Use your account settings to edit your own profile. Administrative changes were not saved.",
+      "InvalidSelection": "One of the selected access options is invalid or unavailable. Changes were not saved."
+    },
+    "Notices": {
+      "ReadOnlyTarget": "This item has a higher access level. You can view it, but you cannot modify it."
+    }
+  },
   "Account": {
     "Meta": {
       "Index": {
@@ -33,6 +48,7 @@
       "Placeholder": "Enter phone number"
     },
     "Password": "Password",
+    "ChangePassword": {"Title":"Change password","DescText":"Changing your password signs you out on every device.","CurrentPassword":"Current password","NewPassword":"New password","ConfirmPassword":"Confirm new password","Submit":"Change password","Errors":{"CurrentRequired":"Enter your current password.","CurrentIncorrect":"The current password is incorrect.","NewTooShort":"The new password must contain at least 8 characters.","ConfirmationMismatch":"The password confirmation does not match."}},
     "Save": "Save",
     "Logo": {
       "FullLogo": "Full Logo",
@@ -89,6 +105,9 @@
   "Chart": {
     "CloseFullScreen": "Close fullscreen",
     "ExpandToFullScreen": "Expand to fullscreen",
+    "ExportExcel": "Export to Excel",
+    "ExportGenerating": "Generating Excel report…",
+    "ExportFailed": "Export failed. Please try again.",
     "LogScale": "Log scale",
     "LogScaleHint": "Values are shown on a logarithmic scale",
     "MetricInfo": "How this metric is calculated"
@@ -122,7 +141,11 @@
     }
   },
   "Common": {
-    "Loading": "Loading..."
+    "CloseNotification": "Close notification",
+    "TabNavigation": "Tab navigation",
+    "Loading": "Loading...",
+    "LoadFailed": "Could not load data",
+    "Retry": "Retry"
   },
   "ConfirmDelete": "Are you sure you want to delete this item?",
   "Countries": {
@@ -443,14 +466,20 @@
     "WelcomeBack": "Welcome back",
     "LoginToUse": "Log in to use IOTA ERP",
     "LoginWithGoogle": "Log in with Google",
-    "OrSignInWith": "Or sign in with...",
+		"OrSignInWith": "Or sign in with...",
+		"Or": "Or",
+		"ChooseAccount": "Choose an account",
+		"UseAnotherAccount": "Use another account",
+		"ActiveAccount": "Active",
     "Errors": {
       "PasswordInvalid": "Email or password is invalid",
       "OauthStateNotFound": "oAuth state not found. Please, try again.",
       "OauthStateInvalid": "Invalid oAuth state. Please, try again.",
       "OauthCodeNotFound": "oAuth code not found. Please, try again.",
       "UserNotFound": "User not found",
-      "AccountBlocked": "Your account has been blocked. Please contact administrator."
+			"AccountBlocked": "Your account has been blocked. Please contact administrator.",
+			"SessionExpired": "That account session expired. Sign in again or choose another account."
+			,"AuthorizationRequestInvalid": "This authorization request is no longer valid. Return to the application and start again."
     }
   },
   "Modules": {
@@ -578,7 +607,11 @@
     "Navbar": {
       "Profile": "Profile",
       "Sessions": "Sessions",
-      "Logout": "Logout",
+			"Logout": "Logout",
+			"CurrentAccount": "Current account",
+			"AddAccount": "Add account",
+			"LogoutCurrent": "Logout current",
+			"LogoutAll": "Logout all accounts",
       "Settings": "Settings"
     },
     "Departments": "Departments"
@@ -1086,7 +1119,14 @@
       "Filters": "Filters",
       "FilterRole": "Role",
       "FilterGroup": "Group",
-      "FilterCreatedAt": "Created at"
+      "FilterCreatedAt": "Created at",
+      "FilterUpdatedAt": "Updated at",
+      "FilterStatus": "Status",
+      "FilterStatusActive": "Active",
+      "FilterStatusBlocked": "Blocked",
+      "FilterType": "Type",
+      "FilterTypeRegular": "Regular",
+      "FilterTypeSystem": "System"
     },
     "Cards": {
       "PersonalInfo": "Personal information",

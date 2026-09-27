@@ -10,8 +10,8 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	"github.com/Oudwins/tailwind-merge-go/pkg/twmerge"
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/pkg/twmerge"
 )
 
 type Direction int
@@ -178,7 +178,7 @@ func StdViewDrawer(props StdDrawerProps) templ.Component {
 			}
 			var templ_7745c5c3_Var6 = []any{
 				"flex justify-between px-4 py-3",
-				"border-b border-primary",
+				"border-b border-subtle",
 			}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var6...)
 			if templ_7745c5c3_Err != nil {

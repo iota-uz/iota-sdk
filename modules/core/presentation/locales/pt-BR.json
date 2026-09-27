@@ -1,4 +1,19 @@
 {
+  "Authorization": {
+    "Errors": {
+      "Title": "Ação não permitida",
+      "GrantCeiling": "Você não pode atribuir este acesso porque ele contém permissões que sua conta não possui. As alterações não foram salvas.",
+      "TargetDominance": "Você não pode administrar este usuário, função ou grupo porque ele possui um nível de acesso superior. As alterações não foram salvas.",
+      "TenantBoundary": "Este item não está disponível em sua organização. As alterações não foram salvas.",
+      "SystemRole": "Você não pode atribuir esta função de sistema. As alterações não foram salvas.",
+      "SystemGroup": "Você não pode atribuir este grupo de sistema. As alterações não foram salvas.",
+      "SelfAdmin": "Use as configurações da conta para editar seu próprio perfil. As alterações administrativas não foram salvas.",
+      "InvalidSelection": "Uma das opções de acesso selecionadas é inválida ou indisponível. As alterações não foram salvas."
+    },
+    "Notices": {
+      "ReadOnlyTarget": "Este item possui um nível de acesso superior. Você pode visualizá-lo, mas não pode modificá-lo."
+    }
+  },
   "Account": {
     "Meta": {
       "Index": {
@@ -33,6 +48,7 @@
       "Placeholder": "Insira o número de telefone"
     },
     "Password": "Senha",
+    "ChangePassword": {"Title":"Alterar senha","DescText":"Alterar sua senha encerra todas as sessões ativas.","CurrentPassword":"Senha atual","NewPassword":"Nova senha","ConfirmPassword":"Confirmar nova senha","Submit":"Alterar senha","Errors":{"CurrentRequired":"Digite sua senha atual.","CurrentIncorrect":"A senha atual está incorreta.","NewTooShort":"A nova senha deve conter pelo menos 8 caracteres.","ConfirmationMismatch":"A confirmação da senha não corresponde."}},
     "Save": "Salvar",
     "Logo": {
       "FullLogo": "Logo completo",
@@ -89,6 +105,9 @@
   "Chart": {
     "CloseFullScreen": "Fechar tela cheia",
     "ExpandToFullScreen": "Expandir para tela cheia",
+    "ExportExcel": "Exportar para Excel",
+    "ExportGenerating": "Gerando relatório Excel…",
+    "ExportFailed": "Não foi possível gerar o relatório. Tente novamente.",
     "LogScale": "Escala logarítmica",
     "LogScaleHint": "Os valores são mostrados em escala logarítmica",
     "MetricInfo": "Como esta métrica é calculada"
@@ -122,7 +141,11 @@
     }
   },
   "Common": {
-    "Loading": "Carregando..."
+    "CloseNotification": "Fechar notificação",
+    "TabNavigation": "Navegação por abas",
+    "Loading": "Carregando...",
+    "LoadFailed": "Não foi possível carregar os dados",
+    "Retry": "Tentar novamente"
   },
   "ConfirmDelete": "Tem certeza de que deseja excluir este item?",
   "Countries": {
@@ -443,14 +466,20 @@
     "WelcomeBack": "Bem-vindo de volta",
     "LoginToUse": "Entre para usar o IOTA ERP",
     "LoginWithGoogle": "Entrar com Google",
-    "OrSignInWith": "Ou entre com...",
+		"OrSignInWith": "Ou entre com...",
+		"Or": "Ou",
+		"ChooseAccount": "Escolha uma conta",
+		"UseAnotherAccount": "Usar outra conta",
+		"ActiveAccount": "Ativa",
     "Errors": {
       "PasswordInvalid": "E-mail ou senha inválidos",
       "OauthStateNotFound": "Estado oAuth não encontrado. Por favor, tente novamente.",
       "OauthStateInvalid": "Estado oAuth inválido. Por favor, tente novamente.",
       "OauthCodeNotFound": "Código oAuth não encontrado. Por favor, tente novamente.",
       "UserNotFound": "Usuário não encontrado",
-      "AccountBlocked": "Sua conta foi bloqueada. Entre em contato com o administrador."
+			"AccountBlocked": "Sua conta foi bloqueada. Entre em contato com o administrador.",
+			"SessionExpired": "A sessão desta conta expirou. Entre novamente ou escolha outra conta."
+			,"AuthorizationRequestInvalid": "Esta solicitação de autorização não é mais válida. Volte ao aplicativo e tente novamente."
     }
   },
   "Modules": {
@@ -577,7 +606,11 @@
     "Navbar": {
       "Profile": "Perfil",
       "Sessions": "Sessões",
-      "Logout": "Sair",
+			"Logout": "Sair",
+			"CurrentAccount": "Conta atual",
+			"AddAccount": "Adicionar conta",
+			"LogoutCurrent": "Sair da conta atual",
+			"LogoutAll": "Sair de todas as contas",
       "Settings": "Configurações"
     },
     "Departments": "Departamentos",
@@ -1090,7 +1123,14 @@
       "Filters": "Filtros",
       "FilterRole": "Função",
       "FilterGroup": "Grupo",
-      "FilterCreatedAt": "Criado em"
+      "FilterCreatedAt": "Criado em",
+      "FilterUpdatedAt": "Atualizado em",
+      "FilterStatus": "Status",
+      "FilterStatusActive": "Ativos",
+      "FilterStatusBlocked": "Bloqueados",
+      "FilterType": "Tipo",
+      "FilterTypeRegular": "Comuns",
+      "FilterTypeSystem": "Sistema"
     },
     "Cards": {
       "PersonalInfo": "Informações pessoais",

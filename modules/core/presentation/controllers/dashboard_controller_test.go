@@ -18,7 +18,7 @@ func TestDashboardController_RouteAndNavUseConfiguredPermissions(t *testing.T) {
 	descriptor := controller.Descriptor()
 	require.Len(t, descriptor.Routes, 1)
 	require.Equal(t, "/", descriptor.Routes[0].Path)
-	require.Equal(t, []permission.Permission{viewDashboard}, descriptor.Routes[0].Auth.Permissions)
+	require.Equal(t, []permission.Permission{viewDashboard}, descriptor.Routes[0].Requirement.Permissions)
 
 	require.Len(t, descriptor.Nav, 1)
 	require.NotNil(t, descriptor.Nav[0].Visibility)

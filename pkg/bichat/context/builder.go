@@ -67,6 +67,11 @@ func (b *ContextBuilder) History(codec Codec, payload any, opts ...BlockOptions)
 	return b.add(KindHistory, codec, payload, opts...)
 }
 
+// Continuation adds a trusted internal event that resumes the session.
+func (b *ContextBuilder) Continuation(codec Codec, payload any, opts ...BlockOptions) *ContextBuilder {
+	return b.add(KindContinuation, codec, payload, opts...)
+}
+
 // Turn adds a user turn block (current user message).
 func (b *ContextBuilder) Turn(codec Codec, payload any, opts ...BlockOptions) *ContextBuilder {
 	return b.add(KindTurn, codec, payload, opts...)
@@ -126,6 +131,14 @@ func (b *ContextBuilder) MustToolOutput(codec Codec, payload any, opts ...BlockO
 func (b *ContextBuilder) MustHistory(codec Codec, payload any, opts ...BlockOptions) *ContextBuilder {
 	if err := b.Add(KindHistory, codec, payload, opts...); err != nil {
 		panic(fmt.Sprintf("MustHistory failed: %v", err))
+	}
+	return b
+}
+
+// MustContinuation adds an internal continuation block and panics on validation error.
+func (b *ContextBuilder) MustContinuation(codec Codec, payload any, opts ...BlockOptions) *ContextBuilder {
+	if err := b.Add(KindContinuation, codec, payload, opts...); err != nil {
+		panic(fmt.Sprintf("MustContinuation failed: %v", err))
 	}
 	return b
 }

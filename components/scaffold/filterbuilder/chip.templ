@@ -21,7 +21,7 @@ templ Chip(props Props, idx int, c filterq.Condition) {
 	if ok {
 		<div class="relative" data-fb-chip-wrapper x-on:click.outside={ fmt.Sprintf("if (editing === %d) closeAll()", idx) }>
 			<input type="hidden" name={ filterq.ParamName } value={ filterq.EncodeCondition(c) } data-fb-chip={ strconv.Itoa(idx) }/>
-			<div class="inline-flex h-8 items-stretch overflow-hidden rounded-lg border border-primary bg-surface-100 text-sm">
+			<div class="inline-flex h-8 items-stretch overflow-hidden rounded-lg border border-default bg-surface-100 text-sm">
 				<button
 					type="button"
 					class={
@@ -46,7 +46,7 @@ templ Chip(props Props, idx int, c filterq.Condition) {
 				</button>
 				<button
 					type="button"
-					class="inline-flex items-center border-l border-primary px-1.5 text-200 hover:text-100 hover:bg-surface-400 cursor-pointer duration-150"
+					class="inline-flex items-center border-l border-default px-1.5 text-200 hover:text-100 hover:bg-surface-400 cursor-pointer duration-150"
 					x-on:click={ fmt.Sprintf("remove(%d)", idx) }
 					aria-label={ pageCtx.T("Scaffold.FilterBuilder.Remove") }
 				>
@@ -163,7 +163,7 @@ templ editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) {
 						for _, p := range field.presets() {
 							<button
 								type="button"
-								class="rounded-md border border-primary px-2 py-1 text-xs cursor-pointer hover:bg-surface-400 duration-100"
+								class="rounded-md border border-default px-2 py-1 text-xs cursor-pointer hover:border-brand hover:bg-surface-400 duration-100"
 								:class={ "preset === '" + string(p) + "' ? 'bg-surface-400 font-medium' : ''" }
 								x-on:click={ "applyPreset('" + string(p) + "')" }
 							>
@@ -201,7 +201,7 @@ templ editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) {
 						type="number"
 						step="any"
 						data-fb-value
-						class="form-control-input input w-full rounded-md border border-primary bg-transparent px-3 py-2 text-sm outline-none"
+						class="form-control-input input w-full rounded-md border border-default bg-transparent px-3 py-2 text-sm outline-none"
 						value={ numberValue(cond, 0) }
 					/>
 				</div>
@@ -210,7 +210,7 @@ templ editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) {
 						type="number"
 						step="any"
 						data-fb-value
-						class="form-control-input input w-full rounded-md border border-primary bg-transparent px-3 py-2 text-sm outline-none"
+						class="form-control-input input w-full rounded-md border border-default bg-transparent px-3 py-2 text-sm outline-none"
 						value={ numberValue(cond, 0) }
 					/>
 					<span class="text-200">–</span>
@@ -218,7 +218,7 @@ templ editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) {
 						type="number"
 						step="any"
 						data-fb-value
-						class="form-control-input input w-full rounded-md border border-primary bg-transparent px-3 py-2 text-sm outline-none"
+						class="form-control-input input w-full rounded-md border border-default bg-transparent px-3 py-2 text-sm outline-none"
 						value={ numberValue(cond, 1) }
 					/>
 				</div>

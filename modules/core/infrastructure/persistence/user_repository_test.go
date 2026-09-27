@@ -2,6 +2,7 @@ package persistence_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
@@ -17,6 +18,45 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPgUserRepositoryUpdatePasswordPreservesProfileAndAssignments(t *testing.T) {
+	// Falsely green if the assertions read the pre-update aggregate instead of reloading persistence.
+	f := setupTest(t)
+	tenantID, err := composables.UseTenantID(f.Ctx)
+	require.NoError(t, err)
+	permissionRepository := persistence.NewPermissionRepository()
+	roleRepository := persistence.NewRoleRepository()
+	userRepository := persistence.NewUserRepository(persistence.NewUploadRepository())
+	groupRepository := persistence.NewGroupRepository(userRepository, roleRepository)
+	require.NoError(t, permissionRepository.Save(f.Ctx, permissions.UserRead))
+	assignedRole, err := roleRepository.Create(f.Ctx, role.New("password-preserve-"+uuid.NewString(), role.WithTenantID(tenantID), role.WithPermissions([]permission.Permission{permissions.UserRead})))
+	require.NoError(t, err)
+	assignedGroup, err := groupRepository.Save(f.Ctx, group.New("password-preserve-"+uuid.NewString(), group.WithTenantID(tenantID), group.WithRoles([]role.Role{assignedRole})))
+	require.NoError(t, err)
+	email, err := internet.NewEmail(uuid.NewString() + "@example.test")
+	require.NoError(t, err)
+	initial, err := user.New("Original", "Profile", email, user.UILanguageEN,
+		user.WithTenantID(tenantID), user.WithRoles([]role.Role{assignedRole}),
+		user.WithGroupIDs([]uuid.UUID{assignedGroup.ID()}), user.WithPermissions([]permission.Permission{permissions.UserRead})).SetPassword("OldPass123!")
+	require.NoError(t, err)
+	created, err := userRepository.Create(f.Ctx, initial)
+	require.NoError(t, err)
+	changed, err := created.SetPassword("NewPass123!")
+	require.NoError(t, err)
+
+	require.NoError(t, userRepository.UpdatePassword(f.Ctx, created.ID(), changed.Password(), time.Now()))
+	reloaded, err := userRepository.GetByID(f.Ctx, created.ID())
+	require.NoError(t, err)
+	require.Equal(t, "Original", reloaded.FirstName())
+	require.Equal(t, "Profile", reloaded.LastName())
+	require.False(t, reloaded.IsBlocked())
+	require.Len(t, reloaded.Roles(), 1)
+	require.Equal(t, assignedRole.ID(), reloaded.Roles()[0].ID())
+	require.Equal(t, []uuid.UUID{assignedGroup.ID()}, reloaded.GroupIDs())
+	require.Len(t, reloaded.Permissions(), 1)
+	require.Equal(t, permissions.UserRead.ID(), reloaded.Permissions()[0].ID())
+	require.True(t, reloaded.CheckPassword("NewPass123!"))
+}
 
 func TestPgUserRepository_CRUD(t *testing.T) {
 	t.Parallel()

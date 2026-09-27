@@ -2,34 +2,29 @@
 
 ## NPM: @iota-uz/sdk
 
-This repo now ships a unified public NPM package for UI + Tailwind sharing:
-- Applet Core (React utilities): `@iota-uz/sdk`
-- BIChat UI (React): `@iota-uz/sdk/bichat`
-- Tailwind v4 inputs + config helper: `@iota-uz/sdk/tailwind/*`
-- Bundled assets (fonts): serve `node_modules/@iota-uz/sdk/assets` at `/assets`
+This repo ships one public NPM package alongside the Go module:
 
-Tailwind (consumer compiles):
+- Client host: `@iota-uz/sdk/client-host`
+- Solid client runtime: `@iota-uz/sdk/solid`
+- Solid UI components: `@iota-uz/sdk/solid-ui`
+- Standalone Solid UI styles: `@iota-uz/sdk/solid-ui/standalone.css`
+- Shared design tokens: `@iota-uz/sdk/styles.css`
+- Lens runtime: `@iota-uz/sdk/lens`
+- Lens styles: `@iota-uz/sdk/lens/styles.css`
+- Release identity: `@iota-uz/sdk/identity`
 
-```bash
-pnpm add -D tailwindcss @tailwindcss/cli
-pnpm add @iota-uz/sdk
-```
-
-```js
-// tailwind.config.cjs
-const createIotaTailwindConfig = require('@iota-uz/sdk/tailwind/create-config')
-
-module.exports = createIotaTailwindConfig({
-  content: ['./src/**/*.{ts,tsx,js,jsx,html}'],
-  extend: {},
-})
-```
+Install it with the renderer used by the route:
 
 ```bash
-# Create an input CSS file in your project (example: ./src/tailwind.css):
-#   @config "../tailwind.config.cjs";
-#   @import "@iota-uz/sdk/tailwind/main.css";
-tailwindcss --input ./src/tailwind.css --output ./public/assets/main.css --minify
+pnpm add @iota-uz/sdk@0.5.6 solid-js
+```
+
+```ts
+import { mountSolidClientRouteFromDocument } from '@iota-uz/sdk/solid'
+import { Button, Input } from '@iota-uz/sdk/solid-ui'
+import { LensDashboard } from '@iota-uz/sdk/lens'
+import '@iota-uz/sdk/solid-ui/standalone.css'
+import '@iota-uz/sdk/lens/styles.css'
 ```
 
 ![Dashboard](images/showcase.jpg)

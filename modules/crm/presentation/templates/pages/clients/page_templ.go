@@ -339,7 +339,7 @@ func CardHeader(props CardHeaderProps) templ.Component {
 			templ_7745c5c3_Var11 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"flex justify-between border-b border-gray-200 p-4\"><p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"flex justify-between border-b border-subtle p-4\"><p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

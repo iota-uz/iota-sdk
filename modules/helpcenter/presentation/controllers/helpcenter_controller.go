@@ -4,6 +4,7 @@ package controllers
 import (
 	"errors"
 	"html/template"
+	"mime"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -65,6 +66,7 @@ func (c *HelpCenterController) Register(r *mux.Router) {
 	router.HandleFunc("", c.index).Methods(http.MethodGet)
 	router.HandleFunc("/", c.index).Methods(http.MethodGet)
 	router.HandleFunc("/search", c.search).Methods(http.MethodGet)
+	router.HandleFunc("/media/{path:.*}", c.media).Methods(http.MethodGet)
 	router.HandleFunc("/doc/{path:.*}", c.doc).Methods(http.MethodGet)
 }
 
@@ -74,19 +76,25 @@ func (c *HelpCenterController) index(w http.ResponseWriter, r *http.Request) {
 		c.renderError(w, r, err)
 		return
 	}
-	doc, err := c.contentService.DefaultDocument(r.Context())
-	if err != nil && !errors.Is(err, services.ErrDocumentNotFound) {
-		c.renderError(w, r, err)
-		return
-	}
+	tasks := c.contentService.Tasks(r.Context())
 
 	props := help.IndexProps{
 		BasePath:        c.basePath,
 		Tree:            tree,
+		Tasks:           tasks,
 		SearchAvailable: c.searchAvailable(),
 		Locale:          c.contentService.Locale(r.Context()),
 	}
-	if doc != nil {
+	if len(tasks) == 0 {
+		doc, err := c.contentService.DefaultDocument(r.Context())
+		if err != nil && !errors.Is(err, services.ErrDocumentNotFound) {
+			c.renderError(w, r, err)
+			return
+		}
+		if doc == nil {
+			templ.Handler(help.Index(props)).ServeHTTP(w, r)
+			return
+		}
 		docView, err := c.toDocView(doc)
 		if err != nil {
 			c.renderError(w, r, err)
@@ -139,6 +147,35 @@ func (c *HelpCenterController) search(w http.ResponseWriter, r *http.Request) {
 		props.Results = c.mapSearchResults(results, c.contentService.Locale(r.Context()))
 	}
 	templ.Handler(help.SearchResults(props)).ServeHTTP(w, r)
+}
+
+func (c *HelpCenterController) media(w http.ResponseWriter, r *http.Request) {
+	media, err := c.contentService.Media(r.Context(), mux.Vars(r)["path"])
+	if err != nil {
+		if errors.Is(err, services.ErrMediaNotFound) || errors.Is(err, services.ErrInvalidPath) {
+			http.NotFound(w, r)
+			return
+		}
+		logrus.WithError(serrors.E("HelpCenterController.media", err)).Error("failed to serve help center media")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	contentType := mime.TypeByExtension(strings.ToLower(filepath.Ext(media.Path)))
+	if contentType == "" {
+		contentType = http.DetectContentType(media.Content)
+	}
+	if mediaType, _, err := mime.ParseMediaType(contentType); err == nil {
+		contentType = mediaType
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "private, no-cache")
+	w.Header().Add("Vary", "Cookie")
+	w.Header().Add("Vary", "Accept-Language")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	_, _ = w.Write(media.Content)
 }
 
 func (c *HelpCenterController) toDocView(doc *services.Document) (*viewmodels.DocView, error) {

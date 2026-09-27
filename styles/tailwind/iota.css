@@ -117,9 +117,9 @@
     --clr-btn-bg-active: var(--gray-200);
     --clr-btn-bg-hover: var(--gray-100);
     --clr-btn-text: var(--black);
-    --crl-btn-text-hover: var(--black);
-    --clr-btn-border: var(--transaprent);
-    --clr-btn-border-hover: var(--transaprent);
+    --clr-btn-text-hover: var(--black);
+    --clr-btn-border: var(--transparent);
+    --clr-btn-border-hover: var(--transparent);
 
     /* Primary btn */
     --clr-primary-btn-bg: var(--primary-500);
@@ -168,7 +168,7 @@
     --clr-form-control-bg: var(--transparent);
     --clr-form-control-bg-active: var(--transparent);
     --clr-form-control-placeholder: var(--gray-400);
-    --clr-form-control-border: var(--gray-300);
+    --clr-form-control-border: var(--clr-border-default);
     --clr-form-control-border-hover: var(--primary-500);
     --clr-form-control-text: var(--black);
     --clr-form-control-ring: var(--primary-650) / 20%;
@@ -201,7 +201,16 @@
     --clr-avatar-text: var(--primary-500);
 
     /* Border */
-    --clr-border-primary: var(--gray-300);
+    --clr-border-subtle: var(--gray-200);
+    --clr-border-default: var(--gray-300);
+    --clr-border-strong: var(--gray-500);
+    --clr-border-brand: var(--primary-500);
+    --clr-border-danger: var(--red-500);
+    --clr-border-warning: var(--yellow-500);
+    --clr-border-success: var(--green-500);
+    --clr-border-disabled: var(--gray-200);
+    /* Deprecated compatibility alias. */
+    --clr-border-primary: var(--clr-border-default);
     --clr-border-secondary: var(--gray-100);
     --clr-border-green: var(--green-500);
     --clr-border-pink: var(--pink-500);
@@ -255,7 +264,8 @@
   ::before,
   ::after,
   ::backdrop {
-    border-color: oklch(var(--clr-surface-400));
+    /* Compatibility fallback only. Visible component borders use semantic tokens. */
+    border-color: oklch(var(--clr-border-subtle));
   }
 
   ::selection {
@@ -291,7 +301,15 @@
     --clr-avatar-text: var(--primary-400);
 
     /* Border */
-    --clr-border-primary: var(--black-800);
+    --clr-border-subtle: var(--gray-800);
+    --clr-border-default: var(--gray-700);
+    --clr-border-strong: var(--gray-500);
+    --clr-border-brand: var(--primary-400);
+    --clr-border-danger: var(--red-500);
+    --clr-border-warning: var(--yellow-500);
+    --clr-border-success: var(--green-600);
+    --clr-border-disabled: var(--gray-800);
+    --clr-border-primary: var(--clr-border-default);
     --clr-border-secondary: var(--black-950);
     --clr-border-green: var(--green-600);
     --clr-border-pink: var(--pink-600);
@@ -310,7 +328,7 @@
     --clr-form-control-bg: var(--black);
     --clr-form-control-bg-active: var(--black);
     --clr-form-control-placeholder: var(--gray-100);
-    --clr-form-control-border: var(--black-800);
+    --clr-form-control-border: var(--clr-border-default);
     --clr-form-control-border-hover: var(--primary-500);
     --clr-form-control-text: var(--white);
     --clr-form-control-ring: var(--primary-650);
@@ -400,7 +418,7 @@
   }
 
   .form-control-label {
-    color: var(--clr-form-control-label);
+    color: oklch(var(--clr-form-control-label));
     font-size: 0.875rem;
   }
 
@@ -420,12 +438,12 @@
   .btn {
     --text-color: var(--clr-btn-text);
     --loading-indicator-color: var(--clr-btn-text);
-    --text-hover: var(--crl-btn-text-hover);
-    --bg-color: var(--crl-btn-bg);
+    --text-hover: var(--clr-btn-text-hover);
+    --bg-color: var(--clr-btn-bg);
     --bg-active: var(--clr-btn-bg-active);
     --bg-hover: var(--clr-btn-bg-hover);
     --border-color: var(--clr-btn-border);
-    --border-hover: var(--crl-btn-border-hover);
+    --border-hover: var(--clr-btn-border-hover);
     --border-size: 1px;
     --size-x: calc(1rem - var(--border-size) * 2);
     --size-y: calc(0.75rem - var(--border-size) * 2);
@@ -705,6 +723,7 @@
     display: grid;
     align-content: start;
     background-color: oklch(var(--bg-color));
+    border: 1px solid oklch(var(--clr-border-subtle));
     color: oklch(var(--text-color));
     max-inline-size: min(90vw, var(--size-content-3));
     margin: auto;
@@ -712,7 +731,21 @@
     position: fixed;
     inset: 0;
     overflow: clip;
-    transition: opacity 500ms var(--ease-3);
+    /* `display`/`overlay` are transitioned with allow-discrete so the closed
+       `display: none` (below) is deferred for the 500ms slide-out animation
+       instead of collapsing the box mid-exit. */
+    transition:
+      opacity 500ms var(--ease-3),
+      display 500ms allow-discrete,
+      overlay 500ms allow-discrete;
+  }
+
+  /* Start the open transition from the closed (opacity 0) state so the dialog
+     fades/slides in when it enters the top layer from `display: none`. */
+  @starting-style {
+    .dialog[open] {
+      opacity: 0;
+    }
   }
 
   .dialog-rounded {
@@ -734,12 +767,16 @@
     animation-timing-function: var(--ease-squish-2);
   }
 
-  .dialog-tbd {
+  .dialog-ttb {
     animation: var(--animation-slide-out-up) forwards;
     animation-timing-function: var(--ease-squish-2);
   }
 
   .dialog:not([open]) {
+    /* Remove the closed dialog from layout + the a11y tree. `display` is
+       transitioned with allow-discrete (see `.dialog`) so the slide-out
+       animation still plays before the box collapses. */
+    display: none;
     pointer-events: none;
     opacity: 0;
   }
@@ -756,7 +793,7 @@
     animation: var(--animation-slide-in-left);
   }
 
-  .dialog-tbd[open] {
+  .dialog-ttb[open] {
     animation: var(--animation-slide-in-down);
   }
 
@@ -1381,4 +1418,62 @@
   .spotlight-shimmer {
     animation: none;
   }
+}
+
+/*
+ * Infinite-scroll loading spinner reveal (scaffold/table InfiniteScrollSpinner).
+ * The row stays `class="hidden"` so it is display:none at rest AND so the
+ * fillGrid() scroll-guard (`tr:not(.hidden) > td[colspan]` in alpine.js) keeps
+ * excluding it — removing `.hidden` would make fillGrid treat the spinner as an
+ * empty-state row and lock table scrolling. Its `hx-indicator` puts
+ * `.htmx-request` on the row itself while the next page loads; reveal it then.
+ * Unlayered (not @layer) on purpose: Tailwind's `.hidden { display:none }` lives
+ * in @layer utilities and wins over any layered rule regardless of specificity,
+ * so the reveal must be unlayered to override it.
+ */
+#infinite-scroll-spinner.htmx-request {
+  display: table-row;
+}
+
+/*
+ * Checkbox indicator glyphs, shared by the templ Checkbox (components/base/input)
+ * and the Solid UI Checkbox (web/solid-ui/src/forms/Checkbox.tsx). Plain CSS on
+ * purpose: Tailwind v4 no longer emits the v3 `peer-checked:group-[]:*` hack,
+ * which left the templ checkmark at scale-0 when checked. Unlayered so it applies
+ * identically in the app bundle and in the Solid standalone stylesheet.
+ */
+.iota-checkbox-check,
+.iota-checkbox-minus {
+  display: none;
+}
+
+.peer:checked + .iota-checkbox-indicator .iota-checkbox-check {
+  display: block;
+}
+
+.peer:indeterminate + .iota-checkbox-indicator .iota-checkbox-check {
+  display: none;
+}
+
+.peer:indeterminate + .iota-checkbox-indicator .iota-checkbox-minus {
+  display: block;
+}
+
+/*
+ * Theme-toggle glyphs on the login page (modules/core/.../pages/login).
+ * Plain CSS for the same reason as the checkbox glyphs above: Tailwind v4
+ * does not emit the v3 `peer-checked/x:group-[]/x:scale-100` hack the markup
+ * used before, so each icon stayed at scale-0 and the toggle rendered empty.
+ * Each label is the next sibling of its named radio peer, so the sibling
+ * combinator reaches the icon without arbitrary-group variants.
+ */
+.iota-theme-icon {
+  scale: 0;
+  transition: scale 0.2s ease;
+}
+
+.peer\/system:checked + label .iota-theme-icon,
+.peer\/light:checked + label .iota-theme-icon,
+.peer\/dark:checked + label .iota-theme-icon {
+  scale: 1;
 }

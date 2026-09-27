@@ -44,7 +44,7 @@ func exampleTable(props *UploadPageProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"overflow-x-auto\"><table class=\"table-auto border-collapse border border-gray-300 w-full text-sm\"><thead><tr class=\"bg-gray-200 text-left\"><th class=\"border border-gray-300 px-4 py-2\">#</th><th class=\"border border-gray-300 px-4 py-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"overflow-x-auto\"><table class=\"table-auto border-collapse border border-default w-full text-sm\"><thead><tr class=\"bg-gray-200 text-left\"><th class=\"border border-default px-4 py-2\">#</th><th class=\"border border-default px-4 py-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -57,7 +57,7 @@ func exampleTable(props *UploadPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</th><th class=\"border border-gray-300 px-4 py-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</th><th class=\"border border-default px-4 py-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -70,7 +70,7 @@ func exampleTable(props *UploadPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</th><th class=\"border border-gray-300 px-4 py-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</th><th class=\"border border-default px-4 py-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -83,7 +83,7 @@ func exampleTable(props *UploadPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</th><th class=\"border border-gray-300 px-4 py-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</th><th class=\"border border-default px-4 py-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -96,7 +96,7 @@ func exampleTable(props *UploadPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</th></tr></thead> <tbody><tr><td class=\"border border-gray-300 px-4 py-2\">1</td><td class=\"border border-gray-300 px-4 py-2\">Дрель Молоток N.C.V (900W)</td><td class=\"border border-gray-300 px-4 py-2\">30232478</td><td class=\"border border-gray-300 px-4 py-2\">шт</td><td class=\"border border-gray-300 px-4 py-2\">1</td></tr><tr><td class=\"border border-gray-300 px-4 py-2\">2</td><td class=\"border border-gray-300 px-4 py-2\">Дрель Ударная (650W)</td><td class=\"border border-gray-300 px-4 py-2\">30232477</td><td class=\"border border-gray-300 px-4 py-2\">шт</td><td class=\"border border-gray-300 px-4 py-2\">1</td></tr><tr><td class=\"border border-gray-300 px-4 py-2\">3</td><td class=\"border border-gray-300 px-4 py-2\">Комплект плакатов по предмету \"Математика\", 40 листов</td><td class=\"border border-gray-300 px-4 py-2\">00017492</td><td class=\"border border-gray-300 px-4 py-2\">компл</td><td class=\"border border-gray-300 px-4 py-2\">7</td></tr><tr><td class=\"border border-gray-300 px-4 py-2\">4</td><td class=\"border border-gray-300 px-4 py-2\">Комплект плакатов цветных по \"Технике безопасности\" (500x700мм, 5 листов) на туркменском</td><td class=\"border border-gray-300 px-4 py-2\">00028544</td><td class=\"border border-gray-300 px-4 py-2\">компл</td><td class=\"border border-gray-300 px-4 py-2\">127</td></tr></tbody></table></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</th></tr></thead> <tbody><tr><td class=\"border border-default px-4 py-2\">1</td><td class=\"border border-default px-4 py-2\">Дрель Молоток N.C.V (900W)</td><td class=\"border border-default px-4 py-2\">30232478</td><td class=\"border border-default px-4 py-2\">шт</td><td class=\"border border-default px-4 py-2\">1</td></tr><tr><td class=\"border border-default px-4 py-2\">2</td><td class=\"border border-default px-4 py-2\">Дрель Ударная (650W)</td><td class=\"border border-default px-4 py-2\">30232477</td><td class=\"border border-default px-4 py-2\">шт</td><td class=\"border border-default px-4 py-2\">1</td></tr><tr><td class=\"border border-default px-4 py-2\">3</td><td class=\"border border-default px-4 py-2\">Комплект плакатов по предмету \"Математика\", 40 листов</td><td class=\"border border-default px-4 py-2\">00017492</td><td class=\"border border-default px-4 py-2\">компл</td><td class=\"border border-default px-4 py-2\">7</td></tr><tr><td class=\"border border-default px-4 py-2\">4</td><td class=\"border border-default px-4 py-2\">Комплект плакатов цветных по \"Технике безопасности\" (500x700мм, 5 листов) на туркменском</td><td class=\"border border-default px-4 py-2\">00028544</td><td class=\"border border-default px-4 py-2\">компл</td><td class=\"border border-default px-4 py-2\">127</td></tr></tbody></table></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

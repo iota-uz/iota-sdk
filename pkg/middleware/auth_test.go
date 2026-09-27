@@ -5,15 +5,35 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/a-h/templ"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
 )
+
+func TestRedirectNotAuthenticatedPreservesTheCompleteReturnURL(t *testing.T) {
+	t.Parallel()
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/analytics/profitability?range-start=2026-01-01&range-end=2026-12-31&compare=previous_period", nil)
+	request = request.WithContext(composables.WithParams(request.Context(), &composables.Params{}))
+	handler := RedirectNotAuthenticated()(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("unauthenticated request reached the protected handler")
+	}))
+
+	handler.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusFound, recorder.Code)
+	location, err := url.Parse(recorder.Header().Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, request.URL.RequestURI(), location.Query().Get("next"))
+}
 
 func TestRenderRouteForbiddenSetsHTMLContentType(t *testing.T) {
 	t.Parallel()

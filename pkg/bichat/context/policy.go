@@ -85,6 +85,7 @@ func DefaultKindPriorities() []KindPriority {
 		{Kind: KindState, MinTokens: 200, MaxTokens: 2000, Truncatable: false},
 		{Kind: KindToolOutput, MinTokens: 1000, MaxTokens: 20000, Truncatable: true},
 		{Kind: KindHistory, MinTokens: 2000, MaxTokens: 50000, Truncatable: true},
+		{Kind: KindContinuation, MinTokens: 200, MaxTokens: 4000, Truncatable: false},
 		{Kind: KindTurn, MinTokens: 500, MaxTokens: 10000, Truncatable: false},
 	}
 }

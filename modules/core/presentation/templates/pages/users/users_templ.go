@@ -72,12 +72,13 @@ func BuildTableConfig(ctx context.Context, props *IndexPageProps, r *http.Reques
 		r.URL.Path,
 		table.WithSearchValue(props.Search),
 		table.WithInfiniteScroll(props.HasMore, props.Page, props.PerPage),
-		// Without an explicit ContentID, ResolvedHxTarget() defaults to
-		// "#table-body": filter/search requests would only ever swap the
-		// <tr> rows, never the filterbuilder chip bar itself (which is
-		// entirely server-rendered from props.Filters) — so a newly-applied
-		// chip would filter the rows correctly but never visually appear.
-		table.WithContentID("users-table-content"),
+		// Stacked toolbar: page actions (help icon, "New user") render on the
+		// title row; search sits above the filter chips; and the toolbar lives
+		// outside the row-swap target so typing in search never loses focus.
+		// The chip bar is re-rendered out-of-band via AddFiltersOOB below (the
+		// filters are server-rendered from props.Filters, so a newly-applied
+		// chip still appears even though only the <tr> rows swap).
+		table.WithStackedToolbar(),
 	)
 
 	cfg.AddCols(TableColumns(ctx)...)
@@ -85,11 +86,14 @@ func BuildTableConfig(ctx context.Context, props *IndexPageProps, r *http.Reques
 	cfg.AddActions(sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"}))
 
 	if props.Registry != nil {
-		cfg.AddFilters(filterbuilder.Builder(filterbuilder.Props{
-			Registry: props.Registry,
-			Filters:  props.Filters,
-			ID:       "users-filters",
-		}))
+		filterProps := filterbuilder.Props{
+			Registry:        props.Registry,
+			Filters:         props.Filters,
+			ID:              "users-filters",
+			ShowResetAlways: true,
+		}
+		cfg.AddFilters(filterbuilder.Builder(filterProps))
+		cfg.AddFiltersOOB(filterbuilder.BuilderOOB(filterProps))
 	}
 
 	if composables.CanUser(ctx, permissions.UserCreate) == nil {
@@ -140,7 +144,7 @@ func newUserButton() templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Users.List.New"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 105, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 109, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -222,7 +226,7 @@ func fullNameCell(user *viewmodels.User) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(user.Title())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 140, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 144, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -248,7 +252,7 @@ func fullNameCell(user *viewmodels.User) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("System"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 148, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 152, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -281,7 +285,7 @@ func fullNameCell(user *viewmodels.User) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Users.Blocked"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 157, Col: 33}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 161, Col: 33}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -336,7 +340,7 @@ func rolesCell(user *viewmodels.User) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(user.RolesVerbose())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 168, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 172, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -350,7 +354,7 @@ func rolesCell(user *viewmodels.User) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Users.NoRole"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 171, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 175, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -393,7 +397,7 @@ func createdAtCell(user *viewmodels.User) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", user.CreatedAt))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 181, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 185, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {

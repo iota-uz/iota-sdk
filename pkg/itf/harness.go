@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -24,6 +25,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -62,6 +64,54 @@ const (
 	MigrationSkip      MigrationPolicy = "skip"
 )
 
+// TemplateDBEnv names a pre-migrated template database. When it is set and
+// [MigrationConfig.TemplateDB] is empty, every harness clones its database from
+// that template instead of creating an empty one, turning a ~1s migration
+// replay into a ~10ms catalog copy. Unset (the default) keeps the historical
+// behaviour, so a developer's `go test ./...` needs no extra preparation.
+//
+// CREATE DATABASE ... TEMPLATE copies everything database-local: schema,
+// extensions, RLS policies - and ROWS. Whatever sits in the template's tables
+// lands in every clone, so a template must be built from migrations alone and
+// never from a seeded or restored database, unless every test is meant to see
+// that data.
+//
+// What it does NOT copy is cluster-global: roles, and the role-level settings
+// and grants attached to them. Migrations that create them (the ai_readonly
+// ROLE behind the RLS policies, for one) therefore have to be run against the
+// same cluster the tests use, not just into the template.
+//
+// Set datallowconn = false on the template once it is built, the way template0
+// protects itself. CREATE DATABASE ... TEMPLATE fails outright while any
+// backend is connected to the source, and the backend nobody remembers is
+// autovacuum.
+const TemplateDBEnv = "ITF_TEMPLATE_DB"
+
+// migrationAdvisoryLockKey serializes migration application across processes.
+// Parallel harnesses (separate test binaries, and t.Parallel within one) each
+// provision their OWN per-test database but share one Postgres server;
+// migrations that touch cluster-global catalog objects (e.g. the ai_readonly
+// ROLE + RLS in changes-1997500670.sql) otherwise race with
+// "tuple concurrently updated (SQLSTATE XX000)".
+//
+// NOTE: Postgres advisory locks are DATABASE-LOCAL (the lock tag includes the
+// current database OID), so a lock taken on a per-test DB would NOT block a
+// sibling harness on a different per-test DB. The lock is therefore taken on
+// the shared "postgres" maintenance database that every harness connects to
+// (see withMigrationAdvisoryLock), which is the only scope in which all
+// parallel harnesses contend on the same key.
+//
+// The value is an arbitrary stable constant, distinct from other advisory-lock
+// keys in the codebase.
+const migrationAdvisoryLockKey int64 = 6_073_120_419_784_512_301
+
+// createDatabaseAdvisoryLockKey serializes DROP + CREATE DATABASE across
+// processes. Two hazards share it: shared-per-package harnesses in sibling test
+// binaries derive the same database name and collide on
+// pg_database_datname_index, and concurrent clones of one template collide on
+// the template itself. Held for a single catalog statement, not a migration run.
+const createDatabaseAdvisoryLockKey int64 = 6_073_120_419_784_512_302
+
 type IsolationMode string
 
 const (
@@ -92,6 +142,18 @@ type DatabaseConfig struct {
 
 type MigrationConfig struct {
 	Policy MigrationPolicy
+	// TemplateDB names a pre-migrated database to clone instead of creating an
+	// empty one. Empty falls back to the [TemplateDBEnv] environment variable,
+	// and then to creating an empty database.
+	//
+	// Cloning is orthogonal to Policy. With the default MigrationApplyOnce the
+	// harness still runs the migrator over the clone, which plans zero
+	// migrations and therefore costs almost nothing - and brings THIS CLONE
+	// current when the template was built before the newest migration landed.
+	// It does not touch the template: a stale template stays stale, and every
+	// clone keeps paying for the missing migrations until it is rebuilt.
+	// MigrationSkip drops even that, at the price of trusting the template.
+	TemplateDB string
 }
 
 type TxConfig struct {
@@ -137,9 +199,13 @@ type HarnessConfig struct {
 }
 
 type Scope struct {
-	Ctx       context.Context
-	Pool      *pgxpool.Pool
-	Tx        pgx.Tx
+	Ctx  context.Context
+	Pool *pgxpool.Pool
+	Tx   pgx.Tx
+	// TxConfig carries the isolation transaction settings so consumers that
+	// replace the scope transaction (TestEnvironment.CommitTx / FreshTx) can
+	// reapply them; the settings themselves only take effect per transaction.
+	TxConfig  TxConfig
 	App       application.Application
 	Container *composition.Container
 	Tenant    *composables.Tenant
@@ -248,6 +314,7 @@ func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 		if err != nil {
 			tb.Fatalf("failed to begin rollback scope transaction: %v", err)
 		}
+		tx = repo.NewGuardedTx(tx)
 
 		scopeCtx := composables.WithTx(ctx, tx)
 		if err := applyTxSettings(scopeCtx, tx, h.cfg.Isolation.Tx); err != nil {
@@ -272,6 +339,7 @@ func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 			Ctx:       scopeCtx,
 			Pool:      h.state.pool,
 			Tx:        tx,
+			TxConfig:  h.cfg.Isolation.Tx,
 			App:       h.state.app,
 			Container: h.state.container,
 			Tenant:    h.state.tenant,
@@ -372,6 +440,16 @@ func (m *harnessManager) close(key string, cleanup CleanupMode) error {
 		entry.cond.Wait()
 	}
 
+	// Waiting released the lock, so the entry this call is holding may have been
+	// settled meanwhile - by another closer, or by a failed getOrCreate, which
+	// drops the entry from the map and leaves its state nil. Either way there is
+	// no state left to release, and dereferencing it below is a nil panic in the
+	// harness teardown of whatever test happened to be last.
+	if entry.state == nil || m.entries[key] != entry {
+		m.mu.Unlock()
+		return nil
+	}
+
 	entry.refs--
 	if entry.refs > 0 {
 		m.mu.Unlock()
@@ -426,7 +504,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 	db := LoadDBConfigFromEnv()
 
 	dbName := buildDBName(cfg.Name, key, isPerTest)
-	if err := CreateDBE(dbName, db); err != nil {
+	if err := CreateDBFromTemplateE(dbName, cfg.Migration.TemplateDB, db); err != nil {
 		return nil, serrors.E(opCreateDB, err, "create database")
 	}
 
@@ -445,7 +523,18 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		return nil, serrors.E(opSetupApplication, err, "setup application")
 	}
 
-	if err := runMigrationPolicy(context.Background(), pool, app, cfg.Migration); err != nil {
+	migrateErr := func() error {
+		if cfg.Migration.Policy == MigrationApplyOnce {
+			// Serialize concurrent migration runs across all parallel harnesses
+			// by holding an advisory lock on the shared "postgres" admin DB for
+			// the whole run; the per-test pool below applies the migrations.
+			return withMigrationAdvisoryLock(db, func() error {
+				return runMigrationPolicy(context.Background(), pool, app, cfg.Migration)
+			})
+		}
+		return runMigrationPolicy(context.Background(), pool, app, cfg.Migration)
+	}()
+	if err := migrateErr; err != nil {
 		combinedErr := serrors.E(opRunMigrationPolicy, err, "migration policy")
 		closeErr := closeApplication(app, container)
 		pool.Close()
@@ -525,6 +614,9 @@ func normalizeHarnessConfig(tb testing.TB, cfg HarnessConfig) HarnessConfig {
 	if cfg.Migration.Policy == "" {
 		cfg.Migration.Policy = MigrationApplyOnce
 	}
+	if cfg.Migration.TemplateDB == "" {
+		cfg.Migration.TemplateDB = os.Getenv(TemplateDBEnv)
+	}
 	if cfg.Isolation.Mode == "" {
 		cfg.Isolation.Mode = IsolationRollback
 	}
@@ -561,11 +653,12 @@ func buildHarnessKey(cfg HarnessConfig) string {
 	}
 
 	return fmt.Sprintf(
-		"name=%s|components=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
+		"name=%s|components=%v|prov=%s|migrate=%s|template=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
 		cfg.Name,
 		componentTypes,
 		cfg.Database.Provisioning,
 		cfg.Migration.Policy,
+		cfg.Migration.TemplateDB,
 		cfg.Isolation.Mode,
 		cfg.Database.Cleanup,
 		cfg.Seed.Policy,
@@ -600,6 +693,10 @@ func buildDBName(base, key string, perTest bool) string {
 func runMigrationPolicy(ctx context.Context, pool schemaReadinessQuerier, app application.Application, cfg MigrationConfig) error {
 	switch cfg.Policy {
 	case MigrationApplyOnce:
+		// Cross-process serialization is handled by the caller
+		// (createHarnessState) via withMigrationAdvisoryLock on the shared
+		// "postgres" admin DB; a lock on this per-test pool would be
+		// database-local and would not serialize sibling harnesses.
 		return app.Migrations().Run()
 	case MigrationSkip:
 		if pool == nil {

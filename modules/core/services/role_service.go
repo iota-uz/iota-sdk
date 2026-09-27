@@ -14,12 +14,14 @@ import (
 type RoleService struct {
 	repo      role.Repository
 	publisher eventbus.EventBus
+	policy    *PrivilegeGrantPolicy
 }
 
-func NewRoleService(repo role.Repository, publisher eventbus.EventBus) *RoleService {
+func NewRoleService(repo role.Repository, publisher eventbus.EventBus, policy *PrivilegeGrantPolicy) *RoleService {
 	return &RoleService{
 		repo:      repo,
 		publisher: publisher,
+		policy:    policy,
 	}
 }
 
@@ -52,6 +54,11 @@ func (s *RoleService) Create(ctx context.Context, data role.Role) (role.Role, er
 
 	var createdRole role.Role
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		data, err = s.policy.AuthorizeRoleCreate(txCtx, data)
+		if err != nil {
+			return err
+		}
 		if created, err := s.repo.Create(txCtx, data); err != nil {
 			return err
 		} else {
@@ -75,10 +82,6 @@ func (s *RoleService) Update(ctx context.Context, data role.Role) error {
 		return err
 	}
 
-	if !data.CanUpdate() {
-		return composables.ErrForbidden
-	}
-
 	updatedEvent, err := role.NewUpdatedEvent(ctx, data)
 	if err != nil {
 		return err
@@ -86,6 +89,11 @@ func (s *RoleService) Update(ctx context.Context, data role.Role) error {
 
 	var updatedRole role.Role
 	err = composables.InTx(ctx, func(ctx context.Context) error {
+		var err error
+		data, err = s.policy.AuthorizeRoleUpdate(ctx, data)
+		if err != nil {
+			return err
+		}
 		if roleAfterUpdate, err := s.repo.Update(ctx, data); err != nil {
 			return err
 		} else {
@@ -110,15 +118,6 @@ func (s *RoleService) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 
-	entity, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	if !entity.CanDelete() {
-		return composables.ErrForbidden
-	}
-
 	deletedEvent, err := role.NewDeletedEvent(ctx)
 	if err != nil {
 		return err
@@ -126,6 +125,10 @@ func (s *RoleService) Delete(ctx context.Context, id uint) error {
 
 	var deletedRole role.Role
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		entity, err := s.policy.AuthorizeRoleDelete(txCtx, id)
+		if err != nil {
+			return err
+		}
 		if err := s.repo.Delete(txCtx, id); err != nil {
 			return err
 		} else {

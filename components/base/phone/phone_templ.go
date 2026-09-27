@@ -9,9 +9,9 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/Oudwins/tailwind-merge-go/pkg/twmerge"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
+	"github.com/iota-uz/iota-sdk/pkg/twmerge"
 )
 
 type DisplayStyle int

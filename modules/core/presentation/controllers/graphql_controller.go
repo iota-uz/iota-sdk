@@ -30,6 +30,7 @@ type GraphQLController struct {
 	userService     *services.UserService
 	uploadService   *services.UploadService
 	authService     *services.AuthService
+	browserSessions *services.BrowserSessionService
 	httpCfg         *httpconfig.Config
 	cookiesCfg      *cookies.Config
 	appCfg          *appconfig.Config
@@ -54,10 +55,14 @@ func (g *GraphQLController) Descriptor() application.ControllerDescriptor {
 func (g *GraphQLController) Register(r *mux.Router) {
 	schema := graph.NewExecutableSchema(
 		graph.Config{
-			Resolvers: graph.NewResolver(g.app, g.userService, g.uploadService, g.authService, g.httpCfg, g.cookiesCfg, g.appCfg, g.resolverOptions...),
+			Resolvers: graph.NewResolver(g.app, g.userService, g.uploadService, g.authService, g.browserSessions, g.httpCfg, g.cookiesCfg, g.appCfg, g.resolverOptions...),
 		},
 	)
-	srv := graphql.NewBaseServer(schema, g.uploadsCfg)
+	srv := graphql.NewBaseServer(
+		schema,
+		g.uploadsCfg,
+		graphql.WithOriginValidator(graphql.SameOriginValidator(g.httpCfg, g.appCfg)),
+	)
 	for _, schema := range g.app.GraphSchemas() {
 		exec := executor.New(schema.Value)
 		if schema.ExecutorCb != nil {
@@ -86,7 +91,14 @@ func (g *GraphQLController) Register(r *mux.Router) {
 		if schema.ExecutorCb != nil {
 			schema.ExecutorCb(exec)
 		}
-		router.Handle(path.Join("/query", schema.BasePath), graphql.NewHandler(exec, g.uploadsCfg))
+		router.Handle(
+			path.Join("/query", schema.BasePath),
+			graphql.NewHandler(
+				exec,
+				g.uploadsCfg,
+				graphql.WithOriginValidator(graphql.SameOriginValidator(g.httpCfg, g.appCfg)),
+			),
+		)
 	}
 }
 
@@ -106,6 +118,7 @@ func NewGraphQLController(
 	userService *services.UserService,
 	uploadService *services.UploadService,
 	authService *services.AuthService,
+	browserSessions *services.BrowserSessionService,
 	httpCfg *httpconfig.Config,
 	cookiesCfg *cookies.Config,
 	appCfg *appconfig.Config,
@@ -113,14 +126,15 @@ func NewGraphQLController(
 	opts ...GraphQLControllerOption,
 ) application.Controller {
 	c := &GraphQLController{
-		app:           app,
-		userService:   userService,
-		uploadService: uploadService,
-		authService:   authService,
-		httpCfg:       httpCfg,
-		cookiesCfg:    cookiesCfg,
-		appCfg:        appCfg,
-		uploadsCfg:    uploadsCfg,
+		app:             app,
+		userService:     userService,
+		uploadService:   uploadService,
+		authService:     authService,
+		browserSessions: browserSessions,
+		httpCfg:         httpCfg,
+		cookiesCfg:      cookiesCfg,
+		appCfg:          appCfg,
+		uploadsCfg:      uploadsCfg,
 	}
 	for _, opt := range opts {
 		opt(c)

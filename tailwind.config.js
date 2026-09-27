@@ -22,6 +22,15 @@ module.exports = {
         avatar: "oklch(var(--clr-avatar-bg))",
       },
       borderColor: {
+        subtle: "oklch(var(--clr-border-subtle) / <alpha-value>)",
+        default: "oklch(var(--clr-border-default) / <alpha-value>)",
+        strong: "oklch(var(--clr-border-strong) / <alpha-value>)",
+        brand: "oklch(var(--clr-border-brand) / <alpha-value>)",
+        danger: "oklch(var(--clr-border-danger) / <alpha-value>)",
+        warning: "oklch(var(--clr-border-warning) / <alpha-value>)",
+        success: "oklch(var(--clr-border-success) / <alpha-value>)",
+        disabled: "oklch(var(--clr-border-disabled) / <alpha-value>)",
+        // Deprecated compatibility alias. Use border-subtle/default/strong.
         primary: "oklch(var(--clr-border-primary))",
         secondary: "oklch(var(--clr-border-secondary))",
         green: "oklch(var(--clr-border-green))",

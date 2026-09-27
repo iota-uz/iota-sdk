@@ -169,8 +169,8 @@ func builderRoot(props Props, oob bool) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if len(props.Filters) > 1 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<button type=\"button\" x-on:click=\"clearAll()\" class=\"text-sm text-200 hover:text-100 cursor-pointer whitespace-nowrap\">")
+		if len(props.Filters) > 1 || (props.ShowResetAlways && len(props.Filters) >= 1) {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<button type=\"button\" x-on:click=\"clearAll()\" class=\"ml-auto text-sm text-200 hover:text-100 cursor-pointer whitespace-nowrap\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -224,7 +224,7 @@ func addFilterButton(props Props) templ.Component {
 		}
 		var templ_7745c5c3_Var10 = []any{
 			"inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm cursor-pointer",
-			"border border-dashed border-primary text-200 hover:text-100 hover:bg-surface-100 duration-150",
+			"border border-dashed border-default text-200 hover:border-brand hover:text-100 hover:bg-surface-100 duration-150",
 		}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var10...)
 		if templ_7745c5c3_Err != nil {

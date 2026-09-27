@@ -174,7 +174,10 @@ func (c *UsersController) RevokeUserSession(
 		return
 	}
 
-	if err := sessionService.TerminateSession(r.Context(), sessionToRevoke); err != nil {
+	if err := sessionService.TerminateUserSession(r.Context(), userID, sessionToRevoke); err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 		logger.WithError(err).Error("failed to terminate session")
 		http.Error(w, "Failed to revoke session", http.StatusInternalServerError)
 		return

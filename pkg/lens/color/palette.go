@@ -1,10 +1,14 @@
-// Package color provides stable semantic and fallback palettes for Lens charts.
+// Package color provides the canonical fallback palette values for Lens charts.
 package color
 
 import (
+	"slices"
 	"strings"
 )
 
+// Deprecated compatibility scopes kept for existing server-side Lens specs.
+// New runtime palettes are categorical; these constants preserve stable colors
+// for consumers that already persist or compare semantic categories.
 const (
 	ScopeProduct        = "PRODUCT"
 	ScopePaymentMethod  = "PAYMENT_METHOD"
@@ -19,14 +23,14 @@ const (
 )
 
 var productPalette = map[string]string{
-	"OSAGO":      "#7C3AED",
-	"TRAVEL":     "#2563EB",
-	"KASKO":      "#DC2626",
-	"EURO_KASKO": "#0F766E",
-	"OSGOR":      "#D97706",
-	"OSGOP":      "#DB2777",
-	"SMR":        "#EA580C",
-	"OPO":        "#16A34A",
+	"OSAGO":      "#4338CA",
+	"TRAVEL":     "#15803D",
+	"KASKO":      "#F97316",
+	"EURO_KASKO": "#F97316",
+	"OSGOR":      "#0369A1",
+	"OSGOP":      "#7C3AED",
+	"SMR":        "#A16207",
+	"OPO":        "#DC2626",
 }
 
 var paymentMethodPalette = map[string]string{
@@ -35,25 +39,6 @@ var paymentMethodPalette = map[string]string{
 	"OCTO":   "#F97316",
 	"STRIPE": "#7C3AED",
 	"CASH":   "#475569",
-}
-
-var genericPalette = []string{
-	"#2563EB",
-	"#DC2626",
-	"#16A34A",
-	"#D97706",
-	"#7C3AED",
-	"#0F766E",
-	"#DB2777",
-	"#0891B2",
-	"#CA8A04",
-	"#9333EA",
-	"#EA580C",
-	"#4F46E5",
-	"#BE123C",
-	"#0284C7",
-	"#15803D",
-	"#7C2D12",
 }
 
 var productAliases = map[string]string{
@@ -71,6 +56,58 @@ var productAliases = map[string]string{
 	"EOSGOP":          "OSGOP",
 }
 
+// genericPalette is the Lens design system v2 categorical palette, and the only
+// place it is written down. cmd/lens-typegen reads it through Series and emits
+// web/lens/src/contract/palette.ts, which is what the React runtime actually
+// paints with, so a colour changes here and is regenerated — never mirrored.
+// The lead hex intentionally matches the runtime's --lens-accent-500 token in
+// web/lens/src/styles.css, which is chrome rather than series colour.
+var genericPalette = []string{
+	"#2563EB",
+	"#0D9488",
+	"#D97706",
+	"#7C3AED",
+	"#DC2626",
+	"#0284C7",
+	"#DB2777",
+	"#65A30D",
+	"#9333EA",
+	"#64748B",
+}
+
+// Neutral is reserved for "Others" buckets so aggregated remainders read as
+// de-emphasized rather than as another category. It is generated into the
+// runtime as PALETTE_NEUTRAL and equals the --lens-text-faint token both themes
+// declare in web/lens/src/styles.css: a remainder is grey in either theme.
+const Neutral = "#94A3B8"
+
+// Series returns the categorical palette in its declared order. It exists so
+// cmd/lens-typegen can hand the values to the React runtime without a second
+// copy of the literal; callers that only need colours should use Categorical.
+func Series() []string {
+	return slices.Clone(genericPalette)
+}
+
+// Accent returns the primary Lens accent color: the palette's own lead, which
+// also matches the runtime's --lens-accent-500 token in web/lens/src/styles.css.
+func Accent() string { return genericPalette[0] }
+
+// Categorical returns the first n categorical palette colors, cycling through
+// the palette when n exceeds its length. Every caller gets the same sequence
+// starting at index 0, so all dashboards share one palette.
+func Categorical(n int) []string {
+	if n <= 0 {
+		return nil
+	}
+	colors := make([]string, n)
+	for i := 0; i < n; i++ {
+		colors[i] = genericPalette[i%len(genericPalette)]
+	}
+	return colors
+}
+
+// Semantic returns a stable color for a scoped category.
+// Deprecated: new callers should use Categorical for presentation-only colors.
 func Semantic(scope, key string) string {
 	scope = normalizeToken(scope)
 	key = canonicalKey(scope, key)
@@ -90,6 +127,8 @@ func Semantic(scope, key string) string {
 	return genericPalette[stableIndex(scope+":"+key, len(genericPalette))]
 }
 
+// Palette maps each scoped category to its stable semantic color.
+// Deprecated: new callers should use Categorical for presentation-only colors.
 func Palette(scope string, keys []string) []string {
 	colors := make([]string, 0, len(keys))
 	for _, key := range keys {
@@ -98,22 +137,8 @@ func Palette(scope string, keys []string) []string {
 	return colors
 }
 
-func Sequence(scope string, size int) []string {
-	if size <= 0 {
-		return nil
-	}
-	scope = normalizeToken(scope)
-	if scope == "" {
-		scope = "DEFAULT"
-	}
-	offset := stableIndex(scope, len(genericPalette))
-	colors := make([]string, size)
-	for i := 0; i < size; i++ {
-		colors[i] = genericPalette[(offset+i)%len(genericPalette)]
-	}
-	return colors
-}
-
+// CanonicalProductKey returns the stable product identifier used by Semantic.
+// Deprecated: consumers should normalize their own domain identifiers.
 func CanonicalProductKey(key string) string {
 	normalized := normalizeToken(key)
 	if alias, ok := productAliases[normalized]; ok {
@@ -125,23 +150,17 @@ func CanonicalProductKey(key string) string {
 func normalizeToken(value string) string {
 	value = strings.ToUpper(strings.TrimSpace(value))
 	value = strings.ReplaceAll(value, "-", "_")
-	value = strings.ReplaceAll(value, " ", "_")
-	return value
+	return strings.ReplaceAll(value, " ", "_")
 }
 
 func canonicalKey(scope, key string) string {
-	switch normalizeToken(scope) {
-	case ScopeProduct:
+	if scope == ScopeProduct {
 		return CanonicalProductKey(key)
-	default:
-		return normalizeToken(key)
 	}
+	return normalizeToken(key)
 }
 
 func stableIndex(key string, size int) int {
-	if size <= 0 {
-		return 0
-	}
 	hash := uint64(14695981039346656037)
 	for _, ch := range key {
 		hash ^= uint64(ch)

@@ -64,12 +64,13 @@ func BuildTableConfig(ctx context.Context, props *IndexPageProps, r *http.Reques
 		r.URL.Path,
 		table.WithSearchValue(props.Search),
 		table.WithInfiniteScroll(props.HasMore, props.Page, props.PerPage),
-		// Without an explicit ContentID, ResolvedHxTarget() defaults to
-		// "#table-body": filter/search requests would only ever swap the
-		// <tr> rows, never the filterbuilder chip bar itself (which is
-		// entirely server-rendered from props.Filters) — so a newly-applied
-		// chip would filter the rows correctly but never visually appear.
-		table.WithContentID("users-table-content"),
+		// Stacked toolbar: page actions (help icon, "New user") render on the
+		// title row; search sits above the filter chips; and the toolbar lives
+		// outside the row-swap target so typing in search never loses focus.
+		// The chip bar is re-rendered out-of-band via AddFiltersOOB below (the
+		// filters are server-rendered from props.Filters, so a newly-applied
+		// chip still appears even though only the <tr> rows swap).
+		table.WithStackedToolbar(),
 	)
 
 	cfg.AddCols(TableColumns(ctx)...)
@@ -77,11 +78,14 @@ func BuildTableConfig(ctx context.Context, props *IndexPageProps, r *http.Reques
 	cfg.AddActions(sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"}))
 
 	if props.Registry != nil {
-		cfg.AddFilters(filterbuilder.Builder(filterbuilder.Props{
-			Registry: props.Registry,
-			Filters:  props.Filters,
-			ID:       "users-filters",
-		}))
+		filterProps := filterbuilder.Props{
+			Registry:        props.Registry,
+			Filters:         props.Filters,
+			ID:              "users-filters",
+			ShowResetAlways: true,
+		}
+		cfg.AddFilters(filterbuilder.Builder(filterProps))
+		cfg.AddFiltersOOB(filterbuilder.BuilderOOB(filterProps))
 	}
 
 	if composables.CanUser(ctx, permissions.UserCreate) == nil {

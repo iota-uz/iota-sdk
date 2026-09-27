@@ -176,7 +176,7 @@ func IncomeStatementPage(formData map[string]interface{}) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</span></div></div></div><!-- Report Container --><div id=\"report-container\" class=\"min-h-[200px]\"><div class=\"bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center\"><div class=\"text-gray-300\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</span></div></div></div><!-- Report Container --><div id=\"report-container\" class=\"min-h-[200px]\"><div class=\"bg-gray-50 rounded-lg border-2 border-dashed border-default p-8 text-center\"><div class=\"text-gray-300\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -429,7 +429,7 @@ func IncomeStatementReport(report *viewmodels.IncomeStatement) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div class=\"bg-white rounded-lg shadow\"><!-- Report Header --><div class=\"px-6 py-4 border-b border-gray-200\"><div class=\"flex justify-between items-center\"><div><h2 class=\"text-xl font-semibold text-gray-900\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div class=\"bg-white rounded-lg shadow\"><!-- Report Header --><div class=\"px-6 py-4 border-b border-subtle\"><div class=\"flex justify-between items-center\"><div><h2 class=\"text-xl font-semibold text-gray-900\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -506,7 +506,7 @@ func IncomeStatementTable(report *viewmodels.IncomeStatement) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<div class=\"w-full\"><table class=\"min-w-full table-auto border-collapse\"><!-- Table Header --><thead><tr class=\"border-b-2 border-gray-900\"><th class=\"text-left py-3 px-4 font-semibold text-gray-900 sticky left-0 bg-white z-10 min-w-[200px]\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<div class=\"w-full\"><table class=\"min-w-full table-auto border-collapse\"><!-- Table Header --><thead><tr class=\"border-b-2 border-strong\"><th class=\"text-left py-3 px-4 font-semibold text-gray-900 sticky left-0 bg-white z-10 min-w-[200px]\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -557,7 +557,7 @@ func IncomeStatementTable(report *viewmodels.IncomeStatement) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</th></tr></thead> <tbody><!-- Revenue Section --><tr class=\"bg-green-50 border-b border-gray-200\"><td colspan=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</th></tr></thead> <tbody><!-- Revenue Section --><tr class=\"bg-green-50 border-b border-subtle\"><td colspan=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -591,7 +591,7 @@ func IncomeStatementTable(report *viewmodels.IncomeStatement) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<!-- Revenue Subtotal --><tr class=\"bg-green-100 border-b border-gray-300 font-semibold\"><td class=\"py-3 px-4 sticky left-0 bg-green-100 z-10\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<!-- Revenue Subtotal --><tr class=\"bg-green-100 border-b border-default font-semibold\"><td class=\"py-3 px-4 sticky left-0 bg-green-100 z-10\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -654,7 +654,7 @@ func IncomeStatementTable(report *viewmodels.IncomeStatement) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if report.GrossProfitWithCurrency != report.RevenueSection.SubtotalWithCurrency {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<tr class=\"bg-gray-50 border-b border-gray-300 font-semibold\"><td class=\"py-3 px-4 sticky left-0 bg-gray-50 z-10\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<tr class=\"bg-gray-50 border-b border-default font-semibold\"><td class=\"py-3 px-4 sticky left-0 bg-gray-50 z-10\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -761,7 +761,7 @@ func IncomeStatementTable(report *viewmodels.IncomeStatement) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<!-- Expense Section --><tr class=\"bg-red-50 border-b border-gray-200\"><td colspan=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<!-- Expense Section --><tr class=\"bg-red-50 border-b border-subtle\"><td colspan=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -795,7 +795,7 @@ func IncomeStatementTable(report *viewmodels.IncomeStatement) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "<!-- Expense Subtotal --><tr class=\"bg-gray-200 border-b border-gray-300 font-semibold\"><td class=\"py-3 px-4 sticky left-0 bg-gray-200 z-10\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "<!-- Expense Subtotal --><tr class=\"bg-gray-200 border-b border-default font-semibold\"><td class=\"py-3 px-4 sticky left-0 bg-gray-200 z-10\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -853,7 +853,7 @@ func IncomeStatementTable(report *viewmodels.IncomeStatement) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "</td></tr><!-- Net Profit --><tr class=\"bg-gray-100 border-t-2 border-gray-900 font-bold\"><td class=\"py-4 px-4 sticky left-0 bg-gray-100 z-10 text-lg\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "</td></tr><!-- Net Profit --><tr class=\"bg-gray-100 border-t-2 border-strong font-bold\"><td class=\"py-4 px-4 sticky left-0 bg-gray-100 z-10 text-lg\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -986,7 +986,7 @@ func IncomeStatementTableSection(section viewmodels.IncomeStatementSection, mont
 		ctx = templ.ClearChildren(ctx)
 		if len(section.LineItems) > 0 {
 			for _, item := range section.LineItems {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "<tr class=\"border-b border-gray-100 hover:bg-gray-50\"><td class=\"py-2 px-4 text-gray-700 sticky left-0 bg-white z-10\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "<tr class=\"border-b border-subtle hover:bg-gray-50\"><td class=\"py-2 px-4 text-gray-700 sticky left-0 bg-white z-10\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1117,7 +1117,7 @@ func IncomeStatementSection(section viewmodels.IncomeStatementSection) templ.Com
 				return templ_7745c5c3_Err
 			}
 			for _, item := range section.LineItems {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "<div class=\"flex justify-between items-center py-2 border-b border-gray-100\"><span class=\"text-gray-700\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "<div class=\"flex justify-between items-center py-2 border-b border-subtle\"><span class=\"text-gray-700\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1171,7 +1171,7 @@ func IncomeStatementSection(section viewmodels.IncomeStatementSection) templ.Com
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "<!-- Subtotal --><div class=\"flex justify-between items-center pt-3 font-semibold text-lg border-t border-gray-300\"><span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "<!-- Subtotal --><div class=\"flex justify-between items-center pt-3 font-semibold text-lg border-t border-default\"><span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

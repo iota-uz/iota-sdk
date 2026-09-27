@@ -355,7 +355,7 @@ func Content[C Card](cfg *Config[C]) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\" x-model=\"card.newIndex\"></div><div class=\"flex bg-gray-200 rounded-lg h-full overflow-hidden\"><div class=\"w-full overflow-x-auto overscroll-x-contain [touch-action:pan-x_pinch-zoom] [-webkit-overflow-scrolling:touch]\"><ol class=\"flex w-max min-w-full divide-x divide-gray-300\" x-sort.ghost x-sort:config=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\" x-model=\"card.newIndex\"></div><div class=\"flex bg-gray-200 rounded-lg h-full overflow-hidden\"><div class=\"w-full overflow-x-auto overscroll-x-contain [touch-action:pan-x_pinch-zoom] [-webkit-overflow-scrolling:touch]\"><ol class=\"flex w-max min-w-full divide-x divide-subtle\" x-sort.ghost x-sort:config=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

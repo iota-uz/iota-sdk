@@ -46,10 +46,20 @@ type MeilisearchEngine struct {
 	setupMu     sync.Mutex
 	searchReady atomic.Bool
 	writeReady  atomic.Bool
-	pendingMu   sync.Mutex
-	pendingUIDs []int64
-	logger      *logrus.Logger
-	metrics     Metrics
+	// settingsTaskUID is retained when waiting for a settings update times out.
+	// setupMu serializes configureIndex calls, so the next setup attempt waits
+	// for the same Meilisearch task instead of enqueueing an identical one.
+	settingsTaskPending bool
+	settingsTaskUID     int64
+	settingsTaskIndex   string
+	pendingMu           sync.Mutex
+	pendingUIDs         []int64
+	logger              *logrus.Logger
+	metrics             Metrics
+	// taskWaitDeadline overrides the default single-task deadline for this
+	// engine. Rebuild engines use the maintenance budget because their index
+	// creation, settings, and bulk tasks may sit behind live projector writes.
+	taskWaitDeadline time.Duration
 }
 
 type meiliSearchIndexState struct {
@@ -115,10 +125,12 @@ const defaultWaitForTaskDeadline = 60 * time.Second
 // one a generous budget so a slow Meili doesn't surface as a noisy
 // task failure in the periodic reindex log.
 //
-// 5 minutes accounts for cold-start Meili re-indexing a fresh tenant
-// with 2M+ docs on a single shared CPU. The drain returns as soon as
-// each task is done; the deadline only fires if something is wedged.
-const drainWaitDeadline = 5 * time.Minute
+// Production evidence from EAI showed Meili merging 565 queued writes for
+// 3.5M documents into one batch that legitimately ran longer than 5 minutes.
+// Thirty minutes covers that maintenance workload and the documented rebuild
+// window while still bounding a genuinely wedged task. The drain returns as
+// soon as each task is done.
+const drainWaitDeadline = 30 * time.Minute
 
 // waitTaskPollInterval is the poll interval the meilisearch client uses
 // while waiting for a task to reach a terminal state.
@@ -134,7 +146,11 @@ func (e *MeilisearchEngine) waitTaskCtx(ctx context.Context, taskUID int64) (*me
 	}
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, defaultWaitForTaskDeadline)
+		deadline := e.taskWaitDeadline
+		if deadline <= 0 {
+			deadline = defaultWaitForTaskDeadline
+		}
+		ctx, cancel = context.WithTimeout(ctx, deadline)
 		defer cancel()
 	}
 	return e.client.WaitForTaskWithContext(ctx, taskUID, waitTaskPollInterval)
@@ -202,7 +218,15 @@ func (e *MeilisearchEngine) setupForSearch() error {
 	if err != nil {
 		return serrors.E("spotlight.MeilisearchEngine.setupForSearch", err)
 	}
-	if created {
+	// A previous setup may have created the index and then timed out while
+	// waiting for its settings task. On retry ensureSearchIndex now reports an
+	// existing index, so resume that task before taking the validation branch.
+	if e.settingsTaskPending {
+		if err := e.configureIndex(indexName); err != nil {
+			return err
+		}
+		e.writeReady.Store(true)
+	} else if created {
 		if err := e.configureIndex(indexName); err != nil {
 			return err
 		}
@@ -248,7 +272,7 @@ func (e *MeilisearchEngine) ensureIndexExists(indexName string) (bool, error) {
 			return false, serrors.E(op, err)
 		}
 
-		task, err := waitTaskCtxClient(context.Background(), e.client, taskInfo.TaskUID)
+		task, err := e.waitTaskCtx(context.Background(), taskInfo.TaskUID)
 		if err != nil {
 			return false, serrors.E(op, err)
 		}
@@ -263,48 +287,101 @@ func (e *MeilisearchEngine) ensureIndexExists(indexName string) (bool, error) {
 func (e *MeilisearchEngine) configureIndex(indexName string) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.configureIndex"
 
+	if e.settingsTaskPending {
+		if e.settingsTaskIndex != indexName {
+			return serrors.E(op, fmt.Errorf("settings task %d is pending for index %q", e.settingsTaskUID, e.settingsTaskIndex))
+		}
+		return e.waitSettingsTask(op)
+	}
+
 	index := e.client.Index(indexName)
-
-	filterableAttrs := []interface{}{
-		"tenant_id",
-		"provider",
-		"entity_type",
-		"domain",
-		"schema_version",
-		"exact_terms",
-		"access_visibility",
-		"owner_id",
-		"allowed_users",
-		"allowed_roles",
-		"allowed_permissions",
-	}
-	filterTask, err := index.UpdateFilterableAttributes(&filterableAttrs)
+	settings, err := index.GetSettings()
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	if _, err := waitTaskCtxClient(context.Background(), e.client, filterTask.TaskUID); err != nil {
-		return serrors.E(op, err)
+
+	update := &meilisearch.Settings{}
+	drifted := false
+
+	filterableAttrs := requiredFilterableAttributes()
+	if !equalStringSets(settings.FilterableAttributes, filterableAttrs) {
+		update.FilterableAttributes = filterableAttrs
+		drifted = true
 	}
 
-	searchableAttrs := []string{"title", "description", "search_text"}
-	searchTask, err := index.UpdateSearchableAttributes(&searchableAttrs)
+	searchableAttrs := requiredSearchableAttributes()
+	if !slices.Equal(settings.SearchableAttributes, searchableAttrs) {
+		update.SearchableAttributes = searchableAttrs
+		drifted = true
+	}
+
+	sortableAttrs := requiredSortableAttributes()
+	if !equalStringSets(settings.SortableAttributes, sortableAttrs) {
+		update.SortableAttributes = sortableAttrs
+		drifted = true
+	}
+
+	if !drifted {
+		return nil
+	}
+
+	settingsTask, err := index.UpdateSettings(update)
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	if _, err := waitTaskCtxClient(context.Background(), e.client, searchTask.TaskUID); err != nil {
-		return serrors.E(op, err)
+	if settingsTask == nil {
+		return serrors.E(op, "Meilisearch returned no settings task")
 	}
+	e.settingsTaskUID = settingsTask.TaskUID
+	e.settingsTaskIndex = indexName
+	e.settingsTaskPending = true
+	return e.waitSettingsTask(op)
+}
 
-	sortableAttrs := []string{"updated_at"}
-	sortTask, err := index.UpdateSortableAttributes(&sortableAttrs)
+func (e *MeilisearchEngine) waitSettingsTask(op serrors.Op) error {
+	taskUID := e.settingsTaskUID
+	task, err := e.waitTaskCtx(context.Background(), taskUID)
 	if err != nil {
+		// Keep the task UID: the task may still be processing server-side, and a
+		// later setup attempt must wait for it instead of creating a duplicate.
 		return serrors.E(op, err)
 	}
-	if _, err := waitTaskCtxClient(context.Background(), e.client, sortTask.TaskUID); err != nil {
-		return serrors.E(op, err)
-	}
+	e.settingsTaskUID = 0
+	e.settingsTaskIndex = ""
+	e.settingsTaskPending = false
 
-	return nil
+	if task == nil {
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned no result", taskUID))
+	}
+	switch task.Status {
+	case meilisearch.TaskStatusSucceeded:
+		return nil
+	case meilisearch.TaskStatusFailed:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d failed: %s", taskUID, task.Error.Message))
+	case meilisearch.TaskStatusCanceled:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d was canceled", taskUID))
+	case meilisearch.TaskStatusUnknown, meilisearch.TaskStatusEnqueued, meilisearch.TaskStatusProcessing:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned non-terminal status %q", taskUID, task.Status))
+	default:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned unexpected status %q", taskUID, task.Status))
+	}
+}
+
+func equalStringSets(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	counts := make(map[string]int, len(left))
+	for _, value := range left {
+		counts[value]++
+	}
+	for _, value := range right {
+		counts[value]--
+		if counts[value] < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func (e *MeilisearchEngine) validateSearchSettings(indexName string) error {
@@ -342,16 +419,47 @@ func (e *MeilisearchEngine) resolveSearchIndexName() (string, error) {
 		return e.activeName, nil
 	}
 
-	buildIndexName := rebuildIndexName(e.activeName)
-	buildState, err := e.inspectSearchIndex(buildIndexName)
+	buildIndexName, err := e.latestReadyBuildIndex()
 	if err != nil {
 		return "", err
 	}
-	if buildState.currentSchemaReady() {
+	if buildIndexName != "" {
 		return buildIndexName, nil
 	}
 
 	return e.activeName, nil
+}
+
+// latestReadyBuildIndex preserves the startup fallback used while an initial
+// rebuild is ready to swap but the active index is still empty. Build names
+// include a unique run UUID, so unlike the old fixed-name lookup we discover
+// the newest valid candidate from Meili.
+func (e *MeilisearchEngine) latestReadyBuildIndex() (string, error) {
+	results, err := e.client.ListIndexesWithContext(context.Background(), &meilisearch.IndexesQuery{Limit: 200})
+	if err != nil || results == nil {
+		return "", err
+	}
+
+	indexes := append([]*meilisearch.IndexResult(nil), results.Results...)
+	slices.SortFunc(indexes, func(a, b *meilisearch.IndexResult) int {
+		if a == nil || b == nil {
+			return 0
+		}
+		return b.UpdatedAt.Compare(a.UpdatedAt)
+	})
+	for _, idx := range indexes {
+		if idx == nil || !strings.HasPrefix(idx.UID, e.buildIndexPrefix()) {
+			continue
+		}
+		state, err := e.inspectSearchIndex(idx.UID)
+		if err != nil {
+			return "", err
+		}
+		if state.currentSchemaReady() {
+			return idx.UID, nil
+		}
+	}
+	return "", nil
 }
 
 func (e *MeilisearchEngine) inspectSearchIndex(indexName string) (meiliSearchIndexState, error) {
@@ -472,7 +580,7 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 		if err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
-		if _, err := waitTaskCtxClient(ctx, s.client, task.TaskUID); err != nil {
+		if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
 		createdPlaceholder = true
@@ -484,7 +592,7 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 	if err != nil {
 		return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 	}
-	if _, err := waitTaskCtxClient(ctx, s.client, task.TaskUID); err != nil {
+	if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
 		return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 	}
 
@@ -496,7 +604,7 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 		return nil
 	}
 	if cleanupTask != nil {
-		if _, err := waitTaskCtxClient(ctx, s.client, cleanupTask.TaskUID); err != nil {
+		if _, err := s.engine.waitTaskCtx(ctx, cleanupTask.TaskUID); err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
 	}
@@ -525,7 +633,7 @@ func (s *meiliRebuildSession) Abort(ctx context.Context) error {
 		return serrors.E("spotlight.MeilisearchEngine.AbortRebuild", err)
 	}
 	if task != nil {
-		if _, err := waitTaskCtxClient(ctx, s.client, task.TaskUID); err != nil {
+		if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.AbortRebuild", err)
 		}
 	}
@@ -535,15 +643,23 @@ func (s *meiliRebuildSession) Abort(ctx context.Context) error {
 func (e *MeilisearchEngine) StartRebuild(ctx context.Context) (RebuildSession, error) {
 	const op serrors.Op = "spotlight.MeilisearchEngine.StartRebuild"
 
-	buildIndexName := rebuildIndexName(e.activeName)
-	if err := e.resetIndex(ctx, buildIndexName); err != nil {
-		return nil, serrors.E(op, err)
-	}
+	// A rebuild must never reuse a static scratch index. A second replica,
+	// manual CLI invocation, or a process restart used to delete the other
+	// run's work through resetIndex. The caller normally supplies the same UUID
+	// it logs for the run; a UUID is generated for SDK-only callers.
+	buildIndexName := rebuildIndexName(e.activeName, rebuildRunID(ctx))
 
 	buildEngine := &MeilisearchEngine{
 		client:     e.client,
 		indexName:  buildIndexName,
 		activeName: e.activeName,
+		logger:     e.logger,
+		metrics:    e.metrics,
+		// A live index may continuously enqueue projector writes ahead of the
+		// scratch-index setup. The regular 60s request budget is intentionally
+		// too short for that maintenance queue; use the existing bulk-drain
+		// budget for every task belonging to this isolated rebuild engine.
+		taskWaitDeadline: drainWaitDeadline,
 	}
 	if err := buildEngine.setup(); err != nil {
 		return nil, serrors.E(op, err)
@@ -557,27 +673,9 @@ func (e *MeilisearchEngine) StartRebuild(ctx context.Context) (RebuildSession, e
 	}, nil
 }
 
-func (e *MeilisearchEngine) resetIndex(ctx context.Context, indexName string) error {
-	if _, err := e.client.GetIndex(indexName); err == nil {
-		task, err := e.client.DeleteIndexWithContext(ctx, indexName)
-		if err != nil {
-			return err
-		}
-		if task != nil {
-			if _, err := e.waitTaskCtx(ctx, task.TaskUID); err != nil {
-				return err
-			}
-		}
-		return nil
-	} else if !isMeiliNotFound(err) {
-		return err
-	}
-	return nil
-}
-
-func rebuildIndexName(active string) string {
+func rebuildIndexName(active, runID string) string {
 	sanitizedVersion := strings.NewReplacer("-", "_", ".", "_").Replace(IndexSchemaVersion)
-	return fmt.Sprintf("%s_build_%s", active, sanitizedVersion)
+	return fmt.Sprintf("%s_build_%s_%s", active, sanitizedVersion, runID)
 }
 
 // buildIndexPrefix returns the prefix used to identify rebuild scratch
@@ -595,8 +693,7 @@ type PrunedIndex struct {
 }
 
 // PruneOrphanBuildIndexes scans Meili for rebuild scratch indexes that no
-// longer match the current schema version, are older than the supplied
-// minAge, and removes them. Returns the list of pruned indexes for
+// are older than the supplied minAge, and removes them. Returns the list of pruned indexes for
 // callers that want to log or metric the action. The janitor task in EAI
 // calls this on an hourly schedule.
 //
@@ -615,7 +712,6 @@ func (e *MeilisearchEngine) PruneOrphanBuildIndexes(ctx context.Context, minAge 
 	}
 
 	prefix := e.buildIndexPrefix()
-	current := rebuildIndexName(e.activeName)
 	cutoff := time.Now().Add(-minAge)
 
 	pruned := make([]PrunedIndex, 0)
@@ -624,10 +720,6 @@ func (e *MeilisearchEngine) PruneOrphanBuildIndexes(ctx context.Context, minAge 
 			continue
 		}
 		if !strings.HasPrefix(idx.UID, prefix) {
-			continue
-		}
-		if idx.UID == current {
-			// Active rebuild target; never prune.
 			continue
 		}
 		if minAge > 0 && !idx.UpdatedAt.IsZero() && idx.UpdatedAt.After(cutoff) {
@@ -653,9 +745,8 @@ func (e *MeilisearchEngine) PruneOrphanBuildIndexes(ctx context.Context, minAge 
 		})
 		if e.logger != nil {
 			e.logger.WithFields(logrus.Fields{
-				"index":   idx.UID,
-				"age":     time.Since(idx.UpdatedAt).String(),
-				"current": current,
+				"index": idx.UID,
+				"age":   time.Since(idx.UpdatedAt).String(),
 			}).Info("spotlight janitor pruned orphan build index")
 		}
 	}
@@ -901,8 +992,8 @@ func buildMeiliRecords(docs []SearchDocument) []map[string]interface{} {
 // Meilisearch. Each pending task gets `drainWaitDeadline` of headroom
 // (not the inline 10s) because Meili can take 20-40s to digest a single
 // 80 MiB batch under CPU pressure. If the caller's ctx is already
-// deadlined, that deadline is honored — drainWaitDeadline only sets
-// the floor.
+// deadlined, that deadline is honored — drainWaitDeadline is only the
+// fallback for callers without one.
 func (e *MeilisearchEngine) WaitPending(ctx context.Context) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.WaitPending"
 
@@ -926,7 +1017,7 @@ func (e *MeilisearchEngine) WaitPending(ctx context.Context) error {
 // parent already has *any* deadline, we propagate it as-is — the caller
 // owns the deadline and we must not tighten it (a long-running reindex
 // is the canonical case). Only when the parent has no deadline at all do
-// we apply drainWaitDeadline as a floor so background callers don't hang
+// we apply drainWaitDeadline as a fallback so background callers don't hang
 // indefinitely if Meili wedges.
 func drainTaskCtx(parent context.Context) (context.Context, context.CancelFunc) {
 	if parent == nil {

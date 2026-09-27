@@ -12,6 +12,60 @@ const ProviderOpenAI = "openai"
 const DefaultOpenAIModelSnapshot = "gpt-5.5"
 
 var (
+	// SpecGPT56Sol is the canonical spec for GPT-5.6 Sol.
+	//
+	// Pricing per platform.openai.com/docs/models/gpt-5.6-sol (Input $5.00 /
+	// Cached input $0.50 / Output $30.00 per 1M tokens). Cache writes are
+	// billed at 1.25x the uncached input token rate.
+	SpecGPT56Sol = ModelSpec{
+		Name:          "gpt-5.6-sol",
+		Provider:      ProviderOpenAI,
+		ContextWindow: 1_050_000,
+		Capabilities: []Capability{
+			CapabilityStreaming,
+			CapabilityTools,
+			CapabilityJSONMode,
+			CapabilityThinking,
+		},
+		ReasoningEffortOptions: []ReasoningEffort{
+			ReasoningNone, ReasoningLow, ReasoningMedium, ReasoningHigh, ReasoningXHigh, ReasoningMax,
+		},
+		Pricing: ModelPricing{
+			Currency:        "USD",
+			InputPer1M:      5.00,
+			OutputPer1M:     30.00,
+			CacheWritePer1M: 6.25,
+			CacheReadPer1M:  0.50,
+		},
+	}
+
+	// SpecGPT56Luna is the canonical spec for GPT-5.6 Luna.
+	//
+	// Pricing per platform.openai.com/docs/models/gpt-5.6-luna (Input $1.00 /
+	// Cached input $0.10 / Output $6.00 per 1M tokens). Cache writes are
+	// billed at 1.25x the uncached input token rate.
+	SpecGPT56Luna = ModelSpec{
+		Name:          "gpt-5.6-luna",
+		Provider:      ProviderOpenAI,
+		ContextWindow: 1_050_000,
+		Capabilities: []Capability{
+			CapabilityStreaming,
+			CapabilityTools,
+			CapabilityJSONMode,
+			CapabilityThinking,
+		},
+		ReasoningEffortOptions: []ReasoningEffort{
+			ReasoningNone, ReasoningLow, ReasoningMedium, ReasoningHigh, ReasoningXHigh, ReasoningMax,
+		},
+		Pricing: ModelPricing{
+			Currency:        "USD",
+			InputPer1M:      1.00,
+			OutputPer1M:     6.00,
+			CacheWritePer1M: 1.25,
+			CacheReadPer1M:  0.10,
+		},
+	}
+
 	// SpecGPT55 is the canonical spec for GPT-5.5.
 	//
 	// Pricing per platform.openai.com/docs/models (Input $5.00 / Cached input
@@ -114,6 +168,12 @@ var (
 )
 
 func init() {
+	// GPT-5.6 Sol is the flagship model; "gpt-5.6" is its floating alias.
+	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5.6-sol", "gpt-5.6"}, SpecGPT56Sol, false)
+
+	// GPT-5.6 Luna is the cost-sensitive model in the GPT-5.6 family.
+	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5.6-luna"}, SpecGPT56Luna, false)
+
 	// GPT-5.5 is the provider default. DefaultOpenAIModelSnapshot is the
 	// canonical name; add dated snapshots ("gpt-5.5-YYYY-MM-DD") to the alias
 	// list once OpenAI publishes them.

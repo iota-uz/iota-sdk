@@ -1,15 +1,22 @@
 // Package action defines panel actions and action value sources for Lens dashboards.
 package action
 
-import "fmt"
+import (
+	"fmt"
+	"net/url"
+	"strings"
+)
 
 type Kind string
 
 const (
-	KindNavigate  Kind = "navigate"
-	KindHtmxSwap  Kind = "htmx_swap"
-	KindEmitEvent Kind = "emit_event"
-	KindCubeDrill Kind = "cube_drill"
+	KindNavigate    Kind = "navigate"
+	KindOpenDrawer  Kind = "open_drawer"
+	KindHtmxSwap    Kind = "htmx_swap"
+	KindEmitEvent   Kind = "emit_event"
+	KindCubeDrill   Kind = "cube_drill"
+	KindCrossFilter Kind = "cross_filter"
+	KindExplore     Kind = "explore"
 )
 
 type ValueSourceKind string
@@ -36,12 +43,24 @@ type Spec struct {
 	Kind          Kind
 	Method        string
 	URL           string
+	URLSource     *ValueSource
+	DrawerKey     *ValueSource
 	Target        string
 	Event         string
 	Payload       map[string]ValueSource
 	Params        []Param
 	Drill         *DrillSpec
+	Explore       *ExploreSpec
 	PreserveQuery bool
+}
+
+func (s Spec) WithURLSource(source ValueSource) Spec {
+	s.URLSource = &source
+	return s
+}
+
+func (s Spec) WithFieldURL(field string) Spec {
+	return s.WithURLSource(FieldValue(field))
 }
 
 func Navigate(url string, params ...Param) Spec {
@@ -51,6 +70,22 @@ func Navigate(url string, params ...Param) Spec {
 		Method: "GET",
 		Params: params,
 	}
+}
+
+// OpenDrawer loads a Lens document URL into the runtime's modal drawer host.
+func OpenDrawer(url string, params ...Param) Spec {
+	return Spec{
+		Kind:   KindOpenDrawer,
+		URL:    url,
+		Method: "GET",
+		Params: params,
+	}
+}
+
+// OpenDrawerMetric defers the signed drawer URL to the host resolver and puts
+// only a stable metric key plus bounded parameters on the wire.
+func OpenDrawerMetric(metric ValueSource, params ...Param) Spec {
+	return Spec{Kind: KindOpenDrawer, Method: "POST", DrawerKey: &metric, Params: params}
 }
 
 func HtmxSwap(url, target string, params ...Param) Spec {
@@ -76,6 +111,62 @@ func CubeDrill(url, dimension string, params ...Param) Spec {
 	}
 }
 
+// CrossFilter toggles one dimension value without changing the cube's active
+// grouping. CubeDrill and CrossFilter share the same ordered filter stack.
+func CrossFilter(url, dimension string, params ...Param) Spec {
+	return Spec{
+		Kind:   KindCrossFilter,
+		Method: "GET",
+		URL:    url,
+		Params: params,
+		Drill: &DrillSpec{
+			Dimension: dimension,
+			Value:     FieldValue("filter_value"),
+		},
+	}
+}
+
+// Explore opens a branch in a dashboard's metric explorer. branch identifies
+// a stable branch key and may be replaced with WithExploreBranch for actions
+// whose branch is resolved from a dataset row.
+func Explore(explorerID, branch string) Spec {
+	return Spec{
+		Kind:   KindExplore,
+		Method: "GET",
+		Explore: &ExploreSpec{
+			ExplorerID: explorerID,
+			Branch:     LiteralValue(branch),
+		},
+	}
+}
+
+func (s Spec) withClonedExplore() Spec {
+	if s.Explore == nil {
+		return s
+	}
+	explore := *s.Explore
+	s.Explore = &explore
+	return s
+}
+
+func (s Spec) WithExploreBranch(source ValueSource) Spec {
+	if s.Explore == nil {
+		return s
+	}
+	s = s.withClonedExplore()
+	s.Explore.Branch = source
+	return s
+}
+
+func (s Spec) WithExplorePerspective(perspective string) Spec {
+	if s.Explore == nil {
+		return s
+	}
+	s = s.withClonedExplore()
+	s.Explore.Perspective = perspective
+	return s
+}
+
 func (s Spec) withClonedDrill() Spec {
 	if s.Drill == nil {
 		return s
@@ -91,6 +182,17 @@ func (s Spec) WithDrillValue(source ValueSource) Spec {
 	}
 	s = s.withClonedDrill()
 	s.Drill.Value = source
+	return s
+}
+
+// WithDrillGroupBy selects the dimension shown after a cube drill. It has no
+// effect on a cross-filter action, which deliberately preserves grouping.
+func (s Spec) WithDrillGroupBy(dimension string) Spec {
+	if s.Drill == nil {
+		return s
+	}
+	s = s.withClonedDrill()
+	s.Drill.GroupBy = dimension
 	return s
 }
 
@@ -139,6 +241,19 @@ func LiteralValue(value any) ValueSource {
 
 func VariableValue(variable string) ValueSource {
 	return ValueSource{Kind: SourceVariable, Name: variable}
+}
+
+// SafeRelativeURL accepts URLs that cannot navigate outside the current origin.
+func SafeRelativeURL(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || strings.ContainsRune(raw, '\\') || strings.HasPrefix(raw, "//") {
+		return "", false
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.IsAbs() || parsed.Host != "" || parsed.User != nil || parsed.Opaque != "" {
+		return "", false
+	}
+	return raw, true
 }
 
 // ResolveValue resolves a ValueSource against a data row and variable map,

@@ -46,7 +46,7 @@ func badgeClass(tone string) string {
 	case "match":
 		return base + " border-amber-300/30 bg-amber-50 text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-200"
 	case "navigation":
-		return base + " border-slate-300/30 bg-slate-50 text-slate-700 dark:border-slate-400/30 dark:bg-slate-500/10 dark:text-slate-200"
+		return base + " border-default/30 bg-slate-50 text-slate-700 dark:bg-slate-500/10 dark:text-slate-200"
 	case "directory":
 		return base + " border-violet-300/30 bg-violet-50 text-violet-700 dark:border-violet-400/30 dark:bg-violet-500/10 dark:text-violet-200"
 	case "conversation":

@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Keep buffered Excel values numeric while supporting custom float number formats."
+}
