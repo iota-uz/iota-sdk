@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
+	lenscolor "github.com/iota-uz/iota-sdk/pkg/lens/color"
 	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
@@ -1214,6 +1215,30 @@ func TestBuild_PanelColorsPublishIndexAndLabelSeriesKeys(t *testing.T) {
 	require.Equal(t, "#d97706", doc.Theme.Series["premium:1"])
 	require.Equal(t, "#2563eb", doc.Theme.Series["Earned"])
 	require.Equal(t, "#d97706", doc.Theme.Series["Unearned"])
+}
+
+func TestPanelFrameColorsUseGenericScaleAndPreserveLiteralColors(t *testing.T) {
+	t.Parallel()
+	rows, err := frame.New("rows", frame.Field{
+		Name: "category", Type: frame.FieldTypeString, Values: []any{"OSAGO", "TRAVEL"},
+	})
+	require.NoError(t, err)
+
+	// This would be falsely green if the document still routed PRODUCT through
+	// a domain-specific palette before using the generic color package.
+	spec := panel.Pie("products", "Products", "rows").SemanticColors("PRODUCT", "category").Build()
+	colors := panelFrameColors(spec, rows)
+	require.Len(t, colors, 2)
+	for _, color := range colors {
+		require.Contains(t, lenscolor.Series(), color)
+	}
+	require.NotEqual(t, "#4338CA", colors[0])
+
+	spec.ColorScale = "literal"
+	require.Equal(t, []string{"OSAGO", "TRAVEL"}, panelFrameColors(spec, rows))
+	spec.ColorField = ""
+	spec.Colors = []string{"#123456", "#abcdef"}
+	require.Equal(t, spec.Colors, panelFrameColors(spec, rows))
 }
 
 // A series panel positions its colors by series, not by row: the n-th color is
