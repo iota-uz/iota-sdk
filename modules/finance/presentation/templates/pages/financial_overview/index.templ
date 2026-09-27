@@ -66,13 +66,15 @@ templ tabPanel(url string) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div
 		class="mt-5"
-		hx-get={ url }
+		hx-get={ string(templ.URL(url)) }
 		hx-trigger="load, overview:retry"
 		hx-swap="innerHTML"
-		x-data="{ failed: false }"
+		x-data="{ failed: false, status: '' }"
+		data-loading={ pageCtx.T("Common.Loading") }
 		x-on:htmx:response-error.camel.self="failed = true"
 		x-on:htmx:send-error.camel.self="failed = true"
 	>
+		<span role="status" class="sr-only" x-text="status"></span>
 		<div x-show="!failed" class="bg-surface-600 border border-primary rounded-lg p-4" aria-busy="true">
 			<span class="sr-only">{ pageCtx.T("Common.Loading") }</span>
 			@loaders.SkeletonTable(loaders.SkeletonProps{})
@@ -83,7 +85,7 @@ templ tabPanel(url string) {
 				Size: button.SizeSM,
 				Attrs: templ.Attributes{
 					"type":   "button",
-					"@click": "failed = false; htmx.trigger($root, 'overview:retry')",
+					"@click": "failed = false; status = $root.dataset.loading; htmx.trigger($root, 'overview:retry')",
 				},
 			}) {
 				{ pageCtx.T("Common.Retry") }

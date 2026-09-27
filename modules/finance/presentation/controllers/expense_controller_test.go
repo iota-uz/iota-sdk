@@ -240,6 +240,11 @@ func TestExpenseController_List_InfiniteScroll(t *testing.T) {
 		NotContains("<table").
 		NotContains("hx-get")
 	require.Equal(t, 1, strings.Count(last.Body(), `id="expense-`))
+
+	suite.GET(ExpenseBasePath + "?Search=rent&limit=2&page=2").
+		Expect(t).
+		Status(302).
+		RedirectTo(ExpenseBasePath + "?Search=rent&limit=2")
 }
 
 func TestExpenseController_GetNew_Success(t *testing.T) {

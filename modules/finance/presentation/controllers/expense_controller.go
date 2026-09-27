@@ -89,6 +89,10 @@ func (c *ExpenseController) List(
 	expenseService *services.ExpenseService,
 ) {
 	params := composables.UsePaginated(r)
+	if params.Page > 1 && !htmx.IsHxRequest(r) {
+		http.Redirect(w, r, pagination.FirstChunkURL(r.URL), http.StatusFound)
+		return
+	}
 	findParams := &expense.FindParams{
 		Offset: params.Offset,
 		Limit:  params.Limit,

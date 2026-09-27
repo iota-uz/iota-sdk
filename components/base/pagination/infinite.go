@@ -18,3 +18,13 @@ func NextChunkURL(current *url.URL, page, limit, loaded int) string {
 	next := url.URL{Path: current.Path, RawQuery: query.Encode()}
 	return next.String()
 }
+
+// FirstChunkURL returns the current address without its page. Later chunks
+// only make sense appended to the list, so a full page always starts at the
+// first one.
+func FirstChunkURL(current *url.URL) string {
+	query := current.Query()
+	query.Del("page")
+	first := url.URL{Path: current.Path, RawQuery: query.Encode()}
+	return first.String()
+}

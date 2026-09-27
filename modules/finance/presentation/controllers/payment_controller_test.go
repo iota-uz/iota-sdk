@@ -276,6 +276,11 @@ func TestPaymentController_List_InfiniteScroll(t *testing.T) {
 		NotContains("<table").
 		NotContains("hx-get")
 	require.Equal(t, 1, strings.Count(last.Body(), "hide-on-load"))
+
+	suite.GET(PaymentBasePath + "?limit=2&page=2").
+		Expect(t).
+		Status(302).
+		RedirectTo(PaymentBasePath + "?limit=2")
 }
 
 func TestPaymentController_GetNew_Success(t *testing.T) {

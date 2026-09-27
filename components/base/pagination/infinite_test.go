@@ -74,3 +74,10 @@ func TestNextChunkURL_NilURL(t *testing.T) {
 	t.Parallel()
 	require.Empty(t, NextChunkURL(nil, 1, 25, 25))
 }
+
+func TestFirstChunkURL(t *testing.T) {
+	t.Parallel()
+	current, err := url.Parse("/finance/expenses?Search=rent&limit=2&page=3")
+	require.NoError(t, err)
+	require.Equal(t, "/finance/expenses?Search=rent&limit=2", FirstChunkURL(current))
+}

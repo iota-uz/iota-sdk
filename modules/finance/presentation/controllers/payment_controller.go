@@ -137,6 +137,10 @@ func (c *PaymentsController) viewModelPayments(r *http.Request) (*PaymentPaginat
 }
 
 func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
+	if composables.UsePaginated(r).Page > 1 && !htmx.IsHxRequest(r) {
+		http.Redirect(w, r, pagination.FirstChunkURL(r.URL), http.StatusFound)
+		return
+	}
 	paginated, err := c.viewModelPayments(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
