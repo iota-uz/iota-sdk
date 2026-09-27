@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -57,9 +58,8 @@ func NewChatController(
 	}
 }
 
-// Key returns the controller key for dependency injection.
-func (c *ChatController) Key() string {
-	return "bichat.ChatController"
+func (c *ChatController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("bichat.chat", 0, application.Route("", c.opts.BasePath))
 }
 
 // sessionResponse is the JSON shape for session endpoints

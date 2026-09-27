@@ -35,11 +35,11 @@ func TestRunExecutesManualStaticDashboard(t *testing.T) {
 		},
 	}
 
-	result, err := Run(context.Background(), doc, lenscompile.Options{
+	result, err := New(lensruntime.New(lensruntime.Options{})).Run(context.Background(), doc, lenscompile.Options{
 		Locale: "en",
 		Values: map[string]any{"stats_dataset": stats},
 	}, Request{
-		Runtime: lensruntime.Request{Locale: "en", Timezone: "UTC"},
+		Runtime: lensruntime.Request{Locale: "en", Timezone: "UTC", DataScope: "test"},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result.Dashboard)

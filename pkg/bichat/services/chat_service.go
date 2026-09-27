@@ -20,12 +20,19 @@ var ErrRunNotFoundOrFinished = errors.New("generation run not found or already f
 // stream so clients can display the condition without switching transports.
 var ErrRunEventLogUnavailable = errors.New("run event log unavailable")
 
+// ErrRunEventStreamInterrupted means the event journal ended without a terminal event.
+var ErrRunEventStreamInterrupted = errors.New("run event stream interrupted")
+
 // ErrActiveRunIndexUnavailable is returned by TailActiveRuns when the
 // active-run index (per-tenant sidebar Redis hash) is not configured. Like
 // ErrRunEventLogUnavailable, the stream controller surfaces it as an SSE
 // `error` event rather than an HTTP error status so clients remain on the
 // same transport.
 var ErrActiveRunIndexUnavailable = errors.New("active run index unavailable")
+
+// ErrContinuationUnsupported is returned when the configured AgentService
+// does not implement ContinuationAgentService.
+var ErrContinuationUnsupported = errors.New("internal continuations are not supported by the configured agent service")
 
 // SessionCommands manages mutating session actions.
 type SessionCommands interface {
@@ -62,6 +69,12 @@ type SessionQueries interface {
 // TurnCommands handles non-streaming turn execution.
 type TurnCommands interface {
 	SendMessage(ctx context.Context, req SendMessageRequest) (*SendMessageResponse, error)
+}
+
+// ContinuationCommands resumes a session from trusted application workflows.
+type ContinuationCommands interface {
+	ContinueSession(ctx context.Context, req ContinueSessionRequest) (AsyncRunAccepted, error)
+	GetContinuationRun(ctx context.Context, runID uuid.UUID) (ContinuationRun, error)
 }
 
 // TurnQueries reads conversation messages for a session.
@@ -160,6 +173,7 @@ const (
 	AsyncRunOperationQuestionSubmit AsyncRunOperation = "question_submit"
 	AsyncRunOperationQuestionReject AsyncRunOperation = "question_reject"
 	AsyncRunOperationSessionCompact AsyncRunOperation = "session_compact"
+	AsyncRunOperationContinuation   AsyncRunOperation = "continuation"
 )
 
 type AsyncRunAccepted struct {
@@ -168,6 +182,29 @@ type AsyncRunAccepted struct {
 	SessionID uuid.UUID
 	RunID     uuid.UUID
 	StartedAt time.Time
+}
+
+// ContinuationRun is the durable status projection applications use to
+// reconcile an asynchronously dispatched continuation after a process restart.
+type ContinuationRun struct {
+	ID        uuid.UUID
+	SessionID uuid.UUID
+	Status    string
+	Error     string
+	StartedAt time.Time
+	UpdatedAt time.Time
+}
+
+// ContinueSessionRequest starts an internal continuation turn. The
+// IdempotencyKey is required so durable application workers can safely retry
+// delivery. The SDK derives a stable run id from the tenant, session, and key;
+// repeated delivery returns that run without executing a second turn.
+type ContinueSessionRequest struct {
+	SessionID       uuid.UUID
+	Event           ContinuationEvent
+	IdempotencyKey  string
+	ReasoningEffort *string
+	Model           *string
 }
 
 // SendMessageRequest contains the input for sending a message

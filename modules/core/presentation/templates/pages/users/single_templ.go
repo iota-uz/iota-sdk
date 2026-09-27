@@ -444,7 +444,7 @@ func UserInfoHeader(user *viewmodels.User) templ.Component {
 			templ_7745c5c3_Var20 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div class=\"flex justify-between items-center border-b border-gray-200 p-4\"><span class=\"font-medium\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div class=\"flex justify-between items-center border-b border-subtle p-4\"><span class=\"font-medium\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -550,7 +550,7 @@ func UserInfo(user *viewmodels.User, slots slot.Manager) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			if user.Phone != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<div class=\"flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-gray-500 overflow-hidden basis-72 flex-1\"><span class=\"text-200 text-sm\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<div class=\"flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-primary overflow-hidden basis-72 flex-1\"><span class=\"text-200 text-sm\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -586,7 +586,7 @@ func UserInfo(user *viewmodels.User, slots slot.Manager) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if user.Email != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<div class=\"flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-gray-500 overflow-hidden basis-72 flex-1\"><span class=\"text-200 text-sm\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<div class=\"flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-primary overflow-hidden basis-72 flex-1\"><span class=\"text-200 text-sm\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -617,7 +617,7 @@ func UserInfo(user *viewmodels.User, slots slot.Manager) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, " <div class=\"flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-gray-500 overflow-hidden basis-72 flex-1\"><span class=\"text-200 text-sm\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, " <div class=\"flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-primary overflow-hidden basis-72 flex-1\"><span class=\"text-200 text-sm\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -728,6 +728,8 @@ func UserAccessInfo(user *viewmodels.User, groups []*viewmodels.ResourcePermissi
 		items := []descriptionlist.DLItem{}
 		if len(user.Roles) > 0 {
 			items = append(items, descriptionlist.NewItem(pageCtx.T("Users.Single.Roles"), descriptionlist.WithItemText(user.RolesVerbose())))
+		} else {
+			items = append(items, descriptionlist.NewItem(pageCtx.T("Users.Single.Roles"), descriptionlist.WithItemText(pageCtx.T("Users.NoRole"))))
 		}
 		if len(groups) > 0 {
 			groupItems := make([]descriptionlist.DLItem, len(groups))

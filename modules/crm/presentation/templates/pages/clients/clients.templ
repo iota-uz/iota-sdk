@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/export"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
@@ -180,9 +181,12 @@ templ Index(props *IndexPageProps) {
 	}) {
 		@NewClientDrawer()
 		<div class="m-6">
-			<h1 class="text-2xl font-medium">
-				{ pageCtx.T("NavigationLinks.Clients") }
-			</h1>
+			<div class="flex items-center gap-2">
+				<h1 class="text-2xl font-medium">
+					{ pageCtx.T("NavigationLinks.Clients") }
+				</h1>
+				@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/crm.md"})
+			</div>
 			<div class="mt-5" id="clients-table-wrapper">
 				@ClientsContent(props)
 			</div>

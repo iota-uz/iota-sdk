@@ -4,7 +4,6 @@ import (
 	"context"
 	"embed"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/iota-uz/applets"
@@ -94,7 +93,7 @@ func WithExtraAgentOptions(opts ...bichatagents.BIAgentOption) Option {
 }
 
 // WithComponentStreamBasePath overrides the path the BiChat stream controller
-// mounts at. The default is the BiChatLink href.
+// mounts at. The default is /bi-chat.
 func WithComponentStreamBasePath(path string) Option {
 	return func(o *componentOptions) {
 		o.streamBasePath = path
@@ -135,6 +134,10 @@ func (c *component) Descriptor() composition.Descriptor {
 	return composition.Descriptor{Name: "bichat"}
 }
 
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&LocaleFiles}
+}
+
 // bichatBundle is the lazily-built BiChat runtime graph. Held as a single
 // provider so buildModuleConfig is invoked at most once per container.
 type bichatBundle struct {
@@ -160,8 +163,6 @@ func provideBundleField[I any](builder *composition.Builder, field func(*bichatB
 func (c *component) Build(builder *composition.Builder) error {
 	buildCtx := builder.Context()
 
-	composition.AddLocales(builder, &LocaleFiles)
-
 	// Implicit enablement: the module is on iff BICHAT_OPENAI_APIKEY is set.
 	// The gate helper emits a CapabilityProbe so /system/info reflects state,
 	// logs a single structured line when disabled, and panics in strict mode
@@ -170,10 +171,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	if composition.SkipIfDisabled[bichatconfig.Config](builder) {
 		return nil
 	}
-
-	_ = strings.TrimSpace // keep strings import used below
-	composition.AddNavItems(builder, NavItems...)
-	composition.AddQuickLinks(builder, spotlight.NewQuickLink(BiChatLink.Name, BiChatLink.Href))
 
 	// Single lazy provider backing the entire BiChat graph. Resolved once per
 	// container instantiation; downstream providers read individual services
@@ -198,6 +195,9 @@ func (c *component) Build(builder *composition.Builder) error {
 	provideBundleField(builder, func(b *bichatBundle) bichatservices.SessionCommands { return b.services.SessionCommands() })
 	provideBundleField(builder, func(b *bichatBundle) bichatservices.SessionQueries { return b.services.SessionQueries() })
 	provideBundleField(builder, func(b *bichatBundle) bichatservices.TurnCommands { return b.services.TurnCommands() })
+	provideBundleField(builder, func(b *bichatBundle) bichatservices.ContinuationCommands {
+		return b.services.ContinuationCommands()
+	})
 	provideBundleField(builder, func(b *bichatBundle) bichatservices.TurnQueries { return b.services.TurnQueries() })
 	provideBundleField(builder, func(b *bichatBundle) bichatservices.StreamCommands { return b.services.StreamCommands() })
 	provideBundleField(builder, func(b *bichatBundle) bichatservices.HITLCommands { return b.services.HITLCommands() })

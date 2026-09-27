@@ -91,11 +91,21 @@ func (r *Registry) SetStrict(mode StrictMode) {
 // populated config struct. It is the escape hatch for non-Prefixed types or tests.
 //
 // Order of operations:
-//  1. Source.Unmarshal fills fields from env / yaml / etc.
-//  2. applyTagDefaults fills zero-valued fields from `default:"X"` struct tags.
+//  1. applyTagDefaults seeds every field carrying a `default:"X"` struct tag.
+//  2. Source.Unmarshal overwrites those fields the source actually provides,
+//     from env / yaml / etc.
 //  3. resolveState computes FeatureState using Configured + Source.HasPrefix.
 //  4. If state is StatePartiallyConfigured and strict mode is on, abort with error.
 //  5. If state is StateActive and T implements Validatable, Validate checks values.
+//
+// Defaults are seeded *before* the source is read, not applied to whatever the
+// source left zero afterwards. The latter cannot express "turn this off": a
+// `bool` field with `default:"true"` set to false by the source is
+// indistinguishable from one the source never mentioned, so the default won
+// and the setting was unreachable. The same held for an int default set to 0
+// and a string default set to "". Unmarshal leaves fields the source has no
+// key for untouched, so seeding first keeps defaults for everything unset
+// while letting an explicit value — including a zero one — through.
 //
 // A non-nil Validate error aborts registration and returns an error.
 //
@@ -111,12 +121,12 @@ func RegisterAt[T any](r *Registry, prefix string) (*T, error) {
 	}
 
 	var cfg T
-	if err := r.src.Unmarshal(prefix, &cfg); err != nil {
-		return nil, fmt.Errorf("config: unmarshal %T at %q: %w", cfg, prefix, err)
-	}
-
 	if err := applyTagDefaults(&cfg); err != nil {
 		return nil, fmt.Errorf("config: apply defaults %T: %w", cfg, err)
+	}
+
+	if err := r.src.Unmarshal(prefix, &cfg); err != nil {
+		return nil, fmt.Errorf("config: unmarshal %T at %q: %w", cfg, prefix, err)
 	}
 
 	state := resolveState(r.src, prefix, &cfg)

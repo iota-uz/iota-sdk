@@ -4,6 +4,7 @@
  * This module provides utilities for database operations in tests.
  */
 
+import { Pool, PoolClient } from 'pg';
 import { resetDatabase, seedDatabase, getEnvironmentInfo } from '../playwright.config';
 
 /**
@@ -27,6 +28,24 @@ export async function seedDB() {
  */
 export function getEnvInfo() {
 	return getEnvironmentInfo();
+}
+
+export async function withDatabase<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {
+	const env = getEnvironmentInfo().dbConfig;
+	const pool = new Pool({
+		user: env.user,
+		host: env.host,
+		port: env.port,
+		database: env.database,
+		password: process.env.DB_PASSWORD || 'postgres',
+	});
+	const client = await pool.connect();
+	try {
+		return await callback(client);
+	} finally {
+		client.release();
+		await pool.end();
+	}
 }
 
 /**

@@ -1,6 +1,7 @@
 package composition_test
 
 import (
+	"embed"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/composition"
@@ -21,6 +22,8 @@ type noopComponent struct{}
 func (noopComponent) Descriptor() composition.Descriptor {
 	return composition.Descriptor{Name: "noop"}
 }
+
+func (noopComponent) LocaleFS() []*embed.FS { return nil }
 
 func (noopComponent) Build(b *composition.Builder) error {
 	return composition.ProvideConfig[testCfg](b, "svc")

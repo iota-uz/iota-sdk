@@ -18,18 +18,21 @@ func ResolveDrillFilters(
 ) ([]lens.DrillFilterMeta, error) {
 	filters := make([]lens.DrillFilterMeta, 0, len(drillCtx.Filters))
 	for _, item := range drillCtx.Filters {
-		display, err := resolveFilterDisplay(ctx, spec, drillCtx, item, lookup)
-		if err != nil {
-			return nil, err
+		for _, value := range item.values() {
+			filter := DimensionFilter{Dimension: item.Dimension, Value: value, Values: []string{value}}
+			display, err := resolveFilterDisplay(ctx, spec, drillCtx, filter, lookup)
+			if err != nil {
+				return nil, err
+			}
+			if strings.TrimSpace(display) == "" {
+				display = value
+			}
+			filters = append(filters, lens.DrillFilterMeta{
+				Dimension: item.Dimension,
+				Value:     value,
+				Display:   display,
+			})
 		}
-		if strings.TrimSpace(display) == "" {
-			display = item.Value
-		}
-		filters = append(filters, lens.DrillFilterMeta{
-			Dimension: item.Dimension,
-			Value:     item.Value,
-			Display:   display,
-		})
 	}
 	return filters, nil
 }
@@ -47,12 +50,12 @@ func resolveFilterDisplay(
 	}
 	switch spec.DataMode {
 	case DataModeDataset:
-		return datasetFilterDisplay(spec, drillCtx, dim), nil
+		return datasetFilterDisplay(spec, drillCtx.WithFilter(filter.Dimension, filter.Value), dim), nil
 	case DataModeSQL:
 		if lookup == nil {
 			return filter.Value, nil
 		}
-		text, params := sqlFilterLabelQuery(spec, drillCtx, dim)
+		text, params := sqlFilterLabelQuery(spec, drillCtx.WithFilter(filter.Dimension, filter.Value), dim)
 		label, ok, err := lookup(ctx, text, params)
 		if err != nil {
 			return "", err
@@ -103,7 +106,7 @@ func rowMatchesDrill(row map[string]any, spec CubeSpec, drillCtx DrillContext) b
 		if field == "" {
 			continue
 		}
-		if strings.TrimSpace(fmt.Sprint(row[field])) != strings.TrimSpace(filter.Value) {
+		if !containsString(filter.values(), strings.TrimSpace(fmt.Sprint(row[field]))) {
 			return false
 		}
 	}
@@ -128,4 +131,13 @@ func sqlFilterLabelQuery(spec CubeSpec, drillCtx DrillContext, dim DimensionSpec
 		params[key] = value.Literal
 	}
 	return text, params
+}
+
+func containsString(values []string, needle string) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
 }

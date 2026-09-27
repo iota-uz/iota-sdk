@@ -38,8 +38,8 @@ func NewSessionController(basePath string, cfg *cookies.Config) application.Cont
 	}
 }
 
-func (c *SessionController) Key() string {
-	return c.basePath
+func (c *SessionController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.session", 0, application.Route("", c.basePath))
 }
 
 func (c *SessionController) Register(r *mux.Router) {
@@ -100,8 +100,8 @@ func (c *SessionController) List(
 
 	// Get current user's session token for highlighting
 	currentToken := ""
-	if cookie, err := r.Cookie(c.cfg.SID); err == nil {
-		currentToken = cookie.Value
+	if currentSession, err := composables.UseSession(r.Context()); err == nil {
+		currentToken = currentSession.Token()
 	}
 
 	// Build admin session view models with user info
@@ -177,8 +177,21 @@ func (c *SessionController) Revoke(
 		return
 	}
 
-	// Terminate session
-	if err := sessionService.TerminateSession(r.Context(), token); err != nil {
+	sess, err := sessionService.GetByToken(r.Context(), token)
+	if err != nil {
+		logger.WithError(err).Error("Failed to retrieve session")
+		if errors.Is(err, persistence.ErrSessionNotFound) {
+			http.Error(w, "Session not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Error terminating session", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if err := sessionService.TerminateUserSession(r.Context(), sess.UserID(), token); err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 		logger.WithError(err).Error("Failed to terminate session")
 		if errors.Is(err, persistence.ErrSessionNotFound) {
 			http.Error(w, "Session not found", http.StatusNotFound)

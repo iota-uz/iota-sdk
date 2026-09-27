@@ -12,8 +12,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/events"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/handlers"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/pricing"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // simplePendingGeneration tracks an LLM request waiting for its response (simple bridge).
@@ -47,27 +45,6 @@ func WithUserEmailFromContext(fn func(context.Context) string) BridgeOption {
 	}
 }
 
-// WithModelPricing sets model pricing for cost calculation on generations.
-// Pricing fields are added to GenerationObservation.Attributes so the provider
-// can compute cost from token counts.
-func WithModelPricing(inputPer1M, outputPer1M, cacheWritePer1M, cacheReadPer1M float64) BridgeOption {
-	return func(b *EventBridge) {
-		b.pricing = &modelPricing{
-			InputPer1M:      inputPer1M,
-			OutputPer1M:     outputPer1M,
-			CacheWritePer1M: cacheWritePer1M,
-			CacheReadPer1M:  cacheReadPer1M,
-		}
-	}
-}
-
-type modelPricing struct {
-	InputPer1M      float64
-	OutputPer1M     float64
-	CacheWritePer1M float64
-	CacheReadPer1M  float64
-}
-
 // EventBridge connects BiChat's EventBus to observability providers.
 // It subscribes to BiChat events and maps them to provider observations.
 //
@@ -84,7 +61,6 @@ type EventBridge struct {
 	// Optional context extractors
 	userIDFromCtx    func(context.Context) string
 	userEmailFromCtx func(context.Context) string
-	pricing          *modelPricing
 
 	// Correlation state
 	mu                 sync.RWMutex
@@ -592,24 +568,6 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 		attrs["cache_read_tokens"] = e.CacheReadTokens
 	}
 
-	costs := pricing.Compute(e.Model, types.TokenUsage{
-		PromptTokens:     e.PromptTokens,
-		CompletionTokens: e.CompletionTokens,
-		TotalTokens:      e.TotalTokens,
-		CacheWriteTokens: e.CacheWriteTokens,
-		CacheReadTokens:  e.CacheReadTokens,
-	})
-	if costs.Input > 0 {
-		attrs["input_cost"] = costs.Input
-	}
-	if costs.Output > 0 {
-		attrs["output_cost"] = costs.Output
-	}
-	if costs.Total > 0 {
-		attrs["cost"] = costs.Total
-		attrs["total_cost"] = costs.Total
-	}
-
 	// Resolve user ID and email from context for trace enrichment.
 	var userID string
 	if h.bridge.userIDFromCtx != nil {
@@ -675,7 +633,7 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 		obs.Attributes["otel.span_id"] = spanID
 	}
 
-	h.bridge.recordTraceMetrics(obs.TraceID, obs.Timestamp, e.TotalTokens, costs.Total)
+	h.bridge.recordTraceMetrics(obs.TraceID, obs.Timestamp, e.TotalTokens, 0)
 
 	return h.provider.RecordGeneration(ctx, obs)
 }

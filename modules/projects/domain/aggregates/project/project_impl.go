@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 type Option func(p *project)
@@ -33,6 +34,12 @@ func WithDescription(description string) Option {
 	}
 }
 
+func WithContract(contract *money.Money) Option {
+	return func(p *project) {
+		p.contract = contract
+	}
+}
+
 func WithCreatedAt(createdAt time.Time) Option {
 	return func(p *project) {
 		p.createdAt = createdAt
@@ -56,6 +63,7 @@ func New(
 		counterpartyID: counterpartyID,
 		name:           name,
 		description:    "",
+		contract:       nil,
 		createdAt:      time.Now(),
 		updatedAt:      time.Now(),
 	}
@@ -72,6 +80,7 @@ type project struct {
 	counterpartyID uuid.UUID
 	name           string
 	description    string
+	contract       *money.Money
 	createdAt      time.Time
 	updatedAt      time.Time
 }
@@ -117,6 +126,17 @@ func (p *project) Description() string {
 func (p *project) UpdateDescription(description string) Project {
 	res := *p
 	res.description = description
+	res.updatedAt = time.Now()
+	return &res
+}
+
+func (p *project) Contract() *money.Money {
+	return p.contract
+}
+
+func (p *project) UpdateContract(contract *money.Money) Project {
+	res := *p
+	res.contract = contract
 	res.updatedAt = time.Now()
 	return &res
 }

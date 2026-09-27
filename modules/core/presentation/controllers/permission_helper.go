@@ -2,12 +2,61 @@
 package controllers
 
 import (
+	"context"
 	"sort"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	corepermissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 )
+
+func grantableRoles(ctx context.Context, roles []role.Role) []role.Role {
+	actor, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil
+	}
+	result := make([]role.Role, 0, len(roles))
+	for _, candidate := range roles {
+		if candidate.Type() == role.TypeSystem && !actor.Can(corepermissions.RoleAssignSystem) {
+			continue
+		}
+		if services.Dominates(user.EffectivePermissions(actor), candidate.Permissions()) {
+			result = append(result, candidate)
+		}
+	}
+	return result
+}
+
+func grantablePermissionSchema(ctx context.Context, schema *rbac.PermissionSchema) *rbac.PermissionSchema {
+	if schema == nil {
+		return nil
+	}
+	actor, err := composables.UseUser(ctx)
+	if err != nil {
+		return &rbac.PermissionSchema{}
+	}
+
+	filtered := &rbac.PermissionSchema{Sets: make([]rbac.PermissionSet, 0, len(schema.Sets))}
+	for _, set := range schema.Sets {
+		permissions := make([]permission.Permission, 0, len(set.Permissions))
+		for _, candidate := range set.Permissions {
+			if services.Dominates(user.EffectivePermissions(actor), []permission.Permission{candidate}) {
+				permissions = append(permissions, candidate)
+			}
+		}
+		if len(permissions) == 0 {
+			continue
+		}
+		set.Permissions = permissions
+		filtered.Sets = append(filtered.Sets, set)
+	}
+	return filtered
+}
 
 // BuildResourcePermissionGroups builds permission groups organized by resource
 // This is shared between RolesController and UsersController

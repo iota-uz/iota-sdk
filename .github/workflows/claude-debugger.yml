@@ -89,7 +89,7 @@ jobs:
         uses: ./.github/actions/setup-frontend
 
       - name: Install E2E dependencies
-        run: cd e2e && pnpm install --frozen-lockfile
+        run: cd e2e && pnpm install --frozen-lockfile --ignore-workspace
 
       - name: Install Playwright browsers
         run: cd e2e && pnpm exec playwright install chromium

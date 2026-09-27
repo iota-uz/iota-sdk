@@ -39,16 +39,21 @@
 //
 // # Static contributions
 //
-// Components that only need to attach constant data (locale bundles, nav
-// items, quick links, hashfs assets) should use the Add* helpers:
+// Components that only need to attach constant data (nav grouping nodes,
+// hashfs assets) should use the Add* helpers:
 //
-//	composition.AddLocales(builder, &LocaleFiles)
-//	composition.AddNavItems(builder, NavItems...)
-//	composition.AddQuickLinks(builder, spotlight.NewQuickLink(...))
+//	composition.AddNavNodes(builder, NavGroups...)
 //	composition.AddHashFS(builder, assets.HashFS)
 //
 // These are zero-closure equivalents of the corresponding Contribute* factories
-// and make the Build method read as a declarative manifest.
+// and make the Build method read as a declarative manifest. Sidebar leaves and
+// spotlight quick links are derived from controller descriptors
+// (ControllerDescriptor.WithNav), not attached here.
+//
+// Locale files are not declared inside Build; instead each Component exposes
+// its embed.FS values via the Component.LocaleFS method, and the engine wires
+// them at Compile time. This keeps a single source of truth for tooling that
+// needs to read locales without booting the application.
 //
 // # Contribution helpers
 //
@@ -57,8 +62,7 @@
 // know the underlying registry key:
 //
 //   - ContributeControllers / ContributeControllersFunc
-//   - ContributeNavItems
-//   - ContributeLocales
+//   - ContributeNavNodes
 //   - ContributeHooks
 //   - ContributeApplets
 //   - ContributeEventHandler / ContributeEventHandlerFunc

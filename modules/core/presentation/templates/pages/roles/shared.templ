@@ -44,6 +44,26 @@ func getPermissionIds(permissions []*viewmodels.PermissionItem) []string {
 	return ids
 }
 
+func permissionAttrs(attrs templ.Attributes, formID string, inputName string, permissionID string) templ.Attributes {
+	merged := templ.Attributes{}
+	for key, value := range attrs {
+		merged[key] = value
+	}
+
+	if inputName == "" {
+		merged["name"] = fmt.Sprintf("Permissions[%s]", permissionID)
+	} else {
+		merged["name"] = inputName
+		merged["value"] = permissionID
+	}
+
+	if formID != "" {
+		merged["form"] = formID
+	}
+
+	return merged
+}
+
 type SharedProps struct {
 	PageContext types.PageContext
 	Label       string
@@ -55,7 +75,7 @@ type SharedProps struct {
 templ Permission(props SharedProps) {
 	{{ id := random.String(12, random.LowerCharSet) }}
 	<div
-		class="border border-gray-400 bg-surface-100 rounded-md py-2 px-3"
+		class="border border-default bg-surface-100 rounded-md py-2 px-3"
 	>
 		@input.Switch(&input.SwitchProps{
 			ID:           id,
@@ -73,6 +93,8 @@ type PermissionSetProps struct {
 	Set          *viewmodels.PermissionSetItem
 	ResourceName string
 	SetIndex     int
+	Form         string
+	InputName    string
 }
 
 templ PermissionSet(props PermissionSetProps) {
@@ -81,15 +103,13 @@ templ PermissionSet(props PermissionSetProps) {
 	{{ label := tOrKey(props.PageContext, props.Set.Label) }}
 	// For single permission sets, render a simple toggle
 	if len(props.Set.Permissions) == 1 {
-		<div class="border border-gray-400 bg-surface-100 rounded-md py-2 px-3">
+		<div class="border border-default bg-surface-100 rounded-md py-2 px-3">
 			@input.Switch(&input.SwitchProps{
 				ID:           toggleId,
 				Label:        label,
 				LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
 				Checked:      props.Set.Checked,
-				Attrs: templ.Attributes{
-					"name": fmt.Sprintf("Permissions[%s]", props.Set.Permissions[0].ID),
-				},
+				Attrs:        permissionAttrs(templ.Attributes{}, props.Form, props.InputName, props.Set.Permissions[0].ID),
 			})
 			if props.Set.Description != "" {
 				<p class="text-sm text-gray-600 mt-1">{ tOrKey(props.PageContext,props.Set.Description) }</p>
@@ -98,7 +118,7 @@ templ PermissionSet(props PermissionSetProps) {
 	} else {
 		// For multiple permissions, render with accordion
 		<div
-			class="border border-gray-400 bg-surface-100 rounded-md"
+			class="border border-default bg-surface-100 rounded-md"
 			x-data={ fmt.Sprintf("createPermissionSetData(%t, %t, %s, '%s')", props.Set.Checked, props.Set.Partial, toJSON(getPermissionIds(props.Set.Permissions)), setId) }
 			x-init="init()"
 			@change="updateState()"
@@ -109,7 +129,7 @@ templ PermissionSet(props PermissionSetProps) {
 					<div class="flex items-center gap-3 flex-1">
 						<button type="button" class="flex items-center justify-between w-full" @click="toggleAll()">
 							<span class="text-sm">{ label }</span>
-							{{ toggleClasses := "bg-gray-200 after:border-gray-300" }}
+							{{ toggleClasses := "bg-gray-200 after:border-default" }}
 							{{
 								if props.Set.Checked {
 									toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
@@ -137,7 +157,7 @@ templ PermissionSet(props PermissionSetProps) {
 			<div
 				x-show="expanded"
 				x-collapse
-				class="border-t border-gray-300"
+				class="border-t border-default"
 			>
 				<div class="p-3 space-y-2">
 					for _, perm := range props.Set.Permissions {
@@ -147,11 +167,10 @@ templ PermissionSet(props PermissionSetProps) {
 								Label:        tOrKey(props.PageContext, fmt.Sprintf("Permissions.%s", perm.Name)),
 								LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
 								Checked:      perm.Checked,
-								Attrs: templ.Attributes{
-									"name":               fmt.Sprintf("Permissions[%s]", perm.ID),
+								Attrs: permissionAttrs(templ.Attributes{
 									"@change":            "updateState()",
 									"data-permission-id": perm.ID,
-								},
+								}, props.Form, props.InputName, perm.ID),
 							})
 						</div>
 					}
@@ -165,6 +184,8 @@ type ResourceGroupProps struct {
 	PageContext   types.PageContext
 	ResourceGroup *viewmodels.ResourcePermissionGroup
 	GroupIndex    int
+	Form          string
+	InputName     string
 }
 
 templ ResourceGroup(props ResourceGroupProps) {
@@ -198,7 +219,7 @@ templ ResourceGroup(props ResourceGroupProps) {
 		<div class="flex items-center mb-2">
 			<button type="button" class="flex items-center justify-between w-full font-medium text-lg cursor-pointer" @click="toggleAll()">
 				<span>{ tOrKey(props.PageContext,fmt.Sprintf("Resources.%s", props.ResourceGroup.Resource)) }</span>
-				{{ toggleClasses := "bg-gray-200 after:border-gray-300" }}
+				{{ toggleClasses := "bg-gray-200 after:border-default" }}
 				{{
 					if allChecked {
 						toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
@@ -217,6 +238,8 @@ templ ResourceGroup(props ResourceGroupProps) {
 					Set:          set,
 					ResourceName: props.ResourceGroup.Resource,
 					SetIndex:     i,
+					Form:         props.Form,
+					InputName:    props.InputName,
 				})
 			}
 		</div>

@@ -1,4 +1,19 @@
 {
+  "Authorization": {
+    "Errors": {
+      "Title": "Action not allowed",
+      "GrantCeiling": "You cannot assign this access because it includes permissions your account does not have. Changes were not saved.",
+      "TargetDominance": "You cannot administer this user, role, or group because it has a higher access level. Changes were not saved.",
+      "TenantBoundary": "This item is not available in your organization. Changes were not saved.",
+      "SystemRole": "You cannot assign this system role. Changes were not saved.",
+      "SystemGroup": "You cannot assign this system group. Changes were not saved.",
+      "SelfAdmin": "Use your account settings to edit your own profile. Administrative changes were not saved.",
+      "InvalidSelection": "One of the selected access options is invalid or unavailable. Changes were not saved."
+    },
+    "Notices": {
+      "ReadOnlyTarget": "This item has a higher access level. You can view it, but you cannot modify it."
+    }
+  },
   "Account": {
     "Meta": {
       "Index": {
@@ -33,6 +48,7 @@
       "Placeholder": "Enter phone number"
     },
     "Password": "Password",
+    "ChangePassword": {"Title":"Change password","DescText":"Changing your password signs you out on every device.","CurrentPassword":"Current password","NewPassword":"New password","ConfirmPassword":"Confirm new password","Submit":"Change password","Errors":{"CurrentRequired":"Enter your current password.","CurrentIncorrect":"The current password is incorrect.","NewTooShort":"The new password must contain at least 8 characters.","ConfirmationMismatch":"The password confirmation does not match."}},
     "Save": "Save",
     "Logo": {
       "FullLogo": "Full Logo",
@@ -89,6 +105,9 @@
   "Chart": {
     "CloseFullScreen": "Close fullscreen",
     "ExpandToFullScreen": "Expand to fullscreen",
+    "ExportExcel": "Export to Excel",
+    "ExportGenerating": "Generating Excel report…",
+    "ExportFailed": "Export failed. Please try again.",
     "LogScale": "Log scale",
     "LogScaleHint": "Values are shown on a logarithmic scale",
     "MetricInfo": "How this metric is calculated"
@@ -122,7 +141,11 @@
     }
   },
   "Common": {
-    "Loading": "Loading..."
+    "CloseNotification": "Close notification",
+    "TabNavigation": "Tab navigation",
+    "Loading": "Loading...",
+    "LoadFailed": "Could not load data",
+    "Retry": "Retry"
   },
   "ConfirmDelete": "Are you sure you want to delete this item?",
   "Countries": {
@@ -366,7 +389,8 @@
     "ToExcel": "Export to Excel",
     "ToCSV": "Export to CSV",
     "ToJSON": "Export to JSON",
-    "ToTXT": "Export to TXT"
+    "ToTXT": "Export to TXT",
+    "Preparing": "Preparing your file…"
   },
   "Filters": {
     "CreatedAt": {
@@ -442,14 +466,20 @@
     "WelcomeBack": "Welcome back",
     "LoginToUse": "Log in to use IOTA ERP",
     "LoginWithGoogle": "Log in with Google",
-    "OrSignInWith": "Or sign in with...",
+		"OrSignInWith": "Or sign in with...",
+		"Or": "Or",
+		"ChooseAccount": "Choose an account",
+		"UseAnotherAccount": "Use another account",
+		"ActiveAccount": "Active",
     "Errors": {
       "PasswordInvalid": "Email or password is invalid",
       "OauthStateNotFound": "oAuth state not found. Please, try again.",
       "OauthStateInvalid": "Invalid oAuth state. Please, try again.",
       "OauthCodeNotFound": "oAuth code not found. Please, try again.",
       "UserNotFound": "User not found",
-      "AccountBlocked": "Your account has been blocked. Please contact administrator."
+			"AccountBlocked": "Your account has been blocked. Please contact administrator.",
+			"SessionExpired": "That account session expired. Sign in again or choose another account."
+			,"AuthorizationRequestInvalid": "This authorization request is no longer valid. Return to the application and start again."
     }
   },
   "Modules": {
@@ -468,6 +498,7 @@
     "Website": "Website"
   },
   "NavigationLinks": {
+    "QuickLinks": "Quick links",
     "Dashboard": "Dashboard",
     "Administration": "Administration",
     "Users": "Users",
@@ -576,9 +607,14 @@
     "Navbar": {
       "Profile": "Profile",
       "Sessions": "Sessions",
-      "Logout": "Logout",
+			"Logout": "Logout",
+			"CurrentAccount": "Current account",
+			"AddAccount": "Add account",
+			"LogoutCurrent": "Logout current",
+			"LogoutAll": "Logout all accounts",
       "Settings": "Settings"
-    }
+    },
+    "Departments": "Departments"
   },
   "No": "No",
   "PerPage": "Per page",
@@ -914,6 +950,34 @@
     "Filters": {
       "Title": "Filters",
       "SelectAll": "Select All"
+    },
+    "FilterBuilder": {
+      "AddFilter": "Add filter",
+      "ClearAll": "Clear all",
+      "Apply": "Apply",
+      "SearchFields": "Search filters...",
+      "SelectValues": "Select values...",
+      "NothingFound": "Nothing found",
+      "Remove": "Remove filter",
+      "Operators": {
+        "Is": "is",
+        "IsNot": "is not",
+        "Before": "before",
+        "After": "after",
+        "On": "on",
+        "Between": "between",
+        "Eq": "=",
+        "Gt": ">",
+        "Lt": "<"
+      },
+      "Presets": {
+        "ThisMonth": "This month",
+        "LastMonth": "Last month",
+        "Last30Days": "Last 30 days",
+        "Next30Days": "Next 30 days",
+        "ThisYear": "This year",
+        "LastYear": "Last year"
+      }
     }
   },
   "Search": "Search",
@@ -922,6 +986,9 @@
   "UploadLabel": "Upload File",
   "UploadPlaceholder": "Choose a file to upload",
   "DownloadTemplate": "Download Template",
+  "Running": "Running…",
+  "Warnings": "Warnings",
+  "Confirm": "Confirm",
   "Example": {
     "Below": "See example below"
   },
@@ -1049,11 +1116,17 @@
       "FullName": "Full name",
       "Roles": "Roles",
       "Email": "Email",
-      "AllGroups": "All Groups",
-      "AllRoles": "All Roles",
       "Filters": "Filters",
-      "ExpandFilters": "Expand filters",
-      "CollapseFilters": "Collapse filters"
+      "FilterRole": "Role",
+      "FilterGroup": "Group",
+      "FilterCreatedAt": "Created at",
+      "FilterUpdatedAt": "Updated at",
+      "FilterStatus": "Status",
+      "FilterStatusActive": "Active",
+      "FilterStatusBlocked": "Blocked",
+      "FilterType": "Type",
+      "FilterTypeRegular": "Regular",
+      "FilterTypeSystem": "System"
     },
     "Cards": {
       "PersonalInfo": "Personal information",
@@ -1092,6 +1165,7 @@
       "Access": "Access"
     },
     "Blocked": "Blocked",
+    "NoRole": "No role",
     "Block": {
       "Title": "Block User",
       "Button": "Block User",
@@ -1104,7 +1178,8 @@
       "Errors": {
         "ReasonRequired": "Block reason is required",
         "ReasonTooShort": "Block reason must be at least 3 characters",
-        "ReasonTooLong": "Block reason must not exceed 1024 characters"
+        "ReasonTooLong": "Block reason must not exceed 1024 characters",
+        "OperationFailed": "Unable to block user. Please try again."
       }
     },
     "Unblock": {
@@ -1274,5 +1349,94 @@
       "Title": "Settings",
       "BackToApp": "Back to app"
     }
-  }
+  },
+  "Departments": {
+    "Meta": {
+      "List": {
+        "Title": "Departments List"
+      },
+      "Edit": {
+        "Title": "Edit department"
+      },
+      "New": {
+        "Title": "New department"
+      }
+    },
+    "List": {
+      "New": "New department",
+      "Name": "Name",
+      "Code": "Code",
+      "Parent": "Parent",
+      "Status": "Status",
+      "NoDepartments": {
+        "Title": "No departments found",
+        "_Description": "Create your first department by clicking the 'New department' button"
+      }
+    },
+    "Single": {
+      "Name": "Name",
+      "Code": "Code",
+      "Parent": "Parent department",
+      "NoParent": "No parent",
+      "Order": "Order",
+      "Status": "Status",
+      "EnterName": "Enter name",
+      "EnterCode": "Enter code",
+      "EnterOrder": "Enter order"
+    },
+    "Status": {
+      "Active": "Active",
+      "Inactive": "Inactive"
+    },
+    "Errors": {
+      "SelfLoop": "A department cannot be its own parent.",
+      "Cycle": "This parent would create a circular hierarchy.",
+      "DuplicateCode": "This code is already in use by another department.",
+      "ParentNotFound": "The selected parent department was not found."
+    }
+  },
+  "Positions": {
+    "Meta": {
+      "List": {
+        "Title": "Positions List"
+      },
+      "Edit": {
+        "Title": "Edit position"
+      },
+      "New": {
+        "Title": "New position"
+      }
+    },
+    "List": {
+      "New": "New position",
+      "Title": "Title",
+      "User": "User",
+      "Department": "Department",
+      "Role": "Role",
+      "Status": "Status",
+      "NoPositions": {
+        "Title": "No positions found",
+        "_Description": "Create your first position by clicking the 'New position' button"
+      }
+    },
+    "Single": {
+      "Title": "Title",
+      "User": "User",
+      "SelectUser": "Select user",
+      "Department": "Department",
+      "SelectDepartment": "Select department",
+      "IsManager": "Manager",
+      "IsPrimary": "Primary",
+      "Status": "Status",
+      "EnterTitle": "Enter title"
+    },
+    "Status": {
+      "Active": "Active",
+      "Inactive": "Inactive"
+    }
+  },
+  "Error": {
+    "ProcessingFailed": "Import Failed"
+  },
+  "DryRunNotice": "This is a preview — no data has been changed yet. Review the results above, then confirm to apply the import."
 }

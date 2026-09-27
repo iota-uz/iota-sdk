@@ -70,7 +70,7 @@ templ TransferDrawer(props *TransferDrawerProps) {
 								required
 								id="destination-account-select"
 								data-source-currency={ props.SourceAccount.CurrencyCode }
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								class="w-full rounded-md border-default shadow-sm focus:border-blue-500 focus:ring-blue-500"
 								onchange="checkCurrencyMismatch()"
 							>
 								<option value="">{ pageCtx.T("Transfers.Single.SelectDestinationAccount") }</option>
@@ -154,7 +154,7 @@ templ TransferDrawer(props *TransferDrawerProps) {
 					</div>
 				</div>
 				<!-- Footer with buttons -->
-				<div class="p-6 border-t border-gray-200 flex justify-end gap-3">
+				<div class="p-6 border-t border-subtle flex justify-end gap-3">
 					@button.Secondary(button.Props{
 						Attrs: templ.Attributes{
 							"type":   "button",

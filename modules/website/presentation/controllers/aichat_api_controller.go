@@ -38,8 +38,8 @@ func NewAIChatAPIController(cfg AIChatAPIControllerConfig) application.Controlle
 	}
 }
 
-func (c *AIChatAPIController) Key() string {
-	return "AIChatAPIController"
+func (c *AIChatAPIController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("website.aichat_api", 0, application.Route("", c.basePath))
 }
 
 func (c *AIChatAPIController) Register(r *mux.Router) {

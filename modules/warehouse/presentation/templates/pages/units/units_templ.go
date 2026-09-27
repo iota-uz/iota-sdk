@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -100,7 +101,7 @@ func UnitsTable(props *IndexPageProps) templ.Component {
 							var templ_7745c5c3_Var5 string
 							templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(unit.Title)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/units/units.templ`, Line: 40, Col: 19}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/units/units.templ`, Line: 41, Col: 19}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 							if templ_7745c5c3_Err != nil {
@@ -131,7 +132,7 @@ func UnitsTable(props *IndexPageProps) templ.Component {
 							var templ_7745c5c3_Var7 string
 							templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(unit.ShortTitle)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/units/units.templ`, Line: 43, Col: 24}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/units/units.templ`, Line: 44, Col: 24}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 							if templ_7745c5c3_Err != nil {
@@ -166,7 +167,7 @@ func UnitsTable(props *IndexPageProps) templ.Component {
 							var templ_7745c5c3_Var9 string
 							templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", unit.UpdatedAt))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/units/units.templ`, Line: 47, Col: 66}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/units/units.templ`, Line: 48, Col: 66}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 							if templ_7745c5c3_Err != nil {
@@ -287,20 +288,28 @@ func UnitsContent(props *IndexPageProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"m-6\"><h1 class=\"text-2xl font-medium\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"m-6\"><div class=\"flex items-center gap-2\"><h1 class=\"text-2xl font-medium\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NavigationLinks.WarehouseUnits"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/units/units.templ`, Line: 69, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/units/units.templ`, Line: 71, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</h1><div class=\"mt-5 bg-surface-600 border border-primary rounded-lg\"><form class=\"p-4 flex items-center gap-3\" hx-get=\"/warehouse/units\" hx-trigger=\"keyup changed delay:500ms from:(form input), change changed from:(form select)\" hx-target=\".table-wrapper\" hx-swap=\"outerHTML\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</h1>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/warehouse.md"}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div><div class=\"mt-5 bg-surface-600 border border-primary rounded-lg\"><form class=\"p-4 flex items-center gap-3\" hx-get=\"/warehouse/units\" hx-trigger=\"keyup changed delay:500ms from:(form input), change changed from:(form select)\" hx-target=\".table-wrapper\" hx-swap=\"outerHTML\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -334,7 +343,7 @@ func UnitsContent(props *IndexPageProps) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("WarehouseUnits.List.New"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/units/units.templ`, Line: 95, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/units/units.templ`, Line: 99, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -349,7 +358,7 @@ func UnitsContent(props *IndexPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -357,7 +366,7 @@ func UnitsContent(props *IndexPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

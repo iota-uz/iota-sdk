@@ -39,6 +39,11 @@ var (
 			VerboseName: "Ўзбекча",
 			Tag:         language.Make("uz-Cyrl"),
 		},
+		{
+			Code:        "pt-BR",
+			VerboseName: "Português (Brasil)",
+			Tag:         language.Make("pt-BR"),
+		},
 	}
 
 	// SupportedLanguages is the default list (all languages) for backward compatibility

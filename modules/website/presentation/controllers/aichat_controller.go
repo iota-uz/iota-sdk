@@ -8,6 +8,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/mappers"
@@ -36,8 +37,15 @@ func NewAIChatController(cfg AIChatControllerConfig) application.Controller {
 	}
 }
 
-func (c *AIChatController) Key() string {
-	return "AiChatController"
+func (c *AIChatController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("website.aichat", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "website.aichat",
+			Parent:   "website",
+			TitleKey: "NavigationLinks.AIChatbot",
+			Path:     c.basePath,
+			Icon:     icons.Robot(icons.Props{Size: "20"}),
+		})
 }
 
 func (c *AIChatController) Register(r *mux.Router) {

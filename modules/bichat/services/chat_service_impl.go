@@ -23,10 +23,18 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const streamPersistenceTimeout = 10 * time.Second
+// streamPersistenceTimeout bounds each detached persistence transaction that
+// outlives the client request: stream finalize (assistant message + session,
+// and best-effort artifacts), HITL resume/reject, history clear/compact, and
+// run-state writes. Deep-mode runs produce large payloads, so this is generous:
+// a too-tight budget previously discarded fully-generated answers when
+// persistence overran it (see #2998).
+const streamPersistenceTimeout = 30 * time.Second
 const titleGenerationFallbackTimeout = 15 * time.Second
 const streamSnapshotThrottle = 2 * time.Second
 const remoteResumePollInterval = time.Second
+const runStateFinalizationAttempts = 3
+const runStateFinalizationRetryDelay = 25 * time.Millisecond
 
 // chatServiceImpl is the production implementation of ChatService.
 // It orchestrates chat sessions, messages, and agent execution.
@@ -138,6 +146,15 @@ func (s *chatServiceImpl) logEntry() *logrus.Entry {
 		return nil
 	}
 	return logrus.NewEntry(s.logger)
+}
+
+// log returns the service logger, falling back to the standard logger when none
+// was injected. Used by critical-path error logging that must never be silenced.
+func (s *chatServiceImpl) log() *logrus.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return logrus.StandardLogger()
 }
 
 // CloseSharedRedis releases the shared *redis.Client created by
@@ -305,6 +322,64 @@ func (s *chatServiceImpl) createRunState(ctx context.Context, run domain.Generat
 	return created, nil
 }
 
+func (s *chatServiceImpl) createRunStateRecoveringOrphan(
+	ctx context.Context,
+	run domain.GenerationRun,
+) (bool, error) {
+	created, err := s.createRunState(ctx, run)
+	if err == nil || !errors.Is(err, domain.ErrActiveRunExists) {
+		return created, err
+	}
+
+	persistedRun, persistedErr := s.runState.GetPersistedRunForSession(
+		ctx,
+		run.TenantID(),
+		run.SessionID(),
+	)
+	if persistedErr != nil {
+		return false, err
+	}
+	databaseRun, databaseErr := s.chatRepo.GetActiveRunBySession(ctx, run.SessionID())
+	if databaseErr != nil || databaseRun == nil {
+		return false, err
+	}
+
+	// PostgreSQL owns the durable run lifecycle. CreateRun has already inserted
+	// the new row in this transaction, so a different Redis run for the same
+	// session can only be residue from a finalization that completed in SQL but
+	// failed before clearing Redis. A genuinely concurrent run would have
+	// prevented the PostgreSQL insert through its unique active-run constraint.
+	if databaseRun.ID() != run.ID() || persistedRun.ID() == run.ID() {
+		return false, err
+	}
+
+	if clearErr := s.finalizeRunState(
+		ctx,
+		run.TenantID(),
+		run.SessionID(),
+		persistedRun.ID(),
+		string(domain.GenerationRunStatusFailed),
+		s.runState.FailRunState,
+	); clearErr != nil {
+		return false, serrors.E("chatServiceImpl.createRunStateRecoveringOrphan", clearErr)
+	}
+	s.publishTerminalStatus(
+		ctx,
+		run.TenantID(),
+		run.SessionID(),
+		persistedRun.ID(),
+		string(domain.GenerationRunStatusFailed),
+	)
+	s.log().WithFields(logrus.Fields{
+		"tenant_id":          run.TenantID().String(),
+		"session_id":         run.SessionID().String(),
+		"orphaned_run_id":    persistedRun.ID().String(),
+		"replacement_run_id": run.ID().String(),
+	}).Warn("bichat: recovered orphaned redis generation run")
+
+	return s.createRunState(ctx, run)
+}
+
 func (s *chatServiceImpl) getPersistedRun(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
 	return s.runState.GetPersistedRun(ctx, sessionID)
 }
@@ -318,7 +393,19 @@ func (s *chatServiceImpl) updateRunSnapshot(ctx context.Context, tenantID, sessi
 }
 
 func (s *chatServiceImpl) completeRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
-	err := s.runState.CompleteRunState(ctx, tenantID, sessionID, runID)
+	if err := s.withinTx(context.WithoutCancel(ctx), func(txCtx context.Context) error {
+		return s.chatRepo.CompleteRun(txCtx, runID)
+	}); err != nil {
+		return err
+	}
+	err := s.finalizeRunState(
+		ctx,
+		tenantID,
+		sessionID,
+		runID,
+		string(domain.GenerationRunStatusCompleted),
+		s.runState.CompleteRunState,
+	)
 	if err == nil {
 		s.publishTerminalStatus(ctx, tenantID, sessionID, runID, string(domain.GenerationRunStatusCompleted))
 	}
@@ -326,11 +413,64 @@ func (s *chatServiceImpl) completeRunState(ctx context.Context, tenantID, sessio
 }
 
 func (s *chatServiceImpl) cancelRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
-	err := s.runState.CancelRunState(ctx, tenantID, sessionID, runID)
+	if err := s.withinTx(context.WithoutCancel(ctx), func(txCtx context.Context) error {
+		return s.chatRepo.CancelRun(txCtx, runID)
+	}); err != nil {
+		return err
+	}
+	err := s.finalizeRunState(
+		ctx,
+		tenantID,
+		sessionID,
+		runID,
+		string(domain.GenerationRunStatusCancelled),
+		s.runState.CancelRunState,
+	)
 	if err == nil {
 		s.publishTerminalStatus(ctx, tenantID, sessionID, runID, string(domain.GenerationRunStatusCancelled))
 	}
 	return err
+}
+
+func (s *chatServiceImpl) finalizeRunState(
+	ctx context.Context,
+	tenantID, sessionID, runID uuid.UUID,
+	terminalStatus string,
+	finalize func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error,
+) error {
+	const op serrors.Op = "chatServiceImpl.finalizeRunState"
+
+	var finalErr error
+	for attempt := 1; attempt <= runStateFinalizationAttempts; attempt++ {
+		finalErr = finalize(ctx, tenantID, sessionID, runID)
+		if finalErr == nil {
+			return nil
+		}
+		if attempt == runStateFinalizationAttempts || ctx.Err() != nil {
+			break
+		}
+
+		timer := time.NewTimer(time.Duration(attempt) * runStateFinalizationRetryDelay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			finalErr = errors.Join(finalErr, ctx.Err())
+			attempt = runStateFinalizationAttempts
+		case <-timer.C:
+		}
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil && !errors.Is(finalErr, ctxErr) {
+		finalErr = errors.Join(finalErr, ctxErr)
+	}
+
+	s.log().WithError(finalErr).WithFields(logrus.Fields{
+		"tenant_id":       tenantID.String(),
+		"session_id":      sessionID.String(),
+		"run_id":          runID.String(),
+		"terminal_status": terminalStatus,
+		"attempts":        runStateFinalizationAttempts,
+	}).Error("bichat: failed to finalize generation run state")
+	return serrors.E(op, finalErr)
 }
 
 // publishTerminalStatus is the single choke point for emitting the last
@@ -355,32 +495,121 @@ func (s *chatServiceImpl) startAsyncRun(
 	ctx context.Context,
 	sessionID uuid.UUID,
 	operation bichatservices.AsyncRunOperation,
+	idempotencyKey string,
 	prepare func(txCtx context.Context, session domain.Session) error,
 	worker asyncRunWorker,
 ) (bichatservices.AsyncRunAccepted, error) {
 	const op serrors.Op = "chatServiceImpl.startAsyncRun"
 
 	var (
-		session         domain.Session
-		run             domain.GenerationRun
-		err             error
-		runStateCreated bool
+		session     domain.Session
+		run         domain.GenerationRun
+		err         error
+		existingRun bool
 	)
 	err = s.withinTx(ctx, func(txCtx context.Context) error {
 		session, err = s.chatRepo.GetSession(txCtx, sessionID)
 		if err != nil {
 			return serrors.E(op, err)
 		}
-		run, err = domain.NewGenerationRun(domain.GenerationRunSpec{
-			SessionID: sessionID,
-			TenantID:  session.TenantID(),
-			UserID:    session.UserID(),
-		})
-		if err != nil {
-			return serrors.E(op, serrors.KindValidation, err)
+		var runID uuid.UUID
+		databaseRunReady := false
+		if strings.TrimSpace(idempotencyKey) != "" {
+			runID = continuationRunID(session.TenantID(), sessionID, idempotencyKey)
+			run, err = s.chatRepo.GetRunByID(txCtx, runID)
+			if err == nil {
+				if run.SessionID() != sessionID || run.TenantID() != session.TenantID() {
+					return serrors.E(op, serrors.KindValidation, "idempotent run belongs to another session")
+				}
+				switch run.Status() {
+				case domain.GenerationRunStatusCompleted:
+					existingRun = true
+					return nil
+				case domain.GenerationRunStatusStreaming:
+					lastSeen := run.LastUpdatedAt()
+					if lastSeen.IsZero() {
+						lastSeen = run.StartedAt()
+					}
+					if !lastSeen.Before(time.Now().Add(-domain.GenerationRunStaleAfter)) {
+						existingRun = true
+						return nil
+					}
+				case domain.GenerationRunStatusCancelled, domain.GenerationRunStatusFailed:
+					// Terminal failures are retryable under the same
+					// idempotency key and deterministic run id.
+				default:
+					return serrors.E(op, serrors.KindValidation, "unsupported generation run status")
+				}
+
+				run, err = s.chatRepo.RestartRun(
+					txCtx,
+					runID,
+					time.Now().Add(-domain.GenerationRunStaleAfter),
+				)
+				if err == nil {
+					databaseRunReady = true
+				} else {
+					if !errors.Is(err, domain.ErrRunNotFound) {
+						return serrors.E(op, err)
+					}
+
+					// Another process may have won the restart race. Re-read the
+					// deterministic row and accept its live/completed result.
+					run, err = s.chatRepo.GetRunByID(txCtx, runID)
+					if err != nil {
+						return serrors.E(op, err)
+					}
+					if run.SessionID() != sessionID || run.TenantID() != session.TenantID() {
+						return serrors.E(op, serrors.KindValidation, "idempotent run belongs to another session")
+					}
+					if run.Status() == domain.GenerationRunStatusStreaming ||
+						run.Status() == domain.GenerationRunStatusCompleted {
+						existingRun = true
+						return nil
+					}
+					return serrors.E(op, domain.ErrActiveRunExists)
+				}
+			}
+			if err != nil && !errors.Is(err, domain.ErrRunNotFound) {
+				return serrors.E(op, err)
+			}
 		}
-		runStateCreated, err = s.createRunState(txCtx, run)
+		if !databaseRunReady {
+			run, err = domain.NewGenerationRun(domain.GenerationRunSpec{
+				ID:        runID,
+				SessionID: sessionID,
+				TenantID:  session.TenantID(),
+				UserID:    session.UserID(),
+			})
+			if err != nil {
+				return serrors.E(op, serrors.KindValidation, err)
+			}
+			if err := s.chatRepo.CreateRun(txCtx, run); err != nil {
+				if strings.TrimSpace(idempotencyKey) != "" &&
+					errors.Is(err, domain.ErrActiveRunExists) {
+					concurrent, getErr := s.chatRepo.GetRunByID(txCtx, run.ID())
+					if getErr == nil &&
+						concurrent.SessionID() == sessionID &&
+						concurrent.TenantID() == session.TenantID() &&
+						(concurrent.Status() == domain.GenerationRunStatusStreaming ||
+							concurrent.Status() == domain.GenerationRunStatusCompleted) {
+						run = concurrent
+						existingRun = true
+						return nil
+					}
+				}
+				return serrors.E(op, err)
+			}
+		}
+		_, err = s.createRunStateRecoveringOrphan(txCtx, run)
 		if err != nil {
+			return serrors.E(op, err)
+		}
+		// Create the journal before accepting the run. HITL may produce no
+		// chunks while the model is working; an absent key ends Redis tailing.
+		if err := s.appendRunEvent(txCtx, session.TenantID(), sessionID, run.ID(), bichatservices.StreamChunk{
+			Type: bichatservices.ChunkTypeStreamStarted, RunID: run.ID().String(), Timestamp: time.Now(),
+		}); err != nil {
 			return serrors.E(op, err)
 		}
 		if prepare != nil {
@@ -391,10 +620,19 @@ func (s *chatServiceImpl) startAsyncRun(
 		return nil
 	})
 	if err != nil {
-		if runStateCreated && run != nil && session != nil {
+		if run != nil && session != nil {
 			_ = s.cancelRunState(context.WithoutCancel(ctx), session.TenantID(), sessionID, run.ID())
 		}
 		return bichatservices.AsyncRunAccepted{}, serrors.E(op, err)
+	}
+	if existingRun {
+		return bichatservices.AsyncRunAccepted{
+			Accepted:  true,
+			Operation: operation,
+			SessionID: sessionID,
+			RunID:     run.ID(),
+			StartedAt: run.StartedAt(),
+		}, nil
 	}
 
 	processCtx, cancelProcess := context.WithCancel(context.WithoutCancel(ctx))
@@ -405,7 +643,11 @@ func (s *chatServiceImpl) startAsyncRun(
 
 	persistCtx := context.WithoutCancel(ctx)
 	persistCtx = context.WithValue(persistCtx, constants.TxKey, nil)
-	go worker(processCtx, persistCtx, run.ID(), session, active)
+	s.mirrorRunEvents(persistCtx, session.TenantID(), active)
+	go func() {
+		defer s.expireRunEvents(persistCtx, session.TenantID(), sessionID, run.ID())
+		worker(processCtx, persistCtx, run.ID(), session, active)
+	}()
 
 	return bichatservices.AsyncRunAccepted{
 		Accepted:  true,
@@ -414,6 +656,11 @@ func (s *chatServiceImpl) startAsyncRun(
 		RunID:     run.ID(),
 		StartedAt: active.StartedAt,
 	}, nil
+}
+
+func continuationRunID(tenantID, sessionID uuid.UUID, idempotencyKey string) uuid.UUID {
+	name := tenantID.String() + "/" + sessionID.String() + "/" + strings.TrimSpace(idempotencyKey)
+	return uuid.NewSHA1(uuid.NameSpaceURL, []byte("iota-sdk/bichat/continuation/"+name))
 }
 
 // ResumeStream attaches to an active run and streams snapshot then new chunks.
@@ -609,7 +856,10 @@ func (s *chatServiceImpl) TailRunEvents(
 	lastID := from
 	for _, evt := range replayed {
 		if err := ctx.Err(); err != nil {
-			return nil //nolint:nilerr // context cancelled — clean stop, not an error
+			if errors.Is(err, context.Canceled) {
+				return nil
+			}
+			return serrors.E(op, bichatservices.ErrRunEventStreamInterrupted)
 		}
 		onEvent(bichatservices.RunEventDelivery{
 			StreamID: evt.StreamID,
@@ -630,15 +880,24 @@ func (s *chatServiceImpl) TailRunEvents(
 	}
 	for evt := range tailCh {
 		if err := ctx.Err(); err != nil {
-			return nil //nolint:nilerr // context cancelled — clean stop, not an error
+			if errors.Is(err, context.Canceled) {
+				return nil
+			}
+			return serrors.E(op, bichatservices.ErrRunEventStreamInterrupted)
 		}
 		onEvent(bichatservices.RunEventDelivery{
 			StreamID: evt.StreamID,
 			Type:     evt.Type,
 			Payload:  append([]byte(nil), evt.Payload...),
 		})
+		if IsRunEventTerminal(evt.Type) {
+			return nil
+		}
 	}
-	return nil
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return nil
+	}
+	return serrors.E(op, bichatservices.ErrRunEventStreamInterrupted)
 }
 
 // TailActiveRuns delivers the per-tenant sidebar view: snapshot rows
@@ -937,7 +1196,12 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		if err != nil {
 			return serrors.E(op, serrors.KindValidation, err)
 		}
-		runStateCreated, err = s.createRunState(txCtx, run)
+		if s.runState.Enabled() {
+			if err := s.chatRepo.CreateRun(txCtx, run); err != nil {
+				return serrors.E(op, err)
+			}
+		}
+		runStateCreated, err = s.createRunStateRecoveringOrphan(txCtx, run)
 		if err != nil {
 			return err
 		}
@@ -1009,27 +1273,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// Clear TxKey so persistence always opens its own durable transaction.
 	persistCtx = context.WithValue(persistCtx, constants.TxKey, nil)
 
-	// When a Redis event log is configured, mirror every broadcast into
-	// bichat:run-events:{tenant}:{run_id} so out-of-process readers (the
-	// SSE controller on a reconnect, or another replica of the server)
-	// can tail/replay via Last-Event-ID. Mirror failures are logged
-	// implicitly by the log implementation and deliberately do not break
-	// the in-memory path — an error appending to Redis should not abort
-	// a live agent streaming to its primary client.
-	if s.eventLog != nil {
-		tenantID := session.TenantID()
-		runID := run.ID()
-		active.SetMirror(func(chunk bichatservices.StreamChunk) {
-			eventType, body, err := encodeRunEventFromChunk(chunk)
-			if err != nil {
-				return
-			}
-			_, _ = s.eventLog.Append(persistCtx, tenantID, runID, RunEvent{
-				Type:    eventType,
-				Payload: body,
-			})
-		})
-	}
+	s.mirrorRunEvents(persistCtx, session.TenantID(), active)
 
 	go s.runStreamLoop(processCtx, persistCtx, run.ID(), req, session, domainAttachments, startedAt, active)
 
@@ -1285,6 +1529,12 @@ func (s *chatServiceImpl) runStreamLoop(
 	}
 
 	if processCtx.Err() != nil {
+		s.log().
+			WithError(serrors.E(op, processCtx.Err())).
+			WithField("session_id", req.SessionID.String()).
+			WithField("run_id", runID.String()).
+			WithField("tenant_id", session.TenantID().String()).
+			Error("bichat: stream generation context ended before finalization")
 		active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, processCtx.Err()), 0))
 		_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 		return
@@ -1335,35 +1585,61 @@ func (s *chatServiceImpl) runStreamLoop(
 		QuestionData: assistantQuestionData,
 	})
 	if err != nil {
+		s.log().
+			WithError(serrors.E(op, serrors.KindValidation, err)).
+			WithField("session_id", req.SessionID.String()).
+			WithField("run_id", runID.String()).
+			WithField("tenant_id", session.TenantID().String()).
+			WithField("content_len", len(assistantContent)).
+			WithField("tool_calls", len(savedToolCalls)).
+			Error("bichat: assistant message failed validation before persistence")
 		active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, serrors.KindValidation, err), 0))
 		_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 		return
 	}
-	persistCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
-	defer persistCancel()
 
-	err = s.withinTx(persistCtx, func(txCtx context.Context) error {
-		if err := s.chatRepo.SaveMessage(txCtx, assistantMsg); err != nil {
-			return serrors.E(op, err)
-		}
-		if err := s.persistGeneratedArtifacts(txCtx, session, assistantMsg.ID(), artifactMap); err != nil {
-			return serrors.E(op, err)
-		}
-		session = session.SetPreviousResponseID(providerResponseID, time.Now())
-		if err := s.chatRepo.UpdateSession(txCtx, session); err != nil {
-			return serrors.E(op, err)
-		}
-		return nil
-	})
-	if err != nil {
+	// Persistence is split into a small, retried CRITICAL transaction (the
+	// assistant message + the session's previous-response pointer) and a
+	// BEST-EFFORT artifact transaction. The rendered answer is the
+	// irreplaceable artifact, so it must survive even when artifact writes or a
+	// transient DB hiccup fail — the previous all-or-nothing transaction under a
+	// tight deadline discarded fully-generated answers (see #2998).
+	session = session.SetPreviousResponseID(providerResponseID, time.Now())
+	if err := s.persistAssistantMessageCritical(persistCtx, assistantMsg, session); err != nil {
+		s.log().
+			WithError(err).
+			WithField("session_id", req.SessionID.String()).
+			WithField("run_id", runID.String()).
+			WithField("tenant_id", session.TenantID().String()).
+			WithField("content_len", len(assistantContent)).
+			WithField("tool_calls", len(savedToolCalls)).
+			WithField("artifact_count", len(artifactMap)).
+			WithField("generation_ms", generationMs).
+			Error("bichat: failed to persist assistant message; answer discarded")
 		active.Broadcast(streamingsvc.TerminalChunk(err, 0))
-		runStateCtx, runStateCancel := context.WithTimeout(context.Background(), streamPersistenceTimeout)
+		runStateCtx, runStateCancel := context.WithTimeout(context.WithoutCancel(persistCtx), streamPersistenceTimeout)
 		defer runStateCancel()
 		_ = s.cancelRunState(runStateCtx, session.TenantID(), req.SessionID, runID)
 		return
 	}
 
-	runStateCtx, runStateCancel := context.WithTimeout(context.Background(), streamPersistenceTimeout)
+	// Best-effort: the message is already committed and is what the user sees.
+	// A failure here degrades to "answer without its charts/tables" rather than
+	// discarding the whole answer. Artifacts carry idempotency keys, so a later
+	// regeneration won't duplicate them.
+	if len(artifactMap) > 0 {
+		if err := s.persistArtifactsBestEffort(persistCtx, session, assistantMsg.ID(), artifactMap); err != nil {
+			s.log().
+				WithError(err).
+				WithField("session_id", req.SessionID.String()).
+				WithField("run_id", runID.String()).
+				WithField("message_id", assistantMsg.ID().String()).
+				WithField("artifact_count", len(artifactMap)).
+				Error("bichat: failed to persist generated artifacts; answer kept without them")
+		}
+	}
+
+	runStateCtx, runStateCancel := context.WithTimeout(context.WithoutCancel(persistCtx), streamPersistenceTimeout)
 	defer runStateCancel()
 	_ = s.completeRunState(runStateCtx, session.TenantID(), req.SessionID, runID)
 	if emitDoneChunk {

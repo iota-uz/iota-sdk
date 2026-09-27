@@ -200,6 +200,7 @@ func (a *testApp) Websocket() application.Huber                    { return nil 
 func (a *testApp) Spotlight() spotlight.Service                    { return nil }
 func (a *testApp) QuickLinks() *spotlight.QuickLinks               { return nil }
 func (a *testApp) NavItems(*i18n.Localizer) []types.NavigationItem { return nil }
+func (a *testApp) NavWorkspaces() []types.NavWorkspace             { return nil }
 func (a *testApp) GraphSchemas() []application.GraphSchema         { return nil }
 func (a *testApp) Bundle() *i18n.Bundle                            { return nil }
 func (a *testApp) GetSupportedLanguages() []string                 { return nil }
@@ -214,4 +215,26 @@ func TestTenantIDHelper(t *testing.T) {
 	uid := uuid.New()
 	require.Equal(t, uid.String(), tenantID(&uid))
 	require.Empty(t, tenantID(nil))
+}
+
+// A closer that waits out `closing` can wake up holding an entry that has
+// already been settled: another closer removed it from the map and nilled its
+// state, or a failed getOrCreate dropped it before ever building one. Releasing
+// that entry used to dereference the nil state and panic in the harness cleanup
+// of whichever test ran last, far from the failure that actually caused it.
+func TestSharedHarnessManagerCloseSurvivesASettledEntry(t *testing.T) {
+	t.Parallel()
+
+	manager := &harnessManager{
+		entries: map[string]*managedHarnessState{},
+	}
+
+	const key = "itf-settled-entry-test"
+	manager.entries[key] = &managedHarnessState{
+		refs: 1,
+		cond: sync.NewCond(&manager.mu),
+	}
+
+	require.NoError(t, manager.close(key, CleanupKeep))
+	require.Equal(t, 1, manager.entries[key].refs, "a settled entry is left untouched, not counted down")
 }

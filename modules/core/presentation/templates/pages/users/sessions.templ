@@ -23,12 +23,12 @@ templ SessionDeviceCell(sess *viewmodels.Session) {
 	</div>
 }
 
-templ RevokeSessionButton(userID, tokenID, fullToken string) {
+templ RevokeSessionButton(userID, tokenID string) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@button.Danger(button.Props{
 		Size: button.SizeSM,
 		Attrs: templ.Attributes{
-			"hx-delete":  fmt.Sprintf("/users/%s/sessions/%s", userID, fullToken),
+			"hx-delete":  fmt.Sprintf("/users/%s/sessions/%s", userID, tokenID),
 			"hx-confirm": pageCtx.T("Users.Sessions.RevokeConfirm"),
 			"hx-target":  fmt.Sprintf("#session-%s", tokenID),
 			"hx-swap":    "outerHTML swap:0.5s",

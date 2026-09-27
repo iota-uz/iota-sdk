@@ -109,6 +109,7 @@ type StripeDetails struct {
 	SessionID         string                  `json:"session_id"`
 	ClientReferenceID string                  `json:"client_reference_id"`
 	InvoiceID         string                  `json:"invoice_id"`
+	PaymentIntentID   string                  `json:"payment_intent_id"`
 	SubscriptionID    string                  `json:"subscription_id"`
 	CustomerID        string                  `json:"customer_id"`
 	SubscriptionData  *StripeSubscriptionData `json:"subscription_data"`
@@ -120,6 +121,15 @@ type StripeDetails struct {
 
 type CashDetails struct {
 	Data map[string]any `json:"data"`
+}
+
+type PayoutDetails struct {
+	Data map[string]any `json:"data"`
+}
+
+type TransferDetails struct {
+	Data    map[string]any `json:"data"`
+	Comment string         `json:"comment"`
 }
 
 type IntegratorDetails struct {

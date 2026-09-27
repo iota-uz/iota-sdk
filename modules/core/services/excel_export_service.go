@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -65,6 +66,19 @@ func (s *ExcelExportService) ExportFromQuery(ctx context.Context, query exportco
 	return uploadEntity, nil
 }
 
+// ExportQueryToWriter exports SQL query results to Excel and streams them to w.
+func (s *ExcelExportService) ExportQueryToWriter(ctx context.Context, w io.Writer, query exportconfig.Query, config exportconfig.ExportConfig) error {
+	datasource := excel.NewPgxDataSource(s.db, query.SQL(), query.Args()...)
+	if config.Filename() != "" {
+		sheetName := config.Filename()
+		if len(sheetName) > 31 {
+			sheetName = sheetName[:31]
+		}
+		datasource.WithSheetName(sheetName)
+	}
+	return s.ExportDataSourceToWriter(ctx, w, datasource, config)
+}
+
 // ExportFromDataSource exports from a custom data source to Excel
 func (s *ExcelExportService) ExportFromDataSource(
 	ctx context.Context,
@@ -94,4 +108,18 @@ func (s *ExcelExportService) ExportFromDataSource(
 	}
 
 	return uploadEntity, nil
+}
+
+// ExportDataSourceToWriter exports from a custom data source to Excel and streams it to w.
+func (s *ExcelExportService) ExportDataSourceToWriter(
+	ctx context.Context,
+	w io.Writer,
+	datasource excel.DataSource,
+	config exportconfig.ExportConfig,
+) error {
+	exporter := excel.NewExcelExporter(config.ExportOptions(), config.StyleOptions())
+	if err := exporter.ExportToWriter(ctx, w, datasource); err != nil {
+		return fmt.Errorf("failed to export to Excel: %w", err)
+	}
+	return nil
 }

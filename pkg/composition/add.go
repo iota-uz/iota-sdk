@@ -5,44 +5,83 @@ import (
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 // The Add* helpers panic on a nil builder (a programmer error — the rest of
 // the composition API panics on nil builders too) but treat an empty input
 // slice as a no-op: attaching zero items is always valid and lets callers
-// use variadic splats like `AddNavItems(builder, optionalItems...)` without
+// use variadic splats like `AddNavNodes(builder, optionalNodes...)` without
 // guarding the caller side.
 
-// AddLocales attaches one or more locale embeds without requiring a closure.
-// Equivalent to ContributeLocales(b, func(*Container) ([]*embed.FS, error) {
-// return locales, nil }) but with zero ceremony.
-func AddLocales(builder *Builder, locales ...*embed.FS) {
+// AddNavNodes attaches one or more descriptor-backed navigation catalog nodes.
+func AddNavNodes(builder *Builder, nodes ...application.NavNode) {
 	if builder == nil {
 		panic("composition: builder is nil")
 	}
-	if len(locales) == 0 {
+	if len(nodes) == 0 {
 		return
 	}
-	captured := append([]*embed.FS(nil), locales...)
-	ContributeLocales(builder, func(*Container) ([]*embed.FS, error) {
+	captured := append([]application.NavNode(nil), nodes...)
+	ContributeNavNodes(builder, func(*Container) ([]application.NavNode, error) {
 		return captured, nil
 	})
 }
 
-// AddNavItems attaches one or more navigation items.
-func AddNavItems(builder *Builder, items ...types.NavigationItem) {
+// AddNavWorkspaces attaches one or more sidebar workspace declarations.
+func AddNavWorkspaces(builder *Builder, workspaces ...types.NavWorkspace) {
 	if builder == nil {
 		panic("composition: builder is nil")
 	}
-	if len(items) == 0 {
+	if len(workspaces) == 0 {
 		return
 	}
-	captured := append([]types.NavigationItem(nil), items...)
-	ContributeNavItems(builder, func(*Container) ([]types.NavigationItem, error) {
+	captured := append([]types.NavWorkspace(nil), workspaces...)
+	ContributeNavWorkspaces(builder, func(*Container) ([]types.NavWorkspace, error) {
 		return captured, nil
 	})
+}
+
+// AddNavProviders attaches runtime navigation providers.
+func AddNavProviders(builder *Builder, providers ...application.NavProvider) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if len(providers) == 0 {
+		return
+	}
+	captured := append([]application.NavProvider(nil), providers...)
+	ContributeNavProviders(builder, func(*Container) ([]application.NavProvider, error) {
+		return captured, nil
+	})
+}
+
+// RemoveNavItemsByKey removes contributed navigation items with matching
+// stable keys after all nav contributions have materialized.
+func RemoveNavItemsByKey(builder *Builder, keys ...string) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	for _, key := range keys {
+		if key == "" {
+			continue
+		}
+		builder.navItemRemovals = append(builder.navItemRemovals, key)
+	}
+}
+
+// ReplaceNavItemsByKey replaces contributed navigation items by their stable
+// keys after all nav contributions have materialized.
+func ReplaceNavItemsByKey(builder *Builder, items ...types.NavigationItem) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	for _, item := range items {
+		if item.Key == "" {
+			continue
+		}
+		builder.navItemOverrides = append(builder.navItemOverrides, item)
+	}
 }
 
 // AddHashFS attaches one or more hashfs.FS asset bundles.
@@ -55,20 +94,6 @@ func AddHashFS(builder *Builder, assets ...*hashfs.FS) {
 	}
 	captured := append([]*hashfs.FS(nil), assets...)
 	ContributeHashFS(builder, func(*Container) ([]*hashfs.FS, error) {
-		return captured, nil
-	})
-}
-
-// AddQuickLinks attaches one or more spotlight quick links.
-func AddQuickLinks(builder *Builder, links ...*spotlight.QuickLink) {
-	if builder == nil {
-		panic("composition: builder is nil")
-	}
-	if len(links) == 0 {
-		return
-	}
-	captured := append([]*spotlight.QuickLink(nil), links...)
-	ContributeQuickLinks(builder, func(*Container) ([]*spotlight.QuickLink, error) {
 		return captured, nil
 	})
 }

@@ -2,6 +2,7 @@ package seed
 
 import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
@@ -18,5 +19,8 @@ func RegisterProviders(deps *application.SeedDeps) {
 		roleRepository,
 		userRepository,
 		persistence.NewGroupRepository(userRepository, roleRepository),
+		persistence.NewDepartmentRepository(),
+		persistence.NewUserPositionRepository(),
+		query.NewPgOrgQueryRepository(),
 	)
 }

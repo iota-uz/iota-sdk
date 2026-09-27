@@ -17,6 +17,10 @@ type ImportPageConfig interface {
 	GetLocalePrefix() string
 	GetTemplateDownloadURL() string
 	GetHTMXConfig() HTMXConfig
+	// GetSubmitLabel overrides the primary button text; empty → "Submit".
+	GetSubmitLabel() string
+	// GetSubmitHint is optional muted text beside the button; empty → nothing.
+	GetSubmitHint() string
 }
 
 // ImportColumn represents a column in the import template

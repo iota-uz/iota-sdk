@@ -102,7 +102,10 @@ func sqlWhere(spec CubeSpec, ctx DrillContext) string {
 		if !ok {
 			continue
 		}
-		clauses = append(clauses, fmt.Sprintf("%s = @%s", dim.Column, sqlFilterParam(filter.Dimension)))
+		if len(filter.values()) == 0 {
+			continue
+		}
+		clauses = append(clauses, fmt.Sprintf("%s = ANY(@%s)", dim.Column, sqlFilterParam(filter.Dimension)))
 	}
 	return strings.Join(clauses, "\n  AND ")
 }
@@ -113,7 +116,11 @@ func sqlParams(spec CubeSpec, ctx DrillContext) map[string]lens.ParamValue {
 		params[key] = value
 	}
 	for _, filter := range ctx.Filters {
-		params[sqlFilterParam(filter.Dimension)] = lens.ParamValue{Literal: filter.Value}
+		values := filter.values()
+		if len(values) == 0 {
+			continue
+		}
+		params[sqlFilterParam(filter.Dimension)] = lens.ParamValue{Literal: values}
 	}
 	return params
 }

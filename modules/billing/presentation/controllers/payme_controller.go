@@ -40,8 +40,8 @@ func (c *PaymeController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Handle))
 }
 
-func (c *PaymeController) Key() string {
-	return c.basePath
+func (c *PaymeController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("billing.payme", 0, application.Route("", c.basePath))
 }
 
 func (c *PaymeController) Handle(
@@ -272,13 +272,12 @@ func (c *PaymeController) create(ctx context.Context, r *paymeapi.CreateTransact
 		billing.Payme,
 		filters,
 	)
-	if err != nil || len(entities) != 1 {
+	entity, ok := activePaymeTransaction(entities)
+	if err != nil || !ok {
 		logger.WithError(err).WithField("transaction_id", r.Id).Error("Invalid account in CreateTransaction")
 		errRPC := paymeapi.InvalidAccountError()
 		return nil, &errRPC
 	}
-
-	entity := entities[0]
 
 	amount := r.Amount / 100
 	if math.Abs(entity.Amount().Quantity()-amount) >= 1e-9 {
@@ -454,13 +453,12 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 		billing.Payme,
 		filters,
 	)
-	if err != nil || len(entities) != 1 {
+	entity, ok := activePaymeTransaction(entities)
+	if err != nil || !ok {
 		logger.WithError(err).Error("Invalid account in CheckPerformTransaction")
 		errRPC := paymeapi.CheckPerformTransactionInvalidAccountError()
 		return nil, &errRPC
 	}
-
-	entity := entities[0]
 
 	amount := r.Amount / 100
 	if math.Abs(entity.Amount().Quantity()-amount) >= 1e-9 {
@@ -509,6 +507,21 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 	}, nil
 }
 
+func activePaymeTransaction(entities []billing.Transaction) (billing.Transaction, bool) {
+	var selected billing.Transaction
+	for _, entity := range entities {
+		if !entity.Status().IsActive() {
+			continue
+		}
+		if selected != nil {
+			return nil, false
+		}
+		selected = entity
+	}
+
+	return selected, selected != nil
+}
+
 func (c *PaymeController) perform(ctx context.Context, r *paymeapi.PerformTransactionRequest, logger *logrus.Entry) (*paymeapi.PerformTransactionResponse, *paymeapi.JSONRPCErrorResponseError) {
 	entities, err := c.billingService.GetByDetailsFields(
 		ctx,
@@ -533,6 +546,35 @@ func (c *PaymeController) perform(ctx context.Context, r *paymeapi.PerformTransa
 	if !ok {
 		logger.Error("Details is not of type PaymeDetails in PerformTransaction")
 		errRPC := paymeapi.InternalSystemError()
+		return nil, &errRPC
+	}
+
+	// A perform resolves by transaction id alone, so nothing on Payme's side
+	// stops a customer paying a checkout the merchant has already stopped
+	// honouring — refusing it is the merchant's job, and the protocol says so:
+	// only states created and completed may be performed, everything else is
+	// terminal and answers -31008. Completed stays allowed because a repeated
+	// perform must be idempotent, not an error.
+	//
+	// Without this the transaction rides straight into InvokeCallback, whose
+	// host may well answer nil for a status it does not consider relevant, and
+	// a cancelled transaction is then stamped Completed: money accepted, with
+	// no order left to apply it to. Answering Payme with an error instead
+	// leaves the payment unconfirmed and Payme returns the funds.
+	//
+	// The refusal changes nothing on the transaction. It is already in the
+	// state it was cancelled into, and rewriting it here would overwrite the
+	// reason it carries.
+	switch {
+	case paymeDetails.State() != paymeapi.TransactionStateCreated &&
+		paymeDetails.State() != paymeapi.TransactionStateCompleted,
+		entity.Status() == billing.Canceled:
+		logger.WithFields(logrus.Fields{
+			"transaction_id": r.Id,
+			"state":          paymeDetails.State(),
+			"status":         entity.Status(),
+		}).Error("Transaction is no longer payable in PerformTransaction")
+		errRPC := paymeapi.PerformTransactionOperationNotAllowedError()
 		return nil, &errRPC
 	}
 

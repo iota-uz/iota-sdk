@@ -27,6 +27,49 @@ func createTestPermissionSchema() *rbac.PermissionSchema {
 	}
 }
 
+func TestRolesController_ForgedPermissionReturnsLocalizedForbidden(t *testing.T) {
+	suite := itf.NewSuiteBuilder(t).
+		WithComponents(modules.Components()...).
+		AsUser(permissions.RoleCreate, permissions.RoleRead).
+		Build()
+	persistAdministrativeTestActor(t, suite, permissions.RoleCreate, permissions.RoleRead)
+	require.NoError(t, persistence.NewPermissionRepository().Save(suite.Env().Ctx, permissions.DepartmentDelete))
+
+	schema := &rbac.PermissionSchema{Sets: []rbac.PermissionSet{{
+		Key:         "department-delete",
+		Label:       "Department delete",
+		Module:      "Core",
+		Permissions: []permission.Permission{permissions.DepartmentDelete},
+	}}}
+	suite.Register(controllers.NewRolesController(&controllers.RolesControllerOptions{
+		BasePath: "/roles", PermissionSchema: schema,
+	}))
+
+	// Falsely green if the browser assertion is the only protection and the forged POST is not sent.
+	suite.GET("/roles/new").Expect(t).
+		Status(200).
+		NotContains(permissions.DepartmentDelete.ID().String())
+
+	response := suite.POST("/roles").
+		HTMX().
+		FormFields(map[string]interface{}{
+			"Name":        "Forged elevated role",
+			"Description": "must be denied",
+			fmt.Sprintf("Permissions[%s]", permissions.DepartmentDelete.ID()): "on",
+		}).
+		Assert(t)
+	response.ExpectStatus(403).
+		ExpectBodyContains("Changes were not saved").
+		ExpectHeaderContains("HX-Trigger", "notify").
+		ExpectHeaderContains("HX-Trigger", "Changes were not saved")
+
+	roles, err := persistence.NewRoleRepository().GetAll(suite.Env().Ctx)
+	require.NoError(t, err)
+	for _, candidate := range roles {
+		assert.NotEqual(t, "Forged elevated role", candidate.Name())
+	}
+}
+
 func TestRolesController_BasicRoutes(t *testing.T) {
 	// Test that basic role routes work with proper permissions
 	t.Parallel()
@@ -36,6 +79,7 @@ func TestRolesController_BasicRoutes(t *testing.T) {
 		AsUser(permissions.RoleCreate, permissions.RoleRead,
 			permissions.RoleUpdate, permissions.RoleDelete).
 		Build()
+	persistAdministrativeTestActor(t, suite, permissions.RoleCreate, permissions.RoleRead, permissions.RoleUpdate, permissions.RoleDelete)
 
 	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
 		BasePath:         "/roles",
@@ -68,6 +112,7 @@ func TestRolesController_Validation(t *testing.T) {
 		AsUser(permissions.RoleCreate, permissions.RoleRead,
 			permissions.RoleUpdate, permissions.RoleDelete).
 		Build()
+	persistAdministrativeTestActor(t, suite, permissions.RoleCreate, permissions.RoleRead, permissions.RoleUpdate, permissions.RoleDelete)
 
 	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
 		BasePath:         "/roles",
@@ -78,7 +123,7 @@ func TestRolesController_Validation(t *testing.T) {
 	cases := itf.Cases(
 		itf.GET("/roles/0").
 			Named("Zero_ID_Edit").
-			ExpectStatus(500), // Invalid ID
+			ExpectStatus(404), // ParseID("0")=0; GetByID(0) -> ErrRoleNotFound
 
 		itf.GET("/roles/-1").
 			Named("Negative_ID_Edit").
@@ -90,15 +135,15 @@ func TestRolesController_Validation(t *testing.T) {
 
 		itf.GET("/roles/999999999").
 			Named("Non_Existent_ID_Edit").
-			ExpectStatus(500), // Role not found
+			ExpectStatus(404), // Role not found
 
 		itf.DELETE("/roles/0").
 			Named("Zero_ID_Delete").
-			ExpectStatus(500),
+			ExpectStatus(404), // ParseID("0")=0; Delete -> ErrRoleNotFound
 
 		itf.DELETE("/roles/999999999").
 			Named("Non_Existent_ID_Delete").
-			ExpectStatus(500),
+			ExpectStatus(404),
 	)
 
 	suite.RunCases(cases)
@@ -111,6 +156,7 @@ func TestRolesController_Delete_EdgeCases(t *testing.T) {
 		WithComponents(modules.Components()...).
 		AsUser(permissions.RoleDelete, permissions.RoleRead).
 		Build()
+	persistAdministrativeTestActor(t, suite, permissions.RoleDelete, permissions.RoleRead)
 
 	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
 		BasePath:         "/roles",
@@ -121,7 +167,7 @@ func TestRolesController_Delete_EdgeCases(t *testing.T) {
 	cases := itf.Cases(
 		itf.DELETE("/roles/0").
 			Named("Zero_ID").
-			ExpectStatus(500), // Role ID 0 is invalid
+			ExpectStatus(404), // ParseID("0")=0; role not found
 
 		itf.DELETE("/roles/-1").
 			Named("Negative_ID").
@@ -133,7 +179,7 @@ func TestRolesController_Delete_EdgeCases(t *testing.T) {
 
 		itf.DELETE("/roles/999999999").
 			Named("Large_ID").
-			ExpectStatus(500), // Large ID should still reach controller but role not found
+			ExpectStatus(404), // Large ID reaches controller but role not found
 	)
 
 	suite.RunCases(cases)
@@ -178,6 +224,7 @@ func TestRolesController_List_Search(t *testing.T) {
 		WithComponents(modules.Components()...).
 		AsUser(permissions.RoleRead).
 		Build()
+	persistAdministrativeTestActor(t, suite, permissions.RoleRead)
 
 	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
 		BasePath:         "/roles",
@@ -198,6 +245,34 @@ func TestRolesController_List_Search(t *testing.T) {
 		ExpectBodyContains("roles-table-body")
 }
 
+func TestRolesController_ReadRoutesRequireRoleRead(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithComponents(modules.Components()...).
+		AsUser(permissions.UserRead).
+		Build()
+
+	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
+		BasePath:         "/roles",
+		PermissionSchema: createTestPermissionSchema(),
+	})
+	suite.Register(controller)
+
+	roleRepository := persistence.NewRoleRepository()
+	createdRole, err := roleRepository.Create(
+		suite.Env().Ctx,
+		role.New("Role Read Guard Regression"),
+	)
+	require.NoError(t, err)
+
+	suite.GET("/roles").Assert(t).
+		ExpectForbidden().
+		ExpectBodyContains("403").
+		ExpectBodyContains("Access Denied")
+	suite.GET(fmt.Sprintf("/roles/%d", createdRole.ID())).Assert(t).ExpectForbidden()
+}
+
 func TestRolesController_Update_NonExistent(t *testing.T) {
 	// Test update on non-existent role
 	t.Parallel()
@@ -206,6 +281,7 @@ func TestRolesController_Update_NonExistent(t *testing.T) {
 		WithComponents(modules.Components()...).
 		AsUser(permissions.RoleUpdate, permissions.RoleRead).
 		Build()
+	persistAdministrativeTestActor(t, suite, permissions.RoleUpdate, permissions.RoleRead)
 
 	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
 		BasePath:         "/roles",
@@ -220,8 +296,27 @@ func TestRolesController_Update_NonExistent(t *testing.T) {
 			"Description": "Updated Description",
 		})
 
-	// Should return error (role not found)
-	response.Assert(t).ExpectStatus(500)
+	// Should return 404 (role not found)
+	response.Assert(t).ExpectStatus(404)
+}
+
+func TestRolesController_Delete_NonExistent(t *testing.T) {
+	// Test delete on non-existent role returns 404
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithComponents(modules.Components()...).
+		AsUser(permissions.RoleDelete, permissions.RoleRead).
+		Build()
+	persistAdministrativeTestActor(t, suite, permissions.RoleDelete, permissions.RoleRead)
+
+	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
+		BasePath:         "/roles",
+		PermissionSchema: createTestPermissionSchema(),
+	})
+	suite.Register(controller)
+
+	suite.DELETE(fmt.Sprintf("/roles/%d", 999999)).Assert(t).ExpectStatus(404)
 }
 
 func TestRolesController_Update_PermissionScenarios(t *testing.T) {
@@ -231,6 +326,7 @@ func TestRolesController_Update_PermissionScenarios(t *testing.T) {
 		WithComponents(modules.Components()...).
 		AsUser(permissions.RoleCreate, permissions.RoleRead, permissions.RoleUpdate, permissions.RoleDelete).
 		Build()
+	persistAdministrativeTestActor(t, suite, permissions.RoleCreate, permissions.RoleRead, permissions.RoleUpdate, permissions.RoleDelete)
 
 	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
 		BasePath:         "/roles",

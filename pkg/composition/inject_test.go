@@ -268,7 +268,7 @@ func TestContributeControllersFunc_SingleController(t *testing.T) {
 
 	ctrls := container.Controllers()
 	require.Len(t, ctrls, 1)
-	require.Equal(t, "ctrl", ctrls[0].Key())
+	require.Equal(t, "ctrl", ctrls[0].Descriptor().ID)
 }
 
 func TestContributeControllersFunc_SliceOfControllers(t *testing.T) {
@@ -314,7 +314,7 @@ func TestContributeControllersFunc_DropsNil(t *testing.T) {
 	require.NoError(t, err)
 	ctrls := container.Controllers()
 	require.Len(t, ctrls, 1)
-	require.Equal(t, "real", ctrls[0].Key())
+	require.Equal(t, "real", ctrls[0].Descriptor().ID)
 }
 
 func TestContributeControllersFunc_PanicsOnBadReturnType(t *testing.T) {
@@ -336,6 +336,8 @@ type greetingConsumer struct {
 // stubController is a minimal application.Controller for tests.
 type stubController struct{ key string }
 
-func (s *stubController) Key() string { return s.key }
+func (s *stubController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor(s.key, 0)
+}
 
 func (s *stubController) Register(_ *mux.Router) {}

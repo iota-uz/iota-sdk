@@ -3,6 +3,7 @@ package controllers
 
 import (
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/a-h/templ"
@@ -54,8 +55,8 @@ func NewTransactionController(transactionService *services.TransactionService) a
 	}
 }
 
-func (c *TransactionController) Key() string {
-	return c.basePath
+func (c *TransactionController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.transaction", 0, application.Route("", c.basePath))
 }
 
 func (c *TransactionController) Register(r *mux.Router) {
@@ -95,58 +96,7 @@ func (c *TransactionController) List(w http.ResponseWriter, r *http.Request) {
 		Search: r.URL.Query().Get("search"),
 	}
 
-	// Add filters
-	var filters []query.Filter
-	if transactionType := r.URL.Query().Get("type"); transactionType != "" {
-		filters = append(filters, query.Filter{
-			Column: query.FieldTransactionType,
-			Filter: repo.Eq(transactionType),
-		})
-	}
-	if accountID := r.URL.Query().Get("account"); accountID != "" {
-		filters = append(filters, query.Filter{
-			Column: query.FieldOriginAccountID,
-			Filter: repo.Eq(accountID),
-		})
-	}
-
-	// Add transaction date filter
-	if dateFrom := r.URL.Query().Get("TransactionDate.From"); dateFrom != "" {
-		if fromTime, err := time.Parse(time.RFC3339, dateFrom); err == nil {
-			filters = append(filters, query.Filter{
-				Column: query.FieldTransactionDate,
-				Filter: repo.Gte(fromTime),
-			})
-		}
-	}
-	if dateTo := r.URL.Query().Get("TransactionDate.To"); dateTo != "" {
-		if toTime, err := time.Parse(time.RFC3339, dateTo); err == nil {
-			filters = append(filters, query.Filter{
-				Column: query.FieldTransactionDate,
-				Filter: repo.Lte(toTime),
-			})
-		}
-	}
-
-	// Add accounting period filter
-	if periodFrom := r.URL.Query().Get("AccountingPeriod.From"); periodFrom != "" {
-		if fromTime, err := time.Parse(time.RFC3339, periodFrom); err == nil {
-			filters = append(filters, query.Filter{
-				Column: query.FieldAccountingPeriod,
-				Filter: repo.Gte(fromTime),
-			})
-		}
-	}
-	if periodTo := r.URL.Query().Get("AccountingPeriod.To"); periodTo != "" {
-		if toTime, err := time.Parse(time.RFC3339, periodTo); err == nil {
-			filters = append(filters, query.Filter{
-				Column: query.FieldAccountingPeriod,
-				Filter: repo.Lte(toTime),
-			})
-		}
-	}
-
-	params.Filters = filters
+	params.Filters = transactionFilters(r.URL.Query())
 
 	// Get transactions with populated data
 	transactionVMs, total, err := c.queryRepo.FindTransactions(ctx, params)
@@ -262,4 +212,58 @@ func (c *TransactionController) GetViewDrawer(w http.ResponseWriter, r *http.Req
 		Transaction: transaction,
 	}
 	templ.Handler(transactions.ViewDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+// transactionFilters reads the transaction list filters from the query string.
+func transactionFilters(values url.Values) []query.Filter {
+	var filters []query.Filter
+	if transactionType := values.Get("type"); transactionType != "" {
+		filters = append(filters, query.Filter{
+			Column: query.FieldTransactionType,
+			Filter: repo.Eq(transactionType),
+		})
+	}
+	if accountID := values.Get("account"); accountID != "" {
+		filters = append(filters, query.Filter{
+			Column: query.FieldAccountID,
+			Filter: repo.Eq(accountID),
+		})
+	}
+
+	// Add transaction date filter
+	if dateFrom := values.Get("TransactionDate.From"); dateFrom != "" {
+		if fromTime, err := time.Parse(time.RFC3339, dateFrom); err == nil {
+			filters = append(filters, query.Filter{
+				Column: query.FieldTransactionDate,
+				Filter: repo.Gte(fromTime),
+			})
+		}
+	}
+	if dateTo := values.Get("TransactionDate.To"); dateTo != "" {
+		if toTime, err := time.Parse(time.RFC3339, dateTo); err == nil {
+			filters = append(filters, query.Filter{
+				Column: query.FieldTransactionDate,
+				Filter: repo.Lte(toTime),
+			})
+		}
+	}
+
+	// Add accounting period filter
+	if periodFrom := values.Get("AccountingPeriod.From"); periodFrom != "" {
+		if fromTime, err := time.Parse(time.RFC3339, periodFrom); err == nil {
+			filters = append(filters, query.Filter{
+				Column: query.FieldAccountingPeriod,
+				Filter: repo.Gte(fromTime),
+			})
+		}
+	}
+	if periodTo := values.Get("AccountingPeriod.To"); periodTo != "" {
+		if toTime, err := time.Parse(time.RFC3339, periodTo); err == nil {
+			filters = append(filters, query.Filter{
+				Column: query.FieldAccountingPeriod,
+				Filter: repo.Lte(toTime),
+			})
+		}
+	}
+	return filters
 }

@@ -40,8 +40,8 @@ func NewMessageTemplateController(
 	}
 }
 
-func (c *MessageTemplateController) Key() string {
-	return c.basePath
+func (c *MessageTemplateController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("crm.message_template", 0, application.Route("", c.basePath))
 }
 
 func (c *MessageTemplateController) Register(r *mux.Router) {

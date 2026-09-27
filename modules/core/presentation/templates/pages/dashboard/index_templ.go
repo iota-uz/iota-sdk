@@ -12,13 +12,14 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
-	lensrender "github.com/iota-uz/iota-sdk/pkg/lens/render/templ"
-	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	lensreact "github.com/iota-uz/iota-sdk/pkg/lens/render/react"
 )
 
 type IndexPageProps struct {
-	Dashboard lens.DashboardSpec
-	Results   *runtime.Result
+	Dashboard   lens.DashboardSpec
+	DocumentURL string
+	CSRF        string
+	Available   bool
 }
 
 func DashboardContent(props *IndexPageProps) templ.Component {
@@ -46,11 +47,14 @@ func DashboardContent(props *IndexPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if props.Results != nil {
-			templ_7745c5c3_Err = lensrender.Dashboard(lensrender.DashboardProps{
-				Spec:   props.Dashboard,
-				Result: props.Results,
-			}).Render(ctx, templ_7745c5c3_Buffer)
+		if props.Available {
+			pageCtx := composables.UsePageCtx(ctx)
+			templ_7745c5c3_Err = lensreact.LensDashboard(
+				props.DocumentURL,
+				lensreact.WithLocale(pageCtx.GetLocale().String()),
+				lensreact.WithCSRF(props.CSRF),
+				lensreact.WithSkeleton(props.Dashboard),
+			).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

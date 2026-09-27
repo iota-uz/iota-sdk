@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
@@ -27,9 +28,12 @@ templ NewChat(props NewChatProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="space-y-5 p-5">
 		<div>
-			<h1 class="text-2xl font-medium">
-				{ pageCtx.T("Chats.New.Title") }
-			</h1>
+			<div class="flex items-center gap-2">
+				<h1 class="text-2xl font-medium">
+					{ pageCtx.T("Chats.New.Title") }
+				</h1>
+				@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/crm.md"})
+			</div>
 		</div>
 		@card.Card(card.Props{}) {
 			@NewChatForm(props)
@@ -407,6 +411,7 @@ templ ChatLayout(props *IndexPageProps) {
 			}) {
 				{ pageCtx.T("Chats.InstantMessages") }
 			}
+			@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/crm.md", Class: "ml-auto md:ml-0"})
 			@button.Primary(button.Props{
 				Href: props.NewChatURL,
 			}) {

@@ -8,11 +8,13 @@ import (
 )
 
 const (
-	ResourceUser    permission.Resource = "user"
-	ResourceRole    permission.Resource = "role"
-	ResourceGroup   permission.Resource = "group"
-	ResourceUpload  permission.Resource = "upload"
-	ResourceSession permission.Resource = "session"
+	ResourceUser       permission.Resource = "user"
+	ResourceRole       permission.Resource = "role"
+	ResourceGroup      permission.Resource = "group"
+	ResourceUpload     permission.Resource = "upload"
+	ResourceSession    permission.Resource = "session"
+	ResourceDepartment permission.Resource = "department"
+	ResourcePosition   permission.Resource = "position"
 )
 
 var (
@@ -79,6 +81,13 @@ var (
 		permission.ActionDelete,
 		permission.ModifierAll,
 	)
+	RoleAssignSystem = permission.MustCreate(
+		uuid.MustParse("b7a17a2c-7a31-4a42-8a16-951255aabf81"),
+		"Role.AssignSystem",
+		ResourceRole,
+		permission.Action("assign_system"),
+		permission.ModifierAll,
+	)
 	GroupCreate = permission.MustCreate(
 		uuid.MustParse("7e8f9a0b-1c2d-3e4f-5a6b-7c8d9e0f1a2b"),
 		"Group.Create",
@@ -105,6 +114,13 @@ var (
 		"Group.Delete",
 		ResourceGroup,
 		permission.ActionDelete,
+		permission.ModifierAll,
+	)
+	GroupAssignSystem = permission.MustCreate(
+		uuid.MustParse("c64d7b55-39d9-4aa2-b38d-b17514afbe17"),
+		"Group.AssignSystem",
+		ResourceGroup,
+		permission.Action("assign_system"),
 		permission.ModifierAll,
 	)
 	UploadCreate = permission.MustCreate(
@@ -149,6 +165,62 @@ var (
 		permission.ActionDelete,
 		permission.ModifierAll,
 	)
+	DepartmentCreate = permission.MustCreate(
+		uuid.MustParse("773a81ca-1893-420b-a659-d3752d80e99f"),
+		"Department.Create",
+		ResourceDepartment,
+		permission.ActionCreate,
+		permission.ModifierAll,
+	)
+	DepartmentRead = permission.MustCreate(
+		uuid.MustParse("e98757cf-ee24-44bb-83b1-d91a123a9479"),
+		"Department.Read",
+		ResourceDepartment,
+		permission.ActionRead,
+		permission.ModifierAll,
+	)
+	DepartmentUpdate = permission.MustCreate(
+		uuid.MustParse("911da3f7-14ae-4e70-b546-5267f19d087f"),
+		"Department.Update",
+		ResourceDepartment,
+		permission.ActionUpdate,
+		permission.ModifierAll,
+	)
+	DepartmentDelete = permission.MustCreate(
+		uuid.MustParse("c8634512-d87e-452b-b731-e8ef1d0a452d"),
+		"Department.Delete",
+		ResourceDepartment,
+		permission.ActionDelete,
+		permission.ModifierAll,
+	)
+	PositionCreate = permission.MustCreate(
+		uuid.MustParse("3b006eaa-dc10-4f69-85ef-31b5c0afc1f4"),
+		"Position.Create",
+		ResourcePosition,
+		permission.ActionCreate,
+		permission.ModifierAll,
+	)
+	PositionRead = permission.MustCreate(
+		uuid.MustParse("f4d5d8a8-8ed4-4067-9536-d5d5832ca938"),
+		"Position.Read",
+		ResourcePosition,
+		permission.ActionRead,
+		permission.ModifierAll,
+	)
+	PositionUpdate = permission.MustCreate(
+		uuid.MustParse("1619acab-6b1a-4909-b4a8-38fafeee4ed5"),
+		"Position.Update",
+		ResourcePosition,
+		permission.ActionUpdate,
+		permission.ModifierAll,
+	)
+	PositionDelete = permission.MustCreate(
+		uuid.MustParse("17655dc7-b5aa-4c05-83ee-e01be1a17fac"),
+		"Position.Delete",
+		ResourcePosition,
+		permission.ActionDelete,
+		permission.ModifierAll,
+	)
 )
 
 var Permissions = []permission.Permission{
@@ -161,14 +233,24 @@ var Permissions = []permission.Permission{
 	RoleRead,
 	RoleUpdate,
 	RoleDelete,
+	RoleAssignSystem,
 	GroupCreate,
 	GroupRead,
 	GroupUpdate,
 	GroupDelete,
+	GroupAssignSystem,
 	UploadCreate,
 	UploadRead,
 	UploadUpdate,
 	UploadDelete,
 	SessionRead,
 	SessionDelete,
+	DepartmentCreate,
+	DepartmentRead,
+	DepartmentUpdate,
+	DepartmentDelete,
+	PositionCreate,
+	PositionRead,
+	PositionUpdate,
+	PositionDelete,
 }

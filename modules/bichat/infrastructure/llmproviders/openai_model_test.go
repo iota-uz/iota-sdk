@@ -3,6 +3,7 @@ package llmproviders
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/chart"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
+	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,6 +33,24 @@ func TestNewOpenAIModelFromConfig_MissingAPIKey(t *testing.T) {
 	_, err := NewOpenAIModelFromConfig(bichatconfig.OpenAIConfig{APIKey: ""})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API key")
+}
+
+func TestIsPreviousResponseNotFoundError(t *testing.T) {
+	assert.True(t, isPreviousResponseNotFoundError(&openai.Error{
+		Code:  "previous_response_not_found",
+		Param: "previous_response_id",
+	}))
+	assert.False(t, isPreviousResponseNotFoundError(&openai.Error{
+		Code:  "invalid_request_error",
+		Param: "previous_response_id",
+	}))
+	assert.False(t, isPreviousResponseNotFoundError(&openai.Error{
+		Code:  "previous_response_not_found",
+		Param: "input",
+	}))
+	assert.True(t, isPreviousResponseNotFoundError(errors.New(
+		`stream error: {"code":"previous_response_not_found","param":"previous_response_id"}`,
+	)))
 }
 
 func TestNewOpenAIModelFromConfig_WithAPIKey(t *testing.T) {
@@ -89,6 +109,108 @@ func TestNewOpenAIHTTPClient_ReturnsConfiguredTransport(t *testing.T) {
 	assert.True(t, ok)
 }
 
+func TestOpenAIStreamTerminalError_Failed(t *testing.T) {
+	event := responses.ResponseStreamEventUnion{
+		Type: "response.failed",
+		Response: responses.Response{
+			ID: "resp_failed",
+			Error: responses.ResponseError{
+				Code:    responses.ResponseErrorCodeServerError,
+				Message: "The model failed to generate a response.",
+			},
+		},
+	}
+
+	err := openAIStreamTerminalError(event)
+	require.Error(t, err)
+
+	var streamErr *openAIStreamError
+	require.ErrorAs(t, err, &streamErr)
+	assert.Equal(t, "response_failed", streamErr.Type)
+	assert.Equal(t, "server_error", streamErr.Code)
+	assert.Equal(t, "The model failed to generate a response.", streamErr.Message)
+	assert.Equal(t, "resp_failed", streamErr.ResponseID)
+	assert.JSONEq(t, `{
+		"type": "response_failed",
+		"code": "server_error",
+		"message": "The model failed to generate a response.",
+		"response_id": "resp_failed"
+	}`, err.Error())
+}
+
+func TestOpenAIStreamTerminalError_FailedWithoutProviderDetails(t *testing.T) {
+	event := responses.ResponseStreamEventUnion{
+		Type:     "response.failed",
+		Response: responses.Response{ID: "resp_failed"},
+	}
+
+	err := openAIStreamTerminalError(event)
+	require.Error(t, err)
+
+	var streamErr *openAIStreamError
+	require.ErrorAs(t, err, &streamErr)
+	assert.Equal(t, "response_failed", streamErr.Code)
+	assert.NotEmpty(t, streamErr.Message)
+	assert.Equal(t, "resp_failed", streamErr.ResponseID)
+}
+
+func TestOpenAIStreamTerminalError_Incomplete(t *testing.T) {
+	tests := []struct {
+		name           string
+		reason         string
+		expectedReason string
+	}{
+		{
+			name:           "output token limit",
+			reason:         "max_output_tokens",
+			expectedReason: "max_output_tokens",
+		},
+		{
+			name:           "content filter",
+			reason:         "content_filter",
+			expectedReason: "content_filter",
+		},
+		{
+			name:           "missing reason",
+			expectedReason: "unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := responses.ResponseStreamEventUnion{
+				Type: "response.incomplete",
+				Response: responses.Response{
+					ID: "resp_incomplete",
+					IncompleteDetails: responses.ResponseIncompleteDetails{
+						Reason: tt.reason,
+					},
+				},
+			}
+
+			err := openAIStreamTerminalError(event)
+			require.Error(t, err)
+
+			var streamErr *openAIStreamError
+			require.ErrorAs(t, err, &streamErr)
+			assert.Equal(t, "response_incomplete", streamErr.Type)
+			assert.Equal(t, "response_incomplete", streamErr.Code)
+			assert.Equal(t, tt.expectedReason, streamErr.Reason)
+			assert.Equal(t, "resp_incomplete", streamErr.ResponseID)
+			assert.Contains(t, streamErr.Message, tt.expectedReason)
+		})
+	}
+}
+
+func TestOpenAIStreamTerminalError_NonTerminalEvent(t *testing.T) {
+	err := openAIStreamTerminalError(responses.ResponseStreamEventUnion{
+		Type:  "response.output_text.delta",
+		Delta: "partial output",
+	})
+
+	require.NoError(t, err)
+}
+
 func TestOpenAIModel_Info(t *testing.T) {
 	model, err := NewOpenAIModelFromConfig(testCfg("gpt-5-mini"))
 	require.NoError(t, err)
@@ -96,7 +218,10 @@ func TestOpenAIModel_Info(t *testing.T) {
 	info := model.Info()
 	assert.Equal(t, "gpt-5-mini", info.Name)
 	assert.Equal(t, "openai", info.Provider)
-	assert.Equal(t, 1_050_000, info.ContextWindow)
+	// Bare-major alias resolves to the mini spec (400K context), not the
+	// frontier default. Pre-2026-04 this incorrectly fell through to the
+	// big-model spec while still being charged mini prices.
+	assert.Equal(t, 400_000, info.ContextWindow)
 	assert.Contains(t, info.Capabilities, agents.CapabilityStreaming)
 	assert.Contains(t, info.Capabilities, agents.CapabilityTools)
 	assert.Contains(t, info.Capabilities, agents.CapabilityJSONMode)
@@ -123,8 +248,8 @@ func TestOpenAIModel_Info_ContextWindowFromCatalog(t *testing.T) {
 		{name: "normalized alias", model: " GPT-5.4-2026-03-05 ", expectCtx: 1050000, expectName: "GPT-5.4-2026-03-05"},
 		{name: "canonical gpt-5.2", model: "gpt-5.2", expectCtx: 400000, expectName: "gpt-5.2"},
 		{name: "versioned gpt-5.2 alias", model: "gpt-5.2-2025-12-11", expectCtx: 400000, expectName: "gpt-5.2-2025-12-11"},
-		{name: "legacy gpt-5-mini alias falls back to default spec", model: "gpt-5-mini", expectCtx: 1_050_000, expectName: "gpt-5-mini"},
-		{name: "legacy gpt-5-nano alias falls back to default spec", model: "gpt-5-nano", expectCtx: 1_050_000, expectName: "gpt-5-nano"},
+		{name: "gpt-5-mini bare alias resolves to mini spec", model: "gpt-5-mini", expectCtx: 400_000, expectName: "gpt-5-mini"},
+		{name: "gpt-5-nano bare alias resolves to nano spec", model: "gpt-5-nano", expectCtx: 400_000, expectName: "gpt-5-nano"},
 		{name: "canonical gpt-5.4-mini", model: "gpt-5.4-mini", expectCtx: 400000, expectName: "gpt-5.4-mini"},
 		{name: "canonical gpt-5.4-nano", model: "gpt-5.4-nano", expectCtx: 400000, expectName: "gpt-5.4-nano"},
 		{name: "unknown falls back to default spec", model: "unknown-model", expectCtx: 1050000, expectName: "unknown-model"},
@@ -222,6 +347,27 @@ func TestOpenAIModel_BuildResponseParams(t *testing.T) {
 
 	// Verify JSON mode
 	assert.NotNil(t, params.Text.Format.OfJSONObject)
+}
+
+func TestOpenAIModel_BuildResponseParams_AllowsToolOutputFromPreviousResponse(t *testing.T) {
+	t.Parallel()
+
+	model, err := NewOpenAIModelFromConfig(testCfg())
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+	previousResponseID := "resp_with_tool_call"
+	params := oaiModel.buildResponseParams(context.Background(), agents.Request{
+		Messages: []types.Message{
+			types.SystemMessage("Keep the developer instruction."),
+			types.ToolResponse("call_from_previous_response", `{"value":"found"}`),
+		},
+		PreviousResponseID: &previousResponseID,
+	}, agents.GenerateConfig{})
+
+	require.True(t, params.PreviousResponseID.Valid())
+	assert.Equal(t, previousResponseID, params.PreviousResponseID.Value)
+	require.NotNil(t, params.Input.OfInputItemList)
+	assert.Len(t, params.Input.OfInputItemList, 2)
 }
 
 func TestOpenAIModel_BuildResponseParams_NativeWebSearch(t *testing.T) {
@@ -429,15 +575,16 @@ func TestOpenAIModel_MapResponse_FunctionCalls(t *testing.T) {
 	require.NoError(t, err)
 	oaiModel := model.(*OpenAIModel)
 
+	var functionCall responses.ResponseOutputItemUnion
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"type":"function_call",
+		"call_id":"call_abc",
+		"name":"sql_execute",
+		"arguments":"{\"query\":\"SELECT 1\"}"
+	}`), &functionCall))
+
 	resp := &responses.Response{
-		Output: []responses.ResponseOutputItemUnion{
-			{
-				Type:      "function_call",
-				CallID:    "call_abc",
-				Name:      "sql_execute",
-				Arguments: `{"query":"SELECT 1"}`,
-			},
-		},
+		Output: []responses.ResponseOutputItemUnion{functionCall},
 		Usage: responses.ResponseUsage{
 			InputTokens:  20,
 			OutputTokens: 10,
@@ -794,7 +941,7 @@ func TestOpenAIModel_BuildInputItems_OnlyImagesBecomeInputImage(t *testing.T) {
 
 func TestFunctionCallItemKey(t *testing.T) {
 	t.Run("prefers output item id", func(t *testing.T) {
-		key := functionCallItemKey(responses.ResponseOutputItemUnion{
+		key := functionCallItemKey(responses.ResponseFunctionToolCall{
 			ID:     "fc_123",
 			CallID: "call_123",
 		}, "")
@@ -802,14 +949,14 @@ func TestFunctionCallItemKey(t *testing.T) {
 	})
 
 	t.Run("falls back to event item_id", func(t *testing.T) {
-		key := functionCallItemKey(responses.ResponseOutputItemUnion{
+		key := functionCallItemKey(responses.ResponseFunctionToolCall{
 			CallID: "call_123",
 		}, "fc_fallback")
 		assert.Equal(t, "fc_fallback", key)
 	})
 
 	t.Run("falls back to call_id when item ids missing", func(t *testing.T) {
-		key := functionCallItemKey(responses.ResponseOutputItemUnion{
+		key := functionCallItemKey(responses.ResponseFunctionToolCall{
 			CallID: "call_123",
 		}, "")
 		assert.Equal(t, "call_123", key)

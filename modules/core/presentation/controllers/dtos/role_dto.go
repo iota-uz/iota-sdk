@@ -90,7 +90,9 @@ func getPermissionByID(schema *rbac.PermissionSchema, permID uuid.UUID) (permiss
 			}
 		}
 	}
-	return nil, fmt.Errorf("permission with ID %s not found", permID)
+	// Preserve an unknown but syntactically valid ID so the authoritative
+	// service policy can reject the complete request atomically.
+	return permission.New(permission.WithID(permID)), nil
 }
 
 func (dto *CreateRoleDTO) ToEntity(schema *rbac.PermissionSchema) (role.Role, error) {

@@ -240,7 +240,7 @@ func drawerFooter(t *viewmodels.Transaction, pageCtx types.PageContext) templ.Co
 			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div class=\"px-6 py-4 bg-gray-50 border-t border-gray-200\"><h3 class=\"text-sm font-medium text-gray-900 mb-3\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div class=\"px-6 py-4 bg-gray-50 border-t border-subtle\"><h3 class=\"text-sm font-medium text-gray-900 mb-3\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -441,7 +441,7 @@ func depositLayout(t *viewmodels.Transaction, pageCtx types.PageContext) templ.C
 			}
 		}
 		if t.Counterparty != nil {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<div class=\"bg-gray-50 rounded-lg p-4 border border-gray-200\"><div class=\"flex items-start gap-3\"><div class=\"p-2 bg-gray-100 rounded-lg\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<div class=\"bg-gray-50 rounded-lg p-4 border border-subtle\"><div class=\"flex items-start gap-3\"><div class=\"p-2 bg-gray-100 rounded-lg\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -669,7 +669,7 @@ func withdrawalLayout(t *viewmodels.Transaction, pageCtx types.PageContext) temp
 			}
 		}
 		if t.Category != nil {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<div class=\"bg-gray-50 rounded-lg p-4 border border-gray-200\"><div class=\"flex items-start gap-3\"><div class=\"p-2 bg-gray-100 rounded-lg\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<div class=\"bg-gray-50 rounded-lg p-4 border border-subtle\"><div class=\"flex items-start gap-3\"><div class=\"p-2 bg-gray-100 rounded-lg\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

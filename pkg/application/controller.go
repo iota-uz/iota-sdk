@@ -1,0 +1,280 @@
+package application
+
+import (
+	"context"
+	"net/http"
+	"path"
+	"strings"
+
+	"github.com/a-h/templ"
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+)
+
+type PermissionLogic int
+
+const (
+	PermissionLogicAll PermissionLogic = iota
+	PermissionLogicAny
+)
+
+type AuthPolicy struct {
+	Public      bool
+	Permissions []permission.Permission
+	Logic       PermissionLogic
+}
+
+type ControllerDescriptor struct {
+	ID       string
+	Order    int
+	Replaces []string
+	Routes   []RouteSpec
+	Nav      []NavNode
+}
+
+type RouteSpec struct {
+	Method         string
+	Path           string
+	Prefix         bool
+	Host           string
+	Renderer       RouteRenderer
+	RouteID        string
+	FeatureID      string
+	AccessExplicit bool
+	AllowCollision bool
+	// Requirement is the canonical route access contract consumed by hosts.
+	Requirement AuthPolicy
+	// Deprecated: use Requirement. Kept populated for existing descriptor
+	// consumers during the migration.
+	Auth AuthPolicy
+}
+
+// RouteRenderer selects the owner of a route's page lifecycle. Server routes
+// are rendered by Templ/HTMX; client routes mount through the standard client
+// host. It does not describe fragments returned inside a server route.
+type RouteRenderer string
+
+const (
+	RouteRendererServer RouteRenderer = "server"
+	RouteRendererClient RouteRenderer = "client"
+	// RouteRendererReact is retained while existing React routes migrate. New
+	// client routes should use RouteRendererClient.
+	RouteRendererReact RouteRenderer = "react"
+)
+
+type Surface string
+
+const (
+	SurfaceSidebar        Surface = "sidebar"
+	SurfaceSpotlight      Surface = "spotlight"
+	SurfaceSitemap        Surface = "sitemap"
+	SurfaceCommandPalette Surface = "command_palette"
+)
+
+type SurfaceOptions struct {
+	Hidden   bool
+	TitleKey string
+	Path     string
+	Icon     templ.Component
+	Order    int
+	Keywords []string
+}
+
+type NavAction struct {
+	ID       string
+	TitleKey string
+	Path     string
+	Auth     *AuthPolicy
+	Surfaces map[Surface]SurfaceOptions
+}
+
+type NavNode struct {
+	ID         string
+	Parent     string
+	Workspace  string
+	TitleKey   string
+	Path       string
+	Icon       templ.Component
+	Pinned     bool
+	Order      int
+	Before     string
+	After      string
+	Keywords   []string
+	Surfaces   map[Surface]SurfaceOptions
+	Actions    []NavAction
+	IsBeta     bool
+	Visibility *AuthPolicy
+}
+
+type NavScope struct {
+	TenantID    uuid.UUID
+	UserID      uint
+	Roles       []string
+	Permissions []string
+	Workspace   string
+}
+
+type NavProvider interface {
+	ProvideNav(ctx context.Context, scope NavScope) ([]NavNode, error)
+}
+
+func Descriptor(id string, order int, routes ...RouteSpec) ControllerDescriptor {
+	return ControllerDescriptor{
+		ID:     id,
+		Order:  order,
+		Routes: routes,
+	}
+}
+
+func (d ControllerDescriptor) WithNav(nodes ...NavNode) ControllerDescriptor {
+	d.Nav = append(d.Nav, nodes...)
+	return d
+}
+
+func Route(method, routePath string, opts ...RouteOption) RouteSpec {
+	route := RouteSpec{
+		Method:   strings.ToUpper(strings.TrimSpace(method)),
+		Path:     NormalizeRoutePath(routePath),
+		Renderer: RouteRendererServer,
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&route)
+		}
+	}
+	return route
+}
+
+type RouteOption func(*RouteSpec)
+
+func WithAuth(auth AuthPolicy) RouteOption {
+	return func(route *RouteSpec) {
+		route.Requirement = auth
+		route.Auth = auth
+		route.AccessExplicit = true
+	}
+}
+
+// RenderedBy declares which standard host owns the route lifecycle.
+func RenderedBy(renderer RouteRenderer) RouteOption {
+	return func(route *RouteSpec) {
+		route.Renderer = renderer
+	}
+}
+
+// ClientFeature declares the stable identities used by the standard client
+// host. Screen layout and behavior remain in the feature's TypeScript code.
+func ClientFeature(routeID, featureID string) RouteOption {
+	return func(route *RouteSpec) {
+		route.Renderer = RouteRendererClient
+		route.RouteID = strings.TrimSpace(routeID)
+		route.FeatureID = strings.TrimSpace(featureID)
+	}
+}
+
+// ClientRoute declares a client-owned route identity. The frontend feature is
+// supplied by clienthost.Route.Feature, normally through solid.Import. Keeping
+// the route ID here avoids a second TypeScript route registry while letting the
+// SDK derive the feature identity from the owning Go package and TSX source.
+func ClientRoute(routeID string) RouteOption {
+	return func(route *RouteSpec) {
+		route.Renderer = RouteRendererClient
+		route.RouteID = strings.TrimSpace(routeID)
+	}
+}
+
+// Authenticated declares that a signed-in user may access the route without
+// an additional permission requirement.
+func Authenticated() RouteOption {
+	return WithAuth(AuthPolicy{})
+}
+
+func Public() RouteOption {
+	return WithAuth(AuthPolicy{Public: true})
+}
+
+func RequireAll(permissions ...permission.Permission) RouteOption {
+	return WithAuth(AuthPolicy{Permissions: normalizePermissions(permissions), Logic: PermissionLogicAll})
+}
+
+func RequireAny(permissions ...permission.Permission) RouteOption {
+	return WithAuth(AuthPolicy{Permissions: normalizePermissions(permissions), Logic: PermissionLogicAny})
+}
+
+func normalizePermissions(values []permission.Permission) []permission.Permission {
+	out := make([]permission.Permission, 0, len(values))
+	for _, perm := range values {
+		if perm != nil {
+			out = append(out, perm)
+		}
+	}
+	return out
+}
+
+func Get(routePath string, opts ...RouteOption) RouteSpec {
+	return Route(http.MethodGet, routePath, opts...)
+}
+
+func Post(routePath string, opts ...RouteOption) RouteSpec {
+	return Route(http.MethodPost, routePath, opts...)
+}
+
+func Put(routePath string, opts ...RouteOption) RouteSpec {
+	return Route(http.MethodPut, routePath, opts...)
+}
+
+func Delete(routePath string, opts ...RouteOption) RouteSpec {
+	return Route(http.MethodDelete, routePath, opts...)
+}
+
+func Prefix(routePath string, opts ...RouteOption) RouteSpec {
+	route := RouteSpec{
+		Path:     NormalizeRoutePath(routePath),
+		Prefix:   true,
+		Renderer: RouteRendererServer,
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&route)
+		}
+	}
+	return route
+}
+
+func WithHost(host string, route RouteSpec) RouteSpec {
+	route.Host = strings.TrimSpace(host)
+	return route
+}
+
+func AllowCollision(route RouteSpec) RouteSpec {
+	route.AllowCollision = true
+	return route
+}
+
+func BaseRoute(method, basePath, suffix string, opts ...RouteOption) RouteSpec {
+	return Route(method, JoinRoutePath(basePath, suffix), opts...)
+}
+
+func BasePrefix(basePath, suffix string, opts ...RouteOption) RouteSpec {
+	return Prefix(JoinRoutePath(basePath, suffix), opts...)
+}
+
+func NormalizeRoutePath(routePath string) string {
+	routePath = strings.TrimSpace(routePath)
+	if routePath == "" {
+		return "/"
+	}
+	if !strings.HasPrefix(routePath, "/") {
+		routePath = "/" + routePath
+	}
+	return path.Clean(routePath)
+}
+
+func JoinRoutePath(basePath, suffix string) string {
+	base := NormalizeRoutePath(basePath)
+	suffix = strings.TrimSpace(suffix)
+	if suffix == "" || suffix == "/" {
+		return base
+	}
+	return path.Join(base, strings.TrimPrefix(suffix, "/"))
+}

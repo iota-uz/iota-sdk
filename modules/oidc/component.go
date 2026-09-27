@@ -47,9 +47,11 @@ func (c *component) Descriptor() composition.Descriptor {
 	}
 }
 
-func (c *component) Build(builder *composition.Builder) error {
-	composition.AddLocales(builder, &LocaleFiles)
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&LocaleFiles}
+}
 
+func (c *component) Build(builder *composition.Builder) error {
 	// Implicit enablement: OIDC is on iff OIDC_ISSUERURL and OIDC_CRYPTOKEY
 	// are both supplied. The gate helper emits a CapabilityProbe so
 	// /system/info reflects state and logs a single structured line when
@@ -96,9 +98,10 @@ func (c *component) Build(builder *composition.Builder) error {
 			storage *oidcinfra.Storage,
 			oidcService *services.OIDCService,
 			sessionService *coreservices.SessionService,
+			browserSessions *coreservices.BrowserSessionService,
 		) []application.Controller {
 			return []application.Controller{
-				controllers.NewOIDCController(storage, cfg, oidcService, sessionService, httpCfg, cookiesCfg),
+				controllers.NewOIDCController(storage, cfg, oidcService, sessionService, browserSessions, httpCfg),
 			}
 		})
 	}

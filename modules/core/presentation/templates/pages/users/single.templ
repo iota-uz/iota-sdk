@@ -104,7 +104,7 @@ templ Single(props *SingleProps) {
 }
 
 templ UserInfoHeader(user *viewmodels.User) {
-	<div class="flex justify-between items-center border-b border-gray-200 p-4">
+	<div class="flex justify-between items-center border-b border-subtle p-4">
 		<span class="font-medium">
 			{ user.Title() }
 		</span>
@@ -127,18 +127,18 @@ templ UserInfo(user *viewmodels.User, slots slot.Manager) {
 		Class:  "flex flex-wrap w-full gap-2",
 	}) {
 		if user.Phone != "" {
-			<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-gray-500 overflow-hidden basis-72 flex-1">
+			<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-primary overflow-hidden basis-72 flex-1">
 				<span class="text-200 text-sm">{ pageCtx.T("Users.Single.Phone") }</span>
 				<span class="font-medium text-sm">{ user.Phone }</span>
 			</div>
 		}
 		if user.Email != "" {
-			<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-gray-500 overflow-hidden basis-72 flex-1">
+			<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-primary overflow-hidden basis-72 flex-1">
 				<span class="text-200 text-sm">{ pageCtx.T("Users.Single.Email") }</span>
 				<span class="font-medium text-sm">{ user.Email }</span>
 			</div>
 		}
-		<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-gray-500 overflow-hidden basis-72 flex-1">
+		<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-primary overflow-hidden basis-72 flex-1">
 			<span class="text-200 text-sm">{ pageCtx.T("Users.Single.GroupIDs") }</span>
 			<span class="font-medium text-sm">
 				@slot.Slot(slots.Get(SingleSlotGroups))
@@ -176,6 +176,8 @@ templ UserAccessInfo(user *viewmodels.User, groups []*viewmodels.ResourcePermiss
 		items := []descriptionlist.DLItem{}
 		if len(user.Roles) > 0 {
 			items = append(items, descriptionlist.NewItem(pageCtx.T("Users.Single.Roles"), descriptionlist.WithItemText(user.RolesVerbose())))
+		} else {
+			items = append(items, descriptionlist.NewItem(pageCtx.T("Users.Single.Roles"), descriptionlist.WithItemText(pageCtx.T("Users.NoRole"))))
 		}
 		if len(groups) > 0 {
 			groupItems := make([]descriptionlist.DLItem, len(groups))

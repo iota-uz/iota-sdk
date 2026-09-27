@@ -34,6 +34,8 @@ const (
 	FieldTypeSelect        FieldType = "select"
 )
 
+const dateTimeLocalLayout = "2006-01-02T15:04"
+
 // Option for SelectField and RadioField choices
 type Option struct {
 	Value string
@@ -311,8 +313,8 @@ func (f *dateField) Component() templ.Component {
 		"name": f.key,
 		"type": string(FieldTypeDate),
 	}
-	if !f.defaultVal.IsZero() {
-		attrs["value"] = f.defaultVal.Format(time.DateOnly)
+	if val := mapping.Or(f.value, f.defaultVal); !val.IsZero() {
+		attrs["value"] = val.Format(time.DateOnly)
 	}
 	for k, v := range f.attrs {
 		attrs[k] = v
@@ -353,8 +355,10 @@ type dateTimeLocalField struct {
 
 func (f *dateTimeLocalField) Component() templ.Component {
 	attrs := templ.Attributes{
-		"name":  f.key,
-		"value": mapping.Or(f.value, f.defaultVal),
+		"name": f.key,
+	}
+	if val := mapping.Or(f.value, f.defaultVal); !val.IsZero() {
+		attrs["value"] = val.Format(dateTimeLocalLayout)
 	}
 	for k, v := range f.attrs {
 		attrs[k] = v

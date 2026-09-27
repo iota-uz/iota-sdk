@@ -9,7 +9,7 @@ import (
 // FormInput renders a MultiLang field as an editable form input with custom label
 // Provides separate inputs for each language with add/remove functionality
 templ FormInputWithLabel(ctx context.Context, field crud.Field, ml models.MultiLang, label string) {
-	<fieldset class="multilang-field border border-gray-300 rounded-lg p-4">
+	<fieldset class="multilang-field border border-subtle rounded-lg p-4">
 		<legend class="text-sm font-medium text-gray-900 px-2">{ label }</legend>
 		<div class="multilang-inputs space-y-3" data-field={ field.Name() }>
 			// Show inputs for common languages in consistent order
@@ -48,7 +48,7 @@ templ LocaleInput(ctx context.Context, locale, value string, removable bool) {
 	<div class="locale-row flex items-center space-x-2">
 		<input
 			type="text"
-			class="locale-code w-16 px-2 py-1 text-xs border border-gray-300 rounded uppercase"
+			class="locale-code w-16 px-2 py-1 text-xs border border-default rounded uppercase"
 			value={ locale }
 			placeholder={ locale }
 			maxlength="5"
@@ -57,7 +57,7 @@ templ LocaleInput(ctx context.Context, locale, value string, removable bool) {
 		/>
 		<input
 			type="text"
-			class="locale-value flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+			class="locale-value flex-1 px-3 py-2 border border-default rounded-md focus:ring-primary-500 focus:border-brand"
 			value={ value }
 			placeholder={ localizeWithDefault(ctx, "multilang.text_placeholder", "Enter text in this language") }
 			onchange="updateMultilangJSON(this)"
@@ -181,7 +181,7 @@ script multilangHelpers() {
 		// Create locale code input with safe value setting
 		const localeInput = document.createElement('input');
 		localeInput.type = 'text';
-		localeInput.className = 'locale-code w-16 px-2 py-1 text-xs border border-gray-300 rounded uppercase';
+		localeInput.className = 'locale-code w-16 px-2 py-1 text-xs border border-default rounded uppercase';
 		localeInput.placeholder = 'en';
 		localeInput.maxLength = 5;
 		localeInput.value = suggestedLocale; // Safe - no HTML injection possible
@@ -191,7 +191,7 @@ script multilangHelpers() {
 		// Create locale value input
 		const valueInput = document.createElement('input');
 		valueInput.type = 'text';
-		valueInput.className = 'locale-value flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500';
+		valueInput.className = 'locale-value flex-1 px-3 py-2 border border-default rounded-md focus:ring-primary-500 focus:border-brand';
 		valueInput.placeholder = 'Enter text in this language';
 		valueInput.onchange = function() { updateMultilangJSON(this); };
 		valueInput.oninput = function() { updateMultilangJSON(this); };

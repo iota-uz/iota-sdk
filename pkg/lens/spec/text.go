@@ -18,6 +18,21 @@ func LiteralText(value string) Text {
 	return Text{Value: value}
 }
 
+func (t Text) IsZero() bool {
+	if strings.TrimSpace(t.Value) != "" {
+		return false
+	}
+	for locale, value := range t.Translations {
+		if normalizeLocale(locale) == "" {
+			continue
+		}
+		if strings.TrimSpace(value) != "" {
+			return false
+		}
+	}
+	return true
+}
+
 func (t Text) MarshalJSON() ([]byte, error) {
 	if len(t.Translations) == 0 {
 		return json.Marshal(t.Value)

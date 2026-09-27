@@ -4,7 +4,6 @@ package controllers
 import (
 	"bytes"
 	"context"
-	"encoding/csv"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,6 +16,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/components/export"
@@ -254,8 +254,15 @@ func (c *ClientController) RegisterTab(tab TabDefinition) {
 	})
 }
 
-func (c *ClientController) Key() string {
-	return c.config.BasePath
+func (c *ClientController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("crm.client", 0, application.Route("", c.config.BasePath)).
+		WithNav(application.NavNode{
+			ID:       "crm.client",
+			Parent:   "crm",
+			TitleKey: "NavigationLinks.Clients",
+			Path:     c.config.BasePath,
+			Icon:     icons.Users(icons.Props{Size: "20"}),
+		})
 }
 
 func (c *ClientController) Register(r *mux.Router) {
@@ -521,8 +528,14 @@ func (c *ClientController) Export(
 		return
 	case export.ExportFormatCSV:
 		var buffer bytes.Buffer
-		writer := csv.NewWriter(&buffer)
-		if err := writer.Write([]string{
+		// Names and phones are user-entered: the SDK CSV writer keeps them from
+		// opening as spreadsheet formulas.
+		writer, err := excel.NewCSVWriter(&buffer, &excel.CSVOptions{IncludeBOM: true})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := writer.WriteHeader([]string{
 			pgCtx.T("Clients.List.FullName"),
 			pgCtx.T("Clients.List.Phone"),
 			pgCtx.T("UpdatedAt"),
@@ -537,13 +550,12 @@ func (c *ClientController) Export(
 		}
 
 		for _, client := range clients {
-			if err := writer.Write([]string{client.FullName(), client.Phone, client.UpdatedAt}); err != nil {
+			if err := writer.WriteRow([]interface{}{client.FullName(), client.Phone, client.UpdatedAt}); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}
-		writer.Flush()
-		if err := writer.Error(); err != nil {
+		if err := writer.Flush(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -966,9 +978,9 @@ func (c *ClientController) UpdatePersonal(
 
 	clientVM := mappers.ClientToViewModel(entity)
 	htmx.Retarget(w, "#personal-info-card")
+	htmx.Reswap(w, "outerHTML")
 	templ.Handler(clients.PersonalInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
-
 func (c *ClientController) UpdatePassport(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -1042,9 +1054,9 @@ func (c *ClientController) UpdatePassport(
 
 	clientVM := mappers.ClientToViewModel(entity)
 	htmx.Retarget(w, "#passport-info-card")
+	htmx.Reswap(w, "outerHTML")
 	templ.Handler(clients.PassportInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
-
 func (c *ClientController) UpdateTax(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -1118,9 +1130,9 @@ func (c *ClientController) UpdateTax(
 
 	clientVM := mappers.ClientToViewModel(entity)
 	htmx.Retarget(w, "#tax-info-card")
+	htmx.Reswap(w, "outerHTML")
 	templ.Handler(clients.TaxInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
-
 func (c *ClientController) UpdateNotes(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -1155,15 +1167,15 @@ func (c *ClientController) UpdateNotes(
 		}
 
 		clientVM := mappers.ClientToViewModel(entity)
-		props := &clients.TaxInfoEditProps{
+		clientVM.Comments = dto.Comments
+		props := &clients.NotesInfoEditProps{
 			Client: clientVM,
 			Errors: errorsMap,
 			Form:   "notes-info-edit-form",
 		}
-		templ.Handler(clients.TaxInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(clients.NotesInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
-
 	entity, err := clientService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v", err)
@@ -1193,9 +1205,9 @@ func (c *ClientController) UpdateNotes(
 
 	clientVM := mappers.ClientToViewModel(entity)
 	htmx.Retarget(w, "#notes-info-card")
+	htmx.Reswap(w, "outerHTML")
 	templ.Handler(clients.NotesInfoCard(clientVM), templ.WithStreaming()).ServeHTTP(w, r)
 }
-
 func (c *ClientController) Delete(
 	r *http.Request,
 	w http.ResponseWriter,

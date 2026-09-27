@@ -77,8 +77,8 @@ func (p *userProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Val
 }
 
 func (p *serviceProvider) Ok(t reflect.Type) bool {
-	// Basic check: must be a pointer type for services
-	return t.Kind() == reflect.Ptr
+	// Services may be registered as concrete pointers or interface contracts.
+	return t.Kind() == reflect.Ptr || t.Kind() == reflect.Interface
 }
 
 func (p *serviceProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
@@ -94,7 +94,14 @@ func (p *serviceProvider) Provide(t reflect.Type, ctx context.Context) (reflect.
 	if err != nil {
 		return reflect.Value{}, err
 	}
-	return reflect.ValueOf(service), nil
+	if service == nil {
+		return reflect.Value{}, fmt.Errorf("container resolved a nil service for type %v", t)
+	}
+	value := reflect.ValueOf(service)
+	if !value.Type().AssignableTo(t) {
+		return reflect.Value{}, fmt.Errorf("resolved service of type %v is not assignable to %v", value.Type(), t)
+	}
+	return value, nil
 }
 
 func (p *loggerProvider) Ok(t reflect.Type) bool {

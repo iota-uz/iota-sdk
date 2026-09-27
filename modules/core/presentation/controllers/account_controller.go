@@ -2,12 +2,16 @@
 package controllers
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
@@ -20,6 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type AccountController struct {
@@ -51,8 +56,27 @@ func NewAccountController(
 	}
 }
 
-func (c *AccountController) Key() string {
-	return c.basePath
+func (c *AccountController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor(
+		"core.account",
+		0,
+		application.Route("", c.basePath),
+		application.Route("", c.basePath+"/sessions"),
+	).WithNav(
+		application.NavNode{
+			ID:       "core.account",
+			TitleKey: "Account.Meta.Index.Title",
+			Path:     c.basePath,
+			Surfaces: spotlightOnlySurface(),
+		},
+		application.NavNode{
+			ID:       "core.account.sessions",
+			Parent:   "core.account",
+			TitleKey: "Account.Sessions.Title",
+			Path:     c.basePath + "/sessions",
+			Surfaces: spotlightOnlySurface(),
+		},
+	)
 }
 
 func (c *AccountController) Register(r *mux.Router) {
@@ -72,12 +96,48 @@ func (c *AccountController) Register(r *mux.Router) {
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.HandleFunc("", c.Update).Methods(http.MethodPost)
+	setRouter.HandleFunc("/password", c.ChangePassword).Methods(http.MethodPost)
 
 	deleteRouter := r.PathPrefix(c.basePath).Subrouter()
 	deleteRouter.Use(commonMiddleware...)
 	// Register specific routes before parameterized ones to avoid route conflicts
 	deleteRouter.HandleFunc("/sessions/others", c.RevokeOtherSessions).Methods(http.MethodDelete)
 	deleteRouter.HandleFunc("/sessions/{token}", c.RevokeSession).Methods(http.MethodDelete)
+}
+
+func (c *AccountController) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	logger := composables.UseLogger(r.Context())
+	dto, err := composables.UseForm(&dtos.ChangePasswordDTO{}, r)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	if fieldErrors, ok := dto.Ok(r.Context()); !ok {
+		templ.Handler(account.PasswordForm(c.basePath+"/password", fieldErrors)).ServeHTTP(w, r)
+		return
+	}
+	if err := c.userService.ChangePassword(r.Context(), dto.CurrentPassword, dto.NewPassword); err != nil {
+		if errors.Is(err, services.ErrCurrentPasswordMismatch) {
+			pageCtx := composables.UsePageCtx(r.Context())
+			templ.Handler(account.PasswordForm(c.basePath+"/password", map[string]string{
+				"CurrentPassword": pageCtx.T("Account.ChangePassword.Errors.CurrentIncorrect"),
+			})).ServeHTTP(w, r)
+			return
+		}
+		logger.WithError(err).Error("failed to change password")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name: c.cfg.SID, Value: "", Path: "/", Domain: c.cfg.Domain,
+		MaxAge: -1, Expires: time.Unix(0, 0), HttpOnly: true, SameSite: http.SameSiteLaxMode,
+	})
+	if htmx.IsHxRequest(r) {
+		htmx.Redirect(w, "/login")
+		return
+	}
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
 func (c *AccountController) defaultProps(r *http.Request, errors map[string]string) (*account.ProfilePageProps, error) {
@@ -189,14 +249,13 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Get current session token from cookie
-	cookie, err := r.Cookie(c.cfg.SID)
+	currentSession, err := c.currentSession(r)
 	if err != nil {
-		logger.WithError(err).Error("failed to get session cookie")
+		logger.WithError(err).Error("failed to get current session")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
 		return
 	}
-	currentToken := cookie.Value
+	currentToken := currentSession.Token()
 
 	// Fetch all sessions for the user
 	sessions, err := c.sessionService.GetByUserID(r.Context(), user.ID())
@@ -230,14 +289,13 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	vars := mux.Vars(r)
 	tokenHash := vars["token"]
 
-	// Get current session token from cookie
-	cookie, err := r.Cookie(c.cfg.SID)
+	currentSession, err := c.currentSession(r)
 	if err != nil {
-		logger.WithError(err).Error("failed to get session cookie")
+		logger.WithError(err).Error("failed to get current session")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
 		return
 	}
-	currentToken := cookie.Value
+	currentToken := currentSession.Token()
 
 	// Get current user
 	user, err := composables.UseUser(r.Context())
@@ -274,7 +332,14 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	// Prevent revoking current session
 	if sessionToRevoke == currentToken {
 		logger.Error("cannot revoke current session")
-		htmx.SetTrigger(w, "error", fmt.Sprintf(`{"message": "%s"}`, pageCtx.T("Account.Sessions.CannotRevokeCurrent")))
+		errorPayload, err := json.Marshal(map[string]string{
+			"message": pageCtx.T("Account.Sessions.CannotRevokeCurrent"),
+		})
+		if err != nil {
+			logger.WithError(err).Error("failed to marshal session revoke toast")
+		} else {
+			htmx.SetTrigger(w, "error", string(errorPayload))
+		}
 		http.Error(w, pageCtx.T("Account.Sessions.CannotRevokeCurrent"), http.StatusForbidden)
 		return
 	}
@@ -287,7 +352,15 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	}
 
 	// Return success with HTMX trigger
-	htmx.SetTrigger(w, "success", fmt.Sprintf(`{"message": "%s"}`, pageCtx.T("Account.Sessions.RevokeSuccess")))
+	successPayload, err := json.Marshal(map[string]string{
+		"message": pageCtx.T("Account.Sessions.RevokeSuccess"),
+	})
+	if err != nil {
+		logger.WithError(err).Error("failed to marshal session revoke toast")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	htmx.SetTrigger(w, "success", string(successPayload))
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -303,14 +376,13 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Get current session token from cookie
-	cookie, err := r.Cookie(c.cfg.SID)
+	currentSession, err := c.currentSession(r)
 	if err != nil {
-		logger.WithError(err).Error("failed to get session cookie")
+		logger.WithError(err).Error("failed to get current session")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
 		return
 	}
-	currentToken := cookie.Value
+	currentToken := currentSession.Token()
 
 	// Terminate all other sessions
 	count, err := c.sessionService.TerminateOtherSessions(r.Context(), user.ID(), currentToken)
@@ -322,7 +394,29 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 
 	// Return success with count and refresh page
 	successMsg := fmt.Sprintf(pageCtx.T("Account.Sessions.RevokeAllSuccess"), count)
-	successMsg = fmt.Sprintf(`{"message": "%s"}`, successMsg)
-	htmx.SetTrigger(w, "success", successMsg)
+	successPayload, err := json.Marshal(map[string]string{"message": successMsg})
+	if err != nil {
+		logger.WithError(err).Error("failed to marshal session revoke toast")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	htmx.SetTrigger(w, "success", string(successPayload))
 	htmx.Refresh(w)
+}
+
+func (c *AccountController) currentSession(r *http.Request) (session.Session, error) {
+	const op serrors.Op = "accountController.currentSession"
+
+	cookieName := "sid"
+	if c.cfg != nil && c.cfg.SID != "" {
+		cookieName = c.cfg.SID
+	}
+	if _, err := r.Cookie(cookieName); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	sess, err := composables.UseSession(r.Context())
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return sess, nil
 }

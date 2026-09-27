@@ -113,12 +113,29 @@ func (p *Provider) loadInto(k *koanf.Koanf) error {
 
 	// Build a merged environ: file vars first, then process env overrides.
 	// We supply this via EnvironFunc so the koanf env provider uses our merged set.
+	//
+	// Empty-valued vars are skipped at both layers: an empty env var carries
+	// no configuration signal. Container orchestrators commonly export optional
+	// settings via the `${VAR:-}` idiom, which sets the var unconditionally —
+	// to "" when the secret is absent. Loading those phantom keys would
+	// register entries under a feature's config prefix, making an
+	// otherwise-unset optional feature look *partially* configured
+	// (Source.HasPrefix true while IsConfigured is false) and tripping
+	// strict-mode boot failures. Skipping empties lets default tags apply,
+	// keeps such features cleanly disabled, and ensures an empty process-env
+	// var does not erase a non-empty value from a lower-precedence .env file.
 	processEnv := environToMap(os.Environ())
 	merged := make(map[string]string, len(fileVars)+len(processEnv))
 	for k, v := range fileVars {
+		if v == "" {
+			continue
+		}
 		merged[k] = v
 	}
 	for k, v := range processEnv {
+		if v == "" {
+			continue
+		}
 		merged[k] = v
 	}
 

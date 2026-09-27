@@ -13,7 +13,10 @@ import (
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
@@ -38,19 +41,41 @@ func resolveSIDKey(ctx context.Context) string {
 	return cfg.SID
 }
 
-func getToken(r *http.Request, sidKey string) (string, error) {
+func getToken(r *http.Request, sidKey string) (string, bool, error) {
 	token, err := r.Cookie(sidKey)
 	if errors.Is(err, http.ErrNoCookie) {
 		v := r.Header.Get("Authorization")
 		if v == "" {
-			return "", errors.New("no token found")
+			return "", false, errors.New("no token found")
 		}
-		return v, nil
+		return v, false, nil
 	}
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
-	return token.Value, nil
+	return token.Value, true, nil
+}
+
+func resolveBrowserToken(
+	w http.ResponseWriter,
+	r *http.Request,
+	container *composition.Container,
+	fallback string,
+) (string, []services.BrowserSession, error) {
+	browserSessionService, _ := composition.Resolve[*services.BrowserSessionService](container)
+	if browserSessionService == nil {
+		return fallback, nil, nil
+	}
+	browserSessions, err := browserSessionService.Resolve(w, r)
+	if err != nil {
+		return "", nil, err
+	}
+	for _, browserSession := range browserSessions {
+		if browserSession.Active {
+			return browserSession.Session.Token(), browserSessions, nil
+		}
+	}
+	return "", browserSessions, errors.New("no active session found")
 }
 
 func Authorize() mux.MiddlewareFunc {
@@ -58,7 +83,7 @@ func Authorize() mux.MiddlewareFunc {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				ctx := r.Context()
-				token, err := getToken(r, resolveSIDKey(ctx))
+				token, fromCookie, err := getToken(r, resolveSIDKey(ctx))
 				if err != nil {
 					next.ServeHTTP(w, r)
 					return
@@ -69,6 +94,15 @@ func Authorize() mux.MiddlewareFunc {
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 					return
 				}
+				var browserSessions []services.BrowserSession
+				if fromCookie {
+					token, browserSessions, err = resolveBrowserToken(w, r, container, token)
+					if err != nil {
+						next.ServeHTTP(w, r)
+						return
+					}
+				}
+				ctx = services.WithBrowserSessions(ctx, browserSessions)
 				authService, err := composition.Resolve[*services.AuthService](container)
 				if err != nil {
 					composables.UseLogger(ctx).WithError(err).Error("Authorize: failed to resolve AuthService")
@@ -112,7 +146,7 @@ func AuthorizeAnySession() mux.MiddlewareFunc {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				ctx := r.Context()
-				token, err := getToken(r, resolveSIDKey(ctx))
+				token, fromCookie, err := getToken(r, resolveSIDKey(ctx))
 				if err != nil {
 					next.ServeHTTP(w, r)
 					return
@@ -123,6 +157,15 @@ func AuthorizeAnySession() mux.MiddlewareFunc {
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 					return
 				}
+				var browserSessions []services.BrowserSession
+				if fromCookie {
+					token, browserSessions, err = resolveBrowserToken(w, r, container, token)
+					if err != nil {
+						next.ServeHTTP(w, r)
+						return
+					}
+				}
+				ctx = services.WithBrowserSessions(ctx, browserSessions)
 				authService, err := composition.Resolve[*services.AuthService](container)
 				if err != nil {
 					composables.UseLogger(ctx).WithError(err).Error("AuthorizeAnySession: failed to resolve AuthService")
@@ -157,6 +200,10 @@ func ProvideUser() mux.MiddlewareFunc {
 				ctx := r.Context()
 				sess, err := composables.UseSession(ctx)
 				if err != nil {
+					if routeAuthRequiresUser(ctx, r) {
+						http.Error(w, "Unauthorized", http.StatusUnauthorized)
+						return
+					}
 					next.ServeHTTP(w, r)
 					return
 				}
@@ -188,13 +235,10 @@ func ProvideUser() mux.MiddlewareFunc {
 
 				// Check if user is blocked
 				if u.IsBlocked() {
-					// Clear session cookie
-					http.SetCookie(w, &http.Cookie{
-						Name:   resolveSIDKey(ctx),
-						Value:  "",
-						Path:   "/",
-						MaxAge: -1,
-					})
+					browserSessionService, resolveErr := composition.Resolve[*services.BrowserSessionService](container)
+					if resolveErr == nil {
+						_, _ = browserSessionService.RemoveCurrent(w, r)
+					}
 					// Redirect to login with localized error
 					errorMsg := intl.MustT(ctx, "Login.Errors.AccountBlocked")
 					escapedError := url.QueryEscape(errorMsg)
@@ -205,6 +249,10 @@ func ProvideUser() mux.MiddlewareFunc {
 
 				// Set the user in context
 				ctx = context.WithValue(ctx, constants.UserKey, u)
+				if !routeAuthAllowsUser(ctx, r, u) {
+					renderRouteForbidden(w, r.WithContext(ctx))
+					return
+				}
 
 				// Check if we already have a tenant in context
 				_, tenantErr := composables.UseTenantID(ctx)
@@ -216,6 +264,77 @@ func ProvideUser() mux.MiddlewareFunc {
 			},
 		)
 	}
+}
+
+func renderRouteForbidden(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusForbidden)
+	if err := renderForbiddenPage(r.Context(), w); err != nil {
+		logForbiddenRenderError(r.Context(), err)
+		_, _ = w.Write([]byte("<h1>403 Forbidden</h1>"))
+	}
+}
+
+func renderForbiddenPage(ctx context.Context, w http.ResponseWriter) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("render forbidden page panic: %v", recovered)
+		}
+	}()
+	return error_pages.Forbidden().Render(ctx, w)
+}
+
+func logForbiddenRenderError(ctx context.Context, err error) {
+	defer func() {
+		_ = recover()
+	}()
+	composables.UseLogger(ctx).WithError(err).Error("failed to render forbidden page")
+}
+
+func routeAuthRequiresUser(ctx context.Context, r *http.Request) bool {
+	policy, ok := routeAuthPolicy(ctx, r)
+	if !ok || policy.Public {
+		return false
+	}
+	return len(policy.Permissions) > 0
+}
+
+func routeAuthAllowsUser(ctx context.Context, r *http.Request, u interface {
+	Can(permission.Permission) bool
+}) bool {
+	policy, ok := routeAuthPolicy(ctx, r)
+	if !ok || policy.Public || len(policy.Permissions) == 0 {
+		return true
+	}
+	switch policy.Logic {
+	case application.PermissionLogicAny:
+		for _, perm := range policy.Permissions {
+			if perm != nil && u.Can(perm) {
+				return true
+			}
+		}
+		return false
+	case application.PermissionLogicAll:
+		fallthrough
+	default:
+		for _, perm := range policy.Permissions {
+			if perm == nil {
+				continue
+			}
+			if !u.Can(perm) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+func routeAuthPolicy(ctx context.Context, r *http.Request) (application.AuthPolicy, bool) {
+	container, err := composition.UseContainer(ctx)
+	if err != nil || container == nil {
+		return application.AuthPolicy{}, false
+	}
+	return container.AuthPolicyForRoute(r.Method, r.Host, r.URL.Path)
 }
 
 // refreshLocalizerForUser rebuilds the localizer on the context using the
@@ -256,7 +375,7 @@ func RedirectNotAuthenticated() mux.MiddlewareFunc {
 					panic("params not found. Add RequestParams middleware up the chain")
 				}
 				if !params.Authenticated {
-					http.Redirect(w, r, fmt.Sprintf("/login?next=%s", r.URL), http.StatusFound)
+					http.Redirect(w, r, "/login?next="+url.QueryEscape(r.URL.RequestURI()), http.StatusFound)
 					return
 				}
 				next.ServeHTTP(w, r)

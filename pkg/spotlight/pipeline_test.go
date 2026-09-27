@@ -168,6 +168,51 @@ func TestIndexerPipelineSync_StreamingProviderUpsertsIncrementally(t *testing.T)
 	}
 }
 
+func TestIndexerPipelineSync_DocBufferRejectsMismatchedTenant(t *testing.T) {
+	registry := NewProviderRegistry()
+	scopeTenant := uuid.New()
+	otherTenant := uuid.New()
+
+	registry.Register(&pipelineTestProvider{
+		id: "provider.misconfigured",
+		docs: []SearchDocument{
+			{ID: "doc-1", TenantID: otherTenant},
+		},
+	})
+
+	engine := &pipelineTestEngine{}
+	pipeline := NewIndexerPipeline(registry, engine, nil)
+
+	err := pipeline.Sync(context.Background(), scopeTenant, "en", "", 10, ScopeConfig{})
+	// Sync now surfaces failures via *SyncReportError; the per-provider abort
+	// still leaves no docs in the engine, but the report carries detail.
+	var report *SyncReportError
+	require.ErrorAs(t, err, &report, "Sync must return *SyncReportError on failure")
+	require.Len(t, report.Failed, 1)
+	require.Equal(t, "provider.misconfigured", report.Failed[0].ProviderID)
+	require.Empty(t, engine.batches, "mismatched tenant must abort the provider before upsert")
+}
+
+func TestIndexerPipelineSync_DocBufferOverwritesZeroTenant(t *testing.T) {
+	registry := NewProviderRegistry()
+	scopeTenant := uuid.New()
+
+	registry.Register(&pipelineTestProvider{
+		id: "provider.zero",
+		docs: []SearchDocument{
+			{ID: "doc-1"},
+		},
+	})
+
+	engine := &pipelineTestEngine{}
+	pipeline := NewIndexerPipeline(registry, engine, nil)
+
+	err := pipeline.Sync(context.Background(), scopeTenant, "en", "", 10, ScopeConfig{})
+	require.NoError(t, err)
+	require.Len(t, engine.batches, 1)
+	require.Equal(t, scopeTenant, engine.batches[0][0].TenantID)
+}
+
 func TestIndexerPipelineSync_UsesRegistryPriorityOrder(t *testing.T) {
 	registry := NewProviderRegistry()
 	tenantID := uuid.New()

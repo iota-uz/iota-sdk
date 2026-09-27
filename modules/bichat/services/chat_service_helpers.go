@@ -202,6 +202,78 @@ func (s *chatServiceImpl) withinTx(ctx context.Context, fn func(context.Context)
 	return composables.InTx(ctx, fn)
 }
 
+// persistAssistantMessageCritical durably saves the assistant message and
+// advances the session's previous-response pointer in a single transaction.
+// This is the critical path: it must succeed for the generated answer to
+// survive. Each attempt gets its own fresh timeout, and a deadline overrun is
+// retried once so a transient slow write doesn't discard a fully-generated
+// answer (the failure mode behind #2998).
+func (s *chatServiceImpl) persistAssistantMessageCritical(
+	ctx context.Context,
+	msg types.Message,
+	session domain.Session,
+) error {
+	const op serrors.Op = "chatServiceImpl.persistAssistantMessageCritical"
+	const maxAttempts = 2
+
+	var err error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		// Commit-ambiguity guard: a deadline can fire after the previous
+		// attempt's COMMIT already landed server-side. The message insert is
+		// not idempotent, so blindly re-running it would hit a duplicate-key
+		// error and wrongly discard an answer that was actually persisted. The
+		// message+session write is atomic, so if the message is already present
+		// the whole tx committed — treat that as success.
+		if attempt > 1 {
+			existsCtx, existsCancel := context.WithTimeout(ctx, streamPersistenceTimeout)
+			_, getErr := s.chatRepo.GetMessage(existsCtx, msg.ID())
+			existsCancel()
+			if getErr == nil {
+				return nil
+			}
+		}
+
+		attemptCtx, cancel := context.WithTimeout(ctx, streamPersistenceTimeout)
+		err = s.withinTx(attemptCtx, func(txCtx context.Context) error {
+			if saveErr := s.chatRepo.SaveMessage(txCtx, msg); saveErr != nil {
+				return serrors.E(op, saveErr)
+			}
+			if updateErr := s.chatRepo.UpdateSession(txCtx, session); updateErr != nil {
+				return serrors.E(op, updateErr)
+			}
+			return nil
+		})
+		cancel()
+		if err == nil {
+			return nil
+		}
+		// Only a deadline overrun is worth retrying; a validation/constraint
+		// failure would just fail again and retrying would mask the real bug.
+		if attempt < maxAttempts && errors.Is(err, context.DeadlineExceeded) {
+			continue
+		}
+		break
+	}
+	return err
+}
+
+// persistArtifactsBestEffort saves generated artifacts in their own transaction,
+// separate from the critical message persist. A failure here is non-fatal: the
+// answer is already saved, so missing artifacts degrade gracefully instead of
+// discarding the whole answer. Artifacts carry idempotency keys.
+func (s *chatServiceImpl) persistArtifactsBestEffort(
+	ctx context.Context,
+	session domain.Session,
+	messageID uuid.UUID,
+	artifacts []types.ToolArtifact,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, streamPersistenceTimeout)
+	defer cancel()
+	return s.withinTx(ctx, func(txCtx context.Context) error {
+		return s.persistGeneratedArtifacts(txCtx, session, messageID, artifacts)
+	})
+}
+
 func (s *chatServiceImpl) maybeReplaceHistoryFromMessage(
 	ctx context.Context,
 	session domain.Session,

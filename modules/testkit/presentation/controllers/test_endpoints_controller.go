@@ -98,8 +98,8 @@ func NewTestEndpointsController(db *pgxpool.Pool, appCfg *appconfig.Config, twof
 	}
 }
 
-func (c *TestEndpointsController) Key() string {
-	return "/__test__"
+func (c *TestEndpointsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("testkit.test_endpoints", 0, application.Route("", "/__test__"))
 }
 
 func (c *TestEndpointsController) Register(r *mux.Router) {

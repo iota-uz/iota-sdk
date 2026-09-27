@@ -4,25 +4,12 @@ package hrm
 import (
 	icons "github.com/iota-uz/icons/phosphor"
 
-	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
-var EmployeesLink = types.NavigationItem{
-	Name:     "NavigationLinks.Employees",
-	Icon:     nil,
-	Href:     "/hrm/employees",
-	Children: nil,
-}
-
-var HRMLink = types.NavigationItem{
-	Name: "NavigationLinks.HRM",
-	Icon: icons.UsersThree(icons.Props{Size: "20"}),
-	Href: "/hrm",
-	Children: []types.NavigationItem{
-		EmployeesLink,
-	},
-}
-
-var NavItems = []types.NavigationItem{
-	HRMLink,
+var HRMNavNode = application.NavNode{
+	ID:       "hrm",
+	TitleKey: "NavigationLinks.HRM",
+	Icon:     icons.UsersThree(icons.Props{Size: "20"}),
+	Order:    2,
 }

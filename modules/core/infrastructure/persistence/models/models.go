@@ -196,6 +196,89 @@ type GroupRole struct {
 	CreatedAt time.Time
 }
 
+type Department struct {
+	ID        string
+	TenantID  string
+	ParentID  sql.NullString
+	Code      string
+	Name      []byte // MultiLang jsonb
+	Order     int
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// ParsedID parses the ID string to a UUID, returning uuid.Nil on failure.
+func (d *Department) ParsedID() uuid.UUID {
+	id, err := uuid.Parse(d.ID)
+	if err != nil {
+		id = uuid.Nil
+	}
+	return id
+}
+
+// ParsedTenantID parses the TenantID string to a UUID, returning uuid.Nil on failure.
+func (d *Department) ParsedTenantID() uuid.UUID {
+	tenantID, err := uuid.Parse(d.TenantID)
+	if err != nil {
+		tenantID = uuid.Nil
+	}
+	return tenantID
+}
+
+// ParsedParentID parses the nullable ParentID string to a *UUID. It returns nil
+// when the parent is NULL/empty or unparsable.
+func (d *Department) ParsedParentID() *uuid.UUID {
+	if !d.ParentID.Valid || d.ParentID.String == "" {
+		return nil
+	}
+	parentID, err := uuid.Parse(d.ParentID.String)
+	if err != nil {
+		return nil
+	}
+	return &parentID
+}
+
+type UserPosition struct {
+	ID           string
+	TenantID     string
+	UserID       uint
+	DepartmentID string
+	Title        []byte // MultiLang jsonb
+	IsManager    bool
+	IsPrimary    bool
+	Status       string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+// ParsedID parses the ID string to a UUID, returning uuid.Nil on failure.
+func (p *UserPosition) ParsedID() uuid.UUID {
+	id, err := uuid.Parse(p.ID)
+	if err != nil {
+		id = uuid.Nil
+	}
+	return id
+}
+
+// ParsedTenantID parses the TenantID string to a UUID, returning uuid.Nil on failure.
+func (p *UserPosition) ParsedTenantID() uuid.UUID {
+	tenantID, err := uuid.Parse(p.TenantID)
+	if err != nil {
+		tenantID = uuid.Nil
+	}
+	return tenantID
+}
+
+// ParsedDepartmentID parses the DepartmentID string to a UUID, returning uuid.Nil on failure.
+func (p *UserPosition) ParsedDepartmentID() uuid.UUID {
+	departmentID, err := uuid.Parse(p.DepartmentID)
+	if err != nil {
+		departmentID = uuid.Nil
+	}
+	return departmentID
+}
+
 type Point struct {
 	X float64
 	Y float64

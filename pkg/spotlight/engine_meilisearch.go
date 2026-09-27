@@ -18,11 +18,26 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/meilisearch/meilisearch-go"
+	"github.com/sirupsen/logrus"
 )
 
 var _ IndexEngine = (*MeilisearchEngine)(nil)
 
 const IndexSchemaVersion = "2026-03-30-search-v4"
+
+// engineMaxTopK caps a single Meili search call. Service-layer ACL fan-out
+// multiplies the caller topK by ACLFanOutFactor (default 5); raising the
+// ceiling beyond 500 has no practical use and exposes the engine to
+// runaway payloads.
+const engineMaxTopK = 500
+
+// accessFilterWarnBytes is the threshold over which buildAccessFilter logs
+// a warning telemetry-side. accessFilterMaxBytes is the hard ceiling above
+// which the request is rejected to keep Meili stable.
+const (
+	accessFilterWarnBytes = 4 * 1024
+	accessFilterMaxBytes  = 16 * 1024
+)
 
 type MeilisearchEngine struct {
 	client      meilisearch.ServiceManager
@@ -31,8 +46,20 @@ type MeilisearchEngine struct {
 	setupMu     sync.Mutex
 	searchReady atomic.Bool
 	writeReady  atomic.Bool
-	pendingMu   sync.Mutex
-	pendingUIDs []int64
+	// settingsTaskUID is retained when waiting for a settings update times out.
+	// setupMu serializes configureIndex calls, so the next setup attempt waits
+	// for the same Meilisearch task instead of enqueueing an identical one.
+	settingsTaskPending bool
+	settingsTaskUID     int64
+	settingsTaskIndex   string
+	pendingMu           sync.Mutex
+	pendingUIDs         []int64
+	logger              *logrus.Logger
+	metrics             Metrics
+	// taskWaitDeadline overrides the default single-task deadline for this
+	// engine. Rebuild engines use the maintenance budget because their index
+	// creation, settings, and bulk tasks may sit behind live projector writes.
+	taskWaitDeadline time.Duration
 }
 
 type meiliSearchIndexState struct {
@@ -49,6 +76,114 @@ func NewMeilisearchEngine(url, apiKey string) *MeilisearchEngine {
 		client:     meilisearch.New(url, meilisearch.WithAPIKey(apiKey)),
 		indexName:  "spotlight",
 		activeName: "spotlight",
+	}
+}
+
+// WithLogger attaches a logger that the engine uses for warnings such as
+// access filters approaching the size budget. Returns the engine for
+// chaining at construction time.
+func (e *MeilisearchEngine) WithLogger(logger *logrus.Logger) *MeilisearchEngine {
+	e.logger = logger
+	return e
+}
+
+// WithMetrics attaches a Metrics sink so the engine can report
+// access-filter sizes, 413 splits, and other operational signals.
+// Returns the engine for chaining. Defaults to NoopMetrics when unset.
+func (e *MeilisearchEngine) WithMetrics(metrics Metrics) *MeilisearchEngine {
+	e.metrics = metrics
+	return e
+}
+
+func (e *MeilisearchEngine) metricsSink() Metrics {
+	if e.metrics == nil {
+		return noopMetricsSingleton
+	}
+	return e.metrics
+}
+
+var noopMetricsSingleton Metrics = NewNoopMetrics()
+
+// defaultWaitForTaskDeadline is the wall-clock deadline applied to
+// single-task waits when the caller's ctx has no deadline of its own.
+// The previous hard-coded 100ms / 250ms WaitForTask calls were a
+// *poll interval*, not a real deadline — under load they accumulated
+// minutes of blocking (the `143a82543` incident showed a 24-second
+// GraphQL request held entirely by Meili waits at 296% CPU).
+//
+// 60s is the floor: even fresh-index configureIndex tasks can take
+// 15-30s on a cold Meili, and a single 80 MiB upsert task can take
+// 20-40s under CPU pressure. The previous 10s value was just "much
+// more than 250ms" — empirically too tight once batches grew past a
+// few MB. Inline single-doc writes still return in well under 1s, so
+// this only changes behavior on the slow path.
+const defaultWaitForTaskDeadline = 60 * time.Second
+
+// drainWaitDeadline is the per-task wall-clock deadline used during
+// WaitPending — the final bulk-drain step after a full reindex. The
+// drain may have dozens of large pending tasks queued; we give each
+// one a generous budget so a slow Meili doesn't surface as a noisy
+// task failure in the periodic reindex log.
+//
+// Production evidence from EAI showed Meili merging 565 queued writes for
+// 3.5M documents into one batch that legitimately ran longer than 5 minutes.
+// Thirty minutes covers that maintenance workload and the documented rebuild
+// window while still bounding a genuinely wedged task. The drain returns as
+// soon as each task is done.
+const drainWaitDeadline = 30 * time.Minute
+
+// waitTaskPollInterval is the poll interval the meilisearch client uses
+// while waiting for a task to reach a terminal state.
+const waitTaskPollInterval = 100 * time.Millisecond
+
+// waitTaskCtx blocks until the Meili task identified by taskUID reaches a
+// terminal state, ctx hits its deadline, or ctx is cancelled. If ctx has
+// no deadline it falls back to defaultWaitForTaskDeadline so an upstream
+// caller that forgot to set one cannot stall an indexer goroutine forever.
+func (e *MeilisearchEngine) waitTaskCtx(ctx context.Context, taskUID int64) (*meilisearch.Task, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		deadline := e.taskWaitDeadline
+		if deadline <= 0 {
+			deadline = defaultWaitForTaskDeadline
+		}
+		ctx, cancel = context.WithTimeout(ctx, deadline)
+		defer cancel()
+	}
+	return e.client.WaitForTaskWithContext(ctx, taskUID, waitTaskPollInterval)
+}
+
+// waitTaskCtxClient is the same helper but operates on a bare client; used
+// from contexts (like meiliRebuildSession) where no engine reference is in
+// scope. Both forms delegate to the same Meili API.
+func waitTaskCtxClient(ctx context.Context, client meilisearch.ServiceManager, taskUID int64) (*meilisearch.Task, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, defaultWaitForTaskDeadline)
+		defer cancel()
+	}
+	return client.WaitForTaskWithContext(ctx, taskUID, waitTaskPollInterval)
+}
+
+// markUnready resets both readiness flags so the next operation re-runs
+// the setup/configure path. Called on Meilisearch health failures and on
+// any task that returns `index_not_found` (which indicates the underlying
+// index disappeared, e.g. after a Meili restart with lost data).
+//
+// Both Swap calls run unconditionally; `||` would short-circuit and skip
+// the second flag clear when the first was already true.
+func (e *MeilisearchEngine) markUnready(reason string) {
+	prevWrite := e.writeReady.Swap(false)
+	prevSearch := e.searchReady.Swap(false)
+	if (prevWrite || prevSearch) && e.logger != nil {
+		e.logger.WithField("reason", reason).
+			Warn("spotlight engine marked unready; will re-configure on next op")
 	}
 }
 
@@ -83,7 +218,15 @@ func (e *MeilisearchEngine) setupForSearch() error {
 	if err != nil {
 		return serrors.E("spotlight.MeilisearchEngine.setupForSearch", err)
 	}
-	if created {
+	// A previous setup may have created the index and then timed out while
+	// waiting for its settings task. On retry ensureSearchIndex now reports an
+	// existing index, so resume that task before taking the validation branch.
+	if e.settingsTaskPending {
+		if err := e.configureIndex(indexName); err != nil {
+			return err
+		}
+		e.writeReady.Store(true)
+	} else if created {
 		if err := e.configureIndex(indexName); err != nil {
 			return err
 		}
@@ -129,7 +272,7 @@ func (e *MeilisearchEngine) ensureIndexExists(indexName string) (bool, error) {
 			return false, serrors.E(op, err)
 		}
 
-		task, err := e.client.WaitForTask(taskInfo.TaskUID, 100*time.Millisecond)
+		task, err := e.waitTaskCtx(context.Background(), taskInfo.TaskUID)
 		if err != nil {
 			return false, serrors.E(op, err)
 		}
@@ -144,48 +287,101 @@ func (e *MeilisearchEngine) ensureIndexExists(indexName string) (bool, error) {
 func (e *MeilisearchEngine) configureIndex(indexName string) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.configureIndex"
 
+	if e.settingsTaskPending {
+		if e.settingsTaskIndex != indexName {
+			return serrors.E(op, fmt.Errorf("settings task %d is pending for index %q", e.settingsTaskUID, e.settingsTaskIndex))
+		}
+		return e.waitSettingsTask(op)
+	}
+
 	index := e.client.Index(indexName)
-
-	filterableAttrs := []interface{}{
-		"tenant_id",
-		"provider",
-		"entity_type",
-		"domain",
-		"schema_version",
-		"exact_terms",
-		"access_visibility",
-		"owner_id",
-		"allowed_users",
-		"allowed_roles",
-		"allowed_permissions",
-	}
-	filterTask, err := index.UpdateFilterableAttributes(&filterableAttrs)
+	settings, err := index.GetSettings()
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	if _, err := e.client.WaitForTask(filterTask.TaskUID, 100*time.Millisecond); err != nil {
-		return serrors.E(op, err)
+
+	update := &meilisearch.Settings{}
+	drifted := false
+
+	filterableAttrs := requiredFilterableAttributes()
+	if !equalStringSets(settings.FilterableAttributes, filterableAttrs) {
+		update.FilterableAttributes = filterableAttrs
+		drifted = true
 	}
 
-	searchableAttrs := []string{"title", "description", "search_text"}
-	searchTask, err := index.UpdateSearchableAttributes(&searchableAttrs)
+	searchableAttrs := requiredSearchableAttributes()
+	if !slices.Equal(settings.SearchableAttributes, searchableAttrs) {
+		update.SearchableAttributes = searchableAttrs
+		drifted = true
+	}
+
+	sortableAttrs := requiredSortableAttributes()
+	if !equalStringSets(settings.SortableAttributes, sortableAttrs) {
+		update.SortableAttributes = sortableAttrs
+		drifted = true
+	}
+
+	if !drifted {
+		return nil
+	}
+
+	settingsTask, err := index.UpdateSettings(update)
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	if _, err := e.client.WaitForTask(searchTask.TaskUID, 100*time.Millisecond); err != nil {
-		return serrors.E(op, err)
+	if settingsTask == nil {
+		return serrors.E(op, "Meilisearch returned no settings task")
 	}
+	e.settingsTaskUID = settingsTask.TaskUID
+	e.settingsTaskIndex = indexName
+	e.settingsTaskPending = true
+	return e.waitSettingsTask(op)
+}
 
-	sortableAttrs := []string{"updated_at"}
-	sortTask, err := index.UpdateSortableAttributes(&sortableAttrs)
+func (e *MeilisearchEngine) waitSettingsTask(op serrors.Op) error {
+	taskUID := e.settingsTaskUID
+	task, err := e.waitTaskCtx(context.Background(), taskUID)
 	if err != nil {
+		// Keep the task UID: the task may still be processing server-side, and a
+		// later setup attempt must wait for it instead of creating a duplicate.
 		return serrors.E(op, err)
 	}
-	if _, err := e.client.WaitForTask(sortTask.TaskUID, 100*time.Millisecond); err != nil {
-		return serrors.E(op, err)
-	}
+	e.settingsTaskUID = 0
+	e.settingsTaskIndex = ""
+	e.settingsTaskPending = false
 
-	return nil
+	if task == nil {
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned no result", taskUID))
+	}
+	switch task.Status {
+	case meilisearch.TaskStatusSucceeded:
+		return nil
+	case meilisearch.TaskStatusFailed:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d failed: %s", taskUID, task.Error.Message))
+	case meilisearch.TaskStatusCanceled:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d was canceled", taskUID))
+	case meilisearch.TaskStatusUnknown, meilisearch.TaskStatusEnqueued, meilisearch.TaskStatusProcessing:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned non-terminal status %q", taskUID, task.Status))
+	default:
+		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned unexpected status %q", taskUID, task.Status))
+	}
+}
+
+func equalStringSets(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	counts := make(map[string]int, len(left))
+	for _, value := range left {
+		counts[value]++
+	}
+	for _, value := range right {
+		counts[value]--
+		if counts[value] < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func (e *MeilisearchEngine) validateSearchSettings(indexName string) error {
@@ -223,16 +419,47 @@ func (e *MeilisearchEngine) resolveSearchIndexName() (string, error) {
 		return e.activeName, nil
 	}
 
-	buildIndexName := rebuildIndexName(e.activeName)
-	buildState, err := e.inspectSearchIndex(buildIndexName)
+	buildIndexName, err := e.latestReadyBuildIndex()
 	if err != nil {
 		return "", err
 	}
-	if buildState.currentSchemaReady() {
+	if buildIndexName != "" {
 		return buildIndexName, nil
 	}
 
 	return e.activeName, nil
+}
+
+// latestReadyBuildIndex preserves the startup fallback used while an initial
+// rebuild is ready to swap but the active index is still empty. Build names
+// include a unique run UUID, so unlike the old fixed-name lookup we discover
+// the newest valid candidate from Meili.
+func (e *MeilisearchEngine) latestReadyBuildIndex() (string, error) {
+	results, err := e.client.ListIndexesWithContext(context.Background(), &meilisearch.IndexesQuery{Limit: 200})
+	if err != nil || results == nil {
+		return "", err
+	}
+
+	indexes := append([]*meilisearch.IndexResult(nil), results.Results...)
+	slices.SortFunc(indexes, func(a, b *meilisearch.IndexResult) int {
+		if a == nil || b == nil {
+			return 0
+		}
+		return b.UpdatedAt.Compare(a.UpdatedAt)
+	})
+	for _, idx := range indexes {
+		if idx == nil || !strings.HasPrefix(idx.UID, e.buildIndexPrefix()) {
+			continue
+		}
+		state, err := e.inspectSearchIndex(idx.UID)
+		if err != nil {
+			return "", err
+		}
+		if state.currentSchemaReady() {
+			return idx.UID, nil
+		}
+	}
+	return "", nil
 }
 
 func (e *MeilisearchEngine) inspectSearchIndex(indexName string) (meiliSearchIndexState, error) {
@@ -353,7 +580,7 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 		if err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
-		if _, err := s.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
+		if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
 		createdPlaceholder = true
@@ -365,7 +592,7 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 	if err != nil {
 		return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 	}
-	if _, err := s.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
+	if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
 		return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 	}
 
@@ -377,10 +604,19 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 		return nil
 	}
 	if cleanupTask != nil {
-		if _, err := s.client.WaitForTask(cleanupTask.TaskUID, 100*time.Millisecond); err != nil {
+		if _, err := s.engine.waitTaskCtx(ctx, cleanupTask.TaskUID); err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
 	}
+
+	// Best-effort housekeeping after a successful swap. The reindex runs on
+	// a tight cron (minutes apart); Meili retains terminal task records and
+	// their update_files payloads indefinitely, and LMDB never returns freed
+	// pages to the OS — so without pruning here the task DB grows unbounded
+	// and orphan build indexes from prior schema versions accumulate. The
+	// rebuild has already committed, so a prune hiccup must NOT surface as a
+	// reindex failure: errors are logged inside, never returned.
+	s.engine.postCommitHousekeeping(ctx)
 
 	return nil
 }
@@ -397,7 +633,7 @@ func (s *meiliRebuildSession) Abort(ctx context.Context) error {
 		return serrors.E("spotlight.MeilisearchEngine.AbortRebuild", err)
 	}
 	if task != nil {
-		if _, err := s.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
+		if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.AbortRebuild", err)
 		}
 	}
@@ -407,15 +643,23 @@ func (s *meiliRebuildSession) Abort(ctx context.Context) error {
 func (e *MeilisearchEngine) StartRebuild(ctx context.Context) (RebuildSession, error) {
 	const op serrors.Op = "spotlight.MeilisearchEngine.StartRebuild"
 
-	buildIndexName := rebuildIndexName(e.activeName)
-	if err := e.resetIndex(ctx, buildIndexName); err != nil {
-		return nil, serrors.E(op, err)
-	}
+	// A rebuild must never reuse a static scratch index. A second replica,
+	// manual CLI invocation, or a process restart used to delete the other
+	// run's work through resetIndex. The caller normally supplies the same UUID
+	// it logs for the run; a UUID is generated for SDK-only callers.
+	buildIndexName := rebuildIndexName(e.activeName, rebuildRunID(ctx))
 
 	buildEngine := &MeilisearchEngine{
 		client:     e.client,
 		indexName:  buildIndexName,
 		activeName: e.activeName,
+		logger:     e.logger,
+		metrics:    e.metrics,
+		// A live index may continuously enqueue projector writes ahead of the
+		// scratch-index setup. The regular 60s request budget is intentionally
+		// too short for that maintenance queue; use the existing bulk-drain
+		// budget for every task belonging to this isolated rebuild engine.
+		taskWaitDeadline: drainWaitDeadline,
 	}
 	if err := buildEngine.setup(); err != nil {
 		return nil, serrors.E(op, err)
@@ -429,109 +673,287 @@ func (e *MeilisearchEngine) StartRebuild(ctx context.Context) (RebuildSession, e
 	}, nil
 }
 
-func (e *MeilisearchEngine) resetIndex(ctx context.Context, indexName string) error {
-	if _, err := e.client.GetIndex(indexName); err == nil {
-		task, err := e.client.DeleteIndexWithContext(ctx, indexName)
+func rebuildIndexName(active, runID string) string {
+	sanitizedVersion := strings.NewReplacer("-", "_", ".", "_").Replace(IndexSchemaVersion)
+	return fmt.Sprintf("%s_build_%s_%s", active, sanitizedVersion, runID)
+}
+
+// buildIndexPrefix returns the prefix used to identify rebuild scratch
+// indexes for the active index, regardless of schema version. The
+// janitor uses this to find orphans created by previous schema versions.
+func (e *MeilisearchEngine) buildIndexPrefix() string {
+	return e.activeName + "_build_"
+}
+
+// PrunedIndex describes a single index removed by PruneOrphanBuildIndexes.
+type PrunedIndex struct {
+	Name        string
+	AgeReported time.Duration
+	Reason      string
+}
+
+// PruneOrphanBuildIndexes scans Meili for rebuild scratch indexes that no
+// are older than the supplied minAge, and removes them. Returns the list of pruned indexes for
+// callers that want to log or metric the action. The janitor task in EAI
+// calls this on an hourly schedule.
+//
+// minAge guards against pruning a build index that another node is still
+// populating: pass 6 h to match the production rebuild window (~25 min
+// for a full sync, plus generous slack).
+func (e *MeilisearchEngine) PruneOrphanBuildIndexes(ctx context.Context, minAge time.Duration) ([]PrunedIndex, error) {
+	const op serrors.Op = "spotlight.MeilisearchEngine.PruneOrphanBuildIndexes"
+
+	results, err := e.client.ListIndexesWithContext(ctx, &meilisearch.IndexesQuery{Limit: 200})
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if results == nil {
+		return nil, nil
+	}
+
+	prefix := e.buildIndexPrefix()
+	cutoff := time.Now().Add(-minAge)
+
+	pruned := make([]PrunedIndex, 0)
+	for _, idx := range results.Results {
+		if idx == nil {
+			continue
+		}
+		if !strings.HasPrefix(idx.UID, prefix) {
+			continue
+		}
+		if minAge > 0 && !idx.UpdatedAt.IsZero() && idx.UpdatedAt.After(cutoff) {
+			// Recently active — could be a sibling node mid-rebuild.
+			continue
+		}
+		task, err := e.client.DeleteIndexWithContext(ctx, idx.UID)
 		if err != nil {
-			return err
+			if isMeiliNotFound(err) {
+				continue
+			}
+			return pruned, serrors.E(op, err)
 		}
 		if task != nil {
-			if _, err := e.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
-				return err
+			if _, err := waitTaskCtxClient(ctx, e.client, task.TaskUID); err != nil {
+				return pruned, serrors.E(op, err)
 			}
 		}
-		return nil
-	} else if !isMeiliNotFound(err) {
-		return err
+		pruned = append(pruned, PrunedIndex{
+			Name:        idx.UID,
+			AgeReported: time.Since(idx.UpdatedAt),
+			Reason:      "schema version mismatch / older than minAge",
+		})
+		if e.logger != nil {
+			e.logger.WithFields(logrus.Fields{
+				"index": idx.UID,
+				"age":   time.Since(idx.UpdatedAt).String(),
+			}).Info("spotlight janitor pruned orphan build index")
+		}
 	}
-	return nil
+	return pruned, nil
 }
 
-func rebuildIndexName(active string) string {
-	sanitizedVersion := strings.NewReplacer("-", "_", ".", "_").Replace(IndexSchemaVersion)
-	return fmt.Sprintf("%s_build_%s", active, sanitizedVersion)
+// taskPruneRetention bounds how long terminal Meili tasks — and the
+// update_files payloads they pin on disk — are retained. The periodic
+// reindex enqueues many addDocuments+swap+delete tasks per cycle and Meili
+// never expires task history on its own, so the task DB grows without bound
+// until pruned. 24h keeps a useful operational audit window.
+const taskPruneRetention = 24 * time.Hour
+
+// orphanIndexMinAge is the slack the janitor leaves before deleting a
+// stale rebuild scratch index, matching the production rebuild window so it
+// never removes an index another node is still populating.
+const orphanIndexMinAge = 6 * time.Hour
+
+// PruneTasks deletes terminal (succeeded/failed/canceled) Meili tasks
+// enqueued before `before`, reclaiming the task DB and the update_files
+// payloads those tasks reference. Meili performs the deletion as its own
+// async task; this waits for it so the call is self-verifying, and returns
+// the number of task records removed. Only terminal statuses are targeted,
+// so an in-flight enqueued/processing task is never affected.
+func (e *MeilisearchEngine) PruneTasks(ctx context.Context, before time.Time) (int64, error) {
+	const op serrors.Op = "spotlight.MeilisearchEngine.PruneTasks"
+	if before.IsZero() {
+		return 0, serrors.E(op, errors.New("before timestamp is required"))
+	}
+
+	task, err := e.client.DeleteTasksWithContext(ctx, &meilisearch.DeleteTasksQuery{
+		Statuses: []meilisearch.TaskStatus{
+			meilisearch.TaskStatusSucceeded,
+			meilisearch.TaskStatusFailed,
+			meilisearch.TaskStatusCanceled,
+		},
+		BeforeEnqueuedAt: before,
+	})
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+	if task == nil {
+		return 0, nil
+	}
+
+	status, err := waitTaskCtxClient(ctx, e.client, task.TaskUID)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+	if status == nil {
+		return 0, nil
+	}
+	return status.Details.DeletedTasks, nil
 }
 
-// Upsert indexes or updates documents in Meilisearch.
+// postCommitHousekeeping runs best-effort task-DB and orphan-index pruning
+// after a successful rebuild swap. Every error is logged and swallowed:
+// housekeeping must never fail an already-committed reindex. Safe to call
+// on every Commit — both prunes are idempotent and cheap.
+func (e *MeilisearchEngine) postCommitHousekeeping(ctx context.Context) {
+	if deleted, err := e.PruneTasks(ctx, time.Now().Add(-taskPruneRetention)); err != nil {
+		if e.logger != nil {
+			e.logger.WithError(err).Warn("spotlight janitor: task-DB prune failed (non-fatal)")
+		}
+	} else if deleted > 0 && e.logger != nil {
+		e.logger.WithField("deleted_tasks", deleted).Info("spotlight janitor pruned terminal Meili tasks")
+	}
+
+	if pruned, err := e.PruneOrphanBuildIndexes(ctx, orphanIndexMinAge); err != nil {
+		if e.logger != nil {
+			e.logger.WithError(err).Warn("spotlight janitor: orphan-index prune failed (non-fatal)")
+		}
+	} else if len(pruned) > 0 && e.logger != nil {
+		e.logger.WithField("pruned_indexes", len(pruned)).Info("spotlight janitor pruned orphan build indexes")
+	}
+}
+
+// upsertSplitMaxDepth bounds the 413 split-and-retry recursion so a
+// pathological document set cannot consume the goroutine in O(n)
+// halvings.
+const upsertSplitMaxDepth = 4
+
+// Upsert indexes or updates documents in Meilisearch synchronously. On
+// 413 payload_too_large from Meili the batch is split in half and each
+// half retried up to upsertSplitMaxDepth times. On index_not_found the
+// engine flags itself unready so the next call rebuilds the index.
 func (e *MeilisearchEngine) Upsert(ctx context.Context, docs []SearchDocument) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.Upsert"
 
 	if len(docs) == 0 {
 		return nil
 	}
-
 	if err := e.setup(); err != nil {
 		return serrors.E(op, err)
 	}
 
-	// Convert documents to Meilisearch format
-	records := make([]map[string]interface{}, 0, len(docs))
-	for _, doc := range docs {
-		record := map[string]interface{}{
-			"pk":             meiliPK(doc.TenantID.String(), doc.ID),
-			"id":             doc.ID,
-			"tenant_id":      doc.TenantID.String(),
-			"provider":       doc.Provider,
-			"entity_type":    doc.EntityType,
-			"domain":         string(normalizeDomain(doc.Domain, doc.EntityType)),
-			"title":          doc.Title,
-			"description":    doc.Description,
-			"body":           doc.Body,
-			"search_text":    coalesceSearchText(doc),
-			"exact_terms":    normalizeExactTerms(doc.ExactTerms),
-			"url":            doc.URL,
-			"language":       doc.Language,
-			"metadata":       doc.Metadata,
-			"schema_version": IndexSchemaVersion,
-			"updated_at":     doc.UpdatedAt.Unix(),
-		}
-
-		// Include access policy
-		record["access_policy"] = doc.Access
-		record["access_visibility"] = string(doc.Access.Visibility)
-		record["owner_id"] = doc.Access.OwnerID
-		record["allowed_users"] = doc.Access.AllowedUsers
-		record["allowed_roles"] = doc.Access.AllowedRoles
-		record["allowed_permissions"] = doc.Access.AllowedPermissions
-
-		// Include embeddings if present
-		if len(doc.Embedding) > 0 {
-			record["_vectors"] = map[string]interface{}{
-				"default": doc.Embedding,
-			}
-		}
-
-		records = append(records, record)
-	}
-
-	// Add documents to index
-	pk := "pk"
-	task, err := e.client.Index(e.indexName).AddDocuments(records, &meilisearch.DocumentOptions{
-		PrimaryKey: &pk,
-	})
-	if err != nil {
+	if err := e.addDocumentsSync(ctx, docs, 0); err != nil {
 		return serrors.E(op, err)
 	}
-	if _, err := e.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
-		return serrors.E(op, err)
-	}
-
 	return nil
 }
 
-// UpsertAsync submits documents to Meilisearch without waiting for completion.
-// Pending tasks are tracked and can be drained with WaitPending.
+// UpsertAsync submits documents to Meilisearch without waiting for
+// completion. Pending tasks are tracked and can be drained with
+// WaitPending. The async path applies the same 413 split-and-retry as
+// the sync path.
 func (e *MeilisearchEngine) UpsertAsync(ctx context.Context, docs []SearchDocument) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.UpsertAsync"
 
 	if len(docs) == 0 {
 		return nil
 	}
-
 	if err := e.setup(); err != nil {
 		return serrors.E(op, err)
 	}
+	if err := e.addDocumentsAsync(ctx, docs, 0); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
+}
 
+// addDocumentsSync sends docs to Meili and blocks until the task
+// completes. Splits the batch and retries each half on 413.
+func (e *MeilisearchEngine) addDocumentsSync(ctx context.Context, docs []SearchDocument, depth int) error {
+	records := buildMeiliRecords(docs)
+	pk := "pk"
+	task, err := e.client.Index(e.indexName).AddDocuments(records, &meilisearch.DocumentOptions{PrimaryKey: &pk})
+	if err != nil {
+		if e.handleAddDocumentsError(err) {
+			if depth < upsertSplitMaxDepth && len(docs) > 1 && isMeiliPayloadTooLarge(err) {
+				mid := len(docs) / 2
+				if err := e.addDocumentsSync(ctx, docs[:mid], depth+1); err != nil {
+					return err
+				}
+				return e.addDocumentsSync(ctx, docs[mid:], depth+1)
+			}
+		}
+		return err
+	}
+	_, err = e.waitTaskCtx(ctx, task.TaskUID)
+	return err
+}
+
+// addDocumentsAsync is like addDocumentsSync but enqueues the task UID
+// for later draining via WaitPending. On 413 the batch is split and
+// each half submitted with its own task UID.
+func (e *MeilisearchEngine) addDocumentsAsync(ctx context.Context, docs []SearchDocument, depth int) error {
+	records := buildMeiliRecords(docs)
+	pk := "pk"
+	task, err := e.client.Index(e.indexName).AddDocuments(records, &meilisearch.DocumentOptions{PrimaryKey: &pk})
+	if err != nil {
+		if e.handleAddDocumentsError(err) {
+			if depth < upsertSplitMaxDepth && len(docs) > 1 && isMeiliPayloadTooLarge(err) {
+				mid := len(docs) / 2
+				if err := e.addDocumentsAsync(ctx, docs[:mid], depth+1); err != nil {
+					return err
+				}
+				return e.addDocumentsAsync(ctx, docs[mid:], depth+1)
+			}
+		}
+		return err
+	}
+	e.pendingMu.Lock()
+	e.pendingUIDs = append(e.pendingUIDs, task.TaskUID)
+	e.pendingMu.Unlock()
+	return nil
+}
+
+// handleAddDocumentsError performs side-effects (markUnready, logging,
+// metrics) for known error classes and returns true if the error is
+// structured enough to make further classification (e.g. 413 → split)
+// possible.
+func (e *MeilisearchEngine) handleAddDocumentsError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if isMeiliNotFound(err) {
+		e.markUnready("AddDocuments returned index_not_found")
+		e.metricsSink().OnEngineError("", EngineErrorOther)
+	}
+	if isMeiliPayloadTooLarge(err) {
+		if e.logger != nil {
+			e.logger.WithError(err).Warn("spotlight Meili returned 413 payload_too_large; splitting batch")
+		}
+		e.metricsSink().OnEngineError("", EngineErrorPayloadTooLarge)
+	}
+	return true
+}
+
+// isMeiliPayloadTooLarge returns true when Meili rejected the request
+// with HTTP 413. The library exposes status codes on its typed error.
+func isMeiliPayloadTooLarge(err error) bool {
+	if err == nil {
+		return false
+	}
+	var meiliErr *meilisearch.Error
+	if errors.As(err, &meiliErr) {
+		return meiliErr.StatusCode == http.StatusRequestEntityTooLarge
+	}
+	return strings.Contains(err.Error(), "payload_too_large") ||
+		strings.Contains(err.Error(), "Payload Too Large")
+}
+
+// buildMeiliRecords converts SearchDocuments to the loosely-typed map[]
+// shape the Meili client uses. Extracted from Upsert/UpsertAsync to keep
+// both paths in lock-step.
+func buildMeiliRecords(docs []SearchDocument) []map[string]interface{} {
 	records := make([]map[string]interface{}, 0, len(docs))
 	for _, doc := range docs {
 		record := map[string]interface{}{
@@ -552,39 +974,26 @@ func (e *MeilisearchEngine) UpsertAsync(ctx context.Context, docs []SearchDocume
 			"schema_version": IndexSchemaVersion,
 			"updated_at":     doc.UpdatedAt.Unix(),
 		}
-
 		record["access_policy"] = doc.Access
 		record["access_visibility"] = string(doc.Access.Visibility)
 		record["owner_id"] = doc.Access.OwnerID
 		record["allowed_users"] = doc.Access.AllowedUsers
 		record["allowed_roles"] = doc.Access.AllowedRoles
 		record["allowed_permissions"] = doc.Access.AllowedPermissions
-
 		if len(doc.Embedding) > 0 {
-			record["_vectors"] = map[string]interface{}{
-				"default": doc.Embedding,
-			}
+			record["_vectors"] = map[string]interface{}{"default": doc.Embedding}
 		}
-
 		records = append(records, record)
 	}
-
-	pk := "pk"
-	task, err := e.client.Index(e.indexName).AddDocuments(records, &meilisearch.DocumentOptions{
-		PrimaryKey: &pk,
-	})
-	if err != nil {
-		return serrors.E(op, err)
-	}
-
-	e.pendingMu.Lock()
-	e.pendingUIDs = append(e.pendingUIDs, task.TaskUID)
-	e.pendingMu.Unlock()
-
-	return nil
+	return records
 }
 
-// WaitPending blocks until all async upsert tasks have completed in Meilisearch.
+// WaitPending blocks until all async upsert tasks have completed in
+// Meilisearch. Each pending task gets `drainWaitDeadline` of headroom
+// (not the inline 10s) because Meili can take 20-40s to digest a single
+// 80 MiB batch under CPU pressure. If the caller's ctx is already
+// deadlined, that deadline is honored — drainWaitDeadline is only the
+// fallback for callers without one.
 func (e *MeilisearchEngine) WaitPending(ctx context.Context) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.WaitPending"
 
@@ -594,11 +1003,30 @@ func (e *MeilisearchEngine) WaitPending(ctx context.Context) error {
 	e.pendingMu.Unlock()
 
 	for _, uid := range uids {
-		if _, err := e.client.WaitForTask(uid, 250*time.Millisecond); err != nil {
+		taskCtx, cancel := drainTaskCtx(ctx)
+		_, err := e.client.WaitForTaskWithContext(taskCtx, uid, waitTaskPollInterval)
+		cancel()
+		if err != nil {
 			return serrors.E(op, err)
 		}
 	}
 	return nil
+}
+
+// drainTaskCtx returns a context that drains pending Meili tasks. If the
+// parent already has *any* deadline, we propagate it as-is — the caller
+// owns the deadline and we must not tighten it (a long-running reindex
+// is the canonical case). Only when the parent has no deadline at all do
+// we apply drainWaitDeadline as a fallback so background callers don't hang
+// indefinitely if Meili wedges.
+func drainTaskCtx(parent context.Context) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	if _, ok := parent.Deadline(); ok {
+		return context.WithCancel(parent)
+	}
+	return context.WithTimeout(parent, drainWaitDeadline)
 }
 
 // Delete removes documents from Meilisearch by their references.
@@ -622,7 +1050,7 @@ func (e *MeilisearchEngine) Delete(ctx context.Context, refs []DocumentRef) erro
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	if _, err := e.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
+	if _, err := e.waitTaskCtx(ctx, task.TaskUID); err != nil {
 		return serrors.E(op, err)
 	}
 	return nil
@@ -644,7 +1072,7 @@ func (e *MeilisearchEngine) DeleteTenant(ctx context.Context, tenantID uuid.UUID
 		return serrors.E(op, err)
 	}
 	if task != nil {
-		if _, err := e.client.WaitForTask(task.TaskUID, 100*time.Millisecond); err != nil {
+		if _, err := e.waitTaskCtx(ctx, task.TaskUID); err != nil {
 			return serrors.E(op, err)
 		}
 	}
@@ -668,10 +1096,26 @@ func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]Se
 	if topK <= 0 {
 		topK = 20
 	}
-	if topK > 100 {
-		topK = 100
+	// The hard upper bound is 500 to accommodate the ACL fan-out factor
+	// applied by the service layer (5×100). Returning more than this from
+	// a single Meili query pushes payload sizes and memory pressure
+	// uncomfortably high without offering practical benefit, so callers
+	// requesting larger limits get clamped here.
+	if topK > engineMaxTopK {
+		topK = engineMaxTopK
 	}
 
+	// Track the ACL clause separately from the full Meili filter: the size
+	// budget enforced by validateAccessFilter targets ACL-driven blow-up
+	// (large role/permission unions), and the metric is named
+	// spotlight_access_filter_bytes — recording the full filter (tenant +
+	// visibility + ACL) here would conflate unrelated growth.
+	accessClause := buildAccessFilter(req)
+	e.metricsSink().OnAccessFilterSize(len(accessClause))
+	if err := validateAccessFilter(e.logger, accessClause); err != nil {
+		e.metricsSink().OnEngineError("", EngineErrorFilterTooLong)
+		return nil, serrors.E(op, err)
+	}
 	baseFilter := buildSearchFilter(req)
 
 	if req.Mode == QueryModeLookup && len(req.ExactTerms) > 0 {
@@ -701,12 +1145,15 @@ func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]Se
 	return hits, nil
 }
 
-// Health checks if Meilisearch is healthy.
+// Health checks if Meilisearch is healthy. On failure the engine flags
+// itself unready so the next data-plane op re-runs configureIndex (2.3).
+// This recovers automatically from a Meili restart that lost data.
 func (e *MeilisearchEngine) Health(ctx context.Context) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.Health"
 
 	_, err := e.client.Health()
 	if err != nil {
+		e.markUnready(fmt.Sprintf("Health probe failed: %v", err))
 		return serrors.E(op, err)
 	}
 
@@ -865,6 +1312,12 @@ func buildGenericFilterClauses(filters map[string]string) string {
 	return strings.Join(clauses, " AND ")
 }
 
+// buildAccessFilter builds the Meilisearch filter expression that pre-filters
+// search results by the caller's access. The Meili `IN` operator collapses
+// the previous per-role / per-permission `OR` chain so users with many
+// roles produce a compact filter instead of dozens of equality clauses.
+// The function returns the filter string only; callers should pass the
+// result through validateAccessFilter to enforce the size budget.
 func buildAccessFilter(req SearchRequest) string {
 	clauses := []string{`access_visibility = "public"`}
 	if req.UserID != "" {
@@ -874,14 +1327,49 @@ func buildAccessFilter(req SearchRequest) string {
 			fmt.Sprintf(`allowed_users = "%s"`, escapedUserID),
 		)
 	}
-	for _, role := range dedupeAndSort(req.Roles) {
-		clauses = append(clauses, fmt.Sprintf(`allowed_roles = "%s"`, escapeFilterString(role)))
+	if roles := dedupeAndSort(req.Roles); len(roles) > 0 {
+		clauses = append(clauses, fmt.Sprintf(`allowed_roles IN [%s]`, joinQuoted(roles)))
 	}
-	for _, permission := range dedupeAndSort(req.Permissions) {
-		clauses = append(clauses, fmt.Sprintf(`allowed_permissions = "%s"`, escapeFilterString(permission)))
+	if perms := dedupeAndSort(req.Permissions); len(perms) > 0 {
+		clauses = append(clauses, fmt.Sprintf(`allowed_permissions IN [%s]`, joinQuoted(perms)))
 	}
 	return strings.Join(clauses, " OR ")
 }
+
+// joinQuoted formats values as a comma-separated, quoted list for use
+// inside a Meilisearch `IN [...]` expression.
+func joinQuoted(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(values))
+	for _, v := range values {
+		parts = append(parts, fmt.Sprintf(`"%s"`, escapeFilterString(v)))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// validateAccessFilter enforces the upper bound on filter string length.
+// Meili historically had filter parsing issues at very large sizes, and an
+// admin with hundreds of permissions could otherwise produce a runaway
+// expression. Returns a serrors-wrapped error above the hard cap; logs a
+// warning between the soft warn threshold and the cap.
+func validateAccessFilter(logger *logrus.Logger, filter string) error {
+	const op serrors.Op = "spotlight.MeilisearchEngine.validateAccessFilter"
+	size := len(filter)
+	if size > accessFilterMaxBytes {
+		return serrors.E(op,
+			fmt.Sprintf("access filter is %d bytes, exceeds hard cap %d", size, accessFilterMaxBytes),
+			errAccessFilterTooLong)
+	}
+	if size > accessFilterWarnBytes && logger != nil {
+		logger.WithField("access_filter_bytes", size).
+			Warn("spotlight access filter approaching size limit; consider grouping permissions")
+	}
+	return nil
+}
+
+var errAccessFilterTooLong = errors.New("spotlight access filter too long")
 
 func buildExactTermsFilter(terms []string) string {
 	normalized := normalizeExactTerms(terms)

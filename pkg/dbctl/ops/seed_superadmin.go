@@ -2,6 +2,7 @@ package ops
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/google/uuid"
@@ -41,11 +42,24 @@ func runSuperadminSeed(ctx context.Context, e *ExecutionContext) error {
 		return serrors.E(op, serrors.Invalid, "SUPERADMIN_PASSWORD is required for seed.superadmin")
 	}
 
+	// SUPERADMIN_LANGUAGE is optional. Defaults to "en" for backward
+	// compatibility. Set to a regional code (e.g. "pt-BR") to seed the
+	// superadmin with that UI language from the start.
+	uiLanguage := os.Getenv("SUPERADMIN_LANGUAGE")
+	if uiLanguage == "" {
+		uiLanguage = string(user.UILanguageEN)
+	}
+	parsedLanguage, err := user.NewUILanguage(uiLanguage)
+	if err != nil {
+		return serrors.E(op, serrors.Invalid,
+			fmt.Sprintf("SUPERADMIN_LANGUAGE=%q is not a supported locale", uiLanguage))
+	}
+
 	superadminUser, err := user.New(
 		"Super",
 		"Admin",
 		internet.MustParseEmail("admin@superadmin.local"),
-		user.UILanguageEN,
+		parsedLanguage,
 		user.WithType(user.TypeSuperAdmin),
 	).SetPassword(superadminPassword)
 	if err != nil {

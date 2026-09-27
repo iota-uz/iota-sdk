@@ -41,6 +41,7 @@ type testBillingRepo struct {
 		gateway billing.Gateway,
 		filters []billing.DetailsFieldFilter,
 	) ([]billing.Transaction, error)
+	save func(ctx context.Context, tx billing.Transaction) (billing.Transaction, error)
 }
 
 func (r *testBillingRepo) Count(_ context.Context, _ *billing.FindParams) (int64, error) {
@@ -70,7 +71,10 @@ func (r *testBillingRepo) GetAll(_ context.Context) ([]billing.Transaction, erro
 	return nil, nil
 }
 
-func (r *testBillingRepo) Save(_ context.Context, tx billing.Transaction) (billing.Transaction, error) {
+func (r *testBillingRepo) Save(ctx context.Context, tx billing.Transaction) (billing.Transaction, error) {
+	if r.save != nil {
+		return r.save(ctx, tx)
+	}
 	return tx, nil
 }
 

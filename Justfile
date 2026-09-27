@@ -47,6 +47,62 @@ docs cmd="help" *args="":
       exit 2 ;; \
   esac
 
+[group("lens")]
+[doc("Lens React runtime commands (dev|build|watch|serve-from-disk|smoke|fixture|check|typegen|ladle|vr|vr-update|install)")]
+lens cmd="help" *args="":
+  case "{{cmd}}" in \
+    dev|build|ladle|install) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
+    watch) (cd web/lens && pnpm exec vite build --watch {{args}}) ;; \
+    serve-from-disk) echo "export LENS_ASSETS_DIR={{justfile_directory()}}/pkg/lens/render/react/dist" ;; \
+    smoke) \
+      if [ -z "{{args}}" ]; then echo "Usage: just lens smoke <test file | -t 'test name'>" ; exit 2 ; fi ; \
+      smoke_args='{{args}}' ; \
+      case "$smoke_args" in \
+        -t\ *) (cd web/lens && pnpm exec tsc --noEmit && pnpm exec vitest run -t "${smoke_args#-t }") ;; \
+        *)     (cd web/lens && pnpm exec tsc --noEmit && pnpm exec vitest run $smoke_args) ;; \
+      esac ;; \
+    fixture) (cd web/lens && pnpm fixture {{args}}) ;; \
+    vr|vr-update) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
+    vr-linux) \
+      if [ "$(uname -m)" != "x86_64" ]; then \
+        echo "Lens Linux baselines are linux/amd64; use the lens_vr_update CI workflow on ARM hosts" ; \
+        exit 2 ; \
+      fi ; \
+      docker run --rm --platform linux/amd64 --ipc=host -v "{{justfile_directory()}}:/work" --mount type=volume,target=/work/web/client-host/node_modules --mount type=volume,target=/work/web/client-host/dist --mount type=volume,target=/work/web/lens/node_modules --mount type=volume,source=iota-sdk-lens-vr-pnpm-store,target=/root/.local/share/pnpm/store -w /work mcr.microsoft.com/playwright:v1.55.1-noble bash -lc 'corepack enable && cd web/client-host && pnpm install --frozen-lockfile && pnpm build && cd ../lens && pnpm install --frozen-lockfile && pnpm vr {{args}}' ;; \
+    typegen) go run ./cmd/lens-typegen ;; \
+    check) \
+      node web/lens/scripts/check-typegen.mjs ; \
+      (cd web/lens && pnpm check {{args}}) ;; \
+    *) \
+      echo "Usage: just lens [dev|build|watch|serve-from-disk|smoke|fixture|check|typegen|ladle|vr|vr-update|vr-linux|install]" ; \
+      echo "" ; \
+      echo "  smoke <args>     typecheck plus the tests you name — a test file, or" ; \
+      echo "                   -t 'name'. The per-edit lane; just lens check stays" ; \
+      echo "                   the pre-push one" ; \
+      echo "  watch            rebuild the bundle on every source change" ; \
+      echo "  serve-from-disk  print the env export that makes a legacy custom-element" ; \
+      echo "                   host serve the ignored compatibility bundle from Vite's" ; \
+      echo "                   outDir, so a rebuild appears without a Go restart" ; \
+      exit 2 ;; \
+  esac
+
+[group("solid-ui")]
+[doc("Solid UI component gallery commands (dev|build|typecheck|test|check|vr|vr-update|vr-linux|install)")]
+solid-ui cmd="help" *args="":
+  case "{{cmd}}" in \
+    dev|build|typecheck|test|check|install) (cd web/solid-ui && pnpm {{cmd}} {{args}}) ;; \
+    vr|vr-update) (cd web/solid-ui && pnpm {{cmd}} {{args}}) ;; \
+    vr-linux) \
+      if [ "$(uname -m)" != "x86_64" ]; then \
+        echo "Solid UI Linux baselines are linux/amd64; use CI to generate them on ARM hosts" ; \
+        exit 2 ; \
+      fi ; \
+      docker run --rm --platform linux/amd64 --ipc=host -v "{{justfile_directory()}}:/work" --mount type=volume,target=/work/web/solid-ui/node_modules --mount type=volume,source=iota-sdk-solid-ui-vr-pnpm-store,target=/root/.local/share/pnpm/store -w /work/web/solid-ui mcr.microsoft.com/playwright:v1.55.1-noble bash -lc 'corepack enable && pnpm install --frozen-lockfile && pnpm vr {{args}}' ;; \
+    *) \
+      echo "Usage: just solid-ui [dev|build|typecheck|test|check|vr|vr-update|vr-linux|install]" ; \
+      exit 2 ;; \
+  esac
+
 [group("codegen")]
 [doc("Generate Go + templ (or watch)")]
 generate cmd="":
@@ -286,7 +342,7 @@ _e2e-dev:
   PORT=3201 ORIGIN='http://localhost:3201' DB_NAME=iota_erp_e2e ENABLE_TEST_ENDPOINTS=true OIDC_ISSUER_URL='https://localhost:3201/oidc' OIDC_CRYPTO_KEY='MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=' air
 
 [group("build")]
-[doc("Build commands (dev|local|prod|linux|docker-base|docker-prod)")]
+[doc("Build commands (dev|local|prod|linux|docker-base|docker-prod|docker-pykernel)")]
 build cmd="help" v="":
   case "{{cmd}}" in \
     dev) just _build-dev ;; \
@@ -295,8 +351,9 @@ build cmd="help" v="":
     linux) just _build-linux ;; \
     docker-base) just _build-docker-base {{v}} ;; \
     docker-prod) just _build-docker-prod {{v}} ;; \
+    docker-pykernel) just _build-docker-pykernel ;; \
     *) \
-      echo "Usage: just build [dev|local|prod|linux|docker-base|docker-prod] [version]" ; \
+      echo "Usage: just build [dev|local|prod|linux|docker-base|docker-prod|docker-pykernel] [version]" ; \
       exit 2 ;; \
   esac
 
@@ -325,6 +382,14 @@ _build-docker-base v:
 _build-docker-prod v:
   if [ -z "{{v}}" ]; then echo "Usage: just build docker-prod <version>"; exit 2; fi
   docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:{{v}} --target production .
+
+# The glibc CPython runtime the pykernel manager (datamig + Ali REPL) spawns.
+# Tag is fixed (`3.11-analysis`, matching pkg/pykernel/deploy/README.md), so no
+# version arg. amd64 only: prod hosts are amd64 and the pinned analysis wheels
+# are manylinux/glibc. Application images build `FROM` this (e.g. eai back/Dockerfile).
+[group("build")]
+_build-docker-pykernel:
+  docker buildx build --push --platform linux/amd64 -t iotauz/pykernel-base:3.11-analysis pkg/pykernel/deploy
 
 [group("superadmin")]
 [doc("Superadmin commands (dev|seed)")]

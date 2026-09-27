@@ -386,8 +386,10 @@ func TestStreamController_ReplaceFromMessageID_TruncatesHistory_Integration(t *t
 	req1 := httptest.NewRequest(http.MethodPost, "/bi-chat/stream", bytes.NewReader(firstData))
 	r.ServeHTTP(w1, req1)
 	require.Equal(t, http.StatusOK, w1.Code, w1.Body.String())
+	require.Contains(t, w1.Body.String(), `"type":"done"`)
 
-	msgs, err := deps.chatRepo.GetSessionMessages(env.Ctx, session.ID(), bichatdomain.ListOptions{Limit: 100, Offset: 0})
+	committedCtx := context.WithValue(env.Ctx, constants.TxKey, nil)
+	msgs, err := deps.chatRepo.GetSessionMessages(committedCtx, session.ID(), bichatdomain.ListOptions{Limit: 100, Offset: 0})
 	require.NoError(t, err)
 	require.NotEmpty(t, msgs)
 
@@ -412,8 +414,9 @@ func TestStreamController_ReplaceFromMessageID_TruncatesHistory_Integration(t *t
 	req2 := httptest.NewRequest(http.MethodPost, "/bi-chat/stream", bytes.NewReader(secondData))
 	r.ServeHTTP(w2, req2)
 	require.Equal(t, http.StatusOK, w2.Code, w2.Body.String())
+	require.Contains(t, w2.Body.String(), `"type":"done"`)
 
-	msgs2, err := deps.chatRepo.GetSessionMessages(env.Ctx, session.ID(), bichatdomain.ListOptions{Limit: 100, Offset: 0})
+	msgs2, err := deps.chatRepo.GetSessionMessages(committedCtx, session.ID(), bichatdomain.ListOptions{Limit: 100, Offset: 0})
 	require.NoError(t, err)
 	require.Len(t, msgs2, 2)
 
@@ -460,7 +463,8 @@ func TestStreamController_AttachmentUpload_PersistsOnUserMessage_Integration(t *
 	r.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
-	msgs, err := deps.chatRepo.GetSessionMessages(env.Ctx, session.ID(), bichatdomain.ListOptions{Limit: 20, Offset: 0})
+	committedCtx := context.WithValue(env.Ctx, constants.TxKey, nil)
+	msgs, err := deps.chatRepo.GetSessionMessages(committedCtx, session.ID(), bichatdomain.ListOptions{Limit: 20, Offset: 0})
 	require.NoError(t, err)
 	require.NotEmpty(t, msgs)
 

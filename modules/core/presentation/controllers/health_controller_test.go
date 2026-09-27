@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHealthController_Key_ReturnsCorrectPath(t *testing.T) {
+func TestHealthController_Descriptor_ReturnsCorrectRoute(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
@@ -21,7 +21,10 @@ func TestHealthController_Key_ReturnsCorrectPath(t *testing.T) {
 	})).Build()
 	controller := controllers.NewHealthController(suite.Environment().App)
 
-	require.Equal(t, "/health", controller.Key())
+	descriptor := controller.Descriptor()
+	require.Equal(t, "core.health", descriptor.ID)
+	require.Len(t, descriptor.Routes, 1)
+	require.Equal(t, "/health", descriptor.Routes[0].Path)
 }
 
 func TestHealthController_Get_ReturnsMinimalHealthyPayload(t *testing.T) {

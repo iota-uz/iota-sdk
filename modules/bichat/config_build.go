@@ -155,6 +155,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		SkillsCatalogLimit:     c.SkillsCatalogLimit,
 		SkillsMaxChars:         c.SkillsMaxChars,
 		RuntimeTools:           runtimeTools,
+		ExecutorOptions:        c.ExecutorOptions,
 		Logger:                 c.Logger,
 		FormatterRegistry:      formatters.DefaultFormatterRegistry(),
 	})
@@ -200,6 +201,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		sessionCommands:      chatServices.SessionCommands,
 		sessionQueries:       chatServices.SessionQueries,
 		turnCommands:         chatServices.TurnCommands,
+		continuationCommands: chatServices.ContinuationCommands,
 		turnQueries:          chatServices.TurnQueries,
 		streamCommands:       chatServices.StreamCommands,
 		hitlCommands:         chatServices.HITLCommands,

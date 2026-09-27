@@ -1,0 +1,35 @@
+{
+  "Spotlight": {
+    "Match": {
+      "Exact": "Correspondência exata",
+      "Best": "Melhor correspondência"
+    },
+    "Badge": {
+      "Exact": "Exato",
+      "Action": "Ação",
+      "Navigate": "Navegação",
+      "Staff": "Funcionário",
+      "Person": "Pessoa"
+    },
+    "Summary": {
+      "Default": "Melhores correspondências encontradas para sua solicitação",
+      "Help": "Aqui estão as páginas e entradas da base de conhecimento que melhor correspondem"
+    },
+    "Actions": {
+      "Open": "Abrir"
+    },
+    "Group": {
+      "Navigate": "Navegação",
+      "Actions": "Ações",
+      "Data": "Dados",
+      "Knowledge": "Base de conhecimento",
+      "_Other": "Outros"
+    },
+    "MoreResults": {
+      "one": "{{.Count}} resultado a mais",
+      "other": "{{.Count}} resultados a mais",
+      "few": "Mais {{.Count}} resultados",
+      "many": "Mais {{.Count}} resultados"
+    }
+  }
+}

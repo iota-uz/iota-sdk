@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/meiliconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/telemetryconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/health"
@@ -143,12 +144,33 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 				}
 			}
 
+			// Wire the Spotlight search engine from the Meili source. Without
+			// this the SpotlightService falls back to a no-op engine, which
+			// silently breaks global search reads AND turns the periodic full
+			// reindex (ReindexTenant) into a no-op — the index then survives
+			// only on incremental single-doc writes. The legacy path read this
+			// from configuration.Use(); after the config-source migration the
+			// bootstrap must read it explicitly and pass it via opts.Meili.
+			var meiliCfg *meiliconfig.Config
+			if _, hasMeili := src.Get("meili.url"); hasMeili {
+				var mc meiliconfig.Config
+				if err := src.Unmarshal("meili", &mc); err == nil && strings.TrimSpace(mc.URL) != "" {
+					meiliCfg = &mc
+				}
+			}
+
+			supportedLanguages := o.supportedLanguages
+			if len(supportedLanguages) == 0 {
+				supportedLanguages = application.DefaultSupportedLanguages()
+			}
+
 			return application.New(&application.ApplicationOptions{
 				Pool:               rt.Pool,
 				Bundle:             rt.Bundle,
 				EventBus:           eventbus.NewEventPublisher(rt.Logger),
 				Logger:             rt.Logger,
-				SupportedLanguages: application.DefaultSupportedLanguages(),
+				Meili:              meiliCfg,
+				SupportedLanguages: supportedLanguages,
 				Huber: application.NewHub(&application.HuberOptions{
 					Pool:           rt.Pool,
 					Logger:         rt.Logger,

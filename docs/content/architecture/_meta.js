@@ -4,5 +4,6 @@ export default {
   'domain-driven-design': 'Domain-Driven Design',
   'module-system': 'Module System',
   'multi-tenancy': 'Multi-Tenancy',
-  'frontend-stack': 'Frontend Stack'
+  'frontend-stack': 'Frontend Stack',
+  'solid-client-runtime': 'Solid Client Runtime'
 }

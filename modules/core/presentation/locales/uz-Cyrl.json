@@ -1,4 +1,19 @@
 {
+  "Authorization": {
+    "Errors": {
+      "Title": "Амалга рухсат берилмаган",
+      "GrantCeiling": "Бу рухсатни тайинлаб бўлмайди: унда ҳисобингизда мавжуд бўлмаган ҳуқуқлар бор. Ўзгаришлар сақланмади.",
+      "TargetDominance": "Бу фойдаланувчи, роль ёки гуруҳни бошқара олмайсиз: унинг кириш даражаси сизникидан юқори. Ўзгаришлар сақланмади.",
+      "TenantBoundary": "Бу объект ташкилотингизда мавжуд эмас. Ўзгаришлар сақланмади.",
+      "SystemRole": "Бу тизим ролини тайинлай олмайсиз. Ўзгаришлар сақланмади.",
+      "SystemGroup": "Бу тизим гуруҳини тайинлай олмайсиз. Ўзгаришлар сақланмади.",
+      "SelfAdmin": "Ўз профилингизни таҳрирлаш учун ҳисоб созламаларидан фойдаланинг. Маъмурий ўзгаришлар сақланмади.",
+      "InvalidSelection": "Танланган кириш вариантларидан бири нотўғри ёки мавжуд эмас. Ўзгаришлар сақланмади."
+    },
+    "Notices": {
+      "ReadOnlyTarget": "Бу объектнинг кириш даражаси юқорироқ. Уни кўришингиз мумкин, аммо ўзгартира олмайсиз."
+    }
+  },
   "Account": {
     "Meta": {
       "Index": {
@@ -33,6 +48,7 @@
       "Placeholder": "Telefon raqamingizni kiriting"
     },
     "Password": "Parol",
+    "ChangePassword": {"Title":"Паролни ўзгартириш","DescText":"Парол ўзгартирилгач, барча фаол сеанслар якунланади.","CurrentPassword":"Жорий парол","NewPassword":"Янги парол","ConfirmPassword":"Янги паролни тасдиқлаш","Submit":"Паролни ўзгартириш","Errors":{"CurrentRequired":"Жорий паролни киритинг.","CurrentIncorrect":"Жорий парол нотўғри.","NewTooShort":"Янги парол камида 8 та белгидан иборат бўлиши керак.","ConfirmationMismatch":"Парол тасдиғи янги паролга мос келмайди."}},
     "Save": "Saqlash",
     "Logo": {
       "FullLogo": "To'liq logo",
@@ -89,6 +105,9 @@
   "Chart": {
     "CloseFullScreen": "To'liq ekran rejimini yopish",
     "ExpandToFullScreen": "To'liq ekranga kengaytirish",
+    "ExportExcel": "Excel форматига экспорт қилиш",
+    "ExportGenerating": "Excel ҳисоботи тайёрланмоқда…",
+    "ExportFailed": "Ҳисоботни тайёрлаб бўлмади. Қайта уриниб кўринг.",
     "LogScale": "Logarifmik shkala",
     "LogScaleHint": "Qiymatlar logarifmik shkala asosida ko'rsatilgan",
     "MetricInfo": "Bu metrika qanday hisoblanadi"
@@ -122,7 +141,11 @@
     }
   },
   "Common": {
-    "Loading": "Yuklanmoqda..."
+    "CloseNotification": "Билдиришномани ёпиш",
+    "TabNavigation": "Ички бўлимлар навигацияси",
+    "Loading": "Yuklanmoqda...",
+    "LoadFailed": "Маълумотларни юклаб бўлмади",
+    "Retry": "Қайта уриниш"
   },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
@@ -366,7 +389,8 @@
     "ToExcel": "Excel ga eksport",
     "ToCSV": "CSV ga eksport",
     "ToJSON": "JSON ga eksport",
-    "ToTXT": "TXT ga eksport"
+    "ToTXT": "TXT ga eksport",
+    "Preparing": "Файл тайёрланмоқда…"
   },
   "Filters": {
     "CreatedAt": {
@@ -442,14 +466,20 @@
     "WelcomeBack": "Xush kelibsiz",
     "LoginToUse": "IOTA ERP dan foydalanish uchun tizimga kiring",
     "LoginWithGoogle": "Google orqali kirish",
-    "OrSignInWith": "Yoki quyidagi orqali kiring",
+		"OrSignInWith": "Yoki quyidagi orqali kiring",
+		"Or": "Ёки",
+		"ChooseAccount": "Аккаунтни танланг",
+		"UseAnotherAccount": "Бошқа аккаунтдан фойдаланиш",
+		"ActiveAccount": "Фаол",
     "Errors": {
       "PasswordInvalid": "Email yoki parol noto'g'ri",
       "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
       "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
       "OauthCodeNotFound": "OAuth kodi topilmadi. Iltimos, qayta urinib ko'ring.",
       "UserNotFound": "Foydalanuvchi topilmadi",
-      "AccountBlocked": "Sizning akkauntingiz bloklangan. Administratorga murojaat qiling."
+			"AccountBlocked": "Sizning akkauntingiz bloklangan. Administratorga murojaat qiling.",
+			"SessionExpired": "Бу аккаунт сессияси тугаган. Қайта киринг ёки бошқа аккаунтни танланг."
+			,"AuthorizationRequestInvalid": "Авторизация сўрови энди яроқсиз. Иловага қайтиб, қайта бошланг."
     }
   },
   "Modules": {
@@ -468,6 +498,7 @@
     "Website": "Veb-sayt"
   },
   "NavigationLinks": {
+    "QuickLinks": "Тезкор ҳаволалар",
     "Dashboard": "Boshqaruv paneli",
     "Administration": "Ma'muriyat",
     "Users": "Foydalanuvchilar",
@@ -576,9 +607,14 @@
     "Navbar": {
       "Profile": "Profil",
       "Sessions": "Sessiyalar",
-      "Logout": "Chiqish",
+			"Logout": "Chiqish",
+			"CurrentAccount": "Жорий аккаунт",
+			"AddAccount": "Аккаунт қўшиш",
+			"LogoutCurrent": "Жорий аккаунтдан чиқиш",
+			"LogoutAll": "Барча аккаунтлардан чиқиш",
       "Settings": "Созламалар"
-    }
+    },
+    "Departments": "Бўлимлар"
   },
   "No": "Yo'q",
   "PerPage": "Sahifada",
@@ -914,6 +950,34 @@
     "Filters": {
       "Title": "Filtrlar",
       "SelectAll": "Barchasini tanlash"
+    },
+    "FilterBuilder": {
+      "AddFilter": "Филтр қўшиш",
+      "ClearAll": "Ҳаммасини тозалаш",
+      "Apply": "Қўллаш",
+      "SearchFields": "Филтр қидириш...",
+      "SelectValues": "Қийматларни танланг...",
+      "NothingFound": "Ҳеч нарса топилмади",
+      "Remove": "Филтрни олиб ташлаш",
+      "Operators": {
+        "Is": "га тенг",
+        "IsNot": "га тенг эмас",
+        "Before": "гача",
+        "After": "дан кейин",
+        "On": "санада",
+        "Between": "оралиқда",
+        "Eq": "=",
+        "Gt": ">",
+        "Lt": "<"
+      },
+      "Presets": {
+        "ThisMonth": "Шу ой",
+        "LastMonth": "Ўтган ой",
+        "Last30Days": "Охирги 30 кун",
+        "Next30Days": "Кейинги 30 кун",
+        "ThisYear": "Шу йил",
+        "LastYear": "Ўтган йил"
+      }
     }
   },
   "Search": "Qidirish",
@@ -922,6 +986,9 @@
   "UploadLabel": "Fayl yuklash",
   "UploadPlaceholder": "Yuklash uchun faylni tanlang",
   "DownloadTemplate": "Shablonni yuklab olish",
+  "Running": "Бажарилмоқда…",
+  "Warnings": "Огоҳлантиришлар",
+  "Confirm": "Тасдиқлаш",
   "Example": {
     "Below": "Quyida misolni ko'ring"
   },
@@ -1048,11 +1115,17 @@
       "FullName": "To'liq ism",
       "Roles": "Rollar",
       "Email": "Email",
-      "AllGroups": "Barcha guruhlar",
-      "AllRoles": "Barcha rollar",
       "Filters": "Filterlar",
-      "ExpandFilters": "Filtrlarni kengaytirish",
-      "CollapseFilters": "Filtrlarni yig'ish"
+      "FilterRole": "Rol",
+      "FilterGroup": "Guruh",
+      "FilterCreatedAt": "Yaratilgan sana",
+      "FilterUpdatedAt": "Янгиланган сана",
+      "FilterStatus": "Ҳолат",
+      "FilterStatusActive": "Фаол",
+      "FilterStatusBlocked": "Блокланган",
+      "FilterType": "Тури",
+      "FilterTypeRegular": "Оддий",
+      "FilterTypeSystem": "Тизим"
     },
     "Cards": {
       "PersonalInfo": "Shaxsiy ma'lumotlar",
@@ -1091,6 +1164,7 @@
       "Access": "Ruxsat"
     },
     "Blocked": "Bloklangan",
+    "NoRole": "Рол бириктирилмаган",
     "Block": {
       "Title": "Foydalanuvchini bloklash",
       "Button": "Bloklash",
@@ -1103,7 +1177,8 @@
       "Errors": {
         "ReasonRequired": "Bloklash sababi talab qilinadi",
         "ReasonTooShort": "Sabab kamida 3 ta belgidan iborat bo'lishi kerak",
-        "ReasonTooLong": "Sabab 1024 ta belgidan oshmasligi kerak"
+        "ReasonTooLong": "Sabab 1024 ta belgidan oshmasligi kerak",
+        "OperationFailed": "Фойдаланувчини блоклаб бўлмади. Илтимос, қайта уриниб кўринг."
       }
     },
     "Unblock": {
@@ -1273,5 +1348,94 @@
       "Title": "Созламалар",
       "BackToApp": "Орқага"
     }
-  }
+  },
+  "Departments": {
+    "Meta": {
+      "List": {
+        "Title": "Бўлимлар рўйхати"
+      },
+      "Edit": {
+        "Title": "Бўлимни таҳрирлаш"
+      },
+      "New": {
+        "Title": "Янги бўлим"
+      }
+    },
+    "List": {
+      "New": "Янги бўлим",
+      "Name": "Номи",
+      "Code": "Код",
+      "Parent": "Она бўлим",
+      "Status": "Ҳолати",
+      "NoDepartments": {
+        "Title": "Бўлимлар топилмади",
+        "_Description": "«Янги бўлим» тугмасини босиб биринчи бўлимингизни яратинг"
+      }
+    },
+    "Single": {
+      "Name": "Номи",
+      "Code": "Код",
+      "Parent": "Она бўлим",
+      "NoParent": "Она бўлимсиз",
+      "Order": "Тартиб",
+      "Status": "Ҳолати",
+      "EnterName": "Номини киритинг",
+      "EnterCode": "Кодни киритинг",
+      "EnterOrder": "Тартибни киритинг"
+    },
+    "Status": {
+      "Active": "Фаол",
+      "Inactive": "Нофаол"
+    },
+    "Errors": {
+      "SelfLoop": "Бўлим ўзига ота-бўлим бўла олмайди.",
+      "Cycle": "Бу ота-бўлим айланма иерархияни яратади.",
+      "DuplicateCode": "Бу код бошқа бўлим томонидан ишлатилмоқда.",
+      "ParentNotFound": "Танланган ота-бўлим топилмади."
+    }
+  },
+  "Positions": {
+    "Meta": {
+      "List": {
+        "Title": "Лавозимлар рўйхати"
+      },
+      "Edit": {
+        "Title": "Лавозимни таҳрирлаш"
+      },
+      "New": {
+        "Title": "Янги лавозим"
+      }
+    },
+    "List": {
+      "New": "Янги лавозим",
+      "Title": "Номи",
+      "User": "Фойдаланувчи",
+      "Department": "Бўлим",
+      "Role": "Рол",
+      "Status": "Ҳолати",
+      "NoPositions": {
+        "Title": "Лавозимлар топилмади",
+        "_Description": "«Янги лавозим» тугмасини босиб биринчи лавозимингизни яратинг"
+      }
+    },
+    "Single": {
+      "Title": "Номи",
+      "User": "Фойдаланувчи",
+      "SelectUser": "Фойдаланувчини танланг",
+      "Department": "Бўлим",
+      "SelectDepartment": "Бўлимни танланг",
+      "IsManager": "Раҳбар",
+      "IsPrimary": "Асосий",
+      "Status": "Ҳолати",
+      "EnterTitle": "Номини киритинг"
+    },
+    "Status": {
+      "Active": "Фаол",
+      "Inactive": "Нофаол"
+    }
+  },
+  "Error": {
+    "ProcessingFailed": "Импорт хатоси"
+  },
+  "DryRunNotice": "Бу — олдиндан кўриш. Маълумотлар ҳали ўзгартирилмади. Юқоридаги натижаларни текширинг ва импортни қўллаш учун тасдиқланг."
 }

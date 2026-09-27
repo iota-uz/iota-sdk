@@ -1,6 +1,7 @@
 package settings
 
 import (
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -16,9 +17,12 @@ templ Hub(props *HubPageProps) {
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Settings.Hub.Title")},
 	}) {
 		<div class="p-6 md:p-8 max-w-6xl">
-			<h1 class="text-2xl font-semibold text-gray-900 mb-8">
-				{ pageCtx.T("Settings.Hub.Title") }
-			</h1>
+			<div class="flex items-center gap-2 mb-8">
+				<h1 class="text-2xl font-semibold text-gray-900">
+					{ pageCtx.T("Settings.Hub.Title") }
+				</h1>
+				@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"})
+			</div>
 			for _, section := range props.Sections {
 				<div class="mb-8">
 					<h2 class="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">
@@ -38,7 +42,7 @@ templ Hub(props *HubPageProps) {
 templ settingsCard(page types.SettingsPage) {
 	<a
 		href={ templ.SafeURL(page.Href) }
-		class="block p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all group"
+		class="block p-4 rounded-lg border border-subtle hover:border-blue-300 hover:shadow-sm transition-all group"
 	>
 		<div class="flex items-start gap-3">
 			if page.Icon != nil {

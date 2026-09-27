@@ -20,7 +20,7 @@
 // SQL Tools:
 //   - SQLExecuteTool: Execute read-only SQL queries
 //   - SchemaListTool: List all tables and views
-//   - SchemaDescribeTool: Describe table schema details
+//   - SchemaDescribeBatchTool: Describe one or more tables' schemas in a single call
 //
 // Utility Tools:
 //   - GetCurrentTimeTool: Get current time in various formats

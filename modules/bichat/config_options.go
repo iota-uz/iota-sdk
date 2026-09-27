@@ -208,6 +208,13 @@ func WithTokenEstimator(estimator agents.TokenEstimator) ConfigOption {
 	}
 }
 
+// WithExecutorOptions appends executor options used for each parent agent run.
+func WithExecutorOptions(options ...agents.ExecutorOption) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ExecutorOptions = append(c.ExecutorOptions, options...)
+	}
+}
+
 // WithObservability adds an observability provider for tracing, metrics, and cost tracking.
 // Providers are wrapped in AsyncHandler to prevent blocking the main execution path.
 // Multiple providers can be registered by calling this option multiple times.

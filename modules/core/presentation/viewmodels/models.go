@@ -10,7 +10,8 @@ type Currency struct {
 type Upload struct {
 	ID        string
 	Hash      string
-	Slug      string
+	Slug      string // Filesystem-safe storage slug (defaults to Hash if no original name).
+	Name      string // Original filename as uploaded by the user, e.g. "scan.pdf".
 	URL       string
 	Mimetype  string
 	Size      string

@@ -169,28 +169,33 @@ type Builder struct {
 	context    BuildContext
 	descriptor Descriptor
 
-	providers           []*providerEntry
-	controllerFactories []namedFactory[[]application.Controller]
-	navItemFactories    []namedFactory[[]types.NavigationItem]
-	localeFactories     []namedFactory[[]*embed.FS]
-	schemaFactories     []namedFactory[[]application.GraphSchema]
-	appletFactories     []namedFactory[[]applets.Applet]
-	assetFactories      []namedFactory[[]*embed.FS]
-	hashFSFactories     []namedFactory[[]*hashfs.FS]
-	quickLinkFactories  []namedFactory[[]*spotlight.QuickLink]
-	spotlightFactories  []namedFactory[[]spotlight.SearchProvider]
-	spotlightAgent      *namedFactory[spotlight.Agent]
-	middlewareFactories []namedFactory[[]mux.MiddlewareFunc]
-	hookFactories       []namedFactory[[]Hook]
+	providers             []*providerEntry
+	controllerFactories   []namedFactory[[]application.Controller]
+	navNodeFactories      []namedFactory[[]application.NavNode]
+	navProviderFactories  []namedFactory[[]application.NavProvider]
+	navItemFactories      []namedFactory[[]types.NavigationItem]
+	navWorkspaceFactories []namedFactory[[]types.NavWorkspace]
+	localeFactories       []namedFactory[[]*embed.FS]
+	schemaFactories       []namedFactory[[]application.GraphSchema]
+	appletFactories       []namedFactory[[]applets.Applet]
+	assetFactories        []namedFactory[[]*embed.FS]
+	hashFSFactories       []namedFactory[[]*hashfs.FS]
+	quickLinkFactories    []namedFactory[[]*spotlight.QuickLink]
+	spotlightFactories    []namedFactory[[]spotlight.SearchProvider]
+	spotlightAgent        *namedFactory[spotlight.Agent]
+	middlewareFactories   []namedFactory[[]mux.MiddlewareFunc]
+	hookFactories         []namedFactory[[]Hook]
 
 	// Removals are recorded here and processed after every builder has
 	// contributed, so a downstream component can cleanly replace upstream
-	// providers/controllers/hooks without needing to win a registration race.
+	// providers/hooks without needing to win a registration race. Controllers
+	// declare replacement intent in Controller.Descriptor().Replaces.
 	// See Container.applyRemovals and the override decision table in
 	// Container.addBuilder.
-	providerRemovals   []Key
-	controllerRemovals []string // matched against Controller.Key()
-	hookRemovals       []string // matched against Hook.Name
+	providerRemovals []Key
+	navItemRemovals  []string // matched against NavigationItem.Key
+	navItemOverrides []types.NavigationItem
+	hookRemovals     []string // matched against Hook.Name
 
 	eventHandlerSeq int // monotonic counter for unique event-handler hook names
 }
@@ -327,19 +332,6 @@ func RemoveProvider[T any](builder *Builder) {
 	builder.providerRemovals = append(builder.providerRemovals, KeyFor[T]())
 }
 
-// RemoveController schedules every controller whose Key() equals `key` to
-// be filtered out of the final container during materialize. Safe to call
-// even when no such controller is registered (no-op).
-func RemoveController(builder *Builder, key string) {
-	if builder == nil {
-		panic("composition: builder is nil")
-	}
-	if key == "" {
-		panic("composition: RemoveController: key must not be empty")
-	}
-	builder.controllerRemovals = append(builder.controllerRemovals, key)
-}
-
 // RemoveHook schedules every hook whose Name equals `name` to be filtered
 // out during materialize. Safe to call even when no such hook is registered.
 func RemoveHook(builder *Builder, name string) {
@@ -396,12 +388,16 @@ func ContributeControllers(builder *Builder, factory func(*Container) ([]applica
 	appendFactory(builder, "controllers", factory, &builder.controllerFactories)
 }
 
-func ContributeNavItems(builder *Builder, factory func(*Container) ([]types.NavigationItem, error)) {
-	appendFactory(builder, "nav-items", factory, &builder.navItemFactories)
+func ContributeNavNodes(builder *Builder, factory func(*Container) ([]application.NavNode, error)) {
+	appendFactory(builder, "nav-nodes", factory, &builder.navNodeFactories)
 }
 
-func ContributeLocales(builder *Builder, factory func(*Container) ([]*embed.FS, error)) {
-	appendFactory(builder, "locales", factory, &builder.localeFactories)
+func ContributeNavProviders(builder *Builder, factory func(*Container) ([]application.NavProvider, error)) {
+	appendFactory(builder, "nav-providers", factory, &builder.navProviderFactories)
+}
+
+func ContributeNavWorkspaces(builder *Builder, factory func(*Container) ([]types.NavWorkspace, error)) {
+	appendFactory(builder, "nav-workspaces", factory, &builder.navWorkspaceFactories)
 }
 
 func ContributeSchemas(builder *Builder, factory func(*Container) ([]application.GraphSchema, error)) {
@@ -418,10 +414,6 @@ func ContributeAssets(builder *Builder, factory func(*Container) ([]*embed.FS, e
 
 func ContributeHashFS(builder *Builder, factory func(*Container) ([]*hashfs.FS, error)) {
 	appendFactory(builder, "hashfs", factory, &builder.hashFSFactories)
-}
-
-func ContributeQuickLinks(builder *Builder, factory func(*Container) ([]*spotlight.QuickLink, error)) {
-	appendFactory(builder, "quick-links", factory, &builder.quickLinkFactories)
 }
 
 func ContributeSpotlightProviders(builder *Builder, factory func(*Container) ([]spotlight.SearchProvider, error)) {

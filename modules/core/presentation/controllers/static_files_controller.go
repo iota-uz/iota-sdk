@@ -14,8 +14,8 @@ type StaticFilesController struct {
 	fsInstances []*hashfs.FS
 }
 
-func (s *StaticFilesController) Key() string {
-	return "/assets"
+func (s *StaticFilesController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.static_files", 0, application.Prefix("/assets"))
 }
 
 func (s *StaticFilesController) Register(r *mux.Router) {

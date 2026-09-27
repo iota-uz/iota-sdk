@@ -20,14 +20,12 @@ import (
 	appletenginerpc "github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
 	appletengineruntime "github.com/iota-uz/iota-sdk/pkg/appletengine/runtime"
 	appletenginewsbridge "github.com/iota-uz/iota-sdk/pkg/appletengine/wsbridge"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
 
-type Controller interface {
-	Register(*mux.Router)
-	Key() string
-}
+type Controller = application.Controller
 
 type BuildInput struct {
 	Applets       []applets.Applet
@@ -211,6 +209,34 @@ type buildState struct {
 	errors               []error
 }
 
+type appletControllerAdapter struct {
+	controller applets.AppletController
+}
+
+func (a *appletControllerAdapter) Register(router *mux.Router) {
+	a.controller.Register(router)
+}
+
+func (a *appletControllerAdapter) Descriptor() application.ControllerDescriptor {
+	descriptor := a.controller.Descriptor()
+	routes := make([]application.RouteSpec, 0, len(descriptor.Routes))
+	for _, route := range descriptor.Routes {
+		routes = append(routes, application.RouteSpec{
+			Method:         route.Method,
+			Host:           route.Host,
+			Path:           route.Path,
+			Prefix:         route.Prefix,
+			AllowCollision: route.AllowCollision,
+		})
+	}
+	return application.ControllerDescriptor{
+		ID:       descriptor.ID,
+		Order:    descriptor.Order,
+		Replaces: append([]string(nil), descriptor.Replaces...),
+		Routes:   routes,
+	}
+}
+
 type appletSpec struct {
 	applet          applets.Applet
 	frontendType    string
@@ -278,6 +304,7 @@ func (b *AppletEngineBuilder) planAppletSpecs(state *buildState) error {
 func (b *AppletEngineBuilder) registerAppletRPCMethods(state *buildState) error {
 	for _, spec := range state.specs {
 		cfg := spec.applet.Config()
+		contracts := rpcMethodContracts(spec.applet)
 		if cfg.RPC != nil {
 			for methodName, method := range cfg.RPC.Methods {
 				publicMethod := method
@@ -291,6 +318,12 @@ func (b *AppletEngineBuilder) registerAppletRPCMethods(state *buildState) error 
 					}
 					publicMethod = makeBunPublicProxyMethod(methodName, goDelegateMethodName, method)
 				}
+				if contract, ok := contracts[methodName]; ok {
+					if err := state.rpcRegistry.RegisterPublicContract(spec.applet.Name(), methodName, publicMethod, cfg.Middleware, contractOptions(contract)...); err != nil {
+						return err
+					}
+					continue
+				}
 				if err := state.rpcRegistry.RegisterPublic(spec.applet.Name(), methodName, publicMethod, cfg.Middleware); err != nil {
 					return err
 				}
@@ -301,6 +334,34 @@ func (b *AppletEngineBuilder) registerAppletRPCMethods(state *buildState) error 
 		}
 	}
 	return nil
+}
+
+// RPCContractsProvider lets an applet declare typed query/mutation contracts
+// for its public RPC methods. Methods without a contract fall back to the
+// compatibility registration, which still requires a non-empty access policy.
+type RPCContractsProvider interface {
+	RPCMethodContracts() map[string]appletenginerpc.MethodContract
+}
+
+func rpcMethodContracts(applet applets.Applet) map[string]appletenginerpc.MethodContract {
+	if provider, ok := applet.(RPCContractsProvider); ok {
+		return provider.RPCMethodContracts()
+	}
+	return nil
+}
+
+func contractOptions(contract appletenginerpc.MethodContract) []appletenginerpc.ContractOption {
+	options := make([]appletenginerpc.ContractOption, 0, 3)
+	switch contract.Kind {
+	case appletenginerpc.MethodKindQuery:
+		options = append(options, appletenginerpc.Query(contract.Cacheable, contract.MaxRetries))
+	case appletenginerpc.MethodKindMutation:
+		options = append(options, appletenginerpc.Mutation())
+	}
+	if len(contract.Invalidates) > 0 {
+		options = append(options, appletenginerpc.Invalidates(contract.Invalidates...))
+	}
+	return options
 }
 
 func (b *AppletEngineBuilder) validateAllBackends(state *buildState) error {
@@ -469,7 +530,7 @@ func (b *AppletEngineBuilder) buildAppletControllers(state *buildState) error {
 		if err != nil {
 			return err
 		}
-		controllers = append(controllers, controller)
+		controllers = append(controllers, &appletControllerAdapter{controller: controller})
 	}
 	state.controllers = controllers
 	return nil
@@ -499,6 +560,7 @@ func (b *AppletEngineBuilder) assembleDispatcher(state *buildState) error {
 		return nil
 	}
 	dispatcher := appletenginerpc.NewDispatcher(state.rpcRegistry, state.input.Host, state.input.Logger)
+	dispatcher.SetMetricsRecorder(state.input.Metrics)
 	state.dispatcher = dispatcher
 
 	if len(state.runtimeEnabled) == 0 {

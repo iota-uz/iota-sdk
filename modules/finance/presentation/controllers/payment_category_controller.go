@@ -52,8 +52,20 @@ func NewPaymentCategoriesController(paymentCategoryService *services.PaymentCate
 	}
 }
 
-func (c *PaymentCategoriesController) Key() string {
-	return c.basePath
+func (c *PaymentCategoriesController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.payment_category", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "finance.payment_category",
+			Parent:   "finance.enums",
+			TitleKey: "NavigationLinks.PaymentCategories",
+			Path:     c.basePath,
+			Order:    20,
+			Actions: []application.NavAction{{
+				ID:       "finance.payment_category.new",
+				TitleKey: "PaymentCategories.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *PaymentCategoriesController) Register(r *mux.Router) {

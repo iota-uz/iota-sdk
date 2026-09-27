@@ -687,3 +687,11 @@ rect.legend-mouseover-inactive,
 .lens-chart--radial-action .apexcharts-canvas circle[fill="transparent"] {
   pointer-events: none
 }
+
+/* Keep the transparent foreignObject click-through without disabling the
+ * actual legend controls nested inside it. This lets users hide a slice while
+ * clicks in the chart body still reach the sector drill action underneath. */
+.lens-chart--radial-action .apexcharts-canvas foreignObject .apexcharts-legend,
+.lens-chart--radial-action .apexcharts-canvas foreignObject .apexcharts-legend-series {
+  pointer-events: auto
+}

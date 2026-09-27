@@ -61,7 +61,6 @@ type ModuleOptions struct {
 	DashboardLinkPermissions []permission.Permission
 	SettingsLinkPermissions  []permission.Permission
 	UserControllerOptions    []controllers.UserControllerOption
-
 	// SkipAdminControllers suppresses registration of the admin-facing
 	// controllers (dashboard, users, roles, groups, settings, sessions,
 	// spotlight, websocket). Auth controllers (login, logout, two-factor,
@@ -69,6 +68,10 @@ type ModuleOptions struct {
 	// registered. Use this for specialized binaries like superadmin that
 	// provide their own admin UI.
 	SkipAdminControllers bool
+
+	// SkipAdminNavItems suppresses contribution of the built-in admin
+	// navigation without affecting controller or spotlight registration.
+	SkipAdminNavItems bool
 }
 
 func NewComponent(opts *ModuleOptions) composition.Component {
@@ -86,25 +89,18 @@ func (c *component) Descriptor() composition.Descriptor {
 	return composition.Descriptor{Name: "core"}
 }
 
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&LocaleFiles}
+}
+
 func (c *component) Build(builder *composition.Builder) error {
 	const op serrors.Op = "core.component.Build"
-
-	composition.AddLocales(builder, &LocaleFiles)
 	composition.AddHashFS(builder, assets.HashFS)
-	// Self-service quick links are always available (AccountController
-	// is registered regardless of SkipAdminControllers).
-	composition.AddQuickLinks(builder,
-		spotlight.NewQuickLink("Account.Meta.Index.Title", "/account"),
-		spotlight.NewQuickLink("Account.Sessions.Title", "/account/sessions"),
-	)
 	if !c.options.SkipAdminControllers {
-		composition.AddNavItems(builder, BuildNavItems(c.options.DashboardLinkPermissions, c.options.SettingsLinkPermissions)...)
-		composition.AddQuickLinks(builder,
-			spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
-			spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
-			spotlight.NewQuickLink(GroupsLink.Name, GroupsLink.Href),
-			spotlight.NewQuickLink("Users.List.New", "/users/new"),
-		)
+		composition.AddNavNodes(builder, AdministrationLink)
+		if c.options.SkipAdminNavItems {
+			composition.RemoveNavItemsByKey(builder, "core.dashboard", "core.administration")
+		}
 	}
 
 	composition.ContributeSpotlightProviders(builder, func(container *composition.Container) ([]spotlight.SearchProvider, error) {
@@ -128,26 +124,35 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewOTPRepository)
 	composition.ProvideFunc(builder, persistence.NewRecoveryCodeRepository)
 	composition.ProvideFunc(builder, persistence.NewGroupRepository)
+	composition.ProvideFunc(builder, persistence.NewPrivilegeRepository)
 	composition.ProvideFunc(builder, persistence.NewCurrencyRepository)
+	composition.ProvideFunc(builder, persistence.NewDepartmentRepository)
+	composition.ProvideFunc(builder, persistence.NewUserPositionRepository)
 	composition.ProvideFunc(builder, query.NewPgUserQueryRepository)
 	composition.ProvideFunc(builder, query.NewPgGroupQueryRepository)
 	composition.ProvideFunc(builder, query.NewPgRoleQueryRepository)
+	composition.ProvideFunc(builder, query.NewPgOrgQueryRepository)
 
 	// ----- Services -----
+	composition.ProvideFunc(builder, services.NewPrivilegeGrantPolicy)
 	composition.ProvideFunc(builder, services.NewTenantService)
 	composition.ProvideFunc(builder, services.NewUploadService)
 	composition.ProvideFunc(builder, services.NewSessionService)
 	composition.ProvideFunc(builder, newCoreUserService)
+	composition.ProvideFunc(builder, services.NewBrowserSessionService)
 	composition.ProvideFunc(builder, services.NewUserQueryService)
 	composition.ProvideFunc(builder, services.NewGroupQueryService)
 	composition.ProvideFunc(builder, services.NewRoleQueryService)
 	composition.ProvideFunc(builder, services.NewExcelExportService)
 	composition.ProvideFunc(builder, newCoreAuthService)
-	composition.ProvideFunc(builder, services.NewAuthFlowService)
+	composition.ProvideFunc(builder, services.NewAuthFlowServiceWithBrowserSessions)
 	composition.ProvideFunc(builder, services.NewCurrencyService)
 	composition.ProvideFunc(builder, services.NewRoleService)
 	composition.ProvideFunc(builder, services.NewPermissionService)
 	composition.ProvideFunc(builder, services.NewGroupService)
+	composition.ProvideFunc(builder, services.NewDepartmentService)
+	composition.ProvideFunc(builder, services.NewUserPositionService)
+	composition.ProvideFunc(builder, services.NewOrgQueryService)
 	composition.ProvideFunc(builder, newCoreTwoFactorService)
 
 	// ----- Event handlers -----
@@ -200,6 +205,10 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
+		browserSessions, err := composition.Resolve[*services.BrowserSessionService](container)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
 		httpCfg, err := composition.Resolve[*httpconfig.Config](container)
 		if err != nil {
 			return nil, err
@@ -215,7 +224,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		return []application.GraphSchema{
 			{
 				Value: graph.NewExecutableSchema(graph.Config{
-					Resolvers: graph.NewResolver(app, userSvc, uploadSvc, authSvc, httpCfg, cookiesCfg, appCfg),
+					Resolvers: graph.NewResolver(app, userSvc, uploadSvc, authSvc, browserSessions, httpCfg, cookiesCfg, appCfg),
 				}),
 				BasePath: "/",
 			},
@@ -262,8 +271,10 @@ func (c *component) Build(builder *composition.Builder) error {
 			userService *services.UserService,
 			authService *services.AuthService,
 			authFlowService *services.AuthFlowService,
+			browserSessions *services.BrowserSessionService,
 			tenantService *services.TenantService,
 			groupService *services.GroupService,
+			roleService *services.RoleService,
 			twoFactorService *coreservices2fa.TwoFactorService,
 			httpCfg *httpconfig.Config,
 			cookiesCfg *cookies.Config,
@@ -287,11 +298,11 @@ func (c *component) Build(builder *composition.Builder) error {
 			// Auth and infrastructure controllers — always registered.
 			ctrls := []application.Controller{
 				controllers.NewHealthController(app),
-				controllers.NewLoginController(authService, authFlowService, httpCfg, cookiesCfg, headersCfg, googleCfg, opts.LoginControllerOptions),
-				controllers.NewTwoFactorSetupController(twoFactorService, sessionService, userService, httpCfg, cookiesCfg, sessionCfg, appCfg),
-				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService, httpCfg, cookiesCfg, sessionCfg, appCfg),
+				controllers.NewLoginControllerWithBrowserSessions(authService, authFlowService, browserSessions, httpCfg, cookiesCfg, headersCfg, googleCfg, opts.LoginControllerOptions),
+				controllers.NewTwoFactorSetupController(twoFactorService, sessionService, userService, httpCfg, sessionCfg, browserSessions),
+				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService, httpCfg, sessionCfg, browserSessions),
 				controllers.NewAccountController(app, userService, tenantService, uploadService, sessionService, cookiesCfg),
-				controllers.NewLogoutController(httpCfg, cookiesCfg, appCfg),
+				controllers.NewLogoutController(httpCfg, browserSessions),
 				controllers.NewUploadController(uploadService, uploadsCfg),
 			}
 			if opts.UploadsAuthorizer != nil || opts.DefaultTenantID != uuid.Nil {
@@ -307,7 +318,7 @@ func (c *component) Build(builder *composition.Builder) error {
 			// (e.g. superadmin) that provide their own admin interface.
 			if !opts.SkipAdminControllers {
 				ctrls = append(ctrls,
-					controllers.NewDashboardController(dbCfg),
+					controllers.NewDashboardController(dbCfg, opts.DashboardLinkPermissions),
 					// aiHolder may be nil when no downstream component registered
 					// an AI search service; the controller is nil-safe and will
 					// surface the feature as unavailable in that case.
@@ -318,9 +329,11 @@ func (c *component) Build(builder *composition.Builder) error {
 						PermissionSchema: opts.PermissionSchema,
 					}),
 					controllers.NewGroupsController(app),
+					controllers.NewDepartmentsController(app),
+					controllers.NewPositionsController(app),
 					controllers.NewWebSocketController(app),
 					controllers.NewSettingsHubController(),
-					controllers.NewSettingsLogoController(tenantService, uploadService),
+					controllers.NewSettingsLogoController(tenantService, uploadService, opts.SettingsLinkPermissions),
 					controllers.NewSessionController("/settings/sessions", cookiesCfg),
 					buildSystemInfoController(container, app.DB(), appCfg),
 				)
@@ -365,8 +378,9 @@ func newCoreUserService(
 	repo user.Repository,
 	bus eventbus.EventBus,
 	sessionService *services.SessionService,
+	policy *services.PrivilegeGrantPolicy,
 ) *services.UserService {
-	return services.NewUserService(repo, validators.NewUserValidator(repo), bus, sessionService)
+	return services.NewUserService(repo, validators.NewUserValidator(repo), bus, sessionService, policy)
 }
 
 // newCoreTwoFactorService bootstraps the 2FA service from typed configs.

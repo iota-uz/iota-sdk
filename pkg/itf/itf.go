@@ -86,6 +86,17 @@ func WithDatabase(name string) Option {
 	}
 }
 
+// WithTemplateDatabase clones the test database from a pre-migrated template
+// instead of creating an empty one and replaying migrations. Overrides the
+// [TemplateDBEnv] environment variable, which is the usual way to switch a
+// whole CI run over; reach for this option when one suite needs a different
+// template from the rest.
+func WithTemplateDatabase(name string) Option {
+	return func(tc *TestContext) {
+		tc.templateDB = name
+	}
+}
+
 // WithUser sets the default user for the test context
 func WithUser(u user.User) Option {
 	return func(tc *TestContext) {
@@ -100,6 +111,18 @@ func WithUser(u user.User) Option {
 func WithSource(src config.Source) Option {
 	return func(tc *TestContext) {
 		tc.source = src
+	}
+}
+
+// WithCapabilities sets the composition capabilities used when compiling the
+// test container. When unset (the default) the harness compiles with the
+// historical [CapabilityAPI, CapabilityWorker] pair. Pass a narrower subset
+// to verify capability gating — for example, compile with CapabilityAPI only
+// to assert that worker-only contributions (NATS consumers, periodic tasks,
+// file-locked indices, etc.) stay inactive in API/CLI contexts.
+func WithCapabilities(caps ...composition.Capability) Option {
+	return func(tc *TestContext) {
+		tc.capabilities = append(tc.capabilities[:0], caps...)
 	}
 }
 

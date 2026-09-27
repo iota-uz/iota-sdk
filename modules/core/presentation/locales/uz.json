@@ -1,4 +1,19 @@
 {
+  "Authorization": {
+    "Errors": {
+      "Title": "Amalga ruxsat berilmagan",
+      "GrantCeiling": "Bu ruxsatni tayinlab bo‘lmaydi: unda hisobingizda mavjud bo‘lmagan huquqlar bor. O‘zgarishlar saqlanmadi.",
+      "TargetDominance": "Bu foydalanuvchi, rol yoki guruhni boshqara olmaysiz: uning kirish darajasi siznikidan yuqori. O‘zgarishlar saqlanmadi.",
+      "TenantBoundary": "Bu obyekt tashkilotingizda mavjud emas. O‘zgarishlar saqlanmadi.",
+      "SystemRole": "Bu tizim rolini tayinlay olmaysiz. O‘zgarishlar saqlanmadi.",
+      "SystemGroup": "Bu tizim guruhini tayinlay olmaysiz. O‘zgarishlar saqlanmadi.",
+      "SelfAdmin": "O‘z profilingizni tahrirlash uchun hisob sozlamalaridan foydalaning. Ma’muriy o‘zgarishlar saqlanmadi.",
+      "InvalidSelection": "Tanlangan kirish variantlaridan biri noto‘g‘ri yoki mavjud emas. O‘zgarishlar saqlanmadi."
+    },
+    "Notices": {
+      "ReadOnlyTarget": "Bu obyektning kirish darajasi yuqoriroq. Uni ko‘rishingiz mumkin, ammo o‘zgartira olmaysiz."
+    }
+  },
   "Account": {
     "Meta": {
       "Index": {
@@ -33,6 +48,7 @@
       "Placeholder": "Telefon raqamingizni kiriting"
     },
     "Password": "Parol",
+    "ChangePassword": {"Title":"Parolni o‘zgartirish","DescText":"Parol o‘zgartirilgach, barcha faol seanslar yakunlanadi.","CurrentPassword":"Joriy parol","NewPassword":"Yangi parol","ConfirmPassword":"Yangi parolni tasdiqlash","Submit":"Parolni o‘zgartirish","Errors":{"CurrentRequired":"Joriy parolni kiriting.","CurrentIncorrect":"Joriy parol noto‘g‘ri.","NewTooShort":"Yangi parol kamida 8 ta belgidan iborat bo‘lishi kerak.","ConfirmationMismatch":"Parol tasdig‘i yangi parolga mos kelmaydi."}},
     "Save": "Saqlash",
     "Logo": {
       "FullLogo": "To'liq logo",
@@ -89,6 +105,9 @@
   "Chart": {
     "CloseFullScreen": "To'liq ekran rejimini yopish",
     "ExpandToFullScreen": "To'liq ekranga kengaytirish",
+    "ExportExcel": "Excel formatiga eksport qilish",
+    "ExportGenerating": "Excel hisoboti tayyorlanmoqda…",
+    "ExportFailed": "Hisobotni tayyorlab bo‘lmadi. Qayta urinib ko‘ring.",
     "LogScale": "Logarifmik shkala",
     "LogScaleHint": "Qiymatlar logarifmik shkala asosida ko'rsatilgan",
     "MetricInfo": "Bu metrika qanday hisoblanadi"
@@ -122,7 +141,11 @@
     }
   },
   "Common": {
-    "Loading": "Yuklanmoqda..."
+    "CloseNotification": "Bildirishnomani yopish",
+    "TabNavigation": "Ichki bo‘limlar navigatsiyasi",
+    "Loading": "Yuklanmoqda...",
+    "LoadFailed": "Ma'lumotlarni yuklab bo'lmadi",
+    "Retry": "Qayta urinish"
   },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
@@ -366,7 +389,8 @@
     "ToExcel": "Excel ga eksport",
     "ToCSV": "CSV ga eksport",
     "ToJSON": "JSON ga eksport",
-    "ToTXT": "TXT ga eksport"
+    "ToTXT": "TXT ga eksport",
+    "Preparing": "Fayl tayyorlanmoqda…"
   },
   "Filters": {
     "CreatedAt": {
@@ -442,14 +466,20 @@
     "WelcomeBack": "Xush kelibsiz",
     "LoginToUse": "IOTA ERP dan foydalanish uchun tizimga kiring",
     "LoginWithGoogle": "Google orqali kirish",
-    "OrSignInWith": "Yoki quyidagi orqali kiring",
+		"OrSignInWith": "Yoki quyidagi orqali kiring",
+		"Or": "Yoki",
+		"ChooseAccount": "Akkauntni tanlang",
+		"UseAnotherAccount": "Boshqa akkauntdan foydalanish",
+		"ActiveAccount": "Faol",
     "Errors": {
       "PasswordInvalid": "Email yoki parol noto'g'ri",
       "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
       "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
       "OauthCodeNotFound": "OAuth kodi topilmadi. Iltimos, qayta urinib ko'ring.",
       "UserNotFound": "Foydalanuvchi topilmadi",
-      "AccountBlocked": "Sizning akkauntingiz bloklangan. Administratorga murojaat qiling."
+			"AccountBlocked": "Sizning akkauntingiz bloklangan. Administratorga murojaat qiling.",
+			"SessionExpired": "Bu akkaunt sessiyasi tugagan. Qayta kiring yoki boshqa akkauntni tanlang."
+			,"AuthorizationRequestInvalid": "Avtorizatsiya so‘rovi endi yaroqsiz. Ilovaga qaytib, qayta boshlang."
     }
   },
   "Modules": {
@@ -468,6 +498,7 @@
     "Website": "Veb-sayt"
   },
   "NavigationLinks": {
+    "QuickLinks": "Tezkor havolalar",
     "Dashboard": "Boshqaruv paneli",
     "Administration": "Ma'muriyat",
     "Users": "Foydalanuvchilar",
@@ -576,9 +607,14 @@
     "Navbar": {
       "Profile": "Profil",
       "Sessions": "Sessiyalar",
-      "Logout": "Chiqish",
+			"Logout": "Chiqish",
+			"CurrentAccount": "Joriy akkaunt",
+			"AddAccount": "Akkaunt qo‘shish",
+			"LogoutCurrent": "Joriy akkauntdan chiqish",
+			"LogoutAll": "Barcha akkauntlardan chiqish",
       "Settings": "Sozlamalar"
-    }
+    },
+    "Departments": "Bo'limlar"
   },
   "No": "Yo'q",
   "PerPage": "Sahifada",
@@ -914,6 +950,34 @@
     "Filters": {
       "Title": "Filtrlar",
       "SelectAll": "Barchasini tanlash"
+    },
+    "FilterBuilder": {
+      "AddFilter": "Filtr qoʻshish",
+      "ClearAll": "Hammasini tozalash",
+      "Apply": "Qoʻllash",
+      "SearchFields": "Filtr qidirish...",
+      "SelectValues": "Qiymatlarni tanlang...",
+      "NothingFound": "Hech narsa topilmadi",
+      "Remove": "Filtrni olib tashlash",
+      "Operators": {
+        "Is": "ga teng",
+        "IsNot": "ga teng emas",
+        "Before": "gacha",
+        "After": "dan keyin",
+        "On": "sanada",
+        "Between": "oraliqda",
+        "Eq": "=",
+        "Gt": ">",
+        "Lt": "<"
+      },
+      "Presets": {
+        "ThisMonth": "Shu oy",
+        "LastMonth": "Oʻtgan oy",
+        "Last30Days": "Oxirgi 30 kun",
+        "Next30Days": "Keyingi 30 kun",
+        "ThisYear": "Shu yil",
+        "LastYear": "Oʻtgan yil"
+      }
     }
   },
   "Search": "Qidirish",
@@ -922,6 +986,9 @@
   "UploadLabel": "Fayl yuklash",
   "UploadPlaceholder": "Yuklash uchun faylni tanlang",
   "DownloadTemplate": "Shablonni yuklab olish",
+  "Running": "Bajarilmoqda…",
+  "Warnings": "Ogohlantirishlar",
+  "Confirm": "Tasdiqlash",
   "Example": {
     "Below": "Quyida misolni ko'ring"
   },
@@ -1048,11 +1115,17 @@
       "FullName": "To'liq ism",
       "Roles": "Rollar",
       "Email": "Email",
-      "AllGroups": "Barcha guruhlar",
-      "AllRoles": "Barcha rollar",
       "Filters": "Filterlar",
-      "ExpandFilters": "Filtrlarni kengaytirish",
-      "CollapseFilters": "Filtrlarni yig'ish"
+      "FilterRole": "Rol",
+      "FilterGroup": "Guruh",
+      "FilterCreatedAt": "Yaratilgan sana",
+      "FilterUpdatedAt": "Yangilangan sana",
+      "FilterStatus": "Holat",
+      "FilterStatusActive": "Faol",
+      "FilterStatusBlocked": "Bloklangan",
+      "FilterType": "Turi",
+      "FilterTypeRegular": "Oddiy",
+      "FilterTypeSystem": "Tizim"
     },
     "Cards": {
       "PersonalInfo": "Shaxsiy ma'lumotlar",
@@ -1091,6 +1164,7 @@
       "Access": "Kirish"
     },
     "Blocked": "Bloklangan",
+    "NoRole": "Rol biriktirilmagan",
     "Block": {
       "Title": "Foydalanuvchini bloklash",
       "Button": "Bloklash",
@@ -1103,7 +1177,8 @@
       "Errors": {
         "ReasonRequired": "Bloklash sababi talab qilinadi",
         "ReasonTooShort": "Sabab kamida 3 ta belgidan iborat bo'lishi kerak",
-        "ReasonTooLong": "Sabab 1024 ta belgidan oshmasligi kerak"
+        "ReasonTooLong": "Sabab 1024 ta belgidan oshmasligi kerak",
+        "OperationFailed": "Foydalanuvchini bloklab bo'lmadi. Iltimos, qayta urinib ko'ring."
       }
     },
     "Unblock": {
@@ -1273,5 +1348,94 @@
       "Title": "Sozlamalar",
       "BackToApp": "Orqaga"
     }
-  }
+  },
+  "Departments": {
+    "Meta": {
+      "List": {
+        "Title": "Bo'limlar ro'yxati"
+      },
+      "Edit": {
+        "Title": "Bo'limni tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi bo'lim"
+      }
+    },
+    "List": {
+      "New": "Yangi bo'lim",
+      "Name": "Nomi",
+      "Code": "Kod",
+      "Parent": "Ota bo'lim",
+      "Status": "Holati",
+      "NoDepartments": {
+        "Title": "Bo'limlar topilmadi",
+        "_Description": "«Yangi bo'lim» tugmasini bosib birinchi bo'limingizni yarating"
+      }
+    },
+    "Single": {
+      "Name": "Nomi",
+      "Code": "Kod",
+      "Parent": "Ota bo'lim",
+      "NoParent": "Ota bo'limsiz",
+      "Order": "Tartib",
+      "Status": "Holati",
+      "EnterName": "Nomini kiriting",
+      "EnterCode": "Kodni kiriting",
+      "EnterOrder": "Tartibni kiriting"
+    },
+    "Status": {
+      "Active": "Faol",
+      "Inactive": "Nofaol"
+    },
+    "Errors": {
+      "SelfLoop": "Bo'lim o'ziga ota-bo'lim bo'la olmaydi.",
+      "Cycle": "Bu ota-bo'lim aylanma ierarxiyani yaratadi.",
+      "DuplicateCode": "Bu kod boshqa bo'lim tomonidan ishlatilmoqda.",
+      "ParentNotFound": "Tanlangan ota-bo'lim topilmadi."
+    }
+  },
+  "Positions": {
+    "Meta": {
+      "List": {
+        "Title": "Lavozimlar ro'yxati"
+      },
+      "Edit": {
+        "Title": "Lavozimni tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi lavozim"
+      }
+    },
+    "List": {
+      "New": "Yangi lavozim",
+      "Title": "Nomi",
+      "User": "Foydalanuvchi",
+      "Department": "Bo'lim",
+      "Role": "Rol",
+      "Status": "Holati",
+      "NoPositions": {
+        "Title": "Lavozimlar topilmadi",
+        "_Description": "«Yangi lavozim» tugmasini bosib birinchi lavozimingizni yarating"
+      }
+    },
+    "Single": {
+      "Title": "Nomi",
+      "User": "Foydalanuvchi",
+      "SelectUser": "Foydalanuvchini tanlang",
+      "Department": "Bo'lim",
+      "SelectDepartment": "Bo'limni tanlang",
+      "IsManager": "Rahbar",
+      "IsPrimary": "Asosiy",
+      "Status": "Holati",
+      "EnterTitle": "Nomini kiriting"
+    },
+    "Status": {
+      "Active": "Faol",
+      "Inactive": "Nofaol"
+    }
+  },
+  "Error": {
+    "ProcessingFailed": "Import xatosi"
+  },
+  "DryRunNotice": "Bu — oldindan ko‘rish. Ma’lumotlar hali o‘zgartirilmadi. Yuqoridagi natijalarni tekshiring va importni qo‘llash uchun tasdiqlang."
 }

@@ -85,11 +85,11 @@ func (d *DIContext) provideValue(argType reflect.Type, ctx context.Context) (ref
 	if argType == reflect.TypeOf((*context.Context)(nil)).Elem() {
 		return reflect.ValueOf(ctx), nil
 	}
+	if value, ok := provideAppValue(argType, ctx); ok {
+		return value, nil
+	}
 	provider, err := d.resolveProvider(argType)
 	if err != nil {
-		if value, ok := provideAppValue(argType, ctx); ok {
-			return value, nil
-		}
 		return reflect.Value{}, err
 	}
 	return provider.Provide(argType, ctx)
@@ -163,6 +163,10 @@ func createHandlerFunc(diContext *DIContext, handler interface{}) http.HandlerFu
 		// Check for direct http.ResponseWriter injection
 		if argType == writerInterface || (argType.Kind() == reflect.Interface && writerInterface.Implements(argType)) {
 			hasHTTPWriterArg[i] = true
+			continue
+		}
+
+		if argType.Kind() == reflect.Interface {
 			continue
 		}
 

@@ -1,0 +1,83 @@
+package departments
+
+import (
+	"fmt"
+
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type EditFormProps struct {
+	Department *viewmodels.Department
+	ParentOpts []*DepartmentOption
+	Errors     map[string]string
+}
+
+templ EditForm(props *EditFormProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-col justify-between h-[calc(100vh-4rem)]" id="edit-content">
+		<div class="flex-1 overflow-y-auto p-4 md:p-6">
+			<div class="space-y-6">
+				@FormFields(&FormFieldsProps{
+					Name:       props.Department.NameI18n,
+					Code:       props.Department.Code,
+					ParentID:   props.Department.ParentID,
+					Order:      props.Department.Order,
+					Status:     props.Department.Status,
+					ParentOpts: props.ParentOpts,
+					Errors:     props.Errors,
+					Form:       "save-form",
+				})
+			</div>
+		</div>
+		<div
+			class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+		>
+			if composables.CanUser(ctx, permissions.DepartmentDelete) == nil {
+				<form
+					id="delete-form"
+					hx-delete={ fmt.Sprintf("/departments/%s", props.Department.ID) }
+					hx-trigger="submit"
+					hx-indicator="#delete-department-btn"
+				>
+					@button.Danger(button.Props{
+						Disabled: !props.Department.CanDelete,
+						Size:     button.SizeMD,
+						Class:    "justify-center",
+						Attrs: templ.Attributes{
+							"type": "submit",
+							"id":   "delete-department-btn",
+						},
+					}) {
+						{ pageCtx.T("Delete") }
+					}
+				</form>
+			}
+			if composables.CanUser(ctx, permissions.DepartmentUpdate) == nil {
+				<form
+					id="save-form"
+					method="post"
+					hx-post={ fmt.Sprintf("/departments/%s", props.Department.ID) }
+					hx-indicator="#save-btn"
+					hx-target="#edit-content"
+					hx-swap="outerHTML"
+				>
+					@button.Primary(button.Props{
+						Disabled: !props.Department.CanUpdate,
+						Size:     button.SizeMD,
+						Class:    "bg-[#695eff] hover:bg-[#544bcc] text-white justify-center",
+						Attrs: templ.Attributes{
+							"name":  "_action",
+							"value": "save",
+							"id":    "save-btn",
+						},
+					}) {
+						{ pageCtx.T("Save") }
+					}
+				</form>
+			}
+		</div>
+	</div>
+}

@@ -38,16 +38,16 @@ func (c *component) Descriptor() composition.Descriptor {
 	}
 }
 
-func (c *component) Build(builder *composition.Builder) error {
-	composition.AddLocales(builder, &LocaleFiles)
-	composition.AddNavItems(builder, NavItems...)
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&LocaleFiles}
+}
 
+func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewPgAnalyticsQueryRepository)
 	composition.ProvideFunc(builder, services.NewAnalyticsService)
 	composition.ProvideFunc(builder, services.NewTenantService)
 	composition.ProvideFunc(builder, services.NewTenantUsersService)
 
-	composition.RemoveController(builder, "/")
 	composition.ContributeControllersFunc(builder, func(userService *coreservices.UserService) []application.Controller {
 		return []application.Controller{
 			controllers.NewDashboardController(),

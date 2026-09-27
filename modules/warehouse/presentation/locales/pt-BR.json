@@ -1,0 +1,354 @@
+{
+  "Resources": {
+    "product": "Produtos",
+    "unit": "Unidades",
+    "position": "Posições",
+    "order": "Pedidos",
+    "inventory": "Inventário"
+  },
+  "Permissions": {
+    "Product": {
+      "Create": "Criar produto",
+      "Read": "Visualizar produto",
+      "Update": "Atualizar produto",
+      "Delete": "Excluir produto"
+    },
+    "Unit": {
+      "Create": "Criar unidade",
+      "Read": "Visualizar unidade",
+      "Update": "Atualizar unidade",
+      "Delete": "Excluir unidade"
+    },
+    "Position": {
+      "Create": "Criar cargo",
+      "Read": "Visualizar cargo",
+      "Update": "Atualizar cargo",
+      "Delete": "Excluir cargo"
+    },
+    "Order": {
+      "Create": "Criar pedido",
+      "Read": "Visualizar pedido",
+      "Update": "Atualizar pedido",
+      "Delete": "Excluir pedido"
+    },
+    "Inventory": {
+      "Create": "Criar inventário",
+      "Read": "Visualizar inventário",
+      "Update": "Atualizar inventário",
+      "Delete": "Excluir inventário"
+    }
+  },
+  "Errors": {
+    "ERR_DUPLICATE_RFID": "O RFID {{.Rfid}} já existe",
+    "ERR_DUPLICATE_BARCODE": "O código de barras {{.Barcode}} já existe",
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK": "Produtos em estoque insuficientes",
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT": "Produtos em desenvolvimento insuficientes",
+    "ERR_ORDER_IS_ALREADY_COMPLETE": "O pedido já está concluído",
+    "ERR_PRODUCT_IS_SHIPPED": "O produto já foi enviado"
+  },
+  "Error": {
+    "ValidationError": "Erros de validação encontrados",
+    "ERR_INVALID_CELL": "{{.Col}}:{{.Row}} - Este campo é obrigatório e não pode estar vazio",
+    "ERR_VALIDATION": "{{.Col}}:{{.RowNum}} - {{.Message}} (valor encontrado: '{{.Value}}')"
+  },
+  "NavigationLinks": {
+    "Warehouse": "Armazém",
+    "Products": "Produtos",
+    "WarehousePositions": "Posições",
+    "WarehouseOrders": "Pedidos",
+    "WarehouseUnits": "Unidades",
+    "WarehouseInventory": "Inventário"
+  },
+  "Products": {
+    "List": {
+      "Meta": {
+        "Title": "Produtos"
+      },
+      "New": "Novo produto",
+      "Position": "Posição",
+      "Status": "Status",
+      "NoProducts": {
+        "Title": "Nenhum produto encontrado",
+        "_Description": "Ainda não há produtos. Clique em 'Novo produto' para criar um."
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "Novo produto"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Editar produto"
+      }
+    },
+    "Statuses": {
+      "in_stock": "Em estoque",
+      "approved": "Aprovado",
+      "in_development": "Em desenvolvimento"
+    },
+    "Single": {
+      "Rfid": "RFID",
+      "Position": "Posição",
+      "SearchPosition": "Pesquisar posição",
+      "NoPositionsFound": "Nenhuma posição encontrada",
+      "Status": "Status",
+      "SelectStatus": "Selecionar status",
+      "Delete": "Excluir",
+      "DeleteConfirmation": "Tem certeza de que deseja excluir este produto?"
+    }
+  },
+  "WarehousePositions": {
+    "List": {
+      "Meta": {
+        "Title": "Posições de armazém"
+      },
+      "New": "Nova posição",
+      "NewIn": "Nova entrada",
+      "NewOut": "Nova saída",
+      "Import": "Importar .xlsx",
+      "Position": "Posição",
+      "Barcode": "Código de barras",
+      "Unit": "Unidade",
+      "NoPositions": {
+        "Title": "Nenhuma posição encontrada",
+        "_Description": "Ainda não há posições. Clique em 'Nova posição' para criar uma."
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "Nova posição de armazém"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Editar posição do armazém"
+      }
+    },
+    "Single": {
+      "Images": "Imagens",
+      "Title": {
+        "Label": "Título",
+        "Placeholder": "ex.: Furadeira elétrica"
+      },
+      "Barcode": {
+        "Label": "Código de barras",
+        "Placeholder": "ex.: 1234567890"
+      },
+      "Unit": "Unidade",
+      "SelectUnit": "Selecionar unidade",
+      "Delete": "Excluir",
+      "DeleteConfirmation": "Tem certeza de que deseja excluir esta posição de armazém?",
+      "NothingFound": "Nada encontrado"
+    },
+    "Import": {
+      "Meta": {
+        "Title": "Importar .xlsx"
+      },
+      "Title": "Importar posições",
+      "_Description": "Importar posições de armazém de um arquivo Excel",
+      "Example": {
+        "Title": "Importação de Excel",
+        "_Description": "A sequência de células no Excel deve ser a seguinte:",
+        "ItemName": "Nome do item",
+        "ItemNameDesc": "Nome completo do item",
+        "ItemCode": "Código do item",
+        "ItemCodeDesc": "Código de barras único ou código do item",
+        "Unit": "Unidade",
+        "UnitDesc": "Unidade de medida (ex.: un, kg, m)",
+        "Quantity": "Quantidade",
+        "QuantityDesc": "Número de itens a serem importados",
+        "Below": "Abaixo está um exemplo de como os dados devem ser inseridos:"
+      },
+      "UploadLabel": "Escolher um arquivo",
+      "UploadPlaceholder": "Escolher um arquivo",
+      "Submit": "Importar",
+      "DownloadTemplate": "Baixar modelo",
+      "Error": {
+        "ValidationError": "Erros de validação encontrados",
+        "Issues": "problemas",
+        "ERR_INVALID_CELL": "{{.Col}}:{{.Row}} - Este campo é obrigatório e não pode estar vazio",
+        "ERR_VALIDATION": "{{.Col}}:{{.RowNum}} - {{.Message}} (valor encontrado: '{{.Value}}')"
+      }
+    },
+    "Upload": {
+      "Title": "Importar posições",
+      "_Description": "Importar posições do armazém a partir de um arquivo Excel",
+      "Example": {
+        "Title": "Importação de Excel",
+        "_Description": "A sequência de células no Excel deve ser a seguinte:",
+        "ItemName": "Nome do item",
+        "ItemCode": "Código do item",
+        "Unit": "Unidade",
+        "Quantity": "Quantidade",
+        "Below": "Abaixo está um exemplo de como os dados devem ser inseridos:"
+      },
+      "UploadLabel": "Escolher um arquivo",
+      "UploadPlaceholder": "Escolher um arquivo",
+      "Submit": "Importar"
+    }
+  },
+  "WarehouseUnits": {
+    "List": {
+      "Meta": {
+        "Title": "Unidades do armazém"
+      },
+      "New": "Nova unidade",
+      "Title": "Título",
+      "ShortTitle": "Título abreviado",
+      "NoUnits": {
+        "Title": "Nenhuma unidade encontrada",
+        "_Description": "Ainda não há unidades. Clique em 'Nova unidade' para criar uma."
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "Nova unidade do armazém"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Editar unidade do armazém"
+      }
+    },
+    "Single": {
+      "Title": {
+        "Label": "Título",
+        "Placeholder": "ex.: Quilograma"
+      },
+      "ShortTitle": {
+        "Label": "Título abreviado",
+        "Placeholder": "ex.: kg"
+      },
+      "Delete": "Excluir",
+      "DeleteConfirmation": "Tem certeza de que deseja excluir esta unidade do armazém?"
+    }
+  },
+  "WarehouseOrders": {
+    "List": {
+      "Meta": {
+        "Title": "Ordens de armazém"
+      },
+      "New": "Nova ordem",
+      "NewIn": "Recebimento",
+      "NewOut": "Remessa",
+      "Type": "Tipo",
+      "Status": "Status",
+      "Products": "Unid.",
+      "Positions": "Posições",
+      "NoOrders": {
+        "Title": "Nenhuma ordem encontrada",
+        "_Description": "Ainda não há ordens. Clique em 'Nova ordem' para criar uma."
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "Nova ordem de armazém"
+      }
+    },
+    "Out": {
+      "Meta": {
+        "Title": "Nova remessa"
+      }
+    },
+    "In": {
+      "Meta": {
+        "Title": "Novo recebimento"
+      }
+    },
+    "View": {
+      "Meta": {
+        "Title": "Visualizar ordem de armazém"
+      },
+      "Title": "Ordem #{{.ID}}",
+      "Status": "Status",
+      "CreatedAt": "Criado em",
+      "Position": "Posição",
+      "Barcode": "Código de barras",
+      "Quantity": "Quantidade",
+      "Unit": "Unidade",
+      "NoItems": "Nenhum item"
+    },
+    "Types": {
+      "in": "Recebimento",
+      "out": "Remessa"
+    },
+    "Statuses": {
+      "pending": "Pendente",
+      "complete": "Concluído"
+    },
+    "Single": {
+      "Type": "Tipo",
+      "TypePlaceholder": "Selecione o tipo",
+      "Status": "Status",
+      "Quantity": "Quantidade",
+      "PositionIDs": "Posições",
+      "NoItems": "Nenhum item",
+      "Position": "Posição",
+      "SearchPosition": "Pesquisar posição",
+      "NoPositionsFound": "Nenhuma posição encontrada",
+      "Barcode": "Código de barras",
+      "InStock": "Quantidade em estoque",
+      "OrderedQuantity": "Quantidade a enviar",
+      "Unit": "Unidade",
+      "Delete": "Excluir",
+      "DeleteConfirmation": "Tem certeza de que deseja excluir esta ordem?"
+    }
+  },
+  "WarehouseInventory": {
+    "List": {
+      "Meta": {
+        "Title": "Inventário de armazém"
+      },
+      "New": "Novo inventário",
+      "Name": "Nome",
+      "Type": "Tipo",
+      "Status": "Status",
+      "CreatedBy": "Criado por",
+      "FinishedBy": "Finalizado por",
+      "SelectStatus": "Selecionar status",
+      "SelectType": "Selecionar tipo",
+      "NoInventory": {
+        "Title": "Nenhuma verificação de inventário encontrada",
+        "_Description": "Ainda não há verificações de inventário. Clique em 'Novo inventário' para criar uma."
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "Novo inventário de armazém"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Editar inventário do armazém"
+      }
+    },
+    "Single": {
+      "Name": {
+        "Label": "Nome",
+        "Placeholder": "ex.: Verificação de inventário de 16/12/2024"
+      },
+      "Type": "Tipo",
+      "Inventory": "Inventário",
+      "FactualQuantity": "Quantidade real / quantidade no 1C",
+      "Difference": "Diferença",
+      "Types": {
+        "full": "Completa",
+        "partial": "Parcial"
+      },
+      "Statuses": {
+        "success": "Sucesso",
+        "incomplete": "Incompleto",
+        "failed": "Falhou"
+      },
+      "Positions": {
+        "Label": "Posições",
+        "Placeholder": "Título da posição ou código de barras..."
+      },
+      "Added": "Adicionado",
+      "AllPositions": "Todas as posições",
+      "Delete": "Excluir",
+      "DeleteConfirmation": "Tem certeza de que deseja excluir esta verificação de inventário?"
+    }
+  }
+}

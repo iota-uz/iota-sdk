@@ -71,12 +71,20 @@ const (
 	VisibilityRestricted Visibility = "restricted"
 )
 
+type PermissionLogic string
+
+const (
+	PermissionLogicAny PermissionLogic = "any"
+	PermissionLogicAll PermissionLogic = "all"
+)
+
 type AccessPolicy struct {
-	Visibility         Visibility `json:"visibility"`
-	OwnerID            string     `json:"owner_id"`
-	AllowedUsers       []string   `json:"allowed_users"`
-	AllowedRoles       []string   `json:"allowed_roles"`
-	AllowedPermissions []string   `json:"allowed_permissions"`
+	Visibility         Visibility      `json:"visibility"`
+	OwnerID            string          `json:"owner_id"`
+	AllowedUsers       []string        `json:"allowed_users"`
+	AllowedRoles       []string        `json:"allowed_roles"`
+	AllowedPermissions []string        `json:"allowed_permissions"`
+	PermissionLogic    PermissionLogic `json:"permission_logic"`
 }
 
 type SearchDocument struct {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gorilla/mux"
 	appletenginerpc "github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
 type RPCController struct {
@@ -22,6 +23,11 @@ func (c *RPCController) Register(r *mux.Router) {
 	}).Methods(http.MethodPost)
 }
 
-func (c *RPCController) Key() string {
-	return "applet_rpc"
+func (c *RPCController) Descriptor() application.ControllerDescriptor {
+	return application.ControllerDescriptor{
+		ID: "appletengine.rpc",
+		Routes: []application.RouteSpec{{
+			Path: "/rpc",
+		}},
+	}
 }

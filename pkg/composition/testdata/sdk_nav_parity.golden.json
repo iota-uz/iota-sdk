@@ -1,0 +1,938 @@
+{
+  "nav_items": [
+    {
+      "key": "finance",
+      "name": "NavigationLinks.Finances",
+      "order": 0,
+      "children": [
+        {
+          "key": "finance.financial_overview",
+          "name": "NavigationLinks.FinancialOverview",
+          "href": "/finance/overview",
+          "order": 0,
+          "logic": "all"
+        },
+        {
+          "key": "finance.debt",
+          "name": "NavigationLinks.Debts",
+          "href": "/finance/debts",
+          "order": 1,
+          "logic": "all"
+        },
+        {
+          "key": "finance.debt_aggregate",
+          "name": "NavigationLinks.DebtAggregates",
+          "href": "/finance/debt-aggregates",
+          "order": 2,
+          "logic": "all"
+        },
+        {
+          "key": "finance.money_account",
+          "name": "NavigationLinks.Accounts",
+          "href": "/finance/accounts",
+          "order": 3,
+          "logic": "all"
+        },
+        {
+          "key": "finance.counterparties",
+          "name": "NavigationLinks.Counterparties",
+          "href": "/finance/counterparties",
+          "order": 4,
+          "logic": "all"
+        },
+        {
+          "key": "finance.inventory",
+          "name": "NavigationLinks.Inventory",
+          "href": "/finance/inventory",
+          "order": 5,
+          "logic": "all"
+        },
+        {
+          "key": "finance.enums",
+          "name": "NavigationLinks.Finance.Enums",
+          "order": 6,
+          "children": [
+            {
+              "key": "finance.expense_category",
+              "name": "NavigationLinks.ExpenseCategories",
+              "href": "/finance/expense-categories",
+              "order": 0,
+              "logic": "all"
+            },
+            {
+              "key": "finance.payment_category",
+              "name": "NavigationLinks.PaymentCategories",
+              "href": "/finance/payment-categories",
+              "order": 1,
+              "logic": "all"
+            }
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "finance.reports",
+          "name": "NavigationLinks.Reports",
+          "order": 7,
+          "children": [
+            {
+              "key": "finance.financial_report",
+              "name": "NavigationLinks.IncomeStatement",
+              "href": "/finance/reports/income-statement",
+              "order": 0,
+              "logic": "all"
+            },
+            {
+              "key": "finance.cashflow",
+              "name": "NavigationLinks.CashflowStatement",
+              "href": "/finance/reports/cashflow",
+              "order": 1,
+              "logic": "all"
+            }
+          ],
+          "logic": "all"
+        }
+      ],
+      "logic": "all"
+    },
+    {
+      "key": "warehouse",
+      "name": "NavigationLinks.Warehouse",
+      "order": 1,
+      "children": [
+        {
+          "key": "warehouse.product",
+          "name": "NavigationLinks.Products",
+          "href": "/warehouse/products",
+          "order": 0,
+          "permissions": [
+            "Product.Read"
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "warehouse.position",
+          "name": "NavigationLinks.WarehousePositions",
+          "href": "/warehouse/positions",
+          "order": 1,
+          "permissions": [
+            "Position.Read"
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "warehouse.order",
+          "name": "NavigationLinks.WarehouseOrders",
+          "href": "/warehouse/orders",
+          "order": 2,
+          "permissions": [
+            "Order.Read"
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "warehouse.unit",
+          "name": "NavigationLinks.WarehouseUnits",
+          "href": "/warehouse/units",
+          "order": 3,
+          "permissions": [
+            "Unit.Read"
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "warehouse.inventory",
+          "name": "NavigationLinks.WarehouseInventory",
+          "href": "/warehouse/inventory",
+          "order": 4,
+          "permissions": [
+            "Inventory.Read"
+          ],
+          "logic": "all"
+        }
+      ],
+      "logic": "all"
+    },
+    {
+      "key": "crm",
+      "name": "NavigationLinks.CRM",
+      "order": 2,
+      "children": [
+        {
+          "key": "crm.client",
+          "name": "NavigationLinks.Clients",
+          "href": "/crm/clients",
+          "order": 0,
+          "logic": "all"
+        },
+        {
+          "key": "crm.chat",
+          "name": "NavigationLinks.Chats",
+          "href": "/crm/chats",
+          "order": 1,
+          "logic": "all"
+        }
+      ],
+      "logic": "all"
+    },
+    {
+      "key": "website",
+      "name": "NavigationLinks.Website",
+      "order": 3,
+      "children": [
+        {
+          "key": "website.aichat",
+          "name": "NavigationLinks.AIChatbot",
+          "href": "/website/ai-chat",
+          "order": 0,
+          "logic": "all"
+        }
+      ],
+      "logic": "all"
+    },
+    {
+      "key": "hrm",
+      "name": "NavigationLinks.HRM",
+      "order": 4,
+      "children": [
+        {
+          "key": "hrm.employee",
+          "name": "NavigationLinks.Employees",
+          "href": "/hrm/employees",
+          "order": 0,
+          "logic": "all"
+        }
+      ],
+      "logic": "all"
+    },
+    {
+      "key": "projects",
+      "name": "NavigationLinks.Projects",
+      "order": 5,
+      "children": [
+        {
+          "key": "projects.project",
+          "name": "NavigationLinks.Projects",
+          "href": "/projects",
+          "order": 0,
+          "logic": "all"
+        },
+        {
+          "key": "projects.project_stage",
+          "name": "NavigationLinks.ProjectStages",
+          "href": "/project-stages",
+          "order": 1,
+          "logic": "all"
+        }
+      ],
+      "logic": "all"
+    },
+    {
+      "key": "core.dashboard",
+      "name": "NavigationLinks.Dashboard",
+      "href": "/",
+      "order": 6,
+      "logic": "all"
+    },
+    {
+      "key": "core.administration",
+      "name": "NavigationLinks.Administration",
+      "order": 7,
+      "children": [
+        {
+          "key": "core.users",
+          "name": "NavigationLinks.Users",
+          "href": "/users",
+          "order": 0,
+          "permissions": [
+            "User.Read"
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "core.roles",
+          "name": "NavigationLinks.Roles",
+          "href": "/roles",
+          "order": 1,
+          "permissions": [
+            "Role.Read"
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "core.groups",
+          "name": "NavigationLinks.Groups",
+          "href": "/groups",
+          "order": 2,
+          "permissions": [
+            "Group.Read"
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "core.departments",
+          "name": "NavigationLinks.Departments",
+          "href": "/departments",
+          "order": 3,
+          "permissions": [
+            "Department.Read"
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "core.positions",
+          "name": "NavigationLinks.Positions",
+          "href": "/positions",
+          "order": 4,
+          "permissions": [
+            "Position.Read"
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "core.settings",
+          "name": "NavigationLinks.Settings",
+          "href": "/settings/logo",
+          "order": 5,
+          "logic": "all"
+        },
+        {
+          "key": "core.system_info",
+          "name": "NavigationLinks.SystemInfo",
+          "href": "/system/info",
+          "order": 6,
+          "logic": "all"
+        }
+      ],
+      "logic": "all"
+    }
+  ],
+  "quick_links": [
+    {
+      "tr_key": "Account.Meta.Index.Title",
+      "link": "/account",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "Account.Sessions.Title",
+      "link": "/account/sessions",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "ExpenseCategories.List.New",
+      "link": "/finance/expense-categories/new",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "Expenses.List.New",
+      "link": "/finance/overview?tab=expenses",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "Inventory.List.New",
+      "link": "/finance/inventory/new",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "MoneyAccounts.List.New",
+      "link": "/finance/accounts/new",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.AIChatbot",
+      "link": "/website/ai-chat",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Accounts",
+      "link": "/finance/accounts",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.CashflowStatement",
+      "link": "/finance/reports/cashflow",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Chats",
+      "link": "/crm/chats",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Clients",
+      "link": "/crm/clients",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Counterparties",
+      "link": "/finance/counterparties",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Dashboard",
+      "link": "/",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.DebtAggregates",
+      "link": "/finance/debt-aggregates",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Debts",
+      "link": "/finance/debts",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Departments",
+      "link": "/departments",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "Department.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Department.Read"
+      ]
+    },
+    {
+      "tr_key": "NavigationLinks.Employees",
+      "link": "/hrm/employees",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.ExpenseCategories",
+      "link": "/finance/expense-categories",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Expenses",
+      "link": "/finance/overview?tab=expenses",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.FinancialOverview",
+      "link": "/finance/overview",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Groups",
+      "link": "/groups",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "Group.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Group.Read"
+      ]
+    },
+    {
+      "tr_key": "NavigationLinks.IncomeStatement",
+      "link": "/finance/reports/income-statement",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Inventory",
+      "link": "/finance/inventory",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.PaymentCategories",
+      "link": "/finance/payment-categories",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Payments",
+      "link": "/finance/overview?tab=payments",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Positions",
+      "link": "/positions",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "Position.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Position.Read"
+      ]
+    },
+    {
+      "tr_key": "NavigationLinks.Products",
+      "link": "/warehouse/products",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "Product.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Product.Read"
+      ]
+    },
+    {
+      "tr_key": "NavigationLinks.ProjectStages",
+      "link": "/project-stages",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Projects",
+      "link": "/projects",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Roles",
+      "link": "/roles",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "Role.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Role.Read"
+      ]
+    },
+    {
+      "tr_key": "NavigationLinks.Settings",
+      "link": "/settings/logo",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.SystemInfo",
+      "link": "/system/info",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "NavigationLinks.Users",
+      "link": "/users",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "User.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "User.Read"
+      ]
+    },
+    {
+      "tr_key": "NavigationLinks.WarehouseInventory",
+      "link": "/warehouse/inventory",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "Inventory.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Inventory.Read"
+      ]
+    },
+    {
+      "tr_key": "NavigationLinks.WarehouseOrders",
+      "link": "/warehouse/orders",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "Order.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Order.Read"
+      ]
+    },
+    {
+      "tr_key": "NavigationLinks.WarehousePositions",
+      "link": "/warehouse/positions",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "Position.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Position.Read"
+      ]
+    },
+    {
+      "tr_key": "NavigationLinks.WarehouseUnits",
+      "link": "/warehouse/units",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "Unit.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Unit.Read"
+      ]
+    },
+    {
+      "tr_key": "PaymentCategories.List.New",
+      "link": "/finance/payment-categories/new",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "Payments.List.New",
+      "link": "/finance/overview?tab=payments",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "Products.List.New",
+      "link": "/warehouse/products/new",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "Product.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Product.Read"
+      ]
+    },
+    {
+      "tr_key": "ProjectStages.List.New",
+      "link": "/project-stages/new",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "Projects.List.New",
+      "link": "/projects/new",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
+      "tr_key": "Users.List.New",
+      "link": "/users/new",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "User.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "User.Read"
+      ]
+    },
+    {
+      "tr_key": "WarehouseOrders.List.New",
+      "link": "/warehouse/orders/new",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "Order.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Order.Read"
+      ]
+    },
+    {
+      "tr_key": "WarehousePositions.List.New",
+      "link": "/warehouse/positions/new",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "Position.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Position.Read"
+      ]
+    },
+    {
+      "tr_key": "WarehouseUnits.List.New",
+      "link": "/warehouse/units/new",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "Unit.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Unit.Read"
+      ]
+    }
+  ]
+}

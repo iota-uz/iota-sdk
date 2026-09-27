@@ -67,7 +67,7 @@ func (t *SQLExecuteTool) Description() string {
 		"Always use schema-qualified table names (e.g., schema.table). " +
 		"Use small limits for previews (default 25, max 1000). Query timeout is 30 seconds; results limited to 1000 rows. " +
 		"Supports positional parameters $1..$n via params array. Set explain_plan=true to return an EXPLAIN plan instead of rows. " +
-		"Always validate table/column names using schema_list and schema_describe first. " +
+		"Always validate table/column names using schema_list and schema_describe_batch first. " +
 		"Searching: for structured IDs (UUIDs, order IDs) use exact equality (=); for names, policy numbers, license plates use ILIKE with wildcards (e.g. WHERE name ILIKE '%ali%'). " +
 		"When a query returns 0 rows but the user expects results, try a broader/fuzzy search; if you find close matches, use ask_user_question to let the user pick. " +
 		"Resolve-then-query: once you identify an entity by name, get its concrete ID and use that for follow-up queries. " +

@@ -12,8 +12,8 @@ importers:
         specifier: ^2.2.0
         version: 2.2.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@iota-uz/sdk':
-        specifier: 0.4.30
-        version: 0.4.30(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: 0.4.39
+        version: 0.4.39(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -334,8 +334,8 @@ packages:
       react: ^18 || ^19 || ^19.0.0-rc
       react-dom: ^18 || ^19 || ^19.0.0-rc
 
-  '@iota-uz/sdk@0.4.30':
-    resolution: {integrity: sha512-s37PCmZpVRpoo9j2lrHG2IF8jBJr4FOwil0C3S9lhaHtDIMcgAOpUEIdotfXOamZY4CL/2ewuhRFehi0Wl8jSw==}
+  '@iota-uz/sdk@0.4.39':
+    resolution: {integrity: sha512-m/Zh6qZQuyNet0fMnX/hh1SfLntl9NWAQNJ7Ss34L40+8D8FyWL4By82FTJLYF7LQCQPrxVuZcGmIQhe5zAdCQ==}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -799,6 +799,7 @@ packages:
 
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
+    deprecated: Potential CWE-502 - Update to 1.3.1 or higher
 
   '@vitejs/plugin-react@4.7.0':
     resolution: {integrity: sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==}
@@ -2000,7 +2001,7 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
       use-sync-external-store: 1.6.0(react@18.3.1)
 
-  '@iota-uz/sdk@0.4.30(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@iota-uz/sdk@0.4.39(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@headlessui/react': 2.2.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@phosphor-icons/react': 2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
