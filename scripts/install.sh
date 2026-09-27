@@ -24,4 +24,4 @@ fi
 cd "$REPO_ROOT"
 pnpm install --frozen-lockfile
 pnpm exec tailwindcss --help >/dev/null
-echo "TailwindCSS installed (Tailwind v4 via pnpm)."
+echo "TailwindCSS installed (Tailwind v4 with @tailwindcss/cli via pnpm)."

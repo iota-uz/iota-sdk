@@ -1,6 +1,3 @@
-export default {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
-}
+import { createTailwindPostcssConfig } from "../../../../styles/tailwind/postcss.shared.mjs"
+
+export default createTailwindPostcssConfig()
