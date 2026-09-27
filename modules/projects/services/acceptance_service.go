@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/acceptance"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type AcceptanceService struct {
@@ -51,12 +52,13 @@ func (s *AcceptanceService) Delete(ctx context.Context, projectID, id uuid.UUID)
 
 // projectDocument finds the document only among the project's documents.
 func (s *AcceptanceService) projectDocument(ctx context.Context, projectID, id uuid.UUID) (acceptance.Document, error) {
+	const op serrors.Op = "AcceptanceService.projectDocument"
 	document, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	if document.ProjectID() != projectID {
-		return nil, acceptance.ErrNotFound
+		return nil, serrors.E(op, acceptance.ErrNotFound)
 	}
 	return document, nil
 }
