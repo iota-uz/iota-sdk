@@ -1037,3 +1037,15 @@ func ExpenseToViewModelWithAttachments(entity expense.Expense, uploads []upload.
 func AttachmentsToViewModels(uploads []upload.Upload) []*coreviewmodels.Upload {
 	return mapping.MapViewModels(uploads, coremappers.UploadToViewModel)
 }
+
+func RevenueToViewModel(revenue services.Revenue) *viewmodels.Revenue {
+	return &viewmodels.Revenue{
+		CurrencyCode: revenue.Contract.Currency().Code,
+		Contract:     revenue.Contract.Display(),
+		Accepted:     revenue.Accepted.Display(),
+		Open:         revenue.Open.Display(),
+		Invoiced:     revenue.Invoiced.Display(),
+		Paid:         revenue.Paid.Display(),
+		Overaccepted: revenue.Open.IsNegative(),
+	}
+}

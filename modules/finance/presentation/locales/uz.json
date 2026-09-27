@@ -209,7 +209,8 @@
       "LegalType": "Yuridik shakli",
       "LegalAddress": "Yuridik manzili",
       "Delete": "Kontragentni o'chirish",
-      "DeleteConfirmation": "Ushbu kontragentni o'chirishni xohlaysizmi?"
+      "DeleteConfirmation": "Ushbu kontragentni o'chirishni xohlaysizmi?",
+      "Revenue": "Tushum"
     },
     "Types": {
       "CUSTOMER": "Mijoz",
@@ -588,6 +589,14 @@
       "AttachedFiles": "Biriktirilgan hujjatlar",
       "DeleteConfirmation": "Haqiqatan ham bu hujjatni o'chirmoqchimisiz?",
       "DeleteFile": "Hujjatni o'chirish"
+    },
+    "Revenue": {
+      "Currency": "Valyuta",
+      "Contract": "Shartnoma bo'yicha",
+      "Accepted": "Qabul qilingan",
+      "Open": "Qabul qilinmagan",
+      "Invoiced": "Hisob-faktura berilgan",
+      "Paid": "To'langan"
     },
     "Balances": {
       "OnAccounts": "Hisoblarda",

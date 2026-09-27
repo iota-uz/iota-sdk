@@ -209,7 +209,8 @@
       "LegalType": "Правовая форма",
       "LegalAddress": "Юридический адрес",
       "Delete": "Удалить контрагента",
-      "DeleteConfirmation": "Вы уверены что хотите удалить этого контрагента?"
+      "DeleteConfirmation": "Вы уверены что хотите удалить этого контрагента?",
+      "Revenue": "Выручка"
     },
     "Types": {
       "CUSTOMER": "Клиент",
@@ -588,6 +589,14 @@
       "AttachedFiles": "Прикрепленные документы",
       "DeleteConfirmation": "Вы уверены, что хотите удалить этот документ?",
       "DeleteFile": "Удалить документ"
+    },
+    "Revenue": {
+      "Currency": "Валюта",
+      "Contract": "По договору",
+      "Accepted": "Принято",
+      "Open": "Не принято",
+      "Invoiced": "Выставлено",
+      "Paid": "Оплачено"
     },
     "Balances": {
       "OnAccounts": "На счетах",
