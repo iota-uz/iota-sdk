@@ -5,6 +5,7 @@ import { PanelExportMenu } from './PanelExportMenu'
 import { InfoTip } from './InfoTip'
 import { ArrowsIn, ArrowsOut, ChartLine, TrendDown, TrendFlat, TrendUp } from '../icons'
 import { usePanelChrome } from './context'
+import { panelFailureCopy } from './panelFailure'
 import { PanelOverlay } from './PanelOverlay'
 import { PanelSkeletonBody } from './Skeleton'
 
@@ -168,6 +169,11 @@ export function PanelFrame({
   useEffect(() => {
     if (frame.error) console.error(`[lens] panel ${panel.id} request failed`, frame.error)
   }, [frame.error, panel.id])
+  // What went wrong, said in the reader's terms. The panel used to print one
+  // sentence for every cause — a slice too large to finish, a load the reader
+  // themselves abandoned, a genuine fault — which told nobody what to do next.
+  const failure = panelFailureCopy(frame.error, translate)
+  const retryLabel = translate('panel.retry', 'Retry')
   const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
   const total = totalOverride === undefined ? panel.total : totalOverride ?? undefined
   const hasRows = Boolean(frame.data?.rows.length)
@@ -256,6 +262,7 @@ export function PanelFrame({
       data-calculation-ms={frame.calculation?.durationMs}
       data-panel-kind={panel.kind}
       data-panel-id={panel.id}
+      data-testid={`lens-panel-${panel.id}`}
       data-stale={frame.isStale || undefined}
     >
       <header className="lens-panel-header">
@@ -275,7 +282,12 @@ export function PanelFrame({
         <div className="lens-panel-actions">
           {headerActions}
           {showTotal && (
-            <span className="lens-panel-total" title={`${totalLabel}: ${formatTotal(total)}`}>
+            <span
+              className="lens-panel-total"
+              data-testid={`lens-panel-${panel.id}-total`}
+              data-value={total}
+              title={`${totalLabel}: ${formatTotal(total)}`}
+            >
               <span className="lens-panel-total-label">{totalLabel}:</span>
               {' '}
               {formatTotal(total)}
@@ -309,9 +321,9 @@ export function PanelFrame({
         {showLoading ? (
           <PanelSkeletonBody kind={panel.kind} />
         ) : frame.error && !frame.data ? (
-          <div className="lens-panel-state lens-panel-state-error" role="alert">
-            <span>{translate('panel.error', 'This panel could not be rendered.')}</span>
-            <button type="button" onClick={frame.retry}>{translate('panel.retry', 'Retry')}</button>
+          <div className="lens-panel-state lens-panel-state-error" role={failure.alert ? 'alert' : undefined}>
+            <span>{failure.message}</span>
+            <button type="button" onClick={frame.retry}>{retryLabel}</button>
           </div>
         ) : !hasRows && !allowEmptyContent ? (
           <div className="lens-panel-state lens-panel-state-empty">
@@ -325,9 +337,9 @@ export function PanelFrame({
         <footer className="lens-panel-footer"><TrendChip panel={panel} frame={frame.data} /></footer>
       )}
       {frame.error && frame.data && (
-        <div className="lens-panel-error" role="alert">
-          <span>{translate('panel.error', 'This panel could not be rendered.')}</span>
-          <button type="button" onClick={frame.retry}>{translate('panel.retry', 'Retry')}</button>
+        <div className="lens-panel-error" role={failure.alert ? 'alert' : undefined}>
+          <span>{failure.message}</span>
+          <button type="button" onClick={frame.retry}>{retryLabel}</button>
         </div>
       )}
     </section>

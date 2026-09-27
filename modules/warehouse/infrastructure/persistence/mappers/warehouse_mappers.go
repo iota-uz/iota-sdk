@@ -2,7 +2,10 @@
 package mappers
 
 import (
+	"time"
+
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
@@ -78,15 +81,76 @@ func ToDomainProduct(
 	), nil
 }
 
+type uploadWrapper struct {
+	u upload.Upload
+}
+
+func (w *uploadWrapper) ID() uint {
+	return w.u.ID()
+}
+
+func (w *uploadWrapper) URL() string {
+	return w.u.PreviewURL()
+}
+
+func (w *uploadWrapper) Mimetype() string {
+	if w.u.Mimetype() == nil {
+		return ""
+	}
+	return w.u.Mimetype().String()
+}
+
+func (w *uploadWrapper) Size() string {
+	if w.u.Size() == nil {
+		return ""
+	}
+	return w.u.Size().String()
+}
+
+func (w *uploadWrapper) Name() string {
+	return w.u.Name()
+}
+
+func (w *uploadWrapper) Hash() string {
+	return w.u.Hash()
+}
+
+func (w *uploadWrapper) Slug() string {
+	return w.u.Slug()
+}
+
+func (w *uploadWrapper) CreatedAt() time.Time {
+	return w.u.CreatedAt()
+}
+
+func (w *uploadWrapper) UpdatedAt() time.Time {
+	return w.u.UpdatedAt()
+}
+
+type userWrapper struct {
+	u user.User
+}
+
+func (w *userWrapper) ID() uint {
+	return w.u.ID()
+}
+
+func (w *userWrapper) FirstName() string {
+	return w.u.FirstName()
+}
+
+func (w *userWrapper) LastName() string {
+	return w.u.LastName()
+}
+
 func ToDomainPosition(dbPosition *models.WarehousePosition, dbUnit *models.WarehouseUnit) (position.Position, error) {
-	// TODO: decouple
-	images := make([]upload.Upload, 0, len(dbPosition.Images))
+	images := make([]position.Upload, 0, len(dbPosition.Images))
 	for _, img := range dbPosition.Images {
 		domainUpload, err := persistence.ToDomainUpload(&img)
 		if err != nil {
 			return nil, err
 		}
-		images = append(images, domainUpload)
+		images = append(images, &uploadWrapper{u: domainUpload})
 	}
 	unit, err := ToDomainUnit(dbUnit)
 	if err != nil {
@@ -166,16 +230,18 @@ func ToDomainInventoryCheck(dbInventoryCheck *models.InventoryCheck) (*inventory
 		FinishedBy:   nil,
 	}
 	if dbInventoryCheck.CreatedBy != nil {
-		check.CreatedBy, err = persistence.ToDomainUser(dbInventoryCheck.CreatedBy, nil, nil, []uuid.UUID{}, nil)
+		u, err := persistence.ToDomainUser(dbInventoryCheck.CreatedBy, nil, nil, []uuid.UUID{}, nil)
 		if err != nil {
 			return nil, err
 		}
+		check.CreatedBy = &userWrapper{u: u}
 	}
 	if dbInventoryCheck.FinishedBy != nil {
-		check.FinishedBy, err = persistence.ToDomainUser(dbInventoryCheck.FinishedBy, nil, nil, []uuid.UUID{}, nil)
+		u, err := persistence.ToDomainUser(dbInventoryCheck.FinishedBy, nil, nil, []uuid.UUID{}, nil)
 		if err != nil {
 			return nil, err
 		}
+		check.FinishedBy = &userWrapper{u: u}
 	}
 	return check, nil
 }

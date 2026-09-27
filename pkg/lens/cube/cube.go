@@ -68,12 +68,14 @@ type DimensionSpec struct {
 	LabelField   string
 	ColorField   string
 	PanelKind    panel.Kind
+	Height       string
 	Description  string
 	RequiresJoin []string
 	Override     *lens.DatasetSpec
 	Transforms   []transform.Spec
 	Colors       []string
 	ValueAxis    panel.ValueAxis
+	ColorScale   string
 	// Presentation carries renderer-level density choices onto the dimension's
 	// panel. A cube dimension is a panel like any other, and some of these are
 	// statements about the data rather than about density — ColorBySequence

@@ -373,7 +373,10 @@ func (h *Handlers) queuePanelResult(
 					return
 				}
 				h.observer.OnError(ctx, "lens/serve.Panel", scheduled.err)
-				result <- panelError(document.QueryErrorInternal, "panel execution failed")
+				// The reader gets the kind of failure, never its text: the
+				// message stays a developer string, and the classification is
+				// what the runtime turns into a sentence worth acting on.
+				result <- panelFailure(document.QueryErrorInternal, "panel execution failed", scheduled.err)
 				return
 			}
 			panel, ok := scheduled.value.(loadedPanel)
@@ -568,6 +571,15 @@ func paginatePanelFrame(spec panel.Spec, source document.Frame, requested, pageS
 
 func panelError(code document.QueryErrorCode, message string) document.PanelBatchResult {
 	return document.PanelBatchResult{Error: &document.QueryErrorResponse{Error: code, Message: message}}
+}
+
+// panelFailure is panelError for a result that has a cause worth classifying.
+// A rejected request has nothing to classify — it never ran — so those keep
+// using panelError and the runtime keeps printing its generic copy for them.
+func panelFailure(code document.QueryErrorCode, message string, cause error) document.PanelBatchResult {
+	result := panelError(code, message)
+	result.Error.Reason = document.ClassifyFailure(cause)
+	return result
 }
 
 // Drawer resolves a compact metric key against frozen, scope-checked snapshot
@@ -1033,7 +1045,13 @@ func (h *Handlers) writeInternalError(ctx context.Context, w http.ResponseWriter
 	}
 	wrapped := serrors.E(serrors.Op(op), err)
 	h.observer.OnError(ctx, op, wrapped)
-	writeError(w, http.StatusInternalServerError, document.QueryErrorInternal, message)
+	// Same contract as a streamed panel failure: a query that dies of its own
+	// deadline reads the same to a person whichever endpoint was carrying it.
+	writeJSON(w, http.StatusInternalServerError, errorResponse{
+		Error:   document.QueryErrorInternal,
+		Message: message,
+		Reason:  document.ClassifyFailure(err),
+	})
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {

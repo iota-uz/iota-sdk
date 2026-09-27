@@ -531,9 +531,21 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const seriesColor = useMemo(() => {
     const resolve = seriesColorResolver(document.theme, panel, { positional: !active, labels: paletteLabels })
     const order = seriesOrder(frame.data, panel)
-    if (order.size === 0) return resolve
-    return (label: string, index: number) => resolve(label, order.get(label) ?? index)
-  }, [active, document.theme, frame.data, paletteLabels, panel])
+    const frameSeries = new Map<string, string>()
+    const seriesIndex = frame.data?.columns.findIndex((column) => column.name === panel.encoding.series) ?? -1
+    if (seriesIndex >= 0) {
+      for (const [rowIndex, row] of (frame.data?.rows ?? []).entries()) {
+        const raw = row[seriesIndex]
+        const color = frameColors?.[rowIndex]?.trim()
+        if ((typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'bigint') && color) {
+          const label = String(raw)
+          if (!frameSeries.has(label)) frameSeries.set(label, color)
+        }
+      }
+    }
+    if (order.size === 0 && frameSeries.size === 0) return resolve
+    return (label: string, index: number) => frameSeries.get(label) ?? resolve(label, order.get(label) ?? index)
+  }, [active, document.theme, frame.data, frameColors, paletteLabels, panel])
   // The row-indexed half of the same rule. It is handed the *visible* palette
   // because the plot draws the visible rows; the legend builds its own over the
   // full frame, and the two agree row for row either way.
@@ -752,10 +764,13 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     <PanelFrame allowEmptyContent={!distribution} panel={panel} frame={frame} headerActions={temporalControls} total={shareTotal}>
       <div className={`lens-chart-layout${hasLegend ? ' lens-chart-layout-legend' : ''}`}>
         <div className="lens-chart-area">
-          {/* Above the plot, in flow — see PlotTotalBadge. A donut prints the
-              same figure in its hub (the hole exists to carry it), so the chip
-              would be the number twice, 100px apart, in two treatments. */}
-          {presentation?.totalBadge === 'plot' && kind !== 'donut' && shareTotal !== null && (
+          {/* Above the plot, in flow — see PlotTotalBadge. Donut and partition
+              radial charts print the same figure in their hub (the hole exists
+              to carry it), so the chip would duplicate the number. */}
+          {presentation?.totalBadge === 'plot'
+            && kind !== 'donut'
+            && panel.radial?.mode !== 'partition'
+            && shareTotal !== null && (
             <PlotTotalBadge panel={panel} total={shareTotal} />
           )}
           {/* One row above the plot for everything the plot column carries that
@@ -1215,7 +1230,7 @@ const ChartLegend = memo(function ChartLegend({
         data-overflow-top={legendEdges.top || undefined}
       >
         {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- overflowing native scroll regions must be keyboard-focusable. */}
-        <ul aria-label={translate('chart.legendControls', 'Legend controls')} className="lens-chart-legend" ref={legendRef} role="region" tabIndex={legendEdges.top || legendEdges.bottom ? 0 : undefined}>
+        <ul aria-label={translate('chart.legendControls', 'Legend controls')} className="lens-chart-legend" data-testid={`lens-panel-${panel.id}-legend`} ref={legendRef} role="region" tabIndex={legendEdges.top || legendEdges.bottom ? 0 : undefined}>
           {visibleEntries.map((index, visibleIndex) => {
             const row = frame.rows[index]!
             const entryIndex = model.entryPositions.get(index) ?? index
@@ -1233,6 +1248,7 @@ const ChartLegend = memo(function ChartLegend({
                   <button
                     aria-pressed={!isHidden}
                     className={`lens-chart-legend-toggle${isHidden ? ' lens-chart-legend-hidden' : ''}`}
+                    data-testid={`lens-panel-${panel.id}-legend-series-${entryIndex}`}
                     onClick={() => onToggle(key)}
                     // The charting idiom every reader arrives with, and the
                     // one the isolate glyph beside it was the only way to

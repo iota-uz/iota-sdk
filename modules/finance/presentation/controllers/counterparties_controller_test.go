@@ -121,7 +121,11 @@ func TestCounterpartiesController_GetNew_Success(t *testing.T) {
 	html.Element("//form[@hx-post]").Exists()
 	html.Element("//input[@name='Name']").Exists()
 	html.Element("//select[@name='Type']").Exists()
-	html.Element("//select[@name='LegalType']").Exists()
+	// The legal-form field is a radio group: every option renders as a
+	// radio under the same form name, none preselected on the create form.
+	legalTypeRadios := html.Elements("//input[@type='radio'][@name='LegalType']")
+	require.Len(t, legalTypeRadios, 4)
+	require.Empty(t, html.Elements("//input[@type='radio'][@name='LegalType'][@checked]"))
 	html.Element("//input[@name='TIN']").Exists()
 	html.Element("//textarea[@name='LegalAddress']").Exists()
 }
@@ -230,7 +234,12 @@ func TestCounterpartiesController_GetEdit_Success(t *testing.T) {
 	require.Equal(t, "Edit Test Counterparty", html.Element("//input[@name='Name']").Attr("value"))
 
 	html.Element("//select[@name='Type']").Exists()
-	html.Element("//select[@name='LegalType']").Exists()
+	// The saved legal form comes back as the checked radio of the group.
+	legalTypeRadios := html.Elements("//input[@type='radio'][@name='LegalType']")
+	require.Len(t, legalTypeRadios, 4)
+	checkedLegalTypes := html.Elements("//input[@type='radio'][@name='LegalType'][@checked]")
+	require.Len(t, checkedLegalTypes, 1)
+	require.Equal(t, string(counterparty.LLC), html.Element("//input[@type='radio'][@name='LegalType'][@checked]").Attr("value"))
 	html.Element("//textarea[@name='LegalAddress']").Exists()
 	require.Equal(t, "Edit Street 123", html.Element("//textarea[@name='LegalAddress']").Text())
 }

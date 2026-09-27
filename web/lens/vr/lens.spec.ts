@@ -77,13 +77,19 @@ const storyIds = [
   'metric-composition--narrow',
   'metric-composition--quality-chips',
   'metric-composition--relationship-variants',
+  'panel-failure--failure-reasons--dark',
+  'panel-failure--failure-reasons--light',
   'panel-matrix--all-kinds-and-states--dark',
   'panel-matrix--all-kinds-and-states--light',
   'panel-matrix--sparkline-and-coverage-target--dark',
   'panel-matrix--sparkline-and-coverage-target--light',
+  'panel-matrix--unknown-cascade-stage--dark',
+  'panel-matrix--unknown-cascade-stage--light',
   'panels-v2--cascade-final-stage',
   'panels-v2--cascade-semantic-tone',
   'panels-v2--cascade-stages-navigate',
+  'panels-v2--cascade-unknown-stage',
+  'panels-v2--cascade-unknown-stage-navigates',
   'panels-v2--export-idle',
   'panels-v2--panel-info-tip-dark',
   'panels-v2--panel-info-tip-light',
@@ -98,6 +104,8 @@ const storyIds = [
   'panels-v2--waterfall-mixed-label-heights',
   'panels-v2--waterfall-semantic-tone',
   'panels-v2--waterfall-split-callout',
+  'panels-v2--waterfall-unknown-stage',
+  'panels-v2--waterfall-unknown-stage-navigates',
   'print-report--composed-report',
   'progressive-panels--sibling-ready-loading-and-error',
   'temporal-overlays--category-axis-overlays',
@@ -119,6 +127,7 @@ const storyIds = [
   'parity--chart-readability-states',
   'parity--compact-table-cells',
   'parity--coverage-composite',
+  'parity--coverage-split',
   'parity--dashboard-loading-skeleton-dark',
   'parity--dashboard-loading-skeleton-light',
   'parity--drill-pill-affordances',
@@ -139,6 +148,7 @@ const storyIds = [
   'parity--stat-beside-a-tall-table',
   'parity--metric-group',
   'parity--metric-group-info',
+  'parity--metric-group-loading',
   'parity--metric-group-responsive',
   'parity--metric-group-sparkline',
   'parity--panel-header-pressure',
@@ -249,14 +259,28 @@ const staticStories = [
   ['metric-composition--narrow', 0],
   ['metric-composition--quality-chips', 0],
   ['metric-composition--relationship-variants', 0],
+  // What a panel says once the server names the kind of failure. Card-edge
+  // antialiasing alternates between two stable rasters here the same way it
+  // does across the matrices below (#932).
+  ['panel-failure--failure-reasons--dark', 0, 50],
+  ['panel-failure--failure-reasons--light', 0, 50],
   ['panel-matrix--all-kinds-and-states--dark', 0],
   ['panel-matrix--all-kinds-and-states--light', 0],
   // Card-edge antialiasing alternates between two stable rasters (#932).
   ['panel-matrix--sparkline-and-coverage-target--dark', 0, 50],
   ['panel-matrix--sparkline-and-coverage-target--light', 0, 50],
+  // A bridge with amounts nobody has, in both projections and every panel
+  // state. Card-edge antialiasing alternates the same way the variant matrix
+  // beside it does (#932).
+  ['panel-matrix--unknown-cascade-stage--dark', 0, 50],
+  ['panel-matrix--unknown-cascade-stage--light', 0, 50],
   ['panels-v2--cascade-final-stage', 0],
   ['panels-v2--cascade-semantic-tone', 0],
   ['panels-v2--cascade-stages-navigate', 0],
+  ['panels-v2--cascade-unknown-stage', 0],
+  // The same list once its stages open something: the badge on an actionable
+  // stage carries the arrow, the one on an inert stage stays a status.
+  ['panels-v2--cascade-unknown-stage-navigates', 0],
   ['panels-v2--export-idle', 0],
   ['panels-v2--panel-info-tip-dark', 0],
   ['panels-v2--panel-info-tip-light', 0],
@@ -273,6 +297,13 @@ const staticStories = [
   ['panels-v2--waterfall-mixed-label-heights', 0],
   ['panels-v2--waterfall-semantic-tone', 0],
   ['panels-v2--waterfall-split-callout', 0],
+  // The gap column: a dashed rule on the last known running total, not a
+  // deduction to the axis, and one closing column rather than a twin.
+  ['panels-v2--waterfall-unknown-stage', 0],
+  // The gap column that opens something, beside the gap column that does not:
+  // the arrow in the badge is the whole distinction at rest, and a bar that is
+  // a dashed hairline leaves the badge as the only thing to aim at.
+  ['panels-v2--waterfall-unknown-stage-navigates', 0],
   ['progressive-panels--sibling-ready-loading-and-error', 0],
   // A category axis: the shape /analytics/trends draws, and the one where a
   // single-category band needs a bar's sense of the band's edges.
@@ -403,6 +434,7 @@ test('VR manifest covers every Ladle story', async ({ request }) => {
   const covered = new Set<string>([
     ...staticStories.map(([storyId]) => storyId),
     ...keyframeCovered,
+    ...measuredStories,
     'parity--metric-group-responsive',
   ])
 
@@ -463,8 +495,77 @@ const keyframeCovered = [
   'explore--perspective-switching-on-a-segment',
   'metric-composition--full',
   'parity--clickable-panels',
+  'parity--coverage-split',
   'parity--pie-with-legend-right--light',
 ] as const
+
+/**
+ * Stories whose contract is a measurement rather than a raster.
+ *
+ * A placeholder is a gradient sweeping under an animation; a screenshot of one
+ * is a picture of whichever frame the capture froze, and the defect it has to
+ * catch is not a colour but a box that was zero pixels wide. Measuring the box
+ * says that directly, and says it the same way on every platform.
+ */
+const measuredStories = ['parity--metric-group-loading'] as const
+
+/** The cells of the KPI strip, and the placeholder each one is showing. */
+async function loadingMetricBoxes(page: Page) {
+  return page.locator('.lens-stat-metric[aria-busy="true"]').evaluateAll((elements) => elements.map((element) => {
+    const box = element.querySelector('.lens-stat-metric-value-shimmer')?.getBoundingClientRect()
+    const neighbour = element
+      .querySelector('.lens-stat-metric-main > .lens-stat-sparkline, .lens-stat-metric-main > .lens-stat-drill-mark')
+      ?.getBoundingClientRect()
+    const cell = element.getBoundingClientRect()
+    return {
+      cellWidth: cell.width,
+      cellHeight: cell.height,
+      shimmer: box ? { width: box.width, height: box.height, right: box.right } : null,
+      neighbourLeft: neighbour?.left ?? null,
+      text: (element.querySelector('.lens-stat-metric-value')?.textContent ?? '').trim(),
+    }
+  }))
+}
+
+test('a loading KPI cell shows a placeholder the size of the figure it stands in for', async ({ page }) => {
+  await openStory(page, 'parity--metric-group-loading', 0)
+  const cells = await loadingMetricBoxes(page)
+  expect(cells).toHaveLength(4)
+
+  for (const { cellWidth, shimmer, neighbourLeft, text } of cells) {
+    // The figure slot carries no text while the panel is in flight, so it is a
+    // flex item zero pixels wide — a placeholder sized as a percentage of it
+    // measured 0 × 28 and painted nothing at all, leaving a KPI strip that read
+    // as a row of names over an empty gap for as long as the query ran.
+    expect(text).toBe('')
+    expect(shimmer?.width ?? 0).toBeGreaterThan(40)
+    expect(shimmer?.height ?? 0).toBeGreaterThan(12)
+    // It stands in for a figure, not for the card: a slab the width of the cell
+    // would read as a loading table rather than as a number on its way.
+    expect(shimmer?.width ?? 0).toBeLessThan(cellWidth)
+    // …and it keeps out of the drill mark and the sparkline that share its row.
+    if (neighbourLeft !== null) expect(shimmer?.right ?? 0).toBeLessThanOrEqual(neighbourLeft)
+  }
+  // Two of the four cells carry one of those neighbours; without them the
+  // collision clause above would pass by never running.
+  expect(cells.filter(({ neighbourLeft }) => neighbourLeft !== null).length).toBe(2)
+})
+
+test('the loading KPI strip is the height the settled one is', async ({ page }) => {
+  // A placeholder that reserves the wrong box moves the whole board when the
+  // figures land. Same four metrics, same captions, same spans — only the
+  // frames differ — so the cells must measure the same in both stories.
+  await openStory(page, 'parity--metric-group-loading', 0)
+  const loading = (await loadingMetricBoxes(page)).map(({ cellHeight }) => Math.round(cellHeight))
+
+  await openStory(page, 'parity--metric-group', 0)
+  const settled = await page.locator('.lens-stat-metric').evaluateAll((elements) => (
+    elements.map((element) => Math.round(element.getBoundingClientRect().height))
+  ))
+
+  expect(loading).toHaveLength(4)
+  expect(loading).toEqual(settled)
+})
 
 test('filter refetch failure keeps stale panels and surfaces the error', async ({ page }) => {
   await openStory(page, 'filter-controls--refetch-error', 0)
@@ -474,6 +575,48 @@ test('filter refetch failure keeps stale panels and surfaces the error', async (
   // The calendar icon can flip one antialiased edge pixel on Darwin Chromium;
   // all stale values, the alert, and the retry state remain exact.
   await screenshot(page, 'filter-refetch-error', { maxDiffPixels: 1 })
+})
+
+test('a hovered coverage segment grows out of its quieted siblings', async ({ page }) => {
+  // A pie sector grows under the pointer because ECharts scales it; a segment
+  // bar had only a colour shift, so the two chart families disagreed about what
+  // hover means. This measures the growth rather than photographing it: the
+  // heights are the contract, and a baseline of them would need re-blessing
+  // every time the story's palette moved.
+  // CoverageComposite next door has one positive segment and a zero remainder,
+  // so Lens draws no track for it — a partition bar needs two parts before
+  // there is anything to hover. CoverageSplit is the two-part variant.
+  await openStory(page, 'parity--coverage-split', 0)
+  const track = page.locator('.lens-coverage-track').first()
+  const segment = track.locator('.lens-coverage-track-segment').first()
+  const sibling = track.locator('.lens-coverage-track-segment').nth(1)
+
+  // At rest the track is the thin rule the reader scans past.
+  await expect(page.locator('.lens-coverage[data-segment-active="true"]')).toHaveCount(0)
+  const restingTrack = (await track.boundingBox())?.height ?? 0
+  const restingSibling = (await sibling.boundingBox())?.height ?? 0
+  expect(restingTrack).toBeGreaterThan(0)
+
+  await segment.hover()
+  // The whole card carries the state, which is what lets the legend row light
+  // up with the segment and the siblings give up their height.
+  await expect(page.locator('.lens-coverage[data-segment-active="true"]').first()).toBeVisible()
+  await expect(segment).toHaveAttribute('data-highlighted', 'true')
+
+  await expect.poll(async () => (await track.boundingBox())?.height ?? 0)
+    .toBeGreaterThan(restingTrack)
+  await expect.poll(async () => (await segment.boundingBox())?.height ?? 0)
+    .toBeGreaterThan(restingTrack)
+  // The siblings give the growth back, so what the reader sees is one segment
+  // rising out of the bar rather than the whole bar getting fatter. They are
+  // quieted by exactly the ratio that holds them at their resting thickness —
+  // asserting they end up *thinner* than at rest would be asserting a design
+  // this deliberately does not have, so the contract is: no thicker than at
+  // rest, and thinner than the segment under the pointer.
+  await expect.poll(async () => (await sibling.boundingBox())?.height ?? 0)
+    .toBeLessThanOrEqual(restingSibling)
+  const hovered = (await segment.boundingBox())?.height ?? 0
+  expect((await sibling.boundingBox())?.height ?? 0).toBeLessThan(hovered)
 })
 
 test('calendar range preview follows the hovered day', async ({ page }) => {

@@ -20,6 +20,9 @@ var ErrRunNotFoundOrFinished = errors.New("generation run not found or already f
 // stream so clients can display the condition without switching transports.
 var ErrRunEventLogUnavailable = errors.New("run event log unavailable")
 
+// ErrRunEventStreamInterrupted means the event journal ended without a terminal event.
+var ErrRunEventStreamInterrupted = errors.New("run event stream interrupted")
+
 // ErrActiveRunIndexUnavailable is returned by TailActiveRuns when the
 // active-run index (per-tenant sidebar Redis hash) is not configured. Like
 // ErrRunEventLogUnavailable, the stream controller surfaces it as an SSE

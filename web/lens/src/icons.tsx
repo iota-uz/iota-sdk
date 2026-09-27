@@ -368,6 +368,21 @@ export const EyeSlash = glyph(
 )
 
 /**
+ * An unbounded period — the picker's "All time", which is not a range but the
+ * absence of one.
+ *
+ * Phosphor calls this glyph `infinity`; exported under a different name because
+ * that one is a JavaScript global and `const Infinity` shadows a restricted
+ * name. The path is the regular variant verbatim.
+ */
+export const InfinityLoop = glyph(
+  <>
+    <path d="M106.63,152.13l-8.69,9.81a48,48,0,1,1,0-67.88l60.12,67.88a48,48,0,1,0,0-67.88l-8.69,9.81" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  14,
+)
+
+/**
  * How old the figures are. The freshness stamp is the one fact a reader checks
  * before trusting a number, so it carries a mark of its own instead of hiding
  * at the end of a sentence of prose.

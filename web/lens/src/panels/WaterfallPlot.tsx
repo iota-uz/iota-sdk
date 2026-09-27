@@ -9,6 +9,7 @@ import {
   type RefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { ArrowUpRight } from '../icons'
 import { hoverBridgeDelay, useOverlayContainer } from '../runtime/overlayContainer'
 import { CopyValueButton } from './CopyValueButton'
 import { useIsClamped } from './useIsClamped'
@@ -40,6 +41,12 @@ export interface WaterfallPlotProps {
   axisUnit?: string
   /** What activating a column does, printed at the foot of its tooltip. */
   actionHint?: string
+  /**
+   * What a column with no amount says out loud, since its figure is an em dash.
+   * Absent in a rendering with no runtime to translate it (the printed report),
+   * where the dash and the stage's own badge carry the meaning.
+   */
+  unknownLabel?: string
   children?: ReactNode
 }
 
@@ -184,6 +191,7 @@ interface WaterfallColumnProps {
   chrome?: Record<string, unknown>
   splitCallout: WaterfallSplitCallout
   actionHint?: string
+  unknownLabel?: string
 }
 
 /**
@@ -202,7 +210,7 @@ interface WaterfallColumnProps {
  * step's bar and make it un-comparable with the one beside it.
  */
 
-function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint }: WaterfallColumnProps) {
+function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint, unknownLabel }: WaterfallColumnProps) {
   const [pointed, setPointed] = useState(false)
   const bar = useRef<HTMLDivElement>(null)
   const label = useRef<HTMLSpanElement>(null)
@@ -259,12 +267,16 @@ function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint 
           data-no-movement={item.noMovement}
           data-terminal={!chrome || undefined}
           data-tone={item.tone}
+          data-unknown={item.unknown}
           style={{
             top: `${item.top}%`,
             height: `${item.height}%`,
           }}
         >
-          <strong>{item.formattedValue}</strong>
+          <strong>
+            {item.formattedValue}
+            {item.unknown && unknownLabel && <span className="lens-sr-only">{unknownLabel}</span>}
+          </strong>
           {item.splitHeight !== undefined && (
             <span
               className="lens-waterfall-bar-split"
@@ -307,7 +319,17 @@ function WaterfallColumn({ item, index, count, chrome, splitCallout, actionHint 
             not about the string. */}
         <span ref={label} title={labelClamped ? item.label : undefined}>{item.label}</span>
         {item.annotation && (
-          <small className="lens-waterfall-annotation">{item.annotation}</small>
+          <small className="lens-waterfall-annotation">
+            {item.annotation}
+            {/* The badge is the only solid shape in a column whose bar may be an
+                empty dashed gap, so it is what a reader aims at — and a chip
+                that looks the same whether or not the step opens anything is
+                what made «Настроить» unfindable. The arrow is the claim that
+                there is somewhere to go, and it is drawn on the same condition
+                a drill cell's pill draws it: a destination actually resolved
+                (`chrome`), never merely a status worth stating. */}
+            {chrome && <ArrowUpRight size={10} />}
+          </small>
         )}
       </span>
     </div>
@@ -328,6 +350,7 @@ export function WaterfallPlot({
   splitCallout = 'hover',
   axisUnit,
   actionHint,
+  unknownLabel,
   children,
 }: WaterfallPlotProps) {
   return (
@@ -378,6 +401,7 @@ export function WaterfallPlot({
               item={item}
               key={`${item.label}-${index}`}
               splitCallout={splitCallout}
+              unknownLabel={unknownLabel}
             />
           ))}
         </div>

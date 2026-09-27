@@ -6,12 +6,18 @@ workspace modules:
 
 - `@iota-uz/sdk/identity`
 - `@iota-uz/sdk/client-host`
+- `@iota-uz/sdk/solid`
+- `@iota-uz/sdk/styles.css`
 - `@iota-uz/sdk/lens`
 - `@iota-uz/sdk/lens/styles.css`
 
 Version 0.5 is a clean break. The former root, BiChat, applet, Tailwind, asset,
 `@iota-uz/client-host`, and `@iota-uz/lens-web` APIs are not compatibility
 surfaces of this distribution.
+
+The React API under `client-host` is temporarily retained while routes migrate.
+The `solid` subpath is the standard host for new client routes. Both renderer
+peers are optional so a consumer installs only the renderer it uses.
 
 ## Identity contract
 
@@ -30,16 +36,17 @@ protocol version, tarball name, and SHA-256.
 
 The verification script installs the tarball in an empty consumer while the
 `@iota-uz` registry points to an unreachable address. It checks every export,
-peer-only React resolution, and proves that importing client-host does not pull
+renderer peer resolution, and proves that importing the bounded host does not pull
 Lens or ECharts into the initial bundle.
 
 ## Production release
 
 The `v<version>` tag must point at the release commit and match both
-`web/sdk/package.json` and `pkg/sdkidentity.ReleaseVersion`. One workflow tests
-the Go and JavaScript graphs, builds the canonical tarball, publishes it through
-npm trusted publishing with provenance, verifies registry metadata, and creates
-the GitHub release.
+`web/sdk/package.json` and `pkg/sdkidentity.ReleaseVersion`. The demand-driven
+release workflow verifies the complete candidate before creating the tag. It
+publishes the verified tarball through npm trusted publishing with provenance,
+checks both registries, and records completion. See [SDK releases](sdk-releases.md)
+for commands, state transitions, consumer installation, and recovery.
 
 Consumers update `go.mod`, `go.sum`, `package.json`, and the JavaScript lockfile
 in one transaction. Production must never use preview tarballs, release-asset

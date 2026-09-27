@@ -113,7 +113,7 @@ export class PanelClient {
     }], signal)
     const result = panels[request.panelId]
     if (!result) throw new QueryError('internal', `panel ${request.panelId} missing from batch response`, 200)
-    if (result.error) throw new QueryError(result.error.error, result.error.message, 200)
+    if (result.error) throw new QueryError(result.error.error, result.error.message, 200, result.error.reason)
     if (!result.frames) throw new QueryError('internal', `panel ${request.panelId} response has no frames`, 200)
     return { ...result, frames: result.frames }
   }
@@ -141,7 +141,7 @@ export class PanelClient {
       const code: QueryErrorCode = parsed.success ? parsed.data.error : 'internal'
       const message = parsed.success ? parsed.data.message : `panel request failed with ${response.status}`
       if (response.status === 410 && code === 'snapshot_gone') throw new SnapshotGoneError(message)
-      throw new QueryError(code, message, response.status)
+      throw new QueryError(code, message, response.status, parsed.success ? parsed.data.reason : undefined)
     }
     if (!response.headers.get('Content-Type')?.toLowerCase().includes('ndjson')) {
       throw new QueryError('internal', 'panel response must be application/x-ndjson', response.status)

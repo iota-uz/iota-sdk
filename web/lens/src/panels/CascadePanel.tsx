@@ -1,9 +1,10 @@
 import { useCallback, type KeyboardEvent, type MouseEvent } from 'react'
 import type { Frame, Panel } from '../contract'
+import { ArrowUpRight } from '../icons'
 import { axisUnit, useAxisFormat, useFormat, useFormatExact, usePanelFrame, useTranslate } from '../runtime'
 import { rawValueText } from '../runtime/format'
 import { usePanelNavigation } from './actions'
-import { columnIndex, displayText, panelField } from './data'
+import { columnIndex, displayText, finiteNumber, panelField } from './data'
 import { PanelFrame } from './PanelFrame'
 import { WaterfallPlot } from './WaterfallPlot'
 
@@ -19,6 +20,15 @@ function numeric(value: unknown): number {
   }
   return 0
 }
+
+/**
+ * What a stage prints where its amount would be, when there is no amount.
+ *
+ * The same em dash the metric panels put in an `unavailable` value slot, so a
+ * board that mixes a flow, a hierarchy and a bridge says "not known" one way.
+ * Spoken as the translated «Unavailable», never as "em dash".
+ */
+export const unknownValueText = '—'
 
 function boolean(value: unknown): boolean {
   if (typeof value === 'boolean') return value
@@ -63,7 +73,22 @@ function signedChangeExact(value: number, format: (value: unknown) => string | u
 
 export interface CascadeStage {
   label: string
+  /**
+   * The running total this stage stands at — meaningful only when `hasValue`.
+   * It stays a plain number so every layout measure downstream keeps its type;
+   * an unknown stage carries 0 and must never be read as one.
+   */
   value: number
+  /**
+   * False when the frame carries no amount for this stage: a null cell, an
+   * empty string, a non-finite number, or a column the producer left out.
+   *
+   * "No data for this line" and "this line is zero" are different statements on
+   * a bridge, and coercing the first into the second is how a stage with
+   * nothing behind it drew a full-height deduction down to zero. Every consumer
+   * that reads `value` must ask this first.
+   */
+  hasValue: boolean
   formattedValue: string
   cut: number
   formattedCut: string
@@ -106,18 +131,29 @@ export function buildCascadeStages(
   const toneIndex = columnIndex(frame, toneField)
   const splitIndex = columnIndex(frame, splitField)
   const splitLabelIndex = columnIndex(frame, splitLabelField)
-  const maximum = Math.max(1, ...frame.rows.map((row) => Math.max(0, numeric(row[valueIndex]))))
+  // `finiteNumber` rather than `numeric`, and only here: the stage value is the
+  // one field where "absent" is a statement the panel has to make. A cut or a
+  // split that fails to parse is still an undivided, unmoved bar, which is what
+  // the 0 those keep already draws.
+  const stageValue = (row: ReadonlyArray<unknown>) => finiteNumber(row[valueIndex])
+  const maximum = Math.max(1, ...frame.rows.map((row) => Math.max(0, stageValue(row) ?? 0)))
 
   return frame.rows.map((row, index) => {
-    const value = numeric(row[valueIndex])
+    const resolved = stageValue(row)
+    const hasValue = resolved !== undefined
+    const value = resolved ?? 0
     const cut = numeric(row[cutIndex])
-    const rawWidth = value > 0 ? Math.min(100, value / maximum * 100) : 0
+    const rawWidth = hasValue && value > 0 ? Math.min(100, value / maximum * 100) : 0
     return {
       label: displayText(row[labelIndex], `Stage ${index + 1}`),
       value,
-      formattedValue: formatValue(value),
+      hasValue,
+      formattedValue: hasValue ? formatValue(value) : unknownValueText,
       cut,
-      formattedCut: signedCut(cut, formatCut),
+      // A stage whose total is unknown has an unknown movement: the frame's own
+      // `cut` for such a row is a placeholder, and printing «0 UZS» beside it
+      // would restate the very lie the em dash above it just refused to tell.
+      formattedCut: hasValue ? signedCut(cut, formatCut) : unknownValueText,
       cutLabel: displayText(row[cutLabelIndex], ''),
       final: boolean(row[finalIndex]),
       annotation: annotationIndex >= 0 ? displayText(row[annotationIndex], '') : '',
@@ -162,15 +198,28 @@ export interface WaterfallItem {
    */
   checkpoint?: boolean
   /**
-   * True on a step whose movement is exactly nothing.
+   * True on a column that draws no movement bar: a step whose movement is
+   * exactly nothing, or one whose amount is not known at all (see `unknown`).
    *
    * A cascade's bars carry a `min-height`, so a step that did not happen drew
    * the same 3px coloured rule as a step of −1,74 млн: on a P&L bridge "not
    * applicable" and "a real small number" looked identical, which is the one
-   * thing a bridge may never say. A zero is drawn as a neutral hairline on the
-   * running total instead of as a coloured movement off it.
+   * thing a bridge may never say. Both are drawn as a hairline on the running
+   * total instead of as a coloured movement off it.
    */
   noMovement?: boolean
+  /**
+   * True when the producer sent no amount for this stage.
+   *
+   * The third statement a bridge has to be able to make, and the one it used to
+   * be unable to: not "this step is zero" but "nobody knows what this step is".
+   * Coerced to zero it became a movement down to the running total — a stage
+   * annotated «Нет данных» rendered a −149,00 млрд bar that was, exactly, the
+   * preceding total. It shares `noMovement`'s hairline (there is no movement to
+   * draw either way) and is told apart from a real zero by a dashed rule and an
+   * em dash where the figure would be.
+   */
+  unknown?: boolean
   annotation: string
   /** Explicit semantic tone overriding the direction default; absent = default. */
   tone?: CascadeTone
@@ -195,9 +244,13 @@ export interface WaterfallItem {
    */
   underlayHeight?: number
   /**
-   * The frame row backing this column, for per-row actions. The synthetic
-   * closing total repeats the last stage the cascade already offers, so it
-   * carries none and stays inert.
+   * The frame row backing this column, for per-row actions.
+   *
+   * The synthetic closing total repeats a stage the cascade already offers, so
+   * it inherits that stage's row rather than carrying none: a column that
+   * displays the producer's «Настроить» badge and answers nothing when a reader
+   * clicks it is worse than no column. Absent only when there is no backing row
+   * at all.
    */
   rowIndex?: number
 }
@@ -293,12 +346,13 @@ export function buildWaterfallModel(
     annotation: string
     split: number
     splitLabel: string
+    unknown?: boolean
     rowIndex?: number
   }> = [{
     label: first.label,
     from: 0,
-    to: first.value,
-    value: first.value,
+    to: first.hasValue ? first.value : 0,
+    value: first.hasValue ? first.value : 0,
     kind: 'start',
     tone: first.tone,
     annotation: first.annotation,
@@ -306,17 +360,54 @@ export function buildWaterfallModel(
     // band off. Only the deduction/addition bars carry a split.
     split: 0,
     splitLabel: '',
+    unknown: first.hasValue ? undefined : true,
     rowIndex: first.rowIndex,
   }]
-  const magnitude = Math.max(...stages.map((stage) => Math.abs(stage.value)), 1)
+  /**
+   * The last total the cascade actually knows it stands at, and the height every
+   * following movement is measured from.
+   *
+   * Reading it off `stages[index - 1]` made one missing amount everybody's
+   * problem: the gap stage became a movement to zero, and the stage after it a
+   * movement back up from zero, so a single hole corrupted the rest of the
+   * bridge. An unknown stage leaves this untouched, so the damage stops at the
+   * column that has nothing to say. An unknown OPENING total leaves the cascade
+   * with no origin at all — zero is the only anchor left, and the known totals
+   * that follow are still drawn at their own heights.
+   */
+  let running = first.hasValue ? first.value : 0
+  const magnitude = Math.max(...stages.map((stage) => (stage.hasValue ? Math.abs(stage.value) : 0)), 1)
   const residual = magnitude * 1e-6
   for (let index = 1; index < stages.length; index += 1) {
-    const previousStage = stages[index - 1]
     const currentStage = stages[index]
-    if (!previousStage || !currentStage) continue
-    const previous = previousStage.value
+    if (!currentStage) continue
+    // A stage with no amount is not a movement of any size. It is drawn as a
+    // gap standing on the running total — keeping its name, its badge and its
+    // frame row, because "we do not compute this yet" is a thing the panel is
+    // there to say — and it leaves the total alone for the next known stage.
+    if (!currentStage.hasValue) {
+      raw.push({
+        label: currentStage.cutLabel || currentStage.label,
+        from: running,
+        to: running,
+        value: 0,
+        // A final row keeps the closing branch even with nothing to close, so
+        // it holds its declared place, keeps its row (and therefore its drill),
+        // and no synthetic closing is appended after it.
+        kind: currentStage.final ? 'end' : 'increase',
+        tone: currentStage.tone,
+        annotation: currentStage.annotation,
+        split: 0,
+        splitLabel: '',
+        unknown: true,
+        rowIndex: currentStage.rowIndex,
+      })
+      continue
+    }
+    const previous = running
     const current = currentStage.value
     const value = current - previous
+    running = current
     // A final=true row is a TOTAL checkpoint, not a stage-to-stage movement.
     // The canonical checkpoint row restates the running total it closes
     // (cut=0), so a delta bar here would be a zero-height "+0" duplicate; it is
@@ -355,7 +446,16 @@ export function buildWaterfallModel(
       rowIndex: currentStage.rowIndex,
     })
   }
-  if (stages.length > 1 && raw.at(-1)?.kind !== 'end') {
+  // A cascade that declares no closing row still ends somewhere, so the last
+  // running total is restated as one. Two cases must not reach here: a stage
+  // already drawn as an `end` (restating it produced the twin «Расчётный
+  // результат» columns, the second of them inert), and a last stage with no
+  // amount (there is no total to restate, only a second gap). What is
+  // synthesized repeats a real stage, so it carries that stage's row and badge
+  // — a column showing «Настроить» that answers nothing when clicked is worse
+  // than no column at all.
+  const last = raw.at(-1)
+  if (stages.length > 1 && last && last.kind !== 'end' && !last.unknown) {
     const closing = stages.at(-1)
     if (closing) {
       raw.push({
@@ -368,6 +468,7 @@ export function buildWaterfallModel(
         annotation: closing.annotation,
         split: 0,
         splitLabel: '',
+        rowIndex: closing.rowIndex,
       })
     }
   }
@@ -390,8 +491,11 @@ export function buildWaterfallModel(
     const bottom = y(Math.min(item.from, item.to))
     // A movement of exactly zero gets no height at all; the stylesheet gives it
     // a hairline. Reserving the same 1.5% floor a real movement gets is what
-    // made a zero indistinguishable from the smallest genuine step.
-    const noMovement = item.kind !== 'start' && item.kind !== 'end' && item.value === 0
+    // made a zero indistinguishable from the smallest genuine step. A stage
+    // with no amount takes the same hairline for the stronger reason: there is
+    // no movement to draw, and any height at all would be one invented here.
+    const unknown = item.unknown === true
+    const noMovement = unknown || (item.kind !== 'start' && item.kind !== 'end' && item.value === 0)
     const height = noMovement ? 0 : Math.max(1.5, bottom - top)
     // A split is a portion OF the movement. Outside (0, |movement|) it is not
     // one — a producer that sends the whole movement, more than it, or nothing
@@ -406,17 +510,25 @@ export function buildWaterfallModel(
     // against a declared 28.30 would band the entire bar.
     const splitMagnitude = Math.abs(item.split)
     const magnitude = Math.abs(item.value)
-    const splittable = splitMagnitude > residual && splitMagnitude < magnitude - residual
+    const splittable = !unknown && splitMagnitude > residual && splitMagnitude < magnitude - residual
     return {
       label: item.label,
       value: item.value,
-      formattedValue: item.kind === 'start' || item.kind === 'end'
-        ? formatValue(item.value)
-        : signedChange(item.value, formatValue),
-      exactValue: item.kind === 'start' || item.kind === 'end'
-        ? formatExact(item.value)
-        : signedChangeExact(item.value, formatExact),
-      rawValue: rawValue(item.value),
+      // An unknown column prints the em dash and nothing else: there is no
+      // exact form of a figure that does not exist, and no machine value to put
+      // on the clipboard, so the tooltip carries neither and shows no copy
+      // button rather than offering to copy a zero.
+      formattedValue: unknown
+        ? unknownValueText
+        : item.kind === 'start' || item.kind === 'end'
+          ? formatValue(item.value)
+          : signedChange(item.value, formatValue),
+      exactValue: unknown
+        ? undefined
+        : item.kind === 'start' || item.kind === 'end'
+          ? formatExact(item.value)
+          : signedChangeExact(item.value, formatExact),
+      rawValue: unknown ? undefined : rawValue(item.value),
       top,
       height,
       // Share of the bar, not of the plot: the band is painted inside the bar,
@@ -429,15 +541,21 @@ export function buildWaterfallModel(
       rawSplit: splittable ? rawValue(splitMagnitude) : undefined,
       splitLabel: splittable ? item.splitLabel : undefined,
       // Only a floating bar leaves a balance under it; the totals stand on zero
-      // already. A bar dipping below zero leaves nothing, hence the clamp.
-      underlayHeight: item.kind === 'start' || item.kind === 'end'
+      // already. A bar dipping below zero leaves nothing, hence the clamp. An
+      // unknown stage draws no invented height at all — it is a gap standing
+      // on the running total, not a translucent claim about what fills it.
+      underlayHeight: unknown || item.kind === 'start' || item.kind === 'end'
         ? undefined
         : Math.max(0, zero - bottom) || undefined,
       connectorTop: y(item.to),
       zero,
       kind: item.kind,
-      checkpoint: item.kind === 'end' && index < raw.length - 1 ? true : undefined,
+      // A total nobody could compute is not an interim total the reader passes
+      // through, so it does not take the hollow-column treatment or put the
+      // legend that explains it on the panel.
+      checkpoint: item.kind === 'end' && !unknown && index < raw.length - 1 ? true : undefined,
       noMovement: noMovement || undefined,
+      unknown: unknown || undefined,
       tone: item.tone,
       annotation: item.annotation,
       rowIndex: item.rowIndex,
@@ -515,6 +633,10 @@ export function CascadePanel({ panel }: CascadePanelProps) {
   }
   const anyInteractive = Boolean(navigation.action) &&
     stages.some((stage) => stageURL(stage.rowIndex) !== undefined)
+  // An em dash is a glyph, not a word: a reader who cannot see it is owed the
+  // sentence it stands for. The same key the metric panels speak an absent
+  // amount with, so the board has one word for "not known".
+  const unavailable = translate('availability.unavailable', 'Unavailable')
 
   return (
     <PanelFrame panel={panel} frame={frame}>
@@ -528,6 +650,7 @@ export function CascadePanel({ panel }: CascadePanelProps) {
           // An image exposes no children to assistive tech; once the columns
           // are activatable the container must group them instead.
           role={anyInteractive ? 'group' : 'img'}
+          unknownLabel={unavailable}
         >
           {hasCheckpoint && (
             <p className="lens-waterfall-key">
@@ -553,23 +676,40 @@ export function CascadePanel({ panel }: CascadePanelProps) {
                 {index > 0 && stage.cutLabel && (
                   <div className="lens-cascade-connector">
                     <span>{stage.cutLabel}</span>
-                    <strong data-direction={stage.cut > 0 ? 'down' : stage.cut < 0 ? 'up' : 'flat'}>{stage.formattedCut}</strong>
+                    <strong
+                      data-direction={!stage.hasValue ? 'unknown' : stage.cut > 0 ? 'down' : stage.cut < 0 ? 'up' : 'flat'}
+                    >
+                      {stage.formattedCut}
+                    </strong>
                   </div>
                 )}
                 <div
                   className={`lens-cascade-stage${stage.final ? ' lens-cascade-stage-final' : ''}`}
                   data-final={stage.final || undefined}
                   data-tone={stage.tone}
+                  data-unknown={!stage.hasValue || undefined}
                   {...interaction}
                 >
                   <div className="lens-cascade-stage-label">
                     <span className="lens-cascade-stage-title">
                       <span>{stage.label}</span>
                       {stage.annotation && (
-                        <small className="lens-cascade-stage-annotation">{stage.annotation}</small>
+                        <small className="lens-cascade-stage-annotation">
+                          {stage.annotation}
+                          {/* The same claim the waterfall's badge makes, on the
+                              same condition: an arrow only where this stage
+                              resolved a destination. The row's plate is a hover
+                              state and says nothing at rest, so without this the
+                              list has no mark at all for "there is somewhere to
+                              go from here". */}
+                          {interaction && <ArrowUpRight size={10} />}
+                        </small>
                       )}
                     </span>
-                    <strong data-negative={stage.value < 0 || undefined}>{stage.formattedValue}</strong>
+                    <strong data-negative={(stage.hasValue && stage.value < 0) || undefined}>
+                      {stage.formattedValue}
+                      {!stage.hasValue && <span className="lens-sr-only">{unavailable}</span>}
+                    </strong>
                   </div>
                   <div className="lens-cascade-track" aria-hidden="true">
                     <span style={{ width: `${stage.width}%` }} />

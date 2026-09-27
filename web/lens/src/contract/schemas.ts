@@ -194,6 +194,8 @@ export const FacetSelectionSchema: z.ZodType<Contract.FacetSelection> = z.object
   removeUrl: z.string(),
 }).strict()
 
+export const FailureReasonSchema: z.ZodType<Contract.FailureReason> = z.enum(["canceled", "timeout", "unknown"])
+
 export const FieldFormatSchema: z.ZodType<Contract.FieldFormat> = z.lazy(() => z.object({
   kind: z.lazy(() => FormatKindSchema),
   currency: z.string().optional(),
@@ -209,6 +211,7 @@ export const FilterSchema: z.ZodType<Contract.Filter> = z.lazy(() => z.object({
   id: z.string(),
   kind: z.lazy(() => FilterKindSchema),
   label: z.string().optional(),
+  placement: z.lazy(() => FilterPlacementSchema).optional(),
   period: z.lazy(() => PeriodFilterSchema).optional(),
   facet: z.lazy(() => FacetFilterSchema).optional(),
   compare: z.lazy(() => CompareFilterSchema).optional(),
@@ -216,6 +219,11 @@ export const FilterSchema: z.ZodType<Contract.Filter> = z.lazy(() => z.object({
 }).strict())
 
 export const FilterKindSchema: z.ZodType<Contract.FilterKind> = z.enum(["compare", "facet", "period", "segmented"])
+
+export const FilterPlacementSchema: z.ZodType<Contract.FilterPlacement> = z.object({
+  groupId: z.string(),
+  tab: z.string(),
+}).strict()
 
 export const FlowReconciliationSchema: z.ZodType<Contract.FlowReconciliation> = z.object({
   tolerance: z.number().optional(),
@@ -577,6 +585,7 @@ export const QueryErrorCodeSchema: z.ZodType<Contract.QueryErrorCode> = z.enum([
 export const QueryErrorResponseSchema: z.ZodType<Contract.QueryErrorResponse> = z.object({
   error: z.lazy(() => QueryErrorCodeSchema),
   message: z.string(),
+  reason: z.lazy(() => FailureReasonSchema).optional(),
 }).strict()
 
 export const QueryPageSchema: z.ZodType<Contract.QueryPage> = z.object({

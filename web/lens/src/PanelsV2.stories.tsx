@@ -293,6 +293,103 @@ export const WaterfallCheckpointTotal: Story = () => {
   return <Runtime document={document}><CascadePanel panel={officialResultPanel} /></Runtime>
 }
 
+// The defect this story guards, as the profitability dashboard produced it: a
+// stage the backend has no figure for, and a closing total it cannot compute
+// until someone configures it. Both arrive as null.
+//
+// Coerced to zero, «Изменение РЗУ» drew a −149,00 млрд deduction — the running
+// total above it, restated as a movement — and threw off every delta after it;
+// and the unknown closing row, its bogus delta too large for the residual test,
+// fell through to a movement bar and was then repeated by the synthetic closing
+// as a second column that showed «Настроить» and answered nothing. Kept as
+// unknowns, both are dashed gaps standing on the last total the cascade knew,
+// with their names and badges intact and the arithmetic between them sound.
+const unknownResultFrame: Frame = {
+  ...officialResultFrame,
+  rows: [
+    ['Заработанная премия', 200.41, 0, '', false, 'neutral', 0, ''],
+    ['Исходящее перестрахование', 185.73, 14.68, 'Исходящее перестрахование', false, 'negative', 0, ''],
+    ['Страховые выплаты', 180.10, 5.63, 'Страховые выплаты', false, 'negative', 0, ''],
+    ['Изменение РЗУ', null, 0, 'Изменение РЗУ', false, 'negative', 0, ''],
+    ['Операционные расходы', 133.92, 46.18, 'Операционные расходы', false, 'negative', 0, ''],
+    ['Андеррайтинговый результат', 133.92 + 1e-5, 0, '', true, 'neutral', 0, ''],
+    ['Изменение РПНУ', 121.58, 12.34, 'Изменение РПНУ', false, 'negative', 0, ''],
+    ['Расчётный результат по МСФО-базе', null, 0, '', true, 'neutral', 0, ''],
+  ],
+}
+
+const unknownResultPanel: Panel = {
+  ...officialResultPanel,
+  id: 'unknown-result-bridge',
+  encoding: { ...officialResultPanel.encoding, annotation: 'annotation' },
+  // No header total: the closing figure is the thing this bridge cannot state.
+  total: undefined,
+}
+
+// The badge is the row's reason for existing: without it the column is a gap
+// with a name and no explanation. «Нет данных» for a stage nobody measured,
+// «Настроить» for a total waiting on configuration.
+const annotatedUnknownFrame: Frame = {
+  columns: [...unknownResultFrame.columns, { name: 'annotation', type: 'string' }],
+  rows: unknownResultFrame.rows.map((row) => [
+    ...row,
+    row[1] === null ? (row[4] === true ? 'Настроить' : 'Нет данных') : '',
+  ]),
+}
+
+export const WaterfallUnknownStage: Story = () => {
+  const document = storyDocument(unknownResultPanel, { bridge: annotatedUnknownFrame })
+  return <Runtime document={document}><CascadePanel panel={unknownResultPanel} /></Runtime>
+}
+
+// The stacked projection of the same bridge: an unknown stage prints the em
+// dash rather than «0 UZS», its movement says the same, and its track is an
+// outline rather than the empty rail a genuine zero draws.
+export const CascadeUnknownStage: Story = () => {
+  const panel: Panel = { ...unknownResultPanel, id: 'unknown-result-cascade', presentation: undefined }
+  const document = storyDocument(panel, { bridge: annotatedUnknownFrame })
+  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+}
+
+// The same unknown-amount bridge once its stages open something — and the
+// distinction worth pinning: a «Настроить» badge on a column that leads
+// somewhere, beside a «Нет данных» badge on one that does not. They used to be
+// the same red chip, and since an unknown column's bar is a dashed gap rather
+// than a shape to aim at, the one badge a reader was told to click looked
+// exactly like the one that answers nothing — and read as a status either way.
+//
+// The arrow is the whole difference at rest, and it is drawn on the condition a
+// drill cell's pill draws it: a destination that actually resolved. «Изменение
+// РЗУ» carries no url here and keeps a bare status badge.
+const navigableUnknownFrame: Frame = {
+  columns: [...annotatedUnknownFrame.columns, { name: 'detailUrl', type: 'string' }],
+  rows: annotatedUnknownFrame.rows.map((row) => [
+    ...row,
+    row[0] === 'Изменение РЗУ' ? '' : `/analytics/drill/${String(row[0])}`,
+  ]),
+}
+
+const navigableUnknownPanel: Panel = {
+  ...unknownResultPanel,
+  id: 'navigable-unknown-bridge',
+  frame: 'navigable-unknown',
+  actions: [{ kind: 'navigate', urlSource: { kind: 'field', name: 'detailUrl' }, params: [], payload: {} }],
+}
+
+export const WaterfallUnknownStageNavigates: Story = () => {
+  const document = storyDocument(navigableUnknownPanel, { 'navigable-unknown': navigableUnknownFrame })
+  return <Runtime document={document}><CascadePanel panel={navigableUnknownPanel} /></Runtime>
+}
+
+// The stacked projection of the same thing. Its rows have a hover plate and no
+// resting mark at all, so without the arrow the list says nothing about which
+// of its stages is a way in — the same failure, one layout over.
+export const CascadeUnknownStageNavigates: Story = () => {
+  const panel: Panel = { ...navigableUnknownPanel, id: 'navigable-unknown-cascade', presentation: undefined }
+  const document = storyDocument(panel, { 'navigable-unknown': navigableUnknownFrame })
+  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+}
+
 // Cascade-list projection of the same toned bridge: track fill and value text
 // follow the per-stage tone.
 export const CascadeSemanticTone: Story = () => {

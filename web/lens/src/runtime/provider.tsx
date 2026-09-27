@@ -50,9 +50,10 @@ import type { DocumentCache } from './prefetch'
 import type { PrintReport } from './print'
 import { QueryClient } from './query'
 import { PanelClient } from './panel'
-import { SnapshotGoneError } from './query'
+import { QueryError, SnapshotGoneError } from './query'
 import { queryWithSnapshotRecovery } from './recovery'
 import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL, siteRelativeURL } from './url'
+import { navigateTo } from './navigate'
 import { X } from '../icons'
 
 /* eslint-disable react-refresh/only-export-components */
@@ -1088,9 +1089,15 @@ function RuntimeCore({
       const { panel, attempt, key, previous, retry } = item
       if (launchedPanelAttempts.current.get(key) !== attempt) return
       if (response.error || !response.frames) {
+        // A classified failure travels as a QueryError so the panel can say
+        // what happened. A plain Error here would flatten every cause back into
+        // the one generic sentence, which is what the frame used to show.
+        const failure = response.error
+          ? new QueryError(response.error.error, response.error.message, 200, response.error.reason)
+          : new Error(`panel ${panel.id} response has no frames`)
         frames.set(panel.id, {
           data: previous, isStale: Boolean(previous), isLoading: false,
-          error: new Error(response.error?.message ?? `panel ${panel.id} response has no frames`),
+          error: failure,
           retry, calculation: frames.get(panel.id)?.calculation,
         })
         return
@@ -1560,6 +1567,14 @@ function RuntimeCore({
       return
     }
     const current = new URL(window.location.href)
+    // Cross-filtering belongs to the mounted document only while the target
+    // stays on that document. Cube drills may intentionally point at a
+    // separate report page; pushState would change the address without
+    // mounting that page, leaving the old dashboard visible until reload.
+    if (next.pathname !== current.pathname) {
+      navigateTo(siteRelativeURL(next.href, current) ?? next.href)
+      return
+    }
     if (!sameNavigationURL(current, next)) {
       window.history.pushState(browserStateFor(navigation, window.history.state), '', next)
     }

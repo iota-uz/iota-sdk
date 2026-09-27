@@ -99,7 +99,9 @@ export function subscribeManagedStream<TEvent>(contract: StreamContract<TEvent>,
         }
         attempt += 1
         const jitter = 0.75 + (options.random?.() ?? Math.random()) * 0.5
-        await abortableDelay(Math.min(8_000, baseDelay * 2 ** (attempt - 1)) * jitter, controller.signal)
+        await abortableDelay(Math.min(8_000, baseDelay * 2 ** (attempt - 1)) * jitter, controller.signal).catch(() => {
+          if (!controller.signal.aborted) throw new HostError('unknown', 'Reconnect backoff failed')
+        })
       }
     }
   }

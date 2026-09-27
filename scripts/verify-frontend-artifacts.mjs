@@ -22,6 +22,9 @@ try {
 
   const installedPackage = JSON.parse(await readFile(path.join(consumer, 'node_modules/@iota-uz/sdk/package.json'), 'utf8'))
   if (installedPackage.version !== manifest.packageVersion) throw new Error('consumer installed the wrong package version')
+  if (installedPackage.repository?.url !== 'https://github.com/iota-uz/iota-sdk') {
+    throw new Error('published package repository must match the SDK provenance repository')
+  }
   if (Object.keys(installedPackage.dependencies ?? {}).length !== 0) {
     throw new Error('implementation dependencies leaked into the public package dependency graph')
   }
@@ -37,6 +40,21 @@ try {
   const baseContents = (await Promise.all(baseAssets.filter((name) => name.endsWith('.js')).map((name) => readFile(path.join(consumer, 'dist/assets', name), 'utf8')))).join('\n')
   if (/echarts|LensDashboard|DashboardPanels/.test(baseContents)) {
     throw new Error('client-host-only bundle pulled Lens implementation code')
+  }
+
+  run('pnpm', ['add', '--ignore-scripts', '--strict-peer-dependencies', 'solid-js@1.9.15', 'vite-plugin-solid@2.11.8'])
+  await rm(path.join(consumer, 'dist'), { recursive: true, force: true })
+  await writeFile(path.join(consumer, 'main.js'), [
+    "import { createDraft, SDK_IDENTITY } from '@iota-uz/sdk/solid'",
+    "import '@iota-uz/sdk/styles.css'",
+    "document.querySelector('#app').dataset.runtime = createDraft.name + SDK_IDENTITY.releaseVersion",
+    '',
+  ].join('\n'))
+  run('pnpm', ['exec', 'vite', 'build'])
+  const solidAssets = await readdir(path.join(consumer, 'dist/assets'))
+  const solidContents = (await Promise.all(solidAssets.filter((name) => name.endsWith('.js')).map((name) => readFile(path.join(consumer, 'dist/assets', name), 'utf8')))).join('\n')
+  if (/react-dom|LensDashboard|DashboardPanels/.test(solidContents)) {
+    throw new Error('solid-only bundle pulled React or Lens implementation code')
   }
 
   await rm(path.join(consumer, 'dist'), { recursive: true, force: true })

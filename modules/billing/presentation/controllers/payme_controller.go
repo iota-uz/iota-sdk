@@ -549,6 +549,35 @@ func (c *PaymeController) perform(ctx context.Context, r *paymeapi.PerformTransa
 		return nil, &errRPC
 	}
 
+	// A perform resolves by transaction id alone, so nothing on Payme's side
+	// stops a customer paying a checkout the merchant has already stopped
+	// honouring — refusing it is the merchant's job, and the protocol says so:
+	// only states created and completed may be performed, everything else is
+	// terminal and answers -31008. Completed stays allowed because a repeated
+	// perform must be idempotent, not an error.
+	//
+	// Without this the transaction rides straight into InvokeCallback, whose
+	// host may well answer nil for a status it does not consider relevant, and
+	// a cancelled transaction is then stamped Completed: money accepted, with
+	// no order left to apply it to. Answering Payme with an error instead
+	// leaves the payment unconfirmed and Payme returns the funds.
+	//
+	// The refusal changes nothing on the transaction. It is already in the
+	// state it was cancelled into, and rewriting it here would overwrite the
+	// reason it carries.
+	switch {
+	case paymeDetails.State() != paymeapi.TransactionStateCreated &&
+		paymeDetails.State() != paymeapi.TransactionStateCompleted,
+		entity.Status() == billing.Canceled:
+		logger.WithFields(logrus.Fields{
+			"transaction_id": r.Id,
+			"state":          paymeDetails.State(),
+			"status":         entity.Status(),
+		}).Error("Transaction is no longer payable in PerformTransaction")
+		errRPC := paymeapi.PerformTransactionOperationNotAllowedError()
+		return nil, &errRPC
+	}
+
 	// Invoke callback to validate transaction
 	if err := c.billingService.InvokeCallback(ctx, entity); err != nil {
 		logger.WithError(err).WithField("transaction_id", r.Id).Error("Callback error in PerformTransaction")

@@ -171,6 +171,8 @@ export interface FacetSelection {
   removeUrl: string
 }
 
+export type FailureReason = "canceled" | "timeout" | "unknown"
+
 export interface FieldFormat {
   kind: FormatKind
   currency?: string
@@ -186,6 +188,7 @@ export interface Filter {
   id: string
   kind: FilterKind
   label?: string
+  placement?: FilterPlacement
   period?: PeriodFilter
   facet?: FacetFilter
   compare?: CompareFilter
@@ -193,6 +196,11 @@ export interface Filter {
 }
 
 export type FilterKind = "compare" | "facet" | "period" | "segmented"
+
+export interface FilterPlacement {
+  groupId: string
+  tab: string
+}
 
 export interface FlowReconciliation {
   tolerance?: number
@@ -581,6 +589,7 @@ export type QueryErrorCode = "bad_request" | "internal" | "snapshot_gone"
 export interface QueryErrorResponse {
   error: QueryErrorCode
   message: string
+  reason?: FailureReason
 }
 
 export interface QueryPage {

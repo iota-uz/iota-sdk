@@ -47,6 +47,23 @@ describe('Calendar', () => {
     expect(screen.getAllByRole('gridcell', { name: 'Aug 1, 2026' })).toHaveLength(1)
   })
 
+  // Six rows per pane whatever the month: a month can otherwise end in a row
+  // holding a single date, and the card changes height as the window steps.
+  // The surplus rows are padding, so they add no gridcell to either pane.
+  it('draws every month on the same six-row grid', () => {
+    // February 2026 starts on Sunday and fills exactly four Sunday-first weeks.
+    render(<Calendar {...baseProps} onPick={() => undefined} today={{ year: 2026, month: 2, day: 10 }} />)
+    for (const grid of grids()) {
+      const weeks = grid.querySelectorAll('.lens-calendar-week')
+      expect(weeks).toHaveLength(6)
+    }
+    const february = firstGrid()
+    expect(february.getAttribute('aria-label')).toContain('February 2026')
+    expect(within(february).getAllByRole('gridcell')).toHaveLength(28)
+    const lastWeek = february.querySelectorAll('.lens-calendar-week')[5]!
+    expect(within(lastWeek as HTMLElement).queryAllByRole('gridcell')).toHaveLength(0)
+  })
+
   it('uses one pane whenever the full popover would exceed the viewport', () => {
     const addEventListener = vi.fn()
     const removeEventListener = vi.fn()
@@ -971,6 +988,15 @@ describe('facet filter menu', () => {
 
     fireEvent.click(trigger)
     await screen.findByRole('checkbox', { name: /Option 1/ })
+    const menu = screen.getByRole('dialog', { name: 'Filters' })
+    // A conventional dropdown starts under the button's leading edge. The
+    // placement helper may still flip it at the viewport boundary.
+    expect(menu).toHaveAttribute('data-align', 'start')
+    // Placement is measured in viewport coordinates, so the menu must live in
+    // the shared body portal. Keeping it under the trigger would add the
+    // trigger row's offset a second time and push the card to the screen edge.
+    expect(view.container).not.toContainElement(menu)
+    expect(menu.parentElement).toHaveClass('lens-menu-overlay-root')
     // A staged selection is counted before it is applied, not after.
     expect(screen.getByText('Selected: 1')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('checkbox', { name: /Option 1/ }))

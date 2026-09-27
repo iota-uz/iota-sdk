@@ -62,6 +62,17 @@ const coverageFrame: Frame = {
   rows: [['В пределах резерва', 5_458_561_140], ['Сверх резерва', 0]],
 }
 
+const coverageSplitPanel: Panel = {
+  ...coveragePanel, id: 'payouts-split', frame: 'payouts-split:frame',
+  caption: 'ЧАСТЬ ВЫПЛАТ ВЫШЛА ЗА РЕЗЕРВ',
+  headline: 6_913_561_140,
+}
+
+const coverageSplitFrame: Frame = {
+  columns: [{ name: 'label', type: 'string' }, { name: 'amount', type: 'number' }],
+  rows: [['В пределах резерва', 5_458_561_140], ['Сверх резерва', 1_455_000_000]],
+}
+
 const underwritingPanel: Panel = {
   ...coveragePanel, id: 'payouts-uw', title: 'Андеррайтинговый результат',
   caption: 'РЕЗЕРВ ПОКРЫВАЕТ ЗАЯВЛЕННЫЕ УБЫТКИ',
@@ -224,6 +235,60 @@ export const MetricGroupSparkline: Story = () => {
 MetricGroupSparkline.storyName = 'Metric group sparkline'
 
 /**
+ * The same strip before any of its figures have landed.
+ *
+ * A KPI strip is the first thing on a board and the last thing to finish
+ * computing, so its loading state is what a reader looks at for the whole first
+ * second — and it was the one state nothing exercised. The figure slot has no
+ * text of its own while the panel is deferred, so a placeholder that borrowed
+ * its width from that slot resolved to zero and the strip painted a row of
+ * names over an empty gap: indistinguishable, for that whole second, from a
+ * board whose numbers had failed to arrive.
+ *
+ * The row beside the figure is crowded on purpose: the first metric is a link
+ * (so it draws its drill mark) and the second carries a sparkline, which are
+ * the two things the placeholder shares its flex row with.
+ */
+const loadingMetrics: Panel[] = metrics.map(({ panel }, index) => ({
+  ...panel,
+  deferred: true,
+  caption: ['Claims paid ÷ earned premium', 'Expenses ÷ earned premium', '(claims + expenses) ÷ earned premium', 'Earned premium − claims − expenses ± reserves'][index],
+  sparkline: index === 1 ? { values: [38.1, 39.4, 40.2, 40.9, 41.1, 41.4, 41.7] } : undefined,
+  terminal: index !== 0,
+  actions: index === 0
+    ? [{ kind: 'navigate' as const, urlTemplate: '/analytics/drill/loss-ratio', params: [], payload: {} }]
+    : [],
+}))
+
+/** A request that never settles: the panels stay in flight for the capture. */
+const neverSettles: typeof fetch = () => new Promise<Response>(() => undefined)
+
+export const MetricGroupLoading: Story = () => {
+  const doc: DashboardDocument = {
+    ...storyDocument(loadingMetrics, {}, {
+      rows: [{
+        heading: 'КЛЮЧЕВЫЕ КОЭФФИЦИЕНТЫ',
+        panels: loadingMetrics.map((panel) => ({
+          panelId: panel.id, span: 3,
+          groups: [{ id: 'earned', kind: 'metrics' as const, label: 'ПО ЗАРАБОТАННОЙ ПРЕМИИ', layout: 'columns' as const, span: 12 }],
+        })),
+      }],
+    }),
+    // Deferred panels are computed per panel after the document lands, which is
+    // the shape that puts every cell of the strip in flight at once.
+    endpoints: { panel: '/lens/panel' },
+  }
+  return (
+    <div className="lens-root">
+      <DocumentProvider fetcher={neverSettles} initialDocument={doc}>
+        <DashboardRuntimeProvider fetcher={neverSettles} locale="ru"><DashboardPanels /></DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>
+  )
+}
+MetricGroupLoading.storyName = 'Metric group loading'
+
+/**
  * A cube dashboard's KPI band is a headerless strip whose metrics carry both a
  * caption and a supporting note, and whose first metric is a link to its own
  * evidence. Three things have to hold at once here, and each of them broke a
@@ -309,6 +374,21 @@ export const TabGroup: Story = () => {
       }],
     },
   )
+  doc.filters = [{
+    id: 'business-type',
+    kind: 'segmented',
+    label: 'Тип бизнеса',
+    placement: { groupId: 'result', tab: 'Денежный результат' },
+    segmented: {
+      param: 'BusinessType',
+      value: 'all',
+      options: [
+        { value: 'all', label: 'Все' },
+        { value: 'direct', label: 'Прямое страхование' },
+        { value: 'reinsurance', label: 'Перестрахование' },
+      ],
+    },
+  }]
   return <Runtime doc={doc}><DashboardPanels /></Runtime>
 }
 
@@ -349,6 +429,20 @@ export const CoverageComposite: Story = () => {
     rows: [{ panels: [{ panelId: 'payouts', span: 12 }] }],
   })
   return <Runtime doc={doc}><CoveragePanel panel={coveragePanel} /></Runtime>
+}
+
+/**
+ * The plain multi-segment track — the shape a partition bar takes when it has
+ * no target and more than one non-zero part. CoverageComposite next door has a
+ * single positive segment and a zero remainder, so Lens draws no track for it
+ * at all: this variant is the only story that exercises the track, its hover
+ * emphasis, and the quieting of the segments the pointer is not on.
+ */
+export const CoverageSplit: Story = () => {
+  const doc = storyDocument([coverageSplitPanel], { 'payouts-split:frame': coverageSplitFrame }, {
+    rows: [{ panels: [{ panelId: 'payouts-split', span: 12 }] }],
+  })
+  return <Runtime doc={doc}><CoveragePanel panel={coverageSplitPanel} /></Runtime>
 }
 
 export const CompactTableCells: Story = () => {

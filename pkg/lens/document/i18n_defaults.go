@@ -44,6 +44,8 @@ func RuntimeI18nDefaults() map[string]string {
 		I18nTableAllRowsTotal:             "All rows total",
 		I18nTableFilteredRowCount:         "{filtered} of {total} rows",
 		I18nPanelError:                    "This panel could not be rendered.",
+		I18nPanelErrorTimeout:             "There is too much data in the selected period to load it in time. Pick a shorter period, or try again.",
+		I18nPanelErrorCanceled:            "Loading stopped before it finished. Try again when you are ready.",
 		I18nPanelInfoAbout:                "About {name}",
 		I18nChartBoxplotMin:               "Minimum",
 		I18nChartBoxplotQ1:                "Q1",

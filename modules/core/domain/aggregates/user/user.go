@@ -93,6 +93,15 @@ func WithPermissions(permissions []permission.Permission) Option {
 	}
 }
 
+// WithGroupPermissions supplies permissions inherited from the user's groups.
+// They remain separate from direct permissions so editing a user cannot turn
+// inherited grants into direct ones.
+func WithGroupPermissions(permissions []permission.Permission) Option {
+	return func(u *user) {
+		u.groupPermissions = permissions
+	}
+}
+
 func WithLastIP(ip string) Option {
 	return func(u *user) {
 		u.lastIP = ip
@@ -266,6 +275,7 @@ func New(
 		roles:               []role.Role{},
 		groupIDs:            []uuid.UUID{},
 		permissions:         []permission.Permission{},
+		groupPermissions:    []permission.Permission{},
 		lastLogin:           time.Time{},
 		lastAction:          time.Time{},
 		createdAt:           time.Now(),
@@ -303,6 +313,7 @@ type user struct {
 	roles               []role.Role
 	groupIDs            []uuid.UUID
 	permissions         []permission.Permission
+	groupPermissions    []permission.Permission
 	lastLogin           time.Time
 	lastAction          time.Time
 	createdAt           time.Time
@@ -503,19 +514,57 @@ func (u *user) Events() []interface{} {
 }
 
 func (u *user) Can(perm permission.Permission) bool {
-	for _, p := range u.permissions {
+	for _, p := range EffectivePermissions(u) {
 		if p.ID() == perm.ID() || (p.Resource() == perm.Resource() && p.Action() == perm.Action() &&
 			(p.Modifier() == permission.ModifierAll || p.Modifier() == perm.Modifier())) {
 			return true
 		}
 	}
+	return false
+}
 
-	for _, r := range u.roles {
-		if r.Can(perm) {
-			return true
+type groupPermissionProvider interface {
+	groupInheritedPermissions() []permission.Permission
+}
+
+func (u *user) groupInheritedPermissions() []permission.Permission {
+	return u.groupPermissions
+}
+
+// EffectivePermissions combines direct, direct-role, and group-role grants.
+func EffectivePermissions(u User) []permission.Permission {
+	if u == nil {
+		return nil
+	}
+
+	result := make([]permission.Permission, 0, len(u.Permissions()))
+	seen := make(map[uuid.UUID]struct{})
+	appendPermission := func(p permission.Permission) {
+		if p == nil {
+			return
+		}
+		if _, ok := seen[p.ID()]; ok {
+			return
+		}
+		seen[p.ID()] = struct{}{}
+		result = append(result, p)
+	}
+
+	for _, p := range u.Permissions() {
+		appendPermission(p)
+	}
+	for _, r := range u.Roles() {
+		for _, p := range r.Permissions() {
+			appendPermission(p)
 		}
 	}
-	return false
+	if provider, ok := u.(groupPermissionProvider); ok {
+		for _, p := range provider.groupInheritedPermissions() {
+			appendPermission(p)
+		}
+	}
+
+	return result
 }
 
 func (u *user) CanUpdate() bool {

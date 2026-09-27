@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -200,6 +201,113 @@ func TestPaymentController_List_HTMX_Request(t *testing.T) {
 		Expect(t).
 		Status(200).
 		Contains("$75.25")
+}
+
+func TestPaymentController_List_InfiniteScroll(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User(
+		permissions.PaymentRead,
+		permissions.PaymentCreate,
+	)
+
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewComponent()).Build().
+		AsUser(adminUser)
+
+	env := suite.Environment()
+	createCurrencies(t, env, currency.USD)
+
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
+	suite.Register(controller)
+
+	createdAccount, err := moneyAccountService.Create(env.Ctx, moneyAccountEntity.New(
+		"Chunk Account",
+		money.NewFromFloat(1000.00, "USD"),
+		moneyAccountEntity.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+
+	createdCategory := createPaymentCategory(t, env.Ctx, paymentCategoryService, paymentCategoryEntity.New(
+		"Chunk Category",
+		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
+	))
+
+	createdCounterparty, err := counterpartyService.Create(env.Ctx, counterparty.New(
+		"Chunk Counterparty",
+		counterparty.Customer,
+		counterparty.Individual,
+		counterparty.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+
+	for i, comment := range []string{"invoice", "invoice", "invoice", "advance"} {
+		_, err = paymentService.Create(env.Ctx, paymentAggregate.New(
+			money.NewFromFloat(float64(i+1)*10, "USD"),
+			createdCategory,
+			paymentAggregate.WithTenantID(env.Tenant.ID),
+			paymentAggregate.WithAccount(createdAccount),
+			paymentAggregate.WithCounterpartyID(createdCounterparty.ID()),
+			paymentAggregate.WithUser(adminUser),
+			paymentAggregate.WithComment(comment),
+			paymentAggregate.WithTransactionDate(time.Now()),
+			paymentAggregate.WithAccountingPeriod(time.Now()),
+		))
+		require.NoError(t, err)
+	}
+
+	html := suite.GET(PaymentBasePath + "?Search=invoice&limit=2").
+		Expect(t).
+		Status(200).
+		Contains("<html").
+		HTML()
+	require.Len(t, html.Elements("//tbody/tr[td[@data-col='amount']]"), 2)
+	next := html.Element("//tbody/tr[@hx-get]").Attr("hx-get")
+	require.Contains(t, next, "Search=invoice")
+	require.Contains(t, next, "page=2")
+	html.Element("//tr[@id='infinite-scroll-spinner']").Exists()
+
+	last := suite.GET(PaymentBasePath + "?Search=invoice&limit=2&page=2").
+		HTMX().
+		Expect(t).
+		Status(200).
+		NotContains("<form").
+		NotContains("hx-get").
+		NotContains("$40.00")
+	require.Equal(t, 1, strings.Count(last.Body(), `data-col="amount"`))
+
+	all := suite.GET(PaymentBasePath + "?Search=invoice&limit=3").
+		Expect(t).
+		Status(200).
+		Contains("$10.00").
+		Contains("$20.00").
+		Contains("$30.00").
+		NotContains("$40.00").
+		HTML()
+	all.Element("//tbody/tr[@hx-get]").NotExists()
+
+	suite.GET(PaymentBasePath + "?CreatedAt.From=" + url.QueryEscape(time.Now().Add(time.Hour).Format(time.RFC3339))).
+		HTMX().
+		Expect(t).
+		Status(200).
+		NotContains(`data-col="amount"`)
+
+	embedded := suite.GET(PaymentBasePath + "?embedded=true&limit=2").
+		HTMX().
+		Expect(t).
+		Status(200).
+		Contains("<form").
+		NotContains("<html")
+	require.Len(t, embedded.HTML().Elements("//tbody/tr[td[@data-col='amount']]"), 2)
+	suite.GET(PaymentBasePath + "?embedded=true&limit=2&page=2").
+		HTMX().
+		Expect(t).
+		Status(200).
+		NotContains("<form")
 }
 
 func TestPaymentController_GetNew_Success(t *testing.T) {

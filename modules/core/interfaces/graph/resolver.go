@@ -20,6 +20,7 @@ type Resolver struct {
 	userService       *services.UserService
 	uploadService     *services.UploadService
 	authService       *services.AuthService
+	browserSessions   *services.BrowserSessionService
 	uploadsAuthorizer types.UploadsAuthorizer
 	usersAuthorizer   types.UsersAuthorizer
 	httpCfg           *httpconfig.Config
@@ -67,6 +68,7 @@ func NewResolver(
 	userService *services.UserService,
 	uploadService *services.UploadService,
 	authService *services.AuthService,
+	browserSessions *services.BrowserSessionService,
 	httpCfg *httpconfig.Config,
 	cookiesCfg *cookies.Config,
 	appCfg *appconfig.Config,
@@ -77,6 +79,7 @@ func NewResolver(
 		userService:       userService,
 		uploadService:     uploadService,
 		authService:       authService,
+		browserSessions:   browserSessions,
 		uploadsAuthorizer: authorizers.NewDefaultUploadsAuthorizer(),
 		usersAuthorizer:   authorizers.NewDefaultUsersAuthorizer(userService),
 		httpCfg:           httpCfg,

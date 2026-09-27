@@ -158,6 +158,29 @@ func TestDocumentCompilesManualStaticDashboard(t *testing.T) {
 	require.Equal(t, "total", compiled.Spec.Rows[0].Panels[0].ID)
 }
 
+func TestDocumentFinalizesLegacyInertPanels(t *testing.T) {
+	t.Parallel()
+
+	stats, err := frame.FromRows("stats", frame.Row{"value": 7})
+	require.NoError(t, err)
+	doc := lensspec.Document{
+		Version:     lensspec.DocumentVersion,
+		ID:          "legacy-static",
+		Title:       lensspec.LiteralText("Legacy"),
+		Description: lensspec.LiteralText("Static"),
+		Datasets: []lensspec.DatasetSpec{{
+			Name: "stats", Kind: lens.DatasetKindStatic, StaticRef: "stats_dataset",
+		}},
+		Rows: []lensspec.RowSpec{{Panels: []lensspec.PanelSpec{{
+			ID: "total", Title: lensspec.LiteralText("Total"), Kind: panel.KindStat, Dataset: "stats",
+		}}}},
+	}
+
+	compiled, err := Document(doc, Options{Locale: "en", Values: map[string]any{"stats_dataset": stats}})
+	require.NoError(t, err)
+	require.True(t, compiled.Spec.Rows[0].Panels[0].Terminal)
+}
+
 func TestCompilePanelPreservesDrillTree(t *testing.T) {
 	t.Parallel()
 

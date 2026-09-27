@@ -239,6 +239,39 @@ describe('TablePanel columns', () => {
     // that some of the data is hidden.
     expect(screen.queryByText('Sort applies to this page only')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Next' })).toBeNull()
+    // Neither the row count nor pagination is showing: the footer band
+    // itself must be gone, not just empty. A short, unpaginated table has
+    // nothing to put there, and rendering it anyway reads as a row the
+    // producer forgot to fill.
+    expect(container.querySelector('.lens-table-footer')).toBeNull()
+  })
+
+  it('shows the footer and a row count once the table is long enough to disclose it', () => {
+    const manyRowsDocument: DashboardDocument = {
+      ...columnsDocument,
+      snapshotId: 'columns-many-rows-snapshot',
+      frames: {
+        'profitability:root': {
+          ...columnsDocument.frames['profitability:root']!,
+          rows: Array.from({ length: 12 }, (_, index) => [
+            String(index), `Client ${index}`, 1_000_000, 0, 0, `/clients/${index}`, '',
+          ]),
+        },
+      },
+    }
+
+    const { container } = render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={manyRowsDocument}>
+          <DashboardRuntimeProvider locale="en">
+            <TablePanel panel={columnsPanel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    expect(container.querySelector('.lens-table-footer')).not.toBeNull()
+    expect(screen.getByText('12 rows')).toBeDefined()
   })
 })
 

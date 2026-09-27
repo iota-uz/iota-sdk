@@ -157,17 +157,23 @@ const (
 	// legacy HTMX picker's DefaultQuickRanges: current month, 30 days,
 	// 12 months, current fiscal year (yearToDate), then last month and last
 	// fiscal year (lastYear).
-	I18nFilterPresetThisMonth      = "filter.period.preset.thisMonth"
-	I18nFilterPresetLast30Days     = "filter.period.preset.last30days"
-	I18nFilterPresetLast12Months   = "filter.period.preset.last12months"
-	I18nFilterPresetYearToDate     = "filter.period.preset.yearToDate"
-	I18nFilterPresetLastMonth      = "filter.period.preset.lastMonth"
-	I18nFilterPresetLastYear       = "filter.period.preset.lastYear"
-	I18nPanelCollapse              = "panel.collapse"
-	I18nPanelCalculation           = "panel.calculation"
-	I18nPanelCacheHit              = "panel.cacheHit"
-	I18nPanelCacheMiss             = "panel.cacheMiss"
-	I18nPanelError                 = "panel.error"
+	I18nFilterPresetThisMonth    = "filter.period.preset.thisMonth"
+	I18nFilterPresetLast30Days   = "filter.period.preset.last30days"
+	I18nFilterPresetLast12Months = "filter.period.preset.last12months"
+	I18nFilterPresetYearToDate   = "filter.period.preset.yearToDate"
+	I18nFilterPresetLastMonth    = "filter.period.preset.lastMonth"
+	I18nFilterPresetLastYear     = "filter.period.preset.lastYear"
+	I18nPanelCollapse            = "panel.collapse"
+	I18nPanelCalculation         = "panel.calculation"
+	I18nPanelCacheHit            = "panel.cacheHit"
+	I18nPanelCacheMiss           = "panel.cacheMiss"
+	I18nPanelError               = "panel.error"
+	// Reason-specific replacements for the generic failure sentence, named
+	// after the FailureReason the server classified. A catalogue that has not
+	// been extended yet keeps its own translated I18nPanelError, so a host is
+	// never dropped into an untranslated string by a newer server.
+	I18nPanelErrorTimeout          = "panel.error.timeout"
+	I18nPanelErrorCanceled         = "panel.error.canceled"
 	I18nPanelEmpty                 = "panel.empty"
 	I18nPanelExpand                = "panel.expand"
 	I18nPanelInfo                  = "panel.info"
@@ -372,7 +378,8 @@ func RuntimeI18nKeys() []string {
 		I18nExportDashboard, I18nExportData, I18nExportMenu, I18nExportPanel, I18nExportReport,
 		I18nExportPending, I18nExportRetry, I18nExportRetryHint, I18nExportPNG, I18nExportSVG, I18nExportImageError,
 		I18nPanelCalculation, I18nPanelCacheHit, I18nPanelCacheMiss,
-		I18nPanelCollapse, I18nPanelEmpty, I18nPanelError, I18nPanelExpand, I18nPanelInfo, I18nPanelInfoAbout, I18nPanelMissing, I18nPanelOpenMetric,
+		I18nPanelCollapse, I18nPanelEmpty, I18nPanelError, I18nPanelErrorTimeout, I18nPanelErrorCanceled,
+		I18nPanelExpand, I18nPanelInfo, I18nPanelInfoAbout, I18nPanelMissing, I18nPanelOpenMetric,
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
 		I18nPanelTrendNew, I18nPanelTrendNotAvailable, I18nPanelTrendPercentagePoints,
 		I18nPanelTrendBaseline,

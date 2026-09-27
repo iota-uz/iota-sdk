@@ -1,7 +1,16 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import type { Filter, PeriodValue } from '../contract'
-import { CalendarBlank, CaretDown, CaretLeft, CaretRight } from '../icons'
+import {
+  CalendarBlank,
+  CaretDown,
+  CaretLeft,
+  CaretRight,
+  ChartLine,
+  Clock,
+  InfinityLoop,
+  type IconProps,
+} from '../icons'
 import { currentPeriodValue, useDashboard, useFilters, useTranslate } from '../runtime'
 import { useOverlayContainer } from '../runtime/overlayContainer'
 import { isVisualRegression } from '../visualRegression'
@@ -80,13 +89,43 @@ interface RenderablePreset {
   value: PeriodValue
   /** Completed past period — rendered after the rail's divider. */
   past?: boolean
+  /** Leading glyph in the rail. Absent for the producer's own periods. */
+  icon?: ComponentType<IconProps>
+}
+
+/**
+ * What shape of period each built-in entry is, said in a glyph: a calendar for
+ * the ones bounded by a named month, a clock for a rolling window of days, a
+ * plot for a span long enough to have a trend. Three marks for six entries is
+ * the point — the rail is scanned for a kind of period first and the exact one
+ * second, and six distinct glyphs would be six things to learn.
+ *
+ * The producer's declared periods (the year chips) carry none: a year names
+ * itself, and a glyph beside «2025» would only say "this is a date".
+ */
+const presetGlyphs: Readonly<Record<string, ComponentType<IconProps>>> = {
+  thisMonth: CalendarBlank,
+  lastMonth: CalendarBlank,
+  last30days: Clock,
+  last12months: ChartLine,
+  yearToDate: ChartLine,
+  lastYear: ChartLine,
+}
+
+/** The rail's leading glyph slot. Always rendered, so labels share one column. */
+function PresetIcon({ glyph: Glyph }: { glyph?: ComponentType<IconProps> }) {
+  return (
+    <span aria-hidden="true" className="lens-filter-preset-icon">
+      {Glyph ? <Glyph size={15} /> : null}
+    </span>
+  )
 }
 
 /**
  * The built-in relative catalog resolved against `today`. Entries whose bounds
  * fall outside the filter's min/max are dropped so a click can never produce a
  * value the declaration rejects. `allTime` is intentionally absent — the
- * control surfaces it through its own footer chip.
+ * control surfaces it through its own entry at the foot of the rail.
  */
 function catalogPresets(
   period: NonNullable<Filter['period']>,
@@ -100,7 +139,13 @@ function catalogPresets(
     const value = { start: formatISODate(bounds.start), end: formatISODate(bounds.end) }
     if (period.min && value.start < period.min) continue
     if (period.max && value.end > period.max) continue
-    presets.push({ id: def.id, label: translate(def.labelKey, def.fallback), value, past: def.past })
+    presets.push({
+      id: def.id,
+      label: translate(def.labelKey, def.fallback),
+      value,
+      past: def.past,
+      icon: presetGlyphs[def.id],
+    })
   }
   return presets
 }
@@ -122,7 +167,7 @@ function declaredPresets(period: NonNullable<Filter['period']>): Array<Renderabl
   if (!period.presets || period.presets.length === 0) return []
   return period.presets
     // An open-ended declared preset is this control's own "All time", which it
-    // already pins to the foot of the rail as the clear-like action it is.
+    // already renders as the last entry of the rail's completed group.
     // Declared and built-in used to live in different surfaces — a header chip
     // and a rail entry — so the duplicate was invisible; in one list it is the
     // same word twice, and neither copy says which one a press would apply.
@@ -467,8 +512,9 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
             {(presets.length > 0 || relativePresets.length > 0 || period.allowEmpty) && (
               // The rail leads with the producer's own periods, unheaded because
               // a list of years names itself, then two headed groups of relative
-              // ones — still running, then completed — with All time pinned to
-              // the foot as the clear-like action it is, not a third preset.
+              // ones — still running, then completed. All time closes the
+              // completed group as its last entry: it is the widest finished
+              // period this dashboard can be read over, not a group of one.
               <div className="lens-filter-popover-side">
                 {presets.map((preset) => (
                   <button
@@ -478,7 +524,8 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
                     onClick={() => applyValue(preset.value)}
                     type="button"
                   >
-                    {preset.label}
+                    <PresetIcon glyph={preset.icon} />
+                    <span className="lens-filter-preset-label">{preset.label}</span>
                   </button>
                 ))}
                 {toDatePresets.length > 0 && (
@@ -494,7 +541,8 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
                     onClick={() => applyValue(preset.value)}
                     type="button"
                   >
-                    {preset.label}
+                    <PresetIcon glyph={preset.icon} />
+                    <span className="lens-filter-preset-label">{preset.label}</span>
                   </button>
                 ))}
                 {pastPresets.length > 0 && (
@@ -510,7 +558,8 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
                     onClick={() => applyValue(preset.value)}
                     type="button"
                   >
-                    {preset.label}
+                    <PresetIcon glyph={preset.icon} />
+                    <span className="lens-filter-preset-label">{preset.label}</span>
                   </button>
                 ))}
                 {period.allowEmpty && (
@@ -520,7 +569,8 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
                     onClick={() => applyValue({ start: '', end: '' })}
                     type="button"
                   >
-                    {allTime}
+                    <PresetIcon glyph={InfinityLoop} />
+                    <span className="lens-filter-preset-label">{allTime}</span>
                   </button>
                 )}
               </div>
@@ -539,6 +589,7 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
                 <label className="lens-filter-range-field">
                   <span className="lens-filter-range-caption">{translate('filter.period.from', 'From')}</span>
                   <span className="lens-filter-range-input" data-invalid={fields.start.invalid || undefined}>
+                    <CalendarBlank className="lens-filter-range-icon" size={14} />
                     <input
                       className="lens-filter-input"
                       inputMode="numeric"
@@ -555,6 +606,7 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
                 <label className="lens-filter-range-field">
                   <span className="lens-filter-range-caption">{translate('filter.period.to', 'To')}</span>
                   <span className="lens-filter-range-input" data-invalid={fields.end.invalid || undefined}>
+                    <CalendarBlank className="lens-filter-range-icon" size={14} />
                     <input
                       className="lens-filter-input"
                       inputMode="numeric"
@@ -572,6 +624,9 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
                   once it is a range, the next step while it is not — so the
                   summary has a home instead of dangling under the grid. */}
               <div className="lens-filter-popover-footer">
+                <span aria-hidden="true" className="lens-filter-summary-badge">
+                  <Clock size={14} />
+                </span>
                 <span className="lens-filter-summary" data-complete={draftComplete || undefined}>
                   {rangeHint(draft, translate)}
                 </span>

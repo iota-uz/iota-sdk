@@ -37,6 +37,10 @@ type CompiledDocument struct {
 }
 
 func Document(doc lensspec.Document, opts Options) (CompiledDocument, error) {
+	// Documents created through the builder API predate the explicit terminal
+	// marker. Normalize their interaction contract before validation so those
+	// inert legacy leaves remain valid without changing their rendered behavior.
+	doc = lensspec.FinalizeInteractionContract(doc)
 	if err := doc.Validate(); err != nil {
 		return CompiledDocument{}, err
 	}
@@ -377,10 +381,12 @@ func compileDimension(item lensspec.DimensionSpec, opts Options) (cube.Dimension
 		LabelField:   resolveString(item.LabelField, opts.Values),
 		ColorField:   resolveString(item.ColorField, opts.Values),
 		PanelKind:    item.PanelKind,
+		Height:       resolveString(item.Height, opts.Values),
 		Description:  resolveText(item.Description, opts),
 		RequiresJoin: resolveStringSlice(item.RequiresJoin, opts.Values),
 		Colors:       resolveStringSlice(item.Colors, opts.Values),
 		ValueAxis:    item.ValueAxis,
+		ColorScale:   resolveString(item.ColorScale, opts.Values),
 		Presentation: item.Presentation,
 	}
 	if item.Map != nil {

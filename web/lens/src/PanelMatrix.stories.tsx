@@ -502,6 +502,57 @@ const panelVariants: Array<PanelVariant> = [
   { label: 'coverage + target', panel: coverageTargetPanel, frame: coverageFrame },
 ]
 
+/**
+ * A bridge with amounts nobody has: one stage mid-cascade, and the closing
+ * total itself. Both arrive as a null cell — the wire's way of saying "not
+ * computed", as distinct from a zero — and both carry the producer's badge
+ * explaining what to do about it.
+ *
+ * Coerced to numbers these drew a full-height deduction to the axis and a
+ * duplicated, inert closing column. Kept as unknowns they are gaps: a dashed
+ * rule on the running total the cascade last knew, an em dash where the figure
+ * would be, the name and the badge intact, and the deltas after them still
+ * measured from that last known total.
+ */
+const unknownCascadeFrame: Frame = {
+  columns: [
+    { name: 'label', type: 'string' },
+    { name: 'value', type: 'number' },
+    { name: 'cut', type: 'number' },
+    { name: 'cutLabel', type: 'string' },
+    { name: 'final', type: 'bool' },
+    { name: 'annotation', type: 'string' },
+  ],
+  rows: [
+    ['Gross margin', 3120000, 0, '', false, ''],
+    ['After claims', 2260000, 860000, 'Claims paid', false, ''],
+    ['Reserve movement', null, 0, 'Reserve movement', false, 'No data'],
+    ['After operating costs', 1840000, 420000, 'Operating costs', false, ''],
+    ['Operating margin', null, 0, '', true, 'Configure'],
+  ],
+}
+
+const unknownCascadePanel: Panel = {
+  ...storyPanel('cascade'),
+  id: 'cascade-unknown-panel',
+  title: 'Margin bridge',
+  frame: 'cascade-unknown-frame',
+  encoding: {
+    label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel',
+    final: 'final', annotation: 'annotation',
+  },
+}
+
+// The stacked projection only. A waterfall reserves a minimum width per column
+// and a matrix cell is a fifth of the viewport, so a bridge plotted here is a
+// picture of its first two columns — the gap ones, the subject, are off the
+// right edge. The plot has its own story (`panels-v2--waterfall-unknown-stage`);
+// what this matrix is for is that an unknown value survives every panel state,
+// and that is a property of the panel, not of the projection.
+const unknownCascadeVariants: Array<PanelVariant> = [
+  { label: 'cascade + unknown stage', panel: unknownCascadePanel, frame: unknownCascadeFrame },
+]
+
 function variantDocument(variant: PanelVariant, state: PanelState): DashboardDocument {
   const base = storyDocument('stat', state)
   const includeFrame = state === 'data' || state === 'stale' || state === 'empty'
@@ -538,13 +589,13 @@ function VariantCell({ variant, state }: { variant: PanelVariant; state: PanelSt
   )
 }
 
-function VariantMatrix({ theme }: { theme: 'light' | 'dark' }) {
+function VariantMatrix({ theme, variants }: { theme: 'light' | 'dark'; variants: Array<PanelVariant> }) {
   return (
     <div className="lens-root lens-story-matrix" data-theme={theme}>
       <div className="lens-story-matrix-grid">
         <span />
         {states.map((state) => <strong key={state}>{state}</strong>)}
-        {panelVariants.flatMap((variant) => [
+        {variants.flatMap((variant) => [
           <strong className="lens-story-row-label" key={`${variant.panel.id}-label`}>{variant.label}</strong>,
           ...states.map((state) => <VariantCell variant={variant} state={state} key={`${variant.panel.id}-${state}`} />),
         ])}
@@ -553,8 +604,17 @@ function VariantMatrix({ theme }: { theme: 'light' | 'dark' }) {
   )
 }
 
-export const VariantsLight: Story = () => <VariantMatrix theme="light" />
+export const VariantsLight: Story = () => <VariantMatrix theme="light" variants={panelVariants} />
 VariantsLight.storyName = 'Sparkline and coverage target - light'
 
-export const VariantsDark: Story = () => <VariantMatrix theme="dark" />
+export const VariantsDark: Story = () => <VariantMatrix theme="dark" variants={panelVariants} />
 VariantsDark.storyName = 'Sparkline and coverage target - dark'
+
+// A bridge with unknown amounts through every state the panel has. An unknown
+// value is a property of the DATA: none of loading, empty, error or stale may
+// stand in for it, and it may not stand in for any of them.
+export const UnknownCascadeLight: Story = () => <VariantMatrix theme="light" variants={unknownCascadeVariants} />
+UnknownCascadeLight.storyName = 'Unknown cascade stage - light'
+
+export const UnknownCascadeDark: Story = () => <VariantMatrix theme="dark" variants={unknownCascadeVariants} />
+UnknownCascadeDark.storyName = 'Unknown cascade stage - dark'
