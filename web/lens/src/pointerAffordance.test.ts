@@ -34,7 +34,7 @@ describe('pointer affordance', () => {
     // from its tag; a regex that stopped matching would make the case above
     // pass on an empty sheet.
     const styles = readFileSync('src/styles.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
-    const list = /(?<selector>[^{}]*)\{\s*@apply lens-cursor-pointer;\s*\}/.exec(styles)?.groups?.selector
+    const list = /(?<selector>[^{}]*)\{\s*@apply lens:cursor-pointer;\s*\}/.exec(styles)?.groups?.selector
     expect(list, 'the shared cursor rule is gone or no longer applies only the cursor').toBeDefined()
     expect(list).toContain(".lens-waterfall-column[role='button']")
     expect(list).toContain(".lens-cascade-stage[role='button']")

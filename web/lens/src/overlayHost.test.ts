@@ -89,6 +89,6 @@ describe('body-level overlay hosts', () => {
     // The host must not block; the card on it must still answer a pointer, or
     // its own buttons and its selectable text are dead.
     expect(declarationsFor(card), `${card} sits on a non-blocking host and must re-enable pointer events`)
-      .toMatch(/pointer-events:\s*auto|lens-pointer-events-auto/)
+      .toMatch(/pointer-events:\s*auto|lens:pointer-events-auto|lens-pointer-events-auto/)
   })
 })

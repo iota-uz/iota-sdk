@@ -103,11 +103,11 @@ it('wraps custom comparison dates without widening narrow dashboards', () => {
   const field = styles.match(/\.lens-compare-custom input \{(?<rule>[^}]+)\}/)?.groups?.rule
   const responsive = styles.match(/@media \(max-width: 768px\) \{(?<rule>[\s\S]*?)\n {2}\}/)?.groups?.rule
 
-  expect(shared).toContain('lens-max-w-[calc(100vw-24px)]')
-  expect(popover).toContain('lens-w-max')
-  expect(custom).toContain('lens-flex-wrap')
-  expect(field).toContain('lens-min-w-0')
-  expect(field).toContain('lens-flex-1')
+  expect(shared).toContain('lens:max-w-[calc(100vw-24px)]')
+  expect(popover).toContain('lens:w-max')
+  expect(custom).toContain('lens:flex-wrap')
+  expect(field).toContain('lens:min-w-0')
+  expect(field).toContain('lens:flex-1')
   expect(responsive).toContain('.lens-compare-filter')
   expect(responsive).toContain('min-width: 0')
   expect(responsive).toContain('width: 100%')
