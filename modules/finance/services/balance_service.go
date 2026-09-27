@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"github.com/google/uuid"
@@ -93,7 +94,13 @@ func (s *BalanceService) AccountBalance(ctx context.Context, accountID uuid.UUID
 	if err != nil {
 		return Balance{}, serrors.E(op, err)
 	}
-	return byCurrency[account.Balance().Currency().Code], nil
+	accountCurrency := account.Balance().Currency().Code
+	for code := range byCurrency {
+		if code != accountCurrency {
+			return Balance{}, serrors.E(op, fmt.Errorf("account in %s has a reserve in %s", accountCurrency, code))
+		}
+	}
+	return byCurrency[accountCurrency], nil
 }
 
 // combine groups amounts by currency and subtracts reserves from what is on

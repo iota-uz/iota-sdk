@@ -180,6 +180,62 @@ func TestDebtController_Update_KeepsSettledPart(t *testing.T) {
 	require.Nil(t, updated.MoneyAccountID())
 }
 
+func TestDebtController_Update_KeepsCurrencyAndOpenStatus(t *testing.T) {
+	t.Parallel()
+	f := newObligationFixture(t)
+	created := f.createPayable(t, 300, nil)
+
+	html := f.suite.GET(fmt.Sprintf("%s/%s/drawer", DebtBasePath, created.ID())).
+		Expect(t).
+		Status(200).
+		HTML()
+	html.Element("//select[@name='CurrencyCode' and @disabled]").Exists()
+
+	form := f.obligationForm("300.00", "")
+	form.Set("CurrencyCode", "UZS")
+	f.suite.POST(fmt.Sprintf("%s/%s", DebtBasePath, created.ID())).
+		Form(form).
+		HTMX().
+		Expect(t).
+		Status(200)
+
+	updated, err := f.debtService.GetByID(f.env.Ctx, created.ID())
+	require.NoError(t, err)
+	require.Equal(t, "USD", updated.OriginalAmount().Currency().Code)
+	require.Equal(t, "USD", updated.OutstandingAmount().Currency().Code)
+
+	form.Set("Status", string(debtAggregate.DebtStatusCancelled))
+	response := f.suite.POST(fmt.Sprintf("%s/%s", DebtBasePath, created.ID())).
+		Form(form).
+		HTMX().
+		Expect(t).
+		Status(200)
+	require.Empty(t, response.Header("HX-Redirect"))
+
+	unchanged, err := f.debtService.GetByID(f.env.Ctx, created.ID())
+	require.NoError(t, err)
+	require.Equal(t, debtAggregate.DebtStatusPending, unchanged.Status())
+	require.Equal(t, int64(30000), unchanged.OutstandingAmount().Amount())
+}
+
+func TestDebtController_RejectsUnknownProject(t *testing.T) {
+	t.Parallel()
+	f := newObligationFixture(t)
+
+	form := f.obligationForm("300.00", "")
+	form.Set("ProjectID", uuid.NewString())
+	f.suite.POST(DebtBasePath).
+		Form(form).
+		HTMX().
+		HTMXTarget("debt-create-drawer").
+		Expect(t).
+		Status(400)
+
+	debts, err := f.debtService.GetAll(f.env.Ctx)
+	require.NoError(t, err)
+	require.Empty(t, debts)
+}
+
 func TestDebtController_Update_ValidationErrorKeepsInput(t *testing.T) {
 	t.Parallel()
 	f := newObligationFixture(t)
@@ -297,4 +353,12 @@ func TestFinancialOverviewController_Balances(t *testing.T) {
 		Contains("$1,000.00").
 		Contains("$350.00").
 		Contains("$650.00")
+
+	accounts := itf.GetService[services.MoneyAccountService](f.env)
+	usdAccount, err := accounts.GetByID(f.env.Ctx, f.usdAccountID)
+	require.NoError(t, err)
+	_, err = accounts.Update(f.env.Ctx, usdAccount.UpdateBalance(money.NewFromFloat(1000.00, "UZS")))
+	require.NoError(t, err)
+	_, err = itf.GetService[services.BalanceService](f.env).AccountBalance(f.env.Ctx, f.usdAccountID)
+	require.Error(t, err)
 }

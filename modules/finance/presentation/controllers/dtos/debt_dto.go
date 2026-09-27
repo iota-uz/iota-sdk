@@ -82,14 +82,14 @@ type DebtCreateDTO struct {
 
 // DebtUpdateDTO leaves a field unchanged when it is empty, except the account
 // and the project: the form always sends them, and empty unlinks the debt.
+// The currency of an existing debt does not change.
 type DebtUpdateDTO struct {
 	Amount         float64 `validate:"gt=0"`
-	CurrencyCode   string  `validate:"omitempty,len=3"`
 	CounterpartyID string  `validate:"omitempty,uuid"`
 	Type           string  `validate:"omitempty,oneof=RECEIVABLE PAYABLE"`
 	Description    string
 	DueDate        shared.DateOnly
-	Status         string `validate:"omitempty,oneof=PENDING SETTLED PARTIAL WRITTEN_OFF CANCELLED"`
+	Status         string `validate:"omitempty,oneof=PENDING PARTIAL"`
 	MoneyAccountID string `validate:"omitempty,uuid"`
 	ProjectID      string `validate:"omitempty,uuid"`
 }
@@ -146,9 +146,6 @@ func (d *DebtUpdateDTO) Apply(existing debt.Debt) (debt.Debt, error) {
 	updated := existing
 
 	currency := existing.OriginalAmount().Currency().Code
-	if d.CurrencyCode != "" {
-		currency = d.CurrencyCode
-	}
 	if d.Amount > 0 {
 		updated = updated.UpdateOriginalAmount(money.NewFromFloat(d.Amount, currency))
 	} else {

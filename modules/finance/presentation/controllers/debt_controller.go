@@ -293,7 +293,6 @@ func withFormValues(vm *viewmodels.Debt, dto *dtos.DebtUpdateDTO) *viewmodels.De
 	vm.CounterpartyID = dto.CounterpartyID
 	vm.Type = dto.Type
 	vm.OriginalAmount = fmt.Sprintf("%.2f", dto.Amount)
-	vm.CurrencyCode = dto.CurrencyCode
 	vm.MoneyAccountID = dto.MoneyAccountID
 	vm.ProjectID = dto.ProjectID
 	vm.Description = dto.Description
@@ -311,6 +310,14 @@ func accountError(ctx context.Context, err error) (map[string]string, bool) {
 	}
 	pageCtx := composables.UsePageCtx(ctx)
 	return map[string]string{"MoneyAccountID": pageCtx.T("Debts.Errors.AccountCurrency")}, true
+}
+
+// debtErrorStatus answers a project from another tenant as a bad request.
+func debtErrorStatus(err error) int {
+	if errors.Is(err, services.ErrDebtProject) {
+		return http.StatusBadRequest
+	}
+	return http.StatusInternalServerError
 }
 
 func (c *DebtsController) GetEditDrawer(w http.ResponseWriter, r *http.Request) {
@@ -393,7 +400,7 @@ func (c *DebtsController) Create(w http.ResponseWriter, r *http.Request) {
 			c.renderCreateDrawer(w, r, dto, errorsMap)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), debtErrorStatus(err))
 		return
 	}
 
@@ -440,7 +447,7 @@ func (c *DebtsController) Update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errorsMap, ok = accountError(ctx, err); !ok {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, err.Error(), debtErrorStatus(err))
 			return
 		}
 	}

@@ -17,6 +17,9 @@ type ProjectRef struct {
 // without it debts are simply not linked to projects.
 type ProjectDirectory interface {
 	Projects(ctx context.Context) ([]ProjectRef, error)
+	// Has reports whether the project belongs to the current tenant,
+	// whatever the user may read.
+	Has(ctx context.Context, id uuid.UUID) (bool, error)
 }
 
 type noProjects struct{}
@@ -28,4 +31,8 @@ func NewNoProjects() ProjectDirectory {
 
 func (noProjects) Projects(context.Context) ([]ProjectRef, error) {
 	return nil, nil
+}
+
+func (noProjects) Has(context.Context, uuid.UUID) (bool, error) {
+	return false, nil
 }

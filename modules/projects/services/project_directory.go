@@ -2,8 +2,12 @@ package services
 
 import (
 	"context"
+	"errors"
+
+	"github.com/google/uuid"
 
 	financeservices "github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/modules/projects/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/projects/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -15,6 +19,18 @@ type ProjectDirectory struct {
 
 func NewProjectDirectory(projectService *ProjectService) financeservices.ProjectDirectory {
 	return &ProjectDirectory{projectService: projectService}
+}
+
+// Has reports whether the project belongs to the current tenant.
+func (d *ProjectDirectory) Has(ctx context.Context, id uuid.UUID) (bool, error) {
+	_, err := d.projectService.GetByID(ctx, id)
+	if errors.Is(err, persistence.ErrProjectNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // Projects lists the tenant's projects, or none when the user cannot read them.

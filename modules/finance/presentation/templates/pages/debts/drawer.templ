@@ -44,6 +44,9 @@ type debtFieldValues struct {
 	Type           string
 	Amount         string
 	CurrencyCode   string
+	// CurrencyLocked shows the currency without letting it change: an
+	// existing debt keeps the currency it was created in.
+	CurrencyLocked bool
 	MoneyAccountID string
 	ProjectID      string
 	Description    string
@@ -108,7 +111,7 @@ templ debtFields(values debtFieldValues, options DrawerOptions, errors map[strin
 			Value:       values.CurrencyCode,
 			Currencies:  options.Currencies,
 			Error:       errors["CurrencyCode"],
-			Attrs:       templ.Attributes{"name": "CurrencyCode"},
+			Attrs:       templ.Attributes{"name": "CurrencyCode", "disabled": values.CurrencyLocked},
 		})
 	</div>
 	@base.Select(&base.SelectProps{
@@ -194,6 +197,7 @@ templ EditDrawer(props *DrawerEditProps) {
 							Type:           props.Debt.Type,
 							Amount:         props.Debt.OriginalAmount,
 							CurrencyCode:   props.Debt.CurrencyCode,
+							CurrencyLocked: true,
 							MoneyAccountID: props.Debt.MoneyAccountID,
 							ProjectID:      props.Debt.ProjectID,
 							Description:    props.Debt.Description,

@@ -20,22 +20,27 @@ var (
 	ErrDebtAccountCurrency = errors.New("debt currency differs from its account currency")
 	// ErrDebtNotOpen means the debt is already settled, written off or cancelled.
 	ErrDebtNotOpen = errors.New("debt is not open")
+	// ErrDebtProject means the debt names a project the tenant does not have.
+	ErrDebtProject = errors.New("debt project not found")
 )
 
 type DebtService struct {
 	repo        debt.Repository
 	accountRepo moneyaccount.Repository
+	projects    ProjectDirectory
 	publisher   eventbus.EventBus
 }
 
 func NewDebtService(
 	repo debt.Repository,
 	accountRepo moneyaccount.Repository,
+	projects ProjectDirectory,
 	publisher eventbus.EventBus,
 ) *DebtService {
 	return &DebtService{
 		repo:        repo,
 		accountRepo: accountRepo,
+		projects:    projects,
 		publisher:   publisher,
 	}
 }
@@ -51,6 +56,21 @@ func (s *DebtService) checkAccount(ctx context.Context, entity debt.Debt) error 
 	}
 	if !account.Balance().SameCurrency(entity.OriginalAmount()) {
 		return ErrDebtAccountCurrency
+	}
+	return nil
+}
+
+func (s *DebtService) checkProject(ctx context.Context, entity debt.Debt) error {
+	projectID := entity.ProjectID()
+	if projectID == nil {
+		return nil
+	}
+	ok, err := s.projects.Has(ctx, *projectID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrDebtProject
 	}
 	return nil
 }
@@ -99,6 +119,9 @@ func (s *DebtService) Create(ctx context.Context, entity debt.Debt) (debt.Debt, 
 	if err := s.checkAccount(ctx, entity); err != nil {
 		return nil, err
 	}
+	if err := s.checkProject(ctx, entity); err != nil {
+		return nil, err
+	}
 
 	createdEvent, err := debt.NewDebtCreatedEvent(ctx, entity, entity)
 	if err != nil {
@@ -125,6 +148,9 @@ func (s *DebtService) Update(ctx context.Context, entity debt.Debt) (debt.Debt, 
 		return nil, err
 	}
 	if err := s.checkAccount(ctx, entity); err != nil {
+		return nil, err
+	}
+	if err := s.checkProject(ctx, entity); err != nil {
 		return nil, err
 	}
 
