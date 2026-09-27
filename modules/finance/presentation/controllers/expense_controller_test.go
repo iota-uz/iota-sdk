@@ -226,6 +226,7 @@ func TestExpenseController_List_InfiniteScroll(t *testing.T) {
 	html := suite.GET(ExpenseBasePath + "?Search=rent&limit=2").
 		Expect(t).
 		Status(200).
+		Contains("<html").
 		HTML()
 	require.Len(t, html.Elements("//tbody/tr[td[@data-col='amount']]"), 2)
 	next := html.Element("//tbody/tr[@hx-get]").Attr("hx-get")

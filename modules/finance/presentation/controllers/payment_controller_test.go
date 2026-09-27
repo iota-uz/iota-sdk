@@ -263,6 +263,7 @@ func TestPaymentController_List_InfiniteScroll(t *testing.T) {
 	html := suite.GET(PaymentBasePath + "?Search=invoice&limit=2").
 		Expect(t).
 		Status(200).
+		Contains("<html").
 		HTML()
 	require.Len(t, html.Elements("//tbody/tr[td[@data-col='amount']]"), 2)
 	next := html.Element("//tbody/tr[@hx-get]").Attr("hx-get")
@@ -288,6 +289,12 @@ func TestPaymentController_List_InfiniteScroll(t *testing.T) {
 		NotContains("$40.00").
 		HTML()
 	all.Element("//tbody/tr[@hx-get]").NotExists()
+
+	suite.GET(PaymentBasePath + "?CreatedAt.From=" + url.QueryEscape(time.Now().Add(time.Hour).Format(time.RFC3339))).
+		HTMX().
+		Expect(t).
+		Status(200).
+		NotContains(`data-col="amount"`)
 
 	embedded := suite.GET(PaymentBasePath + "?embedded=true&limit=2").
 		HTMX().

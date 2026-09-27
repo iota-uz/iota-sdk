@@ -144,10 +144,15 @@ func (s *PaymentService) Delete(ctx context.Context, id uuid.UUID) (payment.Paym
 }
 
 func (s *PaymentService) Count(ctx context.Context, params *payment.FindParams) (int64, error) {
+	const op serrors.Op = "PaymentService.Count"
 	if err := composables.CanUser(ctx, permissions.PaymentRead); err != nil {
-		return 0, err
+		return 0, serrors.E(op, err)
 	}
-	return s.repo.Count(ctx, params)
+	count, err := s.repo.Count(ctx, params)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+	return count, nil
 }
 
 // AttachFileToPayment attaches an upload to a payment

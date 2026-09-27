@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -64,9 +65,10 @@ func NewPaymentRepository() payment.Repository {
 }
 
 func (g *GormPaymentRepository) GetPaginated(ctx context.Context, params *payment.FindParams) ([]payment.Payment, error) {
+	const op serrors.Op = "GormPaymentRepository.GetPaginated"
 	where, args, err := paymentFilters(ctx, params)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	q := repo.Join(
 		paymentFindQuery,
@@ -78,17 +80,18 @@ func (g *GormPaymentRepository) GetPaginated(ctx context.Context, params *paymen
 }
 
 func (g *GormPaymentRepository) Count(ctx context.Context, params *payment.FindParams) (int64, error) {
+	const op serrors.Op = "GormPaymentRepository.Count"
 	where, args, err := paymentFilters(ctx, params)
 	if err != nil {
-		return 0, err
+		return 0, serrors.E(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, err
+		return 0, serrors.E(op, err)
 	}
 	var count int64
 	if err := tx.QueryRow(ctx, repo.Join(paymentCountQuery, repo.JoinWhere(where...)), args...).Scan(&count); err != nil {
-		return 0, err
+		return 0, serrors.E(op, err)
 	}
 	return count, nil
 }
@@ -104,9 +107,13 @@ func paymentFilters(ctx context.Context, params *payment.FindParams) ([]string, 
 	where := []string{"t.tenant_id = $1"}
 	args := []interface{}{tenantID}
 
-	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		where = append(where, fmt.Sprintf("p.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2))
-		args = append(args, params.CreatedAt.From, params.CreatedAt.To)
+	if params.CreatedAt.From != "" {
+		where = append(where, fmt.Sprintf("p.created_at >= $%d", len(args)+1))
+		args = append(args, params.CreatedAt.From)
+	}
+	if params.CreatedAt.To != "" {
+		where = append(where, fmt.Sprintf("p.created_at <= $%d", len(args)+1))
+		args = append(args, params.CreatedAt.To)
 	}
 	if params.Search != "" {
 		where = append(where, fmt.Sprintf("t.comment ILIKE $%d", len(args)+1))
