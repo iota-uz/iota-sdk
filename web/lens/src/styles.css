@@ -2840,7 +2840,7 @@
      none of which was the settled panel's.
 
      Which shape a panel gets is stated as data, not as code: the server
-     fallback (pkg/lens/render/react/skeleton.go) and the runtime
+     fallback (pkg/lens/render/solid/skeleton.go) and the runtime
      (src/panels/Skeleton.tsx) both label the card with the panel kind the
      runtime sees — `data-kind`, plus `data-metrics` for a metric strip — and
      the rules below are the only place a kind's reserved height is decided. The
