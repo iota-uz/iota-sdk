@@ -364,6 +364,10 @@ func (d *Dispatcher) executeWithMiddleware(baseCtx context.Context, httpReq *htt
 			handlerErr = err
 			return
 		}
+		if err := d.requireAnyPermission(ctx, method.Contract.AnyPermissions); err != nil {
+			handlerErr = err
+			return
+		}
 		result, handlerErr = execute(ctx)
 	})
 
@@ -458,6 +462,25 @@ func (d *Dispatcher) requirePermissions(ctx context.Context, required []string) 
 		}
 	}
 	return nil
+}
+
+func (d *Dispatcher) requireAnyPermission(ctx context.Context, required []string) error {
+	if len(required) == 0 {
+		return nil
+	}
+	if d.host == nil {
+		return fmt.Errorf("missing host services: %w", applets.ErrPermissionDenied)
+	}
+	user, err := d.host.ExtractUser(ctx)
+	if err != nil || user == nil {
+		return fmt.Errorf("extract user: %w", applets.ErrPermissionDenied)
+	}
+	for _, permission := range required {
+		if user.HasPermission(permission) {
+			return nil
+		}
+	}
+	return fmt.Errorf("none of the required permissions granted: %w", applets.ErrPermissionDenied)
 }
 
 func mapErrorCode(err error) any {
