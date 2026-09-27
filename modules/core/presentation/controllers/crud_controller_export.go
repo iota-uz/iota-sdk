@@ -379,8 +379,10 @@ func (c *CrudController[TEntity]) exportSheetName() string {
 	name := strings.NewReplacer(
 		`\`, "_", "/", "_", "?", "_", "*", "_", "[", "_", "]", "_", ":", "_",
 	).Replace(c.schema.Name())
-	if len(name) > 31 {
-		return name[:31]
+	// The limit is in characters: cutting bytes could split a multi-byte rune
+	// and leave invalid UTF-8, which Excel rejects just the same.
+	if runes := []rune(name); len(runes) > 31 {
+		return string(runes[:31])
 	}
 	return name
 }

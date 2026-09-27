@@ -470,3 +470,23 @@ func TestCrudControllerExportIsBehindTheReadPermission(t *testing.T) {
 	suite.GET("/dictionary/export?format=csv").Expect(t).Status(http.StatusForbidden)
 	assert.Zero(t, service.listCalls, "nothing is read for a user who may not read the list")
 }
+
+// TestCrudControllerExportNamesTheSheetInCharacters: a schema named in
+// Cyrillic, longer than Excel's 31-character sheet limit and holding a
+// character Excel rejects, still yields a workbook.
+//
+// Falsely green if the name fit in 31 bytes — then a byte cut would never
+// split a rune.
+func TestCrudControllerExportNamesTheSheetInCharacters(t *testing.T) {
+	suite := newExportSuite(t)
+	fields := newExportFields()
+	builder := &exportBuilder{
+		schema:  crud.NewSchema("справочник/стран_и_территорий_мира", fields, &exportMapper{fields: fields}),
+		service: seededExportService(2),
+	}
+	suite.Register(controllers.NewCrudController[exportEntity]("/dictionary", builder, controllers.WithExport[exportEntity]()))
+
+	body := suite.GET("/dictionary/export?format=excel").Expect(t).Status(http.StatusOK).Body()
+	assert.True(t, strings.HasPrefix(body, "PK"), "a xlsx file is a zip container")
+	assert.Greater(t, len(body), 1024, "the workbook was written, not abandoned after the headers")
+}
