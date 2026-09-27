@@ -9,9 +9,9 @@ const production = "production"
 
 // Config holds app-level settings shared across the application.
 //
-// Env prefix: "app" (e.g. GO_APP_ENV → app.environment,
-// TELEGRAM_BOT_TOKEN → app.telegrambottoken,
-// ENABLE_TEST_ENDPOINTS → app.enabletestendpoints).
+// Env prefix: "app" (e.g. APP_ENVIRONMENT → app.environment,
+// APP_TELEGRAMBOTTOKEN → app.telegrambottoken,
+// APP_ENABLETESTENDPOINTS → app.enabletestendpoints).
 type Config struct {
 	Environment         string `koanf:"environment"         default:"development"`
 	TelegramBotToken    string `koanf:"telegrambottoken"    secret:"true"`

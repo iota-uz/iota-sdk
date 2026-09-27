@@ -7,8 +7,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// defaultSessionDuration matches the legacy GO env default ("720h").
-// Services that inject httpconfig.Config should pass WithExpiresAt explicitly.
+// defaultSessionDuration is the fallback session lifetime when the caller
+// does not pass WithExpiresAt. Services that inject session config should
+// pass WithExpiresAt explicitly.
 const defaultSessionDuration = 720 * time.Hour
 
 // SessionAudience represents the audience/context for which the session is valid
