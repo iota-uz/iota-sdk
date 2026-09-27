@@ -169,6 +169,18 @@ function legendEntryKey(frame: Frame, panel: Panel, index: number): string {
   return typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'bigint' ? String(raw) : String(index)
 }
 
+function legendSeriesIndex(frame: Frame, panel: Panel): number {
+  if (panel.semantics !== 'series' || !panel.encoding.series) return -1
+  return frame.columns.findIndex((column) => column.name === panel.encoding.series)
+}
+
+function legendEntryKey(frame: Frame, panel: Panel, index: number): string {
+  const seriesIndex = legendSeriesIndex(frame, panel)
+  if (seriesIndex < 0) return legendKey(frame, panel, index)
+  const raw = frame.rows[index]?.[seriesIndex]
+  return typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'bigint' ? String(raw) : String(index)
+}
+
 function numericCell(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim() !== '') {
