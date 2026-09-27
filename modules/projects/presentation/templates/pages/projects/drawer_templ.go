@@ -136,7 +136,7 @@ func EditDrawer(props *DrawerEditProps) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("project-drawer-%s", props.Project.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/drawer.templ`, Line: 70, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/drawer.templ`, Line: 70, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -201,7 +201,7 @@ func EditDrawer(props *DrawerEditProps) templ.Component {
 						var templ_7745c5c3_Var8 string
 						templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Projects.Single.General"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/drawer.templ`, Line: 85, Col: 45}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/drawer.templ`, Line: 85, Col: 45}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 						if templ_7745c5c3_Err != nil {
@@ -232,7 +232,7 @@ func EditDrawer(props *DrawerEditProps) templ.Component {
 						var templ_7745c5c3_Var10 string
 						templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Projects.Acceptance.Title"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/drawer.templ`, Line: 88, Col: 47}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/drawer.templ`, Line: 88, Col: 47}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 						if templ_7745c5c3_Err != nil {
@@ -273,7 +273,7 @@ func EditDrawer(props *DrawerEditProps) templ.Component {
 					var templ_7745c5c3_Var12 string
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("edit-form-%s", props.Project.ID))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/drawer.templ`, Line: 94, Col: 56}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/drawer.templ`, Line: 94, Col: 56}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -286,7 +286,7 @@ func EditDrawer(props *DrawerEditProps) templ.Component {
 					var templ_7745c5c3_Var13 string
 					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/projects/%s", props.Project.ID))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/drawer.templ`, Line: 96, Col: 61}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/drawer.templ`, Line: 96, Col: 61}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 					if templ_7745c5c3_Err != nil {
@@ -299,7 +299,7 @@ func EditDrawer(props *DrawerEditProps) templ.Component {
 					var templ_7745c5c3_Var14 string
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#project-drawer-%s", props.Project.ID))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/drawer.templ`, Line: 97, Col: 69}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/drawer.templ`, Line: 97, Col: 69}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 					if templ_7745c5c3_Err != nil {
@@ -365,7 +365,7 @@ func EditDrawer(props *DrawerEditProps) templ.Component {
 						var templ_7745c5c3_Var16 string
 						templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Delete"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/drawer.templ`, Line: 138, Col: 29}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/drawer.templ`, Line: 138, Col: 29}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 						if templ_7745c5c3_Err != nil {
@@ -404,7 +404,7 @@ func EditDrawer(props *DrawerEditProps) templ.Component {
 						var templ_7745c5c3_Var18 string
 						templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Cancel"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/drawer.templ`, Line: 147, Col: 30}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/drawer.templ`, Line: 147, Col: 30}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 						if templ_7745c5c3_Err != nil {
@@ -436,7 +436,7 @@ func EditDrawer(props *DrawerEditProps) templ.Component {
 						var templ_7745c5c3_Var20 string
 						templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/drawer.templ`, Line: 156, Col: 28}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/drawer.templ`, Line: 156, Col: 28}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 						if templ_7745c5c3_Err != nil {
@@ -487,7 +487,7 @@ func EditDrawer(props *DrawerEditProps) templ.Component {
 					var templ_7745c5c3_Var22 string
 					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("project-acceptance-%s", props.Project.ID))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/drawer.templ`, Line: 164, Col: 65}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/drawer.templ`, Line: 164, Col: 65}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 					if templ_7745c5c3_Err != nil {
@@ -500,7 +500,7 @@ func EditDrawer(props *DrawerEditProps) templ.Component {
 					var templ_7745c5c3_Var23 string
 					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/projects/%s/acceptance", props.Project.ID))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/drawer.templ`, Line: 166, Col: 71}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/drawer.templ`, Line: 166, Col: 71}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 					if templ_7745c5c3_Err != nil {
@@ -651,7 +651,7 @@ func CreateDrawer(props *DrawerCreateProps) templ.Component {
 				var templ_7745c5c3_Var27 string
 				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Cancel"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/drawer.templ`, Line: 233, Col: 27}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/drawer.templ`, Line: 233, Col: 27}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 				if templ_7745c5c3_Err != nil {
@@ -683,7 +683,7 @@ func CreateDrawer(props *DrawerCreateProps) templ.Component {
 				var templ_7745c5c3_Var29 string
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/drawer.templ`, Line: 242, Col: 25}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/drawer.templ`, Line: 242, Col: 25}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 				if templ_7745c5c3_Err != nil {

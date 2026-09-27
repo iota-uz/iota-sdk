@@ -94,7 +94,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Projects.Acceptance.Empty"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 53, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 53, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -113,7 +113,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Projects.Acceptance.Kinds." + kindKey(document.Kind)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 59, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 59, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -126,7 +126,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(document.Number)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 59, Col: 97}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 59, Col: 97}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -139,7 +139,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(document.Date)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 62, Col: 28}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 62, Col: 28}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -152,7 +152,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Projects.Acceptance.Statuses." + document.Status))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 63, Col: 75}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 63, Col: 75}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -165,7 +165,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(document.Description)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 64, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 64, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -178,7 +178,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(document.Amount)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 68, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 68, Col: 88}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -204,7 +204,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 					var templ_7745c5c3_Var10 string
 					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Projects.Acceptance.Sign"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 79, Col: 47}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 79, Col: 47}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
@@ -241,7 +241,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 					var templ_7745c5c3_Var12 string
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Projects.Acceptance.Cancel"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 93, Col: 49}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 93, Col: 49}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -278,7 +278,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Delete"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 106, Col: 28}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 106, Col: 28}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
@@ -311,7 +311,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(basePath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 114, Col: 21}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 114, Col: 21}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -324,7 +324,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(acceptanceTarget(props.ProjectID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 115, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 115, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -337,7 +337,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Projects.Acceptance.New"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 118, Col: 73}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 118, Col: 73}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -367,7 +367,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 				var templ_7745c5c3_Var19 string
 				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(string(kind))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 126, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 126, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 				if templ_7745c5c3_Err != nil {
@@ -390,7 +390,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 				var templ_7745c5c3_Var20 string
 				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Projects.Acceptance.Kinds." + kindKey(string(kind))))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 127, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 127, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {
@@ -487,7 +487,7 @@ func AcceptancePanel(props *AcceptanceProps) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Projects.Acceptance.Add"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/templates/pages/projects/acceptance.templ`, Line: 170, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/projects/presentation/templates/pages/projects/acceptance.templ`, Line: 170, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
