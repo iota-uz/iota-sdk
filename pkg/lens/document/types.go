@@ -200,6 +200,9 @@ type Filter struct {
 	Kind FilterKind `json:"kind"`
 	// Label is the already-localized control label.
 	Label string `json:"label,omitempty"`
+	// Placement moves a control from the dashboard header into one tab of a
+	// tabs layout group. A nil placement keeps the control dashboard-wide.
+	Placement *FilterPlacement `json:"placement,omitempty"`
 	// Period carries the payload of a period filter. Exactly the kinds' own
 	// payload field must be set.
 	Period *PeriodFilter `json:"period,omitempty"`
@@ -207,6 +210,13 @@ type Filter struct {
 	Facet     *FacetFilter     `json:"facet,omitempty"`
 	Compare   *CompareFilter   `json:"compare,omitempty"`
 	Segmented *SegmentedFilter `json:"segmented,omitempty"`
+}
+
+// FilterPlacement identifies the tabs-group branch that owns a local filter.
+// GroupID and Tab match LayoutGroup.ID and LayoutGroup.Tab respectively.
+type FilterPlacement struct {
+	GroupID string `json:"groupId"`
+	Tab     string `json:"tab"`
 }
 
 // SegmentedFilter declares a single-choice control over a closed option set.

@@ -32,6 +32,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	lensserve "github.com/iota-uz/iota-sdk/pkg/lens/serve"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	sdkshowcase "github.com/iota-uz/iota-sdk/pkg/showcase"
 )
 
 type ShowcaseController struct {
@@ -93,6 +94,7 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router.HandleFunc("/error-preview/403", di.H(c.Error403Preview)).Methods(http.MethodGet)
 	router.HandleFunc("/error-preview/404", di.H(c.Error404Preview)).Methods(http.MethodGet)
 	router.HandleFunc("/api/showcase/toast-example", di.H(c.ToastExample)).Methods(http.MethodPost)
+	router.HandleFunc("/components/{categoryPath}", di.H(c.CustomCategoryPage)).Methods(http.MethodGet)
 
 	if c.appCfg != nil {
 		log.Printf(
@@ -104,6 +106,27 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 }
 
 func (c *ShowcaseController) getSidebarProps() sidebar.Props {
+	componentItems := []sidebar.Item{
+		sidebar.NewLink(fmt.Sprintf("%s/components/form", c.basePath), "Form", nil),
+		sidebar.NewLink(fmt.Sprintf("%s/components/loaders", c.basePath), "Loaders", nil),
+		sidebar.NewLink(fmt.Sprintf("%s/components/charts", c.basePath), "Charts", nil),
+		sidebar.NewLink(fmt.Sprintf("%s/components/tooltips", c.basePath), "Tooltips", nil),
+		sidebar.NewLink(fmt.Sprintf("%s/components/subscription", c.basePath), "Subscription", nil),
+		sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
+		sidebar.NewLink(fmt.Sprintf("%s/components/kanban", c.basePath), "Kanban", nil),
+	}
+
+	// Add registered categories
+	for _, cat := range sdkshowcase.GlobalRegistry().GetAllCategories() {
+		componentItems = append(componentItems,
+			sidebar.NewLink(
+				fmt.Sprintf("%s/components/%s", c.basePath, cat.Path),
+				cat.Name,
+				nil,
+			),
+		)
+	}
+
 	items := []sidebar.Item{
 		sidebar.NewLink(c.basePath, "Overview", nil),
 		sidebar.NewLink(fmt.Sprintf("%s/lens", c.basePath), "Lens Dashboard", icons.MagnifyingGlass(icons.Props{Size: "20"})),
@@ -111,15 +134,7 @@ func (c *ShowcaseController) getSidebarProps() sidebar.Props {
 		sidebar.NewGroup(
 			"Components",
 			icons.PuzzlePiece(icons.Props{Size: "20"}),
-			[]sidebar.Item{
-				sidebar.NewLink(fmt.Sprintf("%s/components/form", c.basePath), "Form", nil),
-				sidebar.NewLink(fmt.Sprintf("%s/components/loaders", c.basePath), "Loaders", nil),
-				sidebar.NewLink(fmt.Sprintf("%s/components/charts", c.basePath), "Charts", nil),
-				sidebar.NewLink(fmt.Sprintf("%s/components/tooltips", c.basePath), "Tooltips", nil),
-				sidebar.NewLink(fmt.Sprintf("%s/components/subscription", c.basePath), "Subscription", nil),
-				sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
-				sidebar.NewLink(fmt.Sprintf("%s/components/kanban", c.basePath), "Kanban", nil),
-			},
+			componentItems,
 		),
 		sidebar.NewGroup(
 			"Error Pages",
@@ -411,4 +426,23 @@ func (c *ShowcaseController) ToastExample(
 ) {
 	htmx.ToastSuccess(w, "Server Response", "This toast was triggered by an HTMX request!")
 	w.WriteHeader(http.StatusOK)
+}
+
+func (c *ShowcaseController) CustomCategoryPage(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	categoryPath := mux.Vars(r)["categoryPath"]
+	cat, ok := sdkshowcase.GlobalRegistry().GetCategory(categoryPath)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	props := showcase.CustomCategoryPageProps{
+		SidebarProps: c.getSidebarProps(),
+		Category:     cat,
+	}
+	templ.Handler(showcase.CustomCategoryPage(props)).ServeHTTP(w, r)
 }

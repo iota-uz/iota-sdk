@@ -4,15 +4,15 @@ export type ChartKind = Extract<PanelKind, 'pie' | 'donut' | 'radial' | 'bar' | 
 export type ChartFormatResolver = (field: string, value: unknown) => string
 
 export interface ChartLabels {
-  previous: string
-  trend: string
-  movingAverage: (window: number) => string
-  estimate: string
-  ytd: string
-  forecast: string
-  forecastLower: (forecast: string) => string
-  forecastConfidence: (forecast: string) => string
-  boxplot: [min: string, q1: string, median: string, q3: string, max: string]
+  previous?: string
+  trend?: string
+  movingAverage?: (window: number) => string
+  estimate?: string
+  ytd?: string
+  forecast?: string
+  forecastLower?: (forecast: string) => string
+  forecastConfidence?: (forecast: string) => string
+  boxplot?: [min: string, q1: string, median: string, q3: string, max: string]
   /** What a mark with no reading behind it says instead of a formatted zero. */
   noData: string
   /** The tooltip's copy button, at rest and for the moment after it is used. */

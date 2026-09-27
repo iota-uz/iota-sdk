@@ -6,6 +6,7 @@ import { PeriodFilterControl } from './PeriodFilterControl'
 import { SegmentedFilterControl } from './SegmentedFilterControl'
 import type { CalendarDate } from './model'
 import { clearRendererStateFromURL } from '../runtime/url'
+import type { Filter } from '../contract'
 
 export interface FilterBarProps {
   /** Fixed "today" for deterministic stories and visual regression. */
@@ -22,6 +23,24 @@ interface ActiveChip {
   key: string
   label: string
   removeUrl: string
+}
+
+export function FilterControls({ filters, today }: { filters: Filter[], today?: CalendarDate }) {
+  const facets = filters.filter((filter) => filter.kind === 'facet' && filter.facet)
+  return (
+    <>
+      {filters.map((filter) => (
+        filter.kind === 'period' && filter.period
+          ? <PeriodFilterControl filter={filter} key={filter.id} today={today} />
+          : filter.kind === 'compare' && filter.compare
+            ? <CompareFilterControl filter={filter} key={filter.id} />
+            : filter.kind === 'segmented' && filter.segmented
+              ? <SegmentedFilterControl filter={filter} key={filter.id} />
+              : null
+      ))}
+      {facets.length > 0 && <FacetFilterMenu filters={facets} />}
+    </>
+  )
 }
 
 /**
@@ -45,13 +64,14 @@ export function FilterBar({ subtitle, today }: FilterBarProps) {
   const { filters, applyURL } = useFilters()
   const { document } = useDashboard()
   const translate = useTranslate()
-  if (filters.length === 0 && (document.activeFilters?.length ?? 0) === 0 && !subtitle) return null
+  const globalFilters = filters.filter((filter) => !filter.placement)
+  if (globalFilters.length === 0 && (document.activeFilters?.length ?? 0) === 0 && !subtitle) return null
   const intercept = (url: string) => (event: React.MouseEvent<HTMLElement>) => {
     if ('metaKey' in event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)) return
     event.preventDefault()
     applyURL(url)
   }
-  const facets = filters.filter((filter) => filter.kind === 'facet' && filter.facet)
+  const facets = globalFilters.filter((filter) => filter.kind === 'facet' && filter.facet)
   const clearURL = facets.find((filter) =>
     (filter.facet?.selections?.length ?? 0) > 0 && Boolean(filter.facet?.clearUrl),
   )?.facet?.clearUrl
@@ -87,16 +107,7 @@ export function FilterBar({ subtitle, today }: FilterBarProps) {
       <div className="lens-dashboard-scope">
         {/* Declaration order is render order, and the row only wraps — it never
             reorders — so a control keeps the same neighbours at every width. */}
-        {filters.map((filter) => (
-          filter.kind === 'period' && filter.period
-            ? <PeriodFilterControl filter={filter} key={filter.id} today={today} />
-            : filter.kind === 'compare' && filter.compare
-              ? <CompareFilterControl filter={filter} key={filter.id} />
-              : filter.kind === 'segmented' && filter.segmented
-                ? <SegmentedFilterControl filter={filter} key={filter.id} />
-                : null
-        ))}
-        {facets.length > 0 && <FacetFilterMenu filters={facets} />}
+        <FilterControls filters={globalFilters} today={today} />
         {/* Not a heading and not a control: the part of the scope no control
             owns. It sits last so the editable segments stay together at the
             left edge, where the eye lands. */}

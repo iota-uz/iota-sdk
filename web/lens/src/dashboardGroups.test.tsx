@@ -77,6 +77,8 @@ describe('nested tabs', () => {
 
     const tablists = screen.getAllByRole('tablist')
     expect(tablists).toHaveLength(2)
+    expect(within(tablists[0]!).getAllByRole('tab')[0]).toHaveAttribute('data-testid', 'lens-tabs-outer-tab-0')
+    expect(within(tablists[1]!).getAllByRole('tab')[1]).toHaveAttribute('data-testid', 'lens-tabs-inner-tab-1')
     expect(within(tablists[0]!).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Stock', 'Movement'])
     expect(within(tablists[1]!).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Detail', 'Summary'])
   })

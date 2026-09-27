@@ -48,6 +48,8 @@ type Transaction struct {
 	// Related entities
 	Category     *Category
 	Counterparty *CounterpartyInfo
+	PaymentID    string
+	ExpenseID    string
 }
 
 type TransactionListItem struct {

@@ -182,6 +182,11 @@ function nonZeroTooltipRecords(params: unknown): Record<string, unknown>[] {
       seen.add(key)
       return true
     })
+    // A stacked chart's declaration order is an implementation detail, not a
+    // useful reading order. Put the largest contribution first so the tooltip
+    // answers “what drove this column?” without making the reader scan every
+    // row. Array#sort is stable, so equal amounts keep the producer's order.
+    .sort((left, right) => (numericTooltipValue(right.value) ?? 0) - (numericTooltipValue(left.value) ?? 0))
 }
 
 function timeTooltipFormatter(input: ChartInput, categoryField: string, showSeriesName: (name: string) => boolean) {
@@ -413,6 +418,10 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
   const max = values.length > 0 ? Math.max(...values) : 0
   const rangeMin = min
   const rangeMax = max === min && max <= 0 ? 0 : max
+  const maximum = data.find((item) => item.amount === max)
+  const maximumLabel = maximum && typeof maximum.amount === 'number'
+    ? `${maximum.displayLabel}\n${input.format(input.encoding.value ?? '', maximum.amount)}`
+    : ''
   return {
     ...baseOption(theme),
     tooltip: {
@@ -443,14 +452,22 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
       textStyle: { color: theme.mutedText, fontSize: 10 },
       inRange: { color: [theme.divider, input.theme.palette.accent ?? theme.colors[0]] },
     },
-    ...(min === max && values.length > 0 ? {
-      graphic: [{
+    graphic: [
+      ...(min === max && values.length > 0 ? [{
         type: 'group', left: 'center', bottom: 8, children: [
           { type: 'rect', shape: { x: 0, y: 1, width: 24, height: 10 }, style: { fill: input.theme.palette.accent ?? theme.colors[0] } },
           { type: 'text', style: { x: 31, y: 0, text: input.formatAxis?.(input.encoding.value ?? '', max) ?? input.format(input.encoding.value ?? '', max), fill: theme.mutedText, fontSize: 10 } },
         ],
-      }],
-    } : {}),
+      }] : []),
+      ...(maximumLabel ? [{
+        type: 'text', right: 12, top: 12, z: 100,
+        style: {
+          text: maximumLabel, fill: theme.text, fontSize: 11, fontWeight: 600, lineHeight: 16,
+          backgroundColor: theme.card, borderColor: theme.divider, borderWidth: 1, borderRadius: 6,
+          padding: [6, 8],
+        },
+      }] : []),
+    ] as EChartsOption['graphic'],
     series: [{
       type: 'map',
       map: input.map.name,
@@ -1351,7 +1368,10 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     markCount: points.filter((point) => typeof point.value === 'number').length,
   })
   const categoryColor = (category: string, index: number) =>
-    input.seriesColor?.(category, index) ?? theme.seriesColor(category) ?? theme.colors[index % theme.colors.length]
+    input.rowColor?.(category, index)
+    ?? input.seriesColor?.(category, index)
+    ?? theme.seriesColor(category)
+    ?? theme.colors[index % theme.colors.length]
   /**
    * One hue, stepped in lightness along the order of the categories.
    *
@@ -1526,7 +1546,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     .filter((average) => shown.has(overlayId.average(average.window)))
     .flatMap((average) => seriesNames.map((name, index) => ({
       type: 'line' as const,
-      name: `${name ? `${name} · ` : ''}${average.label || input.labels?.movingAverage(average.window) || `SMA ${average.window}`}`,
+      name: `${name ? `${name} · ` : ''}${average.label || input.labels?.movingAverage?.(average.window) || `SMA ${average.window}`}`,
       silent: true,
       z: 5,
       showSymbol: false,
@@ -1567,7 +1587,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       },
       {
         type: 'line' as const,
-        name: input.labels?.forecastLower(forecastLabel) ?? `${forecastLabel} lower`,
+        name: input.labels?.forecastLower?.(forecastLabel) ?? `${forecastLabel} lower`,
         silent: true,
         tooltip: { show: false },
         stack,
@@ -1579,7 +1599,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       },
       {
         type: 'line' as const,
-        name: input.labels?.forecastConfidence(forecastLabel) ?? `${forecastLabel} confidence`,
+        name: input.labels?.forecastConfidence?.(forecastLabel) ?? `${forecastLabel} confidence`,
         silent: true,
         tooltip: { show: false },
         stack,

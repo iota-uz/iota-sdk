@@ -2,3 +2,4 @@ packages:
   - web/sdk
   - web/client-host
   - web/lens
+  - web/solid-ui
