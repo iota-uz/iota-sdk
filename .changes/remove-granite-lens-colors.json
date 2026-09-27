@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Remove Granite-specific Lens color aliases and palettes; use stable generic categorical colors for scoped chart data."}
