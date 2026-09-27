@@ -194,6 +194,7 @@ type ContinuationRun struct {
 	StartedAt time.Time
 	UpdatedAt time.Time
 }
+
 // ContinueSessionRequest starts an internal continuation turn. The
 // IdempotencyKey is required so durable application workers can safely retry
 // delivery. The SDK derives a stable run id from the tenant, session, and key;

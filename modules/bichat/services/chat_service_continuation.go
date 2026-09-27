@@ -254,6 +254,7 @@ func (s *chatServiceImpl) reconcileContinuationRunState(
 	}
 	return runtimeRun
 }
+
 func (s *chatServiceImpl) failContinuationRun(
 	ctx context.Context,
 	active *streamingsvc.ActiveRun,
