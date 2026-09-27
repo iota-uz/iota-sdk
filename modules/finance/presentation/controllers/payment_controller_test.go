@@ -245,42 +245,62 @@ func TestPaymentController_List_InfiniteScroll(t *testing.T) {
 	))
 	require.NoError(t, err)
 
-	for i := 1; i <= 3; i++ {
+	for i, comment := range []string{"invoice", "invoice", "invoice", "advance"} {
 		_, err = paymentService.Create(env.Ctx, paymentAggregate.New(
-			money.NewFromFloat(float64(i)*10, "USD"),
+			money.NewFromFloat(float64(i+1)*10, "USD"),
 			createdCategory,
 			paymentAggregate.WithTenantID(env.Tenant.ID),
 			paymentAggregate.WithAccount(createdAccount),
 			paymentAggregate.WithCounterpartyID(createdCounterparty.ID()),
 			paymentAggregate.WithUser(adminUser),
+			paymentAggregate.WithComment(comment),
 			paymentAggregate.WithTransactionDate(time.Now()),
 			paymentAggregate.WithAccountingPeriod(time.Now()),
 		))
 		require.NoError(t, err)
 	}
 
-	html := suite.GET(PaymentBasePath + "?limit=2").
+	html := suite.GET(PaymentBasePath + "?Search=invoice&limit=2").
 		Expect(t).
 		Status(200).
 		HTML()
-	require.Len(t, html.Elements("//tbody/tr[contains(@class, 'hide-on-load')]"), 2)
-	require.Equal(t,
-		"/finance/payments?limit=2&page=2",
-		html.Element("//tbody/tr[@hx-get]").Attr("hx-get"),
-	)
+	require.Len(t, html.Elements("//tbody/tr[td[@data-col='amount']]"), 2)
+	next := html.Element("//tbody/tr[@hx-get]").Attr("hx-get")
+	require.Contains(t, next, "Search=invoice")
+	require.Contains(t, next, "page=2")
+	html.Element("//tr[@id='infinite-scroll-spinner']").Exists()
 
-	last := suite.GET(PaymentBasePath + "?limit=2&page=2").
+	last := suite.GET(PaymentBasePath + "?Search=invoice&limit=2&page=2").
 		HTMX().
 		Expect(t).
 		Status(200).
-		NotContains("<table").
-		NotContains("hx-get")
-	require.Equal(t, 1, strings.Count(last.Body(), "hide-on-load"))
+		NotContains("<form").
+		NotContains("hx-get").
+		NotContains("$40.00")
+	require.Equal(t, 1, strings.Count(last.Body(), `data-col="amount"`))
 
-	suite.GET(PaymentBasePath + "?limit=2&page=2").
+	all := suite.GET(PaymentBasePath + "?Search=invoice&limit=3").
 		Expect(t).
-		Status(302).
-		RedirectTo(PaymentBasePath + "?limit=2")
+		Status(200).
+		Contains("$10.00").
+		Contains("$20.00").
+		Contains("$30.00").
+		NotContains("$40.00").
+		HTML()
+	all.Element("//tbody/tr[@hx-get]").NotExists()
+
+	embedded := suite.GET(PaymentBasePath + "?embedded=true&limit=2").
+		HTMX().
+		Expect(t).
+		Status(200).
+		Contains("<form").
+		NotContains("<html")
+	require.Len(t, embedded.HTML().Elements("//tbody/tr[td[@data-col='amount']]"), 2)
+	suite.GET(PaymentBasePath + "?embedded=true&limit=2&page=2").
+		HTMX().
+		Expect(t).
+		Status(200).
+		NotContains("<form")
 }
 
 func TestPaymentController_GetNew_Success(t *testing.T) {

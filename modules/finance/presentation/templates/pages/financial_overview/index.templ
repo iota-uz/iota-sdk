@@ -61,20 +61,19 @@ templ Index(props *IndexPageProps) {
 }
 
 // tabPanel loads a tab's list. Tabs switch by navigation, so only the active
-// one is rendered and fetched.
+// one is rendered and fetched. A failed load offers to retry instead of
+// leaving the skeleton.
 templ tabPanel(url string) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div
-		class="mt-5"
-		hx-get={ string(templ.URL(url)) }
-		hx-trigger="load, overview:retry"
-		hx-swap="innerHTML"
-		x-data="{ failed: false, status: '' }"
-		data-loading={ pageCtx.T("Common.Loading") }
-		x-on:htmx:response-error.camel.self="failed = true"
-		x-on:htmx:send-error.camel.self="failed = true"
-	>
-		<span role="status" class="sr-only" x-text="status"></span>
+	@loaders.LazyLoad(loaders.LazyLoadProps{
+		Endpoint: url,
+		Class:    templ.Classes("mt-5"),
+		Attrs: templ.Attributes{
+			"x-data":                              "{ failed: false }",
+			"x-on:htmx:response-error.camel.self": "failed = true",
+			"x-on:htmx:send-error.camel.self":     "failed = true",
+		},
+	}) {
 		<div x-show="!failed" class="bg-surface-600 border border-primary rounded-lg p-4" aria-busy="true">
 			<span class="sr-only">{ pageCtx.T("Common.Loading") }</span>
 			@loaders.SkeletonTable(loaders.SkeletonProps{})
@@ -85,11 +84,11 @@ templ tabPanel(url string) {
 				Size: button.SizeSM,
 				Attrs: templ.Attributes{
 					"type":   "button",
-					"@click": "failed = false; status = $root.dataset.loading; htmx.trigger($root, 'overview:retry')",
+					"@click": "failed = false; htmx.ajax('GET', $root.getAttribute('hx-get'), { source: $root, target: $root, swap: 'outerHTML' })",
 				},
 			}) {
 				{ pageCtx.T("Common.Retry") }
 			}
 		</div>
-	</div>
+	}
 }

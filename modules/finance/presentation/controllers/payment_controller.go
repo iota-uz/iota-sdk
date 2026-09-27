@@ -18,7 +18,9 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
+	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -36,13 +38,6 @@ type PaymentsController struct {
 	counterpartyService    *services.CounterpartyService
 	paymentCategoryService *services.PaymentCategoryService
 	basePath               string
-}
-
-type PaymentPaginatedResponse struct {
-	Payments []*viewmodels.Payment
-	Page     int
-	// NextURL loads the chunk after Payments; empty on the last chunk.
-	NextURL string
 }
 
 func NewPaymentsController(
@@ -115,52 +110,64 @@ func (c *PaymentsController) viewModelPaymentCategories(r *http.Request) ([]*vie
 	return mapping.MapViewModels(categories, mappers.PaymentCategoryToViewModel), nil
 }
 
-func (c *PaymentsController) viewModelPayments(r *http.Request) (*PaymentPaginatedResponse, error) {
+func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 	paginationParams := composables.UsePaginated(r)
 	params, err := composables.UseQuery(&payment.FindParams{
 		Limit:  paginationParams.Limit,
 		Offset: paginationParams.Offset,
-		SortBy: []string{"created_at desc"},
 	}, r)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error parsing query")
+		http.Error(w, "Error parsing query", http.StatusBadRequest)
+		return
 	}
 	paymentEntities, err := c.paymentService.GetPaginated(r.Context(), params)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving payments")
+		http.Error(w, "Error retrieving payments", http.StatusInternalServerError)
+		return
 	}
-	return &PaymentPaginatedResponse{
-		Payments: mapping.MapViewModels(paymentEntities, mappers.PaymentToViewModel),
-		Page:     paginationParams.Page,
-		NextURL:  pagination.NextChunkURL(r.URL, paginationParams.Page, params.Limit, len(paymentEntities)),
-	}, nil
+	total, err := c.paymentService.Count(r.Context(), params)
+	if err != nil {
+		http.Error(w, "Error counting payments", http.StatusInternalServerError)
+		return
+	}
+
+	cfg := c.tableConfig(r, paginationParams, int(total))
+	for _, p := range paymentEntities {
+		cfg.AddRows(table.Row(
+			table.Cell(templ.Raw(p.Amount().Display()), p.Amount().Display()),
+			table.Cell(table.DateTime(p.UpdatedAt()), p.UpdatedAt()),
+			table.Cell(actions.RenderRowActions(actions.EditAction(fmt.Sprintf("%s/%s", c.basePath, p.ID()))), nil),
+		))
+	}
+
+	// The overview tab loads the first chunk embedded; later chunks and
+	// searches only need rows.
+	if r.URL.Query().Get("embedded") == "true" && paginationParams.Page == 1 {
+		templ.Handler(table.EmbeddedContent(cfg), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+	templ.Handler(table.ContentHTMX(cfg), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
-	if composables.UsePaginated(r).Page > 1 && !htmx.IsHxRequest(r) {
-		http.Redirect(w, r, pagination.FirstChunkURL(r.URL), http.StatusFound)
-		return
-	}
-	paginated, err := c.viewModelPayments(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	props := &payments.IndexPageProps{
-		Payments: paginated.Payments,
-		NextURL:  paginated.NextURL,
-	}
-
-	switch {
-	case htmx.IsHxRequest(r) && paginated.Page > 1:
-		templ.Handler(payments.PaymentRows(props), templ.WithStreaming()).ServeHTTP(w, r)
-	case r.URL.Query().Get("embedded") == "true":
-		templ.Handler(payments.PaymentsEmbedded(props), templ.WithStreaming()).ServeHTTP(w, r)
-	case htmx.IsHxRequest(r):
-		templ.Handler(payments.PaymentsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
-	default:
-		templ.Handler(payments.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
-	}
+func (c *PaymentsController) tableConfig(r *http.Request, params composables.PaginationParams, total int) *table.TableConfig {
+	pageCtx := composables.UsePageCtx(r.Context())
+	cfg := table.NewTableConfig(
+		pageCtx.T("NavigationLinks.Payments"),
+		c.basePath,
+		// The overview shows several tables on one address, so each keeps
+		// its column settings under its own key.
+		table.WithID("finance-payments"),
+		table.WithSearchValue(table.UseSearchQuery(r)),
+		table.WithInfiniteScroll(total > params.Page*params.Limit, params.Page, params.Limit),
+	)
+	cfg.AddCols(
+		table.Column("amount", pageCtx.T("Payments.List.Amount")),
+		table.Column("updated_at", pageCtx.T("UpdatedAt")),
+		table.Column("actions", pageCtx.T("Actions"), table.WithClass("w-16")),
+	)
+	cfg.AddFilters(filters.CreatedAt())
+	cfg.AddActions(actions.RenderAction(actions.CreateAction(pageCtx.T("Payments.List.New"), c.basePath+"/new")))
+	return cfg
 }
 
 func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {

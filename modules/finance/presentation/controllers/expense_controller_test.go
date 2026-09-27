@@ -211,40 +211,55 @@ func TestExpenseController_List_InfiniteScroll(t *testing.T) {
 	))
 	require.NoError(t, err)
 
-	for i := 1; i <= 3; i++ {
+	for i, comment := range []string{"rent", "rent", "rent", "salary"} {
 		_, err = expenseService.Create(env.Ctx, expenseAggregate.New(
-			money.NewFromFloat(float64(i)*10, "USD"),
+			money.NewFromFloat(float64(i+1)*10, "USD"),
 			createdAccount,
 			createdCategory,
 			time.Now().AddDate(0, 0, -i),
 			expenseAggregate.WithTenantID(env.Tenant.ID),
-			expenseAggregate.WithComment("rent"),
+			expenseAggregate.WithComment(comment),
 		))
 		require.NoError(t, err)
 	}
 
-	first := suite.GET(ExpenseBasePath + "?Search=rent&limit=2").
+	html := suite.GET(ExpenseBasePath + "?Search=rent&limit=2").
 		Expect(t).
-		Status(200)
-	html := first.HTML()
-	require.Len(t, html.Elements("//tbody/tr[starts-with(@id, 'expense-')]"), 2)
-	require.Equal(t,
-		"/finance/expenses?Search=rent&limit=2&page=2",
-		html.Element("//tbody/tr[@hx-get]").Attr("hx-get"),
-	)
+		Status(200).
+		HTML()
+	require.Len(t, html.Elements("//tbody/tr[td[@data-col='amount']]"), 2)
+	next := html.Element("//tbody/tr[@hx-get]").Attr("hx-get")
+	require.Contains(t, next, "Search=rent")
+	require.Contains(t, next, "page=2")
+	html.Element("//tr[@id='infinite-scroll-spinner']").Exists()
 
 	last := suite.GET(ExpenseBasePath + "?Search=rent&limit=2&page=2").
 		HTMX().
 		Expect(t).
 		Status(200).
-		NotContains("<table").
+		NotContains("<form").
 		NotContains("hx-get")
-	require.Equal(t, 1, strings.Count(last.Body(), `id="expense-`))
+	require.Equal(t, 1, strings.Count(last.Body(), `data-col="amount"`))
 
-	suite.GET(ExpenseBasePath + "?Search=rent&limit=2&page=2").
+	all := suite.GET(ExpenseBasePath + "?Search=rent&limit=3").
 		Expect(t).
-		Status(302).
-		RedirectTo(ExpenseBasePath + "?Search=rent&limit=2")
+		Status(200).
+		HTML()
+	require.Len(t, all.Elements("//tbody/tr[td[@data-col='amount']]"), 3)
+	all.Element("//tbody/tr[@hx-get]").NotExists()
+
+	embedded := suite.GET(ExpenseBasePath + "?embedded=true&limit=2").
+		HTMX().
+		Expect(t).
+		Status(200).
+		Contains("<form").
+		NotContains("<html")
+	require.Len(t, embedded.HTML().Elements("//tbody/tr[td[@data-col='amount']]"), 2)
+	suite.GET(ExpenseBasePath + "?embedded=true&limit=2&page=2").
+		HTMX().
+		Expect(t).
+		Status(200).
+		NotContains("<form")
 }
 
 func TestExpenseController_GetNew_Success(t *testing.T) {
