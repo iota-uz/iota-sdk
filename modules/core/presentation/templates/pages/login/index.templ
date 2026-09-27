@@ -46,6 +46,7 @@ type Account struct {
 var (
 	navbarOnce  = templ.NewOnceHandle()
 	companyLogo = "/assets/" + assets.HashFS.HashName("images/logo.webp")
+	themeJs     = "/assets/" + assets.HashFS.HashName("js/theme.js")
 )
 
 templ Header(logo templ.Component) {
@@ -59,44 +60,23 @@ templ Header(logo templ.Component) {
 		</a>
 		<div class="ml-auto flex items-center gap-8">
 			<div class="flex items-center justify-center w-9 h-9">
-				<input class="peer/system appearance-none absolute" type="radio" name="theme" value="system" id="theme-system" onchange="onThemeChange(this)" checked/>
+				<input class="peer/system appearance-none absolute" type="radio" name="theme" value="system" id="theme-system" onchange="iotaTheme.onRadioChange(this)" checked/>
 				<label for="theme-light" class="group/system absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black invisible peer-checked/system:visible">
-					@icons.Desktop(icons.Props{Size: "20", Class: "scale-0 duration-200 peer-checked/system:group-[]/system:scale-100"})
+					@icons.Desktop(icons.Props{Size: "20", Class: "iota-theme-icon duration-200"})
 				</label>
-				<input class="peer/light appearance-none absolute" type="radio" name="theme" value="light" id="theme-light" onchange="onThemeChange(this)"/>
+				<input class="peer/light appearance-none absolute" type="radio" name="theme" value="light" id="theme-light" onchange="iotaTheme.onRadioChange(this)"/>
 				<label for="theme-dark" class="group/light absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black invisible peer-checked/light:visible">
-					@icons.Sun(icons.Props{Size: "20", Variant: icons.Filled, Class: "scale-0 duration-200 peer-checked/light:group-[]/light:scale-100"})
+					@icons.Sun(icons.Props{Size: "20", Variant: icons.Filled, Class: "iota-theme-icon duration-200"})
 				</label>
-				<input class="peer/dark appearance-none absolute" type="radio" name="theme" value="dark" id="theme-dark" onchange="onThemeChange(this)"/>
+				<input class="peer/dark appearance-none absolute" type="radio" name="theme" value="dark" id="theme-dark" onchange="iotaTheme.onRadioChange(this)"/>
 				<label for="theme-system" class="group/dark absolute flex items-center justify-center w-9 h-9 rounded-full bg-black-950 text-white invisible peer-checked/dark:visible">
-					@icons.Moon(icons.Props{Size: "20", Variant: icons.Filled, Class: "scale-0 duration-200 peer-checked/dark:group-[]/dark:scale-100", Attributes: templ.Attributes{"fill": "currentColor"}})
+					@icons.Moon(icons.Props{Size: "20", Variant: icons.Filled, Class: "iota-theme-icon duration-200", Attributes: templ.Attributes{"fill": "currentColor"}})
 				</label>
 			</div>
 		</div>
 	</section>
 	@navbarOnce.Once() {
-		<script>
-			let THEME_STORAGE_KEY = "iota-theme";
-			let savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-			let initialTheme = savedTheme ?? "system";
-			let root = document.documentElement;
-			let previousTheme = initialTheme;
-			let radioInput = document.getElementById(`theme-${initialTheme}`);
-			function changeTheme(theme) {
-				root.classList.remove(previousTheme);
-				if (!theme) theme = initialTheme;
-				window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-				root.classList.add(theme)
-				previousTheme = theme;
-			}
-			function onThemeChange(input) {
-				changeTheme(input.value);
-			}
-			if (radioInput) {
-				radioInput.checked = true;
-				changeTheme(initialTheme);
-			}
-		</script>
+		<script src={ themeJs }></script>
 	}
 }
 

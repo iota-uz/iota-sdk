@@ -86,6 +86,23 @@ lens cmd="help" *args="":
       exit 2 ;; \
   esac
 
+[group("solid-ui")]
+[doc("Solid UI component gallery commands (dev|build|typecheck|test|check|vr|vr-update|vr-linux|install)")]
+solid-ui cmd="help" *args="":
+  case "{{cmd}}" in \
+    dev|build|typecheck|test|check|install) (cd web/solid-ui && pnpm {{cmd}} {{args}}) ;; \
+    vr|vr-update) (cd web/solid-ui && pnpm {{cmd}} {{args}}) ;; \
+    vr-linux) \
+      if [ "$(uname -m)" != "x86_64" ]; then \
+        echo "Solid UI Linux baselines are linux/amd64; use CI to generate them on ARM hosts" ; \
+        exit 2 ; \
+      fi ; \
+      docker run --rm --platform linux/amd64 --ipc=host -v "{{justfile_directory()}}:/work" --mount type=volume,target=/work/web/solid-ui/node_modules --mount type=volume,source=iota-sdk-solid-ui-vr-pnpm-store,target=/root/.local/share/pnpm/store -w /work/web/solid-ui mcr.microsoft.com/playwright:v1.55.1-noble bash -lc 'corepack enable && pnpm install --frozen-lockfile && pnpm vr {{args}}' ;; \
+    *) \
+      echo "Usage: just solid-ui [dev|build|typecheck|test|check|vr|vr-update|vr-linux|install]" ; \
+      exit 2 ;; \
+  esac
+
 [group("codegen")]
 [doc("Generate Go + templ (or watch)")]
 generate cmd="":

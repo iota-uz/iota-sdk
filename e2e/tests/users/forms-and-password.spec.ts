@@ -105,8 +105,8 @@ test.describe('user form scalability and self-service password change', () => {
 			await expect(page.locator(`select[name="GroupIDs"] option[value="${fixture.groupID}"]`)).toHaveText('Twenty thousand members');
 		}
 		await page.locator('[name="LastName"]').fill('Preserved edit');
-		await page.locator('select[name="GroupIDs"]').selectOption(fixture.groupID);
-		await page.locator('select[name="RoleIDs"]').selectOption(fixture.roleID);
+		await page.locator('select[name="GroupIDs"]').selectOption(fixture.groupID, { force: true });
+		await page.locator('select[name="RoleIDs"]').selectOption(fixture.roleID, { force: true });
 		await page.locator('[name="FirstName"]').fill('');
 		await page.locator('#save-btn').click();
 		await expect(page.locator('[name="LastName"]')).toHaveValue('Preserved edit');
@@ -115,8 +115,8 @@ test.describe('user form scalability and self-service password change', () => {
 
 		await page.goto('/users/new');
 		await page.locator('[name="FirstName"]').fill('Preserved');
-		await page.locator('select[name="GroupIDs"]').selectOption(fixture.groupID);
-		await page.locator('select[name="RoleIDs"]').selectOption(fixture.roleID);
+		await page.locator('select[name="GroupIDs"]').selectOption(fixture.groupID, { force: true });
+		await page.locator('select[name="RoleIDs"]').selectOption(fixture.roleID, { force: true });
 		await page.locator('#save-btn').click();
 		await expect(page.locator('[name="FirstName"]')).toHaveValue('Preserved');
 		await expect(page.locator('select[name="GroupIDs"]')).toHaveValue(fixture.groupID);

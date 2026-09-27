@@ -1248,7 +1248,7 @@ const ChartLegend = memo(function ChartLegend({
                   <button
                     aria-pressed={!isHidden}
                     className={`lens-chart-legend-toggle${isHidden ? ' lens-chart-legend-hidden' : ''}`}
-                    data-testid={`lens-panel-${panel.id}-legend-series-${visibleIndex}`}
+                    data-testid={`lens-panel-${panel.id}-legend-series-${entryIndex}`}
                     onClick={() => onToggle(key)}
                     // The charting idiom every reader arrives with, and the
                     // one the isolate glyph beside it was the only way to

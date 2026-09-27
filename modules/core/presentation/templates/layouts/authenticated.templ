@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/toast"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/components/spotlight"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -17,6 +18,7 @@ import (
 
 var (
 	navbarOnce = templ.NewOnceHandle()
+	themeJs    = "/assets/" + assets.HashFS.HashName("js/theme.js")
 )
 
 templ Avatar() {
@@ -43,7 +45,7 @@ templ ThemeSwitcher() {
 			name="theme"
 			value="system"
 			id="theme-system"
-			onchange="onThemeChange(this)"
+			onchange="iotaTheme.onRadioChange(this)"
 			checked
 		/>
 		<label
@@ -61,7 +63,7 @@ templ ThemeSwitcher() {
 			name="theme"
 			value="light"
 			id="theme-light"
-			onchange="onThemeChange(this)"
+			onchange="iotaTheme.onRadioChange(this)"
 		/>
 		<label
 			for="theme-dark"
@@ -79,7 +81,7 @@ templ ThemeSwitcher() {
 			name="theme"
 			value="dark"
 			id="theme-dark"
-			onchange="onThemeChange(this)"
+			onchange="iotaTheme.onRadioChange(this)"
 		/>
 		<label
 			for="theme-system"
@@ -94,28 +96,7 @@ templ ThemeSwitcher() {
 		</label>
 	</div>
 	@navbarOnce.Once() {
-		<script>
-			let THEME_STORAGE_KEY = "iota-theme";
-			let savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-			let initialTheme = savedTheme ?? "system";
-			let root = document.documentElement;
-			let previousTheme = initialTheme;
-			let radioInput = document.getElementById(`theme-${initialTheme}`);
-			function changeTheme(theme) {
-				root.classList.remove(previousTheme);
-				if (!theme) theme = initialTheme;
-				window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-				root.classList.add(theme)
-				previousTheme = theme;
-			}
-			function onThemeChange(input) {
-				changeTheme(input.value);
-			}
-			if (radioInput) {
-				radioInput.checked = true;
-				changeTheme(initialTheme);
-			}
-		</script>
+		<script src={ themeJs }></script>
 	}
 }
 

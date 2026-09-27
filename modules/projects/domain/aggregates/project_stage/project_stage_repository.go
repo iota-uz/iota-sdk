@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
@@ -35,4 +36,7 @@ type Repository interface {
 	GetByProjectID(ctx context.Context, projectID uuid.UUID) ([]ProjectStage, error)
 	GetNextStageNumber(ctx context.Context, projectID uuid.UUID) (int, error)
 	UpdatePaidAmounts(ctx context.Context, stageID uuid.UUID) error
+	// PaidTotals sums the payments linked to the stages of the projects, one
+	// amount per currency of the account they were received on.
+	PaidTotals(ctx context.Context, projectIDs []uuid.UUID) ([]*money.Money, error)
 }

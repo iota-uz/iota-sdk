@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Implement Stripe and Octo provider Cancel/Refund with PaymentIntentID persistence, restrict GraphQL WebSocket and POST transports to allowed origins via httpconfig, and decouple the warehouse module from core upload/user types behind local domain interfaces."
+}

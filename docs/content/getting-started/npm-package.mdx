@@ -1,6 +1,6 @@
 ---
 title: 'NPM Package (@iota-uz/sdk)'
-description: 'Use the client host and Lens runtime from the canonical SDK release'
+description: 'Use Solid client routes, the React compatibility host, and Lens from the canonical SDK release'
 ---
 
 # NPM Package (`@iota-uz/sdk`)
@@ -13,12 +13,76 @@ Tailwind, or asset surfaces.
 ## Install
 
 ```bash
-pnpm add @iota-uz/sdk@0.5.6 react react-dom
+pnpm add @iota-uz/sdk@0.5.6 solid-js
 ```
 
 Production consumers should pin an exact SDK version matching their Go module.
 
-## Client host
+## Solid client route
+
+Declare the screen and route once in the owning Go package:
+
+```go
+var ProductEditor = solid.Import[ProductEditorProps](
+    "./ProductEditor.tsx",
+    solid.WithRPC(
+        solid.Query[LoadProduct, Product]("products.load"),
+        solid.Action[SaveProduct, Product]("products.save", solid.Invalidates("products.load")),
+    ),
+)
+
+spec := application.Get(
+    "/products/{id}/configure",
+    application.ClientRoute("products.configure"),
+    application.RequireAll(products.UpdatePermission),
+)
+
+route := clienthost.Route{
+    Spec: spec,
+    Feature: ProductEditor,
+    Build: func(ctx context.Context, request *http.Request) (clienthost.RoutePayload, error) {
+        props, err := loadProductEditorProps(ctx, request)
+        return clienthost.RoutePayload{Screen: ProductEditor.Render(props)}, err
+    },
+}
+```
+
+Generate the colocated types and catalog, then import the generated Props from
+ordinary TSX:
+
+```tsx
+import type { Props } from './ProductEditor.solid.generated'
+import type { SolidRouteProps } from '@iota-uz/sdk/solid'
+
+export default function ProductEditor(props: SolidRouteProps<Props>) {
+  return <h1>{props.route.initial.productName}</h1>
+}
+```
+
+```bash
+go run github.com/iota-uz/iota-sdk/cmd/iota-solid \
+  -module . -catalog web/src/solid-features.generated.ts
+```
+
+The app's frontend entry calls `mountSolidFeatureCatalogFromDocument` once with
+the generated catalog. New features do not edit that entry. Commit the generated
+bindings and catalog; run the same command with `-check` in CI and `-watch` in
+the shared dev command.
+
+Inside a component, use `useClientHost()` for the current session, locale,
+theme, navigation guard, and telemetry. Construct `FetchRPCTransport` with the
+bootstrap RPC endpoint and `host.session`, then use `createRPCQuery` and
+`createRPCAction`. For authenticated server-sent events, use `useManagedStream`
+with a typed `StreamContract`: it sends session/CSRF headers, replays from the
+last cursor on reconnect, closes on route unmount, and can invalidate generated
+RPC query cache families from stream events. Use `createDraft` only for
+editable client state; call `draft.save` with the typed action and let the
+returned server value become the new baseline.
+
+The executable fixture is in `web/client-host/fixtures/product-editor`; run it
+with `pnpm --dir web/client-host test:browser`.
+
+## React compatibility host
 
 ```ts
 import {
@@ -26,6 +90,9 @@ import {
   ClientHostProvider,
 } from '@iota-uz/sdk/client-host'
 ```
+
+React and ReactDOM are optional peers retained for existing consumers. New
+client routes should use Solid. Never mount both renderers into one DOM root.
 
 ## Lens
 

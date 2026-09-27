@@ -49,7 +49,37 @@
       "SelectCounterparty": "Select counterparty",
       "NoCounterpartiesFound": "No counterparties found",
       "_Description": "Description",
-      "DeleteConfirmation": "Are you sure you want to delete this project?"
+      "DeleteConfirmation": "Are you sure you want to delete this project?",
+      "General": "Project",
+      "ContractAmount": "Contract amount",
+      "ContractCurrency": "Contract currency",
+      "SelectCurrency": "Select currency"
+    },
+    "Acceptance": {
+      "Title": "Acceptance",
+      "New": "New document",
+      "Kind": "Type",
+      "Number": "Number",
+      "Date": "Date",
+      "Amount": "Amount",
+      "CurrencyCode": "Currency",
+      "_Description": "Description",
+      "Add": "Add",
+      "Sign": "Sign",
+      "Cancel": "Cancel document",
+      "CancelConfirmation": "Cancel this document?",
+      "DeleteConfirmation": "Delete this document?",
+      "Empty": "No acceptance documents yet",
+      "Kinds": {
+        "_ACT": "Acceptance act",
+        "_DELIVERY_NOTE": "Delivery note",
+        "_OTHER": "Other document"
+      },
+      "Statuses": {
+        "DRAFT": "Draft",
+        "SIGNED": "Signed",
+        "CANCELLED": "Cancelled"
+      }
     }
   },
   "ProjectStages": {

@@ -4,7 +4,6 @@ package controllers
 import (
 	"bytes"
 	"context"
-	"encoding/csv"
 	"fmt"
 	"log"
 	"net/http"
@@ -529,8 +528,14 @@ func (c *ClientController) Export(
 		return
 	case export.ExportFormatCSV:
 		var buffer bytes.Buffer
-		writer := csv.NewWriter(&buffer)
-		if err := writer.Write([]string{
+		// Names and phones are user-entered: the SDK CSV writer keeps them from
+		// opening as spreadsheet formulas.
+		writer, err := excel.NewCSVWriter(&buffer, &excel.CSVOptions{IncludeBOM: true})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := writer.WriteHeader([]string{
 			pgCtx.T("Clients.List.FullName"),
 			pgCtx.T("Clients.List.Phone"),
 			pgCtx.T("UpdatedAt"),
@@ -545,13 +550,12 @@ func (c *ClientController) Export(
 		}
 
 		for _, client := range clients {
-			if err := writer.Write([]string{client.FullName(), client.Phone, client.UpdatedAt}); err != nil {
+			if err := writer.WriteRow([]interface{}{client.FullName(), client.Phone, client.UpdatedAt}); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}
-		writer.Flush()
-		if err := writer.Error(); err != nil {
+		if err := writer.Flush(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

@@ -197,6 +197,26 @@ suite.GET("/api/data").
 - `Build() *Suite`
 - `BuildWithOptions(...Option) *Suite`
 
+**Route mounting:**
+- `Register(controller interface{ Register(*mux.Router) }) *Suite` — mount one hand-picked controller
+- `MountAll() *Suite` — mount every controller of the compiled application, mirroring the production route table (`pkg/server`). Without either, component routes answer 404.
+
+### Transaction Scope Methods (TestEnvironment)
+
+- `CommitTx(tb testing.TB)` — commit the scope transaction and replace it with a fresh rollback-scoped one. For seeding rows that must be visible to pool readers (repositories calling `UsePool`, workers, separate transactions) while later test work still rolls back.
+- `FreshTx(tb testing.TB)` — roll back the scope transaction, discarding uncommitted writes, and begin a new one.
+
+### i18n Assertions
+
+- `MessageResolves(bundle *i18n.Bundle, locale, messageID string) bool` — non-failing predicate; a key that only exists in another locale resolves to `false` even though the localizer can fall back.
+- `RequireMessage(tb, bundle, locale, messageID) string` — fail with a diagnostic hint (nested-path semantics, component LocaleFS coverage, per-locale presence).
+- `RequireMessages(tb, bundle, locale, ids...)` — plural form.
+- `RequireMessageAllLocales(tb, bundle, messageID, locales...)` — catches a key shipped in one language but forgotten in the others.
+
+### Concurrency Guard
+
+Rollback-scope transactions are wrapped in `repo.GuardedTx`: overlapping calls on one transaction fail fast with `repo.ErrTxInUse` instead of racing the connection (pgx transactions are single-connection; the classic trigger is an errgroup sharing an ambient request-scoped transaction). `repo.NewGuardedTx(tx)` brings the same fail-fast behaviour to application code.
+
 ### Request Methods
 
 **HTTP Verbs:**
