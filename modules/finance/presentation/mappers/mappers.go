@@ -182,8 +182,6 @@ func TransactionToViewModel(entity transaction.Transaction) *viewmodels.Transact
 		vm.TypeBadgeClass = "badge-info"
 	case transaction.Exchange:
 		vm.TypeBadgeClass = "badge-warning"
-	case transaction.Adjustment:
-		vm.TypeBadgeClass = "badge-primary"
 	default:
 		vm.TypeBadgeClass = "badge-primary"
 	}
