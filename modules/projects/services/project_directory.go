@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/projects/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/projects/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // ProjectDirectory offers projects to finance so debts can be linked to them.
@@ -23,12 +24,13 @@ func NewProjectDirectory(projectService *ProjectService) financeservices.Project
 
 // Has reports whether the project belongs to the current tenant.
 func (d *ProjectDirectory) Has(ctx context.Context, id uuid.UUID) (bool, error) {
+	const op serrors.Op = "ProjectDirectory.Has"
 	_, err := d.projectService.GetByID(ctx, id)
 	if errors.Is(err, persistence.ErrProjectNotFound) {
 		return false, nil
 	}
 	if err != nil {
-		return false, err
+		return false, serrors.E(op, err)
 	}
 	return true, nil
 }

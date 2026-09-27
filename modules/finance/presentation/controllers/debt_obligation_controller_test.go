@@ -218,6 +218,70 @@ func TestDebtController_Update_KeepsCurrencyAndOpenStatus(t *testing.T) {
 	require.Equal(t, int64(30000), unchanged.OutstandingAmount().Amount())
 }
 
+func TestDebtController_Update_AmountBelowPaidKeepsInput(t *testing.T) {
+	t.Parallel()
+	f := newObligationFixture(t)
+	created := f.createPayable(t, 300, nil)
+
+	_, err := f.debtService.Settle(f.env.Ctx, created.ID(), 100, nil)
+	require.NoError(t, err)
+
+	form := f.obligationForm("50.00", "")
+	form.Set("Description", "Corrected basis")
+	response := f.suite.POST(fmt.Sprintf("%s/%s", DebtBasePath, created.ID())).
+		Form(form).
+		HTMX().
+		Expect(t).
+		Status(200)
+	require.Empty(t, response.Header("HX-Redirect"))
+
+	html := response.HTML()
+	require.NotEmpty(t, html.Element("//small[@data-testid='field-error']").Text())
+	html.Element("//input[@name='Amount' and @value='50.00']").Exists()
+	require.Equal(t, "Corrected basis", html.Element("//textarea[@name='Description']").Text())
+
+	unchanged, err := f.debtService.GetByID(f.env.Ctx, created.ID())
+	require.NoError(t, err)
+	require.Equal(t, int64(30000), unchanged.OriginalAmount().Amount())
+	require.Equal(t, int64(20000), unchanged.OutstandingAmount().Amount())
+	require.Equal(t, debtAggregate.DebtStatusPartial, unchanged.Status())
+}
+
+func TestDebtController_Update_ClosedDebtStaysClosed(t *testing.T) {
+	t.Parallel()
+	f := newObligationFixture(t)
+	created := f.createPayable(t, 300, nil)
+
+	_, err := f.debtService.Cancel(f.env.Ctx, created.ID())
+	require.NoError(t, err)
+
+	form := f.obligationForm("300.00", "")
+	form.Set("Status", string(debtAggregate.DebtStatusPending))
+	f.suite.POST(fmt.Sprintf("%s/%s", DebtBasePath, created.ID())).
+		Form(form).
+		HTMX().
+		Expect(t).
+		Status(409)
+
+	unchanged, err := f.debtService.GetByID(f.env.Ctx, created.ID())
+	require.NoError(t, err)
+	require.Equal(t, debtAggregate.DebtStatusCancelled, unchanged.Status())
+	require.True(t, unchanged.OutstandingAmount().IsZero())
+
+	form.Set("Status", "")
+	form.Set("Description", "Cancelled by supplier")
+	f.suite.POST(fmt.Sprintf("%s/%s", DebtBasePath, created.ID())).
+		Form(form).
+		HTMX().
+		Expect(t).
+		Status(200)
+
+	described, err := f.debtService.GetByID(f.env.Ctx, created.ID())
+	require.NoError(t, err)
+	require.Equal(t, "Cancelled by supplier", described.Description())
+	require.Equal(t, debtAggregate.DebtStatusCancelled, described.Status())
+}
+
 func TestDebtController_RejectsUnknownProject(t *testing.T) {
 	t.Parallel()
 	f := newObligationFixture(t)

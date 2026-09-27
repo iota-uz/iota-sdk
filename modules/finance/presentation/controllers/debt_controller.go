@@ -303,21 +303,31 @@ func withFormValues(vm *viewmodels.Debt, dto *dtos.DebtUpdateDTO) *viewmodels.De
 	return vm
 }
 
-// accountError turns a debt/account currency mismatch into a form error.
-func accountError(ctx context.Context, err error) (map[string]string, bool) {
-	if !errors.Is(err, services.ErrDebtAccountCurrency) {
+// debtFormError turns a debt/account currency mismatch or an amount below
+// what was already paid into a form error.
+func debtFormError(ctx context.Context, err error) (map[string]string, bool) {
+	pageCtx := composables.UsePageCtx(ctx)
+	switch {
+	case errors.Is(err, services.ErrDebtAccountCurrency):
+		return map[string]string{"MoneyAccountID": pageCtx.T("Debts.Errors.AccountCurrency")}, true
+	case errors.Is(err, services.ErrDebtAmountBelowPaid):
+		return map[string]string{"Amount": pageCtx.T("Debts.Errors.AmountBelowPaid")}, true
+	default:
 		return nil, false
 	}
-	pageCtx := composables.UsePageCtx(ctx)
-	return map[string]string{"MoneyAccountID": pageCtx.T("Debts.Errors.AccountCurrency")}, true
 }
 
-// debtErrorStatus answers a project from another tenant as a bad request.
+// debtErrorStatus answers a project from another tenant as a bad request and
+// a status change of a closed debt as a conflict.
 func debtErrorStatus(err error) int {
-	if errors.Is(err, services.ErrDebtProject) {
+	switch {
+	case errors.Is(err, services.ErrDebtProject):
 		return http.StatusBadRequest
+	case errors.Is(err, services.ErrDebtNotOpen):
+		return http.StatusConflict
+	default:
+		return http.StatusInternalServerError
 	}
-	return http.StatusInternalServerError
 }
 
 func (c *DebtsController) GetEditDrawer(w http.ResponseWriter, r *http.Request) {
@@ -396,7 +406,7 @@ func (c *DebtsController) Create(w http.ResponseWriter, r *http.Request) {
 
 	entity := dto.ToEntity(tenantID)
 	if _, err := c.debtService.Create(r.Context(), entity); err != nil {
-		if errorsMap, ok := accountError(r.Context(), err); ok && isDrawer {
+		if errorsMap, ok := debtFormError(r.Context(), err); ok && isDrawer {
 			c.renderCreateDrawer(w, r, dto, errorsMap)
 			return
 		}
@@ -446,7 +456,7 @@ func (c *DebtsController) Update(w http.ResponseWriter, r *http.Request) {
 			shared.Redirect(w, r, c.basePath)
 			return
 		}
-		if errorsMap, ok = accountError(ctx, err); !ok {
+		if errorsMap, ok = debtFormError(ctx, err); !ok {
 			http.Error(w, err.Error(), debtErrorStatus(err))
 			return
 		}

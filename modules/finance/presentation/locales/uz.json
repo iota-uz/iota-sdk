@@ -538,7 +538,8 @@
       "CANCELLED": "Bekor qilingan"
     },
     "Errors": {
-      "AccountCurrency": "Hisob valyutasi qarz valyutasiga mos kelmaydi"
+      "AccountCurrency": "Hisob valyutasi qarz valyutasiga mos kelmaydi",
+      "AmountBelowPaid": "Summa allaqachon to'langanidan kam"
     },
     "Actions": {
       "Created": "Qarz muvaffaqiyatli yaratildi",

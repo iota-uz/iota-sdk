@@ -538,7 +538,8 @@
       "CANCELLED": "已取消"
     },
     "Errors": {
-      "AccountCurrency": "账户货币与债务货币不一致"
+      "AccountCurrency": "账户货币与债务货币不一致",
+      "AmountBelowPaid": "金额少于已支付的金额"
     },
     "Actions": {
       "Created": "债务创建成功",

@@ -538,7 +538,8 @@
       "CANCELLED": "Cancelada"
     },
     "Errors": {
-      "AccountCurrency": "A conta tem uma moeda diferente da dívida"
+      "AccountCurrency": "A conta tem uma moeda diferente da dívida",
+      "AmountBelowPaid": "O valor é menor do que o já pago"
     },
     "Actions": {
       "Created": "Dívida criada com sucesso",
