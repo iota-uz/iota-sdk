@@ -1,0 +1,4 @@
+{
+  "bump": "none",
+  "summary": "Align Tailwind v4 generation flow: shared pipeline config, shared PostCSS setup, reusable CI action, and pinned toolchain. No runtime change."
+}
