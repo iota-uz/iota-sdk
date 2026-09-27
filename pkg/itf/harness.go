@@ -392,6 +392,9 @@ func (m *harnessManager) getOrCreate(key string, cfg HarnessConfig) (*harnessSta
 			for entry.closing {
 				entry.cond.Wait()
 			}
+			if m.entries[key] != entry {
+				continue
+			}
 			if entry.state == nil {
 				delete(m.entries, key)
 				continue
