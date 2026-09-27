@@ -25,7 +25,6 @@ function glyph(children: JSX.Element, defaultSize: number) {
       <svg
         aria-hidden="true"
         class={props.className ? `lens-icon ${props.className}` : 'lens-icon'}
-        focusable="false"
         height={props.size ?? defaultSize}
         viewBox="0 0 256 256"
         width={props.size ?? defaultSize}

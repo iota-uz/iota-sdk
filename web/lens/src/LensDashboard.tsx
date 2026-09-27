@@ -1,27 +1,9 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import fixture from '../fixtures/panels-v1.json'
 import { parseDocument, type DashboardDocument } from './contract'
 import { DashboardPanels } from './DashboardPanels'
 import type { CalendarDate } from './controls'
 import { DashboardRuntimeProvider, DocumentProvider, type LensThemeMode } from './runtime'
-import type { JSX } from 'solid-js'
-
-// The runtime providers keep their React signatures during the migration; these
-// typed bridges let the mount compile against the pending Solid runtime.
-const DocumentProviderBridge = DocumentProvider as unknown as (props: {
-  src?: string
-  initialDocument?: DashboardDocument
-  csrf?: string
-  fetcher?: typeof fetch
-  children: JSX.Element
-}) => JSX.Element
-const RuntimeProviderBridge = DashboardRuntimeProvider as unknown as (props: {
-  locale: string
-  csrf?: string
-  fetcher?: typeof fetch
-  fallback?: JSX.Element
-  children: JSX.Element
-}) => JSX.Element
 
 export interface LensDashboardProps {
   src?: string
@@ -56,11 +38,11 @@ export function LensDashboard(props: LensDashboardProps) {
       {/* The React client-host boundary is not required for the Solid mount; the
           theme still travels on this wrapper so portalled overlays inherit it. */}
       <div data-theme={theme()}>
-        <DocumentProviderBridge src={props.src} initialDocument={document()} csrf={props.csrf} fetcher={props.fetcher}>
-          <RuntimeProviderBridge locale={locale()} csrf={props.csrf} fetcher={props.fetcher} fallback={fallback()}>
-            <DashboardPanels filterToday={props.filterToday} />
-          </RuntimeProviderBridge>
-        </DocumentProviderBridge>
+        <DocumentProvider src={props.src} initialDocument={document()} csrf={props.csrf} fetcher={props.fetcher}>
+          <DashboardRuntimeProvider locale={locale()} csrf={props.csrf} fetcher={props.fetcher} fallback={fallback()}>
+            {() => <DashboardPanels filterToday={props.filterToday} />}
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
       </div>
     </div>
   )

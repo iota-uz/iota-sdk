@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { createEffect, createSignal, onCleanup, onMount, Show } from 'solid-js'
 import type { NodeKey } from '../contract'
 import type { ChartActivation, ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../charts/adapter'

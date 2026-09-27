@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { JSX } from 'solid-js'
+import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardDocument, Frame, Panel } from '../contract'
 import { clusterRow, DashboardPanels } from '../DashboardPanels'
@@ -33,9 +34,9 @@ function documentWith(panels: Panel[], frames: Record<string, Frame>, layout?: D
   }
 }
 
-function renderDocument(document: DashboardDocument, children: React.ReactNode) {
-  return render(
-    <div className="lens-root">
+function renderDocument(document: DashboardDocument, children: () => JSX.Element) {
+  return render(() =>
+    <div class="lens-root">
       <DocumentProvider initialDocument={document}>
         <DashboardRuntimeProvider locale="en">{children}</DashboardRuntimeProvider>
       </DocumentProvider>
@@ -61,7 +62,7 @@ describe('stat panels', () => {
   it('renders the metric form with an uppercase label and status chip, and no accent bullet', () => {
     const { container } = renderDocument(
       documentWith([statPanel], { 'stat:root': statFrame }),
-      <StatMetric panel={statPanel} />,
+      () => (<StatMetric panel={statPanel} />),
     )
 
     // The accent square said nothing a reader could look up, and said different
@@ -74,7 +75,7 @@ describe('stat panels', () => {
   it('drops a dataset label that only repeats the panel title', () => {
     const { container } = renderDocument(
       documentWith([statPanel], { 'stat:root': statFrame }),
-      <StatPanel panel={statPanel} />,
+      () => (<StatPanel panel={statPanel} />),
     )
 
     // "Loss ratio" is the panel title, so the card shows it once, in the header.
@@ -87,7 +88,7 @@ describe('stat panels', () => {
     const document = documentWith([statPanel], {
       'stat:root': { ...statFrame, rows: [['Net of reinsurance', 3.1]] },
     })
-    renderDocument(document, <StatPanel panel={statPanel} />)
+    renderDocument(document, () => (<StatPanel panel={statPanel} />))
 
     expect(screen.getByText('Net of reinsurance')).toBeInTheDocument()
   })
@@ -96,7 +97,7 @@ describe('stat panels', () => {
     const panel: Panel = { ...statPanel, info: 'Claims paid divided by earned premium.' }
     const { container } = renderDocument(
       documentWith([panel], { 'stat:root': statFrame }),
-      <div className="lens-panel"><StatMetric panel={panel} /></div>,
+      () => (<div class="lens-panel"><StatMetric panel={panel} /></div>),
     )
 
     const tip = container.querySelector('.lens-info-tip-button-inline')
@@ -116,7 +117,7 @@ describe('stat panels', () => {
     const panel: Panel = { ...statPanel, info: 'Claims paid divided by earned premium.' }
     const { container } = renderDocument(
       documentWith([panel], { 'stat:root': statFrame }),
-      <div className="lens-panel"><StatMetric panel={panel} /></div>,
+      () => (<div class="lens-panel"><StatMetric panel={panel} /></div>),
     )
     const wrapper = container.querySelector<HTMLElement>('.lens-info-tip')!
     fireEvent.mouseEnter(wrapper)
@@ -132,7 +133,7 @@ describe('stat panels', () => {
   it('leaves a metric without a note free of info chrome', () => {
     const { container } = renderDocument(
       documentWith([statPanel], { 'stat:root': statFrame }),
-      <StatMetric panel={statPanel} />,
+      () => (<StatMetric panel={statPanel} />),
     )
 
     expect(container.querySelector('.lens-info-tip')).toBeNull()
@@ -142,7 +143,7 @@ describe('stat panels', () => {
     const panel: Panel = { ...statPanel, caption: 'First caveat\nSecond caveat' }
     const { container } = renderDocument(
       documentWith([panel], { 'stat:root': statFrame }),
-      <StatPanel panel={panel} />,
+      () => (<StatPanel panel={panel} />),
     )
 
     expect(container.querySelector('.lens-panel-caption')?.textContent).toBe('First caveat\nSecond caveat')
@@ -191,7 +192,7 @@ describe('coverage panel', () => {
   it('renders a headline, caption, segmented track and legend rows with shares', () => {
     const { container } = renderDocument(
       documentWith([coveragePanel], { 'coverage:root': coverageFrame }),
-      <CoveragePanel panel={coveragePanel} />,
+      () => (<CoveragePanel panel={coveragePanel} />),
     )
 
     expect(container.querySelector('.lens-coverage-headline')?.textContent).toContain('5,458,561,140')
@@ -221,7 +222,7 @@ describe('coverage panel', () => {
     const panel: Panel = { ...coveragePanel, headline: 51_522_007_533.993 }
     const { container } = renderDocument(
       documentWith([panel], { 'coverage:root': coverageFrame }),
-      <CoveragePanel panel={panel} />,
+      () => (<CoveragePanel panel={panel} />),
     )
 
     expect(container.querySelector('.lens-coverage-headline')?.textContent).toContain('51,522,007,534')
@@ -276,7 +277,7 @@ describe('table parity treatments', () => {
   it('renders pill, underline, stacked delta, clamp, action text and a panel-level leaf column', () => {
     const { container } = renderDocument(
       documentWith([tablePanel], { 'groups:root': tableFrame }),
-      <TablePanel panel={tablePanel} />,
+      () => (<TablePanel panel={tablePanel} />),
     )
 
     // Compact cells with the pinned separator, wrapped in a drill pill.
@@ -312,7 +313,7 @@ describe('table parity treatments', () => {
   })
 
   it('offers no sort control on an action-only column', () => {
-    renderDocument(documentWith([tablePanel], { 'groups:root': tableFrame }), <TablePanel panel={tablePanel} />)
+    renderDocument(documentWith([tablePanel], { 'groups:root': tableFrame }), () => (<TablePanel panel={tablePanel} />))
 
     const headers = screen.getAllByRole('columnheader')
     // 5 declared columns + the appended leaf action column.
@@ -347,7 +348,7 @@ describe('layout groups', () => {
 
   it('renders a metrics group as one card with a metric row', () => {
     const document = documentWith([first, second], { 'stat:root': statFrame }, metricsLayout)
-    const { container } = renderDocument(document, <DashboardPanels />)
+    const { container } = renderDocument(document, () => (<DashboardPanels />))
 
     expect(container.querySelectorAll('.lens-panel-group')).toHaveLength(1)
     expect(container.querySelectorAll('.lens-stat-metric')).toHaveLength(2)
@@ -365,7 +366,7 @@ describe('layout groups', () => {
       }],
     }
     const document = documentWith([first, second], { 'stat:root': statFrame }, tabsLayout)
-    renderDocument(document, <DashboardPanels />)
+    renderDocument(document, () => (<DashboardPanels />))
 
     const tabs = screen.getAllByRole('tab')
     expect(tabs.map((tab) => tab.textContent)).toEqual(['Cash', 'Underwriting'])
@@ -395,7 +396,7 @@ describe('layout groups', () => {
         options: [{ value: 'all', label: 'All' }, { value: 'direct', label: 'Direct' }],
       },
     }]
-    const { container } = renderDocument(document, <><FilterBar /><DashboardPanels /></>)
+    const { container } = renderDocument(document, () => (<><FilterBar /><DashboardPanels /></>))
 
     // Looking up the label alone would make this falsely green if the filter
     // regressed back into the dashboard header; ownership is asserted by DOM containment.
@@ -410,10 +411,10 @@ describe('layout groups', () => {
 describe('loading placeholders', () => {
   it('mirrors the layout instead of showing a spinner while the document loads', () => {
     const fetcher = vi.fn<typeof fetch>().mockReturnValue(new Promise<Response>(() => undefined))
-    const { container } = render(
-      <div className="lens-root">
+    const { container } = render(() =>
+      <div class="lens-root">
         <DocumentProvider src="/lens/document" fetcher={fetcher}>
-          <DashboardRuntimeProvider locale="en"><DashboardPanels /></DashboardRuntimeProvider>
+          <DashboardRuntimeProvider locale="en">{() => (<>(<DashboardPanels />)</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -424,11 +425,11 @@ describe('loading placeholders', () => {
   })
 
   it('shapes the panel placeholder from the panel kind', () => {
-    const { container } = render(<PanelSkeletonBody kind="stat" />)
+    const { container } = render(() =><PanelSkeletonBody kind="stat" />)
     expect(container.querySelector('.lens-skeleton-card')).toHaveAttribute('data-kind', 'stat')
 
     cleanup()
-    const table = render(<PanelSkeletonBody kind="table" />)
+    const table = render(() =><PanelSkeletonBody kind="table" />)
     expect(table.container.querySelector('.lens-skeleton-card')).toHaveAttribute('data-kind', 'table')
   })
 })
@@ -449,7 +450,7 @@ describe('drill affordance', () => {
   it('renders a pill on a plain cell that carries no wire action, without claiming a link', () => {
     const { container } = renderDocument(
       documentWith([plainPillPanel], { 'groups:root': tableFrame }),
-      <TablePanel panel={plainPillPanel} />,
+      () => (<TablePanel panel={plainPillPanel} />),
     )
 
     const pills = container.querySelectorAll('.lens-table-cell-pill')
@@ -471,7 +472,7 @@ describe('drill affordance', () => {
     }
     const { container } = renderDocument(
       documentWith([tablePanel], { 'groups:root': zeroFrame }),
-      <TablePanel panel={tablePanel} />,
+      () => (<TablePanel panel={tablePanel} />),
     )
 
     // Zero keeps a neutral rule; a missing number has none at all.
@@ -484,7 +485,7 @@ describe('drill affordance', () => {
 describe('expanded panel', () => {
   const expandable: Panel = { ...coveragePanel, id: 'expandable' }
 
-  function openExpanded(children: React.ReactNode) {
+  function openExpanded(children: () => JSX.Element) {
     const view = renderDocument(
       documentWith([expandable], { 'coverage:root': coverageFrame }),
       children,
@@ -494,7 +495,7 @@ describe('expanded panel', () => {
   }
 
   it('renders the panel in a modal dialog at the end of body, not inside the grid', () => {
-    const { container } = openExpanded(<CoveragePanel panel={expandable} />)
+    const { container } = openExpanded(() => (<CoveragePanel panel={expandable} />))
 
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
@@ -508,10 +509,10 @@ describe('expanded panel', () => {
   })
 
   it('carries the dashboard theme onto the portal host', () => {
-    render(
-      <div className="lens-root" data-theme="dark">
+    render(() =>
+      <div class="lens-root" data-theme="dark">
         <DocumentProvider initialDocument={documentWith([expandable], { 'coverage:root': coverageFrame })}>
-          <DashboardRuntimeProvider locale="en"><CoveragePanel panel={expandable} /></DashboardRuntimeProvider>
+          <DashboardRuntimeProvider locale="en">{() => (<>(<CoveragePanel panel={expandable} />)</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -524,7 +525,7 @@ describe('expanded panel', () => {
     ['Escape key', () => fireEvent.keyDown(document, { key: 'Escape' })],
     ['backdrop click', () => fireEvent.mouseDown(document.querySelector('.lens-panel-overlay')!)],
   ])('closes on %s and restores focus to the expand button', (_name, close) => {
-    openExpanded(<CoveragePanel panel={expandable} />)
+    openExpanded(() => (<CoveragePanel panel={expandable} />))
     close()
 
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -533,7 +534,7 @@ describe('expanded panel', () => {
   })
 
   it('keeps a click inside the dialog from dismissing it', () => {
-    openExpanded(<CoveragePanel panel={expandable} />)
+    openExpanded(() => (<CoveragePanel panel={expandable} />))
     fireEvent.mouseDown(screen.getByRole('dialog'))
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
@@ -547,7 +548,7 @@ describe('expanded panel', () => {
     }
     const { container } = renderDocument(
       documentWith([expandable], { 'coverage:root': coverageFrame }, layout),
-      <DashboardPanels />,
+      () => (<DashboardPanels />),
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Expand panel' }))
 
@@ -580,7 +581,7 @@ describe('panel header pressure', () => {
     }
     const { container } = renderDocument(
       documentWith([panel], { 'mix:root': pieFrame }),
-      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+      () => (<ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />),
     )
 
     expect(container.querySelector('.lens-panel-title')).toHaveAttribute('title', panel.title)
@@ -603,7 +604,7 @@ describe('chart legend series toggle', () => {
     }
     const view = renderDocument(
       documentWith([piePanel], { 'mix:root': frame }),
-      <ChartPanel panel={piePanel} adapter={adapter} />,
+      () => (<ChartPanel panel={piePanel} adapter={adapter} />),
     )
     return { ...view, inputs }
   }
@@ -648,7 +649,7 @@ describe('chart legend series toggle', () => {
     }
     const view = renderDocument(
       documentWith([panel], { 'mix:root': pieFrame }),
-      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+      () => (<ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />),
     )
 
     expect(view.container.querySelector('.lens-panel-total')?.textContent).toContain('1,000')
@@ -670,7 +671,7 @@ describe('chart legend series toggle', () => {
     }
     const view = renderDocument(
       documentWith([panel], { 'mix:root': pieFrame }),
-      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+      () => (<ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />),
     )
 
     expect(view.container.querySelector('.lens-panel-total')).toBeNull()
@@ -692,7 +693,7 @@ describe('chart legend series toggle', () => {
     }
     const view = renderDocument(
       documentWith([panel], { 'mix:root': pieFrame }),
-      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+      () => (<ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />),
     )
 
     expect(view.container.querySelector('.lens-panel-total')?.textContent).toContain('1,000')
@@ -726,7 +727,7 @@ describe('chart legend series toggle', () => {
     }
     const { container } = renderDocument(
       documentWith([ringPanel], { 'payment:root': ringFrame }),
-      <ChartPanel panel={ringPanel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+      () => (<ChartPanel panel={ringPanel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />),
     )
 
     const values = [...container.querySelectorAll('.lens-chart-legend-value')].map((node) => node.textContent)

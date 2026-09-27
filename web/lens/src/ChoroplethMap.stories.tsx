@@ -1,4 +1,3 @@
-import type { Story } from '@ladle/react'
 import type { DashboardDocument, Frame, GeoJSONFeatureCollection, Panel } from './contract'
 import { DashboardPanels } from './DashboardPanels'
 import { MapPanel } from './panels/MapPanel'
@@ -91,10 +90,10 @@ function StateMapPanel({ panel }: { panel: Panel }) {
 
 const registry: PanelRegistry = { map: StateMapPanel }
 
-export const StateMatrix: Story = () => (
-  <div className="lens-root">
+export const StateMatrix = () => (
+  <div class="lens-root">
     <DocumentProvider initialDocument={dashboardDocument} fetcher={fetcher}>
-      <DashboardRuntimeProvider locale="en" fetcher={fetcher}><DashboardPanels registry={registry} /></DashboardRuntimeProvider>
+      <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<DashboardPanels registry={registry} />)}</DashboardRuntimeProvider>
     </DocumentProvider>
   </div>
 )
@@ -142,10 +141,10 @@ const denseDocument: DashboardDocument = {
   },
 }
 
-export const DenseRegionLabels: Story = () => (
-  <div className="lens-root" style={{ width: 500 }}>
+export const DenseRegionLabels = () => (
+  <div class="lens-root" style={{ width: '500px' }}>
     <DocumentProvider initialDocument={denseDocument} fetcher={fetcher}>
-      <DashboardRuntimeProvider locale="ru" fetcher={fetcher}><DashboardPanels registry={registry} /></DashboardRuntimeProvider>
+      <DashboardRuntimeProvider locale="ru" fetcher={fetcher}>{() => (<DashboardPanels registry={registry} />)}</DashboardRuntimeProvider>
     </DocumentProvider>
   </div>
 )

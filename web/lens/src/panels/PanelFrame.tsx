@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { createEffect, createSignal, Show } from 'solid-js'
 import type { JSX, JSXElement } from 'solid-js'
 import type { Frame, Panel } from '../contract'
@@ -66,7 +66,6 @@ function trendPolarity(trend: NonNullable<Panel['trend']>): 'higher_better' | 'l
  * the reading actually moved that way. Everything else stays ink, which is what
  * keeps the tint worth reading.
  */
-/* eslint-disable react-refresh/only-export-components */
 export function trendTone(panel: Panel, frame: Frame | undefined): 'positive' | 'negative' | undefined {
   const trend = panel.trend
   if (!trend) return undefined
@@ -166,6 +165,8 @@ export function TrendChip(props: { panel: Panel; frame?: Frame }) {
 }
 
 export function PanelFrame(props: PanelFrameProps) {
+  // Charts are the default variant; only the stat headline opts out.
+  const variant = props.variant ?? 'chart'
   const translate = useTranslate()
   const { document: dashboard } = useDashboard()
   const chrome = usePanelChrome()
@@ -193,7 +194,7 @@ export function PanelFrame(props: PanelFrameProps) {
   // idle — the retry control beside it is the thing to act on.
   const busy = () => showLoading() || (props.frame.isStale && !props.frame.error)
   const badgePlacement = () => props.panel.presentation?.totalBadge ?? 'header'
-  const showTotal = () => props.variant === 'chart' && total() !== undefined && badgePlacement() === 'header'
+  const showTotal = () => variant === 'chart' && total() !== undefined && badgePlacement() === 'header'
   const totalLabel = translate('panel.total', 'Total')
   const expandLabel = () => expanded() ? translate('panel.collapse', 'Collapse panel') : translate('panel.expand', 'Expand panel')
   // Opt-out chrome: a drawer-hosted panel disables expand (an overlay over a
@@ -208,7 +209,7 @@ export function PanelFrame(props: PanelFrameProps) {
   // plot, a paragraph of prose above it is a permanent tax that pushes the
   // figure below the fold. The caption joins `info` behind the header's ⓘ,
   // which is what the templ runtime already does for stat descriptions.
-  const captionBelow = props.variant === 'stat'
+  const captionBelow = variant === 'stat'
   const calculationInfo = () => props.frame.calculation
     ? translate('panel.calculation', 'Calculated in {duration} · cache {cache}', {
       duration: props.frame.calculation.durationMs < 1000
@@ -219,7 +220,7 @@ export function PanelFrame(props: PanelFrameProps) {
         : translate('panel.cacheMiss', 'miss'),
     })
     : ''
-  const infoText = () => [props.variant === 'chart' ? props.panel.caption : '', props.panel.info, calculationInfo()]
+  const infoText = () => [variant === 'chart' ? props.panel.caption : '', props.panel.info, calculationInfo()]
     .map((part) => part?.trim() ?? '')
     .filter(Boolean)
     .join('\n\n')
@@ -249,7 +250,7 @@ export function PanelFrame(props: PanelFrameProps) {
     <section
       class={[
         'lens-panel',
-        props.variant === 'stat' ? 'lens-panel-stat' : 'lens-panel-chart',
+        variant === 'stat' ? 'lens-panel-stat' : 'lens-panel-chart',
         // The skeleton replaces the content outright, so it must not also carry
         // the stale dim — that treatment is only for the moment before a refetch
         // takes over the body.

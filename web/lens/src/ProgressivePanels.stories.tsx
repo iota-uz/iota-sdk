@@ -1,4 +1,3 @@
-import type { Story } from '@ladle/react'
 import type { DashboardDocument, Frame, Panel } from './contract'
 import { DashboardPanels } from './DashboardPanels'
 import { DashboardRuntimeProvider, DocumentProvider } from './runtime'
@@ -47,11 +46,10 @@ const fetcher: typeof fetch = () => {
   return Promise.resolve(new Response(stream, { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } }))
 }
 
-export const SiblingIsolation: Story = () => (
-  <div className="lens-root" data-theme="light" lang="ru">
+export const SiblingIsolation = () => (
+  <div class="lens-root" data-theme="light" lang="ru">
     <DocumentProvider initialDocument={progressiveDocument} fetcher={fetcher}>
-      <DashboardRuntimeProvider fetcher={fetcher} locale="ru">
-        <DashboardPanels />
+      <DashboardRuntimeProvider fetcher={fetcher} locale="ru">{() => (<DashboardPanels />)}
       </DashboardRuntimeProvider>
     </DocumentProvider>
   </div>

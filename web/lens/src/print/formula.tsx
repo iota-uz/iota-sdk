@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from 'react'
+import { createMemo, For, Show, type JSX } from 'solid-js'
 import type { Panel } from '../contract'
 import { buildKeyedJoin, type KeyedJoin } from '../panels/data'
 import {
@@ -28,145 +28,161 @@ import { sectionPanel } from './values'
 
 function useJoin(panel: Panel, section: PrintSection): KeyedJoin | undefined {
   const translate = useTranslate()
-  return useMemo(() => {
+  return createMemo(() => {
     if (!section.frame) return undefined
     return buildKeyedJoin(panel, section.frame, {
       missingColumn: (column) => translate('panel.missingColumn', 'Panel data is missing the “{column}” column.', { column }),
       duplicateKey: (key) => translate('panel.duplicateKey', 'Panel data has a duplicate key “{key}”.', { key }),
     })
-  }, [panel, section.frame, translate])
+  })()
 }
 
-function useValueFormatter(panel: Panel, locale: string, role: 'value' | 'share' = 'value') {
+function valueFormatter(panel: Panel, locale: string, role: 'value' | 'share' = 'value') {
   const field = panel.encoding[role]
-  return useMemo(
-    () => (value: number) => formatFieldValue(value, field ? panel.format[field] : undefined, locale),
-    [field, locale, panel.format],
-  )
+  return (value: number) => formatFieldValue(value, field ? panel.format[field] : undefined, locale)
 }
 
-function FlowFormula({ join, panel, locale }: { join: KeyedJoin; panel: Panel; locale: string }) {
+function FlowFormula(props: { join: KeyedJoin; panel: Panel; locale: string }): JSX.Element | null {
   const translate = useTranslate()
-  const formatValue = useValueFormatter(panel, locale)
+  const formatValue = valueFormatter(props.panel, props.locale)
   // The unit is a property of the calculation, not of each of its six lines.
   // Collect the amounts, choose one magnitude for all of them, and say it once
   // above the column — the same contract the printed tables follow.
-  const unit = useMemo(() => {
+  const unit = createMemo(() => {
     const amounts: Array<number> = []
-    flowStageViews(panel, join, (value) => {
+    flowStageViews(props.panel, props.join, (value) => {
       amounts.push(value)
       return ''
     })
-    return columnUnit(amounts, panel.encoding.value ? panel.format[panel.encoding.value] : undefined, locale)
-  }, [join, locale, panel])
-  const views = flowStageViews(panel, join, (value) => unit.format(value))
-  const delta = flowReconcileDelta(panel, join)
-  if (views.length === 0) return null
+    return columnUnit(amounts, props.panel.encoding.value ? props.panel.format[props.panel.encoding.value] : undefined, props.locale)
+  })
+  const views = createMemo(() => flowStageViews(props.panel, props.join, (value) => unit().format(value)))
+  const delta = createMemo(() => flowReconcileDelta(props.panel, props.join))
   return (
-    <div className="lens-print-formula">
-      {unit.note && <p className="lens-print-formula-unit">{unit.note}</p>}
-      <ol className="lens-print-flow">
-        {views.map((view, index) => (
-          <li
-            className="lens-print-flow-stage"
-            data-result={view.role === 'result' || undefined}
-            key={`${view.stage.key}-${index}`}
-          >
-            <span className="lens-print-flow-op">{view.operator}</span>
-            <span className="lens-print-flow-label">
-              {view.stage.label}
-              {view.stage.caption && <small>{view.stage.caption}</small>}
-            </span>
-            <span className="lens-print-flow-value">
-              {view.showDash ? '—' : view.text}
-              <PrintQualityChip confidence={view.confidence} availability={view.availability} />
-            </span>
-          </li>
-        ))}
-      </ol>
-      {delta !== undefined && (
-        <p className="lens-print-formula-note">
-          {translate('flow.difference', 'Difference: {delta}', { delta: formatValue(delta) })}
-        </p>
-      )}
-    </div>
-  )
-}
-
-function HierarchyFormula({ join, panel, locale }: { join: KeyedJoin; panel: Panel; locale: string }) {
-  const translate = useTranslate()
-  const formatValue = useValueFormatter(panel, locale)
-  const formatShare = useValueFormatter(panel, locale, 'share')
-  const views = hierarchyRowViews(panel, join, formatValue, formatShare)
-  if (views.length === 0) return null
-  return (
-    <div className="lens-print-formula">
-      <ul className="lens-print-hierarchy">
-        {views.map((view) => (
-          <li
-            className="lens-print-hierarchy-row"
-            data-parent={view.isParent || undefined}
-            key={view.row.key}
-            style={{ '--lens-depth': view.depth } as CSSProperties}
-          >
-            <span className="lens-print-hierarchy-label">
-              {view.row.label}
-              {view.row.unallocated && (
-                <em>{translate('hierarchy.unallocated', 'Unallocated')}</em>
-              )}
-              {view.row.description && <small>{view.row.description}</small>}
-            </span>
-            <span className="lens-print-hierarchy-value">
-              {view.showDash ? '—' : view.valueText}
-              <PrintQualityChip confidence={view.confidence} availability={view.availability} />
-            </span>
-            <span className="lens-print-hierarchy-share">{view.shareText ?? ''}</span>
-            {view.reconcile && (
-              <span className="lens-print-hierarchy-reconcile">
-                {view.reconcile.balanced
-                  ? translate('hierarchy.allocated', 'Allocated 100%')
-                  : translate('hierarchy.difference', 'Difference: {delta}', {
-                    delta: formatValue(view.reconcile.delta),
-                  })}
-              </span>
+    <Show when={views().length > 0}>
+      <div class="lens-print-formula">
+        <Show when={unit().note}>
+          <p class="lens-print-formula-unit">{unit().note}</p>
+        </Show>
+        <ol class="lens-print-flow">
+          <For each={views()}>
+            {(view) => (
+              <li
+                class="lens-print-flow-stage"
+                data-result={view.role === 'result' || undefined}
+              >
+                <span class="lens-print-flow-op">{view.operator}</span>
+                <span class="lens-print-flow-label">
+                  {view.stage.label}
+                  <Show when={view.stage.caption}>
+                    <small>{view.stage.caption}</small>
+                  </Show>
+                </span>
+                <span class="lens-print-flow-value">
+                  {view.showDash ? '—' : view.text}
+                  <PrintQualityChip confidence={view.confidence} availability={view.availability} />
+                </span>
+              </li>
             )}
-          </li>
-        ))}
-      </ul>
-    </div>
+          </For>
+        </ol>
+        <Show when={delta() !== undefined}>
+          <p class="lens-print-formula-note">
+            {translate('flow.difference', 'Difference: {delta}', { delta: formatValue(delta()!) })}
+          </p>
+        </Show>
+      </div>
+    </Show>
   )
 }
 
-function RelationshipFormula({ join, panel, locale }: { join: KeyedJoin | undefined; panel: Panel; locale: string }) {
+function HierarchyFormula(props: { join: KeyedJoin; panel: Panel; locale: string }): JSX.Element | null {
   const translate = useTranslate()
-  const formatValue = useValueFormatter(panel, locale)
-  const config = panel.metricRelationship
-  if (!config) return null
-  const source = relationshipEndView(panel, join, config.source, formatValue)
-  const target = relationshipEndView(panel, join, config.target, formatValue)
-  const glyph = connectorGlyphs(config).horizontal
+  const formatValue = valueFormatter(props.panel, props.locale)
+  const formatShare = valueFormatter(props.panel, props.locale, 'share')
+  const views = createMemo(() => hierarchyRowViews(props.panel, props.join, formatValue, formatShare))
   return (
-    <div className="lens-print-formula lens-print-relationship">
-      <p className="lens-print-relationship-claim">
-        {relationshipSentence(translate, config, source?.end.label ?? '', target?.end.label ?? '')}
-      </p>
-      <div className="lens-print-relationship-ends">
-        {[source, target].map((view, index) => (
-          <div className="lens-print-relationship-end" key={view?.end.key ?? index}>
-            <span className="lens-print-relationship-label">{view?.end.label ?? '—'}</span>
-            <span className="lens-print-relationship-value">
-              {!view || view.showDash ? '—' : view.valueText}
-              <PrintQualityChip confidence={view?.confidence} availability={view?.availability} />
-            </span>
-            {index === 0 && <span aria-hidden="true" className="lens-print-relationship-glyph">{glyph}</span>}
-          </div>
-        ))}
+    <Show when={views().length > 0}>
+      <div class="lens-print-formula">
+        <ul class="lens-print-hierarchy">
+          <For each={views()}>
+            {(view) => (
+              <li
+                class="lens-print-hierarchy-row"
+                data-parent={view.isParent || undefined}
+                style={{ '--lens-depth': view.depth } as JSX.CSSProperties}
+              >
+                <span class="lens-print-hierarchy-label">
+                  {view.row.label}
+                  <Show when={view.row.unallocated}>
+                    <em>{translate('hierarchy.unallocated', 'Unallocated')}</em>
+                  </Show>
+                  <Show when={view.row.description}>
+                    <small>{view.row.description}</small>
+                  </Show>
+                </span>
+                <span class="lens-print-hierarchy-value">
+                  {view.showDash ? '—' : view.valueText}
+                  <PrintQualityChip confidence={view.confidence} availability={view.availability} />
+                </span>
+                <span class="lens-print-hierarchy-share">{view.shareText ?? ''}</span>
+                <Show when={view.reconcile}>
+                  <span class="lens-print-hierarchy-reconcile">
+                    {view.reconcile!.balanced
+                      ? translate('hierarchy.allocated', 'Allocated 100%')
+                      : translate('hierarchy.difference', 'Difference: {delta}', {
+                        delta: formatValue(view.reconcile!.delta),
+                      })}
+                  </span>
+                </Show>
+              </li>
+            )}
+          </For>
+        </ul>
       </div>
-      <p className="lens-print-formula-note">
-        {translate(`relationship.type.${config.type}`, relationshipTypeFallback[config.type])}
-        {config.note ? ` · ${config.note}` : ''}
-      </p>
-    </div>
+    </Show>
+  )
+}
+
+function RelationshipFormula(props: { join: KeyedJoin | undefined; panel: Panel; locale: string }): JSX.Element | null {
+  const translate = useTranslate()
+  const formatValue = valueFormatter(props.panel, props.locale)
+  const config = props.panel.metricRelationship
+  return (
+    <Show when={config}>
+      {(value) => {
+        const source = relationshipEndView(props.panel, props.join, value().source, formatValue)
+        const target = relationshipEndView(props.panel, props.join, value().target, formatValue)
+        const glyph = connectorGlyphs(value()).horizontal
+        return (
+          <div class="lens-print-formula lens-print-relationship">
+            <p class="lens-print-relationship-claim">
+              {relationshipSentence(translate, value(), source?.end.label ?? '', target?.end.label ?? '')}
+            </p>
+            <div class="lens-print-relationship-ends">
+              <For each={[source, target]}>
+                {(view, index) => (
+                  <div class="lens-print-relationship-end">
+                    <span class="lens-print-relationship-label">{view?.end.label ?? '—'}</span>
+                    <span class="lens-print-relationship-value">
+                      {!view || view.showDash ? '—' : view.valueText}
+                      <PrintQualityChip confidence={view?.confidence} availability={view?.availability} />
+                    </span>
+                    <Show when={index() === 0}>
+                      <span aria-hidden="true" class="lens-print-relationship-glyph">{glyph}</span>
+                    </Show>
+                  </div>
+                )}
+              </For>
+            </div>
+            <p class="lens-print-formula-note">
+              {translate(`relationship.type.${value().type}`, relationshipTypeFallback[value().type])}
+              {value().note ? ` · ${value().note}` : ''}
+            </p>
+          </div>
+        )
+      }}
+    </Show>
   )
 }
 
@@ -174,15 +190,15 @@ function RelationshipFormula({ join, panel, locale }: { join: KeyedJoin | undefi
  * The printed form of a metric panel, or nothing when the panel is not one of
  * the three — the caller then falls back to a chart and its evidence table.
  */
-export function PrintFormula({ section }: { section: PrintSection }) {
-  const panel = useMemo(() => sectionPanel(section), [section])
-  const join = useJoin(panel, section)
-  const locale = section.document.meta.locale
-  if (panel.kind === 'metric_relationship') {
-    return <RelationshipFormula join={join} locale={locale} panel={panel} />
+export function PrintFormula(props: { section: PrintSection }): JSX.Element | null {
+  const panel = createMemo(() => sectionPanel(props.section))
+  const join = useJoin(panel(), props.section)
+  const locale = props.section.document.meta.locale
+  if (panel().kind === 'metric_relationship') {
+    return <RelationshipFormula join={join} locale={locale} panel={panel()} />
   }
   if (!join || join.kind !== 'ok') return null
-  if (panel.kind === 'metric_flow') return <FlowFormula join={join} locale={locale} panel={panel} />
-  if (panel.kind === 'metric_hierarchy') return <HierarchyFormula join={join} locale={locale} panel={panel} />
+  if (panel().kind === 'metric_flow') return <FlowFormula join={join} locale={locale} panel={panel()} />
+  if (panel().kind === 'metric_hierarchy') return <HierarchyFormula join={join} locale={locale} panel={panel()} />
   return null
 }

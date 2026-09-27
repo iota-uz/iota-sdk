@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardDocument, Panel } from '../contract'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
@@ -184,9 +184,9 @@ describe('TablePanel columns', () => {
         },
       },
     }
-    render(
+    render(() =>
       <DocumentProvider initialDocument={document}>
-        <DashboardRuntimeProvider locale="en"><TablePanel panel={columnsPanel} /></DashboardRuntimeProvider>
+        <DashboardRuntimeProvider locale="en">{() => (<>(<TablePanel panel={columnsPanel} />)</>)}</DashboardRuntimeProvider>
       </DocumentProvider>,
     )
 
@@ -195,12 +195,12 @@ describe('TablePanel columns', () => {
   })
 
   it('renders declared columns in order with labels, bar/delta cells, and per-column leaf links', () => {
-    const { container } = render(
-      <div className="lens-root">
+    const { container } = render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={columnsDocument}>
-          <DashboardRuntimeProvider locale="en">
+          <DashboardRuntimeProvider locale="en">{() => (<>(
             <TablePanel panel={columnsPanel} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -260,12 +260,12 @@ describe('TablePanel columns', () => {
       },
     }
 
-    const { container } = render(
-      <div className="lens-root">
+    const { container } = render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={manyRowsDocument}>
-          <DashboardRuntimeProvider locale="en">
+          <DashboardRuntimeProvider locale="en">{() => (<>(
             <TablePanel panel={columnsPanel} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -292,12 +292,12 @@ describe('TablePanel static (non-sortable)', () => {
     }
     staticPanel.frame = 'decomposition:root'
 
-    render(
-      <div className="lens-root">
+    render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={staticDocument}>
-          <DashboardRuntimeProvider locale="en">
+          <DashboardRuntimeProvider locale="en">{() => (<>(
             <TablePanel panel={staticPanel} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -359,12 +359,12 @@ const quietDocument: DashboardDocument = {
 
 describe('TablePanel quiet drill cells', () => {
   it('renders a whole-cell quiet drill target with tone and a badge', () => {
-    const { container } = render(
-      <div className="lens-root">
+    const { container } = render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={quietDocument}>
-          <DashboardRuntimeProvider locale="en">
+          <DashboardRuntimeProvider locale="en">{() => (<>(
             <TablePanel panel={quietPanel} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -429,12 +429,12 @@ function groupedDocument(): DashboardDocument {
 
 describe('TablePanel discontinued grouping', () => {
   it('hides collapsed members until the toggle is expanded and counts real rows', () => {
-    render(
-      <div className="lens-root">
+    render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={groupedDocument()}>
-          <DashboardRuntimeProvider locale="en">
+          <DashboardRuntimeProvider locale="en">{() => (<>(
             <TablePanel panel={groupPanel} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -447,10 +447,11 @@ describe('TablePanel discontinued grouping', () => {
     // The footer counts the 12 real rows (11 live + 1 member), not the toggle.
     expect(screen.getByText('12 rows')).toBeInTheDocument()
 
-    // Expanding reveals the member and flips aria-expanded.
+    // Expanding reveals the member and flips aria-expanded. The row list is
+    // rebuilt on toggle, so the expanded state is read from the fresh node.
     fireEvent.click(toggle)
     expect(screen.getByText('Legacy KASKO')).toBeInTheDocument()
-    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: /Discontinued products \(1\)/ })).toHaveAttribute('aria-expanded', 'true')
   })
 })
 
@@ -461,12 +462,12 @@ describe('TablePanel pagination', () => {
   ])('uses hasNext=$hasNext for an exact-multiple page', async ({ hasNext, disabled }) => {
     window.history.replaceState(null, '', '/?path=evidence&panel=evidence')
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(pageResponse(1, hasNext))
-    render(
-      <div className="lens-root">
+    render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={tableDocument}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
             <TablePanel panel={tablePanel} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -483,12 +484,12 @@ describe('TablePanel pagination', () => {
       requestedPages.push(body.page)
       return Promise.resolve(pageResponse(body.page))
     })
-    render(
-      <div className="lens-root">
+    render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={tableDocument}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
             <TablePanel panel={tablePanel} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -546,6 +547,7 @@ describe('TablePanel server readability features', () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
       const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { panels: Array<{ search?: string; sort?: { field: string; direction: string } }> }
       requests.push(request)
+
       const filtered = request.panels[0]?.search === 'motor'
       const result = { frames: {
         'panel:claims-products': {
@@ -573,12 +575,12 @@ describe('TablePanel server readability features', () => {
       ))
     })
 
-    render(
-      <div className="lens-root">
+    render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={document_}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
             <TablePanel panel={panel} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -703,12 +705,12 @@ describe('TablePanel column reading', () => {
   })}\n${JSON.stringify({ complete: true })}\n`, { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } }))
 
   async function renderPanel() {
-    render(
-      <div className="lens-root">
+    render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={document_}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
             <TablePanel panel={panel} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )

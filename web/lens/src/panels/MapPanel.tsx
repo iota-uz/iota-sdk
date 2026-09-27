@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-js'
 import type { Frame, GeoJSONFeatureCollection, GeoJSONSource, MapConfig, NodeKey, Panel } from '../contract'
 import type { ChartActivation, ChartAdapter, ChartInput, ChartFormatResolver } from '../charts/adapter'
@@ -8,7 +8,6 @@ import { ChartHost } from './ChartHost'
 import { usePanelNavigation } from './actions'
 import { PanelFrame } from './PanelFrame'
 
-/* eslint-disable react-refresh/only-export-components */
 export const MAX_MAP_GEOJSON_BYTES = 5 * 1024 * 1024
 
 /** Selects the localized GeoJSON label without ever mixing in another locale. */

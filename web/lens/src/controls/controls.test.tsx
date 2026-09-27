@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument, type DashboardDocument } from '../contract'
@@ -36,7 +36,7 @@ describe('Calendar', () => {
     root.closest('.lens-calendar')!.querySelector<HTMLElement>('[data-focused="true"]')!
 
   it('renders two consecutive month panes without duplicate day cells', () => {
-    render(<Calendar {...baseProps} onPick={() => undefined} />)
+    render(() =><Calendar {...baseProps} onPick={() => undefined} />)
     const labels = grids().map((grid) => grid.getAttribute('aria-label'))
     expect(labels).toHaveLength(2)
     expect(labels[0]).toContain('July 2026')
@@ -52,7 +52,7 @@ describe('Calendar', () => {
   // The surplus rows are padding, so they add no gridcell to either pane.
   it('draws every month on the same six-row grid', () => {
     // February 2026 starts on Sunday and fills exactly four Sunday-first weeks.
-    render(<Calendar {...baseProps} onPick={() => undefined} today={{ year: 2026, month: 2, day: 10 }} />)
+    render(() =><Calendar {...baseProps} onPick={() => undefined} today={{ year: 2026, month: 2, day: 10 }} />)
     for (const grid of grids()) {
       const weeks = grid.querySelectorAll('.lens-calendar-week')
       expect(weeks).toHaveLength(6)
@@ -73,7 +73,7 @@ describe('Calendar', () => {
       removeEventListener,
     })))
 
-    render(<Calendar {...baseProps} onPick={() => undefined} />)
+    render(() =><Calendar {...baseProps} onPick={() => undefined} />)
 
     expect(grids()).toHaveLength(1)
     expect(document.querySelector('.lens-calendar')).toHaveAttribute('data-panes', '1')
@@ -82,7 +82,7 @@ describe('Calendar', () => {
 
   it('navigates the grid by keyboard and completes a range with Enter', () => {
     const picks: Array<RangeSelection> = []
-    render(<Calendar {...baseProps} onPick={(selection) => picks.push(selection)} />)
+    render(() =><Calendar {...baseProps} onPick={(selection) => picks.push(selection)} />)
     const grid = firstGrid()
 
     expect(focused(grid).getAttribute('aria-label')).toContain('Jul 22')
@@ -102,7 +102,7 @@ describe('Calendar', () => {
   })
 
   it('shifts the pane window when focus moves past it and announces the month', () => {
-    render(<Calendar {...baseProps} onPick={() => undefined} />)
+    render(() =><Calendar {...baseProps} onPick={() => undefined} />)
     // August is already visible in the second pane: no window shift.
     fireEvent.keyDown(firstGrid(), { key: 'PageDown' })
     expect(grids()[0]!.getAttribute('aria-label')).toContain('July 2026')
@@ -115,7 +115,7 @@ describe('Calendar', () => {
   })
 
   it('steps the window by month through the header buttons', () => {
-    render(<Calendar {...baseProps} onPick={() => undefined} />)
+    render(() =><Calendar {...baseProps} onPick={() => undefined} />)
     fireEvent.click(screen.getByRole('button', { name: 'Next month' }))
     expect(grids()[0]!.getAttribute('aria-label')).toContain('August 2026')
     fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
@@ -123,7 +123,7 @@ describe('Calendar', () => {
   })
 
   it('travels by year through the month panel behind the heading', () => {
-    render(<Calendar {...baseProps} onPick={() => undefined} />)
+    render(() =><Calendar {...baseProps} onPick={() => undefined} />)
 
     // The heading opens the month panel for its own year; the panel replaces
     // the day grid rather than resizing the popover.
@@ -147,7 +147,7 @@ describe('Calendar', () => {
   })
 
   it('refuses months and years the min/max bounds exclude', () => {
-    render(
+    render(() =>
       <Calendar
         {...baseProps}
         max={{ year: 2026, month: 7, day: 25 }}
@@ -165,7 +165,7 @@ describe('Calendar', () => {
   })
 
   it('shows a live hover preview between the anchor and the hovered day', () => {
-    render(
+    render(() =>
       <Calendar
         {...baseProps}
         draft={{ start: { year: 2026, month: 7, day: 3 } }}
@@ -186,7 +186,7 @@ describe('Calendar', () => {
   })
 
   it('marks committed range endpoints with the band side toward the interior', () => {
-    render(
+    render(() =>
       <Calendar
         {...baseProps}
         draft={{ start: { year: 2026, month: 7, day: 3 }, end: { year: 2026, month: 7, day: 18 } }}
@@ -210,7 +210,7 @@ describe('Calendar', () => {
   })
 
   it('draws no band for a single-day range', () => {
-    render(
+    render(() =>
       <Calendar
         {...baseProps}
         draft={{ start: { year: 2026, month: 7, day: 3 }, end: { year: 2026, month: 7, day: 3 } }}
@@ -224,7 +224,7 @@ describe('Calendar', () => {
 
   it('disables days outside min/max and refuses to pick them', () => {
     const picks: Array<RangeSelection> = []
-    render(
+    render(() =>
       <Calendar
         {...baseProps}
         max={{ year: 2026, month: 7, day: 25 }}
@@ -239,7 +239,7 @@ describe('Calendar', () => {
   })
 
   it('announces range completion through the live region', () => {
-    render(
+    render(() =>
       <Calendar
         {...baseProps}
         draft={{ start: { year: 2026, month: 7, day: 3 } }}
@@ -252,11 +252,11 @@ describe('Calendar', () => {
   })
 
   it('renders localized weekday headers per first day of week', () => {
-    const { unmount } = render(<Calendar {...baseProps} locale="ru" onPick={() => undefined} />)
+    const { unmount } = render(() =><Calendar {...baseProps} locale="ru" onPick={() => undefined} />)
     const headersRu = screen.getAllByRole('columnheader').map((cell) => cell.textContent?.toLowerCase())
     expect(headersRu[0]).toContain('пн')
     unmount()
-    render(<Calendar {...baseProps} locale="en-US" onPick={() => undefined} />)
+    render(() =><Calendar {...baseProps} locale="en-US" onPick={() => undefined} />)
     const headersUs = screen.getAllByRole('columnheader').map((cell) => cell.textContent)
     expect(headersUs[0]).toBe('Sun')
   })
@@ -381,11 +381,11 @@ function periodFetcher(calls: Array<string>): typeof fetch {
 
 function FiltersFixture({ fetcher }: { fetcher: typeof fetch }) {
   return (
-    <div className="lens-root" data-theme="light">
+    <div class="lens-root" data-theme="light">
       <DocumentProvider fetcher={fetcher} src="/lens/document">
-        <DashboardRuntimeProvider fetcher={fetcher} locale="en">
+        <DashboardRuntimeProvider fetcher={fetcher} locale="en">{() => (<>(
           <FilterBar today={{ year: 2026, month: 7, day: 22 }} />
-        </DashboardRuntimeProvider>
+          )</>)}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
@@ -393,11 +393,11 @@ function FiltersFixture({ fetcher }: { fetcher: typeof fetch }) {
 
 function DashboardFiltersFixture({ fetcher }: { fetcher: typeof fetch }) {
   return (
-    <div className="lens-root" data-theme="light">
+    <div class="lens-root" data-theme="light">
       <DocumentProvider fetcher={fetcher} src="/lens/document">
-        <DashboardRuntimeProvider fetcher={fetcher} locale="en">
+        <DashboardRuntimeProvider fetcher={fetcher} locale="en">{() => (<>(
           <DashboardPanels filterToday={{ year: 2026, month: 7, day: 22 }} />
-        </DashboardRuntimeProvider>
+          )</>)}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
@@ -459,7 +459,7 @@ describe('FilterBar runtime integration', () => {
       JSON.stringify(allTimeDocumentWithCompareOff()),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
     ))
-    render(<FiltersFixture fetcher={fetcher} />)
+    render(() =><FiltersFixture fetcher={fetcher} />)
 
     const trigger = await compareTrigger()
     await waitFor(() => expect(window.location.search).toBe('?ActualRangeStart=&ActualRangeEnd=&compare=off'))
@@ -469,7 +469,7 @@ describe('FilterBar runtime integration', () => {
   it('stages a custom comparison interval before applying it', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
-    render(<FiltersFixture fetcher={compareFetcher(calls)} />)
+    render(() =><FiltersFixture fetcher={compareFetcher(calls)} />)
 
     fireEvent.click(await compareTrigger())
     fireEvent.click(compareOption('Custom interval'))
@@ -503,7 +503,7 @@ describe('FilterBar runtime integration', () => {
   it('operates the comparison listbox from the keyboard and leaves it unchanged on Escape', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
-    render(<FiltersFixture fetcher={compareFetcher(calls)} />)
+    render(() =><FiltersFixture fetcher={compareFetcher(calls)} />)
 
     const trigger = await compareTrigger()
     trigger.focus()
@@ -539,7 +539,7 @@ describe('FilterBar runtime integration', () => {
 
   it('keeps the previous document visible and shows a dismissable refetch error', async () => {
     window.history.replaceState(null, '', '/dash')
-    render(<DashboardFiltersFixture fetcher={refetchFailureFetcher([])} />)
+    render(() =><DashboardFiltersFixture fetcher={refetchFailureFetcher([])} />)
 
     await applyPreset('2025')
 
@@ -556,7 +556,7 @@ describe('FilterBar runtime integration', () => {
   it('retries the same filtered document request', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
-    render(<DashboardFiltersFixture fetcher={refetchFailureFetcher(calls)} />)
+    render(() =><DashboardFiltersFixture fetcher={refetchFailureFetcher(calls)} />)
 
     await applyPreset('2025')
     fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
@@ -567,7 +567,7 @@ describe('FilterBar runtime integration', () => {
 
   it('clears the refetch error after a successful retry', async () => {
     window.history.replaceState(null, '', '/dash')
-    render(<DashboardFiltersFixture fetcher={refetchFailureFetcher([])} />)
+    render(() =><DashboardFiltersFixture fetcher={refetchFailureFetcher([])} />)
 
     await applyPreset('2025')
     fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
@@ -579,7 +579,7 @@ describe('FilterBar runtime integration', () => {
   it('steps a running year back to the whole year before it, and announces where', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
-    render(<FiltersFixture fetcher={periodFetcher(calls)} />)
+    render(() =><FiltersFixture fetcher={periodFetcher(calls)} />)
 
     // Document default 2026-01-01..2026-07-22 is the current year still
     // running. A step back is the comparison the year chips existed to offer:
@@ -600,7 +600,7 @@ describe('FilterBar runtime integration', () => {
 
   it('steps a hand-drawn range by its own length', async () => {
     window.history.replaceState(null, '', '/dash?ActualRangeStart=2026-07-06&ActualRangeEnd=2026-07-22')
-    render(<FiltersFixture fetcher={periodFetcher([])} />)
+    render(() =><FiltersFixture fetcher={periodFetcher([])} />)
 
     // 17 days lands on the 17 days before it: no gap, no overlap.
     const back = await screen.findByRole('button', { name: /Previous period/ })
@@ -611,7 +611,7 @@ describe('FilterBar runtime integration', () => {
 
   it('offers no step for a period with no length', async () => {
     window.history.replaceState(null, '', '/dash?ActualRangeStart=&ActualRangeEnd=')
-    render(<FiltersFixture fetcher={periodFetcher([])} />)
+    render(() =><FiltersFixture fetcher={periodFetcher([])} />)
 
     // "All time" has no length to step by. The arrows stay in place rather
     // than vanishing, which would move the range out from under the pointer.
@@ -621,7 +621,7 @@ describe('FilterBar runtime integration', () => {
 
   it('renders declared presets in the picker with the active one pressed', async () => {
     window.history.replaceState(null, '', '/dash')
-    render(<FiltersFixture fetcher={periodFetcher([])} />)
+    render(() =><FiltersFixture fetcher={periodFetcher([])} />)
     const dialog = await openPeriod()
     expect(within(dialog).getByRole('button', { name: '2025' }).getAttribute('aria-pressed')).toBe('false')
     // Document default is 2026-01-01..2026-07-22, matching no preset.
@@ -631,7 +631,7 @@ describe('FilterBar runtime integration', () => {
   it('drives the URL and refetches on preset click; Back restores without timers', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
-    render(<FiltersFixture fetcher={periodFetcher(calls)} />)
+    render(() =><FiltersFixture fetcher={periodFetcher(calls)} />)
 
     await applyPreset('2025')
 
@@ -647,10 +647,10 @@ describe('FilterBar runtime integration', () => {
     // brackets only the restore itself, proving no resync timer is armed.
     const timeoutSpy = vi.spyOn(globalThis, 'setTimeout')
     const intervalSpy = vi.spyOn(globalThis, 'setInterval')
-    act(() => {
+    {
       window.history.replaceState(null, '', '/dash')
       window.dispatchEvent(new PopStateEvent('popstate'))
-    })
+    }
     const delayedTimers = timeoutSpy.mock.calls.filter(([, delay]) => (delay ?? 0) > 0)
     const intervals = intervalSpy.mock.calls.length
     timeoutSpy.mockRestore()
@@ -668,7 +668,7 @@ describe('FilterBar runtime integration', () => {
   it('submits the present-but-empty all-time form', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
-    render(<FiltersFixture fetcher={periodFetcher(calls)} />)
+    render(() =><FiltersFixture fetcher={periodFetcher(calls)} />)
     await applyPreset('All time')
     expect(window.location.search).toBe('?ActualRangeStart=&ActualRangeEnd=')
     await waitFor(() => {
@@ -682,7 +682,7 @@ describe('FilterBar runtime integration', () => {
   it('opens the calendar popover and submits a picked range as wire dates', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
-    render(<FiltersFixture fetcher={periodFetcher(calls)} />)
+    render(() =><FiltersFixture fetcher={periodFetcher(calls)} />)
     fireEvent.click(await screen.findByRole('button', { name: /Change period/ }))
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toBeInTheDocument()
@@ -705,7 +705,7 @@ describe('FilterBar runtime integration', () => {
   it('abandons the draft on Cancel and reopens from the applied range', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
-    render(<FiltersFixture fetcher={periodFetcher(calls)} />)
+    render(() =><FiltersFixture fetcher={periodFetcher(calls)} />)
     fireEvent.click(await screen.findByRole('button', { name: /Change period/ }))
     const dialog = await screen.findByRole('dialog')
 
@@ -724,7 +724,7 @@ describe('FilterBar runtime integration', () => {
 
   it('states the applied period once, on the trigger, whatever produced it', async () => {
     window.history.replaceState(null, '', '/dash')
-    render(<FiltersFixture fetcher={periodFetcher([])} />)
+    render(() =><FiltersFixture fetcher={periodFetcher([])} />)
     const group = await screen.findByRole('group', { name: 'Period' })
 
     // Three buttons and no caption: back, the applied range, forward. The
@@ -746,7 +746,7 @@ describe('FilterBar runtime integration', () => {
   it('keeps the built-in catalog in the popover instead of a second preset row', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
-    render(<FiltersFixture fetcher={presetlessFetcher(calls)} />)
+    render(() =><FiltersFixture fetcher={presetlessFetcher(calls)} />)
 
     // A document that declares no presets gets no preset row: the relative
     // catalog is the popover's, and the bar carries the trigger alone. The row
@@ -777,7 +777,7 @@ describe('FilterBar runtime integration', () => {
   it('surfaces the relative catalog in the popover alongside the declared years', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
-    render(<FiltersFixture fetcher={periodFetcher(calls)} />)
+    render(() =><FiltersFixture fetcher={periodFetcher(calls)} />)
 
     const dialog = await openPeriod()
 
@@ -808,7 +808,7 @@ describe('FilterBar runtime integration', () => {
   it('surfaces All time in the popover preset pane and applies it', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
-    render(<FiltersFixture fetcher={presetlessFetcher(calls)} />)
+    render(() =><FiltersFixture fetcher={presetlessFetcher(calls)} />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Change period/ }))
     const dialog = await screen.findByRole('dialog')
@@ -827,7 +827,7 @@ describe('FilterBar runtime integration', () => {
   it('commits typed dd.mm.yyyy From/To dates through Apply', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
-    render(<FiltersFixture fetcher={presetlessFetcher(calls)} />)
+    render(() =><FiltersFixture fetcher={presetlessFetcher(calls)} />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Change period/ }))
     await screen.findByRole('dialog')
@@ -853,7 +853,7 @@ describe('FilterBar runtime integration', () => {
 
   it('masks typed input, flags an unparseable date, and reverts it on Apply', async () => {
     window.history.replaceState(null, '', '/dash')
-    render(<FiltersFixture fetcher={presetlessFetcher([])} />)
+    render(() =><FiltersFixture fetcher={presetlessFetcher([])} />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Change period/ }))
     const dialog = await screen.findByRole('dialog')
@@ -877,7 +877,7 @@ describe('FilterBar runtime integration', () => {
 
   it('labels the preset rail and summarizes the open range as a day count', async () => {
     window.history.replaceState(null, '', '/dash')
-    render(<FiltersFixture fetcher={presetlessFetcher([])} />)
+    render(() =><FiltersFixture fetcher={presetlessFetcher([])} />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Change period/ }))
     const dialog = await screen.findByRole('dialog')
@@ -890,7 +890,7 @@ describe('FilterBar runtime integration', () => {
   it('ignores URL values the declaration cannot have produced', async () => {
     window.history.replaceState(null, '', '/dash?ActualRangeStart=garbage&ActualRangeEnd=2026-01-01')
     const calls: Array<string> = []
-    render(<FiltersFixture fetcher={periodFetcher(calls)} />)
+    render(() =><FiltersFixture fetcher={periodFetcher(calls)} />)
     await screen.findByRole('button', { name: /Change period/ })
     // The invalid pair is dropped: only the plain document fetch happened.
     expect(calls).toEqual(['/lens/document'])
@@ -942,11 +942,11 @@ function optionsResponse(count: number): Response {
 
 function FacetFixture() {
   return (
-    <div className="lens-root" data-theme="light">
+    <div class="lens-root" data-theme="light">
       <DocumentProvider initialDocument={facetDocument()}>
-        <DashboardRuntimeProvider locale="en">
+        <DashboardRuntimeProvider locale="en">{() => (<>(
           <FilterBar today={{ year: 2026, month: 7, day: 22 }} />
-        </DashboardRuntimeProvider>
+          )</>)}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
@@ -974,7 +974,7 @@ describe('facet filter menu', () => {
   it('collapses every facet behind one trigger and keeps the chips off the trigger row', async () => {
     window.history.replaceState(null, '', '/report')
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(optionsResponse(8))))
-    const view = render(<FacetFixture />)
+    const view = render(() =><FacetFixture />)
 
     const trigger = screen.getByRole('button', { name: /Filters/ })
     // One trigger, whatever the dashboard declares, and it counts what is on.
@@ -996,7 +996,9 @@ describe('facet filter menu', () => {
     // the shared body portal. Keeping it under the trigger would add the
     // trigger row's offset a second time and push the card to the screen edge.
     expect(view.container).not.toContainElement(menu)
-    expect(menu.parentElement).toHaveClass('lens-menu-overlay-root')
+    // Solid's Portal wraps the menu in one adapter div; the menu still lives
+    // in the shared body-level overlay root.
+    expect(menu.closest('.lens-menu-overlay-root')).not.toBeNull()
     // A staged selection is counted before it is applied, not after.
     expect(screen.getByText('Selected: 1')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('checkbox', { name: /Option 1/ }))
@@ -1013,7 +1015,7 @@ describe('facet filter menu', () => {
   it('drops the search box from a list too short to search', async () => {
     window.history.replaceState(null, '', '/report')
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(optionsResponse(3))))
-    render(<FacetFixture />)
+    render(() =><FacetFixture />)
 
     fireEvent.click(screen.getByRole('button', { name: /Filters/ }))
     await screen.findByRole('checkbox', { name: /Option 1/ })
@@ -1021,7 +1023,7 @@ describe('facet filter menu', () => {
 
     cleanup()
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(optionsResponse(9))))
-    render(<FacetFixture />)
+    render(() =><FacetFixture />)
     fireEvent.click(screen.getByRole('button', { name: /Filters/ }))
     await screen.findByRole('checkbox', { name: /Option 9/ })
     expect(screen.getByRole('searchbox')).toBeInTheDocument()
@@ -1069,7 +1071,7 @@ describe('SegmentedFilterControl', () => {
   it('writes the choice to the URL and refetches the document', async () => {
     window.history.replaceState(null, '', '/trends')
     const calls: Array<string> = []
-    render(<FiltersFixture fetcher={granularityFetcher(calls)} />)
+    render(() =><FiltersFixture fetcher={granularityFetcher(calls)} />)
 
     await screen.findByRole('group', { name: 'Periodicity' })
     expect(segment('By quarter')).toHaveAttribute('aria-pressed', 'true')
@@ -1086,20 +1088,20 @@ describe('SegmentedFilterControl', () => {
 
   it('restores a shared link, and ignores a value the declaration does not offer', async () => {
     window.history.replaceState(null, '', '/trends?PeriodGrain=year')
-    render(<FiltersFixture fetcher={granularityFetcher([])} />)
+    render(() =><FiltersFixture fetcher={granularityFetcher([])} />)
     await screen.findByRole('group', { name: 'Periodicity' })
     expect(segment('By year')).toHaveAttribute('aria-pressed', 'true')
 
     cleanup()
     window.history.replaceState(null, '', '/trends?PeriodGrain=decade')
-    render(<FiltersFixture fetcher={granularityFetcher([])} />)
+    render(() =><FiltersFixture fetcher={granularityFetcher([])} />)
     await screen.findByRole('group', { name: 'Periodicity' })
     expect(segment('By quarter')).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('keeps the period beside it untouched', async () => {
     window.history.replaceState(null, '', '/trends?ActualRangeStart=2025-01-01&ActualRangeEnd=2025-12-31')
-    render(<FiltersFixture fetcher={granularityFetcher([])} />)
+    render(() =><FiltersFixture fetcher={granularityFetcher([])} />)
 
     await screen.findByRole('group', { name: 'Periodicity' })
     fireEvent.click(segment('By year'))

@@ -1,5 +1,5 @@
-import { createContext, Fragment, useCallback, useContext, useMemo, type CSSProperties } from 'react'
-import { createPortal } from 'react-dom'
+import { createContext, createMemo, useContext, For, Show, type JSX } from 'solid-js'
+import { Portal } from 'solid-js/web'
 import type { DashboardDocument, Panel, Theme } from '../contract'
 import { buildCascadeStages, buildWaterfallModel } from '../panels/CascadePanel'
 import { ChartHost } from '../panels/ChartHost'
@@ -35,7 +35,7 @@ const PaletteContext = createContext<Map<string, string>>(new Map())
 /** The section's own theme with the report-wide label palette folded in. */
 function useSectionTheme(section: PrintSection): Theme {
   const labels = useContext(PaletteContext)
-  return useMemo(() => printTheme(section.document.theme, labels), [labels, section.document.theme])
+  return createMemo(() => printTheme(section.document.theme, labels))()
 }
 
 interface AuditRow {
@@ -161,17 +161,12 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): AuditTa
   }) }
 }
 
-function PrintChart({ section, height }: { section: PrintSection; height: number }) {
-  const panel = useMemo(() => sectionPanel(section), [section])
-  const theme = useSectionTheme(section)
-  const format = useCallback(
-    (field: string, value: unknown) => formatFieldValue(value, panel.format[field], section.document.meta.locale),
-    [panel.format, section.document.meta.locale],
-  )
-  const formatChartAxis = useCallback(
-    (field: string, value: unknown) => formatAxis(value, panel.format[field], section.document.meta.locale),
-    [panel.format, section.document.meta.locale],
-  )
+function PrintChart(props: { section: PrintSection; height: number }): JSX.Element | null {
+  const panel = createMemo(() => sectionPanel(props.section))()
+  const theme = useSectionTheme(props.section)
+  const format = (field: string, value: unknown) => formatFieldValue(value, panel.format[field], props.section.document.meta.locale)
+  const formatChartAxis = (field: string, value: unknown) => formatAxis(value, panel.format[field], props.section.document.meta.locale)
+  const section = props.section
   if (!section.frame || section.frame.rows.length <= 1 || !chartKinds.has(panel.kind)) return null
   // On paper a slice is named by the evidence table directly beneath it, so the
   // chart keeps its share inside the slice instead of spending a third of a
@@ -186,7 +181,7 @@ function PrintChart({ section, height }: { section: PrintSection; height: number
     }
     : panel.presentation
   return (
-    <div className="lens-print-chart" style={{ height }}>
+    <div class="lens-print-chart" style={{ height: `${props.height}px` }}>
       <ChartHost
         input={{
           kind: panel.kind as ChartKind,
@@ -221,7 +216,7 @@ function PrintChart({ section, height }: { section: PrintSection; height: number
 function useWaterfallModel(section: PrintSection) {
   const panel = sectionPanel(section)
   const locale = section.document.meta.locale
-  return useMemo(() => {
+  return createMemo(() => {
     if (!section.frame) return undefined
     const valueField = panel.encoding.value ?? 'value'
     const cutField = panel.encoding.cut ?? 'cut'
@@ -232,19 +227,19 @@ function useWaterfallModel(section: PrintSection) {
       locale,
     )
     return buildWaterfallModel(buildCascadeStages(panel, section.frame, formatValue, formatCut), formatValue)
-  }, [locale, panel, section.frame])
+  })()
 }
 
-function PrintWaterfall({ section }: { section: PrintSection }) {
+function PrintWaterfall(props: { section: PrintSection }): JSX.Element | null {
   const translate = useTranslate()
-  const panel = sectionPanel(section)
-  const model = useWaterfallModel(section)
-  const locale = section.document.meta.locale
+  const panel = sectionPanel(props.section)
+  const model = useWaterfallModel(props.section)
+  const locale = props.section.document.meta.locale
   // Paper reads an axis differently from a screen: eight gridlines each
   // spelling «175.00 млрд UZS» is the unit said eight times and a precision
   // nothing needs. The scale keeps its top tick in full and states the rest
   // as compact numbers.
-  const printed = useMemo(() => {
+  const printed = createMemo(() => {
     if (!model) return undefined
     const keep = model.ticks.length > 5
       ? model.ticks.filter((_, index) => index % 2 === 0)
@@ -256,34 +251,36 @@ function PrintWaterfall({ section }: { section: PrintSection }) {
         index === 0 ? tick : { ...tick, label: compact.format(tick.value) }
       )),
     }
-  }, [locale, model])
+  })
   // A colour that means something has to say what it means. The bridge tints a
   // stage by what the movement is worth to the reader, not by its direction, so
   // ink alone leaves «green among the orange» unexplained.
-  const tones = useMemo(
-    () => Array.from(new Set((printed?.items ?? []).map((item) => item.tone).filter(Boolean))) as Array<string>,
-    [printed],
+  const tones = createMemo(
+    () => Array.from(new Set((printed()?.items ?? []).map((item) => item.tone).filter(Boolean))) as Array<string>,
   )
-  if (!printed || printed.items.length === 0) return null
   return (
-    <div className="lens-print-chart lens-print-chart-waterfall">
-      {/* Paper cannot be hovered, so every split names itself here. */}
-      <WaterfallPlot label={panel.title} model={printed} splitCallout="always" />
-      {tones.length > 1 && (
-        <p className="lens-print-tone-key">
-          {tones.map((tone) => (
-            <span key={tone}>
-              <i aria-hidden="true" data-tone={tone} />
-              {tone === 'positive'
-                ? translate('print.toneFavourable', 'favourable')
-                : tone === 'negative'
-                  ? translate('print.toneAdverse', 'adverse')
-                  : translate('print.toneNeutral', 'neutral')}
-            </span>
-          ))}
-        </p>
-      )}
-    </div>
+    <Show when={printed() && printed()!.items.length > 0}>
+      <div class="lens-print-chart lens-print-chart-waterfall">
+        {/* Paper cannot be hovered, so every split names itself here. */}
+        <WaterfallPlot label={panel.title} model={printed()!} splitCallout="always" />
+        <Show when={tones().length > 1}>
+          <p class="lens-print-tone-key">
+            <For each={tones()}>
+              {(tone) => (
+                <span>
+                  <i aria-hidden="true" data-tone={tone} />
+                  {tone === 'positive'
+                    ? translate('print.toneFavourable', 'favourable')
+                    : tone === 'negative'
+                      ? translate('print.toneAdverse', 'adverse')
+                      : translate('print.toneNeutral', 'neutral')}
+                </span>
+              )}
+            </For>
+          </p>
+        </Show>
+      </div>
+    </Show>
   )
 }
 
@@ -293,46 +290,48 @@ function PrintWaterfall({ section }: { section: PrintSection }) {
  * table disagree with the picture above it — a stage the plot splits out goes
  * missing, and an intermediate keeps a name the axis never shows.
  */
-function PrintWaterfallTable({ section }: { section: PrintSection }) {
+function PrintWaterfallTable(props: { section: PrintSection }): JSX.Element | null {
   const translate = useTranslate()
-  const panel = sectionPanel(section)
-  const model = useWaterfallModel(section)
+  const panel = sectionPanel(props.section)
+  const model = useWaterfallModel(props.section)
   // The unit is said once in the column head, as every other printed table
   // says it: six repetitions of «млрд UZS» down a column are six repetitions.
-  const unit = useMemo(
+  const unit = createMemo(
     () => columnUnit(
       (model?.items ?? []).map((item) => item.value),
       panel.encoding.value ? panel.format[panel.encoding.value] : undefined,
-      section.document.meta.locale,
+      props.section.document.meta.locale,
     ),
-    [model, panel, section.document.meta.locale],
   )
-  if (!model || model.items.length === 0) return null
   return (
-    <table className="lens-print-data">
-      <thead>
-        <tr>
-          <th>{translate('print.stage', 'Stage')}</th>
-          <th data-align="right">{translate('print.value', 'Value')}{unit.note && <small>{unit.note}</small>}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {model.items.map((item, index) => (
-          <Fragment key={`${item.label}:${index}`}>
-            <tr data-role={item.kind}>
-              <td>{item.label}</td>
-              <td data-align="right">{unit.format(item.value)}</td>
-            </tr>
-            {item.formattedSplit && (
-              <tr data-role="split">
-                <td>{item.splitLabel || translate('print.splitPart', 'of which')}</td>
-                <td data-align="right">{item.formattedSplit}</td>
-              </tr>
+    <Show when={model && model.items.length > 0}>
+      <table class="lens-print-data">
+        <thead>
+          <tr>
+            <th>{translate('print.stage', 'Stage')}</th>
+            <th data-align="right">{translate('print.value', 'Value')}{unit().note && <small>{unit().note}</small>}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <For each={model!.items}>
+            {(item) => (
+              <>
+                <tr data-role={item.kind}>
+                  <td>{item.label}</td>
+                  <td data-align="right">{unit().format(item.value)}</td>
+                </tr>
+                <Show when={item.formattedSplit}>
+                  <tr data-role="split">
+                    <td>{item.splitLabel || translate('print.splitPart', 'of which')}</td>
+                    <td data-align="right">{item.formattedSplit}</td>
+                  </tr>
+                </Show>
+              </>
             )}
-          </Fragment>
-        ))}
-      </tbody>
-    </table>
+          </For>
+        </tbody>
+      </table>
+    </Show>
   )
 }
 
@@ -346,7 +345,7 @@ function isWaterfall(panel: Panel, section: PrintSection): boolean {
   return panel.kind === 'cascade' && Boolean(section.frame) && indexOf(section.frame!, panel.encoding.cut) >= 0
 }
 
-function PrintDataTable({ section, dense, exact: withExact }: {
+function PrintDataTable(props: {
   section: PrintSection
   dense?: boolean
   /**
@@ -355,17 +354,18 @@ function PrintDataTable({ section, dense, exact: withExact }: {
    * part kept for checking — states it to the som.
    */
   exact?: boolean
-}) {
+}): JSX.Element | null {
   const translate = useTranslate()
-  const theme = useSectionTheme(section)
-  const rows = useMemo(
+  const theme = useSectionTheme(props.section)
+  const section = props.section
+  const withExact = props.exact
+  const rows = createMemo(
     () => auditRows(section, section.document.meta.locale, theme),
-    [section, theme],
   )
-  if (!section.frame) return <p className="lens-print-empty">{translate('print.noData', 'No data')}</p>
+  if (!section.frame) return <p class="lens-print-empty">{translate('print.noData', 'No data')}</p>
   const panel = sectionPanel(section)
+  const frame = section.frame
   if (panel.kind === 'table' && panel.columns?.length) {
-    const frame = section.frame
     const columns = panel.columns
     const indexes = columns.map(({ field }) => indexOf(frame, field))
     const locale = section.document.meta.locale
@@ -400,168 +400,198 @@ function PrintDataTable({ section, dense, exact: withExact }: {
       }, 0))
     })
     return (
-      <table className="lens-print-data lens-print-data-wide">
+      <table class="lens-print-data lens-print-data-wide">
         <thead>
           <tr>
-            {columns.map((column, columnIndex) => (
-              <th data-align={alignments[columnIndex]} key={column.field}>
-                {column.label}
-                {units[columnIndex]?.note && <small>{units[columnIndex]?.note}</small>}
-              </th>
-            ))}
+            <For each={columns}>
+              {(column, columnIndex) => (
+                <th data-align={alignments[columnIndex()]}>
+                  {column.label}
+                  <Show when={units[columnIndex()]?.note}>
+                    <small>{units[columnIndex()]?.note}</small>
+                  </Show>
+                </th>
+              )}
+            </For>
           </tr>
         </thead>
         <tbody>
-          {frame.rows.map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              {columns.map((column, columnIndex) => {
-                const raw = indexes[columnIndex]! >= 0 ? row[indexes[columnIndex]!] : undefined
-                const formatted = units[columnIndex]!.format(raw)
-                const exact = withExact
-                  ? formatFieldValueExact(raw, panel.format[column.field], locale)
-                  : undefined
-                const value = numeric(raw)
-                // The producer's own row verdict — a loss ratio past 100%, say.
-                // On screen it tints the value; ink can carry the same tint.
-                const tone = text(row[indexOf(frame, column.cell.toneField)])
-                const max = maxima.get(column.field)
-                // A `delta` column carries two readings in one cell: the amount
-                // and the percentage it moved. Printing only the amount lost the
-                // half that says whether the move was large.
-                const secondaryIndex = indexOf(frame, column.cell.secondaryField)
-                const secondary = secondaryIndex >= 0 ? numeric(row[secondaryIndex]) : undefined
-                return (
-                  <td
-                    data-align={alignments[columnIndex]}
-                    data-negative={value !== undefined && value < 0 ? '' : undefined}
-                    data-tone={tone === 'pos' || tone === 'warn' || tone === 'neg' ? tone : undefined}
-                    key={column.field}
-                  >
-                    {formatted}
-                    {secondary !== undefined && (
-                      <em className="lens-print-cell-secondary" data-negative={secondary < 0 ? '' : undefined}>
-                        {clampedDeltaPercent(secondary) ?? `${secondary > 0 ? '+' : ''}${formatFieldValue(
-                          row[secondaryIndex],
-                          column.cell.secondaryField ? panel.format[column.cell.secondaryField] : undefined,
-                          locale,
-                        )}`}
-                      </em>
-                    )}
-                    {max !== undefined && max > 0 && value !== undefined && (
-                      <span
-                        aria-hidden="true"
-                        className="lens-print-cell-bar"
-                        data-negative={value < 0 ? '' : undefined}
-                        style={{ width: `${Math.min(100, Math.round((Math.abs(value) / max) * 100))}%` }}
-                      />
-                    )}
-                    {exact && exact !== formatted && <small>{exact}</small>}
-                  </td>
-                )
-              })}
-            </tr>
-          ))}
+          <For each={frame.rows}>
+            {(row) => (
+              <tr>
+                <For each={columns}>
+                  {(column, columnIndex) => {
+                    const raw = indexes[columnIndex()]! >= 0 ? row[indexes[columnIndex()]!] : undefined
+                    const formatted = units[columnIndex()]!.format(raw)
+                    const exact = withExact
+                      ? formatFieldValueExact(raw, panel.format[column.field], locale)
+                      : undefined
+                    const value = numeric(raw)
+                    // The producer's own row verdict — a loss ratio past 100%, say.
+                    // On screen it tints the value; ink can carry the same tint.
+                    const tone = text(row[indexOf(frame, column.cell.toneField)])
+                    const max = maxima.get(column.field)
+                    // A `delta` column carries two readings in one cell: the amount
+                    // and the percentage it moved. Printing only the amount lost the
+                    // half that says whether the move was large.
+                    const secondaryIndex = indexOf(frame, column.cell.secondaryField)
+                    const secondary = secondaryIndex >= 0 ? numeric(row[secondaryIndex]) : undefined
+                    return (
+                      <td
+                        data-align={alignments[columnIndex()]}
+                        data-negative={value !== undefined && value < 0 ? '' : undefined}
+                        data-tone={tone === 'pos' || tone === 'warn' || tone === 'neg' ? tone : undefined}
+                      >
+                        {formatted}
+                        <Show when={secondary !== undefined}>
+                          <em class="lens-print-cell-secondary" data-negative={secondary! < 0 ? '' : undefined}>
+                            {clampedDeltaPercent(secondary!) ?? `${secondary! > 0 ? '+' : ''}${formatFieldValue(
+                              row[secondaryIndex],
+                              column.cell.secondaryField ? panel.format[column.cell.secondaryField] : undefined,
+                              locale,
+                            )}`}
+                          </em>
+                        </Show>
+                        <Show when={max !== undefined && max > 0 && value !== undefined}>
+                          <span
+                            aria-hidden="true"
+                            class="lens-print-cell-bar"
+                            data-negative={value! < 0 ? '' : undefined}
+                            style={{ width: `${Math.min(100, Math.round((Math.abs(value!) / max!) * 100))}%` }}
+                          />
+                        </Show>
+                        <Show when={exact && exact !== formatted}>
+                          <small>{exact}</small>
+                        </Show>
+                      </td>
+                    )
+                  }}
+                </For>
+              </tr>
+            )}
+          </For>
         </tbody>
       </table>
     )
   }
-  const shares = rows.rows.some(({ share }) => share !== undefined)
+  const shares = rows().rows.some(({ share }) => share !== undefined)
   return (
-    <table className={`lens-print-data${dense ? ' lens-print-data-dense' : ''}`}>
+    <table class={`lens-print-data${props.dense ? ' lens-print-data-dense' : ''}`}>
       <thead>
         <tr>
           <th>{translate('print.category', 'Category')}</th>
           <th data-align="right">
             {translate('print.value', 'Value')}
-            {rows.unit && <small>{rows.unit}</small>}
+            <Show when={rows().unit}>
+              <small>{rows().unit}</small>
+            </Show>
           </th>
-          {shares && <th data-align="right">{translate('print.share', 'Share')}</th>}
+          <Show when={shares}>
+            <th data-align="right">{translate('print.share', 'Share')}</th>
+          </Show>
         </tr>
       </thead>
       <tbody>
-        {rows.rows.map((row) => (
-          <tr key={row.key}>
-            <td>
-              <span className="lens-print-swatch" style={{ backgroundColor: row.color }} />
-              {row.series && <span className="lens-print-series">{row.series} · </span>}
-              {row.label}
-            </td>
-            <td data-align="right">
-              {row.value}
-              {withExact && row.exact && row.exact !== row.value && <small>{row.exact}</small>}
-            </td>
-            {shares && (
-              <td className="lens-print-share" data-align="right">
-                {/* The bar carries the proportion the eye needs; the number
-                    keeps the row auditable. Neither costs an extra line. */}
-                {row.ratio !== undefined && (
-                  <span
-                    aria-hidden="true"
-                    className="lens-print-share-bar"
-                    style={{ width: `${Math.min(100, Math.round(row.ratio * 100))}%` }}
-                  />
-                )}
-                <span>{row.share ?? '—'}</span>
+        <For each={rows().rows}>
+          {(row) => (
+            <tr>
+              <td>
+                <span class="lens-print-swatch" style={{ 'background-color': row.color }} />
+                <Show when={row.series}>
+                  <span class="lens-print-series">{row.series} · </span>
+                </Show>
+                {row.label}
               </td>
-            )}
-          </tr>
-        ))}
+              <td data-align="right">
+                {row.value}
+                <Show when={withExact && row.exact && row.exact !== row.value}>
+                  <small>{row.exact}</small>
+                </Show>
+              </td>
+              <Show when={shares}>
+                <td class="lens-print-share" data-align="right">
+                  {/* The bar carries the proportion the eye needs; the number
+                      keeps the row auditable. Neither costs an extra line. */}
+                  <Show when={row.ratio !== undefined}>
+                    <span
+                      aria-hidden="true"
+                      class="lens-print-share-bar"
+                      style={{ width: `${Math.min(100, Math.round(row.ratio! * 100))}%` }}
+                    />
+                  </Show>
+                  <span>{row.share ?? '—'}</span>
+                </td>
+              </Show>
+            </tr>
+          )}
+        </For>
       </tbody>
     </table>
   )
 }
 
 /** What a printed table stops short of: one page of a level that has more. */
-function TruncationNote({ section }: { section: PrintSection }) {
+function TruncationNote(props: { section: PrintSection }): JSX.Element | null {
   const translate = useTranslate()
-  if (!section.hasMore || !section.frame) return null
   return (
-    <p className="lens-print-truncated">
-      {translate('print.truncated', 'First {rows} rows shown; the level continues in the dashboard.', {
-        rows: section.frame.rows.length,
-      })}
-    </p>
+    <Show when={props.section.hasMore && props.section.frame}>
+      <p class="lens-print-truncated">
+        {translate('print.truncated', 'First {rows} rows shown; the level continues in the dashboard.', {
+          rows: props.section.frame!.rows.length,
+        })}
+      </p>
+    </Show>
   )
 }
 
-function FigureNote({ section }: { section: PrintSection }) {
+function FigureNote(props: { section: PrintSection }): JSX.Element | null {
   const translate = useTranslate()
-  const panel = sectionPanel(section)
+  const panel = sectionPanel(props.section)
   const authored = panel.caption?.trim()
-  const fact = useMemo(
-    () => narrativeFact(panel, section.frame, section.document.meta.locale),
-    [panel, section.document.meta.locale, section.frame],
-  )
-  if (!authored && !fact) return null
+  const fact = createMemo(
+    () => narrativeFact(panel, props.section.frame, props.section.document.meta.locale),
+  )()
   return (
-    <p className="lens-print-figure-note">
-      {authored && <span className="lens-print-figure-authored">{authored}</span>}
-      {fact && <span>{translate(fact.labelKey, fact.fallback, fact.vars)}</span>}
-    </p>
+    <Show when={Boolean(authored) || Boolean(fact)}>
+      <p class="lens-print-figure-note">
+        <Show when={authored}>
+          <span class="lens-print-figure-authored">{authored}</span>
+        </Show>
+        <Show when={fact}>
+          <span>{translate(fact!.labelKey, fact!.fallback, fact!.vars)}</span>
+        </Show>
+      </p>
+    </Show>
   )
 }
 
 /** The markers a figure carries into the page's footnotes. */
-function FootnoteMarkers({ footnotes }: { footnotes?: FigureFootnotes }) {
-  if (!footnotes || footnotes.markers.length === 0) return null
-  return <sup className="lens-print-footnote-marker">{footnotes.markers.join(', ')}</sup>
+function FootnoteMarkers(props: { footnotes?: FigureFootnotes }): JSX.Element | null {
+  return (
+    <Show when={props.footnotes && props.footnotes.markers.length > 0}>
+      <sup class="lens-print-footnote-marker">{props.footnotes!.markers.join(', ')}</sup>
+    </Show>
+  )
 }
 
 /** The notes this figure introduced, printed with it so they share its page. */
-function FootnoteTexts({ footnotes }: { footnotes?: FigureFootnotes }) {
-  if (!footnotes || footnotes.notes.length === 0) return null
+function FootnoteTexts(props: { footnotes?: FigureFootnotes }): JSX.Element | null {
   return (
-    <ol className="lens-print-footnotes">
-      {footnotes.notes.map((note) => (
-        // The number is drawn rather than left to the list marker: a marker is
-        // the one glyph a print engine feels free to drop, and a note nobody
-        // can tie back to its figure is a note nobody reads.
-        <li key={note.number} value={note.number}>
-          <span className="lens-print-footnote-index">{note.number}</span>
-          {note.text}
-        </li>
-      ))}
-    </ol>
+    <Show when={props.footnotes && props.footnotes.notes.length > 0}>
+      <ol class="lens-print-footnotes">
+        <For each={props.footnotes!.notes}>
+          {(note) => (
+            // The number is drawn rather than left to the list marker: a marker is
+            // the one glyph a print engine feels free to drop, and a note nobody
+            // can tie back to its figure is a note nobody reads.
+            <li value={note.number}>
+              <span class="lens-print-footnote-index">{note.number}</span>
+              {note.text}
+            </li>
+          )}
+        </For>
+      </ol>
+    </Show>
   )
 }
 
@@ -572,87 +602,93 @@ function FootnoteTexts({ footnotes }: { footnotes?: FigureFootnotes }) {
  */
 const breakdownRowCap = 8
 
-function BreakdownView({ sections }: { sections: Array<PrintSection> }) {
+function BreakdownView(props: { sections: Array<PrintSection> }): JSX.Element | null {
   const translate = useTranslate()
-  if (sections.length === 0) return null
   return (
-    <div className="lens-print-breakdown">
-      <p className="lens-print-breakdown-head">{translate('print.breakdown', 'How it is calculated')}</p>
-      {sections.map((section) => {
-        const panel = sectionPanel(section)
-        const frame = section.frame
-        // A level of one column carries no reading — on screen it is a row of
-        // links into the claim register, on paper it is the word «Открыть
-        // претензии» under a heading.
-        const printedColumns = panel.kind === 'table' && panel.columns?.length
-          ? panel.columns.length
-          : frame?.columns.length ?? 0
-        if (frame && printedColumns <= 1) return null
-        if (formulaKinds.has(panel.kind)) {
-          return <PrintFormula key={section.id} section={section} />
-        }
-        const valueIndex = frame ? indexOf(frame, panel.encoding.value) : -1
-        if (frame && frame.rows.length === 1 && valueIndex >= 0) {
-          return (
-            <p className="lens-print-breakdown-term" key={section.id}>
-              <span>{panel.title}</span>
-              <span>{formatFieldValue(
-                frame.rows[0]?.[valueIndex],
-                panel.encoding.value ? panel.format[panel.encoding.value] : undefined,
-                section.document.meta.locale,
-              )}</span>
-            </p>
-          )
-        }
-        // A term of a calculation is a handful of rows. Anything longer is a
-        // dataset that belongs in the appendix, so the tile keeps the head of
-        // it and says what it kept.
-        const capped = frame && frame.rows.length > breakdownRowCap
-        const shown = capped && frame
-          ? { ...section, frame: { ...frame, rows: frame.rows.slice(0, breakdownRowCap) } }
-          : section
-        // A level whose first column is already named after it — «Общий резерв
-        // по группам риска» over a column of the same name — needs the heading
-        // said once.
-        // Two cuts of one number — by product and by claim size — carry the
-        // panel's name twice and their own name nowhere. The cut is what tells
-        // the two tables apart, so it is what the part is called.
-        const title = section.perspective?.label.trim() || panel.title
-        const named = panel.columns?.[0]?.label?.trim().toLowerCase() === title.trim().toLowerCase()
-        return (
-          <div className="lens-print-breakdown-part" key={section.id}>
-            {!named && <p className="lens-print-breakdown-title">{title}</p>}
-            <PrintDataTable dense section={shown} />
-            {capped && frame && (
-              // Here the whole term is in hand, so the reader is told what
-              // share of it the page keeps rather than merely that it was cut.
-              <p className="lens-print-truncated">
-                {translate('print.truncatedOf', '{rows} of {total} rows shown.', {
-                  rows: breakdownRowCap,
-                  total: frame.rows.length,
-                })}
-              </p>
-            )}
-          </div>
-        )
-      })}
-    </div>
+    <Show when={props.sections.length > 0}>
+      <div class="lens-print-breakdown">
+        <p class="lens-print-breakdown-head">{translate('print.breakdown', 'How it is calculated')}</p>
+        <For each={props.sections}>
+          {(section) => {
+            const panel = sectionPanel(section)
+            const frame = section.frame
+            // A level of one column carries no reading — on screen it is a row of
+            // links into the claim register, on paper it is the word «Открыть
+            // претензии» under a heading.
+            const printedColumns = panel.kind === 'table' && panel.columns?.length
+              ? panel.columns.length
+              : frame?.columns.length ?? 0
+            if (frame && printedColumns <= 1) return null
+            if (formulaKinds.has(panel.kind)) {
+              return <PrintFormula section={section} />
+            }
+            const valueIndex = frame ? indexOf(frame, panel.encoding.value) : -1
+            if (frame && frame.rows.length === 1 && valueIndex >= 0) {
+              return (
+                <p class="lens-print-breakdown-term">
+                  <span>{panel.title}</span>
+                  <span>{formatFieldValue(
+                    frame.rows[0]?.[valueIndex],
+                    panel.encoding.value ? panel.format[panel.encoding.value] : undefined,
+                    section.document.meta.locale,
+                  )}</span>
+                </p>
+              )
+            }
+            // A term of a calculation is a handful of rows. Anything longer is a
+            // dataset that belongs in the appendix, so the tile keeps the head of
+            // it and says what it kept.
+            const capped = Boolean(frame && frame.rows.length > breakdownRowCap)
+            const shown = capped && frame
+              ? { ...section, frame: { ...frame, rows: frame.rows.slice(0, breakdownRowCap) } }
+              : section
+            // A level whose first column is already named after it — «Общий резерв
+            // по группам риска» over a column of the same name — needs the heading
+            // said once.
+            // Two cuts of one number — by product and by claim size — carry the
+            // panel's name twice and their own name nowhere. The cut is what tells
+            // the two tables apart, so it is what the part is called.
+            const title = section.perspective?.label.trim() || panel.title
+            const named = panel.columns?.[0]?.label?.trim().toLowerCase() === title.trim().toLowerCase()
+            return (
+              <div class="lens-print-breakdown-part">
+                <Show when={!named}>
+                  <p class="lens-print-breakdown-title">{title}</p>
+                </Show>
+                <PrintDataTable dense section={shown} />
+                <Show when={capped && frame}>
+                  {/* Here the whole term is in hand, so the reader is told what
+                      share of it the page keeps rather than merely that it was cut. */}
+                  <p class="lens-print-truncated">
+                    {translate('print.truncatedOf', '{rows} of {total} rows shown.', {
+                      rows: breakdownRowCap,
+                      total: frame!.rows.length,
+                    })}
+                  </p>
+                </Show>
+              </div>
+            )
+          }}
+        </For>
+      </div>
+    </Show>
   )
 }
 
-function FigureView({ figure, footnotes }: { figure: PrintFigure; footnotes?: FigureFootnotes }) {
+function FigureView(props: { figure: PrintFigure; footnotes?: FigureFootnotes }): JSX.Element | null {
   const translate = useTranslate()
-  const { section } = figure
+  const figure = props.figure
+  const section = figure.section
   const panel = sectionPanel(section)
   const waterfall = isWaterfall(panel, section)
   const formula = formulaKinds.has(panel.kind)
   // A single value needs neither a chart of one point nor a table of one row.
   if (figure.metric) {
     return (
-      <figure className={`lens-print-figure lens-print-figure-${figure.width} lens-print-figure-metric`}>
-        <MetricTile figure={figure} footnotes={footnotes} numbered />
+      <figure class={`lens-print-figure lens-print-figure-${figure.width} lens-print-figure-metric`}>
+        <MetricTile figure={figure} footnotes={props.footnotes} numbered />
         <BreakdownView sections={figure.breakdown} />
-        <FootnoteTexts footnotes={footnotes} />
+        <FootnoteTexts footnotes={props.footnotes} />
       </figure>
     )
   }
@@ -660,41 +696,43 @@ function FigureView({ figure, footnotes }: { figure: PrintFigure; footnotes?: Fi
     ? formatFieldValue(panel.total, panel.format[panel.encoding.value], section.document.meta.locale)
     : undefined
   return (
-    <figure className={`lens-print-figure lens-print-figure-${waterfall || formula ? 'full' : figure.width}`}>
+    <figure class={`lens-print-figure lens-print-figure-${waterfall || formula ? 'full' : figure.width}`}>
       {/* Two rows, always both: a title that runs long must not push the
           chips down and take the figure beside it out of line. */}
-      <figcaption className="lens-print-figure-head">
-        <p className="lens-print-figure-title">
-          <span className="lens-print-figure-number">
+      <figcaption class="lens-print-figure-head">
+        <div class="lens-print-figure-title">
+          <span class="lens-print-figure-number">
             {translate('print.figure', 'Fig. {number}', { number: figure.number })}
           </span>
-          <h3>{panel.title}<FootnoteMarkers footnotes={footnotes} /></h3>
-        </p>
-        <p className="lens-print-figure-meta">
-          {panel.status?.label && (
-            <span className="lens-print-chip" data-tone={panel.status.tone ?? 'neutral'}>{panel.status.label}</span>
-          )}
+          <h3>{panel.title}<FootnoteMarkers footnotes={props.footnotes} /></h3>
+        </div>
+        <p class="lens-print-figure-meta">
+          <Show when={panel.status?.label}>
+            <span class="lens-print-chip" data-tone={panel.status!.tone ?? 'neutral'}>{panel.status!.label}</span>
+          </Show>
           <PrintQualityChip availability={panel.availability} confidence={panel.confidence} />
-          {section.perspective && (
-            <span className="lens-print-chip" data-tone="neutral">
-              {translate('print.view', 'View')}: {section.perspective.label}
+          <Show when={section.perspective}>
+            <span class="lens-print-chip" data-tone="neutral">
+              {translate('print.view', 'View')}: {section.perspective!.label}
             </span>
-          )}
+          </Show>
           {/* The header badge the dashboard shows: the authoritative total the
               shares below are taken against. */}
-          {total && <span className="lens-print-figure-total">{translate('print.total', 'Total')}: {total}</span>}
+          <Show when={total}>
+            <span class="lens-print-figure-total">{translate('print.total', 'Total')}: {total}</span>
+          </Show>
         </p>
       </figcaption>
       {formula
         ? <PrintFormula section={section} />
         : waterfall
           ? <PrintWaterfall section={section} />
-          : figure.chart && <PrintChart height={figure.width === 'half' ? 225 : 235} section={section} />}
+          : (figure.chart && <PrintChart height={figure.width === 'half' ? 225 : 235} section={section} />)}
       <FigureNote section={section} />
       {!formula && (waterfall ? <PrintWaterfallTable section={section} /> : <PrintDataTable section={section} />)}
       <TruncationNote section={section} />
       <BreakdownView sections={figure.breakdown} />
-      <FootnoteTexts footnotes={footnotes} />
+      <FootnoteTexts footnotes={props.footnotes} />
     </figure>
   )
 }
@@ -705,8 +743,8 @@ function FigureView({ figure, footnotes }: { figure: PrintFigure; footnotes?: Fi
  * cost one line of ink and answer the first question a reader has of any single
  * number — whether it is going anywhere.
  */
-function PrintSparkline({ values }: { values: Array<number> }) {
-  const points = values.filter((value) => Number.isFinite(value))
+function PrintSparkline(props: { values: Array<number> }): JSX.Element | null {
+  const points = props.values.filter((value) => Number.isFinite(value))
   if (points.length < 2) return null
   const min = Math.min(...points)
   const max = Math.max(...points)
@@ -716,21 +754,22 @@ function PrintSparkline({ values }: { values: Array<number> }) {
     .map((value, index) => `${(index * step).toFixed(2)},${(24 - ((value - min) / span) * 22).toFixed(2)}`)
     .join(' ')
   return (
-    <svg aria-hidden="true" className="lens-print-sparkline" preserveAspectRatio="none" viewBox="0 0 100 26">
-      <polyline fill="none" points={path} strokeLinecap="round" strokeLinejoin="round" />
+    <svg aria-hidden="true" class="lens-print-sparkline" preserveAspectRatio="none" viewBox="0 0 100 26">
+      <polyline fill="none" points={path} stroke-linecap="round" stroke-linejoin="round" />
     </svg>
   )
 }
 
 /** One reading: its name, its number, where it came from and where it is going. */
-function MetricTile({ figure, footnotes, numbered }: {
+function MetricTile(props: {
   figure: PrintFigure
   footnotes?: FigureFootnotes
   /** Chapter tiles are numbered so the text can point at them; cover tiles are not. */
   numbered?: boolean
-}) {
+}): JSX.Element {
   const translate = useTranslate()
-  const { section } = figure
+  const figure = props.figure
+  const section = figure.section
   const panel = sectionPanel(section)
   const locale = section.document.meta.locale
   const frame = section.frame
@@ -745,43 +784,47 @@ function MetricTile({ figure, footnotes, numbered }: {
   const deltaFormat = panel.encoding.final ? panel.format[panel.encoding.final] : format
   const target = panel.target
   return (
-    <div className="lens-print-kpi">
-      <p className="lens-print-kpi-label">
-        {numbered && (
-          <span className="lens-print-figure-number">
+    <div class="lens-print-kpi">
+      <p class="lens-print-kpi-label">
+        <Show when={props.numbered}>
+          <span class="lens-print-figure-number">
             {translate('print.figure', 'Fig. {number}', { number: figure.number })}
           </span>
-        )}
+        </Show>
         {panel.title}
-        <FootnoteMarkers footnotes={footnotes} />
+        <FootnoteMarkers footnotes={props.footnotes} />
       </p>
-      <p className="lens-print-kpi-value">
+      <p class="lens-print-kpi-value">
         {formatFieldValue(raw, format, locale)}
-        {delta !== undefined && (
-          <span className="lens-print-kpi-delta" data-negative={delta < 0 ? '' : undefined}>
-            {delta > 0 ? '+' : ''}{formatFieldValue(deltaRaw, deltaFormat, locale)}
+        <Show when={delta !== undefined}>
+          <span class="lens-print-kpi-delta" data-negative={delta! < 0 ? '' : undefined}>
+            {delta! > 0 ? '+' : ''}{formatFieldValue(deltaRaw, deltaFormat, locale)}
           </span>
-        )}
+        </Show>
       </p>
-      {panel.sparkline && <PrintSparkline values={panel.sparkline.values} />}
-      {panel.trend && (
-        <p className="lens-print-kpi-trend" data-negative={panel.trend.percent < 0 ? '' : undefined}>
-          {panel.trend.percent > 0 ? '+' : ''}{clampedDeltaPercent(panel.trend.percent)
-            ?? `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(panel.trend.percent)}%`}
-          {panel.trend.label ? ` ${panel.trend.label}` : ''}
+      <Show when={panel.sparkline}>
+        <PrintSparkline values={panel.sparkline!.values} />
+      </Show>
+      <Show when={panel.trend}>
+        <p class="lens-print-kpi-trend" data-negative={panel.trend!.percent < 0 ? '' : undefined}>
+          {panel.trend!.percent > 0 ? '+' : ''}{clampedDeltaPercent(panel.trend!.percent)
+            ?? `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(panel.trend!.percent)}%`}
+          {panel.trend!.label ? ` ${panel.trend!.label}` : ''}
         </p>
-      )}
-      {target && (
-        <p className="lens-print-kpi-target">
-          {translate('print.target', 'Target')}: {formatFieldValue(target.value, format, locale)}
-          {target.label ? ` · ${target.label}` : ''}
+      </Show>
+      <Show when={target}>
+        <p class="lens-print-kpi-target">
+          {translate('print.target', 'Target')}: {formatFieldValue(target!.value, format, locale)}
+          {target!.label ? ` · ${target!.label}` : ''}
         </p>
-      )}
-      {panel.caption && <p className="lens-print-kpi-caption">{panel.caption}</p>}
-      <p className="lens-print-kpi-chips">
-        {panel.status?.label && (
-          <span className="lens-print-chip" data-tone={panel.status.tone ?? 'neutral'}>{panel.status.label}</span>
-        )}
+      </Show>
+      <Show when={panel.caption}>
+        <p class="lens-print-kpi-caption">{panel.caption}</p>
+      </Show>
+      <p class="lens-print-kpi-chips">
+        <Show when={panel.status?.label}>
+          <span class="lens-print-chip" data-tone={panel.status!.tone ?? 'neutral'}>{panel.status!.label}</span>
+        </Show>
         <PrintQualityChip availability={panel.availability} confidence={panel.confidence} />
       </p>
     </div>
@@ -802,32 +845,31 @@ function periodLabel(document: DashboardDocument, allTime: string): string | und
   return format(start || end)
 }
 
-function Cover({
-  document,
-  outline,
-  report,
-}: {
+function Cover(props: {
   document: DashboardDocument
   outline: PrintOutline
   report: PrintReportModel
-}) {
+}): JSX.Element {
   const translate = useTranslate()
-  const kpis = outline.kpis
+  const kpis = props.outline.kpis
+  const document = props.document
   const period = periodLabel(document, translate('filter.period.allTime', 'All time'))
   return (
-    <header className="lens-print-cover">
-      <div className="lens-print-cover-head">
-        <p className="lens-print-kicker">{translate('print.kicker', 'Management audit report')}</p>
+    <header class="lens-print-cover">
+      <div class="lens-print-cover-head">
+        <p class="lens-print-kicker">{translate('print.kicker', 'Management audit report')}</p>
         <h1>{document.header?.title || document.meta.title}</h1>
-        {document.header?.subtitle && <p className="lens-print-cover-subtitle">{document.header.subtitle}</p>}
+        <Show when={document.header?.subtitle}>
+          <p class="lens-print-cover-subtitle">{document.header?.subtitle}</p>
+        </Show>
       </div>
-      <dl className="lens-print-cover-meta">
-        {period && (
+      <dl class="lens-print-cover-meta">
+        <Show when={period}>
           <div>
             <dt>{translate('print.period', 'Period')}</dt>
             <dd>{period}</dd>
           </div>
-        )}
+        </Show>
         <div>
           <dt>{translate('print.generated', 'Generated')}</dt>
           <dd>{new Intl.DateTimeFormat(document.meta.locale, {
@@ -837,62 +879,68 @@ function Cover({
         </div>
         <div>
           <dt>{translate('print.sections', 'Detailed views')}</dt>
-          <dd>{outline.figureCount + outline.detailCount}</dd>
+          <dd>{props.outline.figureCount + props.outline.detailCount}</dd>
         </div>
-        {(outline.estimated > 0 || outline.missing.length > 0) && (
+        <Show when={props.outline.estimated > 0 || props.outline.missing.length > 0}>
           <div>
             <dt>{translate('print.quality', 'Data quality')}</dt>
             <dd>{translate('print.qualityCount', '{estimated} estimated · {missing} not calculated', {
-              estimated: outline.estimated,
-              missing: outline.missing.length,
+              estimated: props.outline.estimated,
+              missing: props.outline.missing.length,
             })}</dd>
           </div>
-        )}
+        </Show>
       </dl>
-      {kpis.length > 0 && (
-        <div className="lens-print-kpis">
-          {kpis.map((figure) => <MetricTile figure={figure} key={figure.section.id} />)}
+      <Show when={kpis.length > 0}>
+        <div class="lens-print-kpis">
+          <For each={kpis}>
+            {(figure) => <MetricTile figure={figure} />}
+          </For>
         </div>
-      )}
-      {(report.truncated || report.warnings.length > 0 || outline.missing.length > 0) && (
-        <p className="lens-print-cover-flag">{translate(
+      </Show>
+      <Show when={props.report.truncated || props.report.warnings.length > 0 || props.outline.missing.length > 0}>
+        <p class="lens-print-cover-flag">{translate(
           'print.limitationsFlag',
           'This report discloses gaps in its data; see the closing appendix.',
         )}</p>
-      )}
+      </Show>
     </header>
   )
 }
 
-function Contents({ outline }: { outline: PrintOutline }) {
+function Contents(props: { outline: PrintOutline }): JSX.Element {
   const translate = useTranslate()
   return (
-    <section className="lens-print-contents">
+    <section class="lens-print-contents">
       <h2>{translate('print.contents', 'Contents')}</h2>
       <ol>
-        {outline.chapters.filter(({ figures }) => figures.length > 0).map((chapter) => (
-          <li key={chapter.id}>
-            <span className="lens-print-contents-number">{chapter.number}</span>
-            <span className="lens-print-contents-title">{chapter.title}</span>
-            {chapter.caption && <span className="lens-print-contents-caption">{chapter.caption}</span>}
-          </li>
-        ))}
-        {outline.appendix.length > 0 && (
+        <For each={props.outline.chapters.filter(({ figures }) => figures.length > 0)}>
+          {(chapter) => (
+            <li>
+              <span class="lens-print-contents-number">{chapter.number}</span>
+              <span class="lens-print-contents-title">{chapter.title}</span>
+              <Show when={chapter.caption}>
+                <span class="lens-print-contents-caption">{chapter.caption}</span>
+              </Show>
+            </li>
+          )}
+        </For>
+        <Show when={props.outline.appendix.length > 0}>
           <li>
-            <span className="lens-print-contents-number">A</span>
-            <span className="lens-print-contents-title">
+            <span class="lens-print-contents-number">A</span>
+            <span class="lens-print-contents-title">
               {translate('print.appendix', 'Appendix A. Detailed breakdowns')}
             </span>
           </li>
-        )}
+        </Show>
         <li>
-          <span className="lens-print-contents-number">B</span>
-          <span className="lens-print-contents-title">
+          <span class="lens-print-contents-number">B</span>
+          <span class="lens-print-contents-title">
             {translate('print.method', 'Appendix B. Sources and definitions')}
           </span>
         </li>
       </ol>
-      <p className="lens-print-contents-note">{translate(
+      <p class="lens-print-contents-note">{translate(
         'print.note',
         'Every interactive view is expanded below. Values and shares accompany each chart so the report remains self-contained on paper.',
       )}</p>
@@ -900,10 +948,11 @@ function Contents({ outline }: { outline: PrintOutline }) {
   )
 }
 
-function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string }) {
+function ChapterView(props: { chapter: PrintChapter; title: string }): JSX.Element | null {
   const translate = useTranslate()
+  const chapter = props.chapter
   // The chapter's own numbers, said once before the figures that carry them.
-  const headline = useMemo(
+  const headline = createMemo(
     () => headlineReadings(
       chapter.figures.map((figure) => ({
         id: figure.section.id,
@@ -912,7 +961,6 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
       })),
       chapter.figures[0]?.section.document.meta.locale ?? 'en',
     ),
-    [chapter.figures],
   )
   // Footnotes are numbered per chapter and printed where they first apply, so a
   // reader never has to hold a number across a page break.
@@ -935,7 +983,7 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
   // with its readings overleaf.
   let lead: JSX.Element | undefined
   const render = (figure: PrintFigure) => (
-    <FigureView figure={figure} footnotes={footnotes.get(figure.section.id)} key={figure.section.id} />
+    <FigureView figure={figure} footnotes={footnotes.get(figure.section.id)} />
   )
   const push = (element: JSX.Element) => {
     if (!lead) {
@@ -945,7 +993,7 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
     const heading = lead
     lead = undefined
     body.push(
-      <div className="lens-print-lead-group" key={`lead-${element.key}`}>
+      <div class="lens-print-lead-group">
         {heading}
         {element}
       </div>,
@@ -969,7 +1017,7 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
     const left = pending
     pending = undefined
     push(
-      <div className="lens-print-pair" key={`pair-${left.section.id}`}>
+      <div class="lens-print-pair">
         {render(left)}
         {render(figure)}
       </div>,
@@ -984,9 +1032,13 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
       // pair that preceded it.
       flush()
       lead = (
-        <div className="lens-print-strip" key={`strip-${figure.section.id}`}>
-          {group.label && <h3>{group.label}</h3>}
-          {group.caption && group.caption !== chapter.caption && <p>{group.caption}</p>}
+        <div class="lens-print-strip">
+          <Show when={group.label}>
+            <h3>{group.label}</h3>
+          </Show>
+          <Show when={group.caption && group.caption !== chapter.caption}>
+            <p>{group.caption}</p>
+          </Show>
         </div>
       )
     }
@@ -997,23 +1049,27 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
   // cover — still announces itself rather than vanishing.
   if (lead) body.push(lead)
   return (
-    <section className="lens-print-chapter">
-      <header className="lens-print-chapter-head">
-        <p className="lens-print-runninghead">{title} · {chapter.number}. {chapter.title}</p>
-        <h2><span className="lens-print-chapter-number">{chapter.number}</span>{chapter.title}</h2>
-        {chapter.caption && <p className="lens-print-lead">{chapter.caption}</p>}
-        {headline.length > 0 && (
-          <p className="lens-print-chapter-headline">
-            {headline.map((reading) => (
-              <span key={reading.id}>
-                <span className="lens-print-chapter-headline-label">{reading.label}</span>
-                {reading.value}
-              </span>
-            ))}
+    <section class="lens-print-chapter">
+      <header class="lens-print-chapter-head">
+        <p class="lens-print-runninghead">{props.title} · {chapter.number}. {chapter.title}</p>
+        <h2><span class="lens-print-chapter-number">{chapter.number}</span>{chapter.title}</h2>
+        <Show when={chapter.caption}>
+          <p class="lens-print-lead">{chapter.caption}</p>
+        </Show>
+        <Show when={headline().length > 0}>
+          <p class="lens-print-chapter-headline">
+            <For each={headline()}>
+              {(reading) => (
+                <span>
+                  <span class="lens-print-chapter-headline-label">{reading.label}</span>
+                  {reading.value}
+                </span>
+              )}
+            </For>
           </p>
-        )}
+        </Show>
       </header>
-      <div className="lens-print-grid">{body}</div>
+      <div class="lens-print-grid">{body}</div>
     </section>
   )
 }
@@ -1023,8 +1079,9 @@ const seriesTableLimit = 12
 /** How many periods stay in the table when the shape carries the rest. */
 const seriesTableTail = 8
 
-function DetailView({ detail }: { detail: PrintDetail }) {
+function DetailView(props: { detail: PrintDetail }): JSX.Element {
   const translate = useTranslate()
+  const detail = props.detail
   const panel = sectionPanel(detail.section)
   const rows = detail.section.frame?.rows.length ?? 0
   // A quarterly series back to 2011 is sixty rows of numbers nobody reads and a
@@ -1038,123 +1095,130 @@ function DetailView({ detail }: { detail: PrintDetail }) {
     }
     : detail.section
   return (
-    <article className="lens-print-detail">
+    <article class="lens-print-detail">
       <header>
-        <span className="lens-print-detail-number">{detail.number}</span>
+        <span class="lens-print-detail-number">{detail.number}</span>
         <h4>{panel.title}</h4>
-        <p className="lens-print-detail-trail">{detail.trail}</p>
+        <p class="lens-print-detail-trail">{detail.trail}</p>
       </header>
-      {compact && <PrintChart height={110} section={detail.section} />}
+      <Show when={compact}>
+        <PrintChart height={110} section={detail.section} />
+      </Show>
       <PrintDataTable dense exact section={section} />
       <TruncationNote section={detail.section} />
-      {compact && (
-        <p className="lens-print-detail-note">
+      <Show when={compact}>
+        <p class="lens-print-detail-note">
           {translate('print.seriesTail', 'The chart carries all {rows} periods; the table keeps the most recent {kept}.', {
             rows,
             kept: seriesTableTail,
           })}
         </p>
-      )}
+      </Show>
     </article>
   )
 }
 
-function DetailAppendix({ outline, title }: { outline: PrintOutline; title: string }) {
+function DetailAppendix(props: { outline: PrintOutline; title: string }): JSX.Element | null {
   const translate = useTranslate()
-  if (outline.appendix.length === 0) return null
   return (
-    <section className="lens-print-appendix">
-      <header className="lens-print-chapter-head">
-        <p className="lens-print-runninghead">{title} · {translate('print.appendix', 'Appendix A. Detailed breakdowns')}</p>
-        <h2><span className="lens-print-chapter-number">A</span>{translate('print.appendix', 'Appendix A. Detailed breakdowns')}</h2>
-        <p className="lens-print-lead">{translate(
-          'print.appendixNote',
-          'Each reading below is one step of the drill path printed above it, kept for verification rather than for reading in order.',
-        )}</p>
-      </header>
-      {outline.appendix.map((chapter) => (
-        <div className="lens-print-appendix-chapter" key={chapter.id}>
-          <h3>A{chapter.number}. {chapter.title}</h3>
-          <div className="lens-print-grid lens-print-grid-dense">
-            {chapter.details.map((detail) => <DetailView detail={detail} key={detail.section.id} />)}
-          </div>
-        </div>
-      ))}
-    </section>
+    <Show when={props.outline.appendix.length > 0}>
+      <section class="lens-print-appendix">
+        <header class="lens-print-chapter-head">
+          <p class="lens-print-runninghead">{props.title} · {translate('print.appendix', 'Appendix A. Detailed breakdowns')}</p>
+          <h2><span class="lens-print-chapter-number">A</span>{translate('print.appendix', 'Appendix A. Detailed breakdowns')}</h2>
+          <p class="lens-print-lead">{translate(
+            'print.appendixNote',
+            'Each reading below is one step of the drill path printed above it, kept for verification rather than for reading in order.',
+          )}</p>
+        </header>
+        <For each={props.outline.appendix}>
+          {(chapter) => (
+            <div class="lens-print-appendix-chapter">
+              <h3>A{chapter.number}. {chapter.title}</h3>
+              <div class="lens-print-grid lens-print-grid-dense">
+                <For each={chapter.details}>
+                  {(detail) => <DetailView detail={detail} />}
+                </For>
+              </div>
+            </div>
+          )}
+        </For>
+      </section>
+    </Show>
   )
 }
 
-function Methodology({
-  document,
-  outline,
-  report,
-  title,
-}: {
+function Methodology(props: {
   document: DashboardDocument
   outline: PrintOutline
   report: PrintReportModel
   title: string
-}) {
+}): JSX.Element {
   const translate = useTranslate()
-  const definitions = useMemo(
-    () => qualityDefinitions(outline.qualities, translate),
-    [outline.qualities, translate],
+  const definitions = createMemo(
+    () => qualityDefinitions(props.outline.qualities, translate),
   )
   return (
-    <section className="lens-print-method">
-      <header className="lens-print-chapter-head">
-        <p className="lens-print-runninghead">{title} · {translate('print.method', 'Appendix B. Sources and definitions')}</p>
+    <section class="lens-print-method">
+      <header class="lens-print-chapter-head">
+        <p class="lens-print-runninghead">{props.title} · {translate('print.method', 'Appendix B. Sources and definitions')}</p>
         <h2>
-          <span className="lens-print-chapter-number">B</span>
+          <span class="lens-print-chapter-number">B</span>
           {translate('print.method', 'Appendix B. Sources and definitions')}
         </h2>
       </header>
-      {definitions.length > 0 && (
-        <div className="lens-print-glossary">
+      <Show when={definitions().length > 0}>
+        <div class="lens-print-glossary">
           <h3>{translate('print.qualityTerms', 'What the quality marks mean')}</h3>
           <dl>
-            {definitions.map((entry) => (
-              <div key={entry.value}>
-                <dt><span className="lens-print-chip" data-quality={entry.value}>{entry.label}</span></dt>
-                <dd>{entry.definition}</dd>
-              </div>
-            ))}
+            <For each={definitions()}>
+              {(entry) => (
+                <div>
+                  <dt><span class="lens-print-chip" data-quality={entry.value}>{entry.label}</span></dt>
+                  <dd>{entry.definition}</dd>
+                </div>
+              )}
+            </For>
           </dl>
         </div>
-      )}
-      {outline.notes.length > 0 && (
-        <dl className="lens-print-notes">
-          {outline.notes.map((note) => (
-            <div key={note.id}>
-              <dt>{note.label}</dt>
-              <dd>{note.detail}</dd>
-            </div>
-          ))}
+      </Show>
+      <Show when={props.outline.notes.length > 0}>
+        <dl class="lens-print-notes">
+          <For each={props.outline.notes}>
+            {(note) => (
+              <div>
+                <dt>{note.label}</dt>
+                <dd>{note.detail}</dd>
+              </div>
+            )}
+          </For>
         </dl>
-      )}
-      {(outline.missing.length > 0 || report.truncated || report.warnings.length > 0) && (
-        <div className="lens-print-limits">
+      </Show>
+      <Show when={props.outline.missing.length > 0 || props.report.truncated || props.report.warnings.length > 0}>
+        <div class="lens-print-limits">
           <h3>{translate('print.limitations', 'Data limitations')}</h3>
           <p>{translate(
             'print.limitationsNote',
             'The report remains usable, but the following detail views could not be calculated and are explicitly disclosed:',
           )}</p>
           <ul>
-            {outline.missing.length > 0 && (
-              <li>{translate('print.missing', 'Not calculated: {names}', { names: outline.missing.join(', ') })}</li>
-            )}
-            {report.truncated && (
+            <Show when={props.outline.missing.length > 0}>
+              <li>{translate('print.missing', 'Not calculated: {names}', { names: props.outline.missing.join(', ') })}</li>
+            </Show>
+            <Show when={props.report.truncated}>
               <li>{translate(
                 'print.timeLimit',
                 'Further detail was stopped at the preparation time limit; all sections calculated by then are included.',
               )}</li>
-            )}
-            {report.warnings.map((warning, index) => <li key={`${index}:${warning}`}>{warning}</li>)}
+            </Show>
+            <For each={props.report.warnings}>
+              {(warning) => <li>{warning}</li>}
+            </For>
           </ul>
         </div>
-      )}
-      <p className="lens-print-provenance">
-        {translate('print.snapshot', 'Snapshot')}: {document.snapshotId} · {document.meta.dashboardId} · {document.meta.locale}
+      </Show>
+      <p class="lens-print-provenance">
+        {translate('print.snapshot', 'Snapshot')}: {props.document.snapshotId} · {props.document.meta.dashboardId} · {props.document.meta.locale}
       </p>
     </section>
   )
@@ -1166,47 +1230,55 @@ function Methodology({
  * would receive. `PrintReport` is the same document wired to the live print
  * state.
  */
-export function PrintReportView({ report }: { report: PrintReportModel }) {
+export function PrintReportView(props: { report: PrintReportModel }): JSX.Element {
   const translate = useTranslate()
-  const document = report.document
+  const document = props.report.document
   const title = document.header?.title || document.meta.title
-  const labels = useMemo(() => buildLabelPalette(report), [report])
-  const outline = useMemo(
+  const labels = createMemo(() => buildLabelPalette(props.report))()
+  const outline = createMemo(
     () => buildOutline(
-      report,
+      props.report,
       translate('print.summary', 'Summary'),
       translate('print.other', 'Other readings'),
     ),
-    [report, translate],
-  )
+  )()
   return (
     <PaletteContext.Provider value={labels}>
-      <Cover document={document} outline={outline} report={report} />
+      <Cover document={document} outline={outline} report={props.report} />
       <Contents outline={outline} />
-      {outline.chapters.map((chapter) => <ChapterView chapter={chapter} key={chapter.id} title={title} />)}
+      <For each={outline.chapters}>
+        {(chapter) => <ChapterView chapter={chapter} title={title} />}
+      </For>
       <DetailAppendix outline={outline} title={title} />
-      <Methodology document={document} outline={outline} report={report} title={title} />
+      <Methodology document={document} outline={outline} report={props.report} title={title} />
     </PaletteContext.Provider>
   )
 }
 
-export function PrintReport() {
+export function PrintReport(): JSX.Element | null {
   const { document } = useDashboard()
   const print = usePrint()
-  if (!print.report || typeof globalThis.document === 'undefined') return null
-  // The report is printed in the dashboard's own accent, so a company's board
-  // and its report do not disagree about what colour "this matters" is.
-  const accent = document.theme.palette.accent ?? document.theme.palette.primary
-  return createPortal(
-    <article
-      aria-hidden={!print.active}
-      className="lens-print-report"
-      data-preview={print.preview ? 'true' : undefined}
-      lang={document.meta.locale}
-      style={accent ? ({ '--lens-accent-500': accent } as CSSProperties) : undefined}
-    >
-      <PrintReportView report={print.report} />
-    </article>,
-    globalThis.document.body,
+  if (typeof globalThis.document === 'undefined') return null
+  return (
+    <Show when={print.report}>
+      {(report) => {
+        // The report is printed in the dashboard's own accent, so a company's board
+        // and its report do not disagree about what colour "this matters" is.
+        const accent = document.theme.palette.accent ?? document.theme.palette.primary
+        return (
+          <Portal mount={globalThis.document.body}>
+            <article
+              aria-hidden={!print.active}
+              class="lens-print-report"
+              data-preview={print.preview ? 'true' : undefined}
+              lang={document.meta.locale}
+              style={accent ? ({ '--lens-accent-500': accent } as JSX.CSSProperties) : undefined}
+            >
+              <PrintReportView report={report()} />
+            </article>
+          </Portal>
+        )
+      }}
+    </Show>
   )
 }

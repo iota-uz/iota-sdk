@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import type { Panel } from '../contract'
 import { useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { PanelFrame } from './PanelFrame'

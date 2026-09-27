@@ -1,8 +1,8 @@
+import { Show, type JSX } from 'solid-js'
 import type { Availability, Confidence } from '../contract'
 import { resolveQuality, type QualityInput } from '../panels/QualityChip'
 import { useTranslate } from '../runtime'
 
-/* eslint-disable react-refresh/only-export-components */
 
 /**
  * Data quality on paper.
@@ -120,16 +120,19 @@ export function qualityDefinitions(inputs: Array<QualityInput>, translate: Trans
     })
 }
 
-export function PrintQualityChip({ confidence, availability }: {
+export function PrintQualityChip(props: {
   confidence?: Confidence
   availability?: Availability
-}) {
+}): JSX.Element {
   const translate = useTranslate()
-  const resolved = resolveQuality({ confidence, availability })
-  if (!resolved) return null
+  const resolved = resolveQuality({ confidence: props.confidence, availability: props.availability })
   return (
-    <span className="lens-print-chip" data-quality={resolved.value}>
-      {translate(resolved.meta.labelKey, resolved.meta.fallback)}
-    </span>
+    <Show when={resolved}>
+      {(value) => (
+        <span class="lens-print-chip" data-quality={value().value}>
+          {translate(value().meta.labelKey, value().meta.fallback)}
+        </span>
+      )}
+    </Show>
   )
 }

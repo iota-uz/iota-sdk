@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { createContext, createEffect, createMemo, createSignal, For, onCleanup, Show, untrack, useContext, type JSX } from 'solid-js'
 import type { Column, FieldFormat, Frame, Level, Panel, TableColumn } from '../contract'
 import { actionForRow, resolveColumnActionURL, resolveRowLeafActionURL } from '../explore/actions'
@@ -423,7 +423,6 @@ interface NumericRange {
  *
  * Ties share a rank, so two equal amounts cannot take different shades.
  */
-/* eslint-disable react-refresh/only-export-components */
 export function heatRank(value: number, sorted: readonly number[]): number {
   if (sorted.length <= 1) return 0.5
   const first = sorted.indexOf(value)
@@ -519,10 +518,10 @@ export function TablePanel(props: TablePanelProps) {
   // sortable:false: its rows carry an inherent order, so offering to reorder
   // them — and printing "sort applies to this page" — would be a lie.
   const serverSort = Boolean(document?.endpoints?.panel && panel.table?.searchable)
-  const sortEnabled = panel.presentation?.sortable !== false && (!frame.page || serverSort)
+  const sortEnabled = () => panel.presentation?.sortable !== false && (!frame.page || serverSort)
   // A server-searchable table is ordered by the same producer over the same
   // result scope; only an entirely static frame is safe to reorder locally.
-  const rows = createMemo(() => frame.data ? sortedRows(frame.data, !serverSort && sortEnabled ? sort() : undefined) : [])
+  const rows = createMemo(() => frame.data ? sortedRows(frame.data, !serverSort && sortEnabled() ? sort() : undefined) : [])
   const page = () => frame.page?.number ?? 1
   const pageSize = frame.page?.size
   const loadingPage = () => requestedSnapshotId === document.snapshotId ? requestedPage() : 1
@@ -634,11 +633,13 @@ export function TablePanel(props: TablePanelProps) {
 
   createEffect(() => {
     if (!panel.table?.searchable) return
+    // Read before the mount guard: an effect that returns without reading its
+    // reactive dependency never re-runs, and the search would go dead.
+    const currentSearch = search()
     if (!searchInitialized) {
       searchInitialized = true
       return
     }
-    const currentSearch = search()
     const timeout = globalThis.setTimeout(() => { void pagination.search(panel.id, currentSearch) }, document.theme.debounceMs ?? 500)
     onCleanup(() => globalThis.clearTimeout(timeout))
   })
@@ -656,7 +657,7 @@ export function TablePanel(props: TablePanelProps) {
     if (serverSort) void pagination.sort(panel.id, { field: column, direction: next.direction === 'ascending' ? 'asc' : 'desc' })
   }
 
-  const sortDirection = (name: string) => sortEnabled && sort()?.column === name ? sort()!.direction : undefined
+  const sortDirection = (name: string) => sortEnabled() && sort()?.column === name ? sort()!.direction : undefined
   const columnCount = columns ? columns.length + (rowLeafAction ? 1 : 0) : (frame.data?.columns.length ?? 0) + 1
 
   createEffect(() => {
@@ -787,7 +788,7 @@ export function TablePanel(props: TablePanelProps) {
                               // An action-only column has no field to sort by, and a
                               // static table offers no sort at all; either way the
                               // heading is a plain label, not a control.
-                              const sortable = sortEnabled && Boolean(column.field.trim())
+                              const sortable = sortEnabled() && Boolean(column.field.trim())
                               return (
                                 <th
                                   aria-sort={sortable ? (sort()?.column === column.field ? sort()!.direction : 'none') : undefined}
@@ -818,14 +819,14 @@ export function TablePanel(props: TablePanelProps) {
                           <For each={frame.data?.columns ?? []}>
                             {(column) => (
                               <th
-                                aria-sort={sortEnabled ? (sort()?.column === column.name ? sort()!.direction : 'none') : undefined}
+                                aria-sort={sortEnabled() ? (sort()?.column === column.name ? sort()!.direction : 'none') : undefined}
                                 /* The body cell for these types is right-aligned
                                  (`.lens-table-cell-number`, `-time`); the header
                                  follows the data it heads. */
                                 class={column.type === 'number' || column.type === 'time' ? 'lens-table-col-right' : undefined}
                                 scope="col"
                               >
-                                {sortEnabled ? (
+                                {sortEnabled() ? (
                                   <button type="button" onClick={() => changeSort(column.name)}>
                                     <span>{column.name}</span>
                                     <SortIndicator direction={sortDirection(column.name)} />
@@ -858,6 +859,7 @@ export function TablePanel(props: TablePanelProps) {
                           <FrameRow
                             frame={frame.data!}
                             index={entry.index}
+                            level={level()}
                             location={location()}
                             openRecordLabel={translate('table.openRecord', 'Open record')}
                             panel={panel}
@@ -1081,10 +1083,16 @@ function RowLeafAction(props: {
   level?: Level
   label: string
 }) {
-  const action = actionForRow(props.panel, props.frame, props.row, props.level)
+  const action = createMemo(() => actionForRow(props.panel, props.frame, props.row, props.level))
   const activation = useActionActivation(action)
-  const href = untrack(activation.available) ? resolveRowLeafActionURL(props.panel, props.frame, props.row, props.location, props.level) : undefined
-  return href ? <a class="lens-leaf-action" href={href} onClick={activation.onClick(href)}>{props.label}</a> : null
+  const href = createMemo(() => untrack(activation.available)
+    ? resolveRowLeafActionURL(props.panel, props.frame, props.row, props.location, props.level)
+    : undefined)
+  return (
+    <Show when={href()}>
+      {(value) => <a class="lens-leaf-action" href={value()} onClick={() => activation.onClick(value())}>{props.label}</a>}
+    </Show>
+  )
 }
 
 function FrameRow(props: {
@@ -1097,9 +1105,11 @@ function FrameRow(props: {
   openRecordLabel: string
   trailingSpacer: boolean
 }) {
-  const action = actionForRow(props.panel, props.frame, props.row, props.level)
+  const action = createMemo(() => actionForRow(props.panel, props.frame, props.row, props.level))
   const activation = useActionActivation(action)
-  const href = untrack(activation.available) ? resolveRowLeafActionURL(props.panel, props.frame, props.row, props.location, props.level) : undefined
+  const href = createMemo(() => untrack(activation.available)
+    ? resolveRowLeafActionURL(props.panel, props.frame, props.row, props.location, props.level)
+    : undefined)
   return (
     <tr>
       <For each={props.frame.columns}>
@@ -1110,7 +1120,9 @@ function FrameRow(props: {
         )}
       </For>
       <td class="lens-table-action-cell">
-        {href && <a class="lens-leaf-action" href={href} onClick={activation.onClick(href)}>{props.openRecordLabel}</a>}
+        <Show when={href()}>
+          {(value) => <a class="lens-leaf-action" href={value()} onClick={() => activation.onClick(value())}>{props.openRecordLabel}</a>}
+        </Show>
       </td>
       {props.trailingSpacer && <td aria-hidden="true" class="lens-table-scroll-spacer" />}
     </tr>

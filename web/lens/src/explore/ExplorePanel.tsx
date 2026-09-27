@@ -1,14 +1,4 @@
-import {
-  type CSSProperties,
-  type KeyboardEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { createEffect, createMemo, createSignal, createUniqueId, onCleanup, Show, type JSX } from 'solid-js'
 import type { ChartAnchor } from '../charts/adapter'
 import type { Encoding, FieldFormat, Frame, Level, Node, NodeKey, Panel } from '../contract'
 import { CaretDown, CaretLeft, CaretRight } from '../icons'
@@ -99,61 +89,69 @@ export interface ExplorePanelProps {
   registry?: PanelRegistry
 }
 
-export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
+export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
   const { document, navigation } = useDashboard()
   const drill = useDrill()
   const drawer = useDrawer()
   const translate = useTranslate()
-  const frame = usePanelFrame(panel.id)
-  const active = navigation.panelId === panel.id && navigation.path.length > 0
-  const rootLevel = panel.drillRoot ? document.drill.edges[panel.drillRoot] : undefined
-  const level = active ? levelForPath(document, navigation.path) : rootLevel
-  const perspectives = useMemo(() => perspectivesForLevel(document, level), [document, level])
+  const frame = usePanelFrame(props.panel.id)
+  const panel = props.panel
+  const active = createMemo(() => navigation.panelId === panel.id && navigation.path.length > 0)
+  const level = createMemo<Level | undefined>(() => (
+    active() ? levelForPath(document, navigation.path) : (panel.drillRoot ? document.drill.edges[panel.drillRoot] : undefined)
+  ))
+  const perspectives = createMemo(() => perspectivesForLevel(document, level()))
   // A level with no frame of its own is a fork: its perspectives own the data.
   // When the producer declares a default, landing on that fork (including via
   // a breadcrumb) should enter the useful view immediately instead of making
   // the user confirm a choice the document has already made.
-  const awaitingPerspective = Boolean(level && isPerspectiveFork(document, level))
+  const awaitingPerspective = createMemo(() => Boolean(level() && isPerspectiveFork(document, level()!)))
   // The lens selector's set: at a perspective root this expands to the whole
   // branch sibling set (the choice the overlay offered on the parent segment),
   // because the builder records only the level's own perspective on it. The
   // plain `perspectives` list above keeps driving the resting-card behaviors
   // (single-perspective auto-bind, explorability) exactly as before.
-  const positionPerspectives = useMemo(() => perspectivesForPosition(document, level), [document, level])
-  const perspective = active ? document.perspectives.find(({ id }) => id === navigation.perspectiveId) : undefined
-  const semantics = perspective?.semantics ?? panel.semantics
+  const positionPerspectives = createMemo(() => perspectivesForPosition(document, level()))
+  const perspective = createMemo(() => (
+    active() ? document.perspectives.find(({ id }) => id === navigation.perspectiveId) : undefined
+  ))
+  const semantics = () => perspective()?.semantics ?? panel.semantics
   // A level that declares its own visualization wins over the semantics
   // mapping; documents that never set `Level.view` render exactly as before.
-  const kind = exploreViewForLevel(level) ?? viewForSemantics(semantics, panel.kind)
+  const kind = createMemo(() => exploreViewForLevel(level()) ?? viewForSemantics(semantics(), panel.kind))
   // Focus-canvas chrome is opt-in per document. It changes nothing until the
   // panel is actively exploring: the resting card stays byte-identical.
-  const focusCanvas = isFocusCanvas(rootLevel, level)
-  const focusActive = focusCanvas && active && Boolean(level)
+  const rootLevel = createMemo(() => (panel.drillRoot ? document.drill.edges[panel.drillRoot] : undefined))
+  const focusCanvas = createMemo(() => isFocusCanvas(rootLevel(), level()))
+  const focusActive = createMemo(() => focusCanvas() && active() && Boolean(level()))
   // Inside a drawer the focus-canvas host is the drawer's whole subject, so it
   // wears the canvas treatment (full width, roomy body) at rest and surfaces
   // its root-level lenses immediately — the board can switch perspective before
   // drilling, instead of a lone card stranded in a corner. On the main
   // dashboard a resting focus host is unchanged (this is gated on the drawer).
   const inDrawer = drawer.depth > 0
-  const drawerFocus = focusCanvas && inDrawer
-  const rootLens = drawerFocus && !focusActive && positionPerspectives.length > 1
-  const viewPanel = useMemo<Panel>(() => {
-    const encoding = level?.encoding ?? panel.encoding
+  const drawerFocus = createMemo(() => focusCanvas() && inDrawer)
+  const rootLens = createMemo(() => drawerFocus() && !focusActive() && positionPerspectives().length > 1)
+  const viewPanel = createMemo<Panel>(() => {
+    const current = level()
+    const encoding = current?.encoding ?? panel.encoding
     return {
-      ...retargetPanel(panel, kind),
-      title: level?.label.trim() || panel.title,
-      semantics,
+      ...retargetPanel(panel, kind()),
+      title: current?.label.trim() || panel.title,
+      semantics: semantics(),
       encoding,
       format: formatsForEncoding(panel, encoding),
     }
-  }, [kind, level?.encoding, level?.label, panel, semantics])
-  const breadcrumbs = breadcrumbsForNavigation(document, panel, navigation)
-  const focusRef = useRef<HTMLDivElement>(null)
-  const exploreRef = useRef<HTMLButtonElement>(null)
-  const instanceId = useId()
-  const viewKey = `${active ? navigation.path.join('|') : panel.drillRoot ?? panel.id}:${navigation.perspectiveId ?? ''}`
-  const previousView = useRef(viewKey)
-  const [overlay, setOverlay] = useState<{
+  })
+  const breadcrumbs = createMemo(() => breadcrumbsForNavigation(document, panel, navigation))
+  let focusRef: HTMLDivElement | undefined
+  let exploreRef: HTMLButtonElement | undefined
+  const instanceId = createUniqueId()
+  const viewKey = createMemo(() => (
+    `${active() ? navigation.path.join('|') : panel.drillRoot ?? panel.id}:${navigation.perspectiveId ?? ''}`
+  ))
+  let previousView: string | undefined
+  const [overlay, setOverlay] = createSignal<{
     target: DrillTarget
     anchor: ChartAnchor
     // Element-anchored overlays keep the element so the popover can re-measure
@@ -164,74 +162,73 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     // and legend use; a level card describes no single mark and carries none.
     accentColor?: string
   }>()
-  const transitionName = useMemo(() => {
-    const identifier = `${panel.id}-${instanceId}`.replace(/[^a-zA-Z0-9_-]/g, '-')
-    return `lens-explore-${identifier}`
-  }, [instanceId, panel.id])
-  const transitionStyle = useMemo(() => ({
-    viewTransitionName: transitionName,
-    viewTransitionClass: 'lens-explore-level-transition',
-  }) as CSSProperties, [transitionName])
+  const transitionName = `lens-explore-${`${panel.id}-${instanceId}`.replace(/[^a-zA-Z0-9_-]/g, '-')}`
+  const transitionStyle = {
+    'view-transition-name': transitionName,
+    'view-transition-class': 'lens-explore-level-transition',
+  } as JSX.CSSProperties
   // The focus chrome and the source disclosure each carry their own
   // view-transition-name so `runViewTransition` morphs only the chart: the
   // chrome stays put (its own group cross-fades content in place) instead of
   // being swept along with the level swap.
-  const chromeTransitionStyle = useMemo(() => ({
-    viewTransitionName: `${transitionName}-chrome`,
-  }) as CSSProperties, [transitionName])
-  const sourceTransitionStyle = useMemo(() => ({
-    viewTransitionName: `${transitionName}-source`,
-  }) as CSSProperties, [transitionName])
+  const chromeTransitionStyle = {
+    'view-transition-name': `${transitionName}-chrome`,
+  } as JSX.CSSProperties
+  const sourceTransitionStyle = {
+    'view-transition-name': `${transitionName}-source`,
+  } as JSX.CSSProperties
   // A focus-canvas host names its whole card, at rest and while exploring, so
   // entering/leaving the canvas FLIP-morphs the card bounds between its
   // authored grid span and the full row instead of popping. The name exists in
   // both states of the transition — that is what makes it a morph rather than
   // an exit+enter — and non-focus hosts carry no name, so nothing about their
   // transitions changes.
-  const hostTransitionStyle = useMemo(() => (focusCanvas ? {
-    viewTransitionName: `${transitionName}-host`,
-    viewTransitionClass: 'lens-explore-host-transition',
-  } as CSSProperties : undefined), [focusCanvas, transitionName])
+  const hostTransitionStyle: JSX.CSSProperties | undefined = focusCanvas() ? {
+    'view-transition-name': `${transitionName}-host`,
+    'view-transition-class': 'lens-explore-host-transition',
+  } : undefined
 
-  useEffect(() => {
-    if (!active) return
-    if (awaitingPerspective) {
-      const defaultPerspective = level?.defaultPerspective
-      if (defaultPerspective && perspectives.some(({ id }) => id === defaultPerspective)) {
+  createEffect(() => {
+    if (!active()) return
+    if (awaitingPerspective()) {
+      const defaultPerspective = level()?.defaultPerspective
+      if (defaultPerspective && perspectives().some(({ id }) => id === defaultPerspective)) {
         runViewTransition(() => drill.switchPerspective(defaultPerspective, { replace: true }))
         return
       }
     }
-    if (perspectives.length !== 1 || perspectives[0]?.id === navigation.perspectiveId) return
-    runViewTransition(() => drill.switchPerspective(perspectives[0]!.id, { replace: true }))
-  }, [active, awaitingPerspective, drill, level?.defaultPerspective, navigation.perspectiveId, perspectives])
+    if (perspectives().length !== 1 || perspectives()[0]?.id === navigation.perspectiveId) return
+    runViewTransition(() => drill.switchPerspective(perspectives()[0]!.id, { replace: true }))
+  })
 
-  useEffect(() => {
-    if (previousView.current === viewKey) return
-    previousView.current = viewKey
+  createEffect(() => {
+    const key = viewKey()
+    if (previousView === key) return
+    previousView = key
     // Entering a level closes whatever opened it and hands focus to the view.
     setOverlay(undefined)
-    focusRef.current?.focus({ preventScroll: true })
-  }, [viewKey])
+    focusRef?.focus({ preventScroll: true })
+  })
 
-  useEffect(() => {
-    const element = focusRef.current
+  createEffect(() => {
+    void viewKey()
+    const element = focusRef
     const transitionDocument = globalThis.document as unknown as TransitionDocument
     if (!element || isVisualRegression() || transitionDocument.startViewTransition ||
       globalThis.window?.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
     element.classList.remove('lens-explore-level-enter')
     const animationFrame = globalThis.requestAnimationFrame(() => element.classList.add('lens-explore-level-enter'))
-    return () => globalThis.cancelAnimationFrame(animationFrame)
-  }, [viewKey])
+    onCleanup(() => globalThis.cancelAnimationFrame(animationFrame))
+  })
 
-  const themeOf = useCallback((element: HTMLElement | null) => {
+  const themeOf = (element: HTMLElement | null) => {
     const root = element?.closest<HTMLElement>('.lens-root')
     return { theme: root?.dataset.theme, dark: root?.classList.contains('dark') ?? false }
-  }, [])
-  const [overlayTheme, setOverlayTheme] = useState<{ theme?: string; dark: boolean }>({ dark: false })
+  }
+  const [overlayTheme, setOverlayTheme] = createSignal<{ theme?: string; dark: boolean }>({ dark: false })
 
-  const leafHrefFor = useCallback((node: Node, owner?: Level): string | undefined => {
-    const source = owner ?? level
+  const leafHrefFor = (node: Node, owner?: Level): string | undefined => {
+    const source = owner ?? level()
     if (!node.action || !source) return undefined
     const location = new URL(globalThis.location.href)
     const rows = source.frame ? document.frames[source.frame] : frame.data
@@ -240,31 +237,31 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
       variables: variablesFromLocation(location),
       location,
     })
-  }, [document.frames, frame.data, level, panel.encoding])
+  }
 
-  const withHrefs = useCallback((rows: DrillTarget['breakdown'], owner?: Level) => (
+  const withHrefs = (rows: DrillTarget['breakdown'], owner?: Level) => (
     rows.map((row) => ({ ...row, href: leafHrefFor(row.node, owner) }))
-  ), [leafHrefFor])
+  )
 
   // Resolves the clicked mark's color exactly as ChartLegend does: the row's
   // position and label field through `seriesColorResolver`, positional pins
   // dropped once the panel is at a drill level whose rows are not its own.
-  const colorForNode = useCallback((node: Node): string | undefined => {
-    if (!level || !frame.data) return undefined
-    const row = rowForNode(node, level, frame.data, viewPanel.encoding)
+  const colorForNode = (node: Node): string | undefined => {
+    if (!level() || !frame.data) return undefined
+    const row = rowForNode(node, level()!, frame.data, viewPanel().encoding)
     if (!row) return undefined
     const index = frame.data.rows.indexOf(row)
     if (index < 0) return undefined
-    const labelField = viewPanel.encoding.label ?? viewPanel.encoding.category
+    const labelField = viewPanel().encoding.label ?? viewPanel().encoding.category
     const labelIndex = labelField ? frame.data.columns.findIndex((column) => column.name === labelField) : -1
     const raw = labelIndex >= 0 ? row[labelIndex] : undefined
-    const label = typeof raw === 'string' ? raw : labelForNode(node, level, document, frame.data, viewPanel.encoding)
-    return seriesColorResolver(document.theme, viewPanel, {
-      positional: !active, labels: colorLabels(frame.data, viewPanel),
+    const label = typeof raw === 'string' ? raw : labelForNode(node, level()!, document, frame.data, viewPanel().encoding)
+    return seriesColorResolver(document.theme, viewPanel(), {
+      positional: !active(), labels: colorLabels(frame.data, viewPanel()),
     })(label, index)
-  }, [active, document, frame.data, level, viewPanel])
+  }
 
-  const drillTo = useCallback((...keys: Array<NodeKey>) => {
+  const drillTo = (...keys: Array<NodeKey>) => {
     setOverlay(undefined)
     runViewTransition(() => {
       // A mark's breakdown lists the children of the level that mark expands
@@ -272,19 +269,19 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
       // each dispatch in order, so the second key resolves against the first.
       for (const key of keys) drill.drillInto(key, panel.id)
     })
-  }, [drill, panel.id])
+  }
 
-  const enterPerspective = useCallback((perspectiveId: string, nodeKey?: NodeKey) => {
+  const enterPerspective = (perspectiveId: string, nodeKey?: NodeKey) => {
     setOverlay(undefined)
     runViewTransition(() => {
       drill.switchPerspective(perspectiveId, nodeKey
         ? { enter: nodeKey, panelId: panel.id }
         : undefined)
     })
-  }, [drill, panel.id])
+  }
 
-  const enterFocusNode = useCallback((node: Node, targetLevel: Level | undefined): boolean => {
-    if (!focusCanvas || !targetLevel) return false
+  const enterFocusNode = (node: Node, targetLevel: Level | undefined): boolean => {
+    if (!focusCanvas() || !targetLevel) return false
     const fork = isPerspectiveFork(document, targetLevel)
     const available = perspectivesForLevel(document, targetLevel)
     const defaultPerspective = targetLevel.defaultPerspective
@@ -300,11 +297,12 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
       return true
     }
     return false
-  }, [document, drillTo, enterPerspective, focusCanvas])
+  }
 
-  const openForMark = useCallback((key: NodeKey, anchor?: ChartAnchor) => {
-    if (!level) return
-    const node = level.children.find((child) => child.key === key || child.key.endsWith(`/${key}`))
+  const openForMark = (key: NodeKey, anchor?: ChartAnchor) => {
+    const current = level()
+    if (!current) return
+    const node = current.children.find((child) => child.key === key || child.key.endsWith(`/${key}`))
     if (!node) return
     const targetLevel = node.target ? document.drill.edges[node.target] : undefined
     // Focus mode: a segment with exactly one continuation drills straight into
@@ -312,8 +310,8 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     // popover's affordances. The popover keeps its job for leaves (no level to
     // enter) and forks (a real choice between perspectives).
     if (enterFocusNode(node, targetLevel)) return
-    const target = drillTargetForNode(document, level, node, frame.data, targetLevel?.frame ? document.frames[targetLevel.frame] : undefined, panel)
-    setOverlayTheme(themeOf(focusRef.current))
+    const target = drillTargetForNode(document, current, node, frame.data, targetLevel?.frame ? document.frames[targetLevel.frame] : undefined, panel)
+    setOverlayTheme(themeOf(focusRef ?? null))
     setOverlay({
       target: { ...target, leafHref: leafHrefFor(node), breakdown: withHrefs(target.breakdown, targetLevel) },
       // The swatch must match the slice on screen, so it resolves through the
@@ -322,28 +320,29 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
       accentColor: colorForNode(node),
       // Without a pointer position (keyboard activation) the popover anchors
       // to the panel itself.
-      anchor: anchor ?? anchorFromElement(focusRef.current),
-      anchorElement: anchor ? undefined : focusRef.current,
+      anchor: anchor ?? anchorFromElement(focusRef ?? null),
+      anchorElement: anchor ? undefined : focusRef,
     })
-  }, [colorForNode, document, enterFocusNode, frame.data, leafHrefFor, level, panel, themeOf, withHrefs])
+  }
 
-  const openForLevel = useCallback(() => {
-    if (!level) return
-    setOverlayTheme(themeOf(exploreRef.current))
-    const target = drillTargetForLevel(document, panel, level, frame.data)
+  const openForLevel = () => {
+    const current = level()
+    if (!current) return
+    setOverlayTheme(themeOf(exploreRef ?? null))
+    const target = drillTargetForLevel(document, panel, current, frame.data)
     setOverlay({
-      target: { ...target, breakdown: withHrefs(target.breakdown, level) },
-      anchor: anchorFromElement(exploreRef.current),
-      anchorElement: exploreRef.current,
+      target: { ...target, breakdown: withHrefs(target.breakdown, current) },
+      anchor: anchorFromElement(exploreRef ?? null),
+      anchorElement: exploreRef,
     })
-  }, [document, frame.data, level, panel, themeOf, withHrefs])
+  }
 
-  const closeOverlay = useCallback(() => {
+  const closeOverlay = () => {
     setOverlay(undefined)
-    exploreRef.current?.focus()
-  }, [])
+    exploreRef?.focus()
+  }
 
-  const applyPerspective = useCallback((perspectiveId: string, target: DrillTarget) => {
+  const applyPerspective = (perspectiveId: string, target: DrillTarget) => {
     // A segment's perspectives belong to the level it expands to, so entering
     // the segment first is what makes the perspective addressable. That is
     // one user action, so it leaves one history entry: the perspective is
@@ -351,10 +350,10 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     // chart the segment was picked from rather than to the level in between,
     // which is a fork the user never asked to stand on.
     enterPerspective(perspectiveId, target.node?.key)
-  }, [enterPerspective])
+  }
 
-  const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key !== 'Escape' || !active || !drill.canGoBack || overlay) return
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || !active() || !drill.canGoBack || overlay()) return
     event.preventDefault()
     runViewTransition(drill.back)
   }
@@ -362,214 +361,234 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   // A level with no children but several perspectives is still explorable: the
   // perspective choice is the only thing the overlay would show, and hiding
   // the affordance would strand it.
-  const explorable = Boolean(level?.children.length) || perspectives.length > 1
-  const chrome = useMemo(() => ({
-    explore: explorable ? (
-      <button
-        aria-haspopup="dialog"
-        aria-label={translate('explore.openBreakdown', 'Show breakdown')}
-        className="lens-icon-button lens-explore-affordance"
-        onClick={openForLevel}
-        ref={exploreRef}
-        title={translate('explore.openBreakdown', 'Show breakdown')}
-        type="button"
-      >
-        <CaretDown />
-      </button>
-    ) : undefined,
+  const explorable = createMemo(() => Boolean(level()?.children.length) || perspectives().length > 1)
+  const chrome = {
+    get explore() {
+      return explorable() ? (
+        <button
+          aria-haspopup="dialog"
+          aria-label={translate('explore.openBreakdown', 'Show breakdown')}
+          class="lens-icon-button lens-explore-affordance"
+          onClick={openForLevel}
+          ref={exploreRef}
+          title={translate('explore.openBreakdown', 'Show breakdown')}
+          type="button"
+        >
+          <CaretDown />
+        </button>
+      ) : undefined
+    },
     // The header is the tightest space on the card (a total badge and two icon
     // buttons share it), so it carries only what stays readable: one step back
     // and the level you are on. The full path lives in the overlay the current
     // level opens — chopping every ancestor down to a letter served nobody.
-    trail: breadcrumbs.length > 1 ? (
-      <nav
-        aria-label={translate('explore.path', '{name} exploration path', { name: panel.title })}
-        className="lens-panel-trail"
-      >
-        {drill.canGoBack && (
+    get trail() {
+      return breadcrumbs().length > 1 ? (
+        <nav
+          aria-label={translate('explore.path', '{name} exploration path', { name: panel.title })}
+          class="lens-panel-trail"
+        >
+          <Show when={drill.canGoBack}>
+            <button
+              aria-label={translate('explore.back', 'Back')}
+              class="lens-icon-button lens-trail-back"
+              onClick={() => runViewTransition(drill.back)}
+              title={translate('explore.back', 'Back')}
+              type="button"
+            >
+              <CaretLeft />
+            </button>
+          </Show>
           <button
-            aria-label={translate('explore.back', 'Back')}
-            className="lens-icon-button lens-trail-back"
-            onClick={() => runViewTransition(drill.back)}
-            title={translate('explore.back', 'Back')}
+            aria-current="page"
+            aria-haspopup="dialog"
+            class="lens-trail-current"
+            onClick={openForLevel}
+            title={breadcrumbs().map((crumb) => crumb.label).join(' › ')}
             type="button"
           >
-            <CaretLeft />
+            {breadcrumbs().at(-1)?.label}
           </button>
-        )}
-        <button
-          aria-current="page"
-          aria-haspopup="dialog"
-          className="lens-trail-current"
-          onClick={openForLevel}
-          title={breadcrumbs.map((crumb) => crumb.label).join(' › ')}
-          type="button"
-        >
-          {breadcrumbs.at(-1)?.label}
-        </button>
-      </nav>
-    ) : undefined,
-  }), [breadcrumbs, drill, explorable, openForLevel, panel.title, translate])
+        </nav>
+      ) : undefined
+    },
+  }
 
-  // A state that replaces the panel still needs the panel's chrome: without the
-  // trail there is no way back out of the level it is reporting on.
-  const stateCard = (body: ReactNode) => (
-    <section aria-label={viewPanel.title} className="lens-panel">
-      <header className="lens-panel-header">
-        {chrome.trail ?? <h3 className="lens-panel-title">{viewPanel.title}</h3>}
-        {chrome.explore}
-      </header>
-      <div className="lens-panel-body">{body}</div>
-    </section>
-  )
-
-  let content: ReactNode
-  if (!level) {
-    content = stateCard(
-      <div className="lens-placeholder-state">
-        {translate('explore.unavailable', 'This exploration level is unavailable.')}
-      </div>,
-    )
-  } else if (awaitingPerspective) {
-    content = stateCard(
-      <div className="lens-explore-awaiting">
-        <p className="lens-explore-awaiting-text">
-          {translate('explore.chooseView', 'Choose a view for {name}', { name: viewPanel.title })}
-        </p>
-        <button className="lens-explore-awaiting-action" onClick={openForLevel} type="button">
-          {translate('explore.views', '{n} views', { n: perspectives.length })}
-          <CaretRight />
-        </button>
-      </div>,
-    )
-  } else content = <RegisteredPanel panel={viewPanel} registry={registry} />
-
-  // The focus header is a projection over the same document + path the chart
-  // reads; a deep link whose parent frame has not loaded degrades to a
-  // name-only header instead of crashing.
-  const focusContext = focusActive && level
-    ? focusContextForLevel(document, panel, navigation.path, level)
-    : undefined
-  const jumpToCrumb = useCallback((pathIndex: number) => {
+  const focusContext = createMemo(() => (
+    focusActive() && level()
+      ? focusContextForLevel(document, panel, [...navigation.path], level()!)
+      : undefined
+  ))
+  const jumpToCrumb = (pathIndex: number) => {
     runViewTransition(() => drill.jumpTo(pathIndex))
-  }, [drill])
+  }
   // Mini-chart colors resolve by label, never positionally: the parent is a
   // drill level, and its slices must keep the colors the plot drew for them.
-  const miniColorFor = useCallback((label: string, index: number) => (
+  const miniColorFor = (label: string, index: number) => (
     seriesColorResolver(document.theme, panel, {
       positional: false, labels: colorLabels(frame.data, panel),
     })(label, index)
-  ), [document.theme, frame.data, panel])
-  const switchLens = useCallback((perspectiveId: string) => {
+  )
+  const switchLens = (perspectiveId: string) => {
     runViewTransition(() => drill.switchPerspective(perspectiveId))
-  }, [drill])
+  }
   // A root lens is chosen before any drill has entered a level, so the switch
   // carries the panel id: the reducer resolves the position from the host's
   // drill root and enters the chosen perspective in one step.
-  const switchRootLens = useCallback((perspectiveId: string) => {
+  const switchRootLens = (perspectiveId: string) => {
     runViewTransition(() => drill.switchPerspective(perspectiveId, { panelId: panel.id }))
-  }, [drill, panel.id])
-  const focusParent = focusContext?.parent
+  }
+  const focusParent = () => focusContext()?.parent
 
   return (
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- shortcuts are delegated from focusable panel descendants; the article is not another focus stop.
     <article
       aria-label={translate('explore.panel', 'Explore {name}', { name: panel.title })}
-      className={`lens-explore${focusActive ? ' lens-explore-focus' : ''}${drawerFocus ? ' lens-explore-drawer-focus' : ''}`}
+      class={`lens-explore${focusActive() ? ' lens-explore-focus' : ''}${drawerFocus() ? ' lens-explore-drawer-focus' : ''}`}
       onKeyDown={onKeyDown}
       style={hostTransitionStyle}
     >
-      {rootLens && (
-        <div className="lens-focus-chrome lens-focus-chrome-root" style={chromeTransitionStyle}>
+      <Show when={rootLens()}>
+        <div class="lens-focus-chrome lens-focus-chrome-root" style={chromeTransitionStyle}>
           <LensSelector
             activeId={navigation.perspectiveId}
             label={translate('focus.viewAs', 'View as')}
             moreLabel={translate('focus.moreViews', 'More')}
             onSelect={switchRootLens}
-            perspectives={positionPerspectives}
+            perspectives={positionPerspectives()}
           />
         </div>
-      )}
-      {focusContext && (
-        <div className="lens-focus-chrome" style={chromeTransitionStyle}>
-          <FocusContextHeader
-            breadcrumbs={breadcrumbs}
-            colorFor={miniColorFor}
-            context={focusContext}
-            onCrumb={jumpToCrumb}
-            onParent={focusParent ? () => jumpToCrumb(focusParent.pathIndex) : undefined}
-            periodLabel={document.header?.subtitle?.trim() || undefined}
-            valueFormat={viewPanel.encoding.value ? viewPanel.format[viewPanel.encoding.value] : undefined}
-          />
-          {positionPerspectives.length > 1 && (
-            <LensSelector
-              activeId={navigation.perspectiveId}
-              label={translate('focus.viewAs', 'View as')}
-              moreLabel={translate('focus.moreViews', 'More')}
-              onSelect={switchLens}
-              perspectives={positionPerspectives}
+      </Show>
+      <Show when={focusContext()}>
+        {(context) => (
+          <div class="lens-focus-chrome" style={chromeTransitionStyle}>
+            <FocusContextHeader
+              breadcrumbs={breadcrumbs()}
+              colorFor={miniColorFor}
+              context={context()}
+              onCrumb={jumpToCrumb}
+              onParent={focusParent() ? () => jumpToCrumb(focusParent()!.pathIndex) : undefined}
+              periodLabel={document.header?.subtitle?.trim() || undefined}
+              valueFormat={viewPanel().encoding.value ? viewPanel().format[viewPanel().encoding.value!] : undefined}
             />
-          )}
-        </div>
-      )}
+            <Show when={positionPerspectives().length > 1}>
+              <LensSelector
+                activeId={navigation.perspectiveId}
+                label={translate('focus.viewAs', 'View as')}
+                moreLabel={translate('focus.moreViews', 'More')}
+                onSelect={switchLens}
+                perspectives={positionPerspectives()}
+              />
+            </Show>
+          </div>
+        )}
+      </Show>
       <div
-        className="lens-explore-level"
-        data-explore-view={kind}
+        class="lens-explore-level"
+        data-explore-view={kind()}
         ref={focusRef}
         style={transitionStyle}
         tabIndex={-1}
       >
         <PanelChromeContext.Provider value={chrome}>
           <MarkSelectionContext.Provider value={openForMark}>
-            {content}
+            <Show
+              when={level()}
+              fallback={(
+                <section aria-label={viewPanel().title} class="lens-panel">
+                  <header class="lens-panel-header">
+                    {chrome.trail ?? <h3 class="lens-panel-title">{viewPanel().title}</h3>}
+                    {chrome.explore}
+                  </header>
+                  <div class="lens-panel-body">
+                    <div class="lens-placeholder-state">
+                      {translate('explore.unavailable', 'This exploration level is unavailable.')}
+                    </div>
+                  </div>
+                </section>
+              )}
+            >
+              {(current) => (
+                <Show
+                  when={!awaitingPerspective()}
+                  fallback={(
+                    <section aria-label={viewPanel().title} class="lens-panel">
+                      <header class="lens-panel-header">
+                        {chrome.trail ?? <h3 class="lens-panel-title">{viewPanel().title}</h3>}
+                        {chrome.explore}
+                      </header>
+                      <div class="lens-panel-body">
+                        <div class="lens-explore-awaiting">
+                          <p class="lens-explore-awaiting-text">
+                            {translate('explore.chooseView', 'Choose a view for {name}', { name: viewPanel().title })}
+                          </p>
+                          <button class="lens-explore-awaiting-action" onClick={openForLevel} type="button">
+                            {translate('explore.views', '{n} views', { n: perspectives().length })}
+                            <CaretRight />
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+                  )}
+                >
+                  {(() => { void current; return <RegisteredPanel panel={viewPanel()} registry={props.registry} /> })()}
+                </Show>
+              )}
+            </Show>
           </MarkSelectionContext.Provider>
         </PanelChromeContext.Provider>
       </div>
-      {focusActive && level?.source && (
-        <SourceDataDisclosure key={viewKey} source={level.source} style={sourceTransitionStyle} />
-      )}
-      {overlay && (
-        <DrillOverlay
-          accentColor={overlay.accentColor}
-          anchor={overlay.anchor}
-          anchorElement={overlay.anchorElement}
-          path={breadcrumbs.map((crumb) => ({
-            label: crumb.label,
-            current: crumb.current,
-            onSelect: () => { closeOverlay(); runViewTransition(() => drill.jumpTo(crumb.pathIndex)) },
-          }))}
-
-          dark={overlayTheme.dark}
-          onClose={closeOverlay}
-          onDrillChild={(childKey) => {
-            const node = overlay.target.node
-            if (node) {
-              drillTo(node.key, childKey)
-              return
-            }
-            const child = level?.children.find((candidate) => (
-              candidate.key === childKey || candidate.key.endsWith(`/${childKey}`)
-            ))
-            const targetLevel = child?.target ? document.drill.edges[child.target] : undefined
-            if (child && enterFocusNode(child, targetLevel)) return
-            drillTo(childKey)
-          }}
-          onPrefetchChild={(childKey) => {
-            const node = overlay.target.node
-            return drill.prefetch(node ? [node.key, childKey] : childKey, panel.id)
-          }}
-          onDrillInto={(target) => {
-            if (!target.node) return
-            const targetLevel = target.node.target ? document.drill.edges[target.node.target] : undefined
-            if (!enterFocusNode(target.node, targetLevel)) drillTo(target.node.key)
-          }}
-          onPerspective={(perspectiveId) => applyPerspective(perspectiveId, overlay.target)}
-          selectedPerspectiveId={navigation.perspectiveId}
-          target={overlay.target}
-          theme={overlayTheme.theme}
-          valueFormat={viewPanel.encoding.value ? viewPanel.format[viewPanel.encoding.value] : undefined}
-        />
-      )}
+      <Show
+        keyed
+        when={focusActive() && level()?.source
+          ? { key: viewKey(), source: level()!.source! }
+          : undefined}
+      >
+        {(entry) => <SourceDataDisclosure source={entry.source} style={sourceTransitionStyle} />}
+      </Show>
+      <Show when={overlay()}>
+        {(value) => (
+          <DrillOverlay
+            accentColor={value().accentColor}
+            anchor={value().anchor}
+            anchorElement={value().anchorElement}
+            path={breadcrumbs().map((crumb) => ({
+              label: crumb.label,
+              current: crumb.current,
+              onSelect: () => { closeOverlay(); runViewTransition(() => drill.jumpTo(crumb.pathIndex)) },
+            }))}
+            dark={overlayTheme().dark}
+            onClose={closeOverlay}
+            onDrillChild={(childKey) => {
+              const node = value().target.node
+              if (node) {
+                drillTo(node.key, childKey)
+                return
+              }
+              const child = level()?.children.find((candidate) => (
+                candidate.key === childKey || candidate.key.endsWith(`/${childKey}`)
+              ))
+              const targetLevel = child?.target ? document.drill.edges[child.target] : undefined
+              if (child && enterFocusNode(child, targetLevel)) return
+              drillTo(childKey)
+            }}
+            onPrefetchChild={(childKey) => {
+              const node = value().target.node
+              return drill.prefetch(node ? [node.key, childKey] : childKey, panel.id)
+            }}
+            onDrillInto={(target) => {
+              if (!target.node) return
+              const targetLevel = target.node.target ? document.drill.edges[target.node.target] : undefined
+              if (!enterFocusNode(target.node, targetLevel)) drillTo(target.node.key)
+            }}
+            onPerspective={(perspectiveId) => applyPerspective(perspectiveId, value().target)}
+            selectedPerspectiveId={navigation.perspectiveId}
+            target={value().target}
+            theme={overlayTheme().theme}
+            valueFormat={viewPanel().encoding.value ? viewPanel().format[viewPanel().encoding.value!] : undefined}
+          />
+        )}
+      </Show>
     </article>
   )
 }

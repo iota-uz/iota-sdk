@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { createMemo, createSignal, For, Show } from 'solid-js'
 import type { Frame, Panel } from '../contract'
 import { useDashboard, useFormat, usePanelFrame, useTranslate } from '../runtime'
@@ -7,7 +7,6 @@ import { colorLabels, columnIndex, displayText, panelField, seriesColorResolver 
 import { PanelFrame } from './PanelFrame'
 import { StatLink } from './StatPanel'
 
-/* eslint-disable react-refresh/only-export-components */
 export interface CoveragePanelProps {
   panel: Panel
 }
@@ -155,7 +154,7 @@ export function CoveragePanel(props: CoveragePanelProps) {
       <StatLink href={cardHref()} label={panel.title} onClick={navigation.onClick(cardHref())}>
         <div class="lens-coverage" data-segment-active={activeSegment() ? 'true' : undefined}>
           <p class="lens-coverage-headline">
-            <span class="lens-coverage-headline-value">{formatValue(headline)}</span>
+            <span class="lens-coverage-headline-value">{formatValue(headline())}</span>
             <span class="lens-coverage-headline-label">{translate('panel.total', 'Total')}</span>
           </p>
           {/* The segments answer a pointer by highlighting their legend row, and
@@ -214,13 +213,22 @@ export function CoveragePanel(props: CoveragePanelProps) {
                   <li
                     class="lens-coverage-legend-row"
                     data-highlighted={activeSegment() === segment.key || undefined}
-                    onBlur={() => clearSegment(segment.key)}
-                    onFocus={() => highlightSegment(segment.key)}
                     onPointerEnter={() => highlightSegment(segment.key)}
                     onPointerLeave={() => clearSegment(segment.key)}
                   >
-                    <Show when={href} fallback={content}>
-                      <a class="lens-coverage-legend-link" href={href} onClick={navigation.onClick(href)}>{content}</a>
+                    {/* Solid has no React-style focus bubbling, so the focus
+                        handlers live on the focusable element itself. */}
+                    <Show
+                      when={href}
+                      fallback={content}
+                    >
+                      <a
+                        class="lens-coverage-legend-link"
+                        href={href}
+                        onBlur={() => clearSegment(segment.key)}
+                        onFocus={() => highlightSegment(segment.key)}
+                        onClick={navigation.onClick(href)}
+                      >{content}</a>
                     </Show>
                   </li>
                 )

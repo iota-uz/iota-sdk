@@ -79,6 +79,7 @@ export function LensDrawer(props: LensDrawerProps): JSXElement {
 
   return (
     <Portal mount={document.body}>
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- shortcuts are delegated from the focusable dialog inside; the root is not a focus stop. */}
       <div
         aria-label={props.label}
         aria-modal="true"

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { createEffect, createMemo, createSignal, For, onCleanup, Show, type JSX } from 'solid-js'
 import type { Column, FieldFormat, Frame, LevelSource, TableColumn } from '../contract'
 import { QueryRequestSchema, QueryResponseSchema } from '../contract'
 import { CaretRight } from '../icons'
@@ -13,7 +13,7 @@ import { queryPathForNavigation, useDashboard, useFormat, useTranslate } from '.
  */
 export interface SourceDataDisclosureProps {
   source: LevelSource
-  style?: CSSProperties
+  style?: JSX.CSSProperties
 }
 
 interface SourceColumn {
@@ -41,33 +41,34 @@ function inferredFormat(type: Column['type']): FieldFormat | undefined {
   return undefined
 }
 
-function SourceCell({ column, format, value }: { column: SourceColumn; format?: FieldFormat; value: unknown }) {
-  const display = useFormat(format ?? inferredFormat(column.type))
-  const text = display(value)
-  if (column.type === 'time' && text !== '—') {
-    return <time dateTime={typeof value === 'string' ? value : undefined}>{text}</time>
+function SourceCell(props: { column: SourceColumn; format?: FieldFormat; value: unknown }): JSX.Element {
+  const display = useFormat(props.format ?? inferredFormat(props.column.type))
+  const text = display(props.value)
+  if (props.column.type === 'time' && text !== '—') {
+    return <time dateTime={typeof props.value === 'string' ? props.value : undefined}>{text}</time>
   }
   return <>{text}</>
 }
 
-export function SourceDataDisclosure({ source, style }: SourceDataDisclosureProps) {
+export function SourceDataDisclosure(props: SourceDataDisclosureProps): JSX.Element {
   const { document, navigation } = useDashboard()
   const translate = useTranslate()
-  const [open, setOpen] = useState(false)
-  const [fetched, setFetched] = useState<Frame>()
-  const [loading, setLoading] = useState(false)
-  const [failed, setFailed] = useState(false)
-  const requested = useRef(false)
-  const frame = document.frames[source.frame] ?? fetched
-  const endpoint = document.endpoints.query
-  const label = source.label?.trim() || translate('focus.sourceData', 'Source data')
+  const [open, setOpen] = createSignal(false)
+  const [fetched, setFetched] = createSignal<Frame>()
+  const [loading, setLoading] = createSignal(false)
+  const [failed, setFailed] = createSignal(false)
+  let requested = false
+  const frame = createMemo(() => document.frames[props.source.frame] ?? fetched())
+  const endpoint = () => document.endpoints.query
+  const label = () => props.source.label?.trim() || translate('focus.sourceData', 'Source data')
+  const columns = createMemo(() => (frame() ? resolveColumns(props.source, frame()!) : []))
 
   // Lazy fetch, once, on first expand: the document usually inlines the source
   // frame beside its level, so this path only runs for a deep link whose
   // snapshot response left it out.
-  useEffect(() => {
-    if (!open || frame || !endpoint || requested.current) return
-    requested.current = true
+  createEffect(() => {
+    if (!open() || frame() || !endpoint() || requested) return
+    requested = true
     const controller = new AbortController()
     setLoading(true)
     const request = QueryRequestSchema.parse({
@@ -75,7 +76,7 @@ export function SourceDataDisclosure({ source, style }: SourceDataDisclosureProp
       path: queryPathForNavigation(document, navigation.path),
       ...(navigation.perspectiveId ? { perspective: navigation.perspectiveId } : {}),
     })
-    void fetch(endpoint, {
+    void fetch(endpoint()!, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
@@ -85,7 +86,7 @@ export function SourceDataDisclosure({ source, style }: SourceDataDisclosureProp
       .then(async (response) => {
         if (!response.ok) throw new Error(`source query failed with ${response.status}`)
         const payload = QueryResponseSchema.parse(await response.json())
-        const resolved = payload.frames[source.frame]
+        const resolved = payload.frames[props.source.frame]
         if (!resolved) throw new Error('source frame missing from query response')
         setFetched(resolved)
       })
@@ -95,82 +96,89 @@ export function SourceDataDisclosure({ source, style }: SourceDataDisclosureProp
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
-    return () => {
+    onCleanup(() => {
       if (controller.signal.aborted) return
       controller.abort()
-      requested.current = false
+      requested = false
       setLoading(false)
-    }
-  }, [document, endpoint, frame, navigation.path, navigation.perspectiveId, open, source.frame])
-
-  const columns = useMemo(() => (frame ? resolveColumns(source, frame) : []), [frame, source])
+    })
+  })
 
   return (
-    <div className={`lens-focus-source${open ? ' lens-focus-source-open' : ''}`} style={style}>
+    <div class={`lens-focus-source${open() ? ' lens-focus-source-open' : ''}`} style={props.style}>
       <button
-        aria-expanded={open}
-        className="lens-focus-source-toggle"
+        aria-expanded={open()}
+        class="lens-focus-source-toggle"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
         <CaretRight className="lens-focus-source-caret" size={12} />
-        <span className="lens-focus-source-label">{label}</span>
-        {frame && (
-          <span className="lens-focus-source-count">
-            {translate('focus.sourceRows', '{n} rows', { n: frame.rows.length })}
-          </span>
-        )}
-      </button>
-      {open && (
-        <div className="lens-focus-source-body">
-          {frame ? (
-            <div className="lens-focus-source-scroll">
-              <table className="lens-table lens-focus-source-table">
-                <thead>
-                  <tr>
-                    {columns.map((column) => (
-                      <th
-                        className={column.align === 'right' ? 'lens-table-col-right' : undefined}
-                        key={column.field}
-                        scope="col"
-                      >
-                        <span className="lens-table-heading-static">{column.label}</span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {frame.rows.map((row, rowIndex) => (
-                    <tr key={rowIndex}>
-                      {columns.map((column) => (
-                        <td
-                          className={column.align === 'right' ? 'lens-table-col-right' : undefined}
-                          key={column.field}
-                        >
-                          <SourceCell column={column} format={source.format?.[column.field]} value={row[column.index]} />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                  {frame.rows.length === 0 && (
-                    <tr>
-                      <td className="lens-table-empty" colSpan={Math.max(1, columns.length)}>
-                        {translate('panel.empty', 'No data')}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="lens-focus-source-state" role={failed ? 'alert' : 'status'}>
-              {loading
-                ? translate('focus.sourceLoading', 'Loading source data…')
-                : translate('focus.sourceUnavailable', 'Source data is unavailable.')}
-            </p>
+        <span class="lens-focus-source-label">{label()}</span>
+        <Show when={frame()}>
+          {(value) => (
+            <span class="lens-focus-source-count">
+              {translate('focus.sourceRows', '{n} rows', { n: value().rows.length })}
+            </span>
           )}
+        </Show>
+      </button>
+      <Show when={open()}>
+        <div class="lens-focus-source-body">
+          <Show
+            when={frame()}
+            fallback={(
+              <p class="lens-focus-source-state" role={failed() ? 'alert' : 'status'}>
+                {loading()
+                  ? translate('focus.sourceLoading', 'Loading source data…')
+                  : translate('focus.sourceUnavailable', 'Source data is unavailable.')}
+              </p>
+            )}
+          >
+            {(value) => (
+              <div class="lens-focus-source-scroll">
+                <table class="lens-table lens-focus-source-table">
+                  <thead>
+                    <tr>
+                      <For each={columns()}>
+                        {(column) => (
+                          <th
+                            class={column.align === 'right' ? 'lens-table-col-right' : undefined}
+                            scope="col"
+                          >
+                            <span class="lens-table-heading-static">{column.label}</span>
+                          </th>
+                        )}
+                      </For>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <For each={value().rows}>
+                      {(row) => (
+                        <tr>
+                          <For each={columns()}>
+                            {(column) => (
+                              <td class={column.align === 'right' ? 'lens-table-col-right' : undefined}>
+                                <SourceCell column={column} format={props.source.format?.[column.field]} value={row[column.index]} />
+                              </td>
+                            )}
+                          </For>
+                        </tr>
+                      )}
+                    </For>
+                    <Show when={value().rows.length === 0}>
+                      <tr>
+                        <td class="lens-table-empty" colSpan={Math.max(1, columns().length)}>
+                          {translate('panel.empty', 'No data')}
+                        </td>
+                      </tr>
+                    </Show>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Show>
         </div>
-      )}
+      </Show>
     </div>
   )
 }

@@ -1,5 +1,4 @@
-import type { Story } from '@ladle/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { onCleanup, onMount, type JSX } from 'solid-js'
 import type { DashboardDocument, Filter, Panel } from './contract'
 import { Calendar } from './controls'
 import { LensDashboard } from './LensDashboard'
@@ -86,15 +85,15 @@ const presetMatchedFilter: Filter = {
   period: { ...periodFilter.period!, value: { start: '2025-01-01', end: '2025-12-31' } },
 }
 
-export const DashboardFilterPresetApplied: Story = () => (
+export const DashboardFilterPresetApplied = () => (
   <DashboardScene period={presetMatchedFilter} theme="light" />
 )
 DashboardFilterPresetApplied.storyName = 'Dashboard filter preset applied'
 
-export const DashboardFilterLight: Story = () => <DashboardScene theme="light" />
+export const DashboardFilterLight = () => <DashboardScene theme="light" />
 DashboardFilterLight.storyName = 'Dashboard filter light'
 
-export const DashboardFilterDark: Story = () => <DashboardScene theme="dark" />
+export const DashboardFilterDark = () => <DashboardScene theme="dark" />
 DashboardFilterDark.storyName = 'Dashboard filter dark'
 
 const regionFacet: Filter = {
@@ -113,10 +112,10 @@ const regionFacet: Filter = {
   },
 }
 
-export const DashboardFacetActive: Story = () => {
+export const DashboardFacetActive = () => {
   const base = filteredDocument()
   return (
-    <div style={{ width: 960 }}>
+    <div style={{ width: '960px' }}>
       <LensDashboard
         filterToday={storyToday}
         initialDocument={{ ...base, filters: [periodFilter, regionFacet] }}
@@ -169,8 +168,7 @@ const genderFacet: Filter = {
 }
 
 function FacetOptionsScene() {
-  const [ready, setReady] = useState(false)
-  useEffect(() => {
+  onMount(() => {
     const original = globalThis.fetch
     globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
       const target = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
@@ -189,14 +187,12 @@ function FacetOptionsScene() {
       }
       return original(input, init)
     }) as typeof fetch
-    setReady(true)
-    return () => { globalThis.fetch = original }
-  }, [])
-  if (!ready) return null
+    onCleanup(() => { globalThis.fetch = original })
+  })
   const base = filteredDocument()
   return (
     <AutoClick selector=".lens-facet-trigger">
-      <div style={{ width: 960 }}>
+      <div style={{ width: '960px' }}>
         <LensDashboard
           filterToday={storyToday}
           initialDocument={{ ...base, filters: [regionFacet] }}
@@ -208,12 +204,11 @@ function FacetOptionsScene() {
 }
 
 /** Historical staged multi-select: checkboxes, count bars, and one Apply. */
-export const FacetOptionsOpen: Story = () => <FacetOptionsScene />
+export const FacetOptionsOpen = () => <FacetOptionsScene />
 FacetOptionsOpen.storyName = 'Facet options open'
 
 function FiltersMenuScene() {
-  const [ready, setReady] = useState(false)
-  useEffect(() => {
+  onMount(() => {
     const original = globalThis.fetch
     globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
       const target = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
@@ -232,14 +227,12 @@ function FiltersMenuScene() {
       }
       return original(input, init)
     }) as typeof fetch
-    setReady(true)
-    return () => { globalThis.fetch = original }
-  }, [])
-  if (!ready) return null
+    onCleanup(() => { globalThis.fetch = original })
+  })
   const base = filteredDocument()
   return (
     <AutoClick selector=".lens-filter-menu .lens-facet-trigger">
-      <div style={{ width: 1100 }}>
+      <div style={{ width: '1100px' }}>
         <LensDashboard
           filterToday={storyToday}
           initialDocument={{
@@ -266,14 +259,14 @@ function FiltersMenuScene() {
  * row of their own. This replaced nine sibling dropdowns wrapping into three
  * ragged rows above the first number.
  */
-export const FiltersMenuOpen: Story = () => <FiltersMenuScene />
+export const FiltersMenuOpen = () => <FiltersMenuScene />
 FiltersMenuOpen.storyName = 'Filters menu open'
 
 function RefetchErrorScene() {
-  const requests = useRef(0)
-  const fetcher = useCallback<typeof fetch>(() => {
-    requests.current += 1
-    if (requests.current > 1) {
+  let requests = 0
+  const fetcher: typeof fetch = () => {
+    requests += 1
+    if (requests > 1) {
       return Promise.resolve(new Response(JSON.stringify({ message: 'document refetch failed' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
@@ -283,7 +276,7 @@ function RefetchErrorScene() {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     }))
-  }, [])
+  }
   return (
     <LensDashboard
       fetcher={fetcher}
@@ -294,7 +287,7 @@ function RefetchErrorScene() {
   )
 }
 
-export const RefetchError: Story = () => <RefetchErrorScene />
+export const RefetchError = () => <RefetchErrorScene />
 RefetchError.storyName = 'Refetch error'
 
 function clickWhenReady(find: () => HTMLElement | null | undefined): () => void {
@@ -316,20 +309,21 @@ function clickWhenReady(find: () => HTMLElement | null | undefined): () => void 
 }
 
 /** Clicks the period trigger once mounted so the popover is the subject. */
-function AutoOpen({ children }: { children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => clickWhenReady(
-    () => ref.current?.querySelector<HTMLElement>('.lens-filter-trigger'),
-  ), [])
-  return <div ref={ref}>{children}</div>
+function AutoOpen(props: { children: JSX.Element }) {
+  let ref: HTMLDivElement | undefined
+  onMount(() => {
+    const cancel = clickWhenReady(() => ref?.querySelector<HTMLElement>('.lens-filter-trigger'))
+    onCleanup(cancel)
+  })
+  return <div ref={ref}>{props.children}</div>
 }
 
-export const PopoverOpenLight: Story = () => (
+export const PopoverOpenLight = () => (
   <AutoOpen><DashboardScene theme="light" /></AutoOpen>
 )
 PopoverOpenLight.storyName = 'Popover open light'
 
-export const PopoverOpenDark: Story = () => (
+export const PopoverOpenDark = () => (
   <AutoOpen><DashboardScene theme="dark" /></AutoOpen>
 )
 PopoverOpenDark.storyName = 'Popover open dark'
@@ -341,12 +335,13 @@ PopoverOpenDark.storyName = 'Popover open dark'
  */
 const calendarPaneWidth = 628
 
-function CalendarCard({ children, theme = 'light' }: { children: React.ReactNode; theme?: LensThemeMode }) {
+function CalendarCard(props: { children: JSX.Element; theme?: LensThemeMode }) {
+  const theme = props.theme ?? 'light'
   return (
-    <div className="lens-root" data-theme={theme}>
-      <div className="lens-filter-popover" style={{ position: 'static', width: calendarPaneWidth }}>
-        <div className="lens-filter-popover-main">
-          {children}
+    <div class="lens-root" data-theme={theme}>
+      <div class="lens-filter-popover" style={{ position: 'static', width: `${calendarPaneWidth}px` }}>
+        <div class="lens-filter-popover-main">
+          {props.children}
         </div>
       </div>
     </div>
@@ -358,7 +353,7 @@ const committedRange = {
   end: { year: 2026, month: 7, day: 18 },
 }
 
-export const CalendarLight: Story = () => (
+export const CalendarLight = () => (
   <CalendarCard>
     <Calendar
       draft={committedRange}
@@ -371,7 +366,7 @@ export const CalendarLight: Story = () => (
 )
 CalendarLight.storyName = 'Calendar light'
 
-export const CalendarDark: Story = () => (
+export const CalendarDark = () => (
   <CalendarCard theme="dark">
     <Calendar
       draft={committedRange}
@@ -388,7 +383,7 @@ CalendarDark.storyName = 'Calendar dark'
  * A pending range anchor: the VR keyframe test hovers a later day to capture
  * the live preview wash between anchor and pointer.
  */
-export const CalendarRangePending: Story = () => (
+export const CalendarRangePending = () => (
   <CalendarCard>
     <Calendar
       draft={{ start: { year: 2026, month: 7, day: 3 } }}
@@ -402,16 +397,17 @@ export const CalendarRangePending: Story = () => (
 CalendarRangePending.storyName = 'Calendar range pending'
 
 /** Clicks a selector once mounted, so a click-only state can be a story. */
-function AutoClick({ children, selector }: { children: React.ReactNode; selector: string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => clickWhenReady(
-    () => ref.current?.querySelector<HTMLElement>(selector),
-  ), [selector])
-  return <div ref={ref}>{children}</div>
+function AutoClick(props: { children: JSX.Element; selector: string }) {
+  let ref: HTMLDivElement | undefined
+  onMount(() => {
+    const cancel = clickWhenReady(() => ref?.querySelector<HTMLElement>(props.selector))
+    onCleanup(cancel)
+  })
+  return <div ref={ref}>{props.children}</div>
 }
 
 /** The month panel behind the heading: the only way to travel by year. */
-export const CalendarMonthPanel: Story = () => (
+export const CalendarMonthPanel = () => (
   <AutoClick selector=".lens-calendar-month">
     <CalendarCard>
       <Calendar
@@ -427,11 +423,11 @@ export const CalendarMonthPanel: Story = () => (
 CalendarMonthPanel.storyName = 'Calendar month panel'
 
 /** All four product locales: month names, weekday rows, first day of week. */
-export const CalendarLocales: Story = () => (
-  <div className="lens-root" style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+export const CalendarLocales = () => (
+  <div class="lens-root" style={{ display: 'flex', 'flex-wrap': 'wrap', gap: '16px' }}>
     {(['en-US', 'ru', 'uz', 'uz-Cyrl'] as const).map((locale) => (
-      <div className="lens-filter-popover" key={locale} style={{ position: 'static', width: calendarPaneWidth }}>
-        <div className="lens-filter-popover-main">
+      <div class="lens-filter-popover" style={{ position: 'static', width: `${calendarPaneWidth}px` }}>
+        <div class="lens-filter-popover-main">
           <Calendar
             draft={committedRange}
             locale={locale}
@@ -463,7 +459,7 @@ function ComparisonScene({ compare }: { compare: Filter }) {
   const base = filteredDocument()
   return (
     <AutoClick selector=".lens-compare-trigger">
-      <div style={{ width: 960 }}>
+      <div style={{ width: '960px' }}>
         <LensDashboard
           filterToday={storyToday}
           initialDocument={{ ...base, filters: [periodFilter, compare] }}
@@ -480,7 +476,7 @@ function ComparisonScene({ compare }: { compare: Filter }) {
  * the whole point of the story, since the header row is where a stray control
  * treatment is most visible.
  */
-export const ComparisonMenuOpen: Story = () => <ComparisonScene compare={compareFilter} />
+export const ComparisonMenuOpen = () => <ComparisonScene compare={compareFilter} />
 ComparisonMenuOpen.storyName = 'Comparison menu open'
 
 /**
@@ -488,7 +484,7 @@ ComparisonMenuOpen.storyName = 'Comparison menu open'
  * mode that needs them, with one Apply. They used to sit in the header row,
  * appearing and disappearing beside the filters as the mode changed.
  */
-export const ComparisonCustomInterval: Story = () => (
+export const ComparisonCustomInterval = () => (
   <ComparisonScene
     compare={{
       ...compareFilter,
@@ -532,8 +528,8 @@ function GranularityScene({ theme }: { theme: LensThemeMode }) {
  * idiom rather than a second control that merely resembles it — and the choice
  * it holds is URL state, not the renderer-local selection a Tabs group keeps.
  */
-export const GranularitySegmented: Story = () => <GranularityScene theme="light" />
+export const GranularitySegmented = () => <GranularityScene theme="light" />
 GranularitySegmented.storyName = 'Granularity segmented'
 
-export const GranularitySegmentedDark: Story = () => <GranularityScene theme="dark" />
+export const GranularitySegmentedDark = () => <GranularityScene theme="dark" />
 GranularitySegmentedDark.storyName = 'Granularity segmented dark'

@@ -28,7 +28,7 @@
     "baseUrl": ".",
     "paths": {
       "@iota-uz/sdk/client-host": [
-        "../client-host/src/index.ts"
+        "../client-host/src/solid-index.ts"
       ]
     },
     "jsxImportSource": "solid-js"
@@ -38,9 +38,8 @@
     "vr/**/*.ts",
     "playwright.config.ts",
     "vite.config.ts",
+    "vite.stories.config.ts",
     "vite.package.config.ts",
     "tailwind.config.ts",
-    ".ladle/**/*.ts",
-    ".ladle/**/*.tsx"
   ]
 }

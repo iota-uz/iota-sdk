@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { createMemo, Show } from 'solid-js'
 import type { JSXElement } from 'solid-js'
 import type {
@@ -104,7 +104,6 @@ export function MetricRelationshipPanel(props: MetricRelationshipPanelProps) {
   )
 }
 
-/* eslint-disable react-refresh/only-export-components */
 type Translate = (key: string, fallback: string, vars?: Record<string, string | number>) => string
 
 /**

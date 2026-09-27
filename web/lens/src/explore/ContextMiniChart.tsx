@@ -1,3 +1,4 @@
+import { Show, type JSX } from 'solid-js'
 import type { FocusParent } from './focusModel'
 
 /**
@@ -25,20 +26,16 @@ function arcPath(cx: number, cy: number, r: number, from: number, to: number): s
   return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`
 }
 
-function MiniDonut({ parent, colorFor, centerLabel }: {
-  parent: FocusParent
-  colorFor: ContextMiniChartProps['colorFor']
-  centerLabel?: string
-}) {
+function MiniDonut(props: { parent: FocusParent; colorFor: ContextMiniChartProps['colorFor']; centerLabel?: string }): JSX.Element | null {
   const size = 64
   const center = size / 2
   const radius = 24
-  const positive = parent.slices.map((slice) => Math.max(0, slice.value))
+  const positive = props.parent.slices.map((slice) => Math.max(0, slice.value))
   const total = positive.reduce((sum, value) => sum + value, 0)
   if (total <= 0) return null
   const gap = 0.035
   let angle = -Math.PI / 2
-  const arcs = parent.slices.map((slice, index) => {
+  const arcs = props.parent.slices.map((slice, index) => {
     const sweep = ((positive[index] ?? 0) / total) * Math.PI * 2
     const path = sweep > gap * 2 ? arcPath(center, center, radius, angle + gap, angle + sweep - gap) : undefined
     angle += sweep
@@ -47,55 +44,50 @@ function MiniDonut({ parent, colorFor, centerLabel }: {
       <path
         d={path}
         fill="none"
-        key={slice.key}
         opacity={slice.selected ? 1 : 0.42}
-        style={{ stroke: colorFor(slice.label, index) }}
-        strokeLinecap="butt"
-        strokeWidth={slice.selected ? 10 : 7}
+        style={{ stroke: props.colorFor(slice.label, index) }}
+        stroke-linecap="butt"
+        stroke-width={slice.selected ? 10 : 7}
       />
     )
   })
   return (
     <svg aria-hidden="true" height={size} viewBox={`0 0 ${size} ${size}`} width={size}>
       {arcs}
-      {centerLabel && (
+      <Show when={props.centerLabel}>
         <text
-          className="lens-focus-mini-center"
-          fontSize="10"
-          fontWeight="600"
-          textAnchor="middle"
+          class="lens-focus-mini-center"
+          font-size="10"
+          font-weight="600"
+          text-anchor="middle"
           x={center}
           y={center + 3.5}
         >
-          {centerLabel}
+          {props.centerLabel}
         </text>
-      )}
+      </Show>
     </svg>
   )
 }
 
-function MiniStages({ parent, colorFor }: {
-  parent: FocusParent
-  colorFor: ContextMiniChartProps['colorFor']
-}) {
+function MiniStages(props: { parent: FocusParent; colorFor: ContextMiniChartProps['colorFor'] }): JSX.Element | null {
   const width = 84
   const height = 52
-  const count = parent.slices.length
+  const count = props.parent.slices.length
   if (count === 0) return null
   const gap = 3
   const barWidth = (width - (count - 1) * gap) / count
-  const max = parent.slices.reduce((peak, slice) => Math.max(peak, Math.abs(slice.value)), 0)
+  const max = props.parent.slices.reduce((peak, slice) => Math.max(peak, Math.abs(slice.value)), 0)
   if (max <= 0) return null
   const baseline = height - 4
-  const bars = parent.slices.map((slice, index) => {
+  const bars = props.parent.slices.map((slice, index) => {
     const magnitude = Math.max(2, ((height - 10) * Math.abs(slice.value)) / max)
     return (
       <rect
         height={magnitude}
-        key={slice.key}
         opacity={slice.selected ? 1 : 0.3}
         rx={1}
-        style={{ fill: colorFor(slice.label, index) }}
+        style={{ fill: props.colorFor(slice.label, index) }}
         width={barWidth}
         x={index * (barWidth + gap)}
         y={baseline - magnitude}
@@ -104,33 +96,35 @@ function MiniStages({ parent, colorFor }: {
   })
   return (
     <svg aria-hidden="true" height={height} viewBox={`0 0 ${width} ${height}`} width={width}>
-      <line className="lens-focus-mini-baseline" x1={0} x2={width} y1={baseline} y2={baseline} />
+      <line class="lens-focus-mini-baseline" x1={0} x2={width} y1={baseline} y2={baseline} />
       {bars}
     </svg>
   )
 }
 
-export function ContextMiniChart({ parent, colorFor, centerLabel, caption, label, onClick }: ContextMiniChartProps) {
+export function ContextMiniChart(props: ContextMiniChartProps): JSX.Element | null {
   // Emptiness is decided here, not by the inner drawing, so a valueless parent
   // never leaves a hollow button in the header.
-  const positiveTotal = parent.slices.reduce((sum, slice) => sum + Math.max(0, slice.value), 0)
-  const magnitude = parent.slices.reduce((peak, slice) => Math.max(peak, Math.abs(slice.value)), 0)
-  const empty = parent.slices.length === 0 || (parent.view === 'cascade' ? magnitude <= 0 : positiveTotal <= 0)
+  const positiveTotal = props.parent.slices.reduce((sum, slice) => sum + Math.max(0, slice.value), 0)
+  const magnitude = props.parent.slices.reduce((peak, slice) => Math.max(peak, Math.abs(slice.value)), 0)
+  const empty = props.parent.slices.length === 0 || (props.parent.view === 'cascade' ? magnitude <= 0 : positiveTotal <= 0)
   if (empty) return null
-  const drawing = parent.view === 'cascade'
-    ? <MiniStages colorFor={colorFor} parent={parent} />
-    : <MiniDonut centerLabel={centerLabel} colorFor={colorFor} parent={parent} />
+  const drawing = props.parent.view === 'cascade'
+    ? <MiniStages colorFor={props.colorFor} parent={props.parent} />
+    : <MiniDonut centerLabel={props.centerLabel} colorFor={props.colorFor} parent={props.parent} />
   return (
     <button
-      aria-label={label}
-      className="lens-focus-mini"
-      disabled={!onClick}
-      onClick={onClick}
-      title={onClick ? label : undefined}
+      aria-label={props.label}
+      class="lens-focus-mini"
+      disabled={!props.onClick}
+      onClick={() => props.onClick?.()}
+      title={props.onClick ? props.label : undefined}
       type="button"
     >
       {drawing}
-      {caption && <span className="lens-focus-mini-caption">{caption}</span>}
+      <Show when={props.caption}>
+        <span class="lens-focus-mini-caption">{props.caption}</span>
+      </Show>
     </button>
   )
 }

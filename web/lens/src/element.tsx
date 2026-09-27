@@ -1,5 +1,4 @@
 import { render } from 'solid-js/web'
-import type { JSX } from 'solid-js'
 import { LensDashboard } from './LensDashboard'
 import { parseDocument, type DashboardDocument } from './contract'
 import { normalizeLensTheme } from './runtime'
@@ -52,7 +51,7 @@ export class LensDashboardElement extends HTMLElement {
         fallbackHTML={this.fallbackHTML}
         initialDocument={this.initialDocument()}
       />
-    ) as JSX.Element
+    )
     this.dispose = render(component, this)
   }
 }
