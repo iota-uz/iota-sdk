@@ -1,4 +1,6 @@
-import { useMemo, type ReactNode } from 'react'
+/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+import { createMemo, Show } from 'solid-js'
+import type { JSXElement } from 'solid-js'
 import type {
   MetricRelationshipConfig,
   Panel,
@@ -22,13 +24,14 @@ export interface MetricRelationshipPanelProps {
 
 function useMessages(): KeyedJoinMessages {
   const translate = useTranslate()
-  return useMemo<KeyedJoinMessages>(() => ({
+  return createMemo<KeyedJoinMessages>(() => ({
     missingColumn: (column) => translate('panel.missingColumn', 'Panel data is missing the “{column}” column.', { column }),
     duplicateKey: (key) => translate('panel.duplicateKey', 'Panel data has a duplicate key “{key}”.', { key }),
-  }), [translate])
+  }))()
 }
 
-export function MetricRelationshipPanel({ panel }: MetricRelationshipPanelProps) {
+export function MetricRelationshipPanel(props: MetricRelationshipPanelProps) {
+  const panel = props.panel
   const frame = usePanelFrame(panel.id)
   const translate = useTranslate()
   const messages = useMessages()
@@ -37,63 +40,63 @@ export function MetricRelationshipPanel({ panel }: MetricRelationshipPanelProps)
   const resolveAction = useElementActionResolver()
   const config = panel.metricRelationship
 
-  const join = useMemo(
+  const join = createMemo(
     () => (frame.data ? buildKeyedJoin(panel, frame.data, messages) : undefined),
-    [frame.data, messages, panel],
   )
-  const contractError = join?.kind === 'contract-error' ? join.message : undefined
-  const effectiveFrame: PanelFrameState = contractError
-    ? { ...frame, data: undefined, error: new Error(contractError) }
-    : frame
+  const contractError = createMemo(() => {
+    const current = join()
+    return current?.kind === 'contract-error' ? current.message : undefined
+  })
+  const effectiveFrame = createMemo((): PanelFrameState => contractError()
+    ? { ...frame, data: undefined, error: new Error(contractError()) }
+    : frame)
 
-  const source = relationshipEndView(panel, join, config?.source, formatValue)
-  const target = relationshipEndView(panel, join, config?.target, formatValue)
+  const source = relationshipEndView(panel, join(), config?.source, formatValue)
+  const target = relationshipEndView(panel, join(), config?.target, formatValue)
   const glyphs = config ? connectorGlyphs(config) : { horizontal: '⇄', vertical: '⇵' }
 
   const type = config?.type ?? 'association'
   const typeLabel = translate(`relationship.type.${type}`, relationshipTypeFallback[type])
   const sentence = relationshipSentence(translate, config, source?.end.label ?? '', target?.end.label ?? '')
 
-  const renderEnd = (view: RelationshipEndView | undefined, role: 'source' | 'target'): ReactNode => {
-    if (!view) return <div className={`lens-relationship-end lens-relationship-end-${role}`} />
+  const renderEnd = (view: RelationshipEndView | undefined, role: 'source' | 'target'): JSXElement => {
+    if (!view) return <div class={`lens-relationship-end lens-relationship-end-${role}`} />
     const targetAction = resolveAction(view.end.action)
     const body = (
       <>
-        <span className="lens-relationship-end-label" title={view.end.label}>{view.end.label}</span>
-        <span className="lens-relationship-end-value">
+        <span class="lens-relationship-end-label" title={view.end.label}>{view.end.label}</span>
+        <span class="lens-relationship-end-value">
           {view.showDash ? '—' : view.valueText}
         </span>
         <QualityChip confidence={view.confidence} availability={view.availability} className="lens-relationship-chip" />
       </>
     )
     return (
-      <div className={`lens-relationship-end lens-relationship-end-${role}`}>
-        {targetAction ? (
+      <div class={`lens-relationship-end lens-relationship-end-${role}`}>
+        <Show when={targetAction} fallback={<div class="lens-relationship-end-inner">{body}</div>}>
           <a
             aria-label={translate('panel.openMetric', 'Open {name}', { name: view.end.label })}
-            className="lens-relationship-end-inner lens-relationship-end-link"
-            href={targetAction.href}
-            onClick={targetAction.onClick}
+            class="lens-relationship-end-inner lens-relationship-end-link"
+            href={targetAction!.href}
+            onClick={targetAction!.onClick}
           >
             {body}
           </a>
-        ) : (
-          <div className="lens-relationship-end-inner">{body}</div>
-        )}
+        </Show>
       </div>
     )
   }
 
   return (
-    <PanelFrame panel={panel} frame={effectiveFrame} allowEmptyContent>
-      <div className="lens-relationship" data-type={config?.type}>
-        <p className="lens-visually-hidden">{sentence}</p>
+    <PanelFrame panel={panel} frame={effectiveFrame()} allowEmptyContent>
+      <div class="lens-relationship" data-type={config?.type}>
+        <p class="lens-visually-hidden">{sentence}</p>
         {renderEnd(source, 'source')}
-        <div aria-hidden="true" className="lens-relationship-connector" data-type={config?.type}>
-          <span className="lens-relationship-glyph lens-relationship-glyph-h">{glyphs.horizontal}</span>
-          <span className="lens-relationship-glyph lens-relationship-glyph-v">{glyphs.vertical}</span>
-          <span className="lens-relationship-type">{typeLabel}</span>
-          {config?.note && <span className="lens-relationship-note">{config.note}</span>}
+        <div aria-hidden="true" class="lens-relationship-connector" data-type={config?.type}>
+          <span class="lens-relationship-glyph lens-relationship-glyph-h">{glyphs.horizontal}</span>
+          <span class="lens-relationship-glyph lens-relationship-glyph-v">{glyphs.vertical}</span>
+          <span class="lens-relationship-type">{typeLabel}</span>
+          {config?.note && <span class="lens-relationship-note">{config.note}</span>}
         </div>
         {renderEnd(target, 'target')}
       </div>
@@ -101,6 +104,7 @@ export function MetricRelationshipPanel({ panel }: MetricRelationshipPanelProps)
   )
 }
 
+/* eslint-disable react-refresh/only-export-components */
 type Translate = (key: string, fallback: string, vars?: Record<string, string | number>) => string
 
 /**

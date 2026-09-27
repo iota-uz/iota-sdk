@@ -1,8 +1,8 @@
 import {
-  useCallback, useEffect, useLayoutEffect, useRef, useState,
-  type CSSProperties, type KeyboardEvent as ReactKeyboardEvent,
-} from 'react'
-import { useOverlayContainer } from '../runtime/overlayContainer'
+  createEffect, createSignal, on, onCleanup, untrack,
+  type JSX,
+} from 'solid-js'
+import { useOverlayContainer } from './overlayContainer'
 
 export interface MenuPlacement {
   /** Which side of the trigger the menu opens on. */
@@ -92,30 +92,36 @@ export function menuOffset(
   return { left: Math.round(left), top: Math.round(top) }
 }
 
-/** Shared focus, dismissal, placement, and arrow navigation for Lens menu buttons. */
+/** Placement and position of an open menu, read reactively in JSX. */
+export interface MenuPlacementProps {
+  align: MenuPlacement['align']
+  side: MenuPlacement['side']
+  style: JSX.CSSProperties
+}
+
 export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
-  const [open, setOpen] = useState(false)
-  const container = useRef<HTMLDivElement>(null)
-  const trigger = useRef<HTMLButtonElement>(null)
-  const menu = useRef<HTMLDivElement>(null)
-  const [placement, setPlacement] = useState<MenuPlacement>({ side: 'down', align: preferredAlign })
-  const [offset, setOffset] = useState<MenuOffset>()
-  const items = useRef(new Map<string, HTMLButtonElement>())
+  const [open, setOpen] = createSignal(false)
+  const container: { current: HTMLDivElement | null } = { current: null }
+  const trigger: { current: HTMLButtonElement | null } = { current: null }
+  const menu: { current: HTMLDivElement | null } = { current: null }
+  const [placement, setPlacement] = createSignal<MenuPlacement>({ side: 'down', align: preferredAlign })
+  const [offset, setOffset] = createSignal<MenuOffset>()
+  const items = new Map<string, HTMLButtonElement>()
   // A menu anchored in the flow is clipped by the first ancestor that hides its
   // overflow, and every Lens panel does — a chart panel's own toolbar opened its
   // menu 116px outside the card and the card sliced it in half. The placement
   // maths was already right; only the containing block was wrong, so the menu
   // moves to a body portal and keeps the same rule.
-  const overlay = useOverlayContainer(open, container, 'lens-menu-overlay-root')
-  const close = useCallback(() => setOpen(false), [])
-  const closeAndFocusTrigger = useCallback(() => {
+  const overlay = useOverlayContainer(open, () => container.current, 'lens-menu-overlay-root')
+  const close = () => setOpen(false)
+  const closeAndFocusTrigger = () => {
     close()
     trigger.current?.focus()
-  }, [close])
+  }
 
-  useEffect(() => {
-    if (!open || typeof document === 'undefined') return undefined
-    const focusFrame = requestAnimationFrame(() => [...items.current.values()][0]?.focus())
+  createEffect(() => {
+    if (!open() || typeof document === 'undefined') return
+    const focusFrame = requestAnimationFrame(() => [...items.values()][0]?.focus())
     const pointerdown = (event: PointerEvent) => {
       if (!(event.target instanceof Node)) return
       // The menu is no longer a descendant of the trigger's container: a
@@ -131,16 +137,16 @@ export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
     }
     document.addEventListener('pointerdown', pointerdown, true)
     document.addEventListener('keydown', keydown, true)
-    return () => {
+    onCleanup(() => {
       cancelAnimationFrame(focusFrame)
       document.removeEventListener('pointerdown', pointerdown, true)
       document.removeEventListener('keydown', keydown, true)
-    }
-  }, [close, closeAndFocusTrigger, open])
+    })
+  })
 
   // Measured on open and again while it is open, because the page behind it
   // scrolls and resizes under a menu that is anchored in the flow.
-  const place = useCallback(() => {
+  const place = () => {
     const anchor = trigger.current?.getBoundingClientRect()
     const box = menu.current?.getBoundingClientRect()
     if (!anchor || !box) return
@@ -161,38 +167,40 @@ export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
     // *would* sit unshifted: its own rect already carries the current offset.
     const nextOffset = menuOffset(anchor, box, next, menuShift(anchor, box, viewport, next.align))
     setOffset((current) => current?.left === nextOffset.left && current.top === nextOffset.top ? current : nextOffset)
-  }, [preferredAlign])
+  }
 
-  useLayoutEffect(() => {
-    if (open && overlay) place()
-  }, [open, overlay, place])
+  // The untrack keeps opening the menu from re-entering this effect through
+  // the reads place() performs while the DOM is still settling.
+  createEffect(on(overlay, (current) => {
+    if (open() && current) untrack(place)
+  }))
 
-  useEffect(() => {
-    if (!open) setOffset(undefined)
-  }, [open])
+  createEffect(() => {
+    if (!open()) setOffset(undefined)
+  })
 
-  useEffect(() => {
-    if (!open || !overlay) return undefined
-    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(place)
+  createEffect(() => {
+    if (!open() || !overlay()) return
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(() => untrack(place))
     if (trigger.current) observer?.observe(trigger.current)
     if (menu.current) observer?.observe(menu.current)
     globalThis.addEventListener('resize', place)
     globalThis.addEventListener('scroll', place, true)
-    return () => {
+    onCleanup(() => {
       observer?.disconnect()
       globalThis.removeEventListener('resize', place)
       globalThis.removeEventListener('scroll', place, true)
-    }
-  }, [open, overlay, place])
+    })
+  })
 
-  const itemRef = useCallback((key: string) => (element: HTMLButtonElement | null) => {
-    if (element) items.current.set(key, element)
-    else items.current.delete(key)
-  }, [])
-  const onMenuKeyDown = useCallback((event: ReactKeyboardEvent) => {
+  const itemRef = (key: string) => (element: HTMLButtonElement | null) => {
+    if (element) items.set(key, element)
+    else items.delete(key)
+  }
+  const onMenuKeyDown = (event: KeyboardEvent) => {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
-    const activeItems = [...items.current.values()].filter((item) => item.isConnected)
+    const activeItems = [...items.values()].filter((item) => item.isConnected)
     if (activeItems.length === 0) return
     if (event.key === 'Home') {
       activeItems[0]?.focus()
@@ -205,7 +213,23 @@ export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
     const current = activeItems.indexOf(document.activeElement as HTMLButtonElement)
     const delta = event.key === 'ArrowDown' ? 1 : -1
     activeItems[(current + delta + activeItems.length) % activeItems.length]?.focus()
-  }, [])
+  }
+
+  const menuPlacementProps = (): MenuPlacementProps => ({
+    get align() { return placement().align },
+    get side() { return placement().side },
+    get style() {
+      const current = offset()
+      return {
+        left: current?.left ?? 0,
+        top: current?.top ?? 0,
+        // The first paint is the measurement pass: the menu has to have a box
+        // before it can be told where its box goes. Hidden rather than
+        // unmounted, so that measurement is of the real thing.
+        visibility: current ? 'visible' : 'hidden',
+      } as JSX.CSSProperties
+    },
+  })
 
   return {
     close,
@@ -213,20 +237,9 @@ export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
     container,
     itemRef,
     menu,
-    menuPlacementProps: {
-      'data-align': placement.align,
-      'data-side': placement.side,
-      style: {
-        left: offset?.left ?? 0,
-        top: offset?.top ?? 0,
-        // The first paint is the measurement pass: the menu has to have a box
-        // before it can be told where its box goes. Hidden rather than
-        // unmounted, so that measurement is of the real thing.
-        visibility: offset ? 'visible' : 'hidden',
-      } as CSSProperties,
-    },
+    menuPlacementProps: menuPlacementProps as () => MenuPlacementProps,
     onMenuKeyDown,
-    open,
+    open: open,
     overlay,
     setOpen,
     trigger,

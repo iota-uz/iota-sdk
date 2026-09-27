@@ -7,12 +7,6 @@ import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js'
  * the thing that opened it, and the pointer has to cross that gap to reach the
  * card's own buttons and its selectable text. Close on the trigger's bare
  * `mouseleave` and the portal unmounts mid-travel, which reads as a flicker.
- *
- * It sits here because the gap is a property of portalling to the body, not of
- * any one tip: it was written twice, at 120ms and at 140ms, with the same
- * reasoning stated both times. The longer of the two is the one kept — the cost
- * of overshooting is a tip that lingers imperceptibly, and of undershooting, the
- * bug.
  */
 export const hoverBridgeDelay = 140
 

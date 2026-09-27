@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import react from '@vitejs/plugin-react'
+import solid from 'vite-plugin-solid'
 import { defineConfig } from 'vite'
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
@@ -11,7 +11,7 @@ export default defineConfig({
     alias: {
       '@iota-uz/sdk/client-host': path.resolve(rootDir, '../client-host/src/index.ts'),
     },
-    dedupe: ['react', 'react-dom'],
+
   },
   // Relative base, verified by experiment: removing it does NOT change the
   // dist bundle (Granite loads the runtime from manifest-derived absolute
@@ -23,7 +23,7 @@ export default defineConfig({
   // no longer existed, not an asset-path bug.
   base: './',
   plugins: [
-    react(),
+    solid(),
     {
       name: 'lens-go-embed-placeholder',
       closeBundle() {
