@@ -6,19 +6,19 @@ package agents
 // ProviderOpenAI is the provider identifier for OpenAI; use it with LookupModelSpec and DefaultModelForProvider.
 const ProviderOpenAI = "openai"
 
-// DefaultOpenAIModelSnapshot is the pinned OpenAI default. Currently the bare
-// alias "gpt-5.5" — replace with the dated snapshot (e.g. "gpt-5.5-YYYY-MM-DD")
+// DefaultOpenAIModelSnapshot is the pinned OpenAI default. Currently
+// "gpt-6.0-sol" — replace with a dated snapshot (e.g. "gpt-6.0-YYYY-MM-DD")
 // once OpenAI publishes one to immunize against floating-alias rollovers.
-const DefaultOpenAIModelSnapshot = "gpt-5.5"
+const DefaultOpenAIModelSnapshot = "gpt-6.0-sol"
 
 var (
-	// SpecGPT56Sol is the canonical spec for GPT-5.6 Sol.
+	// SpecGPT60Sol is the canonical spec for GPT-6.0 Sol.
 	//
-	// Pricing per platform.openai.com/docs/models/gpt-5.6-sol (Input $5.00 /
-	// Cached input $0.50 / Output $30.00 per 1M tokens). Cache writes are
-	// billed at 1.25x the uncached input token rate.
-	SpecGPT56Sol = ModelSpec{
-		Name:          "gpt-5.6-sol",
+	// Pricing per developers.openai.com/api/docs/pricing, standard tier
+	// (Input $2.00 / Cached input $0.20 / Cache writes $2.50 /
+	// Output $10.00 per 1M tokens).
+	SpecGPT60Sol = ModelSpec{
+		Name:          "gpt-6.0-sol",
 		Provider:      ProviderOpenAI,
 		ContextWindow: 1_050_000,
 		Capabilities: []Capability{
@@ -32,20 +32,20 @@ var (
 		},
 		Pricing: ModelPricing{
 			Currency:        "USD",
-			InputPer1M:      5.00,
-			OutputPer1M:     30.00,
-			CacheWritePer1M: 6.25,
-			CacheReadPer1M:  0.50,
+			InputPer1M:      2.00,
+			OutputPer1M:     10.00,
+			CacheWritePer1M: 2.50,
+			CacheReadPer1M:  0.20,
 		},
 	}
 
-	// SpecGPT56Luna is the canonical spec for GPT-5.6 Luna.
+	// SpecGPT60Luna is the canonical spec for GPT-6.0 Luna.
 	//
-	// Pricing per platform.openai.com/docs/models/gpt-5.6-luna (Input $1.00 /
-	// Cached input $0.10 / Output $6.00 per 1M tokens). Cache writes are
-	// billed at 1.25x the uncached input token rate.
-	SpecGPT56Luna = ModelSpec{
-		Name:          "gpt-5.6-luna",
+	// Pricing per developers.openai.com/api/docs/pricing, standard tier
+	// (Input $0.10 / Cached input $0.01 / Cache writes $0.125 /
+	// Output $0.50 per 1M tokens).
+	SpecGPT60Luna = ModelSpec{
+		Name:          "gpt-6.0-luna",
 		Provider:      ProviderOpenAI,
 		ContextWindow: 1_050_000,
 		Capabilities: []Capability{
@@ -59,10 +59,10 @@ var (
 		},
 		Pricing: ModelPricing{
 			Currency:        "USD",
-			InputPer1M:      1.00,
-			OutputPer1M:     6.00,
-			CacheWritePer1M: 1.25,
-			CacheReadPer1M:  0.10,
+			InputPer1M:      0.10,
+			OutputPer1M:     0.50,
+			CacheWritePer1M: 0.125,
+			CacheReadPer1M:  0.01,
 		},
 	}
 
@@ -168,16 +168,19 @@ var (
 )
 
 func init() {
-	// GPT-5.6 Sol is the flagship model; "gpt-5.6" is its floating alias.
-	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5.6-sol", "gpt-5.6"}, SpecGPT56Sol, false)
-
-	// GPT-5.6 Luna is the cost-sensitive model in the GPT-5.6 family.
-	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5.6-luna"}, SpecGPT56Luna, false)
-
-	// GPT-5.5 is the provider default. DefaultOpenAIModelSnapshot is the
-	// canonical name; add dated snapshots ("gpt-5.5-YYYY-MM-DD") to the alias
+	// GPT-6.0 Sol is the flagship model; "gpt-6.0" is its floating alias.
+	// It is also the provider default; DefaultOpenAIModelSnapshot is the
+	// canonical name. Add dated snapshots ("gpt-6.0-YYYY-MM-DD") to the alias
 	// list once OpenAI publishes them.
-	RegisterModelSpec(ProviderOpenAI, []string{DefaultOpenAIModelSnapshot}, SpecGPT55, true)
+	RegisterModelSpec(ProviderOpenAI, []string{"gpt-6.0-sol", "gpt-6.0"}, SpecGPT60Sol, true)
+
+	// GPT-6.0 Luna is the cost-sensitive model in the GPT-6.0 family.
+	RegisterModelSpec(ProviderOpenAI, []string{"gpt-6.0-luna"}, SpecGPT60Luna, false)
+
+	// GPT-5.5: canonical name; no longer the provider default. Add dated
+	// snapshots ("gpt-5.5-YYYY-MM-DD") to the alias list once OpenAI
+	// publishes them.
+	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5.5"}, SpecGPT55, false)
 
 	// GPT-5.2: canonical name + versioned alias
 	RegisterModelSpec(ProviderOpenAI, []string{"gpt-5.2", "gpt-5.2-2025-12-11"}, SpecGPT52, false)
