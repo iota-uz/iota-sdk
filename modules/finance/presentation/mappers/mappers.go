@@ -25,6 +25,7 @@ import (
 	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/finance/services"
 )
 
 func ExpenseCategoryToViewModel(entity category.ExpenseCategory) *viewmodels.ExpenseCategory {
@@ -999,4 +1000,15 @@ func ExpenseToViewModelWithAttachments(entity expense.Expense, uploads []upload.
 // AttachmentsToViewModels converts upload entities to view models
 func AttachmentsToViewModels(uploads []upload.Upload) []*coreviewmodels.Upload {
 	return mapping.MapViewModels(uploads, coremappers.UploadToViewModel)
+}
+
+func RevenueToViewModel(revenue services.Revenue) *viewmodels.Revenue {
+	return &viewmodels.Revenue{
+		Contract:     revenue.Contract.Display(),
+		Accepted:     revenue.Accepted.Display(),
+		Open:         revenue.Open.Display(),
+		Invoiced:     revenue.Invoiced.Display(),
+		Paid:         revenue.Paid.Display(),
+		Overaccepted: revenue.Open.IsNegative(),
+	}
 }

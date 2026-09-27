@@ -1,0 +1,175 @@
+package projects
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	corecomponents "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
+	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	financecomponents "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
+	financeviewmodels "github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/acceptance"
+	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers/dtos"
+	projectViewModels "github.com/iota-uz/iota-sdk/modules/projects/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"time"
+)
+
+type AcceptanceProps struct {
+	ProjectID  string
+	Revenue    []*financeviewmodels.Revenue
+	Documents  []*projectViewModels.AcceptanceDocument
+	Form       dtos.AcceptanceCreateDTO
+	Currencies []*coreviewmodels.Currency
+	Errors     map[string]string
+}
+
+func acceptanceTarget(projectID string) string {
+	return fmt.Sprintf("#project-acceptance-%s", projectID)
+}
+
+// "OTHER" is a reserved translation key, so kinds are stored with a prefix.
+func kindKey(kind string) string {
+	return "_" + kind
+}
+
+func dateValue(date time.Time) string {
+	if date.IsZero() {
+		return ""
+	}
+	return date.Format(time.DateOnly)
+}
+
+// AcceptancePanel shows the project revenue by basis, its acceptance
+// documents and a form to add one.
+templ AcceptancePanel(props *AcceptanceProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ basePath := fmt.Sprintf("/projects/%s/acceptance", props.ProjectID) }}
+	<div class="flex flex-col gap-6">
+		@financecomponents.RevenueSummary(props.Revenue)
+		<section class="flex flex-col gap-2">
+			if len(props.Documents) == 0 {
+				<p class="text-sm text-200">{ pageCtx.T("Projects.Acceptance.Empty") }</p>
+			}
+			for _, document := range props.Documents {
+				<div class="bg-surface-600 border border-primary rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+					<div class="min-w-0">
+						<p class="text-sm font-medium truncate">
+							{ pageCtx.T("Projects.Acceptance.Kinds." + kindKey(document.Kind)) } № { document.Number }
+						</p>
+						<p class="text-xs text-200 flex gap-2">
+							<span>{ document.Date }</span>
+							<span>{ pageCtx.T("Projects.Acceptance.Statuses." + document.Status) }</span>
+							<span class="truncate">{ document.Description }</span>
+						</p>
+					</div>
+					<div class="flex items-center gap-2">
+						<span class="text-sm font-medium tabular-nums whitespace-nowrap">{ document.Amount }</span>
+						if document.CanSign {
+							@button.Secondary(button.Props{
+								Size: button.SizeSM,
+								Attrs: templ.Attributes{
+									"type":      "button",
+									"hx-post":   fmt.Sprintf("%s/%s/sign", basePath, document.ID),
+									"hx-target": acceptanceTarget(props.ProjectID),
+									"hx-swap":   "innerHTML",
+								},
+							}) {
+								{ pageCtx.T("Projects.Acceptance.Sign") }
+							}
+						}
+						if document.CanCancel {
+							@button.Secondary(button.Props{
+								Size: button.SizeSM,
+								Attrs: templ.Attributes{
+									"type":       "button",
+									"hx-post":    fmt.Sprintf("%s/%s/cancel", basePath, document.ID),
+									"hx-confirm": pageCtx.T("Projects.Acceptance.CancelConfirmation"),
+									"hx-target":  acceptanceTarget(props.ProjectID),
+									"hx-swap":    "innerHTML",
+								},
+							}) {
+								{ pageCtx.T("Projects.Acceptance.Cancel") }
+							}
+						}
+						@button.Danger(button.Props{
+							Size: button.SizeSM,
+							Attrs: templ.Attributes{
+								"type":       "button",
+								"hx-delete":  fmt.Sprintf("%s/%s", basePath, document.ID),
+								"hx-confirm": pageCtx.T("Projects.Acceptance.DeleteConfirmation"),
+								"hx-target":  acceptanceTarget(props.ProjectID),
+								"hx-swap":    "innerHTML",
+							},
+						}) {
+							{ pageCtx.T("Delete") }
+						}
+					</div>
+				</div>
+			}
+		</section>
+		<form
+			class="flex flex-col gap-4 border-t border-primary pt-4"
+			hx-post={ basePath }
+			hx-target={ acceptanceTarget(props.ProjectID) }
+			hx-swap="innerHTML"
+		>
+			<h3 class="text-sm font-medium">{ pageCtx.T("Projects.Acceptance.New") }</h3>
+			<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+				@base.Select(&base.SelectProps{
+					Label: pageCtx.T("Projects.Acceptance.Kind"),
+					Attrs: templ.Attributes{"name": "Kind"},
+					Error: props.Errors["Kind"],
+				}) {
+					for _, kind := range []acceptance.Kind{acceptance.KindAct, acceptance.KindDeliveryNote, acceptance.KindOther} {
+						<option value={ string(kind) } selected?={ props.Form.Kind == string(kind) }>
+							{ pageCtx.T("Projects.Acceptance.Kinds." + kindKey(string(kind))) }
+						</option>
+					}
+				}
+				@input.Text(&input.Props{
+					Label: pageCtx.T("Projects.Acceptance.Number"),
+					Attrs: templ.Attributes{"name": "Number", "value": props.Form.Number},
+					Error: props.Errors["Number"],
+				})
+				@input.Date(&input.Props{
+					Label: pageCtx.T("Projects.Acceptance.Date"),
+					Attrs: templ.Attributes{"name": "Date", "value": dateValue(time.Time(props.Form.Date))},
+					Error: props.Errors["Date"],
+				})
+				<div class="grid grid-cols-2 gap-4">
+					@input.Number(&input.Props{
+						Label: pageCtx.T("Projects.Acceptance.Amount"),
+						Attrs: templ.Attributes{
+							"name":  "Amount",
+							"value": amountValue(props.Form.Amount),
+							"step":  "0.01",
+							"min":   "0",
+						},
+						Error: props.Errors["Amount"],
+					})
+					@corecomponents.CurrencySelect(&corecomponents.CurrencySelectProps{
+						Label:       pageCtx.T("Projects.Acceptance.CurrencyCode"),
+						Placeholder: pageCtx.T("Projects.Single.SelectCurrency"),
+						Value:       props.Form.CurrencyCode,
+						Currencies:  props.Currencies,
+						Error:       props.Errors["CurrencyCode"],
+						Attrs:       templ.Attributes{"name": "CurrencyCode"},
+					})
+				</div>
+			</div>
+			@input.TextArea(&input.TextAreaProps{
+				Label: pageCtx.T("Projects.Acceptance._Description"),
+				Attrs: templ.Attributes{"name": "Description"},
+				Value: props.Form.Description,
+				Error: props.Errors["Description"],
+			})
+			<div class="flex justify-end">
+				@button.Primary(button.Props{Attrs: templ.Attributes{"type": "submit"}}) {
+					{ pageCtx.T("Projects.Acceptance.Add") }
+				}
+			</div>
+		</form>
+	</div>
+}

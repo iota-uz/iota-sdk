@@ -209,7 +209,8 @@
       "LegalType": "Юридик шакли",
       "LegalAddress": "Юридик манзили",
       "Delete": "Контрагентни ўчириш",
-      "DeleteConfirmation": "Ушбу контрагентни ўчиришни хоҳлайсизми?"
+      "DeleteConfirmation": "Ушбу контрагентни ўчиришни хоҳлайсизми?",
+      "Revenue": "Тушум"
     },
     "Types": {
       "CUSTOMER": "Мижоз",
@@ -572,6 +573,13 @@
       "AttachedFiles": "Бириктирилган ҳужжатлар",
       "DeleteConfirmation": "Ҳақиқатан ҳам бу ҳужжатни ўчирмоқчимисиз?",
       "DeleteFile": "Ҳужжатни ўчириш"
+    },
+    "Revenue": {
+      "Contract": "Шартнома бўйича",
+      "Accepted": "Қабул қилинган",
+      "Open": "Қабул қилинмаган",
+      "Invoiced": "Ҳисоб-фактура берилган",
+      "Paid": "Тўланган"
     }
   },
   "ValidationErrors": {

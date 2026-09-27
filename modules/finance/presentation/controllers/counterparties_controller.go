@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
@@ -29,14 +30,27 @@ import (
 
 type CounterpartiesController struct {
 	counterpartiesService *services.CounterpartyService
+	clientRevenue         services.ClientRevenueSource
 	basePath              string
 }
 
-func NewCounterpartiesController(counterpartiesService *services.CounterpartyService) application.Controller {
+func NewCounterpartiesController(
+	counterpartiesService *services.CounterpartyService,
+	clientRevenue services.ClientRevenueSource,
+) application.Controller {
 	return &CounterpartiesController{
 		counterpartiesService: counterpartiesService,
+		clientRevenue:         clientRevenue,
 		basePath:              "/finance/counterparties",
 	}
+}
+
+func (c *CounterpartiesController) revenue(r *http.Request, id uuid.UUID) ([]*viewmodels.Revenue, error) {
+	revenue, err := c.clientRevenue.ClientRevenue(r.Context(), id)
+	if err != nil {
+		return nil, err
+	}
+	return mapping.MapViewModels(revenue, mappers.RevenueToViewModel), nil
 }
 
 func (c *CounterpartiesController) Descriptor() application.ControllerDescriptor {
@@ -174,11 +188,19 @@ func (c *CounterpartiesController) GetEdit(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	revenue, err := c.revenue(r, id)
+	if err != nil {
+		logrus.WithError(err).Error("Error retrieving client revenue")
+		http.Error(w, "Error retrieving client revenue", http.StatusInternalServerError)
+		return
+	}
+
 	props := &counterpartiesui.EditPageProps{
 		Counterparty: mappers.CounterpartyToViewModel(entity),
 		Errors:       map[string]string{},
 		PostPath:     c.basePath + "/" + id.String(),
 		DeletePath:   c.basePath + "/" + id.String(),
+		Revenue:      revenue,
 	}
 	templ.Handler(counterpartiesui.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -211,12 +233,19 @@ func (c *CounterpartiesController) Update(w http.ResponseWriter, r *http.Request
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
+		revenue, err := c.revenue(r, id)
+		if err != nil {
+			logrus.WithError(err).Error("Error retrieving client revenue")
+			http.Error(w, "Error retrieving client revenue", http.StatusInternalServerError)
+			return
+		}
 		// Use DTO-to-ViewModel mapping to preserve submitted form values including invalid TIN
 		props := &counterpartiesui.EditPageProps{
 			Counterparty: dto.ToViewModel(id.String()),
 			Errors:       errorsMap,
 			PostPath:     c.basePath + "/" + id.String(),
 			DeletePath:   c.basePath + "/" + id.String(),
+			Revenue:      revenue,
 		}
 		templ.Handler(counterpartiesui.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

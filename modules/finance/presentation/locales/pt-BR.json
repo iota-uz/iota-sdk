@@ -209,7 +209,8 @@
       "LegalType": "Tipo legal",
       "LegalAddress": "Endereço legal",
       "Delete": "Excluir contraparte",
-      "DeleteConfirmation": "Tem certeza de que deseja excluir esta contraparte?"
+      "DeleteConfirmation": "Tem certeza de que deseja excluir esta contraparte?",
+      "Revenue": "Receita"
     },
     "Types": {
       "CUSTOMER": "Cliente",
@@ -572,6 +573,13 @@
       "AttachedFiles": "Documentos anexados",
       "DeleteConfirmation": "Tem certeza de que deseja excluir este documento?",
       "DeleteFile": "Excluir documento"
+    },
+    "Revenue": {
+      "Contract": "Contratado",
+      "Accepted": "Aceito",
+      "Open": "Em aberto",
+      "Invoiced": "Faturado",
+      "Paid": "Pago"
     }
   },
   "ValidationErrors": {

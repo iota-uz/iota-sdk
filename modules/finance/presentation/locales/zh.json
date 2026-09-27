@@ -209,7 +209,8 @@
       "LegalType": "法人类型",
       "LegalAddress": "法定地址",
       "Delete": "删除交易对手",
-      "DeleteConfirmation": "您确定要删除此交易对手吗？"
+      "DeleteConfirmation": "您确定要删除此交易对手吗？",
+      "Revenue": "收入"
     },
     "Types": {
       "CUSTOMER": "客户",
@@ -572,6 +573,13 @@
       "AttachedFiles": "已附加的文档",
       "DeleteConfirmation": "您确定要删除此文档吗？",
       "DeleteFile": "删除文档"
+    },
+    "Revenue": {
+      "Contract": "合同",
+      "Accepted": "已验收",
+      "Open": "未验收",
+      "Invoiced": "已开票",
+      "Paid": "已付款"
     }
   },
   "ValidationErrors": {
