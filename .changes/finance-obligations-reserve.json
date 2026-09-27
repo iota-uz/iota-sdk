@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Track obligations to counterparties as debts with a currency, the account they reserve money on and an optional project; debts can be settled and cancelled from their drawer, and the overview, debts and accounts pages show money on accounts, reserved by open obligations and available per currency. Adds a migration, services.BalanceService and the services.ProjectDirectory port provided by the projects module; NewDebtService, NewDebtsController, NewFinancialOverviewController and the debt drawer props change signature."
+}

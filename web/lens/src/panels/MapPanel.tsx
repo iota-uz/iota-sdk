@@ -205,13 +205,14 @@ export function MapPanel({ panel, adapter, fetcher, frame: frameOverride }: MapP
     const format: ChartFormatResolver = (_field, value) => formatValue(value)
     return {
       kind: 'map', frame: frame.data, encoding: panel.encoding, format, formatAxis: format,
+      labels: { noData: translate('panel.empty', 'No data') },
       theme: document.theme,
       map: {
         name: `lens-map:${panel.id}`, geoJSON: geometry.data, featureProperty: config.featureProperty,
         labelProperty, fallbackLabelProperty: config.labelProperty,
       },
     }
-  }, [config, document.theme, formatValue, frame.data, geometry.data, joinError, labelProperty, panel.encoding, panel.id])
+  }, [config, document.theme, formatValue, frame.data, geometry.data, joinError, labelProperty, panel.encoding, panel.id, translate])
 
   const interactive = Boolean(panel.drillRoot || navigation.action)
   const select = useCallback((key: NodeKey, _anchor?: unknown, activation?: ChartActivation) => {

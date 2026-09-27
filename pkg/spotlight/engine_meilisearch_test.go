@@ -109,6 +109,36 @@ func TestMeilisearchEngine_SetupForSearchMissingIndexBootstrapsIt(t *testing.T) 
 	require.True(t, engine.writeReady.Load())
 }
 
+func TestMeilisearchEngineWaitTaskCtxUsesMaintenanceOverride(t *testing.T) {
+	service := meilimocks.NewMockmeilisearchServiceManager(t)
+	engine := &MeilisearchEngine{
+		client:           service,
+		taskWaitDeadline: drainWaitDeadline,
+	}
+
+	service.EXPECT().
+		WaitForTaskWithContext(mock.Anything, int64(42), waitTaskPollInterval).
+		Run(func(ctx context.Context, _ int64, _ time.Duration) {
+			deadline, ok := ctx.Deadline()
+			require.True(t, ok)
+			require.Greater(t, time.Until(deadline), 29*time.Minute)
+		}).
+		Return(&meilisearch.Task{Status: meilisearch.TaskStatusSucceeded}, nil).
+		Once()
+
+	_, err := engine.waitTaskCtx(context.Background(), 42)
+	require.NoError(t, err)
+}
+
+func TestDrainTaskCtxUsesMaintenanceFallback(t *testing.T) {
+	ctx, cancel := drainTaskCtx(context.Background())
+	defer cancel()
+
+	deadline, ok := ctx.Deadline()
+	require.True(t, ok)
+	require.Greater(t, time.Until(deadline), 29*time.Minute)
+}
+
 func TestMeilisearchEngine_SetupForSearchRetryWaitsForPendingSettingsTask(t *testing.T) {
 	service := meilimocks.NewMockmeilisearchServiceManager(t)
 	index := meilimocks.NewMockmeilisearchIndexManager(t)
@@ -528,8 +558,9 @@ func TestMeiliRebuildSessionCommitCreatesActiveIndexBeforeSwapWhenMissing(t *tes
 		activeIndexName: "spotlight",
 		buildIndexName:  "spotlight_build_v4",
 		engine: &MeilisearchEngine{
-			client:    service,
-			indexName: "spotlight",
+			client:           service,
+			indexName:        "spotlight",
+			taskWaitDeadline: drainWaitDeadline,
 		},
 	}
 
@@ -553,6 +584,11 @@ func TestMeiliRebuildSessionCommitCreatesActiveIndexBeforeSwapWhenMissing(t *tes
 		Once()
 	service.EXPECT().
 		WaitForTaskWithContext(mock.Anything, int64(21), 100*time.Millisecond).
+		Run(func(ctx context.Context, _ int64, _ time.Duration) {
+			deadline, ok := ctx.Deadline()
+			require.True(t, ok)
+			require.Greater(t, time.Until(deadline), 29*time.Minute)
+		}).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 	service.EXPECT().

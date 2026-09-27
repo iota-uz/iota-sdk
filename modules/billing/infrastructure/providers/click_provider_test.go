@@ -187,3 +187,40 @@ func TestClickRefundTreatsANonJSONErrorPageAsAFailure(t *testing.T) {
 	// A transport failure is not a gateway refusal.
 	require.NotErrorAs(t, err, &providers.ClickReversalError{})
 }
+
+// Cancelling an unpaid invoice is the merchant withdrawing a link, and Click
+// has no endpoint for it — the merchant API only prepares, confirms and
+// reverses a payment. What the caller needs is the status, because that is what
+// stops the invoice being honoured.
+func TestClickCancelAbandonsAnUnpaidInvoice(t *testing.T) {
+	t.Parallel()
+
+	unpaid := billing.New(1920.0, billing.UZS, billing.Click,
+		details.NewClickDetails("sale-1",
+			details.ClickWithServiceID(testServiceID),
+			details.ClickWithMerchantUserID(testMerchantUserID),
+		))
+
+	provider, _ := clickProvider(t, func(http.ResponseWriter, *http.Request) {
+		t.Fatal("cancelling an unpaid invoice must not call Click")
+	})
+
+	cancelled, err := provider.Cancel(context.Background(), unpaid)
+	require.NoError(t, err)
+	require.Equal(t, billing.Canceled, cancelled.Status())
+	require.False(t, cancelled.Status().IsActive())
+}
+
+// A payment id means Click took the money. Marking that transaction cancelled
+// would leave captured funds recorded as never taken, and the reversal that
+// should have been asked for never happens.
+func TestClickCancelRefusesACapturedPayment(t *testing.T) {
+	t.Parallel()
+
+	provider, _ := clickProvider(t, func(http.ResponseWriter, *http.Request) {
+		t.Fatal("a refused cancellation must not call Click")
+	})
+
+	_, err := provider.Cancel(context.Background(), clickTransaction(t, 1920.0))
+	require.ErrorIs(t, err, providers.ErrClickCancelAfterPayment)
+}

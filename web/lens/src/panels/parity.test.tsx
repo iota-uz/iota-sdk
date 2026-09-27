@@ -10,6 +10,7 @@ import { infoTipTailOffset, positionInfoTip } from './InfoTip'
 import { StatMetric, StatPanel } from './StatPanel'
 import { PanelSkeletonBody } from './Skeleton'
 import { TablePanel } from './TablePanel'
+import { FilterBar } from '../controls'
 
 afterEach(() => {
   cleanup()
@@ -372,6 +373,38 @@ describe('layout groups', () => {
     expect(screen.getByRole('tabpanel').textContent).toContain('Metric A')
     expect(screen.getByRole('tabpanel').textContent).not.toContain('Metric B')
   })
+
+  it('renders a placed filter only inside its owning tab', () => {
+    const tabsLayout: DashboardDocument['layout'] = {
+      rows: [{
+        panels: [
+          { panelId: 'metric-a', span: 12, groups: [{ id: 'result', kind: 'tabs', span: 12, tab: 'Cash' }] },
+          { panelId: 'metric-b', span: 12, groups: [{ id: 'result', kind: 'tabs', span: 12, tab: 'Underwriting' }] },
+        ],
+      }],
+    }
+    const document = documentWith([first, second], { 'stat:root': statFrame }, tabsLayout)
+    document.filters = [{
+      id: 'business-type',
+      kind: 'segmented',
+      label: 'Business type',
+      placement: { groupId: 'result', tab: 'Underwriting' },
+      segmented: {
+        param: 'BusinessType',
+        value: 'all',
+        options: [{ value: 'all', label: 'All' }, { value: 'direct', label: 'Direct' }],
+      },
+    }]
+    const { container } = renderDocument(document, <><FilterBar /><DashboardPanels /></>)
+
+    // Looking up the label alone would make this falsely green if the filter
+    // regressed back into the dashboard header; ownership is asserted by DOM containment.
+    expect(screen.queryByTestId('lens-filter-business-type')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Underwriting' }))
+    const filter = screen.getByTestId('lens-filter-business-type')
+    expect(filter.closest('[role="tabpanel"]')).toBe(screen.getByRole('tabpanel'))
+    expect(container.querySelector('.lens-filter-bar [data-filter-id="business-type"]')).toBeNull()
+  })
 })
 
 describe('loading placeholders', () => {
@@ -689,6 +722,7 @@ describe('chart legend series toggle', () => {
         { name: 'amount', type: 'number' },
       ],
       rows: [['collected', 'Collected', 'payment', 991], ['receivable', 'Receivable', 'payment', 9]],
+      total: 1000,
     }
     const { container } = renderDocument(
       documentWith([ringPanel], { 'payment:root': ringFrame }),
@@ -697,6 +731,7 @@ describe('chart legend series toggle', () => {
 
     const values = [...container.querySelectorAll('.lens-chart-legend-value')].map((node) => node.textContent)
     expect(values).toEqual(['99.1%', '0.9%'])
+    expect(container.querySelector('.lens-plot-total')).toBeNull()
   })
 
   it('answers hide-all with an empty state that offers the way back', async () => {

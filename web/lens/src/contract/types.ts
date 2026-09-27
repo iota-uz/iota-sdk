@@ -188,6 +188,7 @@ export interface Filter {
   id: string
   kind: FilterKind
   label?: string
+  placement?: FilterPlacement
   period?: PeriodFilter
   facet?: FacetFilter
   compare?: CompareFilter
@@ -195,6 +196,11 @@ export interface Filter {
 }
 
 export type FilterKind = "compare" | "facet" | "period" | "segmented"
+
+export interface FilterPlacement {
+  groupId: string
+  tab: string
+}
 
 export interface FlowReconciliation {
   tolerance?: number

@@ -73,10 +73,10 @@ export function shouldUseLogarithmicScale(frame: Frame, encoding: Encoding, axis
     const value = finiteNumber(row[valueIndex])
     if (value !== undefined) values.push(value)
   }
-  // Keep the unit baseline on a linear axis. Although log(1) exists, ECharts
-  // can place that bar on the baseline with no visible height, which turns a
-  // real count into an apparent zero.
-  if (categories.size < 3 || values.length === 0 || values.some((value) => value <= 1)) return false
+  // One is a valid logarithmic value and commonly represents a long-tail
+  // category in count charts. Only zero and negative readings make a log axis
+  // mathematically invalid and require the linear fallback.
+  if (categories.size < 3 || values.length === 0 || values.some((value) => value <= 0)) return false
   const minimum = Math.min(...values)
   const maximum = Math.max(...values)
   return threshold === undefined || maximum / minimum >= threshold

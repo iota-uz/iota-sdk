@@ -192,6 +192,8 @@ describe('slice percentages', () => {
         { key: 'actual', label: 'Actual', order: 1, total: 100 },
       ],
     }
+    chartInput.frame.total = 100
+    chartInput.tooltipTotalLabel = 'Итого'
 
     const chart = testOption(buildChartOption(chartInput, theme))
 
@@ -210,6 +212,23 @@ describe('slice percentages', () => {
       categoryKey: 'north',
     })
     expect(chart.series[0]?.data?.[0]?.itemStyle?.color).toBe(chart.series[1]?.data?.[0]?.itemStyle?.color)
+    expect(chart.graphic?.[0]?.children?.[0]?.style?.text).toBe('Итого')
+    expect(chart.graphic?.[0]?.children?.[1]?.style?.text).toBe('$100')
+  })
+
+  it('does not invent a total for partition rings without an authoritative frame total', () => {
+    const chartInput = input('radial')
+    chartInput.radial = {
+      mode: 'partition',
+      rings: [
+        { key: 'Revenue', label: 'Revenue', order: 0, total: 2700 },
+        { key: 'Cost', label: 'Cost', order: 1, total: 1500 },
+      ],
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.graphic).toBeUndefined()
   })
 
   it('never draws a sub-percent ring slice as an unclickable hairline', () => {
@@ -828,6 +847,28 @@ describe('buildChartOption', () => {
     expect(tooltip).not.toContain('Cost')
     expect(tooltip).toContain('Итого')
     expect(tooltip).toContain('$1200')
+  })
+
+  it('sorts tooltip series by amount before the total', () => {
+    const chartInput = input('bar')
+    chartInput.frame.rows = [
+      ['jan-small', 'Jan', 'Small', 20],
+      ['jan-largest', 'Jan', 'Largest', 300],
+      ['jan-middle', 'Jan', 'Middle', 80],
+    ]
+    chartInput.presentation = { stack: true }
+    chartInput.tooltipTotalLabel = 'Итого'
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    const tooltip = chart.tooltip.formatter?.([
+      { axisValueLabel: 'Jan', seriesName: 'Small', value: 20 },
+      { axisValueLabel: 'Jan', seriesName: 'Largest', value: 300 },
+      { axisValueLabel: 'Jan', seriesName: 'Middle', value: 80 },
+    ]) ?? ''
+
+    expect(tooltip.indexOf('Largest')).toBeLessThan(tooltip.indexOf('Middle'))
+    expect(tooltip.indexOf('Middle')).toBeLessThan(tooltip.indexOf('Small'))
+    expect(tooltip.indexOf('Small')).toBeLessThan(tooltip.indexOf('Итого'))
   })
 
   it('does not add an overlaid line series to a stacked column total', () => {

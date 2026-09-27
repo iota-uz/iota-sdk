@@ -211,6 +211,7 @@ export const FilterSchema: z.ZodType<Contract.Filter> = z.lazy(() => z.object({
   id: z.string(),
   kind: z.lazy(() => FilterKindSchema),
   label: z.string().optional(),
+  placement: z.lazy(() => FilterPlacementSchema).optional(),
   period: z.lazy(() => PeriodFilterSchema).optional(),
   facet: z.lazy(() => FacetFilterSchema).optional(),
   compare: z.lazy(() => CompareFilterSchema).optional(),
@@ -218,6 +219,11 @@ export const FilterSchema: z.ZodType<Contract.Filter> = z.lazy(() => z.object({
 }).strict())
 
 export const FilterKindSchema: z.ZodType<Contract.FilterKind> = z.enum(["compare", "facet", "period", "segmented"])
+
+export const FilterPlacementSchema: z.ZodType<Contract.FilterPlacement> = z.object({
+  groupId: z.string(),
+  tab: z.string(),
+}).strict()
 
 export const FlowReconciliationSchema: z.ZodType<Contract.FlowReconciliation> = z.object({
   tolerance: z.number().optional(),

@@ -43,10 +43,12 @@ templ GroupRow(group *viewmodels.Group, rowProps *base.TableRowProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 		rowProps.Attrs["id"] = fmt.Sprintf("group-%s", group.ID)
-		rowProps.Attrs["hx-get"] = fmt.Sprintf("/groups/%s", group.ID)
-		rowProps.Attrs["hx-target"] = "body"
-		rowProps.Attrs["hx-swap"] = "beforeend"
-		rowProps.Attrs["class"] = "cursor-pointer hover:bg-surface-600"
+		if group.CanUpdate {
+			rowProps.Attrs["hx-get"] = fmt.Sprintf("/groups/%s", group.ID)
+			rowProps.Attrs["hx-target"] = "body"
+			rowProps.Attrs["hx-swap"] = "beforeend"
+			rowProps.Attrs["class"] = "cursor-pointer hover:bg-surface-600"
+		}
 	}}
 	@base.TableRow(*rowProps) {
 		@base.TableCell(base.TableCellProps{}) {

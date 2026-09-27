@@ -16,6 +16,52 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 )
 
+type testUploadWrapper struct {
+	u upload.Upload
+}
+
+func (w *testUploadWrapper) ID() uint {
+	return w.u.ID()
+}
+
+func (w *testUploadWrapper) URL() string {
+	return w.u.PreviewURL()
+}
+
+func (w *testUploadWrapper) Mimetype() string {
+	if w.u.Mimetype() == nil {
+		return ""
+	}
+	return w.u.Mimetype().String()
+}
+
+func (w *testUploadWrapper) Size() string {
+	if w.u.Size() == nil {
+		return ""
+	}
+	return w.u.Size().String()
+}
+
+func (w *testUploadWrapper) Name() string {
+	return w.u.Name()
+}
+
+func (w *testUploadWrapper) Hash() string {
+	return w.u.Hash()
+}
+
+func (w *testUploadWrapper) Slug() string {
+	return w.u.Slug()
+}
+
+func (w *testUploadWrapper) CreatedAt() time.Time {
+	return w.u.CreatedAt()
+}
+
+func (w *testUploadWrapper) UpdatedAt() time.Time {
+	return w.u.UpdatedAt()
+}
+
 func BenchmarkGormPositionRepository_Create(b *testing.B) {
 	f := setupBenchmark(b)
 
@@ -36,7 +82,7 @@ func BenchmarkGormPositionRepository_Create(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	uploads := make([]upload.Upload, 0, 1000)
+	uploads := make([]position.Upload, 0, 1000)
 	for i := 0; i < 1000; i++ {
 		entity, err := uploadRepository.Create(
 			f.Ctx,
@@ -57,7 +103,7 @@ func BenchmarkGormPositionRepository_Create(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		uploads = append(uploads, entity)
+		uploads = append(uploads, &testUploadWrapper{u: entity})
 	}
 
 	for range b.N {
@@ -121,7 +167,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 		f.Ctx, position.New("Position 1", "3141592653589",
 			position.WithID(1),
 			position.WithUnitID(1),
-			position.WithImages([]upload.Upload{createdUpload}),
+			position.WithImages([]position.Upload{&testUploadWrapper{u: createdUpload}}),
 			position.WithCreatedAt(time.Now()),
 			position.WithUpdatedAt(time.Now()))); err != nil {
 		t.Fatal(err)
@@ -149,7 +195,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 				position.New("Updated Position 1", "3141592653589",
 					position.WithID(1),
 					position.WithUnitID(1),
-					position.WithImages([]upload.Upload{})),
+					position.WithImages([]position.Upload{})),
 			); err != nil {
 				t.Fatal(err)
 			}

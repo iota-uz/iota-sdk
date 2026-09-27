@@ -11,21 +11,17 @@ iota-sdk is a general purpose ERP building engine/solution. When designing anyth
 
 ## Quick Decision Tree
 
-**Task Classification:** split on independence, not on size.
+**Task Classification:** choose the smallest useful workflow.
 
-- **One dependent change**: one agent, or do it yourself — however many files it spans
-- **Parts that never need to see each other's work**: one agent each
-- **Read-heavy survey** (where is this used, what breaks): fan out freely; the results come back small
+- **Bounded fix with a clear owner**: work directly and run focused checks.
+- **Uncertain diagnosis or substantial independent parts**: delegate scoped
+  investigation or implementation, with one owner for each dependent change.
+- **Review**: use `auditor` for material API, data, migration, release, or other
+  high-risk changes when an independent pass adds value.
 
-**Agent Selection:** applies after the split, and picks which agent each piece
-goes to. It never splits a piece — a change that touches both a repository and a
-template is still one owner.
-
-- Errors/Failures → `debugger` first
-- Go code → `auditor` last (always)
-- Database/Schema → `editor`
-- UI/Templates → `editor`
-- Production → `auditor` always
+Choose `debugger` for investigation, `editor` for implementation, and `auditor`
+for independent review as needed. A change spanning a repository and template
+still has one owner.
 
 ## Build/Test Commands
 
@@ -81,33 +77,15 @@ modules/{module}/
 
 ## Multi-Agent Orchestration
 
-**Launch agents in parallel** (same message) with specific scope:
-
-```
-# Bug fix
-debugger && editor && auditor
-
-# New feature
-editor && auditor
-
-# Database changes
-editor && auditor
-
-# Multi-module (parallel)
-(editor & editor & editor) && auditor
-
-# Research needed
-general-purpose && editor && auditor
-```
-
 **Workflow Rules:**
 
-- Always analyze scope first: `go vet ./...`, `find . -name "*.templ"`
+- Identify the affected symbols, callers, and boundaries before choosing checks
+  or delegating; a full `go vet ./...` is not a prerequisite to scope analysis.
 - Divide work along seams, not evenly — an even split that cuts through a
   dependency costs more than it saves, because neither half can see the other
 - Pass every agent the paths and symbols you already have, and keep the ones it
   returns. An agent starts with an empty context and re-derives the rest.
-- **>10 agents degrades coordination** - avoid
+- Keep the number of agents proportional to independent work.
 
 **Critical coordination rule:**
 
@@ -183,7 +161,7 @@ Common scenarios requiring TaskCreate:
 - **Multi-tenant isolation**: Always include `tenant_id` in WHERE clauses
 - **Error handling**: Use `pkg/serrors` - `serrors.E(op, err)`
 - **HTMX**: Check `htmx.IsHxRequest(r)`, use `htmx.SetTrigger(w, "event", payload)`
-- **Never read `*_templ.go` files** - they're generated
+- **Templ**: Edit `.templ` sources, not generated `*_templ.go` files. Inspect generated diffs or compiler errors when validating a change, and exclude unrelated generator churn.
 
 ## Child Module CLAUDE.md Files
 

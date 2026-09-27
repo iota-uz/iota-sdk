@@ -56,6 +56,10 @@ type MeilisearchEngine struct {
 	pendingUIDs         []int64
 	logger              *logrus.Logger
 	metrics             Metrics
+	// taskWaitDeadline overrides the default single-task deadline for this
+	// engine. Rebuild engines use the maintenance budget because their index
+	// creation, settings, and bulk tasks may sit behind live projector writes.
+	taskWaitDeadline time.Duration
 }
 
 type meiliSearchIndexState struct {
@@ -121,10 +125,12 @@ const defaultWaitForTaskDeadline = 60 * time.Second
 // one a generous budget so a slow Meili doesn't surface as a noisy
 // task failure in the periodic reindex log.
 //
-// 5 minutes accounts for cold-start Meili re-indexing a fresh tenant
-// with 2M+ docs on a single shared CPU. The drain returns as soon as
-// each task is done; the deadline only fires if something is wedged.
-const drainWaitDeadline = 5 * time.Minute
+// Production evidence from EAI showed Meili merging 565 queued writes for
+// 3.5M documents into one batch that legitimately ran longer than 5 minutes.
+// Thirty minutes covers that maintenance workload and the documented rebuild
+// window while still bounding a genuinely wedged task. The drain returns as
+// soon as each task is done.
+const drainWaitDeadline = 30 * time.Minute
 
 // waitTaskPollInterval is the poll interval the meilisearch client uses
 // while waiting for a task to reach a terminal state.
@@ -140,7 +146,11 @@ func (e *MeilisearchEngine) waitTaskCtx(ctx context.Context, taskUID int64) (*me
 	}
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, defaultWaitForTaskDeadline)
+		deadline := e.taskWaitDeadline
+		if deadline <= 0 {
+			deadline = defaultWaitForTaskDeadline
+		}
+		ctx, cancel = context.WithTimeout(ctx, deadline)
 		defer cancel()
 	}
 	return e.client.WaitForTaskWithContext(ctx, taskUID, waitTaskPollInterval)
@@ -262,7 +272,7 @@ func (e *MeilisearchEngine) ensureIndexExists(indexName string) (bool, error) {
 			return false, serrors.E(op, err)
 		}
 
-		task, err := waitTaskCtxClient(context.Background(), e.client, taskInfo.TaskUID)
+		task, err := e.waitTaskCtx(context.Background(), taskInfo.TaskUID)
 		if err != nil {
 			return false, serrors.E(op, err)
 		}
@@ -330,7 +340,7 @@ func (e *MeilisearchEngine) configureIndex(indexName string) error {
 
 func (e *MeilisearchEngine) waitSettingsTask(op serrors.Op) error {
 	taskUID := e.settingsTaskUID
-	task, err := waitTaskCtxClient(context.Background(), e.client, taskUID)
+	task, err := e.waitTaskCtx(context.Background(), taskUID)
 	if err != nil {
 		// Keep the task UID: the task may still be processing server-side, and a
 		// later setup attempt must wait for it instead of creating a duplicate.
@@ -570,7 +580,7 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 		if err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
-		if _, err := waitTaskCtxClient(ctx, s.client, task.TaskUID); err != nil {
+		if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
 		createdPlaceholder = true
@@ -582,7 +592,7 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 	if err != nil {
 		return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 	}
-	if _, err := waitTaskCtxClient(ctx, s.client, task.TaskUID); err != nil {
+	if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
 		return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 	}
 
@@ -594,7 +604,7 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 		return nil
 	}
 	if cleanupTask != nil {
-		if _, err := waitTaskCtxClient(ctx, s.client, cleanupTask.TaskUID); err != nil {
+		if _, err := s.engine.waitTaskCtx(ctx, cleanupTask.TaskUID); err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
 	}
@@ -623,7 +633,7 @@ func (s *meiliRebuildSession) Abort(ctx context.Context) error {
 		return serrors.E("spotlight.MeilisearchEngine.AbortRebuild", err)
 	}
 	if task != nil {
-		if _, err := waitTaskCtxClient(ctx, s.client, task.TaskUID); err != nil {
+		if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
 			return serrors.E("spotlight.MeilisearchEngine.AbortRebuild", err)
 		}
 	}
@@ -645,6 +655,11 @@ func (e *MeilisearchEngine) StartRebuild(ctx context.Context) (RebuildSession, e
 		activeName: e.activeName,
 		logger:     e.logger,
 		metrics:    e.metrics,
+		// A live index may continuously enqueue projector writes ahead of the
+		// scratch-index setup. The regular 60s request budget is intentionally
+		// too short for that maintenance queue; use the existing bulk-drain
+		// budget for every task belonging to this isolated rebuild engine.
+		taskWaitDeadline: drainWaitDeadline,
 	}
 	if err := buildEngine.setup(); err != nil {
 		return nil, serrors.E(op, err)
@@ -977,8 +992,8 @@ func buildMeiliRecords(docs []SearchDocument) []map[string]interface{} {
 // Meilisearch. Each pending task gets `drainWaitDeadline` of headroom
 // (not the inline 10s) because Meili can take 20-40s to digest a single
 // 80 MiB batch under CPU pressure. If the caller's ctx is already
-// deadlined, that deadline is honored — drainWaitDeadline only sets
-// the floor.
+// deadlined, that deadline is honored — drainWaitDeadline is only the
+// fallback for callers without one.
 func (e *MeilisearchEngine) WaitPending(ctx context.Context) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.WaitPending"
 
@@ -1002,7 +1017,7 @@ func (e *MeilisearchEngine) WaitPending(ctx context.Context) error {
 // parent already has *any* deadline, we propagate it as-is — the caller
 // owns the deadline and we must not tighten it (a long-running reindex
 // is the canonical case). Only when the parent has no deadline at all do
-// we apply drainWaitDeadline as a floor so background callers don't hang
+// we apply drainWaitDeadline as a fallback so background callers don't hang
 // indefinitely if Meili wedges.
 func drainTaskCtx(parent context.Context) (context.Context, context.CancelFunc) {
 	if parent == nil {
