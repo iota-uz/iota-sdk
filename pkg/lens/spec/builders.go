@@ -248,13 +248,6 @@ func (b *PanelBuilder) HeadlineValue(v float64) *PanelBuilder {
 	return b
 }
 
-// DrillTree enables stable, key-based in-place navigation. Configure IDField
-// with the initial dataset field whose values match branch trigger keys.
-func (b *PanelBuilder) DrillTree(tree panel.DrillTree) *PanelBuilder {
-	b.panel.DrillTree = &tree
-	return b
-}
-
 func (b *PanelBuilder) Trend(percent float64, label string) *PanelBuilder {
 	b.panel.Trend = &panel.TrendSpec{Percent: percent, Label: label}
 	return b

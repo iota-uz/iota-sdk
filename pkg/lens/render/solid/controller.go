@@ -1,4 +1,4 @@
-package react
+package solid
 
 import (
 	"net/http"

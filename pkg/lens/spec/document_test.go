@@ -88,27 +88,6 @@ func TestRowSpecMarshal_OmitsEmptyHeading(t *testing.T) {
 	require.Contains(t, string(payload), `"heading":"Summary"`)
 }
 
-func TestPanelSpecMarshal_UsesDrillTreeJSONContract(t *testing.T) {
-	t.Parallel()
-
-	payload, err := json.Marshal(PanelSpec{ //nolint:musttag // PanelSpec is the canonical Lens JSON payload under test.
-		ID:   "premium",
-		Kind: panel.KindPie,
-		DrillTree: &panel.DrillTree{ExpandedSpan: 12, Branches: []panel.DrillBranch{{
-			TriggerKey: "earned",
-			Label:      "Earned premium",
-			Children:   []panel.DrillNode{{Key: "year:2026", Label: "2026", Value: 100}},
-		}}},
-	})
-	require.NoError(t, err)
-	require.Contains(t, string(payload), `"drillTree":{"branches":[{"triggerKey":"earned","label":"Earned premium","children":[{"key":"year:2026","label":"2026","value":100}]}]`) //nolint:lll // exact public JSON contract
-	require.Contains(t, string(payload), `"expandedSpan":12`)
-	require.NotContains(t, string(payload), `"Branches"`)
-}
-
-// TestPanelBuilder_FocusCanvasAndTarget covers the focus-canvas builder
-// additions: FocusCanvas sets the presentation hint and Target lands on the
-// panel spec (and its JSON contract key).
 func TestPanelBuilder_FocusCanvasAndTarget(t *testing.T) {
 	t.Parallel()
 

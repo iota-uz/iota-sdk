@@ -720,10 +720,6 @@ type Spec struct {
 	// values used for chart geometry. SegmentBar uses it for a focal result
 	// whose allocation segments still sum to a different denominator.
 	HeadlineValue *float64
-	// DrillTree enables stable, key-based in-place navigation for Pie and
-	// Donut panels. Its branch keys match the panel's ID field in the initial
-	// dataset; nested node keys remain stable when labels or ordering change.
-	DrillTree *DrillTree
 	Trend     *TrendSpec
 	// Status renders a small tone-colored chip in a stat card's label row.
 	// Only Stat panels (including StatGroup children) render it.
@@ -788,42 +784,6 @@ type Spec struct {
 	// Availability is the panel-level default availability for its elements;
 	// a frame column value or an element's own availability overrides it.
 	Availability Availability
-}
-
-// DrillTree carries pre-computed, key-based branches for in-place Pie and
-// Donut navigation. Every DrillBranch.TriggerKey must match exactly one value
-// in the panel's ID field. Keys are identity and must stay stable across
-// translation and reordering; labels are presentation only.
-//
-// Branches must contain at least one child. Node keys must be nonblank and
-// unique among siblings, values must be finite and nonnegative, and a node may
-// have either Children or Action, but not both. Leaf nodes may be informational
-// and omit Action.
-type DrillTree struct {
-	Branches []DrillBranch `json:"branches"`
-	// ExpandedSpan optionally widens the panel's dashboard grid slot while
-	// the user is inside any drill level. Zero preserves the panel's root
-	// span. Returning to the root restores the original span automatically.
-	ExpandedSpan int `json:"expandedSpan,omitempty"`
-}
-
-// DrillBranch binds one initial chart point to its first detail level.
-type DrillBranch struct {
-	TriggerKey string      `json:"triggerKey"`
-	Label      string      `json:"label"`
-	Children   []DrillNode `json:"children"`
-}
-
-// DrillNode is one stable item in a DrillTree detail level. Navigate,
-// HtmxSwap, and EmitEvent actions are supported on leaves; actions that depend
-// on an unresolved dataset row are not supported.
-type DrillNode struct {
-	Key      string       `json:"key"`
-	Label    string       `json:"label"`
-	Value    float64      `json:"value"`
-	Color    string       `json:"color,omitempty"`
-	Action   *action.Spec `json:"action,omitempty"`
-	Children []DrillNode  `json:"children,omitempty"`
 }
 
 // TrendPolarity says whether a movement in this metric is good news, bad news,
@@ -1105,13 +1065,6 @@ func (b *Builder) TotalBadgeValue(v float64) *Builder {
 }
 func (b *Builder) HeadlineValue(v float64) *Builder {
 	b.spec.HeadlineValue = &v
-	return b
-}
-
-// DrillTree enables stable, key-based in-place navigation. Configure IDField
-// with the initial dataset field whose values match branch trigger keys.
-func (b *Builder) DrillTree(tree DrillTree) *Builder {
-	b.spec.DrillTree = &tree
 	return b
 }
 

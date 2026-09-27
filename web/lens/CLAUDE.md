@@ -43,7 +43,7 @@ just lens watch       # rebuild it on every source change
 
 Standard React hosts consume the SHA-stamped `@iota-uz/sdk/lens` package and its
 public stylesheet. Use the frontend release-train artifact for a PR preview;
-generated compatibility chunks under `pkg/lens/render/react/dist` are ignored
+generated compatibility chunks under `pkg/lens/render/solid/dist` are ignored
 and must never be committed.
 
 For a legacy custom-element host, `just lens build` generates the compatibility
@@ -52,7 +52,7 @@ restarting that binary, point the host at the build directory:
 
 ```sh
 just lens watch &                    # keep the bundle current
-eval "$(just lens serve-from-disk)"  # LENS_ASSETS_DIR=<repo>/pkg/lens/render/react/dist
+eval "$(just lens serve-from-disk)"  # LENS_ASSETS_DIR=<repo>/pkg/lens/render/solid/dist
 # start the host in that shell; a page reload now shows the current bundle
 ```
 
