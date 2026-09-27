@@ -11,12 +11,32 @@ import (
 	"github.com/iota-uz/applets"
 	appletsconfig "github.com/iota-uz/applets/config"
 	appletenginehandlers "github.com/iota-uz/iota-sdk/pkg/appletengine/handlers"
+	appletenginerpc "github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
 )
+
+// A falsely green result would exercise the registry directly and miss the
+// applet builder dropping the permission choice while forwarding contracts.
+func TestContractOptionsPreserveAnyPermissions(t *testing.T) {
+	t.Parallel()
+	registry := appletenginerpc.NewRegistry()
+	contract := appletenginerpc.MethodContract{
+		Kind:           appletenginerpc.MethodKindQuery,
+		AnyPermissions: []string{"dashboards.read", "dashboards.manage"},
+	}
+	require.NoError(t, registry.RegisterPublicContract("dashboard", "dashboard.viewer", applets.RPCMethod{
+		Handler: func(_ context.Context, _ json.RawMessage) (any, error) {
+			return map[string]any{"ok": true}, nil
+		},
+	}, nil, contractOptions(contract)...))
+	method, ok := registry.Get("dashboard.viewer")
+	require.True(t, ok)
+	assert.Equal(t, contract.AnyPermissions, method.Contract.AnyPermissions)
+}
 
 type testApplet struct {
 	name     string
