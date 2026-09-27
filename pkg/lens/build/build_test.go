@@ -17,7 +17,7 @@ func TestDashboardBuilderBuildsSpec(t *testing.T) {
 	require.NoError(t, err)
 
 	spec := Dashboard("sales", "Sales",
-		Row(panel.Bar("sales-by-day", "Sales by Day", "sales").Build()),
+		Row(panel.Bar("sales-by-day", "Sales by Day", "sales").Terminal().Build()),
 	).
 		Description("Revenue overview").
 		Variables(DateRangeVariable("range", "Range", 24*time.Hour)).

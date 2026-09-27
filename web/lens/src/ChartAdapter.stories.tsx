@@ -58,6 +58,7 @@ const radialPartitionFrame: Frame = {
     ['east', 'East', 'actual', 27], ['north', 'North', 'plan', 36],
     ['south', 'South', 'plan', 34], ['east', 'East', 'plan', 30],
   ],
+  total: 100,
 }
 const radialProgressFrame: Frame = {
   columns: partitionFrame.columns,
@@ -95,6 +96,7 @@ function radialInput(mode: 'partition' | 'progress'): ChartInput {
     format: (_field, value) => formatFieldValue(value, { kind: 'number', minorUnits: false, precision: 0 }, 'en-US'),
     theme: chartTheme,
     presentation: { sliceLabels: 'percent' },
+    tooltipTotalLabel: 'Total',
     radial: {
       mode: 'partition',
       rings: [
@@ -115,7 +117,7 @@ function ChartPreview({ chartInput, onSelect }: { chartInput: ChartInput, onSele
     let active = true
     if (!element.current) return
     const target = element.current
-    void getChartAdapter().then((adapter) => {
+    void getChartAdapter(currentInput.current.kind).then((adapter) => {
       if (!active) return
       instance.current = adapter.mount(target, currentInput.current, {
         onSelect: (key) => onSelect?.(key),
@@ -141,7 +143,7 @@ function Family({ kinds, mode }: { kinds: [ChartKind, ChartKind], mode: 'light' 
     <div className="lens-root" data-theme={mode} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
       {kinds.map((kind) => (
         <section key={kind} className="lens-stat-card">
-          <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">{kind}</h2>
+          <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">{kind}</h2>
           <ChartPreview chartInput={input(kind)} />
         </section>
       ))}
@@ -160,11 +162,11 @@ function RadialFamily({ mode }: { mode: 'light' | 'dark' }) {
   return (
     <div className="lens-root" data-theme={mode} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
       <section className="lens-stat-card">
-        <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Multi-ring partition</h2>
+        <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Multi-ring partition</h2>
         <ChartPreview chartInput={radialInput('partition')} />
       </section>
       <section className="lens-stat-card">
-        <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Radial progress</h2>
+        <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Radial progress</h2>
         <ChartPreview chartInput={radialInput('progress')} />
       </section>
     </div>
@@ -183,6 +185,7 @@ const receivableRingFrame: Frame = {
     ['collected', 'Collected', 'payment', 99.1],
     ['receivable', 'Receivable', 'payment', 0.9],
   ],
+  total: 100,
 }
 
 function receivableRingInput(): ChartInput {
@@ -193,6 +196,7 @@ function receivableRingInput(): ChartInput {
     format: (_field, value) => formatFieldValue(value, { kind: 'percent', minorUnits: false, precision: 1 }, 'en-US'),
     theme: chartTheme,
     presentation: { sliceLabels: 'percent' },
+    tooltipTotalLabel: 'Total',
     radial: { mode: 'partition', rings: [{ key: 'payment', label: 'Collection', order: 1, total: 100 }] },
   }
 }
@@ -200,22 +204,74 @@ function receivableRingInput(): ChartInput {
 export const RadialMicroSlice: Story = () => (
   <div className="lens-root" data-theme="light" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
     <section className="lens-stat-card">
-      <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Sub-1% share, called out</h2>
+      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Sub-1% share, called out</h2>
       <ChartPreview chartInput={receivableRingInput()} />
     </section>
     <section className="lens-stat-card lens-root" data-theme="dark">
-      <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Dark</h2>
+      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Dark</h2>
       <ChartPreview chartInput={receivableRingInput()} />
     </section>
   </div>
 )
 
+/**
+ * Three decompositions of one whole — the shape the accumulated-premium donut
+ * ships: how much is recognised, how much is collected, and which risk groups
+ * it came from. Three rings is where the band arithmetic is tightest, so this
+ * is the case that proves the hub still clears the innermost ring.
+ */
+const threeRingFrame: Frame = {
+  columns: radialPartitionFrame.columns,
+  rows: [
+    ['earned', 'Earned', 'recognition', 64],
+    ['unearned', 'Unearned', 'recognition', 36],
+    ['received', 'Received', 'payment', 91],
+    ['receivable', 'Receivable', 'payment', 9],
+    ['motor', 'Motor', 'groups', 52],
+    ['property', 'Property', 'groups', 31],
+    ['liability', 'Liability', 'groups', 17],
+  ],
+  total: 100,
+}
+
+function threeRingInput(): ChartInput {
+  return {
+    kind: 'radial',
+    frame: threeRingFrame,
+    encoding: { id: 'id', label: 'label', series: 'ring', value: 'value' },
+    format: (_field, value) => formatFieldValue(value, { kind: 'number', minorUnits: false, precision: 0 }, 'en-US'),
+    theme: chartTheme,
+    presentation: { sliceLabels: 'percent' },
+    tooltipTotalLabel: 'Total',
+    radial: {
+      mode: 'partition',
+      rings: [
+        { key: 'recognition', label: 'Recognition', order: 1, total: 100 },
+        { key: 'payment', label: 'Collection', order: 2, total: 100 },
+        { key: 'groups', label: 'Risk group', order: 3, total: 100 },
+      ],
+    },
+  }
+}
+
 export const RadialLight: Story = () => <RadialFamily mode="light" />
 export const RadialDark: Story = () => <RadialFamily mode="dark" />
+export const RadialThreeRings: Story = () => (
+  <div className="lens-root" data-theme="light" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
+    <section className="lens-stat-card">
+      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Three rings, one whole</h2>
+      <ChartPreview chartInput={threeRingInput()} />
+    </section>
+    <section className="lens-stat-card lens-root" data-theme="dark">
+      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Dark</h2>
+      <ChartPreview chartInput={threeRingInput()} />
+    </section>
+  </div>
+)
 export const RadialNarrow: Story = () => (
   <div className="lens-root" data-theme="light" style={{ width: 420 }}>
     <section className="lens-stat-card">
-      <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Multi-ring on compact cards</h2>
+      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Multi-ring on compact cards</h2>
       <ChartPreview chartInput={radialInput('partition')} />
     </section>
   </div>
@@ -227,7 +283,7 @@ export const ControlledSelection: Story = () => {
   return (
     <div className="lens-root" data-theme="light">
       <section className="lens-stat-card" style={{ maxWidth: 640 }}>
-        <p className="lens-m-0 lens-text-sm lens-text-muted">Selected NodeKey: {selectedKey ?? 'none'}</p>
+        <p className="lens-m-0 lens-text-md lens-text-muted">Selected NodeKey: {selectedKey ?? 'none'}</p>
         <ChartPreview chartInput={chartInput} onSelect={setSelectedKey} />
       </section>
     </div>

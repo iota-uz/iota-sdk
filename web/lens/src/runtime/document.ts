@@ -4,12 +4,16 @@ export interface DocumentRequestOptions {
   csrf?: string
   signal?: AbortSignal
   fetcher?: typeof fetch
+  prefetch?: boolean
 }
 
 export async function fetchDocument(src: string, options: DocumentRequestOptions = {}): Promise<DashboardDocument> {
   const response = await (options.fetcher ?? fetch)(src, {
     credentials: 'same-origin',
-    headers: options.csrf ? { 'X-CSRF-Token': options.csrf } : undefined,
+    headers: {
+      ...(options.csrf ? { 'X-CSRF-Token': options.csrf } : {}),
+      ...(options.prefetch ? { 'X-Lens-Prefetch': 'intent' } : {}),
+    },
     signal: options.signal,
   })
   if (!response.ok) throw new Error(`document request failed with ${response.status}`)

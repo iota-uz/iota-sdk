@@ -3,10 +3,101 @@ package query_test
 import (
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
+	permissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPgUserQueryRepositoryBatchesRelations(t *testing.T) {
+	// Falsely green if the list contains one user or the measured call bypasses the counting transaction.
+	fixtures := setupTest(t)
+	tenantID, err := composables.UseTenantID(fixtures.Ctx)
+	require.NoError(t, err)
+	prefix := uuid.NewString()
+	_, err = fixtures.Tx.Exec(fixtures.Ctx, `INSERT INTO users
+		(tenant_id, type, first_name, last_name, email, ui_language, created_at, updated_at)
+		SELECT $1, 'user', 'Batch', n::text, $2 || '-' || n::text || '@example.test', 'en', NOW(), NOW()
+		FROM generate_series(1, 30) n`, tenantID, prefix)
+	require.NoError(t, err)
+
+	repository := query.NewPgUserQueryRepository()
+	queryCount := func(limit int) int {
+		measured := &countingTx{Tx: fixtures.Tx}
+		ctx := composables.WithTx(fixtures.Ctx, measured)
+		users, _, findErr := repository.FindUsers(ctx, &query.FindParams{Limit: limit, SortBy: query.SortBy{Fields: []repo.SortByField[query.Field]{{Field: query.FieldID, Ascending: false}}}})
+		require.NoError(t, findErr)
+		require.Len(t, users, limit)
+		return measured.queries
+	}
+	require.Equal(t, queryCount(1), queryCount(25))
+}
+
+func TestPgUserQueryRepositoryIncludesGroupRolePermissions(t *testing.T) {
+	// Falsely green if the permission is also assigned directly or through a direct user role.
+	fixtures := setupTest(t)
+	tenantID, err := composables.UseTenantID(fixtures.Ctx)
+	require.NoError(t, err)
+	require.NoError(t, persistence.NewPermissionRepository().Save(fixtures.Ctx, permissions.UserRead))
+	permissionID := permissions.UserRead.ID()
+	var userID uint
+	require.NoError(t, fixtures.Tx.QueryRow(fixtures.Ctx, `INSERT INTO users
+		(tenant_id, type, first_name, last_name, email, ui_language)
+		VALUES ($1, 'user', 'Group', 'Permission', $2, 'en') RETURNING id`, tenantID, uuid.NewString()+"@example.test").Scan(&userID))
+	var roleID uint
+	require.NoError(t, fixtures.Tx.QueryRow(fixtures.Ctx, `INSERT INTO roles
+		(type, tenant_id, name, description) VALUES ('user', $1, $2, '') RETURNING id`, tenantID, uuid.NewString()).Scan(&roleID))
+	groupID := uuid.New()
+	_, err = fixtures.Tx.Exec(fixtures.Ctx, `INSERT INTO user_groups (id, type, tenant_id, name, description) VALUES ($1, 'user', $2, $3, '')`, groupID, tenantID, uuid.NewString())
+	require.NoError(t, err)
+	_, err = fixtures.Tx.Exec(fixtures.Ctx, `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)`, roleID, permissionID)
+	require.NoError(t, err)
+	_, err = fixtures.Tx.Exec(fixtures.Ctx, `INSERT INTO group_roles (group_id, role_id) VALUES ($1, $2)`, groupID, roleID)
+	require.NoError(t, err)
+	_, err = fixtures.Tx.Exec(fixtures.Ctx, `INSERT INTO group_users (group_id, user_id) VALUES ($1, $2)`, groupID, userID)
+	require.NoError(t, err)
+
+	result, err := query.NewPgUserQueryRepository().FindUserByID(fixtures.Ctx, int(userID))
+	require.NoError(t, err)
+	require.Empty(t, result.Permissions)
+	require.Empty(t, result.DirectPermissions)
+	require.Len(t, result.EffectivePermissions, 1)
+	require.Equal(t, permissionID.String(), result.EffectivePermissions[0].ID)
+}
+
+func TestPgUserQueryRepositoryExcludesCrossTenantRolePermissions(t *testing.T) {
+	// Falsely green if the foreign role has no permission or the stale user_roles row is rejected before the read.
+	fixtures := setupTest(t)
+	tenantID, err := composables.UseTenantID(fixtures.Ctx)
+	require.NoError(t, err)
+	require.NoError(t, persistence.NewPermissionRepository().Save(fixtures.Ctx, permissions.UserRead))
+	permissionID := permissions.UserRead.ID()
+	var userID uint
+	require.NoError(t, fixtures.Tx.QueryRow(fixtures.Ctx, `INSERT INTO users
+		(tenant_id, type, first_name, last_name, email, ui_language)
+		VALUES ($1, 'user', 'Tenant', 'Boundary', $2, 'en') RETURNING id`, tenantID, uuid.NewString()+"@example.test").Scan(&userID))
+
+	foreignTenant, err := itf.CreateTestTenant(fixtures.Ctx, fixtures.Pool)
+	require.NoError(t, err)
+	var foreignRoleID uint
+	require.NoError(t, fixtures.Tx.QueryRow(fixtures.Ctx, `INSERT INTO roles
+		(type, tenant_id, name, description) VALUES ('user', $1, $2, '') RETURNING id`, foreignTenant.ID, uuid.NewString()).Scan(&foreignRoleID))
+	_, err = fixtures.Tx.Exec(fixtures.Ctx, `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)`, foreignRoleID, permissionID)
+	require.NoError(t, err)
+	_, err = fixtures.Tx.Exec(fixtures.Ctx, `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, userID, foreignRoleID)
+	require.NoError(t, err)
+
+	result, err := query.NewPgUserQueryRepository().FindUserByID(fixtures.Ctx, int(userID))
+	require.NoError(t, err)
+	require.Empty(t, result.Roles)
+	require.Empty(t, result.Permissions)
+	require.Empty(t, result.DirectPermissions)
+	require.Empty(t, result.EffectivePermissions)
+}
 
 func TestPgUserQueryRepository_FindUsers(t *testing.T) {
 	t.Parallel()

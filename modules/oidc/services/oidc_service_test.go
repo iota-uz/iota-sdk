@@ -145,6 +145,36 @@ func TestOIDCService_CompleteAuthRequest_Expired(t *testing.T) {
 	require.Contains(t, err.Error(), "expired")
 }
 
+func TestOIDCService_CompleteAuthRequest_AlreadyAuthenticated(t *testing.T) {
+	t.Parallel()
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
+	clientRepo := persistence.NewClientRepository()
+	authRequestRepo := persistence.NewAuthRequestRepository()
+	oidcService := services.NewOIDCService(clientRepo, authRequestRepo)
+	testClient := client.New(
+		"already-authenticated-client", "Already authenticated client", "web", []string{"http://localhost:3000/callback"},
+	)
+	_, err := clientRepo.Create(env.Ctx, testClient)
+	require.NoError(t, err)
+	originalTenantID := createOIDCTestTenantAndUser(t, env, 101)
+	testAuthReq := authrequest.New(
+		testClient.ClientID(), "http://localhost:3000/callback", []string{"openid"}, "code",
+	).CompleteAuthentication(101, originalTenantID)
+	require.NoError(t, authRequestRepo.Create(env.Ctx, testAuthReq))
+
+	otherTenantID := createOIDCTestTenantAndUser(t, env, 102)
+	err = oidcService.CompleteAuthRequest(env.Ctx, testAuthReq.ID().String(), 102, otherTenantID)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already been consumed")
+
+	unchanged, err := authRequestRepo.GetByID(env.Ctx, testAuthReq.ID())
+	require.NoError(t, err)
+	require.NotNil(t, unchanged.UserID())
+	require.NotNil(t, unchanged.TenantID())
+	require.Equal(t, 101, *unchanged.UserID())
+	require.Equal(t, originalTenantID, *unchanged.TenantID())
+}
+
 func TestOIDCService_GetAuthRequest(t *testing.T) {
 	t.Parallel()
 

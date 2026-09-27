@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Keep the embedded client-host release identity aligned with Go and npm release candidates."
+}

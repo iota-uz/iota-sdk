@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/a-h/templ"
@@ -22,6 +23,8 @@ func (c *UsersController) Users(
 	userQueryService *services.UserQueryService,
 	groupQueryService *services.GroupQueryService,
 	roleQueryService *services.RoleQueryService,
+	userService *services.UserService,
+	policy *services.PrivilegeGrantPolicy,
 ) {
 	ctx := r.Context()
 	params := composables.UsePaginated(r)
@@ -76,6 +79,31 @@ func (c *UsersController) Users(
 		logger.WithError(err).Error("error retrieving users")
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return
+	}
+
+	actor, err := composables.UseUser(ctx)
+	if err != nil {
+		logger.WithError(err).Error("error retrieving current user")
+		http.Error(w, "Error retrieving current user", http.StatusInternalServerError)
+		return
+	}
+	for _, userViewModel := range userViewModels {
+		userID, parseErr := strconv.ParseUint(userViewModel.ID, 10, 64)
+		if parseErr != nil {
+			userViewModel.CanUpdate = false
+			userViewModel.CanDelete = false
+			continue
+		}
+		target, loadErr := userService.GetByID(ctx, uint(userID))
+		if loadErr != nil {
+			logger.WithField("userID", userViewModel.ID).WithError(loadErr).Warn("failed to evaluate user management actions")
+			userViewModel.CanUpdate = false
+			userViewModel.CanDelete = false
+			continue
+		}
+		canManage := policy.CanManageUser(actor, target)
+		userViewModel.CanUpdate = userViewModel.CanUpdate && canManage
+		userViewModel.CanDelete = userViewModel.CanDelete && canManage
 	}
 
 	props := &users.IndexPageProps{

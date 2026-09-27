@@ -133,11 +133,51 @@ templ ProfileForm(props *ProfilePageProps) {
 	</form>
 }
 
+templ PasswordForm(postPath string, errors map[string]string) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<form
+		data-testid="change-password-form"
+		class="flex flex-col gap-4 p-4 md:p-6"
+		hx-post={ postPath }
+		hx-swap="outerHTML"
+	>
+		@card.Card(card.Props{Class: "grid grid-cols-1 md:grid-cols-3 gap-4"}) {
+			<div class="md:col-span-3">
+				<h2 class="text-lg font-semibold text-gray-900">{ pageCtx.T("Account.ChangePassword.Title") }</h2>
+				<p class="text-sm text-gray-700">{ pageCtx.T("Account.ChangePassword.DescText") }</p>
+			</div>
+			@input.Text(&input.Props{
+				Label: pageCtx.T("Account.ChangePassword.CurrentPassword"),
+				Attrs: templ.Attributes{"name": "CurrentPassword", "type": "password", "autocomplete": "current-password", "data-testid": "current-password"},
+				Error: errors["CurrentPassword"],
+			})
+			@input.Text(&input.Props{
+				Label: pageCtx.T("Account.ChangePassword.NewPassword"),
+				Attrs: templ.Attributes{"name": "NewPassword", "type": "password", "autocomplete": "new-password", "data-testid": "new-password"},
+				Error: errors["NewPassword"],
+			})
+			@input.Text(&input.Props{
+				Label: pageCtx.T("Account.ChangePassword.ConfirmPassword"),
+				Attrs: templ.Attributes{"name": "ConfirmPassword", "type": "password", "autocomplete": "new-password", "data-testid": "confirm-password"},
+				Error: errors["ConfirmPassword"],
+			})
+			<div class="md:col-span-3 flex justify-end">
+				@button.Primary(button.Props{Attrs: templ.Attributes{"type": "submit", "data-testid": "change-password-submit"}}) {
+					{ pageCtx.T("Account.ChangePassword.Submit") }
+				}
+			</div>
+		}
+	</form>
+}
+
 templ Index(props *ProfilePageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Account.Meta.Index.Title")},
 	}) {
-		@ProfileForm(props)
+		<div class="flex flex-col">
+			@ProfileForm(props)
+			@PasswordForm(props.PostPath+"/password", map[string]string{})
+		</div>
 	}
 }

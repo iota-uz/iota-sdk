@@ -77,6 +77,69 @@ export function rangeDayCount(start: CalendarDate, end: CalendarDate): number {
   return Math.abs(toEpochDays(end) - toEpochDays(start)) + 1
 }
 
+/** The last day a year can currently show: today while the year is still open. */
+function yearEnd(year: number, today: CalendarDate): CalendarDate {
+  return year === today.year ? today : { year, month: 12, day: 31 }
+}
+
+/**
+ * A whole calendar year, finished or still running.
+ *
+ * The running case is required to reach past January, so that on the 31st of
+ * January «1 Jan — today» is read as the month it also is: both readings are
+ * honest there, and the month is the one whose step size a reader can see.
+ */
+function isYearRange(start: CalendarDate, end: CalendarDate, today: CalendarDate): boolean {
+  if (start.month !== 1 || start.day !== 1 || end.year !== start.year) return false
+  if (end.month === 12 && end.day === 31) return true
+  return sameDate(end, today) && end.month > 1
+}
+
+function isMonthRange(start: CalendarDate, end: CalendarDate): boolean {
+  return start.day === 1 && start.year === end.year && start.month === end.month &&
+    end.day === daysInMonth(end.year, end.month)
+}
+
+/**
+ * The period one step earlier or later, on the period's own terms.
+ *
+ * This is what replaced the row of declared preset chips in the dashboard
+ * header. Six chips stated six periods to switch between; one pair of arrows
+ * states the relationship those chips actually encoded — the period before this
+ * one — in a fraction of the width, and it keeps working on the dashboards that
+ * declare no presets at all and on a range a reader drew by hand.
+ *
+ * The unit is read off the range rather than configured, because a range
+ * already states it: a calendar year steps by years, a calendar month by
+ * months, and anything else by its own length, so a 17-day window lands on the
+ * 17 days before it with neither a gap nor an overlap.
+ *
+ * An open period — the 1st of January to today — is a year that has not
+ * finished. Stepping back off one yields the whole previous year rather than a
+ * January-to-August slice of it, which is the comparison the year chips existed
+ * to offer; stepping forward into the current year re-opens it at today.
+ */
+export function shiftPeriodRange(
+  start: CalendarDate,
+  end: CalendarDate,
+  direction: 1 | -1,
+  today: CalendarDate,
+): { start: CalendarDate; end: CalendarDate } {
+  if (isYearRange(start, end, today)) {
+    const year = start.year + direction
+    return { start: { year, month: 1, day: 1 }, end: yearEnd(year, today) }
+  }
+  if (isMonthRange(start, end)) {
+    const moved = addMonths({ ...start, day: 1 }, direction)
+    return {
+      start: moved,
+      end: { year: moved.year, month: moved.month, day: daysInMonth(moved.year, moved.month) },
+    }
+  }
+  const span = rangeDayCount(start, end) * direction
+  return { start: addDays(start, span), end: addDays(end, span) }
+}
+
 /** ISO day of week: 1 = Monday … 7 = Sunday. */
 export function dayOfWeek(date: CalendarDate): number {
   const utcDay = new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay()
@@ -97,15 +160,25 @@ export interface MonthCell {
 /**
  * Weeks covering the month, each exactly seven days, including the boundary
  * days of the previous/next months that pad the first and last week.
+ *
+ * Always six rows, whatever the month needs. A month can fill four rows
+ * (February starting on the week's first day) or six, and a grid sized to the
+ * month drew a final row holding a single date — 31 January hanging under a
+ * full grid reads as a stub rather than as the last week of the month — and
+ * resized the popover under the reader every time they stepped a month. Six is
+ * the natural maximum (at most six lead days plus 31 gives 37 cells), so the
+ * fixed count only ever pads: the first row still holds the 1st, and the
+ * surplus rows are trailing days of the next month, which the calendar renders
+ * as the same inert padding it already renders at the month's edges.
  */
+export const monthGridWeeks = 6
+
 export function monthGrid(year: number, month: number, firstDay: number): Array<Array<MonthCell>> {
   const first: CalendarDate = { year, month, day: 1 }
   const lead = (dayOfWeek(first) - firstDay + 7) % 7
   let cursor = addDays(first, -lead)
-  const total = lead + daysInMonth(year, month)
-  const weekCount = Math.ceil(total / 7)
   const weeks: Array<Array<MonthCell>> = []
-  for (let week = 0; week < weekCount; week += 1) {
+  for (let week = 0; week < monthGridWeeks; week += 1) {
     const cells: Array<MonthCell> = []
     for (let day = 0; day < 7; day += 1) {
       cells.push({ date: cursor, inMonth: cursor.year === year && cursor.month === month })
@@ -363,7 +436,68 @@ export function weekdayLabels(locale: string, firstDay: number): Array<string> {
   return labels
 }
 
-/** Localized full date, e.g. for the trigger button and announcements. */
+/** Localized full date, e.g. for announcements and accessible names. */
 export function dayLabel(locale: string, date: CalendarDate): string {
   return dateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(utcDate(date))
+}
+
+/** Localized short month names, January first, capitalized like the heading. */
+export function monthShortLabels(locale: string): Array<string> {
+  const format = dateTimeFormat(locale, { month: 'short' })
+  return Array.from({ length: 12 }, (_, index) => {
+    const name = format.format(utcDate({ year: 2024, month: index + 1, day: 1 }))
+    return `${name.charAt(0).toUpperCase()}${name.slice(1)}`
+  })
+}
+
+/**
+ * The twelve-year block a year belongs to, aligned to multiples of twelve so
+ * the year panel keeps one stable 4×3 grid however it is reached.
+ */
+export function yearBlock(year: number): Array<number> {
+  const start = Math.floor(year / 12) * 12
+  return Array.from({ length: 12 }, (_, index) => start + index)
+}
+
+/**
+ * The compact numeric day form `dd.mm.yyyy`. The trigger wears it so the applied
+ * range is stated in the same vocabulary as the typed From/To fields instead of
+ * a second, locale-dependent long form.
+ */
+export function formatCompactDate(date: CalendarDate): string {
+  const day = String(date.day).padStart(2, '0')
+  const month = String(date.month).padStart(2, '0')
+  const year = String(date.year).padStart(4, '0')
+  return `${day}.${month}.${year}`
+}
+
+/** The trigger's range label; a single-day range states one date. */
+export function compactRangeLabel(start: CalendarDate, end: CalendarDate): string {
+  const from = formatCompactDate(start)
+  const to = formatCompactDate(end)
+  return from === to ? from : `${from} – ${to}`
+}
+
+/**
+ * The picker's one-line status: the inclusive day count once the draft is a
+ * usable range, the next-step prompt while it is not. It lives here rather
+ * than in the calendar because the popover footer is what states it.
+ */
+export function rangeHint(
+  draft: RangeDraft,
+  translate: (key: string, fallback: string, vars?: Record<string, string | number>) => string,
+): string {
+  if (draft.start && draft.end && compareDates(draft.start, draft.end) <= 0) {
+    // A bare «30 дн.» in a popover footer is a number with no subject: the
+    // reader has to infer that the calendar is telling them how long the range
+    // they just drew is. The label says it.
+    // The abbreviated unit survives every count; a host catalogue can spell it
+    // out with its own plural rules.
+    return translate('filter.period.duration', 'Duration: {count} d.', {
+      count: rangeDayCount(draft.start, draft.end),
+    })
+  }
+  return draft.start
+    ? translate('calendar.hintEnd', 'Select an end date')
+    : translate('calendar.hintStart', 'Select a start date')
 }

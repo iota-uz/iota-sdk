@@ -2,6 +2,9 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it } from 'vitest'
 import type { DashboardDocument, Frame, LayoutGroup, LayoutItem, Panel } from './contract'
 import { DashboardPanels } from './DashboardPanels'
+import type { ChartAdapter } from './charts/adapter'
+import { ChartPanel } from './panels/ChartPanel'
+import type { PanelRegistry } from './panels'
 import { DashboardRuntimeProvider, DocumentProvider } from './runtime'
 
 afterEach(cleanup)
@@ -23,11 +26,11 @@ function documentWith(panels: Panel[], frames: Record<string, Frame>, layout: Da
   }
 }
 
-function renderDocument(document: DashboardDocument) {
+function renderDocument(document: DashboardDocument, registry?: PanelRegistry) {
   return render(
     <div className="lens-root">
       <DocumentProvider initialDocument={document}>
-        <DashboardRuntimeProvider locale="en"><DashboardPanels /></DashboardRuntimeProvider>
+        <DashboardRuntimeProvider locale="en"><DashboardPanels registry={registry} /></DashboardRuntimeProvider>
       </DocumentProvider>
     </div>,
   )
@@ -74,11 +77,13 @@ describe('nested tabs', () => {
 
     const tablists = screen.getAllByRole('tablist')
     expect(tablists).toHaveLength(2)
+    expect(within(tablists[0]!).getAllByRole('tab')[0]).toHaveAttribute('data-testid', 'lens-tabs-outer-tab-0')
+    expect(within(tablists[1]!).getAllByRole('tab')[1]).toHaveAttribute('data-testid', 'lens-tabs-inner-tab-1')
     expect(within(tablists[0]!).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Stock', 'Movement'])
     expect(within(tablists[1]!).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Detail', 'Summary'])
   })
 
-  it('ArrowRight on the inner tablist changes the inner selection but not the outer tab', () => {
+  it('ArrowRight moves inner focus without activating or touching the outer tab', () => {
     renderNestedTabs()
 
     const [outerTablist, innerTablist] = screen.getAllByRole('tablist')
@@ -91,9 +96,15 @@ describe('nested tabs', () => {
 
     // Outer selection is untouched.
     expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
-    // Inner selection moved to "Summary", and its content (Metric B) now shows.
+    // Manual activation keeps the expensive panel mounted until Enter/Space.
     const innerTabsAfter = within(screen.getAllByRole('tablist')[1]!).getAllByRole('tab')
-    expect(innerTabsAfter[0]).toHaveAttribute('aria-selected', 'false')
+    expect(innerTabsAfter[0]).toHaveAttribute('aria-selected', 'true')
+    expect(innerTabsAfter[1]).toHaveAttribute('aria-selected', 'false')
+    expect(innerTabsAfter[1]).toHaveFocus()
+    expect(screen.getByText('Metric A')).toBeVisible()
+    expect(screen.queryByText('Metric B')).toBeNull()
+
+    fireEvent.keyUp(innerTabsAfter[1]!, { key: 'Enter' })
     expect(innerTabsAfter[1]).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('Metric B')).toBeVisible()
   })
@@ -103,10 +114,11 @@ describe('nested tabs', () => {
     const outerTabs = within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')
 
     fireEvent.keyDown(outerTabs[0]!, { key: 'ArrowLeft' })
-    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[1]).toHaveAttribute('aria-selected', 'true')
+    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[1]).toHaveFocus()
+    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
 
     fireEvent.keyDown(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[1]!, { key: 'ArrowRight' })
-    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
+    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[0]).toHaveFocus()
   })
 
   it('Home and End select the first and last tab', () => {
@@ -114,10 +126,11 @@ describe('nested tabs', () => {
     const outerTabs = within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')
 
     fireEvent.keyDown(outerTabs[0]!, { key: 'End' })
-    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[1]).toHaveAttribute('aria-selected', 'true')
+    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[1]).toHaveFocus()
+    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
 
     fireEvent.keyDown(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[1]!, { key: 'Home' })
-    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
+    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[0]).toHaveFocus()
   })
 
   it('keeps roving tabIndex: the active tab is 0, others are -1', () => {
@@ -160,6 +173,72 @@ describe('nested tabs', () => {
   })
 })
 
+describe('legend visibility across tabs', () => {
+  it('keeps hidden state panel-scoped while preserving it for the originating panel', () => {
+    const group = (tab: string): LayoutGroup => ({
+      id: 'daily-sales',
+      kind: 'tabs',
+      span: 12,
+      label: 'Daily sales',
+      tab,
+    })
+    const chartPanel = (id: string, title: string): Panel => ({
+      id,
+      kind: 'bar',
+      title,
+      semantics: 'series',
+      frame: `${id}:root`,
+      encoding: { category: 'day', series: 'product', value: 'value' },
+      format: { value: { kind: 'number', minorUnits: false, precision: 0 } },
+      presentation: { legend: 'below' },
+      actions: [],
+    })
+    const chartFrame = (osago: number, kasko: number): Frame => ({
+      columns: [
+        { name: 'day', type: 'string' },
+        { name: 'product', type: 'string' },
+        { name: 'value', type: 'number' },
+      ],
+      rows: [
+        ['31.07', 'ОСАГО', osago],
+        ['31.07', 'КАСКО', kasko],
+      ],
+    })
+    const adapter: ChartAdapter = {
+      mount: () => ({ update: () => {}, dispose: () => {} }),
+    }
+    const TestChart = ({ panel }: { panel: Panel }) => <ChartPanel adapter={adapter} panel={panel} />
+    const registry: PanelRegistry = { bar: TestChart }
+    const revenue = chartPanel('revenue', 'Revenue')
+    const count = chartPanel('count', 'Count')
+
+    renderDocument(documentWith(
+      [revenue, count],
+      {
+        'revenue:root': chartFrame(1_000, 500),
+        'count:root': chartFrame(10, 5),
+      },
+      {
+        rows: [{
+          panels: [
+            { panelId: revenue.id, span: 12, groups: [group('Revenue')] },
+            { panelId: count.id, span: 12, groups: [group('Count')] },
+          ],
+        }],
+      },
+    ), registry)
+
+    fireEvent.click(screen.getByRole('button', { name: /ОСАГО/ }))
+    expect(screen.getByRole('button', { name: /ОСАГО/ })).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Count' }))
+    expect(screen.getByRole('button', { name: /ОСАГО/ })).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Revenue' }))
+    expect(screen.getByRole('button', { name: /ОСАГО/ })).toHaveAttribute('aria-pressed', 'false')
+  })
+})
+
 /* -------------------------------------------------------------------------- */
 /* StatGroup-inside-Tabs + mixed grouped/ungrouped rows                       */
 /* -------------------------------------------------------------------------- */
@@ -192,8 +271,8 @@ describe('group caption', () => {
       [statPanel('metric-a', 'Metric A'), statPanel('metric-b', 'Metric B')],
       { 'metric-a:root': statFrame(1), 'metric-b:root': statFrame(2) },
       { rows: [{ panels: [
-        { panelId: 'metric-a', span: 6, group },
-        { panelId: 'metric-b', span: 6, group },
+        { panelId: 'metric-a', span: 6, groups: [group] },
+        { panelId: 'metric-b', span: 6, groups: [group] },
       ] }] },
     ))
 
@@ -210,7 +289,7 @@ describe('metric group context', () => {
     renderDocument(documentWith(
       [panel],
       { 'metric-a:root': statFrame(178_880_000_000) },
-      { rows: [{ panels: [{ panelId: panel.id, span: 12, group }] }] },
+      { rows: [{ panels: [{ panelId: panel.id, span: 12, groups: [group] }] }] },
     ))
 
     expect(screen.getByText('Coverage basis · all earning cohorts')).toHaveClass('lens-stat-metric-caption')
@@ -233,5 +312,113 @@ describe('mixed grouped and ungrouped items in one row', () => {
     const ungrouped = screen.getByText('Metric C').closest('.lens-grid-item')
     expect(ungrouped?.closest('.lens-panel-group')).toBeNull()
     expect(screen.getByRole('tablist')).toBeInTheDocument()
+  })
+})
+
+/* -------------------------------------------------------------------------- */
+/* One grid per dashboard, shared by every strip on it                        */
+/* -------------------------------------------------------------------------- */
+
+const metricsGroup = (id: string): LayoutGroup => ({ id, kind: 'metrics', span: 12, layout: 'columns' })
+
+function stripLayout(...sizes: number[]): DashboardDocument['layout'] {
+  const rows = sizes.map((size, stripIndex) => ({
+    panels: Array.from({ length: size }, (_, index) => ({
+      panelId: `strip-${stripIndex}-${index}`,
+      span: 6,
+      groups: [metricsGroup(`strip-${stripIndex}`)],
+    })),
+  }))
+  return { rows }
+}
+
+function renderStrips(...sizes: number[]) {
+  const items = stripLayout(...sizes).rows.flatMap((row) => row.panels)
+  const panels = items.map((item) => statPanel(item.panelId, item.panelId))
+  const frames = Object.fromEntries(items.map((item, index) => [`${item.panelId}:root`, statFrame(index)]))
+  return renderDocument(documentWith(panels, frames, stripLayout(...sizes)))
+}
+
+function spansOf(container: HTMLElement, strip: number): Array<string | null> {
+  const row = container.querySelectorAll('.lens-metric-row')[strip]!
+  return [...row.querySelectorAll('.lens-metric-cell')]
+    .map((cell) => (cell as HTMLElement).style.getPropertyValue('--lens-metric-span'))
+}
+
+describe('metric strip grid', () => {
+  it('draws every strip on the widest strip\'s column count', () => {
+    const { container } = renderStrips(3, 4)
+
+    expect(container.querySelector('.lens-dashboard')).toHaveStyle({ '--lens-metric-columns': '4' })
+    // Four cells, one column each; the seams land at 1/4, 2/4 and 3/4.
+    expect(spansOf(container, 1)).toEqual(['1', '1', '1', '1'])
+  })
+
+  it('spreads a short last row across the leftover columns', () => {
+    const { container } = renderStrips(3, 4)
+
+    // Three cells on a four-column grid: the row still reaches the card's edge
+    // and its one seam falls on a column line the four-cell strip also uses.
+    expect(spansOf(container, 0)).toEqual(['2', '1', '1'])
+  })
+
+  it('sizes the grid to the widest strip, so that strip never wraps', () => {
+    const { container } = renderStrips(4, 5)
+
+    expect(container.querySelector('.lens-dashboard')).toHaveStyle({ '--lens-metric-columns': '5' })
+    expect(spansOf(container, 1)).toEqual(['1', '1', '1', '1', '1'])
+    // The four-member strip above it spreads over the same five columns rather
+    // than dividing its own width by four and missing every seam.
+    expect(spansOf(container, 0)).toEqual(['2', '1', '1', '1'])
+  })
+
+  it('gives a lone trailing cell the whole row rather than half a row of white', () => {
+    const { container } = renderStrips(6, 7)
+
+    expect(spansOf(container, 1)).toEqual(['1', '1', '1', '1', '1', '1', '6'])
+  })
+
+  it('carries a second span for the two-column breakpoint', () => {
+    const { container } = renderStrips(3)
+    const row = container.querySelectorAll('.lens-metric-row')[0]!
+    const narrow = [...row.querySelectorAll('.lens-metric-cell')]
+      .map((cell) => (cell as HTMLElement).style.getPropertyValue('--lens-metric-span-2'))
+
+    // Two per row, then the third alone across both columns.
+    expect(narrow).toEqual(['1', '1', '2'])
+  })
+})
+
+describe('a tab that names its only panel', () => {
+  const revenue = (tab: string): LayoutGroup => ({ id: 'daily', kind: 'tabs', span: 12, label: 'Daily revenue', tab })
+
+  function renderRevenueTabs() {
+    const panels = [statPanel('revenue', 'Revenue'), statPanel('count', 'Policies sold')]
+    const frames = { 'revenue:root': statFrame(1), 'count:root': statFrame(2) }
+    return renderDocument(documentWith(panels, frames, {
+      rows: [{
+        panels: [
+          { panelId: 'revenue', span: 12, groups: [revenue('Revenue')] },
+          { panelId: 'count', span: 12, groups: [revenue('Count')] },
+        ],
+      }],
+    }))
+  }
+
+  it('prints that name once, on the tab, not again on the card inside it', () => {
+    const { container } = renderRevenueTabs()
+
+    // The tab is selected and named «Revenue»; the card behind it drops its
+    // duplicate title but keeps its accessible name.
+    expect(screen.getByRole('tab', { name: 'Revenue' })).toHaveAttribute('aria-selected', 'true')
+    expect(container.querySelector('.lens-panel-stat .lens-panel-title')).toBeNull()
+    expect(screen.getAllByText('Revenue')).toHaveLength(1)
+  })
+
+  it('leaves the card title alone when the tab says something else', () => {
+    renderRevenueTabs()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Count' }))
+    expect(screen.getByRole('heading', { name: 'Policies sold' })).toBeInTheDocument()
   })
 })

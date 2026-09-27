@@ -8,7 +8,7 @@ function runtimeDocument(snapshotId: string, includeDetail = true): DashboardDoc
   return parseDocument({
     ...fixture,
     snapshotId,
-    panels: [{ ...fixture.panels[0], drillRoot: 'root' }],
+    panels: [{ ...fixture.panels[0], drillRoot: 'root', terminal: false }],
     drill: {
       inlineDepth: 0,
       edges: {

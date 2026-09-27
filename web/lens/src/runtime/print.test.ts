@@ -26,8 +26,8 @@ describe('buildPrintReport', () => {
     const document = parseDocument({
       ...fixture,
       panels: [
-        { ...fixture.panels[0], id: 'hero', actions: [drawerAction] },
-        { ...fixture.panels[0], id: 'strip', actions: [drawerAction] },
+        { ...fixture.panels[0], id: 'hero', actions: [drawerAction], terminal: false },
+        { ...fixture.panels[0], id: 'strip', actions: [drawerAction], terminal: false },
       ],
       layout: {
         rows: [{ panels: [{ panelId: 'hero', span: 6 }, { panelId: 'strip', span: 6 }] }],
@@ -54,7 +54,7 @@ describe('buildPrintReport', () => {
   it('loads dynamic children and flattens their query paths in order', async () => {
     const document = parseDocument({
       ...fixture,
-      panels: [{ ...fixture.panels[0], drillRoot: 'root' }],
+      panels: [{ ...fixture.panels[0], drillRoot: 'root', terminal: false }],
       drill: {
         inlineDepth: 0,
         edges: {
@@ -118,7 +118,7 @@ describe('buildPrintReport', () => {
   it('expands every perspective of a fork instead of printing a choice screen', async () => {
     const document = parseDocument({
       ...fixture,
-      panels: [{ ...fixture.panels[0], drillRoot: 'root' }],
+      panels: [{ ...fixture.panels[0], drillRoot: 'root', terminal: false }],
       drill: {
         inlineDepth: 0,
         edges: {
@@ -167,12 +167,12 @@ describe('buildPrintReport', () => {
     const query: PrintQuery = (request: QueryRequest): Promise<QueryResponse> => {
       perspectives.push(request.perspective)
       return Promise.resolve({
-      frames: {
-        [request.perspective ?? 'unknown']: {
-          columns: document.frames['panel:total']!.columns,
-          rows: [[request.perspective, 42]],
+        frames: {
+          [request.perspective ?? 'unknown']: {
+            columns: document.frames['panel:total']!.columns,
+            rows: [[request.perspective, 42]],
+          },
         },
-      },
       })
     }
 
@@ -194,6 +194,7 @@ describe('buildPrintReport', () => {
           params: [],
           payload: {},
         }],
+        terminal: false,
       }],
     })
     const nested = parseDocument({
@@ -237,6 +238,7 @@ describe('buildPrintReport', () => {
           params: [{ name: 'id', source: { kind: 'field', name: 'category' } }],
           payload: {},
         }],
+        terminal: false,
       }],
     })
     let loads = 0
@@ -260,7 +262,7 @@ describe('buildPrintReport', () => {
   it('returns a clearly marked partial report when preparation is cancelled', async () => {
     const document = parseDocument({
       ...fixture,
-      panels: [{ ...fixture.panels[0], drillRoot: 'root' }],
+      panels: [{ ...fixture.panels[0], drillRoot: 'root', terminal: false }],
       drill: {
         inlineDepth: 0,
         edges: {

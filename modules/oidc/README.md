@@ -251,6 +251,9 @@ The OIDC module fully supports IOTA SDK's multi-tenant architecture:
 - Auth requests are scoped to tenant after user authentication
 - Refresh tokens are scoped to user + tenant + client combination
 - Token claims include `tenant_id`
+- Clients can request least-privilege `permission:<name>` scopes; the resulting
+  `permissions` claim contains only requested permissions effectively granted
+  to the user (directly, through roles, or through group roles)
 - User info returns data for authenticated tenant only
 
 ## Configuration

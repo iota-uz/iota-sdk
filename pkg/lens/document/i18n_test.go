@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	literalKeyPattern = regexp.MustCompile(`translate\(\s*'([^']+)'`)
+	literalKeyPattern = regexp.MustCompile(`(?:translate\(|translateRef\.current\()\s*'([^']+)'`)
 	dynamicKeyPattern = regexp.MustCompile("translate\\(\\s*`([^`$]*)\\$\\{")
 	// Keys resolved indirectly through catalog definitions, e.g. the period
 	// preset catalog's `labelKey: 'filter.period.preset.today'` entries that
@@ -110,4 +110,14 @@ func TestRuntimeI18nKeysMatchRuntimeCallSites(t *testing.T) {
 	}
 	sort.Strings(unused)
 	require.Empty(t, unused, "Go catalogue declares translation keys no runtime call site uses")
+}
+
+func TestRuntimeLocaleKey(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "Lens.Runtime.TableFilteredTotal", document.RuntimeLocaleKey("table.filteredTotal"))
+	require.Equal(t, "Lens.Runtime.ChartSeriesYtd", document.RuntimeLocaleKey("chart.series.ytd"))
+	for _, runtimeKey := range document.RuntimeI18nKeys() {
+		require.NotEqual(t, "Lens.Runtime.", document.RuntimeLocaleKey(runtimeKey), runtimeKey)
+	}
 }

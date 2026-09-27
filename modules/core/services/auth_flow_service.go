@@ -33,8 +33,9 @@ type AuthenticationResult struct {
 }
 
 type FinalizeAuthenticationOptions struct {
-	NextURL     string
-	AccessCheck LoginAccessChecker
+	NextURL            string
+	SessionCookieValue string
+	AccessCheck        LoginAccessChecker
 }
 
 type FinalizeAuthenticationResult struct {
@@ -65,6 +66,20 @@ type AuthFlowService struct {
 	httpCfg         *httpconfig.Config
 	cookiesCfg      *cookies.Config
 	appCfg          *appconfig.Config
+	browserSessions *BrowserSessionService
+}
+
+func NewAuthFlowServiceWithBrowserSessions(
+	authService *AuthService,
+	sessionService *SessionService,
+	httpCfg *httpconfig.Config,
+	cookiesCfg *cookies.Config,
+	appCfg *appconfig.Config,
+	browserSessions *BrowserSessionService,
+) *AuthFlowService {
+	service := NewAuthFlowService(authService, sessionService, httpCfg, cookiesCfg, appCfg)
+	service.browserSessions = browserSessions
+	return service
 }
 
 func NewAuthFlowService(
@@ -191,14 +206,22 @@ func (s *AuthFlowService) FinalizeAuthentication(
 			redirectURL = fmt.Sprintf("/login/2fa/verify?next=%s", url.QueryEscape(validatedNextURL))
 		}
 
+		cookie, err := s.sessionCookie(ctx, opts.SessionCookieValue, pendingSession)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
 		return &FinalizeAuthenticationResult{
-			Cookie:      s.sessionCookie(pendingSession.Token(), pendingSession.ExpiresAt()),
+			Cookie:      cookie,
 			RedirectURL: redirectURL,
 		}, nil
 	}
 
+	cookie, err := s.sessionCookie(ctx, opts.SessionCookieValue, sess)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
 	return &FinalizeAuthenticationResult{
-		Cookie:      s.sessionCookie(sess.Token(), sess.ExpiresAt()),
+		Cookie:      cookie,
 		RedirectURL: validatedNextURL,
 	}, nil
 }
@@ -238,17 +261,20 @@ func (s *AuthFlowService) requiresTwoFactor(
 	return requires2FA || policyRequires2FA, nil
 }
 
-func (s *AuthFlowService) sessionCookie(token string, expiresAt time.Time) *http.Cookie {
+func (s *AuthFlowService) sessionCookie(ctx context.Context, currentValue string, sess session.Session) (*http.Cookie, error) {
+	if s.browserSessions != nil {
+		return s.browserSessions.Add(ctx, currentValue, sess)
+	}
 	return &http.Cookie{
 		Name:     s.cookiesCfg.SID,
-		Value:    token,
-		Expires:  expiresAt,
+		Value:    sess.Token(),
+		Expires:  sess.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   s.appCfg.IsProduction(),
 		Domain:   s.cookiesCfg.Domain,
 		Path:     "/",
-	}
+	}, nil
 }
 
 func userIDToNamespacedUUID(tenantID uuid.UUID, userID uint) uuid.UUID {

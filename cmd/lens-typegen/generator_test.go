@@ -1,12 +1,37 @@
 package main
 
 import (
+	"go/types"
 	"path/filepath"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestParseLensValidationTag(t *testing.T) {
+	t.Parallel()
+
+	constraints, err := parseLensValidationTag(`json:"rank,omitempty" lens:"min=0,max=2"`, types.NewPointer(types.Typ[types.Int]))
+	require.NoError(t, err)
+	require.Equal(t, ".min(0).max(2)", constraints)
+
+	for name, tag := range map[string]string{
+		"unknown":    `lens:"step=1"`,
+		"duplicate":  `lens:"min=0,min=1"`,
+		"empty":      `lens:"min="`,
+		"not finite": `lens:"max=NaN"`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, err := parseLensValidationTag(tag, types.Typ[types.Int])
+			require.Error(t, err)
+		})
+	}
+
+	_, err = parseLensValidationTag(`lens:"min=0"`, types.Typ[types.String])
+	require.ErrorContains(t, err, "numeric field")
+}
 
 func TestGenerateRepresentativeContract(t *testing.T) {
 	t.Parallel()
@@ -17,9 +42,10 @@ func TestGenerateRepresentativeContract(t *testing.T) {
 		rootType:        "FixtureDocument",
 		additionalTypes: []string{"FixtureResponse"},
 		versionConstant: "ContractVersion",
+		palette:         fixturePalette(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, []string{"index.ts", "schemas.ts", "types.ts"}, sortedFileNames(files))
+	require.Equal(t, []string{"index.ts", "palette.ts", "schemas.ts", "types.ts"}, sortedFileNames(files))
 
 	typesFile := files["types.ts"]
 	require.Contains(t, typesFile, `export const CONTRACT_VERSION = "3.2.1"`)
@@ -48,6 +74,55 @@ func TestGenerateRepresentativeContract(t *testing.T) {
 	require.Contains(t, schemasFile, "export const FixtureResponseSchema: z.ZodType<Contract.FixtureResponse> = z.lazy(() => z.object(")
 	require.Contains(t, schemasFile, "export const NestedSchema: z.ZodType<Contract.Nested> = z.object(")
 	require.NotContains(t, schemasFile, "z.any()")
+
+	require.Contains(t, files["index.ts"], "export * from './palette'")
+}
+
+// The runtime paints with the generated palette, so the generator owes it the
+// declared order, the values themselves, and a form CSS can use — the Go
+// literals are uppercase and the emitted ones must not be, or every run would
+// look like drift against the committed file.
+func TestGeneratePaletteCarriesGoValuesInOrder(t *testing.T) {
+	t.Parallel()
+
+	files, err := generate(config{
+		dir:             ".",
+		packagePattern:  "./testdata/fixture",
+		rootType:        "FixtureDocument",
+		versionConstant: "ContractVersion",
+		palette:         fixturePalette(),
+	})
+	require.NoError(t, err)
+
+	paletteFile := files["palette.ts"]
+	require.Contains(t, paletteFile, "export const PALETTE_SERIES = [\n  '#2563eb',\n  '#0d9488',\n] as const")
+	require.Contains(t, paletteFile, "export const PALETTE_NEUTRAL = '#94a3b8'")
+	require.NotContains(t, paletteFile, "#2563EB")
+}
+
+// A palette that cannot be painted must stop generation rather than reach the
+// runtime as an unusable string.
+func TestGenerateRejectsUnusablePalette(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]paletteConfig{
+		"no series":      {series: nil, neutral: "#94A3B8"},
+		"malformed hex":  {series: []string{"#2563EB", "blue"}, neutral: "#94A3B8"},
+		"absent neutral": {series: []string{"#2563EB"}, neutral: ""},
+	}
+	for name, palette := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, err := generate(config{
+				dir:             ".",
+				packagePattern:  "./testdata/fixture",
+				rootType:        "FixtureDocument",
+				versionConstant: "ContractVersion",
+				palette:         palette,
+			})
+			require.Error(t, err)
+		})
+	}
 }
 
 func TestGenerateIsDeterministic(t *testing.T) {
@@ -58,6 +133,7 @@ func TestGenerateIsDeterministic(t *testing.T) {
 		packagePattern:  "./testdata/fixture",
 		rootType:        "FixtureDocument",
 		versionConstant: "ContractVersion",
+		palette:         fixturePalette(),
 	}
 	first, err := generate(cfg)
 	require.NoError(t, err)
@@ -68,6 +144,10 @@ func TestGenerateIsDeterministic(t *testing.T) {
 	outputDir := filepath.Join(t.TempDir(), "contract")
 	require.NoError(t, writeGeneratedDirectory(outputDir, first))
 	require.NoError(t, writeGeneratedDirectory(outputDir, second))
+}
+
+func fixturePalette() paletteConfig {
+	return paletteConfig{series: []string{"#2563EB", "#0D9488"}, neutral: "#94A3B8"}
 }
 
 func sortedFileNames(files map[string]string) []string {

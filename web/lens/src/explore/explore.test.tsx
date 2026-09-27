@@ -447,7 +447,7 @@ describe('drill overlay', () => {
     render(
       <div className="lens-root">
         <DocumentProvider initialDocument={lazyDocument} fetcher={fetcher}>
-          <DashboardRuntimeProvider fetcher={fetcher} locale="en">
+          <DashboardRuntimeProvider fetcher={fetcher} locale="en" drawerDepth={1}>
             <ExplorePanel panel={lazyDocument.panels[0]!} registry={registry} />
           </DashboardRuntimeProvider>
         </DocumentProvider>
@@ -696,6 +696,26 @@ describe('leaf actions', () => {
     })
 
     expect(href).toBe('https://example.test/transactions/TX%201042?mode=detail&region=north')
+  })
+
+  it('preserves every value of a repeated host query parameter', () => {
+    const href = resolveLeafActionURL({
+      kind: 'navigate_to_leaf',
+      urlTemplate: '/policies',
+      params: [],
+      payload: {},
+      preserveQuery: true,
+    }, {
+      fields: {},
+      variables: {},
+      location: new URL(
+        'https://example.test/dashboard?_f=product%3Aone&_f=product%3Atwo&ActualRangeStart=2026-01-01',
+      ),
+    })
+
+    expect(href).toBe(
+      'https://example.test/policies?_f=product%3Aone&_f=product%3Atwo&ActualRangeStart=2026-01-01',
+    )
   })
 
   it('treats an empty field URL as inert instead of resolving it to the current page', () => {

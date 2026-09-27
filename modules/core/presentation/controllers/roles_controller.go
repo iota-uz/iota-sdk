@@ -2,6 +2,7 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -22,12 +23,15 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 )
+
+const opRolesList serrors.Op = "core.controllers.RolesController.List"
 
 type RolesController struct {
 	basePath         string
@@ -84,9 +88,10 @@ func (c *RolesController) Register(r *mux.Router) {
 }
 
 func (c *RolesController) modulePermissionGroups(
+	ctx context.Context,
 	selected ...permission.Permission,
 ) []*viewmodels.ModulePermissionGroup {
-	return BuildModulePermissionGroups(c.permissionSchema, selected...)
+	return BuildModulePermissionGroups(grantablePermissionSchema(ctx, c.permissionSchema), selected...)
 }
 
 func (c *RolesController) List(
@@ -94,6 +99,7 @@ func (c *RolesController) List(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	roleService *services.RoleService,
+	policy *services.PrivilegeGrantPolicy,
 ) {
 	if err := composables.CanUser(r.Context(), permissions.RoleRead); err != nil {
 		RenderForbidden(w, r)
@@ -134,9 +140,32 @@ func (c *RolesController) List(
 		return
 	}
 
+	total, err := roleService.Count(r.Context(), findParams)
+	if err != nil {
+		logger.Error(serrors.E(opRolesList, err))
+		http.Error(w, "Error counting roles", http.StatusInternalServerError)
+		return
+	}
+
+	roleViewModels := mapping.MapViewModels(roleEntities, mappers.RoleToViewModel)
+	actor, err := composables.UseUser(r.Context())
+	if err != nil {
+		logger.WithError(err).Error("Error retrieving current user")
+		http.Error(w, "Error retrieving current user", http.StatusInternalServerError)
+		return
+	}
+	for i, roleEntity := range roleEntities {
+		canManage := policy.CanManageRole(actor, roleEntity)
+		roleViewModels[i].CanUpdate = roleViewModels[i].CanUpdate && canManage
+		roleViewModels[i].CanDelete = roleViewModels[i].CanDelete && canManage
+	}
+
 	props := &roles.IndexPageProps{
-		Roles:  mapping.MapViewModels(roleEntities, mappers.RoleToViewModel),
-		Search: search,
+		Roles:   roleViewModels,
+		Page:    params.Page,
+		PerPage: params.Limit,
+		HasMore: total > int64(params.Page*params.Limit),
+		Search:  search,
 	}
 
 	if htmx.IsHxRequest(r) {
@@ -151,6 +180,7 @@ func (c *RolesController) GetEdit(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	roleService *services.RoleService,
+	policy *services.PrivilegeGrantPolicy,
 ) {
 	if err := composables.CanUser(r.Context(), permissions.RoleRead); err != nil {
 		RenderForbidden(w, r)
@@ -174,9 +204,19 @@ func (c *RolesController) GetEdit(
 		http.Error(w, "Error retrieving role", http.StatusInternalServerError)
 		return
 	}
+	roleViewModel := mappers.RoleToViewModel(roleEntity)
+	actor, err := composables.UseUser(r.Context())
+	if err != nil {
+		logger.WithError(err).Error("Error retrieving current user")
+		http.Error(w, "Error retrieving current user", http.StatusInternalServerError)
+		return
+	}
+	canManage := policy.CanManageRole(actor, roleEntity)
+	roleViewModel.CanUpdate = roleViewModel.CanUpdate && canManage
+	roleViewModel.CanDelete = roleViewModel.CanDelete && canManage
 	props := &roles.EditFormProps{
-		Role:                   mappers.RoleToViewModel(roleEntity),
-		ModulePermissionGroups: c.modulePermissionGroups(roleEntity.Permissions()...),
+		Role:                   roleViewModel,
+		ModulePermissionGroups: c.modulePermissionGroups(r.Context(), roleEntity.Permissions()...),
 		Errors:                 map[string]string{},
 	}
 	templ.Handler(roles.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -203,6 +243,9 @@ func (c *RolesController) Delete(
 	if err := roleService.Delete(r.Context(), id); err != nil {
 		if errors.Is(err, persistence.ErrRoleNotFound) {
 			http.Error(w, "Role not found", http.StatusNotFound)
+			return
+		}
+		if respondPrivilegeDenied(w, r, err) {
 			return
 		}
 		logger.Errorf("Error deleting role: %v", err)
@@ -251,7 +294,7 @@ func (c *RolesController) Update(
 	if validationErrors, ok := dto.Ok(r.Context()); !ok {
 		props := &roles.EditFormProps{
 			Role:                   mappers.RoleToViewModel(roleEntity),
-			ModulePermissionGroups: c.modulePermissionGroups(roleEntity.Permissions()...),
+			ModulePermissionGroups: c.modulePermissionGroups(r.Context(), roleEntity.Permissions()...),
 			Errors:                 validationErrors,
 		}
 		templ.Handler(roles.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -268,6 +311,9 @@ func (c *RolesController) Update(
 	if err := roleService.Update(r.Context(), updatedEntity); err != nil {
 		if errors.Is(err, persistence.ErrRoleNotFound) {
 			http.Error(w, "Role not found", http.StatusNotFound)
+			return
+		}
+		if respondPrivilegeDenied(w, r, err) {
 			return
 		}
 		logger.Errorf("Error updating role: %v", err)
@@ -289,7 +335,7 @@ func (c *RolesController) GetNew(
 	}
 	props := &roles.CreateFormProps{
 		Role:                   &viewmodels.Role{},
-		ModulePermissionGroups: c.modulePermissionGroups(),
+		ModulePermissionGroups: c.modulePermissionGroups(r.Context()),
 		Errors:                 map[string]string{},
 	}
 	templ.Handler(roles.New(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -321,7 +367,7 @@ func (c *RolesController) Create(
 		}
 		props := &roles.CreateFormProps{
 			Role:                   mappers.RoleToViewModel(roleEntity),
-			ModulePermissionGroups: c.modulePermissionGroups(),
+			ModulePermissionGroups: c.modulePermissionGroups(r.Context()),
 			Errors:                 validationErrors,
 		}
 		templ.Handler(roles.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -336,6 +382,9 @@ func (c *RolesController) Create(
 	}
 
 	if _, err := roleService.Create(r.Context(), roleEntity); err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
 		logger.Errorf("Error creating role: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

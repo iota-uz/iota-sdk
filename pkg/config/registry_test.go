@@ -130,5 +130,76 @@ func TestGet_Lookup_WhenRegistered(t *testing.T) {
 	}
 }
 
+// featureToggle mirrors the shape every periodic task, request log and feature
+// flag in the wild uses: an on-by-default switch plus values whose defaults are
+// non-zero.
+type featureToggle struct {
+	Enabled    bool   `koanf:"enabled"    default:"true"`
+	MaxRetries int    `koanf:"maxretries" default:"3"`
+	Schedule   string `koanf:"schedule"   default:"*/15 * * * *"`
+}
+
+// A source that says "off" must be able to turn a default-on switch off.
+// Applying tag defaults to whatever the source left zero cannot express this -
+// false is indistinguishable from absent - so the setting was unreachable and
+// every on-by-default feature was permanently on.
+func TestRegisterAt_SourceCanTurnOffADefaultOnFlag(t *testing.T) {
+	t.Parallel()
+
+	src := buildSource(t, map[string]any{
+		"feature.enabled":    false,
+		"feature.maxretries": 0,
+		"feature.schedule":   "",
+	})
+	cfg, err := RegisterAt[featureToggle](NewRegistry(src), "feature")
+	if err != nil {
+		t.Fatalf("RegisterAt: %v", err)
+	}
+	if cfg.Enabled {
+		t.Error("Enabled: got true, want false — the source said off")
+	}
+	if cfg.MaxRetries != 0 {
+		t.Errorf("MaxRetries: got %d, want 0 — the source said 0", cfg.MaxRetries)
+	}
+	if cfg.Schedule != "" {
+		t.Errorf("Schedule: got %q, want empty — the source said empty", cfg.Schedule)
+	}
+}
+
+// Env vars arrive as strings; koanf decodes them weakly. "false" must not be
+// read as "unset" either.
+func TestRegisterAt_SourceCanTurnOffADefaultOnFlagWithStrings(t *testing.T) {
+	t.Parallel()
+
+	src := buildSource(t, map[string]any{"feature.enabled": "false"})
+	cfg, err := RegisterAt[featureToggle](NewRegistry(src), "feature")
+	if err != nil {
+		t.Fatalf("RegisterAt: %v", err)
+	}
+	if cfg.Enabled {
+		t.Error("Enabled: got true, want false")
+	}
+	// Everything the source did not mention still gets its default.
+	if cfg.MaxRetries != 3 {
+		t.Errorf("MaxRetries: got %d, want the default 3", cfg.MaxRetries)
+	}
+	if cfg.Schedule != "*/15 * * * *" {
+		t.Errorf("Schedule: got %q, want the default", cfg.Schedule)
+	}
+}
+
+// The other half of the contract: a silent source leaves every default alone.
+func TestRegisterAt_DefaultsSurviveASilentSource(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := RegisterAt[featureToggle](NewRegistry(buildSource(t, map[string]any{})), "feature")
+	if err != nil {
+		t.Fatalf("RegisterAt: %v", err)
+	}
+	if !cfg.Enabled || cfg.MaxRetries != 3 || cfg.Schedule != "*/15 * * * *" {
+		t.Errorf("defaults not applied: %+v", *cfg)
+	}
+}
+
 // Ensure staticTestProvider (declared in source_test.go) satisfies Provider.
 var _ Provider = (*staticTestProvider)(nil)

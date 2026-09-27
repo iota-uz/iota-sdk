@@ -59,12 +59,12 @@ func TestApplyFormatsAbbreviatedMoneyByLocale(t *testing.T) {
 		{name: "en_thousand", locale: "en-US", input: 125_000.0, expected: "125.00K UZS"},
 		{name: "ru_below_floor", locale: "ru", input: 12500.0, expected: "12 500 UZS"},
 		{name: "ru_below_floor_negative", locale: "ru", input: -12500.4, expected: "-12 500 UZS"},
-		{name: "ru_thousand", locale: "ru", input: 125_000.0, expected: "125.00 тыс UZS"},
-		{name: "ru_million", locale: "ru", input: 3_400_000.0, expected: "3.40 млн UZS"},
-		{name: "uz_thousand", locale: "uz", input: 125_000.0, expected: "125.00 ming UZS"},
-		{name: "uz_billion", locale: "uz", input: 2_100_000_000.0, expected: "2.10 mlrd UZS"},
-		{name: "uz_cyrl_thousand", locale: "uz-Cyrl", input: 125_000.0, expected: "125.00 минг UZS"},
-		{name: "uz_cyrl_trillion", locale: "uz-Cyrl", input: 1_417_670_000_000.0, expected: "1.42 трлн UZS"},
+		{name: "ru_thousand", locale: "ru", input: 125_000.0, expected: "125,00 тыс UZS"},
+		{name: "ru_million", locale: "ru", input: 3_400_000.0, expected: "3,40 млн UZS"},
+		{name: "uz_thousand", locale: "uz", input: 125_000.0, expected: "125,00 ming UZS"},
+		{name: "uz_billion", locale: "uz", input: 2_100_000_000.0, expected: "2,10 mlrd UZS"},
+		{name: "uz_cyrl_thousand", locale: "uz-Cyrl", input: 125_000.0, expected: "125,00 минг UZS"},
+		{name: "uz_cyrl_trillion", locale: "uz-Cyrl", input: 1_417_670_000_000.0, expected: "1,42 трлн UZS"},
 	}
 
 	spec := MoneyCompact("UZS")

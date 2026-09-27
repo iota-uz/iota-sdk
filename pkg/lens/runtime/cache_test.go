@@ -38,7 +38,7 @@ func TestMemorySnapshotStoreTTLBoundedAndCloneSafe(t *testing.T) {
 func TestRuntimeSnapshotIdentityIncludesDataScope(t *testing.T) {
 	t.Parallel()
 	runtime := New(Options{})
-	spec := lensbuild.Dashboard("cached", "Cached", lensbuild.Row(panel.Bar("chart", "Chart", "data").Build())).Datasets(lensbuild.QueryDataset("data", "primary", "select 1")).Build()
+	spec := lensbuild.Dashboard("cached", "Cached", lensbuild.Row(panel.Bar("chart", "Chart", "data").Terminal().Build())).Datasets(lensbuild.QueryDataset("data", "primary", "select 1")).Build()
 	ds := &stubDataSource{}
 	request := func(scope string) Request {
 		return Request{DataScope: scope, Namespace: "test", DataSources: map[string]datasource.DataSource{"primary": ds}, DataSourceIdentities: map[string]string{"primary": "primary:v1"}}
@@ -52,12 +52,45 @@ func TestRuntimeSnapshotIdentityIncludesDataScope(t *testing.T) {
 	require.Equal(t, int32(2), ds.calls.Load())
 }
 
+func TestRuntimeShellCacheProvenanceAndRecompute(t *testing.T) {
+	t.Parallel()
+	runtime := New(Options{})
+	spec := lensbuild.Dashboard("progressive", "Progressive", lensbuild.Row(
+		panel.Bar("chart", "Chart", "data").Terminal().Build(),
+	)).Datasets(lensbuild.QueryDataset("data", "primary", "select 1")).Build()
+	ds := &stubDataSource{}
+	req := Request{
+		DataScope: "tenant:a", Namespace: "test",
+		DataSources:          map[string]datasource.DataSource{"primary": ds},
+		DataSourceIdentities: map[string]string{"primary": "primary:v1"},
+	}
+	shell, err := runtime.Execute(context.Background(), spec, req, ShellScope())
+	require.NoError(t, err)
+	require.Empty(t, shell.Datasets)
+	require.Empty(t, shell.Panels)
+	require.Equal(t, int32(0), ds.calls.Load())
+
+	first, err := runtime.Execute(context.Background(), spec, req, PanelScope("chart"))
+	require.NoError(t, err)
+	require.False(t, first.CacheHit)
+	second, err := runtime.Execute(context.Background(), spec, req, PanelScope("chart"))
+	require.NoError(t, err)
+	require.True(t, second.CacheHit)
+	require.Equal(t, int32(1), ds.calls.Load())
+
+	req.Recompute = true
+	refreshed, err := runtime.Execute(context.Background(), spec, req, PanelScope("chart"))
+	require.NoError(t, err)
+	require.False(t, refreshed.CacheHit)
+	require.Equal(t, int32(2), ds.calls.Load())
+}
+
 func TestRuntimeSnapshot_UsesShortestDatasetTTL(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.July, 19, 0, 0, 0, 0, time.UTC)
 	store := NewMemorySnapshotStore(MemoryStoreOptions{TTL: time.Hour, Clock: func() time.Time { return now }})
 	runtime := New(Options{Store: store, DefaultTTL: time.Hour})
-	spec := lensbuild.Dashboard("cached", "Cached", lensbuild.Row(panel.Bar("chart", "Chart", "data").Build())).Datasets(lensbuild.QueryDataset("data", "primary", "select 1")).Build()
+	spec := lensbuild.Dashboard("cached", "Cached", lensbuild.Row(panel.Bar("chart", "Chart", "data").Terminal().Build())).Datasets(lensbuild.QueryDataset("data", "primary", "select 1")).Build()
 	spec.Datasets[0].Cache.TTL = time.Minute
 	ds := &stubDataSource{}
 	req := Request{DataScope: "tenant:a", Namespace: "test", DataSources: map[string]datasource.DataSource{"primary": ds}, DataSourceIdentities: map[string]string{"primary": "primary:v1"}}

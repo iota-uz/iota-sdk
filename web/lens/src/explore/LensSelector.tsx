@@ -124,6 +124,7 @@ export function LensSelector({ perspectives, activeId, label, moreLabel, onSelec
         onKeyDown={onGroupKeyDown}
         ref={groupRef}
         role="radiogroup"
+        tabIndex={-1}
       >
         {indicator && (
           // The resting position is an inline transform, so a VR screenshot is
@@ -154,7 +155,11 @@ export function LensSelector({ perspectives, activeId, label, moreLabel, onSelec
           )
         })}
         {overflow.length > 0 && (
-          <div className="lens-focus-lens-more" onKeyDown={onMenuKeyDown}>
+          // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- delegate from the button/listbox options without making this layout wrapper a focus stop.
+          <div
+            className="lens-focus-lens-more"
+            onKeyDown={onMenuKeyDown}
+          >
             <button
               aria-expanded={menuOpen}
               aria-haspopup="listbox"

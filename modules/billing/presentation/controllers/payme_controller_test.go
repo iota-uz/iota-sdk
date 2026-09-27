@@ -156,6 +156,104 @@ func TestPaymeController_CheckPerform_RejectsDuplicateActiveTransactions(t *test
 	assert.Equal(t, paymeapi.CheckPerformTransactionInvalidAccountError().Code, errRPC.Code)
 }
 
+// A customer can hold a checkout open across a cancellation: they opened their
+// transaction while the link was live and only pressed pay afterwards. Payme
+// resolves a perform by transaction id and never consults its state, so the
+// call arrives regardless — refusing it is the merchant's job, and answering
+// anything but an error means money accepted for an order that has moved on.
+func TestPaymeController_Perform_RefusesACancelledTransaction(t *testing.T) {
+	t.Parallel()
+
+	cancelled := newPaymeControllerTestTransaction(
+		billing.Canceled,
+		"cancelled-row",
+		details.PaymeWithID("payme-tx-1"),
+		details.PaymeWithState(paymeapi.TransactionStateCancelledBeforeCompletion),
+		details.PaymeWithReason(paymeapi.CancelReasonDebitError),
+	)
+	controller := newTestPaymePerformController(t, "payme-tx-1", cancelled, func(context.Context, billing.Transaction) error {
+		t.Fatal("a cancelled transaction must never reach the host callback")
+		return nil
+	}, func(billing.Transaction) {
+		t.Fatal("refusing a perform must not rewrite the transaction")
+	})
+
+	ctx := context.WithValue(context.Background(), constants.TxKey, struct{}{})
+	resp, errRPC := controller.perform(ctx, &paymeapi.PerformTransactionRequest{
+		Id: "payme-tx-1",
+	}, logrus.New().WithField("test", true))
+
+	require.Nil(t, resp)
+	require.NotNil(t, errRPC)
+	assert.Equal(t, paymeapi.PerformTransactionOperationNotAllowedError().Code, errRPC.Code)
+}
+
+// The other half of the same rule: a perform Payme repeats — because our answer
+// was lost, not because anything changed — must still be honoured, or Payme
+// keeps retrying a payment it has already taken.
+func TestPaymeController_Perform_StaysIdempotentOnACompletedTransaction(t *testing.T) {
+	t.Parallel()
+
+	completed := newPaymeControllerTestTransaction(
+		billing.Completed,
+		"completed-row",
+		details.PaymeWithID("payme-tx-1"),
+		details.PaymeWithState(paymeapi.TransactionStateCompleted),
+		details.PaymeWithPerformTime(1710000002000),
+	)
+	var invoked bool
+	controller := newTestPaymePerformController(t, "payme-tx-1", completed, func(context.Context, billing.Transaction) error {
+		invoked = true
+		return nil
+	}, nil)
+
+	ctx := context.WithValue(context.Background(), constants.TxKey, struct{}{})
+	resp, errRPC := controller.perform(ctx, &paymeapi.PerformTransactionRequest{
+		Id: "payme-tx-1",
+	}, logrus.New().WithField("test", true))
+
+	require.Nil(t, errRPC)
+	require.NotNil(t, resp)
+	assert.True(t, invoked)
+	assert.Equal(t, "completed-row", resp.Transaction)
+	assert.EqualValues(t, paymeapi.TransactionStateCompleted, resp.State)
+	assert.Equal(t, int64(1710000002000), resp.PerformTime)
+}
+
+func newTestPaymePerformController(
+	t *testing.T,
+	transactionID string,
+	transaction billing.Transaction,
+	callback billing.TransactionCallback,
+	onSave func(billing.Transaction),
+) *PaymeController {
+	t.Helper()
+
+	repo := &testBillingRepo{
+		getByDetailsFields: func(_ context.Context, gateway billing.Gateway, filters []billing.DetailsFieldFilter) ([]billing.Transaction, error) {
+			require.Equal(t, billing.Payme, gateway)
+			require.Equal(t, []billing.DetailsFieldFilter{{
+				Path:     []string{"id"},
+				Operator: billing.OpEqual,
+				Value:    transactionID,
+			}}, filters)
+
+			return []billing.Transaction{transaction}, nil
+		},
+		save: func(_ context.Context, tx billing.Transaction) (billing.Transaction, error) {
+			if onSave != nil {
+				onSave(tx)
+			}
+			return tx, nil
+		},
+	}
+
+	billingService := services.NewBillingService(repo, nil, noopEventBus{})
+	billingService.RegisterCallback(callback)
+
+	return &PaymeController{billingService: billingService}
+}
+
 func newTestPaymeController(
 	t *testing.T,
 	account map[string]any,

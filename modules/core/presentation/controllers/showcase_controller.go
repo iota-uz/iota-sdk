@@ -3,7 +3,6 @@
 package controllers
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -27,18 +26,22 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	lensdocument "github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lenspostgres "github.com/iota-uz/iota-sdk/pkg/lens/postgres"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	lensserve "github.com/iota-uz/iota-sdk/pkg/lens/serve"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	sdkshowcase "github.com/iota-uz/iota-sdk/pkg/showcase"
 )
 
 type ShowcaseController struct {
-	basePath string
-	httpCfg  *httpconfig.Config
-	appCfg   *appconfig.Config
-	ds       datasource.DataSource
-	runtime  *runtime.Runtime
+	basePath  string
+	httpCfg   *httpconfig.Config
+	appCfg    *appconfig.Config
+	ds        datasource.DataSource
+	runtime   *runtime.Runtime
+	snapshots lensdocument.SnapshotStore
 }
 
 func NewShowcaseController(dbCfg *dbconfig.Config, httpCfg *httpconfig.Config, appCfg *appconfig.Config) application.Controller {
@@ -51,9 +54,15 @@ func NewShowcaseController(dbCfg *dbconfig.Config, httpCfg *httpconfig.Config, a
 	})
 	if err != nil {
 		log.Printf("Failed to create lens data source for showcase: %v", err)
-		return &ShowcaseController{basePath: "/_dev", httpCfg: httpCfg, appCfg: appCfg, runtime: runtime.New(runtime.Options{})}
+		return &ShowcaseController{
+			basePath: "/_dev", httpCfg: httpCfg, appCfg: appCfg,
+			runtime: runtime.New(runtime.Options{}), snapshots: lensdocument.NewMemoryStore(30*time.Minute, 128),
+		}
 	}
-	return &ShowcaseController{basePath: "/_dev", httpCfg: httpCfg, appCfg: appCfg, ds: ds, runtime: runtime.New(runtime.Options{})}
+	return &ShowcaseController{
+		basePath: "/_dev", httpCfg: httpCfg, appCfg: appCfg, ds: ds,
+		runtime: runtime.New(runtime.Options{}), snapshots: lensdocument.NewMemoryStore(30*time.Minute, 128),
+	}
 }
 
 func (c *ShowcaseController) Descriptor() application.ControllerDescriptor {
@@ -77,11 +86,15 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router.HandleFunc("/components/tooltips", di.H(c.Tooltips)).Methods(http.MethodGet)
 	router.HandleFunc("/components/subscription", di.H(c.Subscription)).Methods(http.MethodGet)
 	router.HandleFunc("/lens", di.H(c.Lens)).Methods(http.MethodGet)
+	router.HandleFunc("/lens/document", c.LensDocument).Methods(http.MethodGet)
+	router.HandleFunc("/lens/lens/query", c.LensQuery).Methods(http.MethodPost)
+	router.HandleFunc("/lens/export", c.LensExport).Methods(http.MethodGet)
 	router.HandleFunc("/error-pages/403", di.H(c.Error403Page)).Methods(http.MethodGet)
 	router.HandleFunc("/error-pages/404", di.H(c.Error404Page)).Methods(http.MethodGet)
 	router.HandleFunc("/error-preview/403", di.H(c.Error403Preview)).Methods(http.MethodGet)
 	router.HandleFunc("/error-preview/404", di.H(c.Error404Preview)).Methods(http.MethodGet)
 	router.HandleFunc("/api/showcase/toast-example", di.H(c.ToastExample)).Methods(http.MethodPost)
+	router.HandleFunc("/components/{categoryPath}", di.H(c.CustomCategoryPage)).Methods(http.MethodGet)
 
 	if c.appCfg != nil {
 		log.Printf(
@@ -93,6 +106,27 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 }
 
 func (c *ShowcaseController) getSidebarProps() sidebar.Props {
+	componentItems := []sidebar.Item{
+		sidebar.NewLink(fmt.Sprintf("%s/components/form", c.basePath), "Form", nil),
+		sidebar.NewLink(fmt.Sprintf("%s/components/loaders", c.basePath), "Loaders", nil),
+		sidebar.NewLink(fmt.Sprintf("%s/components/charts", c.basePath), "Charts", nil),
+		sidebar.NewLink(fmt.Sprintf("%s/components/tooltips", c.basePath), "Tooltips", nil),
+		sidebar.NewLink(fmt.Sprintf("%s/components/subscription", c.basePath), "Subscription", nil),
+		sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
+		sidebar.NewLink(fmt.Sprintf("%s/components/kanban", c.basePath), "Kanban", nil),
+	}
+
+	// Add registered categories
+	for _, cat := range sdkshowcase.GlobalRegistry().GetAllCategories() {
+		componentItems = append(componentItems,
+			sidebar.NewLink(
+				fmt.Sprintf("%s/components/%s", c.basePath, cat.Path),
+				cat.Name,
+				nil,
+			),
+		)
+	}
+
 	items := []sidebar.Item{
 		sidebar.NewLink(c.basePath, "Overview", nil),
 		sidebar.NewLink(fmt.Sprintf("%s/lens", c.basePath), "Lens Dashboard", icons.MagnifyingGlass(icons.Props{Size: "20"})),
@@ -100,15 +134,7 @@ func (c *ShowcaseController) getSidebarProps() sidebar.Props {
 		sidebar.NewGroup(
 			"Components",
 			icons.PuzzlePiece(icons.Props{Size: "20"}),
-			[]sidebar.Item{
-				sidebar.NewLink(fmt.Sprintf("%s/components/form", c.basePath), "Form", nil),
-				sidebar.NewLink(fmt.Sprintf("%s/components/loaders", c.basePath), "Loaders", nil),
-				sidebar.NewLink(fmt.Sprintf("%s/components/charts", c.basePath), "Charts", nil),
-				sidebar.NewLink(fmt.Sprintf("%s/components/tooltips", c.basePath), "Tooltips", nil),
-				sidebar.NewLink(fmt.Sprintf("%s/components/subscription", c.basePath), "Subscription", nil),
-				sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
-				sidebar.NewLink(fmt.Sprintf("%s/components/kanban", c.basePath), "Kanban", nil),
-			},
+			componentItems,
 		),
 		sidebar.NewGroup(
 			"Error Pages",
@@ -230,7 +256,23 @@ func (c *ShowcaseController) Lens(
 	logger *logrus.Entry,
 ) {
 	params := tenantParams(r)
-	dash := lensbuild.Dashboard("sdk-core-analytics", "IOTA SDK Core Analytics",
+	dash := showcaseLensDashboard(params)
+	available := params != nil && c.ds != nil
+	if !available {
+		logger.Warn("lens showcase dashboard data source is unavailable")
+	}
+
+	props := showcase.LensPageProps{
+		SidebarProps: c.getSidebarProps(),
+		Dashboard:    dash,
+		DocumentURL:  c.basePath + "/lens/document",
+		Available:    available,
+	}
+	templ.Handler(showcase.LensPage(props)).ServeHTTP(w, r)
+}
+
+func showcaseLensDashboard(params map[string]lens.ParamValue) lens.DashboardSpec {
+	return lensbuild.Dashboard("sdk-core-analytics", "IOTA SDK Core Analytics",
 		lensbuild.Row(
 			panel.TimeSeries("user-registrations", "User Registrations Over Time", "user-registrations").Span(6).Build(),
 			panel.Bar("user-languages", "User Interface Languages", "user-languages").Span(6).Build(),
@@ -267,34 +309,56 @@ func (c *ShowcaseController) Lens(
 			params,
 		),
 	).Build()
+}
 
-	var results *runtime.Result
-	if params == nil {
-		logger.Warn("skipping lens showcase dashboard execution because tenant context is missing")
-	} else if c.ds != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		defer cancel()
-		tenantID, _ := composables.UseTenantID(r.Context())
-		executed, err := c.runtime.Execute(ctx, dash, runtime.Request{
-			DataSources: map[string]datasource.DataSource{
-				"primary": c.ds,
-			},
-			DataSourceIdentities: map[string]string{"primary": "core-postgres:v1"},
-			DataScope:            tenantID.String(), Namespace: "core.showcase",
-		}, runtime.DashboardScope())
-		if err != nil {
-			logger.WithError(err).Error("failed to execute lens showcase dashboard")
-		} else {
-			results = executed
-		}
+func (c *ShowcaseController) LensDocument(w http.ResponseWriter, r *http.Request) {
+	handlers, err := c.lensHandlers(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
 	}
+	handlers.Document(w, r)
+}
 
-	props := showcase.LensPageProps{
-		SidebarProps: c.getSidebarProps(),
-		Dashboard:    dash,
-		Results:      results,
+func (c *ShowcaseController) LensQuery(w http.ResponseWriter, r *http.Request) {
+	handlers, err := c.lensHandlers(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
 	}
-	templ.Handler(showcase.LensPage(props)).ServeHTTP(w, r)
+	handlers.Query(w, r)
+}
+
+func (c *ShowcaseController) LensExport(w http.ResponseWriter, r *http.Request) {
+	handlers, err := c.lensHandlers(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	handlers.Export(w, r)
+}
+
+func (c *ShowcaseController) lensHandlers(r *http.Request) (*lensserve.Handlers, error) {
+	if c.ds == nil {
+		return nil, fmt.Errorf("showcase data source is unavailable")
+	}
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		return nil, fmt.Errorf("showcase tenant lookup: %w", err)
+	}
+	spec := showcaseLensDashboard(map[string]lens.ParamValue{"tenant_id": {Literal: tenantID}})
+	return lensserve.New(lensserve.Config{
+		Spec: spec, Engine: c.runtime, Snapshots: c.snapshots,
+		BasePath: c.basePath + "/lens", InlineDepth: 1,
+		Request: func(*http.Request) runtime.Request {
+			return runtime.Request{
+				DataSources:          map[string]datasource.DataSource{"primary": c.ds},
+				DataSourceIdentities: map[string]string{"primary": "core-postgres:v1"},
+				DataScope:            tenantID.String(),
+				Namespace:            "core.showcase",
+			}
+		},
+	})
 }
 
 func tenantParams(r *http.Request) map[string]lens.ParamValue {
@@ -362,4 +426,23 @@ func (c *ShowcaseController) ToastExample(
 ) {
 	htmx.ToastSuccess(w, "Server Response", "This toast was triggered by an HTMX request!")
 	w.WriteHeader(http.StatusOK)
+}
+
+func (c *ShowcaseController) CustomCategoryPage(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	categoryPath := mux.Vars(r)["categoryPath"]
+	cat, ok := sdkshowcase.GlobalRegistry().GetCategory(categoryPath)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	props := showcase.CustomCategoryPageProps{
+		SidebarProps: c.getSidebarProps(),
+		Category:     cat,
+	}
+	templ.Handler(showcase.CustomCategoryPage(props)).ServeHTTP(w, r)
 }

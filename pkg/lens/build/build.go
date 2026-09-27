@@ -85,6 +85,16 @@ func QueryDataset(name, source, text string, transforms ...transform.Spec) lens.
 	}
 }
 
+func NamedQueryDataset(name, source, query string, transforms ...transform.Spec) lens.DatasetSpec {
+	return lens.DatasetSpec{
+		Name:       name,
+		Kind:       lens.DatasetKindQuery,
+		Source:     source,
+		Query:      &lens.QuerySpec{Text: query, Kind: datasource.QueryKindNamed},
+		Transforms: transforms,
+	}
+}
+
 func TransformDataset(name string, dependsOn []string, transforms ...transform.Spec) lens.DatasetSpec {
 	return lens.DatasetSpec{
 		Name:       name,
@@ -120,13 +130,27 @@ func DatasetNoCache(spec lens.DatasetSpec) lens.DatasetSpec {
 }
 
 func DateRangeVariable(name, label string, defaultDuration time.Duration) lens.VariableSpec {
+	requestKey := lens.CanonicalRequestKey(name)
 	return lens.VariableSpec{
 		Name:            name,
 		Label:           label,
 		Kind:            lens.VariableDateRange,
-		RequestKeys:     []string{name, name + "_start", name + "_end"},
+		RequestKeys:     []string{requestKey, requestKey + "-start", requestKey + "-end"},
 		AllowAllTime:    true,
 		DefaultDuration: defaultDuration,
 		Default:         lens.DateRangeValue{Mode: "default"},
+	}
+}
+
+// CompareVariable adds an opt-in period comparison beside a date-range
+// variable. Its default is off, preserving dashboards that do not select it.
+func CompareVariable(name, label, dateRangeVariable string) lens.VariableSpec {
+	return lens.VariableSpec{
+		Name:      name,
+		Label:     label,
+		Kind:      lens.VariableCompare,
+		Component: lens.VariableComponentComparePicker,
+		Default:   lens.CompareValue{Mode: lens.CompareOff},
+		CompareTo: dateRangeVariable,
 	}
 }

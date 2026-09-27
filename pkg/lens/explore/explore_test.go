@@ -21,8 +21,8 @@ func TestSpecValidate_AcceptsMultiPerspectiveGraph(t *testing.T) {
 func TestNodeBuilder_FocusCanvasLevelDeclarations(t *testing.T) {
 	t.Parallel()
 
-	table := panel.Table("root-source", "Source rows", "root-data").IDField("id").Build()
-	rootPanel := panel.Pie("root-panel", "Root", "root-data").IDField("id").Build()
+	table := panel.Table("root-source", "Source rows", "root-data").IDField("id").Terminal().Build()
+	rootPanel := panel.Pie("root-panel", "Root", "root-data").IDField("id").Terminal().Build()
 	node := PanelNode("root", "Root", rootPanel, ToNode("detail-point", "detail")).
 		WithView(panel.KindHorizontalBar).
 		WithPresentation(panel.PresentationHints{Waterfall: true}).
@@ -88,7 +88,7 @@ func TestSpecValidate_RejectsInvalidGraphs(t *testing.T) {
 		{
 			name: "source data with a non-table panel",
 			mutate: func(spec *Spec) {
-				audit := panel.Pie("audit", "Audit", "root-data").Build()
+				audit := panel.Pie("audit", "Audit", "root-data").Terminal().Build()
 				spec.Branches[0].Perspectives[0].Nodes[0].SourceData = &SourceData{Label: "Source", Panel: audit}
 			},
 			wantErr: "source data requires a table panel",
@@ -96,7 +96,7 @@ func TestSpecValidate_RejectsInvalidGraphs(t *testing.T) {
 		{
 			name: "source data without a panel id",
 			mutate: func(spec *Spec) {
-				audit := panel.Table("", "Audit", "root-data").Build()
+				audit := panel.Table("", "Audit", "root-data").Terminal().Build()
 				spec.Branches[0].Perspectives[0].Nodes[0].SourceData = &SourceData{Label: "Source", Panel: audit}
 			},
 			wantErr: "source data requires a panel id",
@@ -226,9 +226,9 @@ func TestExportRequestFromState_CapturesCurrentNode(t *testing.T) {
 }
 
 func testSpec() Spec {
-	rootPanel := panel.Pie("root-panel", "Root", "root-data").IDField("id").Build()
-	detailPanel := panel.Bar("detail-panel", "Detail", "detail-data").Build()
-	trendPanel := panel.TimeSeries("trend-panel", "Trend", "trend-data").Build()
+	rootPanel := panel.Pie("root-panel", "Root", "root-data").IDField("id").Terminal().Build()
+	detailPanel := panel.Bar("detail-panel", "Detail", "detail-data").Terminal().Build()
+	trendPanel := panel.TimeSeries("trend-panel", "Trend", "trend-data").Terminal().Build()
 	return Spec{
 		ID:           "metric-explorer",
 		HostPanelID:  "host-panel",

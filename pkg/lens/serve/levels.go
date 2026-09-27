@@ -16,16 +16,17 @@ import (
 )
 
 type levelTarget struct {
-	explorerID     string
-	branchKey      string
-	perspectiveKey string
-	nodeKey        string
-	path           []string
-	panel          panel.Spec
-	ref            document.FrameRef
-	evidence       bool
-	perspective    explore.Perspective
-	levelKey       document.NodeKey
+	explorerID      string
+	branchKey       string
+	perspectiveKey  string
+	nodeKey         string
+	path            []string
+	panel           panel.Spec
+	dynamicChildren *explore.DynamicChildren
+	ref             document.FrameRef
+	evidence        bool
+	perspective     explore.Perspective
+	levelKey        document.NodeKey
 	// points are the concrete selections the request path carries between its
 	// node steps (e.g. the "2026" in [root, "2026", detail]). A level reached
 	// through a point aggregates only that selection, so its frame must never
@@ -56,6 +57,9 @@ func selectionPoints(path []string, perspective explore.Perspective) []string {
 		if part == "" {
 			continue
 		}
+		if _, ok := perspective.Node(part); ok {
+			continue
+		}
 		structural := false
 		for next := index + 1; next < len(path); next++ {
 			if strings.HasPrefix(path[next], entry+"/") {
@@ -64,9 +68,6 @@ func selectionPoints(path []string, perspective explore.Perspective) []string {
 			}
 		}
 		if structural {
-			continue
-		}
-		if _, ok := perspective.Node(part); ok {
 			continue
 		}
 		points = append(points, part)
@@ -94,6 +95,54 @@ func inlineTargets(spec lens.DashboardSpec, inlineDepth int) []levelTarget {
 					}
 					targets = append(targets, makeTarget(explorerSpec.ID, branch.Key, perspective, node))
 				}
+			}
+		}
+	}
+	return targets
+}
+
+func backgroundPrefetchTargets(spec lens.DashboardSpec) []levelTarget {
+	const maxConcreteTargets = 8
+	targets := make([]levelTarget, 0)
+	for _, explorerSpec := range spec.Explorers {
+		for _, branch := range explorerSpec.Branches {
+			if len(targets) >= maxConcreteTargets {
+				return targets
+			}
+			perspective, ok := branch.Perspective(branch.DefaultPerspective)
+			if !ok || perspective.Semantics == explore.SemanticsEvidence {
+				continue
+			}
+			root, ok := perspective.Node(perspective.RootNode)
+			if !ok || root.Panel == nil || isEvidence(perspective, root) {
+				continue
+			}
+			rootTarget := makeTarget(explorerSpec.ID, branch.Key, perspective, root)
+			rootTarget.path = []string{
+				qualified(explorerSpec.ID),
+				qualified(explorerSpec.ID, branch.Key),
+				qualified(explorerSpec.ID, branch.Key, perspective.Key),
+				qualified(explorerSpec.ID, branch.Key, perspective.Key, root.Key),
+			}
+			targets = append(targets, rootTarget)
+			if root.DynamicEdges {
+				continue
+			}
+			for _, edge := range root.Edges {
+				if len(targets) >= maxConcreteTargets || edge.ToNode == "" {
+					break
+				}
+				child, found := perspective.Node(edge.ToNode)
+				if !found || child.Panel == nil || isEvidence(perspective, child) {
+					continue
+				}
+				childTarget := makeTarget(explorerSpec.ID, branch.Key, perspective, child)
+				childTarget.path = append(append([]string(nil), rootTarget.path...),
+					qualified(explorerSpec.ID, branch.Key, perspective.Key, root.Key, edge.PointKey),
+					qualified(explorerSpec.ID, branch.Key, perspective.Key, child.Key),
+				)
+				childTarget.points = selectionPoints(childTarget.path, perspective)
+				targets = append(targets, childTarget)
 			}
 		}
 	}
@@ -189,7 +238,7 @@ func makeTarget(explorerID, branchKey string, perspective explore.Perspective, n
 	perspectiveID := qualified(explorerID, branchKey, perspective.Key)
 	return levelTarget{
 		explorerID: explorerID, branchKey: branchKey, perspectiveKey: perspective.Key, nodeKey: node.Key,
-		path: []string{node.Key}, panel: *node.Panel,
+		path: []string{node.Key}, panel: *node.Panel, dynamicChildren: node.DynamicChildren,
 		ref: document.FrameRef("explore:" + perspectiveID + ":" + node.Key), evidence: isEvidence(perspective, node),
 		perspective: perspective,
 		levelKey:    document.NodeKey(qualified(perspectiveID, node.Key)),
@@ -242,6 +291,32 @@ func perspectiveDepths(perspective explore.Perspective) map[string]int {
 func (h *Handlers) executeLevel(ctx context.Context, base lensruntime.Request, params map[string]any, target levelTarget, page int) (*lensruntime.PanelResult, error) {
 	const op serrors.Op = "lens/serve.executeLevel"
 	req := scopedRuntimeRequest(base, params, target, page, h.pageSize)
+	if h.exploration != nil {
+		load := lensruntime.ExplorationLoadRequest{
+			ExplorerID: target.explorerID, BranchKey: target.branchKey, PerspectiveKey: target.perspectiveKey,
+			Path: explorationNodePath(target), Steps: explorationPathSteps(target), Variables: cloneParams(params),
+		}
+		loader, err := h.resolveLoader(ctx, load, req)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
+		if node, ok := target.perspective.Node(target.nodeKey); ok && !node.DynamicEdges {
+			loader = fixedTopologyLoader{ExplorationLoader: loader}
+		}
+		explored, err := h.exploration.ExecuteExploration(ctx, h.spec, loader, load, req)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
+		if explored == nil || explored.Panel == nil {
+			return nil, serrors.E(op, fmt.Errorf("exploration loader did not execute panel %q", target.panel.ID))
+		}
+		result := *explored.Panel
+		resolved := result.Panel
+		result.Panel = target.panel
+		result.Panel.Presentation = resolved.Presentation
+		result.Panel.Colors = resolved.Colors
+		return &result, nil
+	}
 	result, err := h.engine.Execute(ctx, levelSpec(h.spec, target.panel), req, lensruntime.PanelScope(target.panel.ID))
 	if err != nil {
 		return nil, serrors.E(op, err)
@@ -254,6 +329,67 @@ func (h *Handlers) executeLevel(ctx context.Context, base lensruntime.Request, p
 		return panelResult, serrors.E(op, panelResult.Error)
 	}
 	return panelResult, nil
+}
+
+type fixedTopologyLoader struct {
+	lensruntime.ExplorationLoader
+}
+
+func (l fixedTopologyLoader) LoadExploration(
+	ctx context.Context,
+	request lensruntime.ExplorationLoadRequest,
+) (lensruntime.ExplorationDefinition, error) {
+	definition, err := l.ExplorationLoader.LoadExploration(ctx, request)
+	definition.ResolvedEdges = nil
+	return definition, err
+}
+
+func explorationNodePath(target levelTarget) []string {
+	steps := explorationPathSteps(target)
+	path := make([]string, 0, len(steps))
+	for _, step := range steps {
+		path = append(path, step.NodeKey)
+	}
+	return path
+}
+
+func explorationPathSteps(target levelTarget) []explore.PathStep {
+	steps := make([]explore.PathStep, 0)
+	pendingPoint := ""
+	for index, entry := range target.path {
+		part := lastPathSegment(entry)
+		if part == "" {
+			continue
+		}
+		if _, ok := target.perspective.Node(part); ok {
+			if len(steps) == 0 && part != target.perspective.RootNode {
+				steps = append(steps, explore.PathStep{NodeKey: target.perspective.RootNode})
+			}
+			if len(steps) == 0 || steps[len(steps)-1].NodeKey != part {
+				steps = append(steps, explore.PathStep{NodeKey: part, PointKey: pendingPoint})
+			}
+			pendingPoint = ""
+			continue
+		}
+		structural := false
+		for next := index + 1; next < len(target.path); next++ {
+			if strings.HasPrefix(target.path[next], entry+"/") {
+				structural = true
+				break
+			}
+		}
+		if structural {
+			continue
+		}
+		pendingPoint = part
+	}
+	if len(steps) == 0 {
+		steps = append(steps, explore.PathStep{NodeKey: target.perspective.RootNode})
+	}
+	if steps[len(steps)-1].NodeKey != target.nodeKey {
+		steps = append(steps, explore.PathStep{NodeKey: target.nodeKey, PointKey: pendingPoint})
+	}
+	return steps
 }
 
 // executeSourcePanel executes one declared audit table. Unlike executeLevel it

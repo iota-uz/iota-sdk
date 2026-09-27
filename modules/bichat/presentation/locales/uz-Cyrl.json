@@ -428,10 +428,54 @@
       "ReviewDescription": "Yuborishdan oldin javoblaringizni ko'rib chiqing",
       "Skip": "O'tkazib yuborish"
     },
-    "StreamError": {
-      "Retry": "Qayta urinish",
-      "Regenerate": "Qayta yaratish"
+  "StreamError": {
+    "Retry": "Қайта уриниш",
+    "Regenerate": "Қайта яратиш",
+    "AdminAction": "Муаммони тизим администратори ҳал қилиши керак.",
+    "OpenBilling": "OpenAI биллингини очиш",
+    "OpenAPIKeys": "API калитларини очиш",
+    "OpenStatus": "OpenAI ҳолатини текшириш",
+    "ProviderBalance": {
+      "Title": "OpenAI балансидаги маблағ тугади",
+      "Details": "OpenAI API ҳисобида маблағ қолмагани сабабли AI сўровлари вақтинча ишламайди."
     },
+    "ProviderBilling": {
+      "Title": "OpenAI молиявий лимити тугади",
+      "Details": "Ташкилот ёки лойиҳа харажат ёхуд фойдаланиш лимитига етди."
+    },
+    "ProviderAuth": {
+      "Title": "OpenAI рухсатларини текшириш керак",
+      "Details": "API калити, ташкилот аъзолиги ёки рухсат этилган IP созламаси нотўғри."
+    },
+    "ProviderAccess": {
+      "Title": "OpenAI хизматига кириш чекланган",
+      "Details": "Жорий ҳисоб, тармоқ ёки ҳудуд бу сўровни юбора олмайди."
+    },
+    "ProviderRateLimit": {
+      "Title": "OpenAI сўровлари жуда кўп",
+      "Details": "Бироз кутинг ва қайта уриниб кўринг."
+    },
+    "ProviderContextLimit": {
+      "Title": "Суҳбат ҳажми жуда катта",
+      "Details": "Қисқароқ суҳбат бошланг, катта файлларни олиб ташланг ёки контекстни қисқартиринг."
+    },
+    "ProviderRequest": {
+      "Title": "OpenAI сўрови нотўғри созланган",
+      "Details": "Тизим администратори модел ва сўров параметрларини текшириши керак."
+    },
+    "ProviderConnection": {
+      "Title": "OpenAI билан алоқа ўрнатилмади",
+      "Details": "Сўров вақти тугади ёки алоқа узилди. Қайта уриниб кўринг."
+    },
+    "ProviderUnavailable": {
+      "Title": "OpenAI вақтинча ишламаяпти",
+      "Details": "Провайдер сўровни якунлай олмади. Бироздан сўнг қайта уриниб кўринг."
+    },
+    "ProviderIncomplete": {
+      "Title": "OpenAI жавоби тўлиқ эмас",
+      "Details": "Жавобнинг олинган қисми сақланди. Давом эттиринг ёки қайта уриниб кўринг."
+    }
+  },
     "Chart": {
       "NoData": "Ma'lumotlar yo'q",
       "Download": "Grafikni yuklab olish",

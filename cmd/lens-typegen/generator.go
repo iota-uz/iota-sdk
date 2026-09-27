@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/constant"
 	"go/types"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -17,11 +18,30 @@ import (
 const generatedHeader = "// GENERATED — do not edit\n"
 
 type config struct {
-	dir             string
-	packagePattern  string
-	rootType        string
-	additionalTypes []string
-	versionConstant string
+	dir                string
+	packagePattern     string
+	rootType           string
+	additionalTypes    []string
+	versionConstant    string
+	palette            paletteConfig
+	discriminatedTypes map[string]discriminatedTypeConfig
+}
+
+type discriminatedTypeConfig struct {
+	field    string
+	variants map[string][]string
+}
+
+// paletteConfig carries Go-owned colour *values*. Types can be reflected out of
+// the contract package; values cannot, so the generator's caller imports the
+// package that declares them and hands them over here. The runtime renders
+// these, which is why they are generated rather than restated in TypeScript.
+type paletteConfig struct {
+	// series is the categorical palette in its declared order. Order is the
+	// contract: index n means the same colour on both sides.
+	series []string
+	// neutral is the colour reserved for collapsed remainders.
+	neutral string
 }
 
 type contractModel struct {
@@ -33,9 +53,10 @@ type contractModel struct {
 }
 
 type jsonField struct {
-	name     string
-	typ      types.Type
-	optional bool
+	name           string
+	typ            types.Type
+	optional       bool
+	zodConstraints string
 }
 
 func generate(cfg config) (map[string]string, error) {
@@ -43,19 +64,82 @@ func generate(cfg config) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	typesFile, err := emitTypes(model)
+	typesFile, err := emitTypes(model, cfg.discriminatedTypes)
 	if err != nil {
 		return nil, err
 	}
-	schemasFile, err := emitSchemas(model)
+	schemasFile, err := emitSchemas(model, cfg.discriminatedTypes)
+	if err != nil {
+		return nil, err
+	}
+	paletteFile, err := emitPalette(cfg.palette)
 	if err != nil {
 		return nil, err
 	}
 	return map[string]string{
-		"index.ts":   generatedHeader + "\nexport * from './schemas'\nexport * from './types'\n",
+		"index.ts":   generatedHeader + "\nexport * from './palette'\nexport * from './schemas'\nexport * from './types'\n",
+		"palette.ts": paletteFile,
 		"schemas.ts": schemasFile,
 		"types.ts":   typesFile,
 	}, nil
+}
+
+// emitPalette writes the Go-owned palette values into the runtime module.
+// Category-to-colour assignment is a separate React runtime responsibility.
+func emitPalette(cfg paletteConfig) (string, error) {
+	if len(cfg.series) == 0 {
+		return "", fmt.Errorf("palette has no series colors")
+	}
+	var output strings.Builder
+	output.WriteString(generatedHeader)
+	output.WriteString(`
+/**
+ * The Lens categorical palette, in the order Go declares it (pkg/lens/color).
+ *
+ * Values only. Which colour a given category is painted with is decided by
+ * ` + "`charts/palette.ts`" + `; nothing generated here owns assignment.
+ */
+export const PALETTE_SERIES = [
+`)
+	for _, value := range cfg.series {
+		normalized, err := normalizeHexColor(value)
+		if err != nil {
+			return "", fmt.Errorf("palette series: %w", err)
+		}
+		output.WriteString("  '")
+		output.WriteString(normalized)
+		output.WriteString("',\n")
+	}
+	output.WriteString("] as const\n\n")
+	neutral, err := normalizeHexColor(cfg.neutral)
+	if err != nil {
+		return "", fmt.Errorf("palette neutral: %w", err)
+	}
+	output.WriteString(`/**
+ * The colour reserved for a collapsed remainder, so an aggregated tail reads as
+ * de-emphasized rather than as one more category.
+ */
+export const PALETTE_NEUTRAL = '`)
+	output.WriteString(neutral)
+	output.WriteString("'\n")
+	return output.String(), nil
+}
+
+// normalizeHexColor lowercases a #rrggbb value and rejects anything else. The
+// case is cosmetic — CSS does not care — but a generated file that changes case
+// between runs would fail the drift check, and a malformed colour would
+// otherwise ship as a silently unpaintable string.
+func normalizeHexColor(value string) (string, error) {
+	if len(value) != 7 || value[0] != '#' {
+		return "", fmt.Errorf("color %q is not a #rrggbb hex value", value)
+	}
+	for _, digit := range value[1:] {
+		isHex := (digit >= '0' && digit <= '9') || (digit >= 'a' && digit <= 'f') || (digit >= 'A' && digit <= 'F')
+		if !isHex {
+			return "", fmt.Errorf("color %q is not a #rrggbb hex value", value)
+		}
+	}
+	return strings.ToLower(value), nil
 }
 
 func loadContract(cfg config) (*contractModel, error) {
@@ -174,7 +258,7 @@ func collectEnums(model *contractModel) {
 	}
 }
 
-func emitTypes(model *contractModel) (string, error) {
+func emitTypes(model *contractModel, discriminatedTypes map[string]discriminatedTypeConfig) (string, error) {
 	var output strings.Builder
 	output.WriteString(generatedHeader)
 	output.WriteString("\nexport const CONTRACT_VERSION = ")
@@ -195,24 +279,15 @@ func emitTypes(model *contractModel) (string, error) {
 			if err != nil {
 				return "", fmt.Errorf("emit %s: %w", name, err)
 			}
-			output.WriteString("export interface ")
-			output.WriteString(name)
-			output.WriteString(" {\n")
-			for _, field := range fields {
-				typeName, err := emitTSType(field.typ, field.optional)
-				if err != nil {
-					return "", fmt.Errorf("emit %s.%s: %w", name, field.name, err)
+			if discriminated, ok := discriminatedTypes[name]; ok {
+				if err := emitDiscriminatedType(&output, name, fields, discriminated); err != nil {
+					return "", err
 				}
-				output.WriteString("  ")
-				output.WriteString(field.name)
-				if field.optional {
-					output.WriteString("?")
+			} else {
+				if err := emitInterface(&output, name, fields); err != nil {
+					return "", fmt.Errorf("emit %s: %w", name, err)
 				}
-				output.WriteString(": ")
-				output.WriteString(typeName)
-				output.WriteString("\n")
 			}
-			output.WriteString("}\n\n")
 			continue
 		}
 		value, err := emitTSType(named.Underlying(), false)
@@ -225,13 +300,138 @@ func emitTypes(model *contractModel) (string, error) {
 		output.WriteString(value)
 		output.WriteString("\n\n")
 	}
-	return output.String(), nil
+	return strings.TrimRight(output.String(), "\n") + "\n", nil
 }
 
-func emitSchemas(model *contractModel) (string, error) {
+func emitInterface(output *strings.Builder, name string, fields []jsonField) error {
+	output.WriteString("export interface ")
+	output.WriteString(name)
+	output.WriteString(" {\n")
+	for _, field := range fields {
+		typeName, err := emitTSType(field.typ, field.optional)
+		if err != nil {
+			return fmt.Errorf("field %s: %w", field.name, err)
+		}
+		output.WriteString("  ")
+		output.WriteString(field.name)
+		if field.optional {
+			output.WriteString("?")
+		}
+		output.WriteString(": ")
+		output.WriteString(typeName)
+		output.WriteString("\n")
+	}
+	output.WriteString("}\n\n")
+	return nil
+}
+
+func emitDiscriminatedType(output *strings.Builder, name string, fields []jsonField, cfg discriminatedTypeConfig) error {
+	fieldByName := make(map[string]jsonField, len(fields))
+	specific := make(map[string]struct{})
+	for _, field := range fields {
+		fieldByName[field.name] = field
+	}
+	for _, names := range cfg.variants {
+		for _, field := range names {
+			specific[field] = struct{}{}
+		}
+	}
+	if _, ok := fieldByName[cfg.field]; !ok {
+		return fmt.Errorf("emit %s: discriminant %s not found", name, cfg.field)
+	}
+	base := make([]jsonField, 0, len(fields))
+	for _, field := range fields {
+		if field.name == cfg.field {
+			continue
+		}
+		if _, ok := specific[field.name]; !ok {
+			base = append(base, field)
+		}
+	}
+	if err := emitInterface(output, name+"Base", base); err != nil {
+		return err
+	}
+	variants := make([]string, 0, len(cfg.variants))
+	for variant := range cfg.variants {
+		variants = append(variants, variant)
+	}
+	sort.Strings(variants)
+	fieldNames := make([]string, 0, len(specific))
+	for fieldName := range specific {
+		fieldNames = append(fieldNames, fieldName)
+	}
+	sort.Strings(fieldNames)
+	output.WriteString("export type ")
+	output.WriteString(name)
+	output.WriteString(" =")
+	for index, variant := range variants {
+		if index > 0 {
+			output.WriteString("\n  | ")
+		} else {
+			output.WriteString("\n  | ")
+		}
+		allowed := make(map[string]struct{}, len(cfg.variants[variant]))
+		for _, field := range cfg.variants[variant] {
+			allowed[field] = struct{}{}
+		}
+		output.WriteString(name)
+		output.WriteString("Base & { ")
+		output.WriteString(cfg.field)
+		output.WriteString(": ")
+		output.WriteString(strconv.Quote(variant))
+		for _, fieldName := range fieldNames {
+			output.WriteString("; ")
+			output.WriteString(fieldName)
+			if _, ok := allowed[fieldName]; !ok {
+				output.WriteString("?: never")
+				continue
+			}
+			field := fieldByName[fieldName]
+			typeName, err := emitTSType(field.typ, field.optional)
+			if err != nil {
+				return fmt.Errorf("emit %s.%s: %w", name, fieldName, err)
+			}
+			if field.optional {
+				output.WriteString("?")
+			}
+			output.WriteString(": ")
+			output.WriteString(typeName)
+		}
+		output.WriteString(" }")
+	}
+	output.WriteString("\n\n")
+	output.WriteString("export const ")
+	output.WriteString(strings.ToUpper(name))
+	output.WriteString("_KIND_CONFIG_FIELDS = {\n")
+	for _, variant := range variants {
+		output.WriteString("  ")
+		output.WriteString(strconv.Quote(variant))
+		output.WriteString(": [")
+		fields := append([]string(nil), cfg.variants[variant]...)
+		sort.Strings(fields)
+		for index, field := range fields {
+			if index > 0 {
+				output.WriteString(", ")
+			}
+			output.WriteString(strconv.Quote(field))
+		}
+		output.WriteString("],\n")
+	}
+	output.WriteString("} as const satisfies Record<PanelKind, readonly string[]>\n\n")
+	return nil
+}
+
+func emitSchemas(model *contractModel, discriminatedTypes map[string]discriminatedTypeConfig) (string, error) {
 	var output strings.Builder
 	output.WriteString(generatedHeader)
-	output.WriteString("\nimport { z } from 'zod'\nimport { CONTRACT_VERSION } from './types'\nimport type * as Contract from './types'\n\n")
+	typeImports := []string{"CONTRACT_VERSION"}
+	for name := range discriminatedTypes {
+		typeImports = append(typeImports, strings.ToUpper(name)+"_KIND_CONFIG_FIELDS")
+	}
+	sort.Strings(typeImports)
+	output.WriteString("\nimport { z } from 'zod'\nimport { ")
+	output.WriteString(strings.Join(typeImports, ", "))
+	output.WriteString(" } from './types'\nimport type * as Contract from './types'\n\n")
 	output.WriteString("const CONTRACT_MAJOR_VERSION = CONTRACT_VERSION.split('.', 1)[0]!\n\n")
 	output.WriteString("function contractMajor(version: string): string {\n  return version.split('.', 1)[0]!\n}\n\n")
 	output.WriteString("export class ContractVersionMismatchError extends Error {\n")
@@ -273,19 +473,64 @@ func emitSchemas(model *contractModel) (string, error) {
 		} else {
 			output.WriteString(expression)
 		}
+		if discriminated, ok := discriminatedTypes[name]; ok {
+			constant := strings.ToUpper(name) + "_KIND_CONFIG_FIELDS"
+			output.WriteString(".superRefine((value, ctx) => {\n")
+			output.WriteString("  const allowed = new Set<string>(")
+			output.WriteString(constant)
+			output.WriteString("[value.")
+			output.WriteString(discriminated.field)
+			output.WriteString("])\n")
+			output.WriteString("  const candidate = value as unknown as Record<string, unknown>\n")
+			output.WriteString("  for (const field of Object.values(")
+			output.WriteString(constant)
+			output.WriteString(").flat()) {\n")
+			output.WriteString("    if (!allowed.has(field) && candidate[field] !== undefined) {\n")
+			output.WriteString("      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is not valid for ${value.")
+			output.WriteString(discriminated.field)
+			output.WriteString("}` })\n")
+			output.WriteString("    }\n  }\n})")
+			output.WriteString(" as z.ZodType<Contract.")
+			output.WriteString(name)
+			output.WriteString(">")
+		}
 		output.WriteString("\n\n")
 	}
 
 	output.WriteString("const DocumentVersionSchema = z.object({ version: z.string() }).passthrough()\n\n")
+	output.WriteString(`function panelIsActionable(panel: Contract.Panel): boolean {
+  return Boolean(
+    panel.drillRoot || panel.actions.length > 0 || panel.columns?.some((column) => column.action) ||
+    panel.metricFlow?.stages.some((stage) => stage.action) ||
+    panel.metricHierarchy?.rows.some((row) => row.action) ||
+    panel.metricRelationship?.source.action || panel.metricRelationship?.target.action
+  )
+}
+
+function assertPanelInteractionContract(document: Contract.DashboardDocument): void {
+  document.panels.forEach((panel, index) => {
+    const actionable = panelIsActionable(panel)
+    if (panel.terminal && actionable) {
+      throw new z.ZodError([{ code: 'custom', path: ['panels', index], message: 'panel ' + panel.id + ' cannot be terminal and actionable' }])
+    }
+    if (!panel.terminal && !actionable) {
+      throw new z.ZodError([{ code: 'custom', path: ['panels', index], message: 'panel ' + panel.id + ' must be actionable or explicitly terminal' }])
+    }
+  })
+}
+
+`)
 	output.WriteString("export function parseDocument(input: unknown): Contract.")
 	output.WriteString(model.root)
 	output.WriteString(" {\n")
 	output.WriteString("  const version = DocumentVersionSchema.safeParse(input)\n")
 	output.WriteString("  if (version.success && contractMajor(version.data.version) !== CONTRACT_MAJOR_VERSION) {\n")
 	output.WriteString("    throw new ContractVersionMismatchError(version.data.version)\n  }\n")
-	output.WriteString("  return ")
+	output.WriteString("  const document = ")
 	output.WriteString(model.root)
-	output.WriteString("Schema.parse(input)\n}\n")
+	output.WriteString("Schema.parse(input)\n")
+	output.WriteString("  assertPanelInteractionContract(document)\n")
+	output.WriteString("  return document\n}\n")
 	return output.String(), nil
 }
 
@@ -440,6 +685,7 @@ func emitZodStruct(structure *types.Struct, indent int, contractRoot bool) (stri
 				return "", fmt.Errorf("field %s: %w", field.name, err)
 			}
 		}
+		expression += field.zodConstraints
 		if field.optional {
 			expression += ".optional()"
 		}
@@ -468,9 +714,51 @@ func exportedJSONFields(structure *types.Struct) ([]jsonField, error) {
 		if skip {
 			continue
 		}
-		fields = append(fields, jsonField{name: name, typ: field.Type(), optional: optional})
+		constraints, err := parseLensValidationTag(structure.Tag(index), field.Type())
+		if err != nil {
+			return nil, fmt.Errorf("field %s: %w", field.Name(), err)
+		}
+		fields = append(fields, jsonField{name: name, typ: field.Type(), optional: optional, zodConstraints: constraints})
 	}
 	return fields, nil
+}
+
+func parseLensValidationTag(tag string, typ types.Type) (string, error) {
+	raw := strings.TrimSpace(reflect.StructTag(tag).Get("lens"))
+	if raw == "" {
+		return "", nil
+	}
+	base := types.Unalias(typ)
+	if pointer, ok := base.(*types.Pointer); ok {
+		base = types.Unalias(pointer.Elem())
+	}
+	basic, ok := base.(*types.Basic)
+	if !ok || basic.Info()&types.IsNumeric == 0 {
+		return "", fmt.Errorf("lens numeric constraints require a numeric field")
+	}
+	var output strings.Builder
+	seen := map[string]bool{}
+	for _, item := range strings.Split(raw, ",") {
+		parts := strings.SplitN(strings.TrimSpace(item), "=", 2)
+		if len(parts) != 2 || (parts[0] != "min" && parts[0] != "max") {
+			return "", fmt.Errorf("unsupported lens constraint %q", item)
+		}
+		if seen[parts[0]] {
+			return "", fmt.Errorf("duplicate lens constraint %q", parts[0])
+		}
+		seen[parts[0]] = true
+		value := strings.TrimSpace(parts[1])
+		numeric, err := strconv.ParseFloat(value, 64)
+		if err != nil || math.IsNaN(numeric) || math.IsInf(numeric, 0) {
+			return "", fmt.Errorf("invalid lens constraint %s=%q", parts[0], value)
+		}
+		output.WriteString(".")
+		output.WriteString(parts[0])
+		output.WriteString("(")
+		output.WriteString(value)
+		output.WriteString(")")
+	}
+	return output.String(), nil
 }
 
 func parseJSONTag(fieldName, tag string) (string, bool, bool) {

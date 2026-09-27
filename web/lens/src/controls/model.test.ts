@@ -4,6 +4,7 @@ import {
   addMonths,
   canonicalCalendarLocale,
   clampDate,
+  compactRangeLabel,
   dayLabel,
   dayOfWeek,
   daysInMonth,
@@ -12,12 +13,15 @@ import {
   keyboardTarget,
   monthGrid,
   monthLabel,
+  monthShortLabels,
   parseISODate,
   previewRange,
   rangeDayState,
+  rangeHint,
   resolvePreset,
   selectDay,
   weekdayLabels,
+  yearBlock,
   type CalendarDate,
   type PeriodPresetId,
 } from './model'
@@ -80,7 +84,7 @@ describe('date arithmetic', () => {
 describe('month grid', () => {
   it('pads boundary days from adjacent months, Monday-first', () => {
     const weeks = monthGrid(2026, 7, 1) // July 2026 starts on Wednesday
-    expect(weeks).toHaveLength(5)
+    expect(weeks).toHaveLength(6)
     expect(weeks[0]![0]!.date).toEqual(date(2026, 6, 29))
     expect(weeks[0]![0]!.inMonth).toBe(false)
     expect(weeks[0]![2]!.date).toEqual(date(2026, 7, 1))
@@ -88,6 +92,26 @@ describe('month grid', () => {
     expect(weeks[4]![6]!.date).toEqual(date(2026, 8, 2))
     expect(weeks[4]![6]!.inMonth).toBe(false)
     for (const week of weeks) expect(week).toHaveLength(7)
+  })
+
+  // The grid is always six rows so the popover keeps one height and no month
+  // ends in a row holding a single date. Padding is trailing: the first row
+  // still opens on the week that carries the 1st.
+  it('is six weeks whatever the month needs', () => {
+    // February 2026 starts on Sunday and fills exactly four Sunday-first weeks.
+    const short = monthGrid(2026, 2, 7)
+    expect(short).toHaveLength(6)
+    expect(short[0]![0]!.date).toEqual(date(2026, 2, 1))
+    expect(short[3]![6]!.date).toEqual(date(2026, 2, 28))
+    expect(short.slice(4).flat().every((cell) => !cell.inMonth)).toBe(true)
+    expect(short[5]![6]!.date).toEqual(date(2026, 3, 14))
+
+    // A month that genuinely spans six rows is unchanged: March 2026 starts on
+    // Sunday, so Monday-first weeks run from 23 February to 5 April.
+    const long = monthGrid(2026, 3, 1)
+    expect(long).toHaveLength(6)
+    expect(long[0]![0]!.date).toEqual(date(2026, 2, 23))
+    expect(long[5]![6]!.date).toEqual(date(2026, 4, 5))
   })
 
   it('respects a Sunday-first week', () => {
@@ -260,5 +284,38 @@ describe('locale data', () => {
   it('formats day labels for announcements', () => {
     expect(dayLabel('en', date(2026, 7, 22))).toContain('2026')
     expect(dayLabel('ru', date(2026, 7, 22))).toContain('июл')
+  })
+
+  it('names the twelve short months per locale', () => {
+    const en = monthShortLabels('en')
+    expect(en).toHaveLength(12)
+    expect(en[0]).toBe('Jan')
+    // Standalone Cyrillic month names arrive lowercase; the panel capitalizes.
+    expect(monthShortLabels('ru')[0]).toMatch(/^[А-ЯЁ]/)
+  })
+
+  it('aligns the year block to multiples of twelve', () => {
+    expect(yearBlock(2026)).toEqual([2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027])
+    // Any year in a block yields the same block; the next one starts after it.
+    expect(yearBlock(2016)[0]).toBe(2016)
+    expect(yearBlock(2027)[0]).toBe(2016)
+    expect(yearBlock(2028)[0]).toBe(2028)
+  })
+
+  it('states a range compactly, collapsing a single day', () => {
+    expect(compactRangeLabel(date(2026, 1, 1), date(2026, 7, 22))).toBe('01.01.2026 – 22.07.2026')
+    expect(compactRangeLabel(date(2026, 3, 5), date(2026, 3, 5))).toBe('05.03.2026')
+  })
+
+  it('summarizes a draft as a day count, or the next step it needs', () => {
+    const translate = (_key: string, fallback: string, vars?: Record<string, string | number>) => (
+      vars ? fallback.replace(/\{(\w+)\}/g, (match, name: string) => String(vars[name] ?? match)) : fallback
+    )
+    expect(rangeHint({}, translate)).toBe('Select a start date')
+    expect(rangeHint({ start: date(2026, 7, 3) }, translate)).toBe('Select an end date')
+    expect(rangeHint({ start: date(2026, 7, 3), end: date(2026, 7, 18) }, translate)).toBe('Duration: 16 d.')
+    // A single-day range counts one, and an inverted draft is not a range yet.
+    expect(rangeHint({ start: date(2026, 7, 3), end: date(2026, 7, 3) }, translate)).toBe('Duration: 1 d.')
+    expect(rangeHint({ start: date(2026, 7, 18), end: date(2026, 7, 3) }, translate)).toBe('Select an end date')
   })
 })

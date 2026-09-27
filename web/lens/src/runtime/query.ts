@@ -2,6 +2,7 @@ import {
   QueryErrorResponseSchema,
   QueryRequestSchema,
   QueryResponseSchema,
+  type FailureReason,
   type QueryErrorCode,
   type QueryRequest,
   type QueryResponse,
@@ -12,6 +13,13 @@ export class QueryError extends Error {
     readonly code: QueryErrorCode,
     message: string,
     readonly status: number,
+    /**
+     * What kind of failure this was, when the server classified it. `message`
+     * stays a developer string that is never shown; this is the part a reader
+     * can be told about. Optional: a server that does not classify, and every
+     * client-side failure, leaves it unset and the generic copy applies.
+     */
+    readonly reason?: FailureReason,
   ) {
     super(message)
     this.name = 'QueryError'
@@ -44,6 +52,10 @@ export function queryCacheKey(request: QueryRequest): string {
   ])
 }
 
+function queryFlightKey(request: QueryRequest): string {
+  return JSON.stringify([queryCacheKey(request), request.prefetch === true, request.idlePrefetch === true, request.revision ?? 0])
+}
+
 export class QueryClient {
   private readonly cache = new Map<string, QueryResponse>()
   private readonly inFlight = new Map<string, Promise<QueryResponse>>()
@@ -73,7 +85,8 @@ export class QueryClient {
     const key = queryCacheKey(request)
     const cached = this.cache.get(key)
     if (cached && !options.force) return cached
-    const pending = this.inFlight.get(key)
+    const flightKey = queryFlightKey(request)
+    const pending = this.inFlight.get(flightKey)
     if (pending) return pending
 
     const controller = new AbortController()
@@ -87,10 +100,10 @@ export class QueryClient {
       })
       .finally(() => {
         options.signal?.removeEventListener('abort', abort)
-        this.inFlight.delete(key)
+        this.inFlight.delete(flightKey)
         this.controllers.delete(controller)
       })
-    this.inFlight.set(key, promise)
+    this.inFlight.set(flightKey, promise)
     return promise
   }
 
@@ -117,7 +130,7 @@ export class QueryClient {
       const code: QueryErrorCode = parsed.success ? parsed.data.error : 'internal'
       const message = parsed.success ? parsed.data.message : `query request failed with ${response.status}`
       if (response.status === 410 && code === 'snapshot_gone') throw new SnapshotGoneError(message)
-      throw new QueryError(code, message, response.status)
+      throw new QueryError(code, message, response.status, parsed.success ? parsed.data.reason : undefined)
     }
     return QueryResponseSchema.parse(payload)
   }

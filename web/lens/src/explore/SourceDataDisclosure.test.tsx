@@ -40,7 +40,7 @@ describe('SourceDataDisclosure', () => {
     vi.stubGlobal('fetch', fetcher)
     render(
       <DocumentProvider initialDocument={document}>
-        <DashboardRuntimeProvider locale="en">
+        <DashboardRuntimeProvider locale="en" drawerDepth={1}>
           <DisclosureHarness />
         </DashboardRuntimeProvider>
       </DocumentProvider>,

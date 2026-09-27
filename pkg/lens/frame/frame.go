@@ -79,6 +79,14 @@ type FrameMeta struct {
 	Title       string
 	Description string
 	Labels      map[string]string
+	// AuthoritativeTotal is a producer-computed whole for the frame. It is
+	// intentionally distinct from summing rows: plotted values may be
+	// transformed, truncated or represent shares of a larger population.
+	// Lens promotes it into panel output metadata after a deferred query runs.
+	AuthoritativeTotal *float64
+	// SeriesTotals contains producer-computed wholes keyed by series. Radial
+	// panels use these values as ring denominators after deferred execution.
+	SeriesTotals map[string]float64
 }
 
 type Frame struct {
@@ -128,14 +136,25 @@ func (f *Frame) Clone() *Frame {
 	for k, v := range f.Meta.Labels {
 		labels[k] = v
 	}
+	seriesTotals := make(map[string]float64, len(f.Meta.SeriesTotals))
+	for key, value := range f.Meta.SeriesTotals {
+		seriesTotals[key] = value
+	}
+	var authoritativeTotal *float64
+	if f.Meta.AuthoritativeTotal != nil {
+		value := *f.Meta.AuthoritativeTotal
+		authoritativeTotal = &value
+	}
 	cloned := &Frame{
 		Name:     f.Name,
 		Fields:   fields,
 		RowCount: f.RowCount,
 		Meta: FrameMeta{
-			Title:       f.Meta.Title,
-			Description: f.Meta.Description,
-			Labels:      labels,
+			Title:              f.Meta.Title,
+			Description:        f.Meta.Description,
+			Labels:             labels,
+			AuthoritativeTotal: authoritativeTotal,
+			SeriesTotals:       seriesTotals,
 		},
 	}
 	cloned.buildFieldIndex()

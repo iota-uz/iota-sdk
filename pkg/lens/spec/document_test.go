@@ -42,6 +42,31 @@ func TestLoadParsesVariableComponentOverride(t *testing.T) {
 	require.Equal(t, string(lens.VariableComponentTextInput), doc.Variables[0].Component)
 }
 
+func TestChoroplethBuilderCarriesGenericMapContract(t *testing.T) {
+	t.Parallel()
+	geometry := &panel.GeoJSONFeatureCollection{Type: "FeatureCollection", Features: []panel.GeoJSONFeature{{
+		Type: "Feature", Properties: map[string]any{"code": "north", "name": "North"},
+		Geometry: map[string]any{"type": "Polygon", "coordinates": []any{[]any{}}},
+	}}}
+	spec := Choropleth("regions", "Regions", "regional", panel.GeoJSONSource{Inline: geometry}, "code").
+		MapLabelProperty("name").MapAttribution("© Example Maps").ComparisonUnsupported().
+		IDField("region_code").ValueField("premium").Terminal().Build()
+
+	require.Equal(t, panel.KindMap, spec.Kind)
+	require.Equal(t, "code", spec.Map.FeatureProperty)
+	require.Equal(t, "name", spec.Map.LabelProperty)
+	require.Equal(t, "© Example Maps", spec.Map.Attribution)
+	require.True(t, spec.ComparisonUnsupported)
+	require.True(t, spec.Terminal)
+}
+
+func TestPanelSpecJSONCarriesComparisonUnsupported(t *testing.T) {
+	t.Parallel()
+	payload, err := json.Marshal(PanelSpec{ID: "map", Kind: panel.KindMap, ComparisonUnsupported: true}) //nolint:musttag // PanelSpec is the canonical Lens JSON payload under test.
+	require.NoError(t, err)
+	require.Contains(t, string(payload), `"comparisonUnsupported":true`)
+}
+
 func TestRowSpecMarshal_OmitsEmptyHeading(t *testing.T) {
 	t.Parallel()
 
@@ -72,15 +97,11 @@ func TestPanelSpecMarshal_UsesDrillTreeJSONContract(t *testing.T) {
 		DrillTree: &panel.DrillTree{ExpandedSpan: 12, Branches: []panel.DrillBranch{{
 			TriggerKey: "earned",
 			Label:      "Earned premium",
-			View: &panel.DrillLevelView{
-				LegendPosition: panel.LegendRight,
-				LegendWidthPx:  300,
-			},
-			Children: []panel.DrillNode{{Key: "year:2026", Label: "2026", Value: 100}},
+			Children:   []panel.DrillNode{{Key: "year:2026", Label: "2026", Value: 100}},
 		}}},
 	})
 	require.NoError(t, err)
-	require.Contains(t, string(payload), `"drillTree":{"branches":[{"triggerKey":"earned","label":"Earned premium","view":{"legendPosition":"right","legendWidthPx":300},"children":[{"key":"year:2026","label":"2026","value":100}]}]`) //nolint:lll // exact public JSON contract
+	require.Contains(t, string(payload), `"drillTree":{"branches":[{"triggerKey":"earned","label":"Earned premium","children":[{"key":"year:2026","label":"2026","value":100}]}]`) //nolint:lll // exact public JSON contract
 	require.Contains(t, string(payload), `"expandedSpan":12`)
 	require.NotContains(t, string(payload), `"Branches"`)
 }

@@ -3,9 +3,36 @@ package query_test
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPgRoleQueryRepositoryListsAllAssignmentOptionsInTwoQueries(t *testing.T) {
+	// Falsely green if the fixture does not exceed the former 25-row page limit.
+	fixtures := setupTest(t)
+	tenantID, err := composables.UseTenantID(fixtures.Ctx)
+	require.NoError(t, err)
+	prefix := uuid.NewString()
+	_, err = fixtures.Tx.Exec(fixtures.Ctx, `INSERT INTO roles
+		(type, tenant_id, name, description, created_at, updated_at)
+		SELECT 'user', $1, $2 || '-' || LPAD(n::text, 2, '0'), '', NOW(), NOW()
+		FROM generate_series(1, 30) n`, tenantID, prefix)
+	require.NoError(t, err)
+
+	measured := &countingTx{Tx: fixtures.Tx}
+	options, err := query.NewPgRoleQueryRepository().FindAssignmentOptions(composables.WithTx(fixtures.Ctx, measured))
+	require.NoError(t, err)
+	require.Equal(t, 2, measured.queries)
+	found := 0
+	for _, option := range options {
+		if len(option.Name) >= len(prefix) && option.Name[:len(prefix)] == prefix {
+			found++
+		}
+	}
+	require.Equal(t, 30, found)
+}
 
 func TestPgRoleQueryRepository_FindRolesWithCounts(t *testing.T) {
 	t.Parallel()

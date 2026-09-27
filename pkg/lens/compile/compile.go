@@ -37,6 +37,10 @@ type CompiledDocument struct {
 }
 
 func Document(doc lensspec.Document, opts Options) (CompiledDocument, error) {
+	// Documents created through the builder API predate the explicit terminal
+	// marker. Normalize their interaction contract before validation so those
+	// inert legacy leaves remain valid without changing their rendered behavior.
+	doc = lensspec.FinalizeInteractionContract(doc)
 	if err := doc.Validate(); err != nil {
 		return CompiledDocument{}, err
 	}
@@ -353,6 +357,7 @@ func compileVariable(item lensspec.VariableSpec, opts Options) (lens.VariableSpe
 		Description:     resolveText(item.Description, opts),
 		AllowAllTime:    item.AllowAllTime,
 		DefaultDuration: item.DefaultDuration.Std(),
+		CompareTo:       resolveString(item.CompareTo, opts.Values),
 		Options:         make([]lens.VariableOption, 0, len(item.Options)),
 	}
 	for _, option := range item.Options {
@@ -382,6 +387,20 @@ func compileDimension(item lensspec.DimensionSpec, opts Options) (cube.Dimension
 		Colors:       resolveStringSlice(item.Colors, opts.Values),
 		ValueAxis:    item.ValueAxis,
 		ColorScale:   resolveString(item.ColorScale, opts.Values),
+		Presentation: item.Presentation,
+	}
+	if item.Map != nil {
+		out.Map = &panel.MapSpec{
+			Source: panel.GeoJSONSource{
+				Inline:   item.Map.Source.Inline,
+				URL:      resolveString(item.Map.Source.URL, opts.Values),
+				MaxBytes: item.Map.Source.MaxBytes,
+			},
+			FeatureProperty: resolveString(item.Map.FeatureProperty, opts.Values),
+			LabelProperty:   resolveString(item.Map.LabelProperty, opts.Values),
+			LabelProperties: resolveStringMap(item.Map.LabelProperties, opts.Values),
+			Attribution:     resolveString(item.Map.Attribution, opts.Values),
+		}
 	}
 	transforms, err := resolveTransformSpecs(item.Transforms, opts.Values)
 	if err != nil {
@@ -413,6 +432,7 @@ func compileMeasure(item lensspec.MeasureSpec, opts Options) (cube.MeasureSpec, 
 		Description:  resolveText(item.Description, opts),
 		Info:         resolveText(item.Info, opts),
 		RequiresJoin: resolveStringSlice(item.RequiresJoin, opts.Values),
+		InvertTrend:  item.InvertTrend,
 	}
 	if item.Override != nil {
 		override, err := compileDataset(*item.Override, opts)
@@ -433,15 +453,17 @@ func compileMeasure(item lensspec.MeasureSpec, opts Options) (cube.MeasureSpec, 
 
 func compileDataset(item lensspec.DatasetSpec, opts Options) (lens.DatasetSpec, error) {
 	out := lens.DatasetSpec{
-		Name:        resolveString(item.Name, opts.Values),
-		Title:       resolveText(item.Title, opts),
-		Kind:        item.Kind,
-		Source:      resolveString(item.Source, opts.Values),
-		DependsOn:   resolveStringSlice(item.DependsOn, opts.Values),
-		Description: resolveText(item.Description, opts),
-		Static:      item.Static,
-		Cache:       lens.CachePolicy{Mode: item.Cache.Mode, TTL: item.Cache.TTL.Std()},
-		Export:      item.Export,
+		Name:                resolveString(item.Name, opts.Values),
+		Title:               resolveText(item.Title, opts),
+		Kind:                item.Kind,
+		Source:              resolveString(item.Source, opts.Values),
+		DependsOn:           resolveStringSlice(item.DependsOn, opts.Values),
+		Description:         resolveText(item.Description, opts),
+		TimeRangeVariable:   resolveString(item.TimeRangeVariable, opts.Values),
+		ComparisonAlignment: item.ComparisonAlignment,
+		Static:              item.Static,
+		Cache:               lens.CachePolicy{Mode: item.Cache.Mode, TTL: item.Cache.TTL.Std()},
+		Export:              item.Export,
 	}
 	transforms, err := resolveTransformSpecs(item.Transforms, opts.Values)
 	if err != nil {
@@ -479,6 +501,7 @@ func compileRow(item lensspec.RowSpec, opts Options) (lens.RowSpec, error) {
 	out := lens.RowSpec{
 		Panels:  make([]panel.Spec, 0, len(item.Panels)),
 		Class:   resolveString(item.Class, opts.Values),
+		Anchor:  resolveString(item.Anchor, opts.Values),
 		Heading: heading,
 	}
 	for _, panelSpec := range item.Panels {
@@ -493,36 +516,36 @@ func compileRow(item lensspec.RowSpec, opts Options) (lens.RowSpec, error) {
 
 func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 	out := panel.Spec{
-		ID:              resolveString(item.ID, opts.Values),
-		Title:           resolveText(item.Title, opts),
-		Description:     resolveText(item.Description, opts),
-		Info:            resolveText(item.Info, opts),
-		Kind:            item.Kind,
-		Dataset:         resolveString(item.Dataset, opts.Values),
-		Span:            item.Span,
-		Height:          resolveString(item.Height, opts.Values),
-		Colors:          resolveStringSlice(item.Colors, opts.Values),
-		ShowLegend:      item.ShowLegend,
-		LegendPosition:  item.LegendPosition,
-		LegendWidthPx:   item.LegendWidthPx,
-		LegendOffsetY:   item.LegendOffsetY,
-		LegendFloating:  item.LegendFloating,
-		CircularScale:   item.CircularScale,
-		CircularOffsetX: item.CircularOffsetX,
-		ShowTotalBadge:  item.ShowTotalBadge,
-		TotalBadgeValue: item.TotalBadgeValue,
-		HeadlineValue:   item.HeadlineValue,
-		DrillHierarchy:  item.DrillHierarchy,
-		DrillTree:       item.DrillTree,
-		Trend:           item.Trend,
-		Status:          item.Status,
-		Sparkline:       item.Sparkline,
-		Target:          item.Target,
-		GroupLayout:     item.GroupLayout,
-		Presentation:    item.Presentation,
+		ID:                    resolveString(item.ID, opts.Values),
+		Title:                 resolveText(item.Title, opts),
+		Description:           resolveText(item.Description, opts),
+		Info:                  resolveText(item.Info, opts),
+		Kind:                  item.Kind,
+		Dataset:               resolveString(item.Dataset, opts.Values),
+		Span:                  item.Span,
+		Colors:                resolveStringSlice(item.Colors, opts.Values),
+		ShowLegend:            item.ShowLegend,
+		TotalBadgeValue:       item.TotalBadgeValue,
+		HeadlineValue:         item.HeadlineValue,
+		DrillTree:             item.DrillTree,
+		Trend:                 item.Trend,
+		Status:                item.Status,
+		Sparkline:             item.Sparkline,
+		Target:                item.Target,
+		Temporal:              item.Temporal,
+		Terminal:              item.Terminal,
+		ComparisonUnsupported: item.ComparisonUnsupported,
+		GroupLayout:           item.GroupLayout,
+		Presentation:          item.Presentation,
 		Fields: panel.FieldMapping{
 			Label:        panel.Ref(resolveString(item.Fields.Label, opts.Values)),
 			Value:        panel.Ref(resolveString(item.Fields.Value, opts.Values)),
+			Previous:     panel.Ref(resolveString(item.Fields.Previous, opts.Values)),
+			Lower:        panel.Ref(resolveString(item.Fields.Lower, opts.Values)),
+			Q1:           panel.Ref(resolveString(item.Fields.Q1, opts.Values)),
+			Median:       panel.Ref(resolveString(item.Fields.Median, opts.Values)),
+			Q3:           panel.Ref(resolveString(item.Fields.Q3, opts.Values)),
+			Upper:        panel.Ref(resolveString(item.Fields.Upper, opts.Values)),
 			Series:       panel.Ref(resolveString(item.Fields.Series, opts.Values)),
 			Category:     panel.Ref(resolveString(item.Fields.Category, opts.Values)),
 			ID:           panel.Ref(resolveString(item.Fields.ID, opts.Values)),
@@ -540,11 +563,8 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 			Availability: panel.Ref(resolveString(item.Fields.Availability, opts.Values)),
 		},
 		Formatter:          item.Formatter,
-		ClassName:          resolveString(item.ClassName, opts.Values),
 		ValueAxis:          item.ValueAxis,
 		Distributed:        item.Distributed,
-		ColorField:         panel.Ref(resolveString(item.ColorField, opts.Values)),
-		ColorScale:         resolveString(item.ColorScale, opts.Values),
 		Export:             item.Export,
 		FlowStages:         item.FlowStages,
 		FlowReconcile:      item.FlowReconcile,
@@ -552,8 +572,22 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		HierarchyReconcile: item.HierarchyReconcile,
 		Relationship:       item.Relationship,
 		Radial:             item.Radial,
+		Map:                item.Map,
 		Confidence:         item.Confidence,
 		Availability:       item.Availability,
+	}
+	if item.Map != nil {
+		mapSpec := *item.Map
+		mapSpec.Source.URL = resolveString(mapSpec.Source.URL, opts.Values)
+		mapSpec.FeatureProperty = resolveString(mapSpec.FeatureProperty, opts.Values)
+		mapSpec.LabelProperty = resolveString(mapSpec.LabelProperty, opts.Values)
+		mapSpec.LabelProperties = resolveStringMap(mapSpec.LabelProperties, opts.Values)
+		mapSpec.Attribution = resolveString(mapSpec.Attribution, opts.Values)
+		out.Map = &mapSpec
+	}
+	if item.Table != nil {
+		table := *item.Table
+		out.Table = &table
 	}
 	transforms, err := resolveTransformSpecs(item.Transforms, opts.Values)
 	if err != nil {
@@ -571,18 +605,23 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 			actionSpec = &resolvedAction
 		}
 		out.Columns = append(out.Columns, panel.TableColumn{
-			Field:      panel.Ref(resolveString(column.Field, opts.Values)),
-			Label:      resolveText(column.Label, opts),
-			Formatter:  column.Formatter,
-			Action:     actionSpec,
-			Text:       resolveText(column.Text, opts),
-			Align:      column.Align,
-			Cell:       column.Cell,
-			WidthPx:    column.WidthPx,
-			ClampLines: column.ClampLines,
-			Affordance: column.Affordance,
-			ToneField:  panel.Ref(column.ToneField),
-			BadgeField: panel.Ref(column.BadgeField),
+			Field:           panel.Ref(resolveString(column.Field, opts.Values)),
+			Label:           resolveText(column.Label, opts),
+			Formatter:       column.Formatter,
+			Action:          actionSpec,
+			Text:            resolveText(column.Text, opts),
+			Align:           column.Align,
+			Cell:            column.Cell,
+			WidthPx:         column.WidthPx,
+			ClampLines:      column.ClampLines,
+			Affordance:      column.Affordance,
+			ToneField:       panel.Ref(column.ToneField),
+			BadgeField:      panel.Ref(column.BadgeField),
+			Heat:            column.Heat,
+			SampleSizeField: panel.Ref(column.SampleSizeField),
+			MinSampleSize:   column.MinSampleSize,
+			Total:           column.Total,
+			ShareOf:         panel.Ref(column.ShareOf),
 		})
 	}
 

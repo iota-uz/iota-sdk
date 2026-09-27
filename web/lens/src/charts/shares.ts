@@ -15,6 +15,8 @@
  *    reconciliation error rather than as rounding.
  */
 
+import { writeNumberParts } from '../runtime/format'
+
 /** Decimal places every share is printed with. */
 export const sharePrecision = 1
 
@@ -74,16 +76,27 @@ export function distributeShares(
 }
 
 /**
- * The printed form of a share, e.g. `8.8%` — and `8,8%` where the reader's
+ * The printed form of a share, e.g. `8.8%` — and `8,8 %` where the reader's
  * language writes it that way. A report that prints «11.2%» on a chart and
  * «11,2 %» in the table beneath it is one report in two typographies.
+ *
+ * The percent sign is therefore not concatenated here: the sign, and whatever
+ * space the reader's language puts in front of it, come out of the same
+ * `unit`/`narrow` formatter and the same `writeNumberParts` writer that every
+ * other percent field in the runtime goes through (`format.ts`). Concatenating
+ * `%` was exactly how a donut label ended up printing «32,2%» beside a stat
+ * card's «32,2 %» on one dashboard.
  */
-export function formatShare(share: number | undefined, locale?: string): string {
+export function formatShare(share: number | undefined, locale?: string, decimalSeparator?: string): string {
   if (!isFiniteNumber(share)) return ''
-  // Rounded exactly as the Go renderer's %.1f rounds it — the two must print
-  // one number — and only then written in the reader's own notation.
-  return `${new Intl.NumberFormat(locale, {
+  // Rounded exactly as the server's %.1f rounds it, then written in the
+  // reader's own notation.
+  const parts = new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit: 'percent',
+    unitDisplay: 'narrow',
     minimumFractionDigits: sharePrecision,
     maximumFractionDigits: sharePrecision,
-  }).format(Number(share.toFixed(sharePrecision)))}%`
+  }).formatToParts(Number(share.toFixed(sharePrecision)))
+  return writeNumberParts(parts, decimalSeparator)
 }

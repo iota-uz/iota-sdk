@@ -1,11 +1,16 @@
 package compile
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
+	lensdocument "github.com/iota-uz/iota-sdk/pkg/lens/document"
+	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
@@ -99,7 +104,7 @@ func TestDocumentCompilesMeasureOverrideStaticRef(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, compiled.Semantic)
 	require.NotNil(t, compiled.Semantic.Measures[0].Override)
-	require.Equal(t, "cube_stat_total_policies", compiled.Spec.Rows[0].Panels[0].Dataset)
+	require.Equal(t, "cube_stat_total_policies", compiled.Spec.Rows[0].Panels[0].Children[0].Dataset)
 }
 
 func TestDocumentCompilesManualStaticDashboard(t *testing.T) {
@@ -117,7 +122,12 @@ func TestDocumentCompilesManualStaticDashboard(t *testing.T) {
 		Title:       lensspec.LiteralText("Manual"),
 		Description: lensspec.LiteralText("Static"),
 		Datasets: []lensspec.DatasetSpec{
-			{Name: "stats", Kind: lens.DatasetKindStatic, StaticRef: "stats_dataset"},
+			{
+				Name:                "stats",
+				Kind:                lens.DatasetKindStatic,
+				StaticRef:           "stats_dataset",
+				ComparisonAlignment: lens.ComparisonAlignmentOrdinal,
+			},
 		},
 		Rows: []lensspec.RowSpec{
 			{
@@ -144,7 +154,31 @@ func TestDocumentCompilesManualStaticDashboard(t *testing.T) {
 	require.Len(t, compiled.Spec.Datasets, 1)
 	require.Len(t, compiled.Spec.Rows, 1)
 	require.Equal(t, "stats", compiled.Spec.Datasets[0].Name)
+	require.Equal(t, lens.ComparisonAlignmentOrdinal, compiled.Spec.Datasets[0].ComparisonAlignment)
 	require.Equal(t, "total", compiled.Spec.Rows[0].Panels[0].ID)
+}
+
+func TestDocumentFinalizesLegacyInertPanels(t *testing.T) {
+	t.Parallel()
+
+	stats, err := frame.FromRows("stats", frame.Row{"value": 7})
+	require.NoError(t, err)
+	doc := lensspec.Document{
+		Version:     lensspec.DocumentVersion,
+		ID:          "legacy-static",
+		Title:       lensspec.LiteralText("Legacy"),
+		Description: lensspec.LiteralText("Static"),
+		Datasets: []lensspec.DatasetSpec{{
+			Name: "stats", Kind: lens.DatasetKindStatic, StaticRef: "stats_dataset",
+		}},
+		Rows: []lensspec.RowSpec{{Panels: []lensspec.PanelSpec{{
+			ID: "total", Title: lensspec.LiteralText("Total"), Kind: panel.KindStat, Dataset: "stats",
+		}}}},
+	}
+
+	compiled, err := Document(doc, Options{Locale: "en", Values: map[string]any{"stats_dataset": stats}})
+	require.NoError(t, err)
+	require.True(t, compiled.Spec.Rows[0].Panels[0].Terminal)
 }
 
 func TestCompilePanelPreservesDrillTree(t *testing.T) {
@@ -187,6 +221,72 @@ func TestCompilePanelPreservesRadialContract(t *testing.T) {
 	require.Equal(t, &panel.RadialSpec{
 		Mode: panel.RadialPartition, Rings: rings, Tolerance: 0.01,
 	}, compiled.Radial)
+}
+
+func TestCompilePanelPreservesDistributionFieldsAndTemporalContract(t *testing.T) {
+	t.Parallel()
+	temporal := &panel.TemporalSpec{RegressionField: "trend", RegressionLabel: "Trend"}
+	item := lensspec.BoxPlot("settlement", "Settlement", "summary").
+		CategoryField("product").
+		PreviousField("previous_median").
+		BoxFields("minimum", "q1", "median", "q3", "maximum").
+		Build()
+	item.Temporal = temporal
+	item.ComparisonUnsupported = true
+
+	compiled, err := compilePanel(item, Options{})
+	require.NoError(t, err)
+	require.Equal(t, panel.KindBoxPlot, compiled.Kind)
+	require.Equal(t, panel.Ref("previous_median"), compiled.Fields.Previous)
+	require.Equal(t, panel.Ref("minimum"), compiled.Fields.Lower)
+	require.Equal(t, panel.Ref("q1"), compiled.Fields.Q1)
+	require.Equal(t, panel.Ref("median"), compiled.Fields.Median)
+	require.Equal(t, panel.Ref("q3"), compiled.Fields.Q3)
+	require.Equal(t, panel.Ref("maximum"), compiled.Fields.Upper)
+	require.True(t, compiled.Fields.Value.Empty())
+	require.Equal(t, temporal, compiled.Temporal)
+	require.True(t, compiled.ComparisonUnsupported)
+	require.Equal(t, panel.KindHistogram, lensspec.Histogram("hist", "Histogram", "data").Build().Kind)
+	require.Equal(t, panel.KindHeatmap, lensspec.Heatmap("heat", "Heatmap", "data").Build().Kind)
+}
+
+func TestFormattedBoxPlotBuildReferencesOnlyFiveNumberSummary(t *testing.T) {
+	t.Parallel()
+	numberFormat := format.Count()
+	item := lensspec.BoxPlot("settlement", "Settlement", "summary").
+		CategoryField("product").
+		BoxFields("minimum", "q1", "median", "q3", "maximum").
+		Format(numberFormat).
+		Terminal().
+		Build()
+
+	compiled, err := compilePanel(item, Options{})
+	require.NoError(t, err)
+	require.True(t, compiled.Fields.Value.Empty())
+	require.Equal(t, &numberFormat, compiled.Formatter)
+
+	frames, err := frame.FromRows("summary", frame.Row{
+		"product": "OSAGO",
+		"minimum": 1.0, "q1": 3.0, "median": 5.0, "q3": 8.0, "maximum": 20.0,
+	})
+	require.NoError(t, err)
+	dashboard := lensbuild.Dashboard("boxplot", "Box plot", lensbuild.Row(compiled)).
+		Datasets(lensbuild.StaticDataset("summary", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), dashboard,
+		runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+	doc, err := lensdocument.Build(dashboard, executed, lensdocument.BuildOptions{
+		SnapshotID: "boxplot", GeneratedAt: time.Unix(1, 0), Locale: "en",
+	})
+	require.NoError(t, err)
+	require.NoError(t, doc.Validate())
+	require.Len(t, doc.Panels[0].Format, 5)
+	for _, field := range []string{"minimum", "q1", "median", "q3", "maximum"} {
+		require.Contains(t, doc.Panels[0].Format, field)
+	}
+	require.NotContains(t, doc.Panels[0].Format, "value")
 }
 
 // Presentation hints and the rich table-column treatments are producer-side
@@ -380,6 +480,29 @@ func TestDocumentRejectsHeadingRowWithPanels(t *testing.T) {
 	_, err := Document(doc, Options{Locale: "en"})
 	require.Error(t, err)
 	require.ErrorContains(t, err, `row heading "Summary" cannot be combined with panels`)
+}
+
+// A row anchor is what makes a section addressable from elsewhere on the page,
+// so it has to survive the compile step that everything else about the row
+// goes through.
+func TestDocument_RowAnchorIsPreserved(t *testing.T) {
+	t.Parallel()
+
+	doc := lensspec.Document{
+		Version: lensspec.DocumentVersion,
+		ID:      "manual-report",
+		Title:   lensspec.LiteralText("Manual"),
+		Rows: []lensspec.RowSpec{
+			{Heading: lensspec.LiteralText("Result"), Anchor: "manual-report-result"},
+			{Panels: []lensspec.PanelSpec{{ID: "total", Kind: panel.KindStat}}},
+		},
+	}
+
+	compiled, err := Document(doc, Options{Locale: "en"})
+	require.NoError(t, err)
+	require.Len(t, compiled.Spec.Rows, 2)
+	require.Equal(t, "manual-report-result", compiled.Spec.Rows[0].Anchor)
+	require.Empty(t, compiled.Spec.Rows[1].Anchor)
 }
 
 func TestDocumentTreatsBlankHeadingAsPanelRow(t *testing.T) {

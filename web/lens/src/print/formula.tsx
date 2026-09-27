@@ -126,8 +126,8 @@ function HierarchyFormula({ join, panel, locale }: { join: KeyedJoin; panel: Pan
                 {view.reconcile.balanced
                   ? translate('hierarchy.allocated', 'Allocated 100%')
                   : translate('hierarchy.difference', 'Difference: {delta}', {
-                      delta: formatValue(view.reconcile.delta),
-                    })}
+                    delta: formatValue(view.reconcile.delta),
+                  })}
               </span>
             )}
           </li>

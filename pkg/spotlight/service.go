@@ -403,6 +403,19 @@ func (s *SpotlightService) ReindexTenant(ctx context.Context, tenantID uuid.UUID
 	return nil
 }
 
+// PruneOrphanBuildIndexes removes expired temporary indexes left by failed
+// full rebuilds. Deployment-specific callers must hold their global rebuild
+// lease before calling it so the grace period remains the only fallback guard.
+func (s *SpotlightService) PruneOrphanBuildIndexes(ctx context.Context, minAge time.Duration) ([]PrunedIndex, error) {
+	const op serrors.Op = "spotlight.SpotlightService.PruneOrphanBuildIndexes"
+
+	pruner, ok := s.engine.(RebuildArtifactPruner)
+	if !ok {
+		return nil, serrors.E(op, errors.New("spotlight engine does not support rebuild artifact pruning"))
+	}
+	return pruner.PruneOrphanBuildIndexes(ctx, minAge)
+}
+
 func (s *SpotlightService) Readiness(ctx context.Context) error {
 	return s.engine.Health(ctx)
 }

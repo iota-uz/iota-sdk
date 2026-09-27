@@ -55,10 +55,16 @@ PerspectiveSwitching.storyName = 'Perspective switching on a segment'
 function ClickOnMount({ labels }: { labels: Array<string> }) {
   useEffect(() => {
     let cancelled = false
+    let attempts = 0
     const press = (index: number) => {
       if (cancelled || index >= labels.length) return
       const button = window.document.querySelector<HTMLButtonElement>(`button[aria-label="${labels[index]}"]`)
-      button?.click()
+      if (!button) {
+        if (attempts++ < 60) window.requestAnimationFrame(() => press(index))
+        return
+      }
+      attempts = 0
+      button.click()
       window.requestAnimationFrame(() => press(index + 1))
     }
     window.requestAnimationFrame(() => press(0))
