@@ -575,6 +575,7 @@
       "DeleteFile": "Excluir documento"
     },
     "Revenue": {
+      "Currency": "Moeda",
       "Contract": "Contratado",
       "Accepted": "Aceito",
       "Open": "Em aberto",

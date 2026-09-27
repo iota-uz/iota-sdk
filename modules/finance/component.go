@@ -77,14 +77,13 @@ func financeControllers(
 	financialReportService *services.FinancialReportService,
 	currencyService *coreservices.CurrencyService,
 	reportsQueryRepo query.FinancialReportsQueryRepository,
-	clientRevenue services.ClientRevenueSource,
 ) []application.Controller {
 	return []application.Controller{
 		controllers.NewFinancialOverviewController(paymentService, moneyAccountService, counterpartyService, paymentCategoryService, transactionService),
 		controllers.NewMoneyAccountController(moneyAccountService, transactionService, currencyService),
 		controllers.NewExpenseCategoriesController(expenseCategoryService),
 		controllers.NewPaymentCategoriesController(paymentCategoryService),
-		controllers.NewCounterpartiesController(counterpartyService, clientRevenue),
+		controllers.NewCounterpartiesController(counterpartyService),
 		controllers.NewInventoryController(inventoryService, currencyService),
 		controllers.NewDebtsController(debtService, counterpartyService, transactionService),
 		controllers.NewDebtAggregateController(debtService, counterpartyService),

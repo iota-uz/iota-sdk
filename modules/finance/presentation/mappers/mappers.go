@@ -1004,6 +1004,7 @@ func AttachmentsToViewModels(uploads []upload.Upload) []*coreviewmodels.Upload {
 
 func RevenueToViewModel(revenue services.Revenue) *viewmodels.Revenue {
 	return &viewmodels.Revenue{
+		CurrencyCode: revenue.Contract.Currency().Code,
 		Contract:     revenue.Contract.Display(),
 		Accepted:     revenue.Accepted.Display(),
 		Open:         revenue.Open.Display(),

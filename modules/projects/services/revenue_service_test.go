@@ -73,7 +73,7 @@ func TestRevenueService_KeepsBasesAndCurrenciesApart(t *testing.T) {
 	} {
 		created, err := acceptanceService.Create(env.Ctx, document)
 		require.NoError(t, err)
-		_, err = acceptanceService.Sign(env.Ctx, created.ID())
+		_, err = acceptanceService.Sign(env.Ctx, created.ProjectID(), created.ID())
 		require.NoError(t, err)
 	}
 	_, err = acceptanceService.Create(env.Ctx, acceptance.New(
@@ -128,4 +128,44 @@ func TestRevenueService_KeepsBasesAndCurrenciesApart(t *testing.T) {
 	require.Equal(t, int64(110000), usd.Open.Amount())
 	require.Equal(t, int64(35000), usd.Invoiced.Amount())
 	require.Equal(t, int64(30000), usd.Paid.Amount())
+}
+
+func TestAcceptanceService_StatusChangeChecksStoredStatus(t *testing.T) {
+	t.Parallel()
+	env := itf.Setup(t, itf.WithComponents(
+		core.NewComponent(&core.ModuleOptions{PermissionSchema: defaults.PermissionSchema()}),
+		finance.NewComponent(),
+		projects.NewComponent(),
+	), itf.WithUser(itf.User()))
+
+	require.NoError(t, itf.GetService[coreservices.CurrencyService](env).Create(env.Ctx, &currency.CreateDTO{
+		Code:   string(currency.USD.Code()),
+		Name:   currency.USD.Name(),
+		Symbol: string(currency.USD.Symbol()),
+	}))
+	client, err := itf.GetService[financeservices.CounterpartyService](env).Create(env.Ctx, counterparty.New(
+		"Status Client", counterparty.Customer, counterparty.LLC, counterparty.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+	p := project.New("Status Project", client.ID(), project.WithTenantID(env.Tenant.ID))
+	require.NoError(t, itf.GetService[services.ProjectService](env).Create(env.Ctx, p))
+
+	acceptanceService := itf.GetService[services.AcceptanceService](env)
+	draft, err := acceptanceService.Create(env.Ctx, acceptance.New(
+		p.ID(), acceptance.KindAct, "S-1", time.Date(2026, 9, 20, 0, 0, 0, 0, time.UTC),
+		money.New(10000, "USD"), acceptance.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+	_, err = acceptanceService.Cancel(env.Ctx, p.ID(), draft.ID())
+	require.NoError(t, err)
+
+	// A sign that read the draft before the cancel must not revive it.
+	_, err = persistence.NewAcceptanceRepository().UpdateStatus(
+		env.Ctx, draft.UpdateStatus(acceptance.StatusSigned), acceptance.StatusDraft,
+	)
+	require.ErrorIs(t, err, acceptance.ErrStatus)
+
+	stored, err := acceptanceService.GetByID(env.Ctx, draft.ID())
+	require.NoError(t, err)
+	require.Equal(t, acceptance.StatusCancelled, stored.Status())
 }

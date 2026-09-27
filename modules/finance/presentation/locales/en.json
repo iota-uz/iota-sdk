@@ -575,6 +575,7 @@
       "DeleteFile": "Delete Document"
     },
     "Revenue": {
+      "Currency": "Currency",
       "Contract": "Contract",
       "Accepted": "Accepted",
       "Open": "Open",

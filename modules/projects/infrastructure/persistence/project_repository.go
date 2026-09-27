@@ -45,7 +45,7 @@ const (
 		UPDATE projects
 		SET counterparty_id = $1, name = $2, description = $3,
 			contract_amount = $4, contract_currency_id = $5, updated_at = $6
-		WHERE id = $7`
+		WHERE id = $7 AND tenant_id = $8`
 	deleteProjectQuery = `DELETE FROM projects WHERE id = $1`
 )
 
@@ -137,6 +137,10 @@ func (r *ProjectRepository) create(ctx context.Context, proj project.Project) (p
 }
 
 func (r *ProjectRepository) update(ctx context.Context, proj project.Project) (project.Project, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -153,6 +157,7 @@ func (r *ProjectRepository) update(ctx context.Context, proj project.Project) (p
 		contractCurrency,
 		proj.UpdatedAt(),
 		proj.ID(),
+		tenantID,
 	)
 	if err != nil {
 		return nil, err

@@ -12,6 +12,7 @@ import (
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	financemappers "github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/acceptance"
+	"github.com/iota-uz/iota-sdk/modules/projects/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/templates/pages/projects"
@@ -157,9 +158,9 @@ func (c *AcceptanceController) Delete(
 	if !ok {
 		return
 	}
-	if err := acceptanceService.Delete(r.Context(), id); err != nil {
+	if err := acceptanceService.Delete(r.Context(), projectID, id); err != nil {
 		logger.WithError(err).Error("Error deleting acceptance document")
-		http.Error(w, "Error deleting acceptance document", http.StatusInternalServerError)
+		http.Error(w, "Error deleting acceptance document", acceptanceErrorStatus(err))
 		return
 	}
 	panel.render(w, r, logger, projectID, dtos.AcceptanceCreateDTO{}, map[string]string{})
@@ -170,22 +171,31 @@ func (c *AcceptanceController) change(
 	r *http.Request,
 	logger *logrus.Entry,
 	panel acceptancePanel,
-	action func(ctx context.Context, id uuid.UUID) (acceptance.Document, error),
+	action func(ctx context.Context, projectID, id uuid.UUID) (acceptance.Document, error),
 ) {
 	projectID, id, ok := c.ids(w, r)
 	if !ok {
 		return
 	}
-	if _, err := action(r.Context(), id); err != nil {
-		if errors.Is(err, projectServices.ErrAcceptanceStatus) {
-			http.Error(w, err.Error(), http.StatusConflict)
-			return
-		}
+	if _, err := action(r.Context(), projectID, id); err != nil {
 		logger.WithError(err).Error("Error changing acceptance document status")
-		http.Error(w, "Error changing acceptance document status", http.StatusInternalServerError)
+		http.Error(w, "Error changing acceptance document status", acceptanceErrorStatus(err))
 		return
 	}
 	panel.render(w, r, logger, projectID, dtos.AcceptanceCreateDTO{}, map[string]string{})
+}
+
+// acceptanceErrorStatus answers a document of another project as not found and
+// a status it cannot move to as a conflict.
+func acceptanceErrorStatus(err error) int {
+	switch {
+	case errors.Is(err, persistence.ErrAcceptanceDocumentNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, acceptance.ErrStatus):
+		return http.StatusConflict
+	default:
+		return http.StatusInternalServerError
+	}
 }
 
 func (c *AcceptanceController) ids(w http.ResponseWriter, r *http.Request) (uuid.UUID, uuid.UUID, bool) {

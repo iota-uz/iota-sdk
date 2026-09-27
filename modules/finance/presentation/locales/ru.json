@@ -575,6 +575,7 @@
       "DeleteFile": "Удалить документ"
     },
     "Revenue": {
+      "Currency": "Валюта",
       "Contract": "По договору",
       "Accepted": "Принято",
       "Open": "Не принято",

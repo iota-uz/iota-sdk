@@ -15,6 +15,7 @@ templ RevenueSummary(lines []*viewmodels.Revenue) {
 			<table class="w-full text-sm">
 				<thead>
 					<tr class="text-left text-200">
+						<th class="py-2 pr-4 font-medium">{ pageCtx.T("Finance.Revenue.Currency") }</th>
 						<th class="py-2 pr-4 font-medium">{ pageCtx.T("Finance.Revenue.Contract") }</th>
 						<th class="py-2 pr-4 font-medium">{ pageCtx.T("Finance.Revenue.Accepted") }</th>
 						<th class="py-2 pr-4 font-medium">{ pageCtx.T("Finance.Revenue.Open") }</th>
@@ -25,6 +26,7 @@ templ RevenueSummary(lines []*viewmodels.Revenue) {
 				<tbody class="tabular-nums">
 					for _, line := range lines {
 						<tr class="border-t border-primary">
+							<td class="py-2 pr-4">{ line.CurrencyCode }</td>
 							<td class="py-2 pr-4">{ line.Contract }</td>
 							<td class="py-2 pr-4">{ line.Accepted }</td>
 							<td class={ "py-2 pr-4", templ.KV("text-red-500", line.Overaccepted) }>{ line.Open }</td>

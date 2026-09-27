@@ -152,11 +152,7 @@ func TestAcceptanceController_Lifecycle(t *testing.T) {
 func TestCounterpartiesController_ShowsClientRevenue(t *testing.T) {
 	t.Parallel()
 	suite, env, p := newAcceptanceSuite(t)
-	revenueService := itf.GetService[services.RevenueService](env)
-	suite.Register(financecontrollers.NewCounterpartiesController(
-		itf.GetService[financeServices.CounterpartyService](env),
-		services.NewClientRevenue(revenueService),
-	))
+	suite.Register(financecontrollers.NewCounterpartiesController(itf.GetService[financeServices.CounterpartyService](env)))
 
 	document, err := itf.GetService[services.AcceptanceService](env).Create(env.Ctx, acceptance.New(
 		p.ID(),
@@ -167,14 +163,43 @@ func TestCounterpartiesController_ShowsClientRevenue(t *testing.T) {
 		acceptance.WithTenantID(env.Tenant.ID),
 	))
 	require.NoError(t, err)
-	_, err = itf.GetService[services.AcceptanceService](env).Sign(env.Ctx, document.ID())
+	_, err = itf.GetService[services.AcceptanceService](env).Sign(env.Ctx, p.ID(), document.ID())
 	require.NoError(t, err)
 
 	suite.GET(fmt.Sprintf("/finance/counterparties/%s", p.CounterpartyID())).
 		Expect(t).
 		Status(200).
 		Contains("$1,000.00").
-		Contains("€250.00")
+		Contains("€250.00").
+		Contains("EUR").
+		Contains("USD")
+}
+
+func TestAcceptanceController_DocumentOfAnotherProject(t *testing.T) {
+	t.Parallel()
+	suite, env, p := newAcceptanceSuite(t)
+	acceptanceService := itf.GetService[services.AcceptanceService](env)
+
+	other := project.New("Other Project", p.CounterpartyID(), project.WithTenantID(env.Tenant.ID))
+	require.NoError(t, itf.GetService[services.ProjectService](env).Create(env.Ctx, other))
+	document, err := acceptanceService.Create(env.Ctx, acceptance.New(
+		other.ID(),
+		acceptance.KindAct,
+		"B-1",
+		time.Date(2026, 9, 20, 0, 0, 0, 0, time.UTC),
+		money.New(10000, "USD"),
+		acceptance.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+
+	documentPath := fmt.Sprintf("%s/%s", acceptancePath(p.ID()), document.ID())
+	suite.POST(documentPath + "/sign").HTMX().Expect(t).Status(404)
+	suite.POST(documentPath + "/cancel").HTMX().Expect(t).Status(404)
+	suite.DELETE(documentPath).HTMX().Expect(t).Status(404)
+
+	unchanged, err := acceptanceService.GetByID(env.Ctx, document.ID())
+	require.NoError(t, err)
+	require.Equal(t, acceptance.StatusDraft, unchanged.Status())
 }
 
 func TestProjectController_Update_Contract(t *testing.T) {

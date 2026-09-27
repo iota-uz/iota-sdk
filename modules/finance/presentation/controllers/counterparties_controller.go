@@ -17,6 +17,7 @@ import (
 	counterpartiesui "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/counterparties"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -30,27 +31,25 @@ import (
 
 type CounterpartiesController struct {
 	counterpartiesService *services.CounterpartyService
-	clientRevenue         services.ClientRevenueSource
 	basePath              string
 }
 
-func NewCounterpartiesController(
-	counterpartiesService *services.CounterpartyService,
-	clientRevenue services.ClientRevenueSource,
-) application.Controller {
+func NewCounterpartiesController(counterpartiesService *services.CounterpartyService) application.Controller {
 	return &CounterpartiesController{
 		counterpartiesService: counterpartiesService,
-		clientRevenue:         clientRevenue,
 		basePath:              "/finance/counterparties",
 	}
 }
 
-func (c *CounterpartiesController) revenue(r *http.Request, id uuid.UUID) ([]*viewmodels.Revenue, error) {
-	revenue, err := c.clientRevenue.ClientRevenue(r.Context(), id)
+// revenue is shown next to the counterparty form; the form stays available
+// without it when it cannot be read.
+func revenue(r *http.Request, clientRevenue services.ClientRevenueSource, id uuid.UUID) []*viewmodels.Revenue {
+	lines, err := clientRevenue.ClientRevenue(r.Context(), id)
 	if err != nil {
-		return nil, err
+		logrus.WithError(err).Error("Error retrieving client revenue")
+		return nil
 	}
-	return mapping.MapViewModels(revenue, mappers.RevenueToViewModel), nil
+	return mapping.MapViewModels(lines, mappers.RevenueToViewModel)
 }
 
 func (c *CounterpartiesController) Descriptor() application.ControllerDescriptor {
@@ -75,11 +74,11 @@ func (c *CounterpartiesController) Register(r *mux.Router) {
 		middleware.WithPageContext(),
 	)
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.GetEdit).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.GetEdit)).Methods(http.MethodGet)
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 	router.HandleFunc("/search", c.Search).Methods(http.MethodGet)
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Update).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Update)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Delete).Methods(http.MethodDelete)
 }
 
@@ -173,7 +172,11 @@ func (c *CounterpartiesController) Create(w http.ResponseWriter, r *http.Request
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *CounterpartiesController) GetEdit(w http.ResponseWriter, r *http.Request) {
+func (c *CounterpartiesController) GetEdit(
+	w http.ResponseWriter,
+	r *http.Request,
+	clientRevenue services.ClientRevenueSource,
+) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
 		logrus.WithError(err).Error("Error parsing counterparty ID")
@@ -188,24 +191,21 @@ func (c *CounterpartiesController) GetEdit(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	revenue, err := c.revenue(r, id)
-	if err != nil {
-		logrus.WithError(err).Error("Error retrieving client revenue")
-		http.Error(w, "Error retrieving client revenue", http.StatusInternalServerError)
-		return
-	}
-
 	props := &counterpartiesui.EditPageProps{
 		Counterparty: mappers.CounterpartyToViewModel(entity),
 		Errors:       map[string]string{},
 		PostPath:     c.basePath + "/" + id.String(),
 		DeletePath:   c.basePath + "/" + id.String(),
-		Revenue:      revenue,
+		Revenue:      revenue(r, clientRevenue, id),
 	}
 	templ.Handler(counterpartiesui.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *CounterpartiesController) Update(w http.ResponseWriter, r *http.Request) {
+func (c *CounterpartiesController) Update(
+	w http.ResponseWriter,
+	r *http.Request,
+	clientRevenue services.ClientRevenueSource,
+) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
 		logrus.WithError(err).Error("Error parsing counterparty ID")
@@ -233,19 +233,13 @@ func (c *CounterpartiesController) Update(w http.ResponseWriter, r *http.Request
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		revenue, err := c.revenue(r, id)
-		if err != nil {
-			logrus.WithError(err).Error("Error retrieving client revenue")
-			http.Error(w, "Error retrieving client revenue", http.StatusInternalServerError)
-			return
-		}
 		// Use DTO-to-ViewModel mapping to preserve submitted form values including invalid TIN
 		props := &counterpartiesui.EditPageProps{
 			Counterparty: dto.ToViewModel(id.String()),
 			Errors:       errorsMap,
 			PostPath:     c.basePath + "/" + id.String(),
 			DeletePath:   c.basePath + "/" + id.String(),
-			Revenue:      revenue,
+			Revenue:      revenue(r, clientRevenue, id),
 		}
 		templ.Handler(counterpartiesui.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

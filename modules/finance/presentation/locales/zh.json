@@ -575,6 +575,7 @@
       "DeleteFile": "删除文档"
     },
     "Revenue": {
+      "Currency": "币种",
       "Contract": "合同",
       "Accepted": "已验收",
       "Open": "未验收",

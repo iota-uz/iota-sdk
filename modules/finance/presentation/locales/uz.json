@@ -575,6 +575,7 @@
       "DeleteFile": "Hujjatni o'chirish"
     },
     "Revenue": {
+      "Currency": "Valyuta",
       "Contract": "Shartnoma bo'yicha",
       "Accepted": "Qabul qilingan",
       "Open": "Qabul qilinmagan",
