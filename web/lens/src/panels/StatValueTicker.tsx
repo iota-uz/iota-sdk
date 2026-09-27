@@ -28,7 +28,6 @@ function prefersReducedMotion(): boolean {
  * separators so an intermediate frame can be re-rendered in the same shape.
  * Returns null when there is no numeric core to animate.
  */
-/* eslint-disable react-refresh/only-export-components */
 export function parseFormattedValue(text: string): ParsedValue | null {
   const firstDigit = text.search(/\d/)
   if (firstDigit === -1) return null

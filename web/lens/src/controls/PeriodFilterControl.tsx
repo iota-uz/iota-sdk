@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { createEffect, createMemo, createSignal, on, onCleanup, Show, For } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import type { JSX } from 'solid-js'
@@ -57,7 +57,6 @@ interface PopoverPosition {
  * clicked. Left-aligned it hangs off the control it belongs to, and only a
  * trigger close to the right edge falls back.
  */
-/* eslint-disable react-refresh/only-export-components */
 export function positionPopover(
   anchor: { left: number; right: number; bottom: number },
   size: { width: number; height: number },

@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from 'react'
+import { createEffect, createSignal, For, onCleanup, onMount, Show, type JSX } from 'solid-js'
 import type { Perspective } from '../contract'
 import { CaretDown, Check } from '../icons'
 
@@ -32,19 +25,20 @@ interface Indicator {
   width: number
 }
 
-export function LensSelector({ perspectives, activeId, label, moreLabel, onSelect }: LensSelectorProps) {
-  const inline = perspectives.length <= inlineLimit ? perspectives : perspectives.slice(0, inlineLimit - 1)
-  const overflow = perspectives.length <= inlineLimit ? [] : perspectives.slice(inlineLimit - 1)
-  const activeInOverflow = overflow.some(({ id }) => id === activeId)
-  const groupRef = useRef<HTMLDivElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const menuButtonRef = useRef<HTMLButtonElement>(null)
-  const pillRefs = useRef<Record<string, HTMLButtonElement | null>>({})
-  const [indicator, setIndicator] = useState<Indicator>()
-  const [menuOpen, setMenuOpen] = useState(false)
+export function LensSelector(props: LensSelectorProps): JSX.Element {
+  const perspectives = () => props.perspectives
+  const inline = () => perspectives().length <= inlineLimit ? perspectives() : perspectives().slice(0, inlineLimit - 1)
+  const overflow = () => perspectives().length <= inlineLimit ? [] : perspectives().slice(inlineLimit - 1)
+  const activeInOverflow = () => overflow().some(({ id }) => id === props.activeId)
+  let groupRef: HTMLDivElement | undefined
+  let menuRef: HTMLDivElement | undefined
+  let menuButtonRef: HTMLButtonElement | undefined
+  const pillRefs: Record<string, HTMLButtonElement | undefined> = {}
+  const [indicator, setIndicator] = createSignal<Indicator>()
+  const [menuOpen, setMenuOpen] = createSignal(false)
 
-  const measure = useCallback(() => {
-    const pill = activeId ? pillRefs.current[activeId] : undefined
+  const measure = () => {
+    const pill = props.activeId ? pillRefs[props.activeId] : undefined
     if (!pill) {
       setIndicator(undefined)
       return
@@ -53,38 +47,48 @@ export function LensSelector({ perspectives, activeId, label, moreLabel, onSelec
     setIndicator((current) => (
       current && current.left === next.left && current.width === next.width ? current : next
     ))
-  }, [activeId])
+  }
 
-  useLayoutEffect(measure, [measure, perspectives])
+  onMount(() => {
+    // The resting indicator must exist before first paint of the next frame,
+    // like the layout effect this replaces.
+    measure()
+  })
+  createEffect(() => {
+    void props.activeId
+    void perspectives()
+    measure()
+  })
 
-  useEffect(() => {
-    globalThis.addEventListener('resize', measure)
+  createEffect(() => {
+    const listener = measure
+    globalThis.addEventListener('resize', listener)
     // Web fonts landing after mount change pill widths; re-measure once ready.
     const fonts = (globalThis.document as Document & { fonts?: FontFaceSet }).fonts
-    void fonts?.ready.then(measure)
-    return () => globalThis.removeEventListener('resize', measure)
-  }, [measure])
+    void fonts?.ready.then(listener)
+    onCleanup(() => globalThis.removeEventListener('resize', listener))
+  })
 
-  useEffect(() => {
-    if (!menuOpen) return undefined
+  createEffect(() => {
+    if (!menuOpen()) return
     const onPress = (event: MouseEvent) => {
       const node = event.target as Node | null
-      if (node && (menuRef.current?.contains(node) || menuButtonRef.current?.contains(node))) return
+      if (node && (menuRef?.contains(node) || menuButtonRef?.contains(node))) return
       setMenuOpen(false)
     }
     globalThis.document.addEventListener('mousedown', onPress)
-    return () => globalThis.document.removeEventListener('mousedown', onPress)
-  }, [menuOpen])
+    onCleanup(() => globalThis.document.removeEventListener('mousedown', onPress))
+  })
 
-  const select = useCallback((id: string) => {
+  const select = (id: string) => {
     setMenuOpen(false)
-    if (id !== activeId) onSelect(id)
-  }, [activeId, onSelect])
+    if (id !== props.activeId) props.onSelect(id)
+  }
 
   // Roving focus across the inline radios and the menu button.
-  const onGroupKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+  const onGroupKeyDown = (event: KeyboardEvent) => {
     if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
-    const group = groupRef.current
+    const group = groupRef
     if (!group) return
     event.preventDefault()
     event.stopPropagation()
@@ -100,103 +104,109 @@ export function LensSelector({ perspectives, activeId, label, moreLabel, onSelec
     stops[next]?.focus()
   }
 
-  const onMenuKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+  const onMenuKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return
     // The panel maps Escape to drill-back; closing the menu must consume it.
     event.preventDefault()
     event.stopPropagation()
     setMenuOpen(false)
-    menuButtonRef.current?.focus()
+    menuButtonRef?.focus()
   }
 
   // The roving tabIndex lands on the active pill; when the active perspective
   // hides in the overflow (or none is active) the first stop takes it.
-  const tabStopId = activeId && !activeInOverflow && inline.some(({ id }) => id === activeId)
-    ? activeId
-    : activeInOverflow ? undefined : inline[0]?.id
+  const tabStopId = () => props.activeId && !activeInOverflow() && inline().some(({ id }) => id === props.activeId)
+    ? props.activeId
+    : activeInOverflow() ? undefined : inline()[0]?.id
 
   return (
-    <div className="lens-focus-lens">
-      <span className="lens-focus-lens-label">{label}</span>
+    <div class="lens-focus-lens">
+      <span class="lens-focus-lens-label">{props.label}</span>
       <div
-        aria-label={label}
-        className="lens-focus-lens-pills"
+        aria-label={props.label}
+        class="lens-focus-lens-pills"
         onKeyDown={onGroupKeyDown}
         ref={groupRef}
         role="radiogroup"
         tabIndex={-1}
       >
-        {indicator && (
-          // The resting position is an inline transform, so a VR screenshot is
-          // deterministic; the CSS transition only choreographs the slide
-          // between two resting states.
-          <span
-            aria-hidden="true"
-            className="lens-focus-lens-indicator"
-            style={{ transform: `translateX(${indicator.left}px)`, width: `${indicator.width}px` }}
-          />
-        )}
-        {inline.map((perspective) => {
-          const active = perspective.id === activeId
-          return (
-            <button
-              aria-checked={active}
-              className={`lens-focus-lens-pill${active ? ' lens-focus-lens-pill-active' : ''}`}
-              data-lens-stop
-              key={perspective.id}
-              onClick={() => select(perspective.id)}
-              ref={(element) => { pillRefs.current[perspective.id] = element }}
-              role="radio"
-              tabIndex={perspective.id === tabStopId ? 0 : -1}
-              type="button"
-            >
-              {perspective.label}
-            </button>
-          )
-        })}
-        {overflow.length > 0 && (
-          // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- delegate from the button/listbox options without making this layout wrapper a focus stop.
+        <Show when={indicator()}>
+          {(value) => (
+            // The resting position is an inline transform, so a VR screenshot is
+            // deterministic; the CSS transition only choreographs the slide
+            // between two resting states.
+            <span
+              aria-hidden="true"
+              class="lens-focus-lens-indicator"
+              style={{ transform: `translateX(${value().left}px)`, width: `${value().width}px` }}
+            />
+          )}
+        </Show>
+        <For each={inline()}>
+          {(perspective) => {
+            const active = () => perspective.id === props.activeId
+            return (
+              <button
+                aria-checked={active()}
+                class={`lens-focus-lens-pill${active() ? ' lens-focus-lens-pill-active' : ''}`}
+                data-lens-stop
+                onClick={() => select(perspective.id)}
+                ref={(element) => { pillRefs[perspective.id] = element }}
+                role="radio"
+                tabIndex={perspective.id === tabStopId() ? 0 : -1}
+                type="button"
+              >
+                {perspective.label}
+              </button>
+            )
+          }}
+        </For>
+        <Show when={overflow().length > 0}>
+          {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- delegate from the button/listbox options without making this layout wrapper a focus stop. */}
           <div
-            className="lens-focus-lens-more"
+            class="lens-focus-lens-more"
             onKeyDown={onMenuKeyDown}
           >
             <button
-              aria-expanded={menuOpen}
+              aria-expanded={menuOpen()}
               aria-haspopup="listbox"
-              className={`lens-focus-lens-pill${activeInOverflow ? ' lens-focus-lens-pill-active' : ''}`}
+              class={`lens-focus-lens-pill${activeInOverflow() ? ' lens-focus-lens-pill-active' : ''}`}
               data-lens-stop
               onClick={() => setMenuOpen((open) => !open)}
               ref={menuButtonRef}
-              tabIndex={activeInOverflow || tabStopId === undefined ? 0 : -1}
+              tabIndex={activeInOverflow() || tabStopId() === undefined ? 0 : -1}
               type="button"
             >
-              {activeInOverflow
-                ? overflow.find(({ id }) => id === activeId)?.label ?? moreLabel
-                : moreLabel}
+              {activeInOverflow()
+                ? overflow().find(({ id }) => id === props.activeId)?.label ?? props.moreLabel
+                : props.moreLabel}
               <CaretDown className="lens-focus-lens-more-caret" size={12} />
             </button>
-            {menuOpen && (
-              <div className="lens-focus-lens-menu" ref={menuRef} role="listbox" aria-label={moreLabel}>
-                {overflow.map((perspective) => {
-                  const active = perspective.id === activeId
-                  return (
-                    <button
-                      aria-selected={active}
-                      className="lens-focus-lens-option"
-                      key={perspective.id}
-                      onClick={() => select(perspective.id)}
-                      role="option"
-                      type="button"
-                    >
-                      <span className="lens-focus-lens-option-label">{perspective.label}</span>
-                      {active && <Check size={14} />}
-                    </button>
-                  )
-                })}
+            <Show when={menuOpen()}>
+              <div class="lens-focus-lens-menu" ref={menuRef} role="listbox" aria-label={props.moreLabel}>
+                <For each={overflow()}>
+                  {(perspective) => {
+                    const active = () => perspective.id === props.activeId
+                    return (
+                      <button
+                        aria-selected={active()}
+                        class="lens-focus-lens-option"
+                        onClick={() => select(perspective.id)}
+                        role="option"
+                        type="button"
+                      >
+                        <span class="lens-focus-lens-option-label">{perspective.label}</span>
+                        <Show when={active()}>
+                          <Check size={14} />
+                        </Show>
+                      </button>
+                    )
+                  }}
+                </For>
               </div>
-            )}
+            </Show>
           </div>
-        )}
+        </Show>
       </div>
     </div>
   )

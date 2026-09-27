@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { createEffect, createSignal, createUniqueId, on, onCleanup, untrack } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import type { JSX } from 'solid-js'
@@ -43,7 +43,6 @@ const tailInset = 14
  * below-and-left-aligned placement. The note flips above the trigger when the
  * remaining space below would clip it.
  */
-/* eslint-disable react-refresh/only-export-components */
 export function positionInfoTip(
   anchor: Pick<DOMRect, 'left' | 'top' | 'bottom'>,
   bubble: Pick<DOMRect, 'width' | 'height'>,

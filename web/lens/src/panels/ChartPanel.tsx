@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { createEffect, createMemo, createSignal, For, onCleanup, untrack } from 'solid-js'
 import type { JSX } from 'solid-js'
 import { Show } from 'solid-js'
@@ -41,7 +41,6 @@ const legendControlEntries = searchableListEntries
 /** Four or fewer entries are quicker to manage individually. */
 const legendBulkThreshold = 4
 
-/* eslint-disable react-refresh/only-export-components */
 export interface ChartPanelProps {
   panel: Panel
   adapter?: ChartAdapter
@@ -1255,7 +1254,7 @@ function ChartLegend(props: {
                 const raw = row[labelIndex]
                 const label = raw === null || raw === undefined ? '' : formatLabel(raw)
                 const key = model().entryKeys[index]!
-                const isHidden = props.hidden.has(key)
+                const isHidden = () => props.hidden.has(key)
                 const ringKey = model().ringByIndex.get(index)
                 const previousRingKey = visibleIndex() > 0 ? model().ringByIndex.get(visibleEntries()[visibleIndex() - 1]!) : undefined
                 const ringLabel = panel.radial?.rings?.find((ring) => ring.key === ringKey)?.label ?? ringKey
@@ -1264,15 +1263,15 @@ function ChartLegend(props: {
                     {ringKey && ringKey !== previousRingKey && <li class="lens-chart-legend-heading">{ringLabel}</li>}
                     <li class="lens-chart-legend-item">
                       <button
-                        aria-pressed={!isHidden}
-                        class={`lens-chart-legend-toggle${isHidden ? ' lens-chart-legend-hidden' : ''}`}
+                        aria-pressed={!isHidden()}
+                        class={`lens-chart-legend-toggle${isHidden() ? ' lens-chart-legend-hidden' : ''}`}
                         data-testid={`lens-panel-${panel.id}-legend-series-${entryIndex}`}
                         onClick={() => props.onToggle(key)}
                         // The charting idiom every reader arrives with, and the
                         // one the isolate glyph beside it was the only way to
                         // reach: double-clicking a row leaves that row alone on
                         // the plot. The two clicks that precede it cancel out.
-                        onDoubleClick={() => solo(key)}
+                        onDblClick={() => solo(key)}
                         title={translate('chart.legendToggleHint', 'Click to toggle · double-click to isolate')}
                         type="button"
                       >
@@ -1299,7 +1298,7 @@ function ChartLegend(props: {
                           Isolating is the idiom every charting library has
                           taught instead — double-click the row. */}
                         <span aria-hidden="true" class="lens-chart-legend-visibility">
-                          {isHidden ? <EyeSlash /> : <Eye />}
+                          {isHidden() ? <EyeSlash /> : <Eye />}
                         </span>
                       </button>
                     </li>

@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import type { JSX } from 'solid-js'
 import { For, Show } from 'solid-js'
 import type { LayoutItem, Panel, PanelKind } from '../contract'
@@ -11,7 +11,6 @@ import type { LayoutItem, Panel, PanelKind } from '../contract'
  * pkg/lens/render/react gets, so the handoff does not shift the grid.
  */
 
-/* eslint-disable react-refresh/only-export-components */
 export function ShimmerBar(props: { class?: string; style?: JSX.CSSProperties }) {
   return <span class={`lens-shimmer ${props.class ?? ''}`.trim()} style={props.style} />
 }

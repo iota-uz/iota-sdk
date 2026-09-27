@@ -1,5 +1,4 @@
-import type { Story } from '@ladle/react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { createEffect, createSignal, on, onCleanup, onMount, type JSX } from 'solid-js'
 import type { Encoding, Frame, Theme } from './contract'
 import { getChartAdapter, type ChartInput, type ChartInstance, type ChartKind } from './charts'
 import { formatFieldValue } from './runtime'
@@ -107,43 +106,39 @@ function radialInput(mode: 'partition' | 'progress'): ChartInput {
   }
 }
 
-function ChartPreview({ chartInput, onSelect }: { chartInput: ChartInput, onSelect?: (key: string) => void }) {
-  const element = useRef<HTMLDivElement>(null)
-  const instance = useRef<ChartInstance>()
-  const currentInput = useRef(chartInput)
-  currentInput.current = chartInput
+function ChartPreview(props: { chartInput: ChartInput, onSelect?: (key: string) => void }): JSX.Element {
+  let element: HTMLDivElement | undefined
+  let instance: ChartInstance | undefined
 
-  useEffect(() => {
+  onMount(() => {
     let active = true
-    if (!element.current) return
-    const target = element.current
-    void getChartAdapter(currentInput.current.kind).then((adapter) => {
+    void getChartAdapter(props.chartInput.kind).then((adapter) => {
       if (!active) return
-      instance.current = adapter.mount(target, currentInput.current, {
-        onSelect: (key) => onSelect?.(key),
+      instance = adapter.mount(element!, props.chartInput, {
+        onSelect: (key) => props.onSelect?.(key),
         onHover: () => undefined,
       })
     })
-    return () => {
+    onCleanup(() => {
       active = false
-      instance.current?.dispose()
-      instance.current = undefined
-    }
-  }, [onSelect])
+      instance?.dispose()
+      instance = undefined
+    })
+  })
 
-  useEffect(() => {
-    instance.current?.update(chartInput)
-  }, [chartInput])
+  createEffect(on(() => props.chartInput, (current) => {
+    instance?.update(current)
+  }))
 
-  return <div ref={element} style={{ width: '100%', height: 320 }} />
+  return <div ref={element} style={{ width: '100%', height: '320px' }} />
 }
 
-function Family({ kinds, mode }: { kinds: [ChartKind, ChartKind], mode: 'light' | 'dark' }) {
+function Family(props: { kinds: [ChartKind, ChartKind], mode: 'light' | 'dark' }): JSX.Element {
   return (
-    <div className="lens-root" data-theme={mode} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
-      {kinds.map((kind) => (
-        <section key={kind} className="lens-stat-card">
-          <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">{kind}</h2>
+    <div class="lens-root" data-theme={props.mode} style={{ display: 'grid', 'grid-template-columns': 'repeat(2, minmax(0, 1fr))', gap: '16px' }}>
+      {props.kinds.map((kind) => (
+        <section class="lens-stat-card">
+          <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">{kind}</h2>
           <ChartPreview chartInput={input(kind)} />
         </section>
       ))}
@@ -151,22 +146,22 @@ function Family({ kinds, mode }: { kinds: [ChartKind, ChartKind], mode: 'light' 
   )
 }
 
-export const PieAndDonutLight: Story = () => <Family kinds={['pie', 'donut']} mode="light" />
-export const PieAndDonutDark: Story = () => <Family kinds={['pie', 'donut']} mode="dark" />
-export const BarAndHorizontalBarLight: Story = () => <Family kinds={['bar', 'hbar']} mode="light" />
-export const BarAndHorizontalBarDark: Story = () => <Family kinds={['bar', 'hbar']} mode="dark" />
-export const LineAndAreaLight: Story = () => <Family kinds={['line', 'area']} mode="light" />
-export const LineAndAreaDark: Story = () => <Family kinds={['line', 'area']} mode="dark" />
+export const PieAndDonutLight = () => <Family kinds={['pie', 'donut']} mode="light" />
+export const PieAndDonutDark = () => <Family kinds={['pie', 'donut']} mode="dark" />
+export const BarAndHorizontalBarLight = () => <Family kinds={['bar', 'hbar']} mode="light" />
+export const BarAndHorizontalBarDark = () => <Family kinds={['bar', 'hbar']} mode="dark" />
+export const LineAndAreaLight = () => <Family kinds={['line', 'area']} mode="light" />
+export const LineAndAreaDark = () => <Family kinds={['line', 'area']} mode="dark" />
 
-function RadialFamily({ mode }: { mode: 'light' | 'dark' }) {
+function RadialFamily(props: { mode: 'light' | 'dark' }): JSX.Element {
   return (
-    <div className="lens-root" data-theme={mode} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
-      <section className="lens-stat-card">
-        <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Multi-ring partition</h2>
+    <div class="lens-root" data-theme={props.mode} style={{ display: 'grid', 'grid-template-columns': 'repeat(2, minmax(0, 1fr))', gap: '16px' }}>
+      <section class="lens-stat-card">
+        <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Multi-ring partition</h2>
         <ChartPreview chartInput={radialInput('partition')} />
       </section>
-      <section className="lens-stat-card">
-        <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Radial progress</h2>
+      <section class="lens-stat-card">
+        <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Radial progress</h2>
         <ChartPreview chartInput={radialInput('progress')} />
       </section>
     </div>
@@ -201,14 +196,14 @@ function receivableRingInput(): ChartInput {
   }
 }
 
-export const RadialMicroSlice: Story = () => (
-  <div className="lens-root" data-theme="light" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
-    <section className="lens-stat-card">
-      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Sub-1% share, called out</h2>
+export const RadialMicroSlice = () => (
+  <div class="lens-root" data-theme="light" style={{ display: 'grid', 'grid-template-columns': 'repeat(2, minmax(0, 1fr))', gap: '16px' }}>
+    <section class="lens-stat-card">
+      <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Sub-1% share, called out</h2>
       <ChartPreview chartInput={receivableRingInput()} />
     </section>
-    <section className="lens-stat-card lens-root" data-theme="dark">
-      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Dark</h2>
+    <section class="lens-stat-card lens-root" data-theme="dark">
+      <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Dark</h2>
       <ChartPreview chartInput={receivableRingInput()} />
     </section>
   </div>
@@ -254,37 +249,37 @@ function threeRingInput(): ChartInput {
   }
 }
 
-export const RadialLight: Story = () => <RadialFamily mode="light" />
-export const RadialDark: Story = () => <RadialFamily mode="dark" />
-export const RadialThreeRings: Story = () => (
-  <div className="lens-root" data-theme="light" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
-    <section className="lens-stat-card">
-      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Three rings, one whole</h2>
+export const RadialLight = () => <RadialFamily mode="light" />
+export const RadialDark = () => <RadialFamily mode="dark" />
+export const RadialThreeRings = () => (
+  <div class="lens-root" data-theme="light" style={{ display: 'grid', 'grid-template-columns': 'repeat(2, minmax(0, 1fr))', gap: '16px' }}>
+    <section class="lens-stat-card">
+      <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Three rings, one whole</h2>
       <ChartPreview chartInput={threeRingInput()} />
     </section>
-    <section className="lens-stat-card lens-root" data-theme="dark">
-      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Dark</h2>
+    <section class="lens-stat-card lens-root" data-theme="dark">
+      <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Dark</h2>
       <ChartPreview chartInput={threeRingInput()} />
     </section>
   </div>
 )
-export const RadialNarrow: Story = () => (
-  <div className="lens-root" data-theme="light" style={{ width: 420 }}>
-    <section className="lens-stat-card">
-      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Multi-ring on compact cards</h2>
+export const RadialNarrow = () => (
+  <div class="lens-root" data-theme="light" style={{ width: '420px' }}>
+    <section class="lens-stat-card">
+      <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Multi-ring on compact cards</h2>
       <ChartPreview chartInput={radialInput('partition')} />
     </section>
   </div>
 )
 
-export const ControlledSelection: Story = () => {
-  const [selectedKey, setSelectedKey] = useState<string>()
-  const chartInput = useMemo(() => input('donut', selectedKey), [selectedKey])
+export const ControlledSelection = () => {
+  const [selectedKey, setSelectedKey] = createSignal<string>()
+  const chartInput = () => input('donut', selectedKey())
   return (
-    <div className="lens-root" data-theme="light">
-      <section className="lens-stat-card" style={{ maxWidth: 640 }}>
-        <p className="lens-m-0 lens-text-md lens-text-muted">Selected NodeKey: {selectedKey ?? 'none'}</p>
-        <ChartPreview chartInput={chartInput} onSelect={setSelectedKey} />
+    <div class="lens-root" data-theme="light">
+      <section class="lens-stat-card" style={{ 'max-width': '640px' }}>
+        <p class="lens-m-0 lens-text-md lens-text-muted">Selected NodeKey: {selectedKey() ?? 'none'}</p>
+        <ChartPreview chartInput={chartInput()} onSelect={(key) => setSelectedKey(key)} />
       </section>
     </div>
   )

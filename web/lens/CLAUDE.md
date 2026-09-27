@@ -1,14 +1,14 @@
 # Lens React runtime workflow
 
-Lens runtime work is verified through fixtures, Ladle stories, and Chromium
+Lens runtime work is verified through fixtures, Solid story-harness stories, and Chromium
 screenshots. The normal loop does not require a running ERP:
 
 1. Edit the Go contract, runtime, panels, styles, or stories.
 2. Run `just lens smoke <test file>` (or `-t 'name'`) while iterating — the
    typecheck plus those tests, in seconds.
 3. Run `just lens check` from the repository root before pushing.
-4. Run `just lens ladle` and inspect the affected story at
-   `http://localhost:61000`.
+4. Run `just lens ladle` (Solid story harness: build + preview) and inspect
+   the affected story at `http://localhost:61000/?story=<id>&mode=preview`.
 5. Run `just lens vr`.
 
 A runtime PR that adds or changes a visible surface without corresponding
@@ -32,7 +32,7 @@ Use these root commands during development:
 ```sh
 just lens smoke <t>   # typecheck + the tests you name — the per-edit lane
 just lens check       # regenerate contract, reject drift, typecheck, lint, test
-just lens ladle       # interactive story grid
+just lens ladle       # build + serve the Solid story harness
 just lens vr          # compare, or bootstrap ignored local OS baselines
 just lens vr-update   # intentionally replace current-OS baselines
 just lens build       # rebuild the runtime distribution
@@ -62,12 +62,12 @@ build. A clean clone intentionally contains no compatibility manifest: direct
 package consumers still compile without Node, while invoking the legacy
 renderer/controller fails with the command needed to generate or locate it.
 
-The VR profile builds the Ladle story bundle and starts a fresh static preview
+The VR profile builds the Solid story harness and starts a fresh static preview
 for each run. It uses Chromium only, a 1600×1000 CSS viewport, device scale 1,
 UTC, `en-US`, reduced motion, and the Inter variable font bundled for the story
-environment at `.ladle/fonts/` (the runtime dist never embeds it — embedded
+environment at `src/stories/` (the runtime dist never embeds it — embedded
 dashboards inherit the Granite host page's fonts). URLs include `lens-vr=1`; the
-Ladle build hook sets `data-lens-vr`, Playwright disables CSS animations, and
+story harness sets `data-lens-vr`, Playwright disables CSS animations, and
 app code disables View Transitions and ECharts animation through
 `isVisualRegression()`. Tests wait for the expected canvases, font readiness,
 and two animation frames before taking full-page screenshots.
@@ -107,9 +107,9 @@ Definition of done for a new kind:
 3. Add loading, empty, error, stale, and data cases to
    `src/PanelMatrix.stories.tsx` in both light and dark themes.
 4. Add focused interaction or layout stories when the matrix cannot express the
-   behavior. Add every new Ladle story to `vr/lens.spec.ts`; the manifest test
+   behavior. Add every new harness story to `vr/lens.spec.ts`; the manifest test
    fails if story and VR coverage diverge.
-5. Run `just lens check`, inspect Ladle, run `just lens vr`, and rebuild with
+5. Run `just lens check`, inspect the story harness, run `just lens vr`, and rebuild with
    `just lens build` when runtime or contract output changed.
 6. Rebaseline only after confirming the pixel change is intentional. Review the
    complete diff, run `just lens vr-update`, then run `just lens vr` again.
@@ -153,7 +153,7 @@ used by the CI runner. The repository is mounted at `/work`; both workspaces get
 container-owned `node_modules`, and Client Host is rebuilt into a
 container-owned `dist` before Lens starts. That prevents Darwin optional
 binaries or a stale host build from leaking into the run, while a named pnpm
-store keeps repeated runs fast. Ladle also deduplicates React across the linked
+store keeps repeated runs fast. The story harness serves the linked
 client-host workspace. This produces the same `vr/baselines/linux` and
 `vr/results` paths as CI. ARM hosts fail fast instead of running Chromium under
 QEMU and producing architecture-specific pixels; use the CI update workflow to

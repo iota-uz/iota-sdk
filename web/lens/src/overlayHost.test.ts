@@ -32,9 +32,19 @@ function namedHostClasses(): Array<string> {
   const names = new Set<string>()
   for (const file of sourceFiles('src')) {
     const source = readFileSync(file, 'utf8')
-    for (const match of source.matchAll(/useOverlayContainer\(\s*[^)]*?'(?<name>lens-[\w-]*overlay-root)'/g)) {
-      const name = match.groups?.name
-      if (name) names.add(name)
+    for (const start of [...source.matchAll(/useOverlayContainer\(/g)]) {
+      let depth = 0
+      let end = start.index ?? 0
+      for (let i = start.index + 'useOverlayContainer'.length; i < source.length; i += 1) {
+        if (source[i] === '(') depth += 1
+        else if (source[i] === ')') {
+          depth -= 1
+          if (depth === 0) { end = i; break }
+        }
+      }
+      const call = source.slice(start.index, end)
+      const match = call.match(/'(?<name>lens-[\w-]*overlay-root)'/)
+      if (match?.groups?.name) names.add(match.groups.name)
     }
   }
   return [...names].sort()

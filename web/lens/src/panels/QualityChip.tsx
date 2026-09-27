@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import type { JSX } from 'solid-js'
 import { Show } from 'solid-js'
 import type { Availability, Confidence } from '../contract'
@@ -25,7 +25,6 @@ import {
  * "good", so `verified` reads as a strong-neutral rather than a green success.
  */
 
-/* eslint-disable react-refresh/only-export-components */
 interface QualityMeta {
   className: string
   icon: (props: IconProps) => JSX.Element

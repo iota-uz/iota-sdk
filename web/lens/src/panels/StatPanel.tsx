@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { Show } from 'solid-js'
 import type { JSX } from 'solid-js'
 import type { Panel, Sparkline } from '../contract'

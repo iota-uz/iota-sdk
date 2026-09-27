@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { createMemo, ErrorBoundary, For, lazy, Show, Suspense, type Component, type JSXElement } from 'solid-js'
 import { Dynamic } from 'solid-js/web'
 import type { Panel, PanelKind } from '../contract'
@@ -25,7 +25,6 @@ const MetricRelationshipPanel: Component<MetricRelationshipPanelProps> = lazy(as
 const MapPanel: Component<MapPanelProps> = lazy(async () => ({ default: (await import('./MapPanel')).MapPanel }))
 const TablePanel: Component<TablePanelProps> = lazy(async () => ({ default: (await import('./TablePanel')).TablePanel }))
 
-/* eslint-disable react-refresh/only-export-components */
 export type PanelComponent = Component<
   | StatPanelProps
   | ChartPanelProps

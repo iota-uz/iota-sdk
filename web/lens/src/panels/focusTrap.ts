@@ -1,4 +1,4 @@
-import { createEffect, onCleanup } from 'solid-js'
+import { createEffect, onCleanup, type Accessor } from 'solid-js'
 
 const focusableSelector = [
   'a[href]', 'button:not([disabled])', 'input:not([disabled])', 'select:not([disabled])',
@@ -8,13 +8,14 @@ const focusableSelector = [
 /** Keeps keyboard focus within an open dialog and restores its trigger. */
 export function useFocusTrap(
   dialog: () => HTMLElement | null | undefined,
-  active: boolean,
+  active: boolean | Accessor<boolean>,
   onEscape: () => void,
   initialFocus?: () => HTMLElement | null | undefined,
   restoreFocus?: () => HTMLElement | null | undefined,
 ): void {
   createEffect(() => {
-    if (!active || typeof document === 'undefined') return
+    const isActive = typeof active === 'function' ? active() : active
+    if (!isActive || typeof document === 'undefined') return
     const restoreTarget = restoreFocus?.()
     const focusFrame = requestAnimationFrame(() => (initialFocus?.() ?? dialog())?.focus())
     const keydown = (event: KeyboardEvent) => {

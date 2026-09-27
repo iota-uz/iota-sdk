@@ -1,5 +1,4 @@
-import type { Story } from '@ladle/react'
-import { useEffect, useRef } from 'react'
+import { onCleanup, onMount } from 'solid-js'
 import focusFixture from '../fixtures/focus.json'
 import type { Action, DashboardDocument, Panel } from './contract'
 import { LensDashboard } from './LensDashboard'
@@ -7,7 +6,7 @@ import type { LensThemeMode } from './runtime'
 import './styles.css'
 
 const drawerURL = '/stories/drill/loss-ratio/lens/document?token=story'
-const openDrawer: Action = { kind: 'open_drawer', method: 'GET', urlTemplate: drawerURL, params: [], payload: {} }
+const openDrawerAction: Action = { kind: 'open_drawer', method: 'GET', urlTemplate: drawerURL, params: [], payload: {} }
 
 function statPanel(id: string, title: string, action?: Action): Panel {
   return {
@@ -36,7 +35,7 @@ function documentWith(title: string, panels: Panel[], rows: DashboardDocument['l
 }
 
 const dashboardPanels = [
-  statPanel('loss-ratio', 'Loss ratio', openDrawer),
+  statPanel('loss-ratio', 'Loss ratio', openDrawerAction),
   statPanel('expense-ratio', 'Expense ratio'),
   statPanel('combined-ratio', 'Combined ratio'),
 ]
@@ -116,24 +115,24 @@ function drawerFetcher(state: DrawerState): typeof fetch {
   }
 }
 
-function DrawerScene({ open, theme, state = 'ready' }: { open: boolean; theme: LensThemeMode; state?: DrawerState }) {
-  const host = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!open) return
+function DrawerScene(props: { open: boolean; theme: LensThemeMode; state?: DrawerState }) {
+  let host: HTMLDivElement | undefined
+  onMount(() => {
+    if (!props.open) return
     let cancelled = false
     let attempts = 0
     const openDrawer = () => {
       if (cancelled || globalThis.document.querySelector('.lens-drawer')) return
-      const link = host.current?.querySelector<HTMLAnchorElement>('.lens-card-link')
+      const link = host?.querySelector<HTMLAnchorElement>('.lens-card-link')
       if (link) { link.click(); return }
       if (attempts++ < 30) globalThis.requestAnimationFrame(openDrawer)
     }
     globalThis.requestAnimationFrame(openDrawer)
-    return () => { cancelled = true }
-  }, [open])
+    onCleanup(() => { cancelled = true })
+  })
   return (
     <div ref={host}>
-      <LensDashboard initialDocument={dashboard} fetcher={drawerFetcher(state)} theme={theme} />
+      <LensDashboard initialDocument={dashboard} fetcher={drawerFetcher(props.state ?? 'ready')} theme={props.theme} />
     </div>
   )
 }
@@ -145,9 +144,9 @@ function DrawerScene({ open, theme, state = 'ready' }: { open: boolean; theme: L
  * view instead of hiding behind its backdrop. This is the regression the portal
  * move fixes: expand first, then open the drill from the link inside the overlay.
  */
-function StackedScene({ theme }: { theme: LensThemeMode }) {
-  const host = useRef<HTMLDivElement>(null)
-  useEffect(() => {
+function StackedScene(props: { theme: LensThemeMode }) {
+  let host: HTMLDivElement | undefined
+  onMount(() => {
     let cancelled = false
     let attempts = 0
     const openDrill = () => {
@@ -160,46 +159,27 @@ function StackedScene({ theme }: { theme: LensThemeMode }) {
     }
     const expand = () => {
       if (cancelled) return
-      const button = host.current?.querySelector<HTMLButtonElement>('button[aria-label="Expand panel"]')
+      const button = host?.querySelector<HTMLButtonElement>('button[aria-label="Expand panel"]')
       if (button) { button.click(); globalThis.requestAnimationFrame(openDrill); return }
       if (attempts++ < 30) globalThis.requestAnimationFrame(expand)
     }
     globalThis.requestAnimationFrame(expand)
-    return () => { cancelled = true }
-  }, [])
+    onCleanup(() => { cancelled = true })
+  })
   return (
     <div ref={host}>
-      <LensDashboard initialDocument={dashboard} fetcher={drawerFetcher('ready')} theme={theme} />
+      <LensDashboard initialDocument={dashboard} fetcher={drawerFetcher('ready')} theme={props.theme} />
     </div>
   )
 }
 
-export const ClosedLight: Story = () => <DrawerScene open={false} theme="light" />
-ClosedLight.storyName = 'Closed light'
-
-export const ClosedDark: Story = () => <DrawerScene open={false} theme="dark" />
-ClosedDark.storyName = 'Closed dark'
-
-export const OpenLight: Story = () => <DrawerScene open theme="light" />
-OpenLight.storyName = 'Open light'
-
-export const OpenDark: Story = () => <DrawerScene open theme="dark" />
-OpenDark.storyName = 'Open dark'
-
-export const OpenWide: Story = () => <DrawerScene open state="wide" theme="light" />
-OpenWide.storyName = 'Open wide'
-
-export const OpenWideFocusCanvas: Story = () => <DrawerScene open state="focusCanvas" theme="light" />
-OpenWideFocusCanvas.storyName = 'Open wide focus canvas'
-
-export const OpenOverExpandedPanel: Story = () => <StackedScene theme="light" />
-OpenOverExpandedPanel.storyName = 'Open over expanded panel'
-
-export const Loading: Story = () => <DrawerScene open state="loading" theme="light" />
-Loading.storyName = 'Loading'
-
-export const Error: Story = () => <DrawerScene open state="error" theme="light" />
-Error.storyName = 'Error'
-
-export const LongDocumentScrolls: Story = () => <DrawerScene open state="long" theme="light" />
-LongDocumentScrolls.storyName = 'Long document scrolls'
+export const ClosedLight = () => <DrawerScene open={false} theme="light" />
+export const ClosedDark = () => <DrawerScene open={false} theme="dark" />
+export const OpenLight = () => <DrawerScene open theme="light" />
+export const OpenDark = () => <DrawerScene open theme="dark" />
+export const OpenWide = () => <DrawerScene open state="wide" theme="light" />
+export const OpenWideFocusCanvas = () => <DrawerScene open state="focusCanvas" theme="light" />
+export const OpenOverExpandedPanel = () => <StackedScene theme="light" />
+export const Loading = () => <DrawerScene open state="loading" theme="light" />
+export const Error = () => <DrawerScene open state="error" theme="light" />
+export const LongDocumentScrolls = () => <DrawerScene open state="long" theme="light" />

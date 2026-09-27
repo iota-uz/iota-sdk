@@ -3,7 +3,7 @@
 // and any automation driving it, and is why printed output is otherwise
 // impossible to review.
 //
-//   pnpm ladle:build && pnpm ladle:preview   # in one shell
+//   pnpm ladle:build && pnpm stories:preview  # in one shell
 //   pnpm print-pdf [url] [output]            # in another
 //
 // Any page that renders `.lens-print-report` works, including a running

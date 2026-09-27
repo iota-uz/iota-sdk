@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { createSignal, onCleanup } from 'solid-js'
 import { useTranslate } from '../runtime'
 import { copyText } from '../runtime/clipboard'

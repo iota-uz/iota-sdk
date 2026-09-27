@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { createEffect, createSignal, createUniqueId, onCleanup, For, Show } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import type { Filter } from '../contract'
@@ -18,7 +18,6 @@ const minimumFacetBarPercent = 3
  * menu never has to know which of the page's parameters are filters — it drops
  * the values of the dimensions it is restating and appends the staged sets.
  */
-/* eslint-disable react-refresh/only-export-components */
 export function stagedFilterURL(base: string, drafts: ReadonlyMap<string, ReadonlySet<string>>): string {
   const href = typeof window === 'undefined' ? 'http://localhost/' : window.location.href
   const source = new URL(base || href, href)
@@ -186,8 +185,11 @@ export function FacetFilterMenu(props: { filters: Array<Filter> }) {
   const base = () => [...staged().keys()].map((dimension) => targets().get(dimension)).find(Boolean) ?? ''
   const apply = () => {
     if (staged().size === 0 || !base()) return
+    // The URL is built before closing: Solid runs the close-time staging
+    // cleanup synchronously, and closing first would wipe the staged set.
+    const next = stagedFilterURL(base(), staged())
     close()
-    applyURL(stagedFilterURL(base(), staged()))
+    applyURL(next)
   }
 
   const single = props.filters.length === 1

@@ -9,7 +9,7 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   resolve: {
     alias: {
-      '@iota-uz/sdk/client-host': path.resolve(rootDir, '../client-host/src/index.ts'),
+      '@iota-uz/sdk/client-host': path.resolve(rootDir, '../client-host/src/solid-index.ts'),
     },
 
   },
@@ -46,7 +46,10 @@ export default defineConfig({
     manifest: true,
     cssCodeSplit: true,
     rollupOptions: {
-      input: path.resolve(rootDir, 'index.html'),
+      input: {
+        index: path.resolve(rootDir, 'index.html'),
+        stories: path.resolve(rootDir, 'stories.html'),
+      },
       output: {
         entryFileNames: 'assets/lens-dashboard-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',

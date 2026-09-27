@@ -1,7 +1,7 @@
 import type { Config } from 'tailwindcss'
 
 export default {
-  content: ['./index.html', './src/**/*.{ts,tsx}', './.ladle/**/*.{ts,tsx}'],
+  content: ['./index.html', './stories.html', './src/**/*.{ts,tsx}'],
   prefix: 'lens-',
   corePlugins: {
     preflight: false,

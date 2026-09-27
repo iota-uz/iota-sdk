@@ -1,10 +1,9 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { For } from 'solid-js'
 import type { Frame, NodeKey, Panel } from '../contract'
 import { radialNodeKey, type ChartFormatResolver } from '../charts/adapter'
 import { fallbackMarkKey } from '../charts/keys'
 
-/* eslint-disable react-refresh/only-export-components */
 interface ChartDataEquivalentProps {
   actionable: boolean
   format: ChartFormatResolver

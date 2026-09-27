@@ -8,7 +8,7 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   resolve: {
     alias: {
-      '@iota-uz/sdk/client-host': path.resolve(rootDir, '../client-host/src/index.ts'),
+      '@iota-uz/sdk/client-host': path.resolve(rootDir, '../client-host/src/solid-index.ts'),
     },
     dedupe: ['solid-js'],
   },

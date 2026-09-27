@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import {
   createContext,
   createMemo,
@@ -33,7 +33,6 @@ const LazyPrintReport = lazy(async () => ({
   default: (await import('./print/PrintReport')).PrintReport as unknown as (props: object) => JSX.Element,
 }))
 
-/* eslint-disable react-refresh/only-export-components */
 export interface DashboardPanelsProps {
   registry?: PanelRegistry
   /** Fixed calendar "today" for deterministic stories and visual regression. */
@@ -172,7 +171,7 @@ function MissingPanel(props: { panelId: string }) {
 }
 
 function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
-  const { isRefreshing } = useDocumentState()
+  const documentState = useDocumentState()
   return (
     <div class="lens-grid-item" style={spanStyle(props.group.span)}>
       <section
@@ -198,7 +197,7 @@ function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
             one — it dims with them rather than standing at full strength over
             superseded numbers. */}
         <Show when={props.group.caption}>
-          <p class="lens-panel-caption" data-stale={isRefreshing || undefined}>{props.group.caption}</p>
+          <p class="lens-panel-caption" data-stale={documentState.isRefreshing || undefined}>{props.group.caption}</p>
         </Show>
         {props.children}
       </section>
@@ -504,7 +503,7 @@ const stalenessThresholdMs = 60 * 60_000
  */
 function useFreshness(): Accessor<{ label: string; isRefreshing: boolean; absolute: string; stale: boolean } | null> {
   const { document } = useDashboard()
-  const { isRefreshing } = useDocumentState()
+  const documentState = useDocumentState()
   const drawer = useDrawer()
   const translate = useTranslate()
   const [tick, setTick] = createSignal(0)
@@ -520,12 +519,12 @@ function useFreshness(): Accessor<{ label: string; isRefreshing: boolean; absolu
     if (drawer.depth > 0 || isVisualRegression()) return null
     const generatedAt = Date.parse(document.meta.generatedAt)
     if (!Number.isFinite(generatedAt)) return null
-    const label = isRefreshing
+    const label = documentState.isRefreshing
       ? translate('panel.updating', 'Updating')
       : translate('dashboard.updated', 'Updated {time}', { time: relativeTime(generatedAt, document.meta.locale) })
     const absolute = new Intl.DateTimeFormat(document.meta.locale, { dateStyle: 'medium', timeStyle: 'short' })
       .format(generatedAt)
-    return { label, isRefreshing, absolute, stale: Date.now() - generatedAt > stalenessThresholdMs }
+    return { label, isRefreshing: documentState.isRefreshing, absolute, stale: Date.now() - generatedAt > stalenessThresholdMs }
   })
 }
 
@@ -554,17 +553,17 @@ function useFreshness(): Accessor<{ label: string; isRefreshing: boolean; absolu
  * to print, so the button falls back to naming itself.
  */
 function FreshnessControl() {
-  const { isRecomputing, recompute, canRecompute } = useDashboard()
+  const dashboard = useDashboard()
   const translate = useTranslate()
   const freshness = useFreshness()
   const hintID = createUniqueId()
 
-  const hint = createMemo(() => isRecomputing
+  const hint = createMemo(() => dashboard.isRecomputing
     ? translate('dashboard.recomputing', 'Recomputing…')
     : translate('dashboard.recomputeHint', 'Refresh every figure, ignoring the cached results'))
 
   return (
-    <Show when={canRecompute} fallback={
+    <Show when={dashboard.canRecompute} fallback={
       <Show when={freshness()}>
         {(value) => (
           <p
@@ -584,17 +583,17 @@ function FreshnessControl() {
           whether or not anything went stale, so the absolute timestamp is what the
           control actually claims, on hover and in the description. */}
       <button
-        aria-busy={isRecomputing}
+        aria-busy={dashboard.isRecomputing}
         aria-describedby={hintID}
         aria-live="polite"
         class="lens-export-button lens-recompute"
         data-stale={freshness()?.stale || undefined}
-        disabled={isRecomputing}
-        onClick={recompute}
+        disabled={dashboard.isRecomputing}
+        onClick={() => dashboard.recompute()}
         title={freshness() ? `${freshness()!.absolute} — ${hint()}` : hint()}
         type="button"
       >
-        {isRecomputing ? <CircleNotch className="lens-icon-spin" /> : <ArrowClockwise />}
+        {dashboard.isRecomputing ? <CircleNotch className="lens-icon-spin" /> : <ArrowClockwise />}
         <span>{freshness() ? freshness()!.label : translate('dashboard.recompute', 'Recompute')}</span>
       </button>
       <span class="lens-sr-only" id={hintID}>{hint()}</span>
@@ -603,21 +602,21 @@ function FreshnessControl() {
 }
 
 function DocumentRefetchError() {
-  const { error, refresh, dismissError } = useDocumentState()
+  const documentState = useDocumentState()
   const translate = useTranslate()
 
   return (
-    <Show when={error}>
+    <Show when={documentState.error}>
       <div class="lens-document-refetch-error" role="alert">
         <span>{translate('document.refetchFailed', 'Unable to refresh the dashboard. The previous data is still shown.')}</span>
         <div class="lens-document-refetch-error-actions">
-          <button onClick={() => void refresh().catch(() => undefined)} type="button">
+          <button onClick={() => void documentState.refresh().catch(() => undefined)} type="button">
             {translate('document.retry', 'Retry')}
           </button>
           <button
             aria-label={translate('runtime.dismissNotice', 'Dismiss notice')}
             class="lens-document-refetch-error-dismiss"
-            onClick={dismissError}
+            onClick={() => documentState.dismissError()}
             type="button"
           >
             <X />
@@ -647,7 +646,8 @@ function usePrintPreview(): void {
 }
 
 export function DashboardPanels(props: DashboardPanelsProps) {
-  const { document, canRecompute } = useDashboard()
+  const { document } = useDashboard()
+  const dashboard = useDashboard()
   const translate = useTranslate()
   const drawer = useDrawer()
   const drawerHeader = useDrawerHeader()
@@ -674,11 +674,11 @@ export function DashboardPanels(props: DashboardPanelsProps) {
     // drawer. A document opened without a `drawer` block leaves the chrome's
     // identity line empty, and suppressing the document's own heading there
     // would take the drawer's only name away rather than de-duplicate it.
-    const inDrawer = drawer.depth > 0 && Boolean(drawerHeader?.title?.trim())
+    const inDrawer = drawer.depth > 0 && Boolean(drawerHeader()?.title?.trim())
     return inDrawer ? '' : (document.header?.title || document.meta.title)
   })
   const hasHeader = createMemo(() => Boolean(identityTitle()) || Boolean(document.endpoints.export) || print.available ||
-    (document.filters?.length ?? 0) > 0 || canRecompute)
+    (document.filters?.length ?? 0) > 0 || dashboard.canRecompute)
   const columns = createMemo(() => metricColumnCount(document.layout.rows))
   // Comparison is a property of the dashboard, not of the panels that happen to
   // carry a delta: with it on, every strip reserves the chip's row. Otherwise
@@ -729,7 +729,7 @@ export function DashboardPanels(props: DashboardPanelsProps) {
                   restated the period the period control was already printing, so
                   the same fact occupied three surfaces. What is left of it is what
                   no control states — the date the data itself was cut. */}
-              <FilterBar subtitle={drawer.depth > 0 && Boolean(drawerHeader?.title?.trim()) ? undefined : document.header?.subtitle} today={props.filterToday} />
+              <FilterBar subtitle={drawer.depth > 0 && Boolean(drawerHeader()?.title?.trim()) ? undefined : document.header?.subtitle} today={props.filterToday} />
             </header>
           </Show>
           <Show when={hasHeader()}>

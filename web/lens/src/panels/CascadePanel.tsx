@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { For } from 'solid-js'
 
 type SolidKeyboardEvent<T = Element> = KeyboardEvent & { currentTarget: T }
@@ -14,7 +14,6 @@ import { WaterfallPlot } from './WaterfallPlot'
 
  
 
-/* eslint-disable react-refresh/only-export-components */
 const widthFloor = 2
 
 function numeric(value: unknown): number {

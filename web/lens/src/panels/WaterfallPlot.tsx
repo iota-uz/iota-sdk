@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { createEffect, createSignal, onCleanup, Show, type JSX } from 'solid-js'
 import { For, children as useChildren } from 'solid-js'
 import { Portal } from 'solid-js/web'
@@ -58,7 +58,6 @@ export interface WaterfallTipPosition {
  * to sit above: the band is at the top of its bar, and below it would cover the
  * rest of the movement it is a part of.
  */
-/* eslint-disable react-refresh/only-export-components */
 export function positionWaterfallTip(
   anchor: Pick<DOMRect, 'left' | 'width' | 'top' | 'bottom'>,
   tip: Pick<DOMRect, 'width' | 'height'>,

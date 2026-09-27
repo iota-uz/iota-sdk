@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property -- Solid JSX uses `class`, the React-era rule expects `className`; the lint config migrates with the Solid port. */
+
 import { createEffect, createSignal, createUniqueId, on, onCleanup, untrack, For, Show } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import type { CompareMode, Filter } from '../contract'
@@ -93,10 +93,12 @@ interface CompareOption {
  * inside the popover, which is where the one commit path (Apply) lives.
  */
 export function CompareFilterControl(props: { filter: Filter }) {
-  const comparison = props.filter.compare
+  const comparison = () => props.filter.compare
   const { setCompare } = useFilters()
   const translate = useTranslate()
-  const serverMode = comparison?.value.mode ?? 'off'
+  // The mode the mounted document actually shows, kept reactive so a refetch
+  // (the Apply path) re-bases the control on the server's answer.
+  const serverMode = () => comparison()?.value.mode ?? 'off'
   const popoverID = createUniqueId()
   let triggerRef: HTMLButtonElement | undefined
   let popoverRef: HTMLDivElement | undefined
@@ -109,30 +111,30 @@ export function CompareFilterControl(props: { filter: Filter }) {
   // walk the list and leave with Escape without having changed anything — the
   // selection does not follow focus, because a comparison mode is a slice of the
   // whole dashboard and browsing it must not restate it.
-  const [mode, setMode] = createSignal<CompareMode>(serverMode)
-  const [focused, setFocused] = createSignal<CompareMode>(serverMode)
-  const [start, setStart] = createSignal(comparison?.value.start ?? '')
-  const [end, setEnd] = createSignal(comparison?.value.end ?? '')
+  const [mode, setMode] = createSignal<CompareMode>(serverMode())
+  const [focused, setFocused] = createSignal<CompareMode>(serverMode())
+  const [start, setStart] = createSignal(comparison()?.value.start ?? '')
+  const [end, setEnd] = createSignal(comparison()?.value.end ?? '')
   const [position, setPosition] = createSignal({ left: 0, top: 0 })
   const closePopover = () => setOpen(false)
   const container = useOverlayContainer(open, () => triggerRef)
-  useFocusTrap(() => popoverRef, open() && Boolean(untrack(container)), closePopover, () => focusedOption, () => triggerRef)
+  useFocusTrap(() => popoverRef, () => open() && Boolean(untrack(container)), closePopover, () => focusedOption, () => triggerRef)
 
-  const serverStart = comparison?.value.start ?? ''
-  const serverEnd = comparison?.value.end ?? ''
-  createEffect(() => setMode(serverMode))
-  createEffect(() => setStart(serverStart))
-  createEffect(() => setEnd(serverEnd))
+  createEffect(() => {
+    setMode(serverMode())
+    setStart(comparison()?.value.start ?? '')
+    setEnd(comparison()?.value.end ?? '')
+  })
   // Closing without applying drops the staged state, so the trigger can never
   // name a comparison the document is not actually showing.
   createEffect(() => {
     if (open()) {
-      setFocused(serverMode)
+      setFocused(serverMode())
       return
     }
-    setMode(serverMode)
-    setStart(serverStart)
-    setEnd(serverEnd)
+    setMode(serverMode())
+    setStart(comparison()?.value.start ?? '')
+    setEnd(comparison()?.value.end ?? '')
   })
 
   const reposition = () => {
