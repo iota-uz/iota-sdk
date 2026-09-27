@@ -50,6 +50,9 @@ func (s *OIDCService) CompleteAuthRequest(
 	if authReq.IsExpired() {
 		return serrors.E(op, serrors.KindValidation, "auth request has expired")
 	}
+	if authReq.IsAuthenticated() || authReq.IsCodeUsed() || authReq.Code() != nil {
+		return serrors.E(op, serrors.KindValidation, "auth request has already been consumed")
+	}
 
 	// Complete authentication
 	completedReq := authReq.CompleteAuthentication(userID, tenantID)
@@ -79,4 +82,16 @@ func (s *OIDCService) GetAuthRequest(ctx context.Context, authRequestID string) 
 	}
 
 	return authReq, nil
+}
+
+func (s *OIDCService) ValidateAuthorizationRequest(ctx context.Context, authRequestID string) error {
+	const op serrors.Op = "OIDCService.ValidateAuthorizationRequest"
+	authReq, err := s.GetAuthRequest(ctx, authRequestID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if authReq.IsExpired() || authReq.IsAuthenticated() || authReq.IsCodeUsed() || authReq.Code() != nil {
+		return serrors.E(op, serrors.KindValidation, "auth request is no longer valid")
+	}
+	return nil
 }

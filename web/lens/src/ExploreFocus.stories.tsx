@@ -28,7 +28,11 @@ const halfWidthRaw = JSON.parse(JSON.stringify(fixture)) as {
   drill: { edges: Record<string, { perspectives: Array<{ id: string }> }> }
 }
 const halfWidthNeighbor: Record<string, unknown> = {
-  ...halfWidthRaw.panels[0]!, id: 'premium-neighbor', title: 'Neighbor card',
+  ...halfWidthRaw.panels[0]!,
+  id: 'premium-neighbor',
+  title: 'Neighbor card',
+  terminal: true,
+  actions: [],
 }
 delete halfWidthNeighbor.drillRoot
 halfWidthRaw.panels.push(halfWidthNeighbor)

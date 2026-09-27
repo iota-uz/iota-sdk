@@ -163,13 +163,18 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 				}
 			}
 
+			supportedLanguages := o.supportedLanguages
+			if len(supportedLanguages) == 0 {
+				supportedLanguages = application.DefaultSupportedLanguages()
+			}
+
 			return application.New(&application.ApplicationOptions{
 				Pool:               rt.Pool,
 				Bundle:             rt.Bundle,
 				EventBus:           eventbus.NewEventPublisher(rt.Logger),
 				Logger:             rt.Logger,
 				Meili:              meiliCfg,
-				SupportedLanguages: application.DefaultSupportedLanguages(),
+				SupportedLanguages: supportedLanguages,
 				Huber: application.NewHub(&application.HuberOptions{
 					Pool:           rt.Pool,
 					Logger:         rt.Logger,

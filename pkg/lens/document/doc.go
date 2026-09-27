@@ -21,4 +21,6 @@
 // dashboard document.
 package document
 
-const ContractVersion = "1.0.0"
+import "github.com/iota-uz/iota-sdk/pkg/sdkidentity"
+
+const ContractVersion = sdkidentity.ProtocolVersion

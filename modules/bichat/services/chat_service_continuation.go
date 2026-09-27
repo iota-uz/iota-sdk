@@ -55,9 +55,7 @@ func (s *chatServiceImpl) ContinueSession(
 				active.CloseAllSubscribers()
 				s.runRegistry.Remove(active.RunID)
 				s.unregisterStreamCancel(req.SessionID)
-				if s.eventLog != nil {
-					_ = s.eventLog.DropAfterTerminal(persistCtx, session.TenantID(), runID, 5*time.Minute)
-				}
+				s.expireRunEvents(persistCtx, session.TenantID(), session.ID(), runID)
 			}()
 
 			if req.ReasoningEffort != nil {
@@ -66,18 +64,7 @@ func (s *chatServiceImpl) ContinueSession(
 			if req.Model != nil {
 				processCtx = bichatservices.WithModelOverride(processCtx, *req.Model)
 			}
-			if s.eventLog != nil {
-				active.SetMirror(func(chunk bichatservices.StreamChunk) {
-					eventType, body, err := encodeRunEventFromChunk(chunk)
-					if err != nil {
-						return
-					}
-					_, _ = s.eventLog.Append(persistCtx, session.TenantID(), runID, RunEvent{
-						Type:    eventType,
-						Payload: body,
-					})
-				})
-			}
+			s.mirrorRunEvents(persistCtx, session.TenantID(), active)
 
 			startedAt := time.Now()
 			gen, err := continuationAgent.ProcessContinuation(processCtx, req.SessionID, req.Event)
@@ -149,6 +136,124 @@ func (s *chatServiceImpl) ContinueSession(
 	)
 }
 
+// GetContinuationRun returns the database-backed terminal status of a trusted
+// continuation. It intentionally bypasses the optional Redis run store so host
+// workflow reconcilers work in local development and after process restarts.
+func (s *chatServiceImpl) GetContinuationRun(
+	ctx context.Context,
+	runID uuid.UUID,
+) (bichatservices.ContinuationRun, error) {
+	const op serrors.Op = "chatServiceImpl.GetContinuationRun"
+	if runID == uuid.Nil {
+		return bichatservices.ContinuationRun{}, serrors.E(
+			op,
+			serrors.KindValidation,
+			bichatservices.ErrInvalidContinuation,
+		)
+	}
+	var run domain.GenerationRun
+	err := s.withinTx(ctx, func(txCtx context.Context) error {
+		var getErr error
+		run, getErr = s.chatRepo.GetRunByID(txCtx, runID)
+		return getErr
+	})
+	if err != nil {
+		return bichatservices.ContinuationRun{}, serrors.E(op, err)
+	}
+	run = s.reconcileContinuationRunState(ctx, run)
+	metadata := run.PartialMetadata()
+	errorSummary, _ := metadata["error"].(string)
+	status := string(run.Status())
+	if terminalStatus, ok := metadata["terminal_status"].(string); ok &&
+		terminalStatus == string(domain.GenerationRunStatusFailed) {
+		// Some hosts still constrain the durable database column to the
+		// legacy three statuses. Preserve compatibility while exposing the
+		// semantically correct terminal state to reconcilers.
+		status = terminalStatus
+	}
+	return bichatservices.ContinuationRun{
+		ID:        run.ID(),
+		SessionID: run.SessionID(),
+		Status:    status,
+		Error:     errorSummary,
+		StartedAt: run.StartedAt(),
+		UpdatedAt: run.LastUpdatedAt(),
+	}, nil
+}
+
+// reconcileContinuationRunState repairs the durable PostgreSQL projection
+// from the shared runtime store after a worker has reached a terminal state.
+// This closes the crash/restart gap where Redis (and connected clients) know a
+// run stopped, while the database row still says "streaming" and an
+// application-level continuation worker would otherwise wait forever.
+func (s *chatServiceImpl) reconcileContinuationRunState(
+	ctx context.Context,
+	run domain.GenerationRun,
+) domain.GenerationRun {
+	if run == nil || run.Status() != domain.GenerationRunStatusStreaming {
+		return run
+	}
+	runtimeRun, runtimeErr := s.getPersistedRunByID(ctx, run.ID())
+	if runtimeErr == nil && runtimeRun != nil &&
+		runtimeRun.Status() == domain.GenerationRunStatusStreaming {
+		lastSeen := runtimeRun.LastHeartbeatAt()
+		if lastSeen.IsZero() {
+			lastSeen = runtimeRun.LastUpdatedAt()
+		}
+		if lastSeen.After(time.Now().Add(-domain.GenerationRunStaleAfter)) {
+			return run
+		}
+	}
+	if runtimeErr != nil || runtimeRun == nil {
+		lastSeen := run.LastUpdatedAt()
+		if s.runRegistry.GetByRun(run.ID()) != nil ||
+			lastSeen.After(time.Now().Add(-domain.GenerationRunStaleAfter)) {
+			return run
+		}
+		failedRun, failErr := run.Fail(time.Now())
+		if failErr != nil {
+			return run
+		}
+		runtimeRun = failedRun
+	} else if runtimeRun.Status() == domain.GenerationRunStatusStreaming {
+		// The shared runtime heartbeat is stale. The local registry is the
+		// final guard for long-running in-process work when Redis is disabled.
+		if s.runRegistry.GetByRun(run.ID()) != nil {
+			return run
+		}
+		failedRun, failErr := runtimeRun.Fail(time.Now())
+		if failErr != nil {
+			return run
+		}
+		runtimeRun = failedRun
+	}
+
+	reconcileCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	err := s.withinTx(reconcileCtx, func(txCtx context.Context) error {
+		switch runtimeRun.Status() {
+		case domain.GenerationRunStatusStreaming:
+			return nil
+		case domain.GenerationRunStatusCompleted:
+			return s.chatRepo.CompleteRun(txCtx, run.ID())
+		case domain.GenerationRunStatusFailed:
+			return s.chatRepo.FailRun(txCtx, run.ID())
+		case domain.GenerationRunStatusCancelled:
+			return s.chatRepo.CancelRun(txCtx, run.ID())
+		default:
+			return nil
+		}
+	})
+	if err != nil {
+		if s.logger != nil {
+			s.logger.WithError(err).
+				WithField("run_id", run.ID().String()).
+				Warn("failed to reconcile continuation run terminal state")
+		}
+		return run
+	}
+	return runtimeRun
+}
 func (s *chatServiceImpl) failContinuationRun(
 	ctx context.Context,
 	active *streamingsvc.ActiveRun,
@@ -159,7 +264,18 @@ func (s *chatServiceImpl) failContinuationRun(
 ) {
 	active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
 	_ = s.withinTx(context.WithoutCancel(ctx), func(txCtx context.Context) error {
-		return s.chatRepo.CancelRun(txCtx, runID)
+		if snapshotErr := s.chatRepo.UpdateRunSnapshot(
+			txCtx,
+			runID,
+			"",
+			map[string]any{
+				"terminal_status": "failed",
+				"error":           err.Error(),
+			},
+		); snapshotErr != nil {
+			return snapshotErr
+		}
+		return s.chatRepo.FailRun(txCtx, runID)
 	})
 	if failErr := s.runState.FailRunState(
 		context.WithValue(ctx, constants.TxKey, nil),

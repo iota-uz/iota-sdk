@@ -4,6 +4,7 @@ export interface NavigationView {
   panelId?: string
   path: NodePath
   perspectiveId?: string
+  revision?: number
   drawer?: DrawerNavigationView
 }
 
@@ -53,6 +54,7 @@ function cloneView(view: NavigationView): NavigationView {
     panelId: view.panelId,
     path: [...view.path],
     perspectiveId: view.perspectiveId,
+    revision: view.revision,
     ...(view.drawer ? { drawer: cloneDrawer(view.drawer) } : {}),
   }
 }
@@ -82,12 +84,12 @@ function currentView(state: NavigationState): NavigationView {
 
 function transition(state: NavigationState, view: NavigationView): NavigationState {
   if (sameView(state, view)) return state
-  return { ...cloneView(view), history: [...state.history, currentView(state)] }
+  return { ...cloneView(view), revision: (state.revision ?? 0) + 1, history: [...state.history, currentView(state)] }
 }
 
 function replace(state: NavigationState, view: NavigationView): NavigationState {
   if (sameView(state, view)) return state
-  return { ...cloneView(view), history: state.history }
+  return { ...cloneView(view), revision: (state.revision ?? 0) + 1, history: state.history }
 }
 
 export function createNavigationState(view: Partial<NavigationView> = {}): NavigationState {
@@ -95,6 +97,7 @@ export function createNavigationState(view: Partial<NavigationView> = {}): Navig
     panelId: view.panelId,
     path: [...(view.path ?? [])],
     perspectiveId: view.perspectiveId,
+    revision: view.revision ?? 0,
     ...(view.drawer ? { drawer: cloneDrawer(view.drawer) } : {}),
     history: [],
   }
@@ -111,7 +114,7 @@ export function navigationReducer(state: NavigationState, action: NavigationActi
     case 'back': {
       const previous = state.history.at(-1)
       if (!previous) return state
-      return { ...cloneView(previous), history: state.history.slice(0, -1) }
+      return { ...cloneView(previous), revision: (state.revision ?? 0) + 1, history: state.history.slice(0, -1) }
     }
     case 'jumpTo': {
       if (action.breadcrumbIndex < 0 || action.breadcrumbIndex >= state.path.length - 1) return state
@@ -127,7 +130,7 @@ export function navigationReducer(state: NavigationState, action: NavigationActi
       return action.replace ? replace(state, next) : transition(state, next)
     }
     case 'reset':
-      return createNavigationState()
+      return { ...createNavigationState(), revision: (state.revision ?? 0) + 1 }
     case 'openDrawer':
       if (state.drawer) return state
       return transition(state, {
@@ -160,7 +163,7 @@ export function navigationReducer(state: NavigationState, action: NavigationActi
       if (!state.drawer) return state
       return replace(state, { panelId: state.panelId, path: state.path, perspectiveId: state.perspectiveId })
     case 'restore':
-      return { ...cloneView(action.view), history: (action.history ?? []).map(cloneView) }
+      return { ...cloneView(action.view), revision: (state.revision ?? 0) + 1, history: (action.history ?? []).map(cloneView) }
   }
 }
 

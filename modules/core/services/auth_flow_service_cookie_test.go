@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/stretchr/testify/require"
@@ -39,7 +41,10 @@ func TestAuthFlowSessionCookie_DomainAndSecurity(t *testing.T) {
 				cookiesCfg: &cookies.Config{SID: "granite_sid", Domain: tt.domain},
 				appCfg:     &appconfig.Config{Environment: tt.environment},
 			}
-			cookie := service.sessionCookie("token", time.Now().Add(time.Hour))
+			cookie, err := service.sessionCookie(t.Context(), "", session.New(
+				"token", 1, uuid.New(), "", "", session.WithExpiresAt(time.Now().Add(time.Hour)),
+			))
+			require.NoError(t, err)
 
 			require.Equal(t, "granite_sid", cookie.Name)
 			require.Equal(t, tt.wantDomain, cookie.Domain)

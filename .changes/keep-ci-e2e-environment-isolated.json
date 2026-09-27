@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Keep local E2E database settings from overriding CI service ports."
+}

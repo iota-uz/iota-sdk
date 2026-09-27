@@ -76,7 +76,7 @@ export function MetricFlowPanel({ panel }: MetricFlowPanelProps) {
 
   return (
     <PanelFrame panel={panel} frame={effectiveFrame} allowEmptyContent>
-      <ol className="lens-flow" role="list" aria-label={translate('flow.stages', '{name} stages', { name: panel.title })}>
+      <ol className="lens-flow" aria-label={translate('flow.stages', '{name} stages', { name: panel.title })}>
         {views.map((view, index) => {
           const target = resolveAction(view.stage.action)
           const main = (
@@ -95,7 +95,6 @@ export function MetricFlowPanel({ panel }: MetricFlowPanelProps) {
               className={`lens-flow-stage lens-flow-stage-${view.role}`}
               data-result={view.role === 'result' || undefined}
               key={`${view.stage.key}-${index}`}
-              role="listitem"
             >
               {view.operator && <span aria-hidden="true" className="lens-flow-op">{view.operator}</span>}
               {target ? (

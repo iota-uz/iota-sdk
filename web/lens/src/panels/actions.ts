@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, type FocusEventHandler, type MouseEventHandler, type PointerEventHandler } from 'react'
 import type { Action, Frame, Panel } from '../contract'
-import { recordForRow, resolveActionURL, variablesFromLocation } from '../explore/actions'
+import { drawerKeyFromActionURL, recordForRow, resolveActionURL, variablesFromLocation } from '../explore/actions'
 import { navigateTo } from '../runtime/navigate'
 import { useDrawer } from '../runtime'
+import { filterActionURL, useFilters } from '../runtime'
 
 /** How long a pointer/focus must dwell before a drawer document is prefetched. */
 const prefetchIntentDelayMs = 65
@@ -15,40 +16,48 @@ export interface PrefetchHandlers {
 }
 
 /**
- * Hover/focus prefetch for a drawer-opening target. After a short intent delay
- * (cancelled if the pointer leaves first) the drawer document is warmed into
- * the shared cache, so a subsequent click opens against a document in hand.
- * Returns undefined when the action does not open a drawer or has no URL.
+ * Bounded idle plus hover/focus prefetch for a stat drawer target. The idle
+ * registration supplies the automatic first-level warm-up; concrete intent
+ * promotes the same target after a short cancellable dwell.
  */
-export function usePrefetch(url: string | undefined, action: Action | undefined): PrefetchHandlers | undefined {
+export function usePrefetch(
+  url: string | undefined,
+  action: Action | undefined,
+  prefetchIdle?: (urls: ReadonlyArray<string>) => () => void,
+): PrefetchHandlers | undefined {
   const drawer = useDrawer()
-  const enabled = action?.kind === 'open_drawer' && drawer.depth === 0 && Boolean(url)
   const timer = useRef<ReturnType<typeof setTimeout>>()
+  const cancelActive = useRef<() => void>()
   const cancel = useCallback(() => {
     if (timer.current !== undefined) {
       clearTimeout(timer.current)
       timer.current = undefined
     }
+    cancelActive.current?.()
+    cancelActive.current = undefined
   }, [])
   useEffect(() => cancel, [cancel])
+  useEffect(() => prefetchIdle?.(url ? [url] : []), [prefetchIdle, url])
   return useMemo(() => {
-    if (!enabled || !url) return undefined
+    if (action?.kind !== 'open_drawer' || drawer.depth !== 0 || !url) return undefined
+    const drawerKey = drawerKeyFromActionURL(url)
     const schedule = () => {
       cancel()
-      timer.current = setTimeout(() => drawer.prefetch(url), prefetchIntentDelayMs)
+      timer.current = setTimeout(() => {
+        timer.current = undefined
+        cancelActive.current = drawerKey ? drawer.prefetchKey(drawerKey) : drawer.prefetch(url)
+      }, prefetchIntentDelayMs)
     }
     return { onPointerEnter: schedule, onFocus: schedule, onPointerLeave: cancel, onBlur: cancel }
-  }, [cancel, drawer, enabled, url])
+  }, [action?.kind, cancel, drawer, url])
 }
 
 /**
  * Panel-level navigation.
  *
- * The legacy renderer made a whole stat / segment-bar card a link, and made a
- * chart's data points navigate, whenever the panel spec carried a navigate
- * action. The wire keeps that action in `panel.actions` as kind `navigate`;
- * without this layer those panels render as inert cards, which is how the
- * «Ключевые коэффициенты» strip lost its drill-down.
+ * A panel-level navigate action makes a whole stat / segment-bar card a link
+ * and makes chart data points navigate. The wire keeps that action in
+ * `panel.actions` as kind `navigate`.
  */
 
 export function panelNavigateAction(panel: Panel): Action | undefined {
@@ -57,13 +66,12 @@ export function panelNavigateAction(panel: Panel): Action | undefined {
   // tree turns its navigate action into a click target. Without this rule a
   // segment click both opened the overlay and left the page.
   if (panel.drillRoot) return undefined
-  return panel.actions.find((action) => action.kind === 'navigate' || action.kind === 'open_drawer')
+  return panel.actions.find((action) => action.kind === 'navigate' || action.kind === 'open_drawer' || action.kind === 'cross_filter' || action.kind === 'cube_drill')
 }
 
 /**
  * True when the action's URL depends on the row it is resolved against — the
- * same rule the legacy renderer used to decide between one card-wide link and
- * one link per segment.
+ * rule used to decide between one card-wide link and one link per segment.
  */
 export function isRowScoped(action: Action): boolean {
   if (action.urlSource) return action.urlSource.kind === 'field'
@@ -79,7 +87,11 @@ export interface PanelNavigation {
   /** URL for the panel as a whole: the first row's, when the action is not row-scoped. */
   cardURL: (frame: Frame | undefined) => string | undefined
   onClick: (url: string | undefined) => MouseEventHandler<HTMLAnchorElement> | undefined
-  activate: (url: string | undefined, opener?: HTMLElement) => void
+  activate: (url: string | undefined, opener?: HTMLElement, options?: { newTab?: boolean }) => void
+  /** Promote a concrete drawer target on pointer/focus intent. */
+  prefetch: (url: string | undefined) => () => void
+  /** Register low-cardinality targets in the runtime's one-slot idle queue. */
+  prefetchIdle: (urls: ReadonlyArray<string>) => () => void
 }
 
 /**
@@ -119,7 +131,9 @@ export function useElementActionResolver(): (action: Action | undefined, fields?
     const onClick: MouseEventHandler<HTMLAnchorElement> | undefined = opensDrawer
       ? (event) => {
         event.preventDefault()
-        drawer.open(href, event.currentTarget)
+        const key = drawerKeyFromActionURL(href)
+        if (key) drawer.openKey(key, event.currentTarget)
+        else drawer.open(href, event.currentTarget)
       }
       : undefined
     return { href, onClick, opensDrawer }
@@ -128,21 +142,57 @@ export function useElementActionResolver(): (action: Action | undefined, fields?
 
 export function useActionActivation(action: Action | undefined) {
   const drawer = useDrawer()
+  const filters = useFilters()
   const opensDrawer = action?.kind === 'open_drawer'
+  const filtersData = action?.kind === 'cross_filter' || action?.kind === 'cube_drill'
   const available = Boolean(action) && (!opensDrawer || drawer.depth === 0 || drawer.canOpen === true)
-  const activate = useCallback((url: string | undefined, opener?: HTMLElement) => {
-    if (!url || !available) return
-    if (opensDrawer) drawer.open(url, opener)
-    else navigateTo(url)
+  const intentTimer = useRef<ReturnType<typeof setTimeout>>()
+  const cancelIntent = useRef<() => void>()
+  const cancelPrefetch = useCallback(() => {
+    if (intentTimer.current !== undefined) clearTimeout(intentTimer.current)
+    intentTimer.current = undefined
+    cancelIntent.current?.()
+    cancelIntent.current = undefined
+  }, [])
+  useEffect(() => cancelPrefetch, [cancelPrefetch])
+  const prefetch = useCallback((url: string | undefined) => {
+    cancelPrefetch()
+    if (!url || !opensDrawer || !available) return cancelPrefetch
+    intentTimer.current = setTimeout(() => {
+      intentTimer.current = undefined
+      const key = drawerKeyFromActionURL(url)
+      cancelIntent.current = key ? drawer.prefetchKey(key) : drawer.prefetch(url)
+    }, prefetchIntentDelayMs)
+    return cancelPrefetch
+  }, [available, cancelPrefetch, drawer, opensDrawer])
+  const prefetchIdle = useCallback((urls: ReadonlyArray<string>) => {
+    if (!opensDrawer || !available) return () => undefined
+    const cancels = urls.map((url) => {
+      const key = drawerKeyFromActionURL(url)
+      return key ? drawer.prefetchIdleKey(key) : drawer.prefetchIdle(url)
+    })
+    return () => cancels.forEach((cancel) => cancel())
   }, [available, drawer, opensDrawer])
+  const activate = useCallback((url: string | undefined, opener?: HTMLElement, options?: { newTab?: boolean }) => {
+    if (!url || !available) return
+    if (opensDrawer) {
+      const key = drawerKeyFromActionURL(url)
+      if (key) drawer.openKey(key, opener)
+      else drawer.open(url, opener)
+    }
+    else if (filtersData) filters.applyURL(url, options)
+    else navigateTo(url)
+  }, [available, drawer, filters, filtersData, opensDrawer])
   const onClick = useCallback((url: string | undefined): MouseEventHandler<HTMLAnchorElement> | undefined => {
     if (!url || !opensDrawer || !available) return undefined
     return (event) => {
       event.preventDefault()
-      drawer.open(url, event.currentTarget)
+      const key = drawerKeyFromActionURL(url)
+      if (key) drawer.openKey(key, event.currentTarget)
+      else drawer.open(url, event.currentTarget)
     }
   }, [available, drawer, opensDrawer])
-  return { activate, available, onClick }
+  return { activate, available, onClick, prefetch, prefetchIdle }
 }
 
 export function usePanelNavigation(panel: Panel): PanelNavigation {
@@ -153,6 +203,9 @@ export function usePanelNavigation(panel: Panel): PanelNavigation {
   const urlForRow = useCallback((frame: Frame | undefined, row: Array<unknown> | undefined) => {
     if (!action) return undefined
     const location = new URL(globalThis.location.href)
+    if ((action.kind === 'cross_filter' || action.kind === 'cube_drill') && action.filter) {
+      return filterActionURL(action, frame && row ? recordForRow(frame, row) : {}, location)?.href
+    }
     return resolveActionURL(action, {
       fields: frame && row ? recordForRow(frame, row) : {},
       variables: variablesFromLocation(location),
@@ -176,5 +229,7 @@ export function usePanelNavigation(panel: Panel): PanelNavigation {
     cardURL,
     onClick: activation.onClick,
     activate: activation.activate,
-  }), [action, activation.activate, activation.onClick, cardURL, urlForRow])
+    prefetch: activation.prefetch,
+    prefetchIdle: activation.prefetchIdle,
+  }), [action, activation.activate, activation.onClick, activation.prefetch, activation.prefetchIdle, cardURL, urlForRow])
 }

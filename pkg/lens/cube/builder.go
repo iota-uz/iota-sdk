@@ -1,6 +1,8 @@
 package cube
 
 import (
+	"strings"
+
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
@@ -153,8 +155,24 @@ func (b *DimensionBuilder) PanelKind(kind panel.Kind) *DimensionBuilder {
 	return b
 }
 
-func (b *DimensionBuilder) Height(height string) *DimensionBuilder {
-	b.spec.Height = height
+// Choropleth renders this dimension as an exact region-key map. The
+// dimension's resolved filter_value is joined to featureProperty; labelProperty
+// is optional fallback text when a row has no localized label.
+func (b *DimensionBuilder) Choropleth(source panel.GeoJSONSource, featureProperty, labelProperty string) *DimensionBuilder {
+	b.spec.PanelKind = panel.KindMap
+	b.spec.Map = &panel.MapSpec{
+		Source:          source,
+		FeatureProperty: featureProperty,
+		LabelProperty:   labelProperty,
+	}
+	return b
+}
+
+// MapAttribution declares the source or licence credit for a choropleth.
+func (b *DimensionBuilder) MapAttribution(attribution string) *DimensionBuilder {
+	if b.spec.Map != nil {
+		b.spec.Map.Attribution = strings.TrimSpace(attribution)
+	}
 	return b
 }
 
@@ -183,8 +201,9 @@ func (b *DimensionBuilder) Colors(colors ...string) *DimensionBuilder {
 	return b
 }
 
-func (b *DimensionBuilder) ColorScale(scale string) *DimensionBuilder {
-	b.spec.ColorScale = scale
+// Presentation carries renderer-level hints onto the dimension's panel.
+func (b *DimensionBuilder) Presentation(hints panel.PresentationHints) *DimensionBuilder {
+	b.spec.Presentation = hints
 	return b
 }
 
@@ -286,6 +305,12 @@ func (b *MeasureBuilder) Action(spec action.Spec) *MeasureBuilder {
 		cloned.Drill = &drill
 	}
 	b.spec.Action = &cloned
+	return b
+}
+
+// InvertTrend marks a measure where a decrease is the positive outcome.
+func (b *MeasureBuilder) InvertTrend() *MeasureBuilder {
+	b.spec.InvertTrend = true
 	return b
 }
 

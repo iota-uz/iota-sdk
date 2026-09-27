@@ -20,6 +20,9 @@ var ErrRunNotFoundOrFinished = errors.New("generation run not found or already f
 // stream so clients can display the condition without switching transports.
 var ErrRunEventLogUnavailable = errors.New("run event log unavailable")
 
+// ErrRunEventStreamInterrupted means the event journal ended without a terminal event.
+var ErrRunEventStreamInterrupted = errors.New("run event stream interrupted")
+
 // ErrActiveRunIndexUnavailable is returned by TailActiveRuns when the
 // active-run index (per-tenant sidebar Redis hash) is not configured. Like
 // ErrRunEventLogUnavailable, the stream controller surfaces it as an SSE
@@ -71,6 +74,7 @@ type TurnCommands interface {
 // ContinuationCommands resumes a session from trusted application workflows.
 type ContinuationCommands interface {
 	ContinueSession(ctx context.Context, req ContinueSessionRequest) (AsyncRunAccepted, error)
+	GetContinuationRun(ctx context.Context, runID uuid.UUID) (ContinuationRun, error)
 }
 
 // TurnQueries reads conversation messages for a session.
@@ -180,6 +184,16 @@ type AsyncRunAccepted struct {
 	StartedAt time.Time
 }
 
+// ContinuationRun is the durable status projection applications use to
+// reconcile an asynchronously dispatched continuation after a process restart.
+type ContinuationRun struct {
+	ID        uuid.UUID
+	SessionID uuid.UUID
+	Status    string
+	Error     string
+	StartedAt time.Time
+	UpdatedAt time.Time
+}
 // ContinueSessionRequest starts an internal continuation turn. The
 // IdempotencyKey is required so durable application workers can safely retry
 // delivery. The SDK derives a stable run id from the tenant, session, and key;

@@ -10,12 +10,13 @@ import (
 type Kind string
 
 const (
-	KindNavigate   Kind = "navigate"
-	KindOpenDrawer Kind = "open_drawer"
-	KindHtmxSwap   Kind = "htmx_swap"
-	KindEmitEvent  Kind = "emit_event"
-	KindCubeDrill  Kind = "cube_drill"
-	KindExplore    Kind = "explore"
+	KindNavigate    Kind = "navigate"
+	KindOpenDrawer  Kind = "open_drawer"
+	KindHtmxSwap    Kind = "htmx_swap"
+	KindEmitEvent   Kind = "emit_event"
+	KindCubeDrill   Kind = "cube_drill"
+	KindCrossFilter Kind = "cross_filter"
+	KindExplore     Kind = "explore"
 )
 
 type ValueSourceKind string
@@ -43,6 +44,7 @@ type Spec struct {
 	Method        string
 	URL           string
 	URLSource     *ValueSource
+	DrawerKey     *ValueSource
 	Target        string
 	Event         string
 	Payload       map[string]ValueSource
@@ -80,6 +82,12 @@ func OpenDrawer(url string, params ...Param) Spec {
 	}
 }
 
+// OpenDrawerMetric defers the signed drawer URL to the host resolver and puts
+// only a stable metric key plus bounded parameters on the wire.
+func OpenDrawerMetric(metric ValueSource, params ...Param) Spec {
+	return Spec{Kind: KindOpenDrawer, Method: "POST", DrawerKey: &metric, Params: params}
+}
+
 func HtmxSwap(url, target string, params ...Param) Spec {
 	return Spec{
 		Kind:   KindHtmxSwap,
@@ -93,6 +101,21 @@ func HtmxSwap(url, target string, params ...Param) Spec {
 func CubeDrill(url, dimension string, params ...Param) Spec {
 	return Spec{
 		Kind:   KindCubeDrill,
+		Method: "GET",
+		URL:    url,
+		Params: params,
+		Drill: &DrillSpec{
+			Dimension: dimension,
+			Value:     FieldValue("filter_value"),
+		},
+	}
+}
+
+// CrossFilter toggles one dimension value without changing the cube's active
+// grouping. CubeDrill and CrossFilter share the same ordered filter stack.
+func CrossFilter(url, dimension string, params ...Param) Spec {
+	return Spec{
+		Kind:   KindCrossFilter,
 		Method: "GET",
 		URL:    url,
 		Params: params,
@@ -159,6 +182,17 @@ func (s Spec) WithDrillValue(source ValueSource) Spec {
 	}
 	s = s.withClonedDrill()
 	s.Drill.Value = source
+	return s
+}
+
+// WithDrillGroupBy selects the dimension shown after a cube drill. It has no
+// effect on a cross-filter action, which deliberately preserves grouping.
+func (s Spec) WithDrillGroupBy(dimension string) Spec {
+	if s.Drill == nil {
+		return s
+	}
+	s = s.withClonedDrill()
+	s.Drill.GroupBy = dimension
 	return s
 }
 

@@ -2,9 +2,20 @@ package serve
 
 import (
 	"net/url"
+	"strings"
 
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 )
+
+// sameSnapshotScope prevents a random snapshot ID from crossing the host's
+// current tenant/authz cache boundary. Frozen filter and locale values are
+// intentionally not compared: those are restored from the snapshot only after
+// this authorization identity check succeeds.
+func sameSnapshotScope(current lensruntime.Request, params map[string]any) bool {
+	return strings.TrimSpace(current.DataScope) != "" &&
+		current.DataScope == stringParam(params, paramDataScope, "") &&
+		current.Namespace == stringParam(params, paramNamespace, "")
+}
 
 const (
 	paramLocale    = "__lens_serve_locale"

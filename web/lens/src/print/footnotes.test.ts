@@ -25,7 +25,7 @@ function documentWith(): DashboardDocument {
 }
 
 function figureWith(panel: Partial<Panel>, frame?: Frame): PrintFigure {
-  const full: Panel = {
+  const full = {
     id: panel.id ?? 'panel',
     kind: 'stat',
     title: 'Panel',
@@ -35,7 +35,7 @@ function figureWith(panel: Partial<Panel>, frame?: Frame): PrintFigure {
     format: {},
     actions: [],
     ...panel,
-  }
+  } as Panel
   const level: Level = { path: [], label: full.title, children: [], perspectives: [] }
   const section: PrintSection = {
     id: `${full.id}:root`,

@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 import type { DashboardDocument, Frame, Panel } from './contract'
 import { DashboardPanels } from './DashboardPanels'
 import {
-  ArrowClockwise, ArrowsIn, ArrowsOut, ArrowUpRight, CaretDown, CaretLeft, CaretRight,
+  ArrowClockwise, ArrowsIn, ArrowsLeftRight, ArrowsOut, ArrowUpRight, CaretDown, CaretLeft, CaretRight,
   CircleNotch, DownloadSimple, X,
 } from './icons'
 import { CoveragePanel, DashboardSkeleton, PanelSkeletonBody, TablePanel } from './panels'
@@ -29,7 +29,7 @@ function statPanel(id: string, title: string, accent: string, status?: Panel['st
     id, kind: 'stat', title, semantics: 'series', frame: `${id}:frame`,
     encoding: { label: 'label', value: 'value' },
     format: { value: { kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' } },
-    accent, status, actions: [],
+    accent, status, terminal: true, actions: [],
   }
 }
 
@@ -53,12 +53,24 @@ const coveragePanel: Panel = {
   format: { amount: money },
   caption: 'ВСЕ ВЫПЛАТЫ ПОКРЫТЫ РЕЗЕРВОМ\nПРЕДВАРИТЕЛЬНЫЕ ДАННЫЕ',
   headline: 5_458_561_140,
+  terminal: true,
   actions: [],
 }
 
 const coverageFrame: Frame = {
   columns: [{ name: 'label', type: 'string' }, { name: 'amount', type: 'number' }],
   rows: [['В пределах резерва', 5_458_561_140], ['Сверх резерва', 0]],
+}
+
+const coverageSplitPanel: Panel = {
+  ...coveragePanel, id: 'payouts-split', frame: 'payouts-split:frame',
+  caption: 'ЧАСТЬ ВЫПЛАТ ВЫШЛА ЗА РЕЗЕРВ',
+  headline: 6_913_561_140,
+}
+
+const coverageSplitFrame: Frame = {
+  columns: [{ name: 'label', type: 'string' }, { name: 'amount', type: 'number' }],
+  rows: [['В пределах резерва', 5_458_561_140], ['Сверх резерва', 1_455_000_000]],
 }
 
 const underwritingPanel: Panel = {
@@ -145,19 +157,50 @@ export const MetricGroup: Story = () => {
         heading: 'КЛЮЧЕВЫЕ КОЭФФИЦИЕНТЫ',
         panels: contextualMetrics.map(({ panel }) => ({
           panelId: panel.id, span: 3,
-          group: {
+          groups: [{
             id: 'earned', kind: 'metrics' as const, label: 'ПО ЗАРАБОТАННОЙ ПРЕМИИ',
             // The group caption names the basis for the whole strip — the one
             // sentence that would otherwise be repeated on every metric card.
             caption: 'База — заработанная премия периода.',
             layout: 'columns' as const, span: 12,
-          },
+          }],
         })),
       }],
     },
   )
   return <Runtime doc={doc}><DashboardPanels /></Runtime>
 }
+
+const responsiveMetrics = metrics.map(({ panel, value }, index) => ({
+  panel: index === 0
+    ? {
+      ...panel,
+      terminal: false,
+      actions: [{ kind: 'navigate' as const, urlTemplate: '/analytics/drill/loss-ratio', params: [], payload: {} }],
+    }
+    : panel,
+  value,
+}))
+
+export const MetricGroupResponsive: Story = () => {
+  const frames = Object.fromEntries(responsiveMetrics.map(({ panel, value }) => [`${panel.id}:frame`, statFrame(panel.title, value)]))
+  const doc = storyDocument(
+    responsiveMetrics.map(({ panel }) => panel),
+    frames,
+    {
+      rows: [{
+        heading: 'АДАПТИВНАЯ KPI-ПОЛОСА',
+        panels: responsiveMetrics.map(({ panel }) => ({
+          panelId: panel.id,
+          span: 3,
+          groups: [{ id: 'responsive', kind: 'metrics' as const, layout: 'columns' as const, span: 12 }],
+        })),
+      }],
+    },
+  )
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+MetricGroupResponsive.storyName = 'Metric group responsive'
 
 /**
  * The compact metric form now carries the same quiet trend line the hero stat
@@ -182,7 +225,7 @@ export const MetricGroupSparkline: Story = () => {
         heading: 'КЛЮЧЕВЫЕ КОЭФФИЦИЕНТЫ',
         panels: sparkMetrics.map(({ panel }) => ({
           panelId: panel.id, span: 3,
-          group: { id: 'earned', kind: 'metrics' as const, label: 'ПО ЗАРАБОТАННОЙ ПРЕМИИ', layout: 'columns' as const, span: 12 },
+          groups: [{ id: 'earned', kind: 'metrics' as const, label: 'ПО ЗАРАБОТАННОЙ ПРЕМИИ', layout: 'columns' as const, span: 12 }],
         })),
       }],
     },
@@ -190,6 +233,131 @@ export const MetricGroupSparkline: Story = () => {
   return <Runtime doc={doc}><DashboardPanels /></Runtime>
 }
 MetricGroupSparkline.storyName = 'Metric group sparkline'
+
+/**
+ * The same strip before any of its figures have landed.
+ *
+ * A KPI strip is the first thing on a board and the last thing to finish
+ * computing, so its loading state is what a reader looks at for the whole first
+ * second — and it was the one state nothing exercised. The figure slot has no
+ * text of its own while the panel is deferred, so a placeholder that borrowed
+ * its width from that slot resolved to zero and the strip painted a row of
+ * names over an empty gap: indistinguishable, for that whole second, from a
+ * board whose numbers had failed to arrive.
+ *
+ * The row beside the figure is crowded on purpose: the first metric is a link
+ * (so it draws its drill mark) and the second carries a sparkline, which are
+ * the two things the placeholder shares its flex row with.
+ */
+const loadingMetrics: Panel[] = metrics.map(({ panel }, index) => ({
+  ...panel,
+  deferred: true,
+  caption: ['Claims paid ÷ earned premium', 'Expenses ÷ earned premium', '(claims + expenses) ÷ earned premium', 'Earned premium − claims − expenses ± reserves'][index],
+  sparkline: index === 1 ? { values: [38.1, 39.4, 40.2, 40.9, 41.1, 41.4, 41.7] } : undefined,
+  terminal: index !== 0,
+  actions: index === 0
+    ? [{ kind: 'navigate' as const, urlTemplate: '/analytics/drill/loss-ratio', params: [], payload: {} }]
+    : [],
+}))
+
+/** A request that never settles: the panels stay in flight for the capture. */
+const neverSettles: typeof fetch = () => new Promise<Response>(() => undefined)
+
+export const MetricGroupLoading: Story = () => {
+  const doc: DashboardDocument = {
+    ...storyDocument(loadingMetrics, {}, {
+      rows: [{
+        heading: 'КЛЮЧЕВЫЕ КОЭФФИЦИЕНТЫ',
+        panels: loadingMetrics.map((panel) => ({
+          panelId: panel.id, span: 3,
+          groups: [{ id: 'earned', kind: 'metrics' as const, label: 'ПО ЗАРАБОТАННОЙ ПРЕМИИ', layout: 'columns' as const, span: 12 }],
+        })),
+      }],
+    }),
+    // Deferred panels are computed per panel after the document lands, which is
+    // the shape that puts every cell of the strip in flight at once.
+    endpoints: { panel: '/lens/panel' },
+  }
+  return (
+    <div className="lens-root">
+      <DocumentProvider fetcher={neverSettles} initialDocument={doc}>
+        <DashboardRuntimeProvider fetcher={neverSettles} locale="ru"><DashboardPanels /></DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>
+  )
+}
+MetricGroupLoading.storyName = 'Metric group loading'
+
+/**
+ * A cube dashboard's KPI band is a headerless strip whose metrics carry both a
+ * caption and a supporting note, and whose first metric is a link to its own
+ * evidence. Three things have to hold at once here, and each of them broke a
+ * naive version of the compact ⓘ:
+ *
+ *  - the glyph is sized for a 10px label, not the 28px header hit box;
+ *  - it out-ranks the card-wide navigate anchor stretched over the cell, so
+ *    the note can be opened at all on a linked metric;
+ *  - its bubble escapes the strip card, which is far shorter than the note.
+ *
+ * The tip is opened on mount so the bubble itself is the subject.
+ */
+const notedMetrics: Array<{ panel: Panel; value: number }> = [
+  {
+    panel: {
+      ...metrics[0]!.panel,
+      status: undefined,
+      caption: 'Проданные полисы',
+      info: 'Число уникальных полисов, выпущенных в выбранном периоде. Аннулированные полисы исключены.',
+      terminal: false,
+      actions: [{
+        kind: 'navigate', urlTemplate: '/insurance/sales-report/drill/policies', params: [], payload: {},
+      }],
+    },
+    value: 3.1,
+  },
+  {
+    panel: {
+      ...metrics[1]!.panel,
+      caption: 'GWP по дате заключения',
+      info: 'Подписанная премия по дате заключения договора, без вычета исходящего перестрахования.',
+    },
+    value: 41.7,
+  },
+  { panel: { ...metrics[2]!.panel, caption: 'Страховая сумма по действующим полисам' }, value: 44.8 },
+]
+
+export const MetricGroupInfo: Story = () => {
+  const frames = Object.fromEntries(notedMetrics.map(({ panel, value }) => [`${panel.id}:frame`, statFrame(panel.title, value)]))
+  const doc = storyDocument(
+    notedMetrics.map(({ panel }) => panel),
+    frames,
+    {
+      rows: [{
+        panels: notedMetrics.map(({ panel }) => ({
+          panelId: panel.id, span: 4,
+          groups: [{ id: 'kpi', kind: 'metrics' as const, label: '', layout: 'columns' as const, span: 12 }],
+        })),
+      }],
+    },
+  )
+  return (
+    <Runtime doc={doc}>
+      <OpenFirstInfoTip><DashboardPanels /></OpenFirstInfoTip>
+    </Runtime>
+  )
+}
+MetricGroupInfo.storyName = 'Metric group info'
+
+function OpenFirstInfoTip({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => runWhenReady(() => {
+    const button = ref.current?.querySelector<HTMLElement>('.lens-info-tip-button-inline')
+    if (!button) return false
+    button.click()
+    return true
+  }), [])
+  return <div ref={ref}>{children}</div>
+}
 
 export const TabGroup: Story = () => {
   const doc = storyDocument(
@@ -199,21 +367,82 @@ export const TabGroup: Story = () => {
       rows: [{
         heading: 'ФОРМИРОВАНИЕ РЕЗУЛЬТАТА',
         panels: [
-          { panelId: 'payouts', span: 4, group: { id: 'result', kind: 'tabs' as const, span: 12, tab: 'Денежный результат' } },
-          { panelId: 'groups', span: 8, group: { id: 'result', kind: 'tabs' as const, span: 12, tab: 'Денежный результат' } },
-          { panelId: 'payouts-uw', span: 12, group: { id: 'result', kind: 'tabs' as const, span: 12, tab: 'Андеррайтинговый результат' } },
+          { panelId: 'payouts', span: 4, groups: [{ id: 'result', kind: 'tabs' as const, span: 12, tab: 'Денежный результат' }] },
+          { panelId: 'groups', span: 8, groups: [{ id: 'result', kind: 'tabs' as const, span: 12, tab: 'Денежный результат' }] },
+          { panelId: 'payouts-uw', span: 12, groups: [{ id: 'result', kind: 'tabs' as const, span: 12, tab: 'Андеррайтинговый результат' }] },
         ],
       }],
     },
   )
+  doc.filters = [{
+    id: 'business-type',
+    kind: 'segmented',
+    label: 'Тип бизнеса',
+    placement: { groupId: 'result', tab: 'Денежный результат' },
+    segmented: {
+      param: 'BusinessType',
+      value: 'all',
+      options: [
+        { value: 'all', label: 'Все' },
+        { value: 'direct', label: 'Прямое страхование' },
+        { value: 'reinsurance', label: 'Перестрахование' },
+      ],
+    },
+  }]
   return <Runtime doc={doc}><DashboardPanels /></Runtime>
 }
+
+const logarithmicProductsPanel: Panel = {
+  id: 'log-products',
+  kind: 'hbar',
+  title: 'Продажи по продуктам',
+  semantics: 'series',
+  frame: 'log-products:frame',
+  encoding: { category: 'product', value: 'policies' },
+  format: { policies: { kind: 'number', minorUnits: false, precision: 0 } },
+  valueAxis: { scale: 'logarithmic', logBase: 10 },
+  presentation: { valueSpreadThreshold: 100 },
+  terminal: true,
+  actions: [],
+}
+
+const logarithmicProductsFrame: Frame = {
+  columns: [{ name: 'product', type: 'string' }, { name: 'policies', type: 'number' }],
+  rows: [
+    ['ОСАГО', 18_000],
+    ['Страхование имущества', 470],
+    ['КАСКО', 36],
+    ['Профессиональная ответственность', 2],
+  ],
+}
+
+export const LogarithmicHorizontalBar: Story = () => {
+  const doc = storyDocument([logarithmicProductsPanel], { 'log-products:frame': logarithmicProductsFrame }, {
+    rows: [{ heading: 'ПРОДУКТОВЫЙ ПОРТФЕЛЬ', panels: [{ panelId: 'log-products', span: 12 }] }],
+  })
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+LogarithmicHorizontalBar.storyName = 'Logarithmic horizontal bar'
 
 export const CoverageComposite: Story = () => {
   const doc = storyDocument([coveragePanel], { 'payouts:frame': coverageFrame }, {
     rows: [{ panels: [{ panelId: 'payouts', span: 12 }] }],
   })
   return <Runtime doc={doc}><CoveragePanel panel={coveragePanel} /></Runtime>
+}
+
+/**
+ * The plain multi-segment track — the shape a partition bar takes when it has
+ * no target and more than one non-zero part. CoverageComposite next door has a
+ * single positive segment and a zero remainder, so Lens draws no track for it
+ * at all: this variant is the only story that exercises the track, its hover
+ * emphasis, and the quieting of the segments the pointer is not on.
+ */
+export const CoverageSplit: Story = () => {
+  const doc = storyDocument([coverageSplitPanel], { 'payouts-split:frame': coverageSplitFrame }, {
+    rows: [{ panels: [{ panelId: 'payouts-split', span: 12 }] }],
+  })
+  return <Runtime doc={doc}><CoveragePanel panel={coverageSplitPanel} /></Runtime>
 }
 
 export const CompactTableCells: Story = () => {
@@ -229,6 +458,7 @@ const premiumPanel: Panel = {
   format: { amount: money },
   total: 118_800_000_000,
   presentation: { legend: 'below', sliceLabels: 'percent', totalBadge: 'plot', fill: true },
+  terminal: true,
   actions: [],
 }
 
@@ -263,11 +493,39 @@ export const PieWithLegendBelowDark: Story = () => {
 }
 PieWithLegendBelowDark.storyName = 'Pie with legend right - dark'
 
+/**
+ * The same panel with the legend the real dashboard has: enough long Russian
+ * labels to fill the right-hand column top to bottom. Two entries centre
+ * themselves mid-column and leave the top corner empty, which is why this
+ * layout passed its stories for months while the live «Итого» sat on the first
+ * legend row. The total must clear the legend at every list length.
+ */
+const premiumTallFrame: Frame = {
+  columns: premiumFrame.columns,
+  rows: [
+    ['earned', 'Заработанная часть премии, подписанной в периоде', 105_814_921_823],
+    ['unearned', 'Незаработанная часть премии, подписанной в периоде', 57_985_078_177],
+    ['direct', 'Чистая прямая подписанная премия', 6_900_000_000],
+    ['inward', 'Входящее перестрахование', 255_700_000_000],
+    ['ceded', 'Исходящее перестрахование, переданное партнёрам', 14_360_000_000],
+    ['coinsurance', 'Сострахование', 2_140_000_000],
+  ],
+}
+
+export const PieWithTallLegend: Story = () => {
+  const doc = storyDocument([premiumPanel], { 'premium:frame': premiumTallFrame }, {
+    rows: [{ heading: 'ПРЕМИИ', panels: [{ panelId: 'premium', span: 6 }] }],
+  })
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+PieWithTallLegend.storyName = 'Pie with tall legend'
+
 const trendPanel: Panel = {
   id: 'trend', kind: 'line', title: 'Премия и поступления', semantics: 'series', frame: 'trend:frame',
   encoding: { category: 'period', series: 'metric', value: 'amount' },
   format: { amount: money },
   presentation: { legend: 'below' },
+  terminal: true,
   actions: [],
 }
 
@@ -305,6 +563,7 @@ const compositionPanel: Panel = {
   encoding: { category: 'period', series: 'metric', value: 'amount' },
   format: { amount: money },
   presentation: { legend: 'below', stack: true, lineSeries: ['Заработанная премия'] },
+  terminal: true,
   actions: [],
 }
 
@@ -400,14 +659,27 @@ export const DrillPillAffordances: Story = () => {
   return <Runtime doc={doc}><TablePanel panel={drillPillPanel} /></Runtime>
 }
 
+function runWhenReady(action: () => boolean): () => void {
+  let cancelled = false
+  let attempts = 0
+  const run = () => {
+    if (cancelled) return
+    if (action()) return
+    if (attempts++ < 60) window.requestAnimationFrame(run)
+  }
+  void window.document.fonts.ready.then(() => {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(run))
+  })
+  return () => { cancelled = true }
+}
+
 function ExpandOnMount({ label }: { label: string }) {
-  const opened = useRef(false)
-  useEffect(() => {
-    if (opened.current) return
-    opened.current = true
+  useEffect(() => runWhenReady(() => {
     const button = window.document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
-    button?.click()
-  }, [label])
+    if (!button) return false
+    button.click()
+    return true
+  }), [label])
   return null
 }
 
@@ -450,6 +722,7 @@ const iconSet: Array<{ name: string; size: number; Glyph: (props: { size?: numbe
   { name: 'CaretRight', size: 11, Glyph: CaretRight },
   { name: 'CaretDown', size: 14, Glyph: CaretDown },
   { name: 'ArrowUpRight', size: 12, Glyph: ArrowUpRight },
+  { name: 'ArrowsLeftRight', size: 12, Glyph: ArrowsLeftRight },
 ]
 
 function IconSetStory({ theme }: { theme: 'light' | 'dark' }) {
@@ -481,20 +754,33 @@ export const IconSetLight: Story = () => <IconSetStory theme="light" />
 export const IconSetDark: Story = () => <IconSetStory theme="dark" />
 
 function HiddenSeries({ label }: { label: string }) {
-  const pressed = useRef(false)
-  useEffect(() => {
-    if (pressed.current) return
-    pressed.current = true
+  useEffect(() => runWhenReady(() => {
     const entries = [...window.document.querySelectorAll<HTMLButtonElement>('.lens-chart-legend-toggle')]
-    entries.find((entry) => entry.textContent?.includes(label))?.click()
-  }, [label])
+    const button = entries.find((entry) => entry.textContent?.includes(label))
+    if (!button) return false
+    button.click()
+    return true
+  }), [label])
+  return null
+}
+
+function HideSeriesAndSelectTab({ label, tab }: { label: string; tab: string }) {
+  useEffect(() => runWhenReady(() => {
+    const entries = [...window.document.querySelectorAll<HTMLButtonElement>('.lens-chart-legend-toggle')]
+    const legendButton = entries.find((entry) => entry.textContent?.includes(label))
+    const tabs = [...window.document.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+    const tabButton = tabs.find((entry) => entry.textContent === tab)
+    if (!legendButton || !tabButton) return false
+    legendButton.click()
+    tabButton.click()
+    return true
+  }), [label, tab])
   return null
 }
 
 /**
  * A hidden legend entry leaves the plot entirely, so the remaining slice reads
- * 100% and the total badge drops to the visible sum — the legacy ApexCharts
- * behaviour.
+ * 100% and the total badge drops to the visible sum.
  */
 export const LegendHiddenSeries: Story = () => {
   const doc = storyDocument([premiumPanel], { 'premium:frame': premiumFrame }, {
@@ -508,6 +794,260 @@ export const LegendHiddenSeries: Story = () => {
   )
 }
 LegendHiddenSeries.storyName = 'Legend hidden series'
+
+const dailyRevenuePanel: Panel = {
+  id: 'daily-revenue',
+  kind: 'bar',
+  title: 'Доход',
+  semantics: 'series',
+  frame: 'daily-revenue:frame',
+  encoding: { category: 'day', series: 'product', value: 'value' },
+  format: { value: money },
+  presentation: { legend: 'below' },
+  terminal: true,
+  actions: [],
+}
+
+const dailyCountPanel: Panel = {
+  ...dailyRevenuePanel,
+  id: 'daily-count',
+  title: 'Количество',
+  frame: 'daily-count:frame',
+  format: { value: { kind: 'number', minorUnits: false, precision: 0 } },
+}
+
+const dailySeriesFrame = (osago: number, kasko: number): Frame => ({
+  columns: [
+    { name: 'day', type: 'string' },
+    { name: 'product', type: 'string' },
+    { name: 'value', type: 'number' },
+  ],
+  rows: [
+    ['30.07', 'ОСАГО', osago],
+    ['30.07', 'КАСКО', kasko],
+    ['31.07', 'ОСАГО', osago * 1.1],
+    ['31.07', 'КАСКО', kasko * 1.2],
+  ],
+})
+
+export const TabbedLegendState: Story = () => {
+  const group = (tab: string) => ({ id: 'daily', kind: 'tabs' as const, span: 12, tab })
+  const doc = storyDocument(
+    [dailyRevenuePanel, dailyCountPanel],
+    {
+      'daily-revenue:frame': dailySeriesFrame(48_000_000, 13_000_000),
+      'daily-count:frame': dailySeriesFrame(120, 9),
+    },
+    {
+      rows: [{
+        heading: 'ЕЖЕДНЕВНЫЕ ПРОДАЖИ',
+        panels: [
+          { panelId: dailyRevenuePanel.id, span: 12, groups: [group('Доход')] },
+          { panelId: dailyCountPanel.id, span: 12, groups: [group('Количество')] },
+        ],
+      }],
+    },
+  )
+  return (
+    <Runtime doc={doc}>
+      <DashboardPanels />
+      <HideSeriesAndSelectTab label="ОСАГО" tab="Количество" />
+    </Runtime>
+  )
+}
+TabbedLegendState.storyName = 'Tabbed legend state'
+
+const readabilityBar: Panel = {
+  id: 'readability-bar', kind: 'hbar', title: 'Продажи по продуктам', semantics: 'series', frame: 'readability-bar:frame',
+  encoding: { category: 'label', value: 'value' }, format: { value: compactNumber }, terminal: true, actions: [],
+}
+const compactLogPanel: Panel = {
+  ...readabilityBar, id: 'compact-log', title: 'Продажи по региону', frame: 'compact-log:frame',
+  valueAxis: { scale: 'logarithmic', logBase: 10 },
+}
+const expandableTopNPanel: Panel = {
+  ...readabilityBar, id: 'expandable-top-n', title: 'Продажи по продуктам · Top 3', frame: 'expandable-top-n:frame',
+  encoding: { id: 'id', category: 'label', value: 'value' },
+}
+
+export const ChartReadabilityStates: Story = () => {
+  const frames = {
+    'readability-bar:frame': {
+      columns: [{ name: 'label', type: 'string' as const }, { name: 'value', type: 'number' as const }],
+      rows: [
+        ['Договор страхования спортивных профессиональных рисков', 152],
+        ['13-24. Страхование профессиональной ответственности', 38],
+        ['Обязательное страхование ответственности работодателя', 12],
+      ],
+    },
+    'compact-log:frame': {
+      columns: [{ name: 'label', type: 'string' as const }, { name: 'value', type: 'number' as const }],
+      rows: [['Ташкент', 1_800]],
+    },
+    'expandable-top-n:frame': {
+      columns: [
+        { name: 'id', type: 'string' as const }, { name: 'label', type: 'string' as const }, { name: 'value', type: 'number' as const },
+        { name: '__lens_topn_group', type: 'string' as const },
+      ],
+      rows: [
+        ['osago', 'ОСАГО', 1_800, null], ['kasko', 'КАСКО', 152, null], ['travel', 'Путешествия', 38, null],
+        ['employer', 'Ответственность работодателя', 5, 'Прочее'], ['cargo', 'Страхование грузов', 4, 'Прочее'],
+        ['property', 'Страхование имущества', 3, 'Прочее'],
+      ],
+    },
+  }
+  const doc = storyDocument([readabilityBar, compactLogPanel, expandableTopNPanel], frames, {
+    rows: [
+      { heading: 'ЧИТАЕМОСТЬ', panels: [{ panelId: readabilityBar.id, span: 7 }, { panelId: compactLogPanel.id, span: 5 }] },
+      { heading: 'СВЁРНУТЫЙ ХВОСТ', panels: [{ panelId: expandableTopNPanel.id, span: 12 }] },
+    ],
+  })
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+ChartReadabilityStates.storyName = 'Chart readability states'
+
+const donutTailPanel: Panel = {
+  id: 'donut-tail', kind: 'donut', title: 'Тип оплаты', semantics: 'partition', frame: 'donut-tail:frame',
+  encoding: { id: 'id', label: 'label', value: 'value' }, format: { value: compactMoney },
+  presentation: { legend: 'below' }, terminal: true, actions: [],
+}
+const donutTailFrame: Frame = {
+  columns: [{ name: 'id', type: 'string' }, { name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+  rows: [
+    ['card', 'Банковская карта', 9_600_000], ['cash', 'Наличные', 260_000],
+    ['octo', 'Octo', 70_000], ['transfer', 'Банковский перевод', 45_000], ['other', 'Другое', 25_000],
+  ],
+  total: 10_000_000,
+}
+
+export const DonutCollapsedTail: Story = () => {
+  const doc = storyDocument([donutTailPanel], { 'donut-tail:frame': donutTailFrame }, {
+    rows: [{ heading: 'ДОЛИ', panels: [{ panelId: donutTailPanel.id, span: 7 }] }],
+  })
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+DonutCollapsedTail.storyName = 'Donut collapsed tail'
+
+const labelledBar: Panel = {
+  ...readabilityBar, id: 'labelled-bar', title: 'Полисы', frame: 'labelled-bar:frame', kind: 'bar',
+  presentation: { dataLabels: true },
+}
+const labelledLine: Panel = {
+  ...trendPanel, id: 'labelled-line', title: 'Премия', frame: 'labelled-line:frame', presentation: { dataLabels: true },
+}
+
+export const OptInDataLabels: Story = () => {
+  const frames = {
+    'labelled-bar:frame': { columns: [{ name: 'label', type: 'string' as const }, { name: 'value', type: 'number' as const }], rows: [['Янв', 31], ['Фев', 47], ['Мар', 55]] },
+    'labelled-line:frame': trendFrame,
+  }
+  const doc = storyDocument([labelledBar, labelledLine], frames, {
+    rows: [{ heading: 'ПОДПИСИ ДАННЫХ', panels: [{ panelId: labelledBar.id, span: 6 }, { panelId: labelledLine.id, span: 6 }] }],
+  })
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+OptInDataLabels.storyName = 'Opt-in data labels'
+
+const legendSeries = Array.from({ length: 11 }, (_, index) => `Продукт ${String(index + 1).padStart(2, '0')}`)
+const legendPanel: Panel = {
+  id: 'legend-workstation', kind: 'bar', title: 'Ежедневный доход', semantics: 'series', frame: 'legend-workstation:frame',
+  encoding: { category: 'day', series: 'product', value: 'value' }, format: { value: compactMoney },
+  presentation: { legend: 'below', stack: true }, terminal: true, actions: [],
+}
+const legendFrame: Frame = {
+  columns: [{ name: 'day', type: 'string' }, { name: 'product', type: 'string' }, { name: 'value', type: 'number' }],
+  rows: ['30.07', '31.07'].flatMap((day, dayIndex) => legendSeries.map((series, index) => [day, series, (index + 1) * (dayIndex + 1) * 1_000_000])),
+}
+
+function HideEverySeries() {
+  useEffect(() => runWhenReady(() => {
+    const button = window.document.querySelector<HTMLButtonElement>('.lens-chart-legend-tools button')
+    if (!button) return false
+    button.click()
+    return true
+  }), [])
+  return null
+}
+
+/**
+ * What a plot says when the reader has switched every series off.
+ *
+ * A donut with nothing in it drew a featureless grey ring and kept printing the
+ * full total in its hub while the chip above it read «Итого: 0 UZS» — a panel
+ * that looks broken and contradicts itself in the same card. Nothing shown,
+ * nothing drawn, nothing totalled, and one way back stated in words.
+ */
+export const LegendAllSeriesHidden: Story = () => {
+  const doc = storyDocument([premiumPanel], { 'premium:frame': premiumFrame }, {
+    rows: [{ heading: 'ВСЁ СКРЫТО', panels: [{ panelId: 'premium', span: 6 }] }],
+  })
+  return (
+    <Runtime doc={doc}>
+      <DashboardPanels />
+      <HideEverySeries />
+    </Runtime>
+  )
+}
+LegendAllSeriesHidden.storyName = 'Legend all series hidden'
+
+export const LegendControlsAndSearch: Story = () => {
+  const doc = storyDocument([legendPanel], { 'legend-workstation:frame': legendFrame }, {
+    rows: [{ heading: 'ЛЕГЕНДА', panels: [{ panelId: legendPanel.id, span: 7 }] }],
+  })
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+LegendControlsAndSearch.storyName = 'Legend controls and search'
+
+function SoloLegendOnMount() {
+  useEffect(() => runWhenReady(() => {
+    const button = [...document.querySelectorAll<HTMLButtonElement>('.lens-chart-legend-toggle')]
+      .find((entry) => entry.textContent?.includes('Продукт 04'))
+    if (!button) return false
+    button.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }))
+    return true
+  }), [])
+  return null
+}
+
+export const LegendSoloState: Story = () => {
+  const doc = storyDocument([legendPanel], { 'legend-workstation:frame': legendFrame }, {
+    rows: [{ heading: 'ИЗОЛИРОВАННАЯ СЕРИЯ', panels: [{ panelId: legendPanel.id, span: 12 }] }],
+  })
+  return <Runtime doc={doc}><DashboardPanels /><SoloLegendOnMount /></Runtime>
+}
+LegendSoloState.storyName = 'Legend solo state'
+
+function HideLegendSeriesOnMount({ label }: { label: string }) {
+  useEffect(() => runWhenReady(() => {
+    const button = [...document.querySelectorAll<HTMLButtonElement>('.lens-chart-legend-toggle')]
+      .find((entry) => entry.textContent?.includes(label))
+    if (!button) return false
+    button.click()
+    return true
+  }), [label])
+  return null
+}
+
+export const HiddenStackCollapsed: Story = () => {
+  const doc = storyDocument([compositionPanel], { 'composition:frame': compositionFrame }, {
+    rows: [{ heading: 'СТЕК ПОСЛЕ СКРЫТИЯ', panels: [{ panelId: compositionPanel.id, span: 12 }] }],
+  })
+  return <Runtime doc={doc}><DashboardPanels /><HideLegendSeriesOnMount label="Прямое страхование" /></Runtime>
+}
+HiddenStackCollapsed.storyName = 'Hidden stack collapsed'
+
+const gaugePanel: Panel = {
+  id: 'budget-gauge', kind: 'gauge', title: 'Использование месячного бюджета', semantics: 'series', frame: 'budget-gauge:frame',
+  encoding: { value: 'value' }, format: { value: { kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' } }, terminal: true, actions: [],
+}
+
+export const Gauge: Story = () => {
+  const doc = storyDocument([gaugePanel], {
+    'budget-gauge:frame': { columns: [{ name: 'value', type: 'number' }], rows: [[68.4]] },
+  }, { rows: [{ heading: 'БЮДЖЕТ', panels: [{ panelId: gaugePanel.id, span: 5 }] }] })
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+Gauge.storyName = 'Gauge'
 
 const crowdedHeaderPanel: Panel = {
   ...premiumPanel,
@@ -530,18 +1070,54 @@ export const PanelHeaderPressure: Story = () => {
 }
 PanelHeaderPressure.storyName = 'Panel header pressure'
 
+const referralHeaderMetrics = [
+  { panel: statPanel('earned-total', 'Всего заработано', '#2f56d9'), value: 8.69 },
+  { panel: statPanel('available-balance', 'Доступный баланс', '#059669'), value: 2.04 },
+  { panel: statPanel('pending-balance', 'Баланс в ожидании', '#d97824'), value: 6.65 },
+  { panel: statPanel('withdrawn-total', 'Всего выведено', '#7c3aed'), value: 0 },
+]
+
+function ReferralHeaderStrip({ width }: { width: number }) {
+  const frames = Object.fromEntries(referralHeaderMetrics.map(({ panel, value }) => [
+    `${panel.id}:frame`, statFrame(panel.title, value),
+  ]))
+  const doc = storyDocument(
+    referralHeaderMetrics.map(({ panel }) => panel),
+    frames,
+    {
+      rows: [{
+        heading: `${width} PX HOST CONTENT · FOUR-UP`,
+        panels: referralHeaderMetrics.map(({ panel }) => ({ panelId: panel.id, span: 3 })),
+      }],
+    },
+  )
+  return <div style={{ width }}><Runtime doc={doc}><DashboardPanels /></Runtime></div>
+}
+
+/** Desktop-host and tablet-host content widths keep the same four-up layout.
+ * Every long title must remain visible while all export/expand controls keep
+ * their own stable row inside the card. */
+export const PanelHeaderFourUpPressure: Story = () => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <ReferralHeaderStrip width={1030} />
+    <ReferralHeaderStrip width={640} />
+  </div>
+)
+PanelHeaderFourUpPressure.storyName = 'Panel header four-up pressure'
+
 const navigateAction = (urlTemplate: string, params: Panel['actions'][number]['params'] = []) => ({
   kind: 'navigate' as const, method: 'GET', urlTemplate, params, payload: {},
 })
 
 const linkedMetrics = metrics.map(({ panel, value }) => ({
-  panel: { ...panel, actions: [navigateAction(`/analytics/metrics/${panel.id}`)] },
+  panel: { ...panel, terminal: false, actions: [navigateAction(`/analytics/metrics/${panel.id}`)] },
   value,
 }))
 
 const linkedCoveragePanel: Panel = {
   ...coveragePanel,
   id: 'payouts-linked',
+  terminal: false,
   actions: [navigateAction('/claims/{bucket}', [{ name: 'bucket', source: { kind: 'field', name: 'label' } }])],
 }
 
@@ -562,7 +1138,7 @@ export const ClickablePanels: Story = () => {
           heading: 'КЛЮЧЕВЫЕ КОЭФФИЦИЕНТЫ',
           panels: linkedMetrics.map(({ panel }) => ({
             panelId: panel.id, span: 3,
-            group: { id: 'earned', kind: 'metrics' as const, label: 'ПО ЗАРАБОТАННОЙ ПРЕМИИ', layout: 'columns' as const, span: 12 },
+            groups: [{ id: 'earned', kind: 'metrics' as const, label: 'ПО ЗАРАБОТАННОЙ ПРЕМИИ', layout: 'columns' as const, span: 12 }],
           })),
         },
         { heading: 'ВЫПЛАТЫ', panels: [{ panelId: 'payouts-linked', span: 6 }] },
@@ -572,3 +1148,59 @@ export const ClickablePanels: Story = () => {
   return <Runtime doc={doc}><DashboardPanels /></Runtime>
 }
 ClickablePanels.storyName = 'Clickable panels'
+
+/**
+ * A stat panel sharing a row with a table long enough to set the row's height.
+ *
+ * The row stretches every card to its tallest sibling, which is right for a
+ * plot and wrong for a stat: the stat used to grow to the table's height and
+ * float its delta chip at the bottom of the resulting gap. The figure, its
+ * caption and its chip stay one block at the top of the card here, and the
+ * slack falls below them.
+ */
+const stretchStatPanel: Panel = {
+  id: 'stretch-stat', kind: 'stat', title: 'Комбинированный коэффициент', semantics: 'series',
+  frame: 'stretch-stat:frame',
+  encoding: { label: 'label', value: 'value', final: 'delta' },
+  format: {
+    value: { kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' },
+    delta: { kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' },
+  },
+  caption: 'Убытки и расходы к заработанной премии',
+  trend: { percent: -4.2, polarity: 'lower_better', absoluteField: 'delta', percentField: 'deltaPercent' },
+  terminal: true, actions: [],
+}
+
+const stretchStatFrame: Frame = {
+  columns: [
+    { name: 'label', type: 'string' }, { name: 'value', type: 'number' },
+    { name: 'delta', type: 'number' }, { name: 'deltaPercent', type: 'number' },
+  ],
+  rows: [['Комбинированный коэффициент', 44.8, -2, -4.2]],
+}
+
+const stretchTablePanel: Panel = {
+  id: 'stretch-table', kind: 'table', title: 'Продукты', semantics: 'partition', frame: 'stretch-table:frame',
+  encoding: { label: 'product', value: 'amount' },
+  format: { amount: money },
+  columns: [
+    { field: 'product', label: 'Продукт', cell: { kind: 'plain' } },
+    { field: 'amount', label: 'Премия', align: 'right', cell: { kind: 'plain' } },
+  ],
+  terminal: true, actions: [],
+}
+
+const stretchTableFrame: Frame = {
+  columns: [{ name: 'product', type: 'string' }, { name: 'amount', type: 'number' }],
+  rows: Array.from({ length: 25 }, (_, index) => [`Продукт ${index + 1}`, (25 - index) * 41_000_000]),
+}
+
+export const StatBesideTallTable: Story = () => {
+  const doc = storyDocument(
+    [stretchStatPanel, stretchTablePanel],
+    { 'stretch-stat:frame': stretchStatFrame, 'stretch-table:frame': stretchTableFrame },
+    { rows: [{ panels: [{ panelId: 'stretch-stat', span: 3 }, { panelId: 'stretch-table', span: 9 }] }] },
+  )
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+StatBesideTallTable.storyName = 'Stat beside a tall table'

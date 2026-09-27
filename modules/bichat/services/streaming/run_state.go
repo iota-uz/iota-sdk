@@ -31,6 +31,11 @@ func NewRunStateManager(store RunStateStore) *RunStateManager {
 	return &RunStateManager{store: store}
 }
 
+// Enabled reports whether generation run state is backed by a store.
+func (m *RunStateManager) Enabled() bool {
+	return m != nil && m.store != nil
+}
+
 func (m *RunStateManager) CreateRunState(ctx context.Context, run domain.GenerationRun) (bool, error) {
 	const op serrors.Op = "runStateManager.CreateRunState"
 	if m == nil || m.store == nil {
@@ -55,6 +60,25 @@ func (m *RunStateManager) GetPersistedRun(ctx context.Context, sessionID uuid.UU
 		return nil, serrors.E(op, err)
 	}
 	return m.store.GetActiveRunBySession(ctx, tenantID, sessionID)
+}
+
+// GetPersistedRunForSession reads the active run with an explicit tenant. It is
+// used while a new database run is being created inside a transaction, where
+// the service must compare PostgreSQL's active row with Redis before deciding
+// whether an existing Redis session key is orphaned.
+func (m *RunStateManager) GetPersistedRunForSession(
+	ctx context.Context,
+	tenantID, sessionID uuid.UUID,
+) (domain.GenerationRun, error) {
+	const op serrors.Op = "runStateManager.GetPersistedRunForSession"
+	if m == nil || m.store == nil {
+		return nil, domain.ErrNoActiveRun
+	}
+	run, err := m.store.GetActiveRunBySession(ctx, tenantID, sessionID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return run, nil
 }
 
 func (m *RunStateManager) GetPersistedRunByID(ctx context.Context, runID uuid.UUID) (domain.GenerationRun, error) {

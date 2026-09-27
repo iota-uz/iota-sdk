@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import type { DashboardDocument, Frame, Panel, PanelKind } from './contract'
 import type { ChartAdapter, ChartInput } from './charts/adapter'
 import {
-  BarPanel, CascadePanel, CoveragePanel, LinePanel, MetricFlowPanel, MetricHierarchyPanel,
+  BarPanel, CascadePanel, CoveragePanel, DistributionPanel, LinePanel, MetricFlowPanel, MetricHierarchyPanel,
   MetricRelationshipPanel, PiePanel, StatPanel, TablePanel,
 } from './panels'
 import { DashboardRuntimeProvider, DocumentProvider, useDrill } from './runtime'
@@ -14,7 +14,7 @@ type StoryKind = PanelKind
 
 const kinds: StoryKind[] = [
   'stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'table',
-  'radial',
+  'radial', 'histogram', 'boxplot', 'heatmap',
   'metric_flow', 'metric_hierarchy', 'metric_relationship',
 ]
 const states: PanelState[] = ['loading', 'empty', 'error', 'stale', 'data']
@@ -33,6 +33,24 @@ const chartFrame: Frame = {
     ['root/south', 'South', '2026-05-01T00:00:00Z', 'Actual', 41],
     ['root/east', 'East', '2026-06-01T00:00:00Z', 'Plan', 27],
   ],
+}
+
+const histogramFrame: Frame = {
+  columns: [{ name: 'bucket', type: 'string' }, { name: 'count', type: 'number' }],
+  rows: [['0–7', 18], ['8–14', 42], ['15–30', 31]],
+}
+
+const boxPlotFrame: Frame = {
+  columns: [
+    { name: 'product', type: 'string' }, { name: 'lower', type: 'number' }, { name: 'q1', type: 'number' },
+    { name: 'median', type: 'number' }, { name: 'q3', type: 'number' }, { name: 'upper', type: 'number' },
+  ],
+  rows: [['OSAGO', 1, 8, 19, 42, 146], ['KASKO', 2, 12, 31, 68, 210]],
+}
+
+const heatmapFrame: Frame = {
+  columns: [{ name: 'hour', type: 'string' }, { name: 'weekday', type: 'string' }, { name: 'count', type: 'number' }],
+  rows: [['08:00', 'Mon', 8], ['12:00', 'Mon', 17], ['08:00', 'Tue', 12], ['12:00', 'Tue', 24]],
 }
 
 const radialFrame: Frame = {
@@ -115,6 +133,7 @@ const flowPanel: Panel = {
     ],
     reconcile: { tolerance: 0 },
   },
+  terminal: true,
   actions: [],
 }
 
@@ -154,6 +173,7 @@ const hierarchyPanel: Panel = {
     ],
     reconcile: { tolerance: 0 },
   },
+  terminal: true,
   actions: [],
 }
 
@@ -176,6 +196,7 @@ const relationshipPanel: Panel = {
     type: 'association',
     direction: 'bidirectional',
   },
+  terminal: true,
   actions: [],
 }
 
@@ -189,6 +210,7 @@ function storyPanel(kind: StoryKind): Panel {
   const metricPanel = metricPanels[kind]
   if (metricPanel) return metricPanel
   const chart = kind !== 'stat'
+  const distribution = kind === 'histogram' || kind === 'boxplot' || kind === 'heatmap'
   return {
     id: `${kind}-panel`,
     kind,
@@ -199,20 +221,27 @@ function storyPanel(kind: StoryKind): Panel {
       ? { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' }
       : kind === 'table'
         ? { id: 'transactionId', label: 'counterparty', value: 'amount' }
-        : kind === 'radial'
-        ? { id: 'id', label: 'label', series: 'series', value: 'value' }
-        : chart
-      ? { id: 'id', label: 'label', category: 'period', series: 'series', value: 'value' }
-      : { label: 'label', value: 'value', final: 'delta' },
+        : kind === 'histogram'
+          ? { category: 'bucket', value: 'count' }
+          : kind === 'boxplot'
+            ? { category: 'product', lower: 'lower', q1: 'q1', median: 'median', q3: 'q3', upper: 'upper' }
+            : kind === 'heatmap'
+              ? { category: 'hour', series: 'weekday', value: 'count' }
+              : kind === 'radial'
+                ? { id: 'id', label: 'label', series: 'series', value: 'value' }
+                : chart
+                  ? { id: 'id', label: 'label', category: 'period', series: 'series', value: 'value' }
+                  : { label: 'label', value: 'value', final: 'delta' },
     format: kind === 'cascade' || kind === 'table'
       ? { value: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 }, amount: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 } }
       : chart
-      ? { value: { kind: 'number', minorUnits: false, precision: 0 } }
-      : {
+        ? { value: { kind: 'number', minorUnits: false, precision: 0 } }
+        : {
           value: { kind: 'money', currency: 'USD', minorUnits: true, precision: 0 },
           delta: { kind: 'percent', minorUnits: false, precision: 1 },
         },
-    drillRoot: 'root',
+    drillRoot: distribution ? undefined : 'root',
+    terminal: distribution || undefined,
     actions: kind === 'table' ? [{
       kind: 'navigate_to_leaf', urlTemplate: '/transactions/{id}',
       params: [{ name: 'id', source: { kind: 'field', name: 'transactionId' } }], payload: {},
@@ -224,7 +253,7 @@ function storyPanel(kind: StoryKind): Panel {
         { key: 'plan', label: 'Plan', order: 1, total: 100 },
       ],
     } : undefined,
-  }
+  } as Panel
 }
 
 function storyDocument(kind: StoryKind, state: PanelState): DashboardDocument {
@@ -232,18 +261,24 @@ function storyDocument(kind: StoryKind, state: PanelState): DashboardDocument {
   const sourceFrame = kind === 'stat'
     ? statFrame
     : kind === 'cascade'
-    ? cascadeFrame
-    : kind === 'table'
-    ? tableFrame
-    : kind === 'metric_flow'
-    ? flowFrame
-    : kind === 'metric_hierarchy'
-    ? hierarchyFrame
-    : kind === 'metric_relationship'
-    ? relationshipFrame
-    : kind === 'radial'
-    ? radialFrame
-    : chartFrame
+      ? cascadeFrame
+      : kind === 'table'
+        ? tableFrame
+        : kind === 'metric_flow'
+          ? flowFrame
+          : kind === 'metric_hierarchy'
+            ? hierarchyFrame
+            : kind === 'metric_relationship'
+              ? relationshipFrame
+              : kind === 'radial'
+                ? radialFrame
+                : kind === 'histogram'
+                  ? histogramFrame
+                  : kind === 'boxplot'
+                    ? boxPlotFrame
+                    : kind === 'heatmap'
+                      ? heatmapFrame
+                      : chartFrame
   const includeFrame = state === 'data' || state === 'stale' || state === 'empty'
   return {
     version: '1.0.0',
@@ -369,6 +404,7 @@ function StoryPanel({ panel }: { panel: Panel }) {
   if (panel.kind === 'metric_flow') return <MetricFlowPanel panel={panel} />
   if (panel.kind === 'metric_hierarchy') return <MetricHierarchyPanel panel={panel} />
   if (panel.kind === 'metric_relationship') return <MetricRelationshipPanel panel={panel} />
+  if (panel.kind === 'histogram' || panel.kind === 'boxplot' || panel.kind === 'heatmap') return <DistributionPanel panel={panel} adapter={storyChartAdapter} />
   if (panel.kind === 'pie' || panel.kind === 'donut') return <PiePanel panel={panel} adapter={storyChartAdapter} />
   if (panel.kind === 'bar' || panel.kind === 'hbar') return <BarPanel panel={panel} adapter={storyChartAdapter} />
   return <LinePanel panel={panel} adapter={storyChartAdapter} />
@@ -378,9 +414,9 @@ function MatrixCell({ kind, state }: { kind: StoryKind; state: PanelState }) {
   const document = storyDocument(kind, state)
   const fetcher: typeof fetch = () => state === 'error'
     ? Promise.resolve(new Response(JSON.stringify({ error: 'internal', message: 'Data source unavailable' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }))
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    }))
     : new Promise<Response>(() => undefined)
 
   return (
@@ -466,6 +502,57 @@ const panelVariants: Array<PanelVariant> = [
   { label: 'coverage + target', panel: coverageTargetPanel, frame: coverageFrame },
 ]
 
+/**
+ * A bridge with amounts nobody has: one stage mid-cascade, and the closing
+ * total itself. Both arrive as a null cell — the wire's way of saying "not
+ * computed", as distinct from a zero — and both carry the producer's badge
+ * explaining what to do about it.
+ *
+ * Coerced to numbers these drew a full-height deduction to the axis and a
+ * duplicated, inert closing column. Kept as unknowns they are gaps: a dashed
+ * rule on the running total the cascade last knew, an em dash where the figure
+ * would be, the name and the badge intact, and the deltas after them still
+ * measured from that last known total.
+ */
+const unknownCascadeFrame: Frame = {
+  columns: [
+    { name: 'label', type: 'string' },
+    { name: 'value', type: 'number' },
+    { name: 'cut', type: 'number' },
+    { name: 'cutLabel', type: 'string' },
+    { name: 'final', type: 'bool' },
+    { name: 'annotation', type: 'string' },
+  ],
+  rows: [
+    ['Gross margin', 3120000, 0, '', false, ''],
+    ['After claims', 2260000, 860000, 'Claims paid', false, ''],
+    ['Reserve movement', null, 0, 'Reserve movement', false, 'No data'],
+    ['After operating costs', 1840000, 420000, 'Operating costs', false, ''],
+    ['Operating margin', null, 0, '', true, 'Configure'],
+  ],
+}
+
+const unknownCascadePanel: Panel = {
+  ...storyPanel('cascade'),
+  id: 'cascade-unknown-panel',
+  title: 'Margin bridge',
+  frame: 'cascade-unknown-frame',
+  encoding: {
+    label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel',
+    final: 'final', annotation: 'annotation',
+  },
+}
+
+// The stacked projection only. A waterfall reserves a minimum width per column
+// and a matrix cell is a fifth of the viewport, so a bridge plotted here is a
+// picture of its first two columns — the gap ones, the subject, are off the
+// right edge. The plot has its own story (`panels-v2--waterfall-unknown-stage`);
+// what this matrix is for is that an unknown value survives every panel state,
+// and that is a property of the panel, not of the projection.
+const unknownCascadeVariants: Array<PanelVariant> = [
+  { label: 'cascade + unknown stage', panel: unknownCascadePanel, frame: unknownCascadeFrame },
+]
+
 function variantDocument(variant: PanelVariant, state: PanelState): DashboardDocument {
   const base = storyDocument('stat', state)
   const includeFrame = state === 'data' || state === 'stale' || state === 'empty'
@@ -484,9 +571,9 @@ function VariantCell({ variant, state }: { variant: PanelVariant; state: PanelSt
   const document = variantDocument(variant, state)
   const fetcher: typeof fetch = () => state === 'error'
     ? Promise.resolve(new Response(JSON.stringify({ error: 'internal', message: 'Data source unavailable' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }))
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    }))
     : new Promise<Response>(() => undefined)
 
   return (
@@ -502,13 +589,13 @@ function VariantCell({ variant, state }: { variant: PanelVariant; state: PanelSt
   )
 }
 
-function VariantMatrix({ theme }: { theme: 'light' | 'dark' }) {
+function VariantMatrix({ theme, variants }: { theme: 'light' | 'dark'; variants: Array<PanelVariant> }) {
   return (
     <div className="lens-root lens-story-matrix" data-theme={theme}>
       <div className="lens-story-matrix-grid">
         <span />
         {states.map((state) => <strong key={state}>{state}</strong>)}
-        {panelVariants.flatMap((variant) => [
+        {variants.flatMap((variant) => [
           <strong className="lens-story-row-label" key={`${variant.panel.id}-label`}>{variant.label}</strong>,
           ...states.map((state) => <VariantCell variant={variant} state={state} key={`${variant.panel.id}-${state}`} />),
         ])}
@@ -517,8 +604,17 @@ function VariantMatrix({ theme }: { theme: 'light' | 'dark' }) {
   )
 }
 
-export const VariantsLight: Story = () => <VariantMatrix theme="light" />
+export const VariantsLight: Story = () => <VariantMatrix theme="light" variants={panelVariants} />
 VariantsLight.storyName = 'Sparkline and coverage target - light'
 
-export const VariantsDark: Story = () => <VariantMatrix theme="dark" />
+export const VariantsDark: Story = () => <VariantMatrix theme="dark" variants={panelVariants} />
 VariantsDark.storyName = 'Sparkline and coverage target - dark'
+
+// A bridge with unknown amounts through every state the panel has. An unknown
+// value is a property of the DATA: none of loading, empty, error or stale may
+// stand in for it, and it may not stand in for any of them.
+export const UnknownCascadeLight: Story = () => <VariantMatrix theme="light" variants={unknownCascadeVariants} />
+UnknownCascadeLight.storyName = 'Unknown cascade stage - light'
+
+export const UnknownCascadeDark: Story = () => <VariantMatrix theme="dark" variants={unknownCascadeVariants} />
+UnknownCascadeDark.storyName = 'Unknown cascade stage - dark'

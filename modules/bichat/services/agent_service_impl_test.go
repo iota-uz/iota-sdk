@@ -695,6 +695,21 @@ func (m *mockChatRepository) CreateRun(ctx context.Context, run domain.Generatio
 	if _, exists := m.runs[run.ID()]; exists {
 		return domain.ErrActiveRunExists
 	}
+	staleBefore := time.Now().Add(-domain.GenerationRunStaleAfter)
+	for id, existing := range m.runs {
+		lastSeen := existing.LastUpdatedAt()
+		if lastSeen.IsZero() {
+			lastSeen = existing.StartedAt()
+		}
+		if existing.Status() == domain.GenerationRunStatusStreaming &&
+			lastSeen.Before(staleBefore) {
+			cancelled, err := existing.Cancel(time.Now())
+			if err != nil {
+				return err
+			}
+			m.runs[id] = cancelled
+		}
+	}
 	for _, existing := range m.runs {
 		if existing.SessionID() == run.SessionID() &&
 			existing.Status() == domain.GenerationRunStatusStreaming {
@@ -724,6 +739,48 @@ func (m *mockChatRepository) GetRunByID(ctx context.Context, runID uuid.UUID) (d
 		return run, nil
 	}
 	return nil, domain.ErrRunNotFound
+}
+
+func (m *mockChatRepository) RestartRun(
+	ctx context.Context,
+	runID uuid.UUID,
+	staleBefore time.Time,
+) (domain.GenerationRun, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	run, ok := m.runs[runID]
+	if !ok {
+		return nil, domain.ErrRunNotFound
+	}
+	if run.Status() == domain.GenerationRunStatusStreaming &&
+		!run.LastUpdatedAt().Before(staleBefore) {
+		return nil, domain.ErrRunNotFound
+	}
+	if run.Status() != domain.GenerationRunStatusStreaming &&
+		run.Status() != domain.GenerationRunStatusCancelled &&
+		run.Status() != domain.GenerationRunStatusFailed {
+		return nil, domain.ErrRunNotFound
+	}
+	for id, existing := range m.runs {
+		if id != runID &&
+			existing.SessionID() == run.SessionID() &&
+			existing.Status() == domain.GenerationRunStatusStreaming {
+			return nil, domain.ErrActiveRunExists
+		}
+	}
+	restarted, err := domain.NewGenerationRun(domain.GenerationRunSpec{
+		ID:        run.ID(),
+		SessionID: run.SessionID(),
+		TenantID:  run.TenantID(),
+		UserID:    run.UserID(),
+		StartedAt: time.Now(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	m.runs[runID] = restarted
+	return restarted, nil
 }
 
 func (m *mockChatRepository) UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
@@ -756,6 +813,24 @@ func (m *mockChatRepository) CompleteRun(ctx context.Context, runID uuid.UUID) e
 		return err
 	}
 	m.runs[runID] = completed
+	return nil
+}
+
+func (m *mockChatRepository) FailRun(ctx context.Context, runID uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	run, ok := m.runs[runID]
+	if !ok {
+		return nil
+	}
+	failed, err := run.Fail(time.Now())
+	if err != nil {
+		if run.Status() == domain.GenerationRunStatusFailed {
+			return nil
+		}
+		return err
+	}
+	m.runs[runID] = failed
 	return nil
 }
 
@@ -841,7 +916,7 @@ func TestProcessContinuation_UsesInternalBlockWithoutUserTurn(t *testing.T) {
 	}
 }
 
-func TestContinuationEventContextRoundTrip(t *testing.T) {
+func TestContinuationEventContext_RoundTrip(t *testing.T) {
 	t.Parallel()
 	event := services.ContinuationEvent{
 		Trigger:       "snapshot_ready",

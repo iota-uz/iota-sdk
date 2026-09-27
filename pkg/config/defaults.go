@@ -17,10 +17,11 @@ import (
 // uint32/uint64, float32, float64, time.Duration, []string (comma-split, trimmed),
 // and nested structs (recursed via pointer).
 //
-// Documented limitation: an explicit empty string set by a source is
-// indistinguishable from "absent" because reflect.Value.IsZero returns true for
-// an empty string. Tag defaults fire in both cases, matching the previous
-// SetDefaults() semantic.
+// This function cannot tell "absent" from "explicitly zero" — reflect.IsZero
+// is true for false, 0 and "" alike — which is why RegisterAt calls it to seed
+// a fresh struct *before* reading the source rather than to patch one after.
+// Called the other way round it silently discards every explicit zero a
+// source provides, and a `default:"true"` bool becomes impossible to turn off.
 func applyTagDefaults(v any) error {
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {

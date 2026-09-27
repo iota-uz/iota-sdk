@@ -1,0 +1,2 @@
+- [ ] 2026-09-06 · prod · Configure npm trusted publishing for `iota-uz/iota-sdk` / `release.yml`, allow workflow Contents write, protect `v*` against updates/deletions, and require `Release contract and tooling` on SDK main. See [rollout](docs/sdk-releases.md#rollout).
+- [ ] 2026-09-06 · prod · Adopt local `sdkctl promote` in participating consumers, disable competing SHA finalizers, and require a production dependency check using `sdkctl verify` plus normal consumer tests with `GOWORK=off`. See [consumer CI](docs/sdk-releases.md#consumer-ci).

@@ -148,9 +148,10 @@ func (s *agentServiceImpl) ProcessContinuation(
 	sessionID uuid.UUID,
 	event services.ContinuationEvent,
 ) (types.Generator[agents.ExecutorEvent], error) {
+	const op serrors.Op = "agentServiceImpl.ProcessContinuation"
 	prompt, err := event.Prompt()
 	if err != nil {
-		return nil, serrors.E("agentServiceImpl.ProcessContinuation", serrors.KindValidation, err)
+		return nil, serrors.E(op, serrors.KindValidation, err)
 	}
 	ctx = services.WithContinuationEvent(ctx, event)
 	return s.process(ctx, sessionID, "", nil, prompt)

@@ -99,7 +99,7 @@ func Apply(spec *Spec, value any, locale, timezone string) string {
 		if precision < 0 {
 			precision = 0
 		}
-		return fmt.Sprintf("%.*f%%", precision, number)
+		return localizedFixed(number, precision, locale) + "%"
 	case KindDate:
 		layout := spec.Layout
 		if layout == "" {
@@ -247,13 +247,13 @@ func abbreviate(value float64, precision int, locale string) string {
 	abs := math.Abs(value)
 	switch {
 	case abs >= 1_000_000_000_000:
-		return formatAbbreviated(value/1_000_000_000_000, precision, suffixes.Trillion, suffixes.Spaced)
+		return formatAbbreviated(value/1_000_000_000_000, precision, suffixes.Trillion, suffixes.Spaced, locale)
 	case abs >= 1_000_000_000:
-		return formatAbbreviated(value/1_000_000_000, precision, suffixes.Billion, suffixes.Spaced)
+		return formatAbbreviated(value/1_000_000_000, precision, suffixes.Billion, suffixes.Spaced, locale)
 	case abs >= 1_000_000:
-		return formatAbbreviated(value/1_000_000, precision, suffixes.Million, suffixes.Spaced)
+		return formatAbbreviated(value/1_000_000, precision, suffixes.Million, suffixes.Spaced, locale)
 	case abs >= abbreviationFloor:
-		return formatAbbreviated(value/1_000, precision, suffixes.Thousand, suffixes.Spaced)
+		return formatAbbreviated(value/1_000, precision, suffixes.Thousand, suffixes.Spaced, locale)
 	default:
 		return groupedInteger(value, locale)
 	}
@@ -294,11 +294,21 @@ func MoneyExact(value float64, currency, locale string) string {
 	return text + " " + code
 }
 
-func formatAbbreviated(scaled float64, precision int, suffix string, spaced bool) string {
+func formatAbbreviated(scaled float64, precision int, suffix string, spaced bool, locale string) string {
+	number := localizedFixed(scaled, precision, locale)
 	if spaced {
-		return fmt.Sprintf("%.*f %s", precision, scaled, suffix)
+		return number + " " + suffix
 	}
-	return fmt.Sprintf("%.*f%s", precision, scaled, suffix)
+	return number + suffix
+}
+
+func localizedFixed(value float64, precision int, locale string) string {
+	formatted := fmt.Sprintf("%.*f", precision, value)
+	normalized := strings.ToLower(strings.TrimSpace(locale))
+	if strings.HasPrefix(normalized, "ru") || strings.HasPrefix(normalized, "uz") {
+		return strings.Replace(formatted, ".", ",", 1)
+	}
+	return formatted
 }
 
 func coerceNumber(value any) (float64, bool) {

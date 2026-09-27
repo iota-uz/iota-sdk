@@ -32,6 +32,11 @@ templ EditForm(props *EditFormProps) {
 	>
 		@composables.CSRFTokenField()
 		<div class="flex-1 overflow-y-auto flex flex-col gap-5 p-4 md:p-6">
+			if !props.Role.CanUpdate {
+				<div role="status" aria-live="polite" data-test-id="authorization-read-only-notice" class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+					{ pageCtx.T("Authorization.Notices.ReadOnlyTarget") }
+				</div>
+			}
 			@card.Card(card.Props{
 				Class: "space-y-3",
 			}) {

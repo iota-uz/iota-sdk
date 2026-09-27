@@ -31,7 +31,8 @@
         "value": "value"
       },
       "format": {},
-      "actions": []
+      "actions": [],
+      "terminal": true
     }
   ],
   "frames": {

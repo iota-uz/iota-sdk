@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/sdk-tools/cmd/git"
 	"github.com/iota-uz/iota-sdk/sdk-tools/cmd/gql"
 	"github.com/iota-uz/iota-sdk/sdk-tools/cmd/pr"
+	"github.com/iota-uz/iota-sdk/sdk-tools/cmd/sdk"
 )
 
 var cfgFile string
@@ -56,6 +57,7 @@ func init() {
 	rootCmd.AddCommand(pr.PRCmd)
 	rootCmd.AddCommand(ci.CICmd)
 	rootCmd.AddCommand(changelog.ChangelogCmd)
+	rootCmd.AddCommand(sdk.NewCommand())
 }
 
 // initConfig reads in config file and ENV variables if set.

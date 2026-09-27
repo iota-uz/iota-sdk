@@ -1,14 +1,15 @@
 import type { Availability, Confidence, Encoding, Frame, Panel, Theme } from '../contract'
-
-const fallbackSeries = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2', '#dc2626']
+import { fallbackSeries, paletteAssignment, stablePaletteIndex } from '../charts/palette'
 
 /**
  * Resolves a datum's color the way the chart adapter does, so a React-rendered
- * legend cannot disagree with the plot: the panel's own `panelId:index` series
- * entry first, then a series entry keyed by label, then the palette order, then
- * the panel accent.
+ * legend cannot disagree with the plot: a semantic series entry keyed by label
+ * first, then the panel's own `panelId:index` entry, then the palette order,
+ * then the panel accent.
  *
- * `positional: false` drops the `panelId:index` entry. That entry pins a color
+ * A named entry wins because it identifies the business series even when a
+ * deferred frame contains a subset in a different order. `positional: false`
+ * drops the `panelId:index` entry. That entry pins a color
  * to the n-th row of the panel's *own* frame, so once the panel is showing a
  * drill level it describes rows that are no longer on screen — the legend was
  * printing the root's second color next to the level's second slice, which the
@@ -17,15 +18,84 @@ const fallbackSeries = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2', '
 export function seriesColorResolver(
   theme: Theme,
   panel: Panel,
-  { positional = true }: { positional?: boolean } = {},
+  { positional = true, labels }: { positional?: boolean; labels?: readonly string[] } = {},
 ): (label: string, index: number) => string | undefined {
   const palette = Object.values(theme.palette).filter((color) => color.trim() !== '')
   const colors = palette.length > 0 ? palette : fallbackSeries
   const resolve = (value: string | undefined) => (value ? theme.palette[value] ?? value : undefined)
-  return (label, index) => (positional ? resolve(theme.series[`${panel.id}:${index}`]) : undefined)
-    ?? resolve(theme.series[label])
-    ?? colors[index % colors.length]
+  // Given the labels this figure will draw, the hash is de-collided across them
+  // (see `paletteAssignment`). Without them each label is resolved on its own,
+  // which is the old behaviour and the only thing possible for a caller that
+  // colours one datum at a time.
+  const assigned = labels ? paletteAssignment(labels, colors.length) : undefined
+  const paletteIndex = (key: string) => assigned?.get(key) ?? stablePaletteIndex(key, colors.length)
+  return (label, index) => resolve(theme.series[label])
+    ?? (positional ? resolve(theme.series[`${panel.id}:${index}`]) : undefined)
+    ?? colors[paletteIndex(label || String(index))]
     ?? panel.accent
+}
+
+/**
+ * Resolves the colour of one frame *row*: the served frame's own positional
+ * palette first, then a series entry keyed by the row's id, then everything
+ * `seriesColorResolver` knows.
+ *
+ * A drill level ships its palette on the frame rather than on the panel — the
+ * aggregation that just ran is the only thing that knows which of its rows is
+ * the collapsed remainder and owes the neutral. The plot read that palette and
+ * the legend did not, so a level drew an arc in one colour and printed another
+ * in the swatch beside it. Both sides come through here now, each handed the
+ * frame it is actually drawing: the plot the visible rows, the legend all of
+ * them, so a hidden entry cannot slide the palette off its rows either.
+ */
+export function rowColorResolver(
+  theme: Theme,
+  panel: Panel,
+  { colors, positional = true, labels }: {
+    colors?: readonly string[]
+    positional?: boolean
+    labels?: readonly string[]
+  } = {},
+): (label: string, index: number, nodeKey?: string) => string | undefined {
+  const series = seriesColorResolver(theme, panel, { positional, labels })
+  // A blank pin is an absent one. The document copies a producer's colour list
+  // verbatim onto the frame, holes included, and `??` would hand ECharts an
+  // empty string to paint with.
+  const resolve = (value: string | undefined) => {
+    const named = value?.trim()
+    return named ? theme.palette[named] ?? named : undefined
+  }
+  return (label, index, nodeKey) => resolve(colors?.[index])
+    ?? resolve(nodeKey ? theme.series[nodeKey] : undefined)
+    ?? series(label, index)
+}
+
+/**
+ * The labels this panel will colour, in the frame's own order.
+ *
+ * The palette de-collides across this list, so it has to be the *whole* frame
+ * rather than the visible part: built from the visible rows, hiding one entry
+ * would free its slot and recolour a neighbour, and the plot and the legend —
+ * which are handed different row sets on purpose — would disagree.
+ */
+export function colorLabels(frame: Frame | undefined, panel: Panel): string[] {
+  if (!frame) return []
+  const seriesIndex = frame.columns.findIndex((column) => column.name === panel.encoding.series)
+  const labelIndex = seriesIndex >= 0
+    ? seriesIndex
+    : frame.columns.findIndex((column) => column.name === (panel.encoding.label ?? panel.encoding.category))
+  if (labelIndex < 0) return []
+  const labels: string[] = []
+  const seen = new Set<string>()
+  for (const row of frame.rows) {
+    const raw = row[labelIndex]
+    if (typeof raw !== 'string' && typeof raw !== 'number' && typeof raw !== 'bigint') continue
+    const name = String(raw)
+    if (seen.has(name)) continue
+    seen.add(name)
+    labels.push(name)
+  }
+  return labels
 }
 
 export function columnIndex(frame: Frame | undefined, field: string | undefined): number {
@@ -45,7 +115,8 @@ export function displayText(value: unknown, fallback: string): string {
 }
 
 export const encodingRoles: ReadonlyArray<keyof Encoding> = [
-  'label', 'value', 'id', 'series', 'category', 'cut', 'cutLabel', 'final',
+  'label', 'value', 'previous', 'lower', 'q1', 'median', 'q3', 'upper',
+  'id', 'series', 'category', 'cut', 'cutLabel', 'final',
   'tone', 'share', 'confidence', 'availability',
 ]
 
@@ -101,7 +172,7 @@ const AVAILABILITY_VALUES: ReadonlySet<string> = new Set<Availability>([
 ])
 
 /** A finite number, coerced from a numeric string; undefined for null/NaN/±Inf. */
-function finiteNumber(value: unknown): number | undefined {
+export function finiteNumber(value: unknown): number | undefined {
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
   if (typeof value === 'string' && value.trim() !== '') {
     const parsed = Number(value)

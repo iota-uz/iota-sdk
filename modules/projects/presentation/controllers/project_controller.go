@@ -11,6 +11,9 @@ import (
 	"github.com/iota-uz/iota-sdk/components/filters"
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
+	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
+	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	financeMappers "github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	financeViewModels "github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
@@ -205,6 +208,7 @@ func (c *ProjectController) GetNewDrawer(
 	r *http.Request,
 	logger *logrus.Entry,
 	counterpartyService *services.CounterpartyService,
+	currencyService *coreservices.CurrencyService,
 ) {
 	counterparties, err := c.viewModelCounterparties(r, counterpartyService)
 	if err != nil {
@@ -213,10 +217,18 @@ func (c *ProjectController) GetNewDrawer(
 		return
 	}
 
+	currencies, err := c.viewModelCurrencies(r, currencyService)
+	if err != nil {
+		logger.Errorf("Error retrieving currencies: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	props := &projects.DrawerCreateProps{
 		Errors:         map[string]string{},
 		Project:        dtos.ProjectCreateDTO{},
 		Counterparties: counterparties,
+		Currencies:     currencies,
 	}
 	templ.Handler(projects.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -227,6 +239,7 @@ func (c *ProjectController) GetEditDrawer(
 	logger *logrus.Entry,
 	projectService *projectServices.ProjectService,
 	counterpartyService *services.CounterpartyService,
+	currencyService *coreservices.CurrencyService,
 ) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
@@ -249,10 +262,18 @@ func (c *ProjectController) GetEditDrawer(
 		return
 	}
 
+	currencies, err := c.viewModelCurrencies(r, currencyService)
+	if err != nil {
+		logger.Errorf("Error retrieving currencies: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	props := &projects.DrawerEditProps{
 		Project:        mappers.ProjectDomainToViewModel(entity),
 		UpdateData:     mappers.ProjectDomainToViewUpdateModel(entity),
 		Counterparties: counterparties,
+		Currencies:     currencies,
 		Errors:         map[string]string{},
 	}
 	templ.Handler(projects.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -264,6 +285,7 @@ func (c *ProjectController) Create(
 	logger *logrus.Entry,
 	projectService *projectServices.ProjectService,
 	counterpartyService *services.CounterpartyService,
+	currencyService *coreservices.CurrencyService,
 ) {
 	dto, err := composables.UseForm(&dtos.ProjectCreateDTO{}, r)
 	if err != nil {
@@ -282,11 +304,19 @@ func (c *ProjectController) Create(
 			return
 		}
 
+		currencies, err := c.viewModelCurrencies(r, currencyService)
+		if err != nil {
+			logger.Errorf("Error retrieving currencies: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		if isDrawer {
 			props := &projects.DrawerCreateProps{
 				Errors:         errorsMap,
 				Project:        *dto,
 				Counterparties: counterparties,
+				Currencies:     currencies,
 			}
 			templ.Handler(projects.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 		} else {
@@ -324,6 +354,7 @@ func (c *ProjectController) Update(
 	logger *logrus.Entry,
 	projectService *projectServices.ProjectService,
 	counterpartyService *services.CounterpartyService,
+	currencyService *coreservices.CurrencyService,
 ) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
@@ -377,11 +408,19 @@ func (c *ProjectController) Update(
 			return
 		}
 
+		currencies, err := c.viewModelCurrencies(r, currencyService)
+		if err != nil {
+			logger.Errorf("Error retrieving currencies: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		if isDrawer {
 			props := &projects.DrawerEditProps{
 				Project:        mappers.ProjectDomainToViewModel(entity),
-				UpdateData:     mappers.ProjectDomainToViewUpdateModel(entity),
+				UpdateData:     *dto,
 				Counterparties: counterparties,
+				Currencies:     currencies,
 				Errors:         errorsMap,
 			}
 			templ.Handler(projects.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -418,4 +457,12 @@ func (c *ProjectController) viewModelCounterparties(r *http.Request, counterpart
 		return nil, err
 	}
 	return mapping.MapViewModels(counterparties, financeMappers.CounterpartyToViewModel), nil
+}
+
+func (c *ProjectController) viewModelCurrencies(r *http.Request, currencyService *coreservices.CurrencyService) ([]*coreviewmodels.Currency, error) {
+	currencies, err := currencyService.GetAll(r.Context())
+	if err != nil {
+		return nil, err
+	}
+	return mapping.MapViewModels(currencies, coremappers.CurrencyToViewModel), nil
 }

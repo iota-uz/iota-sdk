@@ -1,7 +1,13 @@
 {
-  "name": "@iota-uz/lens-web",
+  "name": "@iota-uz/sdk-lens-internal",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iota-uz/iota-sdk.git",
+    "directory": "web/lens"
+  },
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
@@ -10,8 +16,10 @@
   "scripts": {
     "dev": "node ./scripts/dev.mjs",
     "build": "tsc --noEmit && vite build",
+    "build:package": "pnpm --dir ../client-host build && vite build --config vite.package.config.ts && tsc -p tsconfig.package.json",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint . && pnpm lint:styles",
+    "lint:styles": "stylelint src/styles.css",
     "test": "vitest run",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "ladle": "CHOKIDAR_USEPOLLING=1 ladle serve --viteConfig .ladle/vite.config.ts",
@@ -24,14 +32,17 @@
   },
   "dependencies": {
     "echarts": "^6.1.0",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
     "zod": "3.24.1"
+  },
+  "peerDependencies": {
+    "react": "^18.3.0 || ^19.0.0",
+    "react-dom": "^18.3.0 || ^19.0.0"
   },
   "devDependencies": {
     "@eslint/js": "9.17.0",
     "@ladle/react": "5.1.1",
     "@playwright/test": "1.55.1",
+    "@stylistic/eslint-plugin": "2.13.0",
     "@testing-library/jest-dom": "6.6.3",
     "@testing-library/react": "16.1.0",
     "@types/node": "22.10.2",
@@ -40,11 +51,16 @@
     "@vitejs/plugin-react": "4.3.4",
     "autoprefixer": "10.4.20",
     "eslint": "9.17.0",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react": "7.37.3",
     "eslint-plugin-react-hooks": "5.1.0",
     "eslint-plugin-react-refresh": "0.4.16",
     "globals": "15.14.0",
     "jsdom": "25.0.1",
     "postcss": "8.4.49",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "stylelint": "16.12.0",
     "tailwindcss": "3.4.17",
     "typescript": "5.7.2",
     "typescript-eslint": "8.18.2",

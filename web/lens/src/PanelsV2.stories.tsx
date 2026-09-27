@@ -13,6 +13,7 @@ const cascadePanel: Panel = {
     balance: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
     movement: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
   },
+  terminal: true,
   actions: [],
 }
 
@@ -41,6 +42,7 @@ const tonedBridgePanel: Panel = {
     movement: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
   },
   presentation: { bridgeLayout: 'waterfall' },
+  terminal: true,
   actions: [],
 }
 
@@ -76,6 +78,7 @@ const officialResultPanel: Panel = {
     movement: { kind: 'money', currency: 'UZS', minorUnits: false, precision: 2 },
   },
   presentation: { bridgeLayout: 'waterfall' },
+  terminal: true,
   actions: [],
 }
 
@@ -175,6 +178,58 @@ function Runtime({ document, fetcher, children }: { document: DashboardDocument;
   )
 }
 
+// The panel note lives behind the header's ⓘ, not in a caption band above the
+// plot: a chart card's caption and info are merged there, and the bubble is the
+// only place either is readable on screen. Both themes, opened on mount so the
+// bubble itself is the subject.
+const notedPanel: Panel = {
+  ...cascadePanel,
+  id: 'noted-bridge',
+  caption: 'Rolled up by contributing year, so the total differs from the event-based composition next to it.',
+  info: 'Also the gross RNP / UPR — a management calculation under the A/B/C rules, not the official net RNP.',
+}
+
+function OpenInfoTip({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    let cancelled = false
+    let attempts = 0
+    const open = () => {
+      if (cancelled) return
+      const button = ref.current?.querySelector<HTMLElement>('.lens-info-tip-button')
+      if (button) {
+        button.click()
+        return
+      }
+      if (attempts++ < 60) window.requestAnimationFrame(open)
+    }
+    void window.document.fonts.ready.then(() => {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(open))
+    })
+    return () => { cancelled = true }
+  }, [])
+  return <div ref={ref}>{children}</div>
+}
+
+function InfoTipStory({ theme }: { theme: 'light' | 'dark' }) {
+  const document = storyDocument(notedPanel, { bridge: cascadeFrame })
+  return (
+    <div className="lens-root" data-theme={theme}>
+      <DocumentProvider initialDocument={document}>
+        <DashboardRuntimeProvider locale="en">
+          <OpenInfoTip><CascadePanel panel={notedPanel} /></OpenInfoTip>
+        </DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>
+  )
+}
+
+export const PanelInfoTipLight: Story = () => <InfoTipStory theme="light" />
+PanelInfoTipLight.storyName = 'Panel info tip light'
+
+export const PanelInfoTipDark: Story = () => <InfoTipStory theme="dark" />
+PanelInfoTipDark.storyName = 'Panel info tip dark'
+
 export const CascadeFinalStage: Story = () => {
   const document = storyDocument(cascadePanel, { bridge: cascadeFrame })
   return <Runtime document={document}><CascadePanel panel={cascadePanel} /></Runtime>
@@ -214,12 +269,190 @@ export const WaterfallSplitCallout: Story = () => {
   return <Runtime document={document}><CascadePanel panel={officialResultPanel} /></Runtime>
 }
 
+// Two totals in one cascade: the statutory underwriting result is a checkpoint
+// the reader recognises, and the remaining reserve movements carry on from it
+// to the pre-tax result. The checkpoint stands on zero where it was declared
+// (not hoisted to the end) and renders hollow, so the one solid navy column
+// stays unambiguously the finish.
+export const WaterfallCheckpointTotal: Story = () => {
+  const frame: Frame = {
+    ...officialResultFrame,
+    rows: [
+      ['Заработанная премия', 200.41, 0, '', false, 'neutral', 0, ''],
+      ['Исходящее перестрахование', 185.73, 14.68, 'Исходящее перестрахование', false, 'negative', 0, ''],
+      ['Страховые выплаты', 180.10, 5.63, 'Страховые выплаты', false, 'negative', 0, ''],
+      ['Операционные расходы', 133.92, 46.18, 'Операционные расходы', false, 'negative', 0, ''],
+      ['Андеррайтинговый результат', 133.92 + 1e-5, 0, '', true, 'neutral', 0, ''],
+      ['Изменение РЗУ', 116.71, 17.21, 'Изменение РЗУ', false, 'negative', 0, ''],
+      ['Изменение РПНУ', 104.37, 12.34, 'Изменение РПНУ', false, 'negative', 0, ''],
+      ['Изменение резерва катастроф', 106.05, -1.68, 'Изменение резерва катастроф', false, 'positive', 0, ''],
+      ['Результат до налогообложения', 106.05, 0, '', true, 'neutral', 0, ''],
+    ],
+  }
+  const document = storyDocument(officialResultPanel, { bridge: frame })
+  return <Runtime document={document}><CascadePanel panel={officialResultPanel} /></Runtime>
+}
+
+// The defect this story guards, as the profitability dashboard produced it: a
+// stage the backend has no figure for, and a closing total it cannot compute
+// until someone configures it. Both arrive as null.
+//
+// Coerced to zero, «Изменение РЗУ» drew a −149,00 млрд deduction — the running
+// total above it, restated as a movement — and threw off every delta after it;
+// and the unknown closing row, its bogus delta too large for the residual test,
+// fell through to a movement bar and was then repeated by the synthetic closing
+// as a second column that showed «Настроить» and answered nothing. Kept as
+// unknowns, both are dashed gaps standing on the last total the cascade knew,
+// with their names and badges intact and the arithmetic between them sound.
+const unknownResultFrame: Frame = {
+  ...officialResultFrame,
+  rows: [
+    ['Заработанная премия', 200.41, 0, '', false, 'neutral', 0, ''],
+    ['Исходящее перестрахование', 185.73, 14.68, 'Исходящее перестрахование', false, 'negative', 0, ''],
+    ['Страховые выплаты', 180.10, 5.63, 'Страховые выплаты', false, 'negative', 0, ''],
+    ['Изменение РЗУ', null, 0, 'Изменение РЗУ', false, 'negative', 0, ''],
+    ['Операционные расходы', 133.92, 46.18, 'Операционные расходы', false, 'negative', 0, ''],
+    ['Андеррайтинговый результат', 133.92 + 1e-5, 0, '', true, 'neutral', 0, ''],
+    ['Изменение РПНУ', 121.58, 12.34, 'Изменение РПНУ', false, 'negative', 0, ''],
+    ['Расчётный результат по МСФО-базе', null, 0, '', true, 'neutral', 0, ''],
+  ],
+}
+
+const unknownResultPanel: Panel = {
+  ...officialResultPanel,
+  id: 'unknown-result-bridge',
+  encoding: { ...officialResultPanel.encoding, annotation: 'annotation' },
+  // No header total: the closing figure is the thing this bridge cannot state.
+  total: undefined,
+}
+
+// The badge is the row's reason for existing: without it the column is a gap
+// with a name and no explanation. «Нет данных» for a stage nobody measured,
+// «Настроить» for a total waiting on configuration.
+const annotatedUnknownFrame: Frame = {
+  columns: [...unknownResultFrame.columns, { name: 'annotation', type: 'string' }],
+  rows: unknownResultFrame.rows.map((row) => [
+    ...row,
+    row[1] === null ? (row[4] === true ? 'Настроить' : 'Нет данных') : '',
+  ]),
+}
+
+export const WaterfallUnknownStage: Story = () => {
+  const document = storyDocument(unknownResultPanel, { bridge: annotatedUnknownFrame })
+  return <Runtime document={document}><CascadePanel panel={unknownResultPanel} /></Runtime>
+}
+
+// The stacked projection of the same bridge: an unknown stage prints the em
+// dash rather than «0 UZS», its movement says the same, and its track is an
+// outline rather than the empty rail a genuine zero draws.
+export const CascadeUnknownStage: Story = () => {
+  const panel: Panel = { ...unknownResultPanel, id: 'unknown-result-cascade', presentation: undefined }
+  const document = storyDocument(panel, { bridge: annotatedUnknownFrame })
+  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+}
+
+// The same unknown-amount bridge once its stages open something — and the
+// distinction worth pinning: a «Настроить» badge on a column that leads
+// somewhere, beside a «Нет данных» badge on one that does not. They used to be
+// the same red chip, and since an unknown column's bar is a dashed gap rather
+// than a shape to aim at, the one badge a reader was told to click looked
+// exactly like the one that answers nothing — and read as a status either way.
+//
+// The arrow is the whole difference at rest, and it is drawn on the condition a
+// drill cell's pill draws it: a destination that actually resolved. «Изменение
+// РЗУ» carries no url here and keeps a bare status badge.
+const navigableUnknownFrame: Frame = {
+  columns: [...annotatedUnknownFrame.columns, { name: 'detailUrl', type: 'string' }],
+  rows: annotatedUnknownFrame.rows.map((row) => [
+    ...row,
+    row[0] === 'Изменение РЗУ' ? '' : `/analytics/drill/${String(row[0])}`,
+  ]),
+}
+
+const navigableUnknownPanel: Panel = {
+  ...unknownResultPanel,
+  id: 'navigable-unknown-bridge',
+  frame: 'navigable-unknown',
+  actions: [{ kind: 'navigate', urlSource: { kind: 'field', name: 'detailUrl' }, params: [], payload: {} }],
+}
+
+export const WaterfallUnknownStageNavigates: Story = () => {
+  const document = storyDocument(navigableUnknownPanel, { 'navigable-unknown': navigableUnknownFrame })
+  return <Runtime document={document}><CascadePanel panel={navigableUnknownPanel} /></Runtime>
+}
+
+// The stacked projection of the same thing. Its rows have a hover plate and no
+// resting mark at all, so without the arrow the list says nothing about which
+// of its stages is a way in — the same failure, one layout over.
+export const CascadeUnknownStageNavigates: Story = () => {
+  const panel: Panel = { ...navigableUnknownPanel, id: 'navigable-unknown-cascade', presentation: undefined }
+  const document = storyDocument(panel, { 'navigable-unknown': navigableUnknownFrame })
+  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+}
+
 // Cascade-list projection of the same toned bridge: track fill and value text
 // follow the per-stage tone.
 export const CascadeSemanticTone: Story = () => {
   const panel: Panel = { ...tonedBridgePanel, id: 'result-cascade', presentation: undefined }
   const document = storyDocument(panel, { bridge: tonedBridgeFrame })
   return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+}
+
+const navigableBridgeFrame: Frame = {
+  columns: [...tonedBridgeFrame.columns, { name: 'detailUrl', type: 'string' }],
+  rows: tonedBridgeFrame.rows.map((row, index) => [...row, `/analytics/result/${index}`]),
+}
+
+// The same cascade list once each stage opens something. Its whole affordance is
+// a pointer state, so this story exists to be hovered rather than compared: at
+// rest an activatable stage and an inert one are the same geometry to the pixel,
+// which is the point — the bleed the plate needs is cancelled by the padding
+// that carries it, so switching a cascade to navigable moves nothing on screen
+// until a pointer or a Tab arrives.
+export const CascadeStagesNavigate: Story = () => {
+  const panel: Panel = {
+    ...tonedBridgePanel,
+    id: 'navigable-cascade',
+    frame: 'navigable-bridge',
+    presentation: undefined,
+    actions: [{ kind: 'navigate', urlSource: { kind: 'field', name: 'detailUrl' }, params: [], payload: {} }],
+  }
+  const document = storyDocument(panel, { 'navigable-bridge': navigableBridgeFrame })
+  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+}
+
+// The waterfall projection of the same navigable bridge. Hover a column's name,
+// not its bar: the plate, the cursor and the focus ring reach the whole step
+// now, which is what this story is for — the label used to be a second grid
+// under the plot, and the word a hand goes for was the one part of a step that
+// answered nothing.
+export const WaterfallColumnsNavigate: Story = () => {
+  const panel: Panel = {
+    ...tonedBridgePanel,
+    id: 'navigable-bridge-plot',
+    frame: 'navigable-bridge',
+    actions: [{ kind: 'navigate', urlSource: { kind: 'field', name: 'detailUrl' }, params: [], payload: {} }],
+  }
+  const document = storyDocument(panel, { 'navigable-bridge': navigableBridgeFrame })
+  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+}
+
+// Names long enough to clamp, beside names that fit on one line. The bars must
+// stand on one baseline regardless: every column takes its plot band from the
+// chart's row rather than from what is left after its own label, which is the
+// whole reason the two bands are a `subgrid` and not a box per column.
+export const WaterfallMixedLabelHeights: Story = () => {
+  const frame: Frame = {
+    ...tonedBridgeFrame,
+    rows: [
+      ['Премия', 3120000, 0, '', false, 'neutral'],
+      ['После перестрахования', 2310000, 810000, 'Исходящее перестрахование по договорам эксцедента убытка', false, 'negative'],
+      ['После выплат', 1980000, 330000, 'Выплаты', false, 'negative'],
+      ['Андеррайтинговый результат', 1740000, 240000, 'Операционные расходы и прочие вычеты периода', true, 'neutral'],
+    ],
+  }
+  const document = storyDocument(tonedBridgePanel, { bridge: frame })
+  return <Runtime document={document}><CascadePanel panel={tonedBridgePanel} /></Runtime>
 }
 
 function OpenEvidence({ emptyPage }: { emptyPage?: boolean }) {
@@ -285,8 +518,8 @@ function ExportStory({ mode }: { mode: 'idle' | 'pending' | 'retry' }) {
   const document = storyDocument(panel, { 'export-frame': cascadeFrame }, { export: '/story/export' })
   const fetcher: typeof fetch = () => mode === 'retry'
     ? Promise.resolve(new Response(JSON.stringify({ error: 'snapshot_gone', message: 'snapshot expired' }), {
-        status: 410, headers: { 'Content-Type': 'application/json' },
-      }))
+      status: 410, headers: { 'Content-Type': 'application/json' },
+    }))
     : new Promise<Response>(() => undefined)
   return <Runtime document={document} fetcher={fetcher}>{mode === 'idle' ? <ExportButton panelId={panel.id} /> : <AutoExport />}</Runtime>
 }
