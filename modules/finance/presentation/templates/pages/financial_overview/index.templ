@@ -3,6 +3,7 @@ package financial_overview
 import (
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
+	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -22,6 +23,9 @@ templ Index(props *IndexPageProps) {
 					{ pageCtx.T("NavigationLinks.FinancialOverview") }
 				</h1>
 				@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/finance.md"})
+			</div>
+			<div class="mb-5" hx-get="/finance/balances" hx-trigger="load" hx-swap="innerHTML">
+				@table.DefaultPanelSkeleton()
 			</div>
 			@tab.Root(tab.Props{
 				DefaultValue: props.ActiveTab,

@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	valueobjects "github.com/iota-uz/iota-sdk/modules/finance/domain/value_objects"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/query"
+	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 
@@ -167,6 +168,8 @@ func TransactionToViewModel(entity transaction.Transaction) *viewmodels.Transact
 		DestinationAmountWithCurrency: "",
 		Category:                      nil,
 		Counterparty:                  nil,
+		PaymentID:                     "",
+		ExpenseID:                     "",
 	}
 
 	// Set type badge class
@@ -179,6 +182,8 @@ func TransactionToViewModel(entity transaction.Transaction) *viewmodels.Transact
 		vm.TypeBadgeClass = "badge-info"
 	case transaction.Exchange:
 		vm.TypeBadgeClass = "badge-warning"
+	case transaction.Adjustment:
+		vm.TypeBadgeClass = "badge-primary"
 	default:
 		vm.TypeBadgeClass = "badge-primary"
 	}
@@ -217,6 +222,11 @@ func TransactionToListItem(vm *viewmodels.Transaction) *viewmodels.TransactionLi
 		item.Account = vm.OriginAccount
 	} else if vm.TransactionType == string(transaction.Deposit) || vm.TransactionType == string(transaction.Exchange) {
 		item.Account = vm.DestinationAccount
+	} else if vm.TransactionType == string(transaction.Adjustment) {
+		item.Account = vm.DestinationAccount
+		if item.Account == nil {
+			item.Account = vm.OriginAccount
+		}
 	}
 
 	return item
@@ -942,6 +952,9 @@ func DebtToViewModel(entity debt.Debt, counterpartyName string) *viewmodels.Debt
 		OriginalAmountWithCurrency:    originalAmount.Display(),
 		OutstandingAmount:             fmt.Sprintf("%.2f", outstandingAmount.AsMajorUnits()),
 		OutstandingAmountWithCurrency: outstandingAmount.Display(),
+		CurrencyCode:                  originalAmount.Currency().Code,
+		MoneyAccountID:                "",
+		ProjectID:                     "",
 		Description:                   entity.Description(),
 		DueDate:                       "",
 		SettlementTransactionID:       "",
@@ -957,7 +970,31 @@ func DebtToViewModel(entity debt.Debt, counterpartyName string) *viewmodels.Debt
 		vm.SettlementTransactionID = entity.SettlementTransactionID().String()
 	}
 
+	if entity.MoneyAccountID() != nil {
+		vm.MoneyAccountID = entity.MoneyAccountID().String()
+	}
+
+	if entity.ProjectID() != nil {
+		vm.ProjectID = entity.ProjectID().String()
+	}
+
 	return vm
+}
+
+func ProjectRefToViewModel(ref services.ProjectRef) *viewmodels.ProjectOption {
+	return &viewmodels.ProjectOption{
+		ID:   ref.ID.String(),
+		Name: ref.Name,
+	}
+}
+
+func BalanceToViewModel(balance services.Balance) *viewmodels.Balance {
+	return &viewmodels.Balance{
+		OnAccounts: balance.OnAccounts.Display(),
+		Reserved:   balance.Reserved.Display(),
+		Available:  balance.Available.Display(),
+		Overdrawn:  balance.Available.IsNegative(),
+	}
 }
 
 func DebtCounterpartyAggregateToViewModel(agg debt.CounterpartyAggregate, counterpartyName string) *viewmodels.DebtCounterpartyAggregate {
