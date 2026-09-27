@@ -8,6 +8,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
+// ErrNotFound means there is no such document for the tenant or the project.
+var ErrNotFound = errors.New("acceptance document not found")
+
 // ErrStatus means the document cannot move to the requested status: only a
 // draft can be signed, and a cancelled document stays cancelled.
 var ErrStatus = errors.New("acceptance document cannot change to this status")

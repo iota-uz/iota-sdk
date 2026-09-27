@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/acceptance"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project"
-	"github.com/iota-uz/iota-sdk/modules/projects/infrastructure/persistence"
 )
 
 type AcceptanceService struct {
@@ -57,7 +56,7 @@ func (s *AcceptanceService) projectDocument(ctx context.Context, projectID, id u
 		return nil, err
 	}
 	if document.ProjectID() != projectID {
-		return nil, persistence.ErrAcceptanceDocumentNotFound
+		return nil, acceptance.ErrNotFound
 	}
 	return document, nil
 }

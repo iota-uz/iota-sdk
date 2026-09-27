@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"context"
-	"errors"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/acceptance"
@@ -12,8 +11,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
-
-var ErrAcceptanceDocumentNotFound = errors.New("acceptance document not found")
 
 const (
 	findAcceptanceQuery = `
@@ -55,7 +52,7 @@ func (r *AcceptanceRepository) GetByID(ctx context.Context, id uuid.UUID) (accep
 		return nil, serrors.E(op, err)
 	}
 	if len(documents) == 0 {
-		return nil, serrors.E(op, ErrAcceptanceDocumentNotFound)
+		return nil, serrors.E(op, acceptance.ErrNotFound)
 	}
 	return documents[0], nil
 }

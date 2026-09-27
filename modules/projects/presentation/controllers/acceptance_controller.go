@@ -12,7 +12,6 @@ import (
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	financemappers "github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/acceptance"
-	"github.com/iota-uz/iota-sdk/modules/projects/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/templates/pages/projects"
@@ -189,7 +188,7 @@ func (c *AcceptanceController) change(
 // a status it cannot move to as a conflict.
 func acceptanceErrorStatus(err error) int {
 	switch {
-	case errors.Is(err, persistence.ErrAcceptanceDocumentNotFound):
+	case errors.Is(err, acceptance.ErrNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, acceptance.ErrStatus):
 		return http.StatusConflict
