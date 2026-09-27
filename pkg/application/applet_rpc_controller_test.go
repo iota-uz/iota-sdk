@@ -79,6 +79,7 @@ func (a *rpcTestApplet) Config() applets.Config {
 			Path: "/rpc",
 			Methods: map[string]applets.RPCMethod{
 				a.method: {
+					RequirePermissions: []string{"Demo.Access"},
 					Handler: func(_ context.Context, _ json.RawMessage) (any, error) {
 						return map[string]any{"ok": true}, nil
 					},
