@@ -307,14 +307,7 @@ func TestDebtController_EditDrawer_ClosedDebtHasNoActions(t *testing.T) {
 func TestFinancialOverviewController_Balances(t *testing.T) {
 	t.Parallel()
 	f := newObligationFixture(t)
-	f.suite.Register(controllers.NewFinancialOverviewController(
-		itf.GetService[services.PaymentService](f.env),
-		itf.GetService[services.MoneyAccountService](f.env),
-		itf.GetService[services.CounterpartyService](f.env),
-		itf.GetService[services.PaymentCategoryService](f.env),
-		itf.GetService[services.TransactionService](f.env),
-		itf.GetService[services.BalanceService](f.env),
-	))
+	registerFinancialOverview(f.suite, f.env)
 
 	f.createPayable(t, 300, &f.usdAccountID)
 	f.createPayable(t, 50, nil)
@@ -361,4 +354,69 @@ func TestFinancialOverviewController_Balances(t *testing.T) {
 	require.NoError(t, err)
 	_, err = itf.GetService[services.BalanceService](f.env).AccountBalance(f.env.Ctx, f.usdAccountID)
 	require.Error(t, err)
+}
+
+func registerFinancialOverview(suite *itf.Suite, env *itf.TestEnvironment) {
+	suite.Register(controllers.NewFinancialOverviewController(
+		itf.GetService[services.PaymentService](env),
+		itf.GetService[services.MoneyAccountService](env),
+		itf.GetService[services.CounterpartyService](env),
+		itf.GetService[services.PaymentCategoryService](env),
+		itf.GetService[services.TransactionService](env),
+		itf.GetService[services.BalanceService](env),
+	))
+}
+
+func TestFinancialOverviewController_AccountBalance(t *testing.T) {
+	t.Parallel()
+	f := newObligationFixture(t)
+	registerFinancialOverview(f.suite, f.env)
+
+	reserve := f.createPayable(t, 300, &f.usdAccountID)
+	unlinked := f.createPayable(t, 50, nil)
+	cancelled := f.createPayable(t, 1000, &f.usdAccountID)
+	_, err := f.debtService.Cancel(f.env.Ctx, cancelled.ID())
+	require.NoError(t, err)
+
+	response := f.suite.GET(fmt.Sprintf("/finance/balances/%s", f.usdAccountID)).
+		Expect(t).
+		Status(200).
+		Contains("$1,000.00").
+		Contains("$300.00").
+		Contains("$700.00").
+		Contains("Obligation Counterparty")
+	html := response.HTML()
+	html.Element(fmt.Sprintf("//button[@hx-get='%s/%s/drawer']", DebtBasePath, reserve.ID())).Exists()
+	html.Element(fmt.Sprintf("//button[@hx-get='%s/%s/drawer']", DebtBasePath, unlinked.ID())).NotExists()
+	html.Element(fmt.Sprintf("//button[@hx-get='%s/%s/drawer']", DebtBasePath, cancelled.ID())).NotExists()
+
+	f.suite.GET(fmt.Sprintf("/finance/balances/%s", f.uzsAccountID)).
+		Expect(t).
+		Status(200).
+		Contains("5,000,000.00").
+		NotContains("Obligation Counterparty")
+}
+
+func TestFinancialOverviewController_AccountBalance_WithoutDebtAccess(t *testing.T) {
+	t.Parallel()
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewComponent()).Build().
+		AsUser(itf.User())
+	env := suite.Environment()
+	createCurrencies(t, env, currency.USD)
+	registerFinancialOverview(suite, env)
+
+	account, err := itf.GetService[services.MoneyAccountService](env).Create(env.Ctx, moneyAccountEntity.New(
+		"Dollar account",
+		money.NewFromFloat(1000.00, "USD"),
+		moneyAccountEntity.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+
+	suite.GET(fmt.Sprintf("/finance/balances/%s", account.ID())).
+		Expect(t).
+		Status(200).
+		Contains("$1,000.00").
+		NotContains("Reserved by obligations")
 }

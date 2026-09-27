@@ -103,6 +103,20 @@ func (s *BalanceService) AccountBalance(ctx context.Context, accountID uuid.UUID
 	return byCurrency[accountCurrency], nil
 }
 
+// Reserves lists the open payable debts that reserve money on the account.
+func (s *BalanceService) Reserves(ctx context.Context, accountID uuid.UUID) ([]debt.Debt, error) {
+	const op serrors.Op = "BalanceService.Reserves"
+	if err := composables.CanUser(ctx, permissions.DebtRead); err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	debts, err := s.debtRepo.OpenPayables(ctx, accountID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return debts, nil
+}
+
 // combine groups amounts by currency and subtracts reserves from what is on
 // the accounts.
 func combine(onAccounts, reserved []*money.Money) (map[string]Balance, error) {

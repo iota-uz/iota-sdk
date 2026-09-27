@@ -265,7 +265,8 @@
     "Transactions": {
       "NoTransactions": "Ҳозирча транзаксиялар йўқ",
       "NoTransactionsDescription": "Бу ҳисобда транзаксиялар йўқ. Транзаксиялар сиз харажат, тўлов ёки ўтказмалар қўшганингизда бу йерда кўринади.",
-      "ViewAll": "Барча транзаксияларни кўриш"
+      "ViewAll": "Барча транзаксияларни кўриш",
+      "Loading": "Юкланмоқда…"
     }
   },
   "Transfers": {
@@ -408,7 +409,8 @@
       "DEPOSIT": "Кирим",
       "WITHDRAWAL": "Чиқим",
       "TRANSFER": "Ўтказма",
-      "EXCHANGE": "Айирбошлаш"
+      "EXCHANGE": "Айирбошлаш",
+      "ADJUSTMENT": "Тузатиш"
     }
   },
   "Reports": {
@@ -589,11 +591,11 @@
     "Balances": {
       "OnAccounts": "Ҳисобларда",
       "Reserved": "Мажбуриятлар бўйича захирада",
-      "Available": "Мавжуд"
+      "Available": "Мавжуд",
+      "Reserves": "Ушбу ҳисобдан тўланадиган мажбуриятлар"
     }
   },
   "ValidationErrors": {
     "invalidTIN": "Нотўғри СТИР формати: {{.Details}}"
   }
 }
-

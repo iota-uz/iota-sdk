@@ -265,7 +265,8 @@
     "Transactions": {
       "NoTransactions": "Пока нет транзакций",
       "NoTransactionsDescription": "У этого счета нет транзакций. Транзакции будут отображаться здесь когда вы добавите расходы, платежи или переводы.",
-      "ViewAll": "Посмотреть все транзакции"
+      "ViewAll": "Посмотреть все транзакции",
+      "Loading": "Загрузка…"
     }
   },
   "Transfers": {
@@ -408,7 +409,8 @@
       "DEPOSIT": "Пополнение",
       "WITHDRAWAL": "Списание",
       "TRANSFER": "Перевод",
-      "EXCHANGE": "Обмен"
+      "EXCHANGE": "Обмен",
+      "ADJUSTMENT": "Корректировка"
     }
   },
   "Reports": {
@@ -589,11 +591,11 @@
     "Balances": {
       "OnAccounts": "На счетах",
       "Reserved": "В резерве по обязательствам",
-      "Available": "Доступно"
+      "Available": "Доступно",
+      "Reserves": "Обязательства к оплате с этого счёта"
     }
   },
   "ValidationErrors": {
     "invalidTIN": "{{.Details}}"
   }
 }
-

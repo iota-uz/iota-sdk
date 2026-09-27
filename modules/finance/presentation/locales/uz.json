@@ -265,7 +265,8 @@
     "Transactions": {
       "NoTransactions": "Hozircha tranzaksiyalar yo'q",
       "NoTransactionsDescription": "Bu hisobda tranzaksiyalar yo'q. Tranzaksiyalar siz xarajat, to'lov yoki o'tkazmalar qo'shganingizda bu yerda ko'rinadi.",
-      "ViewAll": "Barcha tranzaksiyalarni ko'rish"
+      "ViewAll": "Barcha tranzaksiyalarni ko'rish",
+      "Loading": "Yuklanmoqda…"
     }
   },
   "Transfers": {
@@ -408,7 +409,8 @@
       "DEPOSIT": "Kirim",
       "WITHDRAWAL": "Chiqim",
       "TRANSFER": "O'tkazma",
-      "EXCHANGE": "Ayirboshlash"
+      "EXCHANGE": "Ayirboshlash",
+      "ADJUSTMENT": "Tuzatish"
     }
   },
   "Reports": {
@@ -589,11 +591,11 @@
     "Balances": {
       "OnAccounts": "Hisoblarda",
       "Reserved": "Majburiyatlar bo'yicha zaxirada",
-      "Available": "Mavjud"
+      "Available": "Mavjud",
+      "Reserves": "Ushbu hisobdan to‘lanadigan majburiyatlar"
     }
   },
   "ValidationErrors": {
     "invalidTIN": "{{.Details}}"
   }
 }
-

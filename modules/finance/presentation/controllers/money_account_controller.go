@@ -5,9 +5,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/filters"
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
@@ -19,7 +21,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/moneyaccounts"
-	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 
 	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
@@ -266,19 +267,18 @@ func (c *MoneyAccountController) GetEditDrawer(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Get recent transactions for this account (limit to 10)
-	transactions, err := c.getAccountTransactions(r.Context(), id, 10)
+	history, err := c.accountHistory(r, id)
 	if err != nil {
 		http.Error(w, "Error retrieving account transactions", http.StatusInternalServerError)
 		return
 	}
 
 	props := &moneyaccounts.DrawerEditProps{
-		Account:      mappers.MoneyAccountToViewModel(entity),
-		UpdateData:   mappers.MoneyAccountToViewUpdateModel(entity),
-		Currencies:   currencies,
-		Transactions: transactions,
-		Errors:       map[string]string{},
+		Account:    mappers.MoneyAccountToViewModel(entity),
+		UpdateData: mappers.MoneyAccountToViewUpdateModel(entity),
+		Currencies: currencies,
+		History:    history,
+		Errors:     map[string]string{},
 	}
 	templ.Handler(moneyaccounts.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -359,10 +359,16 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 		}
 
 		if isDrawer {
+			history, err := c.accountHistory(r, id)
+			if err != nil {
+				http.Error(w, "Error retrieving account transactions", http.StatusInternalServerError)
+				return
+			}
 			props := &moneyaccounts.DrawerEditProps{
 				Account:    mappers.MoneyAccountToViewModel(entity),
-				UpdateData: mappers.MoneyAccountToViewUpdateModel(entity),
+				UpdateData: dto.ToViewModel(id),
 				Currencies: currencies,
+				History:    history,
 				Errors:     errorsMap,
 			}
 			templ.Handler(moneyaccounts.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -604,84 +610,43 @@ func (c *MoneyAccountController) CreateTransfer(w http.ResponseWriter, r *http.R
 	shared.Redirect(w, r, c.basePath)
 }
 
-// getAccountTransactions retrieves transactions for a specific account
-func (c *MoneyAccountController) getAccountTransactions(ctx context.Context, accountID fmt.Stringer, limit int) ([]*viewmodels.Transaction, error) {
-	// Build query to find transactions where this account is either source or destination
+// accountHistory loads one page of the transactions on either side of the
+// account, filtered the same way as the transactions list.
+func (c *MoneyAccountController) accountHistory(r *http.Request, accountID uuid.UUID) (*moneyaccounts.TransactionsTabProps, error) {
+	values := r.URL.Query()
+	values.Set("account", accountID.String())
+	paginationParams := composables.UsePaginated(r)
 	params := &query.FindParams{
-		Limit:  limit,
-		Offset: 0,
+		Limit:  paginationParams.Limit,
+		Offset: paginationParams.Offset,
 		SortBy: query.SortBy{
 			Fields: []repo.SortByField[query.Field]{
-				{
-					Field:     query.FieldTransactionDate,
-					Ascending: false,
-				},
+				{Field: query.FieldTransactionDate, Ascending: false},
+				{Field: query.FieldCreatedAt, Ascending: false},
+				{Field: query.FieldID, Ascending: false},
 			},
 		},
-		Filters: []query.Filter{
-			{
-				Column: query.FieldOriginAccountID,
-				Filter: repo.Eq(accountID.String()),
-			},
-		},
+		Filters: transactionFilters(values),
 	}
-
-	// Add destination account filter with OR logic
-	// Note: This is a simplified approach. In a real implementation,
-	// you might want to use a more sophisticated OR query
-	transactions1, _, err := c.transactionQuery.FindTransactions(ctx, params)
+	transactions, total, err := c.transactionQuery.FindTransactions(r.Context(), params)
 	if err != nil {
 		return nil, err
 	}
 
-	// Query for transactions where this account is the destination
-	params.Filters = []query.Filter{
-		{
-			Column: query.FieldDestinationAccountID,
-			Filter: repo.Eq(accountID.String()),
-		},
+	props := &moneyaccounts.TransactionsTabProps{
+		AccountID:    accountID.String(),
+		Transactions: transactions,
 	}
-
-	transactions2, _, err := c.transactionQuery.FindTransactions(ctx, params)
-	if err != nil {
-		return nil, err
+	if params.Offset+len(transactions) < total {
+		next := r.URL.Query()
+		next.Set(composables.QueryParamPage, strconv.Itoa(paginationParams.Page+1))
+		props.NextURL = fmt.Sprintf("%s/%s/transactions?%s", c.basePath, accountID, next.Encode())
 	}
-
-	// Combine and deduplicate transactions
-	txMap := make(map[string]*viewmodels.Transaction)
-	for _, tx := range transactions1 {
-		txMap[tx.ID] = tx
-	}
-	for _, tx := range transactions2 {
-		txMap[tx.ID] = tx
-	}
-
-	// Convert map back to slice and sort by date
-	result := make([]*viewmodels.Transaction, 0, len(txMap))
-	for _, tx := range txMap {
-		result = append(result, tx)
-	}
-
-	// Sort by transaction date (most recent first)
-	// Note: This is a simple sort. For better performance with large datasets,
-	// consider doing this at the database level
-	for i := 0; i < len(result); i++ {
-		for j := i + 1; j < len(result); j++ {
-			if result[i].TransactionDate.Before(result[j].TransactionDate) {
-				result[i], result[j] = result[j], result[i]
-			}
-		}
-	}
-
-	// Limit the results
-	if len(result) > limit {
-		result = result[:limit]
-	}
-
-	return result, nil
+	return props, nil
 }
 
-// GetAccountTransactions handles the HTMX request for the transactions tab
+// GetAccountTransactions renders a page of the account history for the
+// history filters and for scrolling.
 func (c *MoneyAccountController) GetAccountTransactions(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
@@ -689,16 +654,10 @@ func (c *MoneyAccountController) GetAccountTransactions(w http.ResponseWriter, r
 		return
 	}
 
-	// Get transactions for this account
-	transactions, err := c.getAccountTransactions(r.Context(), id, 10)
+	history, err := c.accountHistory(r, id)
 	if err != nil {
 		http.Error(w, "Error retrieving account transactions", http.StatusInternalServerError)
 		return
 	}
-
-	props := &moneyaccounts.TransactionsTabProps{
-		AccountID:    id.String(),
-		Transactions: transactions,
-	}
-	templ.Handler(moneyaccounts.TransactionsTab(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(moneyaccounts.TransactionRows(history), templ.WithStreaming()).ServeHTTP(w, r)
 }

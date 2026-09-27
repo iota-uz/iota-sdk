@@ -265,7 +265,8 @@
     "Transactions": {
       "NoTransactions": "No transactions yet",
       "NoTransactionsDescription": "This account has no transactions. Transactions will appear here when you add expenses, payments, or transfers.",
-      "ViewAll": "View all transactions"
+      "ViewAll": "View all transactions",
+      "Loading": "Loading…"
     }
   },
   "Transfers": {
@@ -408,7 +409,8 @@
       "DEPOSIT": "Deposit",
       "WITHDRAWAL": "Withdrawal",
       "TRANSFER": "Transfer",
-      "EXCHANGE": "Exchange"
+      "EXCHANGE": "Exchange",
+      "ADJUSTMENT": "Adjustment"
     }
   },
   "Reports": {
@@ -589,11 +591,11 @@
     "Balances": {
       "OnAccounts": "On accounts",
       "Reserved": "Reserved by obligations",
-      "Available": "Available"
+      "Available": "Available",
+      "Reserves": "Obligations paid from this account"
     }
   },
   "ValidationErrors": {
     "invalidTIN": "{{.Details}}"
   }
 }
-
