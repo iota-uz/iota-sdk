@@ -48,10 +48,10 @@
   ],
   "candidate": {
     "version": "0.11.0",
-    "source": "750b6a626a569822f3ff3741cbd41d01248784d8",
-    "sha": "03c7f15aca45b3c93557945466a3c0b163df5204",
-    "phase": "failed",
-    "run_id": "36353762540"
+    "source": "3d631eda849cde1b48fdc068d05398b8733f9237",
+    "sha": "399febcd96dad9d9cabc8bd206d5833ecb8aacb4",
+    "phase": "testing",
+    "run_id": "36355092352"
   },
   "ready": {
     "version": "0.10.0",
