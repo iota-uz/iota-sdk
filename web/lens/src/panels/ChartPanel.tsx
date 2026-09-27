@@ -1230,7 +1230,7 @@ const ChartLegend = memo(function ChartLegend({
         data-overflow-top={legendEdges.top || undefined}
       >
         {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- overflowing native scroll regions must be keyboard-focusable. */}
-        <ul aria-label={translate('chart.legendControls', 'Legend controls')} className="lens-chart-legend" ref={legendRef} role="region" tabIndex={legendEdges.top || legendEdges.bottom ? 0 : undefined}>
+        <ul aria-label={translate('chart.legendControls', 'Legend controls')} className="lens-chart-legend" data-testid={`lens-panel-${panel.id}-legend`} ref={legendRef} role="region" tabIndex={legendEdges.top || legendEdges.bottom ? 0 : undefined}>
           {visibleEntries.map((index, visibleIndex) => {
             const row = frame.rows[index]!
             const entryIndex = model.entryPositions.get(index) ?? index
@@ -1248,6 +1248,7 @@ const ChartLegend = memo(function ChartLegend({
                   <button
                     aria-pressed={!isHidden}
                     className={`lens-chart-legend-toggle${isHidden ? ' lens-chart-legend-hidden' : ''}`}
+                    data-testid={`lens-panel-${panel.id}-legend-series-${entryIndex}`}
                     onClick={() => onToggle(key)}
                     // The charting idiom every reader arrives with, and the
                     // one the isolate glyph beside it was the only way to

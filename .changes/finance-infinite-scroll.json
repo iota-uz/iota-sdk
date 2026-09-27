@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Finance expenses and payments lists use the scaffold table with infinite scroll, keeping search and the date filter on every chunk; the overview loads only the active tab and offers a retry when it fails. payment.FindParams replaces Query and Field with Search, and payment Repository and PaymentService Count now take FindParams."
+}

@@ -4,6 +4,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
@@ -587,6 +588,29 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		return errors.Wrap(err, fmt.Sprintf("failed to update permissions for user ID: %d", data.ID()))
 	}
 
+	return nil
+}
+
+func (g *PgUserRepository) UpdatePassword(ctx context.Context, userID uint, passwordHash string, updatedAt time.Time) error {
+	const op serrors.Op = "PgUserRepository.UpdatePassword"
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	tag, err := tx.Exec(ctx, `
+		UPDATE users
+		SET password = $1, updated_at = $2
+		WHERE id = $3 AND tenant_id = $4`, passwordHash, updatedAt, userID, tenantID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if tag.RowsAffected() != 1 {
+		return serrors.E(op, ErrUserNotFound)
+	}
 	return nil
 }
 

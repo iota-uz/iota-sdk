@@ -42,6 +42,21 @@ try {
     throw new Error('client-host-only bundle pulled Lens implementation code')
   }
 
+  run('pnpm', ['add', '--ignore-scripts', '--strict-peer-dependencies', 'solid-js@1.9.15', 'vite-plugin-solid@2.11.8'])
+  await rm(path.join(consumer, 'dist'), { recursive: true, force: true })
+  await writeFile(path.join(consumer, 'main.js'), [
+    "import { createDraft, SDK_IDENTITY } from '@iota-uz/sdk/solid'",
+    "import '@iota-uz/sdk/styles.css'",
+    "document.querySelector('#app').dataset.runtime = createDraft.name + SDK_IDENTITY.releaseVersion",
+    '',
+  ].join('\n'))
+  run('pnpm', ['exec', 'vite', 'build'])
+  const solidAssets = await readdir(path.join(consumer, 'dist/assets'))
+  const solidContents = (await Promise.all(solidAssets.filter((name) => name.endsWith('.js')).map((name) => readFile(path.join(consumer, 'dist/assets', name), 'utf8')))).join('\n')
+  if (/react-dom|LensDashboard|DashboardPanels/.test(solidContents)) {
+    throw new Error('solid-only bundle pulled React or Lens implementation code')
+  }
+
   await rm(path.join(consumer, 'dist'), { recursive: true, force: true })
   await writeFile(path.join(consumer, 'main.js'), [
     "import { LensDashboard, CONTRACT_VERSION, SDK_IDENTITY } from '@iota-uz/sdk/lens'",

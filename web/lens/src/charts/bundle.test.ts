@@ -62,9 +62,10 @@ describe('chart bundle boundary', () => {
     // drawers moved onto the standard client-host portal lifecycle, and 437,517
     // after the period picker's expanded calendar, the cascade's honest
     // unknown-value gaps, and failure copy that names what broke, and 438,274
-    // after filters gained tab-local placement. The cap still
+    // after filters gained tab-local placement, and 439,014 after the React
+    // and Solid runtimes began sharing the standard portal host. The cap still
     // catches accidental bloat — it is a tripwire for a chart library wandering
     // into the core entry, not a per-byte budget.
-    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(439_000)
+    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(440_000)
   })
 })

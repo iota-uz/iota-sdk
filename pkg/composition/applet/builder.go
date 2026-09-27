@@ -304,6 +304,7 @@ func (b *AppletEngineBuilder) planAppletSpecs(state *buildState) error {
 func (b *AppletEngineBuilder) registerAppletRPCMethods(state *buildState) error {
 	for _, spec := range state.specs {
 		cfg := spec.applet.Config()
+		contracts := rpcMethodContracts(spec.applet)
 		if cfg.RPC != nil {
 			for methodName, method := range cfg.RPC.Methods {
 				publicMethod := method
@@ -317,6 +318,12 @@ func (b *AppletEngineBuilder) registerAppletRPCMethods(state *buildState) error 
 					}
 					publicMethod = makeBunPublicProxyMethod(methodName, goDelegateMethodName, method)
 				}
+				if contract, ok := contracts[methodName]; ok {
+					if err := state.rpcRegistry.RegisterPublicContract(spec.applet.Name(), methodName, publicMethod, cfg.Middleware, contractOptions(contract)...); err != nil {
+						return err
+					}
+					continue
+				}
 				if err := state.rpcRegistry.RegisterPublic(spec.applet.Name(), methodName, publicMethod, cfg.Middleware); err != nil {
 					return err
 				}
@@ -327,6 +334,34 @@ func (b *AppletEngineBuilder) registerAppletRPCMethods(state *buildState) error 
 		}
 	}
 	return nil
+}
+
+// RPCContractsProvider lets an applet declare typed query/mutation contracts
+// for its public RPC methods. Methods without a contract fall back to the
+// compatibility registration, which still requires a non-empty access policy.
+type RPCContractsProvider interface {
+	RPCMethodContracts() map[string]appletenginerpc.MethodContract
+}
+
+func rpcMethodContracts(applet applets.Applet) map[string]appletenginerpc.MethodContract {
+	if provider, ok := applet.(RPCContractsProvider); ok {
+		return provider.RPCMethodContracts()
+	}
+	return nil
+}
+
+func contractOptions(contract appletenginerpc.MethodContract) []appletenginerpc.ContractOption {
+	options := make([]appletenginerpc.ContractOption, 0, 3)
+	switch contract.Kind {
+	case appletenginerpc.MethodKindQuery:
+		options = append(options, appletenginerpc.Query(contract.Cacheable, contract.MaxRetries))
+	case appletenginerpc.MethodKindMutation:
+		options = append(options, appletenginerpc.Mutation())
+	}
+	if len(contract.Invalidates) > 0 {
+		options = append(options, appletenginerpc.Invalidates(contract.Invalidates...))
+	}
+	return options
 }
 
 func (b *AppletEngineBuilder) validateAllBackends(state *buildState) error {
@@ -525,6 +560,7 @@ func (b *AppletEngineBuilder) assembleDispatcher(state *buildState) error {
 		return nil
 	}
 	dispatcher := appletenginerpc.NewDispatcher(state.rpcRegistry, state.input.Host, state.input.Logger)
+	dispatcher.SetMetricsRecorder(state.input.Metrics)
 	state.dispatcher = dispatcher
 
 	if len(state.runtimeEnabled) == 0 {

@@ -274,6 +274,9 @@ describe('panel total badge', () => {
     const badge = view.container.querySelector('.lens-panel-total')
     // The badge names what it totals instead of showing an unlabeled number.
     expect(badge).toHaveTextContent('Total: 12345')
+    expect(badge).toHaveAttribute('data-testid', 'lens-panel-panel-bar-total')
+    expect(badge).toHaveAttribute('data-value', '12345')
+    expect(view.container.querySelector('section')).toHaveAttribute('data-testid', 'lens-panel-panel-bar')
   })
 
   it('omits the badge when panel.total is absent', () => {
@@ -845,6 +848,8 @@ describe('chart encoding and drill behavior', () => {
     })
     const view = render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
 
+    expect(view.getByTestId('lens-panel-panel-line-legend')).toBeInTheDocument()
+    expect(view.getByTestId('lens-panel-panel-line-legend-series-0')).toHaveTextContent('Written')
     expect(legendRow(view.container, 'Written')).toHaveTextContent('220')
     // Isolating is the row's double-click — the charting idiom — rather than a
     // second button beside it.
@@ -1065,11 +1070,14 @@ describe('chart encoding and drill behavior', () => {
       presentation: { legend: 'below' },
     })
     const view = render(<LinePanel panel={line} adapter={fakeAdapter()} />)
+    expect(view.getByTestId('lens-panel-panel-line-legend-series-6')).toHaveTextContent('Product 7')
     const search = screen.getByRole('searchbox', { name: 'Search legend' })
     fireEvent.change(search, { target: { value: 'Product 7' } })
     // The search narrows the list a reader reads; it must not narrow the plot,
     // which still has to draw the series the reader filtered out of view.
     expect(legendLabels(view.container)).toEqual(['Product 7'])
+    expect(view.getByTestId('lens-panel-panel-line-legend-series-6')).toHaveTextContent('Product 7')
+    expect(view.queryByTestId('lens-panel-panel-line-legend-series-0')).toBeNull()
     expect(view.container.querySelector('.lens-chart-canvas')).toBeInTheDocument()
   })
 

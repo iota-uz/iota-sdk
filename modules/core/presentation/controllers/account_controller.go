@@ -3,8 +3,10 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -94,12 +96,48 @@ func (c *AccountController) Register(r *mux.Router) {
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.HandleFunc("", c.Update).Methods(http.MethodPost)
+	setRouter.HandleFunc("/password", c.ChangePassword).Methods(http.MethodPost)
 
 	deleteRouter := r.PathPrefix(c.basePath).Subrouter()
 	deleteRouter.Use(commonMiddleware...)
 	// Register specific routes before parameterized ones to avoid route conflicts
 	deleteRouter.HandleFunc("/sessions/others", c.RevokeOtherSessions).Methods(http.MethodDelete)
 	deleteRouter.HandleFunc("/sessions/{token}", c.RevokeSession).Methods(http.MethodDelete)
+}
+
+func (c *AccountController) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	logger := composables.UseLogger(r.Context())
+	dto, err := composables.UseForm(&dtos.ChangePasswordDTO{}, r)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	if fieldErrors, ok := dto.Ok(r.Context()); !ok {
+		templ.Handler(account.PasswordForm(c.basePath+"/password", fieldErrors)).ServeHTTP(w, r)
+		return
+	}
+	if err := c.userService.ChangePassword(r.Context(), dto.CurrentPassword, dto.NewPassword); err != nil {
+		if errors.Is(err, services.ErrCurrentPasswordMismatch) {
+			pageCtx := composables.UsePageCtx(r.Context())
+			templ.Handler(account.PasswordForm(c.basePath+"/password", map[string]string{
+				"CurrentPassword": pageCtx.T("Account.ChangePassword.Errors.CurrentIncorrect"),
+			})).ServeHTTP(w, r)
+			return
+		}
+		logger.WithError(err).Error("failed to change password")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name: c.cfg.SID, Value: "", Path: "/", Domain: c.cfg.Domain,
+		MaxAge: -1, Expires: time.Unix(0, 0), HttpOnly: true, SameSite: http.SameSiteLaxMode,
+	})
+	if htmx.IsHxRequest(r) {
+		htmx.Redirect(w, "/login")
+		return
+	}
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
 func (c *AccountController) defaultProps(r *http.Request, errors map[string]string) (*account.ProfilePageProps, error) {

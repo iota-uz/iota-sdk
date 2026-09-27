@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -174,6 +175,92 @@ func TestExpenseController_List_HTMX_Request(t *testing.T) {
 		Status(200).
 		Contains("HTMX Test Category").
 		Contains("50.25")
+}
+
+func TestExpenseController_List_InfiniteScroll(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User(
+		permissions.ExpenseRead,
+		permissions.ExpenseCreate,
+	)
+
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewComponent()).Build().
+		AsUser(adminUser)
+
+	env := suite.Environment()
+	createCurrencies(t, env, currency.USD)
+
+	controller := controllers.NewExpensesController()
+	suite.Register(controller)
+
+	expenseService := itf.GetService[services.ExpenseService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+
+	createdAccount, err := moneyAccountService.Create(env.Ctx, moneyAccountEntity.New(
+		"Chunk Account",
+		money.NewFromFloat(1000.00, "USD"),
+		moneyAccountEntity.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+
+	createdCategory, err := persistence.NewExpenseCategoryRepository().Create(expenseCommittedCtx(env), expenseCategoryEntity.New(
+		"Chunk Category",
+		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+
+	for i, comment := range []string{"rent", "rent", "rent", "salary"} {
+		_, err = expenseService.Create(env.Ctx, expenseAggregate.New(
+			money.NewFromFloat(float64(i+1)*10, "USD"),
+			createdAccount,
+			createdCategory,
+			time.Now().AddDate(0, 0, -i),
+			expenseAggregate.WithTenantID(env.Tenant.ID),
+			expenseAggregate.WithComment(comment),
+		))
+		require.NoError(t, err)
+	}
+
+	html := suite.GET(ExpenseBasePath + "?Search=rent&limit=2").
+		Expect(t).
+		Status(200).
+		Contains("<html").
+		HTML()
+	require.Len(t, html.Elements("//tbody/tr[td[@data-col='amount']]"), 2)
+	next := html.Element("//tbody/tr[@hx-get]").Attr("hx-get")
+	require.Contains(t, next, "Search=rent")
+	require.Contains(t, next, "page=2")
+	html.Element("//tr[@id='infinite-scroll-spinner']").Exists()
+
+	last := suite.GET(ExpenseBasePath + "?Search=rent&limit=2&page=2").
+		HTMX().
+		Expect(t).
+		Status(200).
+		NotContains("<form").
+		NotContains("hx-get")
+	require.Equal(t, 1, strings.Count(last.Body(), `data-col="amount"`))
+
+	all := suite.GET(ExpenseBasePath + "?Search=rent&limit=3").
+		Expect(t).
+		Status(200).
+		HTML()
+	require.Len(t, all.Elements("//tbody/tr[td[@data-col='amount']]"), 3)
+	all.Element("//tbody/tr[@hx-get]").NotExists()
+
+	embedded := suite.GET(ExpenseBasePath + "?embedded=true&limit=2").
+		HTMX().
+		Expect(t).
+		Status(200).
+		Contains("<form").
+		NotContains("<html")
+	require.Len(t, embedded.HTML().Elements("//tbody/tr[td[@data-col='amount']]"), 2)
+	suite.GET(ExpenseBasePath + "?embedded=true&limit=2&page=2").
+		HTMX().
+		Expect(t).
+		Status(200).
+		NotContains("<form")
 }
 
 func TestExpenseController_GetNew_Success(t *testing.T) {

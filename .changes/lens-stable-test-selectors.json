@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Expose stable test selectors and raw totals for Lens panels, legends, and tabs."
+}

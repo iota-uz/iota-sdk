@@ -23,12 +23,15 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 )
+
+const opRolesList serrors.Op = "core.controllers.RolesController.List"
 
 type RolesController struct {
 	basePath         string
@@ -137,6 +140,13 @@ func (c *RolesController) List(
 		return
 	}
 
+	total, err := roleService.Count(r.Context(), findParams)
+	if err != nil {
+		logger.Error(serrors.E(opRolesList, err))
+		http.Error(w, "Error counting roles", http.StatusInternalServerError)
+		return
+	}
+
 	roleViewModels := mapping.MapViewModels(roleEntities, mappers.RoleToViewModel)
 	actor, err := composables.UseUser(r.Context())
 	if err != nil {
@@ -151,8 +161,11 @@ func (c *RolesController) List(
 	}
 
 	props := &roles.IndexPageProps{
-		Roles:  roleViewModels,
-		Search: search,
+		Roles:   roleViewModels,
+		Page:    params.Page,
+		PerPage: params.Limit,
+		HasMore: total > int64(params.Page*params.Limit),
+		Search:  search,
 	}
 
 	if htmx.IsHxRequest(r) {

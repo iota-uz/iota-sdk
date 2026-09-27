@@ -497,6 +497,8 @@ func ToDBDebt(entity debt.Debt) *models.Debt {
 		Description:              entity.Description(),
 		DueDate:                  mapping.PointerToSQLNullTime(entity.DueDate()),
 		SettlementTransactionID:  uuidPointerToSQLNullString(entity.SettlementTransactionID()),
+		MoneyAccountID:           uuidPointerToSQLNullString(entity.MoneyAccountID()),
+		ProjectID:                uuidPointerToSQLNullString(entity.ProjectID()),
 		CreatedAt:                entity.CreatedAt(),
 		UpdatedAt:                entity.UpdatedAt(),
 	}
@@ -548,6 +550,16 @@ func ToDomainDebt(dbDebt *models.Debt) (debt.Debt, error) {
 	if dbDebt.SettlementTransactionID.Valid {
 		transactionID := uuid.MustParse(dbDebt.SettlementTransactionID.String)
 		opts = append(opts, debt.WithSettlementTransactionID(&transactionID))
+	}
+
+	if dbDebt.MoneyAccountID.Valid {
+		accountID := uuid.MustParse(dbDebt.MoneyAccountID.String)
+		opts = append(opts, debt.WithMoneyAccountID(&accountID))
+	}
+
+	if dbDebt.ProjectID.Valid {
+		projectID := uuid.MustParse(dbDebt.ProjectID.String)
+		opts = append(opts, debt.WithProjectID(&projectID))
 	}
 
 	domainDebt := debt.New(debtType, originalAmount, opts...)

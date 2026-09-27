@@ -30,6 +30,7 @@ func (r *TableRenderer) RenderFull() templ.Component {
 		SideFilter: r.definition.SideFilter(),
 		Rows:       r.data.Rows(),
 	}
+	WithDeferredPanels(r.definition.DeferredPanels()...)(cfg)
 
 	// Always initialize Infinite config to avoid nil pointer dereference
 	if r.data != nil {
@@ -61,6 +62,7 @@ func (r *TableRenderer) RenderTable() templ.Component {
 		SideFilter: r.definition.SideFilter(),
 		Rows:       r.data.Rows(),
 	}
+	WithDeferredPanels(r.definition.DeferredPanels()...)(cfg)
 
 	// Always initialize Infinite config to avoid nil pointer dereference
 	if r.data != nil {
@@ -92,6 +94,7 @@ func (r *TableRenderer) RenderEmbedded() templ.Component {
 		SideFilter: r.definition.SideFilter(),
 		Rows:       r.data.Rows(),
 	}
+	WithDeferredPanels(r.definition.DeferredPanels()...)(cfg)
 
 	// Always initialize Infinite config to avoid nil pointer dereference
 	if r.data != nil {

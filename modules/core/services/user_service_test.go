@@ -2,19 +2,24 @@ package services_test
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
@@ -27,6 +32,9 @@ func userCommittedCtx(fixtures *itf.TestEnvironment) context.Context {
 	ctx = composables.WithParams(ctx, itf.DefaultParams())
 	ctx = composables.WithSession(ctx, itf.MockSession())
 	ctx = composables.WithUser(ctx, fixtures.User)
+	if localizer, ok := intl.UseLocalizer(fixtures.Ctx); ok {
+		ctx = intl.WithLocalizer(ctx, localizer)
+	}
 	return ctx
 }
 
@@ -498,4 +506,129 @@ func TestUserService_UpdateSelf_SecurityValidation(t *testing.T) {
 		assert.Len(t, result.Permissions(), 1)
 		assert.Equal(t, permissions.UserRead.ID(), result.Permissions()[0].ID())
 	})
+}
+
+func TestUserService_ChangePassword(t *testing.T) {
+	// Falsely green if the assertions read the stale in-memory user or omit session persistence.
+	t.Parallel()
+	f := setupTestWithPermissions(t)
+	tenantID, err := composables.UseTenantID(f.Ctx)
+	require.NoError(t, err)
+
+	email, err := internet.NewEmail("change-password@example.test")
+	require.NoError(t, err)
+	initial, err := user.New("Password", "Owner", email, user.UILanguageEN, user.WithTenantID(tenantID)).SetPassword("OldPass123!")
+	require.NoError(t, err)
+	userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
+	created, err := userRepo.Create(f.Ctx, initial)
+	require.NoError(t, err)
+	ctx := composables.WithUser(f.Ctx, created)
+	userService := itf.GetService[services.UserService](f)
+	sessionService := itf.GetService[services.SessionService](f)
+
+	for _, token := range []string{"password-session-one", "password-session-two"} {
+		require.NoError(t, sessionService.Create(ctx, &session.CreateDTO{Token: token, UserID: created.ID(), TenantID: tenantID}))
+	}
+
+	err = userService.ChangePassword(ctx, "wrong password", "NewPass123!")
+	require.ErrorIs(t, err, services.ErrCurrentPasswordMismatch)
+	afterRejected, err := userRepo.GetByID(ctx, created.ID())
+	require.NoError(t, err)
+	require.True(t, afterRejected.CheckPassword("OldPass123!"))
+	sessionsAfterRejected, err := sessionService.GetByUserID(ctx, created.ID())
+	require.NoError(t, err)
+	require.Len(t, sessionsAfterRejected, 2)
+
+	require.NoError(t, userService.ChangePassword(ctx, "OldPass123!", "NewPass123!"))
+	afterChange, err := userRepo.GetByID(ctx, created.ID())
+	require.NoError(t, err)
+	require.False(t, afterChange.CheckPassword("OldPass123!"))
+	require.True(t, afterChange.CheckPassword("NewPass123!"))
+	sessionsAfterChange, err := sessionService.GetByUserID(ctx, created.ID())
+	require.NoError(t, err)
+	require.Empty(t, sessionsAfterChange)
+}
+
+func TestUserService_ChangePasswordSerializesConcurrentChanges(t *testing.T) {
+	// Falsely green if both calls reuse one transaction or do not begin from the same persisted password.
+	f := setupTestWithPermissions(t)
+	tenantID, err := composables.UseTenantID(f.Ctx)
+	require.NoError(t, err)
+	ctx := userCommittedCtx(f)
+	email, err := internet.NewEmail("concurrent-password-" + uuid.NewString() + "@example.test")
+	require.NoError(t, err)
+	initial, err := user.New("Concurrent", "Password", email, user.UILanguageEN, user.WithTenantID(tenantID)).SetPassword("OldPass123!")
+	require.NoError(t, err)
+	userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
+	created, err := userRepo.Create(ctx, initial)
+	require.NoError(t, err)
+	ctx = composables.WithUser(ctx, created)
+	userService := itf.GetService[services.UserService](f)
+	sessionService := itf.GetService[services.SessionService](f)
+	require.NoError(t, sessionService.Create(ctx, &session.CreateDTO{Token: "concurrent-password-" + uuid.NewString(), UserID: created.ID(), TenantID: tenantID}))
+
+	passwords := []string{"WinnerOne123!", "WinnerTwo123!"}
+	errs := make([]error, len(passwords))
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := range passwords {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			<-start
+			errs[index] = userService.ChangePassword(ctx, "OldPass123!", passwords[index])
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+
+	successes := 0
+	mismatches := 0
+	for _, changeErr := range errs {
+		if changeErr == nil {
+			successes++
+		}
+		if errors.Is(changeErr, services.ErrCurrentPasswordMismatch) {
+			mismatches++
+		}
+	}
+	require.Equal(t, 1, successes)
+	require.Equal(t, 1, mismatches)
+	reloaded, err := userRepo.GetByID(ctx, created.ID())
+	require.NoError(t, err)
+	require.NotEqual(t, reloaded.CheckPassword(passwords[0]), reloaded.CheckPassword(passwords[1]))
+	sessions, err := sessionService.GetByUserID(ctx, created.ID())
+	require.NoError(t, err)
+	require.Empty(t, sessions)
+}
+
+func TestUserService_AdminUpdatePreservesConcurrentPasswordChange(t *testing.T) {
+	// Falsely green if the admin update is built after the password change instead of from stale state.
+	f := setupTestWithPermissions(t, permissions.UserUpdate)
+	tenantID, err := composables.UseTenantID(f.Ctx)
+	require.NoError(t, err)
+	ctx := userCommittedCtx(f)
+	require.NoError(t, persistence.NewPermissionRepository().Save(ctx, permissions.UserUpdate))
+	userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
+	actorEmail, err := internet.NewEmail("password-admin-" + uuid.NewString() + "@example.test")
+	require.NoError(t, err)
+	actor, err := userRepo.Create(ctx, user.New("Password", "Admin", actorEmail, user.UILanguageEN,
+		user.WithTenantID(tenantID), user.WithPermissions([]permission.Permission{permissions.UserUpdate})))
+	require.NoError(t, err)
+	targetEmail, err := internet.NewEmail("password-target-" + uuid.NewString() + "@example.test")
+	require.NoError(t, err)
+	target, err := user.New("Before", "Update", targetEmail, user.UILanguageEN, user.WithTenantID(tenantID)).SetPassword("OldPass123!")
+	require.NoError(t, err)
+	target, err = userRepo.Create(ctx, target)
+	require.NoError(t, err)
+	staleAdminUpdate := target.SetName("After", "Update", "")
+	userService := itf.GetService[services.UserService](f)
+
+	require.NoError(t, userService.ChangePassword(composables.WithUser(ctx, target), "OldPass123!", "NewPass123!"))
+	_, err = userService.Update(composables.WithUser(ctx, actor), staleAdminUpdate)
+	require.NoError(t, err)
+	reloaded, err := userRepo.GetByID(ctx, target.ID())
+	require.NoError(t, err)
+	require.Equal(t, "After", reloaded.FirstName())
+	require.True(t, reloaded.CheckPassword("NewPass123!"))
 }

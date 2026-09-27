@@ -12,6 +12,7 @@ type TableDefinition struct {
 	filters    []templ.Component
 	actions    []templ.Component
 	sideFilter templ.Component
+	panels     []DeferredPanel
 
 	// Configuration options
 	enableInfiniteScroll bool
@@ -51,6 +52,13 @@ func (td TableDefinition) Actions() []templ.Component {
 
 func (td TableDefinition) SideFilter() templ.Component {
 	return td.sideFilter
+}
+
+// DeferredPanels returns the panels rendered above the table.
+func (td TableDefinition) DeferredPanels() []DeferredPanel {
+	panels := make([]DeferredPanel, len(td.panels))
+	copy(panels, td.panels)
+	return panels
 }
 
 func (td TableDefinition) EnableInfiniteScroll() bool {
@@ -105,6 +113,13 @@ func (b *TableDefinitionBuilder) WithSideFilter(filter templ.Component) *TableDe
 	return b
 }
 
+// WithDeferredPanels adds panels above the table, such as a summary. They load
+// after the page and reload when filters change; see DeferredPanel.
+func (b *TableDefinitionBuilder) WithDeferredPanels(panels ...DeferredPanel) *TableDefinitionBuilder {
+	b.definition.panels = append(b.definition.panels, panels...)
+	return b
+}
+
 // WithInfiniteScroll enables/disables infinite scroll
 func (b *TableDefinitionBuilder) WithInfiniteScroll(enabled bool) *TableDefinitionBuilder {
 	b.definition.enableInfiniteScroll = enabled
@@ -137,6 +152,9 @@ func (b *TableDefinitionBuilder) Build() TableDefinition {
 
 	def.actions = make([]templ.Component, len(b.definition.actions))
 	copy(def.actions, b.definition.actions)
+
+	def.panels = make([]DeferredPanel, len(b.definition.panels))
+	copy(def.panels, b.definition.panels)
 
 	return def
 }
