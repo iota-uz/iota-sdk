@@ -50,7 +50,7 @@
     "version": "0.11.0",
     "source": "750b6a626a569822f3ff3741cbd41d01248784d8",
     "sha": "03c7f15aca45b3c93557945466a3c0b163df5204",
-    "phase": "testing",
+    "phase": "failed",
     "run_id": "36353762540"
   },
   "ready": {
