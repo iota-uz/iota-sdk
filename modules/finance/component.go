@@ -56,6 +56,8 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, services.NewCounterpartyService)
 	composition.ProvideFunc(builder, services.NewInventoryService)
 	composition.ProvideFunc(builder, services.NewDebtService)
+	composition.ProvideFunc(builder, services.NewBalanceService)
+	composition.ProvideDefault[services.ProjectDirectory](builder, services.NewNoProjects())
 	composition.ProvideFunc(builder, services.NewFinancialReportService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
@@ -73,18 +75,20 @@ func financeControllers(
 	counterpartyService *services.CounterpartyService,
 	inventoryService *services.InventoryService,
 	debtService *services.DebtService,
+	balanceService *services.BalanceService,
+	projectDirectory services.ProjectDirectory,
 	financialReportService *services.FinancialReportService,
 	currencyService *coreservices.CurrencyService,
 	reportsQueryRepo query.FinancialReportsQueryRepository,
 ) []application.Controller {
 	return []application.Controller{
-		controllers.NewFinancialOverviewController(paymentService, moneyAccountService, counterpartyService, paymentCategoryService, transactionService),
+		controllers.NewFinancialOverviewController(paymentService, moneyAccountService, counterpartyService, paymentCategoryService, transactionService, balanceService),
 		controllers.NewMoneyAccountController(moneyAccountService, transactionService, currencyService),
 		controllers.NewExpenseCategoriesController(expenseCategoryService),
 		controllers.NewPaymentCategoriesController(paymentCategoryService),
 		controllers.NewCounterpartiesController(counterpartyService),
 		controllers.NewInventoryController(inventoryService, currencyService),
-		controllers.NewDebtsController(debtService, counterpartyService, transactionService),
+		controllers.NewDebtsController(debtService, counterpartyService, moneyAccountService, currencyService, projectDirectory),
 		controllers.NewDebtAggregateController(debtService, counterpartyService),
 		controllers.NewFinancialReportController(financialReportService, reportsQueryRepo),
 		controllers.NewCashflowController(financialReportService, moneyAccountService, reportsQueryRepo),

@@ -37,6 +37,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewProjectStageRepository)
 	composition.ProvideFunc(builder, services.NewProjectService)
 	composition.ProvideFunc(builder, services.NewProjectStageService)
+	composition.ProvideFunc(builder, services.NewProjectDirectory)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.AddControllers(builder,

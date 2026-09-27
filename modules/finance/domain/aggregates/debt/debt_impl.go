@@ -66,6 +66,18 @@ func WithSettlementTransactionID(transactionID *uuid.UUID) Option {
 	}
 }
 
+func WithMoneyAccountID(accountID *uuid.UUID) Option {
+	return func(d *debt) {
+		d.moneyAccountID = accountID
+	}
+}
+
+func WithProjectID(projectID *uuid.UUID) Option {
+	return func(d *debt) {
+		d.projectID = projectID
+	}
+}
+
 func New(
 	debtType DebtType,
 	amount *money.Money,
@@ -82,6 +94,8 @@ func New(
 		description:             "",
 		dueDate:                 nil,
 		settlementTransactionID: nil,
+		moneyAccountID:          nil,
+		projectID:               nil,
 		user:                    nil,
 		createdAt:               time.Now(),
 		updatedAt:               time.Now(),
@@ -103,6 +117,8 @@ type debt struct {
 	description             string
 	dueDate                 *time.Time
 	settlementTransactionID *uuid.UUID
+	moneyAccountID          *uuid.UUID
+	projectID               *uuid.UUID
 	user                    user.User
 	createdAt               time.Time
 	updatedAt               time.Time
@@ -211,6 +227,28 @@ func (d *debt) SettlementTransactionID() *uuid.UUID {
 func (d *debt) UpdateSettlementTransactionID(transactionID *uuid.UUID) Debt {
 	result := *d
 	result.settlementTransactionID = transactionID
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (d *debt) MoneyAccountID() *uuid.UUID {
+	return d.moneyAccountID
+}
+
+func (d *debt) UpdateMoneyAccountID(accountID *uuid.UUID) Debt {
+	result := *d
+	result.moneyAccountID = accountID
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (d *debt) ProjectID() *uuid.UUID {
+	return d.projectID
+}
+
+func (d *debt) UpdateProjectID(projectID *uuid.UUID) Debt {
+	result := *d
+	result.projectID = projectID
 	result.updatedAt = time.Now()
 	return &result
 }
