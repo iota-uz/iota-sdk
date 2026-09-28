@@ -9,8 +9,11 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net"
 	"net/http"
+	"net/url"
 	"reflect"
+	"strconv"
 	"sync"
 	"time"
 
@@ -19,6 +22,8 @@ import (
 	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/gorilla/websocket"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
@@ -38,9 +43,9 @@ type Resolver struct {
 // In production builds, this will be a no-op.
 var registerIntrospection = func(server *Handler, rootExecutor *executor.Executor) {}
 
-func NewBaseServer(schema graphql.ExecutableSchema, cfg *uploadsconfig.Config) *Handler {
+func NewBaseServer(schema graphql.ExecutableSchema, cfg *uploadsconfig.Config, opts ...HandlerOption) *Handler {
 	ex := executor.New(schema)
-	srv := NewHandler(ex, cfg)
+	srv := NewHandler(ex, cfg, opts...)
 	// for _, schema := range app.GraphSchemas() {
 	// 	srv.execs = append(srv.execs, executor.New(schema.Value))
 	// }
@@ -49,6 +54,11 @@ func NewBaseServer(schema graphql.ExecutableSchema, cfg *uploadsconfig.Config) *
 
 func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExecutor) {
 	ctx := r.Context()
+	if h.originAllowed != nil && !h.originAllowed(r) {
+		sendErrorf(w, http.StatusForbidden, "origin not allowed")
+		return
+	}
+
 	execs := ctx.Value(execsContextKey).([]*executor.Executor)
 	writeHeaders(w, h.ResponseHeaders)
 	params := pool.Get().(*graphql.RawParams)
@@ -398,6 +408,9 @@ type MyPOST struct {
 	// Map of all headers that are added to graphql response. If not
 	// set, only one header: Content-Type: application/json will be set.
 	ResponseHeaders map[string][]string
+	// originAllowed rejects cross-origin POSTs before they reach an executor.
+	// Nil allows every origin.
+	originAllowed func(*http.Request) bool
 }
 
 var _ graphql.Transport = MyPOST{}
@@ -464,8 +477,9 @@ type contextKey string
 const execsContextKey contextKey = "execs"
 
 type Handler struct {
-	execs      []*executor.Executor
-	transports []graphql.Transport
+	execs         []*executor.Executor
+	transports    []graphql.Transport
+	originAllowed func(*http.Request) bool
 }
 
 // defaultUploadsConfig returns a Config with documented defaults applied.
@@ -478,26 +492,83 @@ func defaultUploadsConfig() uploadsconfig.Config {
 	}
 }
 
-func NewHandler(rootExecutor *executor.Executor, cfg *uploadsconfig.Config) *Handler {
+// HandlerOption configures a Handler.
+type HandlerOption func(*Handler)
+
+// WithOriginValidator restricts transports to requests whose Origin header is
+// accepted by validate. A nil validator (the default) allows every origin.
+func WithOriginValidator(validate func(*http.Request) bool) HandlerOption {
+	return func(h *Handler) {
+		h.originAllowed = validate
+	}
+}
+
+// SameOriginValidator builds an origin validator from the HTTP and app
+// configuration. A request without an Origin header is allowed; otherwise the
+// origin must match the configured Origin, one of AllowedOrigins, or — outside
+// production — localhost, 127.0.0.1 or [::1] on the configured HTTP port.
+func SameOriginValidator(httpCfg *httpconfig.Config, appCfg *appconfig.Config) func(*http.Request) bool {
+	return func(r *http.Request) bool {
+		rawOrigin := r.Header.Get("Origin")
+		if rawOrigin == "" {
+			return true
+		}
+
+		parsed, err := url.Parse(rawOrigin)
+		if err != nil || parsed.Host == "" {
+			return false
+		}
+		origin := parsed.Scheme + "://" + parsed.Host
+
+		if configured := httpCfg.Origin(appCfg); configured != "" && origin == configured {
+			return true
+		}
+		for _, allowed := range httpCfg.AllowedOrigins {
+			if origin == allowed {
+				return true
+			}
+		}
+
+		if appCfg.IsDev() {
+			port := strconv.Itoa(httpCfg.Port)
+			for _, host := range []string{"localhost", "127.0.0.1", "::1"} {
+				if origin == "http://"+net.JoinHostPort(host, port) ||
+					origin == "https://"+net.JoinHostPort(host, port) {
+					return true
+				}
+			}
+		}
+
+		return false
+	}
+}
+
+func NewHandler(rootExecutor *executor.Executor, cfg *uploadsconfig.Config, opts ...HandlerOption) *Handler {
 	if cfg == nil {
 		d := defaultUploadsConfig()
 		cfg = &d
 	}
 	server := &Handler{}
+	for _, opt := range opts {
+		opt(server)
+	}
 	server.execs = append(server.execs, rootExecutor)
 
+	checkOrigin := func(r *http.Request) bool {
+		if server.originAllowed == nil {
+			return true
+		}
+		return server.originAllowed(r)
+	}
 	server.AddTransport(transport.Websocket{
 		KeepAlivePingInterval: 10 * time.Second,
 		Upgrader: websocket.Upgrader{
-			// TODO: Add origin check
-			CheckOrigin: func(_ *http.Request) bool {
-				return true
-			},
+			CheckOrigin: checkOrigin,
 		},
 	})
 	server.AddTransport(transport.Options{})
 	server.AddTransport(transport.GET{})
-	server.AddTransport(MyPOST{})
+	server.AddTransport(MyPOST{originAllowed: checkOrigin})
 	server.AddTransport(transport.MultipartForm{
 		MaxUploadSize: cfg.MaxSize,
 		MaxMemory:     cfg.MaxMemory,
@@ -629,6 +700,7 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func sendError(w http.ResponseWriter, code int, errors ...*gqlerror.Error) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	b, err := json.Marshal(&graphql.Response{Errors: errors})
 	if err != nil {

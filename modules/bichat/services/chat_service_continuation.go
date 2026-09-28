@@ -55,6 +55,7 @@ func (s *chatServiceImpl) ContinueSession(
 				active.CloseAllSubscribers()
 				s.runRegistry.Remove(active.RunID)
 				s.unregisterStreamCancel(req.SessionID)
+				s.expireRunEvents(persistCtx, session.TenantID(), session.ID(), runID)
 			}()
 
 			if req.ReasoningEffort != nil {
@@ -63,6 +64,7 @@ func (s *chatServiceImpl) ContinueSession(
 			if req.Model != nil {
 				processCtx = bichatservices.WithModelOverride(processCtx, *req.Model)
 			}
+			s.mirrorRunEvents(persistCtx, session.TenantID(), active)
 
 			startedAt := time.Now()
 			gen, err := continuationAgent.ProcessContinuation(processCtx, req.SessionID, req.Event)

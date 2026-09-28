@@ -168,7 +168,7 @@ func NewDefaultBIAgent(
 
 	agent := &DefaultBIAgent{
 		executor: executor,
-		model:    "gpt-5.2", // Default model (SOTA)
+		model:    "gpt-6.0-sol", // Default model (SOTA)
 	}
 
 	// Apply options first to configure dependencies

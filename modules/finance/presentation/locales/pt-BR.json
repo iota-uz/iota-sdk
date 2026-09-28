@@ -209,7 +209,8 @@
       "LegalType": "Tipo legal",
       "LegalAddress": "Endereço legal",
       "Delete": "Excluir contraparte",
-      "DeleteConfirmation": "Tem certeza de que deseja excluir esta contraparte?"
+      "DeleteConfirmation": "Tem certeza de que deseja excluir esta contraparte?",
+      "Revenue": "Receita"
     },
     "Types": {
       "CUSTOMER": "Cliente",
@@ -265,7 +266,8 @@
     "Transactions": {
       "NoTransactions": "Nenhuma transação ainda",
       "NoTransactionsDescription": "Esta conta não possui transações. As transações aparecerão aqui quando você adicionar despesas, pagamentos ou transferências.",
-      "ViewAll": "Ver todas as transações"
+      "ViewAll": "Ver todas as transações",
+      "Loading": "Carregando…"
     }
   },
   "Transfers": {
@@ -408,7 +410,8 @@
       "DEPOSIT": "Depósito",
       "WITHDRAWAL": "Saque",
       "TRANSFER": "Transferência",
-      "EXCHANGE": "Câmbio"
+      "EXCHANGE": "Câmbio",
+      "ADJUSTMENT": "Ajuste"
     }
   },
   "Reports": {
@@ -504,15 +507,24 @@
       "Amount": "Valor",
       "OriginalAmount": "Valor original",
       "OutstandingAmount": "Valor pendente",
+      "Currency": "Moeda",
+      "SelectCurrency": "Escolha a moeda",
+      "Account": "Conta",
+      "NoAccount": "Sem conta",
+      "Project": "Projeto",
+      "NoProject": "Sem projeto",
       "_Description": "Descrição",
       "DueDate": "Data de vencimento",
       "SettlementTransactionID": "Transação de liquidação",
       "Settle": "Liquidar dívida",
+      "SettlementAmount": "Valor a liquidar",
       "WriteOff": "Baixar",
+      "CancelDebt": "Cancelar dívida",
       "Delete": "Excluir dívida",
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta dívida?",
       "SettleConfirmation": "Tem certeza de que deseja liquidar esta dívida?",
       "WriteOffConfirmation": "Tem certeza de que deseja baixar esta dívida como incobrável?",
+      "CancelDebtConfirmation": "Cancelar esta dívida? Ela deixará de ser devida e de reservar dinheiro.",
       "SelectTransaction": "Selecionar transação"
     },
     "Types": {
@@ -523,7 +535,12 @@
       "PENDING": "Pendente",
       "SETTLED": "Liquidada",
       "PARTIAL": "Parcialmente liquidada",
-      "WRITTEN_OFF": "Baixada"
+      "WRITTEN_OFF": "Baixada",
+      "CANCELLED": "Cancelada"
+    },
+    "Errors": {
+      "AccountCurrency": "A conta tem uma moeda diferente da dívida",
+      "AmountBelowPaid": "O valor é menor do que o já pago"
     },
     "Actions": {
       "Created": "Dívida criada com sucesso",
@@ -572,10 +589,23 @@
       "AttachedFiles": "Documentos anexados",
       "DeleteConfirmation": "Tem certeza de que deseja excluir este documento?",
       "DeleteFile": "Excluir documento"
+    },
+    "Revenue": {
+      "Currency": "Moeda",
+      "Contract": "Contratado",
+      "Accepted": "Aceito",
+      "Open": "Em aberto",
+      "Invoiced": "Faturado",
+      "Paid": "Pago"
+    },
+    "Balances": {
+      "OnAccounts": "Nas contas",
+      "Reserved": "Reservado para obrigações",
+      "Available": "Disponível",
+      "Reserves": "Obrigações pagas por esta conta"
     }
   },
   "ValidationErrors": {
     "invalidTIN": "{{.Details}}"
   }
 }
-

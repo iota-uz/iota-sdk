@@ -98,3 +98,34 @@ func TestExportDropdown_LegacyHtmxMode(t *testing.T) {
 	assert.NotContains(t, html, "runExport(")
 	assert.NotContains(t, html, "data-export-url")
 }
+
+// TestExportDropdown_SingleFormat verifies a single format renders a plain
+// button (no dropdown/caret) that triggers the export directly.
+func TestExportDropdown_SingleFormat(t *testing.T) {
+	t.Parallel()
+
+	legacy := renderDropdown(t, export.ExportDropdownProps{
+		Formats:   []export.ExportFormat{export.ExportFormatExcel},
+		ExportURL: "/x/export",
+	})
+	assert.NotContains(t, legacy, "<details")
+	assert.NotContains(t, legacy, "<summary")
+	assert.Contains(t, legacy, `hx-post="/x/export?format=excel"`)
+	assert.Contains(t, legacy, "Export.ToExcel")
+
+	dl := renderDropdown(t, export.ExportDropdownProps{
+		Formats:   []export.ExportFormat{export.ExportFormatCSV},
+		ExportURL: "/x/export",
+		Download:  true,
+	})
+	assert.NotContains(t, dl, "<details")
+	assert.NotContains(t, dl, "hx-post")
+	assert.Contains(t, dl, "runExport(&#39;csv&#39;)")
+	assert.Contains(t, dl, "Export.ToCSV")
+
+	multi := renderDropdown(t, export.ExportDropdownProps{
+		Formats:   []export.ExportFormat{export.ExportFormatExcel, export.ExportFormatCSV},
+		ExportURL: "/x/export",
+	})
+	assert.Contains(t, multi, "<details")
+}

@@ -12,9 +12,19 @@
     "build": "pnpm --filter @iota-uz/sdk build",
     "pack:sdk": "pnpm --filter @iota-uz/sdk pack",
     "check:sdk": "pnpm --filter @iota-uz/sdk check",
+    "build:css": "node scripts/build-tailwind-css.mjs --minify",
+    "build:css:watch": "node scripts/build-tailwind-css.mjs --watch",
     "lint": "echo \"no root lint\""
   },
   "devDependencies": {
+    "@tailwindcss/cli": "4.1.18",
+    "@tailwindcss/postcss": "4.1.18",
     "tailwindcss": "4.1.18"
+  },
+  "pnpm": {
+    "overrides": {
+      "@tailwindcss/cli": "4.1.18",
+      "@tailwindcss/postcss": "4.1.18"
+    }
   }
 }

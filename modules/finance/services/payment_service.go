@@ -143,8 +143,16 @@ func (s *PaymentService) Delete(ctx context.Context, id uuid.UUID) (payment.Paym
 	return entity, nil
 }
 
-func (s *PaymentService) Count(ctx context.Context) (int64, error) {
-	return s.repo.Count(ctx)
+func (s *PaymentService) Count(ctx context.Context, params *payment.FindParams) (int64, error) {
+	const op serrors.Op = "PaymentService.Count"
+	if err := composables.CanUser(ctx, permissions.PaymentRead); err != nil {
+		return 0, serrors.E(op, err)
+	}
+	count, err := s.repo.Count(ctx, params)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+	return count, nil
 }
 
 // AttachFileToPayment attaches an upload to a payment

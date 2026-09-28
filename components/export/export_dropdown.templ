@@ -180,6 +180,23 @@ templ ExportDropdown(props ExportDropdownProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	if props.Download {
 		@exportDownloadDropdown(props)
+	} else if len(props.Formats) == 1 {
+		{{ details := formatDetails[props.Formats[0]] }}
+		<button
+			type="button"
+			class={ "cursor-pointer shrink-0 btn btn-secondary btn-with-icon flex items-center gap-2", exportButtonSizeClass(props.Size), props.Class }
+			hx-post={ props.ExportURL + "?format=" + details.Param }
+			hx-target="body"
+			hx-swap="none"
+			{ props.Attrs... }
+		>
+			@details.Icon
+			if props.Label != "" {
+				{ props.Label }
+			} else {
+				{ pageCtx.T(details.LabelKey) }
+			}
+		</button>
 	} else {
 		<div class="relative">
 			<details class="relative z-10 peer" name="export-dropdown">
@@ -227,47 +244,73 @@ templ exportDownloadDropdown(props ExportDropdownProps) {
 		data-export-url={ props.ExportURL }
 		data-params-form={ props.ParamsFormID }
 	>
-		<details class="relative z-10 peer" name="export-dropdown">
-			<summary
-				class={ "list-none cursor-pointer shrink-0 btn btn-secondary btn-with-icon flex items-center gap-2", exportButtonSizeClass(props.Size), props.Class }
+		if len(props.Formats) == 1 {
+			{{ details := formatDetails[props.Formats[0]] }}
+			<button
+				type="button"
+				class={ "cursor-pointer shrink-0 btn btn-secondary btn-with-icon flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed", exportButtonSizeClass(props.Size), props.Class }
+				x-on:click={ fmt.Sprintf("runExport('%s')", details.Param) }
+				x-bind:disabled="exporting"
 				x-bind:aria-busy="exporting"
+				{ props.Attrs... }
 			>
 				<span x-show="!exporting" class="flex items-center">
-					@icons.Download(icons.Props{Size: "18"})
+					@details.Icon
 				</span>
 				<span x-show="exporting" x-cloak class="flex items-center">
 					@loaders.Spinner(loaders.SpinnerProps{
-						SpinnerClass: templ.Classes("w-[18px] h-[18px]"),
+						SpinnerClass: templ.Classes("w-4 h-4"),
 					})
 				</span>
 				if props.Label != "" {
 					{ props.Label }
 				} else {
-					{ pageCtx.T("Export.Title") }
+					{ pageCtx.T(details.LabelKey) }
 				}
-				@icons.CaretDown(icons.Props{Size: "16", Class: "ml-1"})
-			</summary>
-			<ul class="flex flex-col gap-1 mt-1 absolute bg-surface-300 right-0 text-sm rounded-md w-44 overflow-hidden shadow-sm border border-secondary p-1">
-				for _, format := range props.Formats {
-					{{ details := formatDetails[format] }}
-					<li>
-						<button
-							type="button"
-							class="flex items-center gap-2 w-full text-left p-2 duration-200 hover:bg-surface-400 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-							x-on:click={ fmt.Sprintf("runExport('%s')", details.Param) }
-							x-bind:disabled="exporting"
-							{ props.Attrs... }
-						>
-							@details.Icon
-							{ pageCtx.T(details.LabelKey) }
-						</button>
-					</li>
-				}
-			</ul>
-		</details>
-		<details class="hidden peer-open:block" name="export-dropdown">
-			<summary class="fixed w-full h-full left-0 top-0"></summary>
-		</details>
+			</button>
+		} else {
+			<details class="relative z-10 peer" name="export-dropdown">
+				<summary
+					class={ "list-none cursor-pointer shrink-0 btn btn-secondary btn-with-icon flex items-center gap-2", exportButtonSizeClass(props.Size), props.Class }
+					x-bind:aria-busy="exporting"
+				>
+					<span x-show="!exporting" class="flex items-center">
+						@icons.Download(icons.Props{Size: "18"})
+					</span>
+					<span x-show="exporting" x-cloak class="flex items-center">
+						@loaders.Spinner(loaders.SpinnerProps{
+							SpinnerClass: templ.Classes("w-[18px] h-[18px]"),
+						})
+					</span>
+					if props.Label != "" {
+						{ props.Label }
+					} else {
+						{ pageCtx.T("Export.Title") }
+					}
+					@icons.CaretDown(icons.Props{Size: "16", Class: "ml-1"})
+				</summary>
+				<ul class="flex flex-col gap-1 mt-1 absolute bg-surface-300 right-0 text-sm rounded-md w-44 overflow-hidden shadow-sm border border-secondary p-1">
+					for _, format := range props.Formats {
+						{{ details := formatDetails[format] }}
+						<li>
+							<button
+								type="button"
+								class="flex items-center gap-2 w-full text-left p-2 duration-200 hover:bg-surface-400 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+								x-on:click={ fmt.Sprintf("runExport('%s')", details.Param) }
+								x-bind:disabled="exporting"
+								{ props.Attrs... }
+							>
+								@details.Icon
+								{ pageCtx.T(details.LabelKey) }
+							</button>
+						</li>
+					}
+				</ul>
+			</details>
+			<details class="hidden peer-open:block" name="export-dropdown">
+				<summary class="fixed w-full h-full left-0 top-0"></summary>
+			</details>
+		}
 		<!-- Busy overlay: visible while the export fetch is in flight. -->
 		<div
 			x-show="exporting"
