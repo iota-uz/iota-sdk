@@ -137,6 +137,19 @@ func (c *CrudController[TEntity]) Export(w http.ResponseWriter, r *http.Request)
 	}
 
 	filename := c.exportFilename(format)
+	// The attachment headers are only a promise until the first byte goes out.
+	// A writer that fails before that — excelize flushing its temp file, say —
+	// must still turn into a 500, not a 200 with an empty download.
+	out := &exportResponseWriter{ResponseWriter: w}
+	fail := func(stage string, err error) {
+		log.Printf("[CrudController.Export] Failed to %s: %v", stage, serrors.E(op, err))
+		if out.written {
+			return
+		}
+		w.Header().Del("Content-Disposition")
+		errorMsg, _ := c.localize(ctx, errFailedToRetrieve, "Failed to retrieve data")
+		http.Error(w, errorMsg, http.StatusInternalServerError)
+	}
 	switch format {
 	case export.ExportFormatCSV:
 		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
@@ -146,23 +159,23 @@ func (c *CrudController[TEntity]) Export(w http.ResponseWriter, r *http.Request)
 		opts.DateTimeFormat = crudExportDateTimeFormat
 		// Dictionary values are user-entered: the SDK writer neutralizes every
 		// string cell so none of them opens as a spreadsheet formula.
-		writer, err := excel.NewCSVWriter(w, opts)
+		writer, err := excel.NewCSVWriter(out, opts)
 		if err != nil {
-			log.Printf("[CrudController.Export] Failed to start CSV: %v", serrors.E(op, err))
+			fail("start CSV", err)
 			return
 		}
 		if err := writer.WriteHeader(headers); err != nil {
-			log.Printf("[CrudController.Export] Failed to write CSV header: %v", serrors.E(op, err))
+			fail("write CSV header", err)
 			return
 		}
 		for _, row := range rows {
 			if err := writer.WriteRow(row); err != nil {
-				log.Printf("[CrudController.Export] Failed to write CSV row: %v", serrors.E(op, err))
+				fail("write CSV row", err)
 				return
 			}
 		}
 		if err := writer.Flush(); err != nil {
-			log.Printf("[CrudController.Export] Failed to flush CSV: %v", serrors.E(op, err))
+			fail("flush CSV", err)
 		}
 	case export.ExportFormatExcel:
 		w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -174,14 +187,28 @@ func (c *CrudController[TEntity]) Export(w http.ResponseWriter, r *http.Request)
 		datasource := excel.NewFunctionDataSource(headers, func(context.Context) ([][]interface{}, error) {
 			return rows, nil
 		}).WithSheetName(c.exportSheetName())
-		if err := exporter.ExportToWriter(ctx, w, datasource); err != nil {
-			log.Printf("[CrudController.Export] Failed to write XLSX: %v", serrors.E(op, err))
+		if err := exporter.ExportToWriter(ctx, out, datasource); err != nil {
+			fail("write XLSX", err)
 		}
 	case export.ExportFormatJSON, export.ExportFormatTXT:
 		// Refused above; kept so a format added to the enum is a decision here,
 		// not a silent fall-through into one of the two files.
 		c.exportUnsupportedFormat(ctx, w)
 	}
+}
+
+// exportResponseWriter records whether the response has been committed, which
+// decides whether a failed export can still answer with an error status.
+type exportResponseWriter struct {
+	http.ResponseWriter
+	written bool
+}
+
+func (w *exportResponseWriter) Write(p []byte) (int, error) {
+	if len(p) > 0 {
+		w.written = true
+	}
+	return w.ResponseWriter.Write(p)
 }
 
 // exportUnsupportedFormat refuses a format the export does not write. A bad
@@ -399,7 +426,7 @@ func (c *CrudController[TEntity]) exportSheetName() string {
 	}
 	// Trimmed after the cut, which can itself end the name on an apostrophe.
 	if name = strings.Trim(name, "'"); name == "" {
-		return "Sheet1"
+		return "Export"
 	}
 	return name
 }

@@ -525,6 +525,26 @@ func TestCrudControllerExportNamesTheSheetInCharacters(t *testing.T) {
 	assert.Greater(t, len(body), 1024, "the workbook was written, not abandoned after the headers")
 }
 
+// TestCrudControllerExportFailsBeforeCommittingAsAServerError: a workbook that
+// fails before its first byte is written is a 500, not a 200 with an empty
+// attachment the reader would save as a broken file.
+//
+// Falsely green if the failure came after the body had started — then the
+// status is already sent and nothing could change it. The excelize exporter
+// refuses a sheet with no columns before writing anything.
+func TestCrudControllerExportFailsBeforeCommittingAsAServerError(t *testing.T) {
+	suite := newExportSuite(t)
+	controller := controllers.NewCrudController[exportEntity](
+		"/dictionary",
+		newExportBuilder(seededExportService(2)),
+		controllers.WithExport[exportEntity]("id", "code", "name", "status_id", "note", "secret", "created_at"),
+	)
+	suite.Register(controller)
+
+	resp := suite.GET("/dictionary/export?format=excel").Expect(t).Status(http.StatusInternalServerError)
+	assert.Empty(t, resp.Header("Content-Disposition"), "no attachment is offered for a file that was never written")
+}
+
 // TestCrudControllerExportTrimsApostrophesFromTheSheetName: Excel rejects a
 // sheet name that starts or ends with an apostrophe, and the 31-character cut
 // can itself leave one at the end.
@@ -534,7 +554,7 @@ func TestCrudControllerExportNamesTheSheetInCharacters(t *testing.T) {
 func TestCrudControllerExportTrimsApostrophesFromTheSheetName(t *testing.T) {
 	cases := map[string]string{
 		"'" + strings.Repeat("я", 29) + "'tail": strings.Repeat("я", 29),
-		"'''":                                   "Sheet1",
+		"'''":                                   "Export",
 	}
 	for schemaName, want := range cases {
 		suite := newExportSuite(t)
