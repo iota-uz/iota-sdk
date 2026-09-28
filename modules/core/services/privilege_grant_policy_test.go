@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPrivilegeGrantPolicy_DominatesModifiers(t *testing.T) {
@@ -50,7 +51,7 @@ func TestPrivilegeGrantPolicy_CanManageGroupProjectionMatchesEntity(t *testing.T
 
 	tenantID := uuid.New()
 	email, err := internet.NewEmail("group-projection@example.com")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	actor := user.New("Group", "Projection", email, user.UILanguageEN,
 		user.WithTenantID(tenantID),
 		user.WithPermissions([]permission.Permission{permissions.GroupRead, permissions.GroupUpdate}),
