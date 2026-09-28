@@ -234,15 +234,13 @@ func (c *GroupsController) Groups(
 			groupIDs = append(groupIDs, groupID)
 		}
 	}
-	groupPermissions, err := groupQueryService.FindGroupPermissionsByIDs(r.Context(), groupIDs)
-	if err != nil {
-		logger.WithError(err).Error("Error retrieving group permissions")
-		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
-		return
+	groupPermissions, permissionsErr := groupQueryService.FindGroupPermissionsByIDs(r.Context(), groupIDs)
+	if permissionsErr != nil {
+		logger.WithError(permissionsErr).Warn("failed to evaluate group management actions")
 	}
 	for _, groupViewModel := range groupViewModels {
 		groupID, parseErr := uuid.Parse(groupViewModel.ID)
-		if parseErr != nil {
+		if parseErr != nil || permissionsErr != nil {
 			groupViewModel.CanUpdate = false
 			groupViewModel.CanDelete = false
 			continue
