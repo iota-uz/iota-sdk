@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -38,6 +39,15 @@ func (s *GroupQueryService) FindGroupLabelsByIDs(ctx context.Context, groupIDs [
 		return nil, serrors.E(op, err)
 	}
 	return groups, nil
+}
+
+func (s *GroupQueryService) FindGroupPermissionsByIDs(ctx context.Context, groupIDs []uuid.UUID) (map[uuid.UUID][]permission.Permission, error) {
+	const op = serrors.Op("GroupQueryService.FindGroupPermissionsByIDs")
+	result, err := s.repo.FindGroupPermissionsByIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return result, nil
 }
 
 func (s *GroupQueryService) FindGroupByID(ctx context.Context, groupID string) (*viewmodels.Group, error) {
