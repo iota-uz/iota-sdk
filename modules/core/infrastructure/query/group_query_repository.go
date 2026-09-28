@@ -54,6 +54,7 @@ type GroupQueryRepository interface {
 	FindGroups(ctx context.Context, params *GroupFindParams) ([]*viewmodels.Group, int, error)
 	FindAssignmentOptions(ctx context.Context) ([]*viewmodels.AssignmentOption, error)
 	FindGroupLabelsByIDs(ctx context.Context, groupIDs []uuid.UUID) ([]*viewmodels.Group, error)
+	FindGroupPermissionsByIDs(ctx context.Context, groupIDs []uuid.UUID) (map[uuid.UUID][]permission.Permission, error)
 	FindGroupByID(ctx context.Context, groupID string) (*viewmodels.Group, error)
 	SearchGroups(ctx context.Context, params *GroupFindParams) ([]*viewmodels.Group, int, error)
 }
@@ -106,7 +107,42 @@ func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*
 		return options, nil
 	}
 
-	permissionRows, err := tx.Query(ctx, `
+	permissionsByGroup, err := queryGroupPermissions(ctx, tx, ids, tenantID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	for id, groupPermissions := range permissionsByGroup {
+		if option := byID[id]; option != nil {
+			option.Permissions = groupPermissions
+		}
+	}
+	return options, nil
+}
+
+// FindGroupPermissionsByIDs returns the permissions granted through each group's roles, keyed by group ID,
+// in one query for the whole set. Groups without role permissions or outside the tenant are absent.
+func (r *pgGroupQueryRepository) FindGroupPermissionsByIDs(ctx context.Context, groupIDs []uuid.UUID) (map[uuid.UUID][]permission.Permission, error) {
+	const op = serrors.Op("GroupQueryRepository.FindGroupPermissionsByIDs")
+	if len(groupIDs) == 0 {
+		return map[uuid.UUID][]permission.Permission{}, nil
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	result, err := queryGroupPermissions(ctx, tx, groupIDs, tenantID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return result, nil
+}
+
+func queryGroupPermissions(ctx context.Context, tx repo.Tx, groupIDs []uuid.UUID, tenantID uuid.UUID) (map[uuid.UUID][]permission.Permission, error) {
+	rows, err := tx.Query(ctx, `
 		SELECT gr.group_id, p.id, p.name, p.resource, p.action, p.modifier
 		FROM group_roles gr
 		JOIN user_groups g ON g.id = gr.group_id
@@ -115,28 +151,27 @@ func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*
 		JOIN permissions p ON p.id = rp.permission_id
 		WHERE gr.group_id = ANY($1::uuid[]) AND g.tenant_id = $2
 		GROUP BY gr.group_id, p.id, p.name, p.resource, p.action, p.modifier
-		ORDER BY gr.group_id, p.name, p.id`, ids, tenantID)
+		ORDER BY gr.group_id, p.name, p.id`, groupIDs, tenantID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, err
 	}
-	defer permissionRows.Close()
-	for permissionRows.Next() {
+	defer rows.Close()
+	result := make(map[uuid.UUID][]permission.Permission)
+	for rows.Next() {
 		var groupID, id uuid.UUID
 		var name, resource, action, modifier string
-		if err := permissionRows.Scan(&groupID, &id, &name, &resource, &action, &modifier); err != nil {
-			return nil, serrors.E(op, err)
+		if err := rows.Scan(&groupID, &id, &name, &resource, &action, &modifier); err != nil {
+			return nil, err
 		}
-		if option := byID[groupID]; option != nil {
-			option.Permissions = append(option.Permissions, permission.New(
-				permission.WithID(id), permission.WithName(name), permission.WithResource(permission.Resource(resource)),
-				permission.WithAction(permission.Action(action)), permission.WithModifier(permission.Modifier(modifier)),
-			))
-		}
+		result[groupID] = append(result[groupID], permission.New(
+			permission.WithID(id), permission.WithName(name), permission.WithResource(permission.Resource(resource)),
+			permission.WithAction(permission.Action(action)), permission.WithModifier(permission.Modifier(modifier)),
+		))
 	}
-	if err := permissionRows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
-	return options, nil
+	return result, nil
 }
 
 func (r *pgGroupQueryRepository) FindGroupLabelsByIDs(ctx context.Context, groupIDs []uuid.UUID) ([]*viewmodels.Group, error) {

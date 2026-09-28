@@ -163,7 +163,6 @@ func (c *GroupsController) Groups(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	groupQueryService *services.GroupQueryService,
-	groupService *services.GroupService,
 	policy *services.PrivilegeGrantPolicy,
 ) {
 	if err := composables.CanUser(r.Context(), permissions.GroupRead); err != nil {
@@ -223,6 +222,24 @@ func (c *GroupsController) Groups(
 		http.Error(w, "Error retrieving current user", http.StatusInternalServerError)
 		return
 	}
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		logger.WithError(err).Error("Error retrieving tenant")
+		http.Error(w, "Error retrieving tenant", http.StatusInternalServerError)
+		return
+	}
+	groupIDs := make([]uuid.UUID, 0, len(groupViewModels))
+	for _, groupViewModel := range groupViewModels {
+		if groupID, parseErr := uuid.Parse(groupViewModel.ID); parseErr == nil {
+			groupIDs = append(groupIDs, groupID)
+		}
+	}
+	groupPermissions, err := groupQueryService.FindGroupPermissionsByIDs(r.Context(), groupIDs)
+	if err != nil {
+		logger.WithError(err).Error("Error retrieving group permissions")
+		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
+		return
+	}
 	for _, groupViewModel := range groupViewModels {
 		groupID, parseErr := uuid.Parse(groupViewModel.ID)
 		if parseErr != nil {
@@ -230,14 +247,7 @@ func (c *GroupsController) Groups(
 			groupViewModel.CanDelete = false
 			continue
 		}
-		groupEntity, loadErr := groupService.GetByID(r.Context(), groupID)
-		if loadErr != nil {
-			logger.WithField("groupID", groupViewModel.ID).WithError(loadErr).Warn("failed to evaluate group management actions")
-			groupViewModel.CanUpdate = false
-			groupViewModel.CanDelete = false
-			continue
-		}
-		canManage := policy.CanManageGroup(actor, groupEntity)
+		canManage := policy.CanManageGroupProjection(actor, tenantID, group.Type(groupViewModel.Type), groupPermissions[groupID])
 		groupViewModel.CanUpdate = groupViewModel.CanUpdate && canManage
 		groupViewModel.CanDelete = groupViewModel.CanDelete && canManage
 	}
