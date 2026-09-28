@@ -309,7 +309,7 @@ func CardItem(props CardItemProps) templ.Component {
 		}
 		var templ_7745c5c3_Var11 = []any{
 			twmerge.Merge(
-				"w-5 h-5 border border-default rounded-full druation-300 peer-checked:border-brand peer-disabled:border-disabled relative after:absolute after:duration-300 after:w-3 after:h-3 after:rounded-full after:left-1/2 after:top-1/2 after:-translate-x-1/2 after:-translate-y-1/2 peer-checked:after:bg-brand-500",
+				"iota-radio-indicator pointer-events-none w-5 h-5 shrink-0 border border-default rounded-full duration-300 peer-checked:border-brand peer-disabled:border-disabled relative",
 				props.Class.String(),
 			),
 		}

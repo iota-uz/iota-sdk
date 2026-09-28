@@ -67,7 +67,7 @@
 //
 // The agent is configured with:
 //   - Name: "bi_agent"
-//   - Model: "gpt-5.2" (default, customizable via WithModel)
+//   - Model: "gpt-6.0-sol" (default, customizable via WithModel)
 //   - Isolation: Isolated (no access to parent context)
 //   - Completion: implicit stop (model returns no tool calls)
 //

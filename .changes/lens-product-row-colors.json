@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Fix Lens category colors and map visibility: per-row frame colors, distributed bar colors, and corrected product palette."
+}

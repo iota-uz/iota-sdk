@@ -3,7 +3,7 @@
 package paymentsconfig
 
 // ClickConfig holds Click payment gateway settings.
-// Env prefix: "click" (e.g. CLICK_URL → click.url).
+// Sub-prefix under Config: "click" (e.g. PAYMENTS_CLICK_URL → payments.click.url).
 type ClickConfig struct {
 	URL            string `koanf:"url"            default:"https://my.click.uz"`
 	MerchantID     int64  `koanf:"merchantid"`
@@ -13,7 +13,7 @@ type ClickConfig struct {
 }
 
 // PaymeConfig holds Payme payment gateway settings.
-// Env prefix: "payme" (e.g. PAYME_URL → payme.url).
+// Sub-prefix under Config: "payme" (e.g. PAYMENTS_PAYME_URL → payments.payme.url).
 type PaymeConfig struct {
 	URL        string `koanf:"url"        default:"https://checkout.test.paycom.uz"`
 	MerchantID string `koanf:"merchantid"`
@@ -22,7 +22,7 @@ type PaymeConfig struct {
 }
 
 // OctoConfig holds Octo payment gateway settings.
-// Env prefix: "octo" (e.g. OCTO_SHOP_ID → octo.shopid).
+// Sub-prefix under Config: "octo" (e.g. PAYMENTS_OCTO_SHOPID → payments.octo.shopid).
 type OctoConfig struct {
 	ShopID     int32  `koanf:"shopid"`
 	Secret     string `koanf:"secret"     secret:"true"`
@@ -31,7 +31,7 @@ type OctoConfig struct {
 }
 
 // StripeConfig holds Stripe payment gateway settings.
-// Env prefix: "stripe" (e.g. STRIPE_SECRET_KEY → stripe.secretkey).
+// Sub-prefix under Config: "stripe" (e.g. PAYMENTS_STRIPE_SECRETKEY → payments.stripe.secretkey).
 type StripeConfig struct {
 	SecretKey     string `koanf:"secretkey"     secret:"true"`
 	SigningSecret string `koanf:"signingsecret" secret:"true"`

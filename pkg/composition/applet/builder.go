@@ -361,6 +361,9 @@ func contractOptions(contract appletenginerpc.MethodContract) []appletenginerpc.
 	if len(contract.Invalidates) > 0 {
 		options = append(options, appletenginerpc.Invalidates(contract.Invalidates...))
 	}
+	if len(contract.AnyPermissions) > 0 {
+		options = append(options, appletenginerpc.RequireAnyPermissions(contract.AnyPermissions...))
+	}
 	return options
 }
 

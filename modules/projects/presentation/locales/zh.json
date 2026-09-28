@@ -49,7 +49,37 @@
       "SelectCounterparty": "选择交易对手",
       "NoCounterpartiesFound": "未找到交易对手",
       "_Description": "描述",
-      "DeleteConfirmation": "您确定要删除此项目吗？"
+      "DeleteConfirmation": "您确定要删除此项目吗？",
+      "General": "项目",
+      "ContractAmount": "合同金额",
+      "ContractCurrency": "合同币种",
+      "SelectCurrency": "选择币种"
+    },
+    "Acceptance": {
+      "Title": "验收",
+      "New": "新建单据",
+      "Kind": "类型",
+      "Number": "编号",
+      "Date": "日期",
+      "Amount": "金额",
+      "CurrencyCode": "币种",
+      "_Description": "描述",
+      "Add": "添加",
+      "Sign": "签署",
+      "Cancel": "作废",
+      "CancelConfirmation": "作废此单据？",
+      "DeleteConfirmation": "删除此单据？",
+      "Empty": "暂无验收单据",
+      "Kinds": {
+        "_ACT": "验收单",
+        "_DELIVERY_NOTE": "送货单",
+        "_OTHER": "其他单据"
+      },
+      "Statuses": {
+        "DRAFT": "草稿",
+        "SIGNED": "已签署",
+        "CANCELLED": "已作废"
+      }
     }
   },
   "ProjectStages": {

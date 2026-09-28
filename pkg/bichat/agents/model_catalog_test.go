@@ -8,9 +8,9 @@ import (
 )
 
 func TestLookupModelSpec_OpenAI(t *testing.T) {
-	spec, ok := LookupModelSpec(ProviderOpenAI, "gpt-5.5")
+	spec, ok := LookupModelSpec(ProviderOpenAI, "gpt-6.0-sol")
 	require.True(t, ok)
-	assert.Equal(t, "gpt-5.5", spec.Name)
+	assert.Equal(t, "gpt-6.0-sol", spec.Name)
 	assert.Equal(t, ProviderOpenAI, spec.Provider)
 	assert.Equal(t, 1_050_000, spec.ContextWindow)
 	assert.NotEmpty(t, spec.Pricing.Currency)
@@ -24,7 +24,7 @@ func TestLookupModelSpec_OpenAI(t *testing.T) {
 	assert.False(t, ok3)
 }
 
-func TestLookupModelSpec_GPT56(t *testing.T) {
+func TestLookupModelSpec_GPT60(t *testing.T) {
 	tests := []struct {
 		name            string
 		model           string
@@ -36,30 +36,30 @@ func TestLookupModelSpec_GPT56(t *testing.T) {
 	}{
 		{
 			name:            "Sol canonical model",
-			model:           "gpt-5.6-sol",
-			wantName:        "gpt-5.6-sol",
-			inputPer1M:      5,
-			outputPer1M:     30,
-			cacheWritePer1M: 6.25,
-			cacheReadPer1M:  0.5,
+			model:           "gpt-6.0-sol",
+			wantName:        "gpt-6.0-sol",
+			inputPer1M:      2,
+			outputPer1M:     10,
+			cacheWritePer1M: 2.5,
+			cacheReadPer1M:  0.2,
 		},
 		{
 			name:            "Sol alias",
-			model:           "gpt-5.6",
-			wantName:        "gpt-5.6-sol",
-			inputPer1M:      5,
-			outputPer1M:     30,
-			cacheWritePer1M: 6.25,
-			cacheReadPer1M:  0.5,
+			model:           "gpt-6.0",
+			wantName:        "gpt-6.0-sol",
+			inputPer1M:      2,
+			outputPer1M:     10,
+			cacheWritePer1M: 2.5,
+			cacheReadPer1M:  0.2,
 		},
 		{
 			name:            "Luna canonical model",
-			model:           "gpt-5.6-luna",
-			wantName:        "gpt-5.6-luna",
-			inputPer1M:      1,
-			outputPer1M:     6,
-			cacheWritePer1M: 1.25,
-			cacheReadPer1M:  0.1,
+			model:           "gpt-6.0-luna",
+			wantName:        "gpt-6.0-luna",
+			inputPer1M:      0.1,
+			outputPer1M:     0.5,
+			cacheWritePer1M: 0.125,
+			cacheReadPer1M:  0.01,
 		},
 	}
 
@@ -92,7 +92,7 @@ func TestDefaultModelForProvider_OpenAI(t *testing.T) {
 func TestDefaultModelSpecForProvider_OpenAI(t *testing.T) {
 	spec, ok := DefaultModelSpecForProvider(ProviderOpenAI)
 	require.True(t, ok)
-	assert.Equal(t, "gpt-5.5", spec.Name)
+	assert.Equal(t, "gpt-6.0-sol", spec.Name)
 	assert.Equal(t, ProviderOpenAI, spec.Provider)
 
 	_, ok2 := DefaultModelSpecForProvider("unknown-provider")

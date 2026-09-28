@@ -43,21 +43,6 @@ type askUserQuestionArgsOption struct {
 // Used by streaming tools (e.g., delegation) to propagate child events.
 type EventEmitter = func(ExecutorEvent) bool
 
-type eventEmitterKey struct{}
-
-// Deprecated: WithEventEmitter stores an EventEmitter in the context.
-// Prefer implementing the StreamingTool interface instead.
-func WithEventEmitter(ctx context.Context, emitter EventEmitter) context.Context {
-	return context.WithValue(ctx, eventEmitterKey{}, emitter)
-}
-
-// Deprecated: EventEmitterFromContext retrieves the EventEmitter from the context.
-// Prefer implementing the StreamingTool interface instead.
-func EventEmitterFromContext(ctx context.Context) (EventEmitter, bool) {
-	emitter, ok := ctx.Value(eventEmitterKey{}).(EventEmitter)
-	return emitter, ok
-}
-
 // ExecutorEventType identifies different types of executor events.
 type ExecutorEventType string
 
@@ -65,10 +50,6 @@ const (
 	// EventTypeContent is emitted for streaming text chunks from the LLM.
 	// Content is available in both Chunk.Delta (raw) and Content (convenience field).
 	EventTypeContent ExecutorEventType = "content"
-
-	// EventTypeChunk is an alias for EventTypeContent for backward compatibility.
-	// Prefer EventTypeContent in new code.
-	EventTypeChunk ExecutorEventType = "content"
 
 	// EventTypeTextBlockEnd is emitted to mark the end of an assistant text segment.
 	// It is emitted before the first tool_start of an iteration when prior text has

@@ -1331,7 +1331,7 @@ func panelFrameColors(spec panel.Spec, source *frame.Frame) []string {
 				if strings.EqualFold(spec.ColorScale, "literal") {
 					colors[index] = key
 				} else if key != "" {
-					colors[index] = lenscolor.Semantic(spec.ColorScale, key)
+					colors[index] = lenscolor.CategoricalKey(spec.ColorScale, key)
 				}
 			}
 			return colors

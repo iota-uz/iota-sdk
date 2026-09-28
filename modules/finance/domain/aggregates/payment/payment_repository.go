@@ -13,16 +13,17 @@ type DateRange struct {
 }
 
 type FindParams struct {
-	Limit     int
-	Offset    int
-	SortBy    []string
-	Query     string
-	Field     string
+	Limit  int
+	Offset int
+	SortBy []string
+	// Search matches the payment comment.
+	Search    string
 	CreatedAt DateRange
 }
 
 type Repository interface {
-	Count(ctx context.Context) (int64, error)
+	// Count counts the payments GetPaginated would find without a limit.
+	Count(ctx context.Context, params *FindParams) (int64, error)
 	GetAll(ctx context.Context) ([]Payment, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Payment, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Payment, error)

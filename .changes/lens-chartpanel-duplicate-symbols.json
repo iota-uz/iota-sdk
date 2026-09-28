@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Fix duplicate legendSeriesIndex/legendEntryKey declarations in ChartPanel that broke the frontend package build on main."
+}

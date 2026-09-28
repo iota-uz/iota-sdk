@@ -5,9 +5,9 @@ package ratelimitconfig
 import "fmt"
 
 // Config holds all rate-limit settings.
-// Env prefix: "ratelimit" (e.g. RATE_LIMIT_ENABLED → ratelimit.enabled).
+// Env prefix: "ratelimit" (e.g. RATELIMIT_ENABLED → ratelimit.enabled).
 //
-// The Enabled field is a *bool so an explicit RATE_LIMIT_ENABLED=false from
+// The Enabled field is a *bool so an explicit RATELIMIT_ENABLED=false from
 // the environment is distinguishable from "absent". When absent the tag engine
 // allocates the pointer and sets it to true. Use IsEnabled() to read the value
 // safely without a nil-check.

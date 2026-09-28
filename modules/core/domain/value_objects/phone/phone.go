@@ -116,7 +116,6 @@ func NewFromE164(v string) (Phone, error) {
 
 type phone string
 
-// TODO: rewrite this, kept for backward compatibility
 func (p phone) Value() string {
 	return Strip(string(p))
 }
