@@ -212,13 +212,25 @@ func (c *CrudController[TEntity]) exportParams(r *http.Request) (*crud.FindParam
 	}
 	// The export pages through the result with OFFSET, which is only sound over
 	// a total order: without ORDER BY, or over a column with ties, rows move
-	// between batches and the file repeats some and drops others. The primary
-	// key breaks every tie.
-	if key := c.primaryKeyField.Name(); len(sortFields) == 0 || sortFields[0].Field != key {
-		sortFields = append(sortFields, repo.SortByField[string]{Field: key, Ascending: true})
+	// between batches and the file repeats some and drops others. The key
+	// breaks every tie — all of its fields, since a composite key is unique
+	// only as a whole.
+	for _, key := range c.schema.Fields().KeyFields() {
+		if !exportSortsBy(sortFields, key.Name()) {
+			sortFields = append(sortFields, repo.SortByField[string]{Field: key.Name(), Ascending: true})
+		}
 	}
 	params.SortBy = crud.SortBy{Fields: sortFields}
 	return params, nil
+}
+
+func exportSortsBy(fields []repo.SortByField[string], name string) bool {
+	for _, f := range fields {
+		if f.Field == name {
+			return true
+		}
+	}
+	return false
 }
 
 // exportEntities walks every page of params, a batch at a time.
@@ -373,8 +385,9 @@ func (c *CrudController[TEntity]) exportFilename(format export.ExportFormat) str
 }
 
 // exportSheetName is the schema name made acceptable to Excel, which rejects a
-// sheet name holding any of \ / ? * [ ] : or longer than 31 characters. A
-// rejected name would fail the workbook after the response headers were sent.
+// sheet name holding any of \ / ? * [ ] :, starting or ending with an
+// apostrophe, empty, or longer than 31 characters. A rejected name would fail
+// the workbook after the response headers were sent.
 func (c *CrudController[TEntity]) exportSheetName() string {
 	name := strings.NewReplacer(
 		`\`, "_", "/", "_", "?", "_", "*", "_", "[", "_", "]", "_", ":", "_",
@@ -382,7 +395,11 @@ func (c *CrudController[TEntity]) exportSheetName() string {
 	// The limit is in characters: cutting bytes could split a multi-byte rune
 	// and leave invalid UTF-8, which Excel rejects just the same.
 	if runes := []rune(name); len(runes) > 31 {
-		return string(runes[:31])
+		name = string(runes[:31])
+	}
+	// Trimmed after the cut, which can itself end the name on an apostrophe.
+	if name = strings.Trim(name, "'"); name == "" {
+		return "Sheet1"
 	}
 	return name
 }

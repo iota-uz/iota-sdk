@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xuri/excelize/v2"
 )
 
 // The export fixture is a dictionary as the SDK's consumers build them: a
@@ -40,7 +41,7 @@ const (
 	exportStatusArchived = 2
 )
 
-func newExportFields() crud.Fields {
+func newExportFields(codeOpts ...crud.FieldOption) crud.Fields {
 	statusField := crud.NewSelectField("status_id").
 		SetValueType(crud.IntFieldType).
 		SetOptions([]crud.SelectOption{
@@ -50,7 +51,7 @@ func newExportFields() crud.Fields {
 
 	return crud.NewFields([]crud.Field{
 		crud.NewUUIDField("id", crud.WithKey(), crud.WithReadonly(), crud.WithHidden()),
-		crud.NewStringField("code", crud.WithSearchable()),
+		crud.NewStringField("code", append([]crud.FieldOption{crud.WithSearchable()}, codeOpts...)...),
 		crud.NewJSONField(
 			"name",
 			crud.JSONFieldConfig[models.MultiLang]{Validator: func(models.MultiLang) error { return nil }},
@@ -429,6 +430,39 @@ func TestCrudControllerExportPagesOverATotalOrder(t *testing.T) {
 	assert.Equal(t, "id", fields[1].Field)
 }
 
+// TestCrudControllerExportBreaksTiesOnEveryKeyField: a composite key is unique
+// only as a whole, so each of its fields joins the order, not just the first.
+//
+// Falsely green if the reader's own sort already named every key field — then
+// nothing would have to be appended.
+func TestCrudControllerExportBreaksTiesOnEveryKeyField(t *testing.T) {
+	suite := newExportSuite(t)
+	service := seededExportService(1200)
+	fields := newExportFields(crud.WithKey())
+	builder := &exportBuilder{
+		schema:  crud.NewSchema("dictionary", fields, &exportMapper{fields: fields}),
+		service: service,
+	}
+	suite.Register(controllers.NewCrudController[exportEntity]("/dictionary", builder, controllers.WithExport[exportEntity]()))
+
+	suite.GET("/dictionary/export?format=csv").Expect(t).Status(http.StatusOK)
+	require.Len(t, service.sorts, 3, "1200 rows are read in three batches")
+	for _, sortBy := range service.sorts {
+		require.Len(t, sortBy.Fields, 2)
+		assert.Equal(t, "id", sortBy.Fields[0].Field)
+		assert.Equal(t, "code", sortBy.Fields[1].Field)
+	}
+
+	service.sorts = nil
+	suite.GET("/dictionary/export?format=csv&sort=code&order=desc").Expect(t).Status(http.StatusOK)
+	require.NotEmpty(t, service.sorts)
+	sorted := service.sorts[0].Fields
+	require.Len(t, sorted, 2, "a key field the reader already sorts by is not repeated")
+	assert.Equal(t, "code", sorted[0].Field)
+	assert.False(t, sorted[0].Ascending)
+	assert.Equal(t, "id", sorted[1].Field)
+}
+
 // TestCrudControllerExportRefusesWhatItWillNotBuild covers the two requests an
 // export turns down before reading a row: a query List itself would reject,
 // and a result set larger than one file may hold in memory.
@@ -489,4 +523,32 @@ func TestCrudControllerExportNamesTheSheetInCharacters(t *testing.T) {
 	body := suite.GET("/dictionary/export?format=excel").Expect(t).Status(http.StatusOK).Body()
 	assert.True(t, strings.HasPrefix(body, "PK"), "a xlsx file is a zip container")
 	assert.Greater(t, len(body), 1024, "the workbook was written, not abandoned after the headers")
+}
+
+// TestCrudControllerExportTrimsApostrophesFromTheSheetName: Excel rejects a
+// sheet name that starts or ends with an apostrophe, and the 31-character cut
+// can itself leave one at the end.
+//
+// Falsely green if the apostrophe sat past the cut — then truncation alone
+// would drop it. Here it is the 31st character.
+func TestCrudControllerExportTrimsApostrophesFromTheSheetName(t *testing.T) {
+	cases := map[string]string{
+		"'" + strings.Repeat("я", 29) + "'tail": strings.Repeat("я", 29),
+		"'''":                                   "Sheet1",
+	}
+	for schemaName, want := range cases {
+		suite := newExportSuite(t)
+		fields := newExportFields()
+		builder := &exportBuilder{
+			schema:  crud.NewSchema(schemaName, fields, &exportMapper{fields: fields}),
+			service: seededExportService(2),
+		}
+		suite.Register(controllers.NewCrudController[exportEntity]("/dictionary", builder, controllers.WithExport[exportEntity]()))
+
+		body := suite.GET("/dictionary/export?format=excel").Expect(t).Status(http.StatusOK).Body()
+		workbook, err := excelize.OpenReader(strings.NewReader(body))
+		require.NoError(t, err)
+		assert.Equal(t, []string{want}, workbook.GetSheetList())
+		require.NoError(t, workbook.Close())
+	}
 }
