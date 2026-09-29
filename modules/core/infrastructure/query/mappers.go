@@ -6,26 +6,28 @@ import (
 	"strconv"
 	"time"
 
+	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 )
 
 func mapToUserViewModel(dbUser models.User, hasAvatar bool, avatar *models.Upload) viewmodels.User {
 	user := viewmodels.User{
-		ID:           strconv.FormatUint(uint64(dbUser.ID), 10),
-		TenantID:     dbUser.TenantID,
-		Type:         dbUser.Type,
-		FirstName:    dbUser.FirstName,
-		LastName:     dbUser.LastName,
-		MiddleName:   dbUser.MiddleName.String,
-		Email:        dbUser.Email,
-		Language:     dbUser.UILanguage,
-		CreatedAt:    dbUser.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:    dbUser.UpdatedAt.Format(time.RFC3339),
-		CanUpdate:    dbUser.Type != "system",
-		CanDelete:    dbUser.Type != "system",
-		IsBlocked:    dbUser.IsBlocked,
-		CanBeBlocked: dbUser.Type != "system",
+		ID:                strconv.FormatUint(uint64(dbUser.ID), 10),
+		TenantID:          dbUser.TenantID,
+		Type:              dbUser.Type,
+		FirstName:         dbUser.FirstName,
+		LastName:          dbUser.LastName,
+		MiddleName:        dbUser.MiddleName.String,
+		Email:             dbUser.Email,
+		Language:          dbUser.UILanguage,
+		CreatedAt:         dbUser.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:         dbUser.UpdatedAt.Format(time.RFC3339),
+		CanUpdate:         dbUser.Type != "system",
+		CanDelete:         dbUser.Type != "system",
+		IsBlocked:         dbUser.IsBlocked,
+		CanBeBlocked:      dbUser.Type != "system",
+		PendingOnboarding: dbUser.Status == string(coreuser.StatusPendingOnboarding),
 	}
 
 	if dbUser.Phone.Valid {

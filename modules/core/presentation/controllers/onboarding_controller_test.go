@@ -225,6 +225,11 @@ func TestUsersController_IssueTemporaryPassword(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, stored.IsPendingOnboarding())
 		assert.True(t, stored.CheckPassword(match[1]))
+
+		suite.GET(fmt.Sprintf("/users/%d/edit", target.ID())).Expect(t).
+			Status(http.StatusOK).
+			Contains(`data-testid="pending-onboarding-notice"`).
+			NotContains(`name="Password"`)
 	})
 
 	t.Run("requires the update permission", func(t *testing.T) {
