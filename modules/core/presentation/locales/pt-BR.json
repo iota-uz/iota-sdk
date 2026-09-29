@@ -1,4 +1,36 @@
 {
+	"Onboarding": {
+		"Errors": {
+			"FirstNameRequired": "Informe seu nome",
+			"LastNameRequired": "Informe seu sobrenome",
+			"LanguageRequired": "Escolha um idioma suportado",
+			"PhoneInvalid": "Informe um telefone válido",
+			"PasswordTooShort": "A senha deve ter pelo menos 8 caracteres",
+			"PasswordTooLong": "A senha é longa demais: use até 72 caracteres latinos",
+			"PasswordReusesTemporary": "A nova senha deve ser diferente da temporária",
+			"PasswordInvalid": "A senha não atende à política de senhas",
+			"ConfirmationMismatch": "As senhas não coincidem",
+			"AvatarNotImage": "O avatar deve ser uma imagem"
+		},
+		"Title": "Configure sua conta",
+		"Intro": "Escolha um idioma, preencha seu perfil e defina sua própria senha. Depois, entre com ela.",
+		"Email": "Email",
+		"Language": "Idioma da interface",
+		"FirstName": "Nome",
+		"LastName": "Sobrenome",
+		"MiddleName": "Nome do meio (opcional)",
+		"Phone": "Telefone (opcional)",
+		"Avatar": "Avatar (opcional)",
+		"PasswordHint": "Use pelo menos {{.Min}} caracteres. Frases-senha e gerenciadores de senhas são bem-vindos.",
+		"NewPassword": "Nova senha",
+		"ConfirmPassword": "Confirme a nova senha",
+		"Submit": "Concluir configuração",
+		"Logout": "Sair",
+		"Completed": "Sua conta está pronta. Entre com a nova senha.",
+		"Meta": {
+			"Title": "Configuração da conta"
+		}
+	},
   "Authorization": {
     "Errors": {
       "Title": "Ação não permitida",
@@ -472,6 +504,8 @@
 		"UseAnotherAccount": "Usar outra conta",
 		"ActiveAccount": "Ativa",
     "Errors": {
+			"TemporaryPasswordExpired": "A senha temporária não é mais válida. Peça uma nova ao administrador.",
+			"OnboardingRequired": "Conclua a configuração da conta: entre com a senha temporária fornecida pelo administrador.",
       "PasswordInvalid": "E-mail ou senha inválidos",
       "OauthStateNotFound": "Estado oAuth não encontrado. Por favor, tente novamente.",
       "OauthStateInvalid": "Estado oAuth inválido. Por favor, tente novamente.",
@@ -1101,6 +1135,19 @@
   "System": "Sistema",
   "UpdatedAt": "Atualizado em",
   "Users": {
+		"PendingOnboarding": {
+			"Notice": "O usuário ainda não concluiu a configuração: o acesso é liberado depois que ele definir a própria senha."
+		},
+		"TemporaryPassword": {
+			"Issued": "Senha temporária para {{.Email}}",
+			"Copy": "Copiar",
+			"Copied": "Copiado",
+			"ExpiresAt": "Válida até",
+			"ShownOnce": "Esta senha é exibida apenas uma vez. Entregue-a ao usuário você mesmo.",
+			"BackToUsers": "Voltar para usuários",
+			"Confirm": "Emitir uma nova senha temporária? A senha atual deixa de funcionar e todas as sessões do usuário são encerradas.",
+			"Button": "Emitir senha temporária"
+		},
     "Meta": {
       "List": {
         "Title": "Usuários"
@@ -1142,6 +1189,9 @@
       "Sessions": "Sessões"
     },
     "Single": {
+			"TemporaryPassword": "Senha temporária",
+			"TemporaryPasswordPlaceholder": "Deixe vazio para gerar",
+			"TemporaryPasswordHint": "O usuário entra com ela uma vez e define a própria senha. Válida por 72 horas.",
       "EditUser": "Editar usuário",
       "FirstName": "Nome",
       "LastName": "Sobrenome",

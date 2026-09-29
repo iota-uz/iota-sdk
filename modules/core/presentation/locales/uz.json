@@ -1,4 +1,36 @@
 {
+	"Onboarding": {
+		"Errors": {
+			"FirstNameRequired": "Ismni kiriting",
+			"LastNameRequired": "Familiyani kiriting",
+			"LanguageRequired": "Qo'llab-quvvatlanadigan tilni tanlang",
+			"PhoneInvalid": "To'g'ri telefon raqamini kiriting",
+			"PasswordTooShort": "Parol kamida 8 ta belgidan iborat bo'lishi kerak",
+			"PasswordTooLong": "Parol juda uzun: ko'pi bilan 72 ta lotin belgisi",
+			"PasswordReusesTemporary": "Yangi parol vaqtinchalik paroldan farq qilishi kerak",
+			"PasswordInvalid": "Parol parol siyosatiga mos kelmaydi",
+			"ConfirmationMismatch": "Parollar mos kelmadi",
+			"AvatarNotImage": "Avatar rasm bo'lishi kerak"
+		},
+		"Title": "Akkauntni sozlash",
+		"Intro": "Tilni tanlang, profilni to'ldiring va o'z parolingizni o'rnating. Keyin u bilan kiring.",
+		"Email": "Email",
+		"Language": "Interfeys tili",
+		"FirstName": "Ism",
+		"LastName": "Familiya",
+		"MiddleName": "Otasining ismi (ixtiyoriy)",
+		"Phone": "Telefon (ixtiyoriy)",
+		"Avatar": "Avatar (ixtiyoriy)",
+		"PasswordHint": "Kamida {{.Min}} ta belgi. Parol iborasi va parol menejeridan foydalanish mumkin.",
+		"NewPassword": "Yangi parol",
+		"ConfirmPassword": "Yangi parolni takrorlang",
+		"Submit": "Sozlashni yakunlash",
+		"Logout": "Chiqish",
+		"Completed": "Akkaunt tayyor. Yangi parol bilan kiring.",
+		"Meta": {
+			"Title": "Akkauntni sozlash"
+		}
+	},
   "Authorization": {
     "Errors": {
       "Title": "Amalga ruxsat berilmagan",
@@ -472,6 +504,8 @@
 		"UseAnotherAccount": "Boshqa akkauntdan foydalanish",
 		"ActiveAccount": "Faol",
     "Errors": {
+			"TemporaryPasswordExpired": "Vaqtinchalik parol endi amal qilmaydi. Administratordan yangisini so'rang.",
+			"OnboardingRequired": "Akkaunt sozlashni yakunlang: administrator bergan vaqtinchalik parol bilan kiring.",
       "PasswordInvalid": "Email yoki parol noto'g'ri",
       "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
       "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
@@ -1096,6 +1130,19 @@
   "System": "Tizim",
   "UpdatedAt": "Yangilangan sana",
   "Users": {
+		"PendingOnboarding": {
+			"Notice": "Foydalanuvchi hali sozlashni yakunlamagan: o'z parolini o'rnatgandan keyin kirish ochiladi."
+		},
+		"TemporaryPassword": {
+			"Issued": "{{.Email}} uchun vaqtinchalik parol",
+			"Copy": "Nusxalash",
+			"Copied": "Nusxalandi",
+			"ExpiresAt": "Amal qilish muddati",
+			"ShownOnce": "Parol faqat bir marta ko'rsatiladi. Uni foydalanuvchiga o'zingiz yetkazing.",
+			"BackToUsers": "Foydalanuvchilar ro'yxatiga",
+			"Confirm": "Yangi vaqtinchalik parol berilsinmi? Joriy parol ishlamay qoladi va foydalanuvchining barcha sessiyalari yakunlanadi.",
+			"Button": "Vaqtinchalik parol berish"
+		},
     "Meta": {
       "List": {
         "Title": "Foydalanuvchilar"
@@ -1137,6 +1184,9 @@
       "Sessions": "Sessiyalar"
     },
     "Single": {
+			"TemporaryPassword": "Vaqtinchalik parol",
+			"TemporaryPasswordPlaceholder": "Yaratish uchun bo'sh qoldiring",
+			"TemporaryPasswordHint": "Foydalanuvchi u bilan bir marta kiradi va o'z parolini o'rnatadi. 72 soat amal qiladi.",
       "EditUser": "Foydalanuvchini tahrirlash",
       "FirstName": "Ism",
       "LastName": "Familiya",

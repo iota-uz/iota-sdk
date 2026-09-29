@@ -1,6 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { login, logout } from '../../fixtures/auth';
+import { loginThroughOnboarding, submitNewUserForm } from '../../fixtures/onboarding';
 import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
+
+const temporaryPassword = 'TestPass123!';
+const ownPassword = 'RegspecOwnPass123!';
 
 test.describe('user auth and registration flow', () => {
 	// Tests MUST run serially - each test depends on data created by previous tests
@@ -41,7 +45,7 @@ test.describe('user auth and registration flow', () => {
 		await page.locator('[name=MiddleName]').fill('Mid');
 		await page.locator('[name=Email]').fill('test1@gmail.com');
 		await page.locator('[name=Phone]').fill('+998901234567');
-		await page.locator('[name=Password]').fill('TestPass123!');
+		await page.locator('[name=Password]').fill(temporaryPassword);
 		await page.locator('[name=Language]').selectOption({ index: 2 });
 
 		// Handle Alpine.js dropdown for RoleIDs
@@ -54,19 +58,21 @@ test.describe('user auth and registration flow', () => {
 		await expect(roleDropdown).toBeVisible();
 		await roleDropdown.locator('li').first().click();
 
-		// Save the form
-		await page.locator('[id=save-btn]').click();
+		// Save the form; the created user is shown with its temporary password
+		expect(await submitNewUserForm(page)).toBe(temporaryPassword);
 
-		// Wait for redirect after save
-		await page.waitForURL(/\/users$/);
-
+		await page.goto('/users');
 		// Verify user count increased by 1
 		await expect(page.locator('tbody tr')).toHaveCount(initialRowCount + 1);
 
 		await logout(page);
 
-		// Login as the newly created user
-		await login(page, 'test1@gmail.com', 'TestPass123!');
+		// The newly created user sets their own password before using the app
+		await loginThroughOnboarding(page, 'test1@gmail.com', temporaryPassword, {
+			firstName: 'Regspec',
+			lastName: 'Newuser',
+			newPassword: ownPassword,
+		});
 		await page.goto('/users');
 
 		await expect(page).toHaveURL(/\/users/);
@@ -113,14 +119,14 @@ test.describe('user auth and registration flow', () => {
 		await logout(page);
 
 		// Login with the updated email
-		await login(page, 'test1new@gmail.com', 'TestPass123!');
+		await login(page, 'test1new@gmail.com', ownPassword);
 		await page.goto('/users');
 		await expect(page).toHaveURL(/\/users/);
 	});
 
 	test('newly created user should see tabs in the sidebar', async ({ page }) => {
 		// Login with the updated email from test 2 (test1@gmail.com was changed to test1new@gmail.com)
-		await login(page, 'test1new@gmail.com', 'TestPass123!');
+		await login(page, 'test1new@gmail.com', ownPassword);
 		await page.goto('/');
 		await expect(page).not.toHaveURL(/\/login/);
 

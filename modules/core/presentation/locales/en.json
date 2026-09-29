@@ -1,4 +1,36 @@
 {
+	"Onboarding": {
+		"Errors": {
+			"FirstNameRequired": "Enter your first name",
+			"LastNameRequired": "Enter your last name",
+			"LanguageRequired": "Choose a supported language",
+			"PhoneInvalid": "Enter a valid phone number",
+			"PasswordTooShort": "The password must be at least 8 characters long",
+			"PasswordTooLong": "The password is too long: use up to 72 Latin characters",
+			"PasswordReusesTemporary": "The new password must differ from the temporary one",
+			"PasswordInvalid": "The password does not meet the password policy",
+			"ConfirmationMismatch": "The passwords do not match",
+			"AvatarNotImage": "The avatar must be an image"
+		},
+		"Title": "Set up your account",
+		"Intro": "Choose a language, fill in your profile and set your own password. You will then sign in with it.",
+		"Email": "Email",
+		"Language": "Interface language",
+		"FirstName": "First name",
+		"LastName": "Last name",
+		"MiddleName": "Middle name (optional)",
+		"Phone": "Phone (optional)",
+		"Avatar": "Avatar (optional)",
+		"PasswordHint": "Use at least {{.Min}} characters. Passphrases and password managers are welcome.",
+		"NewPassword": "New password",
+		"ConfirmPassword": "Confirm new password",
+		"Submit": "Finish setup",
+		"Logout": "Log out",
+		"Completed": "Your account is ready. Sign in with your new password.",
+		"Meta": {
+			"Title": "Account setup"
+		}
+	},
   "Authorization": {
     "Errors": {
       "Title": "Action not allowed",
@@ -472,6 +504,8 @@
 		"UseAnotherAccount": "Use another account",
 		"ActiveAccount": "Active",
     "Errors": {
+			"TemporaryPasswordExpired": "The temporary password is no longer valid. Ask your administrator for a new one.",
+			"OnboardingRequired": "Finish setting up your account: sign in with the temporary password from your administrator.",
       "PasswordInvalid": "Email or password is invalid",
       "OauthStateNotFound": "oAuth state not found. Please, try again.",
       "OauthStateInvalid": "Invalid oAuth state. Please, try again.",
@@ -1097,6 +1131,19 @@
   "System": "System",
   "UpdatedAt": "Updated at",
   "Users": {
+		"PendingOnboarding": {
+			"Notice": "The user has not finished onboarding yet: access opens after they set their own password."
+		},
+		"TemporaryPassword": {
+			"Issued": "Temporary password for {{.Email}}",
+			"Copy": "Copy",
+			"Copied": "Copied",
+			"ExpiresAt": "Valid until",
+			"ShownOnce": "This password is shown only once. Pass it to the user yourself.",
+			"BackToUsers": "Back to users",
+			"Confirm": "Issue a new temporary password? The current password stops working and all sessions of the user are ended.",
+			"Button": "Issue temporary password"
+		},
     "Meta": {
       "List": {
         "Title": "Users"
@@ -1138,6 +1185,9 @@
       "Sessions": "Sessions"
     },
     "Single": {
+			"TemporaryPassword": "Temporary password",
+			"TemporaryPasswordPlaceholder": "Leave empty to generate",
+			"TemporaryPasswordHint": "The user signs in with it once, then sets their own password. Valid for 72 hours.",
       "EditUser": "Edit user",
       "FirstName": "First name",
       "LastName": "Last name",

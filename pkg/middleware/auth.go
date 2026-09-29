@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
@@ -115,6 +116,18 @@ func Authorize() mux.MiddlewareFunc {
 					return
 				}
 
+				// Security: an onboarding session never authenticates a route;
+				// only the onboarding controller accepts it. Page navigation is
+				// sent back to onboarding instead of the login form.
+				if sess.IsPendingOnboarding() && !sess.IsExpired() {
+					if r.Method == http.MethodGet && !htmx.IsHxRequest(r) && !onboardingRedirectExempt(r.URL.Path) {
+						http.Redirect(w, r, services.OnboardingPath, http.StatusFound)
+						return
+					}
+					next.ServeHTTP(w, r)
+					return
+				}
+
 				// Security: pending 2FA sessions are only allowed on 2FA routes.
 				// Other inactive sessions (expired, invalid status) are not authenticated.
 				if !sess.IsActive() {
@@ -193,6 +206,12 @@ func AuthorizeAnySession() mux.MiddlewareFunc {
 	}
 }
 
+// onboardingRedirectExempt keeps sign-in pages reachable so a global
+// Authorize chain (e.g. the superadmin binary) cannot loop.
+func onboardingRedirectExempt(path string) bool {
+	return path == services.OnboardingPath || path == "/logout" || path == "/login" || strings.HasPrefix(path, "/login/")
+}
+
 func ProvideUser() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
@@ -232,6 +251,16 @@ func ProvideUser() mux.MiddlewareFunc {
 				// blocked-user check so the error message is rendered in
 				// the user's preferred language.
 				ctx = refreshLocalizerForUser(ctx, container, string(u.UILanguage()))
+
+				// A full session must never outlive a pending onboarding.
+				if u.IsPendingOnboarding() && !sess.IsPendingOnboarding() {
+					browserSessionService, resolveErr := composition.Resolve[*services.BrowserSessionService](container)
+					if resolveErr == nil {
+						_, _ = browserSessionService.RemoveCurrent(w, r)
+					}
+					http.Redirect(w, r.WithContext(ctx), "/login", http.StatusFound)
+					return
+				}
 
 				// Check if user is blocked
 				if u.IsBlocked() {

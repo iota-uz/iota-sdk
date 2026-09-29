@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -48,7 +49,10 @@ const (
             u.blocked_by_tenant_id,
             u.two_factor_method,
             u.totp_secret_encrypted,
-            u.two_factor_enabled_at
+            u.two_factor_enabled_at,
+            u.status,
+            u.password_expires_at,
+            u.failed_password_attempts
         FROM users u`
 
 	userCountQuery = `SELECT COUNT(u.id) FROM users u`
@@ -454,6 +458,9 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 		"two_factor_method",
 		"totp_secret_encrypted",
 		"two_factor_enabled_at",
+		"status",
+		"password_expires_at",
+		"failed_password_attempts",
 	}
 
 	values := []interface{}{
@@ -477,6 +484,9 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 		dbUser.TwoFactorMethod,
 		dbUser.TOTPSecretEncrypted,
 		dbUser.TwoFactorEnabledAt,
+		dbUser.Status,
+		dbUser.PasswordExpiresAt,
+		dbUser.FailedPasswordAttempts,
 	}
 
 	if efs, ok := data.(repo.ExtendedFieldSet); ok {
@@ -610,6 +620,79 @@ func (g *PgUserRepository) UpdatePassword(ctx context.Context, userID uint, pass
 	}
 	if tag.RowsAffected() != 1 {
 		return serrors.E(op, ErrUserNotFound)
+	}
+	return nil
+}
+
+// UpdateCredentials stores the password together with the onboarding state
+// that governs how that password may be used.
+func (g *PgUserRepository) UpdateCredentials(ctx context.Context, data user.User) error {
+	const op serrors.Op = "PgUserRepository.UpdateCredentials"
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	tag, err := tx.Exec(ctx, `
+		UPDATE users
+		SET password = $1, status = $2, password_expires_at = $3, failed_password_attempts = $4, updated_at = $5
+		WHERE id = $6 AND tenant_id = $7`,
+		data.Password(),
+		string(data.Status()),
+		mapping.ValueToSQLNullTime(data.PasswordExpiresAt()),
+		data.FailedPasswordAttempts(),
+		data.UpdatedAt(),
+		data.ID(),
+		tenantID,
+	)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if tag.RowsAffected() != 1 {
+		return serrors.E(op, ErrUserNotFound)
+	}
+	return nil
+}
+
+// ReserveTemporaryPasswordAttempt atomically claims one of the limited
+// temporary-password attempts and reports false once they are exhausted.
+func (g *PgUserRepository) ReserveTemporaryPasswordAttempt(ctx context.Context, userID uint, limit int) (bool, error) {
+	const op serrors.Op = "PgUserRepository.ReserveTemporaryPasswordAttempt"
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+	tag, err := tx.Exec(ctx, `
+		UPDATE users
+		SET failed_password_attempts = failed_password_attempts + 1
+		WHERE id = $1 AND tenant_id = $2 AND password_expires_at IS NOT NULL AND failed_password_attempts < $3`,
+		userID, tenantID, limit)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// ReleaseTemporaryPasswordAttempt returns an attempt claimed by a correct
+// temporary password.
+func (g *PgUserRepository) ReleaseTemporaryPasswordAttempt(ctx context.Context, userID uint) error {
+	const op serrors.Op = "PgUserRepository.ReleaseTemporaryPasswordAttempt"
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if err := g.execQuery(ctx, `
+		UPDATE users
+		SET failed_password_attempts = GREATEST(failed_password_attempts - 1, 0)
+		WHERE id = $1 AND tenant_id = $2 AND password_expires_at IS NOT NULL`, userID, tenantID); err != nil {
+		return serrors.E(op, err)
 	}
 	return nil
 }
@@ -754,6 +837,9 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 			&u.TwoFactorMethod,
 			&u.TOTPSecretEncrypted,
 			&u.TwoFactorEnabledAt,
+			&u.Status,
+			&u.PasswordExpiresAt,
+			&u.FailedPasswordAttempts,
 		); err != nil {
 			return nil, errors.Wrap(err, "failed to scan user row")
 		}

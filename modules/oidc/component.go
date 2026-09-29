@@ -65,6 +65,10 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewTokenRepository)
 	composition.ProvideFunc(builder, services.NewOIDCService)
 	composition.ProvideFunc(builder, newOIDCStorage)
+	composition.ProvideFunc(builder, services.NewTokenRevocationHandler)
+	composition.ContributeEventHandlerFunc(builder, func(h *services.TokenRevocationHandler) any {
+		return h.OnPasswordUpdated
+	})
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		pool := builder.Context().DB()
