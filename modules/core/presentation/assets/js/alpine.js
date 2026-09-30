@@ -2442,6 +2442,12 @@ let tableConfig = (id) => ({
 // overflows. x-tooltip (Tippy) disables itself when overflowText is falsy.
 let cellTruncate = () => ({
   overflowText: '',
+  // Declared so the writes in init() stay in this cell instead of landing on
+  // the enclosing table wrapper's scope (see emptyStateCentering).
+  _measure: null,
+  _schedule: null,
+  _raf: 0,
+  _ro: null,
   init() {
     this._measure = () => {
       const el = this.$el;
@@ -2472,6 +2478,11 @@ let scrollAffordance = () => ({
   canScrollLeft: false,
   canScrollRight: false,
   stickyR: 0,
+  // Declared so that components nested in the table (emptyStateCentering,
+  // cellTruncate) keep their own observers instead of overwriting these.
+  sc: null,
+  _ro: null,
+  _mo: null,
   init() {
     this.sc = this.$refs.sc;
     if (!this.sc) return;
@@ -2512,19 +2523,27 @@ let scrollAffordance = () => ({
 // to the scroll container's visible width so its own justify-center lands in
 // view. Mirrors scrollAffordance's ResizeObserver approach; works for both
 // scroll-wrapper variants since the wrapper is always the <table>'s parent.
+//
+// Every key is declared up front. This component always sits inside the
+// table wrapper's own x-data, and Alpine writes an undeclared key into the
+// nearest enclosing scope that already owns it: assigning this.measure in
+// init() replaced the wrapper's measure(), so the proxy scrollbar under a
+// sticky header never learned the table width and rendered 0px wide.
 let emptyStateCentering = () => ({
+  sc: null,
+  _ro: null,
   init() {
     const table = this.$el.closest("table");
     this.sc = table && table.parentElement;
-    this.measure = () => {
-      if (!this.sc || !this.sc.isConnected) return;
-      this.$el.style.width = this.sc.clientWidth + "px";
-    };
     this.$nextTick(() => this.measure());
     if (this.sc) {
       this._ro = new ResizeObserver(() => this.measure());
       this._ro.observe(this.sc);
     }
+  },
+  measure() {
+    if (!this.sc || !this.sc.isConnected) return;
+    this.$el.style.width = this.sc.clientWidth + "px";
   },
   destroy() {
     if (this._ro) this._ro.disconnect();

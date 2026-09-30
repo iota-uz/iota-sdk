@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Restore the proxy scrollbar under a sticky table header: emptyStateCentering no longer overwrites the wrapper's measure(), so infinite-scroll tables are sized again and a mouse can scroll them sideways. Shift+wheel now scrolls such tables horizontally."
+}
