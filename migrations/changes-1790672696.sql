@@ -6,7 +6,7 @@ ADD COLUMN password_expires_at TIMESTAMP WITH TIME ZONE,
 ADD COLUMN failed_password_attempts INTEGER NOT NULL DEFAULT 0;
 
 ALTER TABLE users
-ADD CONSTRAINT users_status_check CHECK (status IN ('active', 'pending_onboarding')) NOT VALID;
+ADD CONSTRAINT users_status_check CHECK (status IN ('active', 'pending_onboarding'));
 
 -- +migrate Down
 ALTER TABLE users
