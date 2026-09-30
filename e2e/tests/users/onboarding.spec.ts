@@ -177,4 +177,32 @@ test.describe('user onboarding with a self-set password', () => {
 
 		await logout(page);
 	});
+
+	test('admin assigns a direct permission while creating a user', async ({ page }) => {
+		// Falsely green if the create form rendered the permission but the server dropped it.
+		const email = 'onboarding-direct-permission@example.test';
+		const permissionID = await withDatabase(async (db) => {
+			const row = await db.query(`SELECT id FROM permissions WHERE name = 'User.Read' LIMIT 1`);
+			return String(row.rows[0].id);
+		});
+
+		await login(page, admin.email, admin.password);
+		await page.goto('/users/new');
+		await page.locator('[name=Email]').fill(email);
+		const permissionInput = page.locator(`[data-testid="create-user-permissions"] input[name="PermissionIDs"][value="${permissionID}"]`);
+		await expect(permissionInput).toHaveCount(1);
+		await permissionInput.evaluate((el: HTMLInputElement) => {
+			el.checked = true;
+		});
+		await submitNewUserForm(page);
+
+		const assigned = await withDatabase(async (db) => {
+			const row = await db.query(
+				`SELECT up.permission_id FROM user_permissions up JOIN users u ON u.id = up.user_id WHERE u.email = $1`,
+				[email],
+			);
+			return row.rows.map((r) => String(r.permission_id));
+		});
+		expect(assigned).toEqual([permissionID]);
+	});
 });

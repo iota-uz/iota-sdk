@@ -244,3 +244,43 @@ func TestUsersController_IssueTemporaryPassword(t *testing.T) {
 		assert.False(t, stored.IsPendingOnboarding())
 	})
 }
+
+// Falsely green if direct permissions are dropped on creation or the grant
+// ceiling is skipped for them.
+func TestUsersController_Create_AssignsDirectPermissions(t *testing.T) {
+	t.Parallel()
+	actorPermissions := []permission.Permission{permissions.UserRead, permissions.UserCreate, permissions.UploadRead}
+	suite := itf.NewSuiteBuilder(t).WithComponents(modules.Components()...).AsUser(actorPermissions...).Build()
+	persistAdministrativeTestActor(t, suite, actorPermissions...)
+	ensurePermissionExistsForControllerTest(t, suite, permissions.RoleDelete)
+	suite.Register(controllers.NewUsersController(
+		suite.Env().App,
+		controllers.WithUserControllerBasePath("/users"),
+		controllers.WithUserControllerPermissionSchema(defaults.PermissionSchema()),
+	))
+	userService := itf.GetService[services.UserService](suite.Env())
+
+	suite.GET("/users/new").Expect(t).
+		Status(http.StatusOK).
+		Contains(`data-testid="create-user-permissions"`).
+		Contains(`value="` + permissions.UploadRead.ID().String() + `"`)
+
+	granted := "granted-" + uuid.NewString() + "@example.test"
+	suite.POST("/users").
+		FormFields(map[string]interface{}{"Email": granted, "PermissionIDs": permissions.UploadRead.ID().String()}).
+		Expect(t).
+		Status(http.StatusOK).
+		Contains(`data-testid="user-created"`)
+	created, err := userService.GetByEmail(suite.Env().Ctx, granted)
+	require.NoError(t, err)
+	require.Len(t, created.Permissions(), 1)
+	assert.Equal(t, permissions.UploadRead.ID(), created.Permissions()[0].ID())
+
+	escalated := "escalated-" + uuid.NewString() + "@example.test"
+	response := suite.POST("/users").
+		FormFields(map[string]interface{}{"Email": escalated, "PermissionIDs": permissions.RoleDelete.ID().String()}).
+		Expect(t)
+	assert.NotContains(t, response.Body(), `data-testid="user-created"`)
+	_, err = userService.GetByEmail(suite.Env().Ctx, escalated)
+	require.Error(t, err, "a permission above the administrator's own must not be granted")
+}

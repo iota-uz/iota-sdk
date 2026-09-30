@@ -25,16 +25,17 @@ import (
 // CreateUserDTO creates an account that the user activates through onboarding.
 // Password is the temporary password; an empty one is generated.
 type CreateUserDTO struct {
-	FirstName  string   `form:"FirstName" validate:"omitempty"`
-	LastName   string   `form:"LastName" validate:"omitempty"`
-	MiddleName string   `form:"MiddleName" validate:"omitempty"`
-	Email      string   `form:"Email" validate:"required,email"`
-	Phone      string   `form:"Phone" validate:"omitempty"`
-	Password   string   `form:"Password" validate:"omitempty"`
-	RoleIDs    []uint   `form:"RoleIDs" validate:"omitempty,dive,required"`
-	GroupIDs   []string `form:"GroupIDs" validate:"omitempty,dive,required"`
-	AvatarID   uint     `form:"AvatarID" validate:"omitempty,gt=0"`
-	Language   string   `form:"Language" validate:"omitempty"`
+	FirstName     string   `form:"FirstName" validate:"omitempty"`
+	LastName      string   `form:"LastName" validate:"omitempty"`
+	MiddleName    string   `form:"MiddleName" validate:"omitempty"`
+	Email         string   `form:"Email" validate:"required,email"`
+	Phone         string   `form:"Phone" validate:"omitempty"`
+	Password      string   `form:"Password" validate:"omitempty"`
+	RoleIDs       []uint   `form:"RoleIDs" validate:"omitempty,dive,required"`
+	GroupIDs      []string `form:"GroupIDs" validate:"omitempty,dive,required"`
+	PermissionIDs []string `form:"PermissionIDs" validate:"omitempty,dive,uuid"`
+	AvatarID      uint     `form:"AvatarID" validate:"omitempty,gt=0"`
+	Language      string   `form:"Language" validate:"omitempty"`
 }
 
 type UpdateUserDTO struct {
@@ -126,6 +127,15 @@ func (dto *CreateUserDTO) ToEntity(tenantID uuid.UUID) (user.User, error) {
 		groupUUIDs[i] = groupUUID
 	}
 
+	permissions := make([]permission.Permission, len(dto.PermissionIDs))
+	for i, pID := range dto.PermissionIDs {
+		permissionUUID, err := uuid.Parse(pID)
+		if err != nil {
+			return nil, err
+		}
+		permissions[i] = permission.New(permission.WithID(permissionUUID))
+	}
+
 	email, err := internet.NewEmail(dto.Email)
 	if err != nil {
 		return nil, err
@@ -135,6 +145,7 @@ func (dto *CreateUserDTO) ToEntity(tenantID uuid.UUID) (user.User, error) {
 		user.WithTenantID(tenantID),
 		user.WithMiddleName(dto.MiddleName),
 		user.WithRoles(roles),
+		user.WithPermissions(permissions),
 		user.WithGroupIDs(groupUUIDs),
 		user.WithAvatarID(dto.AvatarID),
 	}
