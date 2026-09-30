@@ -181,16 +181,16 @@ test.describe('user onboarding with a self-set password', () => {
 	test('admin assigns a direct permission while creating a user', async ({ page }) => {
 		// Falsely green if the create form rendered the permission but the server dropped it.
 		const email = 'onboarding-direct-permission@example.test';
-		const permissionID = await withDatabase(async (db) => {
-			const row = await db.query(`SELECT id FROM permissions WHERE name = 'User.Read' LIMIT 1`);
-			return String(row.rows[0].id);
-		});
 
 		await login(page, admin.email, admin.password);
 		await page.goto('/users/new');
 		await page.locator('[name=Email]').fill(email);
-		const permissionInput = page.locator(`[data-testid="create-user-permissions"] input[name="PermissionIDs"][value="${permissionID}"]`);
+		const permissionInput = page
+			.getByTestId('create-user-permissions')
+			.getByRole('checkbox', { name: 'View Users', exact: true });
 		await expect(permissionInput).toHaveCount(1);
+		const permissionID = await permissionInput.getAttribute('value');
+		expect(permissionID).toBeTruthy();
 		await permissionInput.evaluate((el: HTMLInputElement) => {
 			el.checked = true;
 		});

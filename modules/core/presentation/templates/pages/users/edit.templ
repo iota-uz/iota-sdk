@@ -255,7 +255,7 @@ templ EditFormInner(props *EditFormProps) {
 					class="btn btn-secondary flex items-center gap-2"
 					hx-post={ fmt.Sprintf("/users/%s/temporary-password", props.User.ID) }
 					hx-target="#temporary-password-result"
-					hx-swap="innerHTML"
+					hx-swap="innerHTML show:top"
 					hx-confirm={ pageCtx.T("Users.TemporaryPassword.Confirm") }
 					data-testid="issue-temporary-password"
 				>

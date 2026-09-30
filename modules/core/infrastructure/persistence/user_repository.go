@@ -658,8 +658,9 @@ func (g *PgUserRepository) UpdateCredentials(ctx context.Context, data user.User
 }
 
 // ReserveTemporaryPasswordAttempt atomically claims one of the limited
-// temporary-password attempts and reports false once they are exhausted.
-func (g *PgUserRepository) ReserveTemporaryPasswordAttempt(ctx context.Context, userID uint, limit int) (bool, error) {
+// attempts against the given temporary password hash. It reports false once
+// the attempts are exhausted or the password has been replaced.
+func (g *PgUserRepository) ReserveTemporaryPasswordAttempt(ctx context.Context, userID uint, passwordHash string, limit int) (bool, error) {
 	const op serrors.Op = "PgUserRepository.ReserveTemporaryPasswordAttempt"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
@@ -672,8 +673,8 @@ func (g *PgUserRepository) ReserveTemporaryPasswordAttempt(ctx context.Context, 
 	tag, err := tx.Exec(ctx, `
 		UPDATE users
 		SET failed_password_attempts = failed_password_attempts + 1
-		WHERE id = $1 AND tenant_id = $2 AND password_expires_at IS NOT NULL AND failed_password_attempts < $3`,
-		userID, tenantID, limit)
+		WHERE id = $1 AND tenant_id = $2 AND password = $3 AND password_expires_at IS NOT NULL AND failed_password_attempts < $4`,
+		userID, tenantID, passwordHash, limit)
 	if err != nil {
 		return false, serrors.E(op, err)
 	}

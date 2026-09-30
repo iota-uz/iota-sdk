@@ -171,6 +171,10 @@ func (c *OnboardingController) Post(w http.ResponseWriter, r *http.Request) {
 		errs["Avatar"] = intl.MustT(r.Context(), "Onboarding.Errors.AvatarNotImage")
 		valid = false
 	}
+	if _, reported := errs["NewPassword"]; !reported && u.CheckPassword(dto.NewPassword) {
+		errs["NewPassword"] = intl.MustT(r.Context(), "Onboarding.Errors.PasswordReusesTemporary")
+		valid = false
+	}
 	if !valid {
 		c.render(w, r, u, dto, errs)
 		return

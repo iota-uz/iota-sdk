@@ -479,7 +479,7 @@ func (r *pgGroupQueryRepository) loadGroupRelationsBatch(ctx context.Context, gr
 	userRows, err := tx.Query(ctx, `SELECT gu.group_id,
 		u.id, u.tenant_id, u.type, u.first_name, u.last_name, u.middle_name,
 		u.email, u.phone, u.ui_language, u.avatar_id, u.last_login, u.last_action,
-		u.created_at, u.updated_at
+		u.created_at, u.updated_at, u.status
 		FROM group_users gu
 		JOIN user_groups g ON g.id = gu.group_id
 		JOIN users u ON u.id = gu.user_id AND u.tenant_id = g.tenant_id
@@ -497,7 +497,7 @@ func (r *pgGroupQueryRepository) loadGroupRelationsBatch(ctx context.Context, gr
 			&groupID,
 			&dbUser.ID, &dbUser.TenantID, &dbUser.Type, &dbUser.FirstName, &dbUser.LastName, &dbUser.MiddleName,
 			&dbUser.Email, &dbUser.Phone, &dbUser.UILanguage, &dbUser.AvatarID, &dbUser.LastLogin, &dbUser.LastAction,
-			&dbUser.CreatedAt, &dbUser.UpdatedAt,
+			&dbUser.CreatedAt, &dbUser.UpdatedAt, &dbUser.Status,
 		)
 		if err != nil {
 			return errors.Wrap(err, "failed to scan user")

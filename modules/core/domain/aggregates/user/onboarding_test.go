@@ -49,6 +49,13 @@ func TestIssueTemporaryPassword_AppliesPasswordPolicy(t *testing.T) {
 	require.ErrorIs(t, err, user.ErrPasswordTooShort)
 }
 
+func TestIssueTemporaryPassword_RequiresExpiry(t *testing.T) {
+	// Falsely green if a zero expiry produced a pending user whose temporary password has no limits.
+	t.Parallel()
+	_, err := newActiveUser(t).IssueTemporaryPassword("temporary-1", time.Time{})
+	require.ErrorIs(t, err, user.ErrTemporaryPasswordNoExpiry)
+}
+
 func TestTemporaryPasswordUsable(t *testing.T) {
 	t.Parallel()
 	now := time.Now()

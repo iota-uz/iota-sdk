@@ -52,7 +52,7 @@ type Repository interface {
 	Update(ctx context.Context, user User) error
 	UpdatePassword(ctx context.Context, userID uint, passwordHash string, updatedAt time.Time) error
 	UpdateCredentials(ctx context.Context, user User) error
-	ReserveTemporaryPasswordAttempt(ctx context.Context, userID uint, limit int) (bool, error)
+	ReserveTemporaryPasswordAttempt(ctx context.Context, userID uint, passwordHash string, limit int) (bool, error)
 	ReleaseTemporaryPasswordAttempt(ctx context.Context, userID uint) error
 	Update2FASettings(ctx context.Context, userID uint, dto Update2FADTO) error
 	UpdateLastAction(ctx context.Context, id uint) error

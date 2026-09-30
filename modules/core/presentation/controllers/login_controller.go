@@ -714,6 +714,8 @@ func finalizeErrorMessageID(err error) (string, bool) {
 		return "Login.Errors.AccountBlocked", true
 	case errors.Is(err, services.ErrOnboardingRequired):
 		return "Login.Errors.OnboardingRequired", true
+	case errors.Is(err, composables.ErrInvalidPassword):
+		return "Login.Errors.PasswordInvalid", true
 	}
 	return "", false
 }

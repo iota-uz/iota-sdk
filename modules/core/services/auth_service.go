@@ -245,16 +245,33 @@ func (s *AuthService) CreateSession(ctx context.Context, u user.User) (session.S
 }
 
 // CreateOnboardingSession creates a session that only opens the onboarding
-// flow. It never outlives the temporary password.
+// flow. It never outlives the temporary password. The session is created
+// under the user lock and only for the verified password hash, so a
+// concurrent reissue either rejects it or revokes it.
 func (s *AuthService) CreateOnboardingSession(ctx context.Context, u user.User) (session.Session, error) {
 	if !u.IsPendingOnboarding() {
 		return nil, user.ErrNotPendingOnboarding
 	}
-	expiresAt := time.Now().Add(onboardingSessionTTL)
-	if u.HasTemporaryPassword() && u.PasswordExpiresAt().Before(expiresAt) {
-		expiresAt = u.PasswordExpiresAt()
+	var sess session.Session
+	err := composables.InTx(composables.WithTenantID(ctx, u.TenantID()), func(txCtx context.Context) error {
+		locked, err := s.usersService.LockCredentials(txCtx, u.ID())
+		if err != nil {
+			return err
+		}
+		if !locked.IsPendingOnboarding() || locked.Password() != u.Password() {
+			return composables.ErrInvalidPassword
+		}
+		expiresAt := time.Now().Add(onboardingSessionTTL)
+		if locked.HasTemporaryPassword() && locked.PasswordExpiresAt().Before(expiresAt) {
+			expiresAt = locked.PasswordExpiresAt()
+		}
+		sess, err = s.createSession(txCtx, locked, "", session.StatusPendingOnboarding, expiresAt)
+		return err
+	})
+	if err != nil {
+		return nil, err
 	}
-	return s.createSession(ctx, u, "", session.StatusPendingOnboarding, expiresAt)
+	return sess, nil
 }
 
 func (s *AuthService) authenticate(ctx context.Context, u user.User, audience session.SessionAudience) (session.Session, error) {
@@ -477,15 +494,15 @@ func (s *AuthService) checkPassword(ctx context.Context, u user.User, password s
 		return nil
 	}
 	userCtx := composables.WithTenantID(ctx, u.TenantID())
-	reserved, err := s.usersService.ReserveTemporaryPasswordAttempt(userCtx, u.ID())
+	reserved, err := s.usersService.ReserveTemporaryPasswordAttempt(userCtx, u.ID(), u.Password())
 	if err != nil {
 		return err
 	}
-	if !u.CheckPassword(password) {
-		return composables.ErrInvalidPassword
-	}
 	if !reserved {
 		return user.ErrTemporaryPasswordExhausted
+	}
+	if !u.CheckPassword(password) {
+		return composables.ErrInvalidPassword
 	}
 	if err := s.usersService.ReleaseTemporaryPasswordAttempt(userCtx, u.ID()); err != nil {
 		return err

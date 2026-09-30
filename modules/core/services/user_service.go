@@ -129,8 +129,17 @@ func (s *UserService) UpdateLastAction(ctx context.Context, id uint) error {
 	return s.repo.UpdateLastAction(ctx, id)
 }
 
-func (s *UserService) ReserveTemporaryPasswordAttempt(ctx context.Context, id uint) (bool, error) {
-	return s.repo.ReserveTemporaryPasswordAttempt(ctx, id, user.MaxTemporaryPasswordAttempts)
+func (s *UserService) ReserveTemporaryPasswordAttempt(ctx context.Context, id uint, passwordHash string) (bool, error) {
+	return s.repo.ReserveTemporaryPasswordAttempt(ctx, id, passwordHash, user.MaxTemporaryPasswordAttempts)
+}
+
+// LockCredentials serializes credential changes for a user and returns the
+// locked row. It must run inside a transaction.
+func (s *UserService) LockCredentials(ctx context.Context, userID uint) (user.User, error) {
+	if err := s.policy.LockUser(ctx, userID); err != nil {
+		return nil, err
+	}
+	return s.repo.GetByID(ctx, userID)
 }
 
 func (s *UserService) ReleaseTemporaryPasswordAttempt(ctx context.Context, id uint) error {

@@ -795,6 +795,9 @@ func (u *user) TemporaryPasswordUsable(now time.Time) error {
 // IssueTemporaryPassword replaces the current password with a temporary one
 // and requires the user to finish onboarding before normal access.
 func (u *user) IssueTemporaryPassword(password string, expiresAt time.Time) (User, error) {
+	if expiresAt.IsZero() {
+		return nil, ErrTemporaryPasswordNoExpiry
+	}
 	if err := ValidatePassword(password); err != nil {
 		return nil, err
 	}

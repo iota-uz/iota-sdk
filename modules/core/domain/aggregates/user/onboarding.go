@@ -33,6 +33,7 @@ var (
 	ErrPasswordReusesTemporary    = errors.New("new password must differ from the temporary password")
 	ErrTemporaryPasswordExpired   = errors.New("temporary password expired")
 	ErrTemporaryPasswordExhausted = errors.New("temporary password attempts exhausted")
+	ErrTemporaryPasswordNoExpiry  = errors.New("temporary password requires an expiry")
 )
 
 func (s Status) IsValid() bool {

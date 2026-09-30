@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -303,7 +304,7 @@ func TestAuthService_TemporaryPasswordAttemptsHoldUnderConcurrency(t *testing.T)
 		go func() {
 			defer wg.Done()
 			_, err := authService.VerifyPassword(ctx, pending.Email().Value(), "wrong-guess")
-			assert.ErrorIs(t, err, composables.ErrInvalidPassword)
+			assert.True(t, errors.Is(err, composables.ErrInvalidPassword) || errors.Is(err, user.ErrTemporaryPasswordExhausted), err)
 		}()
 	}
 	wg.Wait()
@@ -336,4 +337,47 @@ func TestUserService_UpdateSelfKeepsReissuedTemporaryPassword(t *testing.T) {
 	assert.True(t, stored.CheckPassword(reissued.Password))
 	assert.False(t, stored.CheckPassword("Permanent123!"))
 	assert.True(t, stored.IsPendingOnboarding())
+}
+
+func TestAuthService_TemporaryPasswordRacingReissue(t *testing.T) {
+	// Falsely green if a password verified before a reissue can still open onboarding afterwards.
+	t.Parallel()
+	f := setupTest(t)
+	adminCtx := persistAdmin(t, f, permissions.UserRead, permissions.UserUpdate)
+	authService := itf.GetService[services.AuthService](f)
+	userService := itf.GetService[services.UserService](f)
+	pending := createOnboardingTestUser(t, f.Ctx, issued(t, "Temporary-1", time.Now().Add(time.Hour)))
+
+	verified, err := authService.VerifyPassword(f.Ctx, pending.Email().Value(), "Temporary-1")
+	require.NoError(t, err)
+	_, err = userService.IssueTemporaryPassword(adminCtx, pending.ID(), "Temporary-2")
+	require.NoError(t, err)
+
+	_, err = authService.CreateOnboardingSession(f.Ctx, verified)
+	require.ErrorIs(t, err, composables.ErrInvalidPassword)
+	_, err = authService.VerifyPassword(f.Ctx, pending.Email().Value(), "Temporary-1")
+	require.Error(t, err)
+}
+
+func TestAuthService_ExhaustedTemporaryPasswordIsNotCompared(t *testing.T) {
+	// Falsely green if an exhausted account still distinguishes right and wrong guesses.
+	t.Parallel()
+	f := setupTest(t)
+	authService := itf.GetService[services.AuthService](f)
+	exhausted := createOnboardingTestUser(t, f.Ctx, func(u user.User) user.User {
+		out, err := u.IssueTemporaryPassword("Temporary-1", time.Now().Add(time.Hour))
+		require.NoError(t, err)
+		return user.New(out.FirstName(), out.LastName(), out.Email(), out.UILanguage(),
+			user.WithTenantID(out.TenantID()),
+			user.WithPassword(out.Password()),
+			user.WithStatus(out.Status()),
+			user.WithPasswordExpiresAt(out.PasswordExpiresAt()),
+			user.WithFailedPasswordAttempts(user.MaxTemporaryPasswordAttempts),
+		)
+	})
+
+	_, wrongErr := authService.VerifyPassword(f.Ctx, exhausted.Email().Value(), "wrong-guess")
+	_, rightErr := authService.VerifyPassword(f.Ctx, exhausted.Email().Value(), "Temporary-1")
+	require.ErrorIs(t, wrongErr, user.ErrTemporaryPasswordExhausted)
+	require.ErrorIs(t, rightErr, user.ErrTemporaryPasswordExhausted)
 }
