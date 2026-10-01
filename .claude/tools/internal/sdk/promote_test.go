@@ -12,8 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// False green: returning a ready release before watch would never exercise dispatch and waiting.
+// False green: a ready release before watch skips waiting, and an unchecked
+// fake Go runner hides repository slugs being passed as module paths.
 func TestPromote_DispatchesWaitsAndIsIdempotent(t *testing.T) {
+	moduleName, err := (ExecRunner{}).Run(context.Background(), "../../../..", nil, "env", "GOWORK=off", "go", "list", "-m")
+	require.NoError(t, err)
+	modulePath := strings.TrimSpace(string(moduleName))
 	root := t.TempDir()
 	d := Dependency{PR: 12, Channel: "preview", GoDir: "."}
 	require.NoError(t, WriteDependency(root, d))
@@ -30,10 +34,12 @@ func TestPromote_DispatchesWaitsAndIsIdempotent(t *testing.T) {
 		}
 		if name == "env" {
 			if args[2] == "get" {
+				require.Equal(t, modulePath+"@v"+ready.Version, args[len(args)-1])
 				updates++
 				return nil, os.WriteFile(filepath.Join(root, "go.mod"), []byte("new"), 0600)
 			}
 			if args[2] == "list" {
+				require.Equal(t, modulePath, args[len(args)-1])
 				return []byte(`{"Version":"v0.6.0"}`), nil
 			}
 			if args[2] == "vet" {
