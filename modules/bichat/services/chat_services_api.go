@@ -98,6 +98,16 @@ func (s *ChatApplicationServices) RunSessionQueue() *RedisRunSessionQueue {
 	return s.core.runSessionQueue
 }
 
+// ActiveRunIndex exposes the per-tenant active-run index so worker wiring
+// can keep the sidebar's queued-run count in sync. nil when Redis is
+// unconfigured.
+func (s *ChatApplicationServices) ActiveRunIndex() ActiveRunIndex {
+	if s.core == nil {
+		return nil
+	}
+	return s.core.activeRunIndex
+}
+
 // FailStalledRun drives a run whose job was lost to terminal infrastructure
 // failure to the failed state so waiting clients see a terminal event.
 func (s *ChatApplicationServices) FailStalledRun() func(ctx context.Context, job RunJobPayload, cause error) {

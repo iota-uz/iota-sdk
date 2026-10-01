@@ -323,6 +323,7 @@ type ServiceContainer struct {
 	runJobQueue     *services.RedisRunJobQueue
 	runSessionQueue *services.RedisRunSessionQueue
 	runExecutor     services.RunExecutor
+	activeRunIndex  services.ActiveRunIndex
 	failStalledRun  func(ctx context.Context, job services.RunJobPayload, cause error)
 }
 
@@ -436,7 +437,7 @@ func (sc *ServiceContainer) NewRunReaper() (*services.RunReaper, error) {
 			sc.reaperStaleThreshold,
 			sc.reaperLockTTL,
 			func(ctx context.Context, tenantID, sessionID uuid.UUID) {
-				if _, err := services.PromoteNextQueuedRun(ctx, sc.runSessionQueue, sc.runJobQueue, tenantID, sessionID); err != nil && sc.logger != nil {
+				if _, err := services.PromoteNextQueuedRun(ctx, sc.runSessionQueue, sc.runJobQueue, sc.activeRunIndex, tenantID, sessionID); err != nil && sc.logger != nil {
 					sc.logger.WithError(err).
 						WithField("tenant_id", tenantID.String()).
 						WithField("session_id", sessionID.String()).
@@ -464,6 +465,7 @@ func (sc *ServiceContainer) NewRunJobWorker(pool *pgxpool.Pool) (*services.RunJo
 		Queue:                sc.runJobQueue,
 		Executor:             sc.runExecutor,
 		SessionQueue:         sc.runSessionQueue,
+		ActiveRunIndex:       sc.activeRunIndex,
 		OnJobTerminalFailure: sc.failStalledRun,
 		Pool:                 pool,
 		Logger:               sc.logger,

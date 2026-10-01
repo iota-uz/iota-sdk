@@ -226,6 +226,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		runJobQueue:          chatServices.RunJobQueue(),
 		runSessionQueue:      chatServices.RunSessionQueue(),
 		runExecutor:          chatServices.RunExecutor(),
+		activeRunIndex:       chatServices.ActiveRunIndex(),
 		failStalledRun:       chatServices.FailStalledRun(),
 	}, nil
 }

@@ -1175,6 +1175,14 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	const op serrors.Op = "chatServiceImpl.SendMessageStream"
 	startedAt := time.Now()
 
+	// Attachments travel through the job payload as upload ids; one without
+	// an upload reference would be silently dropped by the executor.
+	for _, att := range req.Attachments {
+		if att == nil || att.UploadID() == nil {
+			return serrors.E(op, serrors.KindValidation, errors.New("attachments must reference an upload"))
+		}
+	}
+
 	enqueueMode := s.runJobQueue != nil && s.eventLog != nil && s.runSessionQueue != nil
 
 	// request_id dedupe: if the client supplied an idempotency key,
@@ -1224,6 +1232,20 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		}
 		// Claim error falls through without dedupe — a Redis blip must
 		// not prevent the user's message from sending.
+	}
+
+	// Park behind a non-empty FIFO even when no run is active: a job that
+	// was promoted into the stream but has not created its run row yet
+	// would otherwise be overtaken by this send and then fail on its own
+	// CreateRun. FIFO order wins over the active-run check.
+	if enqueueMode && reqTenantID != uuid.Nil {
+		if depth, depthErr := s.runSessionQueue.Len(ctx, reqTenantID, req.SessionID); depthErr == nil && depth > 0 {
+			runID := claimedRunID
+			if runID == uuid.Nil {
+				runID = uuid.New()
+			}
+			return s.queueRunBehindActive(ctx, reqTenantID, newRunJobPayload(req, reqTenantID, runID, uuid.Nil, req.Attachments), onChunk)
+		}
 	}
 
 	var session domain.Session
@@ -1325,7 +1347,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			// it right before generating. The request claim is kept on
 			// purpose so duplicate sends dedupe while the job waits; the
 			// worker releases it at the run's terminal transition.
-			return s.queueRunBehindActive(ctx, session, newRunJobPayload(req, session, run.ID(), uuid.Nil, domainAttachments), onChunk)
+			return s.queueRunBehindActive(ctx, session.TenantID(), newRunJobPayload(req, session.TenantID(), run.ID(), uuid.Nil, domainAttachments), onChunk)
 		}
 		// Release the request_id dedupe mapping so the client can retry with the
 		// same requestID and get a fresh run — the current run was never persisted.
@@ -1345,36 +1367,41 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// Clear TxKey so persistence always opens its own durable transaction.
 	persistCtx = context.WithValue(persistCtx, constants.TxKey, nil)
 
-	job := newRunJobPayload(req, session, run.ID(), userMsg.ID(), domainAttachments)
+	job := newRunJobPayload(req, session.TenantID(), run.ID(), userMsg.ID(), domainAttachments)
 	job.EnqueuedAt = startedAt
 
 	if enqueueMode {
-		if _, enqueueErr := s.runJobQueue.EnqueueClaimed(persistCtx, job); enqueueErr == nil {
-			// Journal the start marker so the cursor reader below (and any
-			// later reconnect) sees a coherent event log from the beginning.
-			_ = s.appendRunEvent(persistCtx, session.TenantID(), req.SessionID, run.ID(), bichatservices.StreamChunk{
-				Type:      bichatservices.ChunkTypeStreamStarted,
-				RunID:     run.ID().String(),
-				Timestamp: time.Now(),
-			})
-			onChunk(bichatservices.StreamChunk{
-				Type:      bichatservices.ChunkTypeStreamStarted,
-				RunID:     run.ID().String(),
-				Timestamp: time.Now(),
-			})
-			// Pure cursor reader: replay + tail the durable log until the
-			// worker-driven run reaches a terminal event. Persistence is
-			// owned by the worker process, not this request.
-			return s.tailRunEventsToChunks(ctx, req.SessionID, run.ID(), RunEventStreamStart, onChunk)
-		} else {
+		// Journal the start marker BEFORE the job becomes visible to
+		// workers so worker events can never precede it in the log, and
+		// tail exclusively after it so the marker is delivered once.
+		streamStartedChunk := bichatservices.StreamChunk{
+			Type:      bichatservices.ChunkTypeStreamStarted,
+			RunID:     run.ID().String(),
+			Timestamp: time.Now(),
+		}
+		startedID, appendErr := s.appendRunEventWithID(persistCtx, session.TenantID(), req.SessionID, run.ID(), streamStartedChunk)
+		if appendErr != nil {
+			s.log().WithError(appendErr).
+				WithField("session_id", req.SessionID.String()).
+				WithField("run_id", run.ID().String()).
+				Warn("bichat: failed to journal stream start; falling back to inline execution")
+		} else if _, enqueueErr := s.runJobQueue.EnqueueClaimed(persistCtx, job); enqueueErr != nil {
 			// Enqueue failed (Redis blip) — fall through to inline
 			// execution so the user still gets an answer. The request
 			// claim stays held and is released by the inline terminal
-			// path below.
+			// path below. The journaled marker is consistent: the inline
+			// run continues the same log.
 			s.log().WithError(serrors.E(op, enqueueErr)).
 				WithField("session_id", req.SessionID.String()).
 				WithField("run_id", run.ID().String()).
 				Warn("bichat: run enqueue failed; falling back to inline execution")
+		} else {
+			onChunk(streamStartedChunk)
+			// Pure cursor reader: replay + tail the durable log until
+			// the worker-driven run reaches a terminal event.
+			// Persistence is owned by the worker process, not this
+			// request.
+			return s.tailRunEventsToChunks(ctx, req.SessionID, run.ID(), startedID, onChunk)
 		}
 	}
 
@@ -1391,7 +1418,22 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 	s.mirrorRunEvents(persistCtx, session.TenantID(), active)
 
-	go func() { _ = s.runExecutor.Execute(processCtx, job) }()
+	go func() {
+		// Execute returns an error only for assembly failures before the
+		// turn starts (session load, attachment resolution) — the turn
+		// itself handles its own cleanup. Without this handler the
+		// subscriber channel would never close and the run state would
+		// stay streaming; the error chunk unblocks the drain loop below,
+		// which releases the request claim.
+		if execErr := s.runExecutor.Execute(processCtx, job); execErr != nil {
+			active.Broadcast(streamingsvc.TerminalChunk(execErr, 0))
+			active.Cancel()
+			active.CloseAllSubscribers()
+			s.runRegistry.Remove(active.RunID)
+			s.unregisterStreamCancel(req.SessionID)
+			_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, run.ID())
+		}
+	}()
 
 	onChunk(bichatservices.StreamChunk{
 		Type:      bichatservices.ChunkTypeStreamStarted,
@@ -1439,7 +1481,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 // handed to the run queue (enqueue mode) or to the in-process executor
 // (inline mode). Attachments travel as upload ids; the executor re-resolves
 // them from PostgreSQL so binary references never enter Redis.
-func newRunJobPayload(req bichatservices.SendMessageRequest, session domain.Session, runID, userMessageID uuid.UUID, attachments []domain.Attachment) RunJobPayload {
+func newRunJobPayload(req bichatservices.SendMessageRequest, tenantID uuid.UUID, runID, userMessageID uuid.UUID, attachments []domain.Attachment) RunJobPayload {
 	uploadIDs := make([]int64, 0, len(attachments))
 	for _, att := range attachments {
 		if id := att.UploadID(); id != nil {
@@ -1451,7 +1493,7 @@ func newRunJobPayload(req bichatservices.SendMessageRequest, session domain.Sess
 		requestID = *req.RequestID
 	}
 	return RunJobPayload{
-		TenantID:             session.TenantID(),
+		TenantID:             tenantID,
 		SessionID:            req.SessionID,
 		UserID:               req.UserID,
 		RequestID:            requestID,
@@ -1467,45 +1509,61 @@ func newRunJobPayload(req bichatservices.SendMessageRequest, session domain.Sess
 }
 
 // queueRunBehindActive parks a send that landed while the session already
-// has an active run. The job waits on the per-session FIFO; when the active
-// run terminates, the executor (or the reaper) promotes it onto the run job
-// stream. The caller's SSE response closes after stream_started — the
-// sidebar carries the queued status until the queued run starts producing
-// events under the same run id.
-func (s *chatServiceImpl) queueRunBehindActive(ctx context.Context, session domain.Session, job RunJobPayload, onChunk func(bichatservices.StreamChunk)) error {
+// has an active run (or a non-empty FIFO). The job waits on the per-session
+// FIFO; when the active run terminates, the executor (or the reaper)
+// promotes it onto the run job stream. The caller's SSE response closes
+// after stream_started — the sidebar carries the queued status until the
+// queued run starts producing events under the same run id.
+func (s *chatServiceImpl) queueRunBehindActive(ctx context.Context, tenantID uuid.UUID, job RunJobPayload, onChunk func(bichatservices.StreamChunk)) error {
 	const op serrors.Op = "chatServiceImpl.queueRunBehindActive"
 
-	if err := s.runSessionQueue.Push(ctx, session.TenantID(), job.SessionID, QueuedRunJob{Payload: job}); err != nil {
+	streamStartedChunk := bichatservices.StreamChunk{
+		Type:      bichatservices.ChunkTypeStreamStarted,
+		RunID:     job.RunID.String(),
+		Timestamp: time.Now(),
+	}
+	// Journal the marker before the job can be promoted and executed so
+	// worker events never precede it in the log.
+	_ = s.appendRunEvent(ctx, tenantID, job.SessionID, job.RunID, streamStartedChunk)
+
+	if err := s.runSessionQueue.Push(ctx, tenantID, job.SessionID, QueuedRunJob{Payload: job}); err != nil {
 		// Degrade to the pre-queue behaviour: surface the conflict so the
 		// client can retry, and release the claim so that retry mints a
 		// fresh run instead of deduping onto a phantom one.
 		if job.RequestID != uuid.Nil {
-			_ = s.runJobQueue.ReleaseRequest(context.WithoutCancel(ctx), session.TenantID(), job.RequestID)
+			_ = s.runJobQueue.ReleaseRequest(context.WithoutCancel(ctx), tenantID, job.RequestID)
 		}
 		return serrors.E(op, domain.ErrActiveRunExists)
 	}
 	if s.activeRunIndex != nil {
-		// Queued entries are intentionally not written to the generation
-		// run store: the reaper only reaps streaming runs, so a job waiting
-		// behind a long generation is never reaped.
-		_ = s.activeRunIndex.Upsert(ctx, session.TenantID(), ActiveRunStatus{
-			SessionID: job.SessionID,
-			RunID:     job.RunID,
-			Status:    ActiveRunStatusQueued,
-			UpdatedAt: time.Now().UTC(),
-		})
+		// Bump the queued count without touching the streaming entry the
+		// session's active run owns — overwriting it would hide the run
+		// from the reaper and deadlock the FIFO behind it.
+		_ = s.activeRunIndex.AddQueuedRuns(ctx, tenantID, job.SessionID, job.RunID, 1)
 	}
-	_ = s.appendRunEvent(ctx, session.TenantID(), job.SessionID, job.RunID, bichatservices.StreamChunk{
-		Type:      bichatservices.ChunkTypeStreamStarted,
-		RunID:     job.RunID.String(),
-		Timestamp: time.Now(),
-	})
-	onChunk(bichatservices.StreamChunk{
-		Type:      bichatservices.ChunkTypeStreamStarted,
-		RunID:     job.RunID.String(),
-		Timestamp: time.Now(),
-	})
+
+	// The active run may have terminated between the conflict detection and
+	// this push — its own terminal promotion already drained an empty
+	// queue. Promote now, or the job would wait for a transition that has
+	// already happened.
+	s.promoteNextQueuedRunIfIdle(ctx, tenantID, job.SessionID)
+
+	onChunk(streamStartedChunk)
 	return nil
+}
+
+// promoteNextQueuedRunIfIdle promotes the head of the session FIFO when the
+// session has no active run in Redis. A no-op when a run is still active
+// (its terminal transition will promote) or when Redis state is unreadable.
+func (s *chatServiceImpl) promoteNextQueuedRunIfIdle(ctx context.Context, tenantID, sessionID uuid.UUID) {
+	_, err := s.runState.GetPersistedRunForSession(ctx, tenantID, sessionID)
+	if err == nil {
+		return
+	}
+	if !errors.Is(err, domain.ErrNoActiveRun) {
+		return
+	}
+	s.promoteNextQueuedRun(ctx, tenantID, sessionID)
 }
 
 // tailRunEventsToChunks forwards the durable run event log to onChunk as

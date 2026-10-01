@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -329,7 +330,7 @@ func TestPromoteNextQueuedRun_PopsHeadAndReenqueues(t *testing.T) {
 	require.NoError(t, sessionQueue.Push(context.Background(), tenantID, sessionID, QueuedRunJob{Payload: first}))
 	require.NoError(t, sessionQueue.Push(context.Background(), tenantID, sessionID, QueuedRunJob{Payload: second}))
 
-	promoted, err := PromoteNextQueuedRun(context.Background(), sessionQueue, queue, tenantID, sessionID)
+	promoted, err := PromoteNextQueuedRun(context.Background(), sessionQueue, queue, nil, tenantID, sessionID)
 	require.NoError(t, err)
 	require.True(t, promoted, "head of the FIFO must be promoted")
 
@@ -344,4 +345,209 @@ func TestPromoteNextQueuedRun_PopsHeadAndReenqueues(t *testing.T) {
 	depth, lenErr := sessionQueue.Len(context.Background(), tenantID, sessionID)
 	require.NoError(t, lenErr)
 	assert.Equal(t, int64(1), depth, "second job must remain queued")
+}
+
+func TestRunJobWorker_OwnershipRefreshPreventsReclaimWhileExecuting(t *testing.T) {
+	t.Parallel()
+
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+
+	// Block the executor until we assert the PEL state mid-execution.
+	started := make(chan struct{})
+	release := make(chan struct{})
+	exec := &blockingRunExecutor{started: started, release: release}
+	worker, queue, _ := newTestRunJobWorker(t, mr, nil, func(cfg *RunJobWorkerConfig) {
+		cfg.Executor = exec
+		cfg.PendingIdle = 50 * time.Millisecond
+	})
+
+	payload := RunJobPayload{
+		TenantID:  uuid.New(),
+		SessionID: uuid.New(),
+		RequestID: uuid.New(),
+		RunID:     uuid.New(),
+		Content:   "long running",
+	}
+	_, _, enqueueErr := queue.Enqueue(context.Background(), payload)
+	require.NoError(t, enqueueErr)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = worker.Start(ctx)
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for execution to start")
+	}
+
+	// Wait past PendingIdle: without the ownership refresh the entry's idle
+	// time would exceed the threshold and reclaimPending would XCLAIM it to
+	// a second consumer, double-executing the job.
+	time.Sleep(150 * time.Millisecond)
+
+	pending, pendingErr := client.XPendingExt(context.Background(), &redis.XPendingExtArgs{
+		Stream: queue.stream,
+		Group:  "bichat-run-workers",
+		Start:  "-",
+		End:    "+",
+		Count:  10,
+	}).Result()
+	require.NoError(t, pendingErr)
+	require.Len(t, pending, 1)
+	assert.Equal(t, "c1", pending[0].Consumer, "entry must stay owned by the executing consumer")
+
+	close(release)
+	cancel()
+	<-done
+}
+
+type blockingRunExecutor struct {
+	started chan struct{}
+	release chan struct{}
+}
+
+func (e *blockingRunExecutor) Execute(_ context.Context, _ RunJobPayload) error {
+	e.started <- struct{}{}
+	<-e.release
+	return nil
+}
+
+func TestRunJobWorker_RequeuesBusyJobAtFIFOHead(t *testing.T) {
+	t.Parallel()
+
+	mr := miniredis.RunT(t)
+	exec := newSequenceRunExecutor(fmt.Errorf("%w: %w", ErrRunBusy, assert.AnError))
+	worker, queue, sessionQueue := newTestRunJobWorker(t, mr, exec, nil)
+
+	tenantID := uuid.New()
+	sessionID := uuid.New()
+	payload := RunJobPayload{
+		TenantID:  tenantID,
+		SessionID: sessionID,
+		RequestID: uuid.New(),
+		RunID:     uuid.New(),
+		Content:   "lost the run race",
+	}
+	_, _, enqueueErr := queue.Enqueue(context.Background(), payload)
+	require.NoError(t, enqueueErr)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = worker.Start(ctx)
+	}()
+
+	require.Eventually(t, func() bool {
+		depth, lenErr := sessionQueue.Len(context.Background(), tenantID, sessionID)
+		return lenErr == nil && depth == 1
+	}, 5*time.Second, 5*time.Millisecond, "busy job must be parked back on the session FIFO")
+
+	cancel()
+	<-done
+
+	// Restored at the head with its payload intact, not failed.
+	requeued, ok, popErr := sessionQueue.Pop(context.Background(), tenantID, sessionID)
+	require.NoError(t, popErr)
+	require.True(t, ok)
+	assert.Equal(t, payload.RunID, requeued.Payload.RunID)
+
+	require.Eventually(t, func() bool {
+		length, xlenErr := queue.client.XLen(context.Background(), queue.stream).Result()
+		return xlenErr == nil && length == 0
+	}, 5*time.Second, 5*time.Millisecond, "busy job must be acked, not retried")
+}
+
+func TestRedisActiveRunIndex_AddQueuedRuns(t *testing.T) {
+	t.Parallel()
+
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+
+	index, indexErr := NewRedisActiveRunIndex(RedisActiveRunIndexConfig{Client: client})
+	require.NoError(t, indexErr)
+
+	tenantID := uuid.New()
+	sessionID := uuid.New()
+	activeRunID := uuid.New()
+	queuedRunID := uuid.New()
+
+	// Seed the streaming entry the active run owns.
+	require.NoError(t, index.Upsert(context.Background(), tenantID, ActiveRunStatus{
+		SessionID: sessionID,
+		RunID:     activeRunID,
+		Status:    "streaming",
+		UpdatedAt: time.Now().UTC(),
+	}))
+
+	require.NoError(t, index.AddQueuedRuns(context.Background(), tenantID, sessionID, queuedRunID, 1))
+	require.NoError(t, index.AddQueuedRuns(context.Background(), tenantID, sessionID, queuedRunID, 1))
+
+	snapshot, snapErr := index.Snapshot(context.Background(), tenantID)
+	require.NoError(t, snapErr)
+	require.Len(t, snapshot, 1, "queued count must not fork a second session entry")
+	entry := snapshot[0]
+	assert.Equal(t, activeRunID, entry.RunID, "streaming entry must keep its run id")
+	assert.Equal(t, "streaming", entry.Status, "streaming entry must keep its status")
+	assert.Equal(t, int64(2), entry.QueuedRuns)
+
+	require.NoError(t, index.AddQueuedRuns(context.Background(), tenantID, sessionID, queuedRunID, -2))
+	snapshot, snapErr = index.Snapshot(context.Background(), tenantID)
+	require.NoError(t, snapErr)
+	require.Len(t, snapshot, 1)
+	assert.Equal(t, int64(0), snapshot[0].QueuedRuns)
+
+	// A queued-only entry (no active run) is removed when it drains.
+	otherSession := uuid.New()
+	require.NoError(t, index.AddQueuedRuns(context.Background(), tenantID, otherSession, queuedRunID, 1))
+	snapshot, snapErr = index.Snapshot(context.Background(), tenantID)
+	require.NoError(t, snapErr)
+	require.Len(t, snapshot, 2)
+	bySession := make(map[uuid.UUID]ActiveRunStatus, len(snapshot))
+	for _, s := range snapshot {
+		bySession[s.SessionID] = s
+	}
+	assert.Equal(t, "queued", bySession[otherSession].Status)
+	assert.Equal(t, queuedRunID, bySession[otherSession].RunID)
+
+	require.NoError(t, index.AddQueuedRuns(context.Background(), tenantID, otherSession, queuedRunID, -1))
+	snapshot, snapErr = index.Snapshot(context.Background(), tenantID)
+	require.NoError(t, snapErr)
+	require.Len(t, snapshot, 1, "drained queued-only entry must be removed")
+}
+
+func TestRedisRunSessionQueue_PushFrontRestoresAtHead(t *testing.T) {
+	t.Parallel()
+
+	mr := miniredis.RunT(t)
+	sessionQueue, err := NewRedisRunSessionQueue(RedisRunSessionQueueConfig{RedisURL: mr.Addr()})
+	require.NoError(t, err)
+
+	tenantID := uuid.New()
+	sessionID := uuid.New()
+	first := RunJobPayload{TenantID: tenantID, SessionID: sessionID, RunID: uuid.New()}
+	second := RunJobPayload{TenantID: tenantID, SessionID: sessionID, RunID: uuid.New()}
+
+	require.NoError(t, sessionQueue.Push(context.Background(), tenantID, sessionID, QueuedRunJob{Payload: second}))
+
+	// first was popped for promotion; a failed enqueue must restore it
+	// ahead of second.
+	require.NoError(t, sessionQueue.PushFront(context.Background(), tenantID, sessionID, QueuedRunJob{Payload: first}))
+
+	head, ok, popErr := sessionQueue.Pop(context.Background(), tenantID, sessionID)
+	require.NoError(t, popErr)
+	require.True(t, ok)
+	assert.Equal(t, first.RunID, head.Payload.RunID, "PushFront must restore the job at the head")
+
+	next, ok, popErr := sessionQueue.Pop(context.Background(), tenantID, sessionID)
+	require.NoError(t, popErr)
+	require.True(t, ok)
+	assert.Equal(t, second.RunID, next.Payload.RunID)
 }

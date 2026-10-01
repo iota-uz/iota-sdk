@@ -461,8 +461,30 @@ func newRunWorkerStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Con
 		logger := b.config.Logger
 		go func() {
 			defer close(workerDone)
-			if startErr := worker.Start(workerCtx); startErr != nil && logger != nil && !errors.Is(startErr, context.Canceled) {
-				logger.WithError(startErr).Warn("bichat run job worker stopped with error")
+			backoff := time.Second
+			for {
+				startErr := worker.Start(workerCtx)
+				if workerCtx.Err() != nil {
+					return
+				}
+				// Start can fail before its loop begins (consumer-group
+				// creation against a Redis that is still coming up) —
+				// retry with bounded backoff instead of silently leaving
+				// the stream without a consumer until process restart.
+				if startErr != nil && logger != nil && !errors.Is(startErr, context.Canceled) {
+					logger.WithError(startErr).Warn("bichat run job worker stopped; restarting")
+				} else if startErr == nil && logger != nil {
+					logger.Warn("bichat run job worker returned unexpectedly; restarting")
+				}
+				select {
+				case <-workerCtx.Done():
+					return
+				case <-time.After(backoff):
+				}
+				backoff *= 2
+				if backoff > 30*time.Second {
+					backoff = 30 * time.Second
+				}
 			}
 		}()
 

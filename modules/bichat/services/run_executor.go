@@ -22,6 +22,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// ErrRunBusy signals that the session gained another active run between a
+// queued job's promotion and its execution (the promoted job lost the
+// CreateRun race). The worker parks the job back at the head of the FIFO
+// instead of retrying or failing it — the new run's terminal transition
+// re-promotes it.
+var ErrRunBusy = errors.New("bichat: session has an active run")
+
 // RunExecutor executes one generation turn from a self-contained
 // RunJobPayload. Both execution modes funnel through it: the inline POST
 // path spawns a goroutine calling Execute in the same process, and the
@@ -118,12 +125,20 @@ func (e *chatRunExecutor) Execute(ctx context.Context, job RunJobPayload) error 
 					return serrors.E(op, serrors.KindValidation, err)
 				}
 				if err := svc.chatRepo.CreateRun(txCtx, run); err != nil {
+					if errors.Is(err, domain.ErrActiveRunExists) {
+						// A newer send won the session while this job sat in
+						// the stream — re-queue it instead of failing it.
+						return fmt.Errorf("%w: %w", ErrRunBusy, err)
+					}
 					return serrors.E(op, err)
 				}
 			} else if getErr != nil {
 				return serrors.E(op, getErr)
 			}
 			if _, err := svc.createRunStateRecoveringOrphan(txCtx, run); err != nil {
+				if errors.Is(err, domain.ErrActiveRunExists) {
+					return fmt.Errorf("%w: %w", ErrRunBusy, err)
+				}
 				return serrors.E(op, err)
 			}
 			return nil
@@ -570,7 +585,7 @@ func (s *chatServiceImpl) promoteNextQueuedRun(ctx context.Context, tenantID, se
 	if s.runSessionQueue == nil || s.runJobQueue == nil {
 		return
 	}
-	promoted, err := PromoteNextQueuedRun(ctx, s.runSessionQueue, s.runJobQueue, tenantID, sessionID)
+	promoted, err := PromoteNextQueuedRun(ctx, s.runSessionQueue, s.runJobQueue, s.activeRunIndex, tenantID, sessionID)
 	if err != nil {
 		if e := s.logEntry(); e != nil {
 			e.WithError(err).WithFields(logrus.Fields{
@@ -593,8 +608,10 @@ func (s *chatServiceImpl) promoteNextQueuedRun(ctx context.Context, tenantID, se
 // PromoteNextQueuedRun drains one job from the per-session FIFO and posts it
 // onto the run job stream. Returns false when the queue is empty. Used by the
 // executor's terminal path, the run worker's terminal-failure path, and the
-// reaper's OnRunTerminal hook.
-func PromoteNextQueuedRun(ctx context.Context, sessionQueue *RedisRunSessionQueue, jobQueue *RedisRunJobQueue, tenantID, sessionID uuid.UUID) (bool, error) {
+// reaper's OnRunTerminal hook. A failed stream enqueue pushes the job back to
+// the head of the FIFO so it is never lost; the index's queued count is
+// decremented after a successful promotion (nil-safe).
+func PromoteNextQueuedRun(ctx context.Context, sessionQueue *RedisRunSessionQueue, jobQueue *RedisRunJobQueue, index ActiveRunIndex, tenantID, sessionID uuid.UUID) (bool, error) {
 	if sessionQueue == nil || jobQueue == nil {
 		return false, nil
 	}
@@ -608,10 +625,14 @@ func PromoteNextQueuedRun(ctx context.Context, sessionQueue *RedisRunSessionQueu
 	queued.Payload.Attempt = 0
 	queued.Payload.EnqueuedAt = time.Now().UTC()
 	if _, err := jobQueue.EnqueueClaimed(ctx, queued.Payload); err != nil {
-		// Re-queue at the front is not possible with LPOP semantics; the job
-		// is logged and dropped. The client can retry the send — the request
-		// dedupe claim is still held by this payload's request id TTL.
+		// Restore the job to the head of the FIFO so it keeps its position
+		// — the client is already tailing this run's event log, so losing
+		// the job here would strand that stream without a terminal event.
+		_ = sessionQueue.PushFront(ctx, tenantID, sessionID, queued)
 		return false, err
+	}
+	if index != nil {
+		_ = index.AddQueuedRuns(ctx, tenantID, sessionID, queued.Payload.RunID, -1)
 	}
 	return true, nil
 }

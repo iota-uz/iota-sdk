@@ -359,7 +359,9 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 				return
 			}
 			props := &moneyaccounts.DrawerEditProps{
-				Account:    mappers.MoneyAccountToViewModel(entity),
+				// Render the persisted record — `entity` holds the rejected
+				// submitted values.
+				Account:    mappers.MoneyAccountToViewModel(existing),
 				UpdateData: dto.ToViewModel(id),
 				Currencies: currencies,
 				History:    history,

@@ -46,8 +46,12 @@ type RunJobWorkerConfig struct {
 	Executor RunExecutor
 	// SessionQueue enables FIFO promotion when a job is lost to terminal
 	// infrastructure failure (the executor's own terminal path promotes on
-	// every normal completion). Optional.
+	// every normal completion) and re-queues jobs that lost a run conflict.
+	// Optional.
 	SessionQueue *RedisRunSessionQueue
+	// ActiveRunIndex keeps the sidebar's queued-run count in sync with
+	// promotions driven by this worker. Optional.
+	ActiveRunIndex ActiveRunIndex
 	// OnJobTerminalFailure is invoked when a job exhausts its retries on
 	// infrastructure errors. Wired to chatServiceImpl.FailStalledRun so the
 	// run reaches a terminal state and the client's cursor reader sees an
@@ -77,6 +81,7 @@ type RunJobWorker struct {
 	queue                *RedisRunJobQueue
 	executor             RunExecutor
 	sessionQueue         *RedisRunSessionQueue
+	activeRunIndex       ActiveRunIndex
 	onJobTerminalFailure func(ctx context.Context, job RunJobPayload, cause error)
 	pool                 *pgxpool.Pool
 	logger               *logrus.Logger
@@ -163,6 +168,7 @@ func NewRunJobWorker(cfg RunJobWorkerConfig) (*RunJobWorker, error) {
 		queue:                cfg.Queue,
 		executor:             cfg.Executor,
 		sessionQueue:         cfg.SessionQueue,
+		activeRunIndex:       cfg.ActiveRunIndex,
 		onJobTerminalFailure: cfg.OnJobTerminalFailure,
 		pool:                 cfg.Pool,
 		logger:               logger,
@@ -315,13 +321,43 @@ func (w *RunJobWorker) processMessage(ctx context.Context, msg redis.XMessage) e
 	// executed job, so these run on a non-cancelable context.
 	bookkeepingCtx := context.WithoutCancel(ctx)
 
-	if execErr := w.executor.Execute(jobCtx, payload); execErr == nil {
+	// A generation can run for many minutes — far past PendingIdle. Keep
+	// refreshing the entry's ownership with a JUSTID claim so reclaimPending
+	// on another replica cannot XCLAIM and double-execute a live job. The
+	// refresh dies with this call; if the worker crashes, idle time grows
+	// again and the job is legitimately reclaimed.
+	refreshStop := make(chan struct{})
+	defer close(refreshStop)
+	go w.refreshOwnership(ctx, msg.ID, refreshStop)
+
+	execErr := w.executor.Execute(jobCtx, payload)
+	if execErr == nil {
 		// Execute returning nil means the run reached a terminal state
 		// (completed, cancelled, or failed-with-broadcast — all owned by
 		// the executor). Ack + release the request claim so a retry with
 		// the same request id starts fresh.
 		w.ack(bookkeepingCtx, msg.ID)
 		w.releaseRequest(bookkeepingCtx, payload)
+		return nil
+	}
+
+	if errors.Is(execErr, ErrRunBusy) {
+		// A newer send won the session between this job's promotion and its
+		// execution. Park the job back at the head of the FIFO; the new
+		// run's terminal transition re-promotes it. Not a failure: no
+		// retry counter, no terminal event.
+		w.ack(bookkeepingCtx, msg.ID)
+		if w.sessionQueue == nil {
+			return fmt.Errorf("run job busy but session queue is unconfigured run_id=%s: %w", payload.RunID, execErr)
+		}
+		if pushErr := w.sessionQueue.PushFront(bookkeepingCtx, payload.TenantID, payload.SessionID, QueuedRunJob{Payload: payload}); pushErr != nil {
+			// No ack: the entry stays in the PEL and is reclaimed for a
+			// later attempt instead of being lost.
+			return fmt.Errorf("requeue busy run job run_id=%s: %w", payload.RunID, pushErr)
+		}
+		if w.activeRunIndex != nil {
+			_ = w.activeRunIndex.AddQueuedRuns(bookkeepingCtx, payload.TenantID, payload.SessionID, payload.RunID, 1)
+		}
 		return nil
 	}
 
@@ -342,6 +378,37 @@ func (w *RunJobWorker) processMessage(ctx context.Context, msg redis.XMessage) e
 	return fmt.Errorf("run job failed after max retries run_id=%s", payload.RunID)
 }
 
+// refreshOwnership keeps the stream entry in this consumer's name while the
+// generation runs, so its PEL idle time never crosses PendingIdle.
+func (w *RunJobWorker) refreshOwnership(ctx context.Context, msgID string, stop <-chan struct{}) {
+	interval := w.pendingIdle / 2
+	if interval <= 0 {
+		interval = time.Second
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			// XCLAIM JUSTID resets the entry's idle time without delivering
+			// or incrementing its delivery counter.
+			_, err := w.queue.client.XClaimJustID(ctx, &redis.XClaimArgs{
+				Stream:   w.queue.stream,
+				Group:    w.group,
+				Consumer: w.consumer,
+				MinIdle:  0,
+				Messages: []string{msgID},
+			}).Result()
+			if err != nil && ctx.Err() != nil {
+				return
+			}
+		}
+	}
+}
+
 // failTerminally surfaces an unrecoverable infrastructure failure: the run
 // transitions to failed (hook), and any job parked behind it on the session
 // FIFO is promoted so the queue does not deadlock behind a lost run.
@@ -350,7 +417,7 @@ func (w *RunJobWorker) failTerminally(ctx context.Context, payload RunJobPayload
 		w.onJobTerminalFailure(ctx, payload, errors.New("run job failed after max retries"))
 	}
 	if w.sessionQueue != nil {
-		if _, err := PromoteNextQueuedRun(ctx, w.sessionQueue, w.queue, payload.TenantID, payload.SessionID); err != nil {
+		if _, err := PromoteNextQueuedRun(ctx, w.sessionQueue, w.queue, w.activeRunIndex, payload.TenantID, payload.SessionID); err != nil {
 			w.logger.WithError(err).
 				WithField("session_id", payload.SessionID.String()).
 				Warn("run worker failed to promote queued run after terminal failure")
@@ -403,11 +470,20 @@ func (w *RunJobWorker) promoteRetries(ctx context.Context) error {
 			continue
 		}
 
+		// ZRem is the claim: exactly one replica can remove the member, so
+		// only one enqueues it. On enqueue failure the member goes back on
+		// the schedule (due now) so the retry is not lost.
+		removed, remErr := w.queue.client.ZRem(ctx, w.retrySchedule, member).Result()
+		if remErr != nil || removed == 0 {
+			continue
+		}
 		if _, addErr := w.queue.EnqueueClaimed(ctx, payload); addErr != nil {
+			_ = w.queue.client.ZAdd(ctx, w.retrySchedule, redis.Z{
+				Score:  float64(w.now().UnixNano()),
+				Member: member,
+			}).Err()
 			return fmt.Errorf("promote run retry to stream: %w", addErr)
 		}
-
-		_, _ = w.queue.client.ZRem(ctx, w.retrySchedule, member).Result()
 	}
 
 	return nil
