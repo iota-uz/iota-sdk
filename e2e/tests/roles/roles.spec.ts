@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { login, logout, waitForAlpine } from '../../fixtures/auth';
+import { loginThroughOnboarding, submitNewUserForm } from '../../fixtures/onboarding';
 import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
 
 /**
@@ -421,7 +422,8 @@ test.describe('role management flows', () => {
   }) => {
     const limitedRoleName = 'Limited Reader Role';
     const limitedUserEmail = 'limited@test.com';
-    const limitedUserPassword = 'TestPass123!';
+    const limitedUserTemporaryPassword = 'TestPass123!';
+    const limitedUserPassword = 'LimitedOwnPass123!';
 
     // Login as admin to create a limited role and user
     await login(page, 'test@gmail.com', 'TestPass123!');
@@ -486,7 +488,7 @@ test.describe('role management flows', () => {
     await page.locator('[name=LastName]').fill('User');
     await page.locator('[name=Email]').fill(limitedUserEmail);
     await page.locator('[name=Phone]').fill('+998901112233');
-    await page.locator('[name=Password]').fill(limitedUserPassword);
+    await page.locator('[name=Password]').fill(limitedUserTemporaryPassword);
     // Select first enabled option (index 0 might be a disabled placeholder)
     const languageSelect = page.locator('[name=Language]');
     const enabledOptions = languageSelect.locator('option:not([disabled])');
@@ -507,21 +509,9 @@ test.describe('role management flows', () => {
     await expect(roleSelect).toHaveCount(1);
     await setMultiSelectByLabel(roleSelect, [limitedRoleName]);
 
-    // Save the user
-    await page.locator('[id=save-btn]').click();
-
-    // Wait for redirect to users page or handle login redirect
-    // The newly created user might not have sufficient permissions causing a redirect to login
-    await page.waitForURL(/\/(users|login)$/);
-
-    // Check where we ended up
-    const currentUrl = page.url();
-    if (currentUrl.includes('/login')) {
-      // If redirected to login, there was likely a session or permission issue
-      // Re-login as admin to continue the test
-      await login(page, 'test@gmail.com', 'TestPass123!');
-      await page.goto('/users');
-    }
+    // Save the user; the created user is shown with its temporary password
+    await submitNewUserForm(page);
+    await page.goto('/users');
 
     // Verify user was created in the list
     const createdUserRow = page
@@ -533,8 +523,12 @@ test.describe('role management flows', () => {
     // Logout admin
     await logout(page);
 
-    // Login as the limited user
-    await login(page, limitedUserEmail, limitedUserPassword);
+    // Login as the limited user after they set their own password
+    await loginThroughOnboarding(page, limitedUserEmail, limitedUserTemporaryPassword, {
+      firstName: 'Limited',
+      lastName: 'User',
+      newPassword: limitedUserPassword,
+    });
 
     // Verify login was successful - should be redirected to dashboard or main page
     // (not stuck on login page)

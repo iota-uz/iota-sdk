@@ -25,7 +25,18 @@ import (
 	"google.golang.org/api/people/v1"
 )
 
-var ErrGoogleEmailNotFound = errors.New("google account email not found")
+var (
+	ErrGoogleEmailNotFound = errors.New("google account email not found")
+	// ErrOnboardingRequired rejects a full session for a user who has not
+	// finished onboarding.
+	ErrOnboardingRequired = errors.New("user must complete onboarding")
+	ErrUserBlocked        = errors.New("user is blocked")
+)
+
+// OnboardingPath is the only page a pending-onboarding session may open.
+const OnboardingPath = "/onboarding"
+
+const onboardingSessionTTL = time.Hour
 
 // IPBindingMode defines how strictly IP addresses are validated for sessions
 type IPBindingMode string
@@ -233,7 +244,50 @@ func (s *AuthService) CreateSession(ctx context.Context, u user.User) (session.S
 	return s.authenticate(ctx, u, "")
 }
 
+// CreateOnboardingSession creates a session that only opens the onboarding
+// flow. It never outlives the temporary password. The session is created
+// under the user lock and only for the verified password hash, so a
+// concurrent reissue either rejects it or revokes it.
+func (s *AuthService) CreateOnboardingSession(ctx context.Context, u user.User) (session.Session, error) {
+	if !u.IsPendingOnboarding() {
+		return nil, user.ErrNotPendingOnboarding
+	}
+	var sess session.Session
+	err := composables.InTx(composables.WithTenantID(ctx, u.TenantID()), func(txCtx context.Context) error {
+		locked, err := s.usersService.LockCredentials(txCtx, u.ID())
+		if err != nil {
+			return err
+		}
+		if !locked.IsPendingOnboarding() || locked.Password() != u.Password() {
+			return composables.ErrInvalidPassword
+		}
+		expiresAt := time.Now().Add(onboardingSessionTTL)
+		if locked.HasTemporaryPassword() && locked.PasswordExpiresAt().Before(expiresAt) {
+			expiresAt = locked.PasswordExpiresAt()
+		}
+		sess, err = s.createSession(txCtx, locked, "", session.StatusPendingOnboarding, expiresAt)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return sess, nil
+}
+
 func (s *AuthService) authenticate(ctx context.Context, u user.User, audience session.SessionAudience) (session.Session, error) {
+	if u.IsPendingOnboarding() {
+		return nil, ErrOnboardingRequired
+	}
+	return s.createSession(ctx, u, audience, "", time.Time{})
+}
+
+func (s *AuthService) createSession(
+	ctx context.Context,
+	u user.User,
+	audience session.SessionAudience,
+	status session.SessionStatus,
+	expiresAt time.Time,
+) (session.Session, error) {
 	s.logger.Infof("Creating session for user ID: %d, tenant ID: %d, audience: %s", u.ID(), u.TenantID(), audience)
 	ctx = composables.WithTenantID(ctx, u.TenantID())
 
@@ -265,6 +319,8 @@ func (s *AuthService) authenticate(ctx context.Context, u user.User, audience se
 		UserAgent: userAgent,
 		TenantID:  u.TenantID(),
 		Audience:  audience,
+		Status:    status,
+		ExpiresAt: expiresAt,
 	}
 
 	// Update user last login
@@ -295,8 +351,8 @@ func (s *AuthService) AuthenticateWithUserID(ctx context.Context, id uint, passw
 	if err != nil {
 		return nil, nil, err
 	}
-	if !u.CheckPassword(password) {
-		return nil, nil, composables.ErrInvalidPassword
+	if err := s.checkPassword(ctx, u, password); err != nil {
+		return nil, nil, err
 	}
 	sess, err := s.authenticate(ctx, u, "")
 	if err != nil {
@@ -311,8 +367,8 @@ func (s *AuthService) AuthenticateWithUserIDAndAudience(ctx context.Context, id 
 	if err != nil {
 		return nil, nil, err
 	}
-	if !u.CheckPassword(password) {
-		return nil, nil, composables.ErrInvalidPassword
+	if err := s.checkPassword(ctx, u, password); err != nil {
+		return nil, nil, err
 	}
 	sess, err := s.authenticate(ctx, u, audience)
 	if err != nil {
@@ -421,10 +477,40 @@ func (s *AuthService) VerifyPassword(ctx context.Context, email, password string
 	if err != nil {
 		return nil, err
 	}
-	if !u.CheckPassword(password) {
-		return nil, composables.ErrInvalidPassword
+	if err := s.checkPassword(ctx, u, password); err != nil {
+		return nil, err
 	}
 	return u, nil
+}
+
+// checkPassword verifies a password. A temporary password is limited in time
+// and in attempts; an attempt is claimed before the comparison so parallel
+// guesses cannot exceed the limit.
+func (s *AuthService) checkPassword(ctx context.Context, u user.User, password string) error {
+	if !u.HasTemporaryPassword() {
+		if !u.CheckPassword(password) {
+			return composables.ErrInvalidPassword
+		}
+		return nil
+	}
+	userCtx := composables.WithTenantID(ctx, u.TenantID())
+	reserved, err := s.usersService.ReserveTemporaryPasswordAttempt(userCtx, u.ID(), u.Password())
+	if err != nil {
+		return err
+	}
+	if !reserved {
+		return user.ErrTemporaryPasswordExhausted
+	}
+	if !u.CheckPassword(password) {
+		return composables.ErrInvalidPassword
+	}
+	if err := s.usersService.ReleaseTemporaryPasswordAttempt(userCtx, u.ID()); err != nil {
+		return err
+	}
+	if !time.Now().Before(u.PasswordExpiresAt()) {
+		return user.ErrTemporaryPasswordExpired
+	}
+	return nil
 }
 
 func (s *AuthService) generateStateOauthCookie() (*http.Cookie, error) {

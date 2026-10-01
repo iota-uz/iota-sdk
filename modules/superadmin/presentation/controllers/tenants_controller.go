@@ -3,12 +3,14 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mime"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
@@ -35,8 +37,8 @@ import (
 )
 
 const (
-	minPasswordLength = 8
-	maxPasswordLength = 128
+	minPasswordLength = user.MinPasswordLength
+	maxPasswordLength = user.MaxPasswordBytes
 	userNotFoundMsg   = "User not found"
 )
 
@@ -355,7 +357,7 @@ func (c *TenantsController) TenantUsers(
 	}
 }
 
-// ResetUserPassword resets a user's password for a specific tenant
+// ResetUserPassword issues a temporary password to a user of a specific tenant
 // POST /superadmin/tenants/{id}/users/{userId}/reset-password
 func (c *TenantsController) ResetUserPassword(
 	r *http.Request,
@@ -427,14 +429,14 @@ func (c *TenantsController) ResetUserPassword(
 	}
 
 	// Validate minimum length
-	if len(password) < minPasswordLength {
+	if utf8.RuneCountInString(password) < minPasswordLength {
 		http.Error(w, fmt.Sprintf("Password must be at least %d characters", minPasswordLength), http.StatusBadRequest)
 		return
 	}
 
 	// Validate maximum length (prevent DoS)
 	if len(password) > maxPasswordLength {
-		http.Error(w, fmt.Sprintf("Password cannot exceed %d characters", maxPasswordLength), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Password cannot exceed %d bytes", maxPasswordLength), http.StatusBadRequest)
 		return
 	}
 
@@ -454,18 +456,14 @@ func (c *TenantsController) ResetUserPassword(
 		return
 	}
 
-	// Set new password (uses bcrypt internally)
-	updatedUser, err := existingUser.SetPassword(password)
-	if err != nil {
-		logger.Errorf("Error hashing password: %v", err)
-		http.Error(w, "Error updating password", http.StatusInternalServerError)
-		return
-	}
-
-	// Update user in database
-	_, err = c.userService.Update(ctx, updatedUser)
-	if err != nil {
-		logger.Errorf("Error updating user %d: %v", userID, err)
+	// An administrator may only issue a temporary password; the user sets
+	// their own one during onboarding and every session is revoked.
+	if _, err := c.userService.IssueTemporaryPassword(ctx, uint(userID), password); err != nil {
+		if errors.Is(err, user.ErrPasswordTooShort) || errors.Is(err, user.ErrPasswordTooLong) {
+			http.Error(w, "Password does not meet the password policy", http.StatusBadRequest)
+			return
+		}
+		logger.Errorf("Error issuing temporary password for user %d: %v", userID, err)
 		http.Error(w, "Error updating password", http.StatusInternalServerError)
 		return
 	}
@@ -486,7 +484,7 @@ func (c *TenantsController) ResetUserPassword(
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
-		"message": "Password reset successfully",
+		"message": "Temporary password issued",
 	}); err != nil {
 		logrus.Errorf("Error encoding JSON response: %v", err)
 	}

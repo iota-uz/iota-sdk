@@ -6,16 +6,21 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-var ErrCurrentPasswordMismatch = errors.New("current password does not match")
+var (
+	ErrCurrentPasswordMismatch  = errors.New("current password does not match")
+	ErrOnboardingSessionInvalid = errors.New("onboarding session is no longer valid")
+)
 
 type UserService struct {
 	repo           user.Repository
@@ -124,6 +129,23 @@ func (s *UserService) UpdateLastAction(ctx context.Context, id uint) error {
 	return s.repo.UpdateLastAction(ctx, id)
 }
 
+func (s *UserService) ReserveTemporaryPasswordAttempt(ctx context.Context, id uint, passwordHash string) (bool, error) {
+	return s.repo.ReserveTemporaryPasswordAttempt(ctx, id, passwordHash, user.MaxTemporaryPasswordAttempts)
+}
+
+// LockCredentials serializes credential changes for a user and returns the
+// locked row. It must run inside a transaction.
+func (s *UserService) LockCredentials(ctx context.Context, userID uint) (user.User, error) {
+	if err := s.policy.LockUser(ctx, userID); err != nil {
+		return nil, err
+	}
+	return s.repo.GetByID(ctx, userID)
+}
+
+func (s *UserService) ReleaseTemporaryPasswordAttempt(ctx context.Context, id uint) error {
+	return s.repo.ReleaseTemporaryPasswordAttempt(ctx, id)
+}
+
 func (s *UserService) UpdateLastLogin(ctx context.Context, id uint) error {
 	return s.repo.UpdateLastLogin(ctx, id)
 }
@@ -175,7 +197,8 @@ func (s *UserService) UpdateSelf(ctx context.Context, data user.User) (user.User
 		data = data.
 			SetRoles(latest.Roles()).
 			SetPermissions(latest.Permissions()).
-			SetGroupIDs(latest.GroupIDs())
+			SetGroupIDs(latest.GroupIDs()).
+			SetPasswordUnsafe(latest.Password())
 		// A concurrent block/unblock is administrative state and must not be
 		// reverted by a stale self-service form submission.
 		if latest.IsBlocked() && !data.IsBlocked() {
@@ -438,4 +461,171 @@ func (s *UserService) UnblockUser(ctx context.Context, userID uint) (user.User, 
 	s.publisher.Publish(updatedEvent)
 
 	return unblockedUser, nil
+}
+
+// TemporaryPasswordResult carries a temporary password that is shown to the
+// administrator once and never stored in plain text.
+type TemporaryPasswordResult struct {
+	User      user.User
+	Password  string
+	ExpiresAt time.Time
+}
+
+// CreateWithTemporaryPassword creates an account that the user activates
+// through onboarding. An empty password is generated.
+func (s *UserService) CreateWithTemporaryPassword(ctx context.Context, data user.User, password string) (*TemporaryPasswordResult, error) {
+	const op = serrors.Op("UserService.CreateWithTemporaryPassword")
+
+	password, err := temporaryPasswordOrGenerated(password)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	expiresAt := time.Now().Add(user.TemporaryPasswordTTL)
+	pending, err := data.IssueTemporaryPassword(password, expiresAt)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	created, err := s.Create(ctx, pending)
+	if err != nil {
+		return nil, err
+	}
+	return &TemporaryPasswordResult{User: created, Password: password, ExpiresAt: expiresAt}, nil
+}
+
+func temporaryPasswordOrGenerated(password string) (string, error) {
+	if password != "" {
+		return password, nil
+	}
+	return user.GenerateTemporaryPassword()
+}
+
+// IssueTemporaryPassword replaces the user's password with a temporary one,
+// requires onboarding before normal access and revokes all sessions. An empty
+// password is generated.
+func (s *UserService) IssueTemporaryPassword(ctx context.Context, userID uint, password string) (*TemporaryPasswordResult, error) {
+	const op = serrors.Op("UserService.IssueTemporaryPassword")
+
+	if err := composables.CanUser(ctx, permissions.UserUpdate); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	password, err := temporaryPasswordOrGenerated(password)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	expiresAt := time.Now().Add(user.TemporaryPasswordTTL)
+
+	var updated user.User
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		target, err := s.policy.AuthorizeUserTarget(txCtx, userID, "user.temporary_password")
+		if err != nil {
+			return err
+		}
+		updated, err = target.IssueTemporaryPassword(password, expiresAt)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.UpdateCredentials(txCtx, updated); err != nil {
+			return err
+		}
+		if _, err := s.sessionService.DeleteByUserID(txCtx, userID); err != nil {
+			return fmt.Errorf("failed to invalidate user sessions: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	updatedEvent := user.NewUpdatedEvent(ctx, updated)
+	updatedEvent.Result = updated
+	s.publisher.Publish(updatedEvent)
+	for _, e := range updated.Events() {
+		s.publisher.Publish(e)
+	}
+
+	return &TemporaryPasswordResult{User: updated, Password: password, ExpiresAt: expiresAt}, nil
+}
+
+// OnboardingInput is what the user fills in on the onboarding page.
+type OnboardingInput struct {
+	FirstName  string
+	LastName   string
+	MiddleName string
+	Phone      phone.Phone
+	AvatarID   uint
+	Language   user.UILanguage
+	Password   string
+}
+
+// CompleteOnboarding atomically stores the user's profile, language and own
+// password, activates the account and revokes every session. The user is
+// identified by a live onboarding session, re-checked under the user lock so a
+// concurrent reissue of the temporary password wins.
+func (s *UserService) CompleteOnboarding(ctx context.Context, sessionToken string, input OnboardingInput) (user.User, error) {
+	const op = serrors.Op("UserService.CompleteOnboarding")
+
+	var completed user.User
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		sess, err := s.sessionService.GetByToken(txCtx, sessionToken)
+		if err != nil {
+			return ErrOnboardingSessionInvalid
+		}
+		userID := sess.UserID()
+		if err := s.policy.LockUser(txCtx, userID); err != nil {
+			return err
+		}
+		sess, err = s.sessionService.GetByToken(txCtx, sessionToken)
+		if err != nil || !sess.IsPendingOnboarding() || sess.IsExpired() || sess.UserID() != userID {
+			return ErrOnboardingSessionInvalid
+		}
+		current, err := s.repo.GetByID(txCtx, userID)
+		if err != nil {
+			return err
+		}
+		if current.IsBlocked() {
+			return ErrUserBlocked
+		}
+		if !current.IsPendingOnboarding() {
+			return user.ErrNotPendingOnboarding
+		}
+		if err := current.TemporaryPasswordUsable(time.Now()); err != nil {
+			return err
+		}
+		profile := current.
+			SetName(input.FirstName, input.LastName, input.MiddleName).
+			SetPhone(input.Phone).
+			SetUILanguage(input.Language)
+		if input.AvatarID != 0 {
+			profile = profile.SetAvatarID(input.AvatarID)
+		}
+		completed, err = profile.CompleteOnboarding(input.Password)
+		if err != nil {
+			return err
+		}
+		if err := s.validator.ValidateUpdate(txCtx, completed); err != nil {
+			return err
+		}
+		if err := s.repo.Update(txCtx, completed); err != nil {
+			return err
+		}
+		if err := s.repo.UpdateCredentials(txCtx, completed); err != nil {
+			return err
+		}
+		if _, err := s.sessionService.DeleteByUserID(txCtx, userID); err != nil {
+			return fmt.Errorf("failed to invalidate user sessions: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	updatedEvent := user.NewUpdatedEvent(ctx, completed)
+	updatedEvent.Result = completed
+	s.publisher.Publish(updatedEvent)
+	for _, e := range completed.Events() {
+		s.publisher.Publish(e)
+	}
+
+	return completed, nil
 }

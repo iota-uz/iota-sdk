@@ -301,7 +301,7 @@ func (s *BrowserSessionService) resolveValue(ctx context.Context, value string) 
 		if err != nil {
 			return state, nil, changed, serrors.E("core.BrowserSessionService.resolveValue", err)
 		}
-		if sess.Audience() != "" || sess.IsExpired() || (!sess.IsActive() && !sess.IsPending()) {
+		if sess.Audience() != "" || sess.IsExpired() || (!sess.IsActive() && !sess.IsPending() && !sess.IsPendingOnboarding()) {
 			changed = true
 			continue
 		}
@@ -314,7 +314,7 @@ func (s *BrowserSessionService) resolveValue(ctx context.Context, value string) 
 		if err != nil {
 			return state, nil, changed, serrors.E("core.BrowserSessionService.resolveValue", err)
 		}
-		if u.IsBlocked() {
+		if u.IsBlocked() || u.IsPendingOnboarding() != sess.IsPendingOnboarding() {
 			changed = true
 			continue
 		}

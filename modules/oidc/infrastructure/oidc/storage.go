@@ -276,6 +276,10 @@ func (s *Storage) DeleteAuthRequest(ctx context.Context, id string) error {
 func (s *Storage) CreateAccessToken(ctx context.Context, req op.TokenRequest) (string, time.Time, error) {
 	const operation serrors.Op = "Storage.CreateAccessToken"
 
+	if err := s.ensureUserMayReceiveTokens(ctx, req.GetSubject()); err != nil {
+		return "", time.Time{}, serrors.E(operation, err)
+	}
+
 	// Get signing key
 	privateKey, keyID, err := GetActiveSigningKey(ctx, s.db, s.cryptoKey)
 	if err != nil {
@@ -1070,6 +1074,23 @@ func (a *oidcAuthRequest) GetResponseMode() oidc.ResponseMode {
 }
 
 // Helper functions
+
+// ensureUserMayReceiveTokens refuses tokens to blocked users and to users who
+// have not finished onboarding, including on refresh.
+func (s *Storage) ensureUserMayReceiveTokens(ctx context.Context, subject string) error {
+	userID, err := parseUserID(subject)
+	if err != nil {
+		return err
+	}
+	u, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if u.IsBlocked() || u.IsPendingOnboarding() {
+		return oidc.ErrAccessDenied().WithDescription("user is not allowed to receive tokens")
+	}
+	return nil
+}
 
 func parseUserID(userID string) (uint, error) {
 	var uid uint

@@ -1,4 +1,36 @@
 {
+	"Onboarding": {
+		"Errors": {
+			"FirstNameRequired": "请输入名",
+			"LastNameRequired": "请输入姓",
+			"LanguageRequired": "请选择受支持的语言",
+			"PhoneInvalid": "请输入有效的电话号码",
+			"PasswordTooShort": "密码至少需要 8 个字符",
+			"PasswordTooLong": "密码过长：最多 72 个拉丁字符",
+			"PasswordReusesTemporary": "新密码必须与临时密码不同",
+			"PasswordInvalid": "密码不符合密码策略",
+			"ConfirmationMismatch": "两次输入的密码不一致",
+			"AvatarNotImage": "头像必须是图片"
+		},
+		"Title": "设置您的账户",
+		"Intro": "选择语言，填写个人资料并设置您自己的密码。之后请使用该密码登录。",
+		"Email": "邮箱",
+		"Language": "界面语言",
+		"FirstName": "名",
+		"LastName": "姓",
+		"MiddleName": "中间名（可选）",
+		"Phone": "电话（可选）",
+		"Avatar": "头像（可选）",
+		"PasswordHint": "至少 {{.Min}} 个字符。可以使用密码短语和密码管理器。",
+		"NewPassword": "新密码",
+		"ConfirmPassword": "确认新密码",
+		"Submit": "完成设置",
+		"Logout": "退出",
+		"Completed": "账户已就绪。请使用新密码登录。",
+		"Meta": {
+			"Title": "账户设置"
+		}
+	},
   "Authorization": {
     "Errors": {
       "Title": "不允许执行此操作",
@@ -472,6 +504,8 @@
 		"UseAnotherAccount": "使用其他账户",
 		"ActiveAccount": "当前",
     "Errors": {
+			"TemporaryPasswordExpired": "临时密码已失效。请向管理员索取新的临时密码。",
+			"OnboardingRequired": "请完成账户设置：使用管理员提供的临时密码登录。",
       "PasswordInvalid": "电子邮件或密码无效",
       "OauthStateNotFound": "未找到 oAuth 状态。请重试。",
       "OauthStateInvalid": "无效的 oAuth 状态。请重试。",
@@ -1100,6 +1134,19 @@
   "System": "系统",
   "UpdatedAt": "更新于",
   "Users": {
+		"PendingOnboarding": {
+			"Notice": "该用户尚未完成账户设置：设置自己的密码后才能访问。"
+		},
+		"TemporaryPassword": {
+			"Issued": "{{.Email}} 的临时密码",
+			"Copy": "复制",
+			"Copied": "已复制",
+			"ExpiresAt": "有效期至",
+			"ShownOnce": "该密码仅显示一次。请自行转交给用户。",
+			"BackToUsers": "返回用户列表",
+			"Confirm": "发放新的临时密码？当前密码将失效，并结束该用户的所有会话。",
+			"Button": "发放临时密码"
+		},
     "Meta": {
       "List": {
         "Title": "用户"
@@ -1141,6 +1188,9 @@
       "Sessions": "会话"
     },
     "Single": {
+			"TemporaryPassword": "临时密码",
+			"TemporaryPasswordPlaceholder": "留空则自动生成",
+			"TemporaryPasswordHint": "用户使用它登录一次后设置自己的密码。有效期 72 小时。",
       "EditUser": "编辑用户",
       "FirstName": "名",
       "LastName": "姓",

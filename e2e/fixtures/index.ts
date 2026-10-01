@@ -11,6 +11,10 @@ export { resetDB, seedDB, getEnvInfo, withDatabase } from './database';
 // Authentication
 export { login, logout, waitForAlpine } from './auth';
 
+// Onboarding of accounts created by an administrator
+export { submitNewUserForm, completeOnboarding, loginThroughOnboarding } from './onboarding';
+export type { OnboardingProfile } from './onboarding';
+
 // File uploads
 export { uploadFileAndWaitForAttachment } from './file-upload';
 

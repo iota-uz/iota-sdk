@@ -290,6 +290,9 @@ func preserveUserFields(u user.User, opts ...user.Option) user.User {
 		user.WithTwoFactorMethod(u.TwoFactorMethod()),
 		user.WithTwoFactorEnabledAt(u.TwoFactorEnabledAt()),
 		user.WithTOTPSecretEncrypted(u.TOTPSecretEncrypted()),
+		user.WithStatus(u.Status()),
+		user.WithPasswordExpiresAt(u.PasswordExpiresAt()),
+		user.WithFailedPasswordAttempts(u.FailedPasswordAttempts()),
 	)
 	// Append any additional options passed by caller (these will override base options)
 	baseOpts = append(baseOpts, opts...)

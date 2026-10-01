@@ -303,6 +303,7 @@ func (c *component) Build(builder *composition.Builder) error {
 				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService, httpCfg, sessionCfg, browserSessions),
 				controllers.NewAccountController(app, userService, tenantService, uploadService, sessionService, cookiesCfg),
 				controllers.NewLogoutController(httpCfg, browserSessions),
+				controllers.NewOnboardingController(app, userService, uploadService, browserSessions),
 				controllers.NewUploadController(uploadService, uploadsCfg),
 			}
 			if opts.UploadsAuthorizer != nil || opts.DefaultTenantID != uuid.Nil {

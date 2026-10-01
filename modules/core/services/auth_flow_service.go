@@ -30,6 +30,9 @@ type AuthenticationResult struct {
 	Method             pkgtwofactor.AuthMethod
 	AuthenticatorID    string
 	SatisfiesTwoFactor bool
+	// temporaryPasswordVerified is set only by AuthenticatePassword, so a
+	// custom login method cannot open onboarding by labelling itself password.
+	temporaryPasswordVerified bool
 }
 
 type FinalizeAuthenticationOptions struct {
@@ -115,9 +118,10 @@ func (s *AuthFlowService) AuthenticatePassword(
 	}
 
 	return &AuthenticationResult{
-		User:            u,
-		Method:          pkgtwofactor.AuthMethodPassword,
-		AuthenticatorID: "password",
+		User:                      u,
+		Method:                    pkgtwofactor.AuthMethodPassword,
+		AuthenticatorID:           "password",
+		temporaryPasswordVerified: u.HasTemporaryPassword(),
 	}, nil
 }
 
@@ -169,6 +173,10 @@ func (s *AuthFlowService) FinalizeAuthentication(
 				Err:     serrors.E(op, err),
 			}
 		}
+	}
+
+	if auth.User.IsPendingOnboarding() {
+		return s.startOnboarding(ctx, auth, opts)
 	}
 
 	sess := auth.Session
@@ -223,6 +231,35 @@ func (s *AuthFlowService) FinalizeAuthentication(
 	return &FinalizeAuthenticationResult{
 		Cookie:      cookie,
 		RedirectURL: validatedNextURL,
+	}, nil
+}
+
+// startOnboarding opens the restricted onboarding flow. Only a verified
+// temporary password can open it; 2FA runs on the first full login afterwards.
+func (s *AuthFlowService) startOnboarding(
+	ctx context.Context,
+	auth *AuthenticationResult,
+	opts FinalizeAuthenticationOptions,
+) (*FinalizeAuthenticationResult, error) {
+	const op serrors.Op = "core.AuthFlowService.startOnboarding"
+
+	if auth.User.IsBlocked() {
+		return nil, serrors.E(op, ErrUserBlocked)
+	}
+	if !auth.temporaryPasswordVerified {
+		return nil, serrors.E(op, ErrOnboardingRequired)
+	}
+	sess, err := s.authService.CreateOnboardingSession(ctx, auth.User)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	cookie, err := s.sessionCookie(ctx, opts.SessionCookieValue, sess)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return &FinalizeAuthenticationResult{
+		Cookie:      cookie,
+		RedirectURL: OnboardingPath,
 	}, nil
 }
 
