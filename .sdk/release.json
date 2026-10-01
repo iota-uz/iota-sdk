@@ -1,0 +1,22 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "CrudController gains WithExport: a CSV and XLSX export of the list that writes every schema field (hidden ones included), one column per stored language of a multilingual field, a relation as label plus stored value, every row of the current search across pages over a total order, and never a field named in the exclusion list."
+    },
+    {
+      "bump": "minor",
+      "summary": "Load the groups list with a fixed number of queries: management actions are evaluated from one batched role-permission lookup instead of loading every group with its members per row. GroupQueryRepository gains FindGroupPermissionsByIDs, so custom implementations must add it."
+    },
+    {
+      "bump": "patch",
+      "summary": "Restore the proxy scrollbar under a sticky table header: emptyStateCentering no longer overwrites the wrapper's measure(), so infinite-scroll tables are sized again and a mouse can scroll them sideways. Shift+wheel now scrolls such tables horizontally."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add user onboarding with admin-issued temporary passwords. Users gain a status (active, pending_onboarding), password expiry and failed-attempt counters (migration changes-1790672696.sql keeps existing users active). /users/new no longer requires names, language or a password and now also assigns direct permissions (CreateUserDTO.PermissionIDs): the administrator sets or generates a 72-hour temporary password that is shown once, and /users/{id}/temporary-password reissues it; the edit form and superadmin reset can no longer set a permanent password. A temporary password opens only a pending_onboarding session limited to GET/POST /onboarding and logout; pages, APIs, GraphQL, websockets and OIDC tokens stay closed until the user picks a language, fills the profile and sets their own password, after which all sessions and OIDC refresh tokens are revoked and 2FA runs on the next login. Temporary-password attempts are reserved atomically (5 per issue). Request logging now redacts password, secret and token fields in form and JSON bodies. New APIs: user.Status, User.IssueTemporaryPassword/CompleteOnboarding/TemporaryPasswordUsable and related getters, user.ValidatePassword, user.GenerateTemporaryPassword, user.Repository.UpdateCredentials/ReserveTemporaryPasswordAttempt/ReleaseTemporaryPasswordAttempt, UserService.LockCredentials, token.Repository.DeleteByUserID, session.StatusPendingOnboarding, AuthService.CreateOnboardingSession, UserService.CreateWithTemporaryPassword/IssueTemporaryPassword/CompleteOnboarding, controllers.NewOnboardingController and LoginPageViewModel.NoticeMessage. Breaking: user.User, user.Repository, token.Repository and session.Session interfaces gained methods; UpdateUserDTO.Password was removed and CreateUserDTO.ToEntity no longer sets a password."
+    }
+  ],
+  "source": "b92cfa429b4ad073edaa53a459e52886cb6e865f",
+  "version": "0.13.0"
+}
