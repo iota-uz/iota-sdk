@@ -1,0 +1,34 @@
+{
+  "Resources": {
+    "job": "Jobs"
+  },
+  "Permissions": {
+    "Job": {
+      "Create": "Run long-running operations",
+      "Read": "View own operations",
+      "Delete": "Dismiss own operations"
+    }
+  },
+  "Jobs": {
+    "Status": {
+      "Queued": "Queued",
+      "Running": "Running",
+      "Done": "Done",
+      "Failed": "Failed"
+    },
+    "Actions": {
+      "Run": "Run",
+      "Retry": "Retry",
+      "Download": "Download",
+      "Dismiss": "Dismiss"
+    }
+  },
+  "PermissionSets": {
+    "Jobs": {
+      "JobRun": {
+        "Label": "Long-running operations",
+        "_Description": "Run exports, reports and bulk actions in the background with progress and downloadable results."
+      }
+    }
+  }
+}

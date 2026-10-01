@@ -1,0 +1,167 @@
+package jobs
+
+import (
+	"strings"
+
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/jobs/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+// Operations renders the fixed "my operations" stack: on load it fetches the
+// signed-in user's recent jobs into #jobs-operations-list, and every Trigger
+// button appends new job items there. Include it once per page.
+templ Operations() {
+	<div
+		id="jobs-operations"
+		class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-96 max-w-[calc(100vw-2rem)]"
+	>
+		<div
+			id="jobs-operations-list"
+			class="flex flex-col gap-2"
+			hx-get="/jobs/mine"
+			hx-trigger="load"
+			hx-swap="innerHTML"
+		></div>
+	</div>
+}
+
+// List renders the inner fragment of the operations stack.
+templ List(vms []viewmodels.JobViewModel) {
+	for _, vm := range vms {
+		@Item(vm)
+	}
+}
+
+// Item renders one operation with its live status. Non-terminal items poll
+// /jobs/{id} every 2 seconds and replace themselves; terminal items stop
+// polling and offer a download (done) or a retry (failed).
+templ Item(vm viewmodels.JobViewModel) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	if !isTerminal(vm.Status) {
+		<div
+			id={ "job-" + vm.ID.String() }
+			class="job-item bg-surface-300 border border-secondary rounded-lg shadow-lg px-4 py-3 text-sm"
+			role="status"
+			hx-get={ "/jobs/" + vm.ID.String() }
+			hx-trigger="every 2s"
+			hx-swap="outerHTML"
+		>
+			<div class="flex items-center justify-between gap-2 mb-2">
+				<span class="font-medium truncate">{ kindLabel(pageCtx, vm.Kind) }</span>
+				<span class={ "text-xs font-semibold uppercase tracking-wide", statusClass(vm.Status) }>
+					{ statusLabel(pageCtx, vm.Status) }
+				</span>
+			</div>
+			@base.Progress(base.ProgressProps{
+				Value:  uint(vm.Progress),
+				Target: 100,
+			})
+			if vm.Phase != "" {
+				<div class="mt-1 text-xs text-gray-500 truncate">{ vm.Phase }</div>
+			}
+		</div>
+	} else {
+		<div
+			id={ "job-" + vm.ID.String() }
+			class="job-item bg-surface-300 border border-secondary rounded-lg shadow-lg px-4 py-3 text-sm"
+		>
+			<div class="flex items-center justify-between gap-2">
+				<span class="font-medium truncate flex items-center gap-2">
+					if vm.Status == "failed" {
+						@icons.WarningCircle(icons.Props{Size: "18", Class: "text-danger"})
+					} else {
+						@icons.CheckCircle(icons.Props{Size: "18", Class: "text-success"})
+					}
+					{ kindLabel(pageCtx, vm.Kind) }
+				</span>
+				<span class={ "text-xs font-semibold uppercase tracking-wide", statusClass(vm.Status) }>
+					{ statusLabel(pageCtx, vm.Status) }
+				</span>
+			</div>
+			if vm.Status == "failed" {
+				<div class="mt-2 bg-red-100 text-red-700 py-2 px-3 text-xs rounded-md break-words">
+					{ vm.Error }
+				</div>
+				<div class="mt-2 flex justify-end gap-2">
+					<button
+						type="button"
+						class="btn btn-secondary btn-xs btn-with-icon flex items-center gap-1"
+						hx-post={ "/jobs/" + vm.ID.String() + "/retry" }
+						hx-target={ "#job-" + vm.ID.String() }
+						hx-swap="outerHTML"
+					>
+						@icons.ArrowClockwise(icons.Props{Size: "14"})
+						{ pageCtx.T("Jobs.Actions.Retry") }
+					</button>
+					@dismissButton(pageCtx, vm)
+				</div>
+			} else if vm.ResultURL != "" {
+				<div class="mt-2 flex justify-between items-center gap-2">
+					<a
+						href={ templ.URL(vm.ResultURL) }
+						download={ vm.ResultName }
+						class="btn btn-primary btn-xs btn-with-icon flex items-center gap-1"
+					>
+						@icons.Download(icons.Props{Size: "14"})
+						{ orDefault(pageCtx.TSafe("Jobs.Actions.Download"), "Download") }
+					</a>
+					@dismissButton(pageCtx, vm)
+				</div>
+			} else {
+				<div class="mt-2 flex justify-end">
+					@dismissButton(pageCtx, vm)
+				</div>
+			}
+		</div>
+	}
+}
+
+templ dismissButton(pageCtx types.PageContext, vm viewmodels.JobViewModel) {
+	<button
+		type="button"
+		class="btn btn-secondary btn-xs"
+		hx-delete={ "/jobs/" + vm.ID.String() }
+		hx-target={ "#job-" + vm.ID.String() }
+		hx-swap="outerHTML"
+	>
+		{ pageCtx.T("Jobs.Actions.Dismiss") }
+	</button>
+}
+
+func isTerminal(status string) bool {
+	return status == "done" || status == "failed"
+}
+
+func statusClass(status string) string {
+	switch status {
+	case "queued":
+		return "text-gray-500"
+	case "running":
+		return "text-primary"
+	case "done":
+		return "text-success"
+	case "failed":
+		return "text-danger"
+	default:
+		return "text-gray-500"
+	}
+}
+
+func statusLabel(pageCtx types.PageContext, status string) string {
+	return orDefault(pageCtx.TSafe("Jobs.Status."+strings.Title(status)), strings.Title(status))
+}
+
+func kindLabel(pageCtx types.PageContext, kind string) string {
+	key := "Jobs.Kinds." + strings.ReplaceAll(strings.Title(strings.ReplaceAll(kind, "_", " ")), " ", "")
+	return orDefault(pageCtx.TSafe(key), strings.ReplaceAll(kind, "_", " "))
+}
+
+func orDefault(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
+}

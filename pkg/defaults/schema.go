@@ -11,6 +11,7 @@ import (
 	crmPerms "github.com/iota-uz/iota-sdk/modules/crm/permissions"
 	financePerms "github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	hrmPerms "github.com/iota-uz/iota-sdk/modules/hrm/permissions"
+	jobsPerms "github.com/iota-uz/iota-sdk/modules/jobs/permissions"
 	loggingPerms "github.com/iota-uz/iota-sdk/modules/logging/permissions"
 	projectsPerms "github.com/iota-uz/iota-sdk/modules/projects/permissions"
 	warehousePerms "github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
@@ -62,6 +63,7 @@ func AllPermissions() []permission.Permission {
 		len(crmPerms.Permissions) +
 		len(financePerms.Permissions) +
 		len(hrmPerms.Permissions) +
+		len(jobsPerms.Permissions) +
 		len(loggingPerms.Permissions) +
 		len(projectsPerms.Permissions) +
 		len(warehousePerms.Permissions)
@@ -73,6 +75,7 @@ func AllPermissions() []permission.Permission {
 	permissions = append(permissions, crmPerms.Permissions...)
 	permissions = append(permissions, financePerms.Permissions...)
 	permissions = append(permissions, hrmPerms.Permissions...)
+	permissions = append(permissions, jobsPerms.Permissions...)
 	permissions = append(permissions, loggingPerms.Permissions...)
 	permissions = append(permissions, projectsPerms.Permissions...)
 	permissions = append(permissions, warehousePerms.Permissions...)
@@ -182,6 +185,21 @@ func buildModulePermissionSets() []rbac.PermissionSet {
 			Permissions: []permission.Permission{bichatPerms.BiChatExport},
 		},
 	)
+
+	// Jobs module — the async operations primitive is ambient infrastructure:
+	// every user runs their own long-running operations and only ever sees
+	// their own jobs, so a single run/view/dismiss set is enough.
+	sets = append(sets, rbac.PermissionSet{
+		Key:         "job_run",
+		Label:       "PermissionSets.Jobs.JobRun.Label",
+		Description: "PermissionSets.Jobs.JobRun._Description",
+		Module:      "Jobs",
+		Permissions: []permission.Permission{
+			jobsPerms.JobRun,
+			jobsPerms.JobRead,
+			jobsPerms.JobDelete,
+		},
+	})
 
 	return sets
 }
