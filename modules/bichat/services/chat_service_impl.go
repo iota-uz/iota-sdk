@@ -67,11 +67,6 @@ type chatServiceImpl struct {
 	// runSessionQueue is the per-session FIFO for messages sent while a
 	// run is active. nil when Redis is unconfigured (queueing disabled).
 	runSessionQueue *RedisRunSessionQueue
-	// runWorkersEnabled switches SendMessageStream to enqueue mode: jobs
-	// are handed to Redis run workers instead of executing inline. It
-	// requires Redis; when the queue/event log are missing the service
-	// falls back to the inline path automatically.
-	runWorkersEnabled bool
 	// runExecutor executes a generation turn from a payload. The inline
 	// path spawns it in-process; the Redis run worker calls it for
 	// consumed jobs.
@@ -151,17 +146,6 @@ func (s *chatServiceImpl) WithLogger(logger *logrus.Logger) *chatServiceImpl {
 // prefer BaseURL, falling back to Host when BaseURL is empty.
 func (s *chatServiceImpl) WithLangfuseBaseURL(rawURL string) *chatServiceImpl {
 	s.langfuseBaseURL = strings.TrimSpace(rawURL)
-	return s
-}
-
-// WithRunWorkersEnabled switches SendMessageStream to enqueue mode: send
-// requests hand the generation job to the Redis run queue and become pure
-// event-log cursor readers instead of executing the agent in-process.
-// Call immediately after NewChatService; safe before concurrent use. The
-// mode additionally requires Redis (queue + event log) at send time —
-// without it the service automatically falls back to the inline path.
-func (s *chatServiceImpl) WithRunWorkersEnabled(enabled bool) *chatServiceImpl {
-	s.runWorkersEnabled = enabled
 	return s
 }
 
@@ -1172,23 +1156,26 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 //
 // Two execution modes:
 //
-//   - inline (default): the generation runs in a goroutine on this process
+//   - inline (no Redis): the generation runs in a goroutine on this process
 //     via RunExecutor.Execute; the requesting handler receives chunks over an
 //     in-memory subscriber channel.
-//   - enqueue (BICHAT_RUN_WORKERS_ENABLED=true, Redis required): the request
-//     is handed to the Redis run queue and this handler becomes a pure
-//     event-log cursor reader — the same Replay+Tail path as
-//     GET /stream/events. A send that lands while the session already has an
-//     active run is pushed onto the per-session FIFO and surfaces as a
-//     "queued" sidebar status instead of failing with ErrActiveRunExists.
+//   - enqueue (Redis configured): the request is handed to the Redis run
+//     queue and this handler becomes a pure event-log cursor reader — the
+//     same Replay+Tail path as GET /stream/events. Run workers consume the
+//     jobs; every process that builds the BiChat component boots one, so
+//     single-process deployments are self-contained. A send that lands while
+//     the session already has an active run is pushed onto the per-session
+//     FIFO and surfaces as a "queued" sidebar status instead of failing with
+//     ErrActiveRunExists.
 //
-// Without Redis the flag has no effect: enqueue mode requires the queue and
-// the event log, and the service falls back to inline execution otherwise.
+// The mode is chosen per send from Redis availability alone — there is no
+// flag to opt out. A transient enqueue failure falls back to inline
+// execution so a Redis blip never blocks a send.
 func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservices.SendMessageRequest, onChunk func(bichatservices.StreamChunk)) error {
 	const op serrors.Op = "chatServiceImpl.SendMessageStream"
 	startedAt := time.Now()
 
-	enqueueMode := s.runWorkersEnabled && s.runJobQueue != nil && s.eventLog != nil && s.runSessionQueue != nil
+	enqueueMode := s.runJobQueue != nil && s.eventLog != nil && s.runSessionQueue != nil
 
 	// request_id dedupe: if the client supplied an idempotency key,
 	// claim it before doing any real work. A duplicate send within

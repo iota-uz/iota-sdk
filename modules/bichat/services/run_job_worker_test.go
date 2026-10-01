@@ -345,33 +345,3 @@ func TestPromoteNextQueuedRun_PopsHeadAndReenqueues(t *testing.T) {
 	require.NoError(t, lenErr)
 	assert.Equal(t, int64(1), depth, "second job must remain queued")
 }
-
-func TestRunJobWorker_RunWorkersEnabledFromEnv(t *testing.T) {
-	t.Parallel()
-
-	originalLookup := envLookup
-	t.Cleanup(func() { envLookup = originalLookup })
-
-	cases := []struct {
-		value string
-		want  bool
-	}{
-		{"1", true},
-		{"true", true},
-		{"TRUE", true},
-		{" yes ", true},
-		{"on", true},
-		{"0", false},
-		{"false", false},
-		{"off", false},
-		{"garbage", false},
-		{"", false},
-	}
-	for _, tc := range cases {
-		value := tc.value
-		envLookup = func(key string) (string, bool) { return value, true }
-		assert.Equal(t, tc.want, RunWorkersEnabledFromEnv(), "BICHAT_RUN_WORKERS_ENABLED=%q", tc.value)
-	}
-	envLookup = func(string) (string, bool) { return "", false }
-	assert.False(t, RunWorkersEnabledFromEnv(), "unset env must disable run workers")
-}

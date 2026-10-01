@@ -72,25 +72,6 @@ func (s *ChatApplicationServices) WithLangfuseBaseURL(rawURL string) {
 	}
 }
 
-// EnableRunWorkers switches SendMessageStream to enqueue mode: send requests
-// hand generation jobs to the Redis run queue and become event-log cursor
-// readers. Requires the WithRunWorkers caller to ensure a RunJobWorker is
-// booted (component.go does this for worker-capable processes); otherwise
-// jobs would queue forever.
-func (s *ChatApplicationServices) EnableRunWorkers(enabled bool) {
-	if s.core != nil {
-		s.core.WithRunWorkersEnabled(enabled)
-	}
-}
-
-// RunWorkersEnabled reports whether enqueue mode is active.
-func (s *ChatApplicationServices) RunWorkersEnabled() bool {
-	if s.core == nil {
-		return false
-	}
-	return s.core.runWorkersEnabled
-}
-
 // RunExecutor exposes the generation turn executor for the run worker.
 func (s *ChatApplicationServices) RunExecutor() RunExecutor {
 	if s.core == nil {

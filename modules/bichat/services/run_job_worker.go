@@ -451,20 +451,3 @@ func unmarshalRunRetryPayload(member string) (RunJobPayload, error) {
 	}
 	return payload, nil
 }
-
-// RunWorkersEnabledFromEnv reports whether BICHAT_RUN_WORKERS_ENABLED opts
-// the deployment into run workers ("1", "true", "yes", "on",
-// case-insensitive). The env var is the deployment-level switch; the
-// code-level ModuleConfig.RunWorkersEnabled field ORs into it.
-func RunWorkersEnabledFromEnv() bool {
-	raw, ok := envLookup("BICHAT_RUN_WORKERS_ENABLED")
-	if !ok {
-		return false
-	}
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "1", "true", "yes", "on":
-		return true
-	default:
-		return false
-	}
-}

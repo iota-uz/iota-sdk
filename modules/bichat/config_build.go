@@ -197,13 +197,11 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		chatServices.WithLangfuseBaseURL(c.LangfuseBaseURL)
 	}
 
-	// Enqueue mode is effective only when Redis is configured; the chat
-	// service falls back to inline execution otherwise (checked per send).
-	runWorkersEnabled := (c.RunWorkersEnabled || services.RunWorkersEnabledFromEnv()) && chatServices.RunJobQueue() != nil
-	chatServices.EnableRunWorkers(runWorkersEnabled)
-	if runWorkersEnabled && c.Logger != nil {
-		c.Logger.Info("bichat run workers enabled: send requests are enqueued onto bichat:run:jobs")
-	}
+	// Enqueue mode is driven purely by Redis availability (checked per
+	// send): when the Redis run components are configured, sends are
+	// handed to the run job queue and consumed by the run worker booted in
+	// every process (see component.go). Without Redis, sends execute
+	// inline exactly as before.
 
 	return &ServiceContainer{
 		sessionCommands:      chatServices.SessionCommands,
@@ -228,7 +226,6 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		runJobQueue:          chatServices.RunJobQueue(),
 		runSessionQueue:      chatServices.RunSessionQueue(),
 		runExecutor:          chatServices.RunExecutor(),
-		runWorkersEnabled:    runWorkersEnabled,
 		failStalledRun:       chatServices.FailStalledRun(),
 	}, nil
 }
