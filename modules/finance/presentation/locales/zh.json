@@ -263,6 +263,9 @@
       "Transactions": "交易",
       "Transfer": "转账"
     },
+    "Errors": {
+      "DuplicateAccountNumber": "该账号已存在"
+    },
     "Transactions": {
       "NoTransactions": "还没有交易",
       "NoTransactionsDescription": "此账户没有交易。当您添加支出、付款或转账时，交易将显示在这里。",

@@ -12,22 +12,31 @@ import (
 )
 
 func (s *chatServiceImpl) appendRunEvent(ctx context.Context, tenantID, sessionID, runID uuid.UUID, chunk api.StreamChunk) error {
-	const op serrors.Op = "chatServiceImpl.appendRunEvent"
+	_, err := s.appendRunEventWithID(ctx, tenantID, sessionID, runID, chunk)
+	return err
+}
+
+// appendRunEventWithID journals the chunk and returns the event-log stream
+// id so callers can tail exclusively after it (avoids replaying the event
+// they just delivered directly).
+func (s *chatServiceImpl) appendRunEventWithID(ctx context.Context, tenantID, sessionID, runID uuid.UUID, chunk api.StreamChunk) (string, error) {
+	const op serrors.Op = "chatServiceImpl.appendRunEventWithID"
 	if s.eventLog == nil {
-		return nil
+		return "", nil
 	}
 	eventType, body, err := encodeRunEventFromChunk(chunk)
 	if err == nil {
-		_, err = s.eventLog.Append(ctx, tenantID, runID, RunEvent{Type: eventType, Payload: body})
+		var streamID string
+		streamID, err = s.eventLog.Append(ctx, tenantID, runID, RunEvent{Type: eventType, Payload: body})
+		if err == nil {
+			return streamID, nil
+		}
 	}
-	if err != nil {
-		s.log().WithError(err).WithFields(logrus.Fields{
-			"tenant_id": tenantID.String(), "session_id": sessionID.String(), "run_id": runID.String(),
-			"stage": "event_log_append", "event_type": string(chunk.Type),
-		}).Error("bichat: failed to persist run event")
-		return serrors.E(op, err)
-	}
-	return nil
+	s.log().WithError(err).WithFields(logrus.Fields{
+		"tenant_id": tenantID.String(), "session_id": sessionID.String(), "run_id": runID.String(),
+		"stage": "event_log_append", "event_type": string(chunk.Type),
+	}).Error("bichat: failed to persist run event")
+	return "", serrors.E(op, err)
 }
 
 func (s *chatServiceImpl) mirrorRunEvents(ctx context.Context, tenantID uuid.UUID, active *streaming.ActiveRun) {

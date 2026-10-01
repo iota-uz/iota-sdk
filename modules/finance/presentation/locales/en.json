@@ -263,6 +263,9 @@
       "Transactions": "Transactions",
       "Transfer": "Transfer"
     },
+    "Errors": {
+      "DuplicateAccountNumber": "An account with this number already exists"
+    },
     "Transactions": {
       "NoTransactions": "No transactions yet",
       "NoTransactionsDescription": "This account has no transactions. Transactions will appear here when you add expenses, payments, or transfers.",

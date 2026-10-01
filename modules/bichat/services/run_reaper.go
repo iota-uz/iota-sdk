@@ -47,6 +47,10 @@ type RunReaperConfig struct {
 	// KeyPrefix matches the active-run index key prefix. Defaults to
 	// the index's default, which is the common case.
 	KeyPrefix string
+	// OnRunTerminal is invoked after a stale run is failed, keyed by its
+	// session. Run-worker deployments wire it to the session-FIFO promoter
+	// so a queued job is not stranded behind a run whose worker died.
+	OnRunTerminal func(ctx context.Context, tenantID, sessionID uuid.UUID)
 }
 
 // RunReaper periodically marks runs whose worker has gone silent as
@@ -63,6 +67,7 @@ type RunReaper struct {
 	staleAfter     time.Duration
 	lockTTL        time.Duration
 	keyPrefix      string
+	onRunTerminal  func(ctx context.Context, tenantID, sessionID uuid.UUID)
 	now            func() time.Time
 	instanceLockID string
 }
@@ -83,6 +88,17 @@ func NewConfiguredRunReaperFromEnv(logger *logrus.Logger) (*RunReaper, error) {
 func NewConfiguredRunReaperWithTunables(
 	logger *logrus.Logger,
 	interval, staleThreshold, lockTTL time.Duration,
+) (*RunReaper, error) {
+	return NewConfiguredRunReaperWithHook(logger, interval, staleThreshold, lockTTL, nil)
+}
+
+// NewConfiguredRunReaperWithHook is NewConfiguredRunReaperWithTunables plus
+// an OnRunTerminal hook invoked after each reaped run (used by run-worker
+// deployments to promote the next queued session-FIFO job).
+func NewConfiguredRunReaperWithHook(
+	logger *logrus.Logger,
+	interval, staleThreshold, lockTTL time.Duration,
+	onRunTerminal func(ctx context.Context, tenantID, sessionID uuid.UUID),
 ) (*RunReaper, error) {
 	client, err := NewSharedRedisClient()
 	if err != nil {
@@ -112,6 +128,7 @@ func NewConfiguredRunReaperWithTunables(
 		PollInterval:   interval,
 		StaleAfter:     staleThreshold,
 		LockTTL:        lockTTL,
+		OnRunTerminal:  onRunTerminal,
 	})
 }
 
@@ -165,6 +182,7 @@ func NewRunReaper(cfg RunReaperConfig) (*RunReaper, error) {
 		staleAfter:     stale,
 		lockTTL:        lockTTL,
 		keyPrefix:      prefix,
+		onRunTerminal:  cfg.OnRunTerminal,
 		now:            time.Now,
 		instanceLockID: uuid.NewString(),
 	}, nil
@@ -351,6 +369,10 @@ func (r *RunReaper) failStaleRun(ctx context.Context, tenantID, sessionID, runID
 			Status:    string(domain.GenerationRunStatusFailed),
 			UpdatedAt: r.now().UTC(),
 		})
+	}
+
+	if r.onRunTerminal != nil {
+		r.onRunTerminal(ctx, tenantID, sessionID)
 	}
 }
 

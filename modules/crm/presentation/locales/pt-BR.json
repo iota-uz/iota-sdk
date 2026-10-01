@@ -166,6 +166,7 @@
     "Back": "Voltar",
     "InstantMessages": "Mensagens instantâneas",
     "NoSelectedChat": "Selecione um chat...",
-    "ChatNotFound": "Chat não encontrado..."
+    "ChatNotFound": "Chat não encontrado...",
+    "NoMessages": "Nenhuma mensagem ainda"
   }
 }

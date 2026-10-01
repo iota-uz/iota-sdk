@@ -263,6 +263,9 @@
       "Transactions": "Tranzaksiyalar",
       "Transfer": "O'tkazma"
     },
+    "Errors": {
+      "DuplicateAccountNumber": "Bu raqam bilan hisob allaqachon mavjud"
+    },
     "Transactions": {
       "NoTransactions": "Hozircha tranzaksiyalar yo'q",
       "NoTransactionsDescription": "Bu hisobda tranzaksiyalar yo'q. Tranzaksiyalar siz xarajat, to'lov yoki o'tkazmalar qo'shganingizda bu yerda ko'rinadi.",

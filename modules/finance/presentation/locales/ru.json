@@ -263,6 +263,9 @@
       "Transactions": "Транзакции",
       "Transfer": "Перевод"
     },
+    "Errors": {
+      "DuplicateAccountNumber": "Счёт с таким номером уже существует"
+    },
     "Transactions": {
       "NoTransactions": "Пока нет транзакций",
       "NoTransactionsDescription": "У этого счета нет транзакций. Транзакции будут отображаться здесь когда вы добавите расходы, платежи или переводы.",

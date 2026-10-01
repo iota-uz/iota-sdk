@@ -2,6 +2,8 @@
 package services
 
 import (
+	"context"
+
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
@@ -68,6 +70,51 @@ func (s *ChatApplicationServices) WithLangfuseBaseURL(rawURL string) {
 	if s.core != nil {
 		s.core.WithLangfuseBaseURL(rawURL)
 	}
+}
+
+// RunExecutor exposes the generation turn executor for the run worker.
+func (s *ChatApplicationServices) RunExecutor() RunExecutor {
+	if s.core == nil {
+		return nil
+	}
+	return s.core.RunExecutor()
+}
+
+// RunJobQueue exposes the shared Redis run job queue for worker wiring.
+// nil when Redis is unconfigured.
+func (s *ChatApplicationServices) RunJobQueue() *RedisRunJobQueue {
+	if s.core == nil {
+		return nil
+	}
+	return s.core.runJobQueue
+}
+
+// RunSessionQueue exposes the per-session FIFO used by enqueue mode.
+// nil when Redis is unconfigured.
+func (s *ChatApplicationServices) RunSessionQueue() *RedisRunSessionQueue {
+	if s.core == nil {
+		return nil
+	}
+	return s.core.runSessionQueue
+}
+
+// ActiveRunIndex exposes the per-tenant active-run index so worker wiring
+// can keep the sidebar's queued-run count in sync. nil when Redis is
+// unconfigured.
+func (s *ChatApplicationServices) ActiveRunIndex() ActiveRunIndex {
+	if s.core == nil {
+		return nil
+	}
+	return s.core.activeRunIndex
+}
+
+// FailStalledRun drives a run whose job was lost to terminal infrastructure
+// failure to the failed state so waiting clients see a terminal event.
+func (s *ChatApplicationServices) FailStalledRun() func(ctx context.Context, job RunJobPayload, cause error) {
+	if s.core == nil {
+		return nil
+	}
+	return s.core.FailStalledRun
 }
 
 // CloseSharedRedis releases the shared *redis.Client that backs all Redis

@@ -197,6 +197,12 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		chatServices.WithLangfuseBaseURL(c.LangfuseBaseURL)
 	}
 
+	// Enqueue mode is driven purely by Redis availability (checked per
+	// send): when the Redis run components are configured, sends are
+	// handed to the run job queue and consumed by the run worker booted in
+	// every process (see component.go). Without Redis, sends execute
+	// inline exactly as before.
+
 	return &ServiceContainer{
 		sessionCommands:      chatServices.SessionCommands,
 		sessionQueries:       chatServices.SessionQueries,
@@ -217,6 +223,11 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		reaperInterval:       c.ReaperInterval,
 		reaperStaleThreshold: c.ReaperStaleThreshold,
 		reaperLockTTL:        c.ReaperLockTTL,
+		runJobQueue:          chatServices.RunJobQueue(),
+		runSessionQueue:      chatServices.RunSessionQueue(),
+		runExecutor:          chatServices.RunExecutor(),
+		activeRunIndex:       chatServices.ActiveRunIndex(),
+		failStalledRun:       chatServices.FailStalledRun(),
 	}, nil
 }
 

@@ -49,6 +49,12 @@ type RunJobPayload struct {
 	Content   string  `json:"content"`
 	UploadIDs []int64 `json:"upload_ids,omitempty"`
 
+	// UserMessageID is the id of the user message the enqueuer already
+	// persisted alongside the run. When zero (a job queued behind an
+	// active run before its message was committed), the executor persists
+	// the user message + attachment artifacts itself before generating.
+	UserMessageID uuid.UUID `json:"user_message_id,omitempty"`
+
 	// Edit/regenerate support.
 	ReplaceFromMessageID *uuid.UUID `json:"replace_from_message_id,omitempty"`
 
@@ -175,10 +181,52 @@ func (q *RedisRunJobQueue) Enqueue(ctx context.Context, payload RunJobPayload) (
 		payload.EnqueuedAt = time.Now().UTC()
 	}
 
+	if err := q.xaddPayload(ctx, payload); err != nil {
+		// Roll the dedupe claim back so a client retry with the same
+		// request_id can mint a fresh run instead of dead-ending on the
+		// never-enqueued one.
+		_, _ = q.client.Del(context.WithoutCancel(ctx), q.dedupeKey(payload.TenantID, payload.RequestID)).Result()
+		return uuid.Nil, false, err
+	}
+	return payload.RunID, false, nil
+}
+
+// EnqueueClaimed posts a job to the stream WITHOUT touching the request
+// dedupe key. It is used by callers that already claimed the request_id via
+// ClaimRequest (the HTTP send path) and by the session-FIFO promoter, which
+// replays a queued job after the run ahead of it terminated. Re-claiming
+// there would either no-op against our own claim or, worse, release and
+// race a concurrent duplicate send.
+func (q *RedisRunJobQueue) EnqueueClaimed(ctx context.Context, payload RunJobPayload) (uuid.UUID, error) {
+	const op serrors.Op = "RedisRunJobQueue.EnqueueClaimed"
+
+	if payload.TenantID == uuid.Nil {
+		return uuid.Nil, serrors.E(op, serrors.KindValidation, "tenant id is required")
+	}
+	if payload.SessionID == uuid.Nil {
+		return uuid.Nil, serrors.E(op, serrors.KindValidation, "session id is required")
+	}
+	if payload.RunID == uuid.Nil {
+		return uuid.Nil, serrors.E(op, serrors.KindValidation, "run id is required")
+	}
+	if payload.EnqueuedAt.IsZero() {
+		payload.EnqueuedAt = time.Now().UTC()
+	}
+	if err := q.xaddPayload(ctx, payload); err != nil {
+		return uuid.Nil, err
+	}
+	return payload.RunID, nil
+}
+
+// xaddPayload marshals the payload and writes the stream entry. On a failed
+// XAdd nothing needs cleanup because the caller either never wrote the
+// dedupe key (EnqueueClaimed) or cleans it up itself (Enqueue).
+func (q *RedisRunJobQueue) xaddPayload(ctx context.Context, payload RunJobPayload) error {
+	const op serrors.Op = "RedisRunJobQueue.xaddPayload"
+
 	body, err := json.Marshal(payload)
 	if err != nil {
-		_, _ = q.client.Del(context.WithoutCancel(ctx), q.dedupeKey(payload.TenantID, payload.RequestID)).Result()
-		return uuid.Nil, false, serrors.E(op, "marshal run payload", err)
+		return serrors.E(op, "marshal run payload", err)
 	}
 
 	enqueueCtx := context.WithoutCancel(ctx)
@@ -197,12 +245,10 @@ func (q *RedisRunJobQueue) Enqueue(ctx context.Context, payload RunJobPayload) (
 		},
 	}).Result()
 	if err != nil {
-		_, _ = q.client.Del(enqueueCtx, q.dedupeKey(payload.TenantID, payload.RequestID)).Result()
-		return uuid.Nil, false, serrors.E(op, "xadd run job", err)
+		return serrors.E(op, "xadd run job", err)
 	}
 	_, _ = q.client.XTrimMaxLenApprox(enqueueCtx, q.stream, q.maxLen, 1).Result()
-
-	return payload.RunID, false, nil
+	return nil
 }
 
 // ClaimRequest acquires the request_id dedupe lock WITHOUT enqueuing a

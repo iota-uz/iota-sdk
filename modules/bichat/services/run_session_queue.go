@@ -149,6 +149,34 @@ func (q *RedisRunSessionQueue) Pop(ctx context.Context, tenantID, sessionID uuid
 	return job, true, nil
 }
 
+// PushFront puts a job back at the head of the FIFO. Promotion uses it to
+// restore a job whose stream enqueue failed, so it keeps its position
+// instead of being lost — Pop already removed it.
+func (q *RedisRunSessionQueue) PushFront(ctx context.Context, tenantID, sessionID uuid.UUID, job QueuedRunJob) error {
+	const op serrors.Op = "RedisRunSessionQueue.PushFront"
+	if tenantID == uuid.Nil || sessionID == uuid.Nil {
+		return serrors.E(op, serrors.KindValidation, "tenant id and session id are required")
+	}
+	if job.QueuedAt.IsZero() {
+		job.QueuedAt = time.Now().UTC()
+	}
+	body, err := json.Marshal(job)
+	if err != nil {
+		return serrors.E(op, "marshal queued job", err)
+	}
+	key := q.listKey(tenantID, sessionID)
+	writeCtx := context.WithoutCancel(ctx)
+	pipe := q.client.TxPipeline()
+	pipe.LPush(writeCtx, key, body)
+	// Restoration must preserve every accepted job, even if new sends filled
+	// the queue after Pop. Capacity limits apply only when accepting a new job.
+	pipe.Expire(writeCtx, key, q.ttl)
+	if _, err := pipe.Exec(writeCtx); err != nil {
+		return serrors.E(op, "lpush queued job", err)
+	}
+	return nil
+}
+
 // Len implements RunSessionQueue.
 func (q *RedisRunSessionQueue) Len(ctx context.Context, tenantID, sessionID uuid.UUID) (int64, error) {
 	const op serrors.Op = "RedisRunSessionQueue.Len"
