@@ -169,10 +169,12 @@ func (c *UsersController) buildCreateFormProps(
 
 	userViewModel := viewmodels.User{}
 	errors := map[string]string{}
+	var selectedPermissions []permission.Permission
 
 	if state != nil {
 		errors = state.Errors
 		if state.DTO != nil {
+			selectedPermissions = c.selectedPermissionsFromIDs(state.DTO.PermissionIDs)
 			userViewModel = viewmodels.User{
 				FirstName:  state.DTO.FirstName,
 				LastName:   state.DTO.LastName,
@@ -191,7 +193,7 @@ func (c *UsersController) buildCreateFormProps(
 		User:                     userViewModel,
 		Roles:                    options.roles,
 		Groups:                   options.groups,
-		ResourcePermissionGroups: c.grantableResourcePermissionGroups(ctx),
+		ResourcePermissionGroups: c.grantableResourcePermissionGroups(ctx, selectedPermissions...),
 		Errors:                   errors,
 	}, nil
 }

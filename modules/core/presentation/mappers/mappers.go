@@ -74,6 +74,7 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 		BlockedBy:            blockedBy,
 		BlockedByUser:        "",
 		CanBeBlocked:         entity.CanBeBlocked(),
+		PendingOnboarding:    entity.IsPendingOnboarding(),
 	}
 
 	if v := entity.LastAction(); !v.IsZero() {

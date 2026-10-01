@@ -1,4 +1,36 @@
 {
+	"Onboarding": {
+		"Errors": {
+			"FirstNameRequired": "Исмни киритинг",
+			"LastNameRequired": "Фамилияни киритинг",
+			"LanguageRequired": "Қўллаб-қувватланадиган тилни танланг",
+			"PhoneInvalid": "Тўғри телефон рақамини киритинг",
+			"PasswordTooShort": "Парол камида 8 та белгидан иборат бўлиши керак",
+			"PasswordTooLong": "Парол жуда узун: кўпи билан 72 та лотин белгиси",
+			"PasswordReusesTemporary": "Янги парол вақтинчалик паролдан фарқ қилиши керак",
+			"PasswordInvalid": "Парол парол сиёсатига мос келмайди",
+			"ConfirmationMismatch": "Пароллар мос келмади",
+			"AvatarNotImage": "Аватар расм бўлиши керак"
+		},
+		"Title": "Аккаунтни созлаш",
+		"Intro": "Тилни танланг, профилни тўлдиринг ва ўз паролингизни ўрнатинг. Кейин у билан киринг.",
+		"Email": "Email",
+		"Language": "Интерфейс тили",
+		"FirstName": "Исм",
+		"LastName": "Фамилия",
+		"MiddleName": "Отасининг исми (ихтиёрий)",
+		"Phone": "Телефон (ихтиёрий)",
+		"Avatar": "Аватар (ихтиёрий)",
+		"PasswordHint": "Камида {{.Min}} та белги. Парол ибораси ва парол менежеридан фойдаланиш мумкин.",
+		"NewPassword": "Янги парол",
+		"ConfirmPassword": "Янги паролни такрорланг",
+		"Submit": "Созлашни якунлаш",
+		"Logout": "Чиқиш",
+		"Completed": "Аккаунт тайёр. Янги парол билан киринг.",
+		"Meta": {
+			"Title": "Аккаунтни созлаш"
+		}
+	},
   "Authorization": {
     "Errors": {
       "Title": "Амалга рухсат берилмаган",
@@ -472,6 +504,8 @@
 		"UseAnotherAccount": "Бошқа аккаунтдан фойдаланиш",
 		"ActiveAccount": "Фаол",
     "Errors": {
+			"TemporaryPasswordExpired": "Вақтинчалик парол энди амал қилмайди. Администратордан янгисини сўранг.",
+			"OnboardingRequired": "Аккаунт созлашни якунланг: администратор берган вақтинчалик парол билан киринг.",
       "PasswordInvalid": "Email yoki parol noto'g'ri",
       "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
       "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
@@ -1096,6 +1130,19 @@
   "System": "Tizim",
   "UpdatedAt": "Yangilangan sana",
   "Users": {
+		"PendingOnboarding": {
+			"Notice": "Фойдаланувчи ҳали созлашни якунламаган: ўз паролини ўрнатгандан кейин кириш очилади."
+		},
+		"TemporaryPassword": {
+			"Issued": "{{.Email}} учун вақтинчалик парол",
+			"Copy": "Нусхалаш",
+			"Copied": "Нусхаланди",
+			"ExpiresAt": "Амал қилиш муддати",
+			"ShownOnce": "Парол фақат бир марта кўрсатилади. Уни фойдаланувчига ўзингиз етказинг.",
+			"BackToUsers": "Фойдаланувчилар рўйхатига",
+			"Confirm": "Янги вақтинчалик парол берилсинми? Жорий парол ишламай қолади ва фойдаланувчининг барча сессиялари якунланади.",
+			"Button": "Вақтинчалик парол бериш"
+		},
     "Meta": {
       "List": {
         "Title": "Foydalanuvchilar"
@@ -1137,6 +1184,9 @@
       "Sessions": "Sessiyalar"
     },
     "Single": {
+			"TemporaryPassword": "Вақтинчалик парол",
+			"TemporaryPasswordPlaceholder": "Яратиш учун бўш қолдиринг",
+			"TemporaryPasswordHint": "Фойдаланувчи у билан бир марта киради ва ўз паролини ўрнатади. 72 соат амал қилади.",
       "EditUser": "Foydalanuvchini tahrirlash",
       "FirstName": "Ism",
       "LastName": "Familiya",

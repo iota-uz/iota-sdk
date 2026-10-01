@@ -22,13 +22,13 @@ const (
 	selectUsersSQL = `SELECT DISTINCT
 		u.id, u.tenant_id, u.type, u.first_name, u.last_name, u.middle_name,
 		u.email, u.phone, u.ui_language, u.avatar_id, u.last_login, u.last_action,
-		u.created_at, u.updated_at, u.is_blocked, u.block_reason, u.blocked_at, u.blocked_by
+		u.created_at, u.updated_at, u.is_blocked, u.block_reason, u.blocked_at, u.blocked_by, u.status
 	FROM users u`
 
 	selectUserByIDSQL = `SELECT
 		u.id, u.tenant_id, u.type, u.first_name, u.last_name, u.middle_name,
 		u.email, u.phone, u.ui_language, u.avatar_id, u.last_login, u.last_action,
-		u.created_at, u.updated_at, u.is_blocked, u.block_reason, u.blocked_at, u.blocked_by
+		u.created_at, u.updated_at, u.is_blocked, u.block_reason, u.blocked_at, u.blocked_by, u.status
 	FROM users u
 	WHERE u.id = $1 AND u.tenant_id = $2`
 )
@@ -615,6 +615,7 @@ func (r *pgUserQueryRepository) scanUser(row interface{ Scan(...interface{}) err
 		&dbUser.BlockReason,
 		&dbUser.BlockedAt,
 		&dbUser.BlockedBy,
+		&dbUser.Status,
 	)
 	return &dbUser, err
 }

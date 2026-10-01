@@ -168,6 +168,24 @@ func WithBlockedByTenantID(tenantID uuid.UUID) Option {
 	}
 }
 
+func WithStatus(status Status) Option {
+	return func(u *user) {
+		u.status = status
+	}
+}
+
+func WithPasswordExpiresAt(t time.Time) Option {
+	return func(u *user) {
+		u.passwordExpiresAt = t
+	}
+}
+
+func WithFailedPasswordAttempts(attempts int) Option {
+	return func(u *user) {
+		u.failedPasswordAttempts = attempts
+	}
+}
+
 func WithTwoFactorMethod(method twofactor.Method) Option {
 	return func(u *user) {
 		u.twoFactorMethod = method
@@ -248,6 +266,15 @@ type User interface {
 	CanBeBlocked() bool
 	Block(reason string, blockedBy uint, blockedByTenantID uuid.UUID) User
 	Unblock() User
+
+	Status() Status
+	IsPendingOnboarding() bool
+	PasswordExpiresAt() time.Time
+	FailedPasswordAttempts() int
+	HasTemporaryPassword() bool
+	TemporaryPasswordUsable(now time.Time) error
+	IssueTemporaryPassword(password string, expiresAt time.Time) (User, error)
+	CompleteOnboarding(newPassword string) (User, error)
 }
 
 // ---- Implementation ----
@@ -259,36 +286,39 @@ func New(
 	opts ...Option,
 ) User {
 	u := &user{
-		id:                  0,
-		type_:               TypeUser,
-		tenantID:            uuid.Nil,
-		firstName:           firstName,
-		lastName:            lastName,
-		middleName:          "",
-		password:            "",
-		email:               email,
-		phone:               nil,
-		avatarID:            0,
-		avatar:              nil,
-		lastIP:              "",
-		uiLanguage:          uiLanguage,
-		roles:               []role.Role{},
-		groupIDs:            []uuid.UUID{},
-		permissions:         []permission.Permission{},
-		groupPermissions:    []permission.Permission{},
-		lastLogin:           time.Time{},
-		lastAction:          time.Time{},
-		createdAt:           time.Now(),
-		updatedAt:           time.Now(),
-		isBlocked:           false,
-		blockReason:         "",
-		blockedAt:           time.Time{},
-		blockedBy:           0,
-		blockedByTenantID:   uuid.Nil,
-		twoFactorMethod:     "",
-		twoFactorEnabledAt:  time.Time{},
-		totpSecretEncrypted: "",
-		events:              []interface{}{},
+		id:                     0,
+		type_:                  TypeUser,
+		tenantID:               uuid.Nil,
+		firstName:              firstName,
+		lastName:               lastName,
+		middleName:             "",
+		password:               "",
+		email:                  email,
+		phone:                  nil,
+		avatarID:               0,
+		avatar:                 nil,
+		lastIP:                 "",
+		uiLanguage:             uiLanguage,
+		roles:                  []role.Role{},
+		groupIDs:               []uuid.UUID{},
+		permissions:            []permission.Permission{},
+		groupPermissions:       []permission.Permission{},
+		lastLogin:              time.Time{},
+		lastAction:             time.Time{},
+		createdAt:              time.Now(),
+		updatedAt:              time.Now(),
+		isBlocked:              false,
+		blockReason:            "",
+		blockedAt:              time.Time{},
+		blockedBy:              0,
+		blockedByTenantID:      uuid.Nil,
+		twoFactorMethod:        "",
+		twoFactorEnabledAt:     time.Time{},
+		totpSecretEncrypted:    "",
+		status:                 StatusActive,
+		passwordExpiresAt:      time.Time{},
+		failedPasswordAttempts: 0,
+		events:                 []interface{}{},
 	}
 	for _, opt := range opts {
 		opt(u)
@@ -297,36 +327,39 @@ func New(
 }
 
 type user struct {
-	id                  uint
-	tenantID            uuid.UUID
-	type_               Type
-	firstName           string
-	lastName            string
-	middleName          string
-	password            string
-	email               internet.Email
-	phone               phone.Phone
-	avatarID            uint
-	avatar              upload.Upload
-	lastIP              string
-	uiLanguage          UILanguage
-	roles               []role.Role
-	groupIDs            []uuid.UUID
-	permissions         []permission.Permission
-	groupPermissions    []permission.Permission
-	lastLogin           time.Time
-	lastAction          time.Time
-	createdAt           time.Time
-	updatedAt           time.Time
-	isBlocked           bool
-	blockReason         string
-	blockedAt           time.Time
-	blockedBy           uint
-	blockedByTenantID   uuid.UUID
-	twoFactorMethod     twofactor.Method
-	twoFactorEnabledAt  time.Time
-	totpSecretEncrypted string
-	events              []interface{}
+	id                     uint
+	tenantID               uuid.UUID
+	type_                  Type
+	firstName              string
+	lastName               string
+	middleName             string
+	password               string
+	email                  internet.Email
+	phone                  phone.Phone
+	avatarID               uint
+	avatar                 upload.Upload
+	lastIP                 string
+	uiLanguage             UILanguage
+	roles                  []role.Role
+	groupIDs               []uuid.UUID
+	permissions            []permission.Permission
+	groupPermissions       []permission.Permission
+	lastLogin              time.Time
+	lastAction             time.Time
+	createdAt              time.Time
+	updatedAt              time.Time
+	isBlocked              bool
+	blockReason            string
+	blockedAt              time.Time
+	blockedBy              uint
+	blockedByTenantID      uuid.UUID
+	twoFactorMethod        twofactor.Method
+	twoFactorEnabledAt     time.Time
+	totpSecretEncrypted    string
+	status                 Status
+	passwordExpiresAt      time.Time
+	failedPasswordAttempts int
+	events                 []interface{}
 }
 
 func (u *user) ID() uint {
@@ -722,4 +755,81 @@ type Update2FADTO struct {
 	Method              twofactor.Method
 	TOTPSecretEncrypted string
 	EnabledAt           sql.NullTime
+}
+
+func (u *user) Status() Status {
+	return u.status
+}
+
+func (u *user) IsPendingOnboarding() bool {
+	return u.status == StatusPendingOnboarding
+}
+
+func (u *user) PasswordExpiresAt() time.Time {
+	return u.passwordExpiresAt
+}
+
+func (u *user) FailedPasswordAttempts() int {
+	return u.failedPasswordAttempts
+}
+
+func (u *user) HasTemporaryPassword() bool {
+	return !u.passwordExpiresAt.IsZero()
+}
+
+// TemporaryPasswordUsable reports why a temporary password can no longer
+// open the onboarding flow.
+func (u *user) TemporaryPasswordUsable(now time.Time) error {
+	if !u.HasTemporaryPassword() {
+		return nil
+	}
+	if u.failedPasswordAttempts >= MaxTemporaryPasswordAttempts {
+		return ErrTemporaryPasswordExhausted
+	}
+	if !now.Before(u.passwordExpiresAt) {
+		return ErrTemporaryPasswordExpired
+	}
+	return nil
+}
+
+// IssueTemporaryPassword replaces the current password with a temporary one
+// and requires the user to finish onboarding before normal access.
+func (u *user) IssueTemporaryPassword(password string, expiresAt time.Time) (User, error) {
+	if expiresAt.IsZero() {
+		return nil, ErrTemporaryPasswordNoExpiry
+	}
+	if err := ValidatePassword(password); err != nil {
+		return nil, err
+	}
+	updated, err := u.SetPassword(password)
+	if err != nil {
+		return nil, err
+	}
+	result := *updated.(*user)
+	result.status = StatusPendingOnboarding
+	result.passwordExpiresAt = expiresAt
+	result.failedPasswordAttempts = 0
+	return &result, nil
+}
+
+// CompleteOnboarding stores the user's own password and activates the account.
+func (u *user) CompleteOnboarding(newPassword string) (User, error) {
+	if !u.IsPendingOnboarding() {
+		return nil, ErrNotPendingOnboarding
+	}
+	if err := ValidatePassword(newPassword); err != nil {
+		return nil, err
+	}
+	if u.CheckPassword(newPassword) {
+		return nil, ErrPasswordReusesTemporary
+	}
+	updated, err := u.SetPassword(newPassword)
+	if err != nil {
+		return nil, err
+	}
+	result := *updated.(*user)
+	result.status = StatusActive
+	result.passwordExpiresAt = time.Time{}
+	result.failedPasswordAttempts = 0
+	return &result, nil
 }

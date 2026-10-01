@@ -85,30 +85,33 @@ type Role struct {
 }
 
 type User struct {
-	ID                  uint
-	TenantID            string // UUID stored as string
-	Type                string
-	FirstName           string
-	LastName            string
-	MiddleName          sql.NullString
-	Email               string
-	Phone               sql.NullString
-	Password            sql.NullString
-	AvatarID            sql.NullInt32
-	LastLogin           sql.NullTime
-	LastIP              sql.NullString
-	UILanguage          string
-	LastAction          sql.NullTime
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-	IsBlocked           bool
-	BlockReason         sql.NullString
-	BlockedAt           sql.NullTime
-	BlockedBy           sql.NullInt64
-	BlockedByTenantID   sql.NullString
-	TwoFactorMethod     sql.NullString
-	TOTPSecretEncrypted sql.NullString
-	TwoFactorEnabledAt  sql.NullTime
+	ID                     uint
+	TenantID               string // UUID stored as string
+	Type                   string
+	FirstName              string
+	LastName               string
+	MiddleName             sql.NullString
+	Email                  string
+	Phone                  sql.NullString
+	Password               sql.NullString
+	AvatarID               sql.NullInt32
+	LastLogin              sql.NullTime
+	LastIP                 sql.NullString
+	UILanguage             string
+	LastAction             sql.NullTime
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	IsBlocked              bool
+	BlockReason            sql.NullString
+	BlockedAt              sql.NullTime
+	BlockedBy              sql.NullInt64
+	BlockedByTenantID      sql.NullString
+	TwoFactorMethod        sql.NullString
+	TOTPSecretEncrypted    sql.NullString
+	TwoFactorEnabledAt     sql.NullTime
+	Status                 string
+	PasswordExpiresAt      sql.NullTime
+	FailedPasswordAttempts int
 }
 
 type UserRole struct {

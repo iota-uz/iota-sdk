@@ -33,6 +33,7 @@ const (
 	deleteRefreshTokenByHashQuery          = `DELETE FROM oidc.refresh_tokens WHERE token_hash = $1`
 	deleteRefreshTokenByUserAndClientQuery = `DELETE FROM oidc.refresh_tokens WHERE user_id = $1 AND client_id = $2`
 	deleteExpiredRefreshTokensQuery        = `DELETE FROM oidc.refresh_tokens WHERE expires_at < NOW()`
+	deleteRefreshTokensByUserQuery         = `DELETE FROM oidc.refresh_tokens WHERE user_id = $1`
 )
 
 type TokenRepository struct{}
@@ -127,6 +128,19 @@ func (r *TokenRepository) DeleteByTokenHash(ctx context.Context, tokenHash strin
 		return serrors.E(op, serrors.NotFound, "refresh token not found")
 	}
 
+	return nil
+}
+
+func (r *TokenRepository) DeleteByUserID(ctx context.Context, userID int) error {
+	const op serrors.Op = "TokenRepository.DeleteByUserID"
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	if _, err := tx.Exec(ctx, deleteRefreshTokensByUserQuery, userID); err != nil {
+		return serrors.E(op, err)
+	}
 	return nil
 }
 

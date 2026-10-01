@@ -35,6 +35,7 @@ type User struct {
 	BlockedBy            string
 	BlockedByUser        string // Name of user who blocked
 	CanBeBlocked         bool
+	PendingOnboarding    bool
 }
 
 func (u *User) Title() string {

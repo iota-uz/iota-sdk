@@ -10,3 +10,4 @@
 
 - **Проекции вариантов назначения в формах пользователя** — [запись](adr/core/user-form-assignment-options.md) · superseded · 2026-09-11
 - **Проекции назначений в существующем query-слое** — [запись](adr/core/assignment-query-projections.md) · accepted · 2026-09-11
+- **Онбординг пользователя через временный пароль** — [запись](adr/core/user-onboarding-temporary-password.md) · accepted · 2026-09-29

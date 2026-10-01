@@ -3,6 +3,7 @@ package controllers
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -89,8 +90,14 @@ func (c *UsersController) Create(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if dto.Language == "" {
+		if actor, err := composables.UseUser(r.Context()); err == nil {
+			userEntity = userEntity.SetUILanguage(actor.UILanguage())
+		}
+	}
 
-	if _, err := userService.Create(r.Context(), userEntity); err != nil {
+	result, err := userService.CreateWithTemporaryPassword(r.Context(), userEntity, dto.Password)
+	if err != nil {
 		var errs *validators.ValidationError
 		if errors.As(err, &errs) {
 			respondWithForm(errs.Fields, dto)
@@ -105,7 +112,51 @@ func (c *UsersController) Create(
 		return
 	}
 
-	shared.Redirect(w, r, c.basePath)
+	w.Header().Set("Cache-Control", "no-store")
+	if err := users.Created(users.TemporaryPasswordProps{
+		Email:     result.User.Email().Value(),
+		Password:  result.Password,
+		ExpiresAt: result.ExpiresAt.Format(time.RFC3339),
+		BackURL:   c.basePath,
+	}).Render(r.Context(), w); err != nil {
+		logger.WithError(err).Error("error rendering created user")
+	}
+}
+
+// IssueTemporaryPassword replaces the user's password with a new temporary
+// one, revokes the user's sessions and shows the password once.
+func (c *UsersController) IssueTemporaryPassword(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	userService *services.UserService,
+) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	result, err := userService.IssueTemporaryPassword(r.Context(), id, "")
+	if err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
+		if errors.Is(err, composables.ErrForbidden) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		logger.WithError(err).Error("error issuing temporary password")
+		http.Error(w, "Error issuing temporary password", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	if err := users.TemporaryPassword(users.TemporaryPasswordProps{
+		Email:     result.User.Email().Value(),
+		Password:  result.Password,
+		ExpiresAt: result.ExpiresAt.Format(time.RFC3339),
+	}).Render(r.Context(), w); err != nil {
+		logger.WithError(err).Error("error rendering temporary password")
+	}
 }
 
 func (c *UsersController) Update(

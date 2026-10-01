@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { login, logout, waitForAlpine } from '../../fixtures/auth';
+import { submitNewUserForm } from '../../fixtures/onboarding';
 import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
 
 test.describe('user direct permission editing', () => {
@@ -29,9 +30,9 @@ test.describe('user direct permission editing', () => {
 		await page.locator('[name=Phone]').fill('+998901112233');
 		await page.locator('[name=Password]').fill('TestPass123!');
 		await page.locator('[name=Language]').selectOption({ value: 'en' });
-		await page.locator('#save-btn').click();
+		await submitNewUserForm(page);
 
-		await page.waitForURL(/\/users$/);
+		await page.goto('/users');
 
 		const createdUserRow = page.locator('tbody tr').filter({ hasText: 'Permission Target' });
 		await expect(createdUserRow).toBeVisible();

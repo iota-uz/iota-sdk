@@ -24,6 +24,9 @@ type Repository interface {
 	// DeleteByUserAndClient removes all tokens for a user + client combination (logout/session termination)
 	DeleteByUserAndClient(ctx context.Context, userID int, clientID string) error
 
+	// DeleteByUserID removes all tokens of a user (credential reset)
+	DeleteByUserID(ctx context.Context, userID int) error
+
 	// DeleteExpired removes all expired tokens (cleanup)
 	DeleteExpired(ctx context.Context) error
 }

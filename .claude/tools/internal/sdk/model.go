@@ -11,6 +11,7 @@ import (
 )
 
 const Repository = "iota-uz/iota-sdk"
+const GoModulePath = "github.com/" + Repository
 const StateBranch = "sdk-release-state"
 
 var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
