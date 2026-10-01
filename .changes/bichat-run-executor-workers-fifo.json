@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "BiChat gains out-of-process run execution: SendMessageStream can enqueue generation jobs onto the Redis bichat:run:jobs stream (BICHAT_RUN_WORKERS_ENABLED) and become a pure event-log cursor reader, a RunJobWorker consumes them with crash handoff via XPENDING/XCLAIM and one retry for infrastructure faults, and sends landing behind an active run park on a per-session FIFO with a queued sidebar status instead of failing. The generation loop is extracted into a RunExecutor shared by the inline and worker paths. Also: money accounts return a field-level duplicate account number message instead of a raw SQL unique-violation error, and the client messages tab shows a localized empty state when no messages exist."
+}

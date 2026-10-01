@@ -197,6 +197,14 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		chatServices.WithLangfuseBaseURL(c.LangfuseBaseURL)
 	}
 
+	// Enqueue mode is effective only when Redis is configured; the chat
+	// service falls back to inline execution otherwise (checked per send).
+	runWorkersEnabled := (c.RunWorkersEnabled || services.RunWorkersEnabledFromEnv()) && chatServices.RunJobQueue() != nil
+	chatServices.EnableRunWorkers(runWorkersEnabled)
+	if runWorkersEnabled && c.Logger != nil {
+		c.Logger.Info("bichat run workers enabled: send requests are enqueued onto bichat:run:jobs")
+	}
+
 	return &ServiceContainer{
 		sessionCommands:      chatServices.SessionCommands,
 		sessionQueries:       chatServices.SessionQueries,
@@ -217,6 +225,11 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		reaperInterval:       c.ReaperInterval,
 		reaperStaleThreshold: c.ReaperStaleThreshold,
 		reaperLockTTL:        c.ReaperLockTTL,
+		runJobQueue:          chatServices.RunJobQueue(),
+		runSessionQueue:      chatServices.RunSessionQueue(),
+		runExecutor:          chatServices.RunExecutor(),
+		runWorkersEnabled:    runWorkersEnabled,
+		failStalledRun:       chatServices.FailStalledRun(),
 	}, nil
 }
 

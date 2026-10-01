@@ -3,7 +3,9 @@ package services
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
+	"time"
 
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/httpdto"
@@ -139,4 +141,79 @@ func encodeRunEventFromChunk(chunk bichatservices.StreamChunk) (string, []byte, 
 		return "", nil, err
 	}
 	return string(eventType), body, nil
+}
+
+// decodeRunEventChunk is the read side of encodeRunEventFromChunk: it turns
+// a stored event-log payload back into the in-memory StreamChunk the
+// service-level chunk callbacks expect (enqueue-mode cursor readers).
+// Provider error text was sanitised before storage, so decoded terminal
+// errors carry only client-safe messages.
+func decodeRunEventChunk(payload []byte) (bichatservices.StreamChunk, error) {
+	var p httpdto.StreamChunkPayload
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return bichatservices.StreamChunk{}, err
+	}
+	chunk := bichatservices.StreamChunk{
+		Type:         bichatservices.ChunkType(p.Type),
+		Content:      p.Content,
+		Citation:     p.Citation,
+		Usage:        p.Usage,
+		GenerationMs: p.GenerationMs,
+		RunID:        p.RunID,
+		Timestamp:    time.Now(),
+	}
+	if p.Timestamp > 0 {
+		chunk.Timestamp = time.UnixMilli(p.Timestamp)
+	}
+	if p.Error != "" {
+		chunk.Error = errors.New(p.Error)
+	}
+	if p.Tool != nil {
+		tool := &bichatservices.ToolEvent{
+			CallID:     p.Tool.CallID,
+			Name:       p.Tool.Name,
+			AgentName:  p.Tool.AgentName,
+			Arguments:  p.Tool.Arguments,
+			Result:     p.Tool.Result,
+			DurationMs: p.Tool.DurationMs,
+		}
+		if p.Tool.Error != "" {
+			tool.Error = errors.New(p.Tool.Error)
+		}
+		chunk.Tool = tool
+	}
+	if p.Interrupt != nil {
+		questions := make([]bichatservices.Question, 0, len(p.Interrupt.Questions))
+		for _, q := range p.Interrupt.Questions {
+			options := make([]bichatservices.QuestionOption, 0, len(q.Options))
+			for _, opt := range q.Options {
+				options = append(options, bichatservices.QuestionOption{
+					ID:    opt.ID,
+					Label: opt.Label,
+				})
+			}
+			questions = append(questions, bichatservices.Question{
+				ID:      q.ID,
+				Text:    q.Text,
+				Type:    bichatservices.QuestionType(q.Type),
+				Options: options,
+			})
+		}
+		chunk.Interrupt = &bichatservices.InterruptEvent{
+			CheckpointID:       p.Interrupt.CheckpointID,
+			AgentName:          p.Interrupt.AgentName,
+			ProviderResponseID: p.Interrupt.ProviderResponseID,
+			Questions:          questions,
+		}
+	}
+	if p.Snapshot != nil {
+		chunk.Snapshot = &bichatservices.StreamSnapshot{
+			PartialContent:  p.Snapshot.PartialContent,
+			PartialMetadata: p.Snapshot.PartialMetadata,
+		}
+	}
+	if p.TextBlockSeq != nil {
+		chunk.TextBlockSeq = *p.TextBlockSeq
+	}
+	return chunk, nil
 }

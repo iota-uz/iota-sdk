@@ -359,6 +359,31 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 			}()
 		}
 
+		// Generation run worker: consumes jobs off bichat:run:jobs when the
+		// deployment opted into run workers (BICHAT_RUN_WORKERS_ENABLED).
+		// Booted alongside the title worker so jobs survive API process
+		// restarts and fan out across replicas via the consumer group.
+		var (
+			runWorkerCancel context.CancelFunc
+			runWorkerDone   chan struct{}
+		)
+		runWorker, err := b.services.NewRunJobWorker(pool)
+		if err != nil && !errors.Is(err, ErrRunJobWorkerDisabled) {
+			return nil, serrors.E(op, err, "failed to create run job worker")
+		}
+		if runWorker != nil {
+			workerCtx, workerCancelFn := context.WithCancel(context.Background())
+			runWorkerCancel = workerCancelFn
+			runWorkerDone = make(chan struct{})
+			logger := b.config.Logger
+			go func() {
+				defer close(runWorkerDone)
+				if startErr := runWorker.Start(workerCtx); startErr != nil && logger != nil && !errors.Is(startErr, context.Canceled) {
+					logger.WithError(startErr).Warn("bichat run job worker stopped with error")
+				}
+			}()
+		}
+
 		return func(stopCtx context.Context) error {
 			var stopErr error
 			if titleWorkerCancel != nil {
@@ -366,6 +391,9 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 			}
 			if reaperCancel != nil {
 				reaperCancel()
+			}
+			if runWorkerCancel != nil {
+				runWorkerCancel()
 			}
 			if titleWorkerDone != nil {
 				// Cancel has been called; the worker loop will observe it
@@ -383,6 +411,13 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 			if reaperDone != nil {
 				select {
 				case <-reaperDone:
+				case <-stopCtx.Done():
+					stopErr = errors.Join(stopErr, stopCtx.Err())
+				}
+			}
+			if runWorkerDone != nil {
+				select {
+				case <-runWorkerDone:
 				case <-stopCtx.Done():
 					stopErr = errors.Join(stopErr, stopCtx.Err())
 				}

@@ -263,6 +263,9 @@
       "Transactions": "Transações",
       "Transfer": "Transferência"
     },
+    "Errors": {
+      "DuplicateAccountNumber": "Já existe uma conta com este número"
+    },
     "Transactions": {
       "NoTransactions": "Nenhuma transação ainda",
       "NoTransactionsDescription": "Esta conta não possui transações. As transações aparecerão aqui quando você adicionar despesas, pagamentos ou transferências.",

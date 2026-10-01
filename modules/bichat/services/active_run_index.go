@@ -25,6 +25,11 @@ const (
 	defaultActiveRunIndexEventsTop = "bichat:active-runs:events"
 )
 
+// ActiveRunStatusQueued marks a session whose newest send is parked on the
+// per-session FIFO behind an active run. The reaper skips non-streaming
+// entries, so queued jobs are never reaped while waiting.
+const ActiveRunStatusQueued = "queued"
+
 // ActiveRunStatus is the canonical shape rendered on sidebar dots and
 // emitted on the status pubsub topic. Terminal statuses (completed /
 // cancelled / failed) are published once and then the hash entry is

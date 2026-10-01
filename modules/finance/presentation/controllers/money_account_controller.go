@@ -3,6 +3,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -27,6 +28,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -339,7 +341,33 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		if _, err := c.moneyAccountService.Update(r.Context(), entity); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			if !errors.Is(err, moneyAccount.ErrDuplicateAccountNumber) {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			// The failed update aborted any surrounding transaction; reads
+			// below must not reuse it (SQLSTATE 25P02).
+			freshCtx := context.WithValue(r.Context(), constants.TxKey, nil)
+			currencies, currenciesErr := c.viewModelCurrencies(r.WithContext(freshCtx))
+			if currenciesErr != nil {
+				http.Error(w, currenciesErr.Error(), http.StatusInternalServerError)
+				return
+			}
+			history, historyErr := c.accountHistory(r.WithContext(freshCtx), id)
+			if historyErr != nil {
+				http.Error(w, "Error retrieving account transactions", http.StatusInternalServerError)
+				return
+			}
+			props := &moneyaccounts.DrawerEditProps{
+				Account:    mappers.MoneyAccountToViewModel(entity),
+				UpdateData: dto.ToViewModel(id),
+				Currencies: currencies,
+				History:    history,
+				Errors: map[string]string{
+					"AccountNumber": composables.UsePageCtx(r.Context()).T("MoneyAccounts.Errors.DuplicateAccountNumber"),
+				},
+			}
+			templ.Handler(moneyaccounts.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 
@@ -420,11 +448,47 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if _, err := c.moneyAccountService.Create(r.Context(), entity); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if !errors.Is(err, moneyAccount.ErrDuplicateAccountNumber) {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if renderErr := c.renderCreateDuplicateAccountNumber(w, r, dto, isDrawer); renderErr != nil {
+			http.Error(w, renderErr.Error(), http.StatusInternalServerError)
+			return
+		}
 		return
 	}
 
 	shared.Redirect(w, r, c.basePath)
+}
+
+// renderCreateDuplicateAccountNumber re-renders the create drawer with a
+// field-level validation message when the account number collides with an
+// existing account in the tenant, instead of returning a raw SQL error.
+// The failed insert aborted any surrounding transaction, so currency reads
+// run on a context with TxKey cleared — reusing the aborted transaction
+// would fail with SQLSTATE 25P02.
+func (c *MoneyAccountController) renderCreateDuplicateAccountNumber(w http.ResponseWriter, r *http.Request, dto *dtos.MoneyAccountCreateDTO, isDrawer bool) error {
+	pageCtx := composables.UsePageCtx(r.Context())
+	errorsMap := map[string]string{
+		"AccountNumber": pageCtx.T("MoneyAccounts.Errors.DuplicateAccountNumber"),
+	}
+	if !isDrawer {
+		http.Error(w, errorsMap["AccountNumber"], http.StatusConflict)
+		return nil
+	}
+	freshCtx := context.WithValue(r.Context(), constants.TxKey, nil)
+	currencies, err := c.viewModelCurrencies(r.WithContext(freshCtx))
+	if err != nil {
+		return err
+	}
+	props := &moneyaccounts.DrawerCreateProps{
+		Errors:     errorsMap,
+		Account:    *dto,
+		Currencies: currencies,
+	}
+	templ.Handler(moneyaccounts.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+	return nil
 }
 
 func (c *MoneyAccountController) GetTransferDrawer(w http.ResponseWriter, r *http.Request) {
