@@ -3,15 +3,11 @@ package controllers
 import (
 	"errors"
 	"net/http"
+	"strings"
 
-	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	jobscomponents "github.com/iota-uz/iota-sdk/components/jobs"
-	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/modules/jobs/domain/aggregates/job"
-	"github.com/iota-uz/iota-sdk/modules/jobs/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/modules/jobs/services"
+	"github.com/iota-uz/iota-sdk/pkg/jobs"
 )
 
 func jobID(r *http.Request) (uuid.UUID, bool) {
@@ -24,55 +20,47 @@ func jobID(r *http.Request) (uuid.UUID, bool) {
 
 func writeJobError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, job.ErrNotFound):
+	case errors.Is(err, jobs.ErrNotFound):
 		http.Error(w, "job not found", http.StatusNotFound)
-	case errors.Is(err, services.ErrJobNotRetryable):
+	case errors.Is(err, jobs.ErrNotRetryable):
 		http.Error(w, "job is not retryable", http.StatusConflict)
 	default:
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func renderItem(w http.ResponseWriter, r *http.Request, vm viewmodels.JobViewModel) {
-	templ.Handler(jobscomponents.Item(vm), templ.WithStreaming()).ServeHTTP(w, r)
-}
-
-func jobJSON(j job.Job, resultName, resultURL string) map[string]any {
+func jobJSON(j jobs.Job) map[string]any {
 	payload := map[string]any{
-		"id":       j.ID().String(),
-		"kind":     j.Kind(),
-		"status":   j.Status().String(),
-		"progress": j.Progress(),
+		"id":       j.ID.String(),
+		"kind":     j.Kind,
+		"status":   j.Status.String(),
+		"progress": j.Progress,
 	}
-	if j.Phase() != "" {
-		payload["phase"] = j.Phase()
+	if j.Phase != "" {
+		payload["phase"] = j.Phase
 	}
-	if j.Error() != "" {
-		payload["error"] = j.Error()
+	if j.Error != "" {
+		payload["error"] = j.Error
 	}
-	if resultURL != "" {
-		payload["resultName"] = resultName
-		payload["resultUrl"] = resultURL
+	if j.ResultURL != "" {
+		payload["resultUrl"] = j.ResultURL
+	} else if j.HasStoredResult() {
+		payload["resultName"] = j.ResultName
+		payload["resultUrl"] = "/jobs/" + j.ID.String() + "/result"
 	}
 	return payload
 }
 
-// uploadResult resolves the download link for a job's stored result file.
-// It returns empty strings when the job has no result. The link is relative
-// (rooted at the upload's storage path) so it survives proxy/domain changes.
-func uploadResult(r *http.Request, uploadService *coreservices.UploadService, j job.Job) (string, string) {
-	uploadID := j.ResultUploadID()
-	if uploadID == nil || j.Status() != job.StatusDone {
-		return "", ""
+// asciiFilename makes the Content-Disposition filename header-safe.
+func asciiFilename(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		if r > 32 && r < 127 && r != '"' && r != '\\' {
+			b.WriteRune(r)
+		}
 	}
-	ctx := r.Context()
-	exists, err := uploadService.Exists(ctx, *uploadID)
-	if err != nil || !exists {
-		return "", ""
+	if b.Len() == 0 {
+		return "download"
 	}
-	found, err := uploadService.GetByID(ctx, *uploadID)
-	if err != nil {
-		return "", ""
-	}
-	return found.Name(), "/" + found.Path()
+	return b.String()
 }

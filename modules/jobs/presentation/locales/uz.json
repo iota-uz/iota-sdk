@@ -1,14 +1,4 @@
 {
-  "Resources": {
-    "job": "Vazifalar"
-  },
-  "Permissions": {
-    "Job": {
-      "Create": "Uzoq davom etadigan operatsiyalarni ishga tushirish",
-      "Read": "Opratsiyalarini ko‘rish",
-      "Delete": "Operatsiyalarini yashirish"
-    }
-  },
   "Jobs": {
     "Status": {
       "Queued": "Navbatda",
@@ -21,14 +11,6 @@
       "Retry": "Qayta urinish",
       "Download": "Yuklab olish",
       "Dismiss": "Yashirish"
-    }
-  },
-  "PermissionSets": {
-    "Jobs": {
-      "JobRun": {
-        "Label": "Uzoq davom etadigan operatsiyalar",
-        "_Description": "Eksportlar, hisobotlar va ommaviy amallarni progress va natijalarni yuklab olish imkoniyati bilan fonda bajarish."
-      }
     }
   }
 }

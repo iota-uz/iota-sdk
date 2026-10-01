@@ -1,4 +1,4 @@
 {
   "bump": "minor",
-  "summary": "Add async long-running operation primitive (#866): jobs table with queued/running/done/failed lifecycle and progress, background worker pool with FOR UPDATE SKIP LOCKED claiming and result files stored via the upload service, GET /jobs/{id} polling endpoint, and standard trigger/operations/download templ components with retry and dismiss."
+  "summary": "Add async long-running operation primitive (#866): pkg/jobs with a Redis-backed (or in-memory) TTL-evicted job store, in-process runner pool with progress reporting and heartbeats, polling endpoints under /jobs with result streaming, and standard trigger/operations/download templ components with retry and dismiss. No database tables or RBAC additions."
 }

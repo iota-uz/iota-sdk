@@ -1,4 +1,4 @@
-package services
+package jobs
 
 import (
 	"context"
@@ -44,18 +44,9 @@ func TestRegistry_DuplicateKindPanics(t *testing.T) {
 	require.Panics(t, func() { r.Register("export", noop) })
 }
 
-func TestRegistry_EmptyKindPanics(t *testing.T) {
+func TestRegistry_EmptyKindAndNilHandlerPanic(t *testing.T) {
 	r := NewRegistry()
 
-	require.Panics(t, func() {
-		r.Register("", func(ctx context.Context, params map[string]any, progress ProgressReporter) (Result, error) {
-			return Result{}, nil
-		})
-	})
-}
-
-func TestRegistry_NilHandlerPanics(t *testing.T) {
-	r := NewRegistry()
-
+	require.Panics(t, func() { r.Register("", nil) })
 	require.Panics(t, func() { r.Register("export", nil) })
 }

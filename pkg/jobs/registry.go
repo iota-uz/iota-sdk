@@ -1,5 +1,4 @@
-// Package services provides this package.
-package services
+package jobs
 
 import (
 	"context"
@@ -8,8 +7,8 @@ import (
 	"sync"
 )
 
-// ProgressReporter lets a job handler publish progress without knowing how it
-// is persisted. Percent-based reporting covers bulk actions; total/done based
+// ProgressReporter lets a handler publish progress without knowing how it is
+// persisted. Percent-based reporting covers bulk actions; total/done based
 // reporting covers exports that know their row counts.
 type ProgressReporter interface {
 	// SetTotal declares the expected number of work units (0 when unknown).
@@ -24,15 +23,18 @@ type ProgressReporter interface {
 	SetPhase(label string)
 }
 
-// Result is what a job handler returns. When Data is non-empty the worker
-// stores it as a file via the upload service and the job gets a download link.
+// Result is what a handler returns. When Data is non-empty the runner stores
+// it in the Store (TTL-evicted) and the standard components link the download
+// endpoint. When the consumer already has a file, URL bypasses the Store
+// entirely and is rendered as the download link.
 type Result struct {
 	FileName string
 	Data     []byte
+	URL      string
 }
 
-// HandlerFunc executes one job. The ctx is tenant-scoped and carries the DB
-// pool; params are the enqueue-time parameters.
+// HandlerFunc executes one job. The ctx is the enqueue-time request context;
+// params are the enqueue-time parameters.
 type HandlerFunc func(ctx context.Context, params map[string]any, progress ProgressReporter) (Result, error)
 
 // Registry maps job kinds to handlers. It is safe for concurrent use.

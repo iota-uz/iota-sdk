@@ -9,23 +9,22 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	jobscomponents "github.com/iota-uz/iota-sdk/components/jobs"
-	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/jobs/presentation/controllers/dtos"
-	"github.com/iota-uz/iota-sdk/modules/jobs/presentation/mappers"
-	"github.com/iota-uz/iota-sdk/modules/jobs/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/modules/jobs/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/jobs"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 type JobController struct {
+	runner   *jobs.Runner
 	basePath string
 }
 
-func NewJobController() application.Controller {
+func NewJobController(runner *jobs.Runner) application.Controller {
 	return &JobController{
+		runner:   runner,
 		basePath: "/jobs",
 	}
 }
@@ -45,6 +44,7 @@ func (c *JobController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
 	router.HandleFunc("/mine", di.H(c.Mine)).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Get)).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/result", di.H(c.Result)).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}/retry", di.H(c.Retry)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Delete)).Methods(http.MethodDelete)
 }
@@ -55,34 +55,33 @@ func (c *JobController) Register(r *mux.Router) {
 func (c *JobController) Create(
 	r *http.Request,
 	w http.ResponseWriter,
-	jobService *services.JobService,
 ) {
 	dto, err := dtos.ParseCreateJobDTO(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	created, err := jobService.Enqueue(r.Context(), dto.Kind, dto.Params)
+	created, err := c.runner.Enqueue(r.Context(), dto.Kind, dto.Params)
 	if err != nil {
 		status := http.StatusInternalServerError
-		if errors.Is(err, services.ErrUnknownJobKind) {
+		if errors.Is(err, jobs.ErrUnknownJobKind) {
 			status = http.StatusBadRequest
 		}
 		http.Error(w, err.Error(), status)
 		return
 	}
 
-	htmx.SetTrigger(w, "jobs:enqueued", created.ID().String())
+	htmx.SetTrigger(w, "jobs:enqueued", created.ID.String())
 	if !htmx.IsHxRequest(r) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"id":     created.ID().String(),
-			"status": created.Status().String(),
+			"id":     created.ID.String(),
+			"status": created.Status.String(),
 		})
 		return
 	}
-	renderItem(w, r, mappers.JobToViewModel(created, "", ""))
+	templ.Handler(jobscomponents.Item(created), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 // Get returns a single job. HTMX responses render the self-polling job item;
@@ -90,81 +89,88 @@ func (c *JobController) Create(
 func (c *JobController) Get(
 	r *http.Request,
 	w http.ResponseWriter,
-	jobService *services.JobService,
-	uploadService *coreservices.UploadService,
 ) {
 	id, ok := jobID(r)
 	if !ok {
 		http.Error(w, "invalid job id", http.StatusBadRequest)
 		return
 	}
-	found, err := jobService.Get(r.Context(), id)
+	found, err := c.runner.Get(r.Context(), id)
 	if err != nil {
 		writeJobError(w, err)
 		return
 	}
-
 	if !htmx.IsHxRequest(r) {
 		w.Header().Set("Content-Type", "application/json")
-		name, url := uploadResult(r, uploadService, found)
-		_ = json.NewEncoder(w).Encode(jobJSON(found, name, url))
+		_ = json.NewEncoder(w).Encode(jobJSON(found))
 		return
 	}
-	name, url := uploadResult(r, uploadService, found)
-	renderItem(w, r, mappers.JobToViewModel(found, name, url))
+	templ.Handler(jobscomponents.Item(found), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 // Mine renders the signed-in user's recent jobs for the operations stack.
 func (c *JobController) Mine(
 	r *http.Request,
 	w http.ResponseWriter,
-	jobService *services.JobService,
-	uploadService *coreservices.UploadService,
 ) {
-	jobs, err := jobService.ListMine(r.Context(), services.DefaultMyJobsLimit)
+	list, err := c.runner.ListMine(r.Context(), jobs.DefaultListLimit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	vms := make([]viewmodels.JobViewModel, 0, len(jobs))
-	for _, j := range jobs {
-		name, url := uploadResult(r, uploadService, j)
-		vms = append(vms, mappers.JobToViewModel(j, name, url))
+	templ.Handler(jobscomponents.List(list), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+// Result streams the stored result bytes as a download.
+func (c *JobController) Result(
+	r *http.Request,
+	w http.ResponseWriter,
+) {
+	id, ok := jobID(r)
+	if !ok {
+		http.Error(w, "invalid job id", http.StatusBadRequest)
+		return
 	}
-	templ.Handler(jobscomponents.List(vms), templ.WithStreaming()).ServeHTTP(w, r)
+	name, data, err := c.runner.GetResult(r.Context(), id)
+	if err != nil {
+		writeJobError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", "attachment; filename="+asciiFilename(name))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
 
 // Retry requeues a failed job and re-renders it.
 func (c *JobController) Retry(
 	r *http.Request,
 	w http.ResponseWriter,
-	jobService *services.JobService,
 ) {
 	id, ok := jobID(r)
 	if !ok {
 		http.Error(w, "invalid job id", http.StatusBadRequest)
 		return
 	}
-	requeued, err := jobService.Retry(r.Context(), id)
+	requeued, err := c.runner.Retry(r.Context(), id)
 	if err != nil {
 		writeJobError(w, err)
 		return
 	}
-	renderItem(w, r, mappers.JobToViewModel(requeued, "", ""))
+	templ.Handler(jobscomponents.Item(requeued), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 // Delete dismisses a job from the operations stack.
 func (c *JobController) Delete(
 	r *http.Request,
 	w http.ResponseWriter,
-	jobService *services.JobService,
 ) {
 	id, ok := jobID(r)
 	if !ok {
 		http.Error(w, "invalid job id", http.StatusBadRequest)
 		return
 	}
-	if err := jobService.Delete(r.Context(), id); err != nil {
+	if err := c.runner.Delete(r.Context(), id); err != nil {
 		writeJobError(w, err)
 		return
 	}

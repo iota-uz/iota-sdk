@@ -1,14 +1,4 @@
 {
-  "Resources": {
-    "job": "Trabalhos"
-  },
-  "Permissions": {
-    "Job": {
-      "Create": "Executar operações demoradas",
-      "Read": "Ver as próprias operações",
-      "Delete": "Descartar as próprias operações"
-    }
-  },
   "Jobs": {
     "Status": {
       "Queued": "Na fila",
@@ -21,14 +11,6 @@
       "Retry": "Tentar novamente",
       "Download": "Baixar",
       "Dismiss": "Descartar"
-    }
-  },
-  "PermissionSets": {
-    "Jobs": {
-      "JobRun": {
-        "Label": "Operações demoradas",
-        "_Description": "Execute exportações, relatórios e ações em massa em segundo plano, com progresso e resultados para baixar."
-      }
     }
   }
 }

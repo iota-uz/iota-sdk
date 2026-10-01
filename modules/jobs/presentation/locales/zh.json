@@ -1,14 +1,4 @@
 {
-  "Resources": {
-    "job": "任务"
-  },
-  "Permissions": {
-    "Job": {
-      "Create": "运行长时间操作",
-      "Read": "查看自己的操作",
-      "Delete": "忽略自己的操作"
-    }
-  },
   "Jobs": {
     "Status": {
       "Queued": "排队中",
@@ -21,14 +11,6 @@
       "Retry": "重试",
       "Download": "下载",
       "Dismiss": "忽略"
-    }
-  },
-  "PermissionSets": {
-    "Jobs": {
-      "JobRun": {
-        "Label": "长时间操作",
-        "_Description": "在后台运行导出、报表和批量操作，并提供进度和可下载的结果。"
-      }
     }
   }
 }

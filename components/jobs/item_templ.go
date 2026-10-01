@@ -13,8 +13,8 @@ import (
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
-	"github.com/iota-uz/iota-sdk/modules/jobs/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/jobs"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -51,7 +51,7 @@ func Operations() templ.Component {
 }
 
 // List renders the inner fragment of the operations stack.
-func List(vms []viewmodels.JobViewModel) templ.Component {
+func List(list []jobs.Job) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -72,8 +72,8 @@ func List(vms []viewmodels.JobViewModel) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		for _, vm := range vms {
-			templ_7745c5c3_Err = Item(vm).Render(ctx, templ_7745c5c3_Buffer)
+		for _, j := range list {
+			templ_7745c5c3_Err = Item(j).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -85,7 +85,7 @@ func List(vms []viewmodels.JobViewModel) templ.Component {
 // Item renders one operation with its live status. Non-terminal items poll
 // /jobs/{id} every 2 seconds and replace themselves; terminal items stop
 // polling and offer a download (done) or a retry (failed).
-func Item(vm viewmodels.JobViewModel) templ.Component {
+func Item(j jobs.Job) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -107,15 +107,15 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		if !isTerminal(vm.Status) {
+		if !j.Status.IsTerminal() {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div id=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
-			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs("job-" + vm.ID.String())
+			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs("job-" + j.ID.String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 45, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 45, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -126,9 +126,9 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs("/jobs/" + vm.ID.String())
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs("/jobs/" + j.ID.String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 48, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 48, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -139,9 +139,9 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(kindLabel(pageCtx, vm.Kind))
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(kindLabel(pageCtx, j.Kind))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 53, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 53, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -151,7 +151,7 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var7 = []any{"text-xs font-semibold uppercase tracking-wide", statusClass(vm.Status)}
+			var templ_7745c5c3_Var7 = []any{"text-xs font-semibold uppercase tracking-wide", statusClass(j.Status.String())}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var7...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -174,9 +174,9 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var9 string
-			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(statusLabel(pageCtx, vm.Status))
+			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(statusLabel(pageCtx, j.Status.String()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 55, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 55, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -187,21 +187,21 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = base.Progress(base.ProgressProps{
-				Value:  uint(vm.Progress),
+				Value:  uint(j.Progress),
 				Target: 100,
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if vm.Phase != "" {
+			if j.Phase != "" {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"mt-1 text-xs text-gray-500 truncate\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var10 string
-				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Phase)
+				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(j.Phase)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 63, Col: 63}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 63, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -222,9 +222,9 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var11 string
-			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs("job-" + vm.ID.String())
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs("job-" + j.ID.String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 68, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 68, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -234,7 +234,7 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if vm.Status == "failed" {
+			if j.Status == jobs.StatusFailed {
 				templ_7745c5c3_Err = icons.WarningCircle(icons.Props{Size: "18", Class: "text-danger"}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -246,9 +246,9 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 				}
 			}
 			var templ_7745c5c3_Var12 string
-			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(kindLabel(pageCtx, vm.Kind))
+			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(kindLabel(pageCtx, j.Kind))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 78, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 78, Col: 33}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -258,7 +258,7 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var13 = []any{"text-xs font-semibold uppercase tracking-wide", statusClass(vm.Status)}
+			var templ_7745c5c3_Var13 = []any{"text-xs font-semibold uppercase tracking-wide", statusClass(j.Status.String())}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var13...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -281,9 +281,9 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var15 string
-			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(statusLabel(pageCtx, vm.Status))
+			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(statusLabel(pageCtx, j.Status.String()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 81, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 81, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -293,15 +293,15 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if vm.Status == "failed" {
+			if j.Status == jobs.StatusFailed {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"mt-2 bg-red-100 text-red-700 py-2 px-3 text-xs rounded-md break-words\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var16 string
-				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Error)
+				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(j.Error)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 86, Col: 15}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 86, Col: 14}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
@@ -312,9 +312,9 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var17 string
-				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs("/jobs/" + vm.ID.String() + "/retry")
+				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs("/jobs/" + j.ID.String() + "/retry")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 92, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 92, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 				if templ_7745c5c3_Err != nil {
@@ -325,9 +325,9 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var18 string
-				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs("#job-" + vm.ID.String())
+				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs("#job-" + j.ID.String())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 93, Col: 42}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 93, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 				if templ_7745c5c3_Err != nil {
@@ -354,7 +354,7 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = dismissButton(pageCtx, vm).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = dismissButton(pageCtx, j).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -362,12 +362,12 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-			} else if vm.ResultURL != "" {
+			} else if j.ResultURL != "" || j.HasStoredResult() {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<div class=\"mt-2 flex justify-between items-center gap-2\"><a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var20 templ.SafeURL = templ.URL(vm.ResultURL)
+				var templ_7745c5c3_Var20 templ.SafeURL = templ.URL(resultHref(j))
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var20)))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -377,9 +377,9 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var21 string
-				templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(vm.ResultName)
+				templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(downloadName(j))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 105, Col: 30}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 105, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 				if templ_7745c5c3_Err != nil {
@@ -406,7 +406,7 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = dismissButton(pageCtx, vm).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = dismissButton(pageCtx, j).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -419,7 +419,7 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = dismissButton(pageCtx, vm).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = dismissButton(pageCtx, j).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -437,7 +437,7 @@ func Item(vm viewmodels.JobViewModel) templ.Component {
 	})
 }
 
-func dismissButton(pageCtx types.PageContext, vm viewmodels.JobViewModel) templ.Component {
+func dismissButton(pageCtx types.PageContext, j jobs.Job) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -463,9 +463,9 @@ func dismissButton(pageCtx types.PageContext, vm viewmodels.JobViewModel) templ.
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var24 string
-		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs("/jobs/" + vm.ID.String())
+		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs("/jobs/" + j.ID.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 126, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 126, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 		if templ_7745c5c3_Err != nil {
@@ -476,9 +476,9 @@ func dismissButton(pageCtx types.PageContext, vm viewmodels.JobViewModel) templ.
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var25 string
-		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs("#job-" + vm.ID.String())
+		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs("#job-" + j.ID.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 127, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/item.templ`, Line: 127, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
@@ -505,8 +505,18 @@ func dismissButton(pageCtx types.PageContext, vm viewmodels.JobViewModel) templ.
 	})
 }
 
-func isTerminal(status string) bool {
-	return status == "done" || status == "failed"
+func resultHref(j jobs.Job) string {
+	if j.ResultURL != "" {
+		return j.ResultURL
+	}
+	return "/jobs/" + j.ID.String() + "/result"
+}
+
+func downloadName(j jobs.Job) string {
+	if j.ResultName != "" {
+		return j.ResultName
+	}
+	return j.Kind + "-result"
 }
 
 func statusClass(status string) string {
