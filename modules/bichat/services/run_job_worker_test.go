@@ -523,11 +523,12 @@ func TestRedisActiveRunIndex_AddQueuedRuns(t *testing.T) {
 	require.Len(t, snapshot, 1, "drained queued-only entry must be removed")
 }
 
+// False green: a queue below capacity never exercises trimming during restoration.
 func TestRedisRunSessionQueue_PushFrontRestoresAtHead(t *testing.T) {
 	t.Parallel()
 
 	mr := miniredis.RunT(t)
-	sessionQueue, err := NewRedisRunSessionQueue(RedisRunSessionQueueConfig{RedisURL: mr.Addr()})
+	sessionQueue, err := NewRedisRunSessionQueue(RedisRunSessionQueueConfig{RedisURL: mr.Addr(), MaxLen: 1})
 	require.NoError(t, err)
 
 	tenantID := uuid.New()
@@ -550,4 +551,43 @@ func TestRedisRunSessionQueue_PushFrontRestoresAtHead(t *testing.T) {
 	require.NoError(t, popErr)
 	require.True(t, ok)
 	assert.Equal(t, second.RunID, next.Payload.RunID)
+}
+
+// False green: a successful FIFO push cannot expose premature acknowledgement;
+// fail only the FIFO's Redis connection and inspect the healthy stream's PEL.
+func TestRunJobWorker_BusyJobRemainsPendingWhenFIFOStorageFails(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	mr := miniredis.RunT(t)
+	fifo := miniredis.RunT(t)
+	busy := fmt.Errorf("%w: %w", ErrRunBusy, assert.AnError)
+	worker, queue, sessionQueue := newTestRunJobWorker(t, mr, newSequenceRunExecutor(busy, busy), nil)
+	client := redis.NewClient(&redis.Options{Addr: fifo.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+	sessionQueue.client = client
+	payload := RunJobPayload{TenantID: uuid.New(), SessionID: uuid.New(), RunID: uuid.New(), RequestID: uuid.New()}
+	require.NoError(t, worker.ensureConsumerGroup(ctx))
+	_, _, err := queue.Enqueue(ctx, payload)
+	require.NoError(t, err)
+	streams, err := queue.client.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group: worker.group, Consumer: worker.consumer, Streams: []string{queue.stream, ">"}, Count: 1,
+	}).Result()
+	require.NoError(t, err)
+	require.Len(t, streams, 1)
+	require.Len(t, streams[0].Messages, 1)
+	message := streams[0].Messages[0]
+	fifo.SetError("ERR FIFO storage unavailable")
+	require.Error(t, worker.processMessage(ctx, message))
+	pending, err := queue.client.XPending(ctx, queue.stream, worker.group).Result()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), pending.Count)
+	fifo.SetError("")
+	require.NoError(t, worker.processMessage(ctx, message))
+	head, ok, err := sessionQueue.Pop(ctx, payload.TenantID, payload.SessionID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, payload.RunID, head.Payload.RunID)
+	pending, err = queue.client.XPending(ctx, queue.stream, worker.group).Result()
+	require.NoError(t, err)
+	require.Zero(t, pending.Count)
 }

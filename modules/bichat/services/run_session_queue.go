@@ -168,9 +168,8 @@ func (q *RedisRunSessionQueue) PushFront(ctx context.Context, tenantID, sessionI
 	writeCtx := context.WithoutCancel(ctx)
 	pipe := q.client.TxPipeline()
 	pipe.LPush(writeCtx, key, body)
-	if q.maxLen > 0 {
-		pipe.LTrim(writeCtx, key, -q.maxLen, -1)
-	}
+	// Restoration must preserve every accepted job, even if new sends filled
+	// the queue after Pop. Capacity limits apply only when accepting a new job.
 	pipe.Expire(writeCtx, key, q.ttl)
 	if _, err := pipe.Exec(writeCtx); err != nil {
 		return serrors.E(op, "lpush queued job", err)

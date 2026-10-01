@@ -346,8 +346,8 @@ func (w *RunJobWorker) processMessage(ctx context.Context, msg redis.XMessage) e
 		// execution. Park the job back at the head of the FIFO; the new
 		// run's terminal transition re-promotes it. Not a failure: no
 		// retry counter, no terminal event.
-		w.ack(bookkeepingCtx, msg.ID)
 		if w.sessionQueue == nil {
+			w.ack(bookkeepingCtx, msg.ID)
 			return fmt.Errorf("run job busy but session queue is unconfigured run_id=%s: %w", payload.RunID, execErr)
 		}
 		if pushErr := w.sessionQueue.PushFront(bookkeepingCtx, payload.TenantID, payload.SessionID, QueuedRunJob{Payload: payload}); pushErr != nil {
@@ -355,6 +355,7 @@ func (w *RunJobWorker) processMessage(ctx context.Context, msg redis.XMessage) e
 			// later attempt instead of being lost.
 			return fmt.Errorf("requeue busy run job run_id=%s: %w", payload.RunID, pushErr)
 		}
+		w.ack(bookkeepingCtx, msg.ID)
 		if w.activeRunIndex != nil {
 			_ = w.activeRunIndex.AddQueuedRuns(bookkeepingCtx, payload.TenantID, payload.SessionID, payload.RunID, 1)
 		}
