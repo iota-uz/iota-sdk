@@ -147,6 +147,8 @@ func FromDB(op Op, err error) error {
 type Constraint struct {
 	SQLState string
 	Name     string
+	Table    string
+	Column   string
 	Code     Code
 	Reason   Reason
 	Message  Message
@@ -168,7 +170,15 @@ func FromConstraint(op Op, err error, rules ...Constraint) error {
 	}
 	if errors.As(err, &pg) {
 		for _, rule := range rules {
-			if rule.Name == "" || rule.Name != name || rule.SQLState != pg.SQLState() {
+			if rule.SQLState != pg.SQLState() {
+				continue
+			}
+			if rule.SQLState == "23502" && rule.Name == "" {
+				table, column := constraintColumn(err)
+				if rule.Table == "" || rule.Column == "" || table != rule.Table || column != rule.Column {
+					continue
+				}
+			} else if rule.Name == "" || rule.Name != name {
 				continue
 			}
 			var code Code

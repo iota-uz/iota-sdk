@@ -13,3 +13,11 @@ func constraintName(err error) string {
 	}
 	return ""
 }
+
+func constraintColumn(err error) (string, string) {
+	var pg *pgconn.PgError
+	if errors.As(err, &pg) {
+		return pg.TableName, pg.ColumnName
+	}
+	return "", ""
+}

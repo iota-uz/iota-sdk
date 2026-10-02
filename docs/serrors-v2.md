@@ -69,8 +69,9 @@ err = serrors.FromConstraint("products.Create", err, serrors.Constraint{
 
 An owned 23505 constraint maps to AlreadyExists, 23503 to Conflict, and 23502 or
 23514 to Invalid. Unknown names and SQLSTATEs remain Internal. Rules must not
-reveal objects the caller cannot access. A successful UPDATE with zero affected
-rows has no driver error: the repository separately decides whether that means
+reveal objects the caller cannot access. PostgreSQL NOT NULL errors without a
+constraint name require an explicitly owned `Table` and `Column` rule for 23502.
+A successful UPDATE with zero affected rows has no driver error: the repository separately decides whether that means
 NotFound, optimistic Conflict, or an allowed no-op.
 
 ## Boundary adapters
