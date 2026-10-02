@@ -1,96 +1,78 @@
-import { useCallback, useMemo } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import {
-  AssistantTurnView,
-  ChatSession,
-  type ConversationTurn,
-  RateLimiter,
-} from '@iota-uz/sdk/bichat'
-import { useBiChatDataSource } from '../data/bichatDataSource'
-import { useIotaContext } from '../contexts/IotaContext'
-import { useSessionEvents } from '../contexts/SessionEventContext'
-import EnhancedChartCard from '../components/charts/EnhancedChartCard'
+import { useParams } from '@solidjs/router'
+import { Show, type JSX } from 'solid-js'
+import { ChatSession, useChatSession } from '../chat/ChatSession'
+import { ChatHeader } from '../chat/components/ChatHeader'
+import { MessageList } from '../chat/components/MessageList'
+import { MessageInput } from '../chat/components/MessageInput'
+import { HITLForm } from '../chat/components/HITLForm'
+import { ArtifactsPanel } from '../chat/components/ArtifactsPanel'
+import { SessionSkeleton } from '../components/SessionSkeleton'
+import { useI18n } from '../i18n/i18n'
 
-export default function ChatPage() {
-  const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const context = useIotaContext()
-  const sessionEvents = useSessionEvents()
+const ARTIFACTS_KEY = 'bichat.web.artifacts-panel.expanded'
 
-  const readOnly = useMemo(() => {
-    const params = new URLSearchParams(location.search)
-    return params.get('readonly') === 'true'
-  }, [location.search])
+function ChatContent(props: { readOnly: boolean }): JSX.Element {
+  const chat = useChatSession()
+  const i18n = useI18n()
 
-  const onSessionCreated = useCallback(
-    (sessionId: string) => {
-      sessionEvents.notifySessionCreated(sessionId)
-      navigate(`/session/${sessionId}`)
-    },
-    [navigate, sessionEvents]
-  )
-  const dataSource = useBiChatDataSource()
-  const renderAssistantTurn = useCallback(
-    (turn: ConversationTurn) => (
-      <AssistantTurnView
-        turn={turn}
-        slots={{
-          charts: ({ charts }) => (
-            <div className="space-y-4">
-              {charts.map((chart, index) => (
-                <EnhancedChartCard
-                  key={`${chart.title || 'chart'}-${index}`}
-                  chartData={chart}
-                />
-              ))}
-            </div>
-          ),
-        }}
-      />
-    ),
-    []
-  )
-  const rateLimiter = useMemo(
-    () => new RateLimiter({ maxRequests: 20, windowMs: 60_000 }),
-    []
-  )
-
-  if (!id) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-red-500">Session ID is required</div>
-      </div>
-    )
-  }
-
-  const isAPIKeyConfigured = context.extensions?.llm?.apiKeyConfigured ?? true
-  if (!isAPIKeyConfigured) {
-    return (
-      <div className="flex h-full min-h-0 flex-1 items-center justify-center px-6 py-10">
-        <div className="w-full max-w-xl rounded-2xl border border-red-200 bg-red-50 p-6 text-center shadow-sm dark:border-red-900/70 dark:bg-red-950/30">
-          <h1 className="text-lg font-semibold text-red-900 dark:text-red-200">
-            API key is not configured
-          </h1>
-          <p className="mt-2 text-sm leading-relaxed text-red-800 dark:text-red-300">
-            BiChat is unavailable until an LLM API key is configured on the server.
-          </p>
-        </div>
-      </div>
-    )
+  const artifactsExpanded = () => window.localStorage.getItem(ARTIFACTS_KEY) !== 'false'
+  const toggleArtifacts = (): void => {
+    const next = !artifactsExpanded()
+    window.localStorage.setItem(ARTIFACTS_KEY, String(next))
+    window.dispatchEvent(new CustomEvent('bichat:artifacts-panel-expanded', { detail: { expanded: next } }))
   }
 
   return (
-    <ChatSession
-      dataSource={dataSource}
-      sessionId={id}
-      readOnly={readOnly}
-      rateLimiter={rateLimiter}
-      renderAssistantTurn={renderAssistantTurn}
-      onSessionCreated={onSessionCreated}
-      showArtifactsPanel
-      artifactsPanelDefaultExpanded={false}
-      artifactsPanelStorageKey="bichat.web.artifacts-panel.expanded"
-    />
+    <Show when={!chat.loading()} fallback={<SessionSkeleton />}>
+      <div class="flex min-h-0 flex-1">
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+          <Show when={props.readOnly}>
+            <div class="bg-amber-50 px-4 py-2 text-center text-xs text-amber-700">
+              {i18n.t('chat.readonly')}
+            </div>
+          </Show>
+          <MessageList
+            turns={chat.turns}
+            streaming={chat.streaming}
+            error={chat.error}
+            onRetry={() => void chat.retry()}
+          />
+          <Show when={chat.pendingQuestion()}>{(question) => (
+            <HITLForm
+              question={question()}
+              onSubmit={(answers) => void chat.submitAnswers(question().checkpointId, answers)}
+              onReject={() => void chat.rejectQuestion()}
+            />
+          )}</Show>
+          <Show when={!props.readOnly}>
+            <MessageInput
+              streaming={chat.streaming}
+              onSend={(content) => void chat.send(content)}
+              onStop={() => void chat.cancel()}
+            />
+          </Show>
+        </div>
+        <ArtifactsPanel
+          artifacts={chat.artifacts}
+          expanded={artifactsExpanded}
+          onToggle={toggleArtifacts}
+        />
+      </div>
+    </Show>
+  )
+}
+
+export function ChatPage(): JSX.Element {
+  const params = useParams()
+  const i18n = useI18n()
+  const readOnly = () => new URLSearchParams(window.location.search).get('readonly') === 'true'
+
+  return (
+    <div class="flex h-full min-h-0 flex-col">
+      <ChatHeader title={i18n.t('nav.chats')} />
+      <ChatSession sessionId={params.id} readOnly={readOnly()}>
+        <ChatContent readOnly={readOnly()} />
+      </ChatSession>
+    </div>
   )
 }

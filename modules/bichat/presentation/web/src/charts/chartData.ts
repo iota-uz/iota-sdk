@@ -1,6 +1,8 @@
-import type { ChartData, ConversationTurn, SessionArtifact } from '@iota-uz/sdk/bichat'
+import type { AssistantTurn, ConversationTurn } from '../rpc.generated'
+import type { AssistantTurnWithCharts, ChartData, SessionArtifact } from './sdk-types'
 
 export type RichChartData = ChartData & {
+  height?: number
   options?: Record<string, unknown>
   warnings?: string[]
   meta?: Record<string, unknown>
@@ -360,7 +362,7 @@ export function attachRichChartDataToTurns(
     // Assistant turns now store charts as an array.
     // If multiple chart artifacts resolve to the same assistant turn, keep the
     // latest artifact (list is already ordered by createdAt ascending).
-    assistantTurn.charts = [chartData]
+    ;(assistantTurn as AssistantTurn & AssistantTurnWithCharts).charts = [chartData]
   })
 
   return nextTurns
