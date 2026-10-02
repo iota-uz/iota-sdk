@@ -128,7 +128,7 @@ async function ready(page: Page, marker: 'gallery' | 'fixture'): Promise<void> {
 async function applyState(locator: Locator, state: string): Promise<void> {
   if (state === 'hover') await locator.hover()
   if (state === 'focus') await locator.focus()
-  await locator.evaluate((element) => element.getAnimations({ subtree: true }).forEach((animation) => {
+  await locator.evaluate((element) => element.ownerDocument.getAnimations().forEach((animation) => {
     if (Number.isFinite(animation.effect?.getComputedTiming().endTime ?? Number.POSITIVE_INFINITY)) animation.finish()
   }))
 }
@@ -250,6 +250,12 @@ async function compareFixture(browser: Browser, fixture: ThemedFixture, testInfo
   await Promise.all([ready(solid, 'gallery'), ready(templ, 'fixture')])
   const solidTarget = solid.locator(fixture.solidTarget)
   const templTarget = templ.locator(fixture.templTarget)
+  // Finish the actual state transitions before measuring alignment: finishing
+  // a drawer slide after its DOMRect is captured changes the compared position.
+  await Promise.all([
+    applyState(fixture.solidStateTarget ? solid.locator(fixture.solidStateTarget) : solidTarget, fixture.state),
+    applyState(fixture.templStateTarget ? templ.locator(fixture.templStateTarget) : templTarget, fixture.state),
+  ])
   if (['badge', 'avatar', 'tabs', 'pagination', 'copy-button'].includes(fixture.specimen)) {
     await templ.locator('.fixture').evaluate((element) => { element.style.width = 'max-content' })
   }
@@ -279,10 +285,6 @@ async function compareFixture(browser: Browser, fixture: ThemedFixture, testInfo
       }, { x: solidBox.x - templBox.x, y: solidBox.y - templBox.y })
     }
   }
-  await Promise.all([
-    applyState(fixture.solidStateTarget ? solid.locator(fixture.solidStateTarget) : solidTarget, fixture.state),
-    applyState(fixture.templStateTarget ? templ.locator(fixture.templStateTarget) : templTarget, fixture.state),
-  ])
   const [solidContract, templContract] = await Promise.all([
     computed(solidTarget, fixture.properties),
     computed(templTarget, fixture.properties),
