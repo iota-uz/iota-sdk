@@ -204,3 +204,4 @@ async function waitForCondition(condition: () => Promise<boolean>, timeoutMs: nu
     await new Promise(resolve => setTimeout(resolve, Math.min(16, Math.max(1, deadline - Date.now()))))
   }
 }
+export { createHttpScenarioControl, ScenarioControlError, type ScenarioInput, type ScenarioResult } from './scenarios.js'
