@@ -128,7 +128,7 @@ func FromDB(op Op, err error) error {
 	if err == nil {
 		return nil
 	}
-	if frame(err) != nil {
+	if code := CodeOf(err); frame(err) != nil || code == Canceled || code == Timeout {
 		return Wrap(op, err)
 	}
 	code := Internal
@@ -158,7 +158,7 @@ func FromConstraint(op Op, err error, rules ...Constraint) error {
 	if err == nil {
 		return nil
 	}
-	if frame(err) != nil {
+	if code := CodeOf(err); frame(err) != nil || code == Canceled || code == Timeout {
 		return Wrap(op, err)
 	}
 	var pg interface{ SQLState() string }
