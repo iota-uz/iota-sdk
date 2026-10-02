@@ -416,7 +416,7 @@ func (r *PgDepartmentRepository) queryDepartments(
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	entities := make([]department.Department, 0, len(dbDepartments))

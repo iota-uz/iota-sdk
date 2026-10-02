@@ -497,7 +497,7 @@ func (r *Repository) GetEntityCounts(ctx context.Context, tenantID uuid.UUID) (m
 		counts[entityType] = current
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return counts, nil
 }
@@ -678,7 +678,7 @@ func (r *Repository) UpsertPlans(ctx context.Context, plans []subscription.PlanD
 		return serrors.Wrap(op, err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return serrors.Wrap(op, err)
+		return serrors.FromDB(op, err)
 	}
 	committed = true
 	return nil

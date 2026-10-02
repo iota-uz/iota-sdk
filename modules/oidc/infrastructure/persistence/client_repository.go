@@ -366,7 +366,7 @@ func (r *ClientRepository) queryClients(ctx context.Context, op serrors.Op, quer
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return clients, nil

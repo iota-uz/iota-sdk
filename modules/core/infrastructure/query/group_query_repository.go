@@ -101,7 +101,7 @@ func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*
 		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	if len(ids) == 0 {
 		return options, nil
@@ -207,7 +207,7 @@ func (r *pgGroupQueryRepository) FindGroupLabelsByIDs(ctx context.Context, group
 		groups = append(groups, group)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return groups, nil
 }

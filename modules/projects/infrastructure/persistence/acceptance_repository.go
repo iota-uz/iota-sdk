@@ -192,7 +192,7 @@ func (r *AcceptanceRepository) query(ctx context.Context, query string, args ...
 		documents = append(documents, AcceptanceModelToDomain(m))
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return documents, nil
 }
@@ -221,7 +221,7 @@ func sumByCurrency(ctx context.Context, query string, tenantID uuid.UUID, projec
 		totals = append(totals, money.New(amount, currency))
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return totals, nil
 }

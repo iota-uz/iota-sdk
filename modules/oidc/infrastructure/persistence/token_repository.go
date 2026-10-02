@@ -221,7 +221,7 @@ func (r *TokenRepository) queryTokens(ctx context.Context, op serrors.Op, query 
 		if errors.Is(err, pgx.ErrNoRows) {
 			return []token.RefreshToken{}, nil
 		}
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return tokens, nil

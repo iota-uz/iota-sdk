@@ -406,7 +406,7 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 		}
 		if rowsErr := rows.Err(); rowsErr != nil {
 			rows.Close()
-			return serrors.Wrap(op, rowsErr)
+			return serrors.FromDB(op, rowsErr)
 		}
 		rows.Close()
 		for i, dbUser := range dbUsers {
@@ -446,7 +446,7 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
-		return serrors.Wrap(op, err)
+		return serrors.FromDB(op, err)
 	}
 	rows.Close()
 
@@ -503,7 +503,7 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 	}
 	if err := permRows.Err(); err != nil {
 		permRows.Close()
-		return serrors.Wrap(op, err)
+		return serrors.FromDB(op, err)
 	}
 	permRows.Close()
 
@@ -523,7 +523,7 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 	}
 	if err := groupRows.Err(); err != nil {
 		groupRows.Close()
-		return serrors.Wrap(op, err)
+		return serrors.FromDB(op, err)
 	}
 	groupRows.Close()
 
@@ -553,7 +553,7 @@ func (r *pgUserQueryRepository) loadUserRelationsBatch(ctx context.Context, dbUs
 		}
 		if rowsErr := blockerRows.Err(); rowsErr != nil {
 			blockerRows.Close()
-			return serrors.Wrap(op, rowsErr)
+			return serrors.FromDB(op, rowsErr)
 		}
 		blockerRows.Close()
 		for i, dbUser := range dbUsers {

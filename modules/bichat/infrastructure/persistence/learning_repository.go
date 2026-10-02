@@ -63,7 +63,7 @@ func (r *LearningRepository) Save(ctx context.Context, l learning.Learning) erro
 		l.CreatedAt,
 	)
 	if err != nil {
-		return serrors.WrapContext(op, err, "failed to insert learning")
+		return serrors.FromDBContext(op, err, "failed to insert learning")
 	}
 
 	return nil
@@ -154,7 +154,7 @@ func (r *LearningRepository) Search(ctx context.Context, query string, opts lear
 	// Execute query
 	rows, err := conn.Query(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, serrors.WrapContext(op, err, "failed to search learnings")
+		return nil, serrors.FromDBContext(op, err, "failed to search learnings")
 	}
 	defer rows.Close()
 
@@ -176,7 +176,7 @@ func (r *LearningRepository) Search(ctx context.Context, query string, opts lear
 			&l.CreatedAt,
 		)
 		if err != nil {
-			return nil, serrors.WrapContext(op, err, "failed to scan learning")
+			return nil, serrors.FromDBContext(op, err, "failed to scan learning")
 		}
 
 		l.TableName = tableName
@@ -185,7 +185,7 @@ func (r *LearningRepository) Search(ctx context.Context, query string, opts lear
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.WrapContext(op, err, "error iterating learnings")
+		return nil, serrors.FromDBContext(op, err, "error iterating learnings")
 	}
 
 	return learnings, nil
@@ -212,7 +212,7 @@ func (r *LearningRepository) IncrementUsage(ctx context.Context, id uuid.UUID) e
 
 	result, err := conn.Exec(ctx, query, id, tenantID)
 	if err != nil {
-		return serrors.WrapContext(op, err, "failed to increment usage")
+		return serrors.FromDBContext(op, err, "failed to increment usage")
 	}
 
 	if result.RowsAffected() == 0 {
@@ -242,7 +242,7 @@ func (r *LearningRepository) Delete(ctx context.Context, id uuid.UUID) error {
 
 	result, err := conn.Exec(ctx, query, id, tenantID)
 	if err != nil {
-		return serrors.WrapContext(op, err, "failed to delete learning")
+		return serrors.FromDBContext(op, err, "failed to delete learning")
 	}
 
 	if result.RowsAffected() == 0 {
@@ -266,7 +266,7 @@ func (r *LearningRepository) DeleteByTenant(ctx context.Context, tenantID uuid.U
 	`
 
 	if _, err := r.pool.Exec(ctx, query, tenantID); err != nil {
-		return serrors.WrapContext(op, err, "failed to delete tenant learnings")
+		return serrors.FromDBContext(op, err, "failed to delete tenant learnings")
 	}
 
 	return nil
@@ -303,7 +303,7 @@ func (r *LearningRepository) ListByTable(ctx context.Context, tenantID uuid.UUID
 
 	rows, err := conn.Query(ctx, query, tenantID, tableName, limit)
 	if err != nil {
-		return nil, serrors.WrapContext(op, err, "failed to list learnings by table")
+		return nil, serrors.FromDBContext(op, err, "failed to list learnings by table")
 	}
 	defer rows.Close()
 
@@ -325,7 +325,7 @@ func (r *LearningRepository) ListByTable(ctx context.Context, tenantID uuid.UUID
 			&l.CreatedAt,
 		)
 		if err != nil {
-			return nil, serrors.WrapContext(op, err, "failed to scan learning")
+			return nil, serrors.FromDBContext(op, err, "failed to scan learning")
 		}
 
 		l.TableName = tn
@@ -334,7 +334,7 @@ func (r *LearningRepository) ListByTable(ctx context.Context, tenantID uuid.UUID
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.WrapContext(op, err, "error iterating learnings")
+		return nil, serrors.FromDBContext(op, err, "error iterating learnings")
 	}
 
 	return learnings, nil

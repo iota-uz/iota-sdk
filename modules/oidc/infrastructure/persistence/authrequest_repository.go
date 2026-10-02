@@ -309,7 +309,7 @@ func (r *AuthRequestRepository) queryAuthRequests(ctx context.Context, op serror
 		if errors.Is(err, pgx.ErrNoRows) {
 			return []authrequest.AuthRequest{}, nil
 		}
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return requests, nil

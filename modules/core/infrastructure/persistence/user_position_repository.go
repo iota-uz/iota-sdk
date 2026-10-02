@@ -380,7 +380,7 @@ func (r *PgUserPositionRepository) queryPositions(
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	entities := make([]userposition.UserPosition, 0, len(dbPositions))

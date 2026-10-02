@@ -73,7 +73,7 @@ func (r *pgRoleQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*v
 		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	if len(ids) == 0 {
 		return options, nil
@@ -105,7 +105,7 @@ func (r *pgRoleQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*v
 		}
 	}
 	if err := permissionRows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return options, nil
 }

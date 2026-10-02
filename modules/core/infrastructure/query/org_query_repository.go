@@ -158,7 +158,7 @@ func (r *PgOrgQueryRepository) queryDepartmentIDs(
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return ids, nil
