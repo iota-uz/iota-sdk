@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"log"
 	"math"
 	"net/http"
@@ -2492,7 +2493,9 @@ func (c *CrudController[TEntity]) renderEditFormWithErrors(w http.ResponseWriter
 		log.Printf("[CrudController.renderEditFormWithErrors] Field validation errors: %v", fieldErrors)
 
 		// Add a small error element that tests can find
-		errorHTML := `<small data-testid="field-error" class="text-red-500">Field validation failed</small>`
+		localizer, _ := intl.UseLocalizer(ctx)
+		message := serrors.Public(serrors.NewInvalid(""), localizer).Message
+		errorHTML := `<small data-testid="field-error" class="text-red-500">` + html.EscapeString(message) + `</small>`
 		if _, err := w.Write([]byte(errorHTML)); err != nil {
 			log.Printf("[CrudController.renderEditFormWithErrors] Failed to write error HTML: %v", err)
 		}
