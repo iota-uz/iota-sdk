@@ -59,7 +59,7 @@ func TestRunJobWorkerHydratesActorForPostgresCheckpoint(t *testing.T) {
 	_, err = pool.Exec(ctx, `CREATE SCHEMA bichat; CREATE TABLE bichat.checkpoints (id text PRIMARY KEY,thread_id text,tenant_id uuid,user_id bigint,agent_name text,messages jsonb,pending_tools jsonb,interrupt_type text,interrupt_data jsonb,session_id uuid,previous_response_id text,created_at timestamptz)`)
 	require.NoError(t, err)
 	actor := user.New("Actor", "Worker", internet.MustParseEmail("actor@example.com"), user.UILanguageEN, user.WithID(42), user.WithTenantID(uuid.New()))
-	for _, mode := range []string{"actor", "foreign_tenant", "missing_actor"} {
+	for _, mode := range []string{"actor", "foreign_tenant", "missing_actor", "blocked_actor"} {
 		t.Run(mode, func(t *testing.T) {
 			mr := miniredis.RunT(t)
 			queue, queueErr := services.NewRedisRunJobQueue(services.RedisRunJobQueueConfig{RedisURL: mr.Addr()})
@@ -67,7 +67,11 @@ func TestRunJobWorkerHydratesActorForPostgresCheckpoint(t *testing.T) {
 			defer func() { require.NoError(t, queue.Close()) }()
 			saved := make(chan error, 1)
 			failed := make(chan struct{}, 1)
-			worker, workerErr := services.NewRunJobWorker(services.RunJobWorkerConfig{Queue: queue, Executor: checkpointExecutor{saved}, Pool: pool, Users: actorLookup{actor}, ReadBlock: time.Millisecond, PollInterval: time.Millisecond, MaxRetries: 1, OnJobTerminalFailure: func(context.Context, services.RunJobPayload, error) { failed <- struct{}{} }})
+			loadedActor := actor
+			if mode == "blocked_actor" {
+				loadedActor = user.New("Actor", "Worker", internet.MustParseEmail("actor@example.com"), user.UILanguageEN, user.WithID(actor.ID()), user.WithTenantID(actor.TenantID()), user.WithIsBlocked(true))
+			}
+			worker, workerErr := services.NewRunJobWorker(services.RunJobWorkerConfig{Queue: queue, Executor: checkpointExecutor{saved}, Pool: pool, Users: actorLookup{loadedActor}, ReadBlock: time.Millisecond, PollInterval: time.Millisecond, MaxRetries: 1, OnJobTerminalFailure: func(context.Context, services.RunJobPayload, error) { failed <- struct{}{} }})
 			require.NoError(t, workerErr)
 			job := services.RunJobPayload{TenantID: actor.TenantID(), UserID: 42, SessionID: uuid.New(), RunID: uuid.New(), RequestID: uuid.New(), UserMessageID: uuid.New()}
 			if mode == "foreign_tenant" {

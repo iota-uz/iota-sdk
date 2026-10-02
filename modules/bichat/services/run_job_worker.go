@@ -361,6 +361,8 @@ func (w *RunJobWorker) processMessage(ctx context.Context, msg redis.XMessage) e
 				execErr = fmt.Errorf("load run job actor: %w", err)
 			} else if actor == nil || int64(actor.ID()) != payload.UserID || actor.TenantID() != payload.TenantID {
 				execErr = fmt.Errorf("run job actor does not match tenant and user")
+			} else if actor.IsBlocked() {
+				execErr = fmt.Errorf("run job actor is blocked")
 			} else {
 				jobCtx = composables.WithUser(jobCtx, actor)
 			}

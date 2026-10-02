@@ -270,6 +270,7 @@ func (e *chatRunExecutor) executeTurn(t turnExecution) {
 	var thinking strings.Builder
 	var observationReason string
 	emitDoneChunk := false
+	generationFailed := false
 
 	for {
 		event, err := gen.Next(t.processCtx)
@@ -277,6 +278,7 @@ func (e *chatRunExecutor) executeTurn(t turnExecution) {
 			break
 		}
 		if err != nil {
+			generationFailed = true
 			active.Broadcast(streamingsvc.TerminalChunk(err, 0))
 			break
 		}
@@ -467,7 +469,7 @@ func (e *chatRunExecutor) executeTurn(t turnExecution) {
 		assistantDebugTrace = debugTrace
 	}
 	var assistantQuestionData *types.QuestionData
-	if interrupt != nil {
+	if interrupt != nil && !generationFailed {
 		qd, err := hitlsvc.BuildQuestionData(interrupt.CheckpointID, interruptAgentName, interrupt.Questions)
 		if err == nil && qd != nil {
 			assistantQuestionData = qd
@@ -538,8 +540,12 @@ func (e *chatRunExecutor) executeTurn(t turnExecution) {
 
 	runStateCtx, runStateCancel := context.WithTimeout(context.WithoutCancel(t.persistCtx), streamPersistenceTimeout)
 	defer runStateCancel()
-	_ = svc.completeRunState(runStateCtx, session.TenantID(), job.SessionID, runID)
-	if emitDoneChunk || interrupt != nil {
+	if generationFailed {
+		_ = svc.cancelRunState(runStateCtx, session.TenantID(), job.SessionID, runID)
+	} else {
+		_ = svc.completeRunState(runStateCtx, session.TenantID(), job.SessionID, runID)
+	}
+	if !generationFailed && (emitDoneChunk || interrupt != nil) {
 		active.Broadcast(streamingsvc.TerminalChunk(nil, generationMs))
 	}
 	if interrupt == nil {

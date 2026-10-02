@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Reject blocked actors for queued BiChat generation and prevent generator failures after an interrupt from emitting success or persisting actionable questions."}
