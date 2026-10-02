@@ -119,6 +119,14 @@ func TestFromConstraint_OnlyOwnedConstraints(t *testing.T) {
 		})
 	}
 	require.NoError(t, serrors.FromConstraint("nil", nil))
+	missingName := &pgconn.PgError{Code: "23502", TableName: "products", ColumnName: "name", Detail: "private row"}
+	rule := serrors.Constraint{SQLState: "23502", Table: "products", Column: "name"}
+	err := serrors.FromConstraint("products.Create", missingName, rule)
+	require.Equal(t, serrors.Invalid, serrors.CodeOf(err))
+	require.ErrorIs(t, err, missingName)
+	require.NotContains(t, serrors.Public(err, nil).Message, "private row")
+	rule.Table = "other"
+	require.Equal(t, serrors.Internal, serrors.CodeOf(serrors.FromConstraint("products.Create", missingName, rule)))
 }
 
 func TestImmutableBuilders_NestedMessagesAndSharedSentinel(t *testing.T) {
