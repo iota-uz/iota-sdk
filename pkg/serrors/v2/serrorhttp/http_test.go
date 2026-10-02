@@ -1,9 +1,13 @@
 package serrorhttp_test
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/sirupsen/logrus"
 	"html"
 	"net/http"
 	"net/http/httptest"
@@ -82,4 +86,45 @@ func TestWriteFormRequiresRendererBeforeWriting(t *testing.T) {
 	require.True(t, serrors.HasCode(err, serrors.Internal))
 	require.Empty(t, w.Body.String())
 	require.Empty(t, w.Header())
+}
+
+func TestWriteTextPreservesPlainTextRouteContract(t *testing.T) {
+	w := httptest.NewRecorder()
+	w.Header().Set("X-Route", "existing")
+	serrorhttp.WriteText(w, serrors.NewInternal("SELECT secret").WithCause(errors.New("secret cause")), http.StatusBadGateway, nil)
+	require.Equal(t, http.StatusBadGateway, w.Code)
+	require.Equal(t, "text/plain; charset=utf-8", w.Header().Get("Content-Type"))
+	require.Equal(t, "existing", w.Header().Get("X-Route"))
+	require.Equal(t, "An unexpected error occurred.\n", w.Body.String())
+}
+
+func TestWriteTextClassifiesSemanticErrorsAndRetainsUnknownRouteStatus(t *testing.T) {
+	for _, tc := range []struct {
+		err               error
+		routeStatus, want int
+	}{{serrors.NewNotFound("secret"), 500, 404}, {serrors.NewInvalid("secret"), 500, 400}, {errors.New("private decoding details"), 400, 400}} {
+		w := httptest.NewRecorder()
+		serrorhttp.WriteText(w, tc.err, tc.routeStatus, nil)
+		require.Equal(t, tc.want, w.Code)
+		require.NotContains(t, w.Body.String(), "secret")
+		require.NotContains(t, w.Body.String(), "private")
+	}
+}
+
+func TestWriteTextContextLogsOneBoundedEvent(t *testing.T) {
+	var output bytes.Buffer
+	logger := logrus.New()
+	logger.SetOutput(&output)
+	logger.SetFormatter(&logrus.JSONFormatter{})
+	ctx := context.WithValue(context.Background(), constants.LoggerKey, logger.WithField("request-id", "synthetic-http-request"))
+	recorder := httptest.NewRecorder()
+	err := serrors.NewNotFound("").WithOp("synthetic.http.op").WithReason("missing_record").WithCause(errors.New("private SQL cause"))
+	serrorhttp.WriteTextContext(ctx, recorder, err, http.StatusInternalServerError, nil)
+	require.Equal(t, http.StatusNotFound, recorder.Code)
+	require.Equal(t, 1, strings.Count(output.String(), "HTTP request failed"))
+	require.Contains(t, output.String(), `"error.op":"synthetic.http.op"`)
+	require.Contains(t, output.String(), `"error.reason":"missing_record"`)
+	require.Contains(t, output.String(), `"request_id":"synthetic-http-request"`)
+	require.NotContains(t, output.String(), "private SQL cause")
+	require.NotContains(t, recorder.Body.String(), "private SQL cause")
 }

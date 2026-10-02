@@ -7,23 +7,24 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	serrors "github.com/iota-uz/iota-sdk/pkg/serrors/v2"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/v2/serrorlog"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
-// PublicCarrier explicitly declares safe specialized GraphQL extensions.
+// PublicCarrier declares a specialized safe GraphQL contract.
 type PublicCarrier interface {
 	GraphQLCode() string
 	GraphQLExtensions() map[string]serrors.Value
 }
 
-// Presenter is installed through graphql.Handler.SetErrorPresenter. Protocol
-// errors remain owned by the transport, retaining their original extensions.
+// Presenter applies to execution errors and retains protocol extensions.
 func Presenter(localizer func(context.Context) *i18n.Localizer) graphql.ErrorPresenterFunc {
 	return func(ctx context.Context, err error) *gqlerror.Error {
 		base := graphql.DefaultErrorPresenter(ctx, err)
 		if base.Extensions["code"] == "GRAPHQL_PARSE_FAILED" || base.Extensions["code"] == "GRAPHQL_VALIDATION_FAILED" {
 			return base
 		}
+		serrorlog.Log(ctx, err, "GraphQL request failed")
 		var l *i18n.Localizer
 		if localizer != nil {
 			l = localizer(ctx)

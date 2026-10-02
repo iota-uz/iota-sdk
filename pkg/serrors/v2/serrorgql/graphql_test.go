@@ -1,9 +1,12 @@
 package serrorgql_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -93,4 +96,23 @@ func TestPresenterExplicitCarrierAndInternalOverride(t *testing.T) {
 			require.NotContains(t, p.Extensions, "reason")
 		}
 	}
+}
+func TestPresenterLogsOneBoundedExecutionEvent(t *testing.T) {
+	var output bytes.Buffer
+	logger := logrus.New()
+	logger.SetOutput(&output)
+	logger.SetFormatter(&logrus.JSONFormatter{})
+	ctx := context.WithValue(context.Background(), constants.LoggerKey, logger.WithField("request-id", "synthetic-graphql-request"))
+	err := serrors.NewInvalid("").WithOp("synthetic.graphql.op").WithReason("synthetic_reason").WithCause(errors.New("private SQL cause"))
+	result := serrorgql.Presenter(nil)(ctx, err)
+	require.Equal(t, "invalid", result.Extensions["code"])
+	require.Equal(t, 1, strings.Count(output.String(), "GraphQL request failed"))
+	require.Contains(t, output.String(), `"error.op":"synthetic.graphql.op"`)
+	require.Contains(t, output.String(), `"error.reason":"synthetic_reason"`)
+	require.Contains(t, output.String(), `"request_id":"synthetic-graphql-request"`)
+	require.NotContains(t, output.String(), "private SQL cause")
+	output.Reset()
+	protocol := serrorgql.Presenter(nil)(ctx, &gqlerror.Error{Message: "parse", Extensions: map[string]any{"code": "GRAPHQL_PARSE_FAILED"}})
+	require.Equal(t, "GRAPHQL_PARSE_FAILED", protocol.Extensions["code"])
+	require.Empty(t, output.String())
 }

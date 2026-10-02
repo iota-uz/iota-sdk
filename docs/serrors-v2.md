@@ -76,6 +76,12 @@ NotFound, optimistic Conflict, or an allowed no-op.
 
 ## Boundary adapters
 
+Request-aware HTTP and GraphQL adapters emit one bounded error event through the
+existing request logger. Logging attributes contain at most 256 UTF-8 bytes per
+string and 32 outer operation frames; arbitrary metadata and inherited payload
+fields are excluded. Use `WriteTextContext` for a plain-text boundary that needs
+the request correlation ID.
+
 - `serrorhttp.Write` defaults to RFC 9457 problem JSON for explicitly selected
   routes. `Profile` supplies an existing route's status mapping, encoder,
   content type, and headers. Business FailedPrecondition maps to 409 by default;
