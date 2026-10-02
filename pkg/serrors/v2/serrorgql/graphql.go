@@ -10,6 +10,12 @@ import (
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
+// PublicCarrier explicitly declares safe specialized GraphQL extensions.
+type PublicCarrier interface {
+	GraphQLCode() string
+	GraphQLExtensions() map[string]serrors.Value
+}
+
 // Presenter is installed through graphql.Handler.SetErrorPresenter. Protocol
 // errors remain owned by the transport, retaining their original extensions.
 func Presenter(localizer func(context.Context) *i18n.Localizer) graphql.ErrorPresenterFunc {
@@ -28,6 +34,16 @@ func Presenter(localizer func(context.Context) *i18n.Localizer) graphql.ErrorPre
 			code = "UNAUTHORIZED"
 		}
 		extensions := map[string]any{"code": code}
+		if carrier, ok := serrors.FindPublicCarrier[PublicCarrier](err); ok {
+			if declared := carrier.GraphQLCode(); declared != "" {
+				extensions["code"] = declared
+			}
+			for key, value := range carrier.GraphQLExtensions() {
+				if key != "code" && key != "reason" && key != "fields" {
+					extensions[key] = serrors.PublicValue(value, l)
+				}
+			}
+		}
 		if p.Reason != "" {
 			extensions["reason"] = p.Reason
 		}

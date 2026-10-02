@@ -89,6 +89,10 @@ NotFound, optimistic Conflict, or an allowed no-op.
   Unauthenticated retains `extensions.code=UNAUTHORIZED`. GraphQL parse and
   validation protocol errors retain their transport classification. Do not
   replace the HTTP handler or force protocol failures to HTTP 200.
+  Specialized codes and extensions must implement `serrorgql.PublicCarrier`;
+  its values use the restricted localization types. Arbitrary existing
+  extensions are not copied. An earlier explicit classification or cancellation
+  in a joined error blocks later carriers from disclosing unrelated data.
 - `serrorrpc.Project` is for the dispatcher's general classification branch.
   Explicit typed carriers, middleware/auth, applet sentinels, and numeric
   protocol codes keep precedence. Safe fields map to validation; permission

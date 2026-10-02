@@ -63,3 +63,34 @@ func TestSDKHandlerPresenterExecutionAndProtocol(t *testing.T) {
 		})
 	}
 }
+
+type declaredError struct{ error }
+
+func (e declaredError) Unwrap() error { return e.error }
+
+func (declaredError) GraphQLCode() string { return "VEHICLE_OWNER_INN_REQUIRED" }
+func (declaredError) GraphQLExtensions() map[string]serrors.Value {
+	return map[string]serrors.Value{"owner": serrors.Text("Synthetic company"), "code": serrors.Text("override"), "reason": serrors.Text("override")}
+}
+func TestPresenterExplicitCarrierAndInternalOverride(t *testing.T) {
+	carrier := declaredError{serrors.NewInvalid("private SQL").WithReason("owner_inn_missing")}
+	for _, tc := range []struct {
+		err   error
+		code  string
+		owner bool
+	}{{serrors.Wrap("lookup", carrier), "VEHICLE_OWNER_INN_REQUIRED", true}, {serrors.NewInternal("private failure").WithCause(carrier), "internal", false},
+		{errors.Join(serrors.NewInternal("first"), carrier), "internal", false},
+		{errors.Join(context.Canceled, carrier), "canceled", false},
+		{errors.Join(errors.New("unknown"), carrier), "VEHICLE_OWNER_INN_REQUIRED", true}} {
+		p := serrorgql.Presenter(nil)(context.Background(), tc.err)
+		require.Equal(t, tc.code, p.Extensions["code"])
+		require.NotContains(t, p.Message, "private")
+		if tc.owner {
+			require.Equal(t, "Synthetic company", p.Extensions["owner"])
+			require.Equal(t, serrors.Reason("owner_inn_missing"), p.Extensions["reason"])
+		} else {
+			require.NotContains(t, p.Extensions, "owner")
+			require.NotContains(t, p.Extensions, "reason")
+		}
+	}
+}
