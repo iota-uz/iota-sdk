@@ -35,7 +35,9 @@ type Config struct {
 	ReadyPath    string
 	Probe        func(context.Context, testenv.Descriptor) error
 	Configure    func(testenv.Descriptor) []string
-	Manifest     testdb.Manifest
+	// Initialize prepares descriptor-dependent state before application workers start.
+	Initialize func(context.Context, testenv.Descriptor) error
+	Manifest   testdb.Manifest
 }
 
 type child struct {
@@ -84,6 +86,11 @@ func (a *Adapter) Start(ctx context.Context, spec testenv.Spec, id string) (test
 		return d, err
 	}
 	d.BaseURL = "http://127.0.0.1:" + strconv.Itoa(port)
+	if a.config.Initialize != nil {
+		if err := a.config.Initialize(ctx, d); err != nil {
+			return d, err
+		}
+	}
 	log, err := os.OpenFile(filepath.Join(d.ArtifactDirectory, "server.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return d, err

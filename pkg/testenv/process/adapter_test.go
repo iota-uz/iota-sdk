@@ -2,9 +2,11 @@ package process
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -35,6 +37,11 @@ func (r *memoryResources) Dispose(_ context.Context, id string) error {
 func TestServerChild(t *testing.T) {
 	if os.Getenv("TESTENV_PROCESS_CHILD") != "1" {
 		return
+	}
+	if marker := os.Getenv("TESTENV_PROCESS_MARKER"); marker != "" {
+		if err := os.WriteFile(marker, []byte("started"), 0600); err != nil {
+			os.Exit(3)
+		}
 	}
 	http.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprint(w, "ready") })
 	if err := http.ListenAndServe("127.0.0.1:"+os.Getenv("HTTP_PORT"), nil); err != nil {
@@ -83,4 +90,44 @@ func TestFailedExecutableDisposesResources(t *testing.T) {
 	r.mu.Lock()
 	require.Empty(t, r.owned)
 	r.mu.Unlock()
+}
+
+// Falsely green if initialization runs after the child starts or compensation leaks resources.
+func TestInitializeBeforeProcessAndCompensatesFailure(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		t.Run(fmt.Sprint(fail), func(t *testing.T) {
+			r := &memoryResources{owned: map[string]bool{}}
+			marker := filepath.Join(t.TempDir(), "child-started")
+			called := false
+			failure := errors.New("initialization failed")
+			a, err := New(Config{Command: []string{os.Args[0], "-test.run=^TestServerChild$"}, Environment: []string{"TESTENV_PROCESS_CHILD=1", "TESTENV_PROCESS_MARKER=" + marker}, Artifacts: t.TempDir(), Revision: "test", Manifest: testdb.Manifest{SchemaFingerprint: "schema", BaselineFingerprint: "seed", BuildRevision: "test"}, Resources: r, ReadyPath: "/ready", Initialize: func(_ context.Context, d testenv.Descriptor) error {
+				called = true
+				require.NotEmpty(t, d.BaseURL)
+				require.Equal(t, "schema", d.SchemaFingerprint)
+				require.Equal(t, "seed", d.BaselineFingerprint)
+				require.True(t, r.owned[d.EnvironmentID])
+				require.NoFileExists(t, marker)
+				if fail {
+					return failure
+				}
+				return nil
+			}})
+			require.NoError(t, err)
+			c := testenv.NewCoordinator(a)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			d, err := c.Start(ctx, testenv.Spec{RunID: "test", Slot: "one", Isolation: "attempt", SchemaFingerprint: "schema", BaselineFingerprint: "seed"})
+			require.True(t, called)
+			if fail {
+				require.Error(t, err)
+				require.NoFileExists(t, marker)
+				require.Empty(t, a.children)
+			} else {
+				require.NoError(t, err)
+				require.FileExists(t, marker)
+				require.NoError(t, c.Stop(ctx, d.EnvironmentID))
+			}
+			require.Empty(t, r.owned)
+		})
+	}
 }
