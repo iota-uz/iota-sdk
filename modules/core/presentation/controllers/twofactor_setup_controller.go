@@ -202,7 +202,7 @@ func (c *TwoFactorSetupController) GetMethodChoice(w http.ResponseWriter, r *htt
 	if err := twofactorsetup.MethodChoice(&twofactorsetup.MethodChoiceProps{
 		NextURL: nextURL,
 	}).Render(r.Context(), w); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -214,7 +214,7 @@ func (c *TwoFactorSetupController) PostMethodChoice(w http.ResponseWriter, r *ht
 
 	dto, err := composables.UseForm(&methodChoiceDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -337,7 +337,7 @@ func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.R
 		ErrorMessage: string(errorMessage),
 	}).Render(r.Context(), w); err != nil {
 		logger.WithError(err).Error("failed to render TOTP setup template")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -404,7 +404,7 @@ func (c *TwoFactorSetupController) GetOTPSetup(w http.ResponseWriter, r *http.Re
 		SuccessMessage: string(successMessage),
 	}).Render(r.Context(), w); err != nil {
 		logger.WithError(err).Error("failed to render OTP setup template")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -416,7 +416,7 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 
 	dto, err := composables.UseForm(&totpConfirmDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -464,7 +464,7 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 		NextURL:       nextURL,
 	}).Render(r.Context(), w); err != nil {
 		logger.WithError(err).Error("failed to render setup complete template")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -476,7 +476,7 @@ func (c *TwoFactorSetupController) PostOTPSend(w http.ResponseWriter, r *http.Re
 
 	dto, err := composables.UseForm(&otpSendDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -542,7 +542,7 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 
 	dto, err := composables.UseForm(&otpConfirmDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 

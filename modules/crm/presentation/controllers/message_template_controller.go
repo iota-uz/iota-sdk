@@ -70,7 +70,7 @@ func (c *MessageTemplateController) Register(r *mux.Router) {
 func (c *MessageTemplateController) List(w http.ResponseWriter, r *http.Request) {
 	templateEntities, err := c.templateService.GetAll(r.Context())
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := &msgtui.IndexPageProps{
@@ -98,15 +98,15 @@ func (c *MessageTemplateController) GetNew(w http.ResponseWriter, r *http.Reques
 func (c *MessageTemplateController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	templateEntity, err := c.templateService.GetByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, persistence.ErrMessageTemplateNotFound) {
-			serrorhttp.WriteText(w, err, http.StatusNotFound, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusNotFound, nil)
 		} else {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		}
 		return
 	}
@@ -122,7 +122,7 @@ func (c *MessageTemplateController) GetEdit(w http.ResponseWriter, r *http.Reque
 func (c *MessageTemplateController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&messagetemplate.CreateDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -143,7 +143,7 @@ func (c *MessageTemplateController) Create(w http.ResponseWriter, r *http.Reques
 		return err
 	})
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -153,13 +153,13 @@ func (c *MessageTemplateController) Create(w http.ResponseWriter, r *http.Reques
 func (c *MessageTemplateController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&messagetemplate.UpdateDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -181,7 +181,7 @@ func (c *MessageTemplateController) Update(w http.ResponseWriter, r *http.Reques
 		return err
 	})
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -191,7 +191,7 @@ func (c *MessageTemplateController) Update(w http.ResponseWriter, r *http.Reques
 func (c *MessageTemplateController) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -200,7 +200,7 @@ func (c *MessageTemplateController) Delete(w http.ResponseWriter, r *http.Reques
 		return err
 	})
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

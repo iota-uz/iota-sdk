@@ -259,7 +259,7 @@ func (c *DepartmentsController) GetEdit(
 	}
 	id, err := uuid.Parse(mux.Vars(r)["id"])
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -297,7 +297,7 @@ func (c *DepartmentsController) Create(
 	}
 	dto, err := composables.UseForm(&dtos.CreateDepartmentDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -325,7 +325,7 @@ func (c *DepartmentsController) Create(
 
 	entity, err := dto.ToEntity()
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -391,13 +391,13 @@ func (c *DepartmentsController) Update(
 	}
 	id, err := uuid.Parse(mux.Vars(r)["id"])
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.UpdateDepartmentDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -436,7 +436,7 @@ func (c *DepartmentsController) Update(
 	entity, err := dto.Apply(existing)
 	if err != nil {
 		logger.Errorf("Error updating department: %v", err)
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -491,7 +491,7 @@ func (c *DepartmentsController) Delete(
 	}
 	id, err := uuid.Parse(mux.Vars(r)["id"])
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 

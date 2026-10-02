@@ -69,7 +69,7 @@ func (c *UsersController) Create(
 	dto, err := composables.UseForm(&dtos.CreateUserDTO{}, r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing form")
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -88,7 +88,7 @@ func (c *UsersController) Create(
 	userEntity, err := dto.ToEntity(tenantID)
 	if err != nil {
 		logger.WithError(err).Error("error converting dto to entity")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if dto.Language == "" {
@@ -109,7 +109,7 @@ func (c *UsersController) Create(
 		}
 
 		logger.WithError(err).Error("error creating user")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -134,7 +134,7 @@ func (c *UsersController) IssueTemporaryPassword(
 ) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	result, err := userService.IssueTemporaryPassword(r.Context(), id, "")
@@ -173,14 +173,14 @@ func (c *UsersController) Update(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.UpdateUserDTO{}, r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing form")
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -209,7 +209,7 @@ func (c *UsersController) Update(
 	userEntity, err := userService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.WithError(err).Error("error retrieving user")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -222,7 +222,7 @@ func (c *UsersController) Update(
 	for _, permissionID := range dto.PermissionIDs {
 		permissionUUID, err := uuid.Parse(permissionID)
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 			return
 		}
 		permissions = append(permissions, permission.New(permission.WithID(permissionUUID)))
@@ -231,7 +231,7 @@ func (c *UsersController) Update(
 	userEntity, err = dto.Apply(userEntity, roles, permissions)
 	if err != nil {
 		logger.WithError(err).Error("error applying user update")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -246,7 +246,7 @@ func (c *UsersController) Update(
 		}
 
 		logger.WithError(err).Error("error updating user")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -262,7 +262,7 @@ func (c *UsersController) Delete(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -271,7 +271,7 @@ func (c *UsersController) Delete(
 			return
 		}
 		logger.WithError(err).Error("error deleting user")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

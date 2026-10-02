@@ -168,7 +168,7 @@ func (c *OrdersController) viewModelOrders(r *http.Request) (*OrderPaginatedResp
 func (c *OrdersController) List(w http.ResponseWriter, r *http.Request) {
 	paginated, err := c.viewModelOrders(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
@@ -186,13 +186,13 @@ func (c *OrdersController) List(w http.ResponseWriter, r *http.Request) {
 func (c *OrdersController) ViewOrder(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	entity, err := c.orderService.GetByID(r.Context(), id)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -210,7 +210,7 @@ func (c *OrdersController) ViewOrder(w http.ResponseWriter, r *http.Request) {
 			Status:     status,
 		})
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		countByPositionID[item.Position().ID()] = int(count)
@@ -246,13 +246,13 @@ func (c *OrdersController) NewOutOrder(w http.ResponseWriter, r *http.Request) {
 func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request) {
 	formDTO, err := composables.UseForm(&dtos.CreateOrderDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	items, err := c.orderItems(r.Context(), formDTO, product.InDevelopment)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if errorsMap, ok := formDTO.Ok(r.Context()); !ok {
@@ -279,7 +279,7 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 			Status:     product.InDevelopment,
 		})
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		if len(products) < quantity {
@@ -304,7 +304,7 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 		return c.orderService.Create(txCtx, dto)
 	})
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -314,13 +314,13 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request) {
 	formDTO, err := composables.UseForm(&dtos.CreateOrderDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	items, err := c.orderItems(r.Context(), formDTO, product.InStock)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if errorsMap, ok := formDTO.Ok(r.Context()); !ok {
@@ -347,7 +347,7 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 			Status:     product.InStock,
 		})
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		if len(products) < quantity {
@@ -371,7 +371,7 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 		return c.orderService.Create(txCtx, dto)
 	})
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -412,19 +412,19 @@ func (c *OrdersController) orderItems(ctx context.Context, dto *dtos.CreateOrder
 func (c *OrdersController) OrderItems(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&dtos.CreateOrderDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	status, err := product.NewStatus(r.URL.Query().Get("status"))
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	items, err := c.orderItems(r.Context(), dto, status)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -435,7 +435,7 @@ func (c *OrdersController) OrderItems(w http.ResponseWriter, r *http.Request) {
 func (c *OrdersController) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -444,7 +444,7 @@ func (c *OrdersController) Delete(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

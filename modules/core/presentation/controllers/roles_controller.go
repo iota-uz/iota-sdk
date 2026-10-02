@@ -191,7 +191,7 @@ func (c *RolesController) GetEdit(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.Errorf("Error parsing role ID: %v", err)
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -232,7 +232,7 @@ func (c *RolesController) Delete(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.Errorf("Error parsing role ID: %v", err)
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -250,7 +250,7 @@ func (c *RolesController) Delete(
 			return
 		}
 		logger.Errorf("Error deleting role: %v", err)
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -265,7 +265,7 @@ func (c *RolesController) Update(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.Errorf("Error parsing role ID: %v", err)
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -277,7 +277,7 @@ func (c *RolesController) Update(
 	dto, err := composables.UseForm(&dtos.UpdateRoleDTO{}, r)
 	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -305,7 +305,7 @@ func (c *RolesController) Update(
 	updatedEntity, err := dto.Apply(roleEntity, c.permissionSchema)
 	if err != nil {
 		logger.Errorf("Error updating role entity: %v", err)
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -318,7 +318,7 @@ func (c *RolesController) Update(
 			return
 		}
 		logger.Errorf("Error updating role: %v", err)
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -355,7 +355,7 @@ func (c *RolesController) Create(
 	dto, err := composables.UseForm(&dtos.CreateRoleDTO{}, r)
 	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -363,7 +363,7 @@ func (c *RolesController) Create(
 		roleEntity, err := dto.ToEntity(c.permissionSchema)
 		if err != nil {
 			logger.Errorf("Error converting DTO to entity: %v", err)
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		props := &roles.CreateFormProps{
@@ -378,7 +378,7 @@ func (c *RolesController) Create(
 	roleEntity, err := dto.ToEntity(c.permissionSchema)
 	if err != nil {
 		logger.Errorf("Error converting DTO to entity: %v", err)
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -387,7 +387,7 @@ func (c *RolesController) Create(
 			return
 		}
 		logger.Errorf("Error creating role: %v", err)
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

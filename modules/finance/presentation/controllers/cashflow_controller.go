@@ -277,7 +277,7 @@ func (c *CashflowController) GetCashflowStatementData(w http.ResponseWriter, r *
 		endDate,
 	)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

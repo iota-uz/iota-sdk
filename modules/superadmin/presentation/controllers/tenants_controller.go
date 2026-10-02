@@ -219,7 +219,7 @@ func (c *TenantsController) Export(
 	upload, err := excelService.ExportFromQuery(ctx, queryObj, config)
 	if err != nil {
 		logger.Errorf("Error exporting tenants: %v", err)
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

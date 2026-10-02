@@ -218,7 +218,7 @@ func (c *PaymentCategoriesController) List(w http.ResponseWriter, r *http.Reques
 func (c *PaymentCategoriesController) GetEditDrawer(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -237,12 +237,12 @@ func (c *PaymentCategoriesController) GetEditDrawer(w http.ResponseWriter, r *ht
 func (c *PaymentCategoriesController) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := c.paymentCategoryService.Delete(r.Context(), id); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -252,12 +252,12 @@ func (c *PaymentCategoriesController) Delete(w http.ResponseWriter, r *http.Requ
 func (c *PaymentCategoriesController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	dto, err := composables.UseForm(&dtos.PaymentCategoryUpdateDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -272,11 +272,11 @@ func (c *PaymentCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 
 		entity, err := dto.Apply(existing)
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		if _, err := c.paymentCategoryService.Update(r.Context(), entity); err != nil {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
@@ -312,7 +312,7 @@ func (c *PaymentCategoriesController) GetNewDrawer(w http.ResponseWriter, r *htt
 func (c *PaymentCategoriesController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&dtos.PaymentCategoryCreateDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -333,12 +333,12 @@ func (c *PaymentCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 
 	entity, err := dto.ToEntity()
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := c.paymentCategoryService.Create(r.Context(), entity); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

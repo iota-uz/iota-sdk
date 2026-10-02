@@ -2,6 +2,7 @@
 package shared
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -47,9 +48,13 @@ func SetFlash(w http.ResponseWriter, name string, value []byte) {
 }
 
 func SetFlashMap[K comparable, V any](w http.ResponseWriter, name string, value map[K]V) {
+	SetFlashMapContext(context.Background(), w, name, value)
+}
+
+func SetFlashMapContext[K comparable, V any](ctx context.Context, w http.ResponseWriter, name string, value map[K]V) {
 	errors, err := json.Marshal(value)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(ctx, w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	SetFlash(w, name, errors)

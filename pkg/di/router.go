@@ -207,7 +207,7 @@ func createHandlerFunc(diContext *DIContext, handler interface{}) http.HandlerFu
 					value, err = diContext.provideValue(argTypes[i], r.Context())
 				}
 				if err != nil {
-					serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+					serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 					return
 				}
 				args[i] = value

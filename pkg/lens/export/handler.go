@@ -50,7 +50,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	exploration, hasExploration, err := ParseExplorationExportRequest(r.URL.Query())
 	if err != nil {
 		SetDownloadSignal(w, r, DownloadSignalError)
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	if !hasExploration {

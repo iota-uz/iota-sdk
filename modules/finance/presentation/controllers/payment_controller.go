@@ -174,17 +174,17 @@ func (c *PaymentsController) tableConfig(r *http.Request, params composables.Pag
 func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	paymentViewModel, err := c.viewModelPayment(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	accounts, err := c.viewModelAccounts(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	categories, err := c.viewModelPaymentCategories(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -205,7 +205,7 @@ func (c *PaymentsController) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := c.paymentService.Delete(r.Context(), id); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -296,24 +296,24 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 
 	dto, err := composables.UseForm(&dtos.PaymentUpdateDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		paymentViewModel, err := c.viewModelPayment(r)
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		accounts, err := c.viewModelAccounts(r)
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		categories, err := c.viewModelPaymentCategories(r)
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		props := &payments.EditPageProps{
@@ -336,7 +336,7 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 		}
 		categoryEntity, err = c.paymentCategoryService.GetByID(r.Context(), categoryID)
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 	} else {
@@ -357,11 +357,11 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 
 	entity, err := dto.Apply(existing, categoryEntity, user)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if _, err := c.paymentService.Update(r.Context(), entity); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -381,12 +381,12 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 	accounts, err := c.viewModelAccounts(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	categories, err := c.viewModelPaymentCategories(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -402,13 +402,13 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&dtos.PaymentCreateDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	u, err := composables.UseUser(r.Context())
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	dto.UserID = u.ID()
@@ -416,12 +416,12 @@ func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		accounts, err := c.viewModelAccounts(r)
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		categories, err := c.viewModelPaymentCategories(r)
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		// Create a default payment viewmodel for displaying errors
@@ -452,7 +452,7 @@ func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	categoryEntity, err := c.paymentCategoryService.GetByID(r.Context(), categoryID)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -465,7 +465,7 @@ func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 	entity := dto.ToEntity(tenantID, categoryEntity)
 	createdEntity, err := c.paymentService.Create(r.Context(), entity)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

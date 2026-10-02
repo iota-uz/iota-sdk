@@ -2,10 +2,12 @@
 package serrorhttp
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorlog"
 	"net/http"
 )
 
@@ -109,4 +111,10 @@ func WriteText(w http.ResponseWriter, err error, status int, l *i18n.Localizer) 
 		status = Status(err)
 	}
 	http.Error(w, serrors.Public(err, l).Message, status)
+}
+
+// WriteTextContext logs and writes a safe plain-text error at the HTTP boundary.
+func WriteTextContext(ctx context.Context, w http.ResponseWriter, err error, status int, l *i18n.Localizer) {
+	serrorlog.Log(ctx, err, "HTTP request failed")
+	WriteText(w, err, status, l)
 }

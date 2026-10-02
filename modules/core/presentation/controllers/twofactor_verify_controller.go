@@ -158,7 +158,7 @@ func (c *TwoFactorVerifyController) GetVerify(w http.ResponseWriter, r *http.Req
 		SuccessMessage: string(successMessage),
 	}).Render(r.Context(), w); err != nil {
 		logger.Error("failed to render verify template", "error", err)
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -171,7 +171,7 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 
 	// Parse form
 	if err := r.ParseForm(); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -287,7 +287,7 @@ func (c *TwoFactorVerifyController) GetRecovery(w http.ResponseWriter, r *http.R
 		SuccessMessage: string(successMessage),
 	}).Render(r.Context(), w); err != nil {
 		logger.Error("failed to render recovery template", "error", err)
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -300,7 +300,7 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 
 	// Parse form
 	if err := r.ParseForm(); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -379,7 +379,7 @@ func (c *TwoFactorVerifyController) PostResend(w http.ResponseWriter, r *http.Re
 
 	// Parse form
 	if err := r.ParseForm(); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 

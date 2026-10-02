@@ -315,7 +315,7 @@ func (c *PositionsController) GetEdit(
 	}
 	id, err := uuid.Parse(mux.Vars(r)["id"])
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -362,7 +362,7 @@ func (c *PositionsController) Create(
 	}
 	dto, err := composables.UseForm(&dtos.CreateUserPositionDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -398,7 +398,7 @@ func (c *PositionsController) Create(
 
 	entity, err := dto.ToEntity()
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -441,13 +441,13 @@ func (c *PositionsController) Update(
 	}
 	id, err := uuid.Parse(mux.Vars(r)["id"])
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.UpdateUserPositionDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -496,7 +496,7 @@ func (c *PositionsController) Update(
 	entity, err := dto.Apply(existing)
 	if err != nil {
 		logger.Errorf("Error updating position: %v", err)
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -524,7 +524,7 @@ func (c *PositionsController) Delete(
 	}
 	id, err := uuid.Parse(mux.Vars(r)["id"])
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 

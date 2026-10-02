@@ -172,7 +172,7 @@ func (c *TestEndpointsController) handleReset(w http.ResponseWriter, r *http.Req
 	err := c.testService.ResetDatabase(ctx, req.ReseedMinimal)
 	if err != nil {
 		logger.WithError(err).Error("Failed to reset database")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -203,7 +203,7 @@ func (c *TestEndpointsController) handlePopulate(w http.ResponseWriter, r *http.
 	req, err := schemas.ParsePopulateRequest(body)
 	if err != nil {
 		logger.WithError(err).Error("Failed to parse populate request")
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -267,7 +267,7 @@ func (c *TestEndpointsController) handleSeed(w http.ResponseWriter, r *http.Requ
 	err = c.testService.SeedScenario(ctx, req.Scenario)
 	if err != nil {
 		logger.WithError(err).Error("Failed to seed scenario")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

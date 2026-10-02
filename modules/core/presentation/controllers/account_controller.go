@@ -167,7 +167,7 @@ func (c *AccountController) defaultProps(r *http.Request, errors map[string]stri
 func (c *AccountController) Get(w http.ResponseWriter, r *http.Request) {
 	props, err := c.defaultProps(r, nil)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -179,14 +179,14 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&dtos.SaveAccountDTO{}, r)
 	if err != nil {
 		logger.WithError(err).Error("failed to parse form")
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		props, err := c.defaultProps(r, errors)
 		if err != nil {
 			logger.WithError(err).Error("failed to get default props")
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		logger.WithField("errors", errors).Debug("validation failed")
@@ -196,13 +196,13 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 	u, err := composables.UseUser(r.Context())
 	if err != nil {
 		logger.WithError(err).Error("failed to get user from context")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	entity, err := dto.Apply(u)
 	if err != nil {
 		logger.WithError(err).Error("failed to apply dto")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -222,7 +222,7 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := c.userService.UpdateSelf(r.Context(), entity); err != nil {
 		logger.WithError(err).Error("failed to update user")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -246,7 +246,7 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		logger.WithError(err).Error("failed to get user from context")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -262,7 +262,7 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 	sessions, err := c.sessionService.GetByUserID(r.Context(), user.ID())
 	if err != nil {
 		logger.WithError(err).Error("failed to fetch user sessions")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -302,7 +302,7 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		logger.WithError(err).Error("failed to get user from context")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -310,7 +310,7 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	sessions, err := c.sessionService.GetByUserID(r.Context(), user.ID())
 	if err != nil {
 		logger.WithError(err).Error("failed to fetch user sessions")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -348,7 +348,7 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	// Revoke the session
 	if err := c.sessionService.TerminateSession(r.Context(), sessionToRevoke); err != nil {
 		logger.WithError(err).Error("failed to terminate session")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -358,7 +358,7 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	})
 	if err != nil {
 		logger.WithError(err).Error("failed to marshal session revoke toast")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	htmx.SetTrigger(w, "success", string(successPayload))
@@ -373,7 +373,7 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		logger.WithError(err).Error("failed to get user from context")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -389,7 +389,7 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 	count, err := c.sessionService.TerminateOtherSessions(r.Context(), user.ID(), currentToken)
 	if err != nil {
 		logger.WithError(err).Error("failed to terminate other sessions")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -398,7 +398,7 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 	successPayload, err := json.Marshal(map[string]string{"message": successMsg})
 	if err != nil {
 		logger.WithError(err).Error("failed to marshal session revoke toast")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	htmx.SetTrigger(w, "success", string(successPayload))

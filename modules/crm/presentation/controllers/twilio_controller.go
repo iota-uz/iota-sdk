@@ -42,7 +42,7 @@ func (c *TwillioController) Register(r *mux.Router) {
 			return nil
 		})
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		}
 	})
 

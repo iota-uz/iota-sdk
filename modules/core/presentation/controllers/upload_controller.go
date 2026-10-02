@@ -73,7 +73,7 @@ func (c *UploadController) Register(r *mux.Router) {
 
 func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(c.cfg.MaxMemory); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	files, ok := r.MultipartForm.File["file"]
@@ -91,7 +91,7 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 	for _, header := range files {
 		file, err := header.Open()
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 			return
 		}
 		defer func(file multipart.File) {
@@ -110,7 +110,7 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 		if _, ok := dto.Ok(r.Context()); !ok {
 			_, _, err := dto.ToEntity()
 			if err != nil {
-				serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+				serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 				return
 			}
 			props := &components.UploadInputProps{
@@ -134,7 +134,7 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

@@ -92,7 +92,7 @@ func fixture(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := component.Render(context.Background(), w); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if specimen == "copy-button" {

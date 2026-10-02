@@ -62,7 +62,7 @@ func (c *StaticController) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	relativePath := strings.TrimPrefix(r.URL.Path, c.basePath+"/")
 	assets, err := source.assets()
 	if err != nil {
-		serrorhttp.WriteText(w, compatibilityAssetsError(err), http.StatusServiceUnavailable, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, compatibilityAssetsError(err), http.StatusServiceUnavailable, nil)
 		return
 	}
 	revision := assets.Revision

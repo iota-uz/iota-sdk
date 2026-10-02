@@ -199,7 +199,7 @@ func (c *TransactionController) List(w http.ResponseWriter, r *http.Request) {
 func (c *TransactionController) GetViewDrawer(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 

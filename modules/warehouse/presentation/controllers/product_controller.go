@@ -88,8 +88,8 @@ func (c *ProductsController) Register(r *mux.Router) {
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 }
 
-func (c *ProductsController) handleError(w http.ResponseWriter, err error) {
-	serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+func (c *ProductsController) handleError(ctx context.Context, w http.ResponseWriter, err error) {
+	serrorhttp.WriteTextContext(ctx, w, err, http.StatusInternalServerError, nil)
 }
 
 func (c *ProductsController) getViewModelProducts(r *http.Request) (*PaginatedResponse, error) {
@@ -127,7 +127,7 @@ func (c *ProductsController) renderTemplate(w http.ResponseWriter, r *http.Reque
 func (c *ProductsController) List(w http.ResponseWriter, r *http.Request) {
 	paginated, err := c.getViewModelProducts(r)
 	if err != nil {
-		c.handleError(w, err)
+		c.handleError(r.Context(), w, err)
 		return
 	}
 
@@ -148,13 +148,13 @@ func (c *ProductsController) List(w http.ResponseWriter, r *http.Request) {
 func (c *ProductsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		c.handleError(w, err)
+		c.handleError(r.Context(), w, err)
 		return
 	}
 
 	entity, err := c.productService.GetByID(r.Context(), id)
 	if err != nil {
-		c.handleError(w, fmt.Errorf("error retrieving product: %w", err))
+		c.handleError(r.Context(), w, fmt.Errorf("error retrieving product: %w", err))
 		return
 	}
 
@@ -168,24 +168,24 @@ func (c *ProductsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 func (c *ProductsController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		c.handleError(w, err)
+		c.handleError(r.Context(), w, err)
 		return
 	}
 
 	dto, err := composables.UseForm(&product.UpdateDTO{}, r)
 	if err != nil {
-		c.handleError(w, fmt.Errorf("error parsing form: %w", err))
+		c.handleError(r.Context(), w, fmt.Errorf("error parsing form: %w", err))
 		return
 	}
 
 	entity, err := c.productService.GetByID(r.Context(), id)
 	if err != nil {
-		c.handleError(w, fmt.Errorf("error retrieving product: %w", err))
+		c.handleError(r.Context(), w, fmt.Errorf("error retrieving product: %w", err))
 		return
 	}
 	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
-		c.handleError(w, fmt.Errorf("error retrieving localizer: %w", err))
+		c.handleError(r.Context(), w, fmt.Errorf("error retrieving localizer: %w", err))
 		return
 	}
 	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
@@ -199,7 +199,7 @@ func (c *ProductsController) Update(w http.ResponseWriter, r *http.Request) {
 
 	localizer, ok := intl.UseLocalizer(r.Context())
 	if !ok {
-		c.handleError(w, fmt.Errorf("error retrieving localizer"))
+		c.handleError(r.Context(), w, fmt.Errorf("error retrieving localizer"))
 		return
 	}
 
@@ -228,7 +228,7 @@ func (c *ProductsController) Update(w http.ResponseWriter, r *http.Request) {
 			c.renderTemplate(w, r, products.EditForm(props))
 			return
 		}
-		c.handleError(w, err)
+		c.handleError(r.Context(), w, err)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -246,18 +246,18 @@ func (c *ProductsController) GetNew(w http.ResponseWriter, r *http.Request) {
 func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&product.CreateDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	entity, err := dto.ToEntity()
 	if err != nil {
-		c.handleError(w, err)
+		c.handleError(r.Context(), w, err)
 		return
 	}
 	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
-		c.handleError(w, fmt.Errorf("error retrieving localizer: %w", err))
+		c.handleError(r.Context(), w, fmt.Errorf("error retrieving localizer: %w", err))
 		return
 	}
 	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
@@ -272,7 +272,7 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 
 	localizer, ok := intl.UseLocalizer(r.Context())
 	if !ok {
-		c.handleError(w, fmt.Errorf("error retrieving localizer"))
+		c.handleError(r.Context(), w, fmt.Errorf("error retrieving localizer"))
 		return
 	}
 
@@ -295,7 +295,7 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 			c.renderTemplate(w, r, products.CreateForm(props))
 			return
 		}
-		c.handleError(w, err)
+		c.handleError(r.Context(), w, err)
 		return
 	}
 

@@ -234,7 +234,7 @@ func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
 func (c *DashboardController) Document(w http.ResponseWriter, r *http.Request) {
 	handlers, err := c.lensHandlers(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusServiceUnavailable, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusServiceUnavailable, nil)
 		return
 	}
 	handlers.Document(w, r)
@@ -243,7 +243,7 @@ func (c *DashboardController) Document(w http.ResponseWriter, r *http.Request) {
 func (c *DashboardController) Query(w http.ResponseWriter, r *http.Request) {
 	handlers, err := c.lensHandlers(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusServiceUnavailable, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusServiceUnavailable, nil)
 		return
 	}
 	handlers.Query(w, r)
@@ -252,7 +252,7 @@ func (c *DashboardController) Query(w http.ResponseWriter, r *http.Request) {
 func (c *DashboardController) Export(w http.ResponseWriter, r *http.Request) {
 	handlers, err := c.lensHandlers(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusServiceUnavailable, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusServiceUnavailable, nil)
 		return
 	}
 	handlers.Export(w, r)

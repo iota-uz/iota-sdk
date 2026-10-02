@@ -7,6 +7,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorlog"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
@@ -23,6 +24,7 @@ func Presenter(localizer func(context.Context) *i18n.Localizer) graphql.ErrorPre
 		if base.Extensions["code"] == "GRAPHQL_PARSE_FAILED" || base.Extensions["code"] == "GRAPHQL_VALIDATION_FAILED" {
 			return base
 		}
+		serrorlog.Log(ctx, err, "GraphQL request failed")
 		var l *i18n.Localizer
 		if localizer != nil {
 			l = localizer(ctx)

@@ -143,17 +143,17 @@ func (c *PositionsController) HandleUpload(
 	positionService *positionservice.PositionService,
 ) {
 	if err := r.ParseForm(); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	dto := dtos.PositionsUploadDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -298,7 +298,7 @@ func (c *PositionsController) HandleUpload(
 			templ.Handler(contentComponent, templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -351,13 +351,13 @@ func (c *PositionsController) List(
 ) {
 	paginated, err := c.viewModelPositions(r, positionService)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	unitViewModels, err := c.viewModelUnits(r, unitService)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
@@ -381,7 +381,7 @@ func (c *PositionsController) GetEdit(
 ) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -392,7 +392,7 @@ func (c *PositionsController) GetEdit(
 	}
 	unitViewModels, err := c.viewModelUnits(r, unitService)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := &positions2.EditPageProps{
@@ -417,7 +417,7 @@ func (c *PositionsController) Search(
 		Limit: 10,
 	})
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := mapping.MapViewModels(entities, func(pos position.Position) *base.ComboboxOption {
@@ -442,12 +442,12 @@ func (c *PositionsController) Update(
 	}
 	dto := position.UpdateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
@@ -458,7 +458,7 @@ func (c *PositionsController) Update(
 		}
 		unitViewModels, err := c.viewModelUnits(r, unitService)
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		props := &positions2.EditPageProps{
@@ -475,7 +475,7 @@ func (c *PositionsController) Update(
 		return positionService.Update(txCtx, id, &dto)
 	})
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -488,7 +488,7 @@ func (c *PositionsController) GetNew(
 ) {
 	unitViewModels, err := c.viewModelUnits(r, unitService)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := &positions2.CreatePageProps{
@@ -506,25 +506,25 @@ func (c *PositionsController) Create(
 	positionService *positionservice.PositionService,
 ) {
 	if err := r.ParseForm(); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto := position.CreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		entity, err := dto.ToEntity()
 		if err != nil {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		props := &positions2.CreatePageProps{
@@ -540,7 +540,7 @@ func (c *PositionsController) Create(
 		return err
 	})
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -554,7 +554,7 @@ func (c *PositionsController) Delete(
 ) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
@@ -562,7 +562,7 @@ func (c *PositionsController) Delete(
 		return err
 	})
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)

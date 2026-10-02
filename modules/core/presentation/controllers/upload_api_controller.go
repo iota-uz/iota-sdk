@@ -104,13 +104,13 @@ type GeoPointResponse struct {
 
 func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(c.cfg.MaxMemory); err != nil {
-		c.writeJSONError(w, http.StatusBadRequest, serrors.Public(err, nil).Message)
+		c.writeJSONError(r.Context(), w, http.StatusBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 
 	files, ok := r.MultipartForm.File["file"]
 	if !ok || len(files) == 0 {
-		c.writeJSONError(w, http.StatusBadRequest, "No file found")
+		c.writeJSONError(r.Context(), w, http.StatusBadRequest, "No file found")
 		return
 	}
 
@@ -122,12 +122,12 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 	// Check authorization
 	if slug != "" {
 		if err := c.authorizer.CanUploadFileWithSlug(r.Context()); err != nil {
-			c.writeJSONError(w, http.StatusForbidden, "Unauthorized to upload file with custom slug")
+			c.writeJSONError(r.Context(), w, http.StatusForbidden, "Unauthorized to upload file with custom slug")
 			return
 		}
 	} else {
 		if err := c.authorizer.CanUploadFile(r.Context()); err != nil {
-			c.writeJSONError(w, http.StatusForbidden, "Unauthorized to upload file")
+			c.writeJSONError(r.Context(), w, http.StatusForbidden, "Unauthorized to upload file")
 			return
 		}
 	}
@@ -136,7 +136,7 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 	header := files[0]
 	file, err := header.Open()
 	if err != nil {
-		c.writeJSONError(w, http.StatusBadRequest, serrors.Public(err, nil).Message)
+		c.writeJSONError(r.Context(), w, http.StatusBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 	defer func() {
@@ -155,12 +155,12 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 	if latStr != "" && lngStr != "" {
 		lat, err := strconv.ParseFloat(latStr, 64)
 		if err != nil {
-			c.writeJSONError(w, http.StatusBadRequest, "Invalid latitude value")
+			c.writeJSONError(r.Context(), w, http.StatusBadRequest, "Invalid latitude value")
 			return
 		}
 		lng, err := strconv.ParseFloat(lngStr, 64)
 		if err != nil {
-			c.writeJSONError(w, http.StatusBadRequest, "Invalid longitude value")
+			c.writeJSONError(r.Context(), w, http.StatusBadRequest, "Invalid longitude value")
 			return
 		}
 		dto.GeoPoint = &upload.GeoPoint{
@@ -171,7 +171,7 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Validate DTO
 	if _, ok := dto.Ok(r.Context()); !ok {
-		c.writeJSONError(w, http.StatusBadRequest, "Validation failed")
+		c.writeJSONError(r.Context(), w, http.StatusBadRequest, "Validation failed")
 		return
 	}
 
@@ -182,7 +182,7 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 		uploadEntity, createErr = c.uploadService.Create(txCtx, dto)
 		return createErr
 	}); err != nil {
-		c.writeJSONError(w, http.StatusInternalServerError, serrors.Public(err, nil).Message)
+		c.writeJSONError(r.Context(), w, http.StatusInternalServerError, serrors.Public(err, nil).Message)
 		return
 	}
 
@@ -209,20 +209,20 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	c.writeJSON(w, response)
+	c.writeJSON(r.Context(), w, response)
 }
 
-func (c *UploadAPIController) writeJSON(w http.ResponseWriter, data interface{}) {
+func (c *UploadAPIController) writeJSON(ctx context.Context, w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(ctx, w, err, http.StatusInternalServerError, nil)
 	}
 }
 
-func (c *UploadAPIController) writeJSONError(w http.ResponseWriter, statusCode int, message string) {
+func (c *UploadAPIController) writeJSONError(ctx context.Context, w http.ResponseWriter, statusCode int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(map[string]string{"error": message}); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(ctx, w, err, http.StatusInternalServerError, nil)
 	}
 }

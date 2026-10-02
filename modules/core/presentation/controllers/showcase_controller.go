@@ -315,7 +315,7 @@ func showcaseLensDashboard(params map[string]lens.ParamValue) lens.DashboardSpec
 func (c *ShowcaseController) LensDocument(w http.ResponseWriter, r *http.Request) {
 	handlers, err := c.lensHandlers(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusServiceUnavailable, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusServiceUnavailable, nil)
 		return
 	}
 	handlers.Document(w, r)
@@ -324,7 +324,7 @@ func (c *ShowcaseController) LensDocument(w http.ResponseWriter, r *http.Request
 func (c *ShowcaseController) LensQuery(w http.ResponseWriter, r *http.Request) {
 	handlers, err := c.lensHandlers(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusServiceUnavailable, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusServiceUnavailable, nil)
 		return
 	}
 	handlers.Query(w, r)
@@ -333,7 +333,7 @@ func (c *ShowcaseController) LensQuery(w http.ResponseWriter, r *http.Request) {
 func (c *ShowcaseController) LensExport(w http.ResponseWriter, r *http.Request) {
 	handlers, err := c.lensHandlers(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusServiceUnavailable, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusServiceUnavailable, nil)
 		return
 	}
 	handlers.Export(w, r)

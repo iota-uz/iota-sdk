@@ -135,7 +135,7 @@ func (c *CounterpartiesController) Create(w http.ResponseWriter, r *http.Request
 	dto, err := composables.UseForm(&dtos.CounterpartyCreateDTO{}, r)
 	if err != nil {
 		logrus.WithError(err).Error("Error parsing form")
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -160,13 +160,13 @@ func (c *CounterpartiesController) Create(w http.ResponseWriter, r *http.Request
 	entity, err := dto.ToEntity(tenantID)
 	if err != nil {
 		logrus.WithError(err).Error("Error converting DTO to entity")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := c.counterpartiesService.Create(r.Context(), entity); err != nil {
 		logrus.WithError(err).Error("Error creating counterparty")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -249,13 +249,13 @@ func (c *CounterpartiesController) Update(
 	entity, err := dto.Apply(existing)
 	if err != nil {
 		logrus.WithError(err).Error("Error applying DTO to entity")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := c.counterpartiesService.Update(r.Context(), entity); err != nil {
 		logrus.WithError(err).Error("Error updating counterparty")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -272,7 +272,7 @@ func (c *CounterpartiesController) Delete(w http.ResponseWriter, r *http.Request
 
 	if _, err := c.counterpartiesService.Delete(r.Context(), id); err != nil {
 		logrus.WithError(err).Error("Error deleting counterparty")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -285,7 +285,7 @@ func (c *CounterpartiesController) Search(w http.ResponseWriter, r *http.Request
 		Limit:  10,
 	})
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := mapping.MapViewModels(entities, func(e counterparty.Counterparty) *base.ComboboxOption {

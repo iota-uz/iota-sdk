@@ -158,7 +158,7 @@ func (c *FinancialReportController) GenerateIncomeStatement(w http.ResponseWrite
 		endDate,
 	)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

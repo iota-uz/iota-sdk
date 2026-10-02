@@ -145,7 +145,7 @@ func (c *FinancialOverviewController) AccountBalance(w http.ResponseWriter, r *h
 	ctx := r.Context()
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 

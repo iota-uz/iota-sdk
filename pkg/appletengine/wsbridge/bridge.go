@@ -177,7 +177,7 @@ func (b *Bridge) HandleAppletEvent(w http.ResponseWriter, r *http.Request) {
 		data = decoded
 	}
 	if err := b.Send(payload.AppletID, payload.ConnectionID, data); err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)

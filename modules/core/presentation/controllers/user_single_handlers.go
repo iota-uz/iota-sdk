@@ -40,7 +40,7 @@ func (c *UsersController) GetSingle(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -149,7 +149,7 @@ func (c *UsersController) GetEdit(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -183,20 +183,20 @@ func (c *UsersController) GetBlockDrawer(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	targetUser, err := userService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.WithError(err).Error("error retrieving user")
-		serrorhttp.WriteText(w, err, http.StatusNotFound, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusNotFound, nil)
 		return
 	}
 
 	if err := renderBlockDrawer(r.Context(), w, mappers.UserToViewModel(targetUser), map[string]string{}); err != nil {
 		logger.WithError(err).Error("error rendering block drawer")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -225,13 +225,13 @@ func (c *UsersController) BlockUser(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
 		logger.WithError(err).Error("error parsing form")
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -252,13 +252,13 @@ func (c *UsersController) BlockUser(
 		targetUser, err := userService.GetByID(r.Context(), id)
 		if err != nil {
 			logger.WithError(err).Error("error fetching user")
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
 		if err := renderBlockDrawer(r.Context(), w, mappers.UserToViewModel(targetUser), errors); err != nil {
 			logger.WithError(err).Error("error rendering block drawer")
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		}
 		return
 	}
@@ -273,13 +273,13 @@ func (c *UsersController) BlockUser(
 		targetUser, fetchErr := userService.GetByID(r.Context(), id)
 		if fetchErr != nil {
 			logger.WithError(fetchErr).Error("error fetching user")
-			serrorhttp.WriteText(w, fetchErr, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, fetchErr, http.StatusInternalServerError, nil)
 			return
 		}
 
 		if err := renderBlockDrawer(r.Context(), w, mappers.UserToViewModel(targetUser), errors); err != nil {
 			logger.WithError(err).Error("error rendering block drawer")
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		}
 		return
 	}
@@ -339,7 +339,7 @@ func (c *UsersController) UnblockUser(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -348,7 +348,7 @@ func (c *UsersController) UnblockUser(
 			return
 		}
 		logger.WithError(err).Error("error unblocking user")
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

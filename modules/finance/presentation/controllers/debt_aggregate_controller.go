@@ -156,7 +156,7 @@ func (c *DebtAggregateController) GetCounterpartyDrawer(w http.ResponseWriter, r
 	counterpartyIDStr := mux.Vars(r)["counterparty_id"]
 	counterpartyID, err := uuid.Parse(counterpartyIDStr)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

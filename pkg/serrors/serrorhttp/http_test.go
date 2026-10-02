@@ -1,9 +1,13 @@
 package serrorhttp_test
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/sirupsen/logrus"
 	"html"
 	"net/http"
 	"net/http/httptest"
@@ -105,4 +109,22 @@ func TestWriteTextClassifiesSemanticErrorsAndRetainsUnknownRouteStatus(t *testin
 		require.NotContains(t, w.Body.String(), "secret")
 		require.NotContains(t, w.Body.String(), "private")
 	}
+}
+
+func TestWriteTextContextLogsOneBoundedEvent(t *testing.T) {
+	var output bytes.Buffer
+	logger := logrus.New()
+	logger.SetOutput(&output)
+	logger.SetFormatter(&logrus.JSONFormatter{})
+	ctx := context.WithValue(context.Background(), constants.LoggerKey, logger.WithField("request-id", "synthetic-http-request"))
+	recorder := httptest.NewRecorder()
+	err := serrors.NewNotFound("").WithOp("synthetic.http.op").WithReason("missing_record").WithCause(errors.New("private SQL cause"))
+	serrorhttp.WriteTextContext(ctx, recorder, err, http.StatusInternalServerError, nil)
+	require.Equal(t, http.StatusNotFound, recorder.Code)
+	require.Equal(t, 1, strings.Count(output.String(), "HTTP request failed"))
+	require.Contains(t, output.String(), `"error.op":"synthetic.http.op"`)
+	require.Contains(t, output.String(), `"error.reason":"missing_record"`)
+	require.Contains(t, output.String(), `"request_id":"synthetic-http-request"`)
+	require.NotContains(t, output.String(), "private SQL cause")
+	require.NotContains(t, recorder.Body.String(), "private SQL cause")
 }

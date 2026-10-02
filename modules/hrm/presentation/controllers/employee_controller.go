@@ -84,7 +84,7 @@ func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 		Status: status,
 	})
 	if err != nil {
-		serrorhttp.WriteText(w, errors.Wrap(err, "Error retrieving employees"), http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, errors.Wrap(err, "Error retrieving employees"), http.StatusInternalServerError, nil)
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
@@ -145,7 +145,7 @@ func (c *EmployeeController) GetEdit(w http.ResponseWriter, r *http.Request) {
 func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&employee.CreateDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -177,7 +177,7 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		l, ok := intl.UseLocalizer(r.Context())
 		if !ok {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
@@ -196,7 +196,7 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 				err.Error(),
 			)
 		} else {
-			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
@@ -231,12 +231,12 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 func (c *EmployeeController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	dto, err := composables.UseForm(&employee.UpdateDTO{}, r)
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	errorsMap, ok := dto.Ok(r.Context())
@@ -247,7 +247,7 @@ func (c *EmployeeController) Update(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			l, ok := intl.UseLocalizer(r.Context())
 			if !ok {
-				serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+				serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 				return
 			}
 
@@ -266,7 +266,7 @@ func (c *EmployeeController) Update(w http.ResponseWriter, r *http.Request) {
 					err.Error(),
 				)
 			} else {
-				serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+				serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 				return
 			}
 
@@ -317,7 +317,7 @@ func (c *EmployeeController) Delete(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
-		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
