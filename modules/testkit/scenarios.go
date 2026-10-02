@@ -3,6 +3,7 @@ package testkit
 import (
 	"embed"
 	"fmt"
+	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -10,7 +11,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/testenv"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"net/http"
 )
 
 type ScenarioFactory func(*pgxpool.Pool) (*testenv.Registry, string, error)

@@ -27,11 +27,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	opCreateDBE = serrors.Op("itf.CreateDB")
-	opDropDBE   = serrors.Op("itf.DropDB")
-)
-
 type TestFixtures struct {
 	SQLDB     *sql.DB
 	Pool      *pgxpool.Pool
@@ -174,10 +169,18 @@ func CreateDBFromTemplate(name, template string, db dbconfig.Config) {
 }
 func CreateDBE(name string, db dbconfig.Config) error { return testdb.CreateDBE(name, db) }
 func CreateDBFromTemplateE(name, template string, db dbconfig.Config) error {
-	return testdb.CreateDBFromTemplateE(name, template, db)
+	if err := testdb.CreateDBFromTemplateE(name, template, db); err != nil {
+		return serrors.E(serrors.Op("itf.CreateDB"), err)
+	}
+	return nil
 }
-func DropDB(name string, db dbconfig.Config) error  { return testdb.DropDB(name, db) }
-func DropDBE(name string, db dbconfig.Config) error { return testdb.DropDBE(name, db) }
+func DropDB(name string, db dbconfig.Config) error { return testdb.DropDB(name, db) }
+func DropDBE(name string, db dbconfig.Config) error {
+	if err := testdb.DropDBE(name, db); err != nil {
+		return serrors.E(serrors.Op("itf.DropDB"), err)
+	}
+	return nil
+}
 func DBOpts(name string, db dbconfig.Config) string { return testdb.DBOpts(name, db) }
 func withMigrationAdvisoryLock(db dbconfig.Config, fn func() error) error {
 	return testdb.WithMigrationAdvisoryLock(db, fn)
