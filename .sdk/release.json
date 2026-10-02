@@ -1,0 +1,58 @@
+{
+  "changes": [
+    {
+      "bump": "none",
+      "summary": "Scope the external applet dependency validator to production applets while preserving canonical SDK source workspace links."
+    },
+    {
+      "bump": "minor",
+      "summary": "BiChat generation moves to out-of-process execution whenever Redis is configured: send requests enqueue jobs onto the bichat:run:jobs stream and become event-log cursor readers, a RunJobWorker boots in every process that builds the module (consumer-group fan-out, XPENDING/XCLAIM crash handoff, one retry for infrastructure faults), and sends landing behind an active run park on a per-session FIFO with a queued sidebar status instead of failing with ErrActiveRunExists. The generation loop is extracted into a RunExecutor shared by the inline path (still used when Redis is unconfigured or an enqueue fails) and the worker. Also: money accounts return a field-level duplicate account number message instead of a raw SQL unique-violation error, and the client messages tab shows a localized empty state when no messages exist."
+    },
+    {
+      "bump": "major",
+      "summary": "Rewrite the BiChat UI from React to Solid on the shared client-host runtime. This is a breaking change for consumers embedding the React chat components: the React surface of modules/bichat/presentation/web is removed and React/ReactDOM leave the production bundle; React is not kept as a second permanent client renderer. Migration guide ships with the release; rollout is coordinated with EAI-UZ/granite#4600."
+    },
+    {
+      "bump": "minor",
+      "summary": "Export reusable Playwright synchronization, component host contracts and scoped lifecycle/scenario adapters through @iota-uz/sdk/testing."
+    },
+    {
+      "bump": "patch",
+      "summary": "Preserve environment assertion failures during teardown and rehome deduplicated uploads into their configured storage root."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add opt-in browser environments, owned scenarios and PostgreSQL clones; expose correlated periodic receipts that reserve manual execution exclusively and await actual completion, and make zero-retry configurations execute once instead of silently doing nothing."
+    },
+    {
+      "bump": "patch",
+      "summary": "Keep owned process and PostgreSQL lifecycle locks per environment so unrelated slots can start and stop concurrently."
+    },
+    {
+      "bump": "patch",
+      "summary": "Reject blocked actors for queued BiChat generation and prevent generator failures after an interrupt from emitting success or persisting actionable questions."
+    },
+    {
+      "bump": "patch",
+      "summary": "Cancel accepted BiChat generation with its worker lifecycle, retain Redis ownership until executor exit, and join bounded terminal bookkeeping without changing HTTP disconnect behavior."
+    },
+    {
+      "bump": "minor",
+      "summary": "HRM: derive active/former employee status from the resignation date, show it in the employee list and card, add a status filter, and keep the edit form's dates and tax IDs bound to the save form."
+    },
+    {
+      "bump": "patch",
+      "summary": "Apply configured upload roots in the canonical core UploadService provider so isolated application uploads are stored and served from the same directory."
+    },
+    {
+      "bump": "none",
+      "summary": "Fix sdkctl consumer promotion and lock verification to use the SDK Go module path; this changes CLI tooling only, not published SDK runtime APIs."
+    },
+    {
+      "bump": "none",
+      "summary": "Finish finite scene animations before parity layout measurement and visual screenshot paint frames."
+    }
+  ],
+  "source": "da66e849a71163eb6bc2732f8ce6c643a7f51b3e",
+  "version": "0.14.0"
+}
