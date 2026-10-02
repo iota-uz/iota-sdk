@@ -27,6 +27,12 @@
     Position = "Position"
     Email = "Email"
     NoEmployees = { Title = "No employees found", _Description = "There are no employees yet. Click 'Add employee' to create one." }
+    Status = "Status"
+    AllStatuses = "All"
+
+  [Employees.Status]
+    active = "Active"
+    former = "Former"
 
   [Employees.Tabs]
     Public = "Public"

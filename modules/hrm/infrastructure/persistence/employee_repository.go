@@ -99,6 +99,13 @@ func (g *GormEmployeeRepository) GetPaginated(ctx context.Context, params *emplo
 		args = append(args, "%"+params.Query+"%")
 	}
 
+	switch params.Status {
+	case employee.StatusActive:
+		where = append(where, "em.resignation_date IS NULL")
+	case employee.StatusFormer:
+		where = append(where, "em.resignation_date IS NOT NULL")
+	}
+
 	q := repo.Join(
 		employeeFindQuery,
 		repo.JoinWhere(where...),

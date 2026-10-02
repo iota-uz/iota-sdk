@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/hrm/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -15,52 +16,59 @@ import (
 type IndexPageProps struct {
 	Employees []*viewmodels.Employee
 	NewURL    string
+	Status    string
 }
 
 templ EmployeesTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	if len(props.Employees) == 0 {
-		@base.TableEmptyState(base.TableEmptyStateProps{
-			Title:       pageCtx.T("Employees.List.NoEmployees.Title"),
-			Description: pageCtx.T("Employees.List.NoEmployees._Description"),
-		})
-	} else {
-		@base.Table(base.TableProps{
-			Columns: []*base.TableColumn{
-				{Label: pageCtx.T("Employees.List.FullName"), Key: "fullname"},
-				{Label: pageCtx.T("Employees.List.Email"), Key: "email"},
-				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
-				{Label: pageCtx.T("Actions"), Class: "w-16"},
-			},
-		}) {
-			for _, employee := range props.Employees {
-				@base.TableRow(base.TableRowProps{}) {
-					@base.TableCell(base.TableCellProps{}) {
-						{ employee.FirstName }
-						{ employee.LastName }
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						{ employee.Email }
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						<div x-data="relativeformat">
-							<span x-text={ fmt.Sprintf("format('%s')", employee.UpdatedAt) }></span>
-						</div>
-					}
-					@base.TableCell(base.TableCellProps{}) {
-						@button.Secondary(button.Props{
-							Fixed: true,
-							Size:  button.SizeSM,
-							Class: "btn-fixed",
-							Href:  fmt.Sprintf("/hrm/employees/%s", employee.ID),
-						}) {
-							@icons.PencilSimple(icons.Props{Size: "20"})
+	<div id="employees-table">
+		if len(props.Employees) == 0 {
+			@base.TableEmptyState(base.TableEmptyStateProps{
+				Title:       pageCtx.T("Employees.List.NoEmployees.Title"),
+				Description: pageCtx.T("Employees.List.NoEmployees._Description"),
+			})
+		} else {
+			@base.Table(base.TableProps{
+				Columns: []*base.TableColumn{
+					{Label: pageCtx.T("Employees.List.FullName"), Key: "fullname"},
+					{Label: pageCtx.T("Employees.List.Email"), Key: "email"},
+					{Label: pageCtx.T("Employees.List.Status"), Key: "status"},
+					{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+					{Label: pageCtx.T("Actions"), Class: "w-16"},
+				},
+			}) {
+				for _, emp := range props.Employees {
+					@base.TableRow(base.TableRowProps{}) {
+						@base.TableCell(base.TableCellProps{}) {
+							{ emp.FirstName }
+							{ emp.LastName }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							{ emp.Email }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							@StatusBadge(emp.Status)
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							<div x-data="relativeformat">
+								<span x-text={ fmt.Sprintf("format('%s')", emp.UpdatedAt) }></span>
+							</div>
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							@button.Secondary(button.Props{
+								Fixed: true,
+								Size:  button.SizeSM,
+								Class: "btn-fixed",
+								Href:  fmt.Sprintf("/hrm/employees/%s", emp.ID),
+							}) {
+								@icons.PencilSimple(icons.Props{Size: "20"})
+							}
 						}
 					}
 				}
 			}
 		}
-	}
+	</div>
 }
 
 templ EmployeesContent(props *IndexPageProps) {
@@ -77,7 +85,7 @@ templ EmployeesContent(props *IndexPageProps) {
 				class="p-4 flex items-center gap-3"
 				hx-get="/hrm/employees"
 				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-				hx-target="table"
+				hx-target="#employees-table"
 				hx-swap="outerHTML"
 			>
 				@input.Text(&input.Props{
@@ -99,6 +107,17 @@ templ EmployeesContent(props *IndexPageProps) {
 					<option>25</option>
 					<option>50</option>
 					<option>100</option>
+				}
+				@base.Select(&base.SelectProps{
+					Prefix: pageCtx.T("Employees.List.Status"),
+					Attrs: templ.Attributes{
+						"name": "status",
+					},
+				}) {
+					<option value="" selected?={ props.Status == "" }>{ pageCtx.T("Employees.List.AllStatuses") }</option>
+					for _, status := range []employee.Status{employee.StatusActive, employee.StatusFormer} {
+						<option value={ string(status) } selected?={ props.Status == string(status) }>{ pageCtx.T("Employees.Status." + string(status)) }</option>
+					}
 				}
 				@base.Select(&base.SelectProps{Placeholder: pageCtx.T("CreatedAt")}) {
 					<option>Yesterday</option>

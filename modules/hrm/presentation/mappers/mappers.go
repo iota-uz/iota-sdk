@@ -10,7 +10,7 @@ import (
 )
 
 func EmployeeToViewModel(entity employee.Employee) *viewmodels.Employee {
-	var email, pin, tin string
+	var email, pin, tin, resignationDate string
 	if entity.Email() != nil {
 		email = entity.Email().Value()
 	}
@@ -19,6 +19,9 @@ func EmployeeToViewModel(entity employee.Employee) *viewmodels.Employee {
 	}
 	if entity.Tin() != nil {
 		tin = entity.Tin().Value()
+	}
+	if entity.ResignationDate() != nil {
+		resignationDate = entity.ResignationDate().Format(time.DateOnly)
 	}
 
 	return &viewmodels.Employee{
@@ -33,7 +36,8 @@ func EmployeeToViewModel(entity employee.Employee) *viewmodels.Employee {
 		Tin:             tin,
 		BirthDate:       entity.BirthDate().Format(time.DateOnly),
 		HireDate:        entity.HireDate().Format(time.DateOnly),
-		ResignationDate: entity.BirthDate().Format(time.DateOnly),
+		ResignationDate: resignationDate,
+		Status:          string(entity.Status()),
 		Notes:           entity.Notes(),
 		UpdatedAt:       entity.UpdatedAt().Format(time.RFC3339),
 		CreatedAt:       entity.CreatedAt().Format(time.RFC3339),
