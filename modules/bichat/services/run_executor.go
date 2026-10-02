@@ -165,7 +165,8 @@ func (e *chatRunExecutor) Execute(ctx context.Context, job RunJobPayload) error 
 	ownsActive := active == nil
 	if ownsActive {
 		var cancelProcess context.CancelFunc
-		processCtx, cancelProcess = context.WithCancel(context.WithoutCancel(ctx))
+		processCtx, cancelProcess = context.WithCancel(ctx)
+		defer cancelProcess()
 		svc.registerStreamCancel(job.SessionID, cancelProcess)
 		active = streamingsvc.NewActiveRun(job.RunID, job.SessionID, cancelProcess, startedAt)
 		svc.runRegistry.Add(active)

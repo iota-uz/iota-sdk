@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Cancel accepted BiChat generation with its worker lifecycle, retain Redis ownership until executor exit, and join bounded terminal bookkeeping without changing HTTP disconnect behavior."
+}

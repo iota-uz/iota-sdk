@@ -257,6 +257,9 @@ func (w *RunJobWorker) consume(ctx context.Context) error {
 
 	for _, stream := range streams {
 		for _, msg := range stream.Messages {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			if procErr := w.processMessage(ctx, msg); procErr != nil {
 				w.logger.WithError(procErr).
 					WithField("message_id", msg.ID).
@@ -285,6 +288,9 @@ func (w *RunJobWorker) reclaimPending(ctx context.Context) error {
 	}
 
 	for _, p := range pending {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		claimed, claimErr := w.queue.client.XClaim(ctx, &redis.XClaimArgs{
 			Stream:   w.queue.stream,
 			Group:    w.group,
@@ -319,7 +325,7 @@ func (w *RunJobWorker) processMessage(ctx context.Context, msg redis.XMessage) e
 		return fmt.Errorf("invalid run job payload: %w", err)
 	}
 
-	jobCtx := context.Background()
+	jobCtx := ctx
 	if w.pool != nil {
 		jobCtx = composables.WithPool(jobCtx, w.pool)
 	}
@@ -338,8 +344,12 @@ func (w *RunJobWorker) processMessage(ctx context.Context, msg redis.XMessage) e
 	// refresh dies with this call; if the worker crashes, idle time grows
 	// again and the job is legitimately reclaimed.
 	refreshStop := make(chan struct{})
-	defer close(refreshStop)
-	go w.refreshOwnership(ctx, msg.ID, refreshStop)
+	refreshDone := make(chan struct{})
+	go func(refreshCtx context.Context) {
+		defer close(refreshDone)
+		w.refreshOwnership(refreshCtx, msg.ID, refreshStop)
+	}(bookkeepingCtx)
+	defer func() { close(refreshStop); <-refreshDone }()
 
 	var execErr error
 	if w.users != nil {
@@ -359,6 +369,8 @@ func (w *RunJobWorker) processMessage(ctx context.Context, msg redis.XMessage) e
 	if execErr == nil {
 		execErr = w.executor.Execute(jobCtx, payload)
 	}
+	bookkeepingCtx, cancelBookkeeping := context.WithTimeout(bookkeepingCtx, streamPersistenceTimeout)
+	defer cancelBookkeeping()
 	if execErr == nil {
 		// Execute returning nil means the run reached a terminal state
 		// (completed, cancelled, or failed-with-broadcast — all owned by
