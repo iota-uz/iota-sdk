@@ -114,11 +114,19 @@ export async function actionAndHtmxResponse(page: Page, match: ResponseMatch, ac
   await page.evaluate(key => {
     const records: { url: string; method: string; status: number; settled: boolean; failed: boolean }[] = []
     const requests = new WeakMap<object, typeof records[number]>()
+    const observed = new Set<Element>()
     const before = (event: Event) => {
       const d = (event as CustomEvent).detail
       if (!d?.xhr) return
       const record = { url: new URL(d.requestConfig.path, location.href).href, method: String(d.requestConfig.verb).toUpperCase(), status: 0, settled: false, failed: false }
       records.push(record); requests.set(d.xhr, record)
+      // A removed swap target no longer bubbles its lifecycle events to document.
+      for (const element of [d.elt, d.target]) {
+        if (!(element instanceof Element) || observed.has(element)) continue
+        observed.add(element)
+        element.addEventListener('htmx:afterSettle', update)
+        element.addEventListener('htmx:responseError', update)
+      }
     }
     const update = (event: Event) => {
       const d = (event as CustomEvent).detail
@@ -136,6 +144,10 @@ export async function actionAndHtmxResponse(page: Page, match: ResponseMatch, ac
       document.removeEventListener('htmx:beforeRequest', before)
       document.removeEventListener('htmx:afterSettle', update)
       document.removeEventListener('htmx:responseError', update)
+      for (const element of observed) {
+        element.removeEventListener('htmx:afterSettle', update)
+        element.removeEventListener('htmx:responseError', update)
+      }
     } }
   }, key)
   try {

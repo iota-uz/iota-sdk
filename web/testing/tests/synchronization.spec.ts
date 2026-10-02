@@ -84,3 +84,13 @@ test('does not resolve while a matching second response remains gated', async ({
   await interaction
   await expect(page.locator('#second')).toHaveText('Saved')
 })
+// Falsely green if the real HTMX target remains connected and events still bubble.
+test('completes when the swap deletes its request target', async ({ page }) => {
+  await fixture(page)
+  await page.evaluate(() => {
+    document.body.innerHTML = '<button hx-post="/save" hx-swap="delete settle:150ms">Remove</button>'
+    ;(window as any).htmx.process(document.body)
+  })
+  await actionAndHtmxResponse(page, { method: 'POST', pathname: '/save' }, () => page.getByRole('button').click())
+  await expect(page.getByRole('button')).toHaveCount(0)
+})
