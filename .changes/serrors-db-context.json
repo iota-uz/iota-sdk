@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Add a database-boundary wrapper that preserves private diagnostic context while classifying driver errors safely."}
