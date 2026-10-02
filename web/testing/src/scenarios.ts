@@ -9,7 +9,7 @@ export function createHttpScenarioControl<Data = Record<string, unknown>>(enviro
   if (!Number.isInteger(timeoutMs) || timeoutMs <= 0 || token.length < 32) throw new Error('A positive timeout and a control credential of at least 32 characters are required')
   const invoke = async (pathname: string, method: string, body?: unknown): Promise<unknown> => {
     const response = await fetch(new URL(pathname, environment.baseURL), { method, redirect: 'manual', signal: AbortSignal.timeout(timeoutMs),
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+      headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body) })
     if (!response.ok) {
       const text = await response.text()
       let error: { code?: string; message?: string } = {}

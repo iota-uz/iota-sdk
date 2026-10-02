@@ -11,6 +11,7 @@ test('reserves before preparation and propagates ownership and typed HTTP errors
     expect(request.headers.authorization).toBe(`Bearer ${'test-only-control-token-'.repeat(2)}`)
     response.setHeader('Content-Type', 'application/json')
     response.setHeader('X-Test-Environment-ID', request.url?.includes('foreign') ? 'foreign' : 'environment')
+    if (request.method === 'DELETE' && request.headers['content-type']) { response.statusCode = 400; response.end(JSON.stringify({ code: 'invalid_input', message: 'empty JSON body' })); return }
     if (request.url?.includes('refused')) { response.statusCode = 409; response.end(JSON.stringify({ code: 'scope_conflict', message: 'owned scope unavailable' })); return }
     const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {}
     response.end(JSON.stringify({ scopeId: body.scopeId, data: { ready: true } }))
