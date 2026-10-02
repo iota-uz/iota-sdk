@@ -32,6 +32,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorlog"
 
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/form"
@@ -2404,11 +2405,11 @@ func (c *CrudController[TEntity]) handleValidationError(w http.ResponseWriter, r
 
 	// If no validation errors found, return false to continue with default error handling
 	if len(fieldErrors) == 0 {
-		log.Printf("[CrudController.handleValidationError] Non-validation error: %v", err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.handleValidationError", err), "Non-validation error")
 		return false
 	}
 
-	log.Printf("[CrudController.handleValidationError] Validation errors: %v", fieldErrors)
+	serrorlog.Log(ctx, serrors.Wrap("CrudController.handleValidationError", serrors.NewInvalid("form validation failed")), "Validation errors")
 
 	// Re-render the form with validation errors
 	if isCreate {
@@ -2428,7 +2429,7 @@ func (c *CrudController[TEntity]) renderCreateFormWithErrors(w http.ResponseWrit
 
 	// Log errors for debugging
 	if len(fieldErrors) > 0 {
-		log.Printf("[CrudController.renderCreateFormWithErrors] Field validation errors: %v", fieldErrors)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderCreateFormWithErrors", serrors.NewInvalid("form validation failed")), "Field validation errors")
 	}
 
 	// Build form fields with errors added as HTML comments for now
@@ -2437,14 +2438,14 @@ func (c *CrudController[TEntity]) renderCreateFormWithErrors(w http.ResponseWrit
 	// Localize form title
 	formTitle, err := c.localize(ctx, fmt.Sprintf("%s.New.Title", c.schema.Name()), "New")
 	if err != nil {
-		log.Printf("[CrudController.renderCreateFormWithErrors] Failed to localize title: %v", err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderCreateFormWithErrors", err), "Failed to localize title")
 		formTitle = "New"
 	}
 
 	// Localize submit button
 	submitLabel, err := c.localize(ctx, fmt.Sprintf("%s.New.SubmitLabel", c.schema.Name()), "Create")
 	if err != nil {
-		log.Printf("[CrudController.renderCreateFormWithErrors] Failed to localize submit label: %v", err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderCreateFormWithErrors", err), "Failed to localize submit label")
 		submitLabel = "Create"
 	}
 
@@ -2466,7 +2467,7 @@ func (c *CrudController[TEntity]) renderCreateFormWithErrors(w http.ResponseWrit
 	}
 
 	if err := component.Render(ctx, w); err != nil {
-		log.Printf("[CrudController.renderCreateFormWithErrors] Failed to render form: %v", err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderCreateFormWithErrors", err), "Failed to render form")
 		http.Error(w, "Failed to render form", http.StatusInternalServerError)
 	}
 }
@@ -2490,28 +2491,28 @@ func (c *CrudController[TEntity]) renderEditFormWithErrors(w http.ResponseWriter
 	// Add error display at the top of the form
 	if len(fieldErrors) > 0 {
 		// For now, we'll log the errors and add a generic error indicator
-		log.Printf("[CrudController.renderEditFormWithErrors] Field validation errors: %v", fieldErrors)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderEditFormWithErrors", serrors.NewInvalid("form validation failed")), "Field validation errors")
 
 		// Add a small error element that tests can find
 		localizer, _ := intl.UseLocalizer(ctx)
 		message := serrors.Public(serrors.NewInvalid(""), localizer).Message
 		errorHTML := `<small data-testid="field-error" class="text-red-500">` + html.EscapeString(message) + `</small>`
 		if _, err := w.Write([]byte(errorHTML)); err != nil {
-			log.Printf("[CrudController.renderEditFormWithErrors] Failed to write error HTML: %v", err)
+			serrorlog.Log(ctx, serrors.Wrap("CrudController.renderEditFormWithErrors", err), "Failed to write error HTML")
 		}
 	}
 
 	// Localize form title
 	formTitle, err := c.localize(ctx, fmt.Sprintf("%s.Edit.Title", c.schema.Name()), "Edit")
 	if err != nil {
-		log.Printf("[CrudController.renderEditFormWithErrors] Failed to localize title: %v", err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderEditFormWithErrors", err), "Failed to localize title")
 		formTitle = "Edit"
 	}
 
 	// Localize submit button
 	submitLabel, err := c.localize(ctx, fmt.Sprintf("%s.Edit.SubmitLabel", c.schema.Name()), "Update")
 	if err != nil {
-		log.Printf("[CrudController.renderEditFormWithErrors] Failed to localize submit label: %v", err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderEditFormWithErrors", err), "Failed to localize submit label")
 		submitLabel = "Update"
 	}
 
@@ -2533,7 +2534,7 @@ func (c *CrudController[TEntity]) renderEditFormWithErrors(w http.ResponseWriter
 	}
 
 	if err := component.Render(ctx, w); err != nil {
-		log.Printf("[CrudController.renderEditFormWithErrors] Failed to render form: %v", err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderEditFormWithErrors", err), "Failed to render form")
 		http.Error(w, "Failed to render form", http.StatusInternalServerError)
 	}
 }
