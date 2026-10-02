@@ -1,5 +1,6 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import solid from 'vite-plugin-solid'
 import path from 'path'
 import {
   createAppletViteConfig,
@@ -13,7 +14,7 @@ export default defineConfig(({ command }) =>
     enableLocalSdkAliases: command === 'serve',
     extend: {
       plugins: [
-        react(),
+        solid(),
         createBichatStylesPlugin({
           tailwindConfigPath: 'tailwind.config.js',
         }),
@@ -34,6 +35,10 @@ export default defineConfig(({ command }) =>
             assetFileNames: 'assets/[name]-[hash].[ext]',
           },
         },
+      },
+      test: {
+        environment: 'jsdom',
+        include: ['src/**/*.test.{ts,tsx}'],
       },
     },
   })

@@ -1,0 +1,39 @@
+---
+title: 'BiChat Solid Migration'
+description: 'Plan for migrating the BiChat UI from React to Solid (issue #1065)'
+---
+
+# BiChat Solid migration
+
+Status: draft plan — implementation has not started. This page tracks ownership inventory, phases and the breaking-change coordination required before the React chat components are removed.
+
+## Goal
+
+The reusable BiChat UI (`modules/bichat/presentation/web`) is rewritten as Solid components on the shared client-host runtime. Server orchestration (agents, models, tools, history storage) does not change. Renderer-only migration.
+
+## Ownership inventory (verify before transfer)
+
+Surfaces to confirm as live before rewriting; anything unused is deleted, not ported:
+
+- Pages: `ChatPage`, `SessionsPage`, `HomePage`, `ArchivedPage` (`src/pages/`).
+- Shared components: `SessionList`, `Sidebar`, `TabBar`, `Layout`, charts (`src/components/`).
+- Contexts and hooks under `src/contexts/`, `src/hooks/` — replaced by client-host primitives (session, identity, streaming).
+- Generated bindings: `src/rpc.generated.ts` — regenerated from the typed RPC contracts (kind/permission metadata from #950).
+- Granite-specific behavior vs shared SDK UI: ownership must be fixed before transfer (tracked in EAI-UZ/granite#4600).
+
+React-only dependencies to replace or drop: `react-apexcharts`, `react-markdown`, `react-router-dom`, `react-syntax-highlighter`.
+
+## Phases
+
+1. **Inventory freeze** — consumer audit (SDK + Granite), ownership split recorded, unused surfaces deleted.
+2. **Streaming first** — message streaming moves to the managed stream primitive from #958: cancellation, cursor/replay, reconnect, expiry, terminal states without duplicates; session switch/unmount drops subscriptions.
+3. **Core surfaces** — message list, composer, markdown/code/citations/artifacts, history, HITL where the current UI supports it.
+4. **Cutover** — Solid UI is the only renderer; React/ReactDOM removed from the bundle and the public surface; migration guide published.
+
+## Breaking change
+
+The Solid API replaces the React chat components in the public `@iota-uz/sdk` surface. React does not remain a second permanent renderer. Release is coordinated with EAI-UZ/granite#4600: publication follows a consumer request against the immutable candidate.
+
+## Acceptance
+
+Mirrors #1065: behavior parity for listed surfaces, #958 streaming semantics, no leaked subscriptions across session switches, no React in the production bundle, server orchestration unchanged, real browser interaction tests (success, error, retry, cancel, navigation), both themes, four locales, keyboard/focus, narrow screens.
