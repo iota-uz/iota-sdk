@@ -11,16 +11,19 @@ Run the constructor migration against an unmodified candidate checkout:
 
 ```sh
 go run ./tools/serrors-migrate -root /path/to/sdk -write
-go run ./tools/serrors-db-boundaries -root /path/to/sdk
+go run ./tools/serrors-db-boundaries -root /path/to/sdk -write
 ```
 
 The constructor pass resolves the imported package alias and rewrites AST nodes.
 It preserves operation context and wrapped causes, classifies explicit legacy
 kinds, and reports ambiguous multiple arguments for manual review. It never
 infers a public message from internal diagnostic text. A repeated pass on the
-final tree reports zero constructors. The DB pass only touches error branches
-following driver calls in repository source files; transaction/context/domain
-wrappers remain wrappers. Existing explicitly classified errors survive FromDB.
+final tree reports zero constructors. The DB pass type-checks concrete SQL/pgx/sqlx
+calls and only rewrites returns of the same assigned error in its failure branch.
+Domain calls, translated sentinels and shadowed or reassigned errors remain
+wrappers. `WrapContext` retains its private diagnostic context through
+`FromDBContext`. Both passes are read-only unless `-write` is supplied. Existing
+explicitly classified errors survive driver projection.
 
 Manual changes supplement the generated pass:
 
