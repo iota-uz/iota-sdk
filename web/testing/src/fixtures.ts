@@ -1,7 +1,7 @@
-import { test as base, type Browser } from '@playwright/test'
+import type { Browser, PlaywrightTestArgs, PlaywrightTestOptions, PlaywrightWorkerArgs, PlaywrightWorkerOptions, TestType } from '@playwright/test'
 import { lazyIdentities, withEnvironment, type EnvironmentDescriptor, type EnvironmentLifecycle, type ScenarioControl, type ScenarioLease, type IdentityLease } from './index.js'
 
-export function createEnvironmentTest<E extends EnvironmentDescriptor, Input, State, Key, Identity>(options: {
+export function createEnvironmentTest<E extends EnvironmentDescriptor, Input, State, Key, Identity>(base: TestType<PlaywrightTestArgs & PlaywrightTestOptions, PlaywrightWorkerArgs & PlaywrightWorkerOptions>, options: {
   lifecycle: EnvironmentLifecycle<E>
   scenarios(environment: E): ScenarioControl<Input, State>
   identity(environment: E, browser: Browser, key: Key): Promise<Identity>

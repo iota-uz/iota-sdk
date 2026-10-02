@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, type Response } from '@playwright/test'
+import type { Locator, Page, Response } from '@playwright/test'
 
 export type WaitOptions = { timeoutMs?: number }
 export type RequestMatch = { method: string; pathname: string }
@@ -51,7 +51,7 @@ export async function actionAndHtmxSettled(page: Page, target: string, action: (
     await page.waitForFunction(key => (window as any)[key].state.settled || (window as any)[key].state.failed, key, { timeout: timeout(options) })
     const failed = await page.evaluate(key => (window as any)[key].state.failed, key)
     if (failed) throw new Error(`HTMX response failed for ${target}`)
-    await expect(page.locator(target)).toBeVisible({ timeout: timeout(options) })
+    await page.locator(target).waitFor({ state: 'visible', timeout: timeout(options) })
   } finally {
     await page.evaluate(key => { (window as any)[key]?.dispose(); delete (window as any)[key] }, key)
   }
@@ -94,9 +94,9 @@ export async function actionAndValidationRefusal(page: Page, form: Locator, acti
 }
 
 export async function expectComponentReady(page: Page, root: Locator, options: WaitOptions & { readinessAttribute?: string } = {}): Promise<void> {
-  await expect(root).toHaveAttribute(options.readinessAttribute ?? 'data-component-ready', 'true', { timeout: timeout(options) })
+  await waitForCondition(async () => await root.getAttribute(options.readinessAttribute ?? 'data-component-ready') === 'true', timeout(options), 'Component readiness marker missing')
   await page.waitForFunction(() => document.fonts.status === 'loaded', undefined, { timeout: timeout(options) })
-  await expect(root).toBeVisible({ timeout: timeout(options) })
+  await root.waitFor({ state: 'visible', timeout: timeout(options) })
 }
 export interface ComponentHost {
   cases(): Promise<readonly ComponentCase[]>
@@ -194,6 +194,13 @@ export async function expectFontsReady(page: Page, options: WaitOptions = {}): P
   await page.waitForFunction(() => document.fonts.status === 'loaded', undefined, { timeout: timeout(options) })
 }
 export async function expectChartsReady(charts: Locator, options: WaitOptions & { allowEmpty?: boolean } = {}): Promise<void> {
-  await expect.poll(async () => charts.evaluateAll(elements => ({ count: elements.length, ready: elements.every(element => element.getAttribute('data-chart-ready') === 'true') })), { timeout: timeout(options) }).toMatchObject({ ready: true })
-  if (!options.allowEmpty) await expect(charts.first()).toBeVisible({ timeout: timeout(options) })
+  await waitForCondition(async () => charts.evaluateAll((elements, allowEmpty) => (allowEmpty || elements.length > 0) && elements.every(element => element.getAttribute('data-chart-ready') === 'true'), options.allowEmpty ?? false), timeout(options), 'Chart readiness missing')
+  if (!options.allowEmpty) await charts.first().waitFor({ state: 'visible', timeout: timeout(options) })
+}
+async function waitForCondition(condition: () => Promise<boolean>, timeoutMs: number, diagnostic: string): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!(await condition())) {
+    if (Date.now() >= deadline) throw new Error(diagnostic)
+    await new Promise(resolve => setTimeout(resolve, Math.min(16, Math.max(1, deadline - Date.now()))))
+  }
 }
