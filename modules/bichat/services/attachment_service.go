@@ -97,7 +97,6 @@ func (s *attachmentService) ValidateAndSave(
 
 	if size > maxAttachmentSize {
 		return nil, serrors.New(serrors.Invalid, fmt.Sprintf("attachment too large: %d bytes (max: %d bytes / 20MB)", size, maxAttachmentSize)).WithOp(op)
-
 	}
 
 	// Save to storage
@@ -128,7 +127,6 @@ func (s *attachmentService) ValidateMultiple(files []bichatservices.FileUpload) 
 
 	if len(files) > maxAttachmentCount {
 		return serrors.New(serrors.Invalid, fmt.Sprintf("too many attachments: %d (max: %d)", len(files), maxAttachmentCount)).WithOp(op)
-
 	}
 
 	for i, file := range files {
@@ -138,7 +136,6 @@ func (s *attachmentService) ValidateMultiple(files []bichatservices.FileUpload) 
 
 		if file.Size > maxAttachmentSize {
 			return serrors.New(serrors.Invalid, fmt.Sprintf("attachment %d too large: %d bytes (max: 20MB)", i+1, file.Size)).WithOp(op)
-
 		}
 	}
 

@@ -513,7 +513,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		return runMigrationPolicy(context.Background(), pool, app, cfg.Migration)
 	}()
 	if err := migrateErr; err != nil {
-		var combinedErr error = serrors.WrapContext(opRunMigrationPolicy, err, "migration policy")
+		combinedErr := serrors.WrapContext(opRunMigrationPolicy, err, "migration policy")
 		closeErr := closeApplication(app, container)
 		pool.Close()
 		dropErr := DropDBE(dbName, db)
@@ -681,7 +681,6 @@ func runMigrationPolicy(ctx context.Context, pool schemaReadinessQuerier, app ap
 		return ensureSchemaReady(ctx, pool)
 	default:
 		return serrors.New(serrors.Invalid, fmt.Sprintf("unsupported migration policy: %s", cfg.Policy)).WithOp(opRunMigrationPolicy)
-
 	}
 }
 

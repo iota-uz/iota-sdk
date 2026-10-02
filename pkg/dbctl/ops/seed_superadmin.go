@@ -52,7 +52,6 @@ func runSuperadminSeed(ctx context.Context, e *ExecutionContext) error {
 	parsedLanguage, err := user.NewUILanguage(uiLanguage)
 	if err != nil {
 		return serrors.New(serrors.Invalid, fmt.Sprintf("SUPERADMIN_LANGUAGE=%q is not a supported locale", uiLanguage)).WithOp(op)
-
 	}
 
 	superadminUser, err := user.New(

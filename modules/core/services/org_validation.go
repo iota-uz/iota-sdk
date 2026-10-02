@@ -61,7 +61,6 @@ func validateOrgMultiLang(op serrors.Op, field string, ml models.MultiLang) erro
 	}
 	if len(missing) > 0 {
 		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("%s is missing required locales: %v", field, missing))
-
 	}
 	return nil
 }
@@ -86,7 +85,6 @@ func ValidateDepartment(
 ) error {
 	if d.TenantID() != tenantID {
 		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("department %s belongs to a different tenant than the caller", d.ID()))
-
 	}
 	if err := validateOrgMultiLang(op, "name", d.NameI18n()); err != nil {
 		return err
@@ -128,7 +126,6 @@ func validateDepartmentParent(
 	}
 	if parent.TenantID() != tenantID {
 		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("parent department %s belongs to a different tenant", *parentID))
-
 	}
 
 	// Cycle detection: the new parent must not be the department itself or any
@@ -142,7 +139,6 @@ func validateDepartmentParent(
 		if id == *parentID {
 			return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("parent department %s is a descendant of %s (would create a cycle): %w",
 				*parentID, deptID, ErrDepartmentCycle))
-
 		}
 	}
 
@@ -167,7 +163,6 @@ func ValidateUserPosition(
 ) error {
 	if p.TenantID() != tenantID {
 		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("user position %s belongs to a different tenant than the caller", p.ID()))
-
 	}
 	if err := validateOrgMultiLang(op, "title", p.TitleI18n()); err != nil {
 		return err
@@ -195,7 +190,6 @@ func validatePositionRefs(
 	}
 	if dept.TenantID() != tenantID {
 		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("department %s belongs to a different tenant", departmentID))
-
 	}
 
 	targetUser, err := userRepo.GetByID(ctx, userID)
@@ -204,7 +198,6 @@ func validatePositionRefs(
 	}
 	if targetUser.TenantID() != tenantID {
 		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("user %d belongs to a different tenant", userID))
-
 	}
 
 	return nil

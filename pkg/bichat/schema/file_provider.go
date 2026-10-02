@@ -102,7 +102,6 @@ func (p *FileMetadataProvider) loadAll() error {
 		} else if metadata.TableName != tableName {
 			return serrors.New(serrors.Invalid, fmt.Sprintf("table_name mismatch in %s: expected %s, got %s",
 				entry.Name(), tableName, metadata.TableName)).WithOp(op)
-
 		}
 
 		p.cache[tableName] = &metadata

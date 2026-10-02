@@ -146,7 +146,6 @@ func (s *chatServiceImpl) GetContinuationRun(
 	const op serrors.Op = "chatServiceImpl.GetContinuationRun"
 	if runID == uuid.Nil {
 		return bichatservices.ContinuationRun{}, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(bichatservices.ErrInvalidContinuation)
-
 	}
 	var run domain.GenerationRun
 	err := s.withinTx(ctx, func(txCtx context.Context) error {

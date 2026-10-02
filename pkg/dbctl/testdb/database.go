@@ -352,7 +352,6 @@ func WithAdvisoryLockContext(ctx context.Context, db dbconfig.Config, key int64,
 		if required {
 			return serrors.Wrap(serrors.Op("itf.WithAdvisoryLock"),
 				fmt.Errorf("%s advisory lock: %s: %w", label, stage, cause))
-
 		}
 		log.Printf("[WARNING] %s advisory lock: %s, running unlocked: %v", label, stage, cause)
 		return fn()
