@@ -21,7 +21,7 @@ func WriteManifest(ctx context.Context, db *sql.DB, m Manifest) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err = tx.ExecContext(ctx, `CREATE SCHEMA IF NOT EXISTS testenv; CREATE TABLE IF NOT EXISTS testenv.baseline_manifest (singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton), schema_fingerprint text NOT NULL, baseline_fingerprint text NOT NULL, build_revision text NOT NULL)`); err != nil {
 		return err
 	}

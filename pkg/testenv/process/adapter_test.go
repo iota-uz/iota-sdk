@@ -36,7 +36,7 @@ func TestServerChild(t *testing.T) {
 	if os.Getenv("TESTENV_PROCESS_CHILD") != "1" {
 		return
 	}
-	http.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "ready") })
+	http.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprint(w, "ready") })
 	if err := http.ListenAndServe("127.0.0.1:"+os.Getenv("HTTP_PORT"), nil); err != nil {
 		os.Exit(2)
 	}
@@ -60,7 +60,9 @@ func TestCoordinatorOwnsSeparateProcesses(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, c.Stop(context.Background(), two.EnvironmentID)) })
 	require.NotEqual(t, one.BaseURL, two.BaseURL)
 	require.NoError(t, c.Stop(ctx, one.EnvironmentID))
-	response, err := http.Get(two.BaseURL + "/ready")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, two.BaseURL+"/ready", nil)
+	require.NoError(t, err)
+	response, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	require.NoError(t, response.Body.Close())
 	require.Equal(t, http.StatusOK, response.StatusCode)

@@ -28,7 +28,7 @@ func Clone(ctx context.Context, name, template string, db dbconfig.Config) error
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	var allowsConnections bool
 	if err := conn.QueryRowContext(ctx, "SELECT datallowconn FROM pg_database WHERE datname=$1", Name(template)).Scan(&allowsConnections); err != nil {
 		return err
@@ -49,7 +49,7 @@ func Seal(ctx context.Context, name string, db dbconfig.Config) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_, err = conn.ExecContext(ctx, fmt.Sprintf(`ALTER DATABASE "%s" ALLOW_CONNECTIONS false`, Name(name)))
 	return err
 }

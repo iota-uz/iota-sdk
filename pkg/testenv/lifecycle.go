@@ -40,8 +40,14 @@ func (c *Coordinator) Start(ctx context.Context, spec Spec) (Descriptor, error) 
 	if len(spec.RequiredCapabilities) == 0 {
 		spec.RequiredCapabilities = nil
 	}
-	encoded, _ := json.Marshal(spec)
-	keyBytes, _ := json.Marshal([]string{spec.RunID, spec.Slot})
+	encoded, encodingErr := json.Marshal(spec)
+	if encodingErr != nil {
+		return Descriptor{}, failure("invalid_spec", encodingErr.Error())
+	}
+	keyBytes, encodingErr := json.Marshal([]string{spec.RunID, spec.Slot})
+	if encodingErr != nil {
+		return Descriptor{}, failure("invalid_spec", encodingErr.Error())
+	}
 	key := string(keyBytes)
 	c.mu.Lock()
 	env := c.environments[key]

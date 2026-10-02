@@ -28,7 +28,9 @@ func NewHandler(registry *Registry, controlToken string) (http.Handler, error) {
 			w.WriteHeader(status)
 			value = e
 		}
-		_ = json.NewEncoder(w).Encode(value)
+		if err := json.NewEncoder(w).Encode(value); err != nil {
+			return
+		}
 	}
 	mux.HandleFunc("GET /__test__/scenarios", func(w http.ResponseWriter, r *http.Request) { write(w, registry.Definitions(), nil) })
 	mux.HandleFunc("POST /__test__/scopes", func(w http.ResponseWriter, r *http.Request) {
@@ -75,7 +77,7 @@ func NewHandler(registry *Registry, controlToken string) (http.Handler, error) {
 			return
 		}
 		if registry.environmentID != "" {
-			w.Header().Set("X-Test-Environment-ID", registry.environmentID)
+			w.Header().Set("X-Test-Environment-Id", registry.environmentID)
 		}
 		mux.ServeHTTP(w, r)
 	}), nil

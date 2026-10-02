@@ -66,8 +66,8 @@ func run() error {
 			if err != nil {
 				return err
 			}
-			defer response.Body.Close()
-			if response.StatusCode != 200 || response.Header.Get("X-Test-Environment-ID") != d.EnvironmentID {
+			defer func() { _ = response.Body.Close() }()
+			if response.StatusCode != http.StatusOK || response.Header.Get("X-Test-Environment-Id") != d.EnvironmentID {
 				return fmt.Errorf("SDK ERP owner probe failed")
 			}
 			return nil

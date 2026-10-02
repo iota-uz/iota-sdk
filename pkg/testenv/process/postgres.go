@@ -43,7 +43,7 @@ func (p *Postgres) Prepare(ctx context.Context, id string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	actual, err := testdb.ReadManifest(ctx, conn)
 	if err != nil {
 		return nil, fmt.Errorf("baseline manifest: %w", err)

@@ -29,7 +29,7 @@ func TestScenarioHTTPCommitsAtomicGraphAndCompensates(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, testdb.Drop(ctx, name, dbcfg)) })
 	db, err := sql.Open("postgres", testdb.ConnectionString(name, dbcfg))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	_, err = db.ExecContext(ctx, `CREATE TABLE scenario_invoice(scope text PRIMARY KEY, amount numeric CHECK(amount<100))`)
 	require.NoError(t, err)
 	r := NewRegistry([]string{"postgres"}, true)
@@ -40,7 +40,7 @@ func TestScenarioHTTPCommitsAtomicGraphAndCompensates(t *testing.T) {
 		if err != nil {
 			return Result{}, err
 		}
-		defer tx.Rollback()
+		defer func() { _ = tx.Rollback() }()
 		if _, err = tx.ExecContext(ctx, "INSERT INTO scenario_invoice VALUES($1,$2)", input.ScopeID, input.Params["amount"]); err != nil {
 			return Result{}, err
 		}

@@ -68,7 +68,7 @@ func TestClonePreservesSchemaAndIsolatesDestinations(t *testing.T) {
 	}
 	first, err := sql.Open("postgres", ConnectionString(names[0], db))
 	require.NoError(t, err)
-	defer first.Close()
+	defer func() { require.NoError(t, first.Close()) }()
 	_, err = first.ExecContext(ctx, "UPDATE scenario.marker SET value='changed' WHERE id=1")
 	require.NoError(t, err)
 	require.Error(t, Clone(ctx, names[0], base, db))
@@ -77,7 +77,7 @@ func TestClonePreservesSchemaAndIsolatesDestinations(t *testing.T) {
 	require.Equal(t, "changed", retained)
 	second, err := sql.Open("postgres", ConnectionString(names[1], db))
 	require.NoError(t, err)
-	defer second.Close()
+	defer func() { require.NoError(t, second.Close()) }()
 	var value string
 	require.NoError(t, second.QueryRowContext(ctx, "SELECT value FROM scenario.marker WHERE id=1").Scan(&value))
 	require.Equal(t, "baseline", value)

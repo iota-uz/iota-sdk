@@ -3,6 +3,7 @@ package testenv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -151,16 +152,24 @@ func (r *Registry) Definitions() []Definition {
 		ds = append(ds, s.definition)
 	}
 	sort.Slice(ds, func(i, j int) bool { return ds[i].Name < ds[j].Name })
-	encoded, _ := json.Marshal(ds)
+	encoded, encodingErr := json.Marshal(ds)
+	if encodingErr != nil {
+		panic(fmt.Errorf("registered definition is not JSON: %w", encodingErr))
+	}
 	var copies []Definition
 	_ = json.Unmarshal(encoded, &copies)
 	return copies
 }
 func cloneResult(result Result) Result {
-	b, _ := json.Marshal(result)
-	var copy Result
-	_ = json.Unmarshal(b, &copy)
-	return copy
+	b, err := json.Marshal(result)
+	if err != nil {
+		panic(fmt.Errorf("validated result is not JSON: %w", err))
+	}
+	var cloned Result
+	if err := json.Unmarshal(b, &cloned); err != nil {
+		panic(fmt.Errorf("validated result cannot be copied: %w", err))
+	}
+	return cloned
 }
 func (r *Registry) Prepare(ctx context.Context, input Input) (Result, error) {
 	encoded, err := json.Marshal(input)
@@ -258,6 +267,13 @@ func (r *Registry) Prepare(ctx context.Context, input Input) (Result, error) {
 		if cleanupErr := s.cleanup(cleanupCtx, input.ScopeID); cleanupErr != nil {
 			return Result{}, failure("cleanup_failed", cleanupErr.Error())
 		}
+		var control *Error
+		if errors.As(err, &control) {
+			return Result{}, &Error{Code: control.Code, Message: control.Message}
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return Result{}, failure("timeout", err.Error())
+		}
 		return Result{}, failure("execution_failed", err.Error())
 	}
 	result.ScopeID = input.ScopeID
@@ -271,8 +287,8 @@ func (r *Registry) Prepare(ctx context.Context, input Input) (Result, error) {
 	if result.Data == nil {
 		result.Data = map[string]any{}
 	}
-	copy := cloneResult(result)
-	sc.result = &copy
+	cloned := cloneResult(result)
+	sc.result = &cloned
 	return cloneResult(result), nil
 }
 func (r *Registry) Dispose(ctx context.Context, id string) error {

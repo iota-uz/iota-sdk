@@ -348,7 +348,6 @@ func WithAdvisoryLock(db dbconfig.Config, key int64, label string, required bool
 	return WithAdvisoryLockContext(context.Background(), db, key, label, required, fn)
 }
 func WithAdvisoryLockContext(ctx context.Context, db dbconfig.Config, key int64, label string, required bool, fn func() error) error {
-
 	degrade := func(stage string, cause error) error {
 		if required {
 			return serrors.E(

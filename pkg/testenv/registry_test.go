@@ -143,7 +143,7 @@ func TestNaturalGoSchemaAndValues(t *testing.T) {
 	i.Params = map[string]any{"tags": []string{"one", "two"}}
 	result, err := r.Prepare(context.Background(), i)
 	require.NoError(t, err)
-	require.Equal(t, float64(2), result.Data["count"])
+	require.InDelta(t, 2, result.Data["count"], 0)
 }
 
 func TestEnvironmentOwnedHTTPScopes(t *testing.T) {
@@ -218,4 +218,37 @@ func TestCanceledReplayDoesNotWaitForActivePreparation(t *testing.T) {
 	}
 	gate.Release()
 	require.NoError(t, <-first)
+}
+
+func TestCallbackControlErrorPreservedAfterOwnedCompensation(t *testing.T) {
+	// Falsely green if compensation removes the existing actor or a typed conflict becomes HTTP 500.
+	r := NewRegistry(nil, true)
+	definition := testDefinition()
+	definition.Isolation = "shared"
+	actors := map[string]bool{}
+	var cleaned []string
+	require.NoError(t, r.Register(definition, func(_ context.Context, input Input) (Result, error) {
+		if len(actors) > 0 {
+			return Result{}, failure("scope_conflict", "actor leased")
+		}
+		actors[input.ScopeID] = true
+		return Result{Data: map[string]any{"id": input.ScopeID}}, nil
+	}, func(_ context.Context, id string) error {
+		cleaned = append(cleaned, id)
+		delete(actors, id)
+		return nil
+	}))
+	for _, id := range []string{"owner", "foreign"} {
+		require.NoError(t, r.AllowScope(id))
+	}
+	handler, err := NewHandler(r, testToken)
+	require.NoError(t, err)
+	require.Equal(t, 200, request(t, handler, "POST", "/__test__/scenarios/prepare", testInput("owner"), testToken).Code)
+	w := request(t, handler, "POST", "/__test__/scenarios/prepare", testInput("foreign"), testToken)
+	require.Equal(t, 409, w.Code)
+	var reply Error
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &reply))
+	require.Equal(t, "scope_conflict", reply.Code)
+	require.Equal(t, []string{"foreign"}, cleaned)
+	require.True(t, actors["owner"])
 }

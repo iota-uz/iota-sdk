@@ -59,7 +59,9 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(hash, "%s\x00", relative)
+		if _, err := fmt.Fprintf(hash, "%s\x00", relative); err != nil {
+			return err
+		}
 		hash.Write(b)
 		return nil
 	}); err != nil {
@@ -101,7 +103,7 @@ func run() error {
 		return err
 	}
 	if err := testdb.WriteManifest(ctx, conn, manifest); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return err
 	}
 	if err := conn.Close(); err != nil {
