@@ -511,7 +511,6 @@ func (c *GroupsController) Update(
 
 	existingGroup, err := groupService.GetByID(r.Context(), id)
 	if err != nil {
-		logger.Errorf("Error retrieving group: %v", err)
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
@@ -521,7 +520,6 @@ func (c *GroupsController) Update(
 	for _, rID := range dto.RoleIDs {
 		rUintID, err := strconv.ParseUint(rID, 10, 64)
 		if err != nil {
-			logger.Errorf("Error parsing role id: %v", err)
 			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 			return
 		}
@@ -530,7 +528,6 @@ func (c *GroupsController) Update(
 
 	groupEntity, err := dto.Apply(existingGroup, roles)
 	if err != nil {
-		logger.Errorf("Error updating group: %v", err)
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}

@@ -28,7 +28,15 @@ func driverCall(expr ast.Expr, info *types.Info) bool {
 		return false
 	}
 	path := fn.Pkg().Path()
-	if path != "database/sql" && path != "github.com/jmoiron/sqlx" && !strings.HasPrefix(path, "github.com/jackc/pgx/") {
+	transaction := false
+	if path == "github.com/iota-uz/iota-sdk/pkg/repo" {
+		signature, ok := fn.Type().(*types.Signature)
+		if ok && signature.Recv() != nil {
+			owner, ok := signature.Recv().Type().(*types.Named)
+			transaction = ok && owner.Obj().Name() == "Tx"
+		}
+	}
+	if !transaction && path != "database/sql" && path != "github.com/jmoiron/sqlx" && !strings.HasPrefix(path, "github.com/jackc/pgx/") {
 		return false
 	}
 	switch fn.Name() {

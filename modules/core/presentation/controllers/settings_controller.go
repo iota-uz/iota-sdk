@@ -110,7 +110,6 @@ func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request
 
 	dto, err := composables.UseForm(&dtos.SaveLogosDTO{}, r)
 	if err != nil {
-		logger.WithError(err).Error("failed to parse form")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
@@ -118,7 +117,6 @@ func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		props, err := c.logoProps(r, errors, nil)
 		if err != nil {
-			logger.WithError(err).Error("failed to get logo props")
 			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
@@ -128,14 +126,12 @@ func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request
 
 	u, err := composables.UseUser(r.Context())
 	if err != nil {
-		logger.WithError(err).Error("failed to get user from context")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	tenant, err := c.tenantService.GetByID(r.Context(), u.TenantID())
 	if err != nil {
-		logger.WithError(err).Error("failed to get tenant")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
@@ -143,7 +139,6 @@ func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request
 	if dto.LogoID > 0 {
 		exists, err := c.uploadService.Exists(r.Context(), uint(dto.LogoID))
 		if err != nil {
-			logger.WithError(err).Error("failed to check logo upload existence")
 			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
@@ -158,7 +153,6 @@ func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request
 	if dto.LogoCompactID > 0 {
 		exists, err := c.uploadService.Exists(r.Context(), uint(dto.LogoCompactID))
 		if err != nil {
-			logger.WithError(err).Error("failed to check compact logo upload existence")
 			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
@@ -177,7 +171,6 @@ func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request
 			logger.WithError(err).Error("invalid phone number")
 			props, propErr := c.logoProps(r, map[string]string{"Phone": "Invalid phone number format"}, tenant)
 			if propErr != nil {
-				logger.WithError(propErr).Error("failed to get logo props")
 				serrorhttp.WriteTextContext(r.Context(), w, propErr, http.StatusInternalServerError, nil)
 				return
 			}
@@ -195,7 +188,6 @@ func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request
 			logger.WithError(err).Error("invalid email")
 			props, propErr := c.logoProps(r, map[string]string{"Email": "Invalid email format"}, tenant)
 			if propErr != nil {
-				logger.WithError(propErr).Error("failed to get logo props")
 				serrorhttp.WriteTextContext(r.Context(), w, propErr, http.StatusInternalServerError, nil)
 				return
 			}
@@ -208,14 +200,12 @@ func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request
 	}
 
 	if _, err := c.tenantService.Update(r.Context(), tenant); err != nil {
-		logger.WithError(err).Error("failed to update tenant")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	props, err := c.logoProps(r, nil, tenant)
 	if err != nil {
-		logger.WithError(err).Error("failed to get logo props")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}

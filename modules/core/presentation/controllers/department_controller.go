@@ -435,7 +435,6 @@ func (c *DepartmentsController) Update(
 
 	entity, err := dto.Apply(existing)
 	if err != nil {
-		logger.Errorf("Error updating department: %v", err)
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}

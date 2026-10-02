@@ -495,7 +495,6 @@ func (c *PositionsController) Update(
 
 	entity, err := dto.Apply(existing)
 	if err != nil {
-		logger.Errorf("Error updating position: %v", err)
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}

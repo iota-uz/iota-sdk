@@ -15,7 +15,9 @@ func TestMigrationOnlyClassifiesAssignedDriverErrors(t *testing.T) {
 	root := t.TempDir()
 	source := `package sample
 import (
+ "context"
  "database/sql"
+ "github.com/iota-uz/iota-sdk/pkg/repo"
  "github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 type domain struct{}
@@ -55,6 +57,11 @@ func reassigned(db *sql.DB, d domain) error {
  }
  return nil
 }
+func transaction(tx repo.Tx) error {
+ _, err := tx.Exec(context.Background(), "select 1")
+ if err != nil { return serrors.Wrap("transaction", err) }
+ return nil
+}
 `
 	path := filepath.Join(root, "sample_repository.go")
 	require.NoError(t, os.WriteFile(path, []byte(source), 0600))
@@ -75,7 +82,8 @@ func reassigned(db *sql.DB, d domain) error {
 	require.Contains(t, text, `serrors.FromDBContext("contextual", err, "private SQL context")`)
 	require.Contains(t, text, `serrors.FromDB("driver", err)`)
 	require.Contains(t, text, `serrors.FromDB("outer", err)`)
-	require.Equal(t, 2, strings.Count(text, "serrors.FromDB("))
+	require.Contains(t, text, `serrors.FromDB("transaction", err)`)
+	require.Equal(t, 3, strings.Count(text, "serrors.FromDB("))
 	cmd = exec.Command("go", "run", ".", "-root", root)
 	cmd.Env = append(os.Environ(), "GOFLAGS=-mod=mod", "GOWORK=off")
 	out, err = cmd.CombinedOutput()

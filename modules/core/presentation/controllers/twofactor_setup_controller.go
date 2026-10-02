@@ -336,7 +336,6 @@ func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.R
 		OTPAuthURL:   challenge.QRCodeURL,
 		ErrorMessage: string(errorMessage),
 	}).Render(r.Context(), w); err != nil {
-		logger.WithError(err).Error("failed to render TOTP setup template")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }
@@ -403,7 +402,6 @@ func (c *TwoFactorSetupController) GetOTPSetup(w http.ResponseWriter, r *http.Re
 		ErrorMessage:   string(errorMessage),
 		SuccessMessage: string(successMessage),
 	}).Render(r.Context(), w); err != nil {
-		logger.WithError(err).Error("failed to render OTP setup template")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }
@@ -463,7 +461,6 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 		RecoveryCodes: result.RecoveryCodes,
 		NextURL:       nextURL,
 	}).Render(r.Context(), w); err != nil {
-		logger.WithError(err).Error("failed to render setup complete template")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }

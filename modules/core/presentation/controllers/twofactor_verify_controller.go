@@ -157,7 +157,6 @@ func (c *TwoFactorVerifyController) GetVerify(w http.ResponseWriter, r *http.Req
 		ErrorMessage:   string(errorMessage),
 		SuccessMessage: string(successMessage),
 	}).Render(r.Context(), w); err != nil {
-		logger.Error("failed to render verify template", "error", err)
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }
@@ -286,7 +285,6 @@ func (c *TwoFactorVerifyController) GetRecovery(w http.ResponseWriter, r *http.R
 		ErrorMessage:   string(errorMessage),
 		SuccessMessage: string(successMessage),
 	}).Render(r.Context(), w); err != nil {
-		logger.Error("failed to render recovery template", "error", err)
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }

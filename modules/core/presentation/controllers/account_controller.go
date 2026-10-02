@@ -178,14 +178,12 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 	dto, err := composables.UseForm(&dtos.SaveAccountDTO{}, r)
 	if err != nil {
-		logger.WithError(err).Error("failed to parse form")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		props, err := c.defaultProps(r, errors)
 		if err != nil {
-			logger.WithError(err).Error("failed to get default props")
 			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
@@ -195,13 +193,11 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	u, err := composables.UseUser(r.Context())
 	if err != nil {
-		logger.WithError(err).Error("failed to get user from context")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	entity, err := dto.Apply(u)
 	if err != nil {
-		logger.WithError(err).Error("failed to apply dto")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
@@ -221,7 +217,6 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := c.userService.UpdateSelf(r.Context(), entity); err != nil {
-		logger.WithError(err).Error("failed to update user")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
@@ -245,7 +240,6 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 	// Get current user
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
-		logger.WithError(err).Error("failed to get user from context")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
@@ -261,7 +255,6 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 	// Fetch all sessions for the user
 	sessions, err := c.sessionService.GetByUserID(r.Context(), user.ID())
 	if err != nil {
-		logger.WithError(err).Error("failed to fetch user sessions")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
@@ -301,7 +294,6 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	// Get current user
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
-		logger.WithError(err).Error("failed to get user from context")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
@@ -309,7 +301,6 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	// Fetch all sessions to find the one to revoke
 	sessions, err := c.sessionService.GetByUserID(r.Context(), user.ID())
 	if err != nil {
-		logger.WithError(err).Error("failed to fetch user sessions")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
@@ -347,7 +338,6 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 
 	// Revoke the session
 	if err := c.sessionService.TerminateSession(r.Context(), sessionToRevoke); err != nil {
-		logger.WithError(err).Error("failed to terminate session")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
@@ -357,7 +347,6 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 		"message": pageCtx.T("Account.Sessions.RevokeSuccess"),
 	})
 	if err != nil {
-		logger.WithError(err).Error("failed to marshal session revoke toast")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
@@ -372,7 +361,6 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 	// Get current user
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
-		logger.WithError(err).Error("failed to get user from context")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
@@ -388,7 +376,6 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 	// Terminate all other sessions
 	count, err := c.sessionService.TerminateOtherSessions(r.Context(), user.ID(), currentToken)
 	if err != nil {
-		logger.WithError(err).Error("failed to terminate other sessions")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
@@ -397,7 +384,6 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 	successMsg := fmt.Sprintf(pageCtx.T("Account.Sessions.RevokeAllSuccess"), count)
 	successPayload, err := json.Marshal(map[string]string{"message": successMsg})
 	if err != nil {
-		logger.WithError(err).Error("failed to marshal session revoke toast")
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
