@@ -10,6 +10,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -19,9 +20,19 @@ var ErrPrivateUploadPathRequired = errors.New("private upload path is required")
 var ErrPrivateUploadPathInvalid = errors.New("private upload path escapes namespace")
 
 type UploadService struct {
-	repo      upload.Repository
-	storage   upload.Storage
-	publisher eventbus.EventBus
+	repo        upload.Repository
+	storage     upload.Storage
+	publisher   eventbus.EventBus
+	uploadsPath string
+}
+
+// NewConfiguredUploadService uses the same upload root as the mounted file controller.
+func NewConfiguredUploadService(repo upload.Repository, storage upload.Storage, publisher eventbus.EventBus, cfg *uploadsconfig.Config) *UploadService {
+	service := NewUploadService(repo, storage, publisher)
+	if cfg != nil {
+		service.uploadsPath = cfg.Path
+	}
+	return service
 }
 
 func NewUploadService(
@@ -70,7 +81,12 @@ func (s *UploadService) GetPaginated(ctx context.Context, params *upload.FindPar
 }
 
 func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error) {
-	return s.create(ctx, data, true, true)
+	if data.UploadsPath != "" || s.uploadsPath == "" {
+		return s.create(ctx, data, true, true)
+	}
+	configured := *data
+	configured.UploadsPath = s.uploadsPath
+	return s.create(ctx, &configured, true, true)
 }
 
 // CreatePrivate stores an upload in a caller-provided non-public namespace.

@@ -136,7 +136,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	// ----- Services -----
 	composition.ProvideFunc(builder, services.NewPrivilegeGrantPolicy)
 	composition.ProvideFunc(builder, services.NewTenantService)
-	composition.ProvideFunc(builder, services.NewUploadService)
+	composition.ProvideFunc(builder, services.NewConfiguredUploadService)
 	composition.ProvideFunc(builder, services.NewSessionService)
 	composition.ProvideFunc(builder, newCoreUserService)
 	composition.ProvideFunc(builder, services.NewBrowserSessionService)
