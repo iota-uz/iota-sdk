@@ -21,7 +21,9 @@ type PublicCarrier interface {
 func Presenter(localizer func(context.Context) *i18n.Localizer) graphql.ErrorPresenterFunc {
 	return func(ctx context.Context, err error) *gqlerror.Error {
 		base := graphql.DefaultErrorPresenter(ctx, err)
-		if base.Extensions["code"] == "GRAPHQL_PARSE_FAILED" || base.Extensions["code"] == "GRAPHQL_VALIDATION_FAILED" {
+		_, direct := err.(*gqlerror.Error)
+		executing := graphql.HasOperationContext(ctx) && graphql.GetOperationContext(ctx).Operation != nil
+		if direct && !executing && (base.Extensions["code"] == "GRAPHQL_PARSE_FAILED" || base.Extensions["code"] == "GRAPHQL_VALIDATION_FAILED") {
 			return base
 		}
 		serrorlog.Log(ctx, err, "GraphQL request failed")

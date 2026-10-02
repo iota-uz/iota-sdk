@@ -20,6 +20,9 @@ func MessageFromConfig(cfg *i18n.LocalizeConfig) (Message, error) {
 	}
 	m := Message{ID: cfg.MessageID}
 	if cfg.DefaultMessage != nil {
+		if cfg.MessageID != "" && cfg.MessageID != cfg.DefaultMessage.ID {
+			return Message{}, fmt.Errorf("localization message IDs must agree")
+		}
 		m.ID = cfg.DefaultMessage.ID
 		if m.ID == "" {
 			m.Text = cfg.DefaultMessage.Other
