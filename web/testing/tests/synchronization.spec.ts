@@ -57,3 +57,30 @@ test('waits for both matching requests, including the slower second swap', async
   await expect(page.locator('#second')).toHaveText('Saved')
   await expect(page.locator('.htmx-settling')).toHaveCount(0)
 })
+// Characterisation: falsely green if the pending second XHR is excluded until it has an HTTP status.
+test('does not resolve while a matching second response remains gated', async ({ page }) => {
+  await fixture(page)
+  let release!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  let count = 0
+  await page.route('http://fixture.test/save', async route => {
+    count++
+    if (count === 2) await gate
+    await route.fulfill({ contentType: 'text/html', body: 'Saved' })
+  })
+  await page.evaluate(() => {
+    document.body.innerHTML = '<button id="a" hx-post="/save" hx-target="#first" hx-swap="innerHTML settle:0ms">First</button><button id="b" hx-post="/save" hx-target="#second" hx-swap="innerHTML settle:0ms">Second</button><section id="first"></section><section id="second"></section>'
+    ;(window as any).htmx.process(document.body)
+  })
+  let complete = false
+  const interaction = actionAndHtmxResponse(page, { method: 'POST', pathname: '/save' }, () => page.evaluate(() => {
+    document.getElementById('a')!.click(); document.getElementById('b')!.click()
+  })).then(() => { complete = true })
+  try {
+    await expect(page.locator('#first')).toHaveText('Saved')
+    await expect(page.locator('#first')).not.toHaveClass(/htmx-settling/)
+    expect(complete).toBe(false)
+  } finally { release() }
+  await interaction
+  await expect(page.locator('#second')).toHaveText('Saved')
+})
