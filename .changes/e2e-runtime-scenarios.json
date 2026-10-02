@@ -1,4 +1,4 @@
 {
   "bump": "minor",
-  "summary": "Add opt-in browser environments and versioned scenarios with owned HTTP controls, shared PostgreSQL clone lifecycle, and correlated periodic invocation receipts with deterministic completion waits."
+  "summary": "Add opt-in browser environments, owned scenarios and PostgreSQL clones; expose correlated periodic receipts that reserve manual execution exclusively and await actual completion, and make zero-retry configurations execute once instead of silently doing nothing."
 }
