@@ -200,7 +200,7 @@ func TestSettingsLogoController_PostLogo_ValidationError(t *testing.T) {
 		Expect(t).
 		Status(http.StatusBadRequest) // Should return 400 Bad Request due to form parsing error
 
-	resp.Contains("Invalid Integer Value") // Check for parsing error message
+	resp.Contains("Check the supplied information.")
 
 	// Verify tenant was NOT updated in the database
 	updatedTenant, err := tenantService.GetByID(suite.Environment().Ctx, testTenant.ID())

@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	ErrUserNotFound = errors.New("user not found")
+	ErrUserNotFound error = serrors.NewNotFound("user not found")
 )
 
 const (
