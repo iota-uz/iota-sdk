@@ -160,7 +160,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Printf("Migrated %d legacy constructors\n", count)
+	_, _ = fmt.Fprintf(os.Stdout, "Migrated %d legacy constructors\n", count)
 }
 
 func stringExpr(expr ast.Expr) bool {

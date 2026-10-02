@@ -1,15 +1,22 @@
+// Package serrorgql projects GraphQL execution errors without changing transport policy.
 package serrorgql
 
 import (
 	"context"
+
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
-// Presenter is installed through graphql.Handler.SetErrorPresenter. Protocol
-// errors remain owned by the transport, retaining their original extensions.
+// PublicCarrier declares a specialized safe GraphQL contract.
+type PublicCarrier interface {
+	GraphQLCode() string
+	GraphQLExtensions() map[string]serrors.Value
+}
+
+// Presenter applies to execution errors and retains protocol extensions.
 func Presenter(localizer func(context.Context) *i18n.Localizer) graphql.ErrorPresenterFunc {
 	return func(ctx context.Context, err error) *gqlerror.Error {
 		base := graphql.DefaultErrorPresenter(ctx, err)
@@ -26,6 +33,16 @@ func Presenter(localizer func(context.Context) *i18n.Localizer) graphql.ErrorPre
 			code = "UNAUTHORIZED"
 		}
 		extensions := map[string]any{"code": code}
+		if carrier, ok := serrors.FindPublicCarrier[PublicCarrier](err); ok {
+			if declared := carrier.GraphQLCode(); declared != "" {
+				extensions["code"] = declared
+			}
+			for key, value := range carrier.GraphQLExtensions() {
+				if key != "code" && key != "reason" && key != "fields" {
+					extensions[key] = serrors.PublicValue(value, l)
+				}
+			}
+		}
 		if p.Reason != "" {
 			extensions["reason"] = p.Reason
 		}

@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorrpc"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -32,23 +33,23 @@ func TestProjectApplicationCodes(t *testing.T) {
 	}
 }
 
-type explicitCarrier struct{ error }
+type explicitCarrierError struct{ error }
 
-func (explicitCarrier) RPCCode() any       { return "specific" }
-func (explicitCarrier) RPCMessage() string { return "Approved message" }
-func (explicitCarrier) RPCDetails() any    { return map[string]any{"retry": false} }
+func (explicitCarrierError) RPCCode() any       { return "specific" }
+func (explicitCarrierError) RPCMessage() string { return "Approved message" }
+func (explicitCarrierError) RPCDetails() any    { return map[string]any{"retry": false} }
 
 func TestSDKRPCBoundaryPreservesCarrierSentinelAndProtocolPriority(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		err  error
 		code any
-	}{{"carrier", explicitCarrier{serrors.NewInvalid("secret")}, "specific"}, {"sentinel", serrors.NewNotFound("secret").WithCause(applets.ErrPermissionDenied), "forbidden"}, {"classification", serrors.NewNotFound("secret"), "not_found"}} {
+	}{{"carrier", explicitCarrierError{serrors.NewInvalid("secret")}, "specific"}, {"sentinel", serrors.NewNotFound("secret").WithCause(applets.ErrPermissionDenied), "forbidden"}, {"classification", serrors.NewNotFound("secret"), "not_found"}} {
 		t.Run(tc.name, func(t *testing.T) {
 			registry := rpc.NewRegistry()
 			require.NoError(t, registry.RegisterPublicContract("test", "test.failure", applets.RPCMethod{Handler: func(context.Context, json.RawMessage) (any, error) { return nil, tc.err }}, nil, rpc.Query(false, 0), rpc.Public()))
 			d := rpc.NewDispatcher(registry, nil, nil)
-			r := httptest.NewRequest("POST", "/rpc", strings.NewReader(`{"id":"1","method":"test.failure","params":{}}`))
+			r := httptest.NewRequest(http.MethodPost, "/rpc", strings.NewReader(`{"id":"1","method":"test.failure","params":{}}`))
 			w := httptest.NewRecorder()
 			d.HandlePublicHTTP(w, r)
 			require.Equal(t, 200, w.Code)
@@ -67,9 +68,9 @@ func TestSDKRPCBoundaryPreservesCarrierSentinelAndProtocolPriority(t *testing.T)
 				require.Equal(t, map[string]any{"retry": false}, response.Error.Details)
 			}
 			protocol := httptest.NewRecorder()
-			d.HandlePublicHTTP(protocol, httptest.NewRequest("POST", "/rpc", strings.NewReader(`{"id":"2","method":"test.missing"}`)))
+			d.HandlePublicHTTP(protocol, httptest.NewRequest(http.MethodPost, "/rpc", strings.NewReader(`{"id":"2","method":"test.missing"}`)))
 			require.NoError(t, json.Unmarshal(protocol.Body.Bytes(), &response))
-			require.Equal(t, float64(-32601), response.Error.Code)
+			require.InDelta(t, -32601.0, response.Error.Code, 0.0)
 		})
 	}
 }
@@ -79,7 +80,7 @@ func TestSDKRPCBoundaryProjectsSafeValidationFields(t *testing.T) {
 	err := serrors.NewInvalid("private SQL").WithFields(serrors.FieldViolation{Field: "Email", Reason: "required"})
 	require.NoError(t, registry.RegisterPublicContract("test", "test.validation", applets.RPCMethod{Handler: func(context.Context, json.RawMessage) (any, error) { return nil, err }}, nil, rpc.Query(false, 0), rpc.Public()))
 	w := httptest.NewRecorder()
-	rpc.NewDispatcher(registry, nil, nil).HandlePublicHTTP(w, httptest.NewRequest("POST", "/rpc", strings.NewReader(`{"id":"1","method":"test.validation","params":{}}`)))
+	rpc.NewDispatcher(registry, nil, nil).HandlePublicHTTP(w, httptest.NewRequest(http.MethodPost, "/rpc", strings.NewReader(`{"id":"1","method":"test.validation","params":{}}`)))
 	require.Equal(t, 200, w.Code)
 	require.JSONEq(t, `{"id":"1","jsonrpc":"2.0","error":{"code":"validation","message":"Check the supplied information.","details":{"fields":[{"field":"Email","reason":"required","message":"Check the supplied information."}]}}}`, w.Body.String())
 }
@@ -92,7 +93,7 @@ func TestSDKRPCBoundaryLogsBoundedContextWithoutDiagnostics(t *testing.T) {
 	logger := logrus.New()
 	logger.SetOutput(&logs)
 	logger.SetFormatter(&logrus.JSONFormatter{})
-	r := httptest.NewRequest("POST", "/rpc", strings.NewReader(`{"id":"1","method":"test.logs","params":{}}`))
+	r := httptest.NewRequest(http.MethodPost, "/rpc", strings.NewReader(`{"id":"1","method":"test.logs","params":{}}`))
 	r.Header.Set("X-Iota-Request-Id", "correlation-123")
 	rpc.NewDispatcher(registry, nil, logger).HandlePublicHTTP(httptest.NewRecorder(), r)
 	var entry map[string]any

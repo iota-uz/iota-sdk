@@ -415,6 +415,8 @@ func (d *Dispatcher) executeWithMiddleware(baseCtx context.Context, httpReq *htt
 				level = logrus.InfoLevel
 			case slog.LevelWarn:
 				level = logrus.WarnLevel
+			case slog.LevelError:
+				level = logrus.ErrorLevel
 			}
 			d.logger.WithFields(fields).Log(level, "applet rpc handler error")
 		}

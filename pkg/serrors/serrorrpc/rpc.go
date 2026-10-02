@@ -1,3 +1,4 @@
+// Package serrorrpc projects safe application errors for RPC dispatch.
 package serrorrpc
 
 import (

@@ -1,3 +1,4 @@
+// Package serrorhttp projects safe errors into route-owned HTTP responses.
 package serrorhttp
 
 import (
@@ -30,6 +31,8 @@ func Status(err error) int {
 		return http.StatusRequestTimeout
 	case serrors.Unimplemented:
 		return http.StatusNotImplemented
+	case serrors.Internal:
+		return http.StatusInternalServerError
 	default:
 		return http.StatusInternalServerError
 	}
@@ -90,10 +93,10 @@ func WriteForm(w http.ResponseWriter, r *http.Request, err error, l *i18n.Locali
 		status = http.StatusOK
 	}
 	if form.Target != "" {
-		w.Header().Set("HX-Retarget", form.Target)
+		htmx.Retarget(w, form.Target)
 	}
 	if form.Swap != "" {
-		w.Header().Set("HX-Reswap", form.Swap)
+		htmx.Reswap(w, form.Swap)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)

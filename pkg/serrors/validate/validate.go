@@ -1,3 +1,4 @@
+// Package validate maps field validation into safe localized form errors.
 package validate
 
 import (

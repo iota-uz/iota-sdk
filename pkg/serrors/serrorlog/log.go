@@ -1,3 +1,4 @@
+// Package serrorlog provides bounded error logging attributes and levels.
 package serrorlog
 
 import (
@@ -27,6 +28,8 @@ func Level(err error) slog.Level {
 		return slog.LevelInfo
 	case serrors.RateLimited:
 		return slog.LevelWarn
+	case serrors.Internal, serrors.Unavailable, serrors.Timeout, serrors.Unimplemented:
+		return slog.LevelError
 	default:
 		return slog.LevelError
 	}

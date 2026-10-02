@@ -52,7 +52,7 @@ func TestWriteFormRetainsRouteOwnedFields(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/form", strings.NewReader("Email=kept%40example.com"))
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			if hx {
-				r.Header.Set("HX-Request", "true")
+				r.Header.Set("Hx-Request", "true")
 			}
 			w := httptest.NewRecorder()
 			err := serrors.NewInvalid("private").WithFields(serrors.FieldViolation{Field: "Email", Message: serrors.Message{ID: "missing"}})
@@ -66,8 +66,8 @@ func TestWriteFormRetainsRouteOwnedFields(t *testing.T) {
 				expected = 200
 			}
 			require.Equal(t, expected, w.Code)
-			require.Equal(t, "#account", w.Header().Get("HX-Retarget"))
-			require.Equal(t, "outerHTML", w.Header().Get("HX-Reswap"))
+			require.Equal(t, "#account", w.Header().Get("Hx-Retarget"))
+			require.Equal(t, "outerHTML", w.Header().Get("Hx-Reswap"))
 			require.Equal(t, "text/html; charset=utf-8", w.Header().Get("Content-Type"))
 			require.Contains(t, w.Body.String(), `name="Email" value="kept@example.com"`)
 			require.Contains(t, w.Body.String(), "Check the supplied information.")
@@ -78,7 +78,7 @@ func TestWriteFormRetainsRouteOwnedFields(t *testing.T) {
 
 func TestWriteFormRequiresRendererBeforeWriting(t *testing.T) {
 	w := httptest.NewRecorder()
-	err := serrorhttp.WriteForm(w, httptest.NewRequest("POST", "/", nil), serrors.NewInvalid("private"), nil, serrorhttp.Form{})
+	err := serrorhttp.WriteForm(w, httptest.NewRequest(http.MethodPost, "/", nil), serrors.NewInvalid("private"), nil, serrorhttp.Form{})
 	require.True(t, serrors.HasCode(err, serrors.Internal))
 	require.Empty(t, w.Body.String())
 	require.Empty(t, w.Header())

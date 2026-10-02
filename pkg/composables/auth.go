@@ -2,7 +2,6 @@ package composables
 
 import (
 	"context"
-	"errors"
 	"slices"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -14,8 +13,8 @@ import (
 )
 
 var (
-	ErrNoSessionFound = errors.New("no session found")
-	ErrNoUserFound    = errors.New("no user found")
+	ErrNoSessionFound error = serrors.NewUnauthenticated("no session found")
+	ErrNoUserFound    error = serrors.NewUnauthenticated("no user found")
 )
 
 // UseUser returns the user from the context.

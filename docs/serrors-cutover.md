@@ -52,3 +52,10 @@ Granite mounted contract fixtures and preview workflow validate its immutable
 revision, and production dependency checks pass with GOWORK=off. The candidate
 uses the verified SDK release workflow in docs/sdk-releases.md; no version tag
 is pushed manually. The consumer PR records its actual pin and preview results.
+
+Shared composable authentication sentinels now carry semantic codes while retaining
+sentinel identity. This prevents generic boundaries from classifying a missing
+user/session as an internal error. GraphQL applications can declare specialized
+public codes and typed extension values through the presenter carrier interface;
+raw GraphQL extensions do not become public implicitly. Explicit outer error
+classification suppresses a wrapped carrier.

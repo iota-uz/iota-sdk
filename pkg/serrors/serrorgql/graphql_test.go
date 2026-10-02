@@ -16,6 +16,7 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"golang.org/x/text/language"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -47,7 +48,7 @@ func TestSDKHandlerPresenterExecutionAndProtocol(t *testing.T) {
 				handler.SetErrorPresenter(map[*executor.Executor]gql.ErrorPresenterFunc{ex: serrorgql.Presenter(nil)})
 			}
 			body, _ := json.Marshal(map[string]string{"query": tc.query})
-			r := httptest.NewRequest("POST", "/query", strings.NewReader(string(body)))
+			r := httptest.NewRequest(http.MethodPost, "/query", strings.NewReader(string(body)))
 			r.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, r)
@@ -71,10 +72,10 @@ func TestSDKHandlerDefaultPresenterUsesRequestLocaleAndSafeFallback(t *testing.T
 	for _, translation := range []string{"Request denied.", " "} {
 		t.Run(translation, func(t *testing.T) {
 			bundle := i18n.NewBundle(language.English)
-			bundle.AddMessages(language.English, &i18n.Message{ID: "Public.denied", Other: translation})
+			require.NoError(t, bundle.AddMessages(language.English, &i18n.Message{ID: "Public.denied", Other: translation}))
 			ex := executor.New(failingSchema{err: serrors.NewPermissionDenied("private credential").WithPublic(serrors.Message{ID: "Public.denied"})})
 			handler := sdkgraphql.NewHandler(ex, nil)
-			r := httptest.NewRequest("POST", "/query", strings.NewReader(`{"query":"{ account }"}`))
+			r := httptest.NewRequest(http.MethodPost, "/query", strings.NewReader(`{"query":"{ account }"}`))
 			r.Header.Set("Content-Type", "application/json")
 			r = r.WithContext(intl.WithLocalizer(r.Context(), i18n.NewLocalizer(bundle, "en")))
 			w := httptest.NewRecorder()
@@ -87,5 +88,33 @@ func TestSDKHandlerDefaultPresenterUsesRequestLocaleAndSafeFallback(t *testing.T
 			}
 			require.Contains(t, w.Body.String(), expected)
 		})
+	}
+}
+
+type declaredError struct{ error }
+
+func (e declaredError) Unwrap() error { return e.error }
+
+func (declaredError) GraphQLCode() string { return "VEHICLE_OWNER_INN_REQUIRED" }
+func (declaredError) GraphQLExtensions() map[string]serrors.Value {
+	return map[string]serrors.Value{"owner": serrors.Text("Synthetic company"), "code": serrors.Text("override"), "reason": serrors.Text("override")}
+}
+func TestPresenterExplicitCarrierAndInternalOverride(t *testing.T) {
+	carrier := declaredError{serrors.NewInvalid("private SQL").WithReason("owner_inn_missing")}
+	for _, tc := range []struct {
+		err   error
+		code  string
+		owner bool
+	}{{serrors.Wrap("lookup", carrier), "VEHICLE_OWNER_INN_REQUIRED", true}, {serrors.NewInternal("private failure").WithCause(carrier), "internal", false}} {
+		p := serrorgql.Presenter(nil)(context.Background(), tc.err)
+		require.Equal(t, tc.code, p.Extensions["code"])
+		require.NotContains(t, p.Message, "private")
+		if tc.owner {
+			require.Equal(t, "Synthetic company", p.Extensions["owner"])
+			require.Equal(t, serrors.Reason("owner_inn_missing"), p.Extensions["reason"])
+		} else {
+			require.NotContains(t, p.Extensions, "owner")
+			require.NotContains(t, p.Extensions, "reason")
+		}
 	}
 }

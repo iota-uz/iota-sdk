@@ -111,5 +111,5 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Println(count)
+	_, _ = fmt.Fprintln(os.Stdout, count)
 }
