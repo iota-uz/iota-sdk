@@ -38,6 +38,29 @@ func (r *failingAssistantSaveRepo) SaveMessage(ctx context.Context, msg types.Me
 	return r.mockChatRepository.SaveMessage(ctx, msg)
 }
 
+// Falsely green if the test injects a done event instead of letting an interrupt-only generator finish.
+func TestChatService_InterruptFinishesWithPersistedQuestionAndTerminalEvent(t *testing.T) {
+	repo := newMockChatRepository()
+	session := mustSession(t, withSessionTenantID(uuid.New()), withSessionUserID(1))
+	require.NoError(t, repo.CreateSession(t.Context(), session))
+	agent := &stubAgentService{processEvents: []agents.ExecutorEvent{{Type: agents.EventTypeInterrupt, ParsedInterrupt: &agents.ParsedInterrupt{CheckpointID: "checkpoint", AgentName: "agent", Questions: []agents.Question{{ID: "period", Text: "Period?", Type: agents.QuestionTypeSingleChoice, Options: []agents.QuestionOption{{ID: "month", Label: "Month"}, {ID: "year", Label: "Year"}}}}}}}}
+	svc, err := NewChatService(repo, agent, nil, nil, nil)
+	require.NoError(t, err)
+	var received []bichatservices.ChunkType
+	err = svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{SessionID: session.ID(), Content: "ask"}, func(chunk bichatservices.StreamChunk) {
+		received = append(received, chunk.Type)
+		if chunk.Type == bichatservices.ChunkTypeDone {
+			messages, loadErr := repo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+			require.NoError(t, loadErr)
+			require.NotEmpty(t, messages)
+			require.NotNil(t, messages[len(messages)-1].QuestionData())
+		}
+	})
+	require.NoError(t, err)
+	require.Contains(t, received, bichatservices.ChunkTypeInterrupt)
+	require.Equal(t, bichatservices.ChunkTypeDone, received[len(received)-1])
+}
+
 // When only artifact persistence fails, the generated answer must still be
 // saved and the run completed with a done chunk — never discarded (#2998).
 func TestChatService_SendMessageStream_ArtifactPersistFailureKeepsAnswer(t *testing.T) {

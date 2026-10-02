@@ -538,7 +538,7 @@ func (e *chatRunExecutor) executeTurn(t turnExecution) {
 	runStateCtx, runStateCancel := context.WithTimeout(context.WithoutCancel(t.persistCtx), streamPersistenceTimeout)
 	defer runStateCancel()
 	_ = svc.completeRunState(runStateCtx, session.TenantID(), job.SessionID, runID)
-	if emitDoneChunk {
+	if emitDoneChunk || interrupt != nil {
 		active.Broadcast(streamingsvc.TerminalChunk(nil, generationMs))
 	}
 	if interrupt == nil {
