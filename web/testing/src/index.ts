@@ -177,8 +177,17 @@ export interface ScenarioControl<Input, Result> {
 /** Teardown runs even when readiness, the scenario or the browser assertion fails. */
 export async function withEnvironment<E extends EnvironmentDescriptor, Result>(lifecycle: EnvironmentLifecycle<E>, workerIndex: number, use: (environment: E) => Promise<Result>): Promise<Result> {
   const environment = await lifecycle.start(workerIndex)
+  let failed = false
+  let failure: unknown
   try { await lifecycle.ready(environment); return await use(environment) }
-  finally { await lifecycle.stop(environment) }
+  catch (error) { failed = true; failure = error; throw error }
+  finally {
+    try { await lifecycle.stop(environment) }
+    catch (error) {
+      if (failed) throw new AggregateError([failure, error], 'Environment failed and teardown failed')
+      throw error
+    }
+  }
 }
 export async function withScenario<Input, State, Result>(control: ScenarioControl<Input, State>, input: Input, scopeId: string, use: (state: State) => Promise<Result>): Promise<Result> {
   try { return await use(await control.prepare(input, scopeId)) }

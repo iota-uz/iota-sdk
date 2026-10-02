@@ -168,6 +168,17 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 				up = entity
 			}
 		}
+		if data.UploadsPath != "" && !pathWithin(data.UploadsPath, up.Path()) {
+			rooted := upload.NewWithID(up.ID(), up.TenantID(), up.Hash(), filepath.Join(data.UploadsPath, filepath.Base(up.Path())), up.Name(), up.Slug(), up.Size().Bytes(), up.Mimetype(), up.Type(), up.CreatedAt(), up.UpdatedAt(), upload.WithUploadsPath(data.UploadsPath))
+			rooted.SetGeoPoint(up.GeoPoint())
+			if err := s.storage.Save(ctx, rooted.Path(), bytes); err != nil {
+				return nil, err
+			}
+			if err := s.repo.Update(ctx, rooted); err != nil {
+				return nil, err
+			}
+			up = rooted
+		}
 		return up, nil
 	}
 	if err := s.storage.Save(ctx, entity.Path(), bytes); err != nil {
