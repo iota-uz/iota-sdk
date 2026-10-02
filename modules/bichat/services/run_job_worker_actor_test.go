@@ -64,7 +64,7 @@ func TestRunJobWorkerHydratesActorForPostgresCheckpoint(t *testing.T) {
 			mr := miniredis.RunT(t)
 			queue, queueErr := services.NewRedisRunJobQueue(services.RedisRunJobQueueConfig{RedisURL: mr.Addr()})
 			require.NoError(t, queueErr)
-			defer queue.Close()
+			defer func() { require.NoError(t, queue.Close()) }()
 			saved := make(chan error, 1)
 			failed := make(chan struct{}, 1)
 			worker, workerErr := services.NewRunJobWorker(services.RunJobWorkerConfig{Queue: queue, Executor: checkpointExecutor{saved}, Pool: pool, Users: actorLookup{actor}, ReadBlock: time.Millisecond, PollInterval: time.Millisecond, MaxRetries: 1, OnJobTerminalFailure: func(context.Context, services.RunJobPayload, error) { failed <- struct{}{} }})
