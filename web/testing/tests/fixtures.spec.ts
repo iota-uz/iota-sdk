@@ -16,7 +16,10 @@ const test = createEnvironmentTest(base, {
 })
 test.describe.configure({ mode: 'serial' })
 // Characterisation: falsely green if preparation never allocates a partially failing scope.
-test('the consumer-injected fixture tracks successful and partially failed scenarios', async ({ scenario }) => {
+test('the consumer-injected fixture tracks successful and partially failed scenarios', async ({ scenario, page }) => {
+  await page.route("http://fixture.test/fixture", route => route.fulfill({ contentType: "text/html", body: "<h1>Environment page</h1>" }));
+  await page.goto("/fixture");
+  await expect(page.getByRole("heading")).toHaveText("Environment page");
   expect(identities).toBe(0)
   const first = await scenario({})
   const second = await scenario({})
