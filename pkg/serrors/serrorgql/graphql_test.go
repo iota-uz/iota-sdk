@@ -140,6 +140,6 @@ func TestPresenterLogsOneBoundedExecutionEvent(t *testing.T) {
 	require.Contains(t, output.String(), `"request_id":"synthetic-graphql-request"`)
 	require.NotContains(t, output.String(), "private SQL cause")
 	output.Reset()
-	serrorgql.Presenter(nil)(ctx, &gqlerror.Error{Message: "parse", Extensions: map[string]any{"code": "GRAPHQL_PARSE_FAILED"}})
+	_ = serrorgql.Presenter(nil)(ctx, &gqlerror.Error{Message: "parse", Extensions: map[string]any{"code": "GRAPHQL_PARSE_FAILED"}})
 	require.Empty(t, output.String())
 }
