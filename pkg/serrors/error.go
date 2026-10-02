@@ -143,6 +143,11 @@ func FromDB(op Op, err error) error {
 	return New(code, "").WithOp(op).WithCause(err)
 }
 
+// FromDBContext classifies a driver error and retains private diagnostic context.
+func FromDBContext(op Op, err error, diagnostic string) error {
+	return WrapContext(op, FromDB("", err), diagnostic)
+}
+
 // Constraint maps only repository-owned, explicitly recognized constraints.
 type Constraint struct {
 	SQLState string
