@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -18,19 +20,36 @@ type scenario struct {
 	cleanup       CleanupFunc
 }
 type scope struct {
-	mu       sync.Mutex
+	mu       chan struct{}
 	request  string
 	result   *Result
 	scenario *scenario
-	disposed bool
+	disposed atomic.Bool
 }
+
+func newScope() *scope { return &scope{mu: make(chan struct{}, 1)} }
+func (s *scope) lock(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	select {
+	case s.mu <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+func (s *scope) unlock() { <-s.mu }
+
 type Registry struct {
-	mu            sync.Mutex
-	scenarios     map[string]*scenario
-	scopes        map[string]*scope
-	capabilities  map[string]bool
-	dedicated     bool
-	environmentID string
+	mu             sync.Mutex
+	scenarios      map[string]*scenario
+	scopes         map[string]*scope
+	capabilities   map[string]bool
+	dedicated      bool
+	environmentID  string
+	active         map[string]bool
+	exclusiveScope string
 }
 
 func NewEnvironmentRegistry(capabilities []string, dedicated bool, environmentID string) *Registry {
@@ -41,6 +60,7 @@ func NewEnvironmentRegistry(capabilities []string, dedicated bool, environmentID
 
 func NewRegistry(capabilities []string, dedicated bool) *Registry {
 	r := &Registry{scenarios: map[string]*scenario{}, scopes: map[string]*scope{}, capabilities: map[string]bool{}, dedicated: dedicated}
+	r.active = map[string]bool{}
 	for _, c := range capabilities {
 		r.capabilities[c] = true
 	}
@@ -100,7 +120,27 @@ func (r *Registry) AllowScope(id string) error {
 	if _, exists := r.scopes[id]; exists {
 		return failure("scope_conflict", "scope already exists")
 	}
-	r.scopes[id] = &scope{}
+	r.scopes[id] = newScope()
+	return nil
+}
+
+// ReserveScope is available only to an environment-bound registry. The control
+// client may allocate a physical scope beneath that environment's namespace.
+func (r *Registry) ReserveScope(id string) error {
+	if r.environmentID == "" || !strings.HasPrefix(id, r.environmentID+"-") || len(id) > 256 || strings.ContainsAny(id, "/\\\x00") {
+		return failure("scope_conflict", "scope is outside this environment namespace")
+	}
+	r.mu.Lock()
+	sc := r.scopes[id]
+	if sc == nil {
+		r.scopes[id] = newScope()
+		r.mu.Unlock()
+		return nil
+	}
+	r.mu.Unlock()
+	if sc.disposed.Load() {
+		return failure("scope_conflict", "scope disposed")
+	}
 	return nil
 }
 func (r *Registry) Definitions() []Definition {
@@ -160,9 +200,11 @@ func (r *Registry) Prepare(ctx context.Context, input Input) (Result, error) {
 	if err := s.input.Validate(input.Params); err != nil {
 		return Result{}, failure("invalid_input", err.Error())
 	}
-	sc.mu.Lock()
-	defer sc.mu.Unlock()
-	if sc.disposed {
+	if err := sc.lock(ctx); err != nil {
+		return Result{}, failure("timeout", err.Error())
+	}
+	defer sc.unlock()
+	if sc.disposed.Load() {
 		return Result{}, failure("scope_conflict", "scope disposed")
 	}
 	if sc.request != "" && sc.request != string(encoded) {
@@ -177,6 +219,22 @@ func (r *Registry) Prepare(ctx context.Context, input Input) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, failure("timeout", err.Error())
 	}
+	r.mu.Lock()
+	if r.exclusiveScope != "" && r.exclusiveScope != input.ScopeID {
+		r.mu.Unlock()
+		return Result{}, failure("scope_conflict", "environment has a dedicated scenario lease")
+	}
+	if s.definition.Isolation == "dedicated" {
+		for active := range r.active {
+			if active != input.ScopeID {
+				r.mu.Unlock()
+				return Result{}, failure("scope_conflict", "dedicated scenario requires an empty environment")
+			}
+		}
+		r.exclusiveScope = input.ScopeID
+	}
+	r.active[input.ScopeID] = true
+	r.mu.Unlock()
 	sc.request = string(encoded)
 	sc.scenario = s
 	result, err := s.prepare(ctx, input)
@@ -224,9 +282,11 @@ func (r *Registry) Dispose(ctx context.Context, id string) error {
 	if sc == nil {
 		return failure("scope_conflict", "scope is not owned by this environment")
 	}
-	sc.mu.Lock()
-	defer sc.mu.Unlock()
-	if sc.disposed {
+	if err := sc.lock(ctx); err != nil {
+		return failure("timeout", err.Error())
+	}
+	defer sc.unlock()
+	if sc.disposed.Load() {
 		return nil
 	}
 	if sc.scenario != nil {
@@ -234,7 +294,13 @@ func (r *Registry) Dispose(ctx context.Context, id string) error {
 			return failure("cleanup_failed", err.Error())
 		}
 	}
-	sc.disposed = true
+	sc.disposed.Store(true)
 	sc.result = nil
+	r.mu.Lock()
+	delete(r.active, id)
+	if r.exclusiveScope == id {
+		r.exclusiveScope = ""
+	}
+	r.mu.Unlock()
 	return nil
 }

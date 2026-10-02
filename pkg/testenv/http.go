@@ -31,6 +31,24 @@ func NewHandler(registry *Registry, controlToken string) (http.Handler, error) {
 		_ = json.NewEncoder(w).Encode(value)
 	}
 	mux.HandleFunc("GET /__test__/scenarios", func(w http.ResponseWriter, r *http.Request) { write(w, registry.Definitions(), nil) })
+	mux.HandleFunc("POST /__test__/scopes", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			ScopeID string `json:"scopeId"`
+		}
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&input); err != nil {
+			write(w, nil, failure("invalid_input", err.Error()))
+			return
+		}
+		var extra any
+		if decoder.Decode(&extra) != io.EOF {
+			write(w, nil, failure("invalid_input", "expected one JSON object"))
+			return
+		}
+		err := registry.ReserveScope(input.ScopeID)
+		write(w, map[string]string{"scopeId": input.ScopeID}, err)
+	})
 	mux.HandleFunc("POST /__test__/scenarios/prepare", func(w http.ResponseWriter, r *http.Request) {
 		d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 		d.DisallowUnknownFields()

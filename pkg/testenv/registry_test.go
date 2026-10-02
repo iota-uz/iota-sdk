@@ -145,3 +145,77 @@ func TestNaturalGoSchemaAndValues(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, float64(2), result.Data["count"])
 }
+
+func TestEnvironmentOwnedHTTPScopes(t *testing.T) {
+	// Falsely green if authenticated clients can reserve a foreign environment's scope.
+	r := NewEnvironmentRegistry(nil, true, "environment")
+	require.NoError(t, r.Register(testDefinition(), func(_ context.Context, i Input) (Result, error) {
+		return Result{Data: map[string]any{"id": i.ScopeID}}, nil
+	}, func(context.Context, string) error { return nil }))
+	handler, err := NewHandler(r, testToken)
+	require.NoError(t, err)
+	for _, scope := range []string{"foreign-one", "environment/one", "environment-../one"} {
+		require.Equal(t, 409, request(t, handler, "POST", "/__test__/scopes", map[string]string{"scopeId": scope}, testToken).Code)
+	}
+	for range 2 {
+		require.Equal(t, 200, request(t, handler, "POST", "/__test__/scopes", map[string]string{"scopeId": "environment-one"}, testToken).Code)
+	}
+	require.Equal(t, 200, request(t, handler, "POST", "/__test__/scenarios/prepare", testInput("environment-one"), testToken).Code)
+	require.Equal(t, 200, request(t, handler, "DELETE", "/__test__/scopes/environment-one", nil, testToken).Code)
+	require.Equal(t, 409, request(t, handler, "POST", "/__test__/scopes", map[string]string{"scopeId": "environment-one"}, testToken).Code)
+}
+
+func TestDedicatedScenarioHoldsExclusiveLeaseUntilDispose(t *testing.T) {
+	// Falsely green if the second handler mutates global state before the conflict is returned.
+	r := NewRegistry(nil, true)
+	var calls atomic.Int32
+	require.NoError(t, r.Register(testDefinition(), func(_ context.Context, i Input) (Result, error) {
+		calls.Add(1)
+		return Result{Data: map[string]any{"id": i.ScopeID}}, nil
+	}, func(context.Context, string) error { return nil }))
+	for _, id := range []string{"one", "two"} {
+		require.NoError(t, r.AllowScope(id))
+	}
+	_, err := r.Prepare(context.Background(), testInput("one"))
+	require.NoError(t, err)
+	_, err = r.Prepare(context.Background(), testInput("two"))
+	var control *Error
+	require.ErrorAs(t, err, &control)
+	require.Equal(t, "scope_conflict", control.Code)
+	require.EqualValues(t, 1, calls.Load())
+	require.NoError(t, r.Dispose(context.Background(), "one"))
+	_, err = r.Prepare(context.Background(), testInput("two"))
+	require.NoError(t, err)
+	require.EqualValues(t, 2, calls.Load())
+}
+
+func TestCanceledReplayDoesNotWaitForActivePreparation(t *testing.T) {
+	// Falsely green if the active handler is released before the canceled waiter is checked.
+	r := NewRegistry(nil, true)
+	gate := NewGate()
+	defer gate.Release()
+	require.NoError(t, r.Register(testDefinition(), func(ctx context.Context, i Input) (Result, error) {
+		if err := gate.Wait(ctx); err != nil {
+			return Result{}, err
+		}
+		return Result{Data: map[string]any{"id": i.ScopeID}}, nil
+	}, func(context.Context, string) error { return nil }))
+	require.NoError(t, r.AllowScope("held"))
+	first := make(chan error, 1)
+	go func() { _, err := r.Prepare(context.Background(), testInput("held")); first <- err }()
+	<-gate.Entered()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	second := make(chan error, 1)
+	go func() { _, err := r.Prepare(ctx, testInput("held")); second <- err }()
+	select {
+	case err := <-second:
+		var control *Error
+		require.ErrorAs(t, err, &control)
+		require.Equal(t, "timeout", control.Code)
+	case <-time.After(time.Second):
+		t.Fatal("canceled waiter blocked behind active handler")
+	}
+	gate.Release()
+	require.NoError(t, <-first)
+}

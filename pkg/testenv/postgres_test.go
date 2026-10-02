@@ -33,7 +33,9 @@ func TestScenarioHTTPCommitsAtomicGraphAndCompensates(t *testing.T) {
 	_, err = db.ExecContext(ctx, `CREATE TABLE scenario_invoice(scope text PRIMARY KEY, amount numeric CHECK(amount<100))`)
 	require.NoError(t, err)
 	r := NewRegistry([]string{"postgres"}, true)
-	require.NoError(t, r.Register(testDefinition(), func(ctx context.Context, input Input) (Result, error) {
+	definition := testDefinition()
+	definition.Isolation = "shared"
+	require.NoError(t, r.Register(definition, func(ctx context.Context, input Input) (Result, error) {
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
 			return Result{}, err

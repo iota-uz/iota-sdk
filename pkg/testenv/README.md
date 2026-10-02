@@ -42,7 +42,10 @@ handler, err := testenv.NewHandler(registry, controlToken)
 Schemas use JSON Schema 2020-12 and are compiled at registration. Preparation
 validates version, capabilities, isolation and input before calling the handler;
 output data is validated before publishing a result. Each scope serializes its
-own preparation/disposal; different scopes can prepare concurrently.
+own preparation/disposal; canceled waiters do not block behind preparation.
+Shared scenarios in different scopes can prepare concurrently. A dedicated
+scenario leases the entire environment until disposal, preventing another scope
+from concurrently mutating global settings or baseline records.
 
 The same canonical JSON input in a ready scope returns the saved result without
 calling the handler again, including after a lost HTTP response. Another input
@@ -58,6 +61,10 @@ control token of at least 32 bytes in `Authorization: Bearer ...`:
 - `GET /__test__/scenarios` returns registered definitions.
 - `POST /__test__/scenarios/prepare` accepts `Input` and returns `Result`.
 - `DELETE /__test__/scopes/{scopeId}` disposes an owned scope idempotently.
+- An environment-bound registry created by `NewEnvironmentRegistry` also accepts
+  `POST /__test__/scopes` with `{ "scopeId": "<environmentId>-<physical-suffix>" }`.
+  The credential authorizes allocation only inside that environment namespace.
+  Repeating a live reservation is idempotent; a disposed ID cannot be reused.
 
 Example input:
 
@@ -71,9 +78,9 @@ Example result:
 {"name":"invoice","version":"1","scopeId":"attempt-2","seed":"invoice-42","now":"2026-10-02T00:00:00Z","refs":{"invoice":{"kind":"invoice","id":"42"}},"data":{"id":"42"}}
 ```
 
-There is no HTTP API to create arbitrary scopes or execute SQL. Mount this
-handler only inside a dedicated test environment. `AllowScope` is called by
-its owner, not by untrusted clients. Credentials must stay out of replay
+There is no API to allocate scopes outside the owning environment or execute
+SQL. Mount this handler only inside an isolated test environment. `AllowScope`
+is called by its owner; authenticated isolated clients reserve namespaced scopes. Credentials must stay out of replay
 manifests, traces and scenario data.
 
 ## Deterministic controls
@@ -97,3 +104,28 @@ Set `TESTENV_POSTGRES_DSN` to a dedicated cluster to run
 `go test -race ./pkg/dbctl/testdb`. It creates UUID databases, checks non-public
 schema cloning, concurrent destinations and non-destructive destination conflict.
 It does not use or reset any existing consumer database.
+
+## SDK ERP pilot
+
+Build production web assets with `just lens build` before starting ERP. Build a
+fresh sealed baseline with `go run ./cmd/testenv-baseline --name <unique-name>
+--revision <immutable-sdk-revision>`. The command reuses the existing migration
+manager and E2E seeder, writes the migration/seed/revision manifest and emits it
+as JSON. It never resets an existing database. Supply the admin connection with
+`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`; use an isolated local cluster.
+
+Run `cmd/testenv` with the emitted template, schema/baseline fingerprints and
+revision, `--sdk-erp`, `--control-token-file <private-local-file>` and application
+command after `--` (for example `go run ./cmd/server`). Its authenticated readiness
+probe checks `X-Test-Environment-ID`; clone preparation verifies the durable
+manifest rather than trusting the requested spec. Each `start` allocates a new
+DB/process/port. Stop or close the NDJSON stream to clean owned resources. On
+Unix, commands receive their own process group, so descendants of a development
+launcher are also stopped. Artifact logs remain for diagnosis.
+
+The existing SDK presets are registered as dedicated version 1 scenarios. They
+mutate baseline records and must be disposed before another scenario begins.
+Existing reset/populate consumers remain compatible inside their dedicated
+database. The full SDK ERP suite fixture migration and throughput benchmark are
+not completed by this pilot. Generic Jobs/ProviderControls and injection of the
+manual clock into production services also remain separate acceptance work.

@@ -66,6 +66,7 @@ func (c *scenarioController) Descriptor() application.ControllerDescriptor {
 		application.Route(http.MethodGet, "/__test__/scenarios", application.Public()),
 		application.Route(http.MethodPost, "/__test__/scenarios/prepare", application.Public()),
 		application.Route(http.MethodDelete, "/__test__/scopes/{scopeId}", application.Public()),
+		application.Route(http.MethodPost, "/__test__/scopes", application.Public()),
 	)
 }
 
@@ -73,4 +74,5 @@ func (c *scenarioController) Register(router *mux.Router) {
 	router.Handle("/__test__/scenarios", c.handler).Methods(http.MethodGet)
 	router.Handle("/__test__/scenarios/prepare", c.handler).Methods(http.MethodPost)
 	router.Handle("/__test__/scopes/{scopeId}", c.handler).Methods(http.MethodDelete)
+	router.Handle("/__test__/scopes", c.handler).Methods(http.MethodPost)
 }

@@ -3,6 +3,7 @@ package testdb
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"strconv"
 	"sync"
@@ -28,12 +29,24 @@ func TestClonePreservesSchemaAndIsolatesDestinations(t *testing.T) {
 	// Falsely green if both destinations use the same connection or only public schema is tested.
 	db := testConfig(t)
 	ctx := context.Background()
+	role := "testenv_reader_" + Name(uuid.NewString())
+	admin, err := sql.Open("postgres", AdminConnectionString(db))
+	require.NoError(t, err)
+	_, err = admin.ExecContext(ctx, fmt.Sprintf(`CREATE ROLE "%s"`, role))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := admin.ExecContext(ctx, fmt.Sprintf(`DROP ROLE "%s"`, role))
+		require.NoError(t, err)
+		require.NoError(t, admin.Close())
+	})
 	base := "testenv_base_" + Name(uuid.NewString())
 	require.NoError(t, Create(ctx, base, db))
 	t.Cleanup(func() { require.NoError(t, Drop(ctx, base, db)) })
 	seed, err := sql.Open("postgres", ConnectionString(base, db))
 	require.NoError(t, err)
 	_, err = seed.ExecContext(ctx, "CREATE SCHEMA scenario; CREATE TABLE scenario.marker(id int primary key, value text); INSERT INTO scenario.marker VALUES(1,'baseline')")
+	require.NoError(t, err)
+	_, err = seed.ExecContext(ctx, fmt.Sprintf(`GRANT USAGE ON SCHEMA scenario TO "%s"; GRANT SELECT ON scenario.marker TO "%s"`, role, role))
 	require.NoError(t, err)
 	require.NoError(t, seed.Close())
 	name := "testenv_clone_" + Name(uuid.NewString())
@@ -68,6 +81,13 @@ func TestClonePreservesSchemaAndIsolatesDestinations(t *testing.T) {
 	var value string
 	require.NoError(t, second.QueryRowContext(ctx, "SELECT value FROM scenario.marker WHERE id=1").Scan(&value))
 	require.Equal(t, "baseline", value)
+	tx, err := second.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, fmt.Sprintf(`SET LOCAL ROLE "%s"`, role))
+	require.NoError(t, err)
+	require.NoError(t, tx.QueryRowContext(ctx, "SELECT value FROM scenario.marker WHERE id=1").Scan(&value))
+	require.Equal(t, "baseline", value)
+	require.NoError(t, tx.Rollback())
 }
 func TestOwnedNamesRejectSystemAndNormalization(t *testing.T) {
 	// Falsely green if malformed names reach PostgreSQL before validation.
