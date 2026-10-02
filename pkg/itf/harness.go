@@ -87,31 +87,6 @@ const (
 // autovacuum.
 const TemplateDBEnv = "ITF_TEMPLATE_DB"
 
-// migrationAdvisoryLockKey serializes migration application across processes.
-// Parallel harnesses (separate test binaries, and t.Parallel within one) each
-// provision their OWN per-test database but share one Postgres server;
-// migrations that touch cluster-global catalog objects (e.g. the ai_readonly
-// ROLE + RLS in changes-1997500670.sql) otherwise race with
-// "tuple concurrently updated (SQLSTATE XX000)".
-//
-// NOTE: Postgres advisory locks are DATABASE-LOCAL (the lock tag includes the
-// current database OID), so a lock taken on a per-test DB would NOT block a
-// sibling harness on a different per-test DB. The lock is therefore taken on
-// the shared "postgres" maintenance database that every harness connects to
-// (see withMigrationAdvisoryLock), which is the only scope in which all
-// parallel harnesses contend on the same key.
-//
-// The value is an arbitrary stable constant, distinct from other advisory-lock
-// keys in the codebase.
-const migrationAdvisoryLockKey int64 = 6_073_120_419_784_512_301
-
-// createDatabaseAdvisoryLockKey serializes DROP + CREATE DATABASE across
-// processes. Two hazards share it: shared-per-package harnesses in sibling test
-// binaries derive the same database name and collide on
-// pg_database_datname_index, and concurrent clones of one template collide on
-// the template itself. Held for a single catalog statement, not a migration run.
-const createDatabaseAdvisoryLockKey int64 = 6_073_120_419_784_512_302
-
 type IsolationMode string
 
 const (

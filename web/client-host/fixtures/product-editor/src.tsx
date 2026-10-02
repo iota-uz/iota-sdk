@@ -29,7 +29,7 @@ function ProductEditor(props: { route: ClientRouteContext<Product> }) {
     }
   }
   return (
-    <div class="editor-shell">
+    <div class="editor-shell" data-component-ready="true">
       <header>
         <div><h1>Pricing configuration</h1><p>Adjust the draft. The server remains the source of saved values.</p></div>
         <span class="status" data-dirty={draft.dirty()}>{draft.dirty() ? 'Unsaved' : 'Saved'}</span>

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -58,17 +59,23 @@ type RunJobWorkerConfig struct {
 	// error event instead of hanging forever. Optional.
 	OnJobTerminalFailure func(ctx context.Context, job RunJobPayload, cause error)
 	Pool                 *pgxpool.Pool
-	Logger               *logrus.Logger
-	Group                string
-	Consumer             string
-	BatchSize            int
-	PollInterval         time.Duration
-	ReadBlock            time.Duration
-	MaxRetries           int
-	RetryBaseDelay       time.Duration
-	RetryMaxDelay        time.Duration
-	PendingIdle          time.Duration
-	JobTimeout           time.Duration
+	// Users hydrates the authenticated actor for tools and checkpoint persistence.
+	// Optional for custom executors that do not use authenticated context;
+	// ServiceContainer.NewRunJobWorker always supplies the tenant-scoped repository.
+	Users interface {
+		GetByID(context.Context, uint) (user.User, error)
+	}
+	Logger         *logrus.Logger
+	Group          string
+	Consumer       string
+	BatchSize      int
+	PollInterval   time.Duration
+	ReadBlock      time.Duration
+	MaxRetries     int
+	RetryBaseDelay time.Duration
+	RetryMaxDelay  time.Duration
+	PendingIdle    time.Duration
+	JobTimeout     time.Duration
 }
 
 // RunJobWorker consumes generation jobs off the bichat:run:jobs stream with
@@ -84,19 +91,22 @@ type RunJobWorker struct {
 	activeRunIndex       ActiveRunIndex
 	onJobTerminalFailure func(ctx context.Context, job RunJobPayload, cause error)
 	pool                 *pgxpool.Pool
-	logger               *logrus.Logger
-	group                string
-	consumer             string
-	batchSize            int
-	pollEvery            time.Duration
-	readBlock            time.Duration
-	maxRetries           int
-	retryBaseDelay       time.Duration
-	retryMaxDelay        time.Duration
-	pendingIdle          time.Duration
-	jobTimeout           time.Duration
-	retrySchedule        string
-	now                  func() time.Time
+	users                interface {
+		GetByID(context.Context, uint) (user.User, error)
+	}
+	logger         *logrus.Logger
+	group          string
+	consumer       string
+	batchSize      int
+	pollEvery      time.Duration
+	readBlock      time.Duration
+	maxRetries     int
+	retryBaseDelay time.Duration
+	retryMaxDelay  time.Duration
+	pendingIdle    time.Duration
+	jobTimeout     time.Duration
+	retrySchedule  string
+	now            func() time.Time
 }
 
 func NewRunJobWorker(cfg RunJobWorkerConfig) (*RunJobWorker, error) {
@@ -171,6 +181,7 @@ func NewRunJobWorker(cfg RunJobWorkerConfig) (*RunJobWorker, error) {
 		activeRunIndex:       cfg.ActiveRunIndex,
 		onJobTerminalFailure: cfg.OnJobTerminalFailure,
 		pool:                 cfg.Pool,
+		users:                cfg.Users,
 		logger:               logger,
 		group:                group,
 		consumer:             consumer,
@@ -246,6 +257,9 @@ func (w *RunJobWorker) consume(ctx context.Context) error {
 
 	for _, stream := range streams {
 		for _, msg := range stream.Messages {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			if procErr := w.processMessage(ctx, msg); procErr != nil {
 				w.logger.WithError(procErr).
 					WithField("message_id", msg.ID).
@@ -274,6 +288,9 @@ func (w *RunJobWorker) reclaimPending(ctx context.Context) error {
 	}
 
 	for _, p := range pending {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		claimed, claimErr := w.queue.client.XClaim(ctx, &redis.XClaimArgs{
 			Stream:   w.queue.stream,
 			Group:    w.group,
@@ -308,7 +325,7 @@ func (w *RunJobWorker) processMessage(ctx context.Context, msg redis.XMessage) e
 		return fmt.Errorf("invalid run job payload: %w", err)
 	}
 
-	jobCtx := context.Background()
+	jobCtx := ctx
 	if w.pool != nil {
 		jobCtx = composables.WithPool(jobCtx, w.pool)
 	}
@@ -327,10 +344,35 @@ func (w *RunJobWorker) processMessage(ctx context.Context, msg redis.XMessage) e
 	// refresh dies with this call; if the worker crashes, idle time grows
 	// again and the job is legitimately reclaimed.
 	refreshStop := make(chan struct{})
-	defer close(refreshStop)
-	go w.refreshOwnership(ctx, msg.ID, refreshStop)
+	refreshDone := make(chan struct{})
+	go func(refreshCtx context.Context) {
+		defer close(refreshDone)
+		w.refreshOwnership(refreshCtx, msg.ID, refreshStop)
+	}(bookkeepingCtx)
+	defer func() { close(refreshStop); <-refreshDone }()
 
-	execErr := w.executor.Execute(jobCtx, payload)
+	var execErr error
+	if w.users != nil {
+		if payload.UserID <= 0 {
+			execErr = fmt.Errorf("run job actor is required")
+		} else {
+			actor, err := w.users.GetByID(jobCtx, uint(payload.UserID))
+			if err != nil {
+				execErr = fmt.Errorf("load run job actor: %w", err)
+			} else if actor == nil || int64(actor.ID()) != payload.UserID || actor.TenantID() != payload.TenantID {
+				execErr = fmt.Errorf("run job actor does not match tenant and user")
+			} else if actor.IsBlocked() {
+				execErr = fmt.Errorf("run job actor is blocked")
+			} else {
+				jobCtx = composables.WithUser(jobCtx, actor)
+			}
+		}
+	}
+	if execErr == nil {
+		execErr = w.executor.Execute(jobCtx, payload)
+	}
+	bookkeepingCtx, cancelBookkeeping := context.WithTimeout(bookkeepingCtx, streamPersistenceTimeout)
+	defer cancelBookkeeping()
 	if execErr == nil {
 		// Execute returning nil means the run reached a terminal state
 		// (completed, cancelled, or failed-with-broadcast — all owned by

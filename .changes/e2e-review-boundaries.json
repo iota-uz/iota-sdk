@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Preserve environment assertion failures during teardown and rehome deduplicated uploads into their configured storage root."}

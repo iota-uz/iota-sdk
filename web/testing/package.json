@@ -1,0 +1,14 @@
+{
+  "name": "@iota-uz/sdk-testing-internal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.1",
+    "typescript": "5.7.2",
+    "@types/node": "22.10.2"
+  }
+}

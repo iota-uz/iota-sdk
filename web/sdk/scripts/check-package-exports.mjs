@@ -6,6 +6,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const packageJSON = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
 const expectedExports = [
   './package.json',
+  './testing',
   './identity',
   './client-host',
   './solid',

@@ -1,7 +1,9 @@
+import { expectComponentReady } from '@iota-uz/sdk/testing'
 import { expect, test } from '@playwright/test'
 
 test('preserves nested input and field errors, then accepts the server save', async ({ page }) => {
   await page.goto('/')
+  await expectComponentReady(page, page.locator('.editor-shell'))
   await page.getByLabel('Factor').fill('')
   await page.getByRole('button', { name: 'Save changes' }).click()
   await expect(page.getByText('Factor must be at least 1')).toBeFocused()
@@ -17,6 +19,7 @@ test('preserves nested input and field errors, then accepts the server save', as
 
 test('cancels save and blocks dirty navigation without losing input', async ({ page }) => {
   await page.goto('/?theme=dark')
+  await expectComponentReady(page, page.locator('.editor-shell'))
   await page.getByLabel('Name').fill('Draft after cancellation')
   await page.getByRole('button', { name: 'Save changes' }).click()
   await page.getByRole('button', { name: 'Cancel save' }).click()
@@ -29,6 +32,7 @@ test('cancels save and blocks dirty navigation without losing input', async ({ p
 test('remains usable in a narrow keyboard-driven viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
+  await expectComponentReady(page, page.locator('.editor-shell'))
   await page.keyboard.press('Tab')
   await expect(page.getByLabel('Name')).toBeFocused()
   await expect(page.getByLabel('Calculated preview')).toBeVisible()

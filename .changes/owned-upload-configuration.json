@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Apply configured upload roots in the canonical core UploadService provider so isolated application uploads are stored and served from the same directory."}

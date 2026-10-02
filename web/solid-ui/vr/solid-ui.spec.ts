@@ -1,3 +1,4 @@
+import { expectComponentReady } from '@iota-uz/sdk/testing'
 import { expect, test, type Page } from '@playwright/test'
 import { SPECIMENS, THEMES, type SpecimenState } from '../src/catalog'
 
@@ -8,7 +9,7 @@ const viewports = {
 
 async function settle(page: Page): Promise<void> {
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  await expect(page.locator('html')).toHaveAttribute('data-gallery-ready', 'true')
+  await expectComponentReady(page, page.locator('html'), { readinessAttribute: 'data-gallery-ready' })
   await page.evaluate(async () => {
     await document.fonts.ready
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
@@ -29,7 +30,7 @@ for (const specimen of SPECIMENS) {
     for (const state of specimen.states) {
       test(`${specimen.id} ${theme} ${state}`, async ({ page }) => {
         const query = new URLSearchParams({ specimen: specimen.id, theme, state })
-        await page.goto(`/?${query.toString()}`, { waitUntil: 'networkidle' })
+        await page.goto(`/?${query.toString()}`, { waitUntil: 'domcontentloaded' })
         await expect(page.locator('main')).toHaveAttribute('data-specimen-id', specimen.id)
         await expect(page.locator('main')).toHaveAttribute('data-theme', theme)
         await prepareState(page, state, specimen.id)
@@ -41,7 +42,7 @@ for (const specimen of SPECIMENS) {
     test(`${specimen.id} ${theme} responsive`, async ({ page }) => {
       await page.setViewportSize(viewports.mobile)
       const query = new URLSearchParams({ specimen: specimen.id, theme, state: 'default' })
-      await page.goto(`/?${query.toString()}`, { waitUntil: 'networkidle' })
+      await page.goto(`/?${query.toString()}`, { waitUntil: 'domcontentloaded' })
       await settle(page)
       await expect(page).toHaveScreenshot(`${specimen.id}-${theme}-default-mobile.png`, { fullPage: true })
     })
@@ -50,7 +51,7 @@ for (const specimen of SPECIMENS) {
 
 test.describe('templ geometry contracts', () => {
   test('forms and display preserve canonical dimensions and styles', async ({ page }) => {
-    await page.goto('/?specimen=form-controls&theme=light&state=default', { waitUntil: 'networkidle' })
+    await page.goto('/?specimen=form-controls&theme=light&state=default', { waitUntil: 'domcontentloaded' })
     await settle(page)
     const input = page.locator('[data-vr-target="form-input"]')
     await expect(input).toHaveCSS('border-radius', '8px')
@@ -59,7 +60,7 @@ test.describe('templ geometry contracts', () => {
     const inputBox = await input.boundingBox()
     expect(inputBox?.height).toBe(41)
 
-    await page.goto('/?specimen=buttons&theme=light&state=default', { waitUntil: 'networkidle' })
+    await page.goto('/?specimen=buttons&theme=light&state=default', { waitUntil: 'domcontentloaded' })
     await settle(page)
     const button = page.locator('[data-vr-target="button-primary"]')
     await expect(button).toHaveCSS('border-radius', '8px')
@@ -68,11 +69,11 @@ test.describe('templ geometry contracts', () => {
     const buttonBox = await button.boundingBox()
     expect(buttonBox?.height).toBe(42)
 
-    await page.goto('/?specimen=display&theme=light&state=default', { waitUntil: 'networkidle' })
+    await page.goto('/?specimen=display&theme=light&state=default', { waitUntil: 'domcontentloaded' })
     await settle(page)
     await expect(page.locator('[data-vr-target="display-card"]')).toHaveCSS('border-radius', '8px')
 
-    await page.goto('/?specimen=advanced-forms&theme=light&state=checked', { waitUntil: 'networkidle' })
+    await page.goto('/?specimen=advanced-forms&theme=light&state=checked', { waitUntil: 'domcontentloaded' })
     await settle(page)
     const switchControl = page.getByRole('switch', { name: 'Automatic renewal' })
     await expect(switchControl).toBeChecked()
@@ -85,24 +86,24 @@ test.describe('templ geometry contracts', () => {
 
 test.describe('interaction and accessibility contracts', () => {
   test('open controls expose canonical roles and state', async ({ page }) => {
-    await page.goto('/?specimen=navigation&theme=light&state=open', { waitUntil: 'networkidle' })
+    await page.goto('/?specimen=navigation&theme=light&state=open', { waitUntil: 'domcontentloaded' })
     await settle(page)
     await expect(page.locator('summary[aria-label="Product actions"]')).toHaveAttribute('aria-expanded', 'true')
     await expect(page.getByRole('menu')).toBeVisible()
 
-    await page.goto('/?specimen=dialog&theme=light&state=open', { waitUntil: 'networkidle' })
+    await page.goto('/?specimen=dialog&theme=light&state=open', { waitUntil: 'domcontentloaded' })
     await settle(page)
     await expect(page.getByRole('dialog')).toHaveAttribute('aria-modal', 'true')
     await expect(page.getByRole('heading', { name: 'Delete insurance product?' })).toBeVisible()
 
-    await page.goto('/?specimen=toasts&theme=light&state=open', { waitUntil: 'networkidle' })
+    await page.goto('/?specimen=toasts&theme=light&state=open', { waitUntil: 'domcontentloaded' })
     await settle(page)
     await expect(page.getByRole('status')).toHaveCount(1)
     await expect(page.getByRole('alert')).toHaveCount(2)
   })
 
   test('selection controls expose combobox, listbox, and calendar semantics', async ({ page }) => {
-    await page.goto('/?specimen=selection&theme=light&state=default', { waitUntil: 'networkidle' })
+    await page.goto('/?specimen=selection&theme=light&state=default', { waitUntil: 'domcontentloaded' })
     await settle(page)
     const comboboxes = page.getByRole('combobox')
     await expect(comboboxes).toHaveCount(5)
@@ -123,12 +124,12 @@ test.describe('interaction and accessibility contracts', () => {
   })
 
   test('data and scaffold states expose selection, sorting, and menus', async ({ page }) => {
-    await page.goto('/?specimen=data&theme=light&state=selected', { waitUntil: 'networkidle' })
+    await page.goto('/?specimen=data&theme=light&state=selected', { waitUntil: 'domcontentloaded' })
     await settle(page)
     await expect(page.locator('tbody tr').first()).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByRole('columnheader', { name: /Product/ })).toHaveAttribute('aria-sort', 'ascending')
 
-    await page.goto('/?specimen=scaffold&theme=light&state=open', { waitUntil: 'networkidle' })
+    await page.goto('/?specimen=scaffold&theme=light&state=open', { waitUntil: 'domcontentloaded' })
     await settle(page)
     await expect(page.locator('summary[aria-label="More actions"]')).toHaveAttribute('aria-expanded', 'true')
     await expect(page.getByRole('menu')).toBeVisible()
