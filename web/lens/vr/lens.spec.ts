@@ -382,11 +382,6 @@ async function openStory(page: Page, storyId: string, canvasCount: number): Prom
   await waitForCharts(page)
   await expectFontsReady(page)
   await page.evaluate(async () => {
-    // Settle finite menu/drawer transforms before the paint frames. Finishing
-    // them only inside screenshot can retain a scaled focus-ring raster.
-    document.getAnimations().forEach(animation => {
-      if (Number.isFinite(animation.effect?.getComputedTiming().endTime ?? Number.POSITIVE_INFINITY)) animation.finish()
-    })
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
   })
   await expect(page.locator('html')).toHaveAttribute('data-lens-vr', 'true')

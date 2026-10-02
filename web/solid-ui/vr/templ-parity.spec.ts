@@ -250,11 +250,11 @@ async function compareFixture(browser: Browser, fixture: ThemedFixture, testInfo
   await Promise.all([ready(solid, 'gallery'), ready(templ, 'fixture')])
   const solidTarget = solid.locator(fixture.solidTarget)
   const templTarget = templ.locator(fixture.templTarget)
-  // Finish the actual state transitions before measuring alignment: finishing
-  // a drawer slide after its DOMRect is captured changes the compared position.
+  // A drawer slide belongs to its dialog ancestor, not the selected panel.
+  // Finish it before measuring alignment; pointer states are applied afterward.
   await Promise.all([
-    applyState(fixture.solidStateTarget ? solid.locator(fixture.solidStateTarget) : solidTarget, fixture.state),
-    applyState(fixture.templStateTarget ? templ.locator(fixture.templStateTarget) : templTarget, fixture.state),
+    applyState(solidTarget, 'default'),
+    applyState(templTarget, 'default'),
   ])
   if (['badge', 'avatar', 'tabs', 'pagination', 'copy-button'].includes(fixture.specimen)) {
     await templ.locator('.fixture').evaluate((element) => { element.style.width = 'max-content' })
@@ -285,6 +285,10 @@ async function compareFixture(browser: Browser, fixture: ThemedFixture, testInfo
       }, { x: solidBox.x - templBox.x, y: solidBox.y - templBox.y })
     }
   }
+  await Promise.all([
+    applyState(fixture.solidStateTarget ? solid.locator(fixture.solidStateTarget) : solidTarget, fixture.state),
+    applyState(fixture.templStateTarget ? templ.locator(fixture.templStateTarget) : templTarget, fixture.state),
+  ])
   const [solidContract, templContract] = await Promise.all([
     computed(solidTarget, fixture.properties),
     computed(templTarget, fixture.properties),
