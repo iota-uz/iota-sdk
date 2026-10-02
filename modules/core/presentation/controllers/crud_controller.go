@@ -2409,8 +2409,6 @@ func (c *CrudController[TEntity]) handleValidationError(w http.ResponseWriter, r
 		return false
 	}
 
-	serrorlog.Log(ctx, serrors.Wrap("CrudController.handleValidationError", serrors.NewInvalid("form validation failed")), "Validation errors")
-
 	// Re-render the form with validation errors
 	if isCreate {
 		c.renderCreateFormWithErrors(w, r, ctx, fieldValues, fieldErrors)
