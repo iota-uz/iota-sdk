@@ -384,11 +384,11 @@ func (c *CrudController[TEntity]) validateID(id string) error {
 	switch c.primaryKeyField.Type() {
 	case crud.IntFieldType:
 		if _, err := strconv.ParseInt(id, 10, 64); err != nil {
-			return fmt.Errorf("invalid integer ID: %s", id)
+			return serrors.NewInvalid("invalid integer ID").WithCause(err).WithOp("CrudController.validateID")
 		}
 	case crud.UUIDFieldType:
 		if _, err := uuid.Parse(id); err != nil {
-			return fmt.Errorf("invalid UUID: %s", id)
+			return serrors.NewInvalid("invalid UUID").WithCause(err).WithOp("CrudController.validateID")
 		}
 	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType, crud.EntityFieldType:
 		// These types don't need special validation for ID format
@@ -426,7 +426,7 @@ func (c *CrudController[TEntity]) parseIDValue(id string) any {
 // buildFieldValuesFromForm creates field values from form data
 func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]crud.FieldValue, error) {
 	if err := r.ParseForm(); err != nil {
-		return nil, fmt.Errorf("failed to parse form: %w", err)
+		return nil, serrors.NewInvalid("failed to parse form").WithCause(err).WithOp("CrudController.parseForm")
 	}
 
 	fieldValues := make([]crud.FieldValue, 0)
@@ -461,7 +461,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 							value = int64Val
 						}
 					} else {
-						return nil, fmt.Errorf("invalid integer value for select field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid integer value for select field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 				} else {
 					continue // Skip empty values
@@ -473,7 +473,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					if floatVal, err := strconv.ParseFloat(formValue, 64); err == nil {
 						value = floatVal
 					} else {
-						return nil, fmt.Errorf("invalid float value for select field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid float value for select field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 				} else {
 					continue
@@ -483,7 +483,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					if uuidVal, err := uuid.Parse(formValue); err == nil {
 						value = uuidVal
 					} else {
-						return nil, fmt.Errorf("invalid UUID value for select field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid UUID value for select field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 				} else {
 					continue // Skip empty values
@@ -506,7 +506,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 							value = int64Val
 						}
 					} else {
-						return nil, fmt.Errorf("invalid integer value for field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid integer value for field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 				} else {
 					continue // Skip empty values
@@ -516,7 +516,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					if floatVal, err := strconv.ParseFloat(formValue, 64); err == nil {
 						value = floatVal
 					} else {
-						return nil, fmt.Errorf("invalid float value for field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid float value for field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 				} else {
 					continue // Skip empty values
@@ -550,7 +550,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					if err == nil {
 						value = parsedTime
 					} else {
-						return nil, fmt.Errorf("invalid time value for field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid time value for field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 				} else {
 					continue // Skip empty values
@@ -560,7 +560,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					if uid, err := uuid.Parse(formValue); err == nil {
 						value = uid
 					} else {
-						return nil, fmt.Errorf("invalid UUID value for field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid UUID value for field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 				} else {
 					continue // Skip empty values
@@ -577,7 +577,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					// Validate JSON format
 					var jsonTest interface{}
 					if err := json.Unmarshal([]byte(formValue), &jsonTest); err != nil {
-						return nil, fmt.Errorf("invalid JSON format for field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid JSON format for field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 					value = formValue
 				} else {
@@ -633,7 +633,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		Offset: paginationParams.Offset,
 	}, r)
 	if err != nil {
-		log.Printf("[CrudController.List] Failed to parse query params: %v", err)
+		serrorlog.Log(ctx, serrors.NewInvalid("request parsing failed").WithCause(err).WithOp("CrudController.List"), "Failed to parse query params")
 		errorMsg, _ := c.localize(ctx, "Errors.InvalidQueryParams", "Invalid query parameters")
 		http.Error(w, errorMsg, http.StatusBadRequest)
 		return
@@ -1201,7 +1201,7 @@ func (c *CrudController[TEntity]) GetEdit(w http.ResponseWriter, r *http.Request
 
 	// Validate ID format
 	if err := c.validateID(id); err != nil {
-		log.Printf("[CrudController.GetEdit] Invalid ID format %s: %v", id, err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.GetEdit", err), "Invalid ID format")
 		errorMsg, _ := c.localize(ctx, errInvalidFormData, "Invalid ID format")
 		http.Error(w, errorMsg, http.StatusBadRequest)
 		return
@@ -1268,7 +1268,7 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 	// Build field values from form
 	fieldValues, err := c.buildFieldValuesFromForm(r)
 	if err != nil {
-		log.Printf("[CrudController.Create] Failed to parse form: %v", err)
+		serrorlog.Log(ctx, serrors.NewInvalid("request parsing failed").WithCause(err).WithOp("CrudController.Create"), "Failed to parse form")
 		errorMsg, _ := c.localize(ctx, errInvalidFormData, "Invalid form data")
 		http.Error(w, errorMsg, http.StatusBadRequest)
 		return
@@ -1347,7 +1347,7 @@ func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request)
 
 	// Validate ID format
 	if err := c.validateID(id); err != nil {
-		log.Printf("[CrudController.Update] Invalid ID format %s: %v", id, err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.Update", err), "Invalid ID format")
 		errorMsg, _ := c.localize(ctx, errInvalidFormData, "Invalid ID format")
 		http.Error(w, errorMsg, http.StatusBadRequest)
 		return
@@ -1356,7 +1356,7 @@ func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request)
 	// Build field values from form
 	fieldValues, err := c.buildFieldValuesFromForm(r)
 	if err != nil {
-		log.Printf("[CrudController.Update] Failed to parse form: %v", err)
+		serrorlog.Log(ctx, serrors.NewInvalid("request parsing failed").WithCause(err).WithOp("CrudController.Update"), "Failed to parse form")
 		errorMsg, _ := c.localize(ctx, errInvalidFormData, "Invalid form data")
 		http.Error(w, errorMsg, http.StatusBadRequest)
 		return
@@ -1460,7 +1460,7 @@ func (c *CrudController[TEntity]) Delete(w http.ResponseWriter, r *http.Request)
 
 	// Validate ID format
 	if err := c.validateID(id); err != nil {
-		log.Printf("[CrudController.Delete] Invalid ID format %s: %v", id, err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.Delete", err), "Invalid ID format")
 		errorMsg, _ := c.localize(ctx, errInvalidFormData, "Invalid ID format")
 		http.Error(w, errorMsg, http.StatusBadRequest)
 		return
