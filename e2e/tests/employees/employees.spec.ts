@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { login, logout } from '../../fixtures/auth';
 import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
+import { withDatabase } from '../../fixtures/database';
 
 async function createEmployee(
 	page: Page,
@@ -30,6 +31,10 @@ test.describe('employees CRUD operations', () => {
 		// Reset database and seed with comprehensive data for employee management
 		await resetTestDatabase(request, { reseedMinimal: false });
 		await seedScenario(request, 'comprehensive');
+		// The reset truncates currencies, and HRM stores every salary in USD.
+		await withDatabase(db =>
+			db.query(`INSERT INTO currencies (code, name, symbol) VALUES ('USD', 'US Dollar', '$') ON CONFLICT (code) DO NOTHING`)
+		);
 	});
 
 	test.beforeEach(async ({ page }) => {
