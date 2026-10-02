@@ -106,6 +106,7 @@ func WriteForm(w http.ResponseWriter, r *http.Request, err error, l *i18n.Locali
 }
 
 // WriteText retains plain-text responses and classifies semantic errors.
+// Callers supply an error status; Internal preserves it, other codes use Status.
 func WriteText(w http.ResponseWriter, err error, status int, l *i18n.Localizer) {
 	if serrors.CodeOf(err) != serrors.Internal {
 		status = Status(err)

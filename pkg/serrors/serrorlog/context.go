@@ -9,6 +9,7 @@ import (
 )
 
 // Log emits bounded error attributes through the request logger when present.
+// It excludes inherited entry fields except the bounded request ID.
 func Log(ctx context.Context, err error, event string) {
 	entry, ok := ctx.Value(constants.LoggerKey).(*logrus.Entry)
 	if !ok || entry == nil || entry.Logger == nil {
