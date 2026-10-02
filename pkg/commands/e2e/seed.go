@@ -38,7 +38,6 @@ func SeedRaw(cfg *dbconfig.Config, logger *logrus.Logger) error {
 
 // SeedPool seeds an explicitly owned database without changing process environment.
 func SeedPool(ctx context.Context, pool *pgxpool.Pool, logger *logrus.Logger) error {
-
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)

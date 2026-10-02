@@ -467,7 +467,7 @@ applet cmd="help" name="":
     check) applet check ;; \
     rpc-gen) applet rpc gen --name "{{name}}" ;; \
     rpc-check) applet rpc check --name "{{name}}" ;; \
-    deps-check) applet deps check ;; \
+    deps-check) node --test scripts/check-applet-dependencies.test.mjs && node scripts/check-applet-dependencies.mjs ;; \
     *) \
       echo "Usage: just applet [dev <name>|list|build <name>|check|rpc-gen <name>|rpc-check <name>|deps-check]" ; \
       exit 2 ;; \
