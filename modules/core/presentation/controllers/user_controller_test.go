@@ -136,7 +136,7 @@ func TestUsersController_Delete_Permissions(t *testing.T) {
 		{
 			name:           "With_Delete_Permission",
 			permissions:    []permission.Permission{permissions.UserDelete, permissions.UserRead},
-			expectedStatus: 404,                                    // The user does not exist after authorization passes
+			expectedStatus: 404,                                // The user does not exist after authorization passes
 			expectedBody:   "The requested item was not found", // Different error message indicates authorization passed
 		},
 	}
