@@ -148,7 +148,7 @@ func TestPostgresChatRepository_GetSession_NotFound(t *testing.T) {
 	nonExistentID := uuid.New()
 	_, err := repo.GetSession(env.Ctx, nonExistentID)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
+	require.ErrorIs(t, err, persistence.ErrSessionNotFound)
 	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 	require.ErrorIs(t, err, pgx.ErrNoRows)
 }
@@ -202,7 +202,7 @@ func TestPostgresChatRepository_UpdateSession_NotFound(t *testing.T) {
 
 	err := repo.UpdateSession(env.Ctx, session)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
+	require.ErrorIs(t, err, persistence.ErrSessionNotFound)
 	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 }
 
@@ -402,7 +402,7 @@ func TestPostgresChatRepository_DeleteSession(t *testing.T) {
 	// Verify deletion
 	_, err = repo.GetSession(env.Ctx, session.ID())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
+	require.ErrorIs(t, err, persistence.ErrSessionNotFound)
 	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 }
 
@@ -459,7 +459,7 @@ func TestPostgresChatRepository_DeleteSession_NotFound(t *testing.T) {
 	// Try to delete non-existent session
 	err := repo.DeleteSession(env.Ctx, uuid.New())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
+	require.ErrorIs(t, err, persistence.ErrSessionNotFound)
 	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 }
 
@@ -889,7 +889,7 @@ func TestPostgresChatRepository_GetMessage_NotFound(t *testing.T) {
 	// Try to get non-existent message
 	_, err := repo.GetMessage(env.Ctx, uuid.New())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrMessageNotFound)
+	require.ErrorIs(t, err, persistence.ErrMessageNotFound)
 	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 	require.ErrorIs(t, err, pgx.ErrNoRows)
 }
@@ -1192,7 +1192,7 @@ func TestPostgresChatRepository_GetPendingQuestionMessage_NoPending(t *testing.T
 
 	_, err := repo.GetPendingQuestionMessage(env.Ctx, session.ID())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, domain.ErrNoPendingQuestion)
+	require.ErrorIs(t, err, domain.ErrNoPendingQuestion)
 }
 
 // Attachment Operations Tests
@@ -1328,7 +1328,7 @@ func TestPostgresChatRepository_GetAttachment_NotFound(t *testing.T) {
 	// Try to get non-existent attachment
 	_, err := repo.GetAttachment(env.Ctx, uuid.New())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrAttachmentNotFound)
+	require.ErrorIs(t, err, persistence.ErrAttachmentNotFound)
 	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 	require.ErrorIs(t, err, pgx.ErrNoRows)
 }
@@ -1470,7 +1470,7 @@ func TestPostgresChatRepository_DeleteAttachment(t *testing.T) {
 	// Verify deletion
 	_, err = repo.GetAttachment(env.Ctx, attachment.ID())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrAttachmentNotFound)
+	require.ErrorIs(t, err, persistence.ErrAttachmentNotFound)
 	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 }
 
@@ -1483,7 +1483,7 @@ func TestPostgresChatRepository_DeleteAttachment_NotFound(t *testing.T) {
 	// Try to delete non-existent attachment
 	err := repo.DeleteAttachment(env.Ctx, uuid.New())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrAttachmentNotFound)
+	require.ErrorIs(t, err, persistence.ErrAttachmentNotFound)
 	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 }
 
@@ -2025,7 +2025,7 @@ func TestPostgresChatRepository_InvalidTenantContext(t *testing.T) {
 
 	_, err = repo.GetSession(envOther.Ctx, session.ID())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrSessionNotFound,
+	require.ErrorIs(t, err, persistence.ErrSessionNotFound,
 		"Session should not be accessible from different tenant context")
 }
 
