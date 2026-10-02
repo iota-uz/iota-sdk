@@ -15,6 +15,8 @@ import (
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/jackc/pgx/v5"
 )
 
 func mustCreateUploadForAttachment(
@@ -135,6 +137,7 @@ func TestPostgresChatRepository_GetSession(t *testing.T) {
 	assert.Equal(t, int64(env.User.ID()), retrieved.UserID())
 }
 
+// Falsely green if only sentinel identity survives: a real missing session must stay NotFound and retain the driver cause.
 func TestPostgresChatRepository_GetSession_NotFound(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)
@@ -146,6 +149,8 @@ func TestPostgresChatRepository_GetSession_NotFound(t *testing.T) {
 	_, err := repo.GetSession(env.Ctx, nonExistentID)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
+	require.ErrorIs(t, err, pgx.ErrNoRows)
 }
 
 func TestPostgresChatRepository_UpdateSession(t *testing.T) {
@@ -198,6 +203,7 @@ func TestPostgresChatRepository_UpdateSession_NotFound(t *testing.T) {
 	err := repo.UpdateSession(env.Ctx, session)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 }
 
 func TestPostgresChatRepository_UpdateSessionTitleIfEmpty(t *testing.T) {
@@ -397,6 +403,7 @@ func TestPostgresChatRepository_DeleteSession(t *testing.T) {
 	_, err = repo.GetSession(env.Ctx, session.ID())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 }
 
 func TestPostgresChatRepository_DeleteSession_CascadeToMessages(t *testing.T) {
@@ -435,10 +442,12 @@ func TestPostgresChatRepository_DeleteSession_CascadeToMessages(t *testing.T) {
 	_, err = repo.GetMessage(env.Ctx, msg1.ID())
 	require.Error(t, err)
 	require.ErrorIs(t, err, persistence.ErrMessageNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 
 	_, err = repo.GetMessage(env.Ctx, msg2.ID())
 	require.Error(t, err)
 	require.ErrorIs(t, err, persistence.ErrMessageNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 }
 
 func TestPostgresChatRepository_DeleteSession_NotFound(t *testing.T) {
@@ -451,6 +460,7 @@ func TestPostgresChatRepository_DeleteSession_NotFound(t *testing.T) {
 	err := repo.DeleteSession(env.Ctx, uuid.New())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 }
 
 // Message Operations Tests
@@ -880,6 +890,8 @@ func TestPostgresChatRepository_GetMessage_NotFound(t *testing.T) {
 	_, err := repo.GetMessage(env.Ctx, uuid.New())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, persistence.ErrMessageNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
+	require.ErrorIs(t, err, pgx.ErrNoRows)
 }
 
 func TestPostgresChatRepository_GetSessionMessages(t *testing.T) {
@@ -1317,6 +1329,8 @@ func TestPostgresChatRepository_GetAttachment_NotFound(t *testing.T) {
 	_, err := repo.GetAttachment(env.Ctx, uuid.New())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, persistence.ErrAttachmentNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
+	require.ErrorIs(t, err, pgx.ErrNoRows)
 }
 
 func TestPostgresChatRepository_GetMessageAttachments(t *testing.T) {
@@ -1457,6 +1471,7 @@ func TestPostgresChatRepository_DeleteAttachment(t *testing.T) {
 	_, err = repo.GetAttachment(env.Ctx, attachment.ID())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, persistence.ErrAttachmentNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 }
 
 func TestPostgresChatRepository_DeleteAttachment_NotFound(t *testing.T) {
@@ -1469,6 +1484,7 @@ func TestPostgresChatRepository_DeleteAttachment_NotFound(t *testing.T) {
 	err := repo.DeleteAttachment(env.Ctx, uuid.New())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, persistence.ErrAttachmentNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 }
 
 // Multi-Tenant Isolation Tests
@@ -1494,6 +1510,7 @@ func TestPostgresChatRepository_TenantIsolation_Sessions(t *testing.T) {
 	_, err = repo.GetSession(envB.Ctx, sessionA.ID())
 	require.Error(t, err)
 	require.ErrorIs(t, err, persistence.ErrSessionNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 
 	// Verify Tenant A can still access their session
 	retrieved, err := repo.GetSession(envA.Ctx, sessionA.ID())
@@ -2010,4 +2027,14 @@ func TestPostgresChatRepository_InvalidTenantContext(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, persistence.ErrSessionNotFound,
 		"Session should not be accessible from different tenant context")
+}
+
+// Falsely green if a missing tenant user loses either its repository identity or the original driver cause.
+func TestPostgresChatRepository_GetTenantUser_NotFound(t *testing.T) {
+	env := setupTest(t)
+	repo := persistence.NewPostgresChatRepository().(*persistence.PostgresChatRepository)
+	_, err := repo.GetTenantUser(env.Ctx, 1<<62)
+	require.ErrorIs(t, err, persistence.ErrTenantUserNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
+	require.ErrorIs(t, err, pgx.ErrNoRows)
 }

@@ -53,7 +53,7 @@ const (
 	`
 )
 
-var ErrArtifactNotFound = errors.New("artifact not found")
+var ErrArtifactNotFound = serrors.NewNotFound("artifact not found")
 
 // SaveArtifact persists an artifact with tenant isolation.
 func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact domain.Artifact) error {
@@ -167,7 +167,7 @@ func (r *PostgresChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) 
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, serrors.FromDB(op, ErrArtifactNotFound)
+			return nil, serrors.Wrap(op, errors.Join(ErrArtifactNotFound, err))
 		}
 		return nil, serrors.FromDB(op, err)
 	}
@@ -254,7 +254,7 @@ func (r *PostgresChatRepository) GetSessionArtifacts(ctx context.Context, sessio
 		artifacts = append(artifacts, a)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return artifacts, nil

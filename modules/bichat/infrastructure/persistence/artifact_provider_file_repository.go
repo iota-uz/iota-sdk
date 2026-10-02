@@ -33,7 +33,7 @@ const (
 	`
 )
 
-var ErrArtifactProviderFileNotFound = errors.New("artifact provider file mapping not found")
+var ErrArtifactProviderFileNotFound = serrors.NewNotFound("artifact provider file mapping not found")
 
 // GetArtifactProviderFile returns the provider file mapping for an artifact.
 func (r *PostgresChatRepository) GetArtifactProviderFile(
@@ -68,7 +68,7 @@ func (r *PostgresChatRepository) GetArtifactProviderFile(
 		Scan(&providerFileID, &sourceURL, &sourceSizeBytes)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", "", 0, serrors.FromDB(op, ErrArtifactProviderFileNotFound)
+			return "", "", 0, serrors.Wrap(op, errors.Join(ErrArtifactProviderFileNotFound, err))
 		}
 		return "", "", 0, serrors.FromDB(op, err)
 	}

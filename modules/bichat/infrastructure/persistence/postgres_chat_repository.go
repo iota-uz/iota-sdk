@@ -354,10 +354,10 @@ const (
 )
 
 var (
-	ErrSessionNotFound    = errors.New("session not found")
-	ErrMessageNotFound    = errors.New("message not found")
-	ErrAttachmentNotFound = errors.New("attachment not found")
-	ErrTenantUserNotFound = errors.New("tenant user not found")
+	ErrSessionNotFound    = serrors.NewNotFound("session not found")
+	ErrMessageNotFound    = serrors.NewNotFound("message not found")
+	ErrAttachmentNotFound = serrors.NewNotFound("attachment not found")
+	ErrTenantUserNotFound = serrors.NewNotFound("tenant user not found")
 )
 
 // ChatRepoOption configures PostgresChatRepository.
@@ -460,7 +460,7 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, serrors.FromDB(op, ErrSessionNotFound)
+			return nil, serrors.Wrap(op, errors.Join(ErrSessionNotFound, err))
 		}
 		return nil, serrors.FromDB(op, err)
 	}
@@ -607,7 +607,7 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return sessions, nil
@@ -663,7 +663,7 @@ func (r *PostgresChatRepository) ListAccessibleSessionSummaries(ctx context.Cont
 		out = append(out, summary)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return out, nil
 }
@@ -716,7 +716,7 @@ func (r *PostgresChatRepository) ListAllSessionSummaries(ctx context.Context, re
 		out = append(out, summary)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return out, nil
 }
@@ -760,7 +760,7 @@ func (r *PostgresChatRepository) ResolveSessionAccess(ctx context.Context, sessi
 	)
 	if err := tx.QueryRow(ctx, resolveSessionAccessQuery, tenantID, sessionID, userID).Scan(&ownerID, &memberRole); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return domain.SessionAccess{}, serrors.FromDB(op, ErrSessionNotFound)
+			return domain.SessionAccess{}, serrors.Wrap(op, errors.Join(ErrSessionNotFound, err))
 		}
 		return domain.SessionAccess{}, serrors.FromDB(op, err)
 	}
@@ -851,7 +851,7 @@ func (r *PostgresChatRepository) ListSessionMembers(ctx context.Context, session
 		out = append(out, member)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return out, nil
 }
@@ -932,7 +932,7 @@ func (r *PostgresChatRepository) CountSessionParticipants(ctx context.Context, s
 	var count int
 	if err := tx.QueryRow(ctx, countSessionParticipantsQuery, tenantID, sessionID).Scan(&count); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, serrors.FromDB(op, ErrSessionNotFound)
+			return 0, serrors.Wrap(op, errors.Join(ErrSessionNotFound, err))
 		}
 		return 0, serrors.FromDB(op, err)
 	}
@@ -973,7 +973,7 @@ func (r *PostgresChatRepository) ListTenantUsers(ctx context.Context) ([]domain.
 		out = append(out, u)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return out, nil
 }
@@ -994,7 +994,7 @@ func (r *PostgresChatRepository) GetTenantUser(ctx context.Context, userID int64
 	var user domain.SessionUser
 	if err := tx.QueryRow(ctx, getTenantUserQuery, tenantID, userID).Scan(&user.ID, &user.FirstName, &user.LastName); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return domain.SessionUser{}, serrors.FromDB(op, ErrTenantUserNotFound)
+			return domain.SessionUser{}, serrors.Wrap(op, errors.Join(ErrTenantUserNotFound, err))
 		}
 		return domain.SessionUser{}, serrors.FromDB(op, err)
 	}
@@ -1058,7 +1058,7 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 		var ownerUserID int64
 		if err := tx.QueryRow(ctx, selectSessionOwnerUserIDQuery, tenantID, model.SessionID).Scan(&ownerUserID); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				return serrors.FromDB(op, ErrSessionNotFound)
+				return serrors.Wrap(op, errors.Join(ErrSessionNotFound, err))
 			}
 			return serrors.FromDB(op, err)
 		}
@@ -1133,7 +1133,7 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 	model, err := scanMessageModel(tx.QueryRow(ctx, buildSelectMessageQuery(), tenantID, id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, serrors.FromDB(op, ErrMessageNotFound)
+			return nil, serrors.Wrap(op, errors.Join(ErrMessageNotFound, err))
 		}
 		return nil, serrors.FromDB(op, err)
 	}
@@ -1195,7 +1195,7 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	// Second pass: load code outputs for each message (rows are now closed)
@@ -1308,7 +1308,7 @@ func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment 
 	var sessionID uuid.UUID
 	if err := tx.QueryRow(ctx, selectMessageSessionQuery, tenantID, attachment.MessageID()).Scan(&sessionID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return serrors.FromDB(op, ErrMessageNotFound)
+			return serrors.Wrap(op, errors.Join(ErrMessageNotFound, err))
 		}
 		return serrors.FromDB(op, err)
 	}
@@ -1379,7 +1379,7 @@ func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, serrors.FromDB(op, ErrAttachmentNotFound)
+			return nil, serrors.Wrap(op, errors.Join(ErrAttachmentNotFound, err))
 		}
 		return nil, serrors.FromDB(op, err)
 	}
@@ -1467,7 +1467,7 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return attachments, nil
@@ -1790,7 +1790,7 @@ func (r *PostgresChatRepository) loadCodeOutputsForMessage(ctx context.Context, 
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.Wrap(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return outputs, nil
