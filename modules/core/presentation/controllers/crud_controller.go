@@ -2362,14 +2362,15 @@ func (c *CrudController[TEntity]) fieldValueToTableCell(ctx context.Context, fie
 }
 
 // validateFieldValues validates field values against their field rules
-func (c *CrudController[TEntity]) validateFieldValues(fieldValues []crud.FieldValue) map[string]string {
+func (c *CrudController[TEntity]) validateFieldValues(ctx context.Context, fieldValues []crud.FieldValue) map[string]string {
 	errors := make(map[string]string)
 
 	for _, fv := range fieldValues {
 		field := fv.Field()
 		for _, rule := range field.Rules() {
 			if err := rule(fv); err != nil {
-				errors[field.Name()] = serrors.Public(serrors.NewInvalid("").WithCause(err), nil).Message
+				l, _ := intl.UseLocalizer(ctx)
+				errors[field.Name()] = serrors.Public(serrors.NewInvalid("").WithCause(err), l).Message
 				break // Only report first error per field
 			}
 		}
@@ -2391,7 +2392,7 @@ func (c *CrudController[TEntity]) validateEntity(ctx context.Context, entity TEn
 // handleValidationError handles validation errors by re-rendering the form with errors
 func (c *CrudController[TEntity]) handleValidationError(w http.ResponseWriter, r *http.Request, ctx context.Context, err error, fieldValues []crud.FieldValue, isCreate bool) bool {
 	// First, validate field values against their rules
-	fieldErrors := c.validateFieldValues(fieldValues)
+	fieldErrors := c.validateFieldValues(ctx, fieldValues)
 
 	// If no field errors but we have an entity validation error, add it as a general error
 	if len(fieldErrors) == 0 && err != nil {

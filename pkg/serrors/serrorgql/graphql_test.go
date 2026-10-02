@@ -105,7 +105,10 @@ func TestPresenterExplicitCarrierAndInternalOverride(t *testing.T) {
 		err   error
 		code  string
 		owner bool
-	}{{serrors.Wrap("lookup", carrier), "VEHICLE_OWNER_INN_REQUIRED", true}, {serrors.NewInternal("private failure").WithCause(carrier), "internal", false}} {
+	}{{serrors.Wrap("lookup", carrier), "VEHICLE_OWNER_INN_REQUIRED", true}, {serrors.NewInternal("private failure").WithCause(carrier), "internal", false},
+		{errors.Join(serrors.NewInternal("first"), carrier), "internal", false},
+		{errors.Join(context.Canceled, carrier), "canceled", false},
+		{errors.Join(errors.New("unknown"), carrier), "VEHICLE_OWNER_INN_REQUIRED", true}} {
 		p := serrorgql.Presenter(nil)(context.Background(), tc.err)
 		require.Equal(t, tc.code, p.Extensions["code"])
 		require.NotContains(t, p.Message, "private")
