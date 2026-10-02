@@ -634,7 +634,10 @@ func (s *PopulateService) ensureAdminRole(
 		Limit: 1,
 	})
 
-	if err == nil && len(roles) > 0 {
+	if err != nil {
+		return nil, fmt.Errorf("failed to find Admin role: %w", err)
+	}
+	if len(roles) > 0 {
 		logger.Debug("Admin role already exists")
 		return roles[0], nil
 	}
@@ -646,8 +649,7 @@ func (s *PopulateService) ensureAdminRole(
 	allPermissions := defaults.AllPermissions()
 	for _, perm := range allPermissions {
 		if err := permissionRepo.Save(ctx, perm); err != nil {
-			// Ignore duplicate errors as permissions might already exist
-			logger.WithField("permission", perm.Name).Debug("Permission already exists or failed to save")
+			return nil, fmt.Errorf("failed to seed permission %s: %w", perm.Name(), err)
 		}
 	}
 
