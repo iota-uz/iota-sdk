@@ -94,10 +94,10 @@ func WriteForm(w http.ResponseWriter, r *http.Request, err error, l *i18n.Locali
 		status = http.StatusOK
 	}
 	if form.Target != "" {
-		w.Header().Set("Hx-Retarget", form.Target)
+		htmx.Retarget(w, form.Target)
 	}
 	if form.Swap != "" {
-		w.Header().Set("Hx-Reswap", form.Swap)
+		htmx.Reswap(w, form.Swap)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
