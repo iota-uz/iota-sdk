@@ -32,14 +32,15 @@ a new invocation when testing a subsequent sweep. A completion counter or an
 unrelated scheduled success does not establish that your requested sweep ran.
 
 Retries and metrics run inside the owned invocation. `MaxRetries` remains the
-total attempt count; non-positive counts and invalid timeouts are rejected with
-`invalid_task_config`, rather than reporting success without execution. The
+total attempt count for positive values. Zero runs one initial attempt without
+retries; negative counts and invalid timeouts return `invalid_task_config`,
+rather than reporting success without execution. The
 configured timeout is the invocation's context deadline, including retry waits.
 An execution that ignores cancellation stays `running` and holds its reservation
 until `Execute` exits. Cancelling `WaitRun` cancels only the wait. `Stop(ctx)`
 cancels and joins scheduled, startup, and manual executions; if its context
 expires, it returns that error and retains ownership of executions still alive.
 
-`RunError.Code` values are `busy`, `task_not_found`, `run_not_found`,
+`RunError.Code` values are `busy`, `task_not_found`, `task_disabled`, `run_not_found`,
 `manager_stopped`, and `invalid_task_config`. Task failure is a terminal
 `RunResult`, rather than an error from the wait operation.

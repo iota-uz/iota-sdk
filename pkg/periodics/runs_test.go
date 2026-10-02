@@ -46,6 +46,10 @@ func TestRunReceiptOwnsCompletionCancellationAndBusy(t *testing.T) {
 	require.Empty(t, next)
 	require.ErrorAs(t, err, &busy)
 	require.Equal(t, "task_not_found", busy.Code)
+	m.AddDisabledTaskInfo("disabled", "@every 1h")
+	_, err = m.RunTaskWithReceipt("disabled")
+	require.ErrorAs(t, err, &busy)
+	require.Equal(t, "task_disabled", busy.Code)
 }
 
 // Falsely green if retries swallow the final error or report success without Execute.
@@ -62,6 +66,13 @@ func TestRunReceiptFailuresRetriesAndInvalidConfig(t *testing.T) {
 	require.NotEmpty(t, result.Error)
 	require.Equal(t, int32(2), calls.Load())
 	task.config.MaxRetries = IntPtr(0)
+	receipt, err = m.RunTaskWithReceipt(task.Name())
+	require.NoError(t, err)
+	result, err = m.WaitRun(t.Context(), receipt.ID)
+	require.NoError(t, err)
+	require.Equal(t, "failed", result.Status)
+	require.Equal(t, int32(3), calls.Load())
+	task.config.MaxRetries = IntPtr(-1)
 	_, err = m.RunTaskWithReceipt(task.Name())
 	var invalid *RunError
 	require.ErrorAs(t, err, &invalid)

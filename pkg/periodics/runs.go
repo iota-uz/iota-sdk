@@ -57,8 +57,20 @@ func (m *manager) RunTaskWithReceipt(name string) (RunReceipt, error) {
 func (m *manager) startRun(name string, allowOverlap bool) (RunReceipt, error) {
 	m.mu.RLock()
 	task := m.tasks[name]
+	disabled := false
+	if task == nil {
+		for _, info := range m.disabledTasks {
+			if info.Name == name {
+				disabled = true
+				break
+			}
+		}
+	}
 	m.mu.RUnlock()
 	if task == nil {
+		if disabled {
+			return RunReceipt{}, &RunError{Code: "task_disabled"}
+		}
 		return RunReceipt{}, &RunError{Code: "task_not_found"}
 	}
 	m.runsMu.Lock()
@@ -75,8 +87,11 @@ func (m *manager) startRun(name string, allowOverlap bool) (RunReceipt, error) {
 		}
 	}
 	cfg := mergeWithDefaults(task.Config())
-	if *cfg.MaxRetries <= 0 || cfg.Timeout <= 0 || cfg.RetryDelay < 0 {
+	if *cfg.MaxRetries < 0 || cfg.Timeout <= 0 || cfg.RetryDelay < 0 {
 		return RunReceipt{}, &RunError{Code: "invalid_task_config"}
+	}
+	if *cfg.MaxRetries == 0 {
+		cfg.MaxRetries = IntPtr(1)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
 	ctx = composables.WithPool(ctx, m.pool)
