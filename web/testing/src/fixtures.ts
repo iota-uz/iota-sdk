@@ -13,6 +13,7 @@ export function createEnvironmentTest<E extends EnvironmentDescriptor, Input, St
     workerIdentity: [async ({ environment, browser }, use) => {
       await use(lazyIdentities(key => options.identity(environment, browser, key)))
     }, { scope: 'worker' }],
+    baseURL: async ({ environment }, use) => { await use(environment.baseURL) },
     identity: async ({ workerIdentity }, use) => { await use(workerIdentity) },
     scenario: async ({ environment }, use, info) => {
       const control = options.scenarios(environment)
