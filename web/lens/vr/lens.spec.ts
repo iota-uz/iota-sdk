@@ -1,3 +1,4 @@
+import { expectChartsReady, expectFontsReady } from '@iota-uz/sdk/testing'
 import { expect, test, type Page } from '@playwright/test'
 
 const storyIds = [
@@ -368,21 +369,19 @@ const staticStories = [
 ] as const
 
 async function waitForCharts(page: Page): Promise<void> {
-  await expect.poll(async () => page.locator('[_echarts_instance_]').evaluateAll((elements) =>
-    elements.every((element) => element.getAttribute('data-chart-ready') === 'true'),
-  )).toBe(true)
+  await expectChartsReady(page.locator('[_echarts_instance_]'), { allowEmpty: true })
 }
 
 async function openStory(page: Page, storyId: string, canvasCount: number): Promise<void> {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const query = new URLSearchParams({ story: storyId, mode: 'preview', 'lens-vr': '1' })
-  await page.goto(`/?${query.toString()}`, { waitUntil: 'networkidle' })
+  await page.goto(`/?${query.toString()}`, { waitUntil: 'domcontentloaded' })
   // An expanded panel portals a second .lens-root (its dialog host) to body.
   await expect(page.locator('.lens-root').first()).toBeVisible()
   await expect(page.locator('canvas')).toHaveCount(canvasCount)
   await waitForCharts(page)
+  await expectFontsReady(page)
   await page.evaluate(async () => {
-    await document.fonts.ready
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
   })
   await expect(page.locator('html')).toHaveAttribute('data-lens-vr', 'true')
@@ -403,8 +402,8 @@ async function screenshot(page: Page, name: string, { pointer = 'park', maxDiffP
   // lands the pointer on a different element and fails a story that did not
   // actually change. Park the pointer off the content before every capture.
   if (pointer === 'park') await page.mouse.move(0, 0)
+  await expectFontsReady(page)
   await page.evaluate(async () => {
-    await document.fonts.ready
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
   })
   // Fonts and container layout can cause a final ResizeObserver pass after the

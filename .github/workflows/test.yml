@@ -117,6 +117,7 @@ jobs:
             client_host:
               - 'web/client-host/**'
               - 'web/sdk/**'
+              - 'web/testing/**'
               - 'styles/tailwind/iota.css'
               - 'scripts/package-frontends.mjs'
               - 'scripts/verify-frontend-artifacts.mjs'
@@ -170,6 +171,10 @@ jobs:
       - name: Install Chromium
         working-directory: web/client-host
         run: pnpm exec playwright install --with-deps chromium
+
+      - name: Test shared browser testing contracts
+        working-directory: web/testing
+        run: pnpm test
 
       - name: Test Client Host in Chromium
         working-directory: web/client-host

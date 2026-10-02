@@ -11,6 +11,7 @@ subpath APIs are built from separate internal workspace modules:
 - `@iota-uz/sdk/lens`
 - `@iota-uz/sdk/lens/styles.css`
 - `@iota-uz/sdk/identity`
+- `@iota-uz/sdk/testing` (Playwright Node process only; optional `@playwright/test` peer)
 
 Version 0.5 is a clean break: legacy root, BiChat, applet, Tailwind, and asset
 exports are intentionally absent. Solid is the standard client-route renderer;
@@ -26,3 +27,5 @@ compiled stylesheet once at their root:
 import { Button, Input } from '@iota-uz/sdk/solid-ui'
 import '@iota-uz/sdk/solid-ui/standalone.css'
 ```
+
+Browser test projects import synchronization helpers and lifecycle/scenario fixture adapters from `@iota-uz/sdk/testing`. Helpers attach observers before actions and reject missing requests, HTMX refusal and missing readiness. Component hosts reuse explicit font/chart readiness while preserving existing approved screenshot baselines. The source workflow and adapter contracts are documented in `web/testing/README.md`.

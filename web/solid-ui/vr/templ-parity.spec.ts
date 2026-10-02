@@ -1,3 +1,4 @@
+import { expectComponentReady } from '@iota-uz/sdk/testing'
 import { expect, test, type Browser, type Locator, type Page, type TestInfo } from '@playwright/test'
 
 const templOrigin = `http://127.0.0.1:${process.env.SOLID_UI_TEMPL_VR_PORT ?? '61011'}`
@@ -117,7 +118,7 @@ const fixtures: readonly ThemedFixture[] = baseFixtures.flatMap((fixture) =>
 
 async function ready(page: Page, marker: 'gallery' | 'fixture'): Promise<void> {
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  await expect(page.locator('html')).toHaveAttribute(`data-${marker}-ready`, 'true')
+  await expectComponentReady(page, page.locator('html'), { readinessAttribute: `data-${marker}-ready` })
   await page.evaluate(async () => {
     await document.fonts.ready
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
@@ -243,8 +244,8 @@ async function compareFixture(browser: Browser, fixture: ThemedFixture, testInfo
   const solidQuery = new URLSearchParams({ specimen: fixture.solidSpecimen, theme: fixture.theme, state: fixture.state })
   const templQuery = new URLSearchParams({ specimen: fixture.specimen, theme: fixture.theme, state: fixture.state })
   await Promise.all([
-    solid.goto(`http://127.0.0.1:${process.env.SOLID_UI_VR_PORT ?? '61010'}/?${solidQuery}`, { waitUntil: 'networkidle' }),
-    templ.goto(`${templOrigin}/?${templQuery}`, { waitUntil: 'networkidle' }),
+    solid.goto(`http://127.0.0.1:${process.env.SOLID_UI_VR_PORT ?? '61010'}/?${solidQuery}`, { waitUntil: 'domcontentloaded' }),
+    templ.goto(`${templOrigin}/?${templQuery}`, { waitUntil: 'domcontentloaded' }),
   ])
   await Promise.all([ready(solid, 'gallery'), ready(templ, 'fixture')])
   const solidTarget = solid.locator(fixture.solidTarget)

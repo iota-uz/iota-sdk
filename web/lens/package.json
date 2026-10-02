@@ -15,9 +15,9 @@
   },
   "scripts": {
     "dev": "node ./scripts/dev.mjs",
-    "build": "tsc --noEmit && vite build",
+    "build": "pnpm --dir ../sdk build:testing && tsc --noEmit && vite build",
     "build:package": "pnpm --dir ../client-host build && vite build --config vite.package.config.ts && tsc -p tsconfig.package.json",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "pnpm --dir ../sdk build:testing && tsc --noEmit",
     "lint": "eslint . && pnpm lint:styles",
     "lint:styles": "stylelint src/styles.css",
     "test": "vitest run",
@@ -27,8 +27,8 @@
     "ladle:preview": "ladle preview --viteConfig .ladle/vite.config.ts --host 127.0.0.1 --port 61000",
     "fixture": "node ./scripts/fetch-fixture.mjs",
     "print-pdf": "node ./scripts/print-pdf.mjs",
-    "vr": "node ./scripts/vr.mjs",
-    "vr-update": "node ./scripts/vr.mjs --update"
+    "vr": "pnpm --dir ../sdk build:testing && node ./scripts/vr.mjs",
+    "vr-update": "pnpm --dir ../sdk build:testing && node ./scripts/vr.mjs --update"
   },
   "dependencies": {
     "echarts": "^6.1.0",
@@ -65,6 +65,7 @@
     "typescript": "5.7.2",
     "typescript-eslint": "8.18.2",
     "vite": "5.4.21",
-    "vitest": "2.1.9"
+    "vitest": "2.1.9",
+    "@iota-uz/sdk": "workspace:*"
   }
 }
