@@ -37,6 +37,9 @@ func (c *Coordinator) Start(ctx context.Context, spec Spec) (Descriptor, error) 
 	spec.RequiredCapabilities = slices.Clone(spec.RequiredCapabilities)
 	slices.Sort(spec.RequiredCapabilities)
 	spec.RequiredCapabilities = slices.Compact(spec.RequiredCapabilities)
+	if len(spec.RequiredCapabilities) == 0 {
+		spec.RequiredCapabilities = nil
+	}
 	encoded, _ := json.Marshal(spec)
 	keyBytes, _ := json.Marshal([]string{spec.RunID, spec.Slot})
 	key := string(keyBytes)
@@ -72,7 +75,7 @@ func (c *Coordinator) Start(ctx context.Context, spec Spec) (Descriptor, error) 
 	}
 	if err == nil {
 		u, parseErr := url.Parse(d.BaseURL)
-		if parseErr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || d.BuildRevision == "" || d.ArtifactDirectory == "" {
+		if parseErr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || d.BuildRevision == "" || d.ArtifactDirectory == "" {
 			err = failure("startup_failed", "invalid ready descriptor")
 		}
 	}
