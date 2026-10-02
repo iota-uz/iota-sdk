@@ -284,7 +284,7 @@ func walk(err error, visit func(error) bool) bool {
 
 func CodeOf(err error) Code {
 	code := Internal
-	walk(err, func(err error) bool {
+	found := walk(err, func(err error) bool {
 		if e, ok := err.(*Error); ok && e.code != 0 {
 			code = e.code
 			return true
@@ -299,6 +299,14 @@ func CodeOf(err error) Code {
 		}
 		return false
 	})
+	if !found {
+		switch {
+		case errors.Is(err, context.Canceled):
+			code = Canceled
+		case errors.Is(err, context.DeadlineExceeded):
+			code = Timeout
+		}
+	}
 	return code
 }
 
