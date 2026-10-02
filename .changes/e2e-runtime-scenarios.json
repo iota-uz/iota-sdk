@@ -1,4 +1,4 @@
 {
   "bump": "minor",
-  "summary": "Add opt-in browser environment lifecycle and versioned scenario registry with credential-protected HTTP controls; share ITF PostgreSQL lifecycle with isolated runtime adapters."
+  "summary": "Add opt-in browser environments and versioned scenarios with owned HTTP controls, shared PostgreSQL clone lifecycle, and correlated periodic invocation receipts with deterministic completion waits."
 }
