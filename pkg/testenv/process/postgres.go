@@ -18,27 +18,44 @@ type Postgres struct {
 	Prefix   string
 	Manifest testdb.Manifest
 	mu       sync.Mutex
-	owned    map[string]string
+	owned    map[string]*database
+}
+
+type database struct {
+	mu      sync.Mutex
+	name    string
+	created bool
 }
 
 func (p *Postgres) Prepare(ctx context.Context, id string) ([]string, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	if p.Template == "" {
 		return nil, fmt.Errorf("process: a sealed template is required")
-	}
-	if p.owned == nil {
-		p.owned = map[string]string{}
 	}
 	prefix := p.Prefix
 	if prefix == "" {
 		prefix = "te_"
 	}
 	name := prefix + strings.ReplaceAll(id, "-", "")
+	p.mu.Lock()
+	if p.owned == nil {
+		p.owned = map[string]*database{}
+	}
+	if _, exists := p.owned[id]; exists {
+		p.mu.Unlock()
+		return nil, fmt.Errorf("process: database already owned")
+	}
+	db := &database{name: name}
+	db.mu.Lock()
+	p.owned[id] = db
+	p.mu.Unlock()
+	defer db.mu.Unlock()
 	if err := testdb.Clone(ctx, name, p.Template, p.Config); err != nil {
+		p.mu.Lock()
+		delete(p.owned, id)
+		p.mu.Unlock()
 		return nil, err
 	}
-	p.owned[id] = name
+	db.created = true
 	conn, err := sql.Open("postgres", testdb.ConnectionString(name, p.Config))
 	if err != nil {
 		return nil, err
@@ -56,14 +73,23 @@ func (p *Postgres) Prepare(ctx context.Context, id string) ([]string, error) {
 
 func (p *Postgres) Dispose(ctx context.Context, id string) error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	name, ok := p.owned[id]
+	db, ok := p.owned[id]
+	p.mu.Unlock()
 	if !ok {
 		return nil
 	}
-	if err := testdb.Drop(ctx, name, p.Config); err != nil {
-		return err
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if db.created {
+		if err := testdb.Drop(ctx, db.name, p.Config); err != nil {
+			return err
+		}
+		db.created = false
 	}
-	delete(p.owned, id)
+	p.mu.Lock()
+	if p.owned[id] == db {
+		delete(p.owned, id)
+	}
+	p.mu.Unlock()
 	return nil
 }

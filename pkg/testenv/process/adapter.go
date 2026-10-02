@@ -41,9 +41,12 @@ type Config struct {
 }
 
 type child struct {
-	command *exec.Cmd
-	done    chan error
-	log     *os.File
+	mu       sync.Mutex
+	command  *exec.Cmd
+	done     chan struct{}
+	exitErr  error
+	disposed bool
+	log      *os.File
 }
 
 type Adapter struct {
@@ -60,16 +63,20 @@ func New(config Config) (*Adapter, error) {
 }
 
 func (a *Adapter) Start(ctx context.Context, spec testenv.Spec, id string) (testenv.Descriptor, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
 	d := testenv.Descriptor{EnvironmentID: id, BuildRevision: a.config.Revision, SchemaFingerprint: a.config.Manifest.SchemaFingerprint, BaselineFingerprint: a.config.Manifest.BaselineFingerprint, Capabilities: a.config.Capabilities, ArtifactDirectory: filepath.Join(a.config.Artifacts, id)}
 	if _, err := uuid.Parse(id); err != nil {
 		return d, fmt.Errorf("process: invalid environment ID")
 	}
+	a.mu.Lock()
 	if _, exists := a.children[id]; exists {
+		a.mu.Unlock()
 		return d, fmt.Errorf("process: environment already owned")
 	}
-	a.children[id] = &child{}
+	c := &child{}
+	c.mu.Lock()
+	a.children[id] = c
+	a.mu.Unlock()
+	defer c.mu.Unlock()
 	if err := os.MkdirAll(d.ArtifactDirectory, 0700); err != nil {
 		return d, err
 	}
@@ -103,13 +110,12 @@ func (a *Adapter) Start(ctx context.Context, spec testenv.Spec, id string) (test
 		command.Env = append(command.Env, a.config.Configure(d)...)
 	}
 	command.Stdout, command.Stderr = log, log
-	c := &child{command: command, done: make(chan error, 1), log: log}
-	a.children[id] = c
+	c.command, c.done, c.log = command, make(chan struct{}), log
 	if err := command.Start(); err != nil {
 		c.command = nil
 		return d, err
 	}
-	go func() { c.done <- command.Wait() }()
+	go func() { c.exitErr = command.Wait(); close(c.done) }()
 	return d, nil
 }
 
@@ -117,7 +123,13 @@ func (a *Adapter) Ready(ctx context.Context, d testenv.Descriptor) error {
 	a.mu.Lock()
 	c := a.children[d.EnvironmentID]
 	a.mu.Unlock()
-	if c == nil || c.command == nil {
+	if c == nil {
+		return fmt.Errorf("process: environment not started")
+	}
+	c.mu.Lock()
+	started, done := c.command != nil, c.done
+	c.mu.Unlock()
+	if !started {
 		return fmt.Errorf("process: environment not started")
 	}
 	client := &http.Client{Timeout: time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
@@ -141,9 +153,8 @@ func (a *Adapter) Ready(ctx context.Context, d testenv.Descriptor) error {
 			}
 		}
 		select {
-		case err := <-c.done:
-			c.done <- err
-			return fmt.Errorf("process exited before readiness: %v", err)
+		case <-done:
+			return fmt.Errorf("process exited before readiness: %v", c.exitErr)
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
@@ -153,9 +164,14 @@ func (a *Adapter) Ready(ctx context.Context, d testenv.Descriptor) error {
 
 func (a *Adapter) Stop(ctx context.Context, d testenv.Descriptor) error {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	c := a.children[d.EnvironmentID]
+	a.mu.Unlock()
 	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.disposed {
 		return nil
 	}
 	if c.command != nil {
@@ -178,6 +194,11 @@ func (a *Adapter) Stop(ctx context.Context, d testenv.Descriptor) error {
 	if err := a.config.Resources.Dispose(ctx, d.EnvironmentID); err != nil {
 		return errors.Join(fmt.Errorf("process: dispose resources"), err)
 	}
-	delete(a.children, d.EnvironmentID)
+	c.disposed = true
+	a.mu.Lock()
+	if a.children[d.EnvironmentID] == c {
+		delete(a.children, d.EnvironmentID)
+	}
+	a.mu.Unlock()
 	return nil
 }
