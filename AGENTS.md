@@ -122,7 +122,7 @@ modules/{module}/
 ## Core Rules
 
 - **Multi-tenant isolation**: Always include `tenant_id` in WHERE clauses
-- **Error handling**: Use `pkg/serrors` - `serrors.E(op, err)` pattern
+- **Error handling**: Use `pkg/serrors` - `serrors.Wrap(op, err)` pattern
 - **HTMX**: Check `htmx.IsHxRequest(r)`, use `htmx.SetTrigger(w, "event", payload)`
 - **Templ**: Edit `.templ` sources, not generated `*_templ.go` files. Inspect generated diffs or compiler errors when validating a change, and exclude unrelated generator churn.
 
@@ -172,7 +172,7 @@ cd e2e && npx playwright test tests/module/specific.spec.ts  # Single test
 - File organization: group related functionality in modules/ or pkg/ directories
 - Naming: use camelCase for variables, PascalCase for exported functions/types
 - Testing: table-driven tests with descriptive names (TestFunctionName_Scenario), use the `require` and `assert` packages from `github.com/stretchr/testify`
-- Error handling: use `pkg/serrors` with pattern `serrors.E(op, err)` for standard error types
+- Error handling: use `pkg/serrors` with pattern `serrors.Wrap(op, err)` for standard error types
 - When writing a mapper function, always use utilities from `pkg/mapping` to ensure consistency
 - Type safety: use strong typing and avoid interface{} where possible
 - Follow existing patterns for database operations with jmoiron/sqlx

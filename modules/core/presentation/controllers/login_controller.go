@@ -33,6 +33,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/login"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 type LoginDTO struct {
@@ -291,23 +292,23 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 	email := r.URL.Query().Get("email")
 	errorsMap, err := composables.UseFlashMap[string, string](w, r, "errorsMap")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	errorMessage, err := composables.UseFlash(w, r, "error")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	noticeMessage, err := composables.UseFlash(w, r, "notice")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	methods, err := c.buildLoginMethods(w, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -320,7 +321,7 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	accounts, err := c.loginAccounts(w, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	selectionURL := fmt.Sprintf("/login/session?next=%s", url.QueryEscape(nextURL))
@@ -344,7 +345,7 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 
 	if renderer := c.optionsOrDefault().Renderer; renderer != nil {
 		if err := c.renderLoginComponent(w, r, renderer(r.Context(), viewModel)); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		}
 		return
 	}
@@ -354,7 +355,7 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := c.renderDefaultLogin(w, r, viewModel); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -546,7 +547,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 
 	dto, err := composables.UseForm(&LoginDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
@@ -632,7 +633,7 @@ func (c *LoginController) SelectSession(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))

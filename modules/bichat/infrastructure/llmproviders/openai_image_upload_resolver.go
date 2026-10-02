@@ -45,7 +45,7 @@ func newCoreOpenAIImageUploadLookup() OpenAIImageUploadLookup {
 
 func (l *coreOpenAIImageUploadLookup) FindImageUpload(ctx context.Context, uploadID int64) (*OpenAIImageUploadRecord, error) {
 	if uploadID <= 0 {
-		return nil, serrors.E(serrors.Op("coreOpenAIImageUploadLookup.FindImageUpload"), serrors.KindValidation, "upload id must be positive")
+		return nil, serrors.New(serrors.Invalid, "upload id must be positive").WithOp(serrors.Op("coreOpenAIImageUploadLookup.FindImageUpload"))
 	}
 	uploads, err := l.repo.GetByIDs(ctx, []uint{uint(uploadID)})
 	if err != nil {

@@ -4,20 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
-
 	gql "github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/executor"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	sdkgraphql "github.com/iota-uz/iota-sdk/pkg/graphql"
-	serrors "github.com/iota-uz/iota-sdk/pkg/serrors/v2"
-	"github.com/iota-uz/iota-sdk/pkg/serrors/v2/serrorgql"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
+	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorgql"
 	"github.com/stretchr/testify/require"
 	"github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
+	"golang.org/x/text/language"
+	"net/http/httptest"
+	"strings"
+	"testing"
 )
 
 type failingSchema struct{ err error }
@@ -42,9 +43,11 @@ func TestSDKHandlerPresenterExecutionAndProtocol(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ex := executor.New(failingSchema{err: tc.err})
 			handler := sdkgraphql.NewHandler(ex, nil)
-			handler.SetErrorPresenter(map[*executor.Executor]gql.ErrorPresenterFunc{ex: serrorgql.Presenter(nil)})
+			if tc.status != 200 {
+				handler.SetErrorPresenter(map[*executor.Executor]gql.ErrorPresenterFunc{ex: serrorgql.Presenter(nil)})
+			}
 			body, _ := json.Marshal(map[string]string{"query": tc.query})
-			r := httptest.NewRequest(http.MethodPost, "/query", strings.NewReader(string(body)))
+			r := httptest.NewRequest("POST", "/query", strings.NewReader(string(body)))
 			r.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, r)
@@ -60,6 +63,29 @@ func TestSDKHandlerPresenterExecutionAndProtocol(t *testing.T) {
 				require.Equal(t, ast.Path{ast.PathName("account")}, response.Errors[0].Path)
 				require.Equal(t, []gqlerror.Location{{Line: 1, Column: 3}}, response.Errors[0].Locations)
 			}
+		})
+	}
+}
+
+func TestSDKHandlerDefaultPresenterUsesRequestLocaleAndSafeFallback(t *testing.T) {
+	for _, translation := range []string{"Request denied.", " "} {
+		t.Run(translation, func(t *testing.T) {
+			bundle := i18n.NewBundle(language.English)
+			bundle.AddMessages(language.English, &i18n.Message{ID: "Public.denied", Other: translation})
+			ex := executor.New(failingSchema{err: serrors.NewPermissionDenied("private credential").WithPublic(serrors.Message{ID: "Public.denied"})})
+			handler := sdkgraphql.NewHandler(ex, nil)
+			r := httptest.NewRequest("POST", "/query", strings.NewReader(`{"query":"{ account }"}`))
+			r.Header.Set("Content-Type", "application/json")
+			r = r.WithContext(intl.WithLocalizer(r.Context(), i18n.NewLocalizer(bundle, "en")))
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, r)
+			require.Equal(t, 200, w.Code)
+			require.NotContains(t, w.Body.String(), "private")
+			expected := translation
+			if strings.TrimSpace(translation) == "" {
+				expected = "You do not have permission to perform this operation."
+			}
+			require.Contains(t, w.Body.String(), expected)
 		})
 	}
 }

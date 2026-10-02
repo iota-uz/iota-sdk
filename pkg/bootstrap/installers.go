@@ -95,7 +95,7 @@ func InstallCoreControllers() Installer {
 		}
 		browserSessions, err := composition.Resolve[*coreservices.BrowserSessionService](container)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		httpCfg, err := composition.Resolve[*httpconfig.Config](container)
 		if err != nil {

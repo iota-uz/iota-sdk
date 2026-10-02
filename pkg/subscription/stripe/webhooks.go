@@ -24,7 +24,7 @@ func (s *Service) HandleStripeEvent(ctx context.Context, event stripe.Event) err
 	if event.ID != "" {
 		fresh, err := s.repo.TryMarkWebhookEventProcessed(ctx, event.ID, string(event.Type), 24*time.Hour)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		if !fresh {
 			dedupTotal := s.webhookDup.Add(1)
@@ -41,19 +41,19 @@ func (s *Service) HandleStripeEvent(ctx context.Context, event stripe.Event) err
 	switch string(event.Type) {
 	case "entitlements.active_entitlement_summary.updated":
 		if err := s.handleEntitlementSummaryUpdated(ctx, event); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	case "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted":
 		if err := s.handleSubscriptionEvent(ctx, event); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	case "invoice.payment_succeeded":
 		if err := s.handleInvoicePaymentSucceeded(ctx, event); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	case "invoice.payment_failed":
 		if err := s.handleInvoicePaymentFailed(ctx, event); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 
@@ -65,7 +65,7 @@ func (s *Service) handleEntitlementSummaryUpdated(ctx context.Context, event str
 
 	var summary stripe.EntitlementsActiveEntitlementSummary
 	if err := json.Unmarshal(event.Data.Raw, &summary); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if summary.Customer == "" {
 		return nil
@@ -75,7 +75,7 @@ func (s *Service) handleEntitlementSummaryUpdated(ctx context.Context, event str
 		if errors.Is(err, subrepo.ErrEntitlementNotFound) {
 			return nil
 		}
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return s.RefreshTenant(ctx, tenantID)
 }
@@ -85,7 +85,7 @@ func (s *Service) handleSubscriptionEvent(ctx context.Context, event stripe.Even
 
 	var sub stripe.Subscription
 	if err := json.Unmarshal(event.Data.Raw, &sub); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	customerID := ""
@@ -97,22 +97,22 @@ func (s *Service) handleSubscriptionEvent(ctx context.Context, event stripe.Even
 		if errors.Is(err, subrepo.ErrEntitlementNotFound) {
 			return nil
 		}
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if err := s.ensureEntitlement(ctx, tenantID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if err := s.updateStripeRefs(ctx, tenantID, customerID, sub.ID); err != nil {
 		if !errors.Is(err, subrepo.ErrEntitlementNotFound) {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	if planID, ok := sub.Metadata["plan_id"]; ok && planID != "" {
 		if err := s.repo.SetPlan(ctx, tenantID, planID); err != nil {
 			if !errors.Is(err, subrepo.ErrEntitlementNotFound) {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 		}
 	}
@@ -120,7 +120,7 @@ func (s *Service) handleSubscriptionEvent(ctx context.Context, event stripe.Even
 	switch string(event.Type) {
 	case "customer.subscription.deleted":
 		if err := s.setGracePeriod(ctx, tenantID, true); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 
@@ -132,7 +132,7 @@ func (s *Service) handleInvoicePaymentSucceeded(ctx context.Context, event strip
 
 	var invoice stripe.Invoice
 	if err := json.Unmarshal(event.Data.Raw, &invoice); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	customerID := ""
@@ -146,19 +146,19 @@ func (s *Service) handleInvoicePaymentSucceeded(ctx context.Context, event strip
 		if errors.Is(err, subrepo.ErrEntitlementNotFound) {
 			return nil
 		}
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if err := s.ensureEntitlement(ctx, tenantID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if err := s.setGracePeriod(ctx, tenantID, false); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if err := s.updateStripeRefs(ctx, tenantID, customerID, subscriptionID); err != nil {
 		if !errors.Is(err, subrepo.ErrEntitlementNotFound) {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	return s.RefreshTenant(ctx, tenantID)
@@ -169,7 +169,7 @@ func (s *Service) handleInvoicePaymentFailed(ctx context.Context, event stripe.E
 
 	var invoice stripe.Invoice
 	if err := json.Unmarshal(event.Data.Raw, &invoice); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	customerID := ""
@@ -183,19 +183,19 @@ func (s *Service) handleInvoicePaymentFailed(ctx context.Context, event stripe.E
 		if errors.Is(err, subrepo.ErrEntitlementNotFound) {
 			return nil
 		}
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if err := s.ensureEntitlement(ctx, tenantID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if err := s.setGracePeriod(ctx, tenantID, true); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if err := s.updateStripeRefs(ctx, tenantID, customerID, subscriptionID); err != nil {
 		if !errors.Is(err, subrepo.ErrEntitlementNotFound) {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	return s.RefreshTenant(ctx, tenantID)

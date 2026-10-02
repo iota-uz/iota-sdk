@@ -25,6 +25,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 type AccountController struct {
@@ -166,7 +167,7 @@ func (c *AccountController) defaultProps(r *http.Request, errors map[string]stri
 func (c *AccountController) Get(w http.ResponseWriter, r *http.Request) {
 	props, err := c.defaultProps(r, nil)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -178,14 +179,14 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&dtos.SaveAccountDTO{}, r)
 	if err != nil {
 		logger.WithError(err).Error("failed to parse form")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		props, err := c.defaultProps(r, errors)
 		if err != nil {
 			logger.WithError(err).Error("failed to get default props")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		logger.WithField("errors", errors).Debug("validation failed")
@@ -195,13 +196,13 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 	u, err := composables.UseUser(r.Context())
 	if err != nil {
 		logger.WithError(err).Error("failed to get user from context")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	entity, err := dto.Apply(u)
 	if err != nil {
 		logger.WithError(err).Error("failed to apply dto")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -221,7 +222,7 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := c.userService.UpdateSelf(r.Context(), entity); err != nil {
 		logger.WithError(err).Error("failed to update user")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -245,7 +246,7 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		logger.WithError(err).Error("failed to get user from context")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -261,7 +262,7 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 	sessions, err := c.sessionService.GetByUserID(r.Context(), user.ID())
 	if err != nil {
 		logger.WithError(err).Error("failed to fetch user sessions")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -301,7 +302,7 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		logger.WithError(err).Error("failed to get user from context")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -309,7 +310,7 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	sessions, err := c.sessionService.GetByUserID(r.Context(), user.ID())
 	if err != nil {
 		logger.WithError(err).Error("failed to fetch user sessions")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -347,7 +348,7 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	// Revoke the session
 	if err := c.sessionService.TerminateSession(r.Context(), sessionToRevoke); err != nil {
 		logger.WithError(err).Error("failed to terminate session")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -357,7 +358,7 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	})
 	if err != nil {
 		logger.WithError(err).Error("failed to marshal session revoke toast")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	htmx.SetTrigger(w, "success", string(successPayload))
@@ -372,7 +373,7 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
 		logger.WithError(err).Error("failed to get user from context")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -388,7 +389,7 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 	count, err := c.sessionService.TerminateOtherSessions(r.Context(), user.ID(), currentToken)
 	if err != nil {
 		logger.WithError(err).Error("failed to terminate other sessions")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -397,7 +398,7 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 	successPayload, err := json.Marshal(map[string]string{"message": successMsg})
 	if err != nil {
 		logger.WithError(err).Error("failed to marshal session revoke toast")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	htmx.SetTrigger(w, "success", string(successPayload))
@@ -412,11 +413,11 @@ func (c *AccountController) currentSession(r *http.Request) (session.Session, er
 		cookieName = c.cfg.SID
 	}
 	if _, err := r.Cookie(cookieName); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	sess, err := composables.UseSession(r.Context())
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return sess, nil
 }

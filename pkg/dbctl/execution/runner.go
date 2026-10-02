@@ -52,7 +52,7 @@ type runLock struct {
 func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 	const op serrors.Op = "dbctl.execution.Plan"
 	if strings.TrimSpace(opts.Operation) == "" {
-		return nil, serrors.E(op, serrors.Invalid, "operation is required")
+		return nil, serrors.New(serrors.Invalid, "operation is required").WithOp(op)
 	}
 	spec, err := ops.Get(opts.Operation)
 	if err != nil {
@@ -66,15 +66,15 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 	target := resolveTarget(opts.Operation, opts.DBConfig, opts.AppEnvironment)
 	decision := policy.Evaluate(policyCfg, target, spec.Kind == ops.OperationKindDestructive)
 	if !decision.Allowed {
-		return nil, serrors.E(op, serrors.PermissionDenied, "policy denied operation: "+strings.Join(decision.Reasons, "; "))
+		return nil, serrors.NewPermissionDenied("policy denied operation: " + strings.Join(decision.Reasons, "; ")).WithOp(op)
 	}
 	if spec.Kind == ops.OperationKindDestructive && !opts.Yes {
-		return nil, serrors.E(op, serrors.Invalid, "destructive operations require --yes confirmation")
+		return nil, serrors.New(serrors.Invalid, "destructive operations require --yes confirmation").WithOp(op)
 	}
 
 	pool, err := getControlDatabasePool(ctx, opts.Operation, opts.DBConfig)
 	if err != nil {
-		return nil, serrors.E(op, err, "open database pool")
+		return nil, serrors.WrapContext(op, err, "open database pool")
 	}
 	defer pool.Close()
 
@@ -96,7 +96,7 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 			continue
 		}
 		if err := cond.Check(ctx, execCtx); err != nil {
-			return nil, serrors.E(op, err, "precondition "+cond.ID+" failed")
+			return nil, serrors.WrapContext(op, err, "precondition "+cond.ID+" failed")
 		}
 	}
 	return &PlanResult{RunContext: *execCtx.Run, Spec: spec, PolicyHash: policy.HashPolicy(payload)}, nil
@@ -140,7 +140,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 
 	pool, err := getControlDatabasePool(ctx, opts.Operation, opts.DBConfig)
 	if err != nil {
-		return serrors.E(op, err, "open database pool")
+		return serrors.WrapContext(op, err, "open database pool")
 	}
 	defer pool.Close()
 
@@ -150,7 +150,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 		return lockErr
 	}
 	if !locked {
-		return serrors.E(op, "failed to acquire run lock for operation")
+		return serrors.New(serrors.Internal, "failed to acquire run lock for operation").WithOp(op)
 	}
 	defer releaseRunLock(ctx, lock)
 
@@ -184,7 +184,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 			continue
 		}
 		if err := cond.Check(ctx, execCtx); err != nil {
-			return serrors.E(op, err, "postcondition "+cond.ID+" failed")
+			return serrors.WrapContext(op, err, "postcondition "+cond.ID+" failed")
 		}
 	}
 

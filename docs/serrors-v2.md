@@ -1,9 +1,8 @@
-# Typed errors preview
+# Canonical typed errors
 
-`pkg/serrors/v2` is an unstable, opt-in preview for SDK #786 and #787.
-Existing `pkg/serrors` callers keep their current API. The breaking cutover in
-#788 moves this API and its presenters to the canonical `pkg/serrors` import.
-Do not publish a consumer production dependency on an unverified preview.
+`pkg/serrors` is the canonical typed error API. Legacy `E`, mutable error fields,
+base errors and validation constructors are removed. SDK #788 is a coordinated
+breaking cutover; consumers must migrate before selecting this candidate.
 
 ## Classification and identity
 

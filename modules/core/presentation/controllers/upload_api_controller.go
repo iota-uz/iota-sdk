@@ -17,6 +17,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -102,7 +104,7 @@ type GeoPointResponse struct {
 
 func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(c.cfg.MaxMemory); err != nil {
-		c.writeJSONError(w, http.StatusBadRequest, err.Error())
+		c.writeJSONError(w, http.StatusBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 
@@ -134,7 +136,7 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 	header := files[0]
 	file, err := header.Open()
 	if err != nil {
-		c.writeJSONError(w, http.StatusBadRequest, err.Error())
+		c.writeJSONError(w, http.StatusBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 	defer func() {
@@ -180,7 +182,7 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 		uploadEntity, createErr = c.uploadService.Create(txCtx, dto)
 		return createErr
 	}); err != nil {
-		c.writeJSONError(w, http.StatusInternalServerError, err.Error())
+		c.writeJSONError(w, http.StatusInternalServerError, serrors.Public(err, nil).Message)
 		return
 	}
 
@@ -213,7 +215,7 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 func (c *UploadAPIController) writeJSON(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -221,6 +223,6 @@ func (c *UploadAPIController) writeJSONError(w http.ResponseWriter, statusCode i
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(map[string]string{"error": message}); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 	}
 }

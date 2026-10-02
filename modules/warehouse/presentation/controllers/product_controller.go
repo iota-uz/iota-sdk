@@ -10,6 +10,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
@@ -23,7 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -88,7 +89,7 @@ func (c *ProductsController) Register(r *mux.Router) {
 }
 
 func (c *ProductsController) handleError(w http.ResponseWriter, err error) {
-	http.Error(w, err.Error(), http.StatusInternalServerError)
+	serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 }
 
 func (c *ProductsController) getViewModelProducts(r *http.Request) (*PaginatedResponse, error) {
@@ -206,7 +207,10 @@ func (c *ProductsController) Update(w http.ResponseWriter, r *http.Request) {
 		return c.productService.Update(txCtx, id, dto)
 	})
 	if err != nil {
-		var vErr serrors.Base
+		var vErr interface {
+			error
+			Localize(*i18n.Localizer) string
+		}
 		if errors.As(err, &vErr) {
 			// Create a new product with the invalid RFID for display purposes
 			entityWithInvalidRfid := product.New(dto.Rfid, entity.Status(),
@@ -242,7 +246,7 @@ func (c *ProductsController) GetNew(w http.ResponseWriter, r *http.Request) {
 func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&product.CreateDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -276,7 +280,10 @@ func (c *ProductsController) Create(w http.ResponseWriter, r *http.Request) {
 		return c.productService.Create(txCtx, dto)
 	})
 	if err != nil {
-		var vErr serrors.Base
+		var vErr interface {
+			error
+			Localize(*i18n.Localizer) string
+		}
 		if errors.As(err, &vErr) {
 			props := &products.CreatePageProps{
 				Errors: map[string]string{

@@ -120,28 +120,28 @@ func (s *KnowledgeBootstrapService) Load(ctx context.Context, req KnowledgeBoots
 
 	knowledgeDir := strings.TrimSpace(req.KnowledgeDir)
 	if knowledgeDir == "" {
-		return nil, serrors.E(op, serrors.KindValidation, "knowledge directory is required")
+		return nil, serrors.New(serrors.Invalid, "knowledge directory is required").WithOp(op)
 	}
 
 	info, err := os.Stat(knowledgeDir)
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to read knowledge directory")
+		return nil, serrors.WrapContext(op, err, "failed to read knowledge directory")
 	}
 	if !info.IsDir() {
-		return nil, serrors.E(op, serrors.KindValidation, "knowledge path must be a directory")
+		return nil, serrors.New(serrors.Invalid, "knowledge path must be a directory").WithOp(op)
 	}
 
 	if s.validatedQueryStore != nil && req.TenantID == uuid.Nil {
-		return nil, serrors.E(op, serrors.KindValidation, "tenant_id is required when validated query store is configured")
+		return nil, serrors.New(serrors.Invalid, "tenant_id is required when validated query store is configured").WithOp(op)
 	}
 
 	if req.Rebuild && s.validatedQueryStore != nil {
 		resetter, ok := s.validatedQueryStore.(tenantValidatedQueryResetter)
 		if !ok {
-			return nil, serrors.E(op, serrors.KindValidation, "validated query store does not support rebuild")
+			return nil, serrors.New(serrors.Invalid, "validated query store does not support rebuild").WithOp(op)
 		}
 		if err := resetter.DeleteByTenant(ctx, req.TenantID); err != nil {
-			return nil, serrors.E(op, err, "failed to reset validated query library")
+			return nil, serrors.WrapContext(op, err, "failed to reset validated query library")
 		}
 	}
 
@@ -149,18 +149,18 @@ func (s *KnowledgeBootstrapService) Load(ctx context.Context, req KnowledgeBoots
 	tablesDir := filepath.Join(knowledgeDir, "tables")
 	tableFiles, err := knowledgeFiles(tablesDir, ".json")
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to list tables knowledge files")
+		return nil, serrors.WrapContext(op, err, "failed to list tables knowledge files")
 	}
 	docs := make([]kb.Document, 0, len(tableFiles))
 	metadata := make([]schema.TableMetadata, 0, len(tableFiles))
 	for _, filePath := range tableFiles {
 		raw, readErr := os.ReadFile(filePath)
 		if readErr != nil {
-			return nil, serrors.E(op, readErr, "failed to read table knowledge file")
+			return nil, serrors.WrapContext(op, readErr, "failed to read table knowledge file")
 		}
 		tableMeta, parseErr := parseTableMetadata(raw)
 		if parseErr != nil {
-			return nil, serrors.E(op, parseErr, "failed to parse table knowledge file")
+			return nil, serrors.WrapContext(op, parseErr, "failed to parse table knowledge file")
 		}
 		metadata = append(metadata, tableMeta)
 		docs = append(docs, kb.Document{
@@ -178,12 +178,12 @@ func (s *KnowledgeBootstrapService) Load(ctx context.Context, req KnowledgeBoots
 	businessDir := filepath.Join(knowledgeDir, "business")
 	businessFiles, err := knowledgeFiles(businessDir, ".json")
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to list business knowledge files")
+		return nil, serrors.WrapContext(op, err, "failed to list business knowledge files")
 	}
 	for _, filePath := range businessFiles {
 		raw, readErr := os.ReadFile(filePath)
 		if readErr != nil {
-			return nil, serrors.E(op, readErr, "failed to read business knowledge file")
+			return nil, serrors.WrapContext(op, readErr, "failed to read business knowledge file")
 		}
 		docs = append(docs, kb.Document{
 			ID:        "knowledge:business:" + filepath.Base(filePath),
@@ -200,12 +200,12 @@ func (s *KnowledgeBootstrapService) Load(ctx context.Context, req KnowledgeBoots
 	queriesDir := filepath.Join(knowledgeDir, "queries")
 	queryFiles, err := knowledgeFiles(queriesDir, ".sql")
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to list query knowledge files")
+		return nil, serrors.WrapContext(op, err, "failed to list query knowledge files")
 	}
 	for _, filePath := range queryFiles {
 		raw, readErr := os.ReadFile(filePath)
 		if readErr != nil {
-			return nil, serrors.E(op, readErr, "failed to read query knowledge file")
+			return nil, serrors.WrapContext(op, readErr, "failed to read query knowledge file")
 		}
 		patterns := parseQueryPatterns(string(raw), strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath)))
 		result.QueryPatternsLoaded += len(patterns)
@@ -241,7 +241,7 @@ func (s *KnowledgeBootstrapService) Load(ctx context.Context, req KnowledgeBoots
 					CreatedAt:        s.now(),
 				})
 				if saveErr != nil {
-					return nil, serrors.E(op, saveErr, "failed to save validated query pattern")
+					return nil, serrors.WrapContext(op, saveErr, "failed to save validated query pattern")
 				}
 				result.ValidatedQueriesSaved++
 			}
@@ -251,7 +251,7 @@ func (s *KnowledgeBootstrapService) Load(ctx context.Context, req KnowledgeBoots
 	if s.metadataOutputDir != "" {
 		written, syncErr := syncMetadataFiles(s.metadataOutputDir, metadata, req.Rebuild)
 		if syncErr != nil {
-			return nil, serrors.E(op, syncErr, "failed to sync schema metadata files")
+			return nil, serrors.WrapContext(op, syncErr, "failed to sync schema metadata files")
 		}
 		result.MetadataFilesGenerated = written
 	}
@@ -259,11 +259,11 @@ func (s *KnowledgeBootstrapService) Load(ctx context.Context, req KnowledgeBoots
 	if s.kbIndexer != nil {
 		if req.Rebuild {
 			if err := s.kbIndexer.Rebuild(ctx, staticDocumentSource{documents: docs}); err != nil {
-				return nil, serrors.E(op, err, "failed to rebuild knowledge index")
+				return nil, serrors.WrapContext(op, err, "failed to rebuild knowledge index")
 			}
 		} else if len(docs) > 0 {
 			if err := s.kbIndexer.IndexDocuments(ctx, docs); err != nil {
-				return nil, serrors.E(op, err, "failed to index knowledge documents")
+				return nil, serrors.WrapContext(op, err, "failed to index knowledge documents")
 			}
 		}
 		result.KnowledgeDocsIndexed = len(docs)

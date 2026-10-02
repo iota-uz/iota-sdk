@@ -42,7 +42,7 @@ ORDER BY id ASC`
 
 	rows, err := p.db.Query(ctx, query, scope.TenantID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	defer rows.Close()
 
@@ -54,7 +54,7 @@ ORDER BY id ASC`
 		var middleName *string
 		var updatedAt time.Time
 		if err := rows.Scan(&id, &firstName, &lastName, &middleName, &updatedAt); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		nameParts := []string{firstName}
 		if middleName != nil {
@@ -90,17 +90,17 @@ ORDER BY id ASC`
 		})
 		if len(out) == spotlight.ProviderStreamBatchSize {
 			if err := emit(out); err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			out = make([]spotlight.SearchDocument, 0, spotlight.ProviderStreamBatchSize)
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if len(out) > 0 {
 		if err := emit(out); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	return nil

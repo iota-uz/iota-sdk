@@ -11,6 +11,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 const (
@@ -49,7 +50,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	exploration, hasExploration, err := ParseExplorationExportRequest(r.URL.Query())
 	if err != nil {
 		SetDownloadSignal(w, r, DownloadSignalError)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 	if !hasExploration {

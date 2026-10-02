@@ -103,7 +103,7 @@ func TestDepartmentValidationFieldError(t *testing.T) {
 		},
 		{
 			name:        "sentinel inside a serrors.E chain still matches",
-			err:         serrors.E(serrors.Op("test"), serrors.KindValidation, fmt.Errorf("xyz: %w", services.ErrDepartmentCycle)),
+			err:         serrors.New(serrors.Invalid, "").WithOp(serrors.Op("test")).WithCause(fmt.Errorf("xyz: %w", services.ErrDepartmentCycle)),
 			wantStatus:  http.StatusBadRequest,
 			wantField:   "ParentID",
 			wantMessage: "Departments.Errors.Cycle",

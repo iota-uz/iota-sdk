@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	serrors "github.com/iota-uz/iota-sdk/pkg/serrors/v2"
-	"github.com/iota-uz/iota-sdk/pkg/serrors/v2/serrorhttp"
+	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,7 +52,7 @@ func TestWriteFormRetainsRouteOwnedFields(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/form", strings.NewReader("Email=kept%40example.com"))
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			if hx {
-				r.Header.Set("Hx-Request", "true")
+				r.Header.Set("HX-Request", "true")
 			}
 			w := httptest.NewRecorder()
 			err := serrors.NewInvalid("private").WithFields(serrors.FieldViolation{Field: "Email", Message: serrors.Message{ID: "missing"}})
@@ -66,8 +66,8 @@ func TestWriteFormRetainsRouteOwnedFields(t *testing.T) {
 				expected = 200
 			}
 			require.Equal(t, expected, w.Code)
-			require.Equal(t, "#account", w.Header().Get("Hx-Retarget"))
-			require.Equal(t, "outerHTML", w.Header().Get("Hx-Reswap"))
+			require.Equal(t, "#account", w.Header().Get("HX-Retarget"))
+			require.Equal(t, "outerHTML", w.Header().Get("HX-Reswap"))
 			require.Equal(t, "text/html; charset=utf-8", w.Header().Get("Content-Type"))
 			require.Contains(t, w.Body.String(), `name="Email" value="kept@example.com"`)
 			require.Contains(t, w.Body.String(), "Check the supplied information.")
@@ -78,8 +78,31 @@ func TestWriteFormRetainsRouteOwnedFields(t *testing.T) {
 
 func TestWriteFormRequiresRendererBeforeWriting(t *testing.T) {
 	w := httptest.NewRecorder()
-	err := serrorhttp.WriteForm(w, httptest.NewRequest(http.MethodPost, "/", nil), serrors.NewInvalid("private"), nil, serrorhttp.Form{})
+	err := serrorhttp.WriteForm(w, httptest.NewRequest("POST", "/", nil), serrors.NewInvalid("private"), nil, serrorhttp.Form{})
 	require.True(t, serrors.HasCode(err, serrors.Internal))
 	require.Empty(t, w.Body.String())
 	require.Empty(t, w.Header())
+}
+
+func TestWriteTextPreservesPlainTextRouteContract(t *testing.T) {
+	w := httptest.NewRecorder()
+	w.Header().Set("X-Route", "existing")
+	serrorhttp.WriteText(w, serrors.NewInternal("SELECT secret").WithCause(errors.New("secret cause")), http.StatusBadGateway, nil)
+	require.Equal(t, http.StatusBadGateway, w.Code)
+	require.Equal(t, "text/plain; charset=utf-8", w.Header().Get("Content-Type"))
+	require.Equal(t, "existing", w.Header().Get("X-Route"))
+	require.Equal(t, "An unexpected error occurred.\n", w.Body.String())
+}
+
+func TestWriteTextClassifiesSemanticErrorsAndRetainsUnknownRouteStatus(t *testing.T) {
+	for _, tc := range []struct {
+		err               error
+		routeStatus, want int
+	}{{serrors.NewNotFound("secret"), 500, 404}, {serrors.NewInvalid("secret"), 500, 400}, {errors.New("private decoding details"), 400, 400}} {
+		w := httptest.NewRecorder()
+		serrorhttp.WriteText(w, tc.err, tc.routeStatus, nil)
+		require.Equal(t, tc.want, w.Code)
+		require.NotContains(t, w.Body.String(), "secret")
+		require.NotContains(t, w.Body.String(), "private")
+	}
 }

@@ -134,11 +134,11 @@ func LoadCube(data []byte, opts ResolveOptions) (cube.CubeSpec, error) {
 
 	//nolint:musttag // CubeDocument is a loader type for trusted repo-owned JSON specs.
 	if err := decoder.Decode(&doc); err != nil {
-		return cube.CubeSpec{}, serrors.E(op, err)
+		return cube.CubeSpec{}, serrors.Wrap(op, err)
 	}
 	spec, err := doc.Resolve(opts)
 	if err != nil {
-		return cube.CubeSpec{}, serrors.E(op, err)
+		return cube.CubeSpec{}, serrors.Wrap(op, err)
 	}
 	return spec, nil
 }
@@ -148,11 +148,11 @@ func LoadCubeFS(fsys fs.FS, name string, opts ResolveOptions) (cube.CubeSpec, er
 
 	data, err := fs.ReadFile(fsys, name)
 	if err != nil {
-		return cube.CubeSpec{}, serrors.E(op, err)
+		return cube.CubeSpec{}, serrors.Wrap(op, err)
 	}
 	spec, err := LoadCube(data, opts)
 	if err != nil {
-		return cube.CubeSpec{}, serrors.E(op, err)
+		return cube.CubeSpec{}, serrors.Wrap(op, err)
 	}
 	return spec, nil
 }

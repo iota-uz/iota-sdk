@@ -27,6 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 type CounterpartiesController struct {
@@ -134,7 +135,7 @@ func (c *CounterpartiesController) Create(w http.ResponseWriter, r *http.Request
 	dto, err := composables.UseForm(&dtos.CounterpartyCreateDTO{}, r)
 	if err != nil {
 		logrus.WithError(err).Error("Error parsing form")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -159,13 +160,13 @@ func (c *CounterpartiesController) Create(w http.ResponseWriter, r *http.Request
 	entity, err := dto.ToEntity(tenantID)
 	if err != nil {
 		logrus.WithError(err).Error("Error converting DTO to entity")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := c.counterpartiesService.Create(r.Context(), entity); err != nil {
 		logrus.WithError(err).Error("Error creating counterparty")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -248,13 +249,13 @@ func (c *CounterpartiesController) Update(
 	entity, err := dto.Apply(existing)
 	if err != nil {
 		logrus.WithError(err).Error("Error applying DTO to entity")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := c.counterpartiesService.Update(r.Context(), entity); err != nil {
 		logrus.WithError(err).Error("Error updating counterparty")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -271,7 +272,7 @@ func (c *CounterpartiesController) Delete(w http.ResponseWriter, r *http.Request
 
 	if _, err := c.counterpartiesService.Delete(r.Context(), id); err != nil {
 		logrus.WithError(err).Error("Error deleting counterparty")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -284,7 +285,7 @@ func (c *CounterpartiesController) Search(w http.ResponseWriter, r *http.Request
 		Limit:  10,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := mapping.MapViewModels(entities, func(e counterparty.Counterparty) *base.ComboboxOption {

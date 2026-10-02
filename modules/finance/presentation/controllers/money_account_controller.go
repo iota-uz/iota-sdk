@@ -34,6 +34,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -253,7 +254,7 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 func (c *MoneyAccountController) GetEditDrawer(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -265,7 +266,7 @@ func (c *MoneyAccountController) GetEditDrawer(w http.ResponseWriter, r *http.Re
 
 	currencies, err := c.viewModelCurrencies(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -288,7 +289,7 @@ func (c *MoneyAccountController) GetEditDrawer(w http.ResponseWriter, r *http.Re
 func (c *MoneyAccountController) GetNewDrawer(w http.ResponseWriter, r *http.Request) {
 	currencies, err := c.viewModelCurrencies(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -308,7 +309,7 @@ func (c *MoneyAccountController) Delete(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if _, err := c.moneyAccountService.Delete(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -317,12 +318,12 @@ func (c *MoneyAccountController) Delete(w http.ResponseWriter, r *http.Request) 
 func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	dto, err := composables.UseForm(&dtos.MoneyAccountUpdateDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -337,12 +338,12 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 
 		entity, err := dto.Apply(existing)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		if _, err := c.moneyAccountService.Update(r.Context(), entity); err != nil {
 			if !errors.Is(err, moneyAccount.ErrDuplicateAccountNumber) {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 				return
 			}
 			// The failed update aborted any surrounding transaction; reads
@@ -350,7 +351,7 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 			freshCtx := context.WithValue(r.Context(), constants.TxKey, nil)
 			currencies, currenciesErr := c.viewModelCurrencies(r.WithContext(freshCtx))
 			if currenciesErr != nil {
-				http.Error(w, currenciesErr.Error(), http.StatusInternalServerError)
+				serrorhttp.WriteText(w, currenciesErr, http.StatusInternalServerError, nil)
 				return
 			}
 			history, historyErr := c.accountHistory(r.WithContext(freshCtx), id)
@@ -384,7 +385,7 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 
 		currencies, err := c.viewModelCurrencies(r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
@@ -411,7 +412,7 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&dtos.MoneyAccountCreateDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -420,7 +421,7 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		currencies, err := c.viewModelCurrencies(r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
@@ -445,17 +446,17 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 
 	entity, err := dto.ToEntity(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := c.moneyAccountService.Create(r.Context(), entity); err != nil {
 		if !errors.Is(err, moneyAccount.ErrDuplicateAccountNumber) {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		if renderErr := c.renderCreateDuplicateAccountNumber(w, r, dto, isDrawer); renderErr != nil {
-			http.Error(w, renderErr.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, renderErr, http.StatusInternalServerError, nil)
 			return
 		}
 		return
@@ -496,7 +497,7 @@ func (c *MoneyAccountController) renderCreateDuplicateAccountNumber(w http.Respo
 func (c *MoneyAccountController) GetTransferDrawer(w http.ResponseWriter, r *http.Request) {
 	sourceAccountID, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -533,13 +534,13 @@ func (c *MoneyAccountController) GetTransferDrawer(w http.ResponseWriter, r *htt
 func (c *MoneyAccountController) CreateTransfer(w http.ResponseWriter, r *http.Request) {
 	sourceAccountID, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.TransferDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -669,7 +670,7 @@ func (c *MoneyAccountController) CreateTransfer(w http.ResponseWriter, r *http.R
 		return nil
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -716,7 +717,7 @@ func (c *MoneyAccountController) accountHistory(r *http.Request, accountID uuid.
 func (c *MoneyAccountController) GetAccountTransactions(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 

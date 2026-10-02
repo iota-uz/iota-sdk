@@ -41,7 +41,7 @@ func (r *tokenRefresher) refreshTokenLocked(ctx context.Context) (string, error)
 	const op serrors.Op = "TokenRefresher.RefreshToken"
 
 	if ctx == nil {
-		return "", serrors.E(op, serrors.KindValidation, "context cannot be nil")
+		return "", serrors.New(serrors.Invalid, "context cannot be nil").WithOp(op)
 	}
 
 	var lastErr error
@@ -50,18 +50,18 @@ func (r *tokenRefresher) refreshTokenLocked(ctx context.Context) (string, error)
 			delay := time.Duration(attempt) * baseDelay
 			select {
 			case <-ctx.Done():
-				return "", serrors.E(op, ctx.Err())
+				return "", serrors.Wrap(op, ctx.Err())
 			case <-time.After(delay):
 			}
 		}
 
 		// Check context before attempting client operations
 		if err := ctx.Err(); err != nil {
-			return "", serrors.E(op, err)
+			return "", serrors.Wrap(op, err)
 		}
 
 		if r.client == nil {
-			return "", serrors.E(op, serrors.KindValidation, errors.New("client is not initialized"))
+			return "", serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("client is not initialized"))
 		}
 
 		resp, httpResp, err := r.client.DefaultApi.

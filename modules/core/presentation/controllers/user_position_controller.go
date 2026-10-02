@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 )
@@ -214,14 +215,14 @@ func (c *PositionsController) List(
 
 	total, err := service.Count(r.Context(), findParams)
 	if err != nil {
-		logger.Error(serrors.E(opPositionsList, err))
+		logger.Error(serrors.Wrap(opPositionsList, err))
 		http.Error(w, "Error retrieving positions", http.StatusInternalServerError)
 		return
 	}
 
 	entities, err := service.GetPaginated(r.Context(), findParams)
 	if err != nil {
-		logger.Error(serrors.E(opPositionsList, err))
+		logger.Error(serrors.Wrap(opPositionsList, err))
 		http.Error(w, "Error retrieving positions", http.StatusInternalServerError)
 		return
 	}
@@ -232,13 +233,13 @@ func (c *PositionsController) List(
 	// rows (label lookup), instead of loading every tenant user and department.
 	userNames, err := c.userNamesForPage(r, userService, entities)
 	if err != nil {
-		logger.Error(serrors.E(opPositionsList, err))
+		logger.Error(serrors.Wrap(opPositionsList, err))
 		http.Error(w, "Error retrieving positions", http.StatusInternalServerError)
 		return
 	}
 	deptNames, err := c.deptNamesForPage(r, departmentService, entities, locale)
 	if err != nil {
-		logger.Error(serrors.E(opPositionsList, err))
+		logger.Error(serrors.Wrap(opPositionsList, err))
 		http.Error(w, "Error retrieving positions", http.StatusInternalServerError)
 		return
 	}
@@ -280,13 +281,13 @@ func (c *PositionsController) GetNew(
 	}
 	userOpts, _, err := c.userPickerData(r, userService)
 	if err != nil {
-		logger.Error(serrors.E(opPositionsNew, err))
+		logger.Error(serrors.Wrap(opPositionsNew, err))
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return
 	}
 	deptOpts, _, err := c.departmentPickerData(r, departmentService)
 	if err != nil {
-		logger.Error(serrors.E(opPositionsNew, err))
+		logger.Error(serrors.Wrap(opPositionsNew, err))
 		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 		return
 	}
@@ -314,26 +315,26 @@ func (c *PositionsController) GetEdit(
 	}
 	id, err := uuid.Parse(mux.Vars(r)["id"])
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	entity, err := service.GetByID(r.Context(), id)
 	if err != nil {
-		logger.Error(serrors.E(opPositionsEdit, err))
+		logger.Error(serrors.Wrap(opPositionsEdit, err))
 		http.Error(w, "Position not found", http.StatusNotFound)
 		return
 	}
 
 	userOpts, userNames, err := c.userPickerData(r, userService)
 	if err != nil {
-		logger.Error(serrors.E(opPositionsEdit, err))
+		logger.Error(serrors.Wrap(opPositionsEdit, err))
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return
 	}
 	deptOpts, deptNames, err := c.departmentPickerData(r, departmentService)
 	if err != nil {
-		logger.Error(serrors.E(opPositionsEdit, err))
+		logger.Error(serrors.Wrap(opPositionsEdit, err))
 		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 		return
 	}
@@ -361,20 +362,20 @@ func (c *PositionsController) Create(
 	}
 	dto, err := composables.UseForm(&dtos.CreateUserPositionDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		userOpts, _, err := c.userPickerData(r, userService)
 		if err != nil {
-			logger.Error(serrors.E(opPositionsCreate, err))
+			logger.Error(serrors.Wrap(opPositionsCreate, err))
 			http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 			return
 		}
 		deptOpts, _, err := c.departmentPickerData(r, departmentService)
 		if err != nil {
-			logger.Error(serrors.E(opPositionsCreate, err))
+			logger.Error(serrors.Wrap(opPositionsCreate, err))
 			http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 			return
 		}
@@ -397,7 +398,7 @@ func (c *PositionsController) Create(
 
 	entity, err := dto.ToEntity()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -406,14 +407,14 @@ func (c *PositionsController) Create(
 	// first (mirrors GroupsController.Create).
 	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
-		logger.Error(serrors.E(opPositionsCreate, err))
+		logger.Error(serrors.Wrap(opPositionsCreate, err))
 		http.Error(w, "Error getting tenant", http.StatusInternalServerError)
 		return
 	}
 	entity = entity.SetTenantID(tenantID)
 
 	if _, err := service.Create(r.Context(), entity); err != nil {
-		logger.Error(serrors.E(opPositionsCreate, err))
+		logger.Error(serrors.Wrap(opPositionsCreate, err))
 		http.Error(w, "Error creating position", http.StatusInternalServerError)
 		return
 	}
@@ -440,26 +441,26 @@ func (c *PositionsController) Update(
 	}
 	id, err := uuid.Parse(mux.Vars(r)["id"])
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.UpdateUserPositionDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		userOpts, userNames, err := c.userPickerData(r, userService)
 		if err != nil {
-			logger.Error(serrors.E(opPositionsUpdate, err))
+			logger.Error(serrors.Wrap(opPositionsUpdate, err))
 			http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 			return
 		}
 		deptOpts, _, err := c.departmentPickerData(r, departmentService)
 		if err != nil {
-			logger.Error(serrors.E(opPositionsUpdate, err))
+			logger.Error(serrors.Wrap(opPositionsUpdate, err))
 			http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 			return
 		}
@@ -487,7 +488,7 @@ func (c *PositionsController) Update(
 
 	existing, err := service.GetByID(r.Context(), id)
 	if err != nil {
-		logger.Error(serrors.E(opPositionsUpdate, err))
+		logger.Error(serrors.Wrap(opPositionsUpdate, err))
 		http.Error(w, "Error retrieving position", http.StatusInternalServerError)
 		return
 	}
@@ -495,12 +496,12 @@ func (c *PositionsController) Update(
 	entity, err := dto.Apply(existing)
 	if err != nil {
 		logger.Errorf("Error updating position: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	if _, err := service.Update(r.Context(), entity); err != nil {
-		logger.Error(serrors.E(opPositionsUpdate, err))
+		logger.Error(serrors.Wrap(opPositionsUpdate, err))
 		http.Error(w, "Error updating position", http.StatusInternalServerError)
 		return
 	}
@@ -523,12 +524,12 @@ func (c *PositionsController) Delete(
 	}
 	id, err := uuid.Parse(mux.Vars(r)["id"])
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	if err := service.Delete(r.Context(), id); err != nil {
-		logger.Error(serrors.E(opPositionsDelete, err))
+		logger.Error(serrors.Wrap(opPositionsDelete, err))
 		http.Error(w, "Error deleting position", http.StatusInternalServerError)
 		return
 	}

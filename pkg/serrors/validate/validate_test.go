@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/go-i18n/v2/i18n"
-	serrors "github.com/iota-uz/iota-sdk/pkg/serrors/v2"
-	"github.com/iota-uz/iota-sdk/pkg/serrors/v2/validate"
+	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/validate"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
 )

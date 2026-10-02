@@ -24,7 +24,7 @@ func convertAttachmentDTOs(ctx context.Context, uploads []AttachmentUploadDTO) (
 		return nil, nil
 	}
 	if len(uploads) > maxAttachmentCount {
-		return nil, serrors.E(op, serrors.KindValidation, fmt.Sprintf("too many attachments: %d (max: %d)", len(uploads), maxAttachmentCount))
+		return nil, serrors.New(serrors.Invalid, fmt.Sprintf("too many attachments: %d (max: %d)", len(uploads), maxAttachmentCount)).WithOp(op)
 	}
 
 	uploadRepo := corepersistence.NewUploadRepository()
@@ -32,15 +32,15 @@ func convertAttachmentDTOs(ctx context.Context, uploads []AttachmentUploadDTO) (
 
 	for i, uploadRef := range uploads {
 		if uploadRef.UploadID == nil || *uploadRef.UploadID <= 0 {
-			return nil, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d].uploadId is required", i))
+			return nil, serrors.New(serrors.Invalid, fmt.Sprintf("attachments[%d].uploadId is required", i)).WithOp(op)
 		}
 
 		found, err := uploadRepo.GetByIDs(ctx, []uint{uint(*uploadRef.UploadID)})
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		if len(found) == 0 {
-			return nil, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d].uploadId not found", i))
+			return nil, serrors.New(serrors.Invalid, fmt.Sprintf("attachments[%d].uploadId not found", i)).WithOp(op)
 		}
 
 		entity := found[0]

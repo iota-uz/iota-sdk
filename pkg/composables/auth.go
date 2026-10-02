@@ -102,10 +102,10 @@ func CanUserStrict(ctx context.Context, perm permission.Permission) error {
 
 	u, err := UseUser(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if !u.Can(perm) {
-		return serrors.E(op, ErrForbidden)
+		return serrors.Wrap(op, ErrForbidden)
 	}
 	return nil
 }

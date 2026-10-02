@@ -28,6 +28,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -280,7 +281,7 @@ func (c *DebtsController) debtViewModel(ctx context.Context, entity debt.Debt) (
 func (c *DebtsController) renderEditDrawer(w http.ResponseWriter, r *http.Request, props *debts.DrawerEditProps) {
 	options, err := c.drawerOptions(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props.Options = options
@@ -333,7 +334,7 @@ func debtErrorStatus(err error) int {
 func (c *DebtsController) GetEditDrawer(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -344,7 +345,7 @@ func (c *DebtsController) GetEditDrawer(w http.ResponseWriter, r *http.Request) 
 	}
 	vm, err := c.debtViewModel(r.Context(), entity)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -354,7 +355,7 @@ func (c *DebtsController) GetEditDrawer(w http.ResponseWriter, r *http.Request) 
 func (c *DebtsController) GetNewDrawer(w http.ResponseWriter, r *http.Request) {
 	options, err := c.drawerOptions(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -369,7 +370,7 @@ func (c *DebtsController) GetNewDrawer(w http.ResponseWriter, r *http.Request) {
 func (c *DebtsController) renderCreateDrawer(w http.ResponseWriter, r *http.Request, dto *dtos.DebtCreateDTO, errorsMap map[string]string) {
 	options, err := c.drawerOptions(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := &debts.DrawerCreateProps{
@@ -383,7 +384,7 @@ func (c *DebtsController) renderCreateDrawer(w http.ResponseWriter, r *http.Requ
 func (c *DebtsController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&dtos.DebtCreateDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -410,7 +411,7 @@ func (c *DebtsController) Create(w http.ResponseWriter, r *http.Request) {
 			c.renderCreateDrawer(w, r, dto, errorsMap)
 			return
 		}
-		http.Error(w, err.Error(), debtErrorStatus(err))
+		serrorhttp.WriteText(w, err, debtErrorStatus(err), nil)
 		return
 	}
 
@@ -428,13 +429,13 @@ func (c *DebtsController) Update(w http.ResponseWriter, r *http.Request) {
 
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.DebtUpdateDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -448,7 +449,7 @@ func (c *DebtsController) Update(w http.ResponseWriter, r *http.Request) {
 	if ok {
 		entity, err := dto.Apply(existing)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		_, err = c.debtService.Update(ctx, entity)
@@ -457,14 +458,14 @@ func (c *DebtsController) Update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errorsMap, ok = debtFormError(ctx, err); !ok {
-			http.Error(w, err.Error(), debtErrorStatus(err))
+			serrorhttp.WriteText(w, err, debtErrorStatus(err), nil)
 			return
 		}
 	}
 
 	vm, err := c.debtViewModel(ctx, existing)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	c.renderEditDrawer(w, r, &debts.DrawerEditProps{Debt: withFormValues(vm, dto), Errors: errorsMap})
@@ -473,13 +474,13 @@ func (c *DebtsController) Update(w http.ResponseWriter, r *http.Request) {
 func (c *DebtsController) Settle(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.DebtSettleDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -491,7 +492,7 @@ func (c *DebtsController) Settle(w http.ResponseWriter, r *http.Request) {
 		}
 		vm, err := c.debtViewModel(r.Context(), entity)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		c.renderEditDrawer(w, r, &debts.DrawerEditProps{
@@ -505,7 +506,7 @@ func (c *DebtsController) Settle(w http.ResponseWriter, r *http.Request) {
 	settlementTransactionID := dto.GetTransactionID()
 
 	if _, err := c.debtService.Settle(r.Context(), id, dto.SettlementAmount, settlementTransactionID); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -515,12 +516,12 @@ func (c *DebtsController) Settle(w http.ResponseWriter, r *http.Request) {
 func (c *DebtsController) WriteOff(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := c.debtService.WriteOff(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -530,16 +531,16 @@ func (c *DebtsController) WriteOff(w http.ResponseWriter, r *http.Request) {
 func (c *DebtsController) Cancel(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := c.debtService.Cancel(r.Context(), id); err != nil {
 		if errors.Is(err, services.ErrDebtNotOpen) {
-			http.Error(w, err.Error(), http.StatusConflict)
+			serrorhttp.WriteText(w, err, http.StatusConflict, nil)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -549,12 +550,12 @@ func (c *DebtsController) Cancel(w http.ResponseWriter, r *http.Request) {
 func (c *DebtsController) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := c.debtService.Delete(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

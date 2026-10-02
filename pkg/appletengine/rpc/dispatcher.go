@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -17,6 +18,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/applets"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorlog"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorrpc"
 	"github.com/sirupsen/logrus"
 )
 
@@ -397,9 +402,23 @@ func (d *Dispatcher) executeWithMiddleware(baseCtx context.Context, httpReq *htt
 	}
 	if handlerErr != nil {
 		if d.logger != nil {
-			d.logger.WithField("method", method.Name).WithError(handlerErr).Error("applet rpc handler error")
+			requestID, _ := RequestIDFromContext(ctx)
+			fields := logrus.Fields{"method": method.Name}
+			for _, attr := range serrorlog.Attributes(handlerErr, requestID) {
+				fields[attr.Key] = attr.Value.Any()
+			}
+			level := logrus.ErrorLevel
+			switch serrorlog.Level(handlerErr) {
+			case slog.LevelDebug:
+				level = logrus.DebugLevel
+			case slog.LevelInfo:
+				level = logrus.InfoLevel
+			case slog.LevelWarn:
+				level = logrus.WarnLevel
+			}
+			d.logger.WithFields(fields).Log(level, "applet rpc handler error")
 		}
-		return nil, mapExecutionError(handlerErr)
+		return nil, mapExecutionError(ctx, handlerErr)
 	}
 	return result, nil
 }
@@ -413,7 +432,7 @@ type rpcErrorDetailsCarrier interface {
 	RPCDetails() any
 }
 
-func mapExecutionError(err error) *rpcError {
+func mapExecutionError(ctx context.Context, err error) *rpcError {
 	var carrier rpcErrorCarrier
 	if errors.As(err, &carrier) {
 		out := &rpcError{
@@ -427,6 +446,14 @@ func mapExecutionError(err error) *rpcError {
 		return out
 	}
 
+	if !errors.Is(err, applets.ErrValidation) && !errors.Is(err, applets.ErrInvalid) && !errors.Is(err, applets.ErrNotFound) && !errors.Is(err, applets.ErrPermissionDenied) && !errors.Is(err, applets.ErrInternal) {
+		var semantic *serrors.Error
+		if errors.As(err, &semantic) {
+			l, _ := intl.UseLocalizer(ctx)
+			projection := serrorrpc.Project(err, l)
+			return &rpcError{Code: projection.Code, Message: projection.Message, Details: projection.Details}
+		}
+	}
 	code := mapErrorCode(err)
 	return &rpcError{
 		Code:    code,

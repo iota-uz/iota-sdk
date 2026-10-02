@@ -116,6 +116,14 @@ func Wrap(op Op, err error) error {
 	return &Error{op: op, err: err}
 }
 
+// WrapContext adds private diagnostic context without introducing a new code.
+func WrapContext(op Op, err error, diagnostic string) error {
+	if err == nil {
+		return nil
+	}
+	return &Error{op: op, err: err, msg: diagnostic}
+}
+
 func FromDB(op Op, err error) error {
 	if err == nil {
 		return nil
@@ -147,6 +155,9 @@ type Constraint struct {
 func FromConstraint(op Op, err error, rules ...Constraint) error {
 	if err == nil {
 		return nil
+	}
+	if frame(err) != nil {
+		return Wrap(op, err)
 	}
 	var pg interface{ SQLState() string }
 	var named interface{ ConstraintName() string }

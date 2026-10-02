@@ -110,7 +110,7 @@ func NewChatService(
 	// externally. Call CloseSharedRedis() exactly once at shutdown.
 	eventLog, activeRunIndex, runJobQueue, runSessionQueue, closeSharedRedis, err := newConfiguredRedisComponents()
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	core := &chatServiceImpl{
 		chatRepo:           chatRepo,
@@ -174,12 +174,12 @@ func (s *chatServiceImpl) FailStalledRun(ctx context.Context, job RunJobPayload,
 		string(domain.GenerationRunStatusFailed),
 		s.runState.FailRunState,
 	); err != nil {
-		s.log().WithError(serrors.E(op, err)).WithField("run_id", job.RunID.String()).
+		s.log().WithError(serrors.Wrap(op, err)).WithField("run_id", job.RunID.String()).
 			Warn("bichat: failed to persist stalled-run state")
 	}
 
 	if s.eventLog != nil {
-		errPayload := streamingsvc.TerminalChunk(serrors.E(op, cause), 0)
+		errPayload := streamingsvc.TerminalChunk(serrors.Wrap(op, cause), 0)
 		if eventType, body, encodeErr := encodeRunEventFromChunk(errPayload); encodeErr == nil {
 			if _, appendErr := s.eventLog.Append(runStateCtx, job.TenantID, job.RunID, RunEvent{
 				Type:    eventType,
@@ -307,10 +307,10 @@ func (s *chatServiceImpl) StopGeneration(ctx context.Context, sessionID uuid.UUI
 		}
 		// Any other persistence failure is surfaced so operators can
 		// diagnose cross-process cancel delivery failures.
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if err := s.runState.RequestCancel(persistCtx, run.TenantID(), sessionID, run.ID()); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -343,7 +343,7 @@ func (s *chatServiceImpl) GetStreamStatus(ctx context.Context, sessionID uuid.UU
 		if errors.Is(err, domain.ErrNoActiveRun) {
 			return &bichatservices.StreamStatus{Active: false}, nil
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if run == nil {
 		return &bichatservices.StreamStatus{Active: false}, nil
@@ -415,7 +415,7 @@ func (s *chatServiceImpl) createRunStateRecoveringOrphan(
 		string(domain.GenerationRunStatusFailed),
 		s.runState.FailRunState,
 	); clearErr != nil {
-		return false, serrors.E("chatServiceImpl.createRunStateRecoveringOrphan", clearErr)
+		return false, serrors.Wrap("chatServiceImpl.createRunStateRecoveringOrphan", clearErr)
 	}
 	s.publishTerminalStatus(
 		ctx,
@@ -524,7 +524,7 @@ func (s *chatServiceImpl) finalizeRunState(
 		"terminal_status": terminalStatus,
 		"attempts":        runStateFinalizationAttempts,
 	}).Error("bichat: failed to finalize generation run state")
-	return serrors.E(op, finalErr)
+	return serrors.Wrap(op, finalErr)
 }
 
 // publishTerminalStatus is the single choke point for emitting the last
@@ -564,7 +564,7 @@ func (s *chatServiceImpl) startAsyncRun(
 	err = s.withinTx(ctx, func(txCtx context.Context) error {
 		session, err = s.chatRepo.GetSession(txCtx, sessionID)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		var runID uuid.UUID
 		databaseRunReady := false
@@ -573,7 +573,7 @@ func (s *chatServiceImpl) startAsyncRun(
 			run, err = s.chatRepo.GetRunByID(txCtx, runID)
 			if err == nil {
 				if run.SessionID() != sessionID || run.TenantID() != session.TenantID() {
-					return serrors.E(op, serrors.KindValidation, "idempotent run belongs to another session")
+					return serrors.New(serrors.Invalid, "idempotent run belongs to another session").WithOp(op)
 				}
 				switch run.Status() {
 				case domain.GenerationRunStatusCompleted:
@@ -592,7 +592,7 @@ func (s *chatServiceImpl) startAsyncRun(
 					// Terminal failures are retryable under the same
 					// idempotency key and deterministic run id.
 				default:
-					return serrors.E(op, serrors.KindValidation, "unsupported generation run status")
+					return serrors.New(serrors.Invalid, "unsupported generation run status").WithOp(op)
 				}
 
 				run, err = s.chatRepo.RestartRun(
@@ -604,28 +604,28 @@ func (s *chatServiceImpl) startAsyncRun(
 					databaseRunReady = true
 				} else {
 					if !errors.Is(err, domain.ErrRunNotFound) {
-						return serrors.E(op, err)
+						return serrors.Wrap(op, err)
 					}
 
 					// Another process may have won the restart race. Re-read the
 					// deterministic row and accept its live/completed result.
 					run, err = s.chatRepo.GetRunByID(txCtx, runID)
 					if err != nil {
-						return serrors.E(op, err)
+						return serrors.Wrap(op, err)
 					}
 					if run.SessionID() != sessionID || run.TenantID() != session.TenantID() {
-						return serrors.E(op, serrors.KindValidation, "idempotent run belongs to another session")
+						return serrors.New(serrors.Invalid, "idempotent run belongs to another session").WithOp(op)
 					}
 					if run.Status() == domain.GenerationRunStatusStreaming ||
 						run.Status() == domain.GenerationRunStatusCompleted {
 						existingRun = true
 						return nil
 					}
-					return serrors.E(op, domain.ErrActiveRunExists)
+					return serrors.Wrap(op, domain.ErrActiveRunExists)
 				}
 			}
 			if err != nil && !errors.Is(err, domain.ErrRunNotFound) {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 		}
 		if !databaseRunReady {
@@ -636,7 +636,7 @@ func (s *chatServiceImpl) startAsyncRun(
 				UserID:    session.UserID(),
 			})
 			if err != nil {
-				return serrors.E(op, serrors.KindValidation, err)
+				return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 			}
 			if err := s.chatRepo.CreateRun(txCtx, run); err != nil {
 				if strings.TrimSpace(idempotencyKey) != "" &&
@@ -652,19 +652,19 @@ func (s *chatServiceImpl) startAsyncRun(
 						return nil
 					}
 				}
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 		}
 		_, err = s.createRunStateRecoveringOrphan(txCtx, run)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		// Create the journal before accepting the run. HITL may produce no
 		// chunks while the model is working; an absent key ends Redis tailing.
 		if err := s.appendRunEvent(txCtx, session.TenantID(), sessionID, run.ID(), bichatservices.StreamChunk{
 			Type: bichatservices.ChunkTypeStreamStarted, RunID: run.ID().String(), Timestamp: time.Now(),
 		}); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		if prepare != nil {
 			if err := prepare(txCtx, session); err != nil {
@@ -677,7 +677,7 @@ func (s *chatServiceImpl) startAsyncRun(
 		if run != nil && session != nil {
 			_ = s.cancelRunState(context.WithoutCancel(ctx), session.TenantID(), sessionID, run.ID())
 		}
-		return bichatservices.AsyncRunAccepted{}, serrors.E(op, err)
+		return bichatservices.AsyncRunAccepted{}, serrors.Wrap(op, err)
 	}
 	if existingRun {
 		return bichatservices.AsyncRunAccepted{
@@ -724,7 +724,7 @@ func (s *chatServiceImpl) ResumeStream(ctx context.Context, sessionID uuid.UUID,
 	run := s.runRegistry.GetByRun(runID)
 	if run != nil {
 		if run.SessionID != sessionID {
-			return serrors.E(op, serrors.KindValidation, "session id mismatch")
+			return serrors.New(serrors.Invalid, "session id mismatch").WithOp(op)
 		}
 
 		ch := make(chan bichatservices.StreamChunk, 256)
@@ -764,13 +764,13 @@ func (s *chatServiceImpl) ResumeStream(ctx context.Context, sessionID uuid.UUID,
 		if errors.Is(err, domain.ErrRunNotFound) || errors.Is(err, domain.ErrNoActiveRun) {
 			return bichatservices.ErrRunNotFoundOrFinished
 		}
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if persisted == nil {
 		return bichatservices.ErrRunNotFoundOrFinished
 	}
 	if persisted.SessionID() != sessionID {
-		return serrors.E(op, serrors.KindValidation, "session id mismatch")
+		return serrors.New(serrors.Invalid, "session id mismatch").WithOp(op)
 	}
 
 	lastContent := persisted.PartialContent()
@@ -785,7 +785,7 @@ func (s *chatServiceImpl) ResumeStream(ctx context.Context, sessionID uuid.UUID,
 	})
 	if persisted.Status() != domain.GenerationRunStatusStreaming {
 		if persisted.Status() == domain.GenerationRunStatusCancelled {
-			onChunk(streamingsvc.TerminalChunk(serrors.E(op, "generation cancelled"), 0))
+			onChunk(streamingsvc.TerminalChunk(serrors.New(serrors.Internal, "generation cancelled").WithOp(op), 0))
 		} else {
 			onChunk(streamingsvc.TerminalChunk(nil, 0))
 		}
@@ -806,14 +806,14 @@ func (s *chatServiceImpl) ResumeStream(ctx context.Context, sessionID uuid.UUID,
 					onChunk(streamingsvc.TerminalChunk(nil, 0))
 					return nil
 				}
-				return serrors.E(op, lookupErr)
+				return serrors.Wrap(op, lookupErr)
 			}
 			if current == nil {
 				onChunk(streamingsvc.TerminalChunk(nil, 0))
 				return nil
 			}
 			if current.SessionID() != sessionID {
-				return serrors.E(op, serrors.KindValidation, "session id mismatch")
+				return serrors.New(serrors.Invalid, "session id mismatch").WithOp(op)
 			}
 
 			currentContent := current.PartialContent()
@@ -846,7 +846,7 @@ func (s *chatServiceImpl) ResumeStream(ctx context.Context, sessionID uuid.UUID,
 
 			if current.Status() != domain.GenerationRunStatusStreaming {
 				if current.Status() == domain.GenerationRunStatusCancelled {
-					onChunk(streamingsvc.TerminalChunk(serrors.E(op, "generation cancelled"), 0))
+					onChunk(streamingsvc.TerminalChunk(serrors.New(serrors.Internal, "generation cancelled").WithOp(op), 0))
 				} else {
 					onChunk(streamingsvc.TerminalChunk(nil, 0))
 				}
@@ -891,13 +891,13 @@ func (s *chatServiceImpl) TailRunEvents(
 		if errors.Is(err, domain.ErrRunNotFound) || errors.Is(err, domain.ErrNoActiveRun) {
 			return bichatservices.ErrRunNotFoundOrFinished
 		}
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if persisted == nil {
 		return bichatservices.ErrRunNotFoundOrFinished
 	}
 	if persisted.SessionID() != sessionID {
-		return serrors.E(op, serrors.KindValidation, "session id mismatch")
+		return serrors.New(serrors.Invalid, "session id mismatch").WithOp(op)
 	}
 	tenantID := persisted.TenantID()
 
@@ -905,7 +905,7 @@ func (s *chatServiceImpl) TailRunEvents(
 	// them in a deterministic order before live tailing begins.
 	replayed, err := s.eventLog.Replay(ctx, tenantID, runID, from)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	lastID := from
 	for _, evt := range replayed {
@@ -913,7 +913,7 @@ func (s *chatServiceImpl) TailRunEvents(
 			if errors.Is(err, context.Canceled) {
 				return nil
 			}
-			return serrors.E(op, bichatservices.ErrRunEventStreamInterrupted)
+			return serrors.Wrap(op, bichatservices.ErrRunEventStreamInterrupted)
 		}
 		onEvent(bichatservices.RunEventDelivery{
 			StreamID: evt.StreamID,
@@ -930,14 +930,14 @@ func (s *chatServiceImpl) TailRunEvents(
 	// the channel on terminal event / ctx cancel / TTL expiry.
 	tailCh, err := s.eventLog.Tail(ctx, tenantID, runID, lastID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	for evt := range tailCh {
 		if err := ctx.Err(); err != nil {
 			if errors.Is(err, context.Canceled) {
 				return nil
 			}
-			return serrors.E(op, bichatservices.ErrRunEventStreamInterrupted)
+			return serrors.Wrap(op, bichatservices.ErrRunEventStreamInterrupted)
 		}
 		onEvent(bichatservices.RunEventDelivery{
 			StreamID: evt.StreamID,
@@ -951,7 +951,7 @@ func (s *chatServiceImpl) TailRunEvents(
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return nil
 	}
-	return serrors.E(op, bichatservices.ErrRunEventStreamInterrupted)
+	return serrors.Wrap(op, bichatservices.ErrRunEventStreamInterrupted)
 }
 
 // TailActiveRuns delivers the per-tenant sidebar view: snapshot rows
@@ -973,19 +973,19 @@ func (s *chatServiceImpl) TailActiveRuns(ctx context.Context, onEvent func(bicha
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	subCh, err := s.activeRunIndex.Subscribe(ctx, tenantID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Snapshot AFTER Subscribe so we don't miss deltas published
 	// between the two calls (see comment above).
 	snap, err := s.activeRunIndex.Snapshot(ctx, tenantID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// snapshotHighWaterMark tracks the highest UpdatedAt seen per session
@@ -1056,7 +1056,7 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 		Attachments:  req.Attachments,
 	})
 	if err != nil {
-		return nil, serrors.E(op, serrors.KindValidation, err)
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 
 	processCtx := bichatservices.WithArtifactMessageID(ctx, userMsg.ID())
@@ -1072,19 +1072,19 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	err = s.withinTx(ctx, func(txCtx context.Context) error {
 		session, err = s.chatRepo.GetSession(txCtx, req.SessionID)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		session, err = s.maybeReplaceHistoryFromMessage(txCtx, session, req.ReplaceFromMessageID)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		if err := s.ensureNoOpenQuestionForSend(txCtx, req.SessionID); err != nil {
 			return err
 		}
 
 		if err := s.chatRepo.SaveMessage(txCtx, userMsg); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		for _, att := range domainAttachments {
@@ -1106,10 +1106,10 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 			}
 			artifactEntity, err := domain.NewArtifactFromSpec(artifact)
 			if err != nil {
-				return serrors.E(op, serrors.KindValidation, err)
+				return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 			}
 			if err := s.chatRepo.SaveArtifact(txCtx, artifactEntity); err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 		}
 		return nil
@@ -1121,14 +1121,14 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	// Process message with agent
 	gen, err := s.agentService.ProcessMessage(processCtx, req.SessionID, req.Content, domainAttachments)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	defer gen.Close()
 
 	// Collect agent response
 	result, err := consumeAgentEvents(processCtx, gen)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	var assistantMsg types.Message
@@ -1179,7 +1179,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// an upload reference would be silently dropped by the executor.
 	for _, att := range req.Attachments {
 		if att == nil || att.UploadID() == nil {
-			return serrors.E(op, serrors.KindValidation, errors.New("attachments must reference an upload"))
+			return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("attachments must reference an upload"))
 		}
 	}
 
@@ -1262,7 +1262,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		Attachments:  req.Attachments,
 	})
 	if err != nil {
-		return serrors.E(op, serrors.KindValidation, err)
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 
 	domainAttachments := cloneAttachmentsForMessage(userMsg.ID(), req.Attachments)
@@ -1273,11 +1273,11 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	err = s.withinTx(ctx, func(txCtx context.Context) error {
 		session, err = s.chatRepo.GetSession(txCtx, req.SessionID)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		session, err = s.maybeReplaceHistoryFromMessage(txCtx, session, req.ReplaceFromMessageID)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		if err := s.ensureNoOpenQuestionForSend(txCtx, req.SessionID); err != nil {
 			return err
@@ -1295,11 +1295,11 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			UserID:    session.UserID(),
 		})
 		if err != nil {
-			return serrors.E(op, serrors.KindValidation, err)
+			return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 		}
 		if s.runState.Enabled() {
 			if err := s.chatRepo.CreateRun(txCtx, run); err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 		}
 		runStateCreated, err = s.createRunStateRecoveringOrphan(txCtx, run)
@@ -1308,7 +1308,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		}
 
 		if err := s.chatRepo.SaveMessage(txCtx, userMsg); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		for _, att := range domainAttachments {
@@ -1330,10 +1330,10 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			}
 			artifactEntity, err := domain.NewArtifactFromSpec(artifact)
 			if err != nil {
-				return serrors.E(op, serrors.KindValidation, err)
+				return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 			}
 			if err := s.chatRepo.SaveArtifact(txCtx, artifactEntity); err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 		}
 
@@ -1356,7 +1356,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			_ = s.cancelRunState(context.WithoutCancel(ctx), session.TenantID(), req.SessionID, run.ID())
 		}
 		if errors.Is(err, domain.ErrActiveRunExists) {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		return err
 	}
@@ -1391,7 +1391,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			// claim stays held and is released by the inline terminal
 			// path below. The journaled marker is consistent: the inline
 			// run continues the same log.
-			s.log().WithError(serrors.E(op, enqueueErr)).
+			s.log().WithError(serrors.Wrap(op, enqueueErr)).
 				WithField("session_id", req.SessionID.String()).
 				WithField("run_id", run.ID().String()).
 				Warn("bichat: run enqueue failed; falling back to inline execution")
@@ -1533,7 +1533,7 @@ func (s *chatServiceImpl) queueRunBehindActive(ctx context.Context, tenantID uui
 		if job.RequestID != uuid.Nil {
 			_ = s.runJobQueue.ReleaseRequest(context.WithoutCancel(ctx), tenantID, job.RequestID)
 		}
-		return serrors.E(op, domain.ErrActiveRunExists)
+		return serrors.Wrap(op, domain.ErrActiveRunExists)
 	}
 	if s.activeRunIndex != nil {
 		// Bump the queued count without touching the streaming entry the

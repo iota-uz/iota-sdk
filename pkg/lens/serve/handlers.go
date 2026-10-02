@@ -151,7 +151,7 @@ func (h *Handlers) Release(w http.ResponseWriter, r *http.Request) {
 	}
 	var req document.ReleaseRequest
 	if err := decodeJSON(w, r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 	req.SnapshotID = strings.TrimSpace(req.SnapshotID)
@@ -190,7 +190,7 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 	}
 	var req PanelBatchRequest
 	if err := decodeJSON(w, r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 	req.SnapshotID = strings.TrimSpace(req.SnapshotID)
@@ -595,7 +595,7 @@ func (h *Handlers) Drawer(w http.ResponseWriter, r *http.Request) {
 	}
 	var req document.DrawerResolveRequest
 	if err := decodeJSON(w, r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 	req.SnapshotID = strings.TrimSpace(req.SnapshotID)
@@ -676,7 +676,7 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 	}
 	var req QueryRequest
 	if err := decodeJSON(w, r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 	req.SnapshotID = strings.TrimSpace(req.SnapshotID)
@@ -722,11 +722,11 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 	}
 	target, err := resolveTarget(h.spec, req.Path, req.Perspective)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 	if err := validateTableSort(target.panel, req.Sort); err != nil {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 	if !target.evidence {
@@ -1043,7 +1043,7 @@ func (h *Handlers) writeInternalError(ctx context.Context, w http.ResponseWriter
 	if ctx.Err() != nil {
 		return
 	}
-	wrapped := serrors.E(serrors.Op(op), err)
+	wrapped := serrors.Wrap(serrors.Op(op), err)
 	h.observer.OnError(ctx, op, wrapped)
 	// Same contract as a streamed panel failure: a query that dies of its own
 	// deadline reads the same to a person whichever endpoint was carrying it.
@@ -1059,13 +1059,13 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
-		return fmt.Errorf("invalid JSON body: %w", err)
+		return invalidJSON(err)
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return fmt.Errorf("request body must contain one JSON object")
+			return serrors.NewInvalid("").WithPublic(serrors.Message{Text: "request body must contain one JSON object"})
 		}
-		return fmt.Errorf("invalid JSON body: %w", err)
+		return invalidJSON(err)
 	}
 	return nil
 }
@@ -1091,4 +1091,15 @@ func cloneParams(values map[string]any) map[string]any {
 		result[key] = value
 	}
 	return result
+}
+
+func invalidJSON(err error) error {
+	message := "invalid JSON body"
+	var limit *http.MaxBytesError
+	if errors.As(err, &limit) {
+		message = "request body too large"
+	} else if strings.HasPrefix(err.Error(), "json: unknown field ") {
+		message = "invalid JSON body: unknown field"
+	}
+	return serrors.NewInvalid("").WithCause(err).WithPublic(serrors.Message{Text: message})
 }

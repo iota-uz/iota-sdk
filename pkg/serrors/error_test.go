@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
-	serrors "github.com/iota-uz/iota-sdk/pkg/serrors/v2"
+	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
@@ -164,6 +164,12 @@ func TestPublic_OuterClassificationBlocksInnerDisclosure(t *testing.T) {
 	require.Empty(t, p.Fields)
 	require.NotContains(t, p.Message, "secret")
 	require.Empty(t, serrors.FieldMap(outer, nil))
+	wrapped := serrors.WrapContext("outer", inner, "private context")
+	require.Equal(t, serrors.Invalid, serrors.CodeOf(wrapped))
+	require.Equal(t, "allowed", string(serrors.Public(wrapped, nil).Reason))
+	require.Contains(t, serrors.FieldMap(wrapped, nil), "Name")
+	require.ErrorIs(t, wrapped, inner)
+	require.NoError(t, serrors.WrapContext("nil", nil, "private context"))
 }
 
 func ExampleWrap() {

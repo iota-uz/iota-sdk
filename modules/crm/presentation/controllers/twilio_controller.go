@@ -9,6 +9,7 @@ import (
 	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 func NewTwilioController(
@@ -41,7 +42,7 @@ func (c *TwillioController) Register(r *mux.Router) {
 			return nil
 		})
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		}
 	})
 

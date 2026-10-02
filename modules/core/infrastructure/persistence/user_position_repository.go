@@ -64,7 +64,7 @@ func (r *PgUserPositionRepository) buildFilters(
 	const op serrors.Op = "PgUserPositionRepository.buildFilters"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, nil, serrors.E(op, err)
+		return nil, nil, serrors.Wrap(op, err)
 	}
 
 	where := []string{"p.tenant_id = $1"}
@@ -73,7 +73,7 @@ func (r *PgUserPositionRepository) buildFilters(
 	for _, filter := range params.Filters {
 		column, ok := r.fieldMap[filter.Column]
 		if !ok {
-			return nil, nil, serrors.E(op, fmt.Errorf("unknown filter field: %v", filter.Column))
+			return nil, nil, serrors.Wrap(op, fmt.Errorf("unknown filter field: %v", filter.Column))
 		}
 		where = append(where, filter.Filter.String(column, len(args)+1))
 		args = append(args, filter.Filter.Value()...)
@@ -99,7 +99,7 @@ func (r *PgUserPositionRepository) GetPaginated(
 
 	where, args, err := r.buildFilters(ctx, params)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	query := repo.Join(
@@ -111,7 +111,7 @@ func (r *PgUserPositionRepository) GetPaginated(
 
 	positions, err := r.queryPositions(ctx, query, args...)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return positions, nil
 }
@@ -124,12 +124,12 @@ func (r *PgUserPositionRepository) Count(ctx context.Context, params *userpositi
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	where, args, err := r.buildFilters(ctx, params)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	query := repo.Join(
@@ -139,7 +139,7 @@ func (r *PgUserPositionRepository) Count(ctx context.Context, params *userpositi
 
 	var count int64
 	if err := tx.QueryRow(ctx, query, args...).Scan(&count); err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.FromDB(op, err)
 	}
 	return count, nil
 }
@@ -148,16 +148,16 @@ func (r *PgUserPositionRepository) GetByID(ctx context.Context, id uuid.UUID) (u
 	const op serrors.Op = "PgUserPositionRepository.GetByID"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	q := repo.Join(userPositionFindQuery, "WHERE p.id = $1 AND p.tenant_id = $2")
 	positions, err := r.queryPositions(ctx, q, id.String(), tenantID.String())
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if len(positions) == 0 {
-		return nil, serrors.E(op, serrors.NotFound, ErrUserPositionNotFound)
+		return nil, serrors.New(serrors.NotFound, "").WithOp(op).WithCause(ErrUserPositionNotFound)
 	}
 	return positions[0], nil
 }
@@ -166,17 +166,17 @@ func (r *PgUserPositionRepository) Exists(ctx context.Context, id uuid.UUID) (bo
 	const op serrors.Op = "PgUserPositionRepository.Exists"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	var exists bool
 	if err := tx.QueryRow(ctx, userPositionExistsQuery, id.String(), tenantID.String()).Scan(&exists); err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.FromDB(op, err)
 	}
 	return exists, nil
 }
@@ -188,7 +188,7 @@ func (r *PgUserPositionRepository) Save(
 	const op serrors.Op = "PgUserPositionRepository.Save"
 	exists, err := r.Exists(ctx, entity.ID())
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if exists {
@@ -204,19 +204,19 @@ func (r *PgUserPositionRepository) create(
 	const op serrors.Op = "PgUserPositionRepository.create"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Tenant ownership comes from the request context, never the entity
 	// payload, so a mismatched-entity tenant cannot insert into another tenant.
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	dbPosition, err := ToDBUserPosition(entity)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	dbPosition.TenantID = tenantID.String()
 	if entity.ID() == uuid.Nil {
@@ -250,12 +250,12 @@ func (r *PgUserPositionRepository) create(
 	}
 
 	if _, err := tx.Exec(ctx, repo.Insert("core.user_positions", fields), values...); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	id, err := uuid.Parse(dbPosition.ID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return r.GetByID(ctx, id)
 }
@@ -267,19 +267,19 @@ func (r *PgUserPositionRepository) update(
 	const op serrors.Op = "PgUserPositionRepository.update"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Tenant ownership comes from the request context, never the entity
 	// payload, so the update can only ever target the caller's own tenant row.
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	dbPosition, err := ToDBUserPosition(entity)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	dbPosition.TenantID = tenantID.String()
 
@@ -310,12 +310,12 @@ func (r *PgUserPositionRepository) update(
 		fmt.Sprintf("tenant_id = $%d", len(values)),
 	)
 	if _, err := tx.Exec(ctx, query, values...); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	id, err := uuid.Parse(dbPosition.ID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return r.GetByID(ctx, id)
 }
@@ -324,20 +324,20 @@ func (r *PgUserPositionRepository) Delete(ctx context.Context, id uuid.UUID) err
 	const op serrors.Op = "PgUserPositionRepository.Delete"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tag, err := tx.Exec(ctx, userPositionDeleteQuery, id.String(), tenantID.String())
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if tag.RowsAffected() == 0 {
-		return serrors.E(op, serrors.NotFound, ErrUserPositionNotFound)
+		return serrors.New(serrors.NotFound, "").WithOp(op).WithCause(ErrUserPositionNotFound)
 	}
 	return nil
 }
@@ -350,12 +350,12 @@ func (r *PgUserPositionRepository) queryPositions(
 	const op serrors.Op = "PgUserPositionRepository.queryPositions"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -374,20 +374,20 @@ func (r *PgUserPositionRepository) queryPositions(
 			&dbPosition.CreatedAt,
 			&dbPosition.UpdatedAt,
 		); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		dbPositions = append(dbPositions, &dbPosition)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	entities := make([]userposition.UserPosition, 0, len(dbPositions))
 	for _, dbPosition := range dbPositions {
 		domainPosition, err := ToDomainUserPosition(dbPosition)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		entities = append(entities, domainPosition)
 	}

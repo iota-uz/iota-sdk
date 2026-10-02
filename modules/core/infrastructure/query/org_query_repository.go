@@ -95,7 +95,7 @@ func (r *PgOrgQueryRepository) UserDepartments(ctx context.Context, userID uint)
 	const op serrors.Op = "PgOrgQueryRepository.UserDepartments"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return r.queryDepartmentIDs(ctx, userDepartmentsSQL, userID, tenantID.String())
 }
@@ -108,7 +108,7 @@ func (r *PgOrgQueryRepository) UserManagedDepartments(
 	const op serrors.Op = "PgOrgQueryRepository.UserManagedDepartments"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	query := userManagedDepartmentsSQL
@@ -122,7 +122,7 @@ func (r *PgOrgQueryRepository) DepartmentSubtree(ctx context.Context, deptID uui
 	const op serrors.Op = "PgOrgQueryRepository.DepartmentSubtree"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return r.queryDepartmentIDs(ctx, departmentSubtreeSQL, deptID.String(), tenantID.String())
 }
@@ -135,12 +135,12 @@ func (r *PgOrgQueryRepository) queryDepartmentIDs(
 	const op serrors.Op = "PgOrgQueryRepository.queryDepartmentIDs"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -148,17 +148,17 @@ func (r *PgOrgQueryRepository) queryDepartmentIDs(
 	for rows.Next() {
 		var idStr string
 		if err := rows.Scan(&idStr); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		id, err := uuid.Parse(idStr)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		ids = append(ids, id)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return ids, nil

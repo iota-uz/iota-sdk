@@ -26,6 +26,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 )
@@ -173,14 +174,14 @@ func (c *DepartmentsController) List(
 
 	total, err := service.Count(r.Context(), findParams)
 	if err != nil {
-		logger.Error(serrors.E(opDepartmentsList, err))
+		logger.Error(serrors.Wrap(opDepartmentsList, err))
 		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 		return
 	}
 
 	entities, err := service.GetPaginated(r.Context(), findParams)
 	if err != nil {
-		logger.Error(serrors.E(opDepartmentsList, err))
+		logger.Error(serrors.Wrap(opDepartmentsList, err))
 		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 		return
 	}
@@ -191,7 +192,7 @@ func (c *DepartmentsController) List(
 	// (label lookup), instead of loading every tenant department.
 	names, err := c.parentNamesForPage(r, service, entities, locale)
 	if err != nil {
-		logger.Error(serrors.E(opDepartmentsList, err))
+		logger.Error(serrors.Wrap(opDepartmentsList, err))
 		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 		return
 	}
@@ -232,7 +233,7 @@ func (c *DepartmentsController) GetNew(
 	}
 	options, err := c.parentOptions(r, service, "")
 	if err != nil {
-		logger.Error(serrors.E(opDepartmentsNew, err))
+		logger.Error(serrors.Wrap(opDepartmentsNew, err))
 		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 		return
 	}
@@ -258,20 +259,20 @@ func (c *DepartmentsController) GetEdit(
 	}
 	id, err := uuid.Parse(mux.Vars(r)["id"])
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	entity, err := service.GetByID(r.Context(), id)
 	if err != nil {
-		logger.Error(serrors.E(opDepartmentsEdit, err))
+		logger.Error(serrors.Wrap(opDepartmentsEdit, err))
 		http.Error(w, "Department not found", http.StatusNotFound)
 		return
 	}
 
 	options, err := c.parentOptionsExcludingSubtree(r, service, orgQuery, id)
 	if err != nil {
-		logger.Error(serrors.E(opDepartmentsEdit, err))
+		logger.Error(serrors.Wrap(opDepartmentsEdit, err))
 		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 		return
 	}
@@ -296,14 +297,14 @@ func (c *DepartmentsController) Create(
 	}
 	dto, err := composables.UseForm(&dtos.CreateDepartmentDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		options, err := c.parentOptions(r, service, "")
 		if err != nil {
-			logger.Error(serrors.E(opDepartmentsCreate, err))
+			logger.Error(serrors.Wrap(opDepartmentsCreate, err))
 			http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 			return
 		}
@@ -324,7 +325,7 @@ func (c *DepartmentsController) Create(
 
 	entity, err := dto.ToEntity()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -333,7 +334,7 @@ func (c *DepartmentsController) Create(
 	// first (mirrors GroupsController.Create).
 	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
-		logger.Error(serrors.E(opDepartmentsCreate, err))
+		logger.Error(serrors.Wrap(opDepartmentsCreate, err))
 		http.Error(w, "Error getting tenant", http.StatusInternalServerError)
 		return
 	}
@@ -345,7 +346,7 @@ func (c *DepartmentsController) Create(
 		if status, fields := departmentValidationFieldError(r.Context(), err); fields != nil {
 			options, optErr := c.parentOptions(r, service, "")
 			if optErr != nil {
-				logger.Error(serrors.E(opDepartmentsCreate, optErr))
+				logger.Error(serrors.Wrap(opDepartmentsCreate, optErr))
 				http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 				return
 			}
@@ -364,7 +365,7 @@ func (c *DepartmentsController) Create(
 			templ.Handler(departments.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
-		logger.Error(serrors.E(opDepartmentsCreate, err))
+		logger.Error(serrors.Wrap(opDepartmentsCreate, err))
 		http.Error(w, "Error creating department", http.StatusInternalServerError)
 		return
 	}
@@ -390,20 +391,20 @@ func (c *DepartmentsController) Update(
 	}
 	id, err := uuid.Parse(mux.Vars(r)["id"])
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.UpdateDepartmentDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		options, err := c.parentOptionsExcludingSubtree(r, service, orgQuery, id)
 		if err != nil {
-			logger.Error(serrors.E(opDepartmentsUpdate, err))
+			logger.Error(serrors.Wrap(opDepartmentsUpdate, err))
 			http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 			return
 		}
@@ -427,7 +428,7 @@ func (c *DepartmentsController) Update(
 
 	existing, err := service.GetByID(r.Context(), id)
 	if err != nil {
-		logger.Error(serrors.E(opDepartmentsUpdate, err))
+		logger.Error(serrors.Wrap(opDepartmentsUpdate, err))
 		http.Error(w, "Error retrieving department", http.StatusInternalServerError)
 		return
 	}
@@ -435,7 +436,7 @@ func (c *DepartmentsController) Update(
 	entity, err := dto.Apply(existing)
 	if err != nil {
 		logger.Errorf("Error updating department: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -445,7 +446,7 @@ func (c *DepartmentsController) Update(
 		if status, fields := departmentValidationFieldError(r.Context(), err); fields != nil {
 			options, optErr := c.parentOptionsExcludingSubtree(r, service, orgQuery, id)
 			if optErr != nil {
-				logger.Error(serrors.E(opDepartmentsUpdate, optErr))
+				logger.Error(serrors.Wrap(opDepartmentsUpdate, optErr))
 				http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 				return
 			}
@@ -467,7 +468,7 @@ func (c *DepartmentsController) Update(
 			templ.Handler(departments.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
-		logger.Error(serrors.E(opDepartmentsUpdate, err))
+		logger.Error(serrors.Wrap(opDepartmentsUpdate, err))
 		http.Error(w, "Error updating department", http.StatusInternalServerError)
 		return
 	}
@@ -490,12 +491,12 @@ func (c *DepartmentsController) Delete(
 	}
 	id, err := uuid.Parse(mux.Vars(r)["id"])
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	if err := service.Delete(r.Context(), id); err != nil {
-		logger.Error(serrors.E(opDepartmentsDelete, err))
+		logger.Error(serrors.Wrap(opDepartmentsDelete, err))
 		http.Error(w, "Error deleting department", http.StatusInternalServerError)
 		return
 	}

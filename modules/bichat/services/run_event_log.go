@@ -145,13 +145,13 @@ func (l *RedisRunEventLog) Append(ctx context.Context, tenantID, runID uuid.UUID
 	const op serrors.Op = "RedisRunEventLog.Append"
 
 	if tenantID == uuid.Nil {
-		return "", serrors.E(op, serrors.KindValidation, "tenant id is required")
+		return "", serrors.New(serrors.Invalid, "tenant id is required").WithOp(op)
 	}
 	if runID == uuid.Nil {
-		return "", serrors.E(op, serrors.KindValidation, "run id is required")
+		return "", serrors.New(serrors.Invalid, "run id is required").WithOp(op)
 	}
 	if strings.TrimSpace(event.Type) == "" {
-		return "", serrors.E(op, serrors.KindValidation, "event type is required")
+		return "", serrors.New(serrors.Invalid, "event type is required").WithOp(op)
 	}
 
 	// context.WithoutCancel: appending a terminal event while the caller's
@@ -171,13 +171,13 @@ func (l *RedisRunEventLog) Append(ctx context.Context, tenantID, runID uuid.UUID
 		},
 	}).Result()
 	if err != nil {
-		return "", serrors.E(op, "xadd run event", err)
+		return "", serrors.WrapContext(op, err, "xadd run event")
 	}
 
 	// Refresh the TTL on every write so a long-running execution doesn't
 	// have its replay window expire mid-run.
 	if err := l.client.Expire(writeCtx, key, l.ttl).Err(); err != nil {
-		return "", serrors.E(op, "refresh run event ttl", err)
+		return "", serrors.WrapContext(op, err, "refresh run event ttl")
 	}
 	return id, nil
 }
@@ -190,14 +190,14 @@ func (l *RedisRunEventLog) Replay(ctx context.Context, tenantID, runID uuid.UUID
 	start := l.replayStart(from)
 	entries, err := l.client.XRange(ctx, key, start, "+").Result()
 	if err != nil {
-		return nil, serrors.E(op, "xrange run events", err)
+		return nil, serrors.WrapContext(op, err, "xrange run events")
 	}
 
 	out := make([]RunEvent, 0, len(entries))
 	for _, entry := range entries {
 		evt, perr := decodeRunEvent(entry)
 		if perr != nil {
-			return nil, serrors.E(op, perr)
+			return nil, serrors.Wrap(op, perr)
 		}
 		out = append(out, evt)
 	}
@@ -214,10 +214,10 @@ func (l *RedisRunEventLog) Replay(ctx context.Context, tenantID, runID uuid.UUID
 func (l *RedisRunEventLog) Tail(ctx context.Context, tenantID, runID uuid.UUID, from string) (<-chan RunEvent, error) {
 	const op serrors.Op = "RedisRunEventLog.Tail"
 	if tenantID == uuid.Nil {
-		return nil, serrors.E(op, serrors.KindValidation, "tenant id is required")
+		return nil, serrors.New(serrors.Invalid, "tenant id is required").WithOp(op)
 	}
 	if runID == uuid.Nil {
-		return nil, serrors.E(op, serrors.KindValidation, "run id is required")
+		return nil, serrors.New(serrors.Invalid, "run id is required").WithOp(op)
 	}
 	key := l.streamKey(tenantID, runID)
 	cursor := l.tailStart(from)
@@ -292,7 +292,7 @@ func (l *RedisRunEventLog) DropAfterTerminal(ctx context.Context, tenantID, runI
 	}
 	key := l.streamKey(tenantID, runID)
 	if err := l.client.Expire(ctx, key, ttl).Err(); err != nil {
-		return serrors.E(op, "set terminal ttl", err)
+		return serrors.WrapContext(op, err, "set terminal ttl")
 	}
 	return nil
 }

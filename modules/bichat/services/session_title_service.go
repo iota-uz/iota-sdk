@@ -46,10 +46,10 @@ func NewSessionTitleService(model agents.Model, chatRepo domain.ChatRepository, 
 	const op serrors.Op = "NewSessionTitleService"
 
 	if model == nil {
-		return nil, serrors.E(op, "model is required")
+		return nil, serrors.New(serrors.Internal, "model is required").WithOp(op)
 	}
 	if chatRepo == nil {
-		return nil, serrors.E(op, "chat repository is required")
+		return nil, serrors.New(serrors.Internal, "chat repository is required").WithOp(op)
 	}
 
 	return &sessionTitleService{
@@ -77,7 +77,7 @@ func (s *sessionTitleService) generate(ctx context.Context, sessionID uuid.UUID,
 
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
-		return serrors.E(op, err, "failed to get session")
+		return serrors.WrapContext(op, err, "failed to get session")
 	}
 	if mode == SessionTitleModeAuto && hasCustomSessionTitle(session.Title()) {
 		return nil
@@ -85,7 +85,7 @@ func (s *sessionTitleService) generate(ctx context.Context, sessionID uuid.UUID,
 
 	userMsg, assistantMsg, err := s.firstExchange(ctx, sessionID)
 	if err != nil {
-		return serrors.E(op, err, "failed to load first exchange")
+		return serrors.WrapContext(op, err, "failed to load first exchange")
 	}
 
 	title := untitledChatTitle
@@ -99,7 +99,7 @@ func (s *sessionTitleService) generate(ctx context.Context, sessionID uuid.UUID,
 
 	updated, err := s.persistTitle(ctx, session.ID(), session.TenantID(), title, mode)
 	if err != nil {
-		return serrors.E(op, err, "failed to persist generated title")
+		return serrors.WrapContext(op, err, "failed to persist generated title")
 	}
 	if !updated {
 		return nil
@@ -177,7 +177,7 @@ func (s *sessionTitleService) generateTitleWithRetry(ctx context.Context, userMs
 		}
 	}
 
-	return "", serrors.E(op, "all retry attempts failed")
+	return "", serrors.New(serrors.Internal, "all retry attempts failed").WithOp(op)
 }
 
 func (s *sessionTitleService) generateTitleWithLLM(ctx context.Context, userMsg, assistantMsg string, maxTokens int) (string, error) {
@@ -185,14 +185,14 @@ func (s *sessionTitleService) generateTitleWithLLM(ctx context.Context, userMsg,
 
 	prompt, err := renderSessionTitlePrompt(userMsg, assistantMsg)
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 
 	resp, err := s.model.Generate(ctx, agents.Request{
 		Messages: []types.Message{types.UserMessage(prompt)},
 	}, agents.WithMaxTokens(maxTokens))
 	if err != nil {
-		return "", serrors.E(op, err, "LLM generation failed")
+		return "", serrors.WrapContext(op, err, "LLM generation failed")
 	}
 
 	return strings.TrimSpace(resp.Message.Content()), nil

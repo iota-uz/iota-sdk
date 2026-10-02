@@ -61,17 +61,17 @@ func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact doma
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	model, err := models.ArtifactModelFromDomain(artifact)
 	if err != nil {
-		return serrors.E(op, err, "failed to convert artifact to model")
+		return serrors.WrapContext(op, err, "failed to convert artifact to model")
 	}
 	var messageID, description, mimeType, url any
 	messageID = nil
@@ -127,7 +127,7 @@ func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact doma
 		model.CreatedAt,
 	)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	return nil
@@ -139,12 +139,12 @@ func (r *PostgresChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) 
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	var m models.ArtifactModel
@@ -167,9 +167,9 @@ func (r *PostgresChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) 
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, serrors.E(op, ErrArtifactNotFound)
+			return nil, serrors.FromDB(op, ErrArtifactNotFound)
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return m.ToDomain()
@@ -181,12 +181,12 @@ func (r *PostgresChatRepository) GetSessionArtifacts(ctx context.Context, sessio
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	limit := opts.Limit
@@ -220,7 +220,7 @@ func (r *PostgresChatRepository) GetSessionArtifacts(ctx context.Context, sessio
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -245,16 +245,16 @@ func (r *PostgresChatRepository) GetSessionArtifacts(ctx context.Context, sessio
 			&m.CreatedAt,
 		)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		a, err := m.ToDomain()
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		artifacts = append(artifacts, a)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return artifacts, nil
@@ -266,20 +266,20 @@ func (r *PostgresChatRepository) DeleteArtifact(ctx context.Context, id uuid.UUI
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := tx.Exec(ctx, deleteArtifactQuery, tenantID, id)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, ErrArtifactNotFound)
+		return serrors.Wrap(op, ErrArtifactNotFound)
 	}
 
 	return nil
@@ -291,17 +291,17 @@ func (r *PostgresChatRepository) DeleteSessionArtifacts(ctx context.Context, ses
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	result, err := tx.Exec(ctx, deleteSessionArtifactsQuery, tenantID, sessionID)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.FromDB(op, err)
 	}
 
 	return result.RowsAffected(), nil
@@ -313,20 +313,20 @@ func (r *PostgresChatRepository) UpdateArtifact(ctx context.Context, id uuid.UUI
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := tx.Exec(ctx, updateArtifactQuery, name, description, tenantID, id)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, ErrArtifactNotFound)
+		return serrors.Wrap(op, ErrArtifactNotFound)
 	}
 
 	return nil

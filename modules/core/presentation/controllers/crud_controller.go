@@ -671,7 +671,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 
 	if err := g.Wait(); err != nil {
 		const op = serrors.Op("CrudController.List")
-		wrappedErr := serrors.E(op, err)
+		wrappedErr := serrors.Wrap(op, err)
 		log.Printf("[CrudController.List] Failed to list entities: %v", wrappedErr)
 		errorMsg, _ := c.localize(ctx, errFailedToRetrieve, "Failed to retrieve data")
 		http.Error(w, errorMsg, http.StatusInternalServerError)
@@ -2369,7 +2369,7 @@ func (c *CrudController[TEntity]) validateFieldValues(fieldValues []crud.FieldVa
 		field := fv.Field()
 		for _, rule := range field.Rules() {
 			if err := rule(fv); err != nil {
-				errors[field.Name()] = err.Error()
+				errors[field.Name()] = serrors.Public(serrors.NewInvalid("").WithCause(err), nil).Message
 				break // Only report first error per field
 			}
 		}
@@ -2396,7 +2396,8 @@ func (c *CrudController[TEntity]) handleValidationError(w http.ResponseWriter, r
 	// If no field errors but we have an entity validation error, add it as a general error
 	if len(fieldErrors) == 0 && err != nil {
 		// For entity-level validation errors, we'll add them to a generic error field
-		fieldErrors["_general"] = err.Error()
+		l, _ := intl.UseLocalizer(ctx)
+		fieldErrors["_general"] = serrors.Public(err, l).Message
 	}
 
 	// If no validation errors found, return false to continue with default error handling

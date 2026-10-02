@@ -80,7 +80,7 @@ func (r *AuthRequestRepository) Create(ctx context.Context, req authrequest.Auth
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	dbReq := ToDBAuthRequest(req)
@@ -107,7 +107,7 @@ func (r *AuthRequestRepository) Create(ctx context.Context, req authrequest.Auth
 	)
 
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	return nil
@@ -119,11 +119,11 @@ func (r *AuthRequestRepository) GetByID(ctx context.Context, id uuid.UUID) (auth
 	query := selectAuthRequestQuery + " WHERE id = $1"
 	requests, err := r.queryAuthRequests(ctx, op, query, id)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if len(requests) == 0 {
-		return nil, serrors.E(op, serrors.NotFound, "auth request not found")
+		return nil, serrors.New(serrors.NotFound, "auth request not found").WithOp(op)
 	}
 
 	return requests[0], nil
@@ -135,11 +135,11 @@ func (r *AuthRequestRepository) GetByCode(ctx context.Context, code string) (aut
 	query := selectAuthRequestQuery + " WHERE code = $1"
 	requests, err := r.queryAuthRequests(ctx, op, query, code)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if len(requests) == 0 {
-		return nil, serrors.E(op, serrors.NotFound, "auth request not found for code")
+		return nil, serrors.New(serrors.NotFound, "auth request not found for code").WithOp(op)
 	}
 
 	return requests[0], nil
@@ -150,16 +150,16 @@ func (r *AuthRequestRepository) SaveCode(ctx context.Context, id uuid.UUID, code
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := tx.Exec(ctx, saveAuthCodeQuery, code, id)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, serrors.NotFound, "auth request not found")
+		return serrors.New(serrors.NotFound, "auth request not found").WithOp(op)
 	}
 
 	return nil
@@ -170,16 +170,16 @@ func (r *AuthRequestRepository) MarkCodeUsed(ctx context.Context, code string) e
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	var id string
 	err = tx.QueryRow(ctx, markCodeUsedQuery, code).Scan(&id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return serrors.E(op, serrors.KindValidation, "authorization code already used or not found")
+			return serrors.New(serrors.Invalid, "authorization code already used or not found").WithOp(op)
 		}
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	return nil
@@ -190,7 +190,7 @@ func (r *AuthRequestRepository) Update(ctx context.Context, req authrequest.Auth
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	dbReq := ToDBAuthRequest(req)
@@ -214,11 +214,11 @@ func (r *AuthRequestRepository) Update(ctx context.Context, req authrequest.Auth
 	)
 
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, serrors.NotFound, "auth request not found")
+		return serrors.New(serrors.NotFound, "auth request not found").WithOp(op)
 	}
 
 	return nil
@@ -229,16 +229,16 @@ func (r *AuthRequestRepository) Delete(ctx context.Context, id uuid.UUID) error 
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := tx.Exec(ctx, deleteAuthRequestQuery, id)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, serrors.NotFound, "auth request not found")
+		return serrors.New(serrors.NotFound, "auth request not found").WithOp(op)
 	}
 
 	return nil
@@ -249,12 +249,12 @@ func (r *AuthRequestRepository) DeleteExpired(ctx context.Context) error {
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	_, err = tx.Exec(ctx, deleteExpiredAuthRequestsQuery)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	return nil
@@ -265,12 +265,12 @@ func (r *AuthRequestRepository) DeleteExpired(ctx context.Context) error {
 func (r *AuthRequestRepository) queryAuthRequests(ctx context.Context, op serrors.Op, query string, args ...interface{}) ([]authrequest.AuthRequest, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -295,12 +295,12 @@ func (r *AuthRequestRepository) queryAuthRequests(ctx context.Context, op serror
 			&dbReq.Code,
 			&dbReq.CodeUsedAt,
 		); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 
 		domainReq, err := ToDomainAuthRequest(&dbReq)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		requests = append(requests, domainReq)
 	}
@@ -309,7 +309,7 @@ func (r *AuthRequestRepository) queryAuthRequests(ctx context.Context, op serror
 		if errors.Is(err, pgx.ErrNoRows) {
 			return []authrequest.AuthRequest{}, nil
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return requests, nil

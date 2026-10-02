@@ -1,12 +1,10 @@
-// Package serrorgql projects GraphQL execution errors without changing transport policy.
 package serrorgql
 
 import (
 	"context"
-
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/iota-uz/go-i18n/v2/i18n"
-	serrors "github.com/iota-uz/iota-sdk/pkg/serrors/v2"
+	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 

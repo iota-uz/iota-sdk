@@ -52,15 +52,15 @@ func loadUserFormOptions(
 	const op = serrors.Op("controllers.loadUserFormOptions")
 	roleOptions, err := roleQueryService.FindAssignmentOptions(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	groupOptions, err := groupQueryService.FindAssignmentOptions(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	actor, err := composables.UseUser(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	selectedRoles := uintSet(selection.selectedRoleIDs)
@@ -164,7 +164,7 @@ func (c *UsersController) buildCreateFormProps(
 	}
 	options, err := loadUserFormOptions(ctx, roleQueryService, groupQueryService, policy, selection)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	userViewModel := viewmodels.User{}
@@ -211,13 +211,13 @@ func (c *UsersController) buildEditFormProps(
 
 	userViewModel, err := userQueryService.FindUserByID(ctx, int(userID))
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	currentRoleIDs := make([]uint, 0, len(userViewModel.Roles))
 	for _, assignedRole := range userViewModel.Roles {
 		id, parseErr := strconv.ParseUint(assignedRole.ID, 10, 64)
 		if parseErr != nil {
-			return nil, serrors.E(op, parseErr)
+			return nil, serrors.Wrap(op, parseErr)
 		}
 		currentRoleIDs = append(currentRoleIDs, uint(id))
 	}
@@ -233,27 +233,27 @@ func (c *UsersController) buildEditFormProps(
 	}
 	options, err := loadUserFormOptions(ctx, roleQueryService, groupQueryService, policy, selection)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	canDelete, err := userQueryService.CanDeleteUser(ctx, int(userID))
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	userViewModel.Roles = options.selectedRoles
 	userViewModel.GroupIDs = options.selectedGroupIDs
 	actor, err := composables.UseUser(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	tenantID, err := uuid.Parse(userViewModel.TenantID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	targetPermissions, err := permissionsFromViewModel(userViewModel.EffectivePermissions)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	canManage := policy.CanManageUserProjection(actor, userID, tenantID, user.Type(userViewModel.Type), targetPermissions)
 	userViewModel.CanUpdate = userViewModel.CanUpdate && canManage
@@ -262,7 +262,7 @@ func (c *UsersController) buildEditFormProps(
 	canDelete = canDelete && canManage
 	selectedPermissions, err := permissionsFromViewModel(userViewModel.DirectPermissions)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	errors := map[string]string{}
 
@@ -298,7 +298,7 @@ func permissionsFromViewModel(values []*viewmodels.Permission) ([]permission.Per
 	for _, value := range values {
 		id, err := uuid.Parse(value.ID)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		result = append(result, permission.New(permission.WithID(id), permission.WithName(value.Name),
 			permission.WithResource(permission.Resource(value.Resource)), permission.WithAction(permission.Action(value.Action)),

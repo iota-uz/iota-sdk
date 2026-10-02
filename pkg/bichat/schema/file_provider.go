@@ -40,13 +40,13 @@ func NewFileMetadataProvider(dirPath string) (*FileMetadataProvider, error) {
 	info, err := os.Stat(dirPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, serrors.E(op, serrors.NotFound, fmt.Sprintf("directory not found: %s", dirPath))
+			return nil, serrors.New(serrors.NotFound, fmt.Sprintf("directory not found: %s", dirPath)).WithOp(op)
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if !info.IsDir() {
-		return nil, serrors.E(op, serrors.KindValidation, fmt.Sprintf("path is not a directory: %s", dirPath))
+		return nil, serrors.New(serrors.Invalid, fmt.Sprintf("path is not a directory: %s", dirPath)).WithOp(op)
 	}
 
 	provider := &FileMetadataProvider{
@@ -56,7 +56,7 @@ func NewFileMetadataProvider(dirPath string) (*FileMetadataProvider, error) {
 
 	// Preload all metadata files into cache
 	if err := provider.loadAll(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return provider, nil
@@ -68,7 +68,7 @@ func (p *FileMetadataProvider) loadAll() error {
 
 	entries, err := os.ReadDir(p.dirPath)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	for _, entry := range entries {
@@ -88,21 +88,21 @@ func (p *FileMetadataProvider) loadAll() error {
 		filePath := filepath.Join(p.dirPath, entry.Name())
 		data, err := os.ReadFile(filePath)
 		if err != nil {
-			return serrors.E(op, err, fmt.Sprintf("failed to read %s", entry.Name()))
+			return serrors.WrapContext(op, err, fmt.Sprintf("failed to read %s", entry.Name()))
 		}
 
 		var metadata TableMetadata
 		if err := json.Unmarshal(data, &metadata); err != nil {
-			return serrors.E(op, err, fmt.Sprintf("failed to parse %s", entry.Name()))
+			return serrors.WrapContext(op, err, fmt.Sprintf("failed to parse %s", entry.Name()))
 		}
 
 		// Validate table_name matches filename
 		if metadata.TableName == "" {
 			metadata.TableName = tableName
 		} else if metadata.TableName != tableName {
-			return serrors.E(op, serrors.KindValidation,
-				fmt.Sprintf("table_name mismatch in %s: expected %s, got %s",
-					entry.Name(), tableName, metadata.TableName))
+			return serrors.New(serrors.Invalid, fmt.Sprintf("table_name mismatch in %s: expected %s, got %s",
+				entry.Name(), tableName, metadata.TableName)).WithOp(op)
+
 		}
 
 		p.cache[tableName] = &metadata

@@ -1,19 +1,15 @@
-// Package serrorhttp projects safe errors into route-owned HTTP contracts.
 package serrorhttp
 
 import (
 	"encoding/json"
-	"net/http"
-
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
-	serrors "github.com/iota-uz/iota-sdk/pkg/serrors/v2"
+	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
+	"net/http"
 )
 
 func Status(err error) int {
 	switch serrors.CodeOf(err) {
-	case serrors.Internal:
-		return http.StatusInternalServerError
 	case serrors.Invalid:
 		return http.StatusBadRequest
 	case serrors.NotFound:
@@ -94,12 +90,20 @@ func WriteForm(w http.ResponseWriter, r *http.Request, err error, l *i18n.Locali
 		status = http.StatusOK
 	}
 	if form.Target != "" {
-		w.Header().Set("Hx-Retarget", form.Target)
+		w.Header().Set("HX-Retarget", form.Target)
 	}
 	if form.Swap != "" {
-		w.Header().Set("Hx-Reswap", form.Swap)
+		w.Header().Set("HX-Reswap", form.Swap)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	return form.Render(w, r, serrors.Public(err, l))
+}
+
+// WriteText retains plain-text responses and classifies semantic errors.
+func WriteText(w http.ResponseWriter, err error, status int, l *i18n.Localizer) {
+	if serrors.CodeOf(err) != serrors.Internal {
+		status = Status(err)
+	}
+	http.Error(w, serrors.Public(err, l).Message, status)
 }

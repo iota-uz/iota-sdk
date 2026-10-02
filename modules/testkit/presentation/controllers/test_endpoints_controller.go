@@ -22,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twofactorconfig"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	tf "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
@@ -171,7 +172,7 @@ func (c *TestEndpointsController) handleReset(w http.ResponseWriter, r *http.Req
 	err := c.testService.ResetDatabase(ctx, req.ReseedMinimal)
 	if err != nil {
 		logger.WithError(err).Error("Failed to reset database")
-		http.Error(w, "Failed to reset database: "+err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -202,7 +203,7 @@ func (c *TestEndpointsController) handlePopulate(w http.ResponseWriter, r *http.
 	req, err := schemas.ParsePopulateRequest(body)
 	if err != nil {
 		logger.WithError(err).Error("Failed to parse populate request")
-		http.Error(w, "Invalid request: "+err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -266,7 +267,7 @@ func (c *TestEndpointsController) handleSeed(w http.ResponseWriter, r *http.Requ
 	err = c.testService.SeedScenario(ctx, req.Scenario)
 	if err != nil {
 		logger.WithError(err).Error("Failed to seed scenario")
-		http.Error(w, "Failed to seed scenario: "+err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

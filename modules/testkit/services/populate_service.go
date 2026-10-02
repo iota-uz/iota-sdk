@@ -155,7 +155,7 @@ func (s *PopulateService) populateData(ctx context.Context, data *schemas.DataSp
 	}
 	if len(data.OIDCClients) > 0 {
 		if err := s.createOIDCClients(ctx, data.OIDCClients); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 
@@ -187,7 +187,7 @@ func (s *PopulateService) createOIDCClients(ctx context.Context, clients []schem
 	const op serrors.Op = "PopulateService.createOIDCClients"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	for _, clientSpec := range clients {
 		scopes := clientSpec.Scopes
@@ -214,7 +214,7 @@ func (s *PopulateService) createOIDCClients(ctx context.Context, clients []schem
 			clientSpec.RedirectURIs,
 			scopes,
 		); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	return nil
@@ -299,7 +299,7 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 		if len(userSpec.Permissions) > 0 {
 			requestedPermissions, err := resolvePermissions(ctx, permissionRepo, userSpec.Permissions)
 			if err != nil {
-				return serrors.E(op, err, fmt.Sprintf("failed to resolve permissions for user %s", userSpec.Email))
+				return serrors.WrapContext(op, err, fmt.Sprintf("failed to resolve permissions for user %s", userSpec.Email))
 			}
 			userOptions = append(userOptions, user.WithPermissions(requestedPermissions))
 		}
@@ -402,7 +402,7 @@ func resolvePermissions(
 
 	available, err := repository.GetAll(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	byName := make(map[string]permission.Permission, len(available))
@@ -418,7 +418,7 @@ func resolvePermissions(
 		}
 		candidate, ok := byName[name]
 		if !ok {
-			return nil, serrors.E(op, serrors.NotFound, fmt.Sprintf("permission %q not found", name))
+			return nil, serrors.New(serrors.NotFound, fmt.Sprintf("permission %q not found", name)).WithOp(op)
 		}
 		seen[name] = struct{}{}
 		requested = append(requested, candidate)

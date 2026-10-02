@@ -193,7 +193,7 @@ func (t *SchemaDescribeBatchTool) CallStructured(ctx context.Context, input stri
 						Message: fmt.Sprintf("failed to check view access: %v", err),
 						Hints:   []string{"Contact administrator if this error persists"},
 					},
-				}, serrors.E(op, err)
+				}, serrors.Wrap(op, err)
 			}
 			if !canAccess {
 				denied = append(denied, permissions.DeniedView{

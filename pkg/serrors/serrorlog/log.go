@@ -1,10 +1,8 @@
-// Package serrorlog provides bounded structured error attributes.
 package serrorlog
 
 import (
+	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
 	"log/slog"
-
-	serrors "github.com/iota-uz/iota-sdk/pkg/serrors/v2"
 )
 
 func Attributes(err error, requestID string) []slog.Attr {
@@ -29,8 +27,6 @@ func Level(err error) slog.Level {
 		return slog.LevelInfo
 	case serrors.RateLimited:
 		return slog.LevelWarn
-	case serrors.Internal, serrors.Unavailable, serrors.Timeout, serrors.Unimplemented:
-		return slog.LevelError
 	default:
 		return slog.LevelError
 	}

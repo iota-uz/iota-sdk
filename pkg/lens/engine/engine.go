@@ -38,7 +38,7 @@ func Prepare(doc lensspec.Document, opts lenscompile.Options) (lenscompile.Compi
 	op := serrors.Op("lens/engine.Prepare")
 	compiled, err := lenscompile.Document(doc, opts)
 	if err != nil {
-		return lenscompile.CompiledDocument{}, serrors.E(op, err)
+		return lenscompile.CompiledDocument{}, serrors.Wrap(op, err)
 	}
 	return compiled, nil
 }
@@ -46,11 +46,11 @@ func Prepare(doc lensspec.Document, opts lenscompile.Options) (lenscompile.Compi
 func (e *Engine) RunPrepared(ctx context.Context, compiled lenscompile.CompiledDocument, req Request) (*Result, error) {
 	op := serrors.Op("lens/engine.RunPrepared")
 	if e == nil || e.executor == nil {
-		return nil, serrors.E(op, fmt.Errorf("lens executor is required"))
+		return nil, serrors.Wrap(op, fmt.Errorf("lens executor is required"))
 	}
 	result, err := e.executor.Execute(ctx, compiled.Spec, req.Runtime, req.Scope)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return &Result{
 		Compiled:  compiled,
@@ -62,11 +62,11 @@ func (e *Engine) Run(ctx context.Context, doc lensspec.Document, compileOpts len
 	op := serrors.Op("lens/engine.Run")
 	compiled, err := Prepare(doc, compileOpts)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	result, err := e.RunPrepared(ctx, compiled, req)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return result, nil
 }

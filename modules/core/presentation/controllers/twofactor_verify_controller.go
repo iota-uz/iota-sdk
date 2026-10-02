@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/security"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
@@ -157,7 +158,7 @@ func (c *TwoFactorVerifyController) GetVerify(w http.ResponseWriter, r *http.Req
 		SuccessMessage: string(successMessage),
 	}).Render(r.Context(), w); err != nil {
 		logger.Error("failed to render verify template", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -170,7 +171,7 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 
 	// Parse form
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -286,7 +287,7 @@ func (c *TwoFactorVerifyController) GetRecovery(w http.ResponseWriter, r *http.R
 		SuccessMessage: string(successMessage),
 	}).Render(r.Context(), w); err != nil {
 		logger.Error("failed to render recovery template", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -299,7 +300,7 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 
 	// Parse form
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -378,7 +379,7 @@ func (c *TwoFactorVerifyController) PostResend(w http.ResponseWriter, r *http.Re
 
 	// Parse form
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 

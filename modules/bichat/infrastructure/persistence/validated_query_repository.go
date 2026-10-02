@@ -30,13 +30,13 @@ func (r *ValidatedQueryRepository) Save(ctx context.Context, query learning.Vali
 
 	// Validate tenant ID
 	if query.TenantID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant_id is required")
+		return serrors.New(serrors.Invalid, "tenant_id is required").WithOp(op)
 	}
 
 	// Validate SQL is SELECT/WITH only
 	normalizedSQL := strings.TrimSpace(strings.ToUpper(query.SQL))
 	if !strings.HasPrefix(normalizedSQL, "SELECT") && !strings.HasPrefix(normalizedSQL, "WITH") {
-		return serrors.E(op, serrors.KindValidation, "only SELECT and WITH queries can be saved")
+		return serrors.New(serrors.Invalid, "only SELECT and WITH queries can be saved").WithOp(op)
 	}
 
 	// Use pool directly for queries
@@ -72,7 +72,7 @@ func (r *ValidatedQueryRepository) Save(ctx context.Context, query learning.Vali
 		query.CreatedAt,
 	)
 	if err != nil {
-		return serrors.E(op, err, "failed to insert validated query")
+		return serrors.WrapContext(op, err, "failed to insert validated query")
 	}
 
 	return nil
@@ -84,7 +84,7 @@ func (r *ValidatedQueryRepository) Search(ctx context.Context, question string, 
 
 	// Validate tenant ID
 	if opts.TenantID == uuid.Nil {
-		return nil, serrors.E(op, serrors.KindValidation, "tenant_id is required")
+		return nil, serrors.New(serrors.Invalid, "tenant_id is required").WithOp(op)
 	}
 
 	// Use pool directly for queries
@@ -154,7 +154,7 @@ func (r *ValidatedQueryRepository) Search(ctx context.Context, question string, 
 	// Execute query
 	rows, err := conn.Query(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to search validated queries")
+		return nil, serrors.WrapContext(op, err, "failed to search validated queries")
 	}
 	defer rows.Close()
 
@@ -175,14 +175,14 @@ func (r *ValidatedQueryRepository) Search(ctx context.Context, question string, 
 			&q.CreatedAt,
 		)
 		if err != nil {
-			return nil, serrors.E(op, err, "failed to scan validated query")
+			return nil, serrors.WrapContext(op, err, "failed to scan validated query")
 		}
 
 		queries = append(queries, q)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err, "error iterating validated queries")
+		return nil, serrors.WrapContext(op, err, "error iterating validated queries")
 	}
 
 	return queries, nil
@@ -195,7 +195,7 @@ func (r *ValidatedQueryRepository) IncrementUsage(ctx context.Context, id uuid.U
 	// Get tenant ID for multi-tenant isolation
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Use pool directly for queries
@@ -209,11 +209,11 @@ func (r *ValidatedQueryRepository) IncrementUsage(ctx context.Context, id uuid.U
 
 	result, err := conn.Exec(ctx, query, id, tenantID)
 	if err != nil {
-		return serrors.E(op, err, "failed to increment usage")
+		return serrors.WrapContext(op, err, "failed to increment usage")
 	}
 
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, serrors.NotFound, "validated query not found")
+		return serrors.New(serrors.NotFound, "validated query not found").WithOp(op)
 	}
 
 	return nil
@@ -226,7 +226,7 @@ func (r *ValidatedQueryRepository) Delete(ctx context.Context, id uuid.UUID) err
 	// Get tenant ID for multi-tenant isolation
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Use pool directly for queries
@@ -239,11 +239,11 @@ func (r *ValidatedQueryRepository) Delete(ctx context.Context, id uuid.UUID) err
 
 	result, err := conn.Exec(ctx, query, id, tenantID)
 	if err != nil {
-		return serrors.E(op, err, "failed to delete validated query")
+		return serrors.WrapContext(op, err, "failed to delete validated query")
 	}
 
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, serrors.NotFound, "validated query not found")
+		return serrors.New(serrors.NotFound, "validated query not found").WithOp(op)
 	}
 
 	return nil
@@ -255,7 +255,7 @@ func (r *ValidatedQueryRepository) DeleteByTenant(ctx context.Context, tenantID 
 	const op serrors.Op = "ValidatedQueryRepository.DeleteByTenant"
 
 	if tenantID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant_id is required")
+		return serrors.New(serrors.Invalid, "tenant_id is required").WithOp(op)
 	}
 
 	const query = `
@@ -264,7 +264,7 @@ func (r *ValidatedQueryRepository) DeleteByTenant(ctx context.Context, tenantID 
 	`
 
 	if _, err := r.pool.Exec(ctx, query, tenantID); err != nil {
-		return serrors.E(op, err, "failed to delete tenant validated queries")
+		return serrors.WrapContext(op, err, "failed to delete tenant validated queries")
 	}
 
 	return nil

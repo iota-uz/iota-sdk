@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 func Redirect(w http.ResponseWriter, r *http.Request, path string) {
@@ -48,7 +49,7 @@ func SetFlash(w http.ResponseWriter, name string, value []byte) {
 func SetFlashMap[K comparable, V any](w http.ResponseWriter, name string, value map[K]V) {
 	errors, err := json.Marshal(value)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	SetFlash(w, name, errors)

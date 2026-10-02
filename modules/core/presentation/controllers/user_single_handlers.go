@@ -22,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -39,7 +40,7 @@ func (c *UsersController) GetSingle(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -106,7 +107,7 @@ func (c *UsersController) GetSingle(
 			for _, value := range userViewModel.GroupIDs {
 				id, parseErr := uuid.Parse(value)
 				if parseErr != nil {
-					return nil, serrors.E(op, parseErr)
+					return nil, serrors.Wrap(op, parseErr)
 				}
 				groupIDs = append(groupIDs, id)
 			}
@@ -148,7 +149,7 @@ func (c *UsersController) GetEdit(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -182,20 +183,20 @@ func (c *UsersController) GetBlockDrawer(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	targetUser, err := userService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.WithError(err).Error("error retrieving user")
-		http.Error(w, err.Error(), http.StatusNotFound)
+		serrorhttp.WriteText(w, err, http.StatusNotFound, nil)
 		return
 	}
 
 	if err := renderBlockDrawer(r.Context(), w, mappers.UserToViewModel(targetUser), map[string]string{}); err != nil {
 		logger.WithError(err).Error("error rendering block drawer")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -224,13 +225,13 @@ func (c *UsersController) BlockUser(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
 		logger.WithError(err).Error("error parsing form")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -251,13 +252,13 @@ func (c *UsersController) BlockUser(
 		targetUser, err := userService.GetByID(r.Context(), id)
 		if err != nil {
 			logger.WithError(err).Error("error fetching user")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
 		if err := renderBlockDrawer(r.Context(), w, mappers.UserToViewModel(targetUser), errors); err != nil {
 			logger.WithError(err).Error("error rendering block drawer")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		}
 		return
 	}
@@ -272,13 +273,13 @@ func (c *UsersController) BlockUser(
 		targetUser, fetchErr := userService.GetByID(r.Context(), id)
 		if fetchErr != nil {
 			logger.WithError(fetchErr).Error("error fetching user")
-			http.Error(w, fetchErr.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, fetchErr, http.StatusInternalServerError, nil)
 			return
 		}
 
 		if err := renderBlockDrawer(r.Context(), w, mappers.UserToViewModel(targetUser), errors); err != nil {
 			logger.WithError(err).Error("error rendering block drawer")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		}
 		return
 	}
@@ -338,7 +339,7 @@ func (c *UsersController) UnblockUser(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -347,7 +348,7 @@ func (c *UsersController) UnblockUser(
 			return
 		}
 		logger.WithError(err).Error("error unblocking user")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

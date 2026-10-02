@@ -78,7 +78,7 @@ func resolvedDimensionTransforms(spec CubeSpec, transformsIn []transform.Spec) [
 func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpec, error) {
 	const op serrors.Op = "cube.Resolve"
 	if err := spec.Validate(); err != nil {
-		return lens.DashboardSpec{}, serrors.E(op, err)
+		return lens.DashboardSpec{}, serrors.Wrap(op, err)
 	}
 	for _, filter := range ctx.Filters {
 		if _, ok := spec.Dimension(filter.Dimension); !ok {
@@ -107,7 +107,7 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 
 	statsResolution, err := resolveStatDatasets(spec, ctx)
 	if err != nil {
-		return lens.DashboardSpec{}, serrors.E(op, err)
+		return lens.DashboardSpec{}, serrors.Wrap(op, err)
 	}
 	if comparison.Enabled {
 		statsResolution = compareStatDatasets(spec, statsResolution, comparison)
@@ -125,7 +125,7 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 	for idx, dim := range ordered {
 		resolved, err := resolveDimensionDataset(spec, ctx, dim)
 		if err != nil {
-			return lens.DashboardSpec{}, serrors.E(op, err)
+			return lens.DashboardSpec{}, serrors.Wrap(op, err)
 		}
 		if comparison.Enabled {
 			resolved = compareDimensionDataset(spec, resolved, comparison)

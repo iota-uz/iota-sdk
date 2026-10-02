@@ -181,7 +181,7 @@ func (c *StripeController) handleCheckoutCompleted(ctx context.Context, event st
 	var session stripe.CheckoutSession
 	if err := json.Unmarshal(event.Data.Raw, &session); err != nil {
 		logger.WithError(err).Error("Failed to parse checkout session")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	entities, err := c.billingService.GetByDetailsFields(
@@ -198,7 +198,7 @@ func (c *StripeController) handleCheckoutCompleted(ctx context.Context, event st
 
 	if err != nil {
 		logger.WithError(err).WithField("session_id", session.ID).Error("Failed to find transaction by session ID")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if len(entities) != 1 {
 		err = unexpectedTransactionCountError("session_id", session.ID, 1, len(entities))
@@ -206,7 +206,7 @@ func (c *StripeController) handleCheckoutCompleted(ctx context.Context, event st
 			"session_id": session.ID,
 			"count":      len(entities),
 		}).Error("Failed to find transaction by session ID")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	entity := entities[0]
@@ -215,7 +215,7 @@ func (c *StripeController) handleCheckoutCompleted(ctx context.Context, event st
 	if !ok {
 		err = invalidStripeDetailsTypeError(entity.Details())
 		logger.WithError(err).Error("Details is not of type StripeDetails")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if session.Customer != nil {
@@ -237,7 +237,7 @@ func (c *StripeController) handleCheckoutCompleted(ctx context.Context, event st
 	entity, err = c.billingService.Save(ctx, entity)
 	if err != nil {
 		logger.WithError(err).WithField("session_id", session.ID).Error("Failed to update transaction after checkout completed")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Invoke callback for notification (non-blocking)
@@ -255,7 +255,7 @@ func (c *StripeController) handleInvoiceCreated(ctx context.Context, event strip
 	var invoice stripe.Invoice
 	if err := json.Unmarshal(event.Data.Raw, &invoice); err != nil {
 		logger.WithError(err).Error("Failed to parse invoice")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if invoice.BillingReason == stripe.InvoiceBillingReasonSubscriptionCreate {
@@ -293,12 +293,12 @@ func (c *StripeController) handleInvoiceCreated(ctx context.Context, event strip
 	})
 	if err != nil {
 		logger.WithError(err).WithField("subscription_id", subscriptionID).Error("Could not find previous transaction by subscription_id")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if len(entities) == 0 {
 		err = transactionNotFoundError("subscription_id", subscriptionID)
 		logger.WithError(err).WithField("subscription_id", subscriptionID).Error("Could not find previous transaction by subscription_id")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	prevEntity := entities[0]
@@ -306,7 +306,7 @@ func (c *StripeController) handleInvoiceCreated(ctx context.Context, event strip
 	if !ok {
 		err = invalidStripeDetailsTypeError(prevEntity.Details())
 		logger.WithError(err).Error("Previous details is not of type StripeDetails")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	clientRef := prevDetails.ClientReferenceID()
@@ -334,7 +334,7 @@ func (c *StripeController) handleInvoiceCreated(ctx context.Context, event strip
 
 	if _, err := c.billingService.Save(ctx, entity); err != nil {
 		logger.WithError(err).WithField("invoice_id", invoice.ID).Error("Failed to create transaction")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	logger.WithFields(logrus.Fields{
@@ -350,7 +350,7 @@ func (c *StripeController) invoicePaymentSucceeded(ctx context.Context, event st
 	var invoice stripe.Invoice
 	if err := json.Unmarshal(event.Data.Raw, &invoice); err != nil {
 		logger.WithError(err).Error("Failed to parse invoice")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if invoice.ID == "" {
@@ -367,12 +367,12 @@ func (c *StripeController) invoicePaymentSucceeded(ctx context.Context, event st
 	})
 	if err != nil {
 		logger.WithError(err).WithField("invoice_id", invoice.ID).Error("Could not find transaction by invoice_id")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if len(entities) == 0 {
 		err = transactionNotFoundError("invoice_id", invoice.ID)
 		logger.WithError(err).WithField("invoice_id", invoice.ID).Error("Could not find transaction by invoice_id")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	entity := entities[0]
@@ -381,7 +381,7 @@ func (c *StripeController) invoicePaymentSucceeded(ctx context.Context, event st
 	if !ok {
 		err = invalidStripeDetailsTypeError(entity.Details())
 		logger.WithError(err).Error("Details is not of type StripeDetails")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	stripeDetails = stripeDetails.
@@ -400,7 +400,7 @@ func (c *StripeController) invoicePaymentSucceeded(ctx context.Context, event st
 	entity, err = c.billingService.Save(ctx, entity)
 	if err != nil {
 		logger.WithError(err).WithField("invoice_id", invoice.ID).Error("Failed to update transaction on invoice.payment_succeeded")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Invoke callback for notification (non-blocking)
@@ -422,7 +422,7 @@ func (c *StripeController) handleInvoicePaymentFailed(ctx context.Context, event
 	var invoice stripe.Invoice
 	if err := json.Unmarshal(event.Data.Raw, &invoice); err != nil {
 		logger.WithError(err).Error("Failed to parse invoice")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if invoice.ID == "" {
@@ -439,12 +439,12 @@ func (c *StripeController) handleInvoicePaymentFailed(ctx context.Context, event
 	})
 	if err != nil {
 		logger.WithError(err).WithField("invoice_id", invoice.ID).Error("Could not find transaction by invoice_id")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if len(entities) == 0 {
 		err = transactionNotFoundError("invoice_id", invoice.ID)
 		logger.WithError(err).WithField("invoice_id", invoice.ID).Error("Could not find transaction by invoice_id")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	entity := entities[0]
@@ -453,7 +453,7 @@ func (c *StripeController) handleInvoicePaymentFailed(ctx context.Context, event
 	if !ok {
 		err = invalidStripeDetailsTypeError(entity.Details())
 		logger.WithError(err).Error("Details is not of type StripeDetails")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	stripeDetails = stripeDetails.
@@ -472,7 +472,7 @@ func (c *StripeController) handleInvoicePaymentFailed(ctx context.Context, event
 	entity, err = c.billingService.Save(ctx, entity)
 	if err != nil {
 		logger.WithError(err).WithField("invoice_id", invoice.ID).Error("Failed to update transaction on invoice.payment_failed")
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Invoke callback for notification (non-blocking)

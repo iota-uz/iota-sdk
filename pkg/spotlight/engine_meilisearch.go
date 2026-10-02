@@ -216,7 +216,7 @@ func (e *MeilisearchEngine) setupForSearch() error {
 	}
 	indexName, created, err := e.ensureSearchIndex()
 	if err != nil {
-		return serrors.E("spotlight.MeilisearchEngine.setupForSearch", err)
+		return serrors.Wrap("spotlight.MeilisearchEngine.setupForSearch", err)
 	}
 	// A previous setup may have created the index and then timed out while
 	// waiting for its settings task. On retry ensureSearchIndex now reports an
@@ -232,7 +232,7 @@ func (e *MeilisearchEngine) setupForSearch() error {
 		}
 		e.writeReady.Store(true)
 	} else if err := e.validateSearchSettings(indexName); err != nil {
-		return serrors.E("spotlight.MeilisearchEngine.setupForSearch", err)
+		return serrors.Wrap("spotlight.MeilisearchEngine.setupForSearch", err)
 	}
 	e.searchReady.Store(true)
 	return nil
@@ -262,22 +262,22 @@ func (e *MeilisearchEngine) ensureIndexExists(indexName string) (bool, error) {
 
 	if _, err := e.client.GetIndex(indexName); err != nil {
 		if !isMeiliNotFound(err) {
-			return false, serrors.E(op, err)
+			return false, serrors.Wrap(op, err)
 		}
 		taskInfo, err := e.client.CreateIndex(&meilisearch.IndexConfig{
 			Uid:        indexName,
 			PrimaryKey: "pk",
 		})
 		if err != nil {
-			return false, serrors.E(op, err)
+			return false, serrors.Wrap(op, err)
 		}
 
 		task, err := e.waitTaskCtx(context.Background(), taskInfo.TaskUID)
 		if err != nil {
-			return false, serrors.E(op, err)
+			return false, serrors.Wrap(op, err)
 		}
 		if task.Status == meilisearch.TaskStatusFailed {
-			return false, serrors.E(op, fmt.Errorf("create index task failed: %s", task.Error.Message))
+			return false, serrors.Wrap(op, fmt.Errorf("create index task failed: %s", task.Error.Message))
 		}
 		return true, nil
 	}
@@ -289,7 +289,7 @@ func (e *MeilisearchEngine) configureIndex(indexName string) error {
 
 	if e.settingsTaskPending {
 		if e.settingsTaskIndex != indexName {
-			return serrors.E(op, fmt.Errorf("settings task %d is pending for index %q", e.settingsTaskUID, e.settingsTaskIndex))
+			return serrors.Wrap(op, fmt.Errorf("settings task %d is pending for index %q", e.settingsTaskUID, e.settingsTaskIndex))
 		}
 		return e.waitSettingsTask(op)
 	}
@@ -297,7 +297,7 @@ func (e *MeilisearchEngine) configureIndex(indexName string) error {
 	index := e.client.Index(indexName)
 	settings, err := index.GetSettings()
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	update := &meilisearch.Settings{}
@@ -327,10 +327,10 @@ func (e *MeilisearchEngine) configureIndex(indexName string) error {
 
 	settingsTask, err := index.UpdateSettings(update)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if settingsTask == nil {
-		return serrors.E(op, "Meilisearch returned no settings task")
+		return serrors.New(serrors.Internal, "Meilisearch returned no settings task").WithOp(op)
 	}
 	e.settingsTaskUID = settingsTask.TaskUID
 	e.settingsTaskIndex = indexName
@@ -344,26 +344,26 @@ func (e *MeilisearchEngine) waitSettingsTask(op serrors.Op) error {
 	if err != nil {
 		// Keep the task UID: the task may still be processing server-side, and a
 		// later setup attempt must wait for it instead of creating a duplicate.
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	e.settingsTaskUID = 0
 	e.settingsTaskIndex = ""
 	e.settingsTaskPending = false
 
 	if task == nil {
-		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned no result", taskUID))
+		return serrors.Wrap(op, fmt.Errorf("meilisearch settings task %d returned no result", taskUID))
 	}
 	switch task.Status {
 	case meilisearch.TaskStatusSucceeded:
 		return nil
 	case meilisearch.TaskStatusFailed:
-		return serrors.E(op, fmt.Errorf("meilisearch settings task %d failed: %s", taskUID, task.Error.Message))
+		return serrors.Wrap(op, fmt.Errorf("meilisearch settings task %d failed: %s", taskUID, task.Error.Message))
 	case meilisearch.TaskStatusCanceled:
-		return serrors.E(op, fmt.Errorf("meilisearch settings task %d was canceled", taskUID))
+		return serrors.Wrap(op, fmt.Errorf("meilisearch settings task %d was canceled", taskUID))
 	case meilisearch.TaskStatusUnknown, meilisearch.TaskStatusEnqueued, meilisearch.TaskStatusProcessing:
-		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned non-terminal status %q", taskUID, task.Status))
+		return serrors.Wrap(op, fmt.Errorf("meilisearch settings task %d returned non-terminal status %q", taskUID, task.Status))
 	default:
-		return serrors.E(op, fmt.Errorf("meilisearch settings task %d returned unexpected status %q", taskUID, task.Status))
+		return serrors.Wrap(op, fmt.Errorf("meilisearch settings task %d returned unexpected status %q", taskUID, task.Status))
 	}
 }
 
@@ -390,17 +390,17 @@ func (e *MeilisearchEngine) validateSearchSettings(indexName string) error {
 	index := e.client.Index(indexName)
 	settings, err := index.GetSettings()
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if missing := missingStrings(settings.FilterableAttributes, requiredFilterableAttributes()); len(missing) > 0 {
-		return serrors.E(op, fmt.Errorf("spotlight index is missing filterable attributes: %s", strings.Join(missing, ", ")))
+		return serrors.Wrap(op, fmt.Errorf("spotlight index is missing filterable attributes: %s", strings.Join(missing, ", ")))
 	}
 	if missing := missingStrings(settings.SearchableAttributes, requiredSearchableAttributes()); len(missing) > 0 {
-		return serrors.E(op, fmt.Errorf("spotlight index is missing searchable attributes: %s", strings.Join(missing, ", ")))
+		return serrors.Wrap(op, fmt.Errorf("spotlight index is missing searchable attributes: %s", strings.Join(missing, ", ")))
 	}
 	if missing := missingStrings(settings.SortableAttributes, requiredSortableAttributes()); len(missing) > 0 {
-		return serrors.E(op, fmt.Errorf("spotlight index is missing sortable attributes: %s", strings.Join(missing, ", ")))
+		return serrors.Wrap(op, fmt.Errorf("spotlight index is missing sortable attributes: %s", strings.Join(missing, ", ")))
 	}
 
 	return nil
@@ -571,17 +571,17 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 	createdPlaceholder := false
 	if _, err := s.client.GetIndex(s.activeIndexName); err != nil {
 		if !isMeiliNotFound(err) {
-			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
+			return serrors.Wrap("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
 		task, err := s.client.CreateIndex(&meilisearch.IndexConfig{
 			Uid:        s.activeIndexName,
 			PrimaryKey: "pk",
 		})
 		if err != nil {
-			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
+			return serrors.Wrap("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
 		if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
-			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
+			return serrors.Wrap("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
 		createdPlaceholder = true
 	}
@@ -590,22 +590,22 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 		Indexes: []string{s.buildIndexName, s.activeIndexName},
 	}})
 	if err != nil {
-		return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
+		return serrors.Wrap("spotlight.MeilisearchEngine.CommitRebuild", err)
 	}
 	if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
-		return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
+		return serrors.Wrap("spotlight.MeilisearchEngine.CommitRebuild", err)
 	}
 
 	cleanupTask, err := s.client.DeleteIndexWithContext(ctx, s.buildIndexName)
 	if err != nil {
 		if !createdPlaceholder || !isMeiliNotFound(err) {
-			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
+			return serrors.Wrap("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
 		return nil
 	}
 	if cleanupTask != nil {
 		if _, err := s.engine.waitTaskCtx(ctx, cleanupTask.TaskUID); err != nil {
-			return serrors.E("spotlight.MeilisearchEngine.CommitRebuild", err)
+			return serrors.Wrap("spotlight.MeilisearchEngine.CommitRebuild", err)
 		}
 	}
 
@@ -630,11 +630,11 @@ func (s *meiliRebuildSession) Abort(ctx context.Context) error {
 		if isMeiliNotFound(err) {
 			return nil
 		}
-		return serrors.E("spotlight.MeilisearchEngine.AbortRebuild", err)
+		return serrors.Wrap("spotlight.MeilisearchEngine.AbortRebuild", err)
 	}
 	if task != nil {
 		if _, err := s.engine.waitTaskCtx(ctx, task.TaskUID); err != nil {
-			return serrors.E("spotlight.MeilisearchEngine.AbortRebuild", err)
+			return serrors.Wrap("spotlight.MeilisearchEngine.AbortRebuild", err)
 		}
 	}
 	return nil
@@ -662,7 +662,7 @@ func (e *MeilisearchEngine) StartRebuild(ctx context.Context) (RebuildSession, e
 		taskWaitDeadline: drainWaitDeadline,
 	}
 	if err := buildEngine.setup(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return &meiliRebuildSession{
@@ -705,7 +705,7 @@ func (e *MeilisearchEngine) PruneOrphanBuildIndexes(ctx context.Context, minAge 
 
 	results, err := e.client.ListIndexesWithContext(ctx, &meilisearch.IndexesQuery{Limit: 200})
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if results == nil {
 		return nil, nil
@@ -731,11 +731,11 @@ func (e *MeilisearchEngine) PruneOrphanBuildIndexes(ctx context.Context, minAge 
 			if isMeiliNotFound(err) {
 				continue
 			}
-			return pruned, serrors.E(op, err)
+			return pruned, serrors.Wrap(op, err)
 		}
 		if task != nil {
 			if _, err := waitTaskCtxClient(ctx, e.client, task.TaskUID); err != nil {
-				return pruned, serrors.E(op, err)
+				return pruned, serrors.Wrap(op, err)
 			}
 		}
 		pruned = append(pruned, PrunedIndex{
@@ -774,7 +774,7 @@ const orphanIndexMinAge = 6 * time.Hour
 func (e *MeilisearchEngine) PruneTasks(ctx context.Context, before time.Time) (int64, error) {
 	const op serrors.Op = "spotlight.MeilisearchEngine.PruneTasks"
 	if before.IsZero() {
-		return 0, serrors.E(op, errors.New("before timestamp is required"))
+		return 0, serrors.Wrap(op, errors.New("before timestamp is required"))
 	}
 
 	task, err := e.client.DeleteTasksWithContext(ctx, &meilisearch.DeleteTasksQuery{
@@ -786,7 +786,7 @@ func (e *MeilisearchEngine) PruneTasks(ctx context.Context, before time.Time) (i
 		BeforeEnqueuedAt: before,
 	})
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 	if task == nil {
 		return 0, nil
@@ -794,7 +794,7 @@ func (e *MeilisearchEngine) PruneTasks(ctx context.Context, before time.Time) (i
 
 	status, err := waitTaskCtxClient(ctx, e.client, task.TaskUID)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 	if status == nil {
 		return 0, nil
@@ -840,11 +840,11 @@ func (e *MeilisearchEngine) Upsert(ctx context.Context, docs []SearchDocument) e
 		return nil
 	}
 	if err := e.setup(); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if err := e.addDocumentsSync(ctx, docs, 0); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -860,10 +860,10 @@ func (e *MeilisearchEngine) UpsertAsync(ctx context.Context, docs []SearchDocume
 		return nil
 	}
 	if err := e.setup(); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if err := e.addDocumentsAsync(ctx, docs, 0); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -1007,7 +1007,7 @@ func (e *MeilisearchEngine) WaitPending(ctx context.Context) error {
 		_, err := e.client.WaitForTaskWithContext(taskCtx, uid, waitTaskPollInterval)
 		cancel()
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	return nil
@@ -1038,7 +1038,7 @@ func (e *MeilisearchEngine) Delete(ctx context.Context, refs []DocumentRef) erro
 	}
 
 	if err := e.setup(); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	index := e.client.Index(e.indexName)
@@ -1048,10 +1048,10 @@ func (e *MeilisearchEngine) Delete(ctx context.Context, refs []DocumentRef) erro
 	}
 	task, err := index.DeleteDocuments(pks, nil)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if _, err := e.waitTaskCtx(ctx, task.TaskUID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -1063,17 +1063,17 @@ func (e *MeilisearchEngine) DeleteTenant(ctx context.Context, tenantID uuid.UUID
 		return nil
 	}
 	if err := e.setup(); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	filter := fmt.Sprintf(`tenant_id = "%s"`, escapeFilterString(tenantID.String()))
 	task, err := e.client.Index(e.indexName).DeleteDocumentsByFilterWithContext(ctx, filter, nil)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if task != nil {
 		if _, err := e.waitTaskCtx(ctx, task.TaskUID); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	return nil
@@ -1088,7 +1088,7 @@ func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]Se
 	}
 
 	if err := e.setupForSearch(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Normalize TopK
@@ -1114,7 +1114,7 @@ func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]Se
 	e.metricsSink().OnAccessFilterSize(len(accessClause))
 	if err := validateAccessFilter(e.logger, accessClause); err != nil {
 		e.metricsSink().OnEngineError("", EngineErrorFilterTooLong)
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	baseFilter := buildSearchFilter(req)
 
@@ -1125,7 +1125,7 @@ func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]Se
 		}
 		exactHits, err := e.searchOnce(req, "", appendFilter(baseFilter, exactFilter), topK)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		if len(exactHits) >= topK || strings.TrimSpace(req.Query) == "" {
 			return exactHits, nil
@@ -1133,14 +1133,14 @@ func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]Se
 
 		fallbackHits, err := e.searchOnce(req, req.Query, baseFilter, topK)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		return mergeHits(exactHits, fallbackHits, topK), nil
 	}
 
 	hits, err := e.searchOnce(req, req.Query, baseFilter, topK)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return hits, nil
 }
@@ -1154,7 +1154,7 @@ func (e *MeilisearchEngine) Health(ctx context.Context) error {
 	_, err := e.client.Health()
 	if err != nil {
 		e.markUnready(fmt.Sprintf("Health probe failed: %v", err))
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	return nil
@@ -1166,7 +1166,7 @@ func (e *MeilisearchEngine) Stats(ctx context.Context) (*IndexStats, error) {
 
 	state, err := e.inspectSearchIndex(e.activeName)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if !state.exists {
 		return &IndexStats{}, nil
@@ -1174,7 +1174,7 @@ func (e *MeilisearchEngine) Stats(ctx context.Context) (*IndexStats, error) {
 
 	stats, err := e.client.Index(state.searchableName).GetStats()
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	result := &IndexStats{
@@ -1358,9 +1358,7 @@ func validateAccessFilter(logger *logrus.Logger, filter string) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.validateAccessFilter"
 	size := len(filter)
 	if size > accessFilterMaxBytes {
-		return serrors.E(op,
-			fmt.Sprintf("access filter is %d bytes, exceeds hard cap %d", size, accessFilterMaxBytes),
-			errAccessFilterTooLong)
+		return serrors.WrapContext(op, errAccessFilterTooLong, fmt.Sprintf("access filter is %d bytes, exceeds hard cap %d", size, accessFilterMaxBytes))
 	}
 	if size > accessFilterWarnBytes && logger != nil {
 		logger.WithField("access_filter_bytes", size).
@@ -1473,7 +1471,7 @@ func parseMeiliHit(hit meilisearch.Hit) (SearchHit, error) {
 	// Decode the hit into a map for easier access
 	var hitMap map[string]interface{}
 	if err := hit.DecodeInto(&hitMap); err != nil {
-		return SearchHit{}, serrors.E(op, fmt.Errorf("failed to decode hit: %w", err))
+		return SearchHit{}, serrors.Wrap(op, fmt.Errorf("failed to decode hit: %w", err))
 	}
 
 	doc := SearchDocument{}
@@ -1487,7 +1485,7 @@ func parseMeiliHit(hit meilisearch.Hit) (SearchHit, error) {
 	if tenantIDStr, ok := hitMap["tenant_id"].(string); ok {
 		tenantID, err := uuid.Parse(tenantIDStr)
 		if err != nil {
-			return SearchHit{}, serrors.E(op, fmt.Errorf("invalid tenant_id: %w", err))
+			return SearchHit{}, serrors.Wrap(op, fmt.Errorf("invalid tenant_id: %w", err))
 		}
 		doc.TenantID = tenantID
 	}
@@ -1567,10 +1565,10 @@ func parseMeiliHit(hit meilisearch.Hit) (SearchHit, error) {
 		// Marshal and unmarshal to handle nested map conversion
 		accessPolicyBytes, err := json.Marshal(accessPolicyRaw)
 		if err != nil {
-			return SearchHit{}, serrors.E(op, fmt.Errorf("failed to marshal access_policy: %w", err))
+			return SearchHit{}, serrors.Wrap(op, fmt.Errorf("failed to marshal access_policy: %w", err))
 		}
 		if err := json.Unmarshal(accessPolicyBytes, &doc.Access); err != nil {
-			return SearchHit{}, serrors.E(op, fmt.Errorf("failed to unmarshal access_policy: %w", err))
+			return SearchHit{}, serrors.Wrap(op, fmt.Errorf("failed to unmarshal access_policy: %w", err))
 		}
 	}
 

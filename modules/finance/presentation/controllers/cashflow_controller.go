@@ -4,6 +4,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"html"
 	"net/http"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 type CashflowController struct {
@@ -226,7 +229,7 @@ func (c *CashflowController) GenerateCashflowStatement(w http.ResponseWriter, r 
 	// Generate and render the report
 	if err := c.generateAndRenderReport(w, r, ctx, formData, startDate, endDate); err != nil {
 		// Return just the error message in a simple div
-		errorComponent := `<div class="text-red-600 p-4">Error generating report: ` + err.Error() + `</div>`
+		errorComponent := `<div class="text-red-600 p-4">Error generating report: ` + html.EscapeString(serrors.Public(err, nil).Message) + `</div>`
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = w.Write([]byte(errorComponent))
 		return
@@ -274,7 +277,7 @@ func (c *CashflowController) GetCashflowStatementData(w http.ResponseWriter, r *
 		endDate,
 	)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

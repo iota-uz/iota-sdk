@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/sirupsen/logrus"
 )
 
@@ -73,7 +74,7 @@ func (c *AcceptanceController) Panel(
 	panel := acceptancePanel{acceptanceService, revenueService, currencyService, projectService}
 	projectID, err := uuid.Parse(mux.Vars(r)["projectId"])
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 	panel.render(w, r, logger, projectID, dtos.AcceptanceCreateDTO{}, map[string]string{})
@@ -91,12 +92,12 @@ func (c *AcceptanceController) Create(
 	panel := acceptancePanel{acceptanceService, revenueService, currencyService, projectService}
 	projectID, err := uuid.Parse(mux.Vars(r)["projectId"])
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 	dto, err := composables.UseForm(&dtos.AcceptanceCreateDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
@@ -106,7 +107,7 @@ func (c *AcceptanceController) Create(
 
 	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if _, err := acceptanceService.Create(r.Context(), dto.ToEntity(tenantID, projectID)); err != nil {
@@ -201,12 +202,12 @@ func (c *AcceptanceController) ids(w http.ResponseWriter, r *http.Request) (uuid
 	vars := mux.Vars(r)
 	projectID, err := uuid.Parse(vars["projectId"])
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return uuid.Nil, uuid.Nil, false
 	}
 	id, err := uuid.Parse(vars["id"])
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return uuid.Nil, uuid.Nil, false
 	}
 	return projectID, id, true

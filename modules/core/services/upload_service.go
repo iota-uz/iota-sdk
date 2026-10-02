@@ -95,7 +95,7 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upl
 func (s *UploadService) CreatePrivate(ctx context.Context, data *upload.CreateDTO, privatePath string) (upload.Upload, error) {
 	const op serrors.Op = "UploadService.CreatePrivate"
 	if privatePath == "" {
-		return nil, serrors.E(op, ErrPrivateUploadPathRequired)
+		return nil, serrors.Wrap(op, ErrPrivateUploadPathRequired)
 	}
 	privateData := *data
 	privateData.UploadsPath = privatePath
@@ -114,7 +114,7 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 		return nil, err
 	}
 	if len(requiredPath) > 0 && !pathWithin(requiredPath[0], entity.Path()) {
-		return nil, serrors.E(op, ErrPrivateUploadPathInvalid)
+		return nil, serrors.Wrap(op, ErrPrivateUploadPathInvalid)
 	}
 
 	up, err := s.repo.GetBySlug(ctx, entity.Slug())
@@ -130,11 +130,11 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 	}
 	if up != nil {
 		if len(requiredPath) > 0 && !pathWithin(requiredPath[0], up.Path()) {
-			return nil, serrors.E(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug()))
+			return nil, serrors.Wrap(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug()))
 		}
 		if up.Hash() != entity.Hash() {
 			if !replaceSlug {
-				return nil, serrors.E(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug()))
+				return nil, serrors.Wrap(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug()))
 			}
 			existing, err := s.repo.GetByHash(ctx, entity.Hash())
 			if err != nil && !errors.Is(err, persistence.ErrUploadNotFound) {

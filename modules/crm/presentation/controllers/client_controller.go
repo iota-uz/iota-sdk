@@ -43,6 +43,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 )
@@ -436,7 +437,7 @@ func (c *ClientController) List(
 	paginated, err := c.viewModelClients(r, clientService)
 	if err != nil {
 		logger.Errorf("Error retrieving clients: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	isHxRequest := htmx.IsHxRequest(r)
@@ -516,7 +517,7 @@ func (c *ClientController) Export(
 		}), exportconfig.New(exportconfig.WithFilename("clients_export.xlsx")))
 
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
@@ -532,7 +533,7 @@ func (c *ClientController) Export(
 		// opening as spreadsheet formulas.
 		writer, err := excel.NewCSVWriter(&buffer, &excel.CSVOptions{IncludeBOM: true})
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		if err := writer.WriteHeader([]string{
@@ -540,23 +541,23 @@ func (c *ClientController) Export(
 			pgCtx.T("Clients.List.Phone"),
 			pgCtx.T("UpdatedAt"),
 		}); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		clients, err := c.viewModelClientsAll(r, clientService)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
 		for _, client := range clients {
 			if err := writer.WriteRow([]interface{}{client.FullName(), client.Phone, client.UpdatedAt}); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 				return
 			}
 		}
 		if err := writer.Flush(); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		upload, err := uploadService.Create(ctx, &upload.CreateDTO{
@@ -565,7 +566,7 @@ func (c *ClientController) Export(
 			Size: buffer.Len(),
 		})
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		}
 		if htmx.IsHxRequest(r) {
 			htmx.Redirect(w, upload.URL().String())
@@ -594,7 +595,7 @@ func (c *ClientController) Create(
 	dto, err := composables.UseForm(&dtos.CreateClientDTO{}, r)
 	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -624,7 +625,7 @@ func (c *ClientController) Create(
 	tenant, err := composables.UseTenantID(r.Context())
 	if err != nil {
 		logger.Errorf("Error getting tenant: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -633,13 +634,13 @@ func (c *ClientController) Create(
 	clientEntity, err := dto.ToEntity(tenant)
 	if err != nil {
 		logger.Errorf("Error converting DTO to entity: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if err = clientService.Create(r.Context(), clientEntity); err != nil {
 		logger.Errorf("Error creating client: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -702,7 +703,7 @@ func (c *ClientController) View(
 	clientID, err := clientIDFromQ(r.URL)
 	if err != nil {
 		logger.Errorf("Error parsing client ID: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -724,7 +725,7 @@ func (c *ClientController) View(
 	component, err := c.tabToComponent(r, clientID, qTab, clientService, chatService)
 	if err != nil {
 		logger.Errorf("Error getting tab component: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -738,7 +739,7 @@ func (c *ClientController) View(
 	hxCurrentURL, err := url.Parse(htmx.CurrentURL(r))
 	if err != nil {
 		logger.Errorf("Error parsing Hx-Current-URL: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -796,14 +797,14 @@ func (c *ClientController) GetPersonalEdit(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.Errorf("Error parsing client ID: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	entity, err := clientService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v", err)
-		http.Error(w, fmt.Sprintf("Error retrieving client: %s", err.Error()), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -824,7 +825,7 @@ func (c *ClientController) GetPassportEdit(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.Errorf("Error parsing client ID: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -852,7 +853,7 @@ func (c *ClientController) GetTaxEdit(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.Errorf("Error parsing client ID: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -880,7 +881,7 @@ func (c *ClientController) GetNotesEdit(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.Errorf("Error parsing client ID: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -920,14 +921,14 @@ func (c *ClientController) UpdatePersonal(
 
 	if err := r.ParseForm(); err != nil {
 		logger.Errorf("Error parsing form: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.UpdateClientPersonalDTO{}, r)
 	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -959,13 +960,13 @@ func (c *ClientController) UpdatePersonal(
 	updated, err := dto.Apply(entity)
 	if err != nil {
 		logger.Errorf("Error applying changes: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if err := clientService.Update(r.Context(), updated); err != nil {
 		logger.Errorf("Error saving client: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -996,14 +997,14 @@ func (c *ClientController) UpdatePassport(
 
 	if err := r.ParseForm(); err != nil {
 		logger.Errorf("Error parsing form: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.UpdateClientPassportDTO{}, r)
 	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -1035,13 +1036,13 @@ func (c *ClientController) UpdatePassport(
 	updated, err := dto.Apply(entity)
 	if err != nil {
 		logger.Errorf("Error applying changes: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if err := clientService.Update(r.Context(), updated); err != nil {
 		logger.Errorf("Error saving client: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -1072,14 +1073,14 @@ func (c *ClientController) UpdateTax(
 
 	if err := r.ParseForm(); err != nil {
 		logger.Errorf("Error parsing form: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.UpdateClientTaxDTO{}, r)
 	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -1111,13 +1112,13 @@ func (c *ClientController) UpdateTax(
 	updated, err := dto.Apply(entity)
 	if err != nil {
 		logger.Errorf("Error applying changes: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if err := clientService.Update(r.Context(), updated); err != nil {
 		logger.Errorf("Error saving client: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -1147,14 +1148,14 @@ func (c *ClientController) UpdateNotes(
 
 	if err := r.ParseForm(); err != nil {
 		logger.Errorf("Error parsing form: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.UpdateClientNotesDTO{}, r)
 	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -1186,13 +1187,13 @@ func (c *ClientController) UpdateNotes(
 	updated, err := dto.Apply(entity)
 	if err != nil {
 		logger.Errorf("Error applying changes: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if err := clientService.Update(r.Context(), updated); err != nil {
 		logger.Errorf("Error saving client: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -1229,7 +1230,7 @@ func (c *ClientController) Delete(
 
 	if _, err := clientService.Delete(r.Context(), id); err != nil {
 		logger.Errorf("Error deleting client: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.config.BasePath)

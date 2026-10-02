@@ -24,6 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -112,7 +113,7 @@ func (c *InventoryController) viewModelChecks(r *http.Request) (*InventoryCheckP
 func (c *InventoryController) List(w http.ResponseWriter, r *http.Request) {
 	paginated, err := c.viewModelChecks(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -163,30 +164,30 @@ func (c *InventoryController) viewModelPositions(r *http.Request) (*PositionPagi
 
 func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 	dto := inventory.CreateCheckDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	u, err := composables.UseUser(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		entity, err := dto.ToEntity(u)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		props := &inventory2.CreatePageProps{
@@ -202,7 +203,7 @@ func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -212,7 +213,7 @@ func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
 func (c *InventoryController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -233,7 +234,7 @@ func (c *InventoryController) GetEdit(w http.ResponseWriter, r *http.Request) {
 func (c *InventoryController) GetEditDifference(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -263,7 +264,7 @@ func (c *InventoryController) Delete(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -277,12 +278,12 @@ func (c *InventoryController) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	dto := inventory.UpdateCheckDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteText(w, err, http.StatusBadRequest, nil)
 		return
 	}
 	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
@@ -303,7 +304,7 @@ func (c *InventoryController) Update(w http.ResponseWriter, r *http.Request) {
 		return c.inventoryService.Update(txCtx, id, &dto)
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -312,7 +313,7 @@ func (c *InventoryController) Update(w http.ResponseWriter, r *http.Request) {
 func (c *InventoryController) SearchPositions(w http.ResponseWriter, r *http.Request) {
 	paginated, err := c.viewModelPositions(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteText(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := &inventory2.CreatePageProps{

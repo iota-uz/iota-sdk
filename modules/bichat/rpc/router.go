@@ -33,25 +33,25 @@ func requireSessionAccess(
 
 	user, err := composables.UseUser(ctx)
 	if err != nil {
-		return nil, domain.SessionAccess{}, serrors.E(op, serrors.PermissionDenied, err)
+		return nil, domain.SessionAccess{}, serrors.New(serrors.Unauthenticated, "").WithOp(op).WithCause(err)
 	}
 
 	parsedSessionID, err := parseUUID(sessionID)
 	if err != nil {
-		return nil, domain.SessionAccess{}, serrors.E(op, serrors.Invalid, err)
+		return nil, domain.SessionAccess{}, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 
 	access, err := sessionQueries.ResolveSessionAccess(ctx, parsedSessionID, int64(user.ID()), hasReadAllPermission(ctx))
 	if err != nil {
-		return nil, domain.SessionAccess{}, serrors.E(op, err)
+		return nil, domain.SessionAccess{}, serrors.Wrap(op, err)
 	}
 	if err := access.Require(requireWrite, requireManageMembers); err != nil {
-		return nil, domain.SessionAccess{}, serrors.E(op, serrors.PermissionDenied, err)
+		return nil, domain.SessionAccess{}, serrors.New(serrors.PermissionDenied, "").WithOp(op).WithCause(err)
 	}
 
 	session, err := sessionQueries.GetSession(ctx, parsedSessionID)
 	if err != nil {
-		return nil, domain.SessionAccess{}, serrors.E(op, err)
+		return nil, domain.SessionAccess{}, serrors.Wrap(op, err)
 	}
 
 	return session, access, nil
@@ -82,7 +82,7 @@ func resolveSessionOwner(ctx context.Context, sessionQueries services.SessionQue
 
 	user, err := sessionQueries.GetTenantUser(ctx, ownerUserID)
 	if err != nil {
-		return domain.SessionUser{ID: ownerUserID}, serrors.E(op, err)
+		return domain.SessionUser{ID: ownerUserID}, serrors.Wrap(op, err)
 	}
 
 	return user, nil
@@ -95,15 +95,15 @@ func upsertSessionMember(ctx context.Context, sessionCommands services.SessionCo
 
 	userID, err := parseUserID(p.UserID)
 	if err != nil {
-		return serrors.E(op, serrors.Invalid, err)
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 	if userID == session.UserID() {
-		return serrors.E(op, serrors.KindValidation, "owner cannot be added as a member")
+		return serrors.New(serrors.Invalid, "owner cannot be added as a member").WithOp(op)
 	}
 
 	role, err := domain.NewSessionMemberRole(p.Role)
 	if err != nil {
-		return serrors.E(op, serrors.KindValidation, err)
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 	command, err := domain.NewSessionMemberUpsert(domain.SessionMemberUpsertSpec{
 		SessionID: session.ID(),
@@ -111,10 +111,10 @@ func upsertSessionMember(ctx context.Context, sessionCommands services.SessionCo
 		Role:      role,
 	})
 	if err != nil {
-		return serrors.E(op, serrors.KindValidation, err)
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 	if err := sessionCommands.UpsertSessionMember(ctx, command); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -143,7 +143,7 @@ func Router(
 
 			tenantID, err := composables.UseTenantID(ctx)
 			if err != nil {
-				return PingResult{}, serrors.E(op, serrors.Internal, err)
+				return PingResult{}, serrors.New(serrors.Internal, "").WithOp(op).WithCause(err)
 			}
 
 			return PingResult{
@@ -160,7 +160,7 @@ func Router(
 
 			user, err := composables.UseUser(ctx)
 			if err != nil {
-				return SessionListResult{}, serrors.E(op, serrors.PermissionDenied, err)
+				return SessionListResult{}, serrors.New(serrors.Unauthenticated, "").WithOp(op).WithCause(err)
 			}
 
 			requestedLimit := p.Limit
@@ -170,12 +170,12 @@ func Router(
 			opts := domain.ListOptions{Limit: requestedLimit + 1, Offset: p.Offset, IncludeArchived: p.IncludeArchived}
 			list, err := sessionQueries.ListAccessibleSessions(ctx, int64(user.ID()), opts)
 			if err != nil {
-				return SessionListResult{}, serrors.E(op, err)
+				return SessionListResult{}, serrors.Wrap(op, err)
 			}
 			// Total = full count matching filter (for pagination), not page size
 			total, err := sessionQueries.CountAccessibleSessions(ctx, int64(user.ID()), domain.ListOptions{IncludeArchived: p.IncludeArchived})
 			if err != nil {
-				return SessionListResult{}, serrors.E(op, err)
+				return SessionListResult{}, serrors.Wrap(op, err)
 			}
 			hasMore := len(list) > requestedLimit
 			if hasMore {
@@ -196,7 +196,7 @@ func Router(
 
 			user, err := composables.UseUser(ctx)
 			if err != nil {
-				return SessionListAllResult{}, serrors.E(op, serrors.PermissionDenied, err)
+				return SessionListAllResult{}, serrors.New(serrors.Unauthenticated, "").WithOp(op).WithCause(err)
 			}
 
 			requestedLimit := p.Limit
@@ -210,7 +210,7 @@ func Router(
 				if value != "" {
 					parsed, parseErr := strconv.ParseInt(value, 10, 64)
 					if parseErr != nil {
-						return SessionListAllResult{}, serrors.E(op, serrors.Invalid, parseErr)
+						return SessionListAllResult{}, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(parseErr)
 					}
 					ownerUserID = &parsed
 				}
@@ -219,11 +219,11 @@ func Router(
 			opts := domain.ListOptions{Limit: requestedLimit + 1, Offset: p.Offset, IncludeArchived: p.IncludeArchived}
 			list, err := sessionQueries.ListAllSessions(ctx, int64(user.ID()), opts, ownerUserID)
 			if err != nil {
-				return SessionListAllResult{}, serrors.E(op, err)
+				return SessionListAllResult{}, serrors.Wrap(op, err)
 			}
 			total, err := sessionQueries.CountAllSessions(ctx, domain.ListOptions{IncludeArchived: p.IncludeArchived}, ownerUserID)
 			if err != nil {
-				return SessionListAllResult{}, serrors.E(op, err)
+				return SessionListAllResult{}, serrors.Wrap(op, err)
 			}
 			hasMore := len(list) > requestedLimit
 			if hasMore {
@@ -246,7 +246,7 @@ func Router(
 
 			users, err := sessionQueries.ListTenantUsers(ctx)
 			if err != nil {
-				return UserListResult{}, serrors.E(op, err)
+				return UserListResult{}, serrors.Wrap(op, err)
 			}
 			out := make([]SessionUser, 0, len(users))
 			for _, user := range users {
@@ -263,16 +263,16 @@ func Router(
 
 			user, err := composables.UseUser(ctx)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, serrors.PermissionDenied, err)
+				return SessionCreateResult{}, serrors.New(serrors.Unauthenticated, "").WithOp(op).WithCause(err)
 			}
 			tenantID, err := composables.UseTenantID(ctx)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, serrors.Invalid, err)
+				return SessionCreateResult{}, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 			}
 
 			s, err := sessionCommands.CreateSession(ctx, tenantID, int64(user.ID()), p.Title)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionCreateResult{}, serrors.Wrap(op, err)
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
 		},
@@ -284,12 +284,12 @@ func Router(
 			const op serrors.Op = "bichat.rpc.session.get"
 			s, access, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, false)
 			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
+				return SessionGetResult{}, serrors.Wrap(op, err)
 			}
 
 			msgs, err := turnQueries.GetSessionMessages(ctx, s.ID(), domain.ListOptions{Limit: 500})
 			if err != nil {
-				return SessionGetResult{}, serrors.E(op, err)
+				return SessionGetResult{}, serrors.Wrap(op, err)
 			}
 
 			pq := pendingQuestionFromMessages(msgs)
@@ -309,12 +309,12 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionCreateResult{}, serrors.Wrap(op, err)
 			}
 
 			s, err := sessionCommands.UpdateSessionTitle(ctx, session.ID(), p.Title)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionCreateResult{}, serrors.Wrap(op, err)
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
 		},
@@ -327,12 +327,12 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionClearResult{}, serrors.E(op, err)
+				return SessionClearResult{}, serrors.Wrap(op, err)
 			}
 
 			result, err := sessionCommands.ClearSessionHistory(ctx, session.ID())
 			if err != nil {
-				return SessionClearResult{}, serrors.E(op, err)
+				return SessionClearResult{}, serrors.Wrap(op, err)
 			}
 
 			return SessionClearResult{
@@ -350,12 +350,12 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return AsyncRunAcceptedResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.Wrap(op, err)
 			}
 
 			result, err := sessionCommands.CompactSessionHistoryAsync(ctx, session.ID())
 			if err != nil {
-				return AsyncRunAcceptedResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.Wrap(op, err)
 			}
 			response := AsyncRunAcceptedResult{
 				Accepted:  result.Accepted,
@@ -377,10 +377,10 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return OkResult{}, serrors.E(op, err)
+				return OkResult{}, serrors.Wrap(op, err)
 			}
 			if err := sessionCommands.DeleteSession(ctx, session.ID()); err != nil {
-				return OkResult{}, serrors.E(op, err)
+				return OkResult{}, serrors.Wrap(op, err)
 			}
 			return OkResult{Ok: true}, nil
 		},
@@ -393,11 +393,11 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionCreateResult{}, serrors.Wrap(op, err)
 			}
 			s, err := sessionCommands.PinSession(ctx, session.ID())
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionCreateResult{}, serrors.Wrap(op, err)
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
 		},
@@ -410,11 +410,11 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionCreateResult{}, serrors.Wrap(op, err)
 			}
 			s, err := sessionCommands.UnpinSession(ctx, session.ID())
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionCreateResult{}, serrors.Wrap(op, err)
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
 		},
@@ -427,7 +427,7 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, false)
 			if err != nil {
-				return SessionArtifactsResult{}, serrors.E(op, err)
+				return SessionArtifactsResult{}, serrors.Wrap(op, err)
 			}
 
 			requestedLimit := p.Limit
@@ -442,7 +442,7 @@ func Router(
 			opts := domain.ListOptions{Limit: requestedLimit + 1, Offset: offset}
 			list, err := artifactSvc.GetSessionArtifacts(ctx, session.ID(), opts)
 			if err != nil {
-				return SessionArtifactsResult{}, serrors.E(op, err)
+				return SessionArtifactsResult{}, serrors.Wrap(op, err)
 			}
 
 			hasMore := len(list) > requestedLimit
@@ -469,20 +469,20 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
 			if err != nil {
-				return SessionUploadArtifactsResult{}, serrors.E(op, err)
+				return SessionUploadArtifactsResult{}, serrors.Wrap(op, err)
 			}
 			if len(p.Attachments) == 0 {
-				return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, "attachments are required")
+				return SessionUploadArtifactsResult{}, serrors.New(serrors.Invalid, "attachments are required").WithOp(op)
 			}
 			const maxAttachments = 10
 			if len(p.Attachments) > maxAttachments {
-				return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("too many attachments: max %d", maxAttachments))
+				return SessionUploadArtifactsResult{}, serrors.New(serrors.Invalid, fmt.Sprintf("too many attachments: max %d", maxAttachments)).WithOp(op)
 			}
 
 			uploads := make([]services.ArtifactUpload, 0, len(p.Attachments))
 			for i, attachment := range p.Attachments {
 				if attachment.UploadID == nil || *attachment.UploadID <= 0 {
-					return SessionUploadArtifactsResult{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachments[%d].uploadId is required", i))
+					return SessionUploadArtifactsResult{}, serrors.New(serrors.Invalid, fmt.Sprintf("attachments[%d].uploadId is required", i)).WithOp(op)
 				}
 				uploads = append(uploads, services.ArtifactUpload{
 					UploadID: *attachment.UploadID,
@@ -491,7 +491,7 @@ func Router(
 
 			artifacts, err := artifactSvc.UploadSessionArtifacts(ctx, session.ID(), uploads)
 			if err != nil {
-				return SessionUploadArtifactsResult{}, serrors.E(op, err)
+				return SessionUploadArtifactsResult{}, serrors.Wrap(op, err)
 			}
 
 			out := make([]Artifact, 0, len(artifacts))
@@ -509,20 +509,20 @@ func Router(
 
 			artifactID, err := parseUUID(p.ID)
 			if err != nil {
-				return ArtifactResult{}, serrors.E(op, serrors.Invalid, err)
+				return ArtifactResult{}, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 			}
 
 			currentArtifact, err := artifactSvc.GetArtifact(ctx, artifactID)
 			if err != nil {
-				return ArtifactResult{}, serrors.E(op, err)
+				return ArtifactResult{}, serrors.Wrap(op, err)
 			}
 			if _, _, err := requireSessionAccess(ctx, sessionQueries, currentArtifact.SessionID().String(), true, false); err != nil {
-				return ArtifactResult{}, serrors.E(op, err)
+				return ArtifactResult{}, serrors.Wrap(op, err)
 			}
 
 			updatedName := strings.TrimSpace(p.Name)
 			if updatedName == "" {
-				return ArtifactResult{}, serrors.E(op, serrors.KindValidation, "name is required")
+				return ArtifactResult{}, serrors.New(serrors.Invalid, "name is required").WithOp(op)
 			}
 
 			updatedArtifact, err := artifactSvc.UpdateArtifact(
@@ -532,7 +532,7 @@ func Router(
 				strings.TrimSpace(p.Description),
 			)
 			if err != nil {
-				return ArtifactResult{}, serrors.E(op, err)
+				return ArtifactResult{}, serrors.Wrap(op, err)
 			}
 
 			return ArtifactResult{Artifact: toArtifactDTO(updatedArtifact)}, nil
@@ -546,19 +546,19 @@ func Router(
 
 			artifactID, err := parseUUID(p.ID)
 			if err != nil {
-				return OkResult{}, serrors.E(op, serrors.Invalid, err)
+				return OkResult{}, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 			}
 
 			artifact, err := artifactSvc.GetArtifact(ctx, artifactID)
 			if err != nil {
-				return OkResult{}, serrors.E(op, err)
+				return OkResult{}, serrors.Wrap(op, err)
 			}
 			if _, _, err := requireSessionAccess(ctx, sessionQueries, artifact.SessionID().String(), true, false); err != nil {
-				return OkResult{}, serrors.E(op, err)
+				return OkResult{}, serrors.Wrap(op, err)
 			}
 
 			if err := artifactSvc.DeleteArtifact(ctx, artifactID); err != nil {
-				return OkResult{}, serrors.E(op, err)
+				return OkResult{}, serrors.Wrap(op, err)
 			}
 			return OkResult{Ok: true}, nil
 		},
@@ -571,11 +571,11 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionCreateResult{}, serrors.Wrap(op, err)
 			}
 			s, err := sessionCommands.ArchiveSession(ctx, session.ID())
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionCreateResult{}, serrors.Wrap(op, err)
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
 		},
@@ -588,11 +588,11 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionCreateResult{}, serrors.Wrap(op, err)
 			}
 			s, err := sessionCommands.UnarchiveSession(ctx, session.ID())
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionCreateResult{}, serrors.Wrap(op, err)
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
 		},
@@ -605,14 +605,14 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.ID, false, true)
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionCreateResult{}, serrors.Wrap(op, err)
 			}
 			if err := sessionCommands.GenerateSessionTitle(ctx, session.ID()); err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionCreateResult{}, serrors.Wrap(op, err)
 			}
 			s, err := sessionQueries.GetSession(ctx, session.ID())
 			if err != nil {
-				return SessionCreateResult{}, serrors.E(op, err)
+				return SessionCreateResult{}, serrors.Wrap(op, err)
 			}
 			return SessionCreateResult{Session: toSessionDTO(s)}, nil
 		},
@@ -625,15 +625,15 @@ func Router(
 
 			checkpointID := strings.TrimSpace(p.CheckpointID)
 			if checkpointID == "" {
-				return AsyncRunAcceptedResult{}, serrors.E(op, serrors.KindValidation, "checkpointId is required")
+				return AsyncRunAcceptedResult{}, serrors.New(serrors.Invalid, "checkpointId is required").WithOp(op)
 			}
 			if len(p.Answers) == 0 {
-				return AsyncRunAcceptedResult{}, serrors.E(op, serrors.KindValidation, "answers are required")
+				return AsyncRunAcceptedResult{}, serrors.New(serrors.Invalid, "answers are required").WithOp(op)
 			}
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
 			if err != nil {
-				return AsyncRunAcceptedResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.Wrap(op, err)
 			}
 
 			result, err := hitlCommands.ResumeWithAnswerAsync(ctx, services.ResumeRequest{
@@ -642,7 +642,7 @@ func Router(
 				Answers:      p.Answers,
 			})
 			if err != nil {
-				return AsyncRunAcceptedResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.Wrap(op, err)
 			}
 			response := AsyncRunAcceptedResult{
 				Accepted:  result.Accepted,
@@ -664,11 +664,11 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, true, false)
 			if err != nil {
-				return AsyncRunAcceptedResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.Wrap(op, err)
 			}
 			result, err := hitlCommands.RejectPendingQuestionAsync(ctx, session.ID())
 			if err != nil {
-				return AsyncRunAcceptedResult{}, serrors.E(op, err)
+				return AsyncRunAcceptedResult{}, serrors.Wrap(op, err)
 			}
 			response := AsyncRunAcceptedResult{
 				Accepted:  result.Accepted,
@@ -690,17 +690,17 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, false)
 			if err != nil {
-				return SessionMembersListResult{}, serrors.E(op, err)
+				return SessionMembersListResult{}, serrors.Wrap(op, err)
 			}
 
 			members, err := sessionQueries.ListSessionMembers(ctx, session.ID())
 			if err != nil {
-				return SessionMembersListResult{}, serrors.E(op, err)
+				return SessionMembersListResult{}, serrors.Wrap(op, err)
 			}
 
 			owner, listErr := resolveSessionOwner(ctx, sessionQueries, session.UserID())
 			if listErr != nil {
-				return SessionMembersListResult{}, serrors.E(op, listErr)
+				return SessionMembersListResult{}, serrors.Wrap(op, listErr)
 			}
 
 			out := make([]SessionMember, 0, len(members)+1)
@@ -730,10 +730,10 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, true)
 			if err != nil {
-				return OkResult{}, serrors.E(op, err)
+				return OkResult{}, serrors.Wrap(op, err)
 			}
 			if err := upsertSessionMember(ctx, sessionCommands, session, p); err != nil {
-				return OkResult{}, serrors.E(op, err)
+				return OkResult{}, serrors.Wrap(op, err)
 			}
 			return OkResult{Ok: true}, nil
 		},
@@ -746,10 +746,10 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, true)
 			if err != nil {
-				return OkResult{}, serrors.E(op, err)
+				return OkResult{}, serrors.Wrap(op, err)
 			}
 			if err := upsertSessionMember(ctx, sessionCommands, session, p); err != nil {
-				return OkResult{}, serrors.E(op, err)
+				return OkResult{}, serrors.Wrap(op, err)
 			}
 			return OkResult{Ok: true}, nil
 		},
@@ -762,24 +762,24 @@ func Router(
 
 			session, _, err := requireSessionAccess(ctx, sessionQueries, p.SessionID, false, true)
 			if err != nil {
-				return OkResult{}, serrors.E(op, err)
+				return OkResult{}, serrors.Wrap(op, err)
 			}
 			userID, err := parseUserID(p.UserID)
 			if err != nil {
-				return OkResult{}, serrors.E(op, serrors.Invalid, err)
+				return OkResult{}, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 			}
 			if userID == session.UserID() {
-				return OkResult{}, serrors.E(op, serrors.KindValidation, "cannot remove the session owner")
+				return OkResult{}, serrors.New(serrors.Invalid, "cannot remove the session owner").WithOp(op)
 			}
 			command, err := domain.NewSessionMemberRemoval(domain.SessionMemberRemovalSpec{
 				SessionID: session.ID(),
 				UserID:    userID,
 			})
 			if err != nil {
-				return OkResult{}, serrors.E(op, serrors.KindValidation, err)
+				return OkResult{}, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 			}
 			if err := sessionCommands.RemoveSessionMember(ctx, command); err != nil {
-				return OkResult{}, serrors.E(op, err)
+				return OkResult{}, serrors.Wrap(op, err)
 			}
 			return OkResult{Ok: true}, nil
 		},

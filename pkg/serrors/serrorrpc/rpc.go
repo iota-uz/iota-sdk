@@ -1,9 +1,8 @@
-// Package serrorrpc projects application errors after dispatcher priority rules.
 package serrorrpc
 
 import (
 	"github.com/iota-uz/go-i18n/v2/i18n"
-	serrors "github.com/iota-uz/iota-sdk/pkg/serrors/v2"
+	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type Response struct {

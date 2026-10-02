@@ -13,7 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	serrorvalidate "github.com/iota-uz/iota-sdk/pkg/serrors/validate"
 )
 
 type CounterpartyCreateDTO struct {
@@ -37,7 +37,7 @@ func (dto *CounterpartyCreateDTO) Ok(ctx context.Context) (map[string]string, bo
 	if !ok {
 		panic(intl.ErrNoLocalizer)
 	}
-	validationErrors := make(serrors.ValidationErrors)
+	validationErrors := make(map[string]error)
 
 	// Process standard validator errors
 	errs := constants.Validate.Struct(dto)
@@ -47,7 +47,7 @@ func (dto *CounterpartyCreateDTO) Ok(ctx context.Context) (map[string]string, bo
 		}
 
 		// Process validator errors to our custom format
-		for field, err := range serrors.ProcessValidatorErrors(errs.(validator.ValidationErrors), getFieldLocaleKey) {
+		for field, err := range serrorvalidate.Fields(errs.(validator.ValidationErrors), getFieldLocaleKey) {
 			validationErrors[field] = err
 		}
 	}
@@ -55,7 +55,7 @@ func (dto *CounterpartyCreateDTO) Ok(ctx context.Context) (map[string]string, bo
 	// Custom TIN validation
 	if dto.TIN != "" {
 		if err := tax.ValidateTin(dto.TIN, country.Uzbekistan); err != nil {
-			validationErrors["TIN"] = serrors.NewInvalidTINError(
+			validationErrors["TIN"] = serrorvalidate.TIN(
 				"TIN",
 				"Counterparties.Single.TIN",
 				err.Error(),
@@ -64,7 +64,7 @@ func (dto *CounterpartyCreateDTO) Ok(ctx context.Context) (map[string]string, bo
 	}
 
 	// Localize all validation errors
-	errorMessages := serrors.LocalizeValidationErrors(validationErrors, l)
+	errorMessages := serrorvalidate.Map(validationErrors, l)
 	return errorMessages, len(errorMessages) == 0
 }
 
@@ -100,7 +100,7 @@ func (dto *CounterpartyUpdateDTO) Ok(ctx context.Context) (map[string]string, bo
 	if !ok {
 		panic(intl.ErrNoLocalizer)
 	}
-	validationErrors := make(serrors.ValidationErrors)
+	validationErrors := make(map[string]error)
 
 	// Process standard validator errors
 	errs := constants.Validate.Struct(dto)
@@ -110,7 +110,7 @@ func (dto *CounterpartyUpdateDTO) Ok(ctx context.Context) (map[string]string, bo
 		}
 
 		// Process validator errors to our custom format
-		for field, err := range serrors.ProcessValidatorErrors(errs.(validator.ValidationErrors), getFieldLocaleKey) {
+		for field, err := range serrorvalidate.Fields(errs.(validator.ValidationErrors), getFieldLocaleKey) {
 			validationErrors[field] = err
 		}
 	}
@@ -118,7 +118,7 @@ func (dto *CounterpartyUpdateDTO) Ok(ctx context.Context) (map[string]string, bo
 	// Custom TIN validation
 	if dto.TIN != "" {
 		if err := tax.ValidateTin(dto.TIN, country.Uzbekistan); err != nil {
-			validationErrors["TIN"] = serrors.NewInvalidTINError(
+			validationErrors["TIN"] = serrorvalidate.TIN(
 				"TIN",
 				"Counterparties.Single.TIN",
 				err.Error(),
@@ -127,7 +127,7 @@ func (dto *CounterpartyUpdateDTO) Ok(ctx context.Context) (map[string]string, bo
 	}
 
 	// Localize all validation errors
-	errorMessages := serrors.LocalizeValidationErrors(validationErrors, l)
+	errorMessages := serrorvalidate.Map(validationErrors, l)
 	return errorMessages, len(errorMessages) == 0
 }
 

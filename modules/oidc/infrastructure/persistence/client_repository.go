@@ -76,7 +76,7 @@ func (r *ClientRepository) Count(ctx context.Context, params *client.FindParams)
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	where, args := r.buildWhereClause(params)
@@ -89,7 +89,7 @@ func (r *ClientRepository) Count(ctx context.Context, params *client.FindParams)
 
 	var count int64
 	if err := tx.QueryRow(ctx, query, args...).Scan(&count); err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.FromDB(op, err)
 	}
 
 	return count, nil
@@ -132,11 +132,11 @@ func (r *ClientRepository) GetByID(ctx context.Context, id uuid.UUID) (client.Cl
 	query := selectClientQuery + " WHERE id = $1"
 	clients, err := r.queryClients(ctx, op, query, id)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if len(clients) == 0 {
-		return nil, serrors.E(op, serrors.NotFound, "client not found")
+		return nil, serrors.New(serrors.NotFound, "client not found").WithOp(op)
 	}
 
 	return clients[0], nil
@@ -148,11 +148,11 @@ func (r *ClientRepository) GetByClientID(ctx context.Context, clientID string) (
 	query := selectClientQuery + " WHERE client_id = $1"
 	clients, err := r.queryClients(ctx, op, query, clientID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if len(clients) == 0 {
-		return nil, serrors.E(op, serrors.NotFound, "client not found")
+		return nil, serrors.New(serrors.NotFound, "client not found").WithOp(op)
 	}
 
 	return clients[0], nil
@@ -163,12 +163,12 @@ func (r *ClientRepository) ClientIDExists(ctx context.Context, clientID string) 
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	var exists bool
 	if err := tx.QueryRow(ctx, clientIDExistsQuery, clientID).Scan(&exists); err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.FromDB(op, err)
 	}
 
 	return exists, nil
@@ -179,7 +179,7 @@ func (r *ClientRepository) Create(ctx context.Context, c client.Client) (client.
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	dbClient := ToDBClient(c)
@@ -226,7 +226,7 @@ func (r *ClientRepository) Create(ctx context.Context, c client.Client) (client.
 	)
 
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return ToDomainClient(&result)
@@ -237,7 +237,7 @@ func (r *ClientRepository) Update(ctx context.Context, c client.Client) error {
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	dbClient := ToDBClient(c)
@@ -263,11 +263,11 @@ func (r *ClientRepository) Update(ctx context.Context, c client.Client) error {
 	)
 
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, serrors.NotFound, "client not found")
+		return serrors.New(serrors.NotFound, "client not found").WithOp(op)
 	}
 
 	return nil
@@ -278,16 +278,16 @@ func (r *ClientRepository) Delete(ctx context.Context, id uuid.UUID) error {
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := tx.Exec(ctx, deleteClientQuery, id)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, serrors.NotFound, "client not found")
+		return serrors.New(serrors.NotFound, "client not found").WithOp(op)
 	}
 
 	return nil
@@ -324,12 +324,12 @@ func (r *ClientRepository) buildWhereClause(params *client.FindParams) ([]string
 func (r *ClientRepository) queryClients(ctx context.Context, op serrors.Op, query string, args ...interface{}) ([]client.Client, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -355,18 +355,18 @@ func (r *ClientRepository) queryClients(ctx context.Context, op serrors.Op, quer
 			&dbClient.CreatedAt,
 			&dbClient.UpdatedAt,
 		); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 
 		domainClient, err := ToDomainClient(&dbClient)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		clients = append(clients, domainClient)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return clients, nil
