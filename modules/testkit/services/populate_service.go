@@ -39,12 +39,12 @@ func NewPopulateService(db *pgxpool.Pool) *PopulateService {
 }
 
 func (s *PopulateService) Execute(ctx context.Context, req *schemas.PopulateRequest) (map[string]interface{}, error) {
+	return NewPopulateService(s.db).execute(ctx, req)
+}
+
+func (s *PopulateService) execute(ctx context.Context, req *schemas.PopulateRequest) (map[string]interface{}, error) {
 	logger := composables.UseLogger(ctx)
 	db := s.db
-
-	// Reset state for new population request
-	s.referenceMap = make(map[string]interface{})
-	s.createdEntities = make(map[string]interface{})
 
 	// Begin transaction
 	tx, err := db.Begin(ctx)
