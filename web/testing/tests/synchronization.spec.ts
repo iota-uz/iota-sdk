@@ -94,3 +94,60 @@ test('completes when the swap deletes its request target', async ({ page }) => {
   await actionAndHtmxResponse(page, { method: 'POST', pathname: '/save' }, () => page.getByRole('button').click())
   await expect(page.getByRole('button')).toHaveCount(0)
 })
+
+// Regression: a superseded real XHR must terminate, while the replacement must settle.
+test('waits for the winning same-URL request after HTMX aborts its predecessor', async ({ page }) => {
+  await fixture(page)
+  let release!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  let requests = 0
+  await page.route('http://fixture.test/save', async route => {
+    requests++
+    if (requests === 1) return // Real XHR stays pending until hx-sync aborts it.
+    await gate
+    await route.fulfill({ contentType: 'text/html', body: 'Winning response' })
+  })
+  await page.evaluate(() => {
+    document.body.innerHTML = '<button id="replace" hx-post="/save" hx-sync="this:replace" hx-target="#result" hx-swap="innerHTML settle:150ms">Replace</button><section id="result"></section>'
+    ;(window as any).htmx.process(document.body)
+    ;(window as any).aborts = 0
+    document.addEventListener('htmx:sendAbort', () => { (window as any).aborts++ })
+  })
+  let complete = false
+  const interaction = actionAndHtmxResponse(page, { method: 'POST', pathname: '/save' }, async () => {
+    await page.locator('#replace').click()
+    await expect.poll(() => requests).toBe(1)
+    await page.evaluate(() => document.getElementById('replace')!.click())
+  }, { timeoutMs: 3000 }).then(() => { complete = true })
+  try {
+    await expect.poll(() => requests).toBe(2)
+    await expect.poll(() => page.evaluate(() => (window as any).aborts)).toBe(1)
+    expect(complete).toBe(false)
+  } finally { release() }
+  await interaction
+  await expect(page.locator('#result')).toHaveText('Winning response')
+  await expect(page.locator('.htmx-settling')).toHaveCount(0)
+})
+
+test('rejects a newer same-URL send error after an earlier successful response', async ({ page }) => {
+  await fixture(page)
+  let release!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  let requests = 0
+  await page.route('http://fixture.test/save', async route => {
+    if (++requests === 1) return route.fulfill({ contentType: 'text/html', body: 'Earlier success' })
+    await gate
+    await route.abort('failed')
+  })
+  await page.evaluate(() => {
+    document.body.innerHTML = '<button id="a" hx-post="/save" hx-target="#first" hx-swap="innerHTML settle:0ms">First</button><button id="b" hx-post="/save" hx-target="#second">Second</button><section id="first"></section><section id="second"></section>'
+    ;(window as any).htmx.process(document.body)
+  })
+  const interaction = actionAndHtmxResponse(page, { method: 'POST', pathname: '/save' }, () => page.evaluate(() => {
+    document.getElementById('a')!.click(); document.getElementById('b')!.click()
+  }), { timeoutMs: 3000 })
+  const rejection = expect(interaction).rejects.toThrow('HTMX request failed: 0')
+  try { await expect(page.locator('#first')).toHaveText('Earlier success') }
+  finally { release() }
+  await rejection
+})

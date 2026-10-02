@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Allow HTMX test interactions to finish after superseded XHR cancellation while still rejecting newer send failures and waiting for the winning swap to settle."}
