@@ -22,8 +22,11 @@ const (
 	permissionsSelectQuery = `SELECT id, name, resource, action, modifier, description FROM permissions`
 	permissionsCountQuery  = `SELECT COUNT(*) FROM permissions`
 	permissionsInsertQuery = `
+		WITH permission_lock AS MATERIALIZED (
+			SELECT pg_advisory_xact_lock(hashtextextended('iota-sdk:permission:' || $2::text, 0))
+		)
 		INSERT INTO permissions (id, name, resource, action, modifier, description)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		SELECT $1, $2, $3, $4, $5, $6 FROM permission_lock
 		ON CONFLICT (name) DO UPDATE
 		SET id = EXCLUDED.id,
 		    resource = EXCLUDED.resource,
