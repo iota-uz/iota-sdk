@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -58,17 +59,23 @@ type RunJobWorkerConfig struct {
 	// error event instead of hanging forever. Optional.
 	OnJobTerminalFailure func(ctx context.Context, job RunJobPayload, cause error)
 	Pool                 *pgxpool.Pool
-	Logger               *logrus.Logger
-	Group                string
-	Consumer             string
-	BatchSize            int
-	PollInterval         time.Duration
-	ReadBlock            time.Duration
-	MaxRetries           int
-	RetryBaseDelay       time.Duration
-	RetryMaxDelay        time.Duration
-	PendingIdle          time.Duration
-	JobTimeout           time.Duration
+	// Users hydrates the authenticated actor for tools and checkpoint persistence.
+	// Optional for custom executors that do not use authenticated context;
+	// ServiceContainer.NewRunJobWorker always supplies the tenant-scoped repository.
+	Users interface {
+		GetByID(context.Context, uint) (user.User, error)
+	}
+	Logger         *logrus.Logger
+	Group          string
+	Consumer       string
+	BatchSize      int
+	PollInterval   time.Duration
+	ReadBlock      time.Duration
+	MaxRetries     int
+	RetryBaseDelay time.Duration
+	RetryMaxDelay  time.Duration
+	PendingIdle    time.Duration
+	JobTimeout     time.Duration
 }
 
 // RunJobWorker consumes generation jobs off the bichat:run:jobs stream with
@@ -84,19 +91,22 @@ type RunJobWorker struct {
 	activeRunIndex       ActiveRunIndex
 	onJobTerminalFailure func(ctx context.Context, job RunJobPayload, cause error)
 	pool                 *pgxpool.Pool
-	logger               *logrus.Logger
-	group                string
-	consumer             string
-	batchSize            int
-	pollEvery            time.Duration
-	readBlock            time.Duration
-	maxRetries           int
-	retryBaseDelay       time.Duration
-	retryMaxDelay        time.Duration
-	pendingIdle          time.Duration
-	jobTimeout           time.Duration
-	retrySchedule        string
-	now                  func() time.Time
+	users                interface {
+		GetByID(context.Context, uint) (user.User, error)
+	}
+	logger         *logrus.Logger
+	group          string
+	consumer       string
+	batchSize      int
+	pollEvery      time.Duration
+	readBlock      time.Duration
+	maxRetries     int
+	retryBaseDelay time.Duration
+	retryMaxDelay  time.Duration
+	pendingIdle    time.Duration
+	jobTimeout     time.Duration
+	retrySchedule  string
+	now            func() time.Time
 }
 
 func NewRunJobWorker(cfg RunJobWorkerConfig) (*RunJobWorker, error) {
@@ -171,6 +181,7 @@ func NewRunJobWorker(cfg RunJobWorkerConfig) (*RunJobWorker, error) {
 		activeRunIndex:       cfg.ActiveRunIndex,
 		onJobTerminalFailure: cfg.OnJobTerminalFailure,
 		pool:                 cfg.Pool,
+		users:                cfg.Users,
 		logger:               logger,
 		group:                group,
 		consumer:             consumer,
@@ -330,7 +341,24 @@ func (w *RunJobWorker) processMessage(ctx context.Context, msg redis.XMessage) e
 	defer close(refreshStop)
 	go w.refreshOwnership(ctx, msg.ID, refreshStop)
 
-	execErr := w.executor.Execute(jobCtx, payload)
+	var execErr error
+	if w.users != nil {
+		if payload.UserID <= 0 {
+			execErr = fmt.Errorf("run job actor is required")
+		} else {
+			actor, err := w.users.GetByID(jobCtx, uint(payload.UserID))
+			if err != nil {
+				execErr = fmt.Errorf("load run job actor: %w", err)
+			} else if actor == nil || int64(actor.ID()) != payload.UserID || actor.TenantID() != payload.TenantID {
+				execErr = fmt.Errorf("run job actor does not match tenant and user")
+			} else {
+				jobCtx = composables.WithUser(jobCtx, actor)
+			}
+		}
+	}
+	if execErr == nil {
+		execErr = w.executor.Execute(jobCtx, payload)
+	}
 	if execErr == nil {
 		// Execute returning nil means the run reached a terminal state
 		// (completed, cancelled, or failed-with-broadcast — all owned by

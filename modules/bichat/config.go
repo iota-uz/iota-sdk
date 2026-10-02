@@ -14,6 +14,7 @@ import (
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/analytics"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -468,6 +469,7 @@ func (sc *ServiceContainer) NewRunJobWorker(pool *pgxpool.Pool) (*services.RunJo
 		ActiveRunIndex:       sc.activeRunIndex,
 		OnJobTerminalFailure: sc.failStalledRun,
 		Pool:                 pool,
+		Users:                corepersistence.NewUserRepository(corepersistence.NewUploadRepository()),
 		Logger:               sc.logger,
 	})
 }
