@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"HRM: derive active/former employee status from the resignation date, show it in the employee list and card, add a status filter, and keep the edit form's dates and tax IDs bound to the save form."}

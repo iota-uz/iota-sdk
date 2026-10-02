@@ -75,10 +75,12 @@ func (c *EmployeeController) Register(r *mux.Router) {
 
 func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 	params := composables.UsePaginated(r)
+	status, _ := employee.ParseStatus(r.URL.Query().Get("status"))
 	employeeEntities, err := c.employeeService.GetPaginated(r.Context(), &employee.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
 		SortBy: []string{"id"},
+		Status: status,
 	})
 	if err != nil {
 		http.Error(w, errors.Wrap(err, "Error retrieving employees").Error(), http.StatusInternalServerError)
@@ -88,6 +90,7 @@ func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 	props := &employees.IndexPageProps{
 		Employees: mapping.MapViewModels(employeeEntities, mappers.EmployeeToViewModel),
 		NewURL:    fmt.Sprintf("%s/new", c.basePath),
+		Status:    string(status),
 	}
 	if isHxRequest {
 		templ.Handler(employees.EmployeesTable(props), templ.WithStreaming()).ServeHTTP(w, r)

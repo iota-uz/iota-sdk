@@ -2,7 +2,9 @@ package employees
 
 import (
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/badge"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/hrm/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -12,6 +14,30 @@ type SharedProps struct {
 	types.PageContext
 	Employee *viewmodels.Employee
 	Errors   map[string]string
+	// Form binds the inputs to a form they are rendered outside of.
+	Form string
+}
+
+func (p SharedProps) attrs(name, value string) templ.Attributes {
+	attrs := templ.Attributes{"name": name, "value": value}
+	if p.Form != "" {
+		attrs["form"] = p.Form
+	}
+	return attrs
+}
+
+func statusVariant(status string) badge.Variant {
+	if status == string(employee.StatusFormer) {
+		return badge.VariantGray
+	}
+	return badge.VariantGreen
+}
+
+templ StatusBadge(status string) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@badge.New(badge.Props{Variant: statusVariant(status), Class: templ.Classes("px-3 w-fit")}) {
+		{ pageCtx.T("Employees.Status." + status) }
+	}
 }
 
 templ SalaryInput(props SharedProps) {
@@ -19,10 +45,7 @@ templ SalaryInput(props SharedProps) {
 	@input.Number(&input.Props{
 		Label: pageCtx.T("Employees.Private.Salary.Label"),
 		Error: props.Errors["Salary"],
-		Attrs: templ.Attributes{
-			"name":  "Salary",
-			"value": props.Employee.Salary,
-		},
+		Attrs: props.attrs("Salary", props.Employee.Salary),
 		AddonRight: &input.Addon{
 			Component: icons.Money(icons.Props{
 				Size:  "18",
@@ -38,10 +61,7 @@ templ TinInput(props SharedProps) {
 		Label:       pageCtx.T("Employees.Private.TIN.Label"),
 		Placeholder: pageCtx.T("Employees.Private.TIN.Placeholder"),
 		Error:       props.Errors["Tin"],
-		Attrs: templ.Attributes{
-			"name":  "Tin",
-			"value": props.Employee.Tin,
-		},
+		Attrs:       props.attrs("Tin", props.Employee.Tin),
 	})
 }
 
@@ -51,10 +71,7 @@ templ PinInput(props SharedProps) {
 		Label:       pageCtx.T("Employees.Private.Pin.Label"),
 		Placeholder: pageCtx.T("Employees.Private.Pin.Placeholder"),
 		Error:       props.Errors["Pin"],
-		Attrs: templ.Attributes{
-			"name":  "Pin",
-			"value": props.Employee.Pin,
-		},
+		Attrs:       props.attrs("Pin", props.Employee.Pin),
 	})
 }
 
@@ -64,10 +81,7 @@ templ PassportInput(props SharedProps) {
 		Label:       pageCtx.T("Employees.Private.PassportSN.Label"),
 		Placeholder: pageCtx.T("Employees.Private.PassportSN.Placeholder"),
 		Error:       props.Errors["PassportSN"],
-		Attrs: templ.Attributes{
-			"name":  "PassportSN",
-			"value": "",
-		},
+		Attrs:       props.attrs("PassportSN", ""),
 	})
 }
 
@@ -76,10 +90,7 @@ templ JoinDateInput(props SharedProps) {
 	@input.Date(&input.Props{
 		Label: pageCtx.T("Employees.Public.HireDate.Label"),
 		Error: props.Errors["HireDate"],
-		Attrs: templ.Attributes{
-			"name":  "HireDate",
-			"value": props.Employee.HireDate,
-		},
+		Attrs: props.attrs("HireDate", props.Employee.HireDate),
 	})
 }
 
@@ -88,9 +99,6 @@ templ ResignationDateInput(props SharedProps) {
 	@input.Date(&input.Props{
 		Label: pageCtx.T("Employees.Public.ResignationDate.Label"),
 		Error: props.Errors["ResignationDate"],
-		Attrs: templ.Attributes{
-			"name":  "ResignationDate",
-			"value": props.Employee.ResignationDate,
-		},
+		Attrs: props.attrs("ResignationDate", props.Employee.ResignationDate),
 	})
 }

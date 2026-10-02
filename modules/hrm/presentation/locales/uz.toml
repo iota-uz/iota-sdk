@@ -27,6 +27,12 @@
     Position = "Lavozimi"
     Email = "Elektron pochta"
     NoEmployees = { Title = "Xodimlar topilmadi", _Description = "Hali xodimlar yo'q. Yangi yaratish uchun 'Xodim qo'shish' tugmasini bosing." }
+    Status = "Holati"
+    AllStatuses = "Barchasi"
+
+  [Employees.Status]
+    active = "Ishlayapti"
+    former = "Sobiq"
 
   [Employees.Tabs]
     Public = "Umumiy"

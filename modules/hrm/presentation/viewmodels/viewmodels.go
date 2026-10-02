@@ -14,6 +14,7 @@ type Employee struct {
 	Pin             string
 	HireDate        string
 	ResignationDate string
+	Status          string
 	Notes           string
 	CreatedAt       string
 	UpdatedAt       string
