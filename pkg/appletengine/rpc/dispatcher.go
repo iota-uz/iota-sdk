@@ -43,9 +43,10 @@ type response struct {
 type rpcError struct {
 	// Code is a JSON-RPC error code. Protocol errors use standard integers (-32600, -32601, -32603).
 	// Application errors use string codes ("forbidden", "validation", "not_found", etc.) for better DX.
-	Code    any    `json:"code"`
-	Message string `json:"message"`
-	Details any    `json:"details,omitempty"`
+	Code     any    `json:"code"`
+	Message  string `json:"message"`
+	Details  any    `json:"details,omitempty"`
+	logError error
 }
 
 type Dispatcher struct {
@@ -291,6 +292,36 @@ func (d *Dispatcher) dispatch(baseCtx context.Context, req request, transport di
 	}
 }
 
+func dispatchLogError(err error, method string) error {
+	switch mapErrorCode(err) {
+	case "unauthorized", "forbidden":
+		return terminalLogError(mapErrorCode(err), method).WithCause(err)
+	default:
+		return serrors.Wrap(serrors.Op(method), err)
+	}
+}
+
+func terminalLogError(code any, method string) *serrors.Error {
+	var err *serrors.Error
+	switch code {
+	case "unauthorized":
+		err = serrors.NewUnauthenticated("RPC authentication required")
+	case "forbidden":
+		err = serrors.NewPermissionDenied("RPC permission denied")
+	case "validation":
+		err = serrors.NewInvalid("RPC validation failed")
+	case "not_found":
+		err = serrors.NewNotFound("RPC resource missing")
+	case "conflict":
+		err = serrors.NewConflict("RPC conflict")
+	case "rate_limited":
+		err = serrors.NewRateLimited("RPC rate limit")
+	default:
+		err = serrors.NewInternal("RPC request failed")
+	}
+	return err.WithOp(serrors.Op(method))
+}
+
 // observe reports one completed dispatch to logs, metrics and the mutation
 // audit sink. Labels stay bounded: method, kind and error code.
 func (d *Dispatcher) observe(method Method, transport dispatchTransport, requestID string, started time.Time, rpcErr *rpcError, identity dispatchIdentity) {
@@ -314,7 +345,33 @@ func (d *Dispatcher) observe(method Method, transport dispatchTransport, request
 		if code != "" {
 			fields["code"] = code
 		}
-		d.logger.WithFields(fields).Info("applet rpc dispatch")
+		if rpcErr != nil {
+			terminal := rpcErr.logError
+			if terminal == nil {
+				terminal = terminalLogError(rpcErr.Code, method.Name)
+			}
+			for _, attr := range serrorlog.Attributes(terminal, requestID) {
+				fields[attr.Key] = attr.Value.Any()
+			}
+		}
+		level := logrus.InfoLevel
+		if rpcErr != nil {
+			terminal := rpcErr.logError
+			if terminal == nil {
+				terminal = terminalLogError(rpcErr.Code, method.Name)
+			}
+			switch serrorlog.Level(terminal) {
+			case slog.LevelInfo:
+				level = logrus.InfoLevel
+			case slog.LevelDebug:
+				level = logrus.DebugLevel
+			case slog.LevelWarn:
+				level = logrus.WarnLevel
+			case slog.LevelError:
+				level = logrus.ErrorLevel
+			}
+		}
+		d.logger.WithFields(fields).Log(level, "applet rpc dispatch")
 	}
 	if d.metrics != nil {
 		labels := map[string]string{"method": method.Name, "kind": kind, "code": code}
@@ -401,26 +458,9 @@ func (d *Dispatcher) executeWithMiddleware(baseCtx context.Context, httpReq *htt
 		}
 	}
 	if handlerErr != nil {
-		if d.logger != nil {
-			requestID, _ := RequestIDFromContext(ctx)
-			fields := logrus.Fields{"method": method.Name}
-			for _, attr := range serrorlog.Attributes(handlerErr, requestID) {
-				fields[attr.Key] = attr.Value.Any()
-			}
-			level := logrus.ErrorLevel
-			switch serrorlog.Level(handlerErr) {
-			case slog.LevelDebug:
-				level = logrus.DebugLevel
-			case slog.LevelInfo:
-				level = logrus.InfoLevel
-			case slog.LevelWarn:
-				level = logrus.WarnLevel
-			case slog.LevelError:
-				level = logrus.ErrorLevel
-			}
-			d.logger.WithFields(fields).Log(level, "applet rpc handler error")
-		}
-		return nil, mapExecutionError(ctx, handlerErr)
+		mapped := mapExecutionError(ctx, handlerErr)
+		mapped.logError = dispatchLogError(handlerErr, method.Name)
+		return nil, mapped
 	}
 	return result, nil
 }
