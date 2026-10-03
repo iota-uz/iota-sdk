@@ -321,7 +321,10 @@ const staticStories = [
   ['temporal-overlays--reference-lines', 1],
   ['temporal-overlays--regression', 1],
   ['temporal-overlays--time-annotations', 1],
-  ['sharing--panel-image-formats', 0],
+  // Two Linux CI runs produced the same six anti-aliasing pixels at the
+  // rounded menu corners, with unchanged menu geometry/content. Keep the
+  // allowance local so layout and missing-item changes still fail.
+  ['sharing--panel-image-formats', 0, 6],
   ['sharing--slice-link', 0],
   ['table-readability--narrow', 0],
   ['table-readability--wide', 0],
