@@ -2,6 +2,9 @@ package providers_test
 
 import (
 	"context"
+	"encoding/base64"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -70,4 +73,29 @@ func TestPaymeCancelRefusesACompletedTransaction(t *testing.T) {
 
 	_, err := paymeProvider().Cancel(context.Background(), completed)
 	require.ErrorIs(t, err, providers.ErrPaymeCancelAfterCompletion)
+}
+
+// A two-decimal transaction must mint the same integer tiyin amount in the
+// checkout. This would be falsely green if it checked only stored transaction
+// details instead of decoding the link handed to the customer.
+func TestPaymeCheckoutPreservesMinorAmount(t *testing.T) {
+	t.Parallel()
+	for _, minor := range []int64{7405760, 100, 101, 199, 9257200} {
+		t.Run(strconv.FormatInt(minor, 10), func(t *testing.T) {
+			t.Parallel()
+			transaction := paymeTransaction(t).SetAmount(float64(minor)/100, billing.UZS)
+			created, err := paymeProvider().Create(context.Background(), transaction)
+			require.NoError(t, err)
+			link := created.Details().(details.PaymeDetails).Link()
+			payload, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(link, "https://checkout.test.paycom.uz/"))
+			require.NoError(t, err)
+			fields := map[string]string{}
+			for _, part := range strings.Split(string(payload), ";") {
+				key, value, ok := strings.Cut(part, "=")
+				require.True(t, ok)
+				fields[key] = value
+			}
+			require.Equal(t, strconv.FormatInt(minor, 10), fields["a"])
+		})
+	}
 }
