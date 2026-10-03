@@ -84,10 +84,10 @@
   ],
   "candidate": {
     "version": "0.16.0",
-    "source": "0e2bedda9f9a81fb2d6d6c129e50c83c66c8b1dc",
-    "sha": "98a6aa717119e9a380df8ee38ec475d408bc0fcf",
-    "phase": "failed",
-    "run_id": "37118828275"
+    "source": "56edd0776944a5b4b3b84fdde3fff925ab4a3028",
+    "sha": "ae7a4576fd9bb50b6428680cc45228c83c9d5155",
+    "phase": "testing",
+    "run_id": "37119606710"
   },
   "ready": {
     "version": "0.15.0",
