@@ -2,7 +2,10 @@ package kanban
 
 import (
 	"net/url"
+	"strings"
 	"testing"
+
+	"github.com/a-h/templ"
 )
 
 func TestColumnKey(t *testing.T) {
@@ -120,5 +123,124 @@ func TestNextColumnChunkURLCleansTransportParams(t *testing.T) {
 	}
 	if query.Has(LegacyQueryParamColumn) || query.Has(FormParamCardKey) || query.Has(FormParamCardOldColumn) {
 		t.Fatalf("nextColumnChunkURL() kept drag params: %s", got)
+	}
+}
+
+func TestCardSortConfig(t *testing.T) {
+	t.Parallel()
+
+	hookExpr := "window.boardGuard"
+
+	tests := []struct {
+		name             string
+		beforeCardChange string
+		assert           func(t *testing.T, got string)
+	}{
+		{
+			name: "keeps the default flow without a hook",
+			assert: func(t *testing.T, got string) {
+				want := `{
+		delayOnTouchOnly: true,
+		delay: 150,
+		touchStartThreshold: 8,
+		onEnd: (event) => {
+			changeCard({
+				key: event.item.dataset.cardKey,
+				newCol: event.to.dataset.colKey,
+				oldCol: event.from.dataset.colKey,
+				oldIndex: event.oldIndex,
+				newIndex: event.newIndex
+			})
+			$nextTick(() => htmx.trigger("#kanban-card-trigger-board", 'cardChanged'));
+		}
+	}`
+				if got != want {
+					t.Fatalf("cardSortConfig() mismatch:\ngot:  %s\nwant: %s", got, want)
+				}
+			},
+		},
+		{
+			name:             "invokes the hook with the transition context",
+			beforeCardChange: hookExpr,
+			assert: func(t *testing.T, got string) {
+				for _, want := range []string{
+					`(window.boardGuard)(ctx)`,
+					"cardKey: event.item.dataset.cardKey",
+					"oldCol: event.from.dataset.colKey",
+					"newCol: event.to.dataset.colKey",
+					"oldIndex: event.oldIndex",
+					"newIndex: event.newIndex",
+				} {
+					if !strings.Contains(got, want) {
+						t.Fatalf("cardSortConfig() missing %q:\n%s", want, got)
+					}
+				}
+			},
+		},
+		{
+			name:             "rolls back and skips the post when the hook returns false",
+			beforeCardChange: hookExpr,
+			assert: func(t *testing.T, got string) {
+				for _, want := range []string{
+					"const origin = event.item.__kanbanOrigin;",
+					"delete event.item.__kanbanOrigin;",
+					"origin.next.parentNode === origin.container",
+					"insertBefore(event.item, ref)",
+					"if (decision === false)",
+					"typeof decision.then === 'function'",
+				} {
+					if !strings.Contains(got, want) {
+						t.Fatalf("cardSortConfig() missing %q:\n%s", want, got)
+					}
+				}
+			},
+		},
+		{
+			name:             "still triggers the card change post when allowed",
+			beforeCardChange: hookExpr,
+			assert: func(t *testing.T, got string) {
+				for _, want := range []string{
+					`htmx.trigger("#kanban-card-trigger-board", 'cardChanged')`,
+					"changeCard(ctx)",
+				} {
+					if !strings.Contains(got, want) {
+						t.Fatalf("cardSortConfig() missing %q:\n%s", want, got)
+					}
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := cardSortConfig(CardTriggerID("board"), tt.beforeCardChange)
+			tt.assert(t, got)
+		})
+	}
+}
+
+func TestConfigWithBeforeCardChange(t *testing.T) {
+	t.Parallel()
+
+	board := NewBoard[Card]("board", "Board", NewColumn[Card]("a", templ.Raw("A")))
+	cfg := NewConfig(board, "/columns", "/cards")
+
+	if cfg.BeforeCardChange != "" {
+		t.Fatalf("NewConfig() set BeforeCardChange to %q, want empty", cfg.BeforeCardChange)
+	}
+
+	got := cfg.WithBeforeCardChange("window.boardGuard")
+	if got != cfg {
+		t.Fatalf("WithBeforeCardChange() returned a new config, want the same pointer")
+	}
+	if cfg.BeforeCardChange != "window.boardGuard" {
+		t.Fatalf("WithBeforeCardChange() set BeforeCardChange to %q", cfg.BeforeCardChange)
+	}
+
+	cfg.WithBeforeCardChange("")
+	if cfg.BeforeCardChange != "" {
+		t.Fatalf("WithBeforeCardChange(\"\") left BeforeCardChange as %q", cfg.BeforeCardChange)
 	}
 }
