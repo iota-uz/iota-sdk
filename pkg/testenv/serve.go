@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"sync"
 	"time"
 )
 
@@ -41,52 +42,87 @@ func Serve(ctx context.Context, c *Coordinator, reader io.Reader, writer io.Writ
 			select {
 			case lines <- b:
 			case <-ctx.Done():
+				scanErrors <- ctx.Err()
 				return
 			}
 		}
 		scanErrors <- scanner.Err()
 	}()
 	encoder := json.NewEncoder(writer)
+	var writing sync.Mutex
+	var pending sync.WaitGroup
+	capacity := make(chan struct{}, 4)
+	writeErrors := make(chan error, 1)
+	defer func() {
+		pending.Wait()
+		select {
+		case err := <-writeErrors:
+			returnErr = errors.Join(returnErr, err)
+		default:
+		}
+	}()
+	respond := func(line []byte) {
+		defer pending.Done()
+		defer func() { <-capacity }()
+		var req controlRequest
+		result := response{}
+		if err := json.Unmarshal(line, &req); err != nil {
+			result.Error = &Error{Code: "invalid_input", Message: err.Error()}
+		} else {
+			result.ID = req.ID
+			call, done := context.WithTimeout(ctx, 60*time.Second)
+			defer done()
+			var err error
+			switch req.Operation {
+			case "start":
+				d, startErr := c.Start(call, req.Spec)
+				err = startErr
+				if d.EnvironmentID != "" {
+					result.Descriptor = &d
+				}
+			case "stop":
+				err = c.Stop(call, req.EnvironmentID)
+			default:
+				err = &Error{Code: "invalid_input", Message: "unknown operation"}
+			}
+			if err != nil {
+				d := Descriptor{EnvironmentID: req.EnvironmentID}
+				if result.Descriptor != nil {
+					d = *result.Descriptor
+				}
+				result.Error = lifecycleError(err, "execution_failed", req.Operation, d, nil)
+			}
+		}
+		writing.Lock()
+		err := encoder.Encode(result)
+		writing.Unlock()
+		if err != nil {
+			select {
+			case writeErrors <- err:
+			default:
+			}
+			cancel()
+		}
+	}
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			select {
+			case err := <-writeErrors:
+				return err
+			default:
+				return ctx.Err()
+			}
 		case line, ok := <-lines:
 			if !ok {
 				return <-scanErrors
 			}
-			var req controlRequest
-			result := response{}
-			if err := json.Unmarshal(line, &req); err != nil {
-				result.Error = &Error{Code: "invalid_input", Message: err.Error()}
-			} else {
-				result.ID = req.ID
-				call, done := context.WithTimeout(ctx, 60*time.Second)
-				var err error
-				switch req.Operation {
-				case "start":
-					var d Descriptor
-					d, err = c.Start(call, req.Spec)
-					if err == nil {
-						result.Descriptor = &d
-					}
-				case "stop":
-					err = c.Stop(call, req.EnvironmentID)
-				default:
-					err = &Error{Code: "invalid_input", Message: "unknown operation"}
-				}
-				done()
-				if err != nil {
-					var e *Error
-					if errors.As(err, &e) {
-						result.Error = e
-					} else {
-						result.Error = &Error{Code: "execution_failed", Message: err.Error()}
-					}
-				}
-			}
-			if err := encoder.Encode(result); err != nil {
-				return err
+			select {
+			case capacity <- struct{}{}:
+				pending.Add(1)
+				go respond(line)
+			case <-ctx.Done():
+				return ctx.Err()
 			}
 		}
 	}
