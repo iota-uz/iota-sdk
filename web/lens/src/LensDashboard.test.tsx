@@ -212,7 +212,9 @@ describe('LensDashboard', () => {
       endpoints: { panel: '/lens/panel' },
     })
 
-    render(<LensDashboard initialDocument={headerless} />)
+    // Header assertions do not need a real relative-URL fetch. Keep the
+    // request pending so rejected network work cannot outlive jsdom teardown.
+    render(<LensDashboard initialDocument={headerless} fetcher={() => new Promise<Response>(() => undefined)} />)
 
     // The age of the data and the remedy for it are one control: the reading is
     // the label, so the button says whether it is worth pressing.
@@ -231,7 +233,7 @@ describe('LensDashboard', () => {
         frames: {},
         endpoints: { panel: '/lens/panel' },
       })
-      render(<LensDashboard initialDocument={recomputable} />)
+      render(<LensDashboard initialDocument={recomputable} fetcher={() => new Promise<Response>(() => undefined)} />)
 
       expect(screen.getByRole('button', { name: 'Recompute' })).toBeInTheDocument()
     } finally {
@@ -246,7 +248,7 @@ describe('LensDashboard', () => {
       frames: {},
       endpoints: { panel: '/lens/panel' },
     })
-    const view = render(<LensDashboard initialDocument={recomputable} />)
+    const view = render(<LensDashboard initialDocument={recomputable} fetcher={() => new Promise<Response>(() => undefined)} />)
 
     const button = screen.getByRole('button', { name: /Updated/ })
     // "Recompute" is the machine's word, so the control carries the reader's.
