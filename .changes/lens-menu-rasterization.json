@@ -1,1 +1,1 @@
-{"bump": "none", "reason": "Test-only six-pixel rounded-menu rasterization allowance; no runtime change."}
+{"bump": "none", "summary": "Test-only six-pixel rounded-menu rasterization allowance; no runtime change."}
