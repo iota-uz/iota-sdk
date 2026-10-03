@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Kanban boards gain an optional BeforeCardChange hook: a client-side callback receiving { cardKey, oldCol, newCol, oldIndex, newIndex } before a drag/drop is committed, which may return false (or a promise resolving to false) to roll the card back to its original position and skip the HTMX card-change post, enabling guarded transitions and custom flows such as drawers or forms."
+    }
+  ],
+  "source": "56edd0776944a5b4b3b84fdde3fff925ab4a3028",
+  "version": "0.16.0"
+}
