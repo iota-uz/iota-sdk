@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Preserve panel semantic colour scale and field through spec compilation so deferred chart frames serve their declared row colours."
+}

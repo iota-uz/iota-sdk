@@ -524,6 +524,8 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		Dataset:               resolveString(item.Dataset, opts.Values),
 		Span:                  item.Span,
 		Colors:                resolveStringSlice(item.Colors, opts.Values),
+		ColorScale:            resolveString(item.ColorScale, opts.Values),
+		ColorField:            panel.Ref(resolveString(item.ColorField, opts.Values)),
 		ShowLegend:            item.ShowLegend,
 		TotalBadgeValue:       item.TotalBadgeValue,
 		HeadlineValue:         item.HeadlineValue,
