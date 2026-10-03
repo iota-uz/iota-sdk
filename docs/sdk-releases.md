@@ -91,6 +91,10 @@ still absent; `npm_provenance_timeout` means the verified tarball is visible but
 its provenance is not. Neither marks the release ready. A visible conflicting
 integrity or provenance predicate fails immediately with `npm_integrity_mismatch`
 or `npm_provenance_mismatch`; retries must never replace those published bytes.
+Transient network, request/body timeouts and 5xx failures share the bounded
+post-publication polling budget. Exhausting it reports `npm_registry_timeout`
+with the transport cause. The initial lookup, non-404 4xx responses and malformed
+successful JSON remain fatal; an unavailable registry never authorizes publication.
 
 If verification fails, fix the SDK and merge the fix. For an infrastructure failure
 at unchanged source, explicitly run `sdkctl promote --retry`. Publication retries

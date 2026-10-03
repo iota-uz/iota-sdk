@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { publishSDK } from './sdk-publisher.mjs'
-import { releaseRegistry } from './npm-release-registry.mjs'
+import { releaseRegistry, RetryableRegistryError } from './npm-release-registry.mjs'
 
 // These tests would be falsely green if the fake registry always returned the
 // expected identity; each mismatch test changes the external registry response.
@@ -187,4 +187,46 @@ test('retains the first observed conflict even when later reads would match', as
     assert.equal(f.state.publishCount, 0)
     assert.equal(verified, false)
   }
+})
+
+// Falsely green if the registry never fails after the package has been published.
+test('retries transient verification failures without republishing', async () => {
+  const f = fixture()
+  let reads = 0
+  f.args.registry = async () => {
+    if (++reads === 1) return null
+    if (reads < 5) throw new RetryableRegistryError('registry temporarily unavailable')
+    return f.registryValue
+  }
+  await publishSDK(f.args)
+  assert.equal(f.state.publishCount, 1)
+  assert.equal(reads, 5)
+})
+
+// Falsely green if unavailable registry state is treated as permission to publish.
+test('keeps the initial registry failure fatal and bounds post-publish retries', async () => {
+  const f = fixture()
+  const failure = new RetryableRegistryError('registry temporarily unavailable')
+  f.args.registry = async () => { throw failure }
+  await assert.rejects(publishSDK(f.args), error => error === failure)
+  assert.equal(f.state.publishCount, 0)
+  let reads = 0
+  let verified = false
+  f.args.registry = async () => ++reads === 1 ? null : Promise.reject(failure)
+  f.args.verifyGo = async () => { verified = true }
+  await assert.rejects(publishSDK(f.args), error => error.code === 'npm_registry_timeout' && error.cause === failure)
+  assert.equal(reads, 37)
+  assert.equal(f.state.publishCount, 1)
+  assert.equal(verified, false)
+})
+
+// Falsely green if authentication failures or malformed successful JSON become retryable.
+test('registry adapter distinguishes transient transport failures from invalid responses', async () => {
+  for (const status of [401, 403, 429]) {
+    await assert.rejects(releaseRegistry(async () => new Response('', { status }))('0.6.0'), error => !(error instanceof RetryableRegistryError))
+  }
+  await assert.rejects(releaseRegistry(async () => new Response('', { status: 503 }))('0.6.0'), RetryableRegistryError)
+  await assert.rejects(releaseRegistry(async () => { throw new TypeError('network failure') })('0.6.0'), RetryableRegistryError)
+  await assert.rejects(releaseRegistry(async () => new Response('invalid json'))('0.6.0'), SyntaxError)
+  assert.equal(await releaseRegistry(async () => new Response('', { status: 404 }))('0.6.0'), null)
 })
