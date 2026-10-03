@@ -425,9 +425,9 @@ func Content[C Card](cfg *Config[C]) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var28 string
-			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(cardSortConfig(cardTriggerID))
+			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(cardSortConfig(cardTriggerID, cfg.BeforeCardChange))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 62, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 62, Col: 75}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
