@@ -30,12 +30,15 @@ type Coordinator struct {
 func NewCoordinator(adapter Adapter) *Coordinator {
 	return &Coordinator{adapter: adapter, environments: map[string]*environment{}, ids: map[string]*environment{}}
 }
-func (c *Coordinator) Start(ctx context.Context, spec Spec) (descriptor Descriptor, returnErr error) {
-	defer func() {
-		if returnErr != nil {
-			returnErr = lifecycleError(returnErr, "startup_failed", "start", descriptor, nil)
-		}
-	}()
+func (c *Coordinator) Start(ctx context.Context, spec Spec) (Descriptor, error) {
+	descriptor, err := c.start(ctx, spec)
+	if err != nil {
+		err = lifecycleError(err, "startup_failed", "start", descriptor, nil)
+	}
+	return descriptor, err
+}
+
+func (c *Coordinator) start(ctx context.Context, spec Spec) (Descriptor, error) {
 	if c.adapter == nil || spec.RunID == "" || spec.Slot == "" || spec.SchemaFingerprint == "" || spec.BaselineFingerprint == "" || !slices.Contains([]string{"shared", "worker", "attempt"}, spec.Isolation) {
 		return Descriptor{}, failure("invalid_spec", "invalid environment specification")
 	}
