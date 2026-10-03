@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { DashboardDocument, Panel, Theme } from '../contract'
 import { buildCascadeStages, buildWaterfallModel } from '../panels/CascadePanel'
 import { ChartHost } from '../panels/ChartHost'
+import { fallbackMarkKey, markCellText } from '../charts/keys'
 import { colorLabels, frameSeriesColorResolver, rowColorResolver } from '../panels/data'
 import { WaterfallPlot } from '../panels/WaterfallPlot'
 import {
@@ -103,6 +104,19 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): AuditTa
     return current - previous
   }
 
+  const categoryIndex = indexOf(frame, panel.encoding.category)
+  const rowMarks = panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial'
+  const categoryKeys = frame.rows.map(row => {
+    const category = markCellText(row[categoryIndex >= 0 ? categoryIndex : labelIndex])
+    const id = idIndex >= 0 ? markCellText(row[idIndex]) : ''
+    const series = seriesIndex >= 0 ? markCellText(row[seriesIndex]) : ''
+    return { category, nodeKey: id || fallbackMarkKey(category, panel.radial?.mode === 'partition' ? '' : series) }
+  })
+  const categoryOrder = new Map<string, number>()
+  categoryKeys.forEach(({ nodeKey, category }) => {
+    const key = nodeKey ?? category
+    if (!categoryOrder.has(key)) categoryOrder.set(key, categoryOrder.size)
+  })
   const resolveSeriesColor = frameSeriesColorResolver(theme, panel, frame, section.root)
   const resolveRowColor = rowColorResolver(theme, panel, { colors: frame.colors, positional: section.root, labels: colorLabels(frame, panel) })
   // The value column is stated in one unit, so a bridge step and a portfolio
@@ -118,6 +132,8 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): AuditTa
       ? number / denominator
       : undefined
     const label = labelIndex >= 0 ? text(row[labelIndex]) : text(row[idIndex])
+    const { category, nodeKey } = categoryKeys[rowIndex]!
+    const colorIndex = panel.radial?.mode === 'partition' ? categoryOrder.get(nodeKey ?? category)! : rowIndex
     return {
       key: `${group}:${idIndex >= 0 ? text(row[idIndex]) : rowIndex}`,
       ...(group && seriesFormat
@@ -138,7 +154,9 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): AuditTa
             maximumFractionDigits: 1,
           }).format(ratio),
       }),
-      color: seriesIndex >= 0 ? resolveSeriesColor(group, rowIndex) : resolveRowColor(label, rowIndex),
+      color: rowMarks
+        ? resolveRowColor(category, colorIndex, nodeKey)
+        : seriesIndex >= 0 ? resolveSeriesColor(group, rowIndex) : resolveRowColor(label, rowIndex),
     }
   }) }
 }

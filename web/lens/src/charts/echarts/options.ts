@@ -3,7 +3,7 @@ import { compactChartLabelWidth } from '../../breakpoints'
 import type { Presentation } from '../../contract'
 import { isVisualRegression } from '../../visualRegression'
 import { radialNodeKey, type ChartInput } from '../adapter'
-import { fallbackMarkKey } from '../keys'
+import { fallbackMarkKey, markCellText as text } from '../keys'
 import { activeOverlayIds, categoryDisplayFormatter, chartOverlays, overlayId } from '../overlays'
 import { linearScaleObscuresValues, shouldUseLogarithmicScale } from '../scales'
 import { distributeShares, formatShare } from '../shares'
@@ -30,13 +30,6 @@ function columnIndex(input: ChartInput, field: string | undefined): number {
 
 function availableEncodingField(input: ChartInput, ...fields: Array<string | undefined>): string | undefined {
   return fields.find((field) => field !== undefined && columnIndex(input, field) >= 0)
-}
-
-function text(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return String(value)
-  return ''
 }
 
 function chartValue(value: unknown): ChartValue {

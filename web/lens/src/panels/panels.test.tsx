@@ -11,6 +11,7 @@ const runtime = vi.hoisted(() => ({
   navigation: { path: [], history: [] } as { panelId?: string; path: Array<string>; perspectiveId?: string; history: Array<unknown> },
   level: undefined as unknown,
   refreshing: false,
+  labelFormatter: undefined as ((value: string) => string) | undefined,
 }))
 
 vi.mock('../runtime', () => ({
@@ -20,6 +21,7 @@ vi.mock('../runtime', () => ({
   useExport: () => ({ status: 'idle', available: false, run: vi.fn() }),
   useFormat: () => (value: unknown) => {
     if (value === null || value === undefined) return '—'
+    if (typeof value === 'string' && runtime.labelFormatter) return runtime.labelFormatter(value)
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
       return String(value)
     }
@@ -28,6 +30,7 @@ vi.mock('../runtime', () => ({
   useFormatExact: () => () => undefined,
   useFormatAtReference: () => (value: unknown) => {
     if (value === null || value === undefined) return '—'
+    if (typeof value === 'string' && runtime.labelFormatter) return runtime.labelFormatter(value)
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
       return String(value)
     }
@@ -158,6 +161,7 @@ afterEach(() => {
   runtime.navigation = { path: [], history: [] }
   runtime.level = undefined
   runtime.refreshing = false
+  runtime.labelFormatter = undefined
   runtime.document = baseDocument
   window.history.replaceState({}, '', '/')
 })
@@ -2094,4 +2098,19 @@ it('retains declared totals for empty and fully hidden additive charts', async (
   expect(view.container.querySelector('.lens-panel-total')).toHaveAttribute('data-value', '42')
   fireEvent.click(legendRow(view.container, 'Actual'))
   await waitFor(() => expect(view.container.querySelector('.lens-panel-total')).toHaveAttribute('data-value', '0'))
+})
+
+// Falsely green if raw and display labels happen to be identical.
+it('resolves formatted legend labels with the raw served series key', async () => {
+  runtime.labelFormatter = value => `Display ${value}`
+  runtime.frame = { data: {
+    columns: [{ name: 'category', type: 'string' }, { name: 'series', type: 'string' }, { name: 'value', type: 'number' }],
+    rows: [['Jan', 'Alpha', 10], ['Jan', 'Beta', 20]], colors: ['#123456', '#654321'],
+  }, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+  const inputs: ChartInput[] = []
+  const view = render(<BarPanel panel={panel('bar', { encoding: { category: 'category', series: 'series', value: 'value' }, presentation: { legend: 'below' } })} adapter={fakeAdapter(input => inputs.push(input))} />)
+  await screen.findByRole('button', { name: 'chart data' })
+  expect(legendLabels(view.container)).toEqual(['Display Alpha', 'Display Beta'])
+  expect(legendSwatches(view.container)).toEqual(['rgb(18, 52, 86)', 'rgb(101, 67, 33)'])
+  expect(inputs.at(-1)?.seriesColor?.('Alpha', 0)).toBe('#123456')
 })

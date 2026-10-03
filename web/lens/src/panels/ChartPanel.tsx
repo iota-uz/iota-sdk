@@ -1058,7 +1058,7 @@ const ChartLegend = memo(function ChartLegend({
   // its palette index is the category's, not the row's (see `categoryOrder` in
   // the chart adapter). Anywhere else a row is its own category.
   const swatch = (label: string, index: number, entryIndex: number): string | undefined => {
-    if (seriesLegendIndex >= 0) return color(label, entryIndex)
+    if (seriesLegendIndex >= 0) return color(model.entryKeys[index]!, entryIndex)
     const raw = idIndex >= 0 ? frame.rows[index]?.[idIndex] : undefined
     const nodeKey = typeof raw === 'string' && raw.trim() !== '' ? raw : undefined
     return rowColor(label, model.categoryOrder.get(model.rowKeys[index]!) ?? index, nodeKey)
