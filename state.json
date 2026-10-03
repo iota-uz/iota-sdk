@@ -85,7 +85,7 @@
     "version": "0.16.0",
     "source": "0e2bedda9f9a81fb2d6d6c129e50c83c66c8b1dc",
     "sha": "98a6aa717119e9a380df8ee38ec475d408bc0fcf",
-    "phase": "testing",
+    "phase": "failed",
     "run_id": "37118828275"
   },
   "ready": {
