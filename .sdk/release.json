@@ -1,0 +1,26 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Add reusable browser environment leases, bounded owned-driver shutdown and structured lifecycle diagnostics."
+    },
+    {
+      "bump": "minor",
+      "summary": "Preserve environment lifecycle failure and compensation causes with structured operation, environment and artifact diagnostics; execute up to four NDJSON requests concurrently with synchronized replies and EOF cleanup."
+    },
+    {
+      "bump": "minor",
+      "summary": "Unify served series colours across plots, legends and print tables; label the current period in comparison tooltips; add opt-in persistent totals for additive charts, including empty and fully hidden data."
+    },
+    {
+      "bump": "patch",
+      "summary": "Verify delayed npm package and provenance visibility without cached metadata, preserve immutable publication retries, and distinguish timeouts from integrity conflicts."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add context-aware required migration advisory locking on the shared maintenance database, reusing the canonical lock while preserving legacy best-effort behavior."
+    }
+  ],
+  "source": "80f2c71176030518f32ab1555ab39c4995648af3",
+  "version": "0.17.0"
+}
