@@ -5,35 +5,32 @@ legacy variadic constructor, mutable error fields, base and validation types,
 JSON unmarshal helper and dedicated GraphQL unauthorized constructor.
 The preview import is replaced by `pkg/serrors` and its presenter subpackages.
 
-## Reproduction and review
+## Final contracts and verification
 
-Run the constructor migration against an unmodified candidate checkout:
+The one-off migration tools and fixtures have been removed after the cutover.
+New code uses typed constructors for explicit classification and `Wrap` or
+`WrapContext` to preserve existing classification, operation context and causes.
+Private diagnostic text never becomes a public message implicitly.
+
+At concrete SQL/pgx/sqlx boundaries, use `FromDB` or `FromDBContext`.
+Recognized constraints use `FromConstraint`; unknown constraints remain internal.
+Existing explicit classification and cancellation retain priority over driver
+projection. Domain calls and translated sentinels remain wrappers.
+
+Verify the canonical API and mounted adapter contracts with:
 
 ```sh
-go run ./tools/serrors-migrate -root /path/to/sdk -write
-go run ./tools/serrors-db-boundaries -root /path/to/sdk -write
+go test -race ./pkg/serrors/... ./pkg/graphql/... ./pkg/appletengine/rpc/...
+go vet ./...
 ```
 
-The constructor pass resolves the imported package alias and rewrites AST nodes.
-It preserves operation context and wrapped causes, classifies explicit legacy
-kinds, and reports ambiguous multiple arguments for manual review. It never
-infers a public message from internal diagnostic text. A repeated pass on the
-final tree reports zero constructors. The DB pass type-checks concrete SQL/pgx/sqlx
-calls and only rewrites returns of the same assigned error in its failure branch.
-Domain calls, translated sentinels and shadowed or reassigned errors remain
-wrappers. `WrapContext` retains its private diagnostic context through
-`FromDBContext`. Both passes are read-only unless `-write` is supplied. Existing
-explicitly classified errors survive driver projection.
+Review the following contracts when extending error handling:
 
-Manual changes supplement the generated pass:
-
-- KindValidation becomes Invalid; known DTO fields use immutable field violations
-  and the validation bridge. Employee/counterparty forms retain field names,
-  label references, tax details, and locale keys. Import and warehouse errors
-  retain concrete types, context, localization keys and business reasons.
-- Two-factor/checkpoint constructors previously passed multiple causes to E,
-  which discarded all but the last. Multi now preserves both sentinel identity
-  and the underlying cause. Unsupported JSON mapping is Unimplemented.
+- Validation failures use Invalid, immutable field violations and the validation
+  bridge. Forms retain field names, label references, tax details and locale keys.
+  Import and warehouse errors retain concrete types and business reasons.
+- Multiple causes use Multi to retain sentinel identity and underlying causes.
+  Unsupported JSON mapping is Unimplemented.
 - Missing authenticated users and invalid OIDC credentials are Unauthenticated;
   authenticated policy/access denial remains PermissionDenied.
 - Recognized department unique violations are AlreadyExists, with the Code

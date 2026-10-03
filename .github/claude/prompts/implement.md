@@ -23,7 +23,7 @@ Follow IOTA SDK patterns from `.claude/guides/`:
 ## Critical Checks
 
 - [ ] All queries include `organization_id` for multi-tenant isolation
-- [ ] Errors wrapped with `serrors.E(op, err)`
+- [ ] Errors wrapped with `serrors.Wrap(op, err)`
 - [ ] DI using repository interfaces, not implementations
 - [ ] Auth middleware applied to protected routes
 - [ ] Tests cover happy path + error cases

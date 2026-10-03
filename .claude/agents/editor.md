@@ -117,7 +117,7 @@ Follow patterns from guides:
 - DI with repository interfaces
 - Business logic and validation
 - Permission checks via `sdkcomposables.CanUser()`
-- Error wrapping: `serrors.E(op, err)`
+- Error wrapping: `serrors.Wrap(op, err)`
 - Transaction coordination when needed
 
 **Repositories** (see `repository.md`):
@@ -266,7 +266,7 @@ Before completing work, verify:
 - [ ] DI with repository interfaces (not implementations)
 - [ ] Business logic and validation implemented
 - [ ] Permission checks via `sdkcomposables.CanUser()`
-- [ ] Errors wrapped: `serrors.E(op, err)`
+- [ ] Errors wrapped: `serrors.Wrap(op, err)`
 - [ ] Transaction management for multi-step operations
 
 ## Repository Layer
@@ -295,7 +295,7 @@ Before completing work, verify:
 - [ ] DI for all service dependencies
 - [ ] `composables.UseForm[DTO]` for form parsing
 - [ ] `pkg/htmx` package (no raw headers)
-- [ ] `serrors.E(op, err)` error wrapping
+- [ ] `serrors.Wrap(op, err)` error wrapping
 - [ ] ITF tests in `*_controller_test.go`
 
 ## Templates
@@ -390,9 +390,9 @@ Before completing work, verify:
 **Always use `serrors` package**:
 
 - Define operation: `const op serrors.Op = "ServiceName.MethodName"`
-- Wrap errors: `return serrors.E(op, err)`
-- Use error kinds: `serrors.KindValidation`, `serrors.KindNotFound`, `serrors.KindPermission`
-- Provide context: `serrors.E(op, serrors.KindValidation, "email is required")`
+- Wrap errors: `return serrors.Wrap(op, err)`
+- Use semantic codes: `serrors.Invalid`, `serrors.NotFound`, `serrors.PermissionDenied`
+- Provide context: `serrors.NewInvalid("email is required").WithOp(op)`
 
 # Common Patterns
 

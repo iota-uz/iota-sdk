@@ -179,7 +179,7 @@ func (s *EntityNameService) Create(ctx context.Context, input Input) (*Entity, e
 
     // 1. Validate
     if err := input.Validate(); err != nil {
-        return nil, serrors.E(op, serrors.KindValidation, err)
+        return nil, serrors.NewInvalid("validation failed").WithOp(op).WithCause(err)
     }
 
     // 2. Business logic
@@ -190,7 +190,7 @@ func (s *EntityNameService) Create(ctx context.Context, input Input) (*Entity, e
 
     // 3. Persist
     if err := s.repository.Create(ctx, entity); err != nil {
-        return nil, serrors.E(op, err)
+        return nil, serrors.Wrap(op, err)
     }
 
     return entity, nil
@@ -205,13 +205,13 @@ func (s *service) ComplexOperation(ctx context.Context, params Params) error {
 
     pool, err := composables.UsePool(ctx)
     if err != nil {
-        return serrors.E(op, err)
+        return serrors.Wrap(op, err)
     }
 
     // Start transaction
     tx, err := pool.Begin(ctx)
     if err != nil {
-        return serrors.E(op, err)
+        return serrors.Wrap(op, err)
     }
     defer tx.Rollback(ctx) // Will be no-op if committed
 
@@ -220,16 +220,16 @@ func (s *service) ComplexOperation(ctx context.Context, params Params) error {
 
     // Perform operations
     if err := s.repo1.Create(txCtx, entity1); err != nil {
-        return serrors.E(op, err)
+        return serrors.Wrap(op, err)
     }
 
     if err := s.repo2.Update(txCtx, entity2); err != nil {
-        return serrors.E(op, err)
+        return serrors.Wrap(op, err)
     }
 
     // Commit transaction
     if err := tx.Commit(ctx); err != nil {
-        return serrors.E(op, err)
+        return serrors.Wrap(op, err)
     }
 
     return nil
@@ -244,19 +244,19 @@ func (s *service) Update(ctx context.Context, id uuid.UUID, input Input) error {
 
     // Check permissions
     if !sdkcomposables.CanUser(ctx, permissions.UpdateEntity) {
-        return serrors.E(op, serrors.KindPermission, "insufficient permissions")
+        return serrors.NewPermissionDenied("insufficient permissions").WithOp(op)
     }
 
     // Proceed with business logic
     entity, err := s.repository.FindByID(ctx, id)
     if err != nil {
-        return serrors.E(op, err)
+        return serrors.Wrap(op, err)
     }
 
     updated := entity.SetName(input.Name)
 
     if err := s.repository.Update(ctx, updated); err != nil {
-        return serrors.E(op, err)
+        return serrors.Wrap(op, err)
     }
 
     return nil
@@ -265,20 +265,20 @@ func (s *service) Update(ctx context.Context, id uuid.UUID, input Input) error {
 
 ### Error Wrapping
 
-**Always use `serrors.E`**:
+**Use `serrors.Wrap` for propagated errors and typed constructors for explicit domain classification**:
 
 ```go
 // Basic wrapping
-return serrors.E(op, err)
+return serrors.Wrap(op, err)
 
-// With error kind
-return serrors.E(op, serrors.KindValidation, err)
+// With explicit classification
+return serrors.NewInvalid("validation failed").WithOp(op).WithCause(err)
 
-// With custom message
-return serrors.E(op, serrors.KindNotFound, "entity not found")
+// With a private diagnostic message
+return serrors.NewNotFound("entity not found").WithOp(op)
 
-// With multiple context
-return serrors.E(op, serrors.KindDatabase, fmt.Errorf("failed to create entity: %w", err))
+// At a concrete database boundary
+return serrors.FromDBContext(op, err, "failed to create entity")
 ```
 
 ### Validation Patterns
@@ -372,7 +372,7 @@ Many operations require **organization ID**, not just tenant ID:
 // Getting organization ID from context
 orgID, err := composables.GetOrgID(ctx)
 if err != nil {
-    return serrors.E(op, err)
+    return serrors.Wrap(op, err)
 }
 
 // Creating entity with organization context
@@ -407,15 +407,15 @@ entity := domain.New(
 - [ ] DI with repository interfaces (not implementations)
 - [ ] Business logic and validation implemented
 - [ ] Permission checks via `sdkcomposables.CanUser()`
-- [ ] Errors wrapped: `serrors.E(op, err)`
+- [ ] Errors wrapped: `serrors.Wrap(op, err)`
 - [ ] Transaction management for multi-step operations
 - [ ] Services use repository interfaces
 
 ### Error Handling
 
 - [ ] Always use `serrors.Op` for operation tracking
-- [ ] Always wrap errors with `serrors.E(op, err)`
-- [ ] Use appropriate error kinds (KindValidation, KindNotFound, etc.)
+- [ ] Always wrap errors with `serrors.Wrap(op, err)`
+- [ ] Use appropriate semantic codes (Invalid, NotFound, etc.)
 - [ ] Provide context in error messages
 
 ### Testing
@@ -442,7 +442,7 @@ func TestServiceName_Method(t *testing.T) {
 - Put business logic in controllers (use services)
 - Forget to check permissions
 - Ignore organization vs tenant distinction
-- Skip error wrapping with `serrors.E`
+- Skip error wrapping with `serrors.Wrap`
 - Use direct struct mutation (use immutable setters)
 
 ### Do

@@ -489,7 +489,7 @@ error wrapping must use `serrors.Wrap(op, err)` from `github.com/iota-uz/iota-sd
 **Pattern:**
 
 ```go
-// Service / repository / handler — use serrors.E
+// Service / repository / handler — use serrors.Wrap
 func (s *chatService) GetSession(ctx context.Context, id uuid.UUID) (domain.Session, error) {
     const op serrors.Op = "chatService.GetSession"
     session, err := s.repo.GetByID(ctx, id)
@@ -511,7 +511,7 @@ func (s *chatService) CreateSession(ctx context.Context, title string) error {
 
 **Exceptions where `fmt.Errorf` is acceptable:**
 - Component-level wiring in `component.go` (infrastructure bootstrapping)
-- Private utility helpers whose callers immediately wrap with `serrors.E`
+- Private utility helpers whose callers immediately wrap with `serrors.Wrap`
 - Redis/stream infrastructure in `title_job_worker.go`
 - Config validation in `agents/sub_agent_definitions.go` (no op context needed)
 
