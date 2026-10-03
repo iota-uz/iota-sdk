@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Preserve context cancellation at database boundaries, reject mismatched localization IDs, and prevent GraphQL protocol extensions from overriding execution error safety."}

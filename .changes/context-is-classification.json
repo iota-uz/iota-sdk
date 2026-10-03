@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Recognize custom context error identity through errors.Is when no explicit classification or context sentinel was found during ordered traversal."}

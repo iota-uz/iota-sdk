@@ -112,13 +112,13 @@ export async function openComponentCase(page: Page, host: ComponentHost, compone
 export async function actionAndHtmxResponse(page: Page, match: ResponseMatch, action: () => Promise<unknown>, options: WaitOptions = {}): Promise<Response> {
   const key = `sdk-response-${crypto.randomUUID()}`
   await page.evaluate(key => {
-    const records: { url: string; method: string; status: number; settled: boolean; failed: boolean }[] = []
+    const records: { url: string; method: string; status: number; settled: boolean; failed: boolean; aborted: boolean }[] = []
     const requests = new WeakMap<object, typeof records[number]>()
     const observed = new Set<Element>()
     const before = (event: Event) => {
       const d = (event as CustomEvent).detail
       if (!d?.xhr) return
-      const record = { url: new URL(d.requestConfig.path, location.href).href, method: String(d.requestConfig.verb).toUpperCase(), status: 0, settled: false, failed: false }
+      const record = { url: new URL(d.requestConfig.path, location.href).href, method: String(d.requestConfig.verb).toUpperCase(), status: 0, settled: false, failed: false, aborted: false }
       records.push(record); requests.set(d.xhr, record)
       // A removed swap target no longer bubbles its lifecycle events to document.
       for (const element of [d.elt, d.target]) {
@@ -126,6 +126,8 @@ export async function actionAndHtmxResponse(page: Page, match: ResponseMatch, ac
         observed.add(element)
         element.addEventListener('htmx:afterSettle', update)
         element.addEventListener('htmx:responseError', update)
+        element.addEventListener('htmx:sendAbort', update)
+        element.addEventListener('htmx:sendError', update)
       }
     }
     const update = (event: Event) => {
@@ -134,19 +136,26 @@ export async function actionAndHtmxResponse(page: Page, match: ResponseMatch, ac
       if (!record) return
       record.url = d.xhr.responseURL || record.url
       record.status = d.xhr.status
-      record.failed = event.type === 'htmx:responseError'
+      record.failed = event.type === 'htmx:responseError' || event.type === 'htmx:sendError'
+      record.aborted = event.type === 'htmx:sendAbort'
       record.settled = event.type === 'htmx:afterSettle'
     }
     document.addEventListener('htmx:beforeRequest', before)
     document.addEventListener('htmx:afterSettle', update)
     document.addEventListener('htmx:responseError', update)
+    document.addEventListener('htmx:sendAbort', update)
+    document.addEventListener('htmx:sendError', update)
     ;(window as any)[key] = { records, dispose: () => {
       document.removeEventListener('htmx:beforeRequest', before)
       document.removeEventListener('htmx:afterSettle', update)
       document.removeEventListener('htmx:responseError', update)
+      document.removeEventListener('htmx:sendAbort', update)
+      document.removeEventListener('htmx:sendError', update)
       for (const element of observed) {
         element.removeEventListener('htmx:afterSettle', update)
         element.removeEventListener('htmx:responseError', update)
+        element.removeEventListener('htmx:sendAbort', update)
+        element.removeEventListener('htmx:sendError', update)
       }
     } }
   }, key)
@@ -155,8 +164,14 @@ export async function actionAndHtmxResponse(page: Page, match: ResponseMatch, ac
     const identity = { url: response.url(), method: response.request().method(), status: response.status() }
     await page.waitForFunction(({ key, identity }) => {
       const records = (window as any)[key].records.filter((r: any) => r.url === identity.url && r.method === identity.method)
-      return records.length > 0 && records.every((r: any) => r.settled || r.failed)
+      return records.some((r: any) => !r.aborted && (r.settled || r.failed)) && records.every((r: any) => r.settled || r.failed || r.aborted)
     }, { key, identity }, { timeout: timeout(options) })
+    const failure = await page.evaluate(({ key, identity }) => {
+      const records = (window as any)[key].records.filter((r: any) => r.url === identity.url && r.method === identity.method && !r.aborted)
+      const latest = records.at(-1)
+      return latest?.failed ? latest.status : null
+    }, { key, identity })
+    if (failure !== null) throw new Error(`HTMX request failed: ${failure} ${response.url()}`)
     if (!response.ok()) throw new Error(`HTMX request failed: ${response.status()} ${response.url()}`)
     return response
   } finally {

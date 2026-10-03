@@ -2,7 +2,7 @@
 
 Consumers import `@iota-uz/sdk/testing` from the same immutable SDK candidate as their application. Install the optional `@playwright/test` peer in the test project. This entry point runs in the Playwright Node process, never in an application bundle.
 
-`actionAndResponse(page, match, action)` registers before the action. Match is `{ method, pathname }` or a consumer response predicate. An absent response rejects. `actionAndHtmxResponse` additionally follows the matching production HTMX XHR through `afterSettle`, including replaced targets; server refusals reject. `actionAndHtmxSettled` scopes the same event tracking to a target selector. These helpers require the production HTMX lifecycle, not synthetic host events.
+`actionAndResponse(page, match, action)` registers before the action. Match is `{ method, pathname }` or a consumer response predicate. An absent response rejects. `actionAndHtmxResponse` additionally follows the matching production HTMX XHR through `afterSettle`, including replaced targets; server refusals reject. Superseded XHR aborts terminate their records, while a newer send failure rejects and a winning response must settle. `actionAndHtmxSettled` scopes the same event tracking to a target selector. These helpers require the production HTMX lifecycle, not synthetic host events.
 
 `actionAndValidationRefusal(page, form, action)` observes native invalid events and checks that the form did not submit or issue its configured submission request during the interaction. It returns control name and browser validation message without spending a network timeout. Keep integration tests for server-side validation.
 

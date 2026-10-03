@@ -3,9 +3,6 @@ name: SDK PR checks
 on:
   workflow_dispatch:
   pull_request:
-    branches:
-      - staging
-      - main
     types:
       - opened
       - reopened
@@ -402,7 +399,7 @@ jobs:
         run: go vet -tags dev ./...
 
       - name: Run service-free Go contract tests
-        run: go test ./pkg/sdkidentity ./pkg/mapping
+        run: go test ./pkg/sdkidentity ./pkg/mapping ./pkg/serrors/v2/...
 
       - name: Check applet RPC contracts
         run: just applet rpc-check bichat

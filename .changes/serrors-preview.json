@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Add an opt-in, unstable preview of typed errors and safe boundary projections without changing existing error APIs."}
