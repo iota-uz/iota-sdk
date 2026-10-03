@@ -1,0 +1,42 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Serialize concurrent permission upserts by name and preserve the original admin-role lookup or permission seeding error instead of continuing an aborted transaction."
+    },
+    {
+      "bump": "patch",
+      "summary": "Recognize custom context error identity through errors.Is when no explicit classification or context sentinel was found during ordered traversal."
+    },
+    {
+      "bump": "patch",
+      "summary": "Fix the Revenue Trend dashboard panel's date field and document the CSS build step before starting the development server."
+    },
+    {
+      "bump": "patch",
+      "summary": "Allow HTMX test interactions to finish after superseded XHR cancellation while still rejecting newer send failures and waiting for the winning swap to settle."
+    },
+    {
+      "bump": "patch",
+      "summary": "Preserve exact two-decimal transaction amounts in Payme checkout links instead of adding a tiyin through floating-point ceiling."
+    },
+    {
+      "bump": "patch",
+      "summary": "Preserve context cancellation at database boundaries, reject mismatched localization IDs, and prevent GraphQL protocol extensions from overriding execution error safety."
+    },
+    {
+      "bump": "patch",
+      "summary": "Add a database-boundary wrapper that preserves private diagnostic context while classifying driver errors safely."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add an opt-in, unstable preview of typed errors and safe boundary projections without changing existing error APIs."
+    },
+    {
+      "bump": "none",
+      "summary": "Run service-free SDK pull request checks for stacked branches as well as main and staging targets."
+    }
+  ],
+  "source": "825eb0872bc6df9af584c9b243a4e6d8861390f8",
+  "version": "0.15.0"
+}
