@@ -591,9 +591,9 @@ func TestCompiledPanelServesLiteralRowColours(t *testing.T) {
 	require.NoError(t, err)
 	spec := lensspec.Document{Version: lensspec.DocumentVersion, ID: "colours", Title: lensspec.LiteralText("Colours"),
 		Datasets: []lensspec.DatasetSpec{lensspec.StaticDataset("sales", frames)},
-		Rows:     []lensspec.RowSpec{{Panels: []lensspec.PanelSpec{lensspec.StackedBar("chart", "Sales", "sales").CategoryField("category").SeriesField("series").ValueField("value").Colors("#abcdef").SemanticColors("literal", "ink").Build()}}},
+		Rows:     []lensspec.RowSpec{{Panels: []lensspec.PanelSpec{lensspec.StackedBar("chart", "Sales", "sales").CategoryField("category").SeriesField("series").ValueField("value").Colors("#abcdef").SemanticColors("{{scale}}", "{{field}}").Build()}}},
 	}
-	compiled, err := Document(spec, Options{})
+	compiled, err := Document(spec, Options{Values: map[string]any{"scale": "literal", "field": "ink"}})
 	require.NoError(t, err)
 	results, err := runtime.New(runtime.Options{}).Execute(context.Background(), compiled.Spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope())
 	require.NoError(t, err)
