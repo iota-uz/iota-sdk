@@ -139,6 +139,8 @@ func TestCardSortConfig(t *testing.T) {
 		{
 			name: "keeps the default flow without a hook",
 			assert: func(t *testing.T, got string) {
+				t.Helper()
+
 				want := `{
 		delayOnTouchOnly: true,
 		delay: 150,
@@ -163,6 +165,8 @@ func TestCardSortConfig(t *testing.T) {
 			name:             "invokes the hook with the transition context",
 			beforeCardChange: hookExpr,
 			assert: func(t *testing.T, got string) {
+				t.Helper()
+
 				for _, want := range []string{
 					`(window.boardGuard)(ctx)`,
 					"cardKey: event.item.dataset.cardKey",
@@ -181,6 +185,8 @@ func TestCardSortConfig(t *testing.T) {
 			name:             "rolls back and skips the post when the hook returns false",
 			beforeCardChange: hookExpr,
 			assert: func(t *testing.T, got string) {
+				t.Helper()
+
 				for _, want := range []string{
 					"const origin = event.item.__kanbanOrigin;",
 					"delete event.item.__kanbanOrigin;",
@@ -199,6 +205,8 @@ func TestCardSortConfig(t *testing.T) {
 			name:             "still triggers the card change post when allowed",
 			beforeCardChange: hookExpr,
 			assert: func(t *testing.T, got string) {
+				t.Helper()
+
 				for _, want := range []string{
 					`htmx.trigger("#kanban-card-trigger-board", 'cardChanged')`,
 					"changeCard(ctx)",
