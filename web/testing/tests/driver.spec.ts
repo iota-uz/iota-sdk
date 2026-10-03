@@ -1,5 +1,64 @@
 import { test, expect } from '@playwright/test'
-import { createProcessEnvironmentDriver } from '../src/index.js'
+import { createProcessEnvironmentDriver, DriverError } from '../src/index.js'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+// Falsely green if the process exits on stdin EOF or if only an unowned PID is killed.
+test('close escalates an owned driver that ignores EOF and SIGINT within a bound', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'sdk-driver-close-'))
+  const marker = path.join(directory, 'sigint')
+  const driver = createProcessEnvironmentDriver({
+    command: process.execPath,
+    args: ['--input-type=module', '-e', `
+      import { createInterface } from 'node:readline';
+      import { writeFileSync } from 'node:fs';
+      process.on('SIGINT',()=>writeFileSync(${JSON.stringify(marker)},'received'));
+      setInterval(()=>{},1000);
+      createInterface({input:process.stdin}).on('line',line=>{
+        const r=JSON.parse(line);
+        console.log(JSON.stringify({id:r.id,descriptor:{environmentId:String(process.pid),baseURL:'http://fixture.test',artifactDirectory:'/tmp/owned'}}));
+      });
+    `], spec: () => ({}), closeTimeoutMs: 100, killTimeoutMs: 100,
+  })
+  const environment = await driver.lifecycle.start(0)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const result = await Promise.race([
+      driver.close().catch(error => error),
+      new Promise(resolve => { timer = setTimeout(() => resolve('unbounded close'), 1500) }),
+    ])
+    expect(result).toMatchObject({ code: 'close_timeout', operation: 'close' })
+    expect(await readFile(marker, 'utf8')).toBe('received')
+    await expect.poll(() => {
+      try { process.kill(Number(environment.environmentId), 0); return 'alive' } catch { return 'gone' }
+    }).toBe('gone')
+  } finally {
+    if (timer) clearTimeout(timer)
+    try { process.kill(Number(environment.environmentId), 'SIGKILL') } catch {}
+    await driver.close().catch(() => {})
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+// Falsely green if errors are reduced to message text and partial startup ownership is lost.
+test('driver errors retain startup ownership, artifacts and cleanup causes', async () => {
+  const driver = createProcessEnvironmentDriver({
+    command: process.execPath,
+    args: ['--input-type=module', '-e', `
+      import{createInterface}from'node:readline';
+      createInterface({input:process.stdin}).on('line',line=>{
+        const r=JSON.parse(line);
+        console.log(JSON.stringify({id:r.id,descriptor:{environmentId:'partial',artifactDirectory:'/tmp/partial'},error:{code:'startup_failed',message:'startup',causes:[{code:'cleanup_failed',message:'drop'}]}}));
+      });
+    `], spec: () => ({}),
+  })
+  try {
+    const error = await driver.lifecycle.start(0).catch(error => error)
+    expect(error).toBeInstanceOf(DriverError)
+    expect(error).toMatchObject({ code: 'startup_failed', operation: 'start', environmentId: 'partial', artifactDirectory: '/tmp/partial', causes: [{ code: 'cleanup_failed' }] })
+  } finally { await driver.close() }
+})
 
 // Characterisation: falsely green if the child never parses stdin or no stop is sent.
 test('correlates a persistent subprocess and surfaces driver errors', async () => {
@@ -33,4 +92,13 @@ test('unexpected driver exit rejects pending start', async () => {
   const driver = createProcessEnvironmentDriver({ command: process.execPath, args: ['-e', 'process.exit(2)'], spec: () => ({}) })
   await expect(driver.lifecycle.start(0)).rejects.toThrow('exited')
   await expect(driver.close()).rejects.toThrow('exited')
+})
+
+// Regression: falsely green if malformed protocol data merely waits for the normal request deadline.
+test('malformed response envelopes reject pending requests without crashing the host', async () => {
+  for (const value of ['null', '17', '{"id":q.id,"error":{"code":"bad","message":"bad","causes":{}}}']) {
+    const driver = createProcessEnvironmentDriver({ command: process.execPath, args: ['-e', `require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const q=JSON.parse(line);console.log(JSON.stringify(${value}))})`], spec: () => ({}), timeoutMs: 2000, closeTimeoutMs: 100, killTimeoutMs: 100 })
+    try { await expect(driver.lifecycle.start(0)).rejects.toMatchObject({ code: 'invalid_response', operation: 'start' }) }
+    finally { await driver.close() }
+  }
 })

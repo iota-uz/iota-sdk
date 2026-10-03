@@ -7,11 +7,17 @@ import (
 )
 
 type Error struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code              string   `json:"code"`
+	Message           string   `json:"message"`
+	Operation         string   `json:"operation,omitempty"`
+	EnvironmentID     string   `json:"environmentId,omitempty"`
+	ArtifactDirectory string   `json:"artifactDirectory,omitempty"`
+	Causes            []*Error `json:"causes,omitempty"`
+	cause             error
 }
 
 func (e *Error) Error() string           { return e.Code + ": " + e.Message }
+func (e *Error) Unwrap() error           { return e.cause }
 func failure(code, message string) error { return &Error{Code: code, Message: message} }
 
 type Definition struct {

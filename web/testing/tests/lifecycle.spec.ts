@@ -1,5 +1,39 @@
 import { test, expect } from '@playwright/test'
-import { lazyIdentities, withEnvironment, withScenario } from '../src/index.js'
+import { acquireEnvironmentLease, lazyIdentities, withEnvironment, withScenario } from '../src/index.js'
+
+// Falsely green if prepare/use and disposal cannot both fail in the same scope.
+test('preserves primary scenario failure alongside disposal failure', async () => {
+  for (const phase of ['prepare', 'use'] as const) {
+    const primary = new Error(phase)
+    const cleanup = new Error('dispose')
+    const result = await withScenario({
+      prepare: async () => { if (phase === 'prepare') throw primary; return 'state' },
+      dispose: async () => { throw cleanup },
+    }, {}, 'owned', async () => { throw primary }).catch(error => error)
+    expect(result).toBeInstanceOf(AggregateError)
+    expect(result.errors).toEqual([primary, cleanup])
+  }
+})
+
+// New API characterisation: falsely green if closing never crosses the lifecycle and driver boundaries.
+test('acquired leases compensate startup/readiness and close each resource once', async () => {
+  const effects: string[] = []
+  const lifecycle = {
+    start: async () => ({ runId: 'owned', baseURL: 'http://fixture.test', artifactDir: '/tmp/owned' }),
+    ready: async () => {},
+    stop: async () => { effects.push('stop') },
+  }
+  const options = { closeDriver: async () => { effects.push('driver') } }
+  const lease = await acquireEnvironmentLease(lifecycle, 0, options)
+  await Promise.all([lease.close(), lease.close()])
+  expect(effects).toEqual(['stop', 'driver'])
+  effects.length = 0
+  await expect(acquireEnvironmentLease({ ...lifecycle, ready: async () => { throw new Error('ready') } }, 0, options)).rejects.toThrow('ready')
+  expect(effects).toEqual(['stop', 'driver'])
+  effects.length = 0
+  await expect(acquireEnvironmentLease({ ...lifecycle, start: async () => { throw new Error('start') } }, 0, options)).rejects.toThrow('start')
+  expect(effects).toEqual(['driver'])
+})
 
 // Falsely green if only teardown failures or only successful teardown are exercised.
 test('preserves readiness and assertion failures when teardown also fails', async () => {

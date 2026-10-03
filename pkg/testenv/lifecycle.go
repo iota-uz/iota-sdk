@@ -30,7 +30,12 @@ type Coordinator struct {
 func NewCoordinator(adapter Adapter) *Coordinator {
 	return &Coordinator{adapter: adapter, environments: map[string]*environment{}, ids: map[string]*environment{}}
 }
-func (c *Coordinator) Start(ctx context.Context, spec Spec) (Descriptor, error) {
+func (c *Coordinator) Start(ctx context.Context, spec Spec) (descriptor Descriptor, returnErr error) {
+	defer func() {
+		if returnErr != nil {
+			returnErr = lifecycleError(returnErr, "startup_failed", "start", descriptor, nil)
+		}
+	}()
 	if c.adapter == nil || spec.RunID == "" || spec.Slot == "" || spec.SchemaFingerprint == "" || spec.BaselineFingerprint == "" || !slices.Contains([]string{"shared", "worker", "attempt"}, spec.Isolation) {
 		return Descriptor{}, failure("invalid_spec", "invalid environment specification")
 	}
@@ -60,16 +65,16 @@ func (c *Coordinator) Start(ctx context.Context, spec Spec) (Descriptor, error) 
 	env.mu.Lock()
 	defer env.mu.Unlock()
 	if env.spec != string(encoded) || env.stopped {
-		return Descriptor{}, failure("resource_conflict", "slot has a different specification or has been stopped")
+		return copyDescriptor(env.descriptor), failure("resource_conflict", "slot has a different specification or has been stopped")
 	}
 	if env.started {
 		return copyDescriptor(env.descriptor), nil
 	}
 	if env.attempted {
-		return Descriptor{}, failure("resource_conflict", "startup failed; stop the environment and use a new slot")
+		return copyDescriptor(env.descriptor), failure("resource_conflict", "startup failed; stop the environment and use a new slot")
 	}
 	if err := ctx.Err(); err != nil {
-		return Descriptor{}, failure("timeout", err.Error())
+		return copyDescriptor(env.descriptor), lifecycleError(err, "timeout", "start", env.descriptor, nil)
 	}
 	id := env.descriptor.EnvironmentID
 	env.attempted = true
@@ -99,17 +104,9 @@ func (c *Coordinator) Start(ctx context.Context, spec Spec) (Descriptor, error) 
 	if err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
-		if cleanupErr := c.adapter.Stop(cleanupCtx, d); cleanupErr != nil {
-			return Descriptor{}, failure("cleanup_failed", cleanupErr.Error())
-		}
-		env.stopped = true
-		if ctx.Err() != nil {
-			return Descriptor{}, failure("timeout", ctx.Err().Error())
-		}
-		if _, ok := err.(*Error); ok {
-			return Descriptor{}, err
-		}
-		return Descriptor{}, failure("startup_failed", err.Error())
+		cleanupErr := c.adapter.Stop(cleanupCtx, d)
+		env.stopped = cleanupErr == nil
+		return copyDescriptor(d), lifecycleError(err, "startup_failed", "start", d, cleanupErr)
 	}
 	env.started = true
 	return copyDescriptor(d), nil
@@ -136,7 +133,7 @@ func (c *Coordinator) Stop(ctx context.Context, id string) error {
 	env := c.ids[id]
 	c.mu.Unlock()
 	if env == nil {
-		return failure("resource_conflict", "environment is not owned by this coordinator")
+		return lifecycleError(failure("resource_conflict", "environment is not owned by this coordinator"), "resource_conflict", "stop", Descriptor{EnvironmentID: id}, nil)
 	}
 	env.mu.Lock()
 	defer env.mu.Unlock()
@@ -144,7 +141,7 @@ func (c *Coordinator) Stop(ctx context.Context, id string) error {
 		return nil
 	}
 	if err := c.adapter.Stop(ctx, env.descriptor); err != nil {
-		return failure("cleanup_failed", err.Error())
+		return lifecycleError(err, "cleanup_failed", "stop", env.descriptor, nil)
 	}
 	env.stopped = true
 	return nil
