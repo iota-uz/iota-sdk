@@ -897,12 +897,13 @@ const (
 
 type Presentation struct {
 	// DataLabels writes formatted values directly on bar and line marks.
-	DataLabels  bool                `json:"dataLabels,omitempty"`
-	Legend      LegendPlacement     `json:"legend,omitempty"`
-	LegendValue LegendValue         `json:"legendValue,omitempty"`
-	SliceLabels SliceLabels         `json:"sliceLabels,omitempty"`
-	TotalBadge  TotalBadgePlacement `json:"totalBadge,omitempty"`
-	ColorBy     ColorBy             `json:"colorBy,omitempty"`
+	DataLabels     bool                `json:"dataLabels,omitempty"`
+	Legend         LegendPlacement     `json:"legend,omitempty"`
+	LegendValue    LegendValue         `json:"legendValue,omitempty"`
+	SliceLabels    SliceLabels         `json:"sliceLabels,omitempty"`
+	TotalBadge     TotalBadgePlacement `json:"totalBadge,omitempty"`
+	KeepTotalBadge bool                `json:"keepTotalBadge,omitempty"`
+	ColorBy        ColorBy             `json:"colorBy,omitempty"`
 	// ValueSpreadThreshold is the producer-selected max/min ratio used to
 	// decide when a requested logarithmic scale is material and when a linear
 	// scale needs readability assistance. Zero leaves the policy unset.
@@ -952,7 +953,7 @@ type Presentation struct {
 func (p Presentation) isZero() bool {
 	return len(p.LineSeries) == 0 && !p.DataLabels &&
 		p.Legend == "" && p.LegendValue == "" && p.SliceLabels == "" &&
-		p.TotalBadge == "" && p.ColorBy == "" && p.ValueSpreadThreshold == 0 && !p.Fill && p.BarWidthPx == 0 &&
+		p.TotalBadge == "" && !p.KeepTotalBadge && p.ColorBy == "" && p.ValueSpreadThreshold == 0 && !p.Fill && p.BarWidthPx == 0 &&
 		p.BridgeLayout == "" && p.Sortable == nil && p.Expandable == nil &&
 		p.Exportable == nil && p.RowGroupField == "" && p.Focus == "" && !p.Stack
 }

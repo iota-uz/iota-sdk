@@ -1438,9 +1438,13 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         periodShown,
       )
     })))
+  const currentName = (name: string) => input.encoding.previous
+    ? `${name ? `${name} · ` : ''}${input.labels?.current ?? 'Current period'}`
+    : name || undefined
+  const namedLineSeries = new Set([...lineSeries].flatMap((name) => [name, currentName(name) ?? name, `${name ? `${name} · ` : ''}${input.labels?.previous ?? 'Previous'}`]))
   const currentSeries = seriesNames.map((name, index) => ({
     type: isBar && !lineSeries.has(name) ? 'bar' as const : 'line' as const,
-    name: name || undefined,
+    name: currentName(name),
     universalTransition: { enabled: morphEnabled() },
     stack: stacked && !lineSeries.has(name) ? 'total' : undefined,
     barWidth: isBar && !lineSeries.has(name) && barWidth ? barWidth : undefined,
@@ -1493,7 +1497,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     if (tail.length < 2) return []
     return [{
       type: 'line' as const,
-      name: name || undefined,
+      name: currentName(name),
       id: `lens-incomplete-tail-${index}`,
       z: 3,
       showSymbol: true,
@@ -1877,7 +1881,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       ...tooltipChrome(theme),
       formatter: timeAxis
         ? timeTooltipFormatter(input, categoryField, showSeriesName)
-        : categoryTooltipFormatter(input, categoryField, stacked, lineSeries, showSeriesName),
+        : categoryTooltipFormatter(input, categoryField, stacked, namedLineSeries, showSeriesName),
       valueFormatter: timeAxis ? undefined : formatter,
     },
     xAxis: horizontal ? valueAxis : timeAxis ? temporalAxis : categoryAxis,

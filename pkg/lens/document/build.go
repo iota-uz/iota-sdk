@@ -629,6 +629,7 @@ func presentationForKind(hints panel.PresentationHints, kind panel.Kind) *Presen
 func convertPresentation(hints panel.PresentationHints) *Presentation {
 	presentation := Presentation{
 		DataLabels: hints.DataLabels, Fill: hints.FillPlot, BarWidthPx: hints.BarWidthPx,
+		KeepTotalBadge:       hints.KeepTotalBadge,
 		ValueSpreadThreshold: hints.ValueSpreadThreshold,
 	}
 	if hints.LegendBelow {
