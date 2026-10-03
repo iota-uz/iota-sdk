@@ -102,3 +102,29 @@ test('malformed response envelopes reject pending requests without crashing the 
     finally { await driver.close() }
   }
 })
+
+// Regression: falsely green if the child exits before a real pipe write observes its closed stdin.
+test('closed child stdin rejects a large request without crashing the host', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'sdk-driver-epipe-'))
+  const marker = path.join(directory, 'pid')
+  const driver = createProcessEnvironmentDriver({
+    command: process.execPath,
+    args: ['-e', `const fs=require('node:fs');fs.writeFileSync(${JSON.stringify(marker)},String(process.pid));fs.closeSync(0);setInterval(()=>{},1000)`],
+    spec: () => ({ payload: 'x'.repeat(8 * 1024 * 1024) }),
+    timeoutMs: 2000, closeTimeoutMs: 100, killTimeoutMs: 100,
+  })
+  let pid: number | undefined
+  try {
+    await expect(driver.lifecycle.start(0)).rejects.toMatchObject({ code: 'write_failed', operation: 'start' })
+    pid = Number(await readFile(marker, 'utf8'))
+    await driver.close().catch(() => {})
+    await expect.poll(() => {
+      try { process.kill(pid!, 0); return 'alive' } catch { return 'gone' }
+    }).toBe('gone')
+  } finally {
+    pid ??= await readFile(marker, 'utf8').then(Number).catch(() => undefined)
+    if (pid) { try { process.kill(pid, 'SIGKILL') } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error } }
+    await driver.close().catch(() => {})
+    await rm(directory, { recursive: true, force: true })
+  }
+})
