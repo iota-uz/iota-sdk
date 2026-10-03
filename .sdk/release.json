@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Preserve panel semantic colour scale and field through spec compilation so deferred chart frames serve their declared row colours."
+    }
+  ],
+  "source": "f0d97e7beb8e38382b510cefd1cebee8a3d19b76",
+  "version": "0.17.1"
+}
