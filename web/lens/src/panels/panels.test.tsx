@@ -11,6 +11,7 @@ const runtime = vi.hoisted(() => ({
   navigation: { path: [], history: [] } as { panelId?: string; path: Array<string>; perspectiveId?: string; history: Array<unknown> },
   level: undefined as unknown,
   refreshing: false,
+  labelFormatter: undefined as ((value: string) => string) | undefined,
 }))
 
 vi.mock('../runtime', () => ({
@@ -20,6 +21,7 @@ vi.mock('../runtime', () => ({
   useExport: () => ({ status: 'idle', available: false, run: vi.fn() }),
   useFormat: () => (value: unknown) => {
     if (value === null || value === undefined) return '—'
+    if (typeof value === 'string' && runtime.labelFormatter) return runtime.labelFormatter(value)
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
       return String(value)
     }
@@ -28,6 +30,7 @@ vi.mock('../runtime', () => ({
   useFormatExact: () => () => undefined,
   useFormatAtReference: () => (value: unknown) => {
     if (value === null || value === undefined) return '—'
+    if (typeof value === 'string' && runtime.labelFormatter) return runtime.labelFormatter(value)
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
       return String(value)
     }
@@ -158,6 +161,7 @@ afterEach(() => {
   runtime.navigation = { path: [], history: [] }
   runtime.level = undefined
   runtime.refreshing = false
+  runtime.labelFormatter = undefined
   runtime.document = baseDocument
   window.history.replaceState({}, '', '/')
 })
@@ -2056,4 +2060,57 @@ describe('cascade stages', () => {
     expect(printed.container.querySelector('.lens-waterfall-split-callout')?.getAttribute('data-reveal'))
       .toBe('always')
   })
+})
+
+// Falsely green if the legend is compared to a separately reconstructed palette instead of the mounted adapter.
+describe('served series colours', () => {
+  it('keeps repeated rows, legend and plot on the same pins after hiding a series', async () => {
+    const values: Frame = {
+      columns: [{ name: 'category', type: 'string' }, { name: 'series', type: 'string' }, { name: 'value', type: 'number' }],
+      rows: [['Jan', 'Alpha', 10], ['Jan', 'Beta', 20], ['Jan', 'Gamma', 30], ['Feb', 'Alpha', 40], ['Feb', 'Beta', 50], ['Feb', 'Gamma', 60]],
+      colors: ['#123456', '#654321', '#abcdef', '#123456', '#654321', '#abcdef'],
+    }
+    runtime.frame = { data: values, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const inputs: ChartInput[] = []
+    const view = render(<BarPanel panel={panel('bar', { encoding: { category: 'category', series: 'series', value: 'value' }, presentation: { legend: 'below', stack: true } })} adapter={fakeAdapter((input) => inputs.push(input))} />)
+    await screen.findByRole('button', { name: 'chart data' })
+    const assertPins = () => {
+      expect(legendSwatches(view.container)).toEqual(['rgb(18, 52, 86)', 'rgb(101, 67, 33)', 'rgb(171, 205, 239)'])
+      expect(inputs.at(-1)?.seriesColor?.('Gamma', 2)).toBe('#abcdef')
+    }
+    assertPins()
+    fireEvent.click(legendRow(view.container, 'Beta'))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(4))
+    assertPins()
+  })
+})
+
+// Falsely green if a shell placeholder is accepted instead of the loaded frame's zero.
+it('retains declared totals for empty and fully hidden additive charts', async () => {
+  const chart = panel('bar', { total: 999, presentation: { legend: 'below', keepTotalBadge: true } })
+  runtime.frame = { data: { ...dataFrame, rows: [], total: 0 }, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+  const view = render(<BarPanel panel={chart} adapter={fakeAdapter()} />)
+  expect(view.container.querySelector('.lens-panel-total')).toHaveAttribute('data-value', '0')
+  runtime.frame = { ...runtime.frame, data: { ...dataFrame, rows: [...dataFrame.rows, ['root/b', 'Beta', '2026-07-02T00:00:00Z', 'Actual', 0]], total: 42 } }
+  view.rerender(<BarPanel panel={chart} adapter={fakeAdapter()} />)
+  runtime.frame = { ...runtime.frame, data: { ...runtime.frame.data!, total: undefined } }
+  view.rerender(<BarPanel panel={chart} adapter={fakeAdapter()} />)
+  expect(view.container.querySelector('.lens-panel-total')).toHaveAttribute('data-value', '42')
+  fireEvent.click(legendRow(view.container, 'Actual'))
+  await waitFor(() => expect(view.container.querySelector('.lens-panel-total')).toHaveAttribute('data-value', '0'))
+})
+
+// Falsely green if raw and display labels happen to be identical.
+it('resolves formatted legend labels with the raw served series key', async () => {
+  runtime.labelFormatter = value => `Display ${value}`
+  runtime.frame = { data: {
+    columns: [{ name: 'category', type: 'string' }, { name: 'series', type: 'string' }, { name: 'value', type: 'number' }],
+    rows: [['Jan', 'Alpha', 10], ['Jan', 'Beta', 20]], colors: ['#123456', '#654321'],
+  }, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+  const inputs: ChartInput[] = []
+  const view = render(<BarPanel panel={panel('bar', { encoding: { category: 'category', series: 'series', value: 'value' }, presentation: { legend: 'below' } })} adapter={fakeAdapter(input => inputs.push(input))} />)
+  await screen.findByRole('button', { name: 'chart data' })
+  expect(legendLabels(view.container)).toEqual(['Display Alpha', 'Display Beta'])
+  expect(legendSwatches(view.container)).toEqual(['rgb(18, 52, 86)', 'rgb(101, 67, 33)'])
+  expect(inputs.at(-1)?.seriesColor?.('Alpha', 0)).toBe('#123456')
 })

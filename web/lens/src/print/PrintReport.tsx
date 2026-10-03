@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 import type { DashboardDocument, Panel, Theme } from '../contract'
 import { buildCascadeStages, buildWaterfallModel } from '../panels/CascadePanel'
 import { ChartHost } from '../panels/ChartHost'
-import { colorLabels, seriesColorResolver } from '../panels/data'
+import { fallbackMarkKey, markCellText } from '../charts/keys'
+import { colorLabels, frameSeriesColorResolver, rowColorResolver } from '../panels/data'
 import { WaterfallPlot } from '../panels/WaterfallPlot'
 import {
   clampedDeltaPercent,
@@ -103,7 +104,21 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): AuditTa
     return current - previous
   }
 
-  const resolveColor = seriesColorResolver(theme, panel, { positional: section.root, labels: colorLabels(frame, panel) })
+  const categoryIndex = indexOf(frame, panel.encoding.category)
+  const rowMarks = panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial'
+  const categoryKeys = frame.rows.map(row => {
+    const category = markCellText(row[categoryIndex >= 0 ? categoryIndex : labelIndex])
+    const id = idIndex >= 0 ? markCellText(row[idIndex]) : ''
+    const series = seriesIndex >= 0 ? markCellText(row[seriesIndex]) : ''
+    return { category, nodeKey: id || fallbackMarkKey(category, panel.radial?.mode === 'partition' ? '' : series) }
+  })
+  const categoryOrder = new Map<string, number>()
+  categoryKeys.forEach(({ nodeKey, category }) => {
+    const key = nodeKey ?? category
+    if (!categoryOrder.has(key)) categoryOrder.set(key, categoryOrder.size)
+  })
+  const resolveSeriesColor = frameSeriesColorResolver(theme, panel, frame, section.root)
+  const resolveRowColor = rowColorResolver(theme, panel, { colors: frame.colors, positional: section.root, labels: colorLabels(frame, panel) })
   // The value column is stated in one unit, so a bridge step and a portfolio
   // total are read against each other rather than digit by digit.
   const unit = columnUnit(frame.rows.map((row, rowIndex) => stepValue(row, rowIndex)), valueFormat, locale)
@@ -117,6 +132,8 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): AuditTa
       ? number / denominator
       : undefined
     const label = labelIndex >= 0 ? text(row[labelIndex]) : text(row[idIndex])
+    const { category, nodeKey } = categoryKeys[rowIndex]!
+    const colorIndex = panel.radial?.mode === 'partition' ? categoryOrder.get(nodeKey ?? category)! : rowIndex
     return {
       key: `${group}:${idIndex >= 0 ? text(row[idIndex]) : rowIndex}`,
       ...(group && seriesFormat
@@ -137,7 +154,9 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): AuditTa
             maximumFractionDigits: 1,
           }).format(ratio),
       }),
-      color: resolveColor(label, rowIndex),
+      color: rowMarks
+        ? resolveRowColor(category, colorIndex, nodeKey)
+        : seriesIndex >= 0 ? resolveSeriesColor(group, rowIndex) : resolveRowColor(label, rowIndex),
     }
   }) }
 }
@@ -173,6 +192,13 @@ function PrintChart({ section, height }: { section: PrintSection; height: number
           kind: panel.kind as ChartKind,
           frame: section.frame,
           encoding: panel.encoding,
+          seriesColor: frameSeriesColorResolver(theme, panel, section.frame, section.root),
+          rowColor: rowColorResolver(theme, panel, { colors: section.frame.colors, positional: section.root, labels: colorLabels(section.frame, panel) }),
+          labels: {
+            noData: section.document.i18n['panel.empty'] ?? 'No data',
+            current: section.document.i18n['chart.series.current'] ?? 'Current period',
+            previous: section.document.i18n['chart.series.previous'] ?? 'Previous',
+          },
           format,
           formatAxis: formatChartAxis,
           locale: section.document.meta.locale,

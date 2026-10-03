@@ -52,6 +52,7 @@ func RuntimeI18nDefaults() map[string]string {
 		I18nChartBoxplotMedian:            "Median",
 		I18nChartBoxplotQ3:                "Q3",
 		I18nChartBoxplotMax:               "Maximum",
+		I18nChartSeriesCurrent:            "Current period",
 		I18nChartSeriesPrevious:           "Previous",
 		I18nChartSeriesTrend:              "Trend",
 		I18nChartSeriesMovingAverage:      "Moving average ({window})",

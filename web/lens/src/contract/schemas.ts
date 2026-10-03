@@ -566,6 +566,7 @@ export const PresentationSchema: z.ZodType<Contract.Presentation> = z.lazy(() =>
   legendValue: z.lazy(() => LegendValueSchema).optional(),
   sliceLabels: z.lazy(() => SliceLabelsSchema).optional(),
   totalBadge: z.lazy(() => TotalBadgePlacementSchema).optional(),
+  keepTotalBadge: z.boolean().optional(),
   colorBy: z.lazy(() => ColorBySchema).optional(),
   valueSpreadThreshold: z.number().optional(),
   fill: z.boolean().optional(),

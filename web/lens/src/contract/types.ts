@@ -570,6 +570,7 @@ export interface Presentation {
   legendValue?: LegendValue
   sliceLabels?: SliceLabels
   totalBadge?: TotalBadgePlacement
+  keepTotalBadge?: boolean
   colorBy?: ColorBy
   valueSpreadThreshold?: number
   fill?: boolean
