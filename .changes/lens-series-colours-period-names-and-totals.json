@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Unify served series colours across plots, legends and print tables; label the current period in comparison tooltips; add opt-in persistent totals for additive charts, including empty and fully hidden data."
+}
