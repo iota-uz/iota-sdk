@@ -84,6 +84,14 @@ module availability before writing the ready record into release state. Historic
 ready records remain available for pinned consumers. GitHub Releases are not a
 required part of publication. A tag by itself is insufficient proof of readiness.
 
+Registry verification bypasses cached metadata and allows 36 checks, separated by
+five seconds, for the package and its provenance to appear. Each registry request
+has a ten-second deadline. `npm_visibility_timeout` means package integrity is
+still absent; `npm_provenance_timeout` means the verified tarball is visible but
+its provenance is not. Neither marks the release ready. A visible conflicting
+integrity or provenance predicate fails immediately with `npm_integrity_mismatch`
+or `npm_provenance_mismatch`; retries must never replace those published bytes.
+
 If verification fails, fix the SDK and merge the fix. For an infrastructure failure
 at unchanged source, explicitly run `sdkctl promote --retry`. Publication retries
 always use the same SHA and original Actions artifact and never overwrite a tag

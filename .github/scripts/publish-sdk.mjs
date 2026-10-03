@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { publishSDK } from './sdk-publisher.mjs'
+import { releaseRegistry } from './npm-release-registry.mjs'
 
 const repository = 'iota-uz/iota-sdk'
 const run = (command, args, options = {}) => execFileSync(command, args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], ...options })
@@ -24,12 +25,7 @@ const tag = await publishSDK({
   manifest,
   bytes: readFileSync(`artifacts/frontend/${manifest.file}`),
   api,
-  async registry(version) {
-    const response = await fetch(`https://registry.npmjs.org/@iota-uz%2fsdk/${version}`)
-    if (response.status === 404) return null
-    if (!response.ok) throw new Error(`npm registry returned ${response.status}`)
-    return response.json()
-  },
+  registry: releaseRegistry(),
   async publish(file) { run('npm', ['publish', `artifacts/frontend/${file}`, '--access', 'public', '--provenance']) },
   async verifyGo(version) {
     const dir = mkdtempSync(join(tmpdir(), 'iota-sdk-go-verify-'))
