@@ -182,8 +182,10 @@ func TestCardSortConfig(t *testing.T) {
 			beforeCardChange: hookExpr,
 			assert: func(t *testing.T, got string) {
 				for _, want := range []string{
-					"__kanbanOrigin",
-					"insertBefore(event.item, origin.next)",
+					"const origin = event.item.__kanbanOrigin;",
+					"delete event.item.__kanbanOrigin;",
+					"origin.next.parentNode === origin.container",
+					"insertBefore(event.item, ref)",
 					"if (decision === false)",
 					"typeof decision.then === 'function'",
 				} {

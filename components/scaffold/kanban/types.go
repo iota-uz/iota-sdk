@@ -237,6 +237,8 @@ func cardSortConfig(triggerID, beforeCardChange string) string {
 			event.item.__kanbanOrigin = { container: event.from, next: event.item.nextElementSibling };
 		},
 		onEnd: (event) => {
+			const origin = event.item.__kanbanOrigin;
+			delete event.item.__kanbanOrigin;
 			const ctx = {
 				cardKey: event.item.dataset.cardKey,
 				newCol: event.to.dataset.colKey,
@@ -249,9 +251,9 @@ func cardSortConfig(triggerID, beforeCardChange string) string {
 				$nextTick(() => htmx.trigger(%q, 'cardChanged'));
 			};
 			const rollback = () => {
-				const origin = event.item.__kanbanOrigin;
-				if (origin) origin.container.insertBefore(event.item, origin.next);
-				delete event.item.__kanbanOrigin;
+				if (!origin) return;
+				const ref = origin.next && origin.next.parentNode === origin.container ? origin.next : null;
+				origin.container.insertBefore(event.item, ref);
 			};
 			let decision;
 			try {
