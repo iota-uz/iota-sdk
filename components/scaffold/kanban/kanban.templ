@@ -59,7 +59,7 @@ templ Content[C Card](cfg *Config[C]) {
 								data-col-key={ c.Key() }
 								x-sort.ghost
 								x-sort:group="cards"
-								x-sort:config={ cardSortConfig(cardTriggerID) }
+								x-sort:config={ cardSortConfig(cardTriggerID, cfg.BeforeCardChange) }
 							>
 								@ColumnCards(cfg, c, currentParams)
 							</ol>

@@ -17,6 +17,12 @@ type Config[C Card] struct {
 	CardLoadURL     string
 	ColumnLoads     map[string]*ColumnLoadState
 	Board           Board[C]
+	// BeforeCardChange is an optional JavaScript expression evaluating to a
+	// function invoked before a card change is committed. It receives
+	// { cardKey, oldCol, newCol, oldIndex, newIndex } and may return a plain
+	// value or a promise; returning exactly false cancels the move, reverts
+	// the card to its original position and skips the HTMX card change post.
+	BeforeCardChange string
 }
 
 func NewConfig[C Card](board Board[C], columnChangeURL, cardChangeURL string) *Config[C] {
@@ -70,6 +76,11 @@ type ColumnLoadState struct {
 
 func (c *Config[C]) WithCardLoadURL(url string) *Config[C] {
 	c.CardLoadURL = url
+	return c
+}
+
+func (c *Config[C]) WithBeforeCardChange(expr string) *Config[C] {
+	c.BeforeCardChange = expr
 	return c
 }
 
@@ -199,8 +210,9 @@ func columnSortConfig(triggerID string) string {
 	}`, "#"+triggerID)
 }
 
-func cardSortConfig(triggerID string) string {
-	return fmt.Sprintf(`{
+func cardSortConfig(triggerID, beforeCardChange string) string {
+	if beforeCardChange == "" {
+		return fmt.Sprintf(`{
 		delayOnTouchOnly: true,
 		delay: 150,
 		touchStartThreshold: 8,
@@ -215,6 +227,53 @@ func cardSortConfig(triggerID string) string {
 			$nextTick(() => htmx.trigger(%q, 'cardChanged'));
 		}
 	}`, "#"+triggerID)
+	}
+
+	return fmt.Sprintf(`{
+		delayOnTouchOnly: true,
+		delay: 150,
+		touchStartThreshold: 8,
+		onStart: (event) => {
+			event.item.__kanbanOrigin = { container: event.from, next: event.item.nextElementSibling };
+		},
+		onEnd: (event) => {
+			const ctx = {
+				cardKey: event.item.dataset.cardKey,
+				newCol: event.to.dataset.colKey,
+				oldCol: event.from.dataset.colKey,
+				oldIndex: event.oldIndex,
+				newIndex: event.newIndex
+			};
+			const commit = () => {
+				changeCard(ctx);
+				$nextTick(() => htmx.trigger(%q, 'cardChanged'));
+			};
+			const rollback = () => {
+				const origin = event.item.__kanbanOrigin;
+				if (origin) origin.container.insertBefore(event.item, origin.next);
+				delete event.item.__kanbanOrigin;
+			};
+			let decision;
+			try {
+				decision = (%s)(ctx);
+			} catch (error) {
+				rollback();
+				throw error;
+			}
+			if (decision && typeof decision.then === 'function') {
+				decision.then((allowed) => {
+					if (allowed === false) rollback();
+					else commit();
+				}, () => rollback());
+				return;
+			}
+			if (decision === false) {
+				rollback();
+				return;
+			}
+			commit();
+		}
+	}`, "#"+triggerID, beforeCardChange)
 }
 
 type Card interface {
