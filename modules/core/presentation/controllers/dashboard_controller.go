@@ -134,14 +134,14 @@ func (c *DashboardController) createFinanceDashboard(tenantID uuid.UUID) lens.Da
 			FROM money_accounts ma
 			WHERE ma.tenant_id = @tenant_id
 			ORDER BY ma.balance DESC`, tenantID),
-		queryDataset("revenue-trend", `SELECT DATE_TRUNC('day', t.transaction_date)::date as label,
+		queryDataset("revenue-trend", `SELECT DATE_TRUNC('day', t.transaction_date)::date as category,
 			COALESCE(SUM(t.amount), 0)::float8 / 100.0 as value
 			FROM transactions t
 			WHERE t.tenant_id = @tenant_id
 			AND t.transaction_date >= NOW() - INTERVAL '30 days'
 			AND t.transaction_type = 'income'
 			GROUP BY DATE_TRUNC('day', t.transaction_date)
-			ORDER BY label`, tenantID),
+			ORDER BY category`, tenantID),
 		queryDataset("top-counterparties", `SELECT c.name as label,
 			COUNT(p.id)::float8 as value
 			FROM counterparty c
