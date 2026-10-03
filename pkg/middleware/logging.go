@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"runtime/debug"
 	"strings"
 	"time"
 
@@ -23,6 +22,8 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorlog"
 )
 
 type LoggerOptions struct {
@@ -274,31 +275,12 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions, cfg *headers.Config) 
 							return
 						}
 
-						duration := time.Since(start)
-
-						// Build comprehensive panic log fields
-						panicFields := logrus.Fields{
-							"panic":       recovered,
-							"stack":       string(debug.Stack()),
-							"method":      r.Method,
-							"path":        r.URL.Path,
-							"remote_addr": getRealIP(r, cfg),
-							"user_agent":  r.UserAgent(),
-							"status":      http.StatusInternalServerError,
-							"duration":    duration,
+						err := serrors.NewInternal("request handler panic").WithOp("middleware.Recover")
+						panicFields := logrus.Fields{"status": http.StatusInternalServerError, "duration": time.Since(start)}
+						for _, attr := range serrorlog.Attributes(err, requestID) {
+							panicFields[attr.Key] = attr.Value.Any()
 						}
-
-						// Add query string if present
-						if r.URL.RawQuery != "" {
-							panicFields["query"] = r.URL.RawQuery
-						}
-
-						// Add content type if present
-						if contentType := r.Header.Get("Content-Type"); contentType != "" {
-							panicFields["content_type"] = contentType
-						}
-
-						fieldsLogger.WithFields(panicFields).Error("panic recovered in request handler")
+						logger.WithFields(panicFields).Error("panic recovered in request handler")
 
 						// Set 500 status code so client receives proper HTTP response
 						// Don't re-panic - instead write a proper error response

@@ -21,11 +21,11 @@ func wireFrame(
 ) (document.Frame, error) {
 	const op serrors.Op = "lens/serve.wireFrame"
 	if result == nil || result.Frames == nil || result.Frames.Primary() == nil {
-		return document.Frame{}, serrors.E(op, fmt.Errorf("frame %q has no primary frame", ref))
+		return document.Frame{}, serrors.Wrap(op, fmt.Errorf("frame %q has no primary frame", ref))
 	}
 	wire, err := document.ProjectPanelFrame(spec, result.Frames.Primary(), dynamicChildren)
 	if err != nil {
-		return document.Frame{}, serrors.E(op, fmt.Errorf("frame %q: %w", ref, err))
+		return document.Frame{}, serrors.Wrap(op, fmt.Errorf("frame %q: %w", ref, err))
 	}
 	return wire, nil
 }

@@ -39,7 +39,7 @@ func runSuperadminSeed(ctx context.Context, e *ExecutionContext) error {
 	// the typed config subsystem. Allowed by the W4 grep gate.
 	superadminPassword := os.Getenv("SUPERADMIN_PASSWORD")
 	if superadminPassword == "" {
-		return serrors.E(op, serrors.Invalid, "SUPERADMIN_PASSWORD is required for seed.superadmin")
+		return serrors.New(serrors.Invalid, "SUPERADMIN_PASSWORD is required for seed.superadmin").WithOp(op)
 	}
 
 	// SUPERADMIN_LANGUAGE is optional. Defaults to "en" for backward
@@ -51,8 +51,7 @@ func runSuperadminSeed(ctx context.Context, e *ExecutionContext) error {
 	}
 	parsedLanguage, err := user.NewUILanguage(uiLanguage)
 	if err != nil {
-		return serrors.E(op, serrors.Invalid,
-			fmt.Sprintf("SUPERADMIN_LANGUAGE=%q is not a supported locale", uiLanguage))
+		return serrors.New(serrors.Invalid, fmt.Sprintf("SUPERADMIN_LANGUAGE=%q is not a supported locale", uiLanguage)).WithOp(op)
 	}
 
 	superadminUser, err := user.New(
@@ -63,7 +62,7 @@ func runSuperadminSeed(ctx context.Context, e *ExecutionContext) error {
 		user.WithType(user.TypeSuperAdmin),
 	).SetPassword(superadminPassword)
 	if err != nil {
-		return serrors.E(op, err, "create superadmin user")
+		return serrors.WrapContext(op, err, "create superadmin user")
 	}
 
 	defaultTenant := &composables.Tenant{
@@ -90,7 +89,7 @@ func runSuperadminSeed(ctx context.Context, e *ExecutionContext) error {
 
 	ctxWithTenant := composables.WithTenantID(composables.WithTx(ctx, e.Tx), defaultTenant.ID)
 	if err := seeder.Seed(ctxWithTenant, seedDeps); err != nil {
-		return serrors.E(op, err, "seed superadmin dataset")
+		return serrors.WrapContext(op, err, "seed superadmin dataset")
 	}
 	return nil
 }

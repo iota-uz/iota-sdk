@@ -195,7 +195,7 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*typ
 					Message: fmt.Sprintf("failed to check query permissions: %v", err),
 					Hints:   []string{"Contact administrator if this error persists"},
 				},
-			}, serrors.E(op, err)
+			}, serrors.Wrap(op, err)
 		}
 
 		if len(deniedViews) > 0 {

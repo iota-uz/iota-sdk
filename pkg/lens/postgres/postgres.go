@@ -53,11 +53,11 @@ type DataSource struct {
 func New(cfg Config) (*DataSource, error) {
 	op := serrors.Op("lens/postgres.New")
 	if strings.TrimSpace(cfg.ConnectionString) == "" {
-		return nil, serrors.E(op, fmt.Errorf("connection string is required"))
+		return nil, serrors.Wrap(op, fmt.Errorf("connection string is required"))
 	}
 	poolCfg, err := pgxpool.ParseConfig(cfg.ConnectionString)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if cfg.MaxConnections > 0 {
 		poolCfg.MaxConns = cfg.MaxConnections
@@ -67,7 +67,7 @@ func New(cfg Config) (*DataSource, error) {
 	}
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	timeout := cfg.QueryTimeout
 	if timeout == 0 {
@@ -95,13 +95,13 @@ func (d *DataSource) Capabilities() datasource.CapabilitySet {
 func (d *DataSource) Run(ctx context.Context, req datasource.QueryRequest) (*frame.FrameSet, error) {
 	op := serrors.Op("lens/postgres.Run")
 	if req.Kind != "" && req.Kind != datasource.QueryKindRaw {
-		return nil, serrors.E(op, fmt.Errorf("postgres datasource does not support query kind %q", req.Kind))
+		return nil, serrors.Wrap(op, fmt.Errorf("postgres datasource does not support query kind %q", req.Kind))
 	}
 	if err := validateQuery(req.Text); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if err := validateParams(req.Params, d.requiredParams); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	queryCtx, cancel := context.WithTimeout(ctx, d.timeout)
 	defer cancel()
@@ -127,7 +127,7 @@ func (d *DataSource) Run(ctx context.Context, req datasource.QueryRequest) (*fra
 
 	rows, err := executor.Query(queryCtx, applyMaxRows(req.Text, req.MaxRows), args)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	defer rows.Close()
 
@@ -142,23 +142,23 @@ func (d *DataSource) Run(ctx context.Context, req datasource.QueryRequest) (*fra
 
 	fr, err := frame.New(req.Source, fields...)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	for rows.Next() {
 		values, valueErr := rows.Values()
 		if valueErr != nil {
-			return nil, serrors.E(op, valueErr)
+			return nil, serrors.Wrap(op, valueErr)
 		}
 		row := make(map[string]any, len(fields))
 		for i, field := range fields {
 			row[field.Name] = values[i]
 		}
 		if err := fr.AppendRow(row); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return frame.NewFrameSet(fr)
 }

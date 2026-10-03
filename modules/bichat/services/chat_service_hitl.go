@@ -27,7 +27,7 @@ var (
 )
 
 func noPendingQuestionValidationError(op serrors.Op) error {
-	return serrors.E(op, serrors.KindValidation, "no pending question found for session")
+	return serrors.New(serrors.Invalid, "no pending question found for session").WithOp(op)
 }
 
 func (s *chatServiceImpl) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error) {
@@ -35,7 +35,7 @@ func (s *chatServiceImpl) GetSessionMessages(ctx context.Context, sessionID uuid
 
 	messages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, opts)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return messages, nil
@@ -46,7 +46,7 @@ func (s *chatServiceImpl) findLatestOpenQuestionMessage(ctx context.Context, ses
 
 	messages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, domain.ListOptions{})
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	for i := len(messages) - 1; i >= 0; i-- {
@@ -68,12 +68,12 @@ func (s *chatServiceImpl) ensureNoOpenQuestionForSend(ctx context.Context, sessi
 
 	_, err := s.findLatestOpenQuestionMessage(ctx, sessionID)
 	if err == nil {
-		return serrors.E(op, serrors.KindValidation, errHITLPendingQuestionOpen)
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errHITLPendingQuestionOpen)
 	}
 	if errors.Is(err, domain.ErrNoPendingQuestion) {
 		return nil
 	}
-	return serrors.E(op, err)
+	return serrors.Wrap(op, err)
 }
 
 func (s *chatServiceImpl) findExistingAsyncQuestionRun(
@@ -149,7 +149,7 @@ func (s *chatServiceImpl) finalizeSyncCheckpointMiss(
 	if txErr := s.withinTx(finalizeCtx, func(txCtx context.Context) error {
 		return s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), finalQuestionData)
 	}); txErr != nil {
-		return nil, serrors.E(op, txErr)
+		return nil, serrors.Wrap(op, txErr)
 	}
 
 	s.maybeGenerateTitleAfterHITLCompletion(finalizeCtx, sessionID, false)
@@ -168,7 +168,7 @@ func (s *chatServiceImpl) failAsyncQuestionRun(
 	sessionID uuid.UUID,
 	runID uuid.UUID,
 ) {
-	active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
+	active.Broadcast(streamingsvc.TerminalChunk(serrors.Wrap(op, err), 0))
 	s.markAsyncQuestionRunFailed(persistCtx, msgID, failedQuestionData)
 	_ = s.cancelRunState(persistCtx, tenantID, sessionID, runID)
 }
@@ -182,7 +182,7 @@ func (s *chatServiceImpl) abortAsyncQuestionRunCompletion(
 	sessionID uuid.UUID,
 	runID uuid.UUID,
 ) {
-	active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
+	active.Broadcast(streamingsvc.TerminalChunk(serrors.Wrap(op, err), 0))
 	_ = s.cancelRunState(persistCtx, tenantID, sessionID, runID)
 }
 
@@ -229,7 +229,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	// Get session
 	session, err := s.chatRepo.GetSession(ctx, req.SessionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Get pending question message
@@ -238,7 +238,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 		if errors.Is(err, domain.ErrNoPendingQuestion) {
 			return nil, noPendingQuestionValidationError(op)
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if pendingMsg == nil {
 		return nil, noPendingQuestionValidationError(op)
@@ -247,12 +247,12 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	// Validate question data before resuming (defer mutation until resume succeeds)
 	qd := pendingMsg.QuestionData()
 	if qd == nil {
-		return nil, serrors.E(op, serrors.KindValidation, "pending message has no question data")
+		return nil, serrors.New(serrors.Invalid, "pending message has no question data").WithOp(op)
 	}
 
 	canonicalCheckpointID := strings.TrimSpace(qd.CheckpointID)
 	if canonicalCheckpointID == "" {
-		return nil, serrors.E(op, serrors.KindValidation, "pending message has empty checkpoint id")
+		return nil, serrors.New(serrors.Invalid, "pending message has empty checkpoint id").WithOp(op)
 	}
 	resolvedCheckpointID, checkpointMismatch := hitlsvc.ResolveCheckpoint(req.CheckpointID, canonicalCheckpointID)
 	if checkpointMismatch {
@@ -266,11 +266,11 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 
 	normalizedAnswerValues, answersMap, err := hitlsvc.NormalizeAnswers(qd.Questions, req.Answers)
 	if err != nil {
-		return nil, serrors.E(op, serrors.KindValidation, err)
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 	answeredQD, err := qd.Answer(normalizedAnswerValues)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Resume agent execution with answers
@@ -286,7 +286,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 
 			return s.finalizeSyncCheckpointMiss(ctx, op, session, req.SessionID, pendingMsg, answeredQD)
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	defer gen.Close()
 
@@ -303,7 +303,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 
 			return s.finalizeSyncCheckpointMiss(ctx, op, session, req.SessionID, pendingMsg, answeredQD)
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	var assistantMsg types.Message
@@ -311,7 +311,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 		// Mark question as answered only after resume succeeds — prevents irreversible
 		// state drift if the provider returns a transient error, timeout, or bad checkpoint.
 		if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), answeredQD); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		assistantMsg, session, err = s.saveAgentResult(txCtx, op, session, req.SessionID, result, startedAt, "")
@@ -337,7 +337,7 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 
 	if existing, handled, err := s.maybeReuseSubmittedAnswerRun(ctx, req); handled || err != nil {
 		if err != nil {
-			return bichatservices.AsyncRunAccepted{}, serrors.E(op, err)
+			return bichatservices.AsyncRunAccepted{}, serrors.Wrap(op, err)
 		}
 		return existing, nil
 	}
@@ -361,7 +361,7 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 				if errors.Is(err, domain.ErrNoPendingQuestion) {
 					return noPendingQuestionValidationError(op)
 				}
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			if pendingMsg == nil {
 				return noPendingQuestionValidationError(op)
@@ -369,11 +369,11 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 
 			qd := pendingMsg.QuestionData()
 			if qd == nil {
-				return serrors.E(op, serrors.KindValidation, "pending message has no question data")
+				return serrors.New(serrors.Invalid, "pending message has no question data").WithOp(op)
 			}
 			canonicalCheckpointID := strings.TrimSpace(qd.CheckpointID)
 			if canonicalCheckpointID == "" {
-				return serrors.E(op, serrors.KindValidation, "pending message has empty checkpoint id")
+				return serrors.New(serrors.Invalid, "pending message has empty checkpoint id").WithOp(op)
 			}
 			var checkpointMismatch bool
 			resolvedCheckpointID, checkpointMismatch = hitlsvc.ResolveCheckpoint(req.CheckpointID, canonicalCheckpointID)
@@ -388,7 +388,7 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 
 			normalizedAnswerValues, normalizedAnswersMap, err := hitlsvc.NormalizeAnswers(qd.Questions, req.Answers)
 			if err != nil {
-				return serrors.E(op, serrors.KindValidation, err)
+				return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 			}
 			pendingMsgID = pendingMsg.ID()
 			answersMap = normalizedAnswersMap
@@ -396,18 +396,18 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 			case types.QuestionStatusPending, types.QuestionStatusAnswerFailed, types.QuestionStatusRejectFailed:
 				submittedQuestionData, err = qd.SubmitAnswers(normalizedAnswerValues)
 				if err != nil {
-					return serrors.E(op, err)
+					return serrors.Wrap(op, err)
 				}
 				if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, submittedQuestionData); err != nil {
-					return serrors.E(op, err)
+					return serrors.Wrap(op, err)
 				}
 			case types.QuestionStatusAnswerSubmitted:
 				if !maps.Equal(qd.Answers, normalizedAnswerValues) {
-					return serrors.E(op, serrors.KindValidation, errHITLAnswerAlreadyResuming)
+					return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errHITLAnswerAlreadyResuming)
 				}
 				submittedQuestionData = qd
 			case types.QuestionStatusRejectSubmitted:
-				return serrors.E(op, serrors.KindValidation, errHITLRejectAlreadyResuming)
+				return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errHITLRejectAlreadyResuming)
 			case types.QuestionStatusAnswered, types.QuestionStatusRejected:
 				return noPendingQuestionValidationError(op)
 			default:
@@ -415,11 +415,11 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 			}
 			answeredQuestionData, err = submittedQuestionData.Answer(normalizedAnswerValues)
 			if err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			failedQuestionData, err = submittedQuestionData.MarkAnswerResumeFailed()
 			if err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			return nil
 		},
@@ -483,7 +483,7 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 			defer persistCancel()
 			err = s.withinTx(persistRunCtx, func(txCtx context.Context) error {
 				if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, answeredQuestionData); err != nil {
-					return serrors.E(op, err)
+					return serrors.Wrap(op, err)
 				}
 				_, _, saveErr := s.saveAgentResult(txCtx, op, session, req.SessionID, result, startedAt, "")
 				return saveErr
@@ -507,7 +507,7 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 		}
 		if existing, handled, existingErr := s.maybeReuseSubmittedAnswerRun(ctx, req); handled || existingErr != nil {
 			if existingErr != nil {
-				return bichatservices.AsyncRunAccepted{}, serrors.E(op, existingErr)
+				return bichatservices.AsyncRunAccepted{}, serrors.Wrap(op, existingErr)
 			}
 			return existing, nil
 		}
@@ -525,7 +525,7 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 	// Get session
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Get pending question message
@@ -534,7 +534,7 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 		if errors.Is(err, domain.ErrNoPendingQuestion) {
 			return nil, noPendingQuestionValidationError(op)
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if pendingMsg == nil {
 		return nil, noPendingQuestionValidationError(op)
@@ -543,12 +543,12 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 	// Validate question data before resuming (defer mutation until resume succeeds)
 	qd := pendingMsg.QuestionData()
 	if qd == nil {
-		return nil, serrors.E(op, serrors.KindValidation, "pending message has no question data")
+		return nil, serrors.New(serrors.Invalid, "pending message has no question data").WithOp(op)
 	}
 
 	rejectedQD, err := qd.Reject()
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Resume agent with rejection signal
@@ -568,7 +568,7 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 
 			return s.finalizeSyncCheckpointMiss(ctx, op, session, sessionID, pendingMsg, rejectedQD)
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	defer gen.Close()
 
@@ -585,7 +585,7 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 
 			return s.finalizeSyncCheckpointMiss(ctx, op, session, sessionID, pendingMsg, rejectedQD)
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	var assistantMsg types.Message
@@ -593,7 +593,7 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 		// Mark question as rejected only after resume succeeds — prevents irreversible
 		// state drift if the provider returns a transient error, timeout, or bad checkpoint.
 		if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsg.ID(), rejectedQD); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		assistantMsg, session, err = s.saveAgentResult(txCtx, op, session, sessionID, result, startedAt, "")
@@ -619,7 +619,7 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 
 	if existing, handled, err := s.maybeReuseSubmittedRejectRun(ctx, sessionID); handled || err != nil {
 		if err != nil {
-			return bichatservices.AsyncRunAccepted{}, serrors.E(op, err)
+			return bichatservices.AsyncRunAccepted{}, serrors.Wrap(op, err)
 		}
 		return existing, nil
 	}
@@ -646,7 +646,7 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 				if errors.Is(err, domain.ErrNoPendingQuestion) {
 					return noPendingQuestionValidationError(op)
 				}
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			if pendingMsg == nil {
 				return noPendingQuestionValidationError(op)
@@ -654,7 +654,7 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 
 			qd := pendingMsg.QuestionData()
 			if qd == nil {
-				return serrors.E(op, serrors.KindValidation, "pending message has no question data")
+				return serrors.New(serrors.Invalid, "pending message has no question data").WithOp(op)
 			}
 
 			pendingMsgID = pendingMsg.ID()
@@ -663,15 +663,15 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 			case types.QuestionStatusPending, types.QuestionStatusAnswerFailed, types.QuestionStatusRejectFailed:
 				submittedQuestionData, err = qd.SubmitReject()
 				if err != nil {
-					return serrors.E(op, err)
+					return serrors.Wrap(op, err)
 				}
 				if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, submittedQuestionData); err != nil {
-					return serrors.E(op, err)
+					return serrors.Wrap(op, err)
 				}
 			case types.QuestionStatusRejectSubmitted:
 				submittedQuestionData = qd
 			case types.QuestionStatusAnswerSubmitted:
-				return serrors.E(op, serrors.KindValidation, errHITLAnswerAlreadyResuming)
+				return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errHITLAnswerAlreadyResuming)
 			case types.QuestionStatusAnswered, types.QuestionStatusRejected:
 				return noPendingQuestionValidationError(op)
 			default:
@@ -679,11 +679,11 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 			}
 			rejectedQuestionData, err = submittedQuestionData.Reject()
 			if err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			failedQuestionData, err = submittedQuestionData.MarkRejectResumeFailed()
 			if err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			return nil
 		},
@@ -746,7 +746,7 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 			defer persistCancel()
 			err = s.withinTx(persistRunCtx, func(txCtx context.Context) error {
 				if err := s.chatRepo.UpdateMessageQuestionData(txCtx, pendingMsgID, rejectedQuestionData); err != nil {
-					return serrors.E(op, err)
+					return serrors.Wrap(op, err)
 				}
 				_, _, saveErr := s.saveAgentResult(txCtx, op, session, sessionID, result, startedAt, "")
 				return saveErr
@@ -770,7 +770,7 @@ func (s *chatServiceImpl) RejectPendingQuestionAsync(ctx context.Context, sessio
 		}
 		if existing, handled, existingErr := s.maybeReuseSubmittedRejectRun(ctx, sessionID); handled || existingErr != nil {
 			if existingErr != nil {
-				return bichatservices.AsyncRunAccepted{}, serrors.E(op, existingErr)
+				return bichatservices.AsyncRunAccepted{}, serrors.Wrap(op, existingErr)
 			}
 			return existing, nil
 		}
@@ -849,11 +849,11 @@ func (s *chatServiceImpl) GenerateSessionTitle(ctx context.Context, sessionID uu
 	const op serrors.Op = "chatServiceImpl.GenerateSessionTitle"
 
 	if s.titleService == nil {
-		return serrors.E(op, serrors.KindValidation, "title generation service is not configured")
+		return serrors.New(serrors.Invalid, "title generation service is not configured").WithOp(op)
 	}
 
 	if err := s.titleService.RegenerateSessionTitle(ctx, sessionID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }

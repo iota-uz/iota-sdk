@@ -29,7 +29,7 @@ func (s *UserQueryService) CanDeleteUser(ctx context.Context, userID int) (bool,
 	const op = serrors.Op("UserQueryService.CanDeleteUser")
 	canDelete, err := s.repo.CanDeleteUser(ctx, userID)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 	return canDelete, nil
 }

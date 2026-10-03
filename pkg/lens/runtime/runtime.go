@@ -212,19 +212,19 @@ func PanelExportScope(panelID string) Scope {
 func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
 	op := serrors.Op("lens/runtime.Execute")
 	if err := Validate(spec); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if err := validateExecutionIdentity(spec, req); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	startedAt := time.Now()
 	variables, err := resolveVariables(spec.Variables, req)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	internalPlan, err := compileExecutionPlan(spec, scope)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	result := &DashboardResult{
@@ -251,7 +251,7 @@ func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Requ
 	}
 	state.snapshotKey, state.specFingerprint, err = r.executionIdentity(spec, req, variables)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	result.SnapshotID = state.snapshotKey
 	cacheHit := false
@@ -283,10 +283,10 @@ func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Requ
 	result.CacheHit = cacheHit
 
 	if err := state.executeDatasets(ctx, internalPlan.datasetStages, result.Datasets); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if err := state.executePanels(ctx, internalPlan.panels, result.Datasets, result.Panels); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	result.Duration = time.Since(startedAt)
 	if spec.Cache.Mode != lens.CacheDisabled {
@@ -314,11 +314,11 @@ type executionPlan struct {
 func Plan(spec lens.DashboardSpec, scope Scope) (ExecutionPlan, error) {
 	op := serrors.Op("lens/runtime.Plan")
 	if err := Validate(spec); err != nil {
-		return ExecutionPlan{}, serrors.E(op, err)
+		return ExecutionPlan{}, serrors.Wrap(op, err)
 	}
 	plan, err := compileExecutionPlan(spec, scope)
 	if err != nil {
-		return ExecutionPlan{}, serrors.E(op, err)
+		return ExecutionPlan{}, serrors.Wrap(op, err)
 	}
 	return plan.view, nil
 }
@@ -628,7 +628,7 @@ func (r *Runtime) executionIdentity(spec lens.DashboardSpec, req Request, variab
 	op := serrors.Op("lens/runtime.executionIdentity")
 	specBytes, err := json.Marshal(spec) //nolint:musttag // Runtime specs intentionally retain their Go field names in the fingerprint.
 	if err != nil {
-		return "", "", serrors.E(op, err)
+		return "", "", serrors.Wrap(op, err)
 	}
 	specSum := sha256.Sum256(specBytes)
 	specFingerprint := fmt.Sprintf("%x", specSum[:])
@@ -644,7 +644,7 @@ func (r *Runtime) executionIdentity(spec lens.DashboardSpec, req Request, variab
 	}{r.version, strings.TrimSpace(req.Namespace), specFingerprint, req.Locale, req.Timezone, req.DataScope, variables, req.DataSourceIdentities}
 	payload, err := json.Marshal(identity)
 	if err != nil {
-		return "", "", serrors.E(op, err)
+		return "", "", serrors.Wrap(op, err)
 	}
 	sum := sha256.Sum256(payload)
 	return strings.TrimSpace(req.Namespace) + ":" + fmt.Sprintf("%x", sum[:]), specFingerprint, nil
@@ -1063,13 +1063,13 @@ func queryCacheKey(req datasource.QueryRequest) string {
 func Validate(spec lens.DashboardSpec) error {
 	op := serrors.Op("lens/runtime.Validate")
 	invalid := func(format string, args ...any) error {
-		return serrors.E(op, fmt.Errorf(format, args...))
+		return serrors.Wrap(op, fmt.Errorf(format, args...))
 	}
 	wrap := func(err error) error {
 		if err == nil {
 			return nil
 		}
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	datasets := make(map[string]lens.DatasetSpec, len(spec.Datasets))
 	for _, dataset := range spec.Datasets {

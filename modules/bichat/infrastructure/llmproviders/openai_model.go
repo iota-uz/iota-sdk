@@ -120,7 +120,7 @@ func NewOpenAIModelFromConfig(cfg bichatconfig.OpenAIConfig, opts ...OpenAIModel
 
 	apiKey := strings.TrimSpace(cfg.APIKey)
 	if apiKey == "" {
-		return nil, serrors.E(op, "OpenAI API key is required (bichat.openai.apikey)")
+		return nil, serrors.New(serrors.Internal, "OpenAI API key is required (bichat.openai.apikey)").WithOp(op)
 	}
 
 	modelName := strings.TrimSpace(cfg.Model)
@@ -141,7 +141,7 @@ func NewOpenAIModelFromConfig(cfg bichatconfig.OpenAIConfig, opts ...OpenAIModel
 		clientOptions = append(clientOptions, option.WithBaseURL(baseURL))
 	}
 	if httpClient, configured, err := newOpenAIHTTPClient(baseURL, resolveIP); err != nil {
-		return nil, serrors.E(op, err, "failed to configure OpenAI HTTP client")
+		return nil, serrors.WrapContext(op, err, "failed to configure OpenAI HTTP client")
 	} else if configured {
 		clientOptions = append(clientOptions, option.WithHTTPClient(httpClient))
 	}
@@ -184,7 +184,7 @@ func newOpenAIHTTPClient(baseURL, resolveIP string) (*http.Client, bool, error) 
 	baseTransport := http.DefaultTransport
 	transport, ok := baseTransport.(*http.Transport)
 	if !ok {
-		return nil, false, serrors.E("openai.httpclient.transport", "unexpected default transport type")
+		return nil, false, serrors.New(serrors.Internal, "unexpected default transport type").WithOp("openai.httpclient.transport")
 	}
 	cloned := transport.Clone()
 	dialer := &net.Dialer{
@@ -223,7 +223,7 @@ func (m *OpenAIModel) Generate(ctx context.Context, req agents.Request, opts ...
 		resp, err = m.client.Responses.New(ctx, params)
 	}
 	if err != nil {
-		return nil, serrors.E(op, err, "OpenAI API request failed")
+		return nil, serrors.WrapContext(op, err, "OpenAI API request failed")
 	}
 
 	return m.mapResponse(resp)
@@ -273,7 +273,7 @@ func (m *OpenAIModel) consumeOpenAIStream(
 		event := stream.Current()
 
 		if err := openAIStreamTerminalError(event); err != nil {
-			return serrors.E(op, err, "OpenAI response stream terminated unsuccessfully")
+			return serrors.WrapContext(op, err, "OpenAI response stream terminated unsuccessfully")
 		}
 
 		switch event.Type {
@@ -346,7 +346,7 @@ func (m *OpenAIModel) consumeOpenAIStream(
 			resp := event.Response
 			agentResp, err := m.mapResponse(&resp)
 			if err != nil {
-				return serrors.E(op, err, "failed to map completed response")
+				return serrors.WrapContext(op, err, "failed to map completed response")
 			}
 
 			toolCalls := m.buildToolCallsFromAccum(toolCallAccum, toolCallOrder)
@@ -374,7 +374,7 @@ func (m *OpenAIModel) consumeOpenAIStream(
 	}
 
 	if err := stream.Err(); err != nil {
-		return serrors.E(op, err, "stream error")
+		return serrors.WrapContext(op, err, "stream error")
 	}
 
 	return nil

@@ -24,18 +24,18 @@ func (identity Identity) Validate() error {
 	const op = serrors.Op("sdkidentity.Identity.Validate")
 
 	if identity.ReleaseVersion != ReleaseVersion {
-		return serrors.E(op, fmt.Errorf("release %q is incompatible with %q", identity.ReleaseVersion, ReleaseVersion))
+		return serrors.Wrap(op, fmt.Errorf("release %q is incompatible with %q", identity.ReleaseVersion, ReleaseVersion))
 	}
 	if len(identity.SourceCommit) != 40 {
-		return serrors.E(op, fmt.Errorf("source commit must be a full Git SHA"))
+		return serrors.Wrap(op, fmt.Errorf("source commit must be a full Git SHA"))
 	}
 	for _, character := range identity.SourceCommit {
 		if !strings.ContainsRune("0123456789abcdef", character) {
-			return serrors.E(op, fmt.Errorf("source commit must be lowercase hexadecimal"))
+			return serrors.Wrap(op, fmt.Errorf("source commit must be lowercase hexadecimal"))
 		}
 	}
 	if protocolMajor(identity.ProtocolVersion) != protocolMajor(ProtocolVersion) {
-		return serrors.E(op, fmt.Errorf("protocol %q is incompatible with %q", identity.ProtocolVersion, ProtocolVersion))
+		return serrors.Wrap(op, fmt.Errorf("protocol %q is incompatible with %q", identity.ProtocolVersion, ProtocolVersion))
 	}
 	return nil
 }

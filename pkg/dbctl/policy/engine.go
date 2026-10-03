@@ -35,22 +35,22 @@ func Load(path string) (Config, []byte, error) {
 		cfg := DefaultConfig()
 		payload, err := json.Marshal(cfg)
 		if err != nil {
-			return Config{}, nil, serrors.E(op, err, "marshal default policy")
+			return Config{}, nil, serrors.WrapContext(op, err, "marshal default policy")
 		}
 		return cfg, payload, nil
 	}
 	payload, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
-		return Config{}, nil, serrors.E(op, err, "load policy file")
+		return Config{}, nil, serrors.WrapContext(op, err, "load policy file")
 	}
 	var cfg Config
 	decoder := yaml.NewDecoder(bytes.NewReader(payload))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&cfg); err != nil {
-		return Config{}, nil, serrors.E(op, err, "parse policy file")
+		return Config{}, nil, serrors.WrapContext(op, err, "parse policy file")
 	}
 	if len(cfg.Environments) == 0 {
-		return Config{}, nil, serrors.E(op, serrors.KindValidation, "policy has no environments")
+		return Config{}, nil, serrors.New(serrors.Invalid, "policy has no environments").WithOp(op)
 	}
 	return cfg, payload, nil
 }

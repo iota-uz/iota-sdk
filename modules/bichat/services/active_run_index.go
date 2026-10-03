@@ -147,17 +147,17 @@ func NewRedisActiveRunIndex(cfg RedisActiveRunIndexConfig) (*RedisActiveRunIndex
 func (idx *RedisActiveRunIndex) Upsert(ctx context.Context, tenantID uuid.UUID, status ActiveRunStatus) error {
 	const op serrors.Op = "RedisActiveRunIndex.Upsert"
 	if tenantID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant id is required")
+		return serrors.New(serrors.Invalid, "tenant id is required").WithOp(op)
 	}
 	if status.SessionID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "session id is required")
+		return serrors.New(serrors.Invalid, "session id is required").WithOp(op)
 	}
 	if status.UpdatedAt.IsZero() {
 		status.UpdatedAt = time.Now().UTC()
 	}
 	body, err := json.Marshal(status)
 	if err != nil {
-		return serrors.E(op, "marshal status", err)
+		return serrors.WrapContext(op, err, "marshal status")
 	}
 
 	writeCtx := context.WithoutCancel(ctx)
@@ -165,7 +165,7 @@ func (idx *RedisActiveRunIndex) Upsert(ctx context.Context, tenantID uuid.UUID, 
 	pipe.HSet(writeCtx, idx.hashKey(tenantID), status.SessionID.String(), body)
 	pipe.Publish(writeCtx, idx.eventsChannel(tenantID), body)
 	if _, err := pipe.Exec(writeCtx); err != nil {
-		return serrors.E(op, "hset+publish", err)
+		return serrors.WrapContext(op, err, "hset+publish")
 	}
 	return nil
 }
@@ -174,17 +174,17 @@ func (idx *RedisActiveRunIndex) Upsert(ctx context.Context, tenantID uuid.UUID, 
 func (idx *RedisActiveRunIndex) PublishAndRemove(ctx context.Context, tenantID uuid.UUID, status ActiveRunStatus) error {
 	const op serrors.Op = "RedisActiveRunIndex.PublishAndRemove"
 	if tenantID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant id is required")
+		return serrors.New(serrors.Invalid, "tenant id is required").WithOp(op)
 	}
 	if status.SessionID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "session id is required")
+		return serrors.New(serrors.Invalid, "session id is required").WithOp(op)
 	}
 	if status.UpdatedAt.IsZero() {
 		status.UpdatedAt = time.Now().UTC()
 	}
 	body, err := json.Marshal(status)
 	if err != nil {
-		return serrors.E(op, "marshal status", err)
+		return serrors.WrapContext(op, err, "marshal status")
 	}
 
 	writeCtx := context.WithoutCancel(ctx)
@@ -192,7 +192,7 @@ func (idx *RedisActiveRunIndex) PublishAndRemove(ctx context.Context, tenantID u
 	pipe.Publish(writeCtx, idx.eventsChannel(tenantID), body)
 	pipe.HDel(writeCtx, idx.hashKey(tenantID), status.SessionID.String())
 	if _, err := pipe.Exec(writeCtx); err != nil {
-		return serrors.E(op, "publish+hdel", err)
+		return serrors.WrapContext(op, err, "publish+hdel")
 	}
 	return nil
 }
@@ -201,11 +201,11 @@ func (idx *RedisActiveRunIndex) PublishAndRemove(ctx context.Context, tenantID u
 func (idx *RedisActiveRunIndex) Remove(ctx context.Context, tenantID, sessionID uuid.UUID) error {
 	const op serrors.Op = "RedisActiveRunIndex.Remove"
 	if tenantID == uuid.Nil || sessionID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant id and session id are required")
+		return serrors.New(serrors.Invalid, "tenant id and session id are required").WithOp(op)
 	}
 	writeCtx := context.WithoutCancel(ctx)
 	if err := idx.client.HDel(writeCtx, idx.hashKey(tenantID), sessionID.String()).Err(); err != nil {
-		return serrors.E(op, "hdel", err)
+		return serrors.WrapContext(op, err, "hdel")
 	}
 	return nil
 }
@@ -214,14 +214,14 @@ func (idx *RedisActiveRunIndex) Remove(ctx context.Context, tenantID, sessionID 
 func (idx *RedisActiveRunIndex) Snapshot(ctx context.Context, tenantID uuid.UUID) ([]ActiveRunStatus, error) {
 	const op serrors.Op = "RedisActiveRunIndex.Snapshot"
 	if tenantID == uuid.Nil {
-		return nil, serrors.E(op, serrors.KindValidation, "tenant id is required")
+		return nil, serrors.New(serrors.Invalid, "tenant id is required").WithOp(op)
 	}
 	raw, err := idx.client.HGetAll(ctx, idx.hashKey(tenantID)).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, nil
 		}
-		return nil, serrors.E(op, "hgetall", err)
+		return nil, serrors.WrapContext(op, err, "hgetall")
 	}
 	out := make([]ActiveRunStatus, 0, len(raw))
 	for _, v := range raw {
@@ -240,14 +240,14 @@ func (idx *RedisActiveRunIndex) Snapshot(ctx context.Context, tenantID uuid.UUID
 func (idx *RedisActiveRunIndex) Subscribe(ctx context.Context, tenantID uuid.UUID) (<-chan ActiveRunStatus, error) {
 	const op serrors.Op = "RedisActiveRunIndex.Subscribe"
 	if tenantID == uuid.Nil {
-		return nil, serrors.E(op, serrors.KindValidation, "tenant id is required")
+		return nil, serrors.New(serrors.Invalid, "tenant id is required").WithOp(op)
 	}
 	sub := idx.client.Subscribe(ctx, idx.eventsChannel(tenantID))
 	// Ensure the subscription is actually established before returning
 	// so callers don't race with the first Publish.
 	if _, err := sub.Receive(ctx); err != nil {
 		_ = sub.Close()
-		return nil, serrors.E(op, "subscribe", err)
+		return nil, serrors.WrapContext(op, err, "subscribe")
 	}
 
 	out := make(chan ActiveRunStatus)
@@ -317,7 +317,7 @@ return body
 func (idx *RedisActiveRunIndex) AddQueuedRuns(ctx context.Context, tenantID, sessionID, runID uuid.UUID, delta int64) error {
 	const op serrors.Op = "RedisActiveRunIndex.AddQueuedRuns"
 	if tenantID == uuid.Nil || sessionID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant id and session id are required")
+		return serrors.New(serrors.Invalid, "tenant id and session id are required").WithOp(op)
 	}
 
 	writeCtx := context.WithoutCancel(ctx)
@@ -328,7 +328,7 @@ func (idx *RedisActiveRunIndex) AddQueuedRuns(ctx context.Context, tenantID, ses
 		time.Now().UTC().Format(time.RFC3339Nano),
 	).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		return serrors.E(op, "eval queued runs", err)
+		return serrors.WrapContext(op, err, "eval queued runs")
 	}
 
 	if body, ok := result.(string); ok && body != "" {

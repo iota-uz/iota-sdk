@@ -71,7 +71,7 @@ func (s *DebtService) checkProject(ctx context.Context, entity debt.Debt) error 
 	}
 	ok, err := s.projects.Has(ctx, *projectID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if !ok {
 		return ErrDebtProject

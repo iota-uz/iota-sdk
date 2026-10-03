@@ -55,7 +55,7 @@ if !conf.EnableTestEndpoints &&
     conf.GoAppEnvironment == "production" &&
     conf.TwoFactorAuth.Enabled &&
     conf.TwoFactorAuth.EncryptionKey == "" {
-    return serrors.E(op, serrors.Invalid, errors.New("TOTP encryption key is required in production"))
+    return serrors.NewInvalid("TOTP encryption key is required in production").WithOp(op)
 }
 
 if conf.TwoFactorAuth.EncryptionKey != "" {

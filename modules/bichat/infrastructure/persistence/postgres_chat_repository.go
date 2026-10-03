@@ -354,10 +354,10 @@ const (
 )
 
 var (
-	ErrSessionNotFound    = errors.New("session not found")
-	ErrMessageNotFound    = errors.New("message not found")
-	ErrAttachmentNotFound = errors.New("attachment not found")
-	ErrTenantUserNotFound = errors.New("tenant user not found")
+	ErrSessionNotFound    = serrors.NewNotFound("session not found")
+	ErrMessageNotFound    = serrors.NewNotFound("message not found")
+	ErrAttachmentNotFound = serrors.NewNotFound("attachment not found")
+	ErrTenantUserNotFound = serrors.NewNotFound("tenant user not found")
 )
 
 // ChatRepoOption configures PostgresChatRepository.
@@ -392,17 +392,17 @@ func (r *PostgresChatRepository) CreateSession(ctx context.Context, session doma
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	model, err := models.SessionModelFromDomain(session)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	model.TenantID = tenantID
 	if model.CreatedAt.IsZero() {
@@ -425,7 +425,7 @@ func (r *PostgresChatRepository) CreateSession(ctx context.Context, session doma
 		model.UpdatedAt,
 	)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	return nil
@@ -437,12 +437,12 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	var model models.SessionModel
@@ -460,14 +460,14 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, serrors.E(op, ErrSessionNotFound)
+			return nil, serrors.Wrap(op, errors.Join(ErrSessionNotFound, err))
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	sessionEntity, err := model.ToDomain()
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return sessionEntity, nil
 }
@@ -478,17 +478,17 @@ func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session doma
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	model, err := models.SessionModelFromDomain(session)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := tx.Exec(ctx, updateSessionQuery,
@@ -502,12 +502,12 @@ func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session doma
 		model.ID,
 	)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
-		return serrors.E(op, ErrSessionNotFound)
+		return serrors.Wrap(op, ErrSessionNotFound)
 	}
 
 	return nil
@@ -519,20 +519,20 @@ func (r *PostgresChatRepository) UpdateSessionTitle(ctx context.Context, id uuid
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := tx.Exec(ctx, updateSessionTitleQuery, title, time.Now(), tenantID, id)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, ErrSessionNotFound)
+		return serrors.Wrap(op, ErrSessionNotFound)
 	}
 
 	return nil
@@ -545,17 +545,17 @@ func (r *PostgresChatRepository) UpdateSessionTitleIfEmpty(ctx context.Context, 
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	result, err := tx.Exec(ctx, updateSessionTitleIfEmptyQuery, title, time.Now(), tenantID, id)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.FromDB(op, err)
 	}
 
 	return result.RowsAffected() > 0, nil
@@ -567,17 +567,17 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, listUserSessionsQuery, tenantID, userID, opts.Limit, opts.Offset, opts.IncludeArchived)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -597,17 +597,17 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 			&model.UpdatedAt,
 		)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		sessionEntity, err := model.ToDomain()
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		sessions = append(sessions, sessionEntity)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return sessions, nil
@@ -619,18 +619,18 @@ func (r *PostgresChatRepository) CountUserSessions(ctx context.Context, userID i
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	var count int
 	err = tx.QueryRow(ctx, countUserSessionsQuery, tenantID, userID, opts.IncludeArchived).Scan(&count)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.FromDB(op, err)
 	}
 	return count, nil
 }
@@ -641,16 +641,16 @@ func (r *PostgresChatRepository) ListAccessibleSessionSummaries(ctx context.Cont
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, listAccessibleSessionSummariesQuery, tenantID, userID, opts.Limit, opts.Offset, opts.IncludeArchived)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -658,12 +658,12 @@ func (r *PostgresChatRepository) ListAccessibleSessionSummaries(ctx context.Cont
 	for rows.Next() {
 		summary, scanErr := scanSessionSummaryRow(rows)
 		if scanErr != nil {
-			return nil, serrors.E(op, scanErr)
+			return nil, serrors.Wrap(op, scanErr)
 		}
 		out = append(out, summary)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return out, nil
 }
@@ -674,16 +674,16 @@ func (r *PostgresChatRepository) CountAccessibleSessions(ctx context.Context, us
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	var count int
 	if err := tx.QueryRow(ctx, countAccessibleSessionsQuery, tenantID, userID, opts.IncludeArchived).Scan(&count); err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.FromDB(op, err)
 	}
 	return count, nil
 }
@@ -694,16 +694,16 @@ func (r *PostgresChatRepository) ListAllSessionSummaries(ctx context.Context, re
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, listAllSessionSummariesQuery, tenantID, requestingUserID, opts.Limit, opts.Offset, opts.IncludeArchived, ownerUserID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -711,12 +711,12 @@ func (r *PostgresChatRepository) ListAllSessionSummaries(ctx context.Context, re
 	for rows.Next() {
 		summary, scanErr := scanSessionSummaryRow(rows)
 		if scanErr != nil {
-			return nil, serrors.E(op, scanErr)
+			return nil, serrors.Wrap(op, scanErr)
 		}
 		out = append(out, summary)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return out, nil
 }
@@ -727,16 +727,16 @@ func (r *PostgresChatRepository) CountAllSessions(ctx context.Context, opts doma
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	var count int
 	if err := tx.QueryRow(ctx, countAllSessionsQuery, tenantID, opts.IncludeArchived, ownerUserID).Scan(&count); err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.FromDB(op, err)
 	}
 	return count, nil
 }
@@ -747,11 +747,11 @@ func (r *PostgresChatRepository) ResolveSessionAccess(ctx context.Context, sessi
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return domain.SessionAccess{}, serrors.E(op, err)
+		return domain.SessionAccess{}, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return domain.SessionAccess{}, serrors.E(op, err)
+		return domain.SessionAccess{}, serrors.Wrap(op, err)
 	}
 
 	var (
@@ -760,9 +760,9 @@ func (r *PostgresChatRepository) ResolveSessionAccess(ctx context.Context, sessi
 	)
 	if err := tx.QueryRow(ctx, resolveSessionAccessQuery, tenantID, sessionID, userID).Scan(&ownerID, &memberRole); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return domain.SessionAccess{}, serrors.E(op, ErrSessionNotFound)
+			return domain.SessionAccess{}, serrors.Wrap(op, errors.Join(ErrSessionNotFound, err))
 		}
-		return domain.SessionAccess{}, serrors.E(op, err)
+		return domain.SessionAccess{}, serrors.FromDB(op, err)
 	}
 
 	if ownerID == userID {
@@ -771,7 +771,7 @@ func (r *PostgresChatRepository) ResolveSessionAccess(ctx context.Context, sessi
 			Source: string(domain.SessionAccessSourceOwner),
 		}).ToDomain()
 		if err != nil {
-			return domain.SessionAccess{}, serrors.E(op, err)
+			return domain.SessionAccess{}, serrors.Wrap(op, err)
 		}
 		return access, nil
 	}
@@ -783,7 +783,7 @@ func (r *PostgresChatRepository) ResolveSessionAccess(ctx context.Context, sessi
 			Source: string(domain.SessionAccessSourceMember),
 		}).ToDomain()
 		if err != nil {
-			return domain.SessionAccess{}, serrors.E(op, err)
+			return domain.SessionAccess{}, serrors.Wrap(op, err)
 		}
 		return access, nil
 	case domain.SessionMemberRoleViewer:
@@ -792,7 +792,7 @@ func (r *PostgresChatRepository) ResolveSessionAccess(ctx context.Context, sessi
 			Source: string(domain.SessionAccessSourceMember),
 		}).ToDomain()
 		if err != nil {
-			return domain.SessionAccess{}, serrors.E(op, err)
+			return domain.SessionAccess{}, serrors.Wrap(op, err)
 		}
 		return access, nil
 	case domain.SessionMemberRoleNone, domain.SessionMemberRoleOwner, domain.SessionMemberRoleReadAll:
@@ -805,7 +805,7 @@ func (r *PostgresChatRepository) ResolveSessionAccess(ctx context.Context, sessi
 			Source: string(domain.SessionAccessSourceNone),
 		}).ToDomain()
 		if err != nil {
-			return domain.SessionAccess{}, serrors.E(op, err)
+			return domain.SessionAccess{}, serrors.Wrap(op, err)
 		}
 		return access, nil
 	}
@@ -817,16 +817,16 @@ func (r *PostgresChatRepository) ListSessionMembers(ctx context.Context, session
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, listSessionMembersQuery, tenantID, sessionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -842,16 +842,16 @@ func (r *PostgresChatRepository) ListSessionMembers(ctx context.Context, session
 			&model.FirstName,
 			&model.LastName,
 		); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		member, memberErr := model.ToDomain()
 		if memberErr != nil {
-			return nil, serrors.E(op, memberErr)
+			return nil, serrors.Wrap(op, memberErr)
 		}
 		out = append(out, member)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return out, nil
 }
@@ -862,36 +862,36 @@ func (r *PostgresChatRepository) UpsertSessionMember(ctx context.Context, comman
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	model := models.SessionMemberUpsertModelFromDomain(command)
 	result, err := tx.Exec(ctx, upsertSessionMemberQuery, tenantID, model.SessionID, model.UserID, model.Role)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if result.RowsAffected() == 0 {
 		session, err := r.GetSession(ctx, model.SessionID)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		if session.UserID() == model.UserID {
-			return serrors.E(op, serrors.KindValidation, "cannot add session owner as a member")
+			return serrors.New(serrors.Invalid, "cannot add session owner as a member").WithOp(op)
 		}
 
 		var exists bool
 		if err := tx.QueryRow(ctx, sessionUserExistsQuery, tenantID, model.UserID).Scan(&exists); err != nil {
-			return serrors.E(op, err)
+			return serrors.FromDB(op, err)
 		}
 		if !exists {
-			return serrors.E(op, ErrTenantUserNotFound)
+			return serrors.Wrap(op, ErrTenantUserNotFound)
 		}
 
-		return serrors.E(op, serrors.KindValidation, "failed to add or update session member")
+		return serrors.New(serrors.Invalid, "failed to add or update session member").WithOp(op)
 	}
 	return nil
 }
@@ -902,16 +902,16 @@ func (r *PostgresChatRepository) RemoveSessionMember(ctx context.Context, comman
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	model := models.SessionMemberRemovalModelFromDomain(command)
 	if _, err := tx.Exec(ctx, removeSessionMemberQuery, tenantID, model.SessionID, model.UserID); err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	return nil
 }
@@ -922,19 +922,19 @@ func (r *PostgresChatRepository) CountSessionParticipants(ctx context.Context, s
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	var count int
 	if err := tx.QueryRow(ctx, countSessionParticipantsQuery, tenantID, sessionID).Scan(&count); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, serrors.E(op, ErrSessionNotFound)
+			return 0, serrors.Wrap(op, errors.Join(ErrSessionNotFound, err))
 		}
-		return 0, serrors.E(op, err)
+		return 0, serrors.FromDB(op, err)
 	}
 	return count, nil
 }
@@ -946,11 +946,11 @@ func (r *PostgresChatRepository) ListTenantUsers(ctx context.Context) ([]domain.
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	var rows pgx.Rows
@@ -960,7 +960,7 @@ func (r *PostgresChatRepository) ListTenantUsers(ctx context.Context) ([]domain.
 		rows, err = tx.Query(ctx, listTenantUsersQuery, tenantID)
 	}
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	defer rows.Close()
 
@@ -968,12 +968,12 @@ func (r *PostgresChatRepository) ListTenantUsers(ctx context.Context) ([]domain.
 	for rows.Next() {
 		var u domain.SessionUser
 		if err := rows.Scan(&u.ID, &u.FirstName, &u.LastName); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		out = append(out, u)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return out, nil
 }
@@ -984,19 +984,19 @@ func (r *PostgresChatRepository) GetTenantUser(ctx context.Context, userID int64
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return domain.SessionUser{}, serrors.E(op, err)
+		return domain.SessionUser{}, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return domain.SessionUser{}, serrors.E(op, err)
+		return domain.SessionUser{}, serrors.Wrap(op, err)
 	}
 
 	var user domain.SessionUser
 	if err := tx.QueryRow(ctx, getTenantUserQuery, tenantID, userID).Scan(&user.ID, &user.FirstName, &user.LastName); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return domain.SessionUser{}, serrors.E(op, ErrTenantUserNotFound)
+			return domain.SessionUser{}, serrors.Wrap(op, errors.Join(ErrTenantUserNotFound, err))
 		}
-		return domain.SessionUser{}, serrors.E(op, err)
+		return domain.SessionUser{}, serrors.FromDB(op, err)
 	}
 
 	return user, nil
@@ -1008,22 +1008,22 @@ func (r *PostgresChatRepository) DeleteSession(ctx context.Context, id uuid.UUID
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := tx.Exec(ctx, deleteSessionQuery, tenantID, id)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
-		return serrors.E(op, ErrSessionNotFound)
+		return serrors.Wrap(op, ErrSessionNotFound)
 	}
 
 	return nil
@@ -1037,17 +1037,17 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	model, err := messageDomainToModel(msg)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if model.CreatedAt.IsZero() {
@@ -1058,9 +1058,9 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 		var ownerUserID int64
 		if err := tx.QueryRow(ctx, selectSessionOwnerUserIDQuery, tenantID, model.SessionID).Scan(&ownerUserID); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				return serrors.E(op, ErrSessionNotFound)
+				return serrors.Wrap(op, errors.Join(ErrSessionNotFound, err))
 			}
-			return serrors.E(op, err)
+			return serrors.FromDB(op, err)
 		}
 		model.AuthorUserID = &ownerUserID
 	}
@@ -1079,11 +1079,11 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 		model.CreatedAt,
 	)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	if err := r.persistDebugTraceProjection(ctx, tx, tenantID, msg); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if len(msg.CodeOutputs()) > 0 {
@@ -1108,7 +1108,7 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Mess
 			)
 
 			if err := r.SaveArtifact(ctx, codeOutputArtifact); err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 		}
 	}
@@ -1122,20 +1122,20 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	model, err := scanMessageModel(tx.QueryRow(ctx, buildSelectMessageQuery(), tenantID, id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, serrors.E(op, ErrMessageNotFound)
+			return nil, serrors.Wrap(op, errors.Join(ErrMessageNotFound, err))
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return r.hydrateMessageModel(ctx, tenantID, &model)
@@ -1169,17 +1169,17 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, buildSelectSessionMessagesQuery(opts), tenantID, sessionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -1189,13 +1189,13 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 	for rows.Next() {
 		model, scanErr := scanMessageModel(rows)
 		if scanErr != nil {
-			return nil, serrors.E(op, scanErr)
+			return nil, serrors.Wrap(op, scanErr)
 		}
 		modelsData = append(modelsData, model)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	// Second pass: load code outputs for each message (rows are now closed)
@@ -1203,7 +1203,7 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 	for _, model := range modelsData {
 		message, hydrateErr := r.hydrateMessageModel(ctx, tenantID, &model)
 		if hydrateErr != nil {
-			return nil, serrors.E(op, hydrateErr)
+			return nil, serrors.Wrap(op, hydrateErr)
 		}
 		messages = append(messages, message)
 	}
@@ -1217,17 +1217,17 @@ func (r *PostgresChatRepository) TruncateMessagesFrom(ctx context.Context, sessi
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	result, err := tx.Exec(ctx, truncateMessagesFromQuery, tenantID, sessionID, from)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.FromDB(op, err)
 	}
 
 	return result.RowsAffected(), nil
@@ -1239,26 +1239,26 @@ func (r *PostgresChatRepository) UpdateMessageQuestionData(ctx context.Context, 
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	qdJSON, err := json.Marshal(qd)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := tx.Exec(ctx, updateMessageQuestionDataQuery, qdJSON, tenantID, msgID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, ErrMessageNotFound)
+		return serrors.Wrap(op, ErrMessageNotFound)
 	}
 
 	return nil
@@ -1270,20 +1270,20 @@ func (r *PostgresChatRepository) GetPendingQuestionMessage(ctx context.Context, 
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	model, err := scanMessageModel(tx.QueryRow(ctx, buildSelectPendingQuestionMessageQuery(), tenantID, sessionID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, serrors.E(op, domain.ErrNoPendingQuestion)
+			return nil, serrors.FromDB(op, domain.ErrNoPendingQuestion)
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return r.hydrateMessageModel(ctx, tenantID, &model)
@@ -1297,20 +1297,20 @@ func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment 
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	var sessionID uuid.UUID
 	if err := tx.QueryRow(ctx, selectMessageSessionQuery, tenantID, attachment.MessageID()).Scan(&sessionID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return serrors.E(op, ErrMessageNotFound)
+			return serrors.Wrap(op, errors.Join(ErrMessageNotFound, err))
 		}
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	createdAt := attachment.CreatedAt()
@@ -1337,7 +1337,7 @@ func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment 
 
 	err = r.SaveArtifact(ctx, domain.NewArtifact(artifactOpts...))
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	return nil
@@ -1349,12 +1349,12 @@ func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	var (
@@ -1379,12 +1379,12 @@ func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, serrors.E(op, ErrAttachmentNotFound)
+			return nil, serrors.Wrap(op, errors.Join(ErrAttachmentNotFound, err))
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	if messageID == nil {
-		return nil, serrors.E(op, ErrAttachmentNotFound)
+		return nil, serrors.Wrap(op, ErrAttachmentNotFound)
 	}
 
 	opts := []domain.AttachmentOption{
@@ -1409,17 +1409,17 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, selectMessageAttachmentsQuery, tenantID, messageID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -1446,7 +1446,7 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 			&createdAt,
 		)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		if msgID == nil {
 			continue
@@ -1467,7 +1467,7 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return attachments, nil
@@ -1477,7 +1477,7 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 func (r *PostgresChatRepository) DeleteAttachment(ctx context.Context, id uuid.UUID) error {
 	if err := r.DeleteArtifact(ctx, id); err != nil {
 		if errors.Is(err, ErrArtifactNotFound) {
-			return serrors.E("PostgresChatRepository.DeleteAttachment", ErrAttachmentNotFound)
+			return serrors.Wrap("PostgresChatRepository.DeleteAttachment", ErrAttachmentNotFound)
 		}
 		return err
 	}
@@ -1492,16 +1492,16 @@ func (r *PostgresChatRepository) CreateRun(ctx context.Context, run domain.Gener
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	model, err := models.GenerationRunModelFromDomain(run)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	model.TenantID = tenantID
 
@@ -1517,7 +1517,7 @@ func (r *PostgresChatRepository) CreateRun(ctx context.Context, run domain.Gener
 		tenantID,
 		model.SessionID,
 	); err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	_, err = tx.Exec(ctx, insertGenerationRunQuery,
@@ -1536,7 +1536,7 @@ func (r *PostgresChatRepository) CreateRun(ctx context.Context, run domain.Gener
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return domain.ErrActiveRunExists
 		}
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	return nil
 }
@@ -1547,11 +1547,11 @@ func (r *PostgresChatRepository) GetActiveRunBySession(ctx context.Context, sess
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	row := tx.QueryRow(ctx, selectActiveGenerationRunBySessionQuery, tenantID, sessionID)
@@ -1571,12 +1571,12 @@ func (r *PostgresChatRepository) GetActiveRunBySession(ctx context.Context, sess
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrNoActiveRun
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	runEntity, err := model.ToDomain()
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return runEntity, nil
 }
@@ -1587,11 +1587,11 @@ func (r *PostgresChatRepository) GetRunByID(ctx context.Context, runID uuid.UUID
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	row := tx.QueryRow(ctx, selectGenerationRunByIDQuery, tenantID, runID)
@@ -1609,14 +1609,14 @@ func (r *PostgresChatRepository) GetRunByID(ctx context.Context, runID uuid.UUID
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, serrors.E(op, domain.ErrRunNotFound)
+			return nil, serrors.FromDB(op, domain.ErrRunNotFound)
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	runEntity, err := model.ToDomain()
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return runEntity, nil
 }
@@ -1631,11 +1631,11 @@ func (r *PostgresChatRepository) RestartRun(
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	row := tx.QueryRow(ctx, restartGenerationRunQuery, time.Now(), staleBefore, tenantID, runID)
@@ -1659,12 +1659,12 @@ func (r *PostgresChatRepository) RestartRun(
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return nil, domain.ErrActiveRunExists
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	runEntity, err := model.ToDomain()
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return runEntity, nil
 }
@@ -1675,21 +1675,21 @@ func (r *PostgresChatRepository) UpdateRunSnapshot(ctx context.Context, runID uu
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	metaJSON, err := json.Marshal(partialMetadata)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	_, err = tx.Exec(ctx, updateGenerationRunSnapshotQuery, partialContent, metaJSON, time.Now(), tenantID, runID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	return nil
 }
@@ -1700,16 +1700,16 @@ func (r *PostgresChatRepository) CompleteRun(ctx context.Context, runID uuid.UUI
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	_, err = tx.Exec(ctx, completeGenerationRunQuery, time.Now(), tenantID, runID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	return nil
 }
@@ -1720,16 +1720,16 @@ func (r *PostgresChatRepository) FailRun(ctx context.Context, runID uuid.UUID) e
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	_, err = tx.Exec(ctx, failGenerationRunQuery, time.Now(), tenantID, runID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	return nil
 }
@@ -1740,16 +1740,16 @@ func (r *PostgresChatRepository) CancelRun(ctx context.Context, runID uuid.UUID)
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	_, err = tx.Exec(ctx, cancelGenerationRunQuery, time.Now(), tenantID, runID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	return nil
 }
@@ -1762,12 +1762,12 @@ func (r *PostgresChatRepository) loadCodeOutputsForMessage(ctx context.Context, 
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, selectMessageCodeOutputArtifactsQuery, tenantID, messageID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -1784,13 +1784,13 @@ func (r *PostgresChatRepository) loadCodeOutputsForMessage(ctx context.Context, 
 			&output.CreatedAt,
 		)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		outputs = append(outputs, output)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return outputs, nil

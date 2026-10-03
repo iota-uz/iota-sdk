@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	ErrUserNotFound = errors.New("user not found")
+	ErrUserNotFound error = serrors.NewNotFound("user not found")
 )
 
 const (
@@ -605,21 +605,21 @@ func (g *PgUserRepository) UpdatePassword(ctx context.Context, userID uint, pass
 	const op serrors.Op = "PgUserRepository.UpdatePassword"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tag, err := tx.Exec(ctx, `
 		UPDATE users
 		SET password = $1, updated_at = $2
 		WHERE id = $3 AND tenant_id = $4`, passwordHash, updatedAt, userID, tenantID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if tag.RowsAffected() != 1 {
-		return serrors.E(op, ErrUserNotFound)
+		return serrors.Wrap(op, ErrUserNotFound)
 	}
 	return nil
 }
@@ -630,11 +630,11 @@ func (g *PgUserRepository) UpdateCredentials(ctx context.Context, data user.User
 	const op serrors.Op = "PgUserRepository.UpdateCredentials"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tag, err := tx.Exec(ctx, `
 		UPDATE users
@@ -649,10 +649,10 @@ func (g *PgUserRepository) UpdateCredentials(ctx context.Context, data user.User
 		tenantID,
 	)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if tag.RowsAffected() != 1 {
-		return serrors.E(op, ErrUserNotFound)
+		return serrors.Wrap(op, ErrUserNotFound)
 	}
 	return nil
 }
@@ -664,11 +664,11 @@ func (g *PgUserRepository) ReserveTemporaryPasswordAttempt(ctx context.Context, 
 	const op serrors.Op = "PgUserRepository.ReserveTemporaryPasswordAttempt"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 	tag, err := tx.Exec(ctx, `
 		UPDATE users
@@ -676,7 +676,7 @@ func (g *PgUserRepository) ReserveTemporaryPasswordAttempt(ctx context.Context, 
 		WHERE id = $1 AND tenant_id = $2 AND password = $3 AND password_expires_at IS NOT NULL AND failed_password_attempts < $4`,
 		userID, tenantID, passwordHash, limit)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.FromDB(op, err)
 	}
 	return tag.RowsAffected() == 1, nil
 }
@@ -687,13 +687,13 @@ func (g *PgUserRepository) ReleaseTemporaryPasswordAttempt(ctx context.Context, 
 	const op serrors.Op = "PgUserRepository.ReleaseTemporaryPasswordAttempt"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if err := g.execQuery(ctx, `
 		UPDATE users
 		SET failed_password_attempts = GREATEST(failed_password_attempts - 1, 0)
 		WHERE id = $1 AND tenant_id = $2 AND password_expires_at IS NOT NULL`, userID, tenantID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -741,12 +741,12 @@ func (g *PgUserRepository) Update2FASettings(ctx context.Context, userID uint, d
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	query := `
@@ -767,7 +767,7 @@ func (g *PgUserRepository) Update2FASettings(ctx context.Context, userID uint, d
 	)
 
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	return nil

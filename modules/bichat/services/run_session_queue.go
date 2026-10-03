@@ -105,14 +105,14 @@ func NewRedisRunSessionQueue(cfg RedisRunSessionQueueConfig) (*RedisRunSessionQu
 func (q *RedisRunSessionQueue) Push(ctx context.Context, tenantID, sessionID uuid.UUID, job QueuedRunJob) error {
 	const op serrors.Op = "RedisRunSessionQueue.Push"
 	if tenantID == uuid.Nil || sessionID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant id and session id are required")
+		return serrors.New(serrors.Invalid, "tenant id and session id are required").WithOp(op)
 	}
 	if job.QueuedAt.IsZero() {
 		job.QueuedAt = time.Now().UTC()
 	}
 	body, err := json.Marshal(job)
 	if err != nil {
-		return serrors.E(op, "marshal queued job", err)
+		return serrors.WrapContext(op, err, "marshal queued job")
 	}
 	key := q.listKey(tenantID, sessionID)
 	writeCtx := context.WithoutCancel(ctx)
@@ -123,7 +123,7 @@ func (q *RedisRunSessionQueue) Push(ctx context.Context, tenantID, sessionID uui
 	}
 	pipe.Expire(writeCtx, key, q.ttl)
 	if _, err := pipe.Exec(writeCtx); err != nil {
-		return serrors.E(op, "push queued job", err)
+		return serrors.WrapContext(op, err, "push queued job")
 	}
 	return nil
 }
@@ -133,18 +133,18 @@ func (q *RedisRunSessionQueue) Push(ctx context.Context, tenantID, sessionID uui
 func (q *RedisRunSessionQueue) Pop(ctx context.Context, tenantID, sessionID uuid.UUID) (QueuedRunJob, bool, error) {
 	const op serrors.Op = "RedisRunSessionQueue.Pop"
 	if tenantID == uuid.Nil || sessionID == uuid.Nil {
-		return QueuedRunJob{}, false, serrors.E(op, serrors.KindValidation, "tenant id and session id are required")
+		return QueuedRunJob{}, false, serrors.New(serrors.Invalid, "tenant id and session id are required").WithOp(op)
 	}
 	raw, err := q.client.LPop(ctx, q.listKey(tenantID, sessionID)).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return QueuedRunJob{}, false, nil
 		}
-		return QueuedRunJob{}, false, serrors.E(op, "lpop", err)
+		return QueuedRunJob{}, false, serrors.WrapContext(op, err, "lpop")
 	}
 	var job QueuedRunJob
 	if err := json.Unmarshal(raw, &job); err != nil {
-		return QueuedRunJob{}, false, serrors.E(op, "unmarshal queued job", err)
+		return QueuedRunJob{}, false, serrors.WrapContext(op, err, "unmarshal queued job")
 	}
 	return job, true, nil
 }
@@ -155,14 +155,14 @@ func (q *RedisRunSessionQueue) Pop(ctx context.Context, tenantID, sessionID uuid
 func (q *RedisRunSessionQueue) PushFront(ctx context.Context, tenantID, sessionID uuid.UUID, job QueuedRunJob) error {
 	const op serrors.Op = "RedisRunSessionQueue.PushFront"
 	if tenantID == uuid.Nil || sessionID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant id and session id are required")
+		return serrors.New(serrors.Invalid, "tenant id and session id are required").WithOp(op)
 	}
 	if job.QueuedAt.IsZero() {
 		job.QueuedAt = time.Now().UTC()
 	}
 	body, err := json.Marshal(job)
 	if err != nil {
-		return serrors.E(op, "marshal queued job", err)
+		return serrors.WrapContext(op, err, "marshal queued job")
 	}
 	key := q.listKey(tenantID, sessionID)
 	writeCtx := context.WithoutCancel(ctx)
@@ -172,7 +172,7 @@ func (q *RedisRunSessionQueue) PushFront(ctx context.Context, tenantID, sessionI
 	// the queue after Pop. Capacity limits apply only when accepting a new job.
 	pipe.Expire(writeCtx, key, q.ttl)
 	if _, err := pipe.Exec(writeCtx); err != nil {
-		return serrors.E(op, "lpush queued job", err)
+		return serrors.WrapContext(op, err, "lpush queued job")
 	}
 	return nil
 }
@@ -181,13 +181,13 @@ func (q *RedisRunSessionQueue) PushFront(ctx context.Context, tenantID, sessionI
 func (q *RedisRunSessionQueue) Len(ctx context.Context, tenantID, sessionID uuid.UUID) (int64, error) {
 	const op serrors.Op = "RedisRunSessionQueue.Len"
 	if tenantID == uuid.Nil || sessionID == uuid.Nil {
-		return 0, serrors.E(op, serrors.KindValidation, "tenant id and session id are required")
+		return 0, serrors.New(serrors.Invalid, "tenant id and session id are required").WithOp(op)
 	}
 	// LLEN returns 0 (not redis.Nil) for a missing key, so no redis.Nil
 	// branch is needed here.
 	n, err := q.client.LLen(ctx, q.listKey(tenantID, sessionID)).Result()
 	if err != nil {
-		return 0, serrors.E(op, "llen", err)
+		return 0, serrors.WrapContext(op, err, "llen")
 	}
 	return n, nil
 }

@@ -69,12 +69,12 @@ func (s *Service) RefreshTenant(ctx context.Context, tenantID uuid.UUID) error {
 
 	refs, err := s.repo.GetStripeReferences(ctx, tenantID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if refs.CustomerID == nil || *refs.CustomerID == "" {
 		if s.invalidator != nil {
 			if err := s.invalidator.InvalidateCache(ctx, tenantID); err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 		}
 		return nil
@@ -82,18 +82,18 @@ func (s *Service) RefreshTenant(ctx context.Context, tenantID uuid.UUID) error {
 
 	features, err := s.client.ListActiveEntitlements(ctx, *refs.CustomerID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	sort.Strings(features)
 
 	now := s.now()
 	if err := s.repo.UpdateFeaturesAndSync(ctx, tenantID, features, now); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if s.invalidator != nil {
 		if err := s.invalidator.InvalidateCache(ctx, tenantID); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 
@@ -109,7 +109,7 @@ func (s *Service) setGracePeriod(ctx context.Context, tenantID uuid.UUID, active
 		endsAt = &t
 	}
 	if err := s.repo.SetGracePeriod(ctx, tenantID, active, endsAt); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	total := s.graceFlips.Add(1)
 	logrus.WithFields(logrus.Fields{
@@ -121,7 +121,7 @@ func (s *Service) setGracePeriod(ctx context.Context, tenantID uuid.UUID, active
 	}).Info("Subscription grace period state changed")
 	if s.invalidator != nil {
 		if err := s.invalidator.InvalidateCache(ctx, tenantID); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	return nil

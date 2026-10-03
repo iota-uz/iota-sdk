@@ -85,23 +85,23 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 
 	// Validate configuration first
 	if err := c.Validate(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if _, ok := c.ChatRepo.(domain.SessionAccessRepository); !ok {
-		return nil, serrors.E(op, serrors.KindValidation, "chat repository must implement SessionAccessRepository")
+		return nil, serrors.New(serrors.Invalid, "chat repository must implement SessionAccessRepository").WithOp(op)
 	}
 
 	if err := c.resolveProjectPromptExtension(); err != nil {
-		return nil, serrors.E(op, err, "failed to resolve project prompt extension")
+		return nil, serrors.WrapContext(op, err, "failed to resolve project prompt extension")
 	}
 	if err := c.resolveSkillsCatalog(); err != nil {
-		return nil, serrors.E(op, err, "failed to load skills catalog")
+		return nil, serrors.WrapContext(op, err, "failed to load skills catalog")
 	}
 
 	// Create file storage once for attachment/artifact services and artifact_reader tool wiring.
 	fileStorage, err := c.createFileStorage()
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to create file storage")
+		return nil, serrors.WrapContext(op, err, "failed to create file storage")
 	}
 
 	if c.Capabilities.CodeInterpreter {
@@ -113,7 +113,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		if c.CodeInterpreterMemoryLimit != "" {
 			if configurable, ok := c.Model.(interface{ SetCodeInterpreterMemoryLimit(string) error }); ok {
 				if err := configurable.SetCodeInterpreterMemoryLimit(c.CodeInterpreterMemoryLimit); err != nil {
-					return nil, serrors.E(op, err)
+					return nil, serrors.Wrap(op, err)
 				}
 			}
 		}
@@ -122,12 +122,12 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 	// Register markdown-defined and custom sub-agents before building default parent
 	// so delegation descriptions include all available agents.
 	if err := c.setupConfiguredSubAgents(fileStorage); err != nil {
-		return nil, serrors.E(op, err, "failed to setup configured sub-agents")
+		return nil, serrors.WrapContext(op, err, "failed to setup configured sub-agents")
 	}
 
 	// Build default parent agent from config when caller did not provide one.
 	if err := c.buildParentAgent(fileStorage); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	var runtimeTools []coreagents.Tool
@@ -162,7 +162,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 
 	titleService, err := services.NewSessionTitleService(c.Model, c.ChatRepo, c.EventBus)
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to create title generation service")
+		return nil, serrors.WrapContext(op, err, "failed to create title generation service")
 	}
 
 	var titleJobQueue *services.RedisTitleJobQueue
@@ -191,7 +191,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		c.Logger,
 	)
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to initialise Redis-backed chat services")
+		return nil, serrors.WrapContext(op, err, "failed to initialise Redis-backed chat services")
 	}
 	if c.LangfuseBaseURL != "" {
 		chatServices.WithLangfuseBaseURL(c.LangfuseBaseURL)
@@ -245,7 +245,7 @@ func (c *ModuleConfig) buildParentAgent(fileStorage storage.FileStorage) error {
 	}
 
 	if c.QueryExecutor == nil {
-		return serrors.E(op, serrors.KindValidation, "ParentAgent or QueryExecutor is required")
+		return serrors.New(serrors.Invalid, "ParentAgent or QueryExecutor is required").WithOp(op)
 	}
 
 	opts := make([]bichatagents.BIAgentOption, 0, 8)
@@ -281,7 +281,7 @@ func (c *ModuleConfig) buildParentAgent(fileStorage storage.FileStorage) error {
 
 	parentAgent, err := bichatagents.NewDefaultBIAgent(c.QueryExecutor, opts...)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	c.ParentAgent = parentAgent
 

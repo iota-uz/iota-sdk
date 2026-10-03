@@ -282,7 +282,7 @@ func applyOne(primary *frame.FrameSet, deps map[string]*frame.FrameSet, spec Spe
 	case KindLinearForecast:
 		return linearForecast(primary, spec.LinearForecast)
 	default:
-		return nil, serrors.E(op, fmt.Errorf("unsupported transform kind %q", spec.Kind))
+		return nil, serrors.Wrap(op, fmt.Errorf("unsupported transform kind %q", spec.Kind))
 	}
 }
 
@@ -917,13 +917,13 @@ func applyTopN(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *To
 	if rankBy := strings.TrimSpace(cfg.RankByDataset); rankBy != "" {
 		ranked := deps[rankBy]
 		if ranked == nil {
-			return nil, serrors.E(op, fmt.Errorf("rank dataset %q is required", rankBy))
+			return nil, serrors.Wrap(op, fmt.Errorf("rank dataset %q is required", rankBy))
 		}
 		return applyTopNMembership(primary, ranked, cfg)
 	}
 	sorted, err := sortRows(primary, []SortField{{Field: cfg.Field, Direction: SortDesc}})
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if strings.TrimSpace(cfg.Other) == "" {
 		return limit(sorted, cfg.N)
@@ -951,7 +951,7 @@ func applyTopN(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *To
 	}
 	out, err := frame.New(fr.Name)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	out.Fields = make([]frame.Field, len(fr.Fields))
 	for i, field := range fr.Fields {
@@ -960,18 +960,18 @@ func applyTopN(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *To
 	}
 	for idx := 0; idx < keep; idx++ {
 		if err := out.AppendRow(rows[idx]); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 	}
 	if err := out.AppendRow(topNOtherRow(fr, rows[keep:], cfg)); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if err := out.Normalize(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	fs, err := frame.NewFrameSet(out)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return fs, nil
 }
@@ -979,7 +979,7 @@ func applyTopN(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *To
 func applyTopNMembership(primary, ranked *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error) {
 	op := serrors.Op("lens/transform.applyTopNMembership")
 	if len(cfg.KeyFields) == 0 {
-		return nil, serrors.E(op, fmt.Errorf("key fields are required with rank dataset"))
+		return nil, serrors.Wrap(op, fmt.Errorf("key fields are required with rank dataset"))
 	}
 	primaryFrame, rankedFrame := primary.Primary(), ranked.Primary()
 	if primaryFrame == nil || rankedFrame == nil {
@@ -1023,7 +1023,7 @@ func applyTopNMembership(primary, ranked *frame.FrameSet, cfg *TopNConfig) (*fra
 	}
 	out, err := frame.New(primaryFrame.Name)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	out.Fields = make([]frame.Field, len(primaryFrame.Fields))
 	for index, field := range primaryFrame.Fields {
@@ -1032,15 +1032,15 @@ func applyTopNMembership(primary, ranked *frame.FrameSet, cfg *TopNConfig) (*fra
 	}
 	for _, row := range outRows {
 		if err := out.AppendRow(row); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 	}
 	if err := out.Normalize(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	result, err := frame.NewFrameSet(out)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return result, nil
 }

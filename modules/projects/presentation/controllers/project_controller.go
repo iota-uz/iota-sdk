@@ -27,6 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 )
@@ -212,15 +213,13 @@ func (c *ProjectController) GetNewDrawer(
 ) {
 	counterparties, err := c.viewModelCounterparties(r, counterpartyService)
 	if err != nil {
-		logger.Errorf("Error retrieving counterparties: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	currencies, err := c.viewModelCurrencies(r, currencyService)
 	if err != nil {
-		logger.Errorf("Error retrieving currencies: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -243,8 +242,7 @@ func (c *ProjectController) GetEditDrawer(
 ) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		logger.Errorf("Error parsing project ID: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -257,15 +255,13 @@ func (c *ProjectController) GetEditDrawer(
 
 	counterparties, err := c.viewModelCounterparties(r, counterpartyService)
 	if err != nil {
-		logger.Errorf("Error retrieving counterparties: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	currencies, err := c.viewModelCurrencies(r, currencyService)
 	if err != nil {
-		logger.Errorf("Error retrieving currencies: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -289,8 +285,7 @@ func (c *ProjectController) Create(
 ) {
 	dto, err := composables.UseForm(&dtos.ProjectCreateDTO{}, r)
 	if err != nil {
-		logger.Errorf("Error parsing project form: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -299,15 +294,13 @@ func (c *ProjectController) Create(
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		counterparties, err := c.viewModelCounterparties(r, counterpartyService)
 		if err != nil {
-			logger.Errorf("Error retrieving counterparties: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
 		currencies, err := c.viewModelCurrencies(r, currencyService)
 		if err != nil {
-			logger.Errorf("Error retrieving currencies: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
@@ -334,14 +327,12 @@ func (c *ProjectController) Create(
 
 	entity, err := dto.ToEntity(tenantID)
 	if err != nil {
-		logger.Errorf("Error converting DTO to entity: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if err := projectService.Create(r.Context(), entity); err != nil {
-		logger.Errorf("Error creating project: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -358,14 +349,12 @@ func (c *ProjectController) Update(
 ) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		logger.Errorf("Error parsing project ID: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	dto, err := composables.UseForm(&dtos.ProjectUpdateDTO{}, r)
 	if err != nil {
-		logger.Errorf("Error parsing update form: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -381,13 +370,11 @@ func (c *ProjectController) Update(
 
 		entity, err := dto.Apply(existing)
 		if err != nil {
-			logger.Errorf("Error applying update to project: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		if err := projectService.Update(r.Context(), entity); err != nil {
-			logger.Errorf("Error updating project: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
@@ -403,15 +390,13 @@ func (c *ProjectController) Update(
 
 		counterparties, err := c.viewModelCounterparties(r, counterpartyService)
 		if err != nil {
-			logger.Errorf("Error retrieving counterparties: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
 		currencies, err := c.viewModelCurrencies(r, currencyService)
 		if err != nil {
-			logger.Errorf("Error retrieving currencies: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
@@ -444,8 +429,7 @@ func (c *ProjectController) Delete(
 	}
 
 	if _, err := projectService.Delete(r.Context(), id); err != nil {
-		logger.Errorf("Error deleting project: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)

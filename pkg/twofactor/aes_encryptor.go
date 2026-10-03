@@ -76,19 +76,19 @@ func (e *AESEncryptor) Encrypt(ctx context.Context, plaintext string) (string, e
 	// Create AES cipher
 	block, err := aes.NewCipher(e.key)
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 
 	// Create GCM mode
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 
 	// Generate random nonce
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 
 	// Encrypt plaintext
@@ -119,25 +119,25 @@ func (e *AESEncryptor) Decrypt(ctx context.Context, ciphertext string) (string, 
 	// Decode base64
 	data, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 
 	// Create AES cipher
 	block, err := aes.NewCipher(e.key)
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 
 	// Create GCM mode
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 
 	// Check minimum length (nonce + at least 1 byte of ciphertext)
 	nonceSize := gcm.NonceSize()
 	if len(data) < nonceSize {
-		return "", serrors.E(op, serrors.Invalid, fmt.Errorf("ciphertext too short"))
+		return "", serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("ciphertext too short"))
 	}
 
 	// Extract nonce and ciphertext
@@ -146,7 +146,7 @@ func (e *AESEncryptor) Decrypt(ctx context.Context, ciphertext string) (string, 
 	// Decrypt and authenticate
 	plaintext, err := gcm.Open(nil, nonce, ciphertextBytes, nil)
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 
 	return string(plaintext), nil

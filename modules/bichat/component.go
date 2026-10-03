@@ -324,7 +324,7 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 
 		if b.config.ViewManager != nil {
 			if err := b.config.ViewManager.Sync(ctx, pool); err != nil {
-				return nil, serrors.E(op, err, "failed to sync analytics views")
+				return nil, serrors.WrapContext(op, err, "failed to sync analytics views")
 			}
 		}
 
@@ -335,7 +335,7 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 		worker, err := b.services.NewTitleJobWorker(pool)
 		if err != nil {
 			if !errors.Is(err, ErrTitleJobWorkerDisabled) {
-				return nil, serrors.E(op, err, "failed to create title job worker")
+				return nil, serrors.WrapContext(op, err, "failed to create title job worker")
 			}
 		} else if worker != nil {
 			// The worker loop runs under a dedicated context rooted at
@@ -365,7 +365,7 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 		)
 		reaper, err := b.services.NewRunReaper()
 		if err != nil {
-			return nil, serrors.E(op, err, "failed to create run reaper")
+			return nil, serrors.WrapContext(op, err, "failed to create run reaper")
 		}
 		if reaper != nil {
 			reaperCtx, reaperCancelFn := context.WithCancel(context.Background())
@@ -453,7 +453,7 @@ func newRunWorkerStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Con
 			if errors.Is(err, ErrRunJobWorkerDisabled) {
 				return func(context.Context) error { return nil }, nil
 			}
-			return nil, serrors.E(op, err, "failed to create run job worker")
+			return nil, serrors.WrapContext(op, err, "failed to create run job worker")
 		}
 
 		workerCtx, workerCancel := context.WithCancel(context.Background())

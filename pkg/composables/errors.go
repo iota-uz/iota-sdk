@@ -1,13 +1,11 @@
 package composables
 
-import (
-	"errors"
-)
+import "github.com/iota-uz/iota-sdk/pkg/serrors"
 
 var (
-	ErrInvalidPassword = errors.New("invalid password")
-	ErrNotFound        = errors.New("not found")
-	ErrUnauthorized    = errors.New("unauthorized")
-	ErrForbidden       = errors.New("forbidden")
-	ErrInternal        = errors.New("internal error")
+	ErrInvalidPassword error = serrors.NewUnauthenticated("invalid password")
+	ErrNotFound        error = serrors.NewNotFound("not found")
+	ErrUnauthorized    error = serrors.NewUnauthenticated("unauthorized")
+	ErrForbidden       error = serrors.NewPermissionDenied("forbidden")
+	ErrInternal        error = serrors.NewInternal("internal error")
 )

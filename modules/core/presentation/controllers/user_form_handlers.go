@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/validators"
 )
@@ -67,8 +68,7 @@ func (c *UsersController) Create(
 
 	dto, err := composables.UseForm(&dtos.CreateUserDTO{}, r)
 	if err != nil {
-		logger.WithError(err).Error("error parsing form")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -86,8 +86,7 @@ func (c *UsersController) Create(
 
 	userEntity, err := dto.ToEntity(tenantID)
 	if err != nil {
-		logger.WithError(err).Error("error converting dto to entity")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if dto.Language == "" {
@@ -107,8 +106,7 @@ func (c *UsersController) Create(
 			return
 		}
 
-		logger.WithError(err).Error("error creating user")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -133,7 +131,7 @@ func (c *UsersController) IssueTemporaryPassword(
 ) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	result, err := userService.IssueTemporaryPassword(r.Context(), id, "")
@@ -171,15 +169,13 @@ func (c *UsersController) Update(
 ) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		logger.WithError(err).Error("error parsing user id")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.UpdateUserDTO{}, r)
 	if err != nil {
-		logger.WithError(err).Error("error parsing form")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -207,8 +203,7 @@ func (c *UsersController) Update(
 
 	userEntity, err := userService.GetByID(r.Context(), id)
 	if err != nil {
-		logger.WithError(err).Error("error retrieving user")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -221,7 +216,7 @@ func (c *UsersController) Update(
 	for _, permissionID := range dto.PermissionIDs {
 		permissionUUID, err := uuid.Parse(permissionID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 			return
 		}
 		permissions = append(permissions, permission.New(permission.WithID(permissionUUID)))
@@ -229,8 +224,7 @@ func (c *UsersController) Update(
 
 	userEntity, err = dto.Apply(userEntity, roles, permissions)
 	if err != nil {
-		logger.WithError(err).Error("error applying user update")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -244,8 +238,7 @@ func (c *UsersController) Update(
 			return
 		}
 
-		logger.WithError(err).Error("error updating user")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -260,8 +253,7 @@ func (c *UsersController) Delete(
 ) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		logger.WithError(err).Error("error parsing user id")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -269,8 +261,8 @@ func (c *UsersController) Delete(
 		if respondPrivilegeDenied(w, r, err) {
 			return
 		}
-		logger.WithError(err).Error("error deleting user")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

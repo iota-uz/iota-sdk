@@ -29,7 +29,7 @@ func (r *LearningRepository) Save(ctx context.Context, l learning.Learning) erro
 
 	// Validate tenant ID
 	if l.TenantID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant_id is required")
+		return serrors.New(serrors.Invalid, "tenant_id is required").WithOp(op)
 	}
 
 	// Use pool directly for queries
@@ -63,7 +63,7 @@ func (r *LearningRepository) Save(ctx context.Context, l learning.Learning) erro
 		l.CreatedAt,
 	)
 	if err != nil {
-		return serrors.E(op, err, "failed to insert learning")
+		return serrors.FromDBContext(op, err, "failed to insert learning")
 	}
 
 	return nil
@@ -75,7 +75,7 @@ func (r *LearningRepository) Search(ctx context.Context, query string, opts lear
 
 	// Validate tenant ID
 	if opts.TenantID == uuid.Nil {
-		return nil, serrors.E(op, serrors.KindValidation, "tenant_id is required")
+		return nil, serrors.New(serrors.Invalid, "tenant_id is required").WithOp(op)
 	}
 
 	// Use pool directly for queries
@@ -154,7 +154,7 @@ func (r *LearningRepository) Search(ctx context.Context, query string, opts lear
 	// Execute query
 	rows, err := conn.Query(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to search learnings")
+		return nil, serrors.FromDBContext(op, err, "failed to search learnings")
 	}
 	defer rows.Close()
 
@@ -176,7 +176,7 @@ func (r *LearningRepository) Search(ctx context.Context, query string, opts lear
 			&l.CreatedAt,
 		)
 		if err != nil {
-			return nil, serrors.E(op, err, "failed to scan learning")
+			return nil, serrors.FromDBContext(op, err, "failed to scan learning")
 		}
 
 		l.TableName = tableName
@@ -185,7 +185,7 @@ func (r *LearningRepository) Search(ctx context.Context, query string, opts lear
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err, "error iterating learnings")
+		return nil, serrors.FromDBContext(op, err, "error iterating learnings")
 	}
 
 	return learnings, nil
@@ -198,7 +198,7 @@ func (r *LearningRepository) IncrementUsage(ctx context.Context, id uuid.UUID) e
 	// Get tenant ID for multi-tenant isolation
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Use pool directly for queries
@@ -212,11 +212,11 @@ func (r *LearningRepository) IncrementUsage(ctx context.Context, id uuid.UUID) e
 
 	result, err := conn.Exec(ctx, query, id, tenantID)
 	if err != nil {
-		return serrors.E(op, err, "failed to increment usage")
+		return serrors.FromDBContext(op, err, "failed to increment usage")
 	}
 
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, serrors.NotFound, "learning not found")
+		return serrors.New(serrors.NotFound, "learning not found").WithOp(op)
 	}
 
 	return nil
@@ -229,7 +229,7 @@ func (r *LearningRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	// Get tenant ID for multi-tenant isolation
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Use pool directly for queries
@@ -242,11 +242,11 @@ func (r *LearningRepository) Delete(ctx context.Context, id uuid.UUID) error {
 
 	result, err := conn.Exec(ctx, query, id, tenantID)
 	if err != nil {
-		return serrors.E(op, err, "failed to delete learning")
+		return serrors.FromDBContext(op, err, "failed to delete learning")
 	}
 
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, serrors.NotFound, "learning not found")
+		return serrors.New(serrors.NotFound, "learning not found").WithOp(op)
 	}
 
 	return nil
@@ -257,7 +257,7 @@ func (r *LearningRepository) DeleteByTenant(ctx context.Context, tenantID uuid.U
 	const op serrors.Op = "LearningRepository.DeleteByTenant"
 
 	if tenantID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant_id is required")
+		return serrors.New(serrors.Invalid, "tenant_id is required").WithOp(op)
 	}
 
 	const query = `
@@ -266,7 +266,7 @@ func (r *LearningRepository) DeleteByTenant(ctx context.Context, tenantID uuid.U
 	`
 
 	if _, err := r.pool.Exec(ctx, query, tenantID); err != nil {
-		return serrors.E(op, err, "failed to delete tenant learnings")
+		return serrors.FromDBContext(op, err, "failed to delete tenant learnings")
 	}
 
 	return nil
@@ -278,7 +278,7 @@ func (r *LearningRepository) ListByTable(ctx context.Context, tenantID uuid.UUID
 
 	// Validate tenant ID
 	if tenantID == uuid.Nil {
-		return nil, serrors.E(op, serrors.KindValidation, "tenant_id is required")
+		return nil, serrors.New(serrors.Invalid, "tenant_id is required").WithOp(op)
 	}
 
 	// Use pool directly for queries
@@ -303,7 +303,7 @@ func (r *LearningRepository) ListByTable(ctx context.Context, tenantID uuid.UUID
 
 	rows, err := conn.Query(ctx, query, tenantID, tableName, limit)
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to list learnings by table")
+		return nil, serrors.FromDBContext(op, err, "failed to list learnings by table")
 	}
 	defer rows.Close()
 
@@ -325,7 +325,7 @@ func (r *LearningRepository) ListByTable(ctx context.Context, tenantID uuid.UUID
 			&l.CreatedAt,
 		)
 		if err != nil {
-			return nil, serrors.E(op, err, "failed to scan learning")
+			return nil, serrors.FromDBContext(op, err, "failed to scan learning")
 		}
 
 		l.TableName = tn
@@ -334,7 +334,7 @@ func (r *LearningRepository) ListByTable(ctx context.Context, tenantID uuid.UUID
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err, "error iterating learnings")
+		return nil, serrors.FromDBContext(op, err, "error iterating learnings")
 	}
 
 	return learnings, nil

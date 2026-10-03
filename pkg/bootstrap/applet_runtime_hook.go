@@ -42,7 +42,7 @@ func (h *appletRuntimeHook) Start(ctx context.Context) error {
 	}
 	runner, err := appletenginejobs.NewRunner(h.pool, h.manager, h.logger, 2*time.Second)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if !h.startedJobs.CompareAndSwap(false, true) {
 		return nil

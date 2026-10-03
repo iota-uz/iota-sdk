@@ -545,12 +545,12 @@ func (s *AuthService) GoogleAuthenticateFor(w http.ResponseWriter, nextURL, auth
 	const op serrors.Op = "AuthService.GoogleAuthenticateFor"
 	cookie, err := s.generateStateOauthCookie()
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 	http.SetCookie(w, cookie)
 	payload, err := json.Marshal(oauthContinuation{NextURL: nextURL, AuthRequestID: authRequestID})
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     s.cookiesCfg.OAuthState + "-continuation",

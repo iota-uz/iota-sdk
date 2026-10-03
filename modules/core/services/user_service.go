@@ -217,39 +217,39 @@ func (s *UserService) ChangePassword(ctx context.Context, currentPassword, newPa
 
 	currentUser, err := composables.UseUser(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	var updated user.User
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		if err := s.policy.LockUser(txCtx, currentUser.ID()); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		latest, err := s.repo.GetByID(txCtx, currentUser.ID())
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		if latest.TenantID() != currentUser.TenantID() || !latest.CheckPassword(currentPassword) {
-			return serrors.E(op, ErrCurrentPasswordMismatch)
+			return serrors.Wrap(op, ErrCurrentPasswordMismatch)
 		}
 		updated, err = latest.SetPassword(newPassword)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		if err := s.validator.ValidateUpdate(txCtx, updated); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		if err := s.repo.UpdatePassword(txCtx, updated.ID(), updated.Password(), updated.UpdatedAt()); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		_, err = s.sessionService.DeleteByUserID(txCtx, currentUser.ID())
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		return nil
 	})
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	updatedEvent := user.NewUpdatedEvent(ctx, updated)
@@ -478,12 +478,12 @@ func (s *UserService) CreateWithTemporaryPassword(ctx context.Context, data user
 
 	password, err := temporaryPasswordOrGenerated(password)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	expiresAt := time.Now().Add(user.TemporaryPasswordTTL)
 	pending, err := data.IssueTemporaryPassword(password, expiresAt)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	created, err := s.Create(ctx, pending)
 	if err != nil {
@@ -506,11 +506,11 @@ func (s *UserService) IssueTemporaryPassword(ctx context.Context, userID uint, p
 	const op = serrors.Op("UserService.IssueTemporaryPassword")
 
 	if err := composables.CanUser(ctx, permissions.UserUpdate); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	password, err := temporaryPasswordOrGenerated(password)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	expiresAt := time.Now().Add(user.TemporaryPasswordTTL)
 
@@ -533,7 +533,7 @@ func (s *UserService) IssueTemporaryPassword(ctx context.Context, userID uint, p
 		return nil
 	})
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	updatedEvent := user.NewUpdatedEvent(ctx, updated)
@@ -617,7 +617,7 @@ func (s *UserService) CompleteOnboarding(ctx context.Context, sessionToken strin
 		return nil
 	})
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	updatedEvent := user.NewUpdatedEvent(ctx, completed)

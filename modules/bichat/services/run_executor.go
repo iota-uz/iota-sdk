@@ -61,13 +61,13 @@ func (e *chatRunExecutor) Execute(ctx context.Context, job RunJobPayload) error 
 	const op serrors.Op = "chatRunExecutor.Execute"
 
 	if job.TenantID == uuid.Nil || job.SessionID == uuid.Nil || job.RunID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant, session and run ids are required")
+		return serrors.New(serrors.Invalid, "tenant, session and run ids are required").WithOp(op)
 	}
 
 	svc := e.svc
 	attachments, err := resolveUploadAttachments(ctx, job.UploadIDs)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	var (
@@ -82,12 +82,12 @@ func (e *chatRunExecutor) Execute(ctx context.Context, job RunJobPayload) error 
 		prepareErr := svc.withinTx(ctx, func(txCtx context.Context) error {
 			s, err := svc.chatRepo.GetSession(txCtx, job.SessionID)
 			if err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			session = s
 			session, err = svc.maybeReplaceHistoryFromMessage(txCtx, session, job.ReplaceFromMessageID)
 			if err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			if err := svc.ensureNoOpenQuestionForSend(txCtx, job.SessionID); err != nil {
 				return err
@@ -104,10 +104,10 @@ func (e *chatRunExecutor) Execute(ctx context.Context, job RunJobPayload) error 
 				Attachments:  attachments,
 			})
 			if err != nil {
-				return serrors.E(op, serrors.KindValidation, err)
+				return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 			}
 			if err := svc.chatRepo.SaveMessage(txCtx, userMsg); err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			if err := svc.saveAttachmentArtifacts(txCtx, session, userMsg.ID(), attachments); err != nil {
 				return err
@@ -122,7 +122,7 @@ func (e *chatRunExecutor) Execute(ctx context.Context, job RunJobPayload) error 
 					UserID:    session.UserID(),
 				})
 				if err != nil {
-					return serrors.E(op, serrors.KindValidation, err)
+					return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 				}
 				if err := svc.chatRepo.CreateRun(txCtx, run); err != nil {
 					if errors.Is(err, domain.ErrActiveRunExists) {
@@ -130,16 +130,16 @@ func (e *chatRunExecutor) Execute(ctx context.Context, job RunJobPayload) error 
 						// the stream — re-queue it instead of failing it.
 						return fmt.Errorf("%w: %w", ErrRunBusy, err)
 					}
-					return serrors.E(op, err)
+					return serrors.Wrap(op, err)
 				}
 			} else if getErr != nil {
-				return serrors.E(op, getErr)
+				return serrors.Wrap(op, getErr)
 			}
 			if _, err := svc.createRunStateRecoveringOrphan(txCtx, run); err != nil {
 				if errors.Is(err, domain.ErrActiveRunExists) {
 					return fmt.Errorf("%w: %w", ErrRunBusy, err)
 				}
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			return nil
 		})
@@ -150,7 +150,7 @@ func (e *chatRunExecutor) Execute(ctx context.Context, job RunJobPayload) error 
 	} else {
 		session, err = svc.chatRepo.GetSession(ctx, job.SessionID)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		artifactMsgID = job.UserMessageID
 	}
@@ -429,12 +429,12 @@ func (e *chatRunExecutor) executeTurn(t turnExecution) {
 
 	if t.processCtx.Err() != nil {
 		svc.log().
-			WithError(serrors.E(op, t.processCtx.Err())).
+			WithError(serrors.Wrap(op, t.processCtx.Err())).
 			WithField("session_id", job.SessionID.String()).
 			WithField("run_id", runID.String()).
 			WithField("tenant_id", session.TenantID().String()).
 			Error("bichat: stream generation context ended before finalization")
-		active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, t.processCtx.Err()), 0))
+		active.Broadcast(streamingsvc.TerminalChunk(serrors.Wrap(op, t.processCtx.Err()), 0))
 		_ = svc.cancelRunState(t.persistCtx, session.TenantID(), job.SessionID, runID)
 		return
 	}
@@ -485,14 +485,14 @@ func (e *chatRunExecutor) executeTurn(t turnExecution) {
 	})
 	if err != nil {
 		svc.log().
-			WithError(serrors.E(op, serrors.KindValidation, err)).
+			WithError(serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)).
 			WithField("session_id", job.SessionID.String()).
 			WithField("run_id", runID.String()).
 			WithField("tenant_id", session.TenantID().String()).
 			WithField("content_len", len(assistantContent)).
 			WithField("tool_calls", len(savedToolCalls)).
 			Error("bichat: assistant message failed validation before persistence")
-		active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, serrors.KindValidation, err), 0))
+		active.Broadcast(streamingsvc.TerminalChunk(serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err), 0))
 		_ = svc.cancelRunState(t.persistCtx, session.TenantID(), job.SessionID, runID)
 		return
 	}
@@ -576,10 +576,10 @@ func (s *chatServiceImpl) saveAttachmentArtifacts(ctx context.Context, session d
 		}
 		artifactEntity, err := domain.NewArtifactFromSpec(artifact)
 		if err != nil {
-			return serrors.E(op, serrors.KindValidation, err)
+			return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 		}
 		if err := s.chatRepo.SaveArtifact(ctx, artifactEntity); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	return nil
@@ -667,7 +667,7 @@ func resolveUploadAttachments(ctx context.Context, uploadIDs []int64) ([]domain.
 	repo := corepersistence.NewUploadRepository()
 	found, err := repo.GetByIDs(ctx, unique)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	byID := make(map[uint]int, len(found))
 	for i, entity := range found {
@@ -678,7 +678,7 @@ func resolveUploadAttachments(ctx context.Context, uploadIDs []int64) ([]domain.
 	for _, id := range uploadIDs {
 		idx, ok := byID[uint(id)]
 		if !ok {
-			return nil, serrors.E(op, serrors.KindValidation, fmt.Errorf("upload not found: %d", id))
+			return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("upload not found: %d", id))
 		}
 		entity := found[idx]
 		mimeType := ""

@@ -38,7 +38,7 @@ func (c *ModuleConfig) setupConfiguredSubAgents(fileStorage storage.FileStorage)
 		c.SubAgentDefinitionsBasePath,
 	)
 	if err != nil {
-		return serrors.E(op, err, "failed to load sub-agent definitions")
+		return serrors.WrapContext(op, err, "failed to load sub-agent definitions")
 	}
 
 	buildOpts := make([]bichatagents.SubAgentBuildOption, 0, 1)
@@ -57,19 +57,19 @@ func (c *ModuleConfig) setupConfiguredSubAgents(fileStorage storage.FileStorage)
 	for _, def := range definitions {
 		subAgent, err := bichatagents.BuildSubAgent(def, deps, buildOpts...)
 		if err != nil {
-			return serrors.E(op, err, fmt.Sprintf("failed to build sub-agent %q", def.Name))
+			return serrors.WrapContext(op, err, fmt.Sprintf("failed to build sub-agent %q", def.Name))
 		}
 		if err := c.AgentRegistry.Register(subAgent); err != nil {
-			return serrors.E(op, err, fmt.Sprintf("failed to register sub-agent %q", def.Name))
+			return serrors.WrapContext(op, err, fmt.Sprintf("failed to register sub-agent %q", def.Name))
 		}
 	}
 
 	for _, subAgent := range c.SubAgents {
 		if subAgent == nil {
-			return serrors.E(op, serrors.KindValidation, "custom sub-agent cannot be nil")
+			return serrors.New(serrors.Invalid, "custom sub-agent cannot be nil").WithOp(op)
 		}
 		if err := c.AgentRegistry.Register(subAgent); err != nil {
-			return serrors.E(op, err, fmt.Sprintf("failed to register custom sub-agent %q", subAgent.Name()))
+			return serrors.WrapContext(op, err, fmt.Sprintf("failed to register custom sub-agent %q", subAgent.Name()))
 		}
 	}
 

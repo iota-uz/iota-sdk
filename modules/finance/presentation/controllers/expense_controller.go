@@ -33,6 +33,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 )
@@ -251,7 +252,7 @@ func (c *ExpenseController) Export(
 			config,
 		)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
@@ -279,8 +280,7 @@ func (c *ExpenseController) GetEdit(
 ) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		logger.Errorf("Error parsing expense ID: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -312,8 +312,7 @@ func (c *ExpenseController) Delete(
 	}
 
 	if _, err := expenseService.Delete(r.Context(), id); err != nil {
-		logger.Errorf("Error deleting expense: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -384,14 +383,12 @@ func (c *ExpenseController) Update(
 
 	entity, err := dto.Apply(existing, cat)
 	if err != nil {
-		logger.Errorf("Error converting DTO to entity: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := expenseService.Update(r.Context(), entity); err != nil {
-		logger.Errorf("Error updating expense: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -429,8 +426,7 @@ func (c *ExpenseController) Create(
 ) {
 	dto, err := composables.UseForm(&dtos.ExpenseCreateDTO{}, r)
 	if err != nil {
-		logger.Errorf("Error parsing form: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -477,8 +473,7 @@ func (c *ExpenseController) Create(
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		entity, err := dto.ToEntityWithReferences(tenantID, account, cat)
 		if err != nil {
-			logger.Errorf("Error converting DTO to entity: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
@@ -492,15 +487,13 @@ func (c *ExpenseController) Create(
 
 	entity, err := dto.ToEntityWithReferences(tenantID, account, cat)
 	if err != nil {
-		logger.Errorf("Error converting DTO to entity: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	createdEntity, err := expenseService.Create(r.Context(), entity)
 	if err != nil {
-		logger.Errorf("Error creating expense: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -528,8 +521,7 @@ func (c *ExpenseController) GetAccountsSelect(
 
 	accounts, err := moneyAccountService.GetAll(r.Context())
 	if err != nil {
-		logger.Errorf("Error retrieving accounts: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -558,8 +550,7 @@ func (c *ExpenseController) GetCategoriesSelect(
 
 	categories, err := expenseCategoryService.GetAll(r.Context())
 	if err != nil {
-		logger.Errorf("Error retrieving categories: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
