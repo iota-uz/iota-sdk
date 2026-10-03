@@ -174,6 +174,13 @@ function PrintChart({ section, height }: { section: PrintSection; height: number
           kind: panel.kind as ChartKind,
           frame: section.frame,
           encoding: panel.encoding,
+          seriesColor: frameSeriesColorResolver(theme, panel, section.frame, section.root),
+          rowColor: rowColorResolver(theme, panel, { colors: section.frame.colors, positional: section.root, labels: colorLabels(section.frame, panel) }),
+          labels: {
+            noData: section.document.i18n['panel.empty'] ?? 'No data',
+            current: section.document.i18n['chart.series.current'] ?? 'Current period',
+            previous: section.document.i18n['chart.series.previous'] ?? 'Previous',
+          },
           format,
           formatAxis: formatChartAxis,
           locale: section.document.meta.locale,
