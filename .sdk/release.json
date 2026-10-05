@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Restore pointer and wheel interaction in Lens facet and comparison popovers inside pass-through menu portals."
+    }
+  ],
+  "source": "4430b6466cebc2b69603f7745f71088719bec241",
+  "version": "0.17.2"
+}
