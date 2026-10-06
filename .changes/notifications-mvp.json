@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add persistent tenant-scoped in-app notifications with an event catalog, configurable recipients, test delivery, a polling notification center, and a built-in user-created event."
+}

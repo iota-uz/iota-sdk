@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/url"
+	"strconv"
 )
 
 var (
@@ -129,6 +130,7 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 			<div class="hidden lg:block">
 				@spotlight.Spotlight()
 			</div>
+			@NotificationBell()
 			@ThemeSwitcher()
 			@base.DetailsDropdown(&base.DetailsDropdownProps{
 				Summary:     Avatar(),
@@ -318,5 +320,19 @@ templ Authenticated(props AuthenticatedProps) {
 				</div>
 			</div>
 		</div>
+	}
+}
+
+templ NotificationBell() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<a href="/notifications" class="relative flex items-center justify-center w-9 h-9 rounded-md hover:bg-surface-400" aria-label={ pageCtx.T("Notifications.Title") } data-testid="notification-bell">
+		@icons.Bell(icons.Props{Size: "22"})
+		<span id="notification-bell-count" hx-get="/notifications/summary" hx-trigger="load, every 20s, notificationsChanged from:body" hx-swap="innerHTML" aria-live="polite"></span>
+	</a>
+}
+
+templ NotificationBellCount(count int64) {
+	if count > 0 {
+		<span class="absolute -right-2 -top-1 rounded-full bg-primary text-white text-xs min-w-5 px-1 text-center" data-testid="notification-unread-count">{ strconv.FormatInt(count, 10) }</span>
 	}
 }

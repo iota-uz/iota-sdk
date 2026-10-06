@@ -1491,5 +1491,34 @@
   "Error": {
     "ProcessingFailed": "导入失败"
   },
-  "DryRunNotice": "这是预览——数据尚未更改。请查看上方结果，然后确认以执行导入。"
+  "DryRunNotice": "这是预览——数据尚未更改。请查看上方结果，然后确认以执行导入。",
+  "Notifications": {
+    "Title": "通知",
+    "All": "全部",
+    "Unread": "未读",
+    "MarkAllRead": "全部标为已读",
+    "MarkRead": "标为已读",
+    "Empty": "暂无通知",
+    "Open": "打开",
+    "Pagination": "分页",
+    "Previous": "上一页",
+    "Next": "下一页"
+  },
+  "NotificationSettings": {
+    "UnavailableRecipients": "某些选定的收件人已不可用。请选择收件人并保存，以移除不可用的选项。",
+    "Title": "通知设置",
+    "Intro": "启用事件并选择接收者。发送测试前请保存规则。",
+    "Enabled": "已启用",
+    "Recipients": "接收者",
+    "Save": "保存规则",
+    "SendTest": "按已保存规则发送测试",
+    "Saved": "通知规则已保存。",
+    "InvalidRule": "请选择有效接收者。启用事件至少需要一位接收者。",
+    "TestSent": "已向 {{.Count}} 位接收者发送测试。",
+    "TestSkipped": "未发送通知。请启用测试事件、选择接收者并保存规则。",
+    "PermissionRead": "查看通知设置",
+    "PermissionReadDescription": "查看通知事件和投递规则",
+    "PermissionManage": "管理通知设置",
+    "PermissionManageDescription": "启用事件、选择接收者并发送测试通知"
+  }
 }

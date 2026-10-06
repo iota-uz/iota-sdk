@@ -1,0 +1,87 @@
+package notification_settings
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/modules/core/notifications"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"strconv"
+)
+
+type Recipient struct {
+	ID   uint
+	Name string
+}
+type EventRule struct {
+	Definition        notifications.Definition
+	Rule              notifications.Rule
+	MissingRecipients int
+}
+type Props struct {
+	Rules      []EventRule
+	Recipients []Recipient
+	CanManage  bool
+	MessageKey string
+	Delivered  int
+}
+
+func selected(ids []uint, id uint) bool {
+	for _, v := range ids {
+		if v == id {
+			return true
+		}
+	}
+	return false
+}
+
+templ Index(props *Props) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{BaseProps: layouts.BaseProps{Title: pageCtx.T("NotificationSettings.Title")}}) {
+		@Content(props)
+	}
+}
+
+templ Content(props *Props) {
+	{{ pageCtx := composables.UsePageCtx(ctx)
+lang := pageCtx.GetLocale().String() }}
+	<main id="notification-settings" class="p-4 md:p-6 space-y-6">
+		<div><h1 class="text-2xl font-semibold">{ pageCtx.T("NotificationSettings.Title") }</h1><p class="text-sm text-gray-600 mt-2">{ pageCtx.T("NotificationSettings.Intro") }</p></div>
+		if props.MessageKey!="" {
+			<p role="status" class="rounded-lg bg-surface-200 p-4">{ pageCtx.T("NotificationSettings."+props.MessageKey,map[string]interface{}{"Count":props.Delivered}) }</p>
+		}
+		for _,event:=range props.Rules {
+			@card.Card(card.Props{}) {
+				<form method="post" action="/settings/notifications" hx-post="/settings/notifications" hx-target="#notification-settings" hx-swap="outerHTML" class="p-4 space-y-4">
+					<input type="hidden" name="event_key" value={ event.Definition.Key }/>
+					<h2 class="text-lg font-semibold">{ notifications.Localized(event.Definition.Name,lang) }</h2>
+					<p class="text-sm text-gray-600">{ notifications.Localized(event.Definition.Description,lang) }</p>
+					if event.MissingRecipients > 0 {
+						<p role="status" class="text-sm text-red-600">{ pageCtx.T("NotificationSettings.UnavailableRecipients") }</p>
+					}
+					<label class="flex items-center gap-2"><input type="checkbox" name="enabled" value="true" checked?={ event.Rule.Enabled } disabled?={ !props.CanManage }/>{ pageCtx.T("NotificationSettings.Enabled") }</label>
+					<fieldset disabled?={ !props.CanManage } class="space-y-2">
+						<legend class="font-medium mb-2">{ pageCtx.T("NotificationSettings.Recipients") }</legend>
+						<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+							for _,recipient:=range props.Recipients {
+								<label class="flex items-center gap-2"><input type="checkbox" name="user_ids" value={ strconv.FormatUint(uint64(recipient.ID), 10) } checked?={ selected(event.Rule.UserIDs,recipient.ID) }/>{ recipient.Name }</label>
+							}
+						</div>
+					</fieldset>
+					if props.CanManage {
+						<div class="flex flex-wrap gap-3">
+							@button.Primary(button.Props{Attrs: templ.Attributes{"type": "submit"}}) {
+								{ pageCtx.T("NotificationSettings.Save") }
+							}
+							if event.Definition.Key==notifications.TestEventKey {
+								@button.Secondary(button.Props{Attrs: templ.Attributes{"type": "submit", "formaction": "/settings/notifications/test", "hx-post": "/settings/notifications/test"}}) {
+									{ pageCtx.T("NotificationSettings.SendTest") }
+								}
+							}
+						</div>
+					}
+				</form>
+			}
+		}
+	</main>
+}
