@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
 )
@@ -46,6 +47,18 @@ func TestNotificationsMVP_UserCreationToInbox(t *testing.T) {
 	count, err := inbox.UnreadCount(ctx)
 	require.NoError(t, err)
 	require.Zero(t, count)
+	tx, err := f.Pool.Begin(ctx)
+	require.NoError(t, err)
+	txCtx := composables.WithTx(ctx, tx)
+	_, err = users.Create(txCtx, user.New("Rolled", "Back", internet.MustParseEmail("rollback@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
+	require.NoError(t, err)
+	inside, err := inbox.List(txCtx, notification.FindParams{})
+	require.NoError(t, err)
+	require.Len(t, inside, 2)
+	require.NoError(t, tx.Rollback(ctx))
+	items, err = inbox.List(ctx, notification.FindParams{})
+	require.NoError(t, err)
+	require.Len(t, items, 1, "rolling back user creation must roll back its notification")
 	rule.Enabled = false
 	require.NoError(t, router.SaveRule(ctx, rule))
 	_, err = users.Create(ctx, user.New("Disabled", "Trial", internet.MustParseEmail("disabled@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))

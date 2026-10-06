@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
@@ -29,9 +30,13 @@ func (h *NotificationHandler) OnUserCreated(event *user.CreatedEvent) {
 		return
 	}
 	u := event.Result
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	parent := composables.WithPool(context.Background(), h.pool)
+	if event.Context() != nil && event.Context().Value(constants.TxKey) != nil {
+		parent = event.Context()
+	}
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
-	ctx = composables.WithTenantID(composables.WithPool(ctx, h.pool), u.TenantID())
+	ctx = composables.WithTenantID(ctx, u.TenantID())
 	_, err := h.router.Publish(ctx, notifications.Event{
 		Key: "core.user.created.v1", ID: fmt.Sprintf("user-created:%d", u.ID()), TenantID: u.TenantID(),
 		Data: map[string]string{"user_id": fmt.Sprint(u.ID()), "name": strings.TrimSpace(u.FirstName() + " " + u.LastName())},

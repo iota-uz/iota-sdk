@@ -82,7 +82,11 @@ just css
 
 The focused tests cover persistent recipient/tenant isolation, deduplication,
 URL validation, read state, settings authorization, routing, and an actual
-user-creation-to-inbox path. Browser acceptance is in
+user-creation-to-inbox path. The user-created handler retains a caller-owned
+transaction, so rolling back
+user creation also rolls back its notifications.
+
+Browser acceptance is in
 `e2e/tests/core/notifications.spec.ts`; run against an isolated seeded SDK server
 using the configured `BASE_URL`. It checks saved settings, delivery to a second
 tab, read-state persistence, and disabling delivery.
