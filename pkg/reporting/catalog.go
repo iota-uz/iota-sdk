@@ -24,7 +24,7 @@ type Field struct {
 	Type        string `json:"type"` // string, number, date
 }
 
-// Only additive sums and population counts are supported. Ratios, distinct
+// Measure supports additive sums and population counts. Ratios, distinct
 // counts and balances require a separately defined aggregation contract.
 type Measure struct {
 	Field
@@ -126,7 +126,7 @@ func (c *Catalog) Dataset(id string) (Dataset, error) {
 	return cloneDataset(d), nil
 }
 
-// Discovery is bounded regardless of the number of registered definitions.
+// Search is bounded regardless of the number of registered definitions.
 // Exact IDs are retrieved separately; SQL is excluded from JSON serialization.
 func (c *Catalog) Search(query string, offset, limit int) ([]Dataset, int, error) {
 	if offset < 0 || limit < 1 || limit > 20 || len(query) > 256 {

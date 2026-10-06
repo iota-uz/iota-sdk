@@ -23,7 +23,7 @@ func TestReportExportPreservesNativeAndStringTimeCells(t *testing.T) {
 	require.NoError(t, err)
 	f, err := excelize.OpenFile(filepath.Join(dir, out.Artifacts[0].Name))
 	require.NoError(t, err)
-	defer f.Close()
+	t.Cleanup(func() { require.NoError(t, f.Close()) })
 	for _, cell := range []string{"A2", "B2"} {
 		typ, err := f.GetCellType("Sheet1", cell)
 		require.NoError(t, err)

@@ -128,7 +128,10 @@ func (t *SemanticReportTool) CallStructured(ctx context.Context, input string) (
 	}
 	manifest := map[string]any{"plan": compiled.Plan, "plan_sha256": compiled.Fingerprint, "definition": compiled.Definition, "complete": true, "row_count": len(r.Rows), "totals_by_measure_and_unit": totals, "generated_at": time.Now().UTC().Format(time.RFC3339Nano), "assurance": "registered_definition; not financial statement approval", "snapshot": "single SQL statement; workbook preserves executed result"}
 	manifest["population_record_count"] = populationCount
-	request, _ := json.Marshal(map[string]any{"sql": compiled.SQL, "filename": p.Dataset, "description": compiled.Definition.Description})
+	request, err := json.Marshal(map[string]any{"sql": compiled.SQL, "filename": p.Dataset, "description": compiled.Definition.Description})
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
 	out, err := NewReportExportTool(&reportResultExecutor{result: r}, t.dir, t.baseURL).CallStructured(ctx, string(request))
 	if err != nil {
 		return out, fmt.Errorf("%s: %w", op, err)
