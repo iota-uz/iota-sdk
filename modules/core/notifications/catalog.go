@@ -1,3 +1,4 @@
+// Package notifications defines events and routing rules for in-app delivery.
 package notifications
 
 import (

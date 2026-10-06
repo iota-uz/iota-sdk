@@ -44,7 +44,7 @@ func TestNotificationRead_UsesAuthenticatedRecipient(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/notifications/"+id.String()+"/read?user_id=999", nil)
 			request = mux.SetURLVars(request, map[string]string{"id": id.String()})
 			request = request.WithContext(composables.WithUser(request.Context(), user.New("Tester", "", nil, "en", user.WithID(42))))
-			request.Header.Set("HX-Request", "true")
+			request.Header.Set("Hx-Request", "true")
 			response := httptest.NewRecorder()
 			if all {
 				c.MarkAllRead(request, response, service)
@@ -53,7 +53,7 @@ func TestNotificationRead_UsesAuthenticatedRecipient(t *testing.T) {
 			}
 			require.Equal(t, http.StatusNoContent, response.Code)
 			require.Equal(t, uint(42), repo.recipient)
-			require.Contains(t, response.Header().Get("HX-Trigger"), "notificationsChanged")
+			require.Contains(t, response.Header().Get("Hx-Trigger"), "notificationsChanged")
 			if all {
 				require.True(t, repo.all)
 			} else {

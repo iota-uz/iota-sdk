@@ -1,3 +1,4 @@
+// Package notification defines persistent notifications for back-office users.
 package notification
 
 import (
@@ -46,14 +47,19 @@ func WithCreatedAt(v time.Time) Option { return func(n *notification) { n.create
 func WithReadAt(v *time.Time) Option {
 	return func(n *notification) {
 		if v != nil {
-			copy := *v
-			n.readAt = &copy
+			readAt := *v
+			n.readAt = &readAt
 		}
 	}
 }
 
 func New(userID uint, title, body string, opts ...Option) (Notification, error) {
-	n := &notification{id: uuid.New(), userID: userID, title: strings.TrimSpace(title), body: body, createdAt: time.Now().UTC()}
+	n := &notification{
+		id: uuid.New(), tenantID: uuid.Nil, userID: userID,
+		title: strings.TrimSpace(title), body: body,
+		eventKey: "", actionURL: "", dedupeKey: "",
+		createdAt: time.Now().UTC(), readAt: nil,
+	}
 	for _, opt := range opts {
 		opt(n)
 	}
