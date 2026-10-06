@@ -10,8 +10,8 @@ PostgreSQL. All replicas read the same database; Redis is not required.
 1. Apply SDK migrations before deploying the updated application:
    `go run cmd/command/main.go migrate up` using the target database configuration.
    `changes-1791300000.sql` creates `core.notifications`,
-   `core.notification_rules`, their indexes, and two settings permissions.
-   `changes-1791300100.sql` adds group and role selections to existing rules.
+   `core.notification_rules` with user, group, and role selections, their indexes,
+   and two settings permissions.
 2. Grant `NotificationRules.Read` and `NotificationRules.Manage` to the pilot
    administrator through the application's permission provisioning process.
    The default SDK permission schema exposes separate read and manage sets.

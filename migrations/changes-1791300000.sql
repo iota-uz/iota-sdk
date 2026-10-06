@@ -31,6 +31,8 @@ CREATE TABLE core.notification_rules (
     event_key text NOT NULL,
     enabled boolean NOT NULL DEFAULT FALSE,
     user_ids jsonb NOT NULL DEFAULT '[]',
+    group_ids jsonb NOT NULL DEFAULT '[]',
+    role_ids jsonb NOT NULL DEFAULT '[]',
     updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (tenant_id, event_key)
 );
