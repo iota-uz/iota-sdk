@@ -401,6 +401,7 @@ jobs:
       - name: Run service-free Go contract tests
         run: |
           go test ./pkg/sdkidentity ./pkg/mapping ./pkg/serrors/v2/...
+          go test -race ./pkg/reporting ./pkg/bichat/tools/reporting
           go test -race ./pkg/testenv/...
 
       - name: Check applet RPC contracts
