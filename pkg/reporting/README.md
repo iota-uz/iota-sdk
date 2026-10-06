@@ -17,7 +17,8 @@ The compiler is independent of any assistant and individual reports. Owners regi
 }
 ```
 
-The compiler adds `currency` and records the normalized plan. Each
+The compiler adds each measure's registered `currency_dimension` and records
+the normalized plan. The dimension name belongs to the source definition. Each
 currency stays separate. Detail projects measures at source grain; aggregates
 support additive sums and population counts. Filters act before grouping.
 Output row count means rows/groups in the workbook, not population count.
@@ -42,7 +43,7 @@ Output row count means rows/groups in the workbook, not population count.
    at composition. Verify real PostgreSQL boundaries, nulls, repeated child
    rows and mixed currencies where applicable.
 
-Catalog reads return copies; JSON excludes SourceSQL. Search is bounded and
+Catalog reads return copies; JSON excludes SourceSQL. Search is bounded.
 The discovery tool returns summaries before fetching fields of an exact definition. Catalog
 entries grow with business concepts; saved reports are versioned plan JSON.
 

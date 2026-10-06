@@ -16,7 +16,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/reporting"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/shopspring/decimal"
 	"github.com/xuri/excelize/v2"
 )
@@ -44,7 +43,7 @@ func (t *ReportCatalogTool) Call(ctx context.Context, input string) (string, err
 	return tools.FormatStructuredResult(t.CallStructured(ctx, input))
 }
 func (t *ReportCatalogTool) CallStructured(_ context.Context, input string) (*types.ToolResult, error) {
-	const op serrors.Op = "ReportCatalogTool.Call"
+	const op = "ReportCatalogTool.Call"
 	p, err := agents.ParseToolInput[struct {
 		Dataset string `json:"dataset_id"`
 		Search  string `json:"search"`
@@ -52,12 +51,12 @@ func (t *ReportCatalogTool) CallStructured(_ context.Context, input string) (*ty
 		Limit   int    `json:"limit"`
 	}](input)
 	if err != nil {
-		return nil, serrors.E(op, serrors.Invalid, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	if p.Dataset != "" {
 		d, err := t.catalog.Dataset(p.Dataset)
 		if err != nil {
-			return nil, serrors.E(op, serrors.Invalid, err)
+			return nil, fmt.Errorf("%s: %w", op, err)
 		}
 		return &types.ToolResult{CodecID: types.CodecJSON, Payload: types.JSONPayload{Output: map[string]any{"definition": d}}}, nil
 	}
@@ -66,7 +65,7 @@ func (t *ReportCatalogTool) CallStructured(_ context.Context, input string) (*ty
 	}
 	definitions, total, err := t.catalog.Search(p.Search, p.Offset, p.Limit)
 	if err != nil {
-		return nil, serrors.E(op, serrors.Invalid, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	// Search hits are summaries. Fetching one definition reveals its fields.
 	hits := []map[string]any{}
@@ -104,61 +103,61 @@ func (t *SemanticReportTool) Call(ctx context.Context, input string) (string, er
 	return tools.FormatStructuredResult(t.CallStructured(ctx, input))
 }
 func (t *SemanticReportTool) CallStructured(ctx context.Context, input string) (*types.ToolResult, error) {
-	const op serrors.Op = "SemanticReportTool.Call"
+	const op = "SemanticReportTool.Call"
 	p, err := reporting.ParsePlan(input)
 	if err != nil {
-		return nil, serrors.E(op, serrors.Invalid, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	compiled, err := t.catalog.Compile(p)
 	if err != nil {
-		return nil, serrors.E(op, serrors.Invalid, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	// A single SQL statement provides one PostgreSQL statement snapshot for all
 	// measures and detail. Export and control totals never re-query the source.
 	r, err := t.executor.ExecuteQuery(ctx, compiled.SQL, compiled.Args, 60*time.Second)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	r, populationCount, err := checkedSemanticResult(compiled, r)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	totals, err := semanticTotals(compiled, r)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	manifest := map[string]any{"plan": compiled.Plan, "plan_sha256": compiled.Fingerprint, "definition": compiled.Definition, "complete": true, "row_count": len(r.Rows), "totals_by_measure_and_unit": totals, "generated_at": time.Now().UTC().Format(time.RFC3339Nano), "assurance": "registered_definition; not financial statement approval", "snapshot": "single SQL statement; workbook preserves executed result"}
 	manifest["population_record_count"] = populationCount
 	request, _ := json.Marshal(map[string]any{"sql": compiled.SQL, "filename": p.Dataset, "description": compiled.Definition.Description})
 	out, err := NewReportExportTool(&reportResultExecutor{result: r}, t.dir, t.baseURL).CallStructured(ctx, string(request))
 	if err != nil {
-		return out, serrors.E(op, err)
+		return out, fmt.Errorf("%s: %w", op, err)
 	}
 	payload, ok := out.Payload.(types.JSONPayload)
 	if !ok {
-		return nil, serrors.E(op, ErrReportShape)
+		return nil, fmt.Errorf("%s: %w", op, ErrReportShape)
 	}
 	encoded, err := json.Marshal(payload.Output)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	var response map[string]any
 	if err = json.Unmarshal(encoded, &response); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	filename, ok := response["filename"].(string)
 	if !ok {
-		return nil, serrors.E(op, ErrReportShape)
+		return nil, fmt.Errorf("%s: %w", op, ErrReportShape)
 	}
 	path := filepath.Join(t.dir, filename)
 	if err = addReportManifest(path, manifest); err != nil {
 		_ = os.Remove(path)
-		return nil, serrors.E(op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	content, err := os.ReadFile(path)
 	if err != nil {
 		_ = os.Remove(path)
-		return nil, serrors.E(op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	digest := fmt.Sprintf("%x", sha256.Sum256(content))
 	response["report_contract"], response["sha256"], response["file_size_kb"] = manifest, digest, len(content)/1024
