@@ -386,6 +386,9 @@ type PresentationHints struct {
 	// HideTotalBadge suppresses the total badge, e.g. when a trend chip
 	// already carries the panel's summary.
 	HideTotalBadge bool
+	// KeepTotalBadge opts an additive chart into a persistent total, including zero.
+	// A served total takes precedence; otherwise the runtime sums the loaded rows.
+	KeepTotalBadge bool
 	// Waterfall renders a Cascade as a conventional vertical waterfall:
 	// opening total, floating signed movements, and closing total connected
 	// at their running-balance levels. The Cascade data contract remains

@@ -643,7 +643,7 @@
 
   .lens-filter-menu-popover,
   .lens-compare-popover {
-    @apply lens-z-[1100] lens-flex lens-max-w-[calc(100vw-24px)] lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card;
+    @apply lens-pointer-events-auto lens-z-[1100] lens-flex lens-max-w-[calc(100vw-24px)] lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card;
 
     box-shadow: var(--lens-shadow-popover);
   }

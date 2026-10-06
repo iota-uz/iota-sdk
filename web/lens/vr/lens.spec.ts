@@ -321,7 +321,10 @@ const staticStories = [
   ['temporal-overlays--reference-lines', 1],
   ['temporal-overlays--regression', 1],
   ['temporal-overlays--time-annotations', 1],
-  ['sharing--panel-image-formats', 0],
+  // Two Linux CI runs produced the same six anti-aliasing pixels at the
+  // rounded menu corners, with unchanged menu geometry/content. Keep the
+  // allowance local so layout and missing-item changes still fail.
+  ['sharing--panel-image-formats', 0, 6],
   ['sharing--slice-link', 0],
   ['table-readability--narrow', 0],
   ['table-readability--wide', 0],
@@ -778,4 +781,25 @@ test('nested tabs: keyboard navigation and inner-tab persistence', async ({ page
   await expect(page.getByRole('tablist').nth(1).getByRole('tab', { name: 'Movement', selected: true })).toBeVisible()
   await expect(page.getByText(/800,000/).first()).toBeVisible()
   await screenshot(page, 'metric-composition-inner-tab-persisted')
+})
+
+// Falsely green if clicks are dispatched through JS or scrolling is assigned directly: both bypass hit testing.
+test('facet menu receives wheel and pointer input across dimensions', async ({ page }) => {
+  await openStory(page, 'filter-controls--filters-menu-open', 0)
+  const menu = page.getByRole('dialog', { name: 'Filters', exact: true })
+  const options = menu.locator('.lens-facet-options')
+  await expect(options.getByRole('checkbox')).toHaveCount(6)
+  const before = await options.evaluate((element) => element.scrollTop)
+  await options.hover()
+  await page.mouse.wheel(0, 250)
+  await expect.poll(() => options.evaluate((element) => element.scrollTop)).toBeGreaterThan(before)
+  await menu.getByRole('tab', { name: /^Region/ }).click()
+  await expect(menu.getByRole('tab', { name: /^Region/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(options.getByRole('checkbox')).toHaveCount(6)
+  const choice = options.getByRole('checkbox').nth(1)
+  await choice.check()
+  await expect(choice).toBeChecked()
+  await expect(menu.getByRole('button', { name: 'Apply', exact: true })).toBeEnabled()
+  await menu.getByRole('button', { name: 'Apply', exact: true }).click()
+  await expect(page).toHaveURL(/\/reports\/sales\?.*_f=region%3Aosago/)
 })

@@ -3,7 +3,7 @@ import { compactChartLabelWidth } from '../../breakpoints'
 import type { Presentation } from '../../contract'
 import { isVisualRegression } from '../../visualRegression'
 import { radialNodeKey, type ChartInput } from '../adapter'
-import { fallbackMarkKey } from '../keys'
+import { fallbackMarkKey, markCellText as text } from '../keys'
 import { activeOverlayIds, categoryDisplayFormatter, chartOverlays, overlayId } from '../overlays'
 import { linearScaleObscuresValues, shouldUseLogarithmicScale } from '../scales'
 import { distributeShares, formatShare } from '../shares'
@@ -30,13 +30,6 @@ function columnIndex(input: ChartInput, field: string | undefined): number {
 
 function availableEncodingField(input: ChartInput, ...fields: Array<string | undefined>): string | undefined {
   return fields.find((field) => field !== undefined && columnIndex(input, field) >= 0)
-}
-
-function text(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return String(value)
-  return ''
 }
 
 function chartValue(value: unknown): ChartValue {
@@ -1438,9 +1431,13 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         periodShown,
       )
     })))
+  const currentName = (name: string) => input.encoding.previous
+    ? `${name ? `${name} · ` : ''}${input.labels?.current ?? 'Current period'}`
+    : name || undefined
+  const namedLineSeries = new Set([...lineSeries].flatMap((name) => [name, currentName(name) ?? name, `${name ? `${name} · ` : ''}${input.labels?.previous ?? 'Previous'}`]))
   const currentSeries = seriesNames.map((name, index) => ({
     type: isBar && !lineSeries.has(name) ? 'bar' as const : 'line' as const,
-    name: name || undefined,
+    name: currentName(name),
     universalTransition: { enabled: morphEnabled() },
     stack: stacked && !lineSeries.has(name) ? 'total' : undefined,
     barWidth: isBar && !lineSeries.has(name) && barWidth ? barWidth : undefined,
@@ -1493,7 +1490,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     if (tail.length < 2) return []
     return [{
       type: 'line' as const,
-      name: name || undefined,
+      name: currentName(name),
       id: `lens-incomplete-tail-${index}`,
       z: 3,
       showSymbol: true,
@@ -1877,7 +1874,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       ...tooltipChrome(theme),
       formatter: timeAxis
         ? timeTooltipFormatter(input, categoryField, showSeriesName)
-        : categoryTooltipFormatter(input, categoryField, stacked, lineSeries, showSeriesName),
+        : categoryTooltipFormatter(input, categoryField, stacked, namedLineSeries, showSeriesName),
       valueFormatter: timeAxis ? undefined : formatter,
     },
     xAxis: horizontal ? valueAxis : timeAxis ? temporalAxis : categoryAxis,

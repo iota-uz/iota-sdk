@@ -583,3 +583,21 @@ func TestDocumentCompilesVariableComponentOverride(t *testing.T) {
 	require.Len(t, compiled.Spec.Variables, 1)
 	require.Equal(t, lens.VariableComponentTextInput, compiled.Spec.Variables[0].Component)
 }
+
+// Falsely green if this checks the source spec instead of the executed wire frame.
+func TestCompiledPanelServesLiteralRowColours(t *testing.T) {
+	t.Parallel()
+	frames, err := frame.LongSeries("sales", frame.LongSeriesRow{Category: "day", Series: "Product", Value: 7, Extra: map[string]any{"ink": "#123456"}})
+	require.NoError(t, err)
+	spec := lensspec.Document{Version: lensspec.DocumentVersion, ID: "colours", Title: lensspec.LiteralText("Colours"),
+		Datasets: []lensspec.DatasetSpec{lensspec.StaticDataset("sales", frames)},
+		Rows:     []lensspec.RowSpec{{Panels: []lensspec.PanelSpec{lensspec.StackedBar("chart", "Sales", "sales").CategoryField("category").SeriesField("series").ValueField("value").Colors("#abcdef").SemanticColors("{{scale}}", "{{field}}").Build()}}},
+	}
+	compiled, err := Document(spec, Options{Values: map[string]any{"scale": "literal", "field": "ink"}})
+	require.NoError(t, err)
+	results, err := runtime.New(runtime.Options{}).Execute(context.Background(), compiled.Spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope())
+	require.NoError(t, err)
+	wire, err := lensdocument.Build(compiled.Spec, results, lensdocument.BuildOptions{SnapshotID: "colours", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"#123456"}, wire.Frames["panel:chart"].Colors)
+}

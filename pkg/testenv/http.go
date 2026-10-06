@@ -19,7 +19,7 @@ func NewHandler(registry *Registry, controlToken string) (http.Handler, error) {
 		if err != nil {
 			var e *Error
 			if !errors.As(err, &e) {
-				e = &Error{"execution_failed", err.Error()}
+				e = &Error{Code: "execution_failed", Message: err.Error()}
 			}
 			status := map[string]int{"invalid_input": 400, "unknown_scenario": 404, "version_mismatch": 409, "scope_conflict": 409, "missing_capability": 412, "timeout": 504}[e.Code]
 			if status == 0 {

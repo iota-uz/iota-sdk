@@ -191,22 +191,10 @@ export interface ScenarioControl<Input, Result> {
 }
 /** Teardown runs even when readiness, the scenario or the browser assertion fails. */
 export async function withEnvironment<E extends EnvironmentDescriptor, Result>(lifecycle: EnvironmentLifecycle<E>, workerIndex: number, use: (environment: E) => Promise<Result>): Promise<Result> {
-  const environment = await lifecycle.start(workerIndex)
-  let failed = false
-  let failure: unknown
-  try { await lifecycle.ready(environment); return await use(environment) }
-  catch (error) { failed = true; failure = error; throw error }
-  finally {
-    try { await lifecycle.stop(environment) }
-    catch (error) {
-      if (failed) throw new AggregateError([failure, error], 'Environment failed and teardown failed')
-      throw error
-    }
-  }
+  return withEnvironmentLease(lifecycle, workerIndex, use)
 }
 export async function withScenario<Input, State, Result>(control: ScenarioControl<Input, State>, input: Input, scopeId: string, use: (state: State) => Promise<Result>): Promise<Result> {
-  try { return await use(await control.prepare(input, scopeId)) }
-  finally { await control.dispose(scopeId) }
+  return preservingCleanup(async () => use(await control.prepare(input, scopeId)), () => control.dispose(scopeId))
 }
 /** Instantiate per worker/environment; identities are materialised only when requested. */
 export function lazyIdentities<Key, State>(create: (identity: Key) => Promise<State>): (identity: Key) => Promise<State> {
@@ -223,8 +211,10 @@ export function lazyIdentities<Key, State>(create: (identity: Key) => Promise<St
 
 export type ScenarioLease<Input, State> = (input: Input) => Promise<State>
 export type IdentityLease<Key, State> = (identity: Key) => Promise<State>
-export { createEnvironmentTest } from './fixtures.js'
-export { createProcessEnvironmentDriver, type DriverDescriptor } from './driver.js'
+export { createEnvironmentTest, createEnvironmentLeaseTest, type EnvironmentLeaseInfo } from './fixtures.js'
+export { createProcessEnvironmentDriver, DriverError, type DriverDescriptor } from './driver.js'
+import { preservingCleanup, withEnvironmentLease } from './lease.js'
+export { acquireEnvironmentLease, withEnvironmentLease, preservingCleanup, type EnvironmentLease, type LeaseOptions } from './lease.js'
 
 export async function expectFontsReady(page: Page, options: WaitOptions = {}): Promise<void> {
   await page.waitForFunction(() => document.fonts.status === 'loaded', undefined, { timeout: timeout(options) })

@@ -48,7 +48,7 @@ func (p *paymeProvider) Create(_ context.Context, t billing.Transaction) (billin
 	for k, v := range paymeDetails.Account() {
 		params["ac."+k] = v
 	}
-	params["a"] = int64(math.Ceil(t.Amount().Quantity() * 100))
+	params["a"] = int64(math.Round(t.Amount().Quantity() * 100))
 	params["cr"] = t.Amount().Currency()
 
 	var linkData string

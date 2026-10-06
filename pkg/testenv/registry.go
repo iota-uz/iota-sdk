@@ -3,7 +3,6 @@ package testenv
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -264,17 +263,12 @@ func (r *Registry) Prepare(ctx context.Context, input Input) (Result, error) {
 	if err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
-		if cleanupErr := s.cleanup(cleanupCtx, input.ScopeID); cleanupErr != nil {
-			return Result{}, failure("cleanup_failed", cleanupErr.Error())
+		cleanupErr := s.cleanup(cleanupCtx, input.ScopeID)
+		diagnostic := lifecycleError(err, "execution_failed", "prepare", Descriptor{EnvironmentID: r.environmentID}, cleanupErr)
+		if cleanupErr != nil {
+			diagnostic.Causes[len(diagnostic.Causes)-1].Operation = "dispose"
 		}
-		var control *Error
-		if errors.As(err, &control) {
-			return Result{}, &Error{Code: control.Code, Message: control.Message}
-		}
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return Result{}, failure("timeout", err.Error())
-		}
-		return Result{}, failure("execution_failed", err.Error())
+		return Result{}, diagnostic
 	}
 	result.ScopeID = input.ScopeID
 	result.Name = input.Name

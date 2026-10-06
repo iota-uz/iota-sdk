@@ -318,6 +318,19 @@ func WithMigrationAdvisoryLock(db dbconfig.Config, fn func() error) error {
 	return WithAdvisoryLock(db, migrationAdvisoryLockKey, "migration", lockBestEffort, fn)
 }
 
+// WithMigrationAdvisoryLockContext serializes migrations on the maintenance
+// database using the same lock as legacy harnesses. Lock acquisition is required:
+// cancellation or connection failure returns an error without running fn.
+// The callback must observe ctx itself; the lock remains held until it returns.
+func WithMigrationAdvisoryLockContext(ctx context.Context, db dbconfig.Config, fn func() error) error {
+	return WithAdvisoryLockContext(ctx, db, migrationAdvisoryLockKey, "migration", lockRequired, func() error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return fn()
+	})
+}
+
 // Whether a caller can survive running fn without the lock. Migrations are
 // idempotent under the migrator's own bookkeeping, so an unlocked run degrades
 // to the pre-lock behaviour - noisy, occasionally racy, but not destructive.

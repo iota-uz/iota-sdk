@@ -50,6 +50,7 @@ const (
 	I18nChartOpenMark                 = "chart.openMark"
 	I18nChartRegression               = "chart.regression"
 	I18nChartResetZoom                = "chart.resetZoom"
+	I18nChartSeriesCurrent            = "chart.series.current"
 	I18nChartSeriesPrevious           = "chart.series.previous"
 	I18nChartSeriesTrend              = "chart.series.trend"
 	I18nChartSeriesMovingAverage      = "chart.series.movingAverage"
@@ -360,7 +361,7 @@ func RuntimeI18nKeys() []string {
 		I18nChartLegendToggleHint,
 		I18nChartLegendShowAll, I18nChartLogScale, I18nChartLogScaleHint, I18nChartMovingAverage,
 		I18nChartOpenMark, I18nChartOther, I18nChartRegression, I18nChartResetZoom,
-		I18nChartSeriesPrevious, I18nChartSeriesTrend, I18nChartSeriesMovingAverage, I18nChartSeriesEstimate,
+		I18nChartSeriesCurrent, I18nChartSeriesPrevious, I18nChartSeriesTrend, I18nChartSeriesMovingAverage, I18nChartSeriesEstimate,
 		I18nChartSeriesYTD, I18nChartSeriesForecast, I18nChartSeriesForecastLower, I18nChartSeriesForecastConfidence,
 		I18nDashboardEmpty, I18nDashboardTabs, I18nDashboardUpdated, I18nDashboardRecompute, I18nDashboardRecomputeHint, I18nDashboardRecomputing, I18nDrillClose, I18nDrillReset,
 		I18nDocumentRefetch, I18nDocumentRetry,
