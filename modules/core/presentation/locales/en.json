@@ -1515,7 +1515,7 @@
     "SendTest": "Send test using saved rule",
     "Saved": "Notification rule saved.",
     "InvalidRule": "Choose valid recipients. Enabled events require at least one recipient.",
-    "TestSent": "Test sent to {{.Count}} recipients.",
+    "TestSent": "Test notifications sent: {{.Count}}.",
     "TestSkipped": "No notifications sent. Enable the test event and choose recipients, then save the rule.",
     "PermissionRead": "Read notification settings",
     "PermissionReadDescription": "View notification events and delivery rules",

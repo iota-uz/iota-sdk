@@ -62,6 +62,14 @@ cannot read or mutate another user's notifications.
 
 Delivery errors are returned by the router. The built-in user-created event
 handler logs failures with tenant and user IDs without failing user creation.
+When the producer uses a caller-owned transaction, notification writes run in a
+savepoint: successful writes share the caller's commit or rollback, while SQL
+failures roll back notification writes without aborting user creation.
+The built-in handler has a five-second deadline and no durable delivery queue.
+Large group or role audiences can exceed that deadline; outside a caller-owned
+transaction, already persisted notifications remain while later recipients may
+be omitted. Durable audience snapshots, batched delivery, and resumable retries
+remain outside this MVP and are required before a large-audience rollout.
 There is no durable event outbox/replay: an event may be lost if the process
 exits between business commit and notification persistence. Producers requiring
 guaranteed delivery should retry using a stable ID or add an outbox in their
