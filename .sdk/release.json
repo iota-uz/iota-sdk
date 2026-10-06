@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Add a versioned semantic reporting catalog, declarative plan compiler and BiChat complete typed report tools with same-result controls and workbook provenance."
+    }
+  ],
+  "source": "3bcf3b3fb03f099b9edcaf1745927924c735941a",
+  "version": "0.18.0"
+}
