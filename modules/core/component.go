@@ -122,6 +122,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewUserRepository)
 	composition.ProvideFunc(builder, persistence.NewNotificationRepository)
 	composition.ProvideFunc(builder, persistence.NewNotificationRuleRepository)
+	composition.ProvideFunc(builder, persistence.NewNotificationAudienceRepository)
 	composition.ProvideFunc(builder, persistence.NewRoleRepository)
 	composition.ProvideFunc(builder, persistence.NewTenantRepository)
 	composition.ProvideFunc(builder, persistence.NewPermissionRepository)

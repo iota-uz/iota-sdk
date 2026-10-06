@@ -11,12 +11,13 @@ PostgreSQL. All replicas read the same database; Redis is not required.
    `go run cmd/command/main.go migrate up` using the target database configuration.
    `changes-1791300000.sql` creates `core.notifications`,
    `core.notification_rules`, their indexes, and two settings permissions.
+   `changes-1791300100.sql` adds group and role selections to existing rules.
 2. Grant `NotificationRules.Read` and `NotificationRules.Manage` to the pilot
    administrator through the application's permission provisioning process.
    The default SDK permission schema exposes separate read and manage sets.
    Existing users receive no new administrative rights automatically. Applications
    with a custom permission schema must include these permissions in that schema.
-3. Open notification settings, enable **Test notification**, select recipients,
+3. Open notification settings, enable **Test notification**, select users, groups or roles,
    and save. Click **Send test using saved rule**. The result reports the recipient
    count; disabled rules send nothing. Open another recipient tab and wait up to
    20 seconds for its badge/history to update.
@@ -25,7 +26,14 @@ PostgreSQL. All replicas read the same database; Redis is not required.
    user. Mark one notification read, reload, then mark all read. Disable the
    event and verify further user creation produces no notifications.
 
-Only active, unblocked ordinary users of the current tenant can be selected.
+Rules combine selected users, groups, and roles without duplicate deliveries. Roles
+include direct assignments and roles inherited through groups. Group membership
+and effective roles are resolved for each event; later membership changes affect
+new deliveries, while notification history remains unchanged. Empty groups and
+roles may be configured before members are assigned. Deleted audiences are shown
+as unavailable in settings and must be removed when saving.
+
+Only active, unblocked ordinary users of the current tenant receive notifications.
 Required event permissions are checked again at delivery. Deleted, blocked,
 inactive, or unauthorized recipients are skipped. Recipient membership and text
 are snapshots; later account or language changes do not rewrite history.
@@ -64,7 +72,7 @@ Rules have no automatic retention; history grows until an application establishe
 its retention policy. Each visible tab polls at most two small endpoints every
 20 seconds (count plus history while the center is open).
 
-This slice omits groups/roles/dynamic audiences, external delivery channels,
+This slice omits custom dynamic audience predicates, external delivery channels,
 WebSocket fanout, custom templates, severity overrides, per-user quiet hours,
 and retention jobs. The existing broader issues remain open for these extensions.
 
@@ -89,4 +97,5 @@ user creation also rolls back its notifications.
 Browser acceptance is in
 `e2e/tests/core/notifications.spec.ts`; run against an isolated seeded SDK server
 using the configured `BASE_URL`. It checks saved settings, delivery to a second
-tab, read-state persistence, and disabling delivery.
+tab, read-state persistence, saved group/role selections, inherited-role delivery,
+membership removal, and disabling delivery.

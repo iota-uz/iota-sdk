@@ -1506,6 +1506,10 @@
     "Next": "Próxima"
   },
   "NotificationSettings": {
+    "Groups": "Grupos",
+    "Roles": "Funções",
+    "AudienceHint": "Os destinatários são combinados sem duplicatas. Inclui funções dos grupos; a associação é resolvida no envio.",
+
     "UnavailableRecipients": "Alguns destinatários não estão mais disponíveis. Escolha os destinatários e salve para remover as seleções indisponíveis.",
     "Title": "Configurações de notificações",
     "Intro": "Ative eventos e escolha os destinatários. Salve a regra antes de enviar um teste.",

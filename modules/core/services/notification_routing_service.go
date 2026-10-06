@@ -25,10 +25,11 @@ type NotificationRoutingService struct {
 	rules    notifications.RuleRepository
 	users    NotificationRecipients
 	delivery NotificationDelivery
+	audience notifications.AudienceRepository
 }
 
-func NewNotificationRoutingService(catalog *notifications.Catalog, rules notifications.RuleRepository, users user.Repository, delivery *NotificationService) *NotificationRoutingService {
-	return &NotificationRoutingService{catalog: catalog, rules: rules, users: users, delivery: delivery}
+func NewNotificationRoutingService(catalog *notifications.Catalog, rules notifications.RuleRepository, users user.Repository, delivery *NotificationService, audience notifications.AudienceRepository) *NotificationRoutingService {
+	return &NotificationRoutingService{catalog: catalog, rules: rules, users: users, delivery: delivery, audience: audience}
 }
 func (s *NotificationRoutingService) Catalog() *notifications.Catalog { return s.catalog }
 func (s *NotificationRoutingService) Rule(ctx context.Context, key string) (notifications.Rule, error) {
@@ -46,7 +47,7 @@ func (s *NotificationRoutingService) SaveRule(ctx context.Context, rule notifica
 	if err != nil {
 		return serrors.E(op, err)
 	}
-	if len(rule.UserIDs) > 1000 {
+	if len(rule.UserIDs)+len(rule.GroupIDs)+len(rule.RoleIDs) > 1000 {
 		return serrors.E(op, serrors.KindValidation, fmt.Errorf("too many recipients"))
 	}
 	seen := map[uint]bool{}
@@ -56,7 +57,7 @@ func (s *NotificationRoutingService) SaveRule(ctx context.Context, rule notifica
 		}
 		seen[id] = true
 	}
-	if rule.Enabled && len(rule.UserIDs) == 0 {
+	if rule.Enabled && len(rule.UserIDs)+len(rule.GroupIDs)+len(rule.RoleIDs) == 0 {
 		return serrors.E(op, serrors.KindValidation, fmt.Errorf("enabled event requires recipients"))
 	}
 	users, err := s.users.GetByIDs(ctx, rule.UserIDs)
@@ -70,6 +71,9 @@ func (s *NotificationRoutingService) SaveRule(ctx context.Context, rule notifica
 		if u.TenantID() != tenant || u.IsBlocked() || u.Type() != user.TypeUser || u.Status() != user.StatusActive {
 			return serrors.E(op, serrors.KindValidation, fmt.Errorf("invalid recipient"))
 		}
+	}
+	if err := s.validateAudience(ctx, rule); err != nil {
+		return serrors.E(op, err)
 	}
 	return s.rules.Save(ctx, rule)
 }
@@ -90,10 +94,26 @@ func (s *NotificationRoutingService) Publish(ctx context.Context, event notifica
 	if err != nil {
 		return 0, serrors.E(op, err)
 	}
-	if !rule.Enabled || len(rule.UserIDs) == 0 {
+	if !rule.Enabled {
 		return 0, nil
 	}
-	users, err := s.users.GetByIDs(ctx, rule.UserIDs)
+	ids := append([]uint{}, rule.UserIDs...)
+	if len(rule.GroupIDs)+len(rule.RoleIDs) > 0 {
+		resolved, err := s.audience.Resolve(ctx, rule.GroupIDs, rule.RoleIDs)
+		if err != nil {
+			return 0, serrors.E(op, err)
+		}
+		ids = append(ids, resolved...)
+	}
+	unique := make([]uint, 0, len(ids))
+	selected := map[uint]bool{}
+	for _, id := range ids {
+		if !selected[id] {
+			selected[id] = true
+			unique = append(unique, id)
+		}
+	}
+	users, err := s.users.GetByIDs(ctx, unique)
 	if err != nil {
 		return 0, serrors.E(op, err)
 	}
@@ -118,4 +138,49 @@ func (s *NotificationRoutingService) Publish(ctx context.Context, event notifica
 		delivered++
 	}
 	return delivered, nil
+}
+
+func (s *NotificationRoutingService) Groups(ctx context.Context) ([]notifications.GroupOption, error) {
+	return s.audience.Groups(ctx)
+}
+func (s *NotificationRoutingService) Roles(ctx context.Context) ([]notifications.RoleOption, error) {
+	return s.audience.Roles(ctx)
+}
+func (s *NotificationRoutingService) validateAudience(ctx context.Context, rule notifications.Rule) error {
+	invalid := func() error {
+		return serrors.E("NotificationRoutingService.validateAudience", serrors.KindValidation, fmt.Errorf("invalid or duplicate audience"))
+	}
+	if len(rule.GroupIDs) > 0 {
+		groups, err := s.Groups(ctx)
+		if err != nil {
+			return err
+		}
+		available := map[uuid.UUID]bool{}
+		for _, g := range groups {
+			available[g.ID] = true
+		}
+		for _, id := range rule.GroupIDs {
+			if id == uuid.Nil || !available[id] {
+				return invalid()
+			}
+			delete(available, id)
+		}
+	}
+	if len(rule.RoleIDs) > 0 {
+		roles, err := s.Roles(ctx)
+		if err != nil {
+			return err
+		}
+		available := map[uint]bool{}
+		for _, r := range roles {
+			available[r.ID] = true
+		}
+		for _, id := range rule.RoleIDs {
+			if id == 0 || !available[id] {
+				return invalid()
+			}
+			delete(available, id)
+		}
+	}
+	return nil
 }

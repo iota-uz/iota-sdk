@@ -43,6 +43,16 @@ func (c *NotificationSettingsController) render(w http.ResponseWriter, r *http.R
 		return
 	}
 	props := &settings.Props{CanManage: composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) == nil, MessageKey: message, Delivered: delivered}
+	props.Groups, err = s.Groups(r.Context())
+	if err != nil {
+		http.Error(w, "Unable to load groups", http.StatusInternalServerError)
+		return
+	}
+	props.Roles, err = s.Roles(r.Context())
+	if err != nil {
+		http.Error(w, "Unable to load roles", http.StatusInternalServerError)
+		return
+	}
 	tenant, err := composables.UseTenantID(r.Context())
 	if err != nil {
 		http.Error(w, "Unable to load tenant", http.StatusInternalServerError)
@@ -64,6 +74,24 @@ func (c *NotificationSettingsController) render(w http.ResponseWriter, r *http.R
 			return
 		}
 		missing := 0
+		groups := map[uuid.UUID]bool{}
+		for _, g := range props.Groups {
+			groups[g.ID] = true
+		}
+		for _, id := range rule.GroupIDs {
+			if !groups[id] {
+				missing++
+			}
+		}
+		roles := map[uint]bool{}
+		for _, role := range props.Roles {
+			roles[role.ID] = true
+		}
+		for _, id := range rule.RoleIDs {
+			if !roles[id] {
+				missing++
+			}
+		}
 		for _, id := range rule.UserIDs {
 			if !available[id] {
 				missing++
@@ -101,6 +129,22 @@ func (c *NotificationSettingsController) Save(w http.ResponseWriter, r *http.Req
 			return
 		}
 		rule.UserIDs = append(rule.UserIDs, uint(id))
+	}
+	for _, value := range r.Form["group_ids"] {
+		id, err := uuid.Parse(value)
+		if err != nil || id == uuid.Nil {
+			http.Error(w, "Invalid group", http.StatusBadRequest)
+			return
+		}
+		rule.GroupIDs = append(rule.GroupIDs, id)
+	}
+	for _, value := range r.Form["role_ids"] {
+		id, err := strconv.ParseUint(value, 10, 32)
+		if err != nil || id == 0 {
+			http.Error(w, "Invalid role", http.StatusBadRequest)
+			return
+		}
+		rule.RoleIDs = append(rule.RoleIDs, uint(id))
 	}
 	if err := s.SaveRule(r.Context(), rule); err != nil {
 		var classified *serrors.Error

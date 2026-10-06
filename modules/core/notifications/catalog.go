@@ -78,6 +78,8 @@ type Rule struct {
 	EventKey string
 	Enabled  bool
 	UserIDs  []uint
+	GroupIDs []uuid.UUID
+	RoleIDs  []uint
 }
 type RuleRepository interface {
 	Get(context.Context, string) (Rule, error)

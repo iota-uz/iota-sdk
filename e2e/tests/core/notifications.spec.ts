@@ -1,19 +1,34 @@
 import { test, expect } from '@playwright/test';
 import { login } from '../../fixtures/auth';
+import { withDatabase } from '../../fixtures/database';
+import { randomUUID } from 'node:crypto';
 
 test('business can configure delivery, receive notifications, read them and disable delivery', async ({ page, context }) => {
 	test.setTimeout(90000);
 	await login(page, 'test@gmail.com', 'TestPass123!');
-	await page.goto('/settings/notifications');
+ const groupID = randomUUID();
+ const roleID = await withDatabase(async (db) => {
+  const { rows: [recipient] } = await db.query("SELECT id,tenant_id FROM users WHERE email=$1", ['test@gmail.com']);
+  await db.query("INSERT INTO user_groups(id,type,name,tenant_id) VALUES($1,'user',$2,$3)", [groupID, 'Notification pilot group '+groupID, recipient.tenant_id]);
+  const { rows: [role] } = await db.query("INSERT INTO roles(type,name,tenant_id) VALUES('user',$1,$2) RETURNING id", ['Notification pilot role '+groupID, recipient.tenant_id]);
+  await db.query('INSERT INTO group_users(group_id,user_id) VALUES($1,$2)', [groupID, recipient.id]);
+  await db.query('INSERT INTO group_roles(group_id,role_id) VALUES($1,$2)', [groupID, role.id]);
+  return role.id;
+ });
+ await page.goto('/settings/notifications');
 	const rule = page.locator('form').filter({ has: page.locator('input[name="event_key"][value="core.notification.test.v1"]') });
 	await rule.locator('input[name="enabled"]').check();
 	await rule.locator('label').filter({ hasText: 'test@gmail.com' }).locator('input').check();
-	await rule.getByRole('button', { name: 'Save rule', exact: true }).click();
+ await rule.locator(`input[name="group_ids"][value="${groupID}"]`).check();
+ await rule.locator(`input[name="role_ids"][value="${roleID}"]`).check();
+ await rule.getByRole('button', { name: 'Save rule', exact: true }).click();
 	await expect(page.getByRole('status')).toContainText('saved');
 	await page.reload();
 	await expect(rule.locator('input[name="enabled"]')).toBeChecked();
 	await expect(rule.locator('label').filter({ hasText: 'test@gmail.com' }).locator('input')).toBeChecked();
-	const inbox = await context.newPage();
+ await expect(rule.locator(`input[name="group_ids"][value="${groupID}"]`)).toBeChecked();
+ await expect(rule.locator(`input[name="role_ids"][value="${roleID}"]`)).toBeChecked();
+ const inbox = await context.newPage();
 	await inbox.goto('/notifications?unread=true');
 	const before = await inbox.getByTestId('notification').count();
 	await rule.getByRole('button', { name: 'Send test using saved rule', exact: true }).click();
@@ -25,11 +40,27 @@ test('business can configure delivery, receive notifications, read them and disa
 	await expect(inbox.getByTestId('notification')).toHaveCount(before);
 	await inbox.reload();
 	await expect(inbox.getByTestId('notification')).toHaveCount(before);
-	await rule.locator('input[name="enabled"]').uncheck();
+ await rule.locator('input[name="user_ids"]:checked').uncheck();
+ await rule.locator(`input[name="group_ids"][value="${groupID}"]`).uncheck();
+ await rule.getByRole('button', { name: 'Save rule', exact: true }).click();
+ await expect(page.getByRole('status')).toContainText('saved');
+ await rule.getByRole('button', { name: 'Send test using saved rule', exact: true }).click();
+ await expect(page.getByRole('status')).toContainText('1');
+ await withDatabase(async (db) => { await db.query('DELETE FROM group_users WHERE group_id=$1', [groupID]); });
+ await rule.getByRole('button', { name: 'Send test using saved rule', exact: true }).click();
+ await expect(page.getByRole('status')).toContainText('No notifications');
+ await inbox.reload();
+ const afterRoleDelivery = await inbox.getByTestId('notification').count();
+ expect(afterRoleDelivery).toBe(before + 1);
+ await rule.locator('input[name="enabled"]').uncheck();
 	await rule.getByRole('button', { name: 'Save rule', exact: true }).click();
 	await expect(page.getByRole('status')).toContainText('saved');
 	await rule.getByRole('button', { name: 'Send test using saved rule', exact: true }).click();
 	await expect(page.getByRole('status')).toContainText('No notifications');
 	await inbox.reload();
-	await expect(inbox.getByTestId('notification')).toHaveCount(before);
+	await expect(inbox.getByTestId('notification')).toHaveCount(afterRoleDelivery);
+ await withDatabase(async (db) => {
+  await db.query('DELETE FROM user_groups WHERE id=$1', [groupID]);
+  await db.query('DELETE FROM roles WHERE id=$1', [roleID]);
+ });
 });

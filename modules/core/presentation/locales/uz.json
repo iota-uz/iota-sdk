@@ -1501,6 +1501,10 @@
     "Next": "Keyingi"
   },
   "NotificationSettings": {
+    "Groups": "Guruhlar",
+    "Roles": "Rollar",
+    "AudienceHint": "Qabul qiluvchilar takrorlanmaydi. Guruh orqali berilgan rollar ham hisobga olinadi; a’zolik hodisa yuborilganda aniqlanadi.",
+
     "UnavailableRecipients": "Ayrim tanlangan oluvchilar endi mavjud emas. Oluvchilarni tanlang va mavjud bo‘lmaganlarni olib tashlash uchun qoidani saqlang.",
     "Title": "Bildirishnoma sozlamalari",
     "Intro": "Voqealarni yoqing va oluvchilarni tanlang. Sinov yuborishdan oldin qoidani saqlang.",

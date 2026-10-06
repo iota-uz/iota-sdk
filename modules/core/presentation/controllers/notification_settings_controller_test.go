@@ -61,7 +61,7 @@ func TestNotificationSettings_SaveRejectsCrossTenantRecipient(t *testing.T) {
 	catalog := notifications.NewCatalog()
 	require.NoError(t, catalog.Register(notifications.TestDefinition()))
 	users := &settingsUsersRepo{users: []user.User{user.New("Other", "Tenant", nil, "en", user.WithID(2), user.WithTenantID(uuid.New()))}}
-	service := services.NewNotificationRoutingService(catalog, rules, users, nil)
+	service := services.NewNotificationRoutingService(catalog, rules, users, nil, settingsAudienceRepo{})
 	c := controllers.NewNotificationSettingsController().(*controllers.NotificationSettingsController)
 	req := httptest.NewRequest(http.MethodPost, "/settings/notifications", strings.NewReader("event_key="+notifications.TestEventKey+"&enabled=true&user_ids=2"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -86,7 +86,7 @@ func TestNotificationSettings_TestUsesSavedRule(t *testing.T) {
 	tenant := uuid.New()
 	catalog := notifications.NewCatalog()
 	require.NoError(t, catalog.Register(notifications.TestDefinition()))
-	service := services.NewNotificationRoutingService(catalog, &settingsRuleRepo{}, &settingsUsersRepo{}, nil)
+	service := services.NewNotificationRoutingService(catalog, &settingsRuleRepo{}, &settingsUsersRepo{}, nil, settingsAudienceRepo{})
 	c := controllers.NewNotificationSettingsController().(*controllers.NotificationSettingsController)
 	req := httptest.NewRequest(http.MethodPost, "/settings/notifications/test", strings.NewReader("enabled=true&user_ids=999"))
 	req.Header.Set("Hx-Request", "true")
@@ -131,7 +131,7 @@ func TestNotificationSettings_ShowsUnavailableRecipients(t *testing.T) {
 	tenant := uuid.New()
 	catalog := notifications.NewCatalog()
 	require.NoError(t, catalog.Register(notifications.TestDefinition()))
-	service := services.NewNotificationRoutingService(catalog, &settingsRuleRepo{rule: notifications.Rule{Enabled: true, UserIDs: []uint{999}}}, &settingsUsersRepo{}, nil)
+	service := services.NewNotificationRoutingService(catalog, &settingsRuleRepo{rule: notifications.Rule{Enabled: true, UserIDs: []uint{999}}}, &settingsUsersRepo{}, nil, settingsAudienceRepo{})
 	c := controllers.NewNotificationSettingsController().(*controllers.NotificationSettingsController)
 	req := httptest.NewRequest(http.MethodGet, "/settings/notifications", nil)
 	req.Header.Set("Hx-Request", "true")
@@ -143,4 +143,16 @@ func TestNotificationSettings_ShowsUnavailableRecipients(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.Code)
 	require.Contains(t, response.Body.String(), "NotificationSettings.UnavailableRecipients")
 	require.NotContains(t, response.Body.String(), "999")
+}
+
+type settingsAudienceRepo struct{}
+
+func (settingsAudienceRepo) Groups(context.Context) ([]notifications.GroupOption, error) {
+	return nil, nil
+}
+func (settingsAudienceRepo) Roles(context.Context) ([]notifications.RoleOption, error) {
+	return nil, nil
+}
+func (settingsAudienceRepo) Resolve(context.Context, []uuid.UUID, []uint) ([]uint, error) {
+	return nil, nil
 }

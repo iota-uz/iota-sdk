@@ -1502,6 +1502,10 @@
     "Next": "Next"
   },
   "NotificationSettings": {
+    "Groups": "Groups",
+    "Roles": "Roles",
+    "AudienceHint": "Recipients are combined without duplicates. Roles include assignments through groups; membership is resolved when an event is sent.",
+
     "UnavailableRecipients": "Some selected recipients are no longer available. Choose recipients and save to remove unavailable selections.",
     "Title": "Notification settings",
     "Intro": "Enable events and choose who receives notifications. Save the rule before sending a test.",
