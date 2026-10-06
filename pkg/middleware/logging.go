@@ -6,9 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -276,7 +278,7 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions, cfg *headers.Config) 
 						}
 
 						err := serrors.NewInternal("request handler panic").WithOp("middleware.Recover")
-						panicFields := logrus.Fields{"status": http.StatusInternalServerError, "duration": time.Since(start)}
+						panicFields := logrus.Fields{"status": http.StatusInternalServerError, "duration": time.Since(start), "panic": fmt.Sprint(recovered), "stack": string(debug.Stack()), "path": r.URL.Path, "method": r.Method}
 						for _, attr := range serrorlog.Attributes(err, requestID) {
 							panicFields[attr.Key] = attr.Value.Any()
 						}

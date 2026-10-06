@@ -26,6 +26,13 @@ func Presenter(localizer func(context.Context) *i18n.Localizer) graphql.ErrorPre
 		if direct && !executing && (base.Extensions["code"] == "GRAPHQL_PARSE_FAILED" || base.Extensions["code"] == "GRAPHQL_VALIDATION_FAILED") {
 			return base
 		}
+		op := serrors.Op("graphql.execute")
+		if executing {
+			op = serrors.Op("graphql." + graphql.GetOperationContext(ctx).Operation.Operation)
+		}
+		if serrors.OpOf(err) == "" {
+			err = serrors.Wrap(op, err)
+		}
 		serrorlog.Log(ctx, err, "GraphQL request failed")
 		var l *i18n.Localizer
 		if localizer != nil {

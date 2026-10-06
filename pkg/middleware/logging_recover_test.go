@@ -29,13 +29,15 @@ func TestLoggerRecoverSafeSingleEvent(t *testing.T) {
 			r.Header.Set("X-Request-ID", "correlation-123")
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, r)
-			require.NotContains(t, output.String(), "private-panic-secret")
+			require.NotContains(t, w.Body.String(), "private-panic-secret")
 			require.NotContains(t, output.String(), "private-query-secret")
 			if abort {
 				require.Empty(t, output.String())
 				return
 			}
 			require.Equal(t, 500, w.Code)
+			require.Contains(t, output.String(), "private-panic-secret")
+			require.Contains(t, output.String(), "logging_recover_test.go")
 			var entry map[string]any
 			decoder := json.NewDecoder(&output)
 			require.NoError(t, decoder.Decode(&entry))
