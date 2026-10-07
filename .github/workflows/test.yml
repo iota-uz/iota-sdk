@@ -178,6 +178,10 @@ jobs:
         working-directory: web/testing
         run: pnpm test
 
+      - name: Test shared Solid chat in Chromium
+        working-directory: web/chat-ui
+        run: pnpm test:browser
+
       - name: Test Client Host in Chromium
         working-directory: web/client-host
         run: pnpm test:browser

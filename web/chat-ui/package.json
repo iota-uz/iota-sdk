@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "rpc:sync": "node scripts/sync-rpc.mjs",
-    "rpc:check": "node scripts/sync-rpc.mjs --check"
+    "rpc:check": "node scripts/sync-rpc.mjs --check",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "apexcharts": "^3.45.0",
@@ -38,6 +39,7 @@
     "vite-plugin-solid": "2.11.8",
     "vitest": "2.1.9",
     "jsdom": "^29.0.2",
-    "@testing-library/jest-dom": "6.6.3"
+    "@testing-library/jest-dom": "6.6.3",
+    "@playwright/test": "1.55.0"
   }
 }

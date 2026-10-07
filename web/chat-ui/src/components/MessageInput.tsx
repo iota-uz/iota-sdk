@@ -222,7 +222,7 @@ export const MessageInput = ((solidProps5Input: MessageInputProps & {
     const [pendingFileCount, setPendingFileCount] = createSignal(0);
     const [viewingImageIndex, setViewingImageIndex] = createSignal<number | null>(null);
     // Use override or translation
-    const placeholder = solidProps5.placeholder || solidState6.t('BiChat.Input.Placeholder');
+    const placeholder = () => solidProps5.placeholder || solidState6.t('BiChat.Input.Placeholder');
     const textareaRef = { current: null } as {
         current: HTMLTextAreaElement | null;
     };
@@ -239,15 +239,15 @@ export const MessageInput = ((solidProps5Input: MessageInputProps & {
         current: Array<HTMLLIElement | null>;
     };
     const didAutoFocusRef = { current: false };
-    const isSlashMode = solidProps5.message.trimStart().startsWith('/');
-    const commandQuery = solidProps5.message.trimStart().slice(1).split(/\s+/)[0]?.toLowerCase() || '';
+    const isSlashMode = () => solidProps5.message.trimStart().startsWith('/');
+    const commandQuery = () => solidProps5.message.trimStart().slice(1).split(/\s+/)[0]?.toLowerCase() || '';
     const slashCommands = [
         { name: '/clear', description: solidState6.t('BiChat.Slash.ClearDescription') },
         { name: '/debug', description: solidState6.t('BiChat.Slash.DebugDescription') },
         { name: '/compact', description: solidState6.t('BiChat.Slash.CompactDescription') },
     ];
-    const filteredCommands = slashCommands.filter((cmd) => cmd.name.slice(1).startsWith(commandQuery));
-    const isCommandListVisible = isSlashMode && !commandListDismissed() && !solidProps5.loading && !solidProps5.disabled;
+    const filteredCommands = () => slashCommands.filter((cmd) => cmd.name.slice(1).startsWith(commandQuery()));
+    const isCommandListVisible = () => isSlashMode() && !commandListDismissed() && !solidProps5.loading && !solidProps5.disabled;
     createEffect(on(() => [solidProps5.message], () => {
         const cleanup = untrack(() => {
             const textarea = textareaRef.current;
@@ -286,18 +286,18 @@ export const MessageInput = ((solidProps5Input: MessageInputProps & {
         if (typeof cleanup === "function")
             onCleanup(cleanup);
     }));
-    createEffect(on(() => [isSlashMode, solidProps5.message], () => {
+    createEffect(on(() => [isSlashMode(), solidProps5.message], () => {
         const cleanup = untrack(() => {
-            if (isSlashMode) {
+            if (isSlashMode()) {
                 setCommandListDismissed(false);
             }
         });
         if (typeof cleanup === "function")
             onCleanup(cleanup);
     }));
-    createEffect(on(() => [isCommandListVisible], () => {
+    createEffect(on(() => [isCommandListVisible()], () => {
         const cleanup = untrack(() => {
-            if (!isCommandListVisible) {
+            if (!isCommandListVisible()) {
                 return;
             }
             const handleOutsideClick = (event: MouseEvent) => {
@@ -314,16 +314,16 @@ export const MessageInput = ((solidProps5Input: MessageInputProps & {
         if (typeof cleanup === "function")
             onCleanup(cleanup);
     }));
-    createEffect(on(() => [commandQuery], () => {
+    createEffect(on(() => [commandQuery()], () => {
         const cleanup = untrack(() => {
             setActiveCommandIndex(0);
         });
         if (typeof cleanup === "function")
             onCleanup(cleanup);
     }));
-    createEffect(on(() => [filteredCommands.length], () => {
+    createEffect(on(() => [filteredCommands().length], () => {
         const cleanup = untrack(() => {
-            if (filteredCommands.length === 0) {
+            if (filteredCommands().length === 0) {
                 setActiveCommandIndex(0);
                 return;
             }
@@ -331,8 +331,8 @@ export const MessageInput = ((solidProps5Input: MessageInputProps & {
                 if (prev < 0) {
                     return 0;
                 }
-                if (prev >= filteredCommands.length) {
-                    return filteredCommands.length - 1;
+                if (prev >= filteredCommands().length) {
+                    return filteredCommands().length - 1;
                 }
                 return prev;
             });
@@ -340,9 +340,9 @@ export const MessageInput = ((solidProps5Input: MessageInputProps & {
         if (typeof cleanup === "function")
             onCleanup(cleanup);
     }));
-    createEffect(on(() => [activeCommandIndex(), filteredCommands.length, isCommandListVisible], () => {
+    createEffect(on(() => [activeCommandIndex(), filteredCommands().length, isCommandListVisible()], () => {
         const cleanup = untrack(() => {
-            if (!isCommandListVisible || filteredCommands.length === 0) {
+            if (!isCommandListVisible() || filteredCommands().length === 0) {
                 return;
             }
             commandItemRefs.current[activeCommandIndex()]?.scrollIntoView({
@@ -509,26 +509,26 @@ export const MessageInput = ((solidProps5Input: MessageInputProps & {
         if (isComposing() || e.isComposing) {
             return;
         }
-        if (isCommandListVisible) {
+        if (isCommandListVisible()) {
             if (e.key === 'Tab') {
                 e.preventDefault();
-                if (filteredCommands.length > 0) {
-                    solidProps5.onMessageChange?.(filteredCommands[activeCommandIndex()].name);
+                if (filteredCommands().length > 0) {
+                    solidProps5.onMessageChange?.(filteredCommands()[activeCommandIndex()].name);
                     setCommandListDismissed(true);
                 }
                 return;
             }
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                if (filteredCommands.length > 0) {
-                    setActiveCommandIndex((prev) => (prev + 1) % filteredCommands.length);
+                if (filteredCommands().length > 0) {
+                    setActiveCommandIndex((prev) => (prev + 1) % filteredCommands().length);
                 }
                 return;
             }
             if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                if (filteredCommands.length > 0) {
-                    setActiveCommandIndex((prev) => prev === 0 ? filteredCommands.length - 1 : prev - 1);
+                if (filteredCommands().length > 0) {
+                    setActiveCommandIndex((prev) => prev === 0 ? filteredCommands().length - 1 : prev - 1);
                 }
                 return;
             }
@@ -539,8 +539,8 @@ export const MessageInput = ((solidProps5Input: MessageInputProps & {
             }
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                if (filteredCommands.length > 0) {
-                    submitCommandSelection(filteredCommands[activeCommandIndex()].name);
+                if (filteredCommands().length > 0) {
+                    submitCommandSelection(filteredCommands()[activeCommandIndex()].name);
                     return;
                 }
                 handleFormSubmit(e as unknown as Event);
@@ -557,7 +557,7 @@ export const MessageInput = ((solidProps5Input: MessageInputProps & {
             if (isDragging()) {
                 setIsDragging(false);
             }
-            else if (isSlashMode) {
+            else if (isSlashMode()) {
                 setCommandListDismissed(true);
             }
             else {
@@ -585,22 +585,22 @@ export const MessageInput = ((solidProps5Input: MessageInputProps & {
         setAttachments([]);
         setError(null);
     };
-    const canSubmit = !solidProps5.disabled && (solidProps5.message.trim() || attachments().length > 0);
-    const visibleError = error() || solidProps5.commandError;
-    const visibleErrorText = visibleError ? solidState6.t(visibleError) : '';
-    const resolvedReasoningEffort = solidProps5.reasoningEffortOptions && solidProps5.reasoningEffortOptions.length > 0
+    const canSubmit = () => !solidProps5.disabled && (solidProps5.message.trim() || attachments().length > 0);
+    const visibleError = () => error() || solidProps5.commandError;
+    const visibleErrorText = () => visibleError() ? solidState6.t(visibleError()!) : '';
+    const resolvedReasoningEffort = () => solidProps5.reasoningEffortOptions && solidProps5.reasoningEffortOptions.length > 0
         ? solidProps5.reasoningEffortOptions.includes(solidProps5.reasoningEffort ?? '')
             ? solidProps5.reasoningEffort : solidProps5.reasoningEffortOptions[1] || solidProps5.reasoningEffortOptions[0]
         : undefined;
-    createEffect(on(() => [solidProps5.reasoningEffort, solidProps5.onReasoningEffortChange, solidProps5.reasoningEffortOptions, resolvedReasoningEffort], () => {
+    createEffect(on(() => [solidProps5.reasoningEffort, solidProps5.onReasoningEffortChange, solidProps5.reasoningEffortOptions, resolvedReasoningEffort()], () => {
         const cleanup = untrack(() => {
             if (!solidProps5.onReasoningEffortChange || !solidProps5.reasoningEffortOptions?.length) {
                 return;
             }
-            if (!resolvedReasoningEffort || resolvedReasoningEffort === solidProps5.reasoningEffort) {
+            if (!resolvedReasoningEffort() || resolvedReasoningEffort() === solidProps5.reasoningEffort) {
                 return;
             }
-            solidProps5.onReasoningEffortChange?.(resolvedReasoningEffort);
+            solidProps5.onReasoningEffortChange?.(resolvedReasoningEffort()!);
         });
         if (typeof cleanup === "function")
             onCleanup(cleanup);
@@ -609,11 +609,11 @@ export const MessageInput = ((solidProps5Input: MessageInputProps & {
     return (<div ref={element => containerRef.current = element} class={solidProps5.containerClassName ?? defaultContainerClassName}>
         <form ref={element => formRef.current = element} onSubmit={handleFormSubmit} class={solidProps5.formClassName ?? "mx-auto"}>
           {/* Error display */}
-          {visibleError && (<div class="mb-3 flex items-start gap-2.5 px-3 py-2.5 bg-red-50 dark:bg-red-950/40 border border-red-200/80 dark:border-red-900/60 rounded-xl text-sm shadow-sm">
+          {visibleError() && (<div class="mb-3 flex items-start gap-2.5 px-3 py-2.5 bg-red-50 dark:bg-red-950/40 border border-red-200/80 dark:border-red-900/60 rounded-xl text-sm shadow-sm">
               <div class="flex-shrink-0 mt-0.5 flex items-center justify-center w-5 h-5 rounded-full bg-red-100 dark:bg-red-900/40">
                 <X size={10} className="text-red-600 dark:text-red-400" weight="bold"/>
               </div>
-              <span class="flex-1 text-red-700 dark:text-red-300 text-xs leading-relaxed">{visibleErrorText}</span>
+              <span class="flex-1 text-red-700 dark:text-red-300 text-xs leading-relaxed">{visibleErrorText()}</span>
               <button type="button" onClick={() => {
                 setError(null);
                 solidProps5.onClearCommandError?.();
@@ -677,16 +677,16 @@ export const MessageInput = ((solidProps5Input: MessageInputProps & {
             if (!e.relatedTarget || !containerRef.current.contains(e.relatedTarget as Node)) {
                 setCommandListDismissed(true);
             }
-        }} placeholder={placeholder} class="resize-none bg-transparent border-none outline-none px-1 py-2 w-full text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm leading-relaxed" style={{ "max-height": `${MAX_HEIGHT}px` }} rows={1} disabled={solidProps5.disabled} aria-busy={solidProps5.loading} aria-label={solidState6.t('BiChat.Input.MessageInput')}/>
+        }} placeholder={placeholder()} class="resize-none bg-transparent border-none outline-none px-1 py-2 w-full text-gray-900 dark:text-white placeholder()-gray-400 dark:placeholder()-gray-500 text-sm leading-relaxed" style={{ "max-height": `${MAX_HEIGHT}px` }} rows={1} disabled={solidProps5.disabled} aria-busy={solidProps5.loading} aria-label={solidState6.t('BiChat.Input.MessageInput')}/>
               </div>
 
               {/* Reasoning effort selector */}
-              {solidProps5.reasoningEffortOptions && solidProps5.reasoningEffortOptions.length > 0 && solidProps5.onReasoningEffortChange && (<ReasoningEffortSelector options={solidProps5.reasoningEffortOptions} value={resolvedReasoningEffort} onChange={solidProps5.onReasoningEffortChange} disabled={solidProps5.disabled || solidProps5.loading}/>)}
+              {solidProps5.reasoningEffortOptions && solidProps5.reasoningEffortOptions.length > 0 && solidProps5.onReasoningEffortChange && (<ReasoningEffortSelector options={solidProps5.reasoningEffortOptions} value={resolvedReasoningEffort()} onChange={solidProps5.onReasoningEffortChange} disabled={solidProps5.disabled || solidProps5.loading}/>)}
 
               {/* Submit/cancel button slot */}
               {solidProps5.isStreaming && solidProps5.onCancelStreaming ? (<button type="button" onClick={solidProps5.onCancelStreaming} disabled={solidProps5.disabled || solidProps5.fetching} class="cursor-pointer flex-shrink-0 self-center p-2 rounded-lg bg-gray-900 hover:bg-gray-800 active:bg-black active:scale-95 text-white shadow-sm transition-all dark:bg-gray-100 dark:hover:bg-gray-200 dark:active:bg-white dark:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed" aria-label={solidState6.t('BiChat.Common.Cancel')} title={solidState6.t('BiChat.Common.Cancel')}>
                   <Stop size={18} weight="fill"/>
-                </button>) : (<button type="submit" disabled={!canSubmit} class="cursor-pointer flex-shrink-0 self-center p-2 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 active:scale-95 text-white shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary-600" aria-label={solidProps5.loading ? solidState6.t('BiChat.Input.Processing') : solidState6.t('BiChat.Input.SendMessage')}>
+                </button>) : (<button type="submit" disabled={!canSubmit()} class="cursor-pointer flex-shrink-0 self-center p-2 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 active:scale-95 text-white shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary-600" aria-label={solidProps5.loading ? solidState6.t('BiChat.Input.Processing') : solidState6.t('BiChat.Input.SendMessage')}>
                   {solidProps5.loading ? (<div class="w-[18px] h-[18px] border-2 border-white/60 border-t-transparent rounded-full animate-spin"/>) : (<PaperPlaneRight size={18} weight="fill"/>)}
                 </button>)}
             </div>
@@ -696,9 +696,9 @@ export const MessageInput = ((solidProps5Input: MessageInputProps & {
                 {solidState6.t('BiChat.Input.ShiftEnterHint')}
               </span>)}
 
-            {isCommandListVisible && (<div class="absolute left-0 right-0 bottom-full mb-1.5 z-20 overflow-hidden rounded-lg border border-gray-200/70 bg-white/98 shadow-md backdrop-blur-xl dark:border-gray-700/70 dark:bg-gray-900/98 dark:shadow-black/20">
-                {filteredCommands.length > 0 ? (<ul role="listbox" aria-label={solidState6.t('BiChat.Slash.CommandsList')} class="py-1 px-1">
-                    {filteredCommands.map((command, index) => {
+            {isCommandListVisible() && (<div class="absolute left-0 right-0 bottom-full mb-1.5 z-20 overflow-hidden rounded-lg border border-gray-200/70 bg-white/98 shadow-md backdrop-blur-xl dark:border-gray-700/70 dark:bg-gray-900/98 dark:shadow-black/20">
+                {filteredCommands().length > 0 ? (<ul role="listbox" aria-label={solidState6.t('BiChat.Slash.CommandsList')} class="py-1 px-1">
+                    {filteredCommands().map((command, index) => {
                     const isActive = createMemo(() => index === activeCommandIndex());
                     return (<li role="option" aria-selected={isActive()} ref={(node) => {
                             commandItemRefs.current[index] = node;
