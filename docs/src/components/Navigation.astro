@@ -1,0 +1,6 @@
+---
+import type { NavItem } from '../lib/catalog';
+const {items,base}=Astro.props as {items:NavItem[];base:string};
+const href=(value:string)=>/^(https?:|#|mailto:)/.test(value)||value===base||value.startsWith(base+'/')?value:base+value;
+---
+<ul>{items.map(item=><li>{item.children.length>0?<details open><summary>{item.href?<a href={href(item.href)}>{item.title}</a>:item.title}</summary><Astro.self items={item.children} base={base}/></details>:<a href={href(item.href!)}>{item.title}</a>}</li>)}</ul>

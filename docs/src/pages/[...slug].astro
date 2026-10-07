@@ -1,0 +1,21 @@
+---
+import Navigation from '../components/Navigation.astro';
+import { pages, navigation } from '../lib/catalog';
+import * as custom from '../../components';
+import * as builtin from '../lib/builtins';
+import '../../styles/globals.css';
+export function getStaticPaths(){return pages.map(page=>({params:{slug:page.slug||undefined},props:{page}}))}
+const {page}=Astro.props;
+const Content=page.module.default;
+const base=import.meta.env.BASE_URL.replace(/\/$/,'');
+const title=page.module.frontmatter.title??'IOTA SDK';
+const headings=page.module.getHeadings?.()??[];
+---
+<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width"/><title>{title} – IOTA SDK Docs</title><meta name="description" content={page.module.frontmatter.description??'IOTA SDK documentation'}/><script is:inline>try{document.documentElement.classList.toggle('dark',localStorage.getItem('docs-theme')==='dark')}catch{}</script></head>
+<body data-docs-base={base}>
+<header><a class="brand" href={base+'/'}>IOTA SDK</a><input id="docs-search" type="search" aria-label="Search documentation" placeholder="Search documentation"/><button id="theme-toggle" aria-label="Toggle theme">◐</button><button id="nav-toggle" aria-label="Toggle navigation" aria-controls="docs-nav" aria-expanded="false">☰</button></header>
+<div id="search-results" hidden></div>
+<div class="docs-layout"><nav id="docs-nav" aria-label="Documentation"><a href={base+'/'}>Overview</a><Navigation items={navigation()} base={base}/></nav><main data-pagefind-body><Content components={{...custom,...builtin}}/></main><aside class="docs-toc" aria-label="On this page"><p>On this page</p>{headings.filter((heading:any)=>heading.depth===2).map((heading:any)=><a href={'#'+heading.slug}>{heading.text}</a>)}</aside></div>
+<footer><a href="https://github.com/iota-uz/iota-sdk">iota-uz/iota-sdk</a> · <a href="#">Back to top ↑</a></footer>
+<script src="../lib/client.ts"></script>
+</body></html>
