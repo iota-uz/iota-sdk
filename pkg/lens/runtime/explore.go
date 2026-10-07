@@ -85,10 +85,10 @@ func (r *Runtime) ExecuteExploration(
 
 	explorerSpec, branch, perspective, err := resolveExploration(dashboard, loadReq)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if loader == nil {
-		return nil, serrors.E(op, fmt.Errorf("exploration loader is required"))
+		return nil, serrors.Wrap(op, fmt.Errorf("exploration loader is required"))
 	}
 	loadReq.PerspectiveKey = perspective.Key
 	loadReq.Steps = normalizeExplorationSteps(loadReq.Path, loadReq.Steps, perspective.RootNode)
@@ -96,24 +96,24 @@ func (r *Runtime) ExecuteExploration(
 	loadReq.Variables = cloneMap(loadReq.Variables)
 	definition, err := loader.LoadExploration(ctx, loadReq)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if strings.TrimSpace(definition.PanelID) == "" {
-		return nil, serrors.E(op, fmt.Errorf("exploration loader returned an empty panel id"))
+		return nil, serrors.Wrap(op, fmt.Errorf("exploration loader returned an empty panel id"))
 	}
 	executed, err := r.Execute(ctx, definition.Dashboard, runtimeReq, PanelScope(definition.PanelID))
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	panelResult := executed.Panel(definition.PanelID)
 	if panelResult == nil {
-		return nil, serrors.E(op, fmt.Errorf("exploration loader panel %q was not executed", definition.PanelID))
+		return nil, serrors.Wrap(op, fmt.Errorf("exploration loader panel %q was not executed", definition.PanelID))
 	}
 	nodeKey := loadReq.Steps[len(loadReq.Steps)-1].NodeKey
 	node, _ := perspective.Node(nodeKey)
 	edges, err := resolvedExplorationEdges(explorerSpec.ID, perspective, node, definition.ResolvedEdges, panelResult)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return &ExplorationResult{
 		Explorer: explorerSpec,

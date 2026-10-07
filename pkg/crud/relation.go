@@ -106,30 +106,30 @@ func (r *Relation[T]) Validate() error {
 	const op = serrors.Op("Relation.Validate")
 
 	if r.Alias == "" {
-		return serrors.E(op, serrors.Invalid, "alias is required")
+		return serrors.New(serrors.Invalid, "alias is required").WithOp(op)
 	}
 	if r.LocalKey == "" {
-		return serrors.E(op, serrors.Invalid, "local key is required")
+		return serrors.New(serrors.Invalid, "local key is required").WithOp(op)
 	}
 
 	// Must have either Schema or Manual
 	if r.Schema == nil && r.Manual == nil {
-		return serrors.E(op, serrors.Invalid, "either schema or manual config is required")
+		return serrors.New(serrors.Invalid, "either schema or manual config is required").WithOp(op)
 	}
 
 	// Validate Manual config if provided
 	if r.Manual != nil {
 		if r.Manual.Table == "" {
-			return serrors.E(op, serrors.Invalid, "manual relation requires table name")
+			return serrors.New(serrors.Invalid, "manual relation requires table name").WithOp(op)
 		}
 		if len(r.Manual.Columns) == 0 {
-			return serrors.E(op, serrors.Invalid, "manual relation requires at least one column")
+			return serrors.New(serrors.Invalid, "manual relation requires at least one column").WithOp(op)
 		}
 	}
 
 	// EntityField is required for schema-based relations
 	if r.Schema != nil && r.EntityField == "" {
-		return serrors.E(op, serrors.Invalid, "entity field is required for schema relations")
+		return serrors.New(serrors.Invalid, "entity field is required for schema relations").WithOp(op)
 	}
 
 	if r.RemoteKey == "" {

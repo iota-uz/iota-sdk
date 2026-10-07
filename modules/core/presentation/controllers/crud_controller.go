@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"log"
 	"math"
 	"net/http"
@@ -31,6 +32,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorlog"
 
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/form"
@@ -382,11 +384,11 @@ func (c *CrudController[TEntity]) validateID(id string) error {
 	switch c.primaryKeyField.Type() {
 	case crud.IntFieldType:
 		if _, err := strconv.ParseInt(id, 10, 64); err != nil {
-			return fmt.Errorf("invalid integer ID: %s", id)
+			return serrors.NewInvalid("invalid integer ID").WithCause(err).WithOp("CrudController.validateID")
 		}
 	case crud.UUIDFieldType:
 		if _, err := uuid.Parse(id); err != nil {
-			return fmt.Errorf("invalid UUID: %s", id)
+			return serrors.NewInvalid("invalid UUID").WithCause(err).WithOp("CrudController.validateID")
 		}
 	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType, crud.EntityFieldType:
 		// These types don't need special validation for ID format
@@ -424,7 +426,7 @@ func (c *CrudController[TEntity]) parseIDValue(id string) any {
 // buildFieldValuesFromForm creates field values from form data
 func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]crud.FieldValue, error) {
 	if err := r.ParseForm(); err != nil {
-		return nil, fmt.Errorf("failed to parse form: %w", err)
+		return nil, serrors.NewInvalid("failed to parse form").WithCause(err).WithOp("CrudController.parseForm")
 	}
 
 	fieldValues := make([]crud.FieldValue, 0)
@@ -459,7 +461,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 							value = int64Val
 						}
 					} else {
-						return nil, fmt.Errorf("invalid integer value for select field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid integer value for select field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 				} else {
 					continue // Skip empty values
@@ -471,7 +473,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					if floatVal, err := strconv.ParseFloat(formValue, 64); err == nil {
 						value = floatVal
 					} else {
-						return nil, fmt.Errorf("invalid float value for select field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid float value for select field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 				} else {
 					continue
@@ -481,7 +483,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					if uuidVal, err := uuid.Parse(formValue); err == nil {
 						value = uuidVal
 					} else {
-						return nil, fmt.Errorf("invalid UUID value for select field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid UUID value for select field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 				} else {
 					continue // Skip empty values
@@ -504,7 +506,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 							value = int64Val
 						}
 					} else {
-						return nil, fmt.Errorf("invalid integer value for field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid integer value for field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 				} else {
 					continue // Skip empty values
@@ -514,7 +516,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					if floatVal, err := strconv.ParseFloat(formValue, 64); err == nil {
 						value = floatVal
 					} else {
-						return nil, fmt.Errorf("invalid float value for field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid float value for field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 				} else {
 					continue // Skip empty values
@@ -548,7 +550,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					if err == nil {
 						value = parsedTime
 					} else {
-						return nil, fmt.Errorf("invalid time value for field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid time value for field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 				} else {
 					continue // Skip empty values
@@ -558,7 +560,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					if uid, err := uuid.Parse(formValue); err == nil {
 						value = uid
 					} else {
-						return nil, fmt.Errorf("invalid UUID value for field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid UUID value for field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 				} else {
 					continue // Skip empty values
@@ -575,7 +577,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					// Validate JSON format
 					var jsonTest interface{}
 					if err := json.Unmarshal([]byte(formValue), &jsonTest); err != nil {
-						return nil, fmt.Errorf("invalid JSON format for field %s: %v", fieldName, err)
+						return nil, serrors.NewInvalid("invalid JSON format for field").WithCause(err).WithOp("CrudController.parseForm").WithFields(serrors.FieldViolation{Field: fieldName, Reason: "invalid"})
 					}
 					value = formValue
 				} else {
@@ -631,7 +633,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		Offset: paginationParams.Offset,
 	}, r)
 	if err != nil {
-		log.Printf("[CrudController.List] Failed to parse query params: %v", err)
+		serrorlog.Log(ctx, serrors.NewInvalid("request parsing failed").WithCause(err).WithOp("CrudController.List"), "Failed to parse query params")
 		errorMsg, _ := c.localize(ctx, "Errors.InvalidQueryParams", "Invalid query parameters")
 		http.Error(w, errorMsg, http.StatusBadRequest)
 		return
@@ -671,7 +673,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 
 	if err := g.Wait(); err != nil {
 		const op = serrors.Op("CrudController.List")
-		wrappedErr := serrors.E(op, err)
+		wrappedErr := serrors.Wrap(op, err)
 		log.Printf("[CrudController.List] Failed to list entities: %v", wrappedErr)
 		errorMsg, _ := c.localize(ctx, errFailedToRetrieve, "Failed to retrieve data")
 		http.Error(w, errorMsg, http.StatusInternalServerError)
@@ -1199,7 +1201,7 @@ func (c *CrudController[TEntity]) GetEdit(w http.ResponseWriter, r *http.Request
 
 	// Validate ID format
 	if err := c.validateID(id); err != nil {
-		log.Printf("[CrudController.GetEdit] Invalid ID format %s: %v", id, err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.GetEdit", err), "Invalid ID format")
 		errorMsg, _ := c.localize(ctx, errInvalidFormData, "Invalid ID format")
 		http.Error(w, errorMsg, http.StatusBadRequest)
 		return
@@ -1266,7 +1268,7 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 	// Build field values from form
 	fieldValues, err := c.buildFieldValuesFromForm(r)
 	if err != nil {
-		log.Printf("[CrudController.Create] Failed to parse form: %v", err)
+		serrorlog.Log(ctx, serrors.NewInvalid("request parsing failed").WithCause(err).WithOp("CrudController.Create"), "Failed to parse form")
 		errorMsg, _ := c.localize(ctx, errInvalidFormData, "Invalid form data")
 		http.Error(w, errorMsg, http.StatusBadRequest)
 		return
@@ -1345,7 +1347,7 @@ func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request)
 
 	// Validate ID format
 	if err := c.validateID(id); err != nil {
-		log.Printf("[CrudController.Update] Invalid ID format %s: %v", id, err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.Update", err), "Invalid ID format")
 		errorMsg, _ := c.localize(ctx, errInvalidFormData, "Invalid ID format")
 		http.Error(w, errorMsg, http.StatusBadRequest)
 		return
@@ -1354,7 +1356,7 @@ func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request)
 	// Build field values from form
 	fieldValues, err := c.buildFieldValuesFromForm(r)
 	if err != nil {
-		log.Printf("[CrudController.Update] Failed to parse form: %v", err)
+		serrorlog.Log(ctx, serrors.NewInvalid("request parsing failed").WithCause(err).WithOp("CrudController.Update"), "Failed to parse form")
 		errorMsg, _ := c.localize(ctx, errInvalidFormData, "Invalid form data")
 		http.Error(w, errorMsg, http.StatusBadRequest)
 		return
@@ -1458,7 +1460,7 @@ func (c *CrudController[TEntity]) Delete(w http.ResponseWriter, r *http.Request)
 
 	// Validate ID format
 	if err := c.validateID(id); err != nil {
-		log.Printf("[CrudController.Delete] Invalid ID format %s: %v", id, err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.Delete", err), "Invalid ID format")
 		errorMsg, _ := c.localize(ctx, errInvalidFormData, "Invalid ID format")
 		http.Error(w, errorMsg, http.StatusBadRequest)
 		return
@@ -2362,14 +2364,15 @@ func (c *CrudController[TEntity]) fieldValueToTableCell(ctx context.Context, fie
 }
 
 // validateFieldValues validates field values against their field rules
-func (c *CrudController[TEntity]) validateFieldValues(fieldValues []crud.FieldValue) map[string]string {
+func (c *CrudController[TEntity]) validateFieldValues(ctx context.Context, fieldValues []crud.FieldValue) map[string]string {
 	errors := make(map[string]string)
 
 	for _, fv := range fieldValues {
 		field := fv.Field()
 		for _, rule := range field.Rules() {
 			if err := rule(fv); err != nil {
-				errors[field.Name()] = err.Error()
+				l, _ := intl.UseLocalizer(ctx)
+				errors[field.Name()] = serrors.Public(serrors.NewInvalid("").WithCause(err), l).Message
 				break // Only report first error per field
 			}
 		}
@@ -2391,21 +2394,20 @@ func (c *CrudController[TEntity]) validateEntity(ctx context.Context, entity TEn
 // handleValidationError handles validation errors by re-rendering the form with errors
 func (c *CrudController[TEntity]) handleValidationError(w http.ResponseWriter, r *http.Request, ctx context.Context, err error, fieldValues []crud.FieldValue, isCreate bool) bool {
 	// First, validate field values against their rules
-	fieldErrors := c.validateFieldValues(fieldValues)
+	fieldErrors := c.validateFieldValues(ctx, fieldValues)
 
 	// If no field errors but we have an entity validation error, add it as a general error
 	if len(fieldErrors) == 0 && err != nil {
 		// For entity-level validation errors, we'll add them to a generic error field
-		fieldErrors["_general"] = err.Error()
+		l, _ := intl.UseLocalizer(ctx)
+		fieldErrors["_general"] = serrors.Public(err, l).Message
 	}
 
 	// If no validation errors found, return false to continue with default error handling
 	if len(fieldErrors) == 0 {
-		log.Printf("[CrudController.handleValidationError] Non-validation error: %v", err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.handleValidationError", err), "Non-validation error")
 		return false
 	}
-
-	log.Printf("[CrudController.handleValidationError] Validation errors: %v", fieldErrors)
 
 	// Re-render the form with validation errors
 	if isCreate {
@@ -2425,7 +2427,7 @@ func (c *CrudController[TEntity]) renderCreateFormWithErrors(w http.ResponseWrit
 
 	// Log errors for debugging
 	if len(fieldErrors) > 0 {
-		log.Printf("[CrudController.renderCreateFormWithErrors] Field validation errors: %v", fieldErrors)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderCreateFormWithErrors", serrors.NewInvalid("form validation failed")), "Field validation errors")
 	}
 
 	// Build form fields with errors added as HTML comments for now
@@ -2434,14 +2436,14 @@ func (c *CrudController[TEntity]) renderCreateFormWithErrors(w http.ResponseWrit
 	// Localize form title
 	formTitle, err := c.localize(ctx, fmt.Sprintf("%s.New.Title", c.schema.Name()), "New")
 	if err != nil {
-		log.Printf("[CrudController.renderCreateFormWithErrors] Failed to localize title: %v", err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderCreateFormWithErrors", err), "Failed to localize title")
 		formTitle = "New"
 	}
 
 	// Localize submit button
 	submitLabel, err := c.localize(ctx, fmt.Sprintf("%s.New.SubmitLabel", c.schema.Name()), "Create")
 	if err != nil {
-		log.Printf("[CrudController.renderCreateFormWithErrors] Failed to localize submit label: %v", err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderCreateFormWithErrors", err), "Failed to localize submit label")
 		submitLabel = "Create"
 	}
 
@@ -2463,7 +2465,7 @@ func (c *CrudController[TEntity]) renderCreateFormWithErrors(w http.ResponseWrit
 	}
 
 	if err := component.Render(ctx, w); err != nil {
-		log.Printf("[CrudController.renderCreateFormWithErrors] Failed to render form: %v", err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderCreateFormWithErrors", err), "Failed to render form")
 		http.Error(w, "Failed to render form", http.StatusInternalServerError)
 	}
 }
@@ -2487,26 +2489,28 @@ func (c *CrudController[TEntity]) renderEditFormWithErrors(w http.ResponseWriter
 	// Add error display at the top of the form
 	if len(fieldErrors) > 0 {
 		// For now, we'll log the errors and add a generic error indicator
-		log.Printf("[CrudController.renderEditFormWithErrors] Field validation errors: %v", fieldErrors)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderEditFormWithErrors", serrors.NewInvalid("form validation failed")), "Field validation errors")
 
 		// Add a small error element that tests can find
-		errorHTML := `<small data-testid="field-error" class="text-red-500">Field validation failed</small>`
+		localizer, _ := intl.UseLocalizer(ctx)
+		message := serrors.Public(serrors.NewInvalid(""), localizer).Message
+		errorHTML := `<small data-testid="field-error" class="text-red-500">` + html.EscapeString(message) + `</small>`
 		if _, err := w.Write([]byte(errorHTML)); err != nil {
-			log.Printf("[CrudController.renderEditFormWithErrors] Failed to write error HTML: %v", err)
+			serrorlog.Log(ctx, serrors.Wrap("CrudController.renderEditFormWithErrors", err), "Failed to write error HTML")
 		}
 	}
 
 	// Localize form title
 	formTitle, err := c.localize(ctx, fmt.Sprintf("%s.Edit.Title", c.schema.Name()), "Edit")
 	if err != nil {
-		log.Printf("[CrudController.renderEditFormWithErrors] Failed to localize title: %v", err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderEditFormWithErrors", err), "Failed to localize title")
 		formTitle = "Edit"
 	}
 
 	// Localize submit button
 	submitLabel, err := c.localize(ctx, fmt.Sprintf("%s.Edit.SubmitLabel", c.schema.Name()), "Update")
 	if err != nil {
-		log.Printf("[CrudController.renderEditFormWithErrors] Failed to localize submit label: %v", err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderEditFormWithErrors", err), "Failed to localize submit label")
 		submitLabel = "Update"
 	}
 
@@ -2528,7 +2532,7 @@ func (c *CrudController[TEntity]) renderEditFormWithErrors(w http.ResponseWriter
 	}
 
 	if err := component.Render(ctx, w); err != nil {
-		log.Printf("[CrudController.renderEditFormWithErrors] Failed to render form: %v", err)
+		serrorlog.Log(ctx, serrors.Wrap("CrudController.renderEditFormWithErrors", err), "Failed to render form")
 		http.Error(w, "Failed to render form", http.StatusInternalServerError)
 	}
 }

@@ -80,7 +80,7 @@ func (s *Storage) GetClientByClientID(ctx context.Context, clientID string) (op.
 	// if the caller wraps the context with a transaction
 	c, err := s.clientRepo.GetByClientID(ctx, clientID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Return domain client which implements op.Client interface
@@ -94,12 +94,12 @@ func (s *Storage) AuthorizeClientIDSecret(ctx context.Context, clientID, clientS
 	// Get client by client_id
 	c, err := s.clientRepo.GetByClientID(ctx, clientID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Check if client is active
 	if !c.IsActive() {
-		return serrors.E(op, serrors.PermissionDenied, "client is not active")
+		return serrors.New(serrors.PermissionDenied, "client is not active").WithOp(op)
 	}
 
 	// Verify client secret
@@ -111,7 +111,7 @@ func (s *Storage) AuthorizeClientIDSecret(ctx context.Context, clientID, clientS
 
 	// Compare provided secret with bcrypt hash
 	if err := bcrypt.CompareHashAndPassword([]byte(*c.ClientSecretHash()), []byte(clientSecret)); err != nil {
-		return serrors.E(op, serrors.PermissionDenied, "invalid client secret")
+		return serrors.NewUnauthenticated("invalid client secret").WithOp(op)
 	}
 
 	return nil
@@ -127,7 +127,7 @@ func (s *Storage) CreateAuthRequest(ctx context.Context, authReq *oidc.AuthReque
 	if userID != "" {
 		uid, err := parseUserID(userID)
 		if err != nil {
-			return nil, serrors.E(operation, serrors.KindValidation, "invalid user ID", err)
+			return nil, serrors.New(serrors.Invalid, "invalid user ID").WithOp(operation).WithCause(err)
 		}
 		intUID := int(uid)
 		parsedUserID = &intUID
@@ -135,7 +135,7 @@ func (s *Storage) CreateAuthRequest(ctx context.Context, authReq *oidc.AuthReque
 		// Fetch user to get tenant_id
 		u, err := s.userRepo.GetByID(ctx, uid)
 		if err != nil {
-			return nil, serrors.E(operation, err)
+			return nil, serrors.Wrap(operation, err)
 		}
 		tid := u.TenantID()
 		tenantID = &tid
@@ -178,7 +178,7 @@ func (s *Storage) CreateAuthRequest(ctx context.Context, authReq *oidc.AuthReque
 
 	// Store in repository
 	if err := s.authRequestRepo.Create(ctx, domainAuthReq); err != nil {
-		return nil, serrors.E(operation, err)
+		return nil, serrors.Wrap(operation, err)
 	}
 
 	// Return as op.AuthRequest wrapper
@@ -192,18 +192,18 @@ func (s *Storage) AuthRequestByID(ctx context.Context, id string) (op.AuthReques
 	// Parse UUID
 	authID, err := uuid.Parse(id)
 	if err != nil {
-		return nil, serrors.E(operation, serrors.KindValidation, "invalid auth request ID", err)
+		return nil, serrors.New(serrors.Invalid, "invalid auth request ID").WithOp(operation).WithCause(err)
 	}
 
 	// Retrieve from repository
 	authReq, err := s.authRequestRepo.GetByID(ctx, authID)
 	if err != nil {
-		return nil, serrors.E(operation, err)
+		return nil, serrors.Wrap(operation, err)
 	}
 
 	// Check if expired
 	if authReq.IsExpired() {
-		return nil, serrors.E(operation, serrors.KindValidation, "auth request has expired")
+		return nil, serrors.New(serrors.Invalid, "auth request has expired").WithOp(operation)
 	}
 
 	// Return as op.AuthRequest wrapper
@@ -218,22 +218,22 @@ func (s *Storage) AuthRequestByCode(ctx context.Context, code string) (op.AuthRe
 	// Retrieve auth request by code
 	authReq, err := s.authRequestRepo.GetByCode(ctx, code)
 	if err != nil {
-		return nil, serrors.E(operation, err)
+		return nil, serrors.Wrap(operation, err)
 	}
 
 	// Check if expired
 	if authReq.IsExpired() {
-		return nil, serrors.E(operation, serrors.KindValidation, "auth request has expired")
+		return nil, serrors.New(serrors.Invalid, "auth request has expired").WithOp(operation)
 	}
 
 	// Check if code was already used (replay attack prevention)
 	if authReq.IsCodeUsed() {
-		return nil, serrors.E(operation, serrors.KindValidation, "authorization code already used")
+		return nil, serrors.New(serrors.Invalid, "authorization code already used").WithOp(operation)
 	}
 
 	// Atomically mark code as used (one-time use per RFC 6749)
 	if err := s.authRequestRepo.MarkCodeUsed(ctx, code); err != nil {
-		return nil, serrors.E(operation, err)
+		return nil, serrors.Wrap(operation, err)
 	}
 
 	// Return as op.AuthRequest wrapper
@@ -248,12 +248,12 @@ func (s *Storage) SaveAuthCode(ctx context.Context, id, code string) error {
 	// Validate auth request ID
 	authID, err := uuid.Parse(id)
 	if err != nil {
-		return serrors.E(operation, serrors.KindValidation, "invalid auth request ID", err)
+		return serrors.New(serrors.Invalid, "invalid auth request ID").WithOp(operation).WithCause(err)
 	}
 
 	// Store the cryptographic code in the database
 	if err := s.authRequestRepo.SaveCode(ctx, authID, code); err != nil {
-		return serrors.E(operation, err)
+		return serrors.Wrap(operation, err)
 	}
 
 	return nil
@@ -265,7 +265,7 @@ func (s *Storage) DeleteAuthRequest(ctx context.Context, id string) error {
 
 	authID, err := uuid.Parse(id)
 	if err != nil {
-		return serrors.E(operation, serrors.KindValidation, "invalid auth request ID", err)
+		return serrors.New(serrors.Invalid, "invalid auth request ID").WithOp(operation).WithCause(err)
 	}
 
 	// Delete from repository (transaction is handled by repository composables.UseTx)
@@ -277,13 +277,13 @@ func (s *Storage) CreateAccessToken(ctx context.Context, req op.TokenRequest) (s
 	const operation serrors.Op = "Storage.CreateAccessToken"
 
 	if err := s.ensureUserMayReceiveTokens(ctx, req.GetSubject()); err != nil {
-		return "", time.Time{}, serrors.E(operation, err)
+		return "", time.Time{}, serrors.Wrap(operation, err)
 	}
 
 	// Get signing key
 	privateKey, keyID, err := GetActiveSigningKey(ctx, s.db, s.cryptoKey)
 	if err != nil {
-		return "", time.Time{}, serrors.E(operation, fmt.Errorf("failed to get signing key: %w", err))
+		return "", time.Time{}, serrors.Wrap(operation, fmt.Errorf("failed to get signing key: %w", err))
 	}
 
 	// Calculate expiration using configured lifetime
@@ -306,7 +306,7 @@ func (s *Storage) CreateAccessToken(ctx context.Context, req op.TokenRequest) (s
 
 	tokenString, err := jwtToken.SignedString(privateKey)
 	if err != nil {
-		return "", time.Time{}, serrors.E(operation, fmt.Errorf("failed to sign token: %w", err))
+		return "", time.Time{}, serrors.Wrap(operation, fmt.Errorf("failed to sign token: %w", err))
 	}
 
 	return tokenString, expiresAt, nil
@@ -323,7 +323,7 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 	// Generate access token JWT
 	accessToken, expiresAt, err := s.CreateAccessToken(ctx, req)
 	if err != nil {
-		return "", "", time.Time{}, serrors.E(operation, err)
+		return "", "", time.Time{}, serrors.Wrap(operation, err)
 	}
 
 	// Hash refresh token with SHA-256
@@ -333,13 +333,13 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 	// Parse user ID from subject
 	userID, err := parseUserID(req.GetSubject())
 	if err != nil {
-		return "", "", time.Time{}, serrors.E(operation, err)
+		return "", "", time.Time{}, serrors.Wrap(operation, err)
 	}
 
 	// Get user to fetch tenant_id
 	u, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return "", "", time.Time{}, serrors.E(operation, err)
+		return "", "", time.Time{}, serrors.Wrap(operation, err)
 	}
 
 	// Create domain refresh token using configured lifetime
@@ -380,7 +380,7 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 
 	// Store refresh token in repository
 	if err := s.tokenRepo.Create(ctx, domainToken); err != nil {
-		return "", "", time.Time{}, serrors.E(operation, err)
+		return "", "", time.Time{}, serrors.Wrap(operation, err)
 	}
 
 	return accessToken, refreshToken, expiresAt, nil
@@ -397,12 +397,12 @@ func (s *Storage) TokenRequestByRefreshToken(ctx context.Context, refreshToken s
 	// Get token from repository (transaction handled by composables.UseTx in repository)
 	t, err := s.tokenRepo.GetByTokenHash(ctx, tokenHash)
 	if err != nil {
-		return nil, serrors.E(operation, err)
+		return nil, serrors.Wrap(operation, err)
 	}
 
 	// Check if token is expired
 	if t.IsExpired() {
-		return nil, serrors.E(operation, serrors.KindValidation, "refresh token has expired")
+		return nil, serrors.New(serrors.Invalid, "refresh token has expired").WithOp(operation)
 	}
 
 	// Map to op.RefreshTokenRequest interface
@@ -421,12 +421,12 @@ func (s *Storage) GetRefreshTokenInfo(ctx context.Context, clientID string, toke
 	// Get token from repository (transaction handled by composables.UseTx)
 	t, err := s.tokenRepo.GetByTokenHash(ctx, tokenHash)
 	if err != nil {
-		return "", "", serrors.E(operation, err)
+		return "", "", serrors.Wrap(operation, err)
 	}
 
 	// Verify client ID matches
 	if t.ClientID() != clientID {
-		return "", "", serrors.E(operation, serrors.PermissionDenied, "client ID mismatch")
+		return "", "", serrors.NewUnauthenticated("client ID mismatch").WithOp(operation)
 	}
 
 	// Return user ID and token ID
@@ -478,12 +478,12 @@ func (s *Storage) TerminateSession(ctx context.Context, userID string, clientID 
 	// Parse user ID
 	uid, err := parseUserID(userID)
 	if err != nil {
-		return serrors.E(operation, serrors.KindValidation, "invalid user ID", err)
+		return serrors.New(serrors.Invalid, "invalid user ID").WithOp(operation).WithCause(err)
 	}
 
 	// Delete all refresh tokens for this user + client combination
 	if err := s.tokenRepo.DeleteByUserAndClient(ctx, int(uid), clientID); err != nil {
-		return serrors.E(operation, err)
+		return serrors.Wrap(operation, err)
 	}
 
 	return nil
@@ -496,7 +496,7 @@ func (s *Storage) SigningKey(ctx context.Context) (op.SigningKey, error) {
 	// Retrieve active signing key
 	privateKey, keyID, err := GetActiveSigningKey(ctx, s.db, s.cryptoKey)
 	if err != nil {
-		return nil, serrors.E(operation, err)
+		return nil, serrors.Wrap(operation, err)
 	}
 
 	// Return signing key wrapper
@@ -521,7 +521,7 @@ func (s *Storage) KeySet(ctx context.Context) ([]op.Key, error) {
 	// Retrieve active public keys
 	keysWithIDs, err := GetPublicKeysWithIDs(ctx, s.db)
 	if err != nil {
-		return nil, serrors.E(operation, err)
+		return nil, serrors.Wrap(operation, err)
 	}
 
 	keys := make([]op.Key, 0, len(keysWithIDs))
@@ -544,7 +544,7 @@ func (s *Storage) GetKeySet(ctx context.Context) (*jose.JSONWebKeySet, error) {
 	// Get public keys with their key IDs from database
 	keysWithIDs, err := GetPublicKeysWithIDs(ctx, s.db)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	keySet := &jose.JSONWebKeySet{
@@ -576,7 +576,7 @@ func (s *Storage) Health(ctx context.Context) error {
 
 	// Ping the database
 	if err := s.db.Ping(ctx); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	return nil
@@ -594,14 +594,14 @@ func (s *Storage) SetUserinfoFromScopes(
 	// Parse user ID
 	uid, err := parseUserID(userID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Note: Transaction context is handled by repository via composables.UseTx(ctx)
 	// if the caller wraps the context with a transaction
 	u, err := s.userRepo.GetByID(ctx, uid)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Set standard claims
@@ -664,13 +664,13 @@ func (s *Storage) SetUserinfoFromToken(
 	// Parse user ID from subject
 	uid, err := parseUserID(subject)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Fetch user from repository
 	u, err := s.userRepo.GetByID(ctx, uid)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Set standard claims
@@ -705,13 +705,13 @@ func (s *Storage) SetIntrospectionFromToken(
 	// Parse user ID from subject
 	uid, err := parseUserID(subject)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Fetch user from repository
 	u, err := s.userRepo.GetByID(ctx, uid)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Set introspection response
@@ -734,13 +734,13 @@ func (s *Storage) GetPrivateClaimsFromScopes(
 	// Parse user ID
 	uid, err := parseUserID(userID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Fetch user from repository
 	u, err := s.userRepo.GetByID(ctx, uid)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	claims := make(map[string]any)
@@ -797,7 +797,7 @@ func (s *Storage) GetKeyByIDAndClientID(
 
 	// For now, return nil as we use shared signing keys
 	// Individual client keys can be implemented later if needed
-	return nil, serrors.E(op, fmt.Errorf("client-specific keys not implemented"))
+	return nil, serrors.Wrap(op, fmt.Errorf("client-specific keys not implemented"))
 }
 
 // ValidateJWTProfileScopes validates scopes for JWT profile authorization

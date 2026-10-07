@@ -52,7 +52,7 @@ ORDER BY u.updated_at DESC, u.id ASC
 LIMIT 5000
 	`, scope.TenantID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	defer rows.Close()
 
@@ -68,7 +68,7 @@ LIMIT 5000
 		var updatedAt time.Time
 		var roles string
 		if err := rows.Scan(&id, &firstName, &lastName, &middleName, &email, &phone, &userType, &updatedAt, &roles); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		title := strings.TrimSpace(strings.Join([]string{firstName, middleName, lastName}, " "))
 		if title == "" {
@@ -113,17 +113,17 @@ LIMIT 5000
 		})
 		if len(out) == spotlight.ProviderStreamBatchSize {
 			if err := emit(out); err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			out = make([]spotlight.SearchDocument, 0, spotlight.ProviderStreamBatchSize)
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if len(out) > 0 {
 		if err := emit(out); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	return nil

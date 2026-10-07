@@ -20,7 +20,7 @@ import (
 func (r *queryResolver) Order(ctx context.Context, id int64) (*model.Order, error) {
 	_, err := composables.UseUser(ctx)
 	if err != nil {
-		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		graphql.AddError(ctx, serrors.NewUnauthenticated(""))
 		return nil, err
 	}
 	domainOrder, err := r.orderService.GetByID(ctx, uint(id))
@@ -34,7 +34,7 @@ func (r *queryResolver) Order(ctx context.Context, id int64) (*model.Order, erro
 func (r *queryResolver) Orders(ctx context.Context, query model.OrderQuery) (*model.PaginatedOrders, error) {
 	_, err := composables.UseUser(ctx)
 	if err != nil {
-		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		graphql.AddError(ctx, serrors.NewUnauthenticated(""))
 		return nil, err
 	}
 	params := &order.FindParams{

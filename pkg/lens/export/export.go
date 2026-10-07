@@ -83,7 +83,7 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) (err err
 	op := serrors.Op("lens/export.Exporter.Write")
 	defer func() {
 		if err != nil {
-			err = serrors.E(op, err)
+			err = serrors.Wrap(op, err)
 		}
 	}()
 	if req.Result == nil {

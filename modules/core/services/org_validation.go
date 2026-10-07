@@ -23,7 +23,7 @@ var orgRequiredLocales = []string{"en", "ru", "uz", "uz-Cyrl"}
 
 // Sentinel errors for organizational write-path validation failures raised at
 // the service/validation layer. They are wrapped via fmt.Errorf("…: %w", …)
-// inside serrors.E values so callers can match the specific failure with
+// inside typed serrors values so callers can match the specific failure with
 // errors.Is and surface a field-level i18n message without parsing free-form
 // text. Storage-layer contract errors (e.g. department.ErrNotFound,
 // department.ErrDuplicateCode) live on the Repository interface so they can be
@@ -51,7 +51,7 @@ type SubtreeFunc func(ctx context.Context, deptID uuid.UUID) ([]uuid.UUID, error
 // human-readable error context (e.g. "name", "title").
 func validateOrgMultiLang(op serrors.Op, field string, ml models.MultiLang) error {
 	if ml == nil || ml.IsEmpty() {
-		return serrors.E(op, serrors.KindValidation, fmt.Errorf("%s must be provided in all required locales", field))
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("%s must be provided in all required locales", field))
 	}
 	var missing []string
 	for _, locale := range orgRequiredLocales {
@@ -60,11 +60,7 @@ func validateOrgMultiLang(op serrors.Op, field string, ml models.MultiLang) erro
 		}
 	}
 	if len(missing) > 0 {
-		return serrors.E(
-			op,
-			serrors.KindValidation,
-			fmt.Errorf("%s is missing required locales: %v", field, missing),
-		)
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("%s is missing required locales: %v", field, missing))
 	}
 	return nil
 }
@@ -88,11 +84,7 @@ func ValidateDepartment(
 	subtree SubtreeFunc,
 ) error {
 	if d.TenantID() != tenantID {
-		return serrors.E(
-			op,
-			serrors.KindValidation,
-			fmt.Errorf("department %s belongs to a different tenant than the caller", d.ID()),
-		)
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("department %s belongs to a different tenant than the caller", d.ID()))
 	}
 	if err := validateOrgMultiLang(op, "name", d.NameI18n()); err != nil {
 		return err
@@ -118,8 +110,7 @@ func validateDepartmentParent(
 	}
 
 	if *parentID == deptID {
-		return serrors.E(op, serrors.KindValidation,
-			fmt.Errorf("department %s cannot be its own parent: %w", deptID, ErrDepartmentSelfLoop))
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("department %s cannot be its own parent: %w", deptID, ErrDepartmentSelfLoop))
 	}
 
 	parent, err := repo.GetByID(ctx, *parentID)
@@ -129,17 +120,12 @@ func validateDepartmentParent(
 		// the controller renders them as a 5xx instead of a misleading
 		// "parent not found" field error on the drawer.
 		if errors.Is(err, department.ErrNotFound) {
-			return serrors.E(op, serrors.KindValidation,
-				fmt.Errorf("parent department %s not found (%w): %w", *parentID, ErrDepartmentParentNotFound, err))
+			return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("parent department %s not found (%w): %w", *parentID, ErrDepartmentParentNotFound, err))
 		}
-		return serrors.E(op, fmt.Errorf("failed to load parent department %s: %w", *parentID, err))
+		return serrors.Wrap(op, fmt.Errorf("failed to load parent department %s: %w", *parentID, err))
 	}
 	if parent.TenantID() != tenantID {
-		return serrors.E(
-			op,
-			serrors.KindValidation,
-			fmt.Errorf("parent department %s belongs to a different tenant", *parentID),
-		)
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("parent department %s belongs to a different tenant", *parentID))
 	}
 
 	// Cycle detection: the new parent must not be the department itself or any
@@ -147,16 +133,12 @@ func validateDepartmentParent(
 	// the subtree is empty and this check is a no-op.
 	descendants, err := subtree(ctx, deptID)
 	if err != nil {
-		return serrors.E(op, fmt.Errorf("failed to resolve department subtree for cycle check: %w", err))
+		return serrors.Wrap(op, fmt.Errorf("failed to resolve department subtree for cycle check: %w", err))
 	}
 	for _, id := range descendants {
 		if id == *parentID {
-			return serrors.E(
-				op,
-				serrors.KindValidation,
-				fmt.Errorf("parent department %s is a descendant of %s (would create a cycle): %w",
-					*parentID, deptID, ErrDepartmentCycle),
-			)
+			return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("parent department %s is a descendant of %s (would create a cycle): %w",
+				*parentID, deptID, ErrDepartmentCycle))
 		}
 	}
 
@@ -180,11 +162,7 @@ func ValidateUserPosition(
 	userRepo user.Repository,
 ) error {
 	if p.TenantID() != tenantID {
-		return serrors.E(
-			op,
-			serrors.KindValidation,
-			fmt.Errorf("user position %s belongs to a different tenant than the caller", p.ID()),
-		)
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("user position %s belongs to a different tenant than the caller", p.ID()))
 	}
 	if err := validateOrgMultiLang(op, "title", p.TitleI18n()); err != nil {
 		return err
@@ -208,26 +186,18 @@ func validatePositionRefs(
 ) error {
 	dept, err := deptRepo.GetByID(ctx, departmentID)
 	if err != nil {
-		return serrors.E(op, serrors.KindValidation, fmt.Errorf("department %s not found: %w", departmentID, err))
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("department %s not found: %w", departmentID, err))
 	}
 	if dept.TenantID() != tenantID {
-		return serrors.E(
-			op,
-			serrors.KindValidation,
-			fmt.Errorf("department %s belongs to a different tenant", departmentID),
-		)
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("department %s belongs to a different tenant", departmentID))
 	}
 
 	targetUser, err := userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return serrors.E(op, serrors.KindValidation, fmt.Errorf("user %d not found: %w", userID, err))
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("user %d not found: %w", userID, err))
 	}
 	if targetUser.TenantID() != tenantID {
-		return serrors.E(
-			op,
-			serrors.KindValidation,
-			fmt.Errorf("user %d belongs to a different tenant", userID),
-		)
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("user %d belongs to a different tenant", userID))
 	}
 
 	return nil

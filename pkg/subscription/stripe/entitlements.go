@@ -27,7 +27,7 @@ func (s *Service) resolveTenantID(ctx context.Context, metadata map[string]strin
 			return tenantID, nil
 		}
 		if !errors.Is(err, repository.ErrEntitlementNotFound) {
-			return uuid.Nil, serrors.E(op, err)
+			return uuid.Nil, serrors.Wrap(op, err)
 		}
 	}
 	if subscriptionID != "" {
@@ -36,7 +36,7 @@ func (s *Service) resolveTenantID(ctx context.Context, metadata map[string]strin
 			return tenantID, nil
 		}
 		if !errors.Is(err, repository.ErrEntitlementNotFound) {
-			return uuid.Nil, serrors.E(op, err)
+			return uuid.Nil, serrors.Wrap(op, err)
 		}
 	}
 	return uuid.Nil, repository.ErrEntitlementNotFound
@@ -53,7 +53,7 @@ func (s *Service) ensureEntitlement(ctx context.Context, tenantID uuid.UUID) err
 		return nil
 	}
 	if !errors.Is(err, repository.ErrEntitlementNotFound) {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	now := s.now()
@@ -65,7 +65,7 @@ func (s *Service) ensureEntitlement(ctx context.Context, tenantID uuid.UUID) err
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	logrus.WithField("tenant_id", tenantID.String()).Info("Auto-provisioned default subscription entitlement")
@@ -89,7 +89,7 @@ func (s *Service) updateStripeRefs(ctx context.Context, tenantID uuid.UUID, cust
 	if customerPtr == nil || subscriptionPtr == nil {
 		existing, err := s.repo.GetStripeReferences(ctx, tenantID)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		if customerPtr == nil {
 			customerPtr = existing.CustomerID
@@ -102,11 +102,11 @@ func (s *Service) updateStripeRefs(ctx context.Context, tenantID uuid.UUID, cust
 		return nil
 	}
 	if err := s.repo.SetStripeReferences(ctx, tenantID, customerPtr, subscriptionPtr); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if s.invalidator != nil {
 		if err := s.invalidator.InvalidateCache(ctx, tenantID); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	return nil

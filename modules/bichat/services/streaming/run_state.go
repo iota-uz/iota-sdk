@@ -42,7 +42,7 @@ func (m *RunStateManager) CreateRunState(ctx context.Context, run domain.Generat
 		return false, nil
 	}
 	if err := m.store.CreateRun(ctx, run); err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 	return true, nil
 }
@@ -57,7 +57,7 @@ func (m *RunStateManager) GetPersistedRun(ctx context.Context, sessionID uuid.UU
 		if errors.Is(err, composables.ErrNoTenantIDFound) {
 			return nil, domain.ErrNoActiveRun
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return m.store.GetActiveRunBySession(ctx, tenantID, sessionID)
 }
@@ -76,7 +76,7 @@ func (m *RunStateManager) GetPersistedRunForSession(
 	}
 	run, err := m.store.GetActiveRunBySession(ctx, tenantID, sessionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return run, nil
 }
@@ -91,7 +91,7 @@ func (m *RunStateManager) GetPersistedRunByID(ctx context.Context, runID uuid.UU
 		if errors.Is(err, composables.ErrNoTenantIDFound) {
 			return nil, domain.ErrRunNotFound
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return m.store.GetRunByID(ctx, tenantID, runID)
 }
@@ -102,7 +102,7 @@ func (m *RunStateManager) UpdateRunSnapshot(ctx context.Context, tenantID, sessi
 		return nil
 	}
 	if err := m.store.UpdateRunSnapshot(ctx, tenantID, sessionID, runID, partialContent, partialMetadata); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -113,7 +113,7 @@ func (m *RunStateManager) CompleteRunState(ctx context.Context, tenantID, sessio
 		return nil
 	}
 	if err := m.store.CompleteRun(ctx, tenantID, sessionID, runID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -124,7 +124,7 @@ func (m *RunStateManager) CancelRunState(ctx context.Context, tenantID, sessionI
 		return nil
 	}
 	if err := m.store.CancelRun(ctx, tenantID, sessionID, runID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -138,7 +138,7 @@ func (m *RunStateManager) FailRunState(ctx context.Context, tenantID, sessionID,
 		return nil
 	}
 	if err := m.store.FailRun(ctx, tenantID, sessionID, runID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -152,7 +152,7 @@ func (m *RunStateManager) RequestCancel(ctx context.Context, tenantID, sessionID
 		return nil
 	}
 	if err := m.store.RequestCancel(ctx, tenantID, sessionID, runID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -167,7 +167,7 @@ func (m *RunStateManager) Heartbeat(ctx context.Context, tenantID, sessionID, ru
 		return nil
 	}
 	if err := m.store.Heartbeat(ctx, tenantID, sessionID, runID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }

@@ -167,7 +167,7 @@ func (s *IncrementalSyncer) SyncDocuments(
 	const op serrors.Op = "spotlight.IncrementalSyncer.SyncDocuments"
 
 	if s == nil || s.engine == nil {
-		return serrors.E(op, "spotlight engine is not configured")
+		return serrors.New(serrors.Internal, "spotlight engine is not configured").WithOp(op)
 	}
 	docIDs = dedupeRefIDs(docIDs)
 	if len(docIDs) == 0 && len(docs) == 0 {
@@ -184,7 +184,7 @@ func (s *IncrementalSyncer) SyncDocuments(
 
 	if len(docs) > 0 {
 		if err := s.engine.Upsert(ctx, docs); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 
@@ -201,7 +201,7 @@ func (s *IncrementalSyncer) SyncDocuments(
 
 	if len(deletes) > 0 {
 		if err := s.engine.Delete(ctx, deletes); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 
@@ -227,15 +227,15 @@ func (s *IncrementalSyncer) SyncStream(
 	const op serrors.Op = "spotlight.IncrementalSyncer.SyncStream"
 
 	if s == nil || s.engine == nil {
-		return serrors.E(op, "spotlight engine is not configured")
+		return serrors.New(serrors.Internal, "spotlight engine is not configured").WithOp(op)
 	}
 	if stream == nil {
-		return serrors.E(op, "spotlight stream is not configured")
+		return serrors.New(serrors.Internal, "spotlight stream is not configured").WithOp(op)
 	}
 
 	docs, err := CollectDocumentStream(ctx, stream)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	for i := range docs {
 		if docs[i].TenantID == uuid.Nil {
@@ -258,12 +258,12 @@ func (s *IncrementalSyncer) SyncProviderRefs(
 	const op serrors.Op = "spotlight.IncrementalSyncer.SyncProviderRefs"
 
 	if provider == nil {
-		return serrors.E(op, "incremental provider is not configured")
+		return serrors.New(serrors.Internal, "incremental provider is not configured").WithOp(op)
 	}
 	if err := s.SyncStream(ctx, projector, scope, refIDs(refs), func(emit DocumentBatchEmitter) error {
 		return provider.LoadDocuments(ctx, scope, refs, emit)
 	}); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }

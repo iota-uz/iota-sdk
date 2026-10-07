@@ -2,7 +2,6 @@ package composables
 
 import (
 	"context"
-	"errors"
 	"slices"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -14,8 +13,8 @@ import (
 )
 
 var (
-	ErrNoSessionFound = errors.New("no session found")
-	ErrNoUserFound    = errors.New("no user found")
+	ErrNoSessionFound error = serrors.NewUnauthenticated("no session found")
+	ErrNoUserFound    error = serrors.NewUnauthenticated("no user found")
 )
 
 // UseUser returns the user from the context.
@@ -102,10 +101,10 @@ func CanUserStrict(ctx context.Context, perm permission.Permission) error {
 
 	u, err := UseUser(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if !u.Can(perm) {
-		return serrors.E(op, ErrForbidden)
+		return serrors.Wrap(op, ErrForbidden)
 	}
 	return nil
 }

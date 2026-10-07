@@ -22,9 +22,12 @@ import (
 	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/gorilla/websocket"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorgql"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"github.com/vektah/gqlparser/v2/parser"
@@ -552,6 +555,7 @@ func NewHandler(rootExecutor *executor.Executor, cfg *uploadsconfig.Config, opts
 	for _, opt := range opts {
 		opt(server)
 	}
+	rootExecutor.SetErrorPresenter(serrorgql.Presenter(func(ctx context.Context) *i18n.Localizer { l, _ := intl.UseLocalizer(ctx); return l }))
 	server.execs = append(server.execs, rootExecutor)
 
 	checkOrigin := func(r *http.Request) bool {
@@ -587,6 +591,7 @@ func (s *Handler) AddExecutor(execs ...*executor.Executor) {
 			continue
 		}
 
+		exec.SetErrorPresenter(serrorgql.Presenter(func(ctx context.Context) *i18n.Localizer { l, _ := intl.UseLocalizer(ctx); return l }))
 		s.execs = append(s.execs, exec)
 		registerIntrospection(s, exec)
 	}

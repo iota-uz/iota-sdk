@@ -23,27 +23,27 @@ func (s *chatServiceImpl) ClearSessionHistory(ctx context.Context, sessionID uui
 	err := s.withinTx(ctx, func(txCtx context.Context) error {
 		session, err := s.chatRepo.GetSession(txCtx, sessionID)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		deletedMessages, err = s.chatRepo.TruncateMessagesFrom(txCtx, sessionID, time.Unix(0, 0))
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		deletedArtifacts, err = s.chatRepo.DeleteSessionArtifacts(txCtx, sessionID)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		updated := session.SetPreviousResponseID(nil, time.Now())
 		if err := s.chatRepo.UpdateSession(txCtx, updated); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		return nil
 	})
 	if err != nil {
-		return bichatservices.ClearSessionHistoryResponse{}, serrors.E(op, err)
+		return bichatservices.ClearSessionHistoryResponse{}, serrors.Wrap(op, err)
 	}
 
 	return bichatservices.ClearSessionHistoryResponse{
@@ -62,12 +62,12 @@ func (s *chatServiceImpl) CompactSessionHistory(ctx context.Context, sessionID u
 		Offset: 0,
 	})
 	if err != nil {
-		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
+		return bichatservices.CompactSessionHistoryResponse{}, serrors.Wrap(op, err)
 	}
 
 	summary, err := s.generateCompactionSummary(ctx, messages)
 	if err != nil {
-		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
+		return bichatservices.CompactSessionHistoryResponse{}, serrors.Wrap(op, err)
 	}
 
 	var deletedMessages int64
@@ -75,32 +75,32 @@ func (s *chatServiceImpl) CompactSessionHistory(ctx context.Context, sessionID u
 	err = s.withinTx(ctx, func(txCtx context.Context) error {
 		session, err := s.chatRepo.GetSession(txCtx, sessionID)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		deletedMessages, err = s.chatRepo.TruncateMessagesFrom(txCtx, sessionID, time.Unix(0, 0))
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		deletedArtifacts, err = s.chatRepo.DeleteSessionArtifacts(txCtx, sessionID)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		systemMsg := types.SystemMessage(summary, types.WithSessionID(sessionID))
 		if err := s.chatRepo.SaveMessage(txCtx, systemMsg); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		updated := session.SetPreviousResponseID(nil, time.Now())
 		if err := s.chatRepo.UpdateSession(txCtx, updated); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		return nil
 	})
 	if err != nil {
-		return bichatservices.CompactSessionHistoryResponse{}, serrors.E(op, err)
+		return bichatservices.CompactSessionHistoryResponse{}, serrors.Wrap(op, err)
 	}
 
 	return bichatservices.CompactSessionHistoryResponse{
@@ -137,21 +137,21 @@ func (s *chatServiceImpl) CompactSessionHistoryAsync(ctx context.Context, sessio
 				Offset: 0,
 			})
 			if err != nil {
-				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.Wrap(op, err), 0))
 				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 				return
 			}
 
 			summary, err := s.generateCompactionSummary(processCtx, messages)
 			if err != nil {
-				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.Wrap(op, err), 0))
 				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 				return
 			}
 
 			trimmed := strings.TrimSpace(summary)
 			if trimmed == "" {
-				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, serrors.KindValidation, "compaction summary is empty"), 0))
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.New(serrors.Invalid, "compaction summary is empty").WithOp(op), 0))
 				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 				return
 			}
@@ -172,13 +172,13 @@ func (s *chatServiceImpl) CompactSessionHistoryAsync(ctx context.Context, sessio
 				trimmed,
 				map[string]any{},
 			); snapErr != nil {
-				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, snapErr), 0))
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.Wrap(op, snapErr), 0))
 				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 				return
 			}
 
 			if processErr := processCtx.Err(); processErr != nil {
-				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, processErr), 0))
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.Wrap(op, processErr), 0))
 				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 				return
 			}
@@ -188,35 +188,35 @@ func (s *chatServiceImpl) CompactSessionHistoryAsync(ctx context.Context, sessio
 			err = s.withinTx(persistRunCtx, func(txCtx context.Context) error {
 				currentSession, getErr := s.chatRepo.GetSession(txCtx, sessionID)
 				if getErr != nil {
-					return serrors.E(op, getErr)
+					return serrors.Wrap(op, getErr)
 				}
 
 				_, truncateErr := s.chatRepo.TruncateMessagesFrom(txCtx, sessionID, time.Unix(0, 0))
 				if truncateErr != nil {
-					return serrors.E(op, truncateErr)
+					return serrors.Wrap(op, truncateErr)
 				}
 				if _, deleteArtifactsErr := s.chatRepo.DeleteSessionArtifacts(txCtx, sessionID); deleteArtifactsErr != nil {
-					return serrors.E(op, deleteArtifactsErr)
+					return serrors.Wrap(op, deleteArtifactsErr)
 				}
 
 				systemMsg := types.SystemMessage(trimmed, types.WithSessionID(sessionID))
 				if saveErr := s.chatRepo.SaveMessage(txCtx, systemMsg); saveErr != nil {
-					return serrors.E(op, saveErr)
+					return serrors.Wrap(op, saveErr)
 				}
 				updated := currentSession.SetPreviousResponseID(nil, time.Now())
 				if updateErr := s.chatRepo.UpdateSession(txCtx, updated); updateErr != nil {
-					return serrors.E(op, updateErr)
+					return serrors.Wrap(op, updateErr)
 				}
 				return nil
 			})
 			if err != nil {
-				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.Wrap(op, err), 0))
 				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 				return
 			}
 
 			if completeErr := s.completeRunState(persistCtx, session.TenantID(), sessionID, runID); completeErr != nil {
-				active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, completeErr), time.Since(startedAt).Milliseconds()))
+				active.Broadcast(streamingsvc.TerminalChunk(serrors.Wrap(op, completeErr), time.Since(startedAt).Milliseconds()))
 				_ = s.cancelRunState(persistCtx, session.TenantID(), sessionID, runID)
 				return
 			}

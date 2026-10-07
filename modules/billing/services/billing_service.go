@@ -199,18 +199,18 @@ func (s *BillingService) Cancel(ctx context.Context, cmd *CancelTransactionComma
 
 	entity, err := s.repo.GetByID(ctx, cmd.TransactionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if !entity.Status().IsActive() {
-		return nil, serrors.E(op, fmt.Errorf("%w: status %q", ErrTransactionNotCancellable, entity.Status()))
+		return nil, serrors.Wrap(op, fmt.Errorf("%w: status %q", ErrTransactionNotCancellable, entity.Status()))
 	}
 
 	provider := s.providers[entity.Gateway()]
 
 	updatedEvent, err := billing.NewUpdatedEvent(ctx, entity)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	var updatedTransaction billing.Transaction
@@ -231,7 +231,7 @@ func (s *BillingService) Cancel(ctx context.Context, cmd *CancelTransactionComma
 		return err
 	})
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	updatedEvent.Result = updatedTransaction

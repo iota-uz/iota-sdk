@@ -585,7 +585,7 @@ func ToDomainDepartment(dbDepartment *models.Department) (department.Department,
 	const op serrors.Op = "ToDomainDepartment"
 	name, err := crudmodels.MultiLangFromJSON(dbDepartment.Name)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	opts := []department.Option{
@@ -608,7 +608,7 @@ func ToDBDepartment(d department.Department) (*models.Department, error) {
 	const op serrors.Op = "ToDBDepartment"
 	name, err := d.NameI18n().ToJSON()
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	var parentID sql.NullString
@@ -633,7 +633,7 @@ func ToDomainUserPosition(dbPosition *models.UserPosition) (userposition.UserPos
 	const op serrors.Op = "ToDomainUserPosition"
 	title, err := crudmodels.MultiLangFromJSON(dbPosition.Title)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	opts := []userposition.Option{
@@ -653,7 +653,7 @@ func ToDBUserPosition(p userposition.UserPosition) (*models.UserPosition, error)
 	const op serrors.Op = "ToDBUserPosition"
 	title, err := p.TitleI18n().ToJSON()
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return &models.UserPosition{

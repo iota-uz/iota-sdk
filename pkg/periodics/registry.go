@@ -42,7 +42,7 @@ func (r *managerRegistry) Register(name string, m Manager) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, exists := r.managers[name]; exists {
-		return serrors.E(op, fmt.Errorf("periodic task manager with name '%s' is already registered", name))
+		return serrors.Wrap(op, fmt.Errorf("periodic task manager with name '%s' is already registered", name))
 	}
 	r.managers[name] = m
 	return nil

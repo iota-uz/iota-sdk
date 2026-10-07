@@ -490,5 +490,5 @@ var errMockWatchNotImplemented = errors.New("mock document source: watch not imp
 
 func (m *mockDocumentSource) Watch(ctx context.Context) (<-chan kb.DocumentChange, error) {
 	// Not implemented for this test
-	return nil, serrors.E("watch", errMockWatchNotImplemented)
+	return nil, serrors.Wrap("watch", errMockWatchNotImplemented)
 }

@@ -90,7 +90,7 @@ func TestEncryptSecret_RequiresEncryptor(t *testing.T) {
 	// Verify serrors.Op is present
 	var serrOp serrors.Op
 	if serr, ok := err.(*serrors.Error); ok {
-		serrOp = serr.Op
+		serrOp = serrors.OpOf(serr)
 	}
 	assert.Equal(t, serrors.Op("TOTPService.EncryptSecret"), serrOp, "Operation should be tracked")
 }
@@ -120,7 +120,7 @@ func TestDecryptSecret_RequiresEncryptor(t *testing.T) {
 	// Verify serrors.Op is present
 	var serrOp serrors.Op
 	if serr, ok := err.(*serrors.Error); ok {
-		serrOp = serr.Op
+		serrOp = serrors.OpOf(serr)
 	}
 	assert.Equal(t, serrors.Op("TOTPService.DecryptSecret"), serrOp, "Operation should be tracked")
 }

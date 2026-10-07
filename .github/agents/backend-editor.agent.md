@@ -35,7 +35,7 @@ You are a unified backend development expert for the IOTA SDK multi-tenant busin
 - DI with repository interfaces (not implementations)
 - Business logic and validation
 - Permission checks via `sdkcomposables.CanUser()`
-- Errors wrapped: `serrors.E(op, err)`
+- Errors wrapped: `serrors.Wrap(op, err)`
 
 **Repository Layer**:
 - Interface in domain layer
@@ -99,7 +99,7 @@ You are a unified backend development expert for the IOTA SDK multi-tenant busin
 Before completing work, verify:
 
 - [ ] All queries include `WHERE organization_id = $1` for multi-tenant isolation
-- [ ] Errors wrapped with `serrors.E(op, err)`
+- [ ] Errors wrapped with `serrors.Wrap(op, err)`
 - [ ] DI using repository interfaces, not implementations
 - [ ] Auth middleware applied to protected routes
 - [ ] Permission checks via `sdkcomposables.CanUser()` for sensitive operations

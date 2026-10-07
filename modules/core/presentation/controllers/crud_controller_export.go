@@ -88,7 +88,7 @@ func (c *CrudController[TEntity]) Export(w http.ResponseWriter, r *http.Request)
 	params, err := c.exportParams(r)
 	if err != nil {
 		// A malformed query is the caller's, as it is for List.
-		log.Printf("[CrudController.Export] Failed to parse query params: %v", serrors.E(op, err))
+		log.Printf("[CrudController.Export] Failed to parse query params: %v", serrors.Wrap(op, err))
 		errorMsg, _ := c.localize(ctx, "Errors.InvalidQueryParams", "Invalid query parameters")
 		http.Error(w, errorMsg, http.StatusBadRequest)
 		return
@@ -98,7 +98,7 @@ func (c *CrudController[TEntity]) Export(w http.ResponseWriter, r *http.Request)
 	// every row is read — so the size of what is read is bounded up front.
 	total, err := c.service.Count(ctx, params)
 	if err != nil {
-		log.Printf("[CrudController.Export] Failed to count entities: %v", serrors.E(op, err))
+		log.Printf("[CrudController.Export] Failed to count entities: %v", serrors.Wrap(op, err))
 		errorMsg, _ := c.localize(ctx, errFailedToRetrieve, "Failed to retrieve data")
 		http.Error(w, errorMsg, http.StatusInternalServerError)
 		return
@@ -112,7 +112,7 @@ func (c *CrudController[TEntity]) Export(w http.ResponseWriter, r *http.Request)
 
 	entities, err := c.exportEntities(ctx, params)
 	if err != nil {
-		log.Printf("[CrudController.Export] Failed to list entities: %v", serrors.E(op, err))
+		log.Printf("[CrudController.Export] Failed to list entities: %v", serrors.Wrap(op, err))
 		errorMsg, _ := c.localize(ctx, errFailedToRetrieve, "Failed to retrieve data")
 		http.Error(w, errorMsg, http.StatusInternalServerError)
 		return
@@ -120,7 +120,7 @@ func (c *CrudController[TEntity]) Export(w http.ResponseWriter, r *http.Request)
 
 	rowValues, err := c.exportFieldValues(ctx, entities)
 	if err != nil {
-		log.Printf("[CrudController.Export] Failed to map entities: %v", serrors.E(op, err))
+		log.Printf("[CrudController.Export] Failed to map entities: %v", serrors.Wrap(op, err))
 		errorMsg, _ := c.localize(ctx, errFailedToRetrieve, "Failed to retrieve data")
 		http.Error(w, errorMsg, http.StatusInternalServerError)
 		return
@@ -142,7 +142,7 @@ func (c *CrudController[TEntity]) Export(w http.ResponseWriter, r *http.Request)
 	// must still turn into a 500, not a 200 with an empty download.
 	out := &exportResponseWriter{ResponseWriter: w}
 	fail := func(stage string, err error) {
-		log.Printf("[CrudController.Export] Failed to %s: %v", stage, serrors.E(op, err))
+		log.Printf("[CrudController.Export] Failed to %s: %v", stage, serrors.Wrap(op, err))
 		if out.written {
 			return
 		}
@@ -226,7 +226,7 @@ func (c *CrudController[TEntity]) exportParams(r *http.Request) (*crud.FindParam
 	const op = serrors.Op("CrudController.exportParams")
 	params, err := composables.UseQuery(&crud.FindParams{Limit: crudExportBatchSize}, r)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	params.Limit = crudExportBatchSize
 	params.Offset = 0
@@ -267,7 +267,7 @@ func (c *CrudController[TEntity]) exportEntities(ctx context.Context, params *cr
 	for {
 		batch, err := c.service.List(ctx, params)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		entities = append(entities, batch...)
 		if len(batch) < crudExportBatchSize {
@@ -283,7 +283,7 @@ func (c *CrudController[TEntity]) exportFieldValues(ctx context.Context, entitie
 	for _, entity := range entities {
 		fieldValues, err := c.schema.Mapper().ToFieldValues(ctx, entity)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		rows = append(rows, fieldValues)
 	}

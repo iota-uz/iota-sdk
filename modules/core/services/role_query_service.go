@@ -25,7 +25,7 @@ func (s *RoleQueryService) FindAssignmentOptions(ctx context.Context) ([]*viewmo
 	const op = serrors.Op("RoleQueryService.FindAssignmentOptions")
 	options, err := s.repo.FindAssignmentOptions(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return options, nil
 }

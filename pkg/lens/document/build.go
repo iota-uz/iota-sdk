@@ -50,13 +50,13 @@ type BuildOptions struct {
 func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (*DashboardDocument, error) {
 	const op serrors.Op = "lens/document.Build"
 	if result == nil {
-		return nil, serrors.E(op, fmt.Errorf("runtime result is required"))
+		return nil, serrors.Wrap(op, fmt.Errorf("runtime result is required"))
 	}
 	if err := runtime.Validate(spec); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if opts.InlineDepth < 0 {
-		return nil, serrors.E(op, fmt.Errorf("inline depth cannot be negative"))
+		return nil, serrors.Wrap(op, fmt.Errorf("inline depth cannot be negative"))
 	}
 
 	snapshotID := strings.TrimSpace(opts.SnapshotID)
@@ -64,7 +64,7 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 		var err error
 		snapshotID, err = newSnapshotID()
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 	}
 	generatedAt := opts.GeneratedAt
@@ -113,18 +113,18 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 		layoutRow := LayoutRow{Heading: rowSpec.Heading, Class: rowSpec.Class, Anchor: rowSpec.Anchor, Panels: make([]LayoutItem, 0)}
 		for _, panelSpec := range rowSpec.Panels {
 			if err := appendPanelTree(doc, panelSpec, result, hosts, &layoutRow, nil, opts.DeferPanels); err != nil {
-				return nil, serrors.E(op, err)
+				return nil, serrors.Wrap(op, err)
 			}
 		}
 		doc.Layout.Rows = append(doc.Layout.Rows, layoutRow)
 	}
 	for _, explorerSpec := range spec.Explorers {
 		if err := buildExplorer(doc, explorerSpec, result); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 	}
 	if err := doc.Validate(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return doc, nil
 }
@@ -1165,11 +1165,11 @@ func buildFrame(source *frame.Frame) (Frame, error) {
 func ProjectPanelFrame(spec panel.Spec, source *frame.Frame, dynamicChildren *explore.DynamicChildren) (Frame, error) {
 	const op serrors.Op = "lens/document.ProjectPanelFrame"
 	if source == nil {
-		return Frame{}, serrors.E(op, fmt.Errorf("source frame is required"))
+		return Frame{}, serrors.Wrap(op, fmt.Errorf("source frame is required"))
 	}
 	projected, err := buildPanelFrame(spec, source, dynamicChildFrameDependencies(dynamicChildren))
 	if err != nil {
-		return Frame{}, serrors.E(op, err)
+		return Frame{}, serrors.Wrap(op, err)
 	}
 	return projected, nil
 }

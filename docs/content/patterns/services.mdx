@@ -431,11 +431,9 @@ func (s *ExpenseService) AttachFileToExpense(
 		return fmt.Errorf("failed to get tenant: %w", err)
 	}
 	if upload.TenantID() != tenantID {
-		return serrors.NewError(
-			"TENANT_MISMATCH",
-			"upload does not belong to this tenant",
-			"upload.tenant_mismatch",
-		)
+		return serrors.NewPermissionDenied("upload does not belong to this tenant").
+            WithReason("TENANT_MISMATCH").
+            WithPublic(serrors.Message{ID: "upload.tenant_mismatch"})
 	}
 
 	// Execute attachment in transaction
@@ -474,11 +472,9 @@ func (s *ExpenseService) TransferBetweenAccounts(
 
 	// Validate sufficient balance
 	if fromAccount.Balance().Amount() < amount.Amount() {
-		return serrors.NewError(
-			"INSUFFICIENT_FUNDS",
-			"account has insufficient funds",
-			"account.insufficient_funds",
-		)
+		return serrors.NewFailedPrecondition("account has insufficient funds").
+            WithReason("INSUFFICIENT_FUNDS").
+            WithPublic(serrors.Message{ID: "account.insufficient_funds"})
 	}
 
 	// Execute transfer atomically
@@ -513,21 +509,19 @@ Use the serrors package for consistent error handling:
 import "github.com/iota-uz/iota-sdk/pkg/serrors"
 
 // Business logic errors
-return serrors.NewError(
-	"INSUFFICIENT_FUNDS",
-	"account has insufficient funds",
-	"account.insufficient_funds",
-)
+return serrors.NewFailedPrecondition("account has insufficient funds").
+            WithReason("INSUFFICIENT_FUNDS").
+            WithPublic(serrors.Message{ID: "account.insufficient_funds"})
 
-// Validation errors (details via WithTemplateData for localization)
-return serrors.NewError(
-	"VALIDATION_FAILED",
-	"invalid input data",
-	"validation.failed",
-).WithTemplateData(map[string]string{
-		"field": "amount",
-		"reason": "must be positive",
-	})
+// Field violations carry explicit public localization messages.
+return serrors.NewInvalid("invalid amount").WithFields(serrors.FieldViolation{
+    Field: "Amount",
+    Reason: "positive",
+    Message: serrors.Message{ID: "validation.failed", Args: map[string]serrors.Value{
+        "field": serrors.Text("amount"),
+        "reason": serrors.Text("must be positive"),
+    }},
+})
 ```
 
 ### Error Wrapping

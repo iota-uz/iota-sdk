@@ -92,7 +92,7 @@ func (s *DepartmentService) Create(ctx context.Context, d department.Department)
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	actor, err := composables.UseUser(ctx)
@@ -125,7 +125,7 @@ func (s *DepartmentService) Update(ctx context.Context, d department.Department)
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	actor, err := composables.UseUser(ctx)
@@ -164,7 +164,7 @@ func (s *DepartmentService) Delete(ctx context.Context, id uuid.UUID) error {
 
 	actor, err := composables.UseUser(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	var d department.Department
@@ -177,7 +177,7 @@ func (s *DepartmentService) Delete(ctx context.Context, id uuid.UUID) error {
 		return s.repo.Delete(txCtx, id)
 	})
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	s.publisher.Publish(department.NewDeletedEvent(d, actor))

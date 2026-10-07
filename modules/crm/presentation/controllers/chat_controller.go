@@ -30,6 +30,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -334,7 +336,7 @@ func (c *ChatController) Search(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -373,7 +375,7 @@ func (c *ChatController) renderChats(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -409,7 +411,7 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 
 	chatIDUint, err := strconv.ParseUint(chatID, 10, 64)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -419,23 +421,23 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	chatEntity.MarkAllAsRead()
 	chatEntity, err = c.chatService.Save(r.Context(), chatEntity)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	clientEntity, err := c.clientService.GetByID(r.Context(), chatEntity.ClientID())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	messageTemplates, err := c.messageTemplates(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -469,7 +471,7 @@ func (c *ChatController) GetNew(w http.ResponseWriter, r *http.Request) {
 func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&CreateChatDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -481,18 +483,18 @@ func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 
 	tenant, err := composables.UseTenantID(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	clientEntity, err := clientDto.ToEntity(tenant)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	if err = c.clientService.Create(r.Context(), clientEntity); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -502,13 +504,13 @@ func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 			CreateChatURL: c.basePath,
 			Phone:         dto.Phone,
 			Errors: map[string]string{
-				"Phone": err.Error(),
+				"Phone": serrors.Public(serrors.NewInvalid("").WithCause(err), nil).Message,
 			},
 		})).ServeHTTP(w, r)
 		return
 	}
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	htmx.Redirect(w, c.basePath)
@@ -517,12 +519,12 @@ func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 	chatID, err := shared.ParseID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	dto, err := composables.UseForm(&SendMessageDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	chatEntity, err := c.chatService.SendMessage(
@@ -534,17 +536,17 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	messageTemplates, err := c.messageTemplates(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	clientEntity, err := c.clientService.GetByID(r.Context(), chatEntity.ClientID())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := chatsui.SelectedChatProps{

@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	appletengineruntime "github.com/iota-uz/iota-sdk/pkg/appletengine/runtime"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/sirupsen/logrus"
 )
 
@@ -176,7 +177,7 @@ func (b *Bridge) HandleAppletEvent(w http.ResponseWriter, r *http.Request) {
 		data = decoded
 	}
 	if err := b.Send(payload.AppletID, payload.ConnectionID, data); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)

@@ -42,11 +42,11 @@ func NewEvaluator(cfg subscription.Config, repo subrepo.Repository, opts ...Opti
 	const op serrors.Op = "SubscriptionBridge.NewEvaluator"
 
 	if repo == nil {
-		return nil, serrors.E(op, fmt.Errorf("repository is required"))
+		return nil, serrors.Wrap(op, fmt.Errorf("repository is required"))
 	}
 	plans, err := subscription.ResolvePlans(cfg)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	defaultPlan := cfg.DefaultPlan
 	if strings.TrimSpace(defaultPlan) == "" {
@@ -72,7 +72,7 @@ func (e *Evaluator) CurrentPlan(ctx context.Context, subject subscription.Subjec
 
 	entitlement, err := e.entitlementForSubject(ctx, subject)
 	if err != nil {
-		return subscription.PlanInfo{}, serrors.E(op, err)
+		return subscription.PlanInfo{}, serrors.Wrap(op, err)
 	}
 
 	planID, plan := e.resolvePlan(entitlement.PlanID)
@@ -91,12 +91,12 @@ func (e *Evaluator) EvaluateFeature(
 	const op serrors.Op = "SubscriptionBridge.EvaluateFeature"
 
 	if strings.TrimSpace(string(feature)) == "" {
-		return subscription.Decision{}, serrors.E(op, fmt.Errorf("feature is required"))
+		return subscription.Decision{}, serrors.Wrap(op, fmt.Errorf("feature is required"))
 	}
 
 	entitlement, err := e.entitlementForSubject(ctx, subject)
 	if err != nil {
-		return subscription.Decision{}, serrors.E(op, err)
+		return subscription.Decision{}, serrors.Wrap(op, err)
 	}
 
 	planID, plan := e.resolvePlan(entitlement.PlanID)
@@ -129,13 +129,13 @@ func (e *Evaluator) EvaluateLimit(
 
 	normalizedQuota, err := subscription.NewQuotaKey(quota.Resource, quota.Dimension, quota.Window)
 	if err != nil {
-		return subscription.LimitDecision{}, serrors.E(op, err)
+		return subscription.LimitDecision{}, serrors.Wrap(op, err)
 	}
 	quota = normalizedQuota
 
 	entitlement, err := e.entitlementForSubject(ctx, subject)
 	if err != nil {
-		return subscription.LimitDecision{}, serrors.E(op, err)
+		return subscription.LimitDecision{}, serrors.Wrap(op, err)
 	}
 	planID, plan := e.resolvePlan(entitlement.PlanID)
 
@@ -146,7 +146,7 @@ func (e *Evaluator) EvaluateLimit(
 	} else {
 		current, err = e.repo.GetEntityCount(ctx, entitlement.TenantID, quota.Resource)
 		if err != nil {
-			return subscription.LimitDecision{}, serrors.E(op, err)
+			return subscription.LimitDecision{}, serrors.Wrap(op, err)
 		}
 	}
 

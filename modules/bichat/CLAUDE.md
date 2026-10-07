@@ -484,26 +484,26 @@ The delegation tool is automatically filtered from child agent tool lists to pre
 ## Error Handling Convention
 
 `modules/bichat` is an **application module** with a full iota-sdk dependency. All operational
-error wrapping must use `serrors.E(op, err)` from `github.com/iota-uz/iota-sdk/pkg/serrors`.
+error wrapping must use `serrors.Wrap(op, err)` from `github.com/iota-uz/iota-sdk/pkg/serrors`.
 
 **Pattern:**
 
 ```go
-// Service / repository / handler — use serrors.E
+// Service / repository / handler — use serrors.Wrap
 func (s *chatService) GetSession(ctx context.Context, id uuid.UUID) (domain.Session, error) {
     const op serrors.Op = "chatService.GetSession"
     session, err := s.repo.GetByID(ctx, id)
     if err != nil {
-        return nil, serrors.E(op, err)
+        return nil, serrors.Wrap(op, err)
     }
     return session, nil
 }
 
-// Validation errors — use serrors.KindValidation
+// Validation errors — use serrors.NewInvalid
 func (s *chatService) CreateSession(ctx context.Context, title string) error {
     const op serrors.Op = "chatService.CreateSession"
     if strings.TrimSpace(title) == "" {
-        return serrors.E(op, serrors.KindValidation, "title is required")
+        return serrors.NewInvalid("title is required").WithOp(op)
     }
     // ...
 }
@@ -511,7 +511,7 @@ func (s *chatService) CreateSession(ctx context.Context, title string) error {
 
 **Exceptions where `fmt.Errorf` is acceptable:**
 - Component-level wiring in `component.go` (infrastructure bootstrapping)
-- Private utility helpers whose callers immediately wrap with `serrors.E`
+- Private utility helpers whose callers immediately wrap with `serrors.Wrap`
 - Redis/stream infrastructure in `title_job_worker.go`
 - Config validation in `agents/sub_agent_definitions.go` (no op context needed)
 

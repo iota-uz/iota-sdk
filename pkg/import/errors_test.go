@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
@@ -20,7 +21,7 @@ func TestErrorFormatting(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "C", cellErr.Col)
 		assert.Equal(t, uint(2), cellErr.Row)
-		assert.Equal(t, "ERR_INVALID_CELL", cellErr.Code)
+		assert.Equal(t, serrors.Reason("ERR_INVALID_CELL"), serrors.ReasonOf(cellErr))
 	})
 
 	t.Run("ValidationError_ExcelFormat", func(t *testing.T) {
@@ -32,8 +33,8 @@ func TestErrorFormatting(t *testing.T) {
 		assert.Equal(t, "D", valErr.Col)
 		assert.Equal(t, "abc", valErr.Value)
 		assert.Equal(t, uint(5), valErr.RowNum)
-		assert.Equal(t, "Must be a valid number", valErr.Message)
-		assert.Equal(t, "ERR_VALIDATION", valErr.Code)
+		assert.Equal(t, "Must be a valid number", valErr.Error())
+		assert.Equal(t, serrors.Reason("ERR_VALIDATION"), serrors.ReasonOf(valErr))
 	})
 
 	t.Run("Localization_ExcelFormat", func(t *testing.T) {

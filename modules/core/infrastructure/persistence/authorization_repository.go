@@ -20,16 +20,16 @@ func (r *privilegeRepository) LockTenant(ctx context.Context) error {
 	const op serrors.Op = "PrivilegeRepository.LockTenant"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	// A transaction-scoped advisory lock prevents cross-type deadlocks and
 	// closes TOCTOU windows when one mutation touches users, groups, and roles.
 	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 1033))", tenantID.String()); err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	return nil
 }
@@ -41,11 +41,11 @@ func (r *privilegeRepository) LockUsers(ctx context.Context, ids ...uint) error 
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	values := uniqueSortedUserIDs(ids)
 	rows, err := tx.Query(ctx, `
@@ -53,7 +53,7 @@ func (r *privilegeRepository) LockUsers(ctx context.Context, ids ...uint) error 
 		WHERE tenant_id = $1 AND id = ANY($2::int[])
 		ORDER BY id FOR UPDATE`, tenantID, values)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	rows.Close()
 	return nil
@@ -66,11 +66,11 @@ func (r *privilegeRepository) LockRoles(ctx context.Context, ids ...uint) error 
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	values := uniqueSortedUserIDs(ids)
 	rows, err := tx.Query(ctx, `
@@ -78,7 +78,7 @@ func (r *privilegeRepository) LockRoles(ctx context.Context, ids ...uint) error 
 		WHERE tenant_id = $1 AND id = ANY($2::int[])
 		ORDER BY id FOR UPDATE`, tenantID, values)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	rows.Close()
 	return nil
@@ -91,11 +91,11 @@ func (r *privilegeRepository) LockGroups(ctx context.Context, ids ...uuid.UUID) 
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	values := uniqueSortedGroupIDs(ids)
 	rows, err := tx.Query(ctx, `
@@ -103,7 +103,7 @@ func (r *privilegeRepository) LockGroups(ctx context.Context, ids ...uuid.UUID) 
 		WHERE tenant_id = $1 AND id = ANY($2::uuid[])
 		ORDER BY id FOR UPDATE`, tenantID, values)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	rows.Close()
 	return nil

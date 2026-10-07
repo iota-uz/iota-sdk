@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 type DebtAggregateController struct {
@@ -155,7 +156,7 @@ func (c *DebtAggregateController) GetCounterpartyDrawer(w http.ResponseWriter, r
 	counterpartyIDStr := mux.Vars(r)["counterparty_id"]
 	counterpartyID, err := uuid.Parse(counterpartyIDStr)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error parsing UUID: %v", err), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
