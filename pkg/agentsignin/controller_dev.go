@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/di"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	queryrepo "github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
@@ -44,8 +45,10 @@ func (c *controller) Descriptor() application.ControllerDescriptor {
 }
 
 func (c *controller) Register(r *mux.Router) {
-	r.HandleFunc(Path, c.get).Methods(http.MethodGet)
-	r.HandleFunc(Path, di.H(c.post)).Methods(http.MethodPost)
+	sub := r.PathPrefix(Path).Subrouter()
+	sub.Use(middleware.CSRF(nil))
+	sub.HandleFunc("", c.get).Methods(http.MethodGet)
+	sub.HandleFunc("", di.H(c.post)).Methods(http.MethodPost)
 }
 
 func (c *controller) allowed(r *http.Request) bool {
@@ -80,7 +83,7 @@ func (c *controller) get(w http.ResponseWriter, r *http.Request) {
 
 func (c *controller) post(r *http.Request, w http.ResponseWriter, repo user.Repository, auth *services.AuthService, browser *services.BrowserSessionService, appCfg *appconfig.Config) {
 	noStore(w)
-	if !c.allowed(r) || appCfg.Environment != c.options.Environment {
+	if !c.allowed(r) || r.Header.Get("Origin") != c.options.Origin || appCfg.Environment != c.options.Environment {
 		http.NotFound(w, r)
 		return
 	}

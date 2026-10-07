@@ -3,7 +3,8 @@
 Build both the CLI and server with `-tags dev`, set `APP_ENVIRONMENT=development`
 and explicitly enable `AGENT_SIGNIN_ENABLED=true`. Register the controller returned
 by `agentsignin.NewController(options)` in the host application. The host must
-install its normal composition container, database context and CSRF middleware.
+install its normal composition container and database context. The controller
+installs CSRF protection and requires an exact same-origin POST.
 Do not log request bodies on `/dev/agent-sign-in`.
 
 The SDK CLI reads `AGENT_SIGNIN_ORIGIN` (an HTTP loopback origin) and
