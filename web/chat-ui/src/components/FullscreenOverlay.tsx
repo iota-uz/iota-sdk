@@ -15,7 +15,7 @@ interface FullscreenOverlayProps {
     children: JSX.Element;
 }
 export function FullscreenOverlay(props: FullscreenOverlayProps) {
-    return <HostPortal surface="modal" label={props.title} onEscape={props.onClose}>
+    return <HostPortal class="fixed inset-0" surface="modal" label={props.title} onEscape={props.onClose}>
       <div class="fixed inset-0">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={props.onClose} aria-hidden="true"/>
         <div class="absolute inset-4 flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl outline-none dark:border-gray-700 dark:bg-gray-900">

@@ -27,7 +27,7 @@ interface InlineDialogProps {
     children: JSX.Element;
 }
 export function InlineDialog(props: InlineDialogProps) {
-    return <Show when={props.open}><HostPortal surface="modal" label="Dialog" onEscape={props.onClose}>
+    return <Show when={props.open}><HostPortal class="fixed inset-0" surface="modal" label="Dialog" onEscape={props.onClose}>
       <DialogContext.Provider value={props.onClose}>
         <div class={props.className} onClick={props.onClose} tabIndex={-1}>{props.children}</div>
       </DialogContext.Provider>
