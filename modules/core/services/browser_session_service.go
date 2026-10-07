@@ -15,6 +15,7 @@ import (
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/agentsession"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
@@ -301,7 +302,8 @@ func (s *BrowserSessionService) resolveValue(ctx context.Context, value string) 
 		if err != nil {
 			return state, nil, changed, serrors.E("core.BrowserSessionService.resolveValue", err)
 		}
-		if sess.Audience() != "" || sess.IsExpired() || (!sess.IsActive() && !sess.IsPending() && !sess.IsPendingOnboarding()) {
+		agentSession := agentsession.Is(sess, s.appCfg.Environment)
+		if (sess.Audience() != "" && !agentSession) || sess.IsExpired() || (!sess.IsActive() && !sess.IsPending() && !sess.IsPendingOnboarding()) {
 			changed = true
 			continue
 		}
@@ -314,7 +316,7 @@ func (s *BrowserSessionService) resolveValue(ctx context.Context, value string) 
 		if err != nil {
 			return state, nil, changed, serrors.E("core.BrowserSessionService.resolveValue", err)
 		}
-		if u.IsBlocked() || u.IsPendingOnboarding() != sess.IsPendingOnboarding() {
+		if !agentSession && (u.IsBlocked() || u.IsPendingOnboarding() != sess.IsPendingOnboarding()) {
 			changed = true
 			continue
 		}

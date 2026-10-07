@@ -12,6 +12,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/pkg/agentsession"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
@@ -167,6 +168,9 @@ func (s *AuthService) Authorize(ctx context.Context, token string) (session.Sess
 			s.logger.WithError(deleteErr).Warn("failed to cleanup expired session")
 		}
 		return nil, ErrSessionExpired
+	}
+	if sess.Audience() == agentsession.Audience && !agentsession.Is(sess, s.appCfg.Environment) {
+		return nil, ErrAudienceMismatch
 	}
 
 	// Validate IP binding if configured

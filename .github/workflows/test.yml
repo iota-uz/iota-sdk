@@ -403,6 +403,8 @@ jobs:
           go test ./pkg/sdkidentity ./pkg/mapping ./pkg/serrors/v2/...
           go test -race ./pkg/reporting ./pkg/bichat/tools/reporting
           go test -race ./pkg/testenv/...
+          go test -race ./pkg/agentsignin
+          go test -tags dev -race ./pkg/agentsignin -run 'TestTicket|TestIssue|TestCommand'
 
       - name: Check applet RPC contracts
         run: just applet rpc-check bichat
