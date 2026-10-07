@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -41,39 +40,39 @@ func (s *NotificationRoutingService) Recipients(ctx context.Context) ([]user.Use
 func (s *NotificationRoutingService) SaveRule(ctx context.Context, rule notifications.Rule) error {
 	const op = "NotificationRoutingService.SaveRule"
 	if _, ok := s.catalog.Get(rule.EventKey); !ok {
-		return serrors.E(op, serrors.KindValidation, fmt.Errorf("unknown notification event"))
+		return serrors.New(serrors.Invalid, "unknown notification event").WithOp(op)
 	}
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if len(rule.UserIDs)+len(rule.GroupIDs)+len(rule.RoleIDs) > 1000 {
-		return serrors.E(op, serrors.KindValidation, fmt.Errorf("too many recipients"))
+		return serrors.New(serrors.Invalid, "too many recipients").WithOp(op)
 	}
 	seen := map[uint]bool{}
 	for _, id := range rule.UserIDs {
 		if id == 0 || seen[id] {
-			return serrors.E(op, serrors.KindValidation, fmt.Errorf("invalid or duplicate recipient"))
+			return serrors.New(serrors.Invalid, "invalid or duplicate recipient").WithOp(op)
 		}
 		seen[id] = true
 	}
 	if rule.Enabled && len(rule.UserIDs)+len(rule.GroupIDs)+len(rule.RoleIDs) == 0 {
-		return serrors.E(op, serrors.KindValidation, fmt.Errorf("enabled event requires recipients"))
+		return serrors.New(serrors.Invalid, "enabled event requires recipients").WithOp(op)
 	}
 	users, err := s.users.GetByIDs(ctx, rule.UserIDs)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if len(users) != len(rule.UserIDs) {
-		return serrors.E(op, serrors.KindValidation, fmt.Errorf("invalid recipient"))
+		return serrors.New(serrors.Invalid, "invalid recipient").WithOp(op)
 	}
 	for _, u := range users {
 		if u.TenantID() != tenant || u.IsBlocked() || u.Type() != user.TypeUser || u.Status() != user.StatusActive {
-			return serrors.E(op, serrors.KindValidation, fmt.Errorf("invalid recipient"))
+			return serrors.New(serrors.Invalid, "invalid recipient").WithOp(op)
 		}
 	}
 	if err := s.validateAudience(ctx, rule); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return s.rules.Save(ctx, rule)
 }
@@ -81,18 +80,18 @@ func (s *NotificationRoutingService) Publish(ctx context.Context, event notifica
 	const op = "NotificationRoutingService.Publish"
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 	if event.TenantID == uuid.Nil || event.TenantID != tenant || strings.TrimSpace(event.ID) == "" {
-		return 0, serrors.E(op, serrors.KindValidation, fmt.Errorf("invalid notification event envelope"))
+		return 0, serrors.New(serrors.Invalid, "invalid notification event envelope").WithOp(op)
 	}
 	definition, ok := s.catalog.Get(event.Key)
 	if !ok {
-		return 0, serrors.E(op, serrors.KindValidation, fmt.Errorf("unknown notification event"))
+		return 0, serrors.New(serrors.Invalid, "unknown notification event").WithOp(op)
 	}
 	rule, err := s.rules.Get(ctx, event.Key)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 	if !rule.Enabled {
 		return 0, nil
@@ -101,7 +100,7 @@ func (s *NotificationRoutingService) Publish(ctx context.Context, event notifica
 	if len(rule.GroupIDs)+len(rule.RoleIDs) > 0 {
 		resolved, err := s.audience.Resolve(ctx, rule.GroupIDs, rule.RoleIDs)
 		if err != nil {
-			return 0, serrors.E(op, err)
+			return 0, serrors.Wrap(op, err)
 		}
 		ids = append(ids, resolved...)
 	}
@@ -115,7 +114,7 @@ func (s *NotificationRoutingService) Publish(ctx context.Context, event notifica
 	}
 	users, err := s.users.GetByIDs(ctx, unique)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 	delivered := 0
 	seen := map[uint]bool{}
@@ -126,14 +125,14 @@ func (s *NotificationRoutingService) Publish(ctx context.Context, event notifica
 		seen[u.ID()] = true
 		content, err := definition.Render(event, string(u.UILanguage()))
 		if err != nil {
-			return delivered, serrors.E(op, err)
+			return delivered, serrors.Wrap(op, err)
 		}
 		n, err := notification.New(u.ID(), content.Title, content.Body, notification.WithTenantID(tenant), notification.WithEventKey(event.Key), notification.WithActionURL(content.ActionURL), notification.WithDedupeKey(event.Key+":"+event.ID))
 		if err != nil {
-			return delivered, serrors.E(op, err)
+			return delivered, serrors.Wrap(op, err)
 		}
 		if _, err = s.delivery.Deliver(ctx, n); err != nil {
-			return delivered, serrors.E(op, err)
+			return delivered, serrors.Wrap(op, err)
 		}
 		delivered++
 	}
@@ -148,7 +147,7 @@ func (s *NotificationRoutingService) Roles(ctx context.Context) ([]notifications
 }
 func (s *NotificationRoutingService) validateAudience(ctx context.Context, rule notifications.Rule) error {
 	invalid := func() error {
-		return serrors.E("NotificationRoutingService.validateAudience", serrors.KindValidation, fmt.Errorf("invalid or duplicate audience"))
+		return serrors.New(serrors.Invalid, "invalid or duplicate audience").WithOp("NotificationRoutingService.validateAudience")
 	}
 	if len(rule.GroupIDs) > 0 {
 		groups, err := s.Groups(ctx)

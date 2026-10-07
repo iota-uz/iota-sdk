@@ -18,27 +18,27 @@ func (r *NotificationAudienceRepository) Groups(ctx context.Context) ([]notifica
 	const op = "NotificationAudienceRepository.Groups"
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	db, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	rows, err := db.Query(ctx, "SELECT id,name FROM user_groups WHERE tenant_id=$1 ORDER BY name,id", tenant)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	defer rows.Close()
 	result := []notifications.GroupOption{}
 	for rows.Next() {
 		var option notifications.GroupOption
 		if err := rows.Scan(&option.ID, &option.Name); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		result = append(result, option)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return result, nil
 }
@@ -46,27 +46,27 @@ func (r *NotificationAudienceRepository) Roles(ctx context.Context) ([]notificat
 	const op = "NotificationAudienceRepository.Roles"
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	db, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	rows, err := db.Query(ctx, "SELECT id,name FROM roles WHERE tenant_id=$1 ORDER BY name,id", tenant)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	defer rows.Close()
 	result := []notifications.RoleOption{}
 	for rows.Next() {
 		var option notifications.RoleOption
 		if err := rows.Scan(&option.ID, &option.Name); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		result = append(result, option)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return result, nil
 }
@@ -74,11 +74,11 @@ func (r *NotificationAudienceRepository) Resolve(ctx context.Context, groups []u
 	const op = "NotificationAudienceRepository.Resolve"
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	db, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	roleIDs := make([]int64, len(roles))
 	for i, id := range roles {
@@ -90,19 +90,19 @@ func (r *NotificationAudienceRepository) Resolve(ctx context.Context, groups []u
  OR EXISTS (SELECT 1 FROM group_users gu JOIN user_groups g ON g.id=gu.group_id JOIN group_roles gr ON gr.group_id=g.id JOIN roles r ON r.id=gr.role_id WHERE gu.user_id=u.id AND g.tenant_id=$1 AND r.tenant_id=$1 AND r.id=ANY($3::bigint[]))
  ) ORDER BY u.id`, tenant, groups, roleIDs)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	defer rows.Close()
 	result := []uint{}
 	for rows.Next() {
 		var id uint
 		if err := rows.Scan(&id); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		result = append(result, id)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return result, nil
 }

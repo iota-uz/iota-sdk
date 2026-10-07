@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -147,8 +146,7 @@ func (c *NotificationSettingsController) Save(w http.ResponseWriter, r *http.Req
 		rule.RoleIDs = append(rule.RoleIDs, uint(id))
 	}
 	if err := s.SaveRule(r.Context(), rule); err != nil {
-		var classified *serrors.Error
-		if !errors.As(err, &classified) || classified.ErrorKind() != "validation" {
+		if serrors.CodeOf(err) != serrors.Invalid {
 			composables.UseLogger(r.Context()).WithError(err).Error("failed to save notification rule")
 			http.Error(w, "Unable to save notification rule", http.StatusInternalServerError)
 			return

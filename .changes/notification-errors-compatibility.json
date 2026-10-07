@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Adapt notification persistence, routing and settings validation to the canonical error API."
+}
