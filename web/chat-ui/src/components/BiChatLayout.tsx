@@ -47,12 +47,6 @@ export function BiChatLayout(solidProps1Input: BiChatLayoutProps) {
             solidState3.closeMobile();
         }
     };
-    // Page transition content
-    const content = createMemo(() => solidProps1.routeKey ? (<>
-      <div class="flex flex-1 min-w-0 min-h-0">
-        {solidProps1.children}
-      </div>
-    </>) : (<div class="flex flex-1 min-w-0 min-h-0">{solidProps1.children}</div>));
     return (<div class={`relative flex flex-1 w-full h-full min-h-0 overflow-hidden ${solidProps1.className}`}>
       <SkipLink />
 
@@ -81,7 +75,7 @@ export function BiChatLayout(solidProps1Input: BiChatLayoutProps) {
         {solidState3.isMobile && !solidState3.isMobileOpen && (<button ref={element => menuButtonRef.current = element} onClick={solidState3.openMobile} class="md:hidden absolute top-3 left-3 z-[var(--bichat-z-sticky,20)] w-10 h-10 rounded-xl bg-white/90 dark:bg-gray-900/90 text-gray-700 dark:text-gray-200 border border-gray-200/60 dark:border-gray-800/80 shadow-sm flex items-center justify-center hover:bg-white dark:hover:bg-gray-900 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-primary-400/50" aria-label={solidState2.t('BiChat.Layout.OpenSidebar')} title={solidState2.t('BiChat.Layout.OpenSidebar')}>
             <List size={20} weight="bold"/>
           </button>)}
-        {content()}
+        <div class="flex flex-1 min-w-0 min-h-0">{solidProps1.children}</div>
       </main>
     </div>);
 }
