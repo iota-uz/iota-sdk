@@ -151,13 +151,9 @@ const MetricColumnsContext = createContext<number>(4)
  */
 const TabStateContext = createContext<Map<string, string> | null>(null)
 
-// The explore surface keeps its React signature during the Solid migration;
-// this typed bridge lets the composition root compile against the pending port.
-const ExplorePanelBridge = ExplorePanel as unknown as (props: { panel: Panel; registry?: PanelRegistry }) => JSX.Element
-
 function PanelSlot(props: { panel: Panel; registry?: PanelRegistry }) {
   return props.panel.drillRoot
-    ? <ExplorePanelBridge panel={props.panel} registry={props.registry} />
+    ? <ExplorePanel panel={props.panel} registry={props.registry} />
     : <RegisteredPanel panel={props.panel} registry={props.registry} />
 }
 

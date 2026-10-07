@@ -1739,9 +1739,10 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     applyURL: applyFilterURL,
   })
   createEffect(() => {
-    const doc = dashboard.document
-    const next = filtersEnabled ? declaredFilters(doc) : []
-    console.log('FILTERS-RECONCILE', JSON.stringify(next.map((f) => ({ id: f.id, mode: f.compare?.value.mode }))))
+    // Reconcile preserves document identity; every document revision must also
+    // refresh comparison values nested inside its existing filter objects.
+    void docVersion()
+    const next = filtersEnabled ? declaredFilters(resolvedDoc) : []
     setFiltersStore('filters', reconcile(next))
   })
   createEffect(() => {

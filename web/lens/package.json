@@ -60,7 +60,6 @@
     "vite": "5.4.21",
     "vite-plugin-solid": "^2.10.2",
     "vitest": "2.1.9",
-    "@iota-uz/sdk": "workspace:*",
-    "@testing-library/dom": "10.4.1"
+    "@iota-uz/sdk": "workspace:*"
   }
 }

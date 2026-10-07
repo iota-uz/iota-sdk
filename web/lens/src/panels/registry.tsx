@@ -1,5 +1,5 @@
 
-import { createMemo, ErrorBoundary, For, lazy, Show, Suspense, type Component, type JSXElement } from 'solid-js'
+import { createComponent, createMemo, ErrorBoundary, lazy, Show, Suspense, type Component, type JSXElement } from 'solid-js'
 import { Dynamic } from 'solid-js/web'
 import type { Panel, PanelKind } from '../contract'
 import { useTranslate } from '../runtime'
@@ -15,15 +15,22 @@ import { PanelSkeletonBody } from './Skeleton'
 import { StatPanel, type StatPanelProps } from './StatPanel'
 import type { TablePanelProps } from './TablePanel'
 
-const ChartPanel: Component<ChartPanelProps> = lazy(async () => ({ default: (await import('./ChartPanel')).ChartPanel }))
-const CascadePanel: Component<CascadePanelProps> = lazy(async () => ({ default: (await import('./CascadePanel')).CascadePanel }))
-const CoveragePanel: Component<CoveragePanelProps> = lazy(async () => ({ default: (await import('./CoveragePanel')).CoveragePanel }))
-const GaugePanel: Component<GaugePanelProps> = lazy(async () => ({ default: (await import('./GaugePanel')).GaugePanel }))
-const MetricFlowPanel: Component<MetricFlowPanelProps> = lazy(async () => ({ default: (await import('./MetricFlowPanel')).MetricFlowPanel }))
-const MetricHierarchyPanel: Component<MetricHierarchyPanelProps> = lazy(async () => ({ default: (await import('./MetricHierarchyPanel')).MetricHierarchyPanel }))
-const MetricRelationshipPanel: Component<MetricRelationshipPanelProps> = lazy(async () => ({ default: (await import('./MetricRelationshipPanel')).MetricRelationshipPanel }))
-const MapPanel: Component<MapPanelProps> = lazy(async () => ({ default: (await import('./MapPanel')).MapPanel }))
-const TablePanel: Component<TablePanelProps> = lazy(async () => ({ default: (await import('./TablePanel')).TablePanel }))
+// A lazy resource belongs to one mounted panel. Sharing Solid's lazy wrapper
+// across an exploring card and its neighbor lets disposal of the first owner
+// clear the second card's pending component. ESM still shares the module load.
+function deferredPanel<Props extends object>(load: () => Promise<{ default: Component<Props> }>): Component<Props> {
+  return props => createComponent(lazy(load), props)
+}
+
+const ChartPanel: Component<ChartPanelProps> = deferredPanel(async () => ({ default: (await import('./ChartPanel')).ChartPanel }))
+const CascadePanel: Component<CascadePanelProps> = deferredPanel(async () => ({ default: (await import('./CascadePanel')).CascadePanel }))
+const CoveragePanel: Component<CoveragePanelProps> = deferredPanel(async () => ({ default: (await import('./CoveragePanel')).CoveragePanel }))
+const GaugePanel: Component<GaugePanelProps> = deferredPanel(async () => ({ default: (await import('./GaugePanel')).GaugePanel }))
+const MetricFlowPanel: Component<MetricFlowPanelProps> = deferredPanel(async () => ({ default: (await import('./MetricFlowPanel')).MetricFlowPanel }))
+const MetricHierarchyPanel: Component<MetricHierarchyPanelProps> = deferredPanel(async () => ({ default: (await import('./MetricHierarchyPanel')).MetricHierarchyPanel }))
+const MetricRelationshipPanel: Component<MetricRelationshipPanelProps> = deferredPanel(async () => ({ default: (await import('./MetricRelationshipPanel')).MetricRelationshipPanel }))
+const MapPanel: Component<MapPanelProps> = deferredPanel(async () => ({ default: (await import('./MapPanel')).MapPanel }))
+const TablePanel: Component<TablePanelProps> = deferredPanel(async () => ({ default: (await import('./TablePanel')).TablePanel }))
 
 export type PanelComponent = Component<
   | StatPanelProps
@@ -91,9 +98,9 @@ export function RegisteredPanel(props: RegisteredPanelProps) {
           panel={props.panel}
           retryLabel={translate('panel.retry', 'Retry')}
         >
-          <Suspense fallback={<PanelModuleFallback panel={props.panel} />}>
+          {() => <Suspense fallback={<PanelModuleFallback panel={props.panel} />}>
             <Dynamic component={Resolved()} panel={props.panel} />
-          </Suspense>
+          </Suspense>}
         </PanelErrorBoundary>
       )}
     </Show>
@@ -106,13 +113,13 @@ export function RegisteredPanel(props: RegisteredPanelProps) {
  * remounts the boundary with a fresh render instead of a stuck failure card.
  */
 function PanelErrorBoundary(props: {
-  children: JSXElement
+  children: () => JSXElement
   fallback: string
   panel: Panel
   retryLabel: string
 }) {
   return (
-    <For each={[props.panel]}>
+    <Show when={props.panel} keyed>
       {(current) => (
         <ErrorBoundary
           fallback={(_error: unknown, reset: () => void) => (
@@ -125,10 +132,10 @@ function PanelErrorBoundary(props: {
             </section>
           )}
         >
-          {props.children}
+          {props.children()}
         </ErrorBoundary>
       )}
-    </For>
+    </Show>
   )
 }
 

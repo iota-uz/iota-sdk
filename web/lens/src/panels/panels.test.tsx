@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library'
+import { createSignal } from 'solid-js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardDocument, Frame, Panel, PanelKind } from '../contract'
 import type { PanelFrameState } from '../runtime'
@@ -14,8 +15,14 @@ const runtime = vi.hoisted(() => ({
   labelFormatter: undefined as ((value: string) => string) | undefined,
 }))
 
+const [frameRevision, setFrameRevision] = createSignal(0)
+
 vi.mock('../runtime', () => ({
-  usePanelFrame: () => runtime.frame,
+  usePanelFrame: () => new Proxy({} as PanelFrameState, {
+    get: (_, property) => { frameRevision(); return runtime.frame?.[property as keyof PanelFrameState] },
+    ownKeys: () => Reflect.ownKeys(runtime.frame ?? {}),
+    getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
+  }),
   useDocumentRefreshing: () => runtime.refreshing,
   usePanelPagination: () => ({ loadPage: vi.fn() }),
   useExport: () => ({ status: 'idle', available: false, run: vi.fn() }),
@@ -1298,7 +1305,7 @@ describe('chart encoding and drill behavior', () => {
       encoding: { category: 'category', series: 'series', value: 'value' },
       presentation: { legend: 'below' },
     })
-    const view = render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
+    const view = render(() => <LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
 
     await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-item')).toHaveLength(2))
     expect(screen.getByText('Written premium')).toBeInTheDocument()
@@ -2077,7 +2084,7 @@ describe('served series colours', () => {
     }
     runtime.frame = { data: values, isLoading: false, isStale: false, error: null, retry: vi.fn() }
     const inputs: ChartInput[] = []
-    const view = render(<BarPanel panel={panel('bar', { encoding: { category: 'category', series: 'series', value: 'value' }, presentation: { legend: 'below', stack: true } })} adapter={fakeAdapter((input) => inputs.push(input))} />)
+    const view = render(() => <BarPanel panel={panel('bar', { encoding: { category: 'category', series: 'series', value: 'value' }, presentation: { legend: 'below', stack: true } })} adapter={fakeAdapter((input) => inputs.push(input))} />)
     await screen.findByRole('button', { name: 'chart data' })
     const assertPins = () => {
       expect(legendSwatches(view.container)).toEqual(['rgb(18, 52, 86)', 'rgb(101, 67, 33)', 'rgb(171, 205, 239)'])
@@ -2094,12 +2101,12 @@ describe('served series colours', () => {
 it('retains declared totals for empty and fully hidden additive charts', async () => {
   const chart = panel('bar', { total: 999, presentation: { legend: 'below', keepTotalBadge: true } })
   runtime.frame = { data: { ...dataFrame, rows: [], total: 0 }, isLoading: false, isStale: false, error: null, retry: vi.fn() }
-  const view = render(<BarPanel panel={chart} adapter={fakeAdapter()} />)
+  const view = render(() => <BarPanel panel={chart} adapter={fakeAdapter()} />)
   expect(view.container.querySelector('.lens-panel-total')).toHaveAttribute('data-value', '0')
   runtime.frame = { ...runtime.frame, data: { ...dataFrame, rows: [...dataFrame.rows, ['root/b', 'Beta', '2026-07-02T00:00:00Z', 'Actual', 0]], total: 42 } }
-  view.rerender(<BarPanel panel={chart} adapter={fakeAdapter()} />)
+  setFrameRevision(value => value + 1)
   runtime.frame = { ...runtime.frame, data: { ...runtime.frame.data!, total: undefined } }
-  view.rerender(<BarPanel panel={chart} adapter={fakeAdapter()} />)
+  setFrameRevision(value => value + 1)
   expect(view.container.querySelector('.lens-panel-total')).toHaveAttribute('data-value', '42')
   fireEvent.click(legendRow(view.container, 'Actual'))
   await waitFor(() => expect(view.container.querySelector('.lens-panel-total')).toHaveAttribute('data-value', '0'))
@@ -2113,7 +2120,7 @@ it('resolves formatted legend labels with the raw served series key', async () =
     rows: [['Jan', 'Alpha', 10], ['Jan', 'Beta', 20]], colors: ['#123456', '#654321'],
   }, isLoading: false, isStale: false, error: null, retry: vi.fn() }
   const inputs: ChartInput[] = []
-  const view = render(<BarPanel panel={panel('bar', { encoding: { category: 'category', series: 'series', value: 'value' }, presentation: { legend: 'below' } })} adapter={fakeAdapter(input => inputs.push(input))} />)
+  const view = render(() => <BarPanel panel={panel('bar', { encoding: { category: 'category', series: 'series', value: 'value' }, presentation: { legend: 'below' } })} adapter={fakeAdapter(input => inputs.push(input))} />)
   await screen.findByRole('button', { name: 'chart data' })
   expect(legendLabels(view.container)).toEqual(['Display Alpha', 'Display Beta'])
   expect(legendSwatches(view.container)).toEqual(['rgb(18, 52, 86)', 'rgb(101, 67, 33)'])

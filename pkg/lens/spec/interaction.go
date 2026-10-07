@@ -31,7 +31,7 @@ func FinalizeInteractionContract(document Document) Document {
 }
 
 func panelIsActionable(candidate *PanelSpec) bool {
-	if candidate.Action != nil || candidate.DrillTree != nil {
+	if candidate.Action != nil {
 		return true
 	}
 	for _, column := range candidate.Columns {

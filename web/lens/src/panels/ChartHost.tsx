@@ -31,6 +31,7 @@ export function ChartHost(props: ChartHostProps) {
   // reactive props so a new frame updates in place instead of tearing down the
   // chart.
   onMount(() => {
+    let disposed = false
     const events: ChartEvents = {
       onSelect: (key, anchor, activation) => props.onSelect?.(key, anchor, activation),
       onHover: (key) => props.onHover?.(key),
@@ -38,7 +39,7 @@ export function ChartHost(props: ChartHostProps) {
 
     void (props.adapter ? Promise.resolve(props.adapter) : import('../charts').then(({ getChartAdapter }) => getChartAdapter(props.input.kind)))
       .then((resolved) => {
-        if (!hostRef) return
+        if (disposed || !hostRef) return
         setLoadError(undefined)
         try {
           instance = resolved.mount(hostRef, props.input, events)
@@ -47,10 +48,11 @@ export function ChartHost(props: ChartHostProps) {
         }
       })
       .catch((cause: unknown) => {
-        setLoadError(reportError(cause, 'chart adapter failed to load'))
+        if (!disposed) setLoadError(reportError(cause, 'chart adapter failed to load'))
       })
 
     onCleanup(() => {
+      disposed = true
       instance?.dispose()
       instance = undefined
     })

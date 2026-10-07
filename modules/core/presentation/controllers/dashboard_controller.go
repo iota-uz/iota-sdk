@@ -23,7 +23,7 @@ import (
 	lensdocument "github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lenspostgres "github.com/iota-uz/iota-sdk/pkg/lens/postgres"
-	lensreact "github.com/iota-uz/iota-sdk/pkg/lens/render/react"
+	lenssolid "github.com/iota-uz/iota-sdk/pkg/lens/render/solid"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	lensserve "github.com/iota-uz/iota-sdk/pkg/lens/serve"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -198,7 +198,7 @@ func (c *DashboardController) Descriptor() application.ControllerDescriptor {
 }
 
 func (c *DashboardController) Register(r *mux.Router) {
-	lensreact.NewStaticController().Register(r)
+	lenssolid.NewStaticController().Register(r)
 	router := r.NewRoute().Subrouter()
 	router.Use(
 		middleware.Authorize(),

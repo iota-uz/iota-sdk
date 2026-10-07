@@ -28,7 +28,7 @@ interface ActiveChip {
 }
 
 export function FilterControls(props: { filters: Filter[]; today?: CalendarDate }) {
-  const facets = props.filters.filter((filter) => filter.kind === 'facet' && filter.facet)
+  const facets = () => props.filters.filter((filter) => filter.kind === 'facet' && filter.facet)
   return (
     <>
       <For each={props.filters}>
@@ -42,7 +42,7 @@ export function FilterControls(props: { filters: Filter[]; today?: CalendarDate 
                 : null
         )}
       </For>
-      {facets.length > 0 && <FacetFilterMenu filters={facets} />}
+      {facets().length > 0 && <FacetFilterMenu filters={facets()} />}
     </>
   )
 }

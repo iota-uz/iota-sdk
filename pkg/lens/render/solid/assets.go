@@ -1,5 +1,5 @@
 // Package react provides the legacy Lens custom-element compatibility adapter.
-package react
+package solid
 
 import (
 	"crypto/sha256"
@@ -44,7 +44,7 @@ type manifestEntry struct {
 	DynamicImports []string `json:"dynamicImports"`
 }
 
-const compatibilityAssetsHelp = "lens react compatibility runtime assets are unavailable: direct React hosts must consume @iota-uz/lens-web; legacy Go custom-element hosts must run `just lens build` before building or set LENS_ASSETS_DIR to a built Lens dist"
+const compatibilityAssetsHelp = "lens Solid runtime assets are unavailable: run `just lens build` before building the Go binary, or set LENS_ASSETS_DIR to a built Lens dist"
 
 // assetSource resolves the optional compatibility bundle. It deliberately does
 // no manifest I/O during package initialization: direct-package consumers can
@@ -71,7 +71,7 @@ func newAssetSource(dir string) *assetSource {
 	if err != nil {
 		panic(fmt.Sprintf("lens react: open embedded dist: %v", err))
 	}
-	return &assetSource{fsys: dist, dir: "embedded pkg/lens/render/react/dist"}
+	return &assetSource{fsys: dist, dir: "embedded pkg/lens/render/solid/dist"}
 }
 
 func (s *assetSource) assets() (AssetBundle, error) {

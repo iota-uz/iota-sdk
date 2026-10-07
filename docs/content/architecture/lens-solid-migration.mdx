@@ -1,11 +1,17 @@
 ---
 title: 'Lens Solid Migration'
-description: 'Plan for migrating the Lens UI from React to Solid (issue #1064)'
+description: 'Solid Lens migration and breaking consumer API changes (issue #1064)'
 ---
 
 # Lens Solid migration
 
-Status: draft plan — implementation has not started. This page records the surface inventory, phases and the breaking-change coordination for moving `web/lens` from React to Solid.
+Status: implemented in a draft SDK candidate. `web/lens` and its public package now use Solid; the React client host API and peer dependencies are removed. Granite consumer migration and coordinated release remain pending. No production cutover or two-week production observation is claimed.
+
+The public import remains `@iota-uz/sdk/lens`, but its components are Solid components. Mount screens through the Go-owned `solid.Import` catalog and `@iota-uz/sdk/solid`. Replace React testing-library renders with Solid callback renders. The compatibility Go import is now `pkg/lens/render/solid`; React route, RPC-hook and applet bridge exports are removed from `@iota-uz/sdk/client-host`.
+
+Panels, controls, filters, navigation, drill/explore, printing and the story harness have been transferred. Existing ECharts adapters remain dynamically loaded. Every deferred panel gets its own Solid lazy resource so disposing one exploring panel cannot blank a sibling sharing its module. Chart adapter completion after unmount is ignored.
+
+The browser harness preserves story IDs and exercises interaction, focus, narrow hosts and themes. Fresh local screenshots establish Solid baselines; they do not prove old-vs-new pixel parity. Consumer acceptance, the requested locale matrix and release verification must still run before migration issues requiring those gates can close.
 
 ## Goal
 
