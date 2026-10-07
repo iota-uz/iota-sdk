@@ -1,3 +1,4 @@
+import { Portal as HostPortal } from '@iota-uz/sdk/solid';
 import { cssLength } from "../utils/cssLength";
 import { type JSX, splitProps, mergeProps, createSignal, createMemo, createEffect, on, onMount, onCleanup, untrack, createContext, useContext, lazy, Suspense, createUniqueId, Show, For } from "solid-js";
 import { Sidebar, ShareNetwork } from '../icons';
@@ -71,6 +72,13 @@ function ChatSessionCore(solidProps1Input: Omit<ChatSessionProps, 'sessionId'>) 
     const solidState3 = useChatSession();
     const solidState4 = useChatMessaging();
     const solidState5 = useChatInput();
+    const [narrowArtifacts,setNarrowArtifacts]=createSignal(false);
+    onMount(()=>{
+      const media=window.matchMedia('(max-width: 1023px)');
+      const update=()=>setNarrowArtifacts(media.matches);
+      update();media.addEventListener('change',update);
+      onCleanup(()=>media.removeEventListener('change',update));
+    });
     const isArchived = createMemo(() => solidState3.session?.status === 'archived');
     const accessReadOnly = createMemo(() => solidState3.session?.access ? !solidState3.session.access.canWrite : false);
     const effectiveReadOnly = createMemo(() => Boolean(solidProps1.readOnly ?? solidProps1.isReadOnly) || isArchived() || accessReadOnly());
@@ -334,10 +342,10 @@ function ChatSessionCore(solidProps1Input: Omit<ChatSessionProps, 'sessionId'>) 
         </div>
 
         
-          {shouldRenderArtifactsPanel() && activeSessionId() && (<div class="fixed inset-0 z-40 flex lg:hidden" role="dialog" aria-modal="true">
+          {shouldRenderArtifactsPanel() && activeSessionId() && narrowArtifacts() && (<HostPortal surface="drawer" class="fixed inset-0 flex" label={solidState2.t('BiChat.Artifacts.Title')} onEscape={handleToggleArtifactsPanel}>
               <button type="button" class="cursor-pointer flex-1 bg-black/40" onClick={handleToggleArtifactsPanel} aria-label={solidState2.t('BiChat.Common.Close')}/>
               <SessionArtifactsPanel dataSource={solidProps1.dataSource} sessionId={activeSessionId()!} isStreaming={solidState4.isStreaming} allowDrop={!effectiveReadOnly()} className="flex h-full w-full max-w-sm min-h-0"/>
-            </div>)}
+            </HostPortal>)}
         
       </div>
       {canShowShareButton() && (<SessionMembersModal isOpen={membersModalOpen()} sessionId={solidState3.session?.id} dataSource={solidProps1.dataSource} onClose={() => setMembersModalOpen(false)}/>)}

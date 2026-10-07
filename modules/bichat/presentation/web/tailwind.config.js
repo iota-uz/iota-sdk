@@ -1,12 +1,11 @@
 /** @type {import('tailwindcss').Config} */
-import { bichatTailwindContent, bichatTailwindPreset } from '@iota-uz/sdk/bichat/tailwind'
+import { bichatTailwindPreset } from '../../../../web/chat-ui/src/tailwind.ts'
 
 export default {
   presets: [bichatTailwindPreset],
   content: [
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
-    ...bichatTailwindContent(),
   ],
   darkMode: 'selector',
   theme: {
