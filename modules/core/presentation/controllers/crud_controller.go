@@ -1331,7 +1331,7 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 
 	// Handle redirect
 	if htmx.IsHxRequest(r) {
-		w.Header().Set("HX-Redirect", c.basePath)
+		w.Header().Set("Hx-Redirect", c.basePath)
 	} else {
 		http.Redirect(w, r, c.basePath, http.StatusSeeOther)
 	}
@@ -1444,7 +1444,7 @@ func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request)
 
 	// Handle redirect
 	if htmx.IsHxRequest(r) {
-		w.Header().Set("HX-Redirect", c.basePath)
+		w.Header().Set("Hx-Redirect", c.basePath)
 	} else {
 		http.Redirect(w, r, c.basePath, http.StatusSeeOther)
 	}
@@ -1480,7 +1480,7 @@ func (c *CrudController[TEntity]) Delete(w http.ResponseWriter, r *http.Request)
 	// Handle response
 	if htmx.IsHxRequest(r) {
 		// Return 200 OK with HX-Redirect header for client-side redirect
-		w.Header().Set("HX-Redirect", c.basePath)
+		w.Header().Set("Hx-Redirect", c.basePath)
 		w.WriteHeader(http.StatusOK)
 	} else {
 		// Regular redirect for non-HTMX requests

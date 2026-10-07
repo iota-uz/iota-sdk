@@ -35,7 +35,7 @@ func TestCrudMalformedInputsKeepPlainTextAndBoundedLog(t *testing.T) {
 			controller := &CrudController[any]{primaryKeyField: key, schema: crud.NewSchema[any]("example", crud.NewFields([]crud.Field{key, crud.NewFloatField("amount")}), nil)}
 			r := httptest.NewRequest(http.MethodPost, "/example", strings.NewReader(tc.body)).WithContext(ctx)
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			r.Header.Set("HX-Request", "true")
+			r.Header.Set("Hx-Request", "true")
 			w := httptest.NewRecorder()
 			if tc.id != "" {
 				controller.Update(w, mux.SetURLVars(r, map[string]string{"id": tc.id}))
