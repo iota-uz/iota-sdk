@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core"
@@ -23,6 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +36,7 @@ func TestMountedHandoffCreatesRealBlockedUserSession(t *testing.T) {
 	require.NoError(t, err)
 	email, err := internet.NewEmail("agent@example.com")
 	require.NoError(t, err)
-	u, err := repo.Create(env.Ctx, user.New("Agent", "Test", email, "en", user.WithTenantID(env.TenantID())))
+	u, err := repo.Create(env.Ctx, user.New("Agent", "Test", email, "en", user.WithTenantID(env.TenantID()), user.WithTwoFactorMethod(twofactor.MethodEmail), user.WithTwoFactorEnabledAt(time.Now())))
 	require.NoError(t, err)
 	u = u.Block("Local test", u.ID(), env.TenantID())
 	require.NoError(t, repo.Update(env.Ctx, u))
@@ -77,11 +79,21 @@ func TestMountedHandoffCreatesRealBlockedUserSession(t *testing.T) {
 	require.Empty(t, active.User.Roles())
 	require.Empty(t, active.User.Permissions())
 	require.True(t, active.User.IsBlocked())
+	require.True(t, active.User.Has2FAEnabled())
+	require.True(t, active.Session.IsActive())
 	require.True(t, agentsession.Is(active.Session, "development"))
 	auth, err := composition.Resolve[*services.AuthService](env.Container)
 	require.NoError(t, err)
 	_, err = auth.Authorize(env.Ctx, active.Session.Token())
 	require.NoError(t, err)
+	normalSession, err := auth.CreateSession(env.Ctx, u)
+	require.NoError(t, err)
+	normalCookie, err := browser.Add(env.Ctx, "", normalSession)
+	require.NoError(t, err)
+	normalRequest := httptest.NewRequest(http.MethodGet, o.Origin+"/protected", nil)
+	normalRequest.AddCookie(normalCookie)
+	_, err = browser.Active(httptest.NewRecorder(), normalRequest.WithContext(env.Ctx))
+	require.Error(t, err)
 	require.Equal(t, http.StatusUnauthorized, request(http.MethodPost, o.Origin).Code)
 }
 
