@@ -123,6 +123,13 @@
   "requests": [
     1147
   ],
+  "candidate": {
+    "version": "0.20.0",
+    "source": "8313fc99550e51ce2da6e100595f43aed67cb03a",
+    "sha": "52cac5e8ff521a3c5a9ddd743ed9780f29a3bf7b",
+    "phase": "testing",
+    "run_id": "37616796956"
+  },
   "ready": {
     "version": "0.19.0",
     "source": "b47539e22bf80c5fffcd2710b5a9705e35bbdf1d",
