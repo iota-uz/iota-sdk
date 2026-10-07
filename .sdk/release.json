@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Add dev-only CLI single-use browser sign-in links with real user permissions and local session isolation."
+    }
+  ],
+  "source": "b47539e22bf80c5fffcd2710b5a9705e35bbdf1d",
+  "version": "0.19.0"
+}
