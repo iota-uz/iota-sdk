@@ -1,0 +1,43 @@
+{
+  "name": "@iota-uz/sdk-chat-ui-internal",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build:package": "pnpm rpc:check && vite build --config vite.package.config.ts && tsc -p tsconfig.package.json && node -e \"require('fs').copyFileSync('src/icons/PHOSPHOR-LICENSE', 'package-dist/PHOSPHOR-LICENSE')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "rpc:sync": "node scripts/sync-rpc.mjs",
+    "rpc:check": "node scripts/sync-rpc.mjs --check"
+  },
+  "dependencies": {
+    "apexcharts": "^3.45.0",
+    "date-fns": "^3.0.0",
+    "fuse.js": "^7.1.0",
+    "katex": "^0.16.28",
+    "prismjs": "^1.30.0",
+    "rehype-katex": "^7.0.1",
+    "rehype-sanitize": "^6.0.0",
+    "rehype-stringify": "^10.0.0",
+    "remark-gfm": "^4.0.0",
+    "remark-math": "^6.0.0",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.0",
+    "solid-js": "^1.9.15",
+    "unified": "^11.0.5",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@iota-uz/sdk": "workspace:*",
+    "@solidjs/testing-library": "0.8.10",
+    "@types/prismjs": "^1.26.6",
+    "@types/node": "^22.10.2",
+    "typescript": "5.7.2",
+    "vite": "5.4.21",
+    "vite-plugin-solid": "2.11.8",
+    "vitest": "2.1.9",
+    "jsdom": "^29.0.2",
+    "@testing-library/jest-dom": "6.6.3"
+  }
+}

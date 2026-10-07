@@ -112,6 +112,7 @@ jobs:
               - '.github/workflows/test.yml'
               - '.github/workflows/ci-full.yml'
             client_host:
+              - 'web/chat-ui/**'
               - 'web/client-host/**'
               - 'web/sdk/**'
               - 'web/testing/**'
@@ -164,6 +165,10 @@ jobs:
       - name: Check SDK package
         working-directory: web/sdk
         run: pnpm check
+
+      - name: Test shared Solid chat UI
+        working-directory: web/chat-ui
+        run: pnpm test
 
       - name: Install Chromium
         working-directory: web/client-host

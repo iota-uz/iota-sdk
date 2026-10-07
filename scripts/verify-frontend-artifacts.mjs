@@ -66,6 +66,16 @@ try {
   ].join('\n'))
   run('pnpm', ['exec', 'vite', 'build'])
 
+  await rm(path.join(consumer, 'dist'), { recursive: true, force: true })
+  await writeFile(path.join(consumer, 'main.js'), [
+    "import { ChatSession, ManagedHttpDataSource } from '@iota-uz/sdk/chat-ui'",
+    "import { Lock } from '@iota-uz/sdk/chat-ui/icons'",
+    "import '@iota-uz/sdk/chat-ui/styles.css'",
+    "document.querySelector('#app').dataset.runtime = ChatSession.name + ManagedHttpDataSource.name + Lock.name",
+    '',
+  ].join('\n'))
+  run('pnpm', ['exec', 'vite', 'build'])
+
   const list = run('pnpm', ['list', 'react', 'react-dom', '--depth', 'Infinity', '--json'])
   const graph = JSON.parse(list)
   const containsReact = value => value && typeof value === 'object' && Object.entries(value).some(([name, child]) => name === 'react' || name === 'react-dom' || containsReact(child))

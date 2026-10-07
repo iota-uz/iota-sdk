@@ -22,12 +22,14 @@ if (releaseVersion !== packageJSON.version) {
   throw new Error(`SDK_RELEASE_VERSION ${releaseVersion} does not match package.json ${packageJSON.version}`)
 }
 
+await rm(path.join(dist, 'chat-ui'), { recursive: true, force: true })
 await rm(path.join(dist, 'client-host'), { recursive: true, force: true })
 await rm(path.join(dist, 'lens'), { recursive: true, force: true })
 await rm(path.join(dist, 'solid-ui'), { recursive: true, force: true })
 await rm(path.join(dist, 'testing'), { recursive: true, force: true })
 await mkdir(dist, { recursive: true })
 await cp(path.resolve(packageRoot, '../testing/dist'), path.join(dist, 'testing'), { recursive: true })
+await cp(path.resolve(packageRoot, '../chat-ui/package-dist'), path.join(dist, 'chat-ui'), { recursive: true })
 await cp(clientHostDist, path.join(dist, 'client-host'), { recursive: true })
 await cp(lensDist, path.join(dist, 'lens'), { recursive: true })
 await cp(solidUIDist, path.join(dist, 'solid-ui'), { recursive: true })
