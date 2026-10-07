@@ -96,6 +96,16 @@ func buildModulePermissionSets() []rbac.PermissionSet {
 	// Core module
 	core := newPermissionSetBuilder("Core")
 	sets = append(sets,
+		rbac.PermissionSet{
+			Key: "notification_rules_view", Label: "NotificationSettings.PermissionRead",
+			Description: "NotificationSettings.PermissionReadDescription", Module: "Core",
+			Permissions: []permission.Permission{corePerms.NotificationRulesRead},
+		},
+		rbac.PermissionSet{
+			Key: "notification_rules_manage", Label: "NotificationSettings.PermissionManage",
+			Description: "NotificationSettings.PermissionManageDescription", Module: "Core",
+			Permissions: []permission.Permission{corePerms.NotificationRulesRead, corePerms.NotificationRulesManage},
+		},
 		core.viewSet("User", corePerms.UserRead),
 		rbac.PermissionSet{
 			Key:         "user_manage",

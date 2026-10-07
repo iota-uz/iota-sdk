@@ -1492,5 +1492,38 @@
   "Error": {
     "ProcessingFailed": "Falha na importação"
   },
-  "DryRunNotice": "Esta é uma visualização — nenhum dado foi alterado ainda. Revise os resultados acima e confirme para aplicar a importação."
+  "DryRunNotice": "Esta é uma visualização — nenhum dado foi alterado ainda. Revise os resultados acima e confirme para aplicar a importação.",
+  "Notifications": {
+    "Title": "Notificações",
+    "All": "Todas",
+    "Unread": "Não lidas",
+    "MarkAllRead": "Marcar todas como lidas",
+    "MarkRead": "Marcar como lida",
+    "Empty": "Nenhuma notificação",
+    "Open": "Abrir",
+    "Pagination": "Paginação",
+    "Previous": "Anterior",
+    "Next": "Próxima"
+  },
+  "NotificationSettings": {
+    "Groups": "Grupos",
+    "Roles": "Funções",
+    "AudienceHint": "Os destinatários são combinados sem duplicatas. Inclui funções dos grupos; a associação é resolvida no envio.",
+
+    "UnavailableRecipients": "Alguns destinatários não estão mais disponíveis. Escolha os destinatários e salve para remover as seleções indisponíveis.",
+    "Title": "Configurações de notificações",
+    "Intro": "Ative eventos e escolha os destinatários. Salve a regra antes de enviar um teste.",
+    "Enabled": "Ativado",
+    "Recipients": "Destinatários",
+    "Save": "Salvar regra",
+    "SendTest": "Enviar teste com a regra salva",
+    "Saved": "Regra de notificação salva.",
+    "InvalidRule": "Escolha destinatários válidos. Eventos ativados exigem pelo menos um destinatário.",
+    "TestSent": "Teste enviado a {{.Count}} destinatários.",
+    "TestSkipped": "Nenhuma notificação enviada. Ative o evento de teste, escolha os destinatários e salve a regra.",
+    "PermissionRead": "Ver configurações de notificações",
+    "PermissionReadDescription": "Ver eventos e regras de entrega de notificações",
+    "PermissionManage": "Gerenciar configurações de notificações",
+    "PermissionManageDescription": "Ativar eventos, escolher destinatários e enviar testes"
+  }
 }

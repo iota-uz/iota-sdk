@@ -1,0 +1,79 @@
+package notifications
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+templ Index(p *Props) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{BaseProps: layouts.BaseProps{Title: pageCtx.T("Notifications.Title")}}) {
+		<div class="max-w-4xl mx-auto p-4 md:p-8">
+			<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+				<h1 class="text-2xl font-semibold">{ pageCtx.T("Notifications.Title") }</h1>
+				if composables.CanUserStrict(ctx, permissions.NotificationRulesRead) == nil {
+					@button.Secondary(button.Props{Href: "/settings/notifications"}) {
+						{ pageCtx.T("NotificationSettings.Title") }
+					}
+				}
+			</div>
+			@Content(p)
+		</div>
+	}
+}
+
+templ Content(p *Props) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<section id="notification-center" hx-get={ p.URL(p.Page) } hx-trigger="every 20s, notificationsChanged from:body" hx-swap="outerHTML" class="space-y-4" data-testid="notification-center">
+		<div class="flex flex-wrap items-center gap-3">
+			@button.Secondary(button.Props{Href: "/notifications", Class: templ.KV("ring-2 ring-primary", !p.UnreadOnly), Attrs: templ.Attributes{"aria-current": fmt.Sprint(!p.UnreadOnly)}}) {
+				{ pageCtx.T("Notifications.All") }
+			}
+			@button.Secondary(button.Props{Href: "/notifications?unread=true", Class: templ.KV("ring-2 ring-primary", p.UnreadOnly), Attrs: templ.Attributes{"aria-current": fmt.Sprint(p.UnreadOnly)}}) {
+				{ pageCtx.T("Notifications.Unread") } <span>({ fmt.Sprint(p.UnreadCount) })</span>
+			}
+			<form method="post" action="/notifications/read-all" hx-post="/notifications/read-all" hx-swap="none" class="ml-auto">
+				@button.Secondary(button.Props{Disabled: p.UnreadCount == 0, Attrs: templ.Attributes{"type": "submit"}}) {
+					{ pageCtx.T("Notifications.MarkAllRead") }
+				}
+			</form>
+		</div>
+		if len(p.Notifications) == 0 {
+			<p class="rounded-lg border border-secondary p-8 text-center text-200">{ pageCtx.T("Notifications.Empty") }</p>
+		}
+		<ul class="space-y-3">
+			for _, n := range p.Notifications {
+				<li class={ "rounded-lg border p-4", templ.KV("border-primary bg-surface-400", n.ReadAt() == nil), templ.KV("border-secondary", n.ReadAt() != nil) } data-testid="notification">
+					<div class="flex items-start gap-3">
+						<div class="flex-1 min-w-0">
+							<h2 class="font-semibold break-words">{ n.Title() }</h2>
+							<p class="mt-1 whitespace-pre-wrap break-words text-200">{ n.Body() }</p>
+							<time class="block mt-2 text-xs text-200" datetime={ n.CreatedAt().Format("2006-01-02T15:04:05Z07:00") }>{ n.CreatedAt().Format("02 Jan 2006 15:04") }</time>
+						</div>
+						if n.ReadAt() == nil {
+							<form method="post" action={ templ.URL("/notifications/" + n.ID().String() + "/read") } hx-post={ "/notifications/" + n.ID().String() + "/read" } hx-swap="none">
+								@button.Secondary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "submit"}}) {
+									{ pageCtx.T("Notifications.MarkRead") }
+								}
+							</form>
+						}
+					</div>
+					if safeActionURL(n.ActionURL()) != "" {
+						<a class="inline-block mt-3 text-primary underline" href={ templ.URL(safeActionURL(n.ActionURL())) }>{ pageCtx.T("Notifications.Open") }</a>
+					}
+				</li>
+			}
+		</ul>
+		<nav class="flex justify-between" aria-label={ pageCtx.T("Notifications.Pagination") }>
+			if p.Page > 1 {
+				<a class="text-primary underline" href={ templ.URL(p.URL(p.Page - 1)) }>{ pageCtx.T("Notifications.Previous") }</a>
+			}
+			if p.HasMore {
+				<a class="ml-auto text-primary underline" href={ templ.URL(p.URL(p.Page + 1)) }>{ pageCtx.T("Notifications.Next") }</a>
+			}
+		</nav>
+	</section>
+}

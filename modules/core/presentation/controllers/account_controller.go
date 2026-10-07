@@ -221,7 +221,7 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("HX-Refresh", "true")
+	w.Header().Set("Hx-Refresh", "true")
 
 	// Get supported languages for the response
 	supportedLanguages := c.app.GetSupportedLanguages()

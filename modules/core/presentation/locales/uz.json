@@ -1487,5 +1487,38 @@
   "Error": {
     "ProcessingFailed": "Import xatosi"
   },
-  "DryRunNotice": "Bu — oldindan ko‘rish. Ma’lumotlar hali o‘zgartirilmadi. Yuqoridagi natijalarni tekshiring va importni qo‘llash uchun tasdiqlang."
+  "DryRunNotice": "Bu — oldindan ko‘rish. Ma’lumotlar hali o‘zgartirilmadi. Yuqoridagi natijalarni tekshiring va importni qo‘llash uchun tasdiqlang.",
+  "Notifications": {
+    "Title": "Bildirishnomalar",
+    "All": "Barchasi",
+    "Unread": "O‘qilmagan",
+    "MarkAllRead": "Barchasini o‘qilgan deb belgilash",
+    "MarkRead": "O‘qilgan deb belgilash",
+    "Empty": "Bildirishnomalar yo‘q",
+    "Open": "Ochish",
+    "Pagination": "Sahifalar",
+    "Previous": "Oldingi",
+    "Next": "Keyingi"
+  },
+  "NotificationSettings": {
+    "Groups": "Guruhlar",
+    "Roles": "Rollar",
+    "AudienceHint": "Qabul qiluvchilar takrorlanmaydi. Guruh orqali berilgan rollar ham hisobga olinadi; a’zolik hodisa yuborilganda aniqlanadi.",
+
+    "UnavailableRecipients": "Ayrim tanlangan oluvchilar endi mavjud emas. Oluvchilarni tanlang va mavjud bo‘lmaganlarni olib tashlash uchun qoidani saqlang.",
+    "Title": "Bildirishnoma sozlamalari",
+    "Intro": "Voqealarni yoqing va oluvchilarni tanlang. Sinov yuborishdan oldin qoidani saqlang.",
+    "Enabled": "Yoqilgan",
+    "Recipients": "Oluvchilar",
+    "Save": "Qoidani saqlash",
+    "SendTest": "Saqlangan qoida orqali sinov yuborish",
+    "Saved": "Bildirishnoma qoidasi saqlandi.",
+    "InvalidRule": "Yaroqli oluvchilarni tanlang. Yoqilgan voqea uchun kamida bitta oluvchi kerak.",
+    "TestSent": "Sinov {{.Count}} oluvchiga yuborildi.",
+    "TestSkipped": "Bildirishnomalar yuborilmadi. Sinov voqeasini yoqing, oluvchilarni tanlang va qoidani saqlang.",
+    "PermissionRead": "Bildirishnoma sozlamalarini ko‘rish",
+    "PermissionReadDescription": "Voqealar va yetkazish qoidalarini ko‘rish",
+    "PermissionManage": "Bildirishnoma sozlamalarini boshqarish",
+    "PermissionManageDescription": "Voqealarni yoqish, oluvchilarni tanlash va sinov yuborish"
+  }
 }

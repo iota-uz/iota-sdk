@@ -1488,5 +1488,38 @@
   "Error": {
     "ProcessingFailed": "Import Failed"
   },
-  "DryRunNotice": "This is a preview — no data has been changed yet. Review the results above, then confirm to apply the import."
+  "DryRunNotice": "This is a preview — no data has been changed yet. Review the results above, then confirm to apply the import.",
+  "Notifications": {
+    "Title": "Notifications",
+    "All": "All",
+    "Unread": "Unread",
+    "MarkAllRead": "Mark all read",
+    "MarkRead": "Mark read",
+    "Empty": "No notifications",
+    "Open": "Open",
+    "Pagination": "Pagination",
+    "Previous": "Previous",
+    "Next": "Next"
+  },
+  "NotificationSettings": {
+    "Groups": "Groups",
+    "Roles": "Roles",
+    "AudienceHint": "Recipients are combined without duplicates. Roles include assignments through groups; membership is resolved when an event is sent.",
+
+    "UnavailableRecipients": "Some selected recipients are no longer available. Choose recipients and save to remove unavailable selections.",
+    "Title": "Notification settings",
+    "Intro": "Enable events and choose who receives notifications. Save the rule before sending a test.",
+    "Enabled": "Enabled",
+    "Recipients": "Recipients",
+    "Save": "Save rule",
+    "SendTest": "Send test using saved rule",
+    "Saved": "Notification rule saved.",
+    "InvalidRule": "Choose valid recipients. Enabled events require at least one recipient.",
+    "TestSent": "Test notifications sent: {{.Count}}.",
+    "TestSkipped": "No notifications sent. Enable the test event and choose recipients, then save the rule.",
+    "PermissionRead": "Read notification settings",
+    "PermissionReadDescription": "View notification events and delivery rules",
+    "PermissionManage": "Manage notification settings",
+    "PermissionManageDescription": "Enable events, select recipients and send test notifications"
+  }
 }

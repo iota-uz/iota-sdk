@@ -8,16 +8,25 @@ import (
 )
 
 const (
-	ResourceUser       permission.Resource = "user"
-	ResourceRole       permission.Resource = "role"
-	ResourceGroup      permission.Resource = "group"
-	ResourceUpload     permission.Resource = "upload"
-	ResourceSession    permission.Resource = "session"
-	ResourceDepartment permission.Resource = "department"
-	ResourcePosition   permission.Resource = "position"
+	ResourceUser              permission.Resource = "user"
+	ResourceRole              permission.Resource = "role"
+	ResourceGroup             permission.Resource = "group"
+	ResourceUpload            permission.Resource = "upload"
+	ResourceSession           permission.Resource = "session"
+	ResourceDepartment        permission.Resource = "department"
+	ResourcePosition          permission.Resource = "position"
+	ResourceNotificationRules permission.Resource = "notification_rules"
 )
 
 var (
+	NotificationRulesRead = permission.MustCreate(
+		uuid.MustParse("c196d78b-c653-4783-af32-87d7a823440b"),
+		"NotificationRules.Read", ResourceNotificationRules, permission.ActionRead, permission.ModifierAll,
+	)
+	NotificationRulesManage = permission.MustCreate(
+		uuid.MustParse("3a72dc29-2048-421b-807b-4307b7080868"),
+		"NotificationRules.Manage", ResourceNotificationRules, permission.ActionUpdate, permission.ModifierAll,
+	)
 	UserCreate = permission.MustCreate(
 		uuid.MustParse("8b6060b3-af5e-4ae0-b32d-b33695141066"),
 		"User.Create",
@@ -224,6 +233,8 @@ var (
 )
 
 var Permissions = []permission.Permission{
+	NotificationRulesRead,
+	NotificationRulesManage,
 	UserCreate,
 	UserRead,
 	UserUpdate,
