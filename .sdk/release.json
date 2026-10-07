@@ -1,0 +1,22 @@
+{
+  "changes": [
+    {
+      "bump": "none",
+      "summary": "Document local browser agent sign-in in the shared agent instructions."
+    },
+    {
+      "bump": "major",
+      "summary": "Replace legacy serrors constructors and mutable error types with the canonical typed API; migrate SDK callers and safe transport presenters."
+    },
+    {
+      "bump": "none",
+      "summary": "Remove completed serrors migration tools and update canonical error guidance."
+    },
+    {
+      "bump": "patch",
+      "summary": "Refresh canonical serrors on current SDK and retain panic diagnostics and GraphQL operation context."
+    }
+  ],
+  "source": "8313fc99550e51ce2da6e100595f43aed67cb03a",
+  "version": "0.20.0"
+}
