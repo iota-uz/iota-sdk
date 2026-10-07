@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 // Invoke creates a generic DI function that can be used for any function type
@@ -206,7 +207,7 @@ func createHandlerFunc(diContext *DIContext, handler interface{}) http.HandlerFu
 					value, err = diContext.provideValue(argTypes[i], r.Context())
 				}
 				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
+					serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 					return
 				}
 				args[i] = value

@@ -461,7 +461,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 	return types.NewGenerator(ctx, func(ctx context.Context, yield func(ExecutorEvent) bool) error {
 		// Validate input
 		if len(input.Messages) == 0 {
-			return serrors.E(op, "input must contain at least one message")
+			return serrors.New(serrors.Internal, "input must contain at least one message").WithOp(op)
 		}
 
 		// Generate thread ID if not provided
@@ -605,7 +605,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				}) {
 					return nil
 				}
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 
 			// Accumulate response
@@ -867,7 +867,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						break
 					}
 					gen.Close()
-					return serrors.E(op, err)
+					return serrors.Wrap(op, err)
 				}
 
 				// Yield thinking event (ephemeral reasoning content)
@@ -1117,11 +1117,11 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 				if !yield(ExecutorEvent{
 					Type:  EventTypeError,
-					Error: serrors.E(op, toolErr),
+					Error: serrors.Wrap(op, toolErr),
 				}) {
 					return nil
 				}
-				return serrors.E(op, toolErr)
+				return serrors.Wrap(op, toolErr)
 			}
 
 			// Check for interrupt
@@ -1129,7 +1129,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				// Save checkpoint
 				checkpointID, err := e.saveCheckpoint(ctx, threadID, messages, toolCalls, interrupt, input.SessionID, input.TenantID, previousResponseID)
 				if err != nil {
-					return serrors.E(op, ErrCheckpointSaveFailed, err)
+					return serrors.Wrap(op, serrors.Multi(ErrCheckpointSaveFailed, err))
 				}
 
 				// Set checkpoint ID on interrupt event
@@ -1200,7 +1200,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 		))
 
 		// Max iterations reached
-		return serrors.E(op, ErrMaxIterations)
+		return serrors.Wrap(op, ErrMaxIterations)
 	}, types.WithBufferSize(32))
 }
 
@@ -1231,12 +1231,12 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 	return types.NewGenerator(ctx, func(ctx context.Context, yield func(ExecutorEvent) bool) error {
 		// Load checkpoint
 		if e.checkpointer == nil {
-			return serrors.E(op, ErrCheckpointNotFound)
+			return serrors.Wrap(op, ErrCheckpointNotFound)
 		}
 
 		checkpoint, err := e.checkpointer.LoadAndDelete(ctx, checkpointID)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		// Restore messages
@@ -1246,13 +1246,13 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 		var interruptPayload types.AskUserQuestionPayload
 		if checkpoint.InterruptType == ToolAskUserQuestion {
 			if len(checkpoint.InterruptData) == 0 {
-				return serrors.E(op, serrors.KindValidation, "missing interrupt payload in checkpoint")
+				return serrors.New(serrors.Invalid, "missing interrupt payload in checkpoint").WithOp(op)
 			}
 			if err := json.Unmarshal(checkpoint.InterruptData, &interruptPayload); err != nil {
-				return serrors.E(op, err, "failed to parse interrupt payload from checkpoint")
+				return serrors.WrapContext(op, err, "failed to parse interrupt payload from checkpoint")
 			}
 			if interruptPayload.Type != types.InterruptTypeAskUserQuestion {
-				return serrors.E(op, serrors.KindValidation, "invalid interrupt payload type in checkpoint")
+				return serrors.New(serrors.Invalid, "invalid interrupt payload type in checkpoint").WithOp(op)
 			}
 		}
 
@@ -1269,11 +1269,11 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 					if !exists {
 						if !yield(ExecutorEvent{
 							Type:  EventTypeError,
-							Error: serrors.E(op, serrors.KindValidation, fmt.Sprintf("missing answer for question %s", q.ID)),
+							Error: serrors.New(serrors.Invalid, fmt.Sprintf("missing answer for question %s", q.ID)).WithOp(op),
 						}) {
 							return nil
 						}
-						return serrors.E(op, serrors.KindValidation, fmt.Sprintf("missing answer for question %s", q.ID))
+						return serrors.New(serrors.Invalid, fmt.Sprintf("missing answer for question %s", q.ID)).WithOp(op)
 					}
 
 					// Store answer as JSON (supports both string and []string)
@@ -1309,7 +1309,7 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 					break
 				}
 				resumeGen.Close()
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			if !yield(event) {
 				return nil
@@ -1341,7 +1341,7 @@ func (e *Executor) executeToolCalls(
 	for i, tc := range toolCalls {
 		if tc.Name == ToolAskUserQuestion {
 			if interruptIdx != -1 {
-				return nil, nil, nil, serrors.E(op, serrors.KindValidation, "multiple interrupt tool calls in one batch are not supported")
+				return nil, nil, nil, serrors.New(serrors.Invalid, "multiple interrupt tool calls in one batch are not supported").WithOp(op)
 			}
 			interruptIdx = i
 		}
@@ -1373,12 +1373,12 @@ func (e *Executor) executeToolCalls(
 
 		payload, err := parseAndCanonicalizeAskUserQuestionArgs(tc.Arguments)
 		if err != nil {
-			return nil, nil, nil, serrors.E(op, err)
+			return nil, nil, nil, serrors.Wrap(op, err)
 		}
 
 		interruptData, err := json.Marshal(payload)
 		if err != nil {
-			return nil, nil, nil, serrors.E(op, err, "failed to marshal interrupt payload")
+			return nil, nil, nil, serrors.WrapContext(op, err, "failed to marshal interrupt payload")
 		}
 
 		interrupt := &InterruptEvent{
@@ -1507,7 +1507,7 @@ func (e *Executor) executeToolCalls(
 		select {
 		case tr = <-resultsCh:
 		case <-toolCtx.Done():
-			return nil, nil, nil, serrors.E(op, toolCtx.Err())
+			return nil, nil, nil, serrors.Wrap(op, toolCtx.Err())
 		}
 
 		received++
@@ -1585,14 +1585,14 @@ func parseAndCanonicalizeAskUserQuestionArgs(args string) (types.AskUserQuestion
 
 	parsed, err := ParseToolInput[askUserQuestionArgs](args)
 	if err != nil {
-		return types.AskUserQuestionPayload{}, serrors.E(op, err, "failed to parse ask_user_question arguments")
+		return types.AskUserQuestionPayload{}, serrors.WrapContext(op, err, "failed to parse ask_user_question arguments")
 	}
 
 	if len(parsed.Questions) == 0 {
-		return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, "at least one question required")
+		return types.AskUserQuestionPayload{}, serrors.New(serrors.Invalid, "at least one question required").WithOp(op)
 	}
 	if len(parsed.Questions) > 4 {
-		return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, "maximum 4 questions allowed")
+		return types.AskUserQuestionPayload{}, serrors.New(serrors.Invalid, "maximum 4 questions allowed").WithOp(op)
 	}
 
 	questionIDs := make(map[string]bool)
@@ -1600,19 +1600,19 @@ func parseAndCanonicalizeAskUserQuestionArgs(args string) (types.AskUserQuestion
 
 	for i, q := range parsed.Questions {
 		if q.Question == "" {
-			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: question text is required", i))
+			return types.AskUserQuestionPayload{}, serrors.New(serrors.Invalid, fmt.Sprintf("question[%d]: question text is required", i)).WithOp(op)
 		}
 		if q.Header == "" {
-			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: header is required", i))
+			return types.AskUserQuestionPayload{}, serrors.New(serrors.Invalid, fmt.Sprintf("question[%d]: header is required", i)).WithOp(op)
 		}
 		if len(q.Header) > 50 {
-			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: header exceeds 50 characters", i))
+			return types.AskUserQuestionPayload{}, serrors.New(serrors.Invalid, fmt.Sprintf("question[%d]: header exceeds 50 characters", i)).WithOp(op)
 		}
 		if len(q.Options) < 2 {
-			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: at least 2 options required", i))
+			return types.AskUserQuestionPayload{}, serrors.New(serrors.Invalid, fmt.Sprintf("question[%d]: at least 2 options required", i)).WithOp(op)
 		}
 		if len(q.Options) > 4 {
-			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: maximum 4 options allowed", i))
+			return types.AskUserQuestionPayload{}, serrors.New(serrors.Invalid, fmt.Sprintf("question[%d]: maximum 4 options allowed", i)).WithOp(op)
 		}
 
 		qid := q.ID
@@ -1620,7 +1620,7 @@ func parseAndCanonicalizeAskUserQuestionArgs(args string) (types.AskUserQuestion
 			qid = fmt.Sprintf("q%d", i+1)
 		}
 		if questionIDs[qid] {
-			return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("duplicate question ID: %s", qid))
+			return types.AskUserQuestionPayload{}, serrors.New(serrors.Invalid, fmt.Sprintf("duplicate question ID: %s", qid)).WithOp(op)
 		}
 		questionIDs[qid] = true
 
@@ -1628,10 +1628,10 @@ func parseAndCanonicalizeAskUserQuestionArgs(args string) (types.AskUserQuestion
 		canonicalOptions := make([]types.QuestionOption, 0, len(q.Options))
 		for j, opt := range q.Options {
 			if opt.Label == "" {
-				return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d].option[%d]: label is required", i, j))
+				return types.AskUserQuestionPayload{}, serrors.New(serrors.Invalid, fmt.Sprintf("question[%d].option[%d]: label is required", i, j)).WithOp(op)
 			}
 			if opt.Description == "" {
-				return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d].option[%d]: description is required", i, j))
+				return types.AskUserQuestionPayload{}, serrors.New(serrors.Invalid, fmt.Sprintf("question[%d].option[%d]: description is required", i, j)).WithOp(op)
 			}
 
 			oid := opt.ID
@@ -1639,7 +1639,7 @@ func parseAndCanonicalizeAskUserQuestionArgs(args string) (types.AskUserQuestion
 				oid = fmt.Sprintf("%s_opt%d", qid, j+1)
 			}
 			if optionIDs[oid] {
-				return types.AskUserQuestionPayload{}, serrors.E(op, serrors.KindValidation, fmt.Sprintf("question[%d]: duplicate option ID: %s", i, oid))
+				return types.AskUserQuestionPayload{}, serrors.New(serrors.Invalid, fmt.Sprintf("question[%d]: duplicate option ID: %s", i, oid)).WithOp(op)
 			}
 			optionIDs[oid] = true
 
@@ -1680,7 +1680,7 @@ func (e *Executor) saveCheckpoint(
 	const op serrors.Op = "Executor.saveCheckpoint"
 
 	if e.checkpointer == nil {
-		return "", serrors.E(op, ErrCheckpointSaveFailed)
+		return "", serrors.Wrap(op, ErrCheckpointSaveFailed)
 	}
 
 	checkpoint := NewCheckpoint(
@@ -1697,7 +1697,7 @@ func (e *Executor) saveCheckpoint(
 
 	checkpointID, err := e.checkpointer.Save(ctx, checkpoint)
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 
 	return checkpointID, nil

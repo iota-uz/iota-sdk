@@ -461,7 +461,7 @@ func (s *harnessState) close(cleanup CleanupMode) error {
 		if cleanup == CleanupDropOnExit {
 			db := LoadDBConfigFromEnv()
 			if err := DropDBE(s.dbName, db); err != nil {
-				closeErr = mergeCloseErrors(closeErr, serrors.E(opDropDB, err, "drop database on close"))
+				closeErr = mergeCloseErrors(closeErr, serrors.WrapContext(opDropDB, err, "drop database on close"))
 			}
 		}
 	})
@@ -483,22 +483,22 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 
 	dbName := buildDBName(cfg.Name, key, isPerTest)
 	if err := CreateDBFromTemplateE(dbName, cfg.Migration.TemplateDB, db); err != nil {
-		return nil, serrors.E(opCreateDB, err, "create database")
+		return nil, serrors.WrapContext(opCreateDB, err, "create database")
 	}
 
 	pool, err := newPoolWithConfig(DBOpts(dbName, db), cfg.Database.Pool)
 	if err != nil {
 		if cleanupErr := DropDBE(dbName, db); cleanupErr != nil {
-			return nil, serrors.E(opCreatePool, cleanupErr, "cleanup database after pool creation failure")
+			return nil, serrors.WrapContext(opCreatePool, cleanupErr, "cleanup database after pool creation failure")
 		}
-		return nil, serrors.E(opCreatePool, err, "create pool")
+		return nil, serrors.WrapContext(opCreatePool, err, "create pool")
 	}
 
 	app, container, err := setupApplicationWithSource(pool, nil, cfg.Components, cfg.Source, cfg.Capabilities...)
 	if err != nil {
 		pool.Close()
 		_ = DropDBE(dbName, db)
-		return nil, serrors.E(opSetupApplication, err, "setup application")
+		return nil, serrors.WrapContext(opSetupApplication, err, "setup application")
 	}
 
 	migrateErr := func() error {
@@ -513,20 +513,18 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		return runMigrationPolicy(context.Background(), pool, app, cfg.Migration)
 	}()
 	if err := migrateErr; err != nil {
-		combinedErr := serrors.E(opRunMigrationPolicy, err, "migration policy")
+		combinedErr := serrors.WrapContext(opRunMigrationPolicy, err, "migration policy")
 		closeErr := closeApplication(app, container)
 		pool.Close()
 		dropErr := DropDBE(dbName, db)
 		if closeErr != nil {
 			combinedErr = mergeCloseErrors(
-				combinedErr,
-				serrors.E(opRunMigrationPolicy, closeErr, "failed to close controllers after migration policy failure"),
+				combinedErr, serrors.WrapContext(opRunMigrationPolicy, closeErr, "failed to close controllers after migration policy failure"),
 			)
 		}
 		if dropErr != nil {
 			combinedErr = mergeCloseErrors(
-				combinedErr,
-				serrors.E(opDropDB, dropErr, "drop database after migration policy failure"),
+				combinedErr, serrors.WrapContext(opDropDB, dropErr, "drop database after migration policy failure"),
 			)
 		}
 		return nil, combinedErr
@@ -538,9 +536,9 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		pool.Close()
 		_ = DropDBE(dbName, db)
 		if closeErr != nil {
-			return nil, serrors.E(opResolveTenant, closeErr, "failed to close controllers before tenant resolve failure")
+			return nil, serrors.WrapContext(opResolveTenant, closeErr, "failed to close controllers before tenant resolve failure")
 		}
-		return nil, serrors.E(opResolveTenant, err, "resolve tenant")
+		return nil, serrors.WrapContext(opResolveTenant, err, "resolve tenant")
 	}
 
 	baseCtx := buildBaseContext(pool, app, container, tenant, cfg.Context)
@@ -553,9 +551,9 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 			pool.Close()
 			_ = DropDBE(dbName, db)
 			if closeErr != nil {
-				return nil, serrors.E(opOncePerHarnessSeed, closeErr, "failed to close controllers before seed failure")
+				return nil, serrors.WrapContext(opOncePerHarnessSeed, closeErr, "failed to close controllers before seed failure")
 			}
-			return nil, serrors.E(opOncePerHarnessSeed, err, "once-per-harness seed")
+			return nil, serrors.WrapContext(opOncePerHarnessSeed, err, "once-per-harness seed")
 		}
 	}
 
@@ -678,15 +676,11 @@ func runMigrationPolicy(ctx context.Context, pool schemaReadinessQuerier, app ap
 		return app.Migrations().Run()
 	case MigrationSkip:
 		if pool == nil {
-			return serrors.E(opSchemaReadiness, serrors.Invalid, "schema readiness requires a database pool")
+			return serrors.New(serrors.Invalid, "schema readiness requires a database pool").WithOp(opSchemaReadiness)
 		}
 		return ensureSchemaReady(ctx, pool)
 	default:
-		return serrors.E(
-			opRunMigrationPolicy,
-			serrors.Invalid,
-			fmt.Sprintf("unsupported migration policy: %s", cfg.Policy),
-		)
+		return serrors.New(serrors.Invalid, fmt.Sprintf("unsupported migration policy: %s", cfg.Policy)).WithOp(opRunMigrationPolicy)
 	}
 }
 
@@ -700,10 +694,10 @@ func ensureSchemaReady(ctx context.Context, pool schemaReadinessQuerier) error {
 	`
 	var ok bool
 	if err := pool.QueryRow(ctx, query).Scan(&ok); err != nil {
-		return serrors.E(opSchemaReadiness, err, "schema readiness probe failed")
+		return serrors.WrapContext(opSchemaReadiness, err, "schema readiness probe failed")
 	}
 	if !ok {
-		return serrors.E(opSchemaReadiness, serrors.KindValidation, "schema not ready: public.gorp_migrations is missing")
+		return serrors.New(serrors.Invalid, "schema not ready: public.gorp_migrations is missing").WithOp(opSchemaReadiness)
 	}
 	return nil
 }
@@ -814,8 +808,7 @@ func closeControllers(controllers []application.Controller) error {
 		}
 		if err := closer.Close(); err != nil {
 			closeErr = mergeCloseErrors(
-				closeErr,
-				serrors.E(opCloseControllers, err, fmt.Sprintf("failed to close controller %T", controller)),
+				closeErr, serrors.WrapContext(opCloseControllers, err, fmt.Sprintf("failed to close controller %T", controller)),
 			)
 		}
 	}

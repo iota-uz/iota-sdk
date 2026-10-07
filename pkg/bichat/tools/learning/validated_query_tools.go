@@ -123,7 +123,7 @@ func (t *SearchValidatedQueriesTool) CallStructured(ctx context.Context, input s
 				Message: "tenant context not available",
 				Hints:   []string{tools.HintServiceMayBeDown},
 			},
-		}, serrors.E(op, err)
+		}, serrors.Wrap(op, err)
 	}
 
 	limit := params.Limit
@@ -149,7 +149,7 @@ func (t *SearchValidatedQueriesTool) CallStructured(ctx context.Context, input s
 				Message: fmt.Sprintf("validated query search failed: %v", err),
 				Hints:   []string{tools.HintServiceMayBeDown, tools.HintRetryLater},
 			},
-		}, serrors.E(op, err, "validated query search failed")
+		}, serrors.WrapContext(op, err, "validated query search failed")
 	}
 
 	if len(queries) == 0 {
@@ -346,7 +346,7 @@ func (t *SaveValidatedQueryTool) CallStructured(ctx context.Context, input strin
 				Message: "tenant context not available",
 				Hints:   []string{tools.HintServiceMayBeDown},
 			},
-		}, serrors.E(op, err)
+		}, serrors.Wrap(op, err)
 	}
 
 	query := learning.ValidatedQuery{
@@ -370,7 +370,7 @@ func (t *SaveValidatedQueryTool) CallStructured(ctx context.Context, input strin
 				Message: fmt.Sprintf("failed to save validated query: %v", err),
 				Hints:   []string{tools.HintServiceMayBeDown, tools.HintRetryLater},
 			},
-		}, serrors.E(op, err, "failed to save validated query")
+		}, serrors.WrapContext(op, err, "failed to save validated query")
 	}
 
 	message := "Query saved successfully. This pattern will be available for future searches when similar questions arise."

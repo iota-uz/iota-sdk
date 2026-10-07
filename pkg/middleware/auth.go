@@ -253,7 +253,7 @@ func ProvideUser() mux.MiddlewareFunc {
 				ctx = refreshLocalizerForUser(ctx, container, string(u.UILanguage()))
 
 				// A full session must never outlive a pending onboarding.
-				if u.IsPendingOnboarding() && !sess.IsPendingOnboarding() {
+				if u.IsPendingOnboarding() && !sess.IsPendingOnboarding() && !isAgentSession(ctx, container, sess) {
 					browserSessionService, resolveErr := composition.Resolve[*services.BrowserSessionService](container)
 					if resolveErr == nil {
 						_, _ = browserSessionService.RemoveCurrent(w, r)
@@ -263,7 +263,7 @@ func ProvideUser() mux.MiddlewareFunc {
 				}
 
 				// Check if user is blocked
-				if u.IsBlocked() {
+				if u.IsBlocked() && !isAgentSession(ctx, container, sess) {
 					browserSessionService, resolveErr := composition.Resolve[*services.BrowserSessionService](container)
 					if resolveErr == nil {
 						_, _ = browserSessionService.RemoveCurrent(w, r)

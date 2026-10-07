@@ -45,14 +45,14 @@ func (r *AcceptanceRepository) GetByID(ctx context.Context, id uuid.UUID) (accep
 	const op serrors.Op = "AcceptanceRepository.GetByID"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	documents, err := r.query(ctx, findAcceptanceQuery+` WHERE id = $1 AND tenant_id = $2`, id, tenantID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if len(documents) == 0 {
-		return nil, serrors.E(op, acceptance.ErrNotFound)
+		return nil, serrors.Wrap(op, acceptance.ErrNotFound)
 	}
 	return documents[0], nil
 }
@@ -61,14 +61,14 @@ func (r *AcceptanceRepository) GetByProjectID(ctx context.Context, projectID uui
 	const op serrors.Op = "AcceptanceRepository.GetByProjectID"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	documents, err := r.query(ctx,
 		findAcceptanceQuery+` WHERE project_id = $1 AND tenant_id = $2 ORDER BY document_date DESC, created_at DESC`,
 		projectID, tenantID,
 	)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return documents, nil
 }
@@ -77,11 +77,11 @@ func (r *AcceptanceRepository) SignedTotals(ctx context.Context, projectIDs []uu
 	const op serrors.Op = "AcceptanceRepository.SignedTotals"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	totals, err := sumByCurrency(ctx, signedAcceptanceSumQuery, tenantID, projectIDs)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return totals, nil
 }
@@ -90,11 +90,11 @@ func (r *AcceptanceRepository) Create(ctx context.Context, document acceptance.D
 	const op serrors.Op = "AcceptanceRepository.Create"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	var id uuid.UUID
@@ -111,11 +111,11 @@ func (r *AcceptanceRepository) Create(ctx context.Context, document acceptance.D
 		document.CreatedAt(),
 		document.UpdatedAt(),
 	).Scan(&id); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	created, err := r.GetByID(ctx, id)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return created, nil
 }
@@ -126,11 +126,11 @@ func (r *AcceptanceRepository) UpdateStatus(
 	const op serrors.Op = "AcceptanceRepository.UpdateStatus"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	statuses := make([]string, 0, len(from))
 	for _, status := range from {
@@ -140,14 +140,14 @@ func (r *AcceptanceRepository) UpdateStatus(
 		string(document.Status()), document.UpdatedAt(), document.ID(), tenantID, statuses,
 	)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	if tag.RowsAffected() == 0 {
-		return nil, serrors.E(op, acceptance.ErrStatus)
+		return nil, serrors.Wrap(op, acceptance.ErrStatus)
 	}
 	updated, err := r.GetByID(ctx, document.ID())
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return updated, nil
 }
@@ -156,14 +156,14 @@ func (r *AcceptanceRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	const op serrors.Op = "AcceptanceRepository.Delete"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if _, err := tx.Exec(ctx, deleteAcceptanceQuery, id, tenantID); err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	return nil
 }
@@ -172,11 +172,11 @@ func (r *AcceptanceRepository) query(ctx context.Context, query string, args ...
 	const op serrors.Op = "AcceptanceRepository.query"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -187,12 +187,12 @@ func (r *AcceptanceRepository) query(ctx context.Context, query string, args ...
 			&m.ID, &m.TenantID, &m.ProjectID, &m.Kind, &m.Number, &m.DocumentDate, &m.Amount,
 			&m.CurrencyID, &m.Status, &m.Description, &m.CreatedAt, &m.UpdatedAt,
 		); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		documents = append(documents, AcceptanceModelToDomain(m))
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return documents, nil
 }
@@ -203,11 +203,11 @@ func sumByCurrency(ctx context.Context, query string, tenantID uuid.UUID, projec
 	const op serrors.Op = "persistence.sumByCurrency"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	rows, err := tx.Query(ctx, query, tenantID, projectIDs)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -216,12 +216,12 @@ func sumByCurrency(ctx context.Context, query string, tenantID uuid.UUID, projec
 		var currency string
 		var amount int64
 		if err := rows.Scan(&currency, &amount); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		totals = append(totals, money.New(amount, currency))
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return totals, nil
 }

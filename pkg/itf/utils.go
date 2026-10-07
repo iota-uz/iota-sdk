@@ -170,14 +170,14 @@ func CreateDBFromTemplate(name, template string, db dbconfig.Config) {
 func CreateDBE(name string, db dbconfig.Config) error { return testdb.CreateDBE(name, db) }
 func CreateDBFromTemplateE(name, template string, db dbconfig.Config) error {
 	if err := testdb.CreateDBFromTemplateE(name, template, db); err != nil {
-		return serrors.E(serrors.Op("itf.CreateDB"), err)
+		return serrors.Wrap(serrors.Op("itf.CreateDB"), err)
 	}
 	return nil
 }
 func DropDB(name string, db dbconfig.Config) error { return testdb.DropDB(name, db) }
 func DropDBE(name string, db dbconfig.Config) error {
 	if err := testdb.DropDBE(name, db); err != nil {
-		return serrors.E(serrors.Op("itf.DropDB"), err)
+		return serrors.Wrap(serrors.Op("itf.DropDB"), err)
 	}
 	return nil
 }
@@ -215,7 +215,7 @@ func setupApplicationWithSource(
 	if src == nil {
 		fallback, err := config.Build(envprov.New(".env", ".env.local", ".env.testing"))
 		if err != nil {
-			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "build fallback config source")
+			return nil, nil, serrors.WrapContext(serrors.Op("itf.SetupApplication"), err, "build fallback config source")
 		}
 		src = fallback
 	}
@@ -244,7 +244,7 @@ func setupApplicationWithSource(
 	if len(components) > 0 {
 		engine := composition.NewEngine()
 		if err := engine.Register(components...); err != nil {
-			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "register components")
+			return nil, nil, serrors.WrapContext(serrors.Op("itf.SetupApplication"), err, "register components")
 		}
 		buildCtx := composition.NewBuildContext(app, src, composition.WithLogger(logger))
 		container, err = engine.Compile(
@@ -252,14 +252,14 @@ func setupApplicationWithSource(
 			capabilities...,
 		)
 		if err != nil {
-			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "compile components")
+			return nil, nil, serrors.WrapContext(serrors.Op("itf.SetupApplication"), err, "compile components")
 		}
 	}
 	if container != nil {
 		startCtx, cancelStart := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancelStart()
 		if err := composition.Start(startCtx, container); err != nil {
-			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "start runtime")
+			return nil, nil, serrors.WrapContext(serrors.Op("itf.SetupApplication"), err, "start runtime")
 		}
 	}
 	return app, container, nil

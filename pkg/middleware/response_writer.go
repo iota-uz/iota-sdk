@@ -57,12 +57,12 @@ func (w *statusCaptureWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 
 	hijacker, ok := w.ResponseWriter.(http.Hijacker)
 	if !ok {
-		return nil, nil, serrors.E(op, fmt.Errorf("underlying ResponseWriter does not implement http.Hijacker"))
+		return nil, nil, serrors.Wrap(op, fmt.Errorf("underlying ResponseWriter does not implement http.Hijacker"))
 	}
 
 	conn, rw, err := hijacker.Hijack()
 	if err != nil {
-		return nil, nil, serrors.E(op, err)
+		return nil, nil, serrors.Wrap(op, err)
 	}
 
 	w.markStatus(http.StatusSwitchingProtocols)

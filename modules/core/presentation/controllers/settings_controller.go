@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 type SettingsHubController struct {
@@ -98,7 +99,7 @@ func (c *SettingsLogoController) Register(r *mux.Router) {
 func (c *SettingsLogoController) GetLogo(w http.ResponseWriter, r *http.Request) {
 	props, err := c.logoProps(r, nil, nil)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	templ.Handler(settings.Logo(props)).ServeHTTP(w, r)
@@ -109,16 +110,14 @@ func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request
 
 	dto, err := composables.UseForm(&dtos.SaveLogosDTO{}, r)
 	if err != nil {
-		logger.WithError(err).Error("failed to parse form")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		props, err := c.logoProps(r, errors, nil)
 		if err != nil {
-			logger.WithError(err).Error("failed to get logo props")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		templ.Handler(settings.LogoForm(props)).ServeHTTP(w, r)
@@ -127,23 +126,20 @@ func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request
 
 	u, err := composables.UseUser(r.Context())
 	if err != nil {
-		logger.WithError(err).Error("failed to get user from context")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	tenant, err := c.tenantService.GetByID(r.Context(), u.TenantID())
 	if err != nil {
-		logger.WithError(err).Error("failed to get tenant")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if dto.LogoID > 0 {
 		exists, err := c.uploadService.Exists(r.Context(), uint(dto.LogoID))
 		if err != nil {
-			logger.WithError(err).Error("failed to check logo upload existence")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		if !exists {
@@ -157,8 +153,7 @@ func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request
 	if dto.LogoCompactID > 0 {
 		exists, err := c.uploadService.Exists(r.Context(), uint(dto.LogoCompactID))
 		if err != nil {
-			logger.WithError(err).Error("failed to check compact logo upload existence")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		if !exists {
@@ -176,8 +171,7 @@ func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request
 			logger.WithError(err).Error("invalid phone number")
 			props, propErr := c.logoProps(r, map[string]string{"Phone": "Invalid phone number format"}, tenant)
 			if propErr != nil {
-				logger.WithError(propErr).Error("failed to get logo props")
-				http.Error(w, propErr.Error(), http.StatusInternalServerError)
+				serrorhttp.WriteTextContext(r.Context(), w, propErr, http.StatusInternalServerError, nil)
 				return
 			}
 			templ.Handler(settings.LogoForm(props)).ServeHTTP(w, r)
@@ -194,8 +188,7 @@ func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request
 			logger.WithError(err).Error("invalid email")
 			props, propErr := c.logoProps(r, map[string]string{"Email": "Invalid email format"}, tenant)
 			if propErr != nil {
-				logger.WithError(propErr).Error("failed to get logo props")
-				http.Error(w, propErr.Error(), http.StatusInternalServerError)
+				serrorhttp.WriteTextContext(r.Context(), w, propErr, http.StatusInternalServerError, nil)
 				return
 			}
 			templ.Handler(settings.LogoForm(props)).ServeHTTP(w, r)
@@ -207,15 +200,13 @@ func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request
 	}
 
 	if _, err := c.tenantService.Update(r.Context(), tenant); err != nil {
-		logger.WithError(err).Error("failed to update tenant")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	props, err := c.logoProps(r, nil, tenant)
 	if err != nil {
-		logger.WithError(err).Error("failed to get logo props")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	templ.Handler(settings.LogoForm(props)).ServeHTTP(w, r)

@@ -14,39 +14,39 @@ import (
 func (d *DashboardDocument) Validate() error {
 	const op serrors.Op = "lens/document.DashboardDocument.Validate"
 	if d == nil {
-		return serrors.E(op, fmt.Errorf("document is required"))
+		return serrors.Wrap(op, fmt.Errorf("document is required"))
 	}
 	if d.Version != ContractVersion {
-		return serrors.E(op, fmt.Errorf("unsupported contract version %q", d.Version))
+		return serrors.Wrap(op, fmt.Errorf("unsupported contract version %q", d.Version))
 	}
 	if strings.TrimSpace(d.SnapshotID) == "" {
-		return serrors.E(op, fmt.Errorf("snapshot id is required"))
+		return serrors.Wrap(op, fmt.Errorf("snapshot id is required"))
 	}
 	if strings.TrimSpace(d.Meta.DashboardID) == "" {
-		return serrors.E(op, fmt.Errorf("dashboard id is required"))
+		return serrors.Wrap(op, fmt.Errorf("dashboard id is required"))
 	}
 	if d.Drill.InlineDepth < 0 {
-		return serrors.E(op, fmt.Errorf("inline depth cannot be negative"))
+		return serrors.Wrap(op, fmt.Errorf("inline depth cannot be negative"))
 	}
 	if d.URLState != nil && (d.URLState.Version != URLStateVersion || d.URLState.Param != URLStateParam || d.URLState.MaxBytes <= 0 || d.URLState.MaxBytes > URLStateMaxBytes) {
-		return serrors.E(op, fmt.Errorf("unsupported URL state contract"))
+		return serrors.Wrap(op, fmt.Errorf("unsupported URL state contract"))
 	}
 	panelIDs := make(map[string]struct{}, len(d.Panels))
 	for ref, frame := range d.Frames {
 		if strings.TrimSpace(string(ref)) == "" {
-			return serrors.E(op, fmt.Errorf("frame reference is required"))
+			return serrors.Wrap(op, fmt.Errorf("frame reference is required"))
 		}
 		if err := validateFrame(ref, frame); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	for _, panel := range d.Panels {
 		if _, duplicate := panelIDs[panel.ID]; duplicate {
-			return serrors.E(op, fmt.Errorf("duplicate panel %q", panel.ID))
+			return serrors.Wrap(op, fmt.Errorf("duplicate panel %q", panel.ID))
 		}
 		panelIDs[panel.ID] = struct{}{}
 		if err := d.validatePanel(panel); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	groupDescriptors := make(map[string]LayoutGroup)
@@ -54,13 +54,13 @@ func (d *DashboardDocument) Validate() error {
 	for rowIndex, row := range d.Layout.Rows {
 		for _, item := range row.Panels {
 			if _, ok := panelIDs[item.PanelID]; !ok {
-				return serrors.E(op, fmt.Errorf("layout row %d references missing panel %q", rowIndex, item.PanelID))
+				return serrors.Wrap(op, fmt.Errorf("layout row %d references missing panel %q", rowIndex, item.PanelID))
 			}
 			if item.Span < 1 || item.Span > 12 {
-				return serrors.E(op, fmt.Errorf("layout panel %s span must be between 1 and 12", item.PanelID))
+				return serrors.Wrap(op, fmt.Errorf("layout panel %s span must be between 1 and 12", item.PanelID))
 			}
 			if err := validateItemGroups(item, groupDescriptors); err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			for _, group := range item.Groups {
 				if group.Kind != LayoutGroupTabs {
@@ -74,46 +74,46 @@ func (d *DashboardDocument) Validate() error {
 		}
 	}
 	if err := d.validateDrill(); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if err := validateFilters(d.Filters, groupDescriptors, groupTabs); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if d.Drawer != nil {
 		switch d.Drawer.Size {
 		case "", DrawerSizeWide:
 		default:
-			return serrors.E(op, fmt.Errorf("drawer has unsupported size %q", d.Drawer.Size))
+			return serrors.Wrap(op, fmt.Errorf("drawer has unsupported size %q", d.Drawer.Size))
 		}
 	}
 	perspectiveIDs := make(map[string]struct{}, len(d.Perspectives))
 	for _, perspective := range d.Perspectives {
 		if strings.TrimSpace(perspective.ID) == "" {
-			return serrors.E(op, fmt.Errorf("perspective id is required"))
+			return serrors.Wrap(op, fmt.Errorf("perspective id is required"))
 		}
 		if _, duplicate := perspectiveIDs[perspective.ID]; duplicate {
-			return serrors.E(op, fmt.Errorf("duplicate perspective %q", perspective.ID))
+			return serrors.Wrap(op, fmt.Errorf("duplicate perspective %q", perspective.ID))
 		}
 		perspectiveIDs[perspective.ID] = struct{}{}
 		if !validSemantics(perspective.Semantics) {
-			return serrors.E(op, fmt.Errorf("perspective %s has unsupported semantics %q", perspective.ID, perspective.Semantics))
+			return serrors.Wrap(op, fmt.Errorf("perspective %s has unsupported semantics %q", perspective.ID, perspective.Semantics))
 		}
 		if _, ok := d.Drill.Edges[perspective.Root]; !ok {
-			return serrors.E(op, fmt.Errorf("perspective %s references missing root %q", perspective.ID, perspective.Root))
+			return serrors.Wrap(op, fmt.Errorf("perspective %s references missing root %q", perspective.ID, perspective.Root))
 		}
 	}
 	for key, level := range d.Drill.Edges {
 		for _, ref := range level.Perspectives {
 			if _, ok := perspectiveIDs[ref.ID]; !ok {
-				return serrors.E(op, fmt.Errorf("drill level %q references missing perspective %q", key, ref.ID))
+				return serrors.Wrap(op, fmt.Errorf("drill level %q references missing perspective %q", key, ref.ID))
 			}
 			perspective := findPerspective(d.Perspectives, ref.ID)
 			if perspective.Semantics == SemanticsPartition && level.Frame != "" {
 				if level.Encoding == nil {
-					return serrors.E(op, fmt.Errorf("partition drill level %q requires an encoding", key))
+					return serrors.Wrap(op, fmt.Errorf("partition drill level %q requires an encoding", key))
 				}
 				if err := validatePartitionFrame("drill level "+string(key), *level.Encoding, d.Frames[level.Frame]); err != nil {
-					return serrors.E(op, err)
+					return serrors.Wrap(op, err)
 				}
 			}
 		}

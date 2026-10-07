@@ -163,7 +163,7 @@ func NewDefaultBIAgent(
 
 	// Validate required parameters
 	if executor == nil {
-		return nil, serrors.E(op, serrors.KindValidation, "executor is required")
+		return nil, serrors.New(serrors.Invalid, "executor is required").WithOp(op)
 	}
 
 	agent := &DefaultBIAgent{

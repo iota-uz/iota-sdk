@@ -85,7 +85,7 @@ func (e *StrictACLEvaluator) CanRead(ctx context.Context, req SearchRequest, hit
 	}
 	principal, err := e.resolver.Resolve(ctx, req)
 	if err != nil {
-		logrus.WithError(serrors.E(op, err)).WithFields(logrus.Fields{
+		logrus.WithError(serrors.Wrap(op, err)).WithFields(logrus.Fields{
 			"tenant_id": req.TenantID.String(),
 			"user_id":   req.UserID,
 			"doc_id":    hit.Document.ID,
@@ -118,7 +118,7 @@ func (e *StrictACLEvaluator) FilterAuthorized(ctx context.Context, req SearchReq
 			resolved, err := e.resolver.Resolve(ctx, req)
 			if err != nil {
 				resolveFailed = true
-				logrus.WithError(serrors.E(op, err)).WithFields(logrus.Fields{
+				logrus.WithError(serrors.Wrap(op, err)).WithFields(logrus.Fields{
 					"tenant_id": req.TenantID.String(),
 					"user_id":   req.UserID,
 				}).Warn("spotlight principal resolver failed")

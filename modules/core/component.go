@@ -222,7 +222,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		}
 		browserSessions, err := composition.Resolve[*services.BrowserSessionService](container)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		httpCfg, err := composition.Resolve[*httpconfig.Config](container)
 		if err != nil {
@@ -262,11 +262,11 @@ func (c *component) Build(builder *composition.Builder) error {
 				Start: func(ctx context.Context) (composition.StopFn, error) {
 					if meiliCfg.URL != "" {
 						if err := service.Readiness(ctx); err != nil {
-							return nil, serrors.E(op, err, "spotlight preflight check")
+							return nil, serrors.WrapContext(op, err, "spotlight preflight check")
 						}
 					}
 					if err := service.Start(ctx); err != nil {
-						return nil, serrors.E(op, err, "start spotlight service")
+						return nil, serrors.WrapContext(op, err, "start spotlight service")
 					}
 					return service.Stop, nil
 				},
@@ -418,13 +418,13 @@ func newCoreTwoFactorService(
 	isCI := os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true"
 
 	if appCfg.IsProduction() && appCfg.EnableTestEndpoints && !isCI {
-		return nil, serrors.E(op, serrors.Invalid, errors.New("test endpoints cannot be enabled in production"))
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("test endpoints cannot be enabled in production"))
 	}
 	if !appCfg.EnableTestEndpoints &&
 		appCfg.IsProduction() &&
 		twoFactorCfg.Enabled &&
 		twoFactorCfg.EncryptionKey == "" {
-		return nil, serrors.E(op, serrors.Invalid, errors.New("TOTP encryption key is required in production"))
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("TOTP encryption key is required in production"))
 	}
 
 	var encryptor pkgtwofactor.SecretEncryptor
@@ -483,7 +483,7 @@ func newCoreTwoFactorService(
 		coreservices2fa.WithOTPSender(otpSender),
 	)
 	if err != nil {
-		return nil, serrors.E(op, "failed to create two-factor service", err)
+		return nil, serrors.WrapContext(op, err, "failed to create two-factor service")
 	}
 	return svc, nil
 }

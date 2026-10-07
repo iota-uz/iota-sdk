@@ -156,7 +156,7 @@ func (c *HelpCenterController) media(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		logrus.WithError(serrors.E("HelpCenterController.media", err)).Error("failed to serve help center media")
+		logrus.WithError(serrors.Wrap("HelpCenterController.media", err)).Error("failed to serve help center media")
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -233,7 +233,7 @@ func (c *HelpCenterController) renderError(w http.ResponseWriter, r *http.Reques
 	if errors.Is(err, services.ErrDocumentNotFound) || errors.Is(err, services.ErrInvalidPath) {
 		status = http.StatusNotFound
 	}
-	logrus.WithError(serrors.E("HelpCenterController", err)).Error("failed to render help center")
+	logrus.WithError(serrors.Wrap("HelpCenterController", err)).Error("failed to render help center")
 	w.WriteHeader(status)
 	templ.Handler(help.Error(status)).ServeHTTP(w, r)
 }

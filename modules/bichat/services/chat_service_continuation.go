@@ -22,15 +22,15 @@ func (s *chatServiceImpl) ContinueSession(
 	const op serrors.Op = "chatServiceImpl.ContinueSession"
 
 	if req.SessionID == uuid.Nil || strings.TrimSpace(req.IdempotencyKey) == "" {
-		return bichatservices.AsyncRunAccepted{}, serrors.E(op, serrors.KindValidation, bichatservices.ErrInvalidContinuation)
+		return bichatservices.AsyncRunAccepted{}, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(bichatservices.ErrInvalidContinuation)
 	}
 	if err := req.Event.Validate(); err != nil {
-		return bichatservices.AsyncRunAccepted{}, serrors.E(op, serrors.KindValidation, err)
+		return bichatservices.AsyncRunAccepted{}, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 
 	continuationAgent, ok := s.agentService.(bichatservices.ContinuationAgentService)
 	if !ok {
-		return bichatservices.AsyncRunAccepted{}, serrors.E(op, bichatservices.ErrContinuationUnsupported)
+		return bichatservices.AsyncRunAccepted{}, serrors.Wrap(op, bichatservices.ErrContinuationUnsupported)
 	}
 
 	return s.startAsyncRun(
@@ -145,11 +145,7 @@ func (s *chatServiceImpl) GetContinuationRun(
 ) (bichatservices.ContinuationRun, error) {
 	const op serrors.Op = "chatServiceImpl.GetContinuationRun"
 	if runID == uuid.Nil {
-		return bichatservices.ContinuationRun{}, serrors.E(
-			op,
-			serrors.KindValidation,
-			bichatservices.ErrInvalidContinuation,
-		)
+		return bichatservices.ContinuationRun{}, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(bichatservices.ErrInvalidContinuation)
 	}
 	var run domain.GenerationRun
 	err := s.withinTx(ctx, func(txCtx context.Context) error {
@@ -158,7 +154,7 @@ func (s *chatServiceImpl) GetContinuationRun(
 		return getErr
 	})
 	if err != nil {
-		return bichatservices.ContinuationRun{}, serrors.E(op, err)
+		return bichatservices.ContinuationRun{}, serrors.Wrap(op, err)
 	}
 	run = s.reconcileContinuationRunState(ctx, run)
 	metadata := run.PartialMetadata()
@@ -263,7 +259,7 @@ func (s *chatServiceImpl) failContinuationRun(
 	session domain.Session,
 	runID uuid.UUID,
 ) {
-	active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, err), 0))
+	active.Broadcast(streamingsvc.TerminalChunk(serrors.Wrap(op, err), 0))
 	_ = s.withinTx(context.WithoutCancel(ctx), func(txCtx context.Context) error {
 		if snapshotErr := s.chatRepo.UpdateRunSnapshot(
 			txCtx,

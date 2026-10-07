@@ -27,6 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 )
@@ -388,7 +389,7 @@ func (c *GroupsController) Create(
 	}
 	dto, err := composables.UseForm(&dtos.CreateGroupDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -417,7 +418,7 @@ func (c *GroupsController) Create(
 
 	groupEntity, err := dto.ToEntity()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -435,7 +436,7 @@ func (c *GroupsController) Create(
 	for _, roleIDStr := range dto.RoleIDs {
 		roleID, err := strconv.ParseUint(roleIDStr, 10, 64)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 			return
 		}
 		groupEntity = groupEntity.AssignRole(role.New("", role.WithID(uint(roleID))))
@@ -445,7 +446,7 @@ func (c *GroupsController) Create(
 		if respondPrivilegeDenied(w, r, err) {
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -472,7 +473,7 @@ func (c *GroupsController) Update(
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -483,7 +484,7 @@ func (c *GroupsController) Update(
 
 	dto, err := composables.UseForm(&dtos.UpdateGroupDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -510,8 +511,7 @@ func (c *GroupsController) Update(
 
 	existingGroup, err := groupService.GetByID(r.Context(), id)
 	if err != nil {
-		logger.Errorf("Error retrieving group: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -520,8 +520,7 @@ func (c *GroupsController) Update(
 	for _, rID := range dto.RoleIDs {
 		rUintID, err := strconv.ParseUint(rID, 10, 64)
 		if err != nil {
-			logger.Errorf("Error parsing role id: %v", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 			return
 		}
 		roles = append(roles, role.New("", role.WithID(uint(rUintID))))
@@ -529,8 +528,7 @@ func (c *GroupsController) Update(
 
 	groupEntity, err := dto.Apply(existingGroup, roles)
 	if err != nil {
-		logger.Errorf("Error updating group: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -538,7 +536,7 @@ func (c *GroupsController) Update(
 		if respondPrivilegeDenied(w, r, err) {
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -560,7 +558,7 @@ func (c *GroupsController) Delete(
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -568,7 +566,7 @@ func (c *GroupsController) Delete(
 		if respondPrivilegeDenied(w, r, err) {
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)

@@ -43,7 +43,7 @@ func (s *artifactService) GetSessionArtifacts(ctx context.Context, sessionID uui
 	const op serrors.Op = "ArtifactService.GetSessionArtifacts"
 	list, err := s.repo.GetSessionArtifacts(ctx, sessionID, opts)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return list, nil
 }
@@ -53,7 +53,7 @@ func (s *artifactService) GetArtifact(ctx context.Context, id uuid.UUID) (domain
 	const op serrors.Op = "ArtifactService.GetArtifact"
 	a, err := s.repo.GetArtifact(ctx, id)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return a, nil
 }
@@ -64,7 +64,7 @@ func (s *artifactService) DeleteArtifact(ctx context.Context, id uuid.UUID) erro
 
 	artifact, err := s.repo.GetArtifact(ctx, id)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if artifact.UploadID() == nil && artifact.URL() != "" && s.storage != nil {
@@ -72,7 +72,7 @@ func (s *artifactService) DeleteArtifact(ctx context.Context, id uuid.UUID) erro
 	}
 
 	if err := s.repo.DeleteArtifact(ctx, id); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -82,11 +82,11 @@ func (s *artifactService) UpdateArtifact(ctx context.Context, id uuid.UUID, name
 	const op serrors.Op = "ArtifactService.UpdateArtifact"
 
 	if err := s.repo.UpdateArtifact(ctx, id, name, description); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	artifact, err := s.repo.GetArtifact(ctx, id)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return artifact, nil
 }
@@ -96,12 +96,12 @@ func (s *artifactService) UploadSessionArtifacts(ctx context.Context, sessionID 
 	const op serrors.Op = "ArtifactService.UploadSessionArtifacts"
 
 	if len(uploads) == 0 {
-		return nil, serrors.E(op, serrors.KindValidation, "no uploads provided")
+		return nil, serrors.New(serrors.Invalid, "no uploads provided").WithOp(op)
 	}
 
 	session, err := s.repo.GetSession(ctx, sessionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	uploadRepo := corepersistence.NewUploadRepository()
@@ -111,7 +111,7 @@ func (s *artifactService) UploadSessionArtifacts(ctx context.Context, sessionID 
 		artifacts = make([]domain.Artifact, 0, len(uploads))
 		for _, upload := range uploads {
 			if upload.UploadID <= 0 {
-				return serrors.E(op, serrors.KindValidation, "uploadId must be a positive integer")
+				return serrors.New(serrors.Invalid, "uploadId must be a positive integer").WithOp(op)
 			}
 
 			found, err := uploadRepo.GetByIDs(txCtx, []uint{uint(upload.UploadID)})
@@ -119,7 +119,7 @@ func (s *artifactService) UploadSessionArtifacts(ctx context.Context, sessionID 
 				return err
 			}
 			if len(found) == 0 {
-				return serrors.E(op, serrors.KindValidation, "upload not found")
+				return serrors.New(serrors.Invalid, "upload not found").WithOp(op)
 			}
 			entity := found[0]
 			mimeType := ""
@@ -148,7 +148,7 @@ func (s *artifactService) UploadSessionArtifacts(ctx context.Context, sessionID 
 		return nil
 	})
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return artifacts, nil
 }

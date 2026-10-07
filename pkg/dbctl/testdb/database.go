@@ -184,7 +184,7 @@ func CreateDBE(name string, db dbconfig.Config) error {
 func CreateDBFromTemplateE(name, template string, db dbconfig.Config) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = serrors.E(opCreateDBE, fmt.Errorf("failed to create test database %q: %v", Name(name), r))
+			err = serrors.Wrap(opCreateDBE, fmt.Errorf("failed to create test database %q: %v", Name(name), r))
 		}
 	}()
 	CreateDBFromTemplate(name, template, db)
@@ -363,10 +363,8 @@ func WithAdvisoryLock(db dbconfig.Config, key int64, label string, required bool
 func WithAdvisoryLockContext(ctx context.Context, db dbconfig.Config, key int64, label string, required bool, fn func() error) error {
 	degrade := func(stage string, cause error) error {
 		if required {
-			return serrors.E(
-				serrors.Op("itf.WithAdvisoryLock"),
-				fmt.Errorf("%s advisory lock: %s: %w", label, stage, cause),
-			)
+			return serrors.Wrap(serrors.Op("itf.WithAdvisoryLock"),
+				fmt.Errorf("%s advisory lock: %s: %w", label, stage, cause))
 		}
 		log.Printf("[WARNING] %s advisory lock: %s, running unlocked: %v", label, stage, cause)
 		return fn()
@@ -412,7 +410,7 @@ func WithAdvisoryLockContext(ctx context.Context, db dbconfig.Config, key int64,
 func DropDBE(name string, db dbconfig.Config) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = serrors.E(opDropDBE, fmt.Errorf("failed to drop test database %q: %v", Name(name), r))
+			err = serrors.Wrap(opDropDBE, fmt.Errorf("failed to drop test database %q: %v", Name(name), r))
 		}
 	}()
 	err = dropDBContext(context.Background(), name, db)

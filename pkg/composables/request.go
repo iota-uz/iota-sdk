@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 
@@ -156,14 +157,20 @@ func UseFlashMap[K comparable, V any](w http.ResponseWriter, r *http.Request, na
 }
 
 func UseQuery[T comparable](v T, r *http.Request) (T, error) {
-	return v, shared.Decoder.Decode(v, r.URL.Query())
+	if err := shared.Decoder.Decode(v, r.URL.Query()); err != nil {
+		return v, serrors.NewInvalid("").WithOp("composables.UseQuery").WithCause(err)
+	}
+	return v, nil
 }
 
 func UseForm[T comparable](v T, r *http.Request) (T, error) {
 	if err := r.ParseForm(); err != nil {
-		return v, err
+		return v, serrors.NewInvalid("").WithOp("composables.UseForm").WithCause(err)
 	}
-	return v, shared.Decoder.Decode(v, r.Form)
+	if err := shared.Decoder.Decode(v, r.Form); err != nil {
+		return v, serrors.NewInvalid("").WithOp("composables.UseForm").WithCause(err)
+	}
+	return v, nil
 }
 
 // GetLastQueryParam returns the last occurrence of a query parameter.

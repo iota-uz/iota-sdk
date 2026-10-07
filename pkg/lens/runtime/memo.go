@@ -25,11 +25,11 @@ func MemoizeJSON[T any](ctx context.Context, runtime *Runtime, req MemoRequest, 
 	op := serrors.Op("lens/runtime.MemoizeJSON")
 	var zero T
 	if runtime == nil {
-		return zero, serrors.E(op, fmt.Errorf("lens runtime is required"))
+		return zero, serrors.Wrap(op, fmt.Errorf("lens runtime is required"))
 	}
 	key, err := memoIdentity(runtime, req)
 	if err != nil {
-		return zero, serrors.E(op, err)
+		return zero, serrors.Wrap(op, err)
 	}
 	if snapshot, ok := runtime.store.Load(ctx, key); ok {
 		if decoded, decodeErr := decodeMemo[T](snapshot); decodeErr == nil {
@@ -71,16 +71,16 @@ func MemoizeJSON[T any](ctx context.Context, runtime *Runtime, req MemoRequest, 
 	var value any
 	select {
 	case <-ctx.Done():
-		return zero, serrors.E(op, ctx.Err())
+		return zero, serrors.Wrap(op, ctx.Err())
 	case result := <-flight:
 		if result.Err != nil {
-			return zero, serrors.E(op, result.Err)
+			return zero, serrors.Wrap(op, result.Err)
 		}
 		value = result.Val
 	}
 	result, ok := value.(T)
 	if !ok {
-		return zero, serrors.E(op, fmt.Errorf("memo %q returned unexpected type %T", req.Namespace, value))
+		return zero, serrors.Wrap(op, fmt.Errorf("memo %q returned unexpected type %T", req.Namespace, value))
 	}
 	return result, nil
 }

@@ -177,7 +177,7 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 
 	logger, loggerCleanup, err := cfg.loggerFactory(ctx, nil)
 	if err != nil {
-		return nil, nil, serrors.E(op, err, "build logger")
+		return nil, nil, serrors.WrapContext(op, err, "build logger")
 	}
 	rt.Logger = logger
 	if loggerCleanup != nil {
@@ -186,7 +186,7 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 
 	pool, poolCleanup, err := cfg.poolFactory(ctx, nil, logger)
 	if err != nil {
-		return nil, nil, errors.Join(serrors.E(op, err, "build pool"), runCleanup(cleanup))
+		return nil, nil, errors.Join(serrors.WrapContext(op, err, "build pool"), runCleanup(cleanup))
 	}
 	rt.Pool = pool
 	if poolCleanup != nil {
@@ -195,13 +195,13 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 
 	bundle, err := cfg.bundleFactory(ctx, nil)
 	if err != nil {
-		return nil, nil, errors.Join(serrors.E(op, err, "build bundle"), runCleanup(cleanup))
+		return nil, nil, errors.Join(serrors.WrapContext(op, err, "build bundle"), runCleanup(cleanup))
 	}
 	rt.Bundle = bundle
 
 	app, err := cfg.appFactory(ctx, rt)
 	if err != nil {
-		return nil, nil, errors.Join(serrors.E(op, err, "build application"), runCleanup(cleanup))
+		return nil, nil, errors.Join(serrors.WrapContext(op, err, "build application"), runCleanup(cleanup))
 	}
 	rt.App = app
 

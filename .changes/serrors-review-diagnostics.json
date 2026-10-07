@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Refresh canonical serrors on current SDK and retain panic diagnostics and GraphQL operation context."}

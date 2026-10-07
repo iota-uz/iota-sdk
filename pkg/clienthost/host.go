@@ -32,14 +32,14 @@ func (m Manifest) Validate() error {
 	const op = serrors.Op("clienthost.Manifest.Validate")
 
 	if strings.TrimSpace(m.Package) == "" || strings.TrimSpace(m.SDKCommit) == "" || strings.TrimSpace(m.SDKReleaseVersion) == "" {
-		return serrors.E(op, fmt.Errorf("package, sdk release version, and sdk commit are required"))
+		return serrors.Wrap(op, fmt.Errorf("package, sdk release version, and sdk commit are required"))
 	}
 	if err := (sdkidentity.Identity{
 		ReleaseVersion:  m.SDKReleaseVersion,
 		SourceCommit:    m.SDKCommit,
 		ProtocolVersion: m.ProtocolVersion,
 	}).Validate(); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if strings.TrimSpace(m.Entry) == "" {
 		return fmt.Errorf("clienthost manifest: entry is required")

@@ -33,7 +33,7 @@ func (c *client) ListActiveEntitlements(ctx context.Context, customerID string) 
 	features := make([]string, 0)
 	for current, iterErr := range c.api.V1EntitlementsActiveEntitlements.List(ctx, params) {
 		if iterErr != nil {
-			return nil, serrors.E(op, iterErr)
+			return nil, serrors.Wrap(op, iterErr)
 		}
 		if current == nil {
 			continue

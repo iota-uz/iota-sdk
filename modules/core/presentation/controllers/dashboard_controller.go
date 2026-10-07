@@ -27,6 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	lensserve "github.com/iota-uz/iota-sdk/pkg/lens/serve"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 const dashboardLensBasePath = "/dashboard"
@@ -233,7 +234,7 @@ func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
 func (c *DashboardController) Document(w http.ResponseWriter, r *http.Request) {
 	handlers, err := c.lensHandlers(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusServiceUnavailable, nil)
 		return
 	}
 	handlers.Document(w, r)
@@ -242,7 +243,7 @@ func (c *DashboardController) Document(w http.ResponseWriter, r *http.Request) {
 func (c *DashboardController) Query(w http.ResponseWriter, r *http.Request) {
 	handlers, err := c.lensHandlers(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusServiceUnavailable, nil)
 		return
 	}
 	handlers.Query(w, r)
@@ -251,7 +252,7 @@ func (c *DashboardController) Query(w http.ResponseWriter, r *http.Request) {
 func (c *DashboardController) Export(w http.ResponseWriter, r *http.Request) {
 	handlers, err := c.lensHandlers(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusServiceUnavailable, nil)
 		return
 	}
 	handlers.Export(w, r)

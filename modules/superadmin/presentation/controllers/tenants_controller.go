@@ -34,6 +34,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain"
 
 	superadminMiddleware "github.com/iota-uz/iota-sdk/modules/superadmin/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 const (
@@ -217,8 +218,7 @@ func (c *TenantsController) Export(
 	// Export to Excel
 	upload, err := excelService.ExportFromQuery(ctx, queryObj, config)
 	if err != nil {
-		logger.Errorf("Error exporting tenants: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

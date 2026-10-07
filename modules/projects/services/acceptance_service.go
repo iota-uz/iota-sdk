@@ -58,7 +58,7 @@ func (s *AcceptanceService) projectDocument(ctx context.Context, projectID, id u
 		return nil, err
 	}
 	if document.ProjectID() != projectID {
-		return nil, serrors.E(op, acceptance.ErrNotFound)
+		return nil, serrors.Wrap(op, acceptance.ErrNotFound)
 	}
 	return document, nil
 }

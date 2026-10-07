@@ -33,24 +33,24 @@ func ResolveFacetOptions(
 	}
 	dim, ok := spec.Dimension(strings.TrimSpace(dimension))
 	if !ok {
-		return nil, serrors.E(op, fmt.Errorf("unknown cube dimension %q", dimension))
+		return nil, serrors.Wrap(op, fmt.Errorf("unknown cube dimension %q", dimension))
 	}
 	switch spec.DataMode {
 	case DataModeDataset:
 		return resolveDatasetFacetOptions(spec, drillCtx, dim, search, limit), nil
 	case DataModeSQL:
 		if lookup == nil {
-			return nil, serrors.E(op, fmt.Errorf("sql facet lookup is required"))
+			return nil, serrors.Wrap(op, fmt.Errorf("sql facet lookup is required"))
 		}
 		text, params := sqlFacetOptionsQuery(spec, drillCtx, dim, search)
 		options, err := lookup(ctx, text, params, limit)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		markSelected(options, drillCtx, dim.Name)
 		return options, nil
 	default:
-		return nil, serrors.E(op, fmt.Errorf("unsupported cube mode %q", spec.DataMode))
+		return nil, serrors.Wrap(op, fmt.Errorf("unsupported cube mode %q", spec.DataMode))
 	}
 }
 

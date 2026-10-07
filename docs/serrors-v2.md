@@ -1,9 +1,8 @@
-# Typed errors preview
+# Canonical typed errors
 
-`pkg/serrors/v2` is an unstable, opt-in preview for SDK #786 and #787.
-Existing `pkg/serrors` callers keep their current API. The breaking cutover in
-#788 moves this API and its presenters to the canonical `pkg/serrors` import.
-Do not publish a consumer production dependency on an unverified preview.
+`pkg/serrors` is the canonical typed error API. Legacy `E`, mutable error fields,
+base errors and validation constructors are removed. SDK #788 is a coordinated
+breaking cutover; consumers must migrate before selecting this candidate.
 
 ## Classification and identity
 
@@ -71,7 +70,8 @@ An owned 23505 constraint maps to AlreadyExists, 23503 to Conflict, and 23502 or
 23514 to Invalid. Unknown names and SQLSTATEs remain Internal. Rules must not
 reveal objects the caller cannot access. PostgreSQL NOT NULL errors without a
 constraint name require an explicitly owned `Table` and `Column` rule for 23502.
-A successful UPDATE with zero affected rows has no driver error: the repository separately decides whether that means
+A successful UPDATE with zero affected
+rows has no driver error: the repository separately decides whether that means
 NotFound, optimistic Conflict, or an allowed no-op.
 
 ## Boundary adapters
@@ -96,10 +96,6 @@ the request correlation ID.
   Unauthenticated retains `extensions.code=UNAUTHORIZED`. GraphQL parse and
   validation protocol errors retain their transport classification. Do not
   replace the HTTP handler or force protocol failures to HTTP 200.
-  Specialized codes and extensions must implement `serrorgql.PublicCarrier`;
-  its values use the restricted localization types. Arbitrary existing
-  extensions are not copied. An earlier explicit classification or cancellation
-  in a joined error blocks later carriers from disclosing unrelated data.
 - `serrorrpc.Project` is for the dispatcher's general classification branch.
   Explicit typed carriers, middleware/auth, applet sentinels, and numeric
   protocol codes keep precedence. Safe fields map to validation; permission

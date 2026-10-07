@@ -30,8 +30,8 @@
 package showcase
 
 import (
+	"fmt"
 	"regexp"
-	"strconv"
 	"sync"
 
 	"github.com/a-h/templ"
@@ -126,42 +126,42 @@ func (r *Registry) RegisterCategory(cat *Category) error {
 
 	// Validate category is not nil
 	if cat == nil {
-		return serrors.E(op, serrors.Invalid, "category cannot be nil")
+		return serrors.New(serrors.Invalid, "category cannot be nil").WithOp(op)
 	}
 
 	// Validate path is not empty
 	if cat.Path == "" {
-		return serrors.E(op, serrors.Invalid, "category path cannot be empty")
+		return serrors.New(serrors.Invalid, "category path cannot be empty").WithOp(op)
 	}
 
 	// Validate path contains only valid URL characters
 	if !isValidURLPath(cat.Path) {
-		return serrors.E(op, serrors.Invalid, "category path contains invalid characters (only alphanumeric, hyphens, and underscores allowed)", "path", cat.Path)
+		return serrors.NewInvalid(fmt.Sprintf("%s: path=%s", "category path contains invalid characters (only alphanumeric, hyphens, and underscores allowed)", cat.Path)).WithOp(op)
 	}
 
 	// Validate name is not empty
 	if cat.Name == "" {
-		return serrors.E(op, serrors.Invalid, "category name cannot be empty", "path", cat.Path)
+		return serrors.NewInvalid(fmt.Sprintf("%s: path=%s", "category name cannot be empty", cat.Path)).WithOp(op)
 	}
 
 	// Validate components slice has at least one component
 	if len(cat.Components) == 0 {
-		return serrors.E(op, serrors.Invalid, "category must have at least one component", "path", cat.Path)
+		return serrors.NewInvalid(fmt.Sprintf("%s: path=%s", "category must have at least one component", cat.Path)).WithOp(op)
 	}
 
 	// Validate each component
 	for i, comp := range cat.Components {
 		if comp.Name == "" {
-			return serrors.E(op, serrors.Invalid, "component has empty name", "path", cat.Path, "index", strconv.Itoa(i))
+			return serrors.NewInvalid(fmt.Sprintf("%s: path=%s index=%d", "component has empty name", cat.Path, i)).WithOp(op)
 		}
 		if comp.Template == nil {
-			return serrors.E(op, serrors.Invalid, "component has nil template", "path", cat.Path, "name", comp.Name)
+			return serrors.NewInvalid(fmt.Sprintf("%s: path=%s name=%s", "component has nil template", cat.Path, comp.Name)).WithOp(op)
 		}
 	}
 
 	// Validate path doesn't conflict with reserved paths
 	if r.reserved[cat.Path] {
-		return serrors.E(op, serrors.Invalid, "category path conflicts with built-in showcase category", "path", cat.Path)
+		return serrors.NewInvalid(fmt.Sprintf("%s: path=%s", "category path conflicts with built-in showcase category", cat.Path)).WithOp(op)
 	}
 
 	// Check if already registered

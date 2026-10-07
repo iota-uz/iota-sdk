@@ -68,7 +68,7 @@ func (g *GormPaymentRepository) GetPaginated(ctx context.Context, params *paymen
 	const op serrors.Op = "GormPaymentRepository.GetPaginated"
 	where, args, err := paymentFilters(ctx, params)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	q := repo.Join(
 		paymentFindQuery,
@@ -83,15 +83,15 @@ func (g *GormPaymentRepository) Count(ctx context.Context, params *payment.FindP
 	const op serrors.Op = "GormPaymentRepository.Count"
 	where, args, err := paymentFilters(ctx, params)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 	var count int64
 	if err := tx.QueryRow(ctx, repo.Join(paymentCountQuery, repo.JoinWhere(where...)), args...).Scan(&count); err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.FromDB(op, err)
 	}
 	return count, nil
 }
