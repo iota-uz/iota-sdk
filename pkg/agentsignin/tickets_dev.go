@@ -21,11 +21,11 @@ import (
 var ErrTicket = errors.New("invalid, expired or consumed agent sign-in ticket")
 
 type ticket struct {
-	User     string
-	Origin   string
-	TenantID uuid.UUID
-	Next     string
-	Expires  time.Time
+	User     string    `json:"user"`
+	Origin   string    `json:"origin"`
+	TenantID uuid.UUID `json:"tenant_id"`
+	Next     string    `json:"next"`
+	Expires  time.Time `json:"expires"`
 }
 
 func privateDirectory(o Options) (string, error) {
@@ -111,7 +111,7 @@ func consume(o Options, token string) (ticket, error) {
 	if err := os.Rename(path, claimed); err != nil {
 		return ticket{}, ErrTicket
 	}
-	defer os.Remove(claimed)
+	defer func() { _ = os.Remove(claimed) }()
 	info, err := os.Lstat(claimed)
 	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 || info.Size() > 4096 {
 		return ticket{}, ErrTicket

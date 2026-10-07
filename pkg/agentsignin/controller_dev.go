@@ -27,7 +27,7 @@ type controller struct{ options Options }
 
 func NewController(o Options) (application.Controller, error) {
 	if !o.Enabled {
-		return nil, nil
+		return nil, nil //nolint:nilnil // Disabled opt-in deliberately registers no controller.
 	}
 	if err := o.Validate(); err != nil {
 		return nil, err
