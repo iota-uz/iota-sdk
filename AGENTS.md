@@ -158,6 +158,21 @@ to wait for a verified release and update local production dependencies. See [do
 - Run specific subtest: `go test -v ./path/to/package -run TestName/SubtestName`
 - Apply migrations: `just db migrate up`
 
+## Local browser sign-in for agents
+
+For manual browser verification against a local development database, use the
+SDK's `agent sign-in --user <ID-or-email> --next /internal/path --output json`
+CLI command and open the returned URL in the agent's browser within one minute.
+Each link works once; issue a fresh one for retries or another account. Choose
+an existing user with the roles required by the task; their permissions remain
+unchanged.
+
+Both CLI and server require `-tags dev`, `APP_ENVIRONMENT=development`, and
+`AGENT_SIGNIN_ENABLED=true`, the same OS user, loopback origin and tenant.
+Read [docs/agent-sign-in.md](docs/agent-sign-in.md) for setup, controller
+registration, and consumer CLI integration. Use this flow only for local
+development.
+
 ## E2E Testing
 
 ```bash

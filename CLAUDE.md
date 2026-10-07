@@ -95,6 +95,9 @@ modules/{module}/
 
 ## E2E Testing
 
+For manual local browser sign-in, follow the **Local browser sign-in for agents**
+section in [AGENTS.md](AGENTS.md).
+
 Use the `/e2e-testing` skill for setup, running, and debugging E2E tests locally.
 Always reproduce and fix locally before pushing to CI.
 
