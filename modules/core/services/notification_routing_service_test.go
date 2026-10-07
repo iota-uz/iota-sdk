@@ -42,6 +42,7 @@ func (r recipientsStub) GetByIDs(_ context.Context, ids []uint) ([]user.User, er
 }
 
 type deliveryStub struct {
+	last  notification.Notification
 	count int
 	err   error
 }
@@ -50,6 +51,7 @@ func (d *deliveryStub) Deliver(_ context.Context, n notification.Notification) (
 	if d.err != nil {
 		return nil, d.err
 	}
+	d.last = n
 	d.count++
 	return n, nil
 }
@@ -112,4 +114,41 @@ func TestNotificationRuleRejectsInvalidRecipients(t *testing.T) {
 	ctx, s, rules, _ := routingFixture(t)
 	require.NoError(t, s.SaveRule(ctx, notifications.Rule{EventKey: notifications.TestEventKey, Enabled: true, UserIDs: []uint{1}}))
 	require.True(t, rules.saved)
+}
+
+func TestNotificationRoutingSemanticRecipientsAndGuard(t *testing.T) {
+	ctx, s, rules, delivery := routingFixture(t)
+	tenant, err := composables.UseTenantID(ctx)
+	require.NoError(t, err)
+	d := notifications.TestDefinition()
+	d.Key = "core.document.created.v1"
+	d.DefaultLevel = notification.LevelSuccess
+	calls := 0
+	d.RecipientKeys = []notifications.RecipientDefinition{{Key: "creator", Name: map[string]string{"en": "Creator"}, Resolve: func(context.Context, notifications.Event) ([]uint, error) { calls++; return []uint{1, 1, 999}, nil }}}
+	allowed := true
+	d.RecipientGuard = func(context.Context, notifications.Event, user.User) (bool, error) { return allowed, nil }
+	require.NoError(t, s.catalog.Register(d))
+	rules.rule = notifications.Rule{EventKey: d.Key, Configured: true, Enabled: true, UserIDs: []uint{1}, RecipientKeys: []string{"creator"}, Level: notification.LevelWarning}
+	require.NoError(t, s.SaveRule(ctx, rules.rule))
+	event := notifications.Event{Key: d.Key, ID: "document-event", TenantID: tenant}
+	rule, ids, err := s.ResolveRecipients(ctx, event)
+	require.NoError(t, err)
+	require.Equal(t, []uint{1, 999}, ids)
+	require.Equal(t, 1, calls)
+	count, err := s.DeliverRecipients(ctx, event, rule, ids)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	require.Equal(t, 1, delivery.count)
+	allowed = false
+	count, err = s.DeliverRecipients(ctx, event, rule, ids)
+	require.NoError(t, err)
+	require.Zero(t, count)
+	require.Equal(t, 1, calls)
+	rule.RecipientKeys = []string{"unregistered"}
+	require.Error(t, s.SaveRule(ctx, rule))
+	rule.RecipientKeys = []string{"creator", "creator"}
+	require.Error(t, s.SaveRule(ctx, rule))
+	rule.RecipientKeys = []string{"creator"}
+	rule.Level = "critical"
+	require.Error(t, s.SaveRule(ctx, rule))
 }

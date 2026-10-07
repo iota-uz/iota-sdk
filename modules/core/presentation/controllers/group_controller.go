@@ -51,6 +51,9 @@ func (ru *GroupRealtimeUpdates) OnGroupCreated(event *group.CreatedEvent) {
 	})
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		if !application.CanReceiveTenantUpdates(conn.User(), event.Group.TenantID(), permissions.GroupRead) {
+			return nil
+		}
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			ru.logger.WithError(err).Error("failed to render group created event for websocket")
@@ -75,6 +78,9 @@ func (ru *GroupRealtimeUpdates) OnGroupDeleted(event *group.DeletedEvent) {
 	})
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		if !application.CanReceiveTenantUpdates(conn.User(), event.Group.TenantID(), permissions.GroupRead) {
+			return nil
+		}
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			ru.logger.WithError(err).Error("failed to render group deleted event for websocket")
@@ -97,6 +103,9 @@ func (ru *GroupRealtimeUpdates) OnGroupUpdated(event *group.UpdatedEvent) {
 	})
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		if !application.CanReceiveTenantUpdates(conn.User(), event.Group.TenantID(), permissions.GroupRead) {
+			return nil
+		}
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			ru.logger.WithError(err).Error("failed to render group updated event for websocket")

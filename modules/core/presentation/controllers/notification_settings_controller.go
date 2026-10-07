@@ -2,11 +2,13 @@ package controllers
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
@@ -33,6 +35,8 @@ func (c *NotificationSettingsController) Register(r *mux.Router) {
 	router.Use(middleware.Authorize(), middleware.RedirectNotAuthenticated(), middleware.ProvideUser(), middleware.ProvideDynamicLogo(), middleware.NavItems(), middleware.WithPageContext())
 	router.HandleFunc("", di.H(c.Index)).Methods(http.MethodGet)
 	router.HandleFunc("", di.H(c.Save)).Methods(http.MethodPost)
+	router.HandleFunc("/queue", di.H(c.Queue)).Methods(http.MethodGet)
+	router.HandleFunc("/queue/{id}/retry", di.H(c.Retry)).Methods(http.MethodPost)
 	router.HandleFunc("/test", di.H(c.Test)).Methods(http.MethodPost)
 }
 func (c *NotificationSettingsController) render(w http.ResponseWriter, r *http.Request, s *services.NotificationRoutingService, message string, delivered int) {
@@ -96,8 +100,14 @@ func (c *NotificationSettingsController) render(w http.ResponseWriter, r *http.R
 				missing++
 			}
 		}
-		props.Rules = append(props.Rules, settings.EventRule{Definition: d, Rule: rule, MissingRecipients: missing})
+		props.Rules = append(props.Rules, settings.EventRule{Definition: d, Rule: rule, MissingRecipients: missing, MissingUsers: missingUserIDs(rule.UserIDs, available), MissingGroups: missingGroupIDs(rule.GroupIDs, groups), MissingRoles: missingUserIDs(rule.RoleIDs, roles), MissingKeys: missingRecipientKeys(rule.RecipientKeys, d.RecipientKeys)})
 	}
+	sort.SliceStable(props.Rules, func(i, j int) bool {
+		if props.Rules[i].Definition.Module != props.Rules[j].Definition.Module {
+			return props.Rules[i].Definition.Module < props.Rules[j].Definition.Module
+		}
+		return props.Rules[i].Definition.Key < props.Rules[j].Definition.Key
+	})
 	component := settings.Index(props)
 	if htmx.IsHxRequest(r) {
 		component = settings.Content(props)
@@ -120,7 +130,7 @@ func (c *NotificationSettingsController) Save(w http.ResponseWriter, r *http.Req
 		http.Error(w, "Invalid form", http.StatusBadRequest)
 		return
 	}
-	rule := notifications.Rule{EventKey: r.FormValue("event_key"), Enabled: r.FormValue("enabled") == "true", UserIDs: []uint{}}
+	rule := notifications.Rule{Level: notification.Level(r.FormValue("level")), RecipientKeys: r.Form["recipient_keys"], EventKey: r.FormValue("event_key"), Enabled: r.FormValue("enabled") == "true", UserIDs: []uint{}}
 	for _, value := range r.Form["user_ids"] {
 		id, err := strconv.ParseUint(value, 10, 32)
 		if err != nil || id == 0 {
@@ -156,7 +166,72 @@ func (c *NotificationSettingsController) Save(w http.ResponseWriter, r *http.Req
 	}
 	c.render(w, r, s, "Saved", 0)
 }
-func (c *NotificationSettingsController) Test(w http.ResponseWriter, r *http.Request, s *services.NotificationRoutingService) {
+func missingUserIDs(ids []uint, available map[uint]bool) []uint {
+	var missing []uint
+	for _, id := range ids {
+		if !available[id] {
+			missing = append(missing, id)
+		}
+	}
+	return missing
+}
+func missingGroupIDs(ids []uuid.UUID, available map[uuid.UUID]bool) []uuid.UUID {
+	var missing []uuid.UUID
+	for _, id := range ids {
+		if !available[id] {
+			missing = append(missing, id)
+		}
+	}
+	return missing
+}
+func missingRecipientKeys(keys []string, definitions []notifications.RecipientDefinition) []string {
+	available := map[string]bool{}
+	for _, d := range definitions {
+		available[d.Key] = true
+	}
+	var missing []string
+	for _, key := range keys {
+		if !available[key] {
+			missing = append(missing, key)
+		}
+	}
+	return missing
+}
+
+func (c *NotificationSettingsController) Queue(w http.ResponseWriter, r *http.Request, dispatch *services.NotificationDispatchService) {
+	if composables.CanUserStrict(r.Context(), permissions.NotificationRulesRead) != nil {
+		RenderForbidden(w, r)
+		return
+	}
+	stats, err := dispatch.Progress(r.Context())
+	if err != nil {
+		http.Error(w, "Unable to load delivery queue", http.StatusInternalServerError)
+		return
+	}
+	jobs, err := dispatch.Jobs(r.Context())
+	if err != nil {
+		http.Error(w, "Unable to load delivery queue", http.StatusInternalServerError)
+		return
+	}
+	templ.Handler(settings.Queue(stats, jobs, composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) == nil)).ServeHTTP(w, r)
+}
+func (c *NotificationSettingsController) Retry(w http.ResponseWriter, r *http.Request, dispatch *services.NotificationDispatchService) {
+	if composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) != nil {
+		RenderForbidden(w, r)
+		return
+	}
+	id, err := uuid.Parse(mux.Vars(r)["id"])
+	if err != nil {
+		http.Error(w, "Invalid dispatch ID", http.StatusBadRequest)
+		return
+	}
+	if err := dispatch.Retry(r.Context(), id); err != nil {
+		http.Error(w, "Unable to retry delivery", http.StatusBadRequest)
+		return
+	}
+	c.Queue(w, r, dispatch)
+}
+func (c *NotificationSettingsController) Test(w http.ResponseWriter, r *http.Request, s *services.NotificationRoutingService, dispatch *services.NotificationDispatchService) {
 	if composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) != nil {
 		RenderForbidden(w, r)
 		return
@@ -166,12 +241,12 @@ func (c *NotificationSettingsController) Test(w http.ResponseWriter, r *http.Req
 		http.Error(w, "Unable to load tenant", http.StatusInternalServerError)
 		return
 	}
-	count, err := s.Publish(r.Context(), notifications.Event{Key: notifications.TestEventKey, ID: uuid.NewString(), TenantID: tenant})
+	count, err := dispatch.Enqueue(r.Context(), notifications.Event{Key: notifications.TestEventKey, ID: uuid.NewString(), TenantID: tenant})
 	if err != nil {
-		http.Error(w, "Unable to send test notification", http.StatusInternalServerError)
+		http.Error(w, "Unable to enqueue test notification", http.StatusInternalServerError)
 		return
 	}
-	key := "TestSent"
+	key := "Queued"
 	if count == 0 {
 		key = "TestSkipped"
 	}

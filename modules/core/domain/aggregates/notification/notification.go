@@ -3,6 +3,7 @@ package notification
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/url"
@@ -15,7 +16,21 @@ import (
 
 var ErrNotFound = errors.New("notification not found")
 
+type Level string
+
+const (
+	LevelInfo    Level = "info"
+	LevelSuccess Level = "success"
+	LevelWarning Level = "warning"
+	LevelError   Level = "error"
+)
+
+func (l Level) Valid() bool {
+	return l == LevelInfo || l == LevelSuccess || l == LevelWarning || l == LevelError
+}
+
 type Notification interface {
+	Level() Level
 	ID() uuid.UUID
 	TenantID() uuid.UUID
 	UserID() uint
@@ -29,6 +44,7 @@ type Notification interface {
 }
 
 type notification struct {
+	level                                       Level
 	id, tenantID                                uuid.UUID
 	userID                                      uint
 	eventKey, title, body, actionURL, dedupeKey string
@@ -37,6 +53,8 @@ type notification struct {
 }
 
 type Option func(*notification)
+
+func WithLevel(v Level) Option { return func(n *notification) { n.level = v } }
 
 func WithID(v uuid.UUID) Option        { return func(n *notification) { n.id = v } }
 func WithTenantID(v uuid.UUID) Option  { return func(n *notification) { n.tenantID = v } }
@@ -55,7 +73,7 @@ func WithReadAt(v *time.Time) Option {
 
 func New(userID uint, title, body string, opts ...Option) (Notification, error) {
 	n := &notification{
-		id: uuid.New(), tenantID: uuid.Nil, userID: userID,
+		level: LevelInfo, id: uuid.New(), tenantID: uuid.Nil, userID: userID,
 		title: strings.TrimSpace(title), body: body,
 		eventKey: "", actionURL: "", dedupeKey: "",
 		createdAt: time.Now().UTC(), readAt: nil,
@@ -76,6 +94,9 @@ func Validate(n Notification) error {
 	if len(n.Title()) > 300 || len(n.Body()) > 10000 || len(n.EventKey()) > 200 || len(n.DedupeKey()) > 300 || len(n.ActionURL()) > 2000 {
 		return errors.New("notification exceeds maximum field length")
 	}
+	if !n.Level().Valid() {
+		return errors.New("invalid notification level")
+	}
 	if n.ActionURL() == "" {
 		return nil
 	}
@@ -90,6 +111,7 @@ func Validate(n Notification) error {
 	}
 	return nil
 }
+func (n *notification) Level() Level         { return n.level }
 func (n *notification) ID() uuid.UUID        { return n.id }
 func (n *notification) TenantID() uuid.UUID  { return n.tenantID }
 func (n *notification) UserID() uint         { return n.userID }
@@ -109,6 +131,7 @@ func (n *notification) ReadAt() *time.Time {
 
 type FindParams struct {
 	Limit, Offset int
+	Cursor        string
 	UnreadOnly    bool
 }
 
@@ -118,6 +141,9 @@ func (p FindParams) Bounded() FindParams {
 	}
 	if p.Limit > 100 {
 		p.Limit = 100
+	}
+	if p.Cursor != "" {
+		p.Offset = 0
 	}
 	if p.Offset < 0 {
 		p.Offset = 0
@@ -132,3 +158,30 @@ type Repository interface {
 	MarkRead(context.Context, uint, uuid.UUID) error
 	MarkAllRead(context.Context, uint) error
 }
+
+func CursorFor(n Notification) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(n.CreatedAt().UTC().Format(time.RFC3339Nano) + "|" + n.ID().String()))
+}
+func ParseCursor(value string) (time.Time, uuid.UUID, error) {
+	if value == "" {
+		return time.Time{}, uuid.Nil, nil
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil {
+		return time.Time{}, uuid.Nil, errors.New("invalid notification cursor")
+	}
+	parts := strings.Split(string(raw), "|")
+	if len(parts) != 2 {
+		return time.Time{}, uuid.Nil, errors.New("invalid notification cursor")
+	}
+	at, err := time.Parse(time.RFC3339Nano, parts[0])
+	if err != nil {
+		return time.Time{}, uuid.Nil, err
+	}
+	id, err := uuid.Parse(parts[1])
+	if err != nil || id == uuid.Nil || at.IsZero() {
+		return time.Time{}, uuid.Nil, errors.New("invalid notification cursor")
+	}
+	return at, id, nil
+}
+func ValidateCursor(value string) error { _, _, err := ParseCursor(value); return err }

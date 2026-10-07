@@ -1509,7 +1509,6 @@
     "Groups": "Grupos",
     "Roles": "Funções",
     "AudienceHint": "Os destinatários são combinados sem duplicatas. Inclui funções dos grupos; a associação é resolvida no envio.",
-
     "UnavailableRecipients": "Alguns destinatários não estão mais disponíveis. Escolha os destinatários e salve para remover as seleções indisponíveis.",
     "Title": "Configurações de notificações",
     "Intro": "Ative eventos e escolha os destinatários. Salve a regra antes de enviar um teste.",
@@ -1524,6 +1523,17 @@
     "PermissionRead": "Ver configurações de notificações",
     "PermissionReadDescription": "Ver eventos e regras de entrega de notificações",
     "PermissionManage": "Gerenciar configurações de notificações",
-    "PermissionManageDescription": "Ativar eventos, escolher destinatários e enviar testes"
+    "PermissionManageDescription": "Ativar eventos, escolher destinatários e enviar testes",
+    "Channel": "Canal de entrega",
+    "Level": "Nível da notificação",
+    "DefaultLevel": "Padrão do evento",
+    "DynamicRecipients": "Destinatários do evento",
+    "Unavailable": "Indisponível; desmarque para remover",
+    "Queued": "Entrega enfileirada para {{.Count}} destinatários.",
+    "Queue": "Fila de entrega",
+    "Pending": "Pendentes",
+    "Retrying": "Tentando novamente",
+    "Completed": "Concluídas",
+    "Retry": "Tentar novamente"
   }
 }

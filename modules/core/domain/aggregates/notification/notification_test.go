@@ -31,3 +31,16 @@ func TestNew_RequiredAndBounds(t *testing.T) {
 	require.Equal(t, 100, p.Limit)
 	require.Zero(t, p.Offset)
 }
+
+func TestNotificationLevelAndCursor(t *testing.T) {
+	n, err := notification.New(1, "Title", "Body", notification.WithLevel(notification.LevelWarning))
+	require.NoError(t, err)
+	require.Equal(t, notification.LevelWarning, n.Level())
+	at, id, err := notification.ParseCursor(notification.CursorFor(n))
+	require.NoError(t, err)
+	require.True(t, at.Equal(n.CreatedAt()))
+	require.Equal(t, n.ID(), id)
+	require.Error(t, notification.ValidateCursor("invalid"))
+	_, err = notification.New(1, "Title", "Body", notification.WithLevel("invalid"))
+	require.Error(t, err)
+}

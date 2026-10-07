@@ -2,7 +2,8 @@ package services
 
 import (
 	"context"
-	"strings"
+	"crypto/sha256"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
@@ -27,26 +28,35 @@ type NotificationRoutingService struct {
 	audience notifications.AudienceRepository
 }
 
-func NewNotificationRoutingService(catalog *notifications.Catalog, rules notifications.RuleRepository, users user.Repository, delivery *NotificationService, audience notifications.AudienceRepository) *NotificationRoutingService {
+func NewNotificationRoutingService(catalog *notifications.Catalog, rules notifications.RuleRepository, users user.Repository, delivery NotificationDelivery, audience notifications.AudienceRepository) *NotificationRoutingService {
 	return &NotificationRoutingService{catalog: catalog, rules: rules, users: users, delivery: delivery, audience: audience}
 }
 func (s *NotificationRoutingService) Catalog() *notifications.Catalog { return s.catalog }
 func (s *NotificationRoutingService) Rule(ctx context.Context, key string) (notifications.Rule, error) {
-	return s.rules.Get(ctx, key)
+	rule, err := s.rules.Get(ctx, key)
+	if err != nil {
+		return rule, err
+	}
+	if definition, ok := s.catalog.Get(key); ok && !rule.Configured && !rule.Enabled && len(definition.DefaultRecipientKeys) > 0 {
+		rule.Enabled = true
+		rule.RecipientKeys = append([]string{}, definition.DefaultRecipientKeys...)
+	}
+	return rule, nil
 }
 func (s *NotificationRoutingService) Recipients(ctx context.Context) ([]user.User, error) {
 	return s.users.GetAll(ctx)
 }
 func (s *NotificationRoutingService) SaveRule(ctx context.Context, rule notifications.Rule) error {
 	const op = "NotificationRoutingService.SaveRule"
-	if _, ok := s.catalog.Get(rule.EventKey); !ok {
+	definition, ok := s.catalog.Get(rule.EventKey)
+	if !ok {
 		return serrors.New(serrors.Invalid, "unknown notification event").WithOp(op)
 	}
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
-	if len(rule.UserIDs)+len(rule.GroupIDs)+len(rule.RoleIDs) > 1000 {
+	if len(rule.UserIDs)+len(rule.GroupIDs)+len(rule.RoleIDs)+len(rule.RecipientKeys) > 1000 {
 		return serrors.New(serrors.Invalid, "too many recipients").WithOp(op)
 	}
 	seen := map[uint]bool{}
@@ -56,10 +66,24 @@ func (s *NotificationRoutingService) SaveRule(ctx context.Context, rule notifica
 		}
 		seen[id] = true
 	}
-	if rule.Enabled && len(rule.UserIDs)+len(rule.GroupIDs)+len(rule.RoleIDs) == 0 {
+	if rule.Enabled && len(rule.UserIDs)+len(rule.GroupIDs)+len(rule.RoleIDs)+len(rule.RecipientKeys) == 0 {
 		return serrors.New(serrors.Invalid, "enabled event requires recipients").WithOp(op)
 	}
+	if rule.Level != "" && !rule.Level.Valid() {
+		return serrors.New(serrors.Invalid, "invalid notification level").WithOp(op)
+	}
+	keys := map[string]bool{}
+	for _, key := range definition.RecipientKeys {
+		keys[key.Key] = true
+	}
+	for _, key := range rule.RecipientKeys {
+		if !keys[key] {
+			return serrors.New(serrors.Invalid, "invalid or duplicate event recipient").WithOp(op)
+		}
+		delete(keys, key)
+	}
 	users, err := s.users.GetByIDs(ctx, rule.UserIDs)
+
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
@@ -77,44 +101,115 @@ func (s *NotificationRoutingService) SaveRule(ctx context.Context, rule notifica
 	return s.rules.Save(ctx, rule)
 }
 func (s *NotificationRoutingService) Publish(ctx context.Context, event notifications.Event) (int, error) {
-	const op = "NotificationRoutingService.Publish"
+	event, err := s.catalog.Normalize(event)
+	if err != nil {
+		return 0, serrors.New(serrors.Invalid, err.Error()).WithOp("NotificationRoutingService.Publish")
+	}
+	rule, ids, err := s.ResolveRecipients(ctx, event)
+	if err != nil {
+		return 0, err
+	}
+	return s.DeliverRecipients(ctx, event, rule, ids)
+}
+func (s *NotificationRoutingService) ResolveRecipients(ctx context.Context, event notifications.Event) (notifications.Rule, []uint, error) {
+	const op = "NotificationRoutingService.ResolveRecipients"
+	rule := notifications.Rule{}
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return 0, serrors.Wrap(op, err)
+		return rule, nil, serrors.Wrap(op, err)
 	}
-	if event.TenantID == uuid.Nil || event.TenantID != tenant || strings.TrimSpace(event.ID) == "" {
-		return 0, serrors.New(serrors.Invalid, "invalid notification event envelope").WithOp(op)
+	event, err = s.catalog.Normalize(event)
+	if err != nil || tenant != event.TenantID {
+		return rule, nil, serrors.New(serrors.Invalid, "invalid notification event envelope").WithOp(op)
 	}
-	definition, ok := s.catalog.Get(event.Key)
-	if !ok {
-		return 0, serrors.New(serrors.Invalid, "unknown notification event").WithOp(op)
+	definition, _ := s.catalog.Get(event.Key)
+	if event.ActorUserID != 0 {
+		actors, err := s.users.GetByIDs(ctx, []uint{event.ActorUserID})
+		if err != nil {
+			return rule, nil, serrors.Wrap(op, err)
+		}
+		if len(actors) != 1 || actors[0].TenantID() != tenant {
+			return rule, nil, serrors.New(serrors.Invalid, "invalid notification actor").WithOp(op)
+		}
 	}
-	rule, err := s.rules.Get(ctx, event.Key)
+	rule, err = s.rules.Get(ctx, event.Key)
 	if err != nil {
-		return 0, serrors.Wrap(op, err)
+		return rule, nil, serrors.Wrap(op, err)
+	}
+	if !rule.Configured && !rule.Enabled && len(definition.DefaultRecipientKeys) > 0 {
+		rule.Enabled = true
+		rule.RecipientKeys = append([]string{}, definition.DefaultRecipientKeys...)
 	}
 	if !rule.Enabled {
-		return 0, nil
+		return rule, nil, nil
 	}
 	ids := append([]uint{}, rule.UserIDs...)
 	if len(rule.GroupIDs)+len(rule.RoleIDs) > 0 {
 		resolved, err := s.audience.Resolve(ctx, rule.GroupIDs, rule.RoleIDs)
 		if err != nil {
-			return 0, serrors.Wrap(op, err)
+			return rule, nil, serrors.Wrap(op, err)
 		}
 		ids = append(ids, resolved...)
 	}
+	for _, key := range rule.RecipientKeys {
+		found := false
+		for _, recipient := range definition.RecipientKeys {
+			if recipient.Key == key {
+				found = true
+				resolved, err := recipient.Resolve(ctx, event)
+				if err != nil {
+					return rule, nil, serrors.Wrap(op, err)
+				}
+				ids = append(ids, resolved...)
+				break
+			}
+		}
+		if !found {
+			return rule, nil, serrors.New(serrors.Invalid, "unknown event recipient").WithOp(op)
+		}
+	}
 	unique := make([]uint, 0, len(ids))
-	selected := map[uint]bool{}
+	seen := map[uint]bool{}
 	for _, id := range ids {
-		if !selected[id] {
-			selected[id] = true
+		if id != 0 && !seen[id] {
+			seen[id] = true
 			unique = append(unique, id)
 		}
 	}
-	users, err := s.users.GetByIDs(ctx, unique)
+	return rule, unique, nil
+}
+func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, event notifications.Event, rule notifications.Rule, ids []uint) (int, error) {
+	const op = "NotificationRoutingService.DeliverRecipients"
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, serrors.Wrap(op, err)
+	}
+	event, err = s.catalog.Normalize(event)
+	if err != nil || tenant != event.TenantID {
+		return 0, serrors.New(serrors.Invalid, "invalid notification event envelope").WithOp(op)
+	}
+	if !rule.Enabled {
+		return 0, nil
+	}
+	definition, _ := s.catalog.Get(event.Key)
+	users, err := s.users.GetByIDs(ctx, ids)
+	if err != nil {
+		return 0, serrors.Wrap(op, err)
+	}
+	level := rule.Level
+	if level == "" {
+		level = definition.DefaultLevel
+	}
+	if level == "" {
+		level = notification.LevelInfo
+	}
+	dedupe := event.DedupeKey
+	if dedupe == "" {
+		dedupe = event.ID
+	}
+	dedupe = event.Key + ":" + dedupe
+	if len(dedupe) > 300 {
+		dedupe = fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(dedupe)))
 	}
 	delivered := 0
 	seen := map[uint]bool{}
@@ -123,11 +218,26 @@ func (s *NotificationRoutingService) Publish(ctx context.Context, event notifica
 			continue
 		}
 		seen[u.ID()] = true
+		if definition.RecipientGuard != nil {
+			allowed, err := definition.RecipientGuard(ctx, event, u)
+			if err != nil {
+				return delivered, serrors.Wrap(op, err)
+			}
+			if !allowed {
+				continue
+			}
+		}
 		content, err := definition.Render(event, string(u.UILanguage()))
 		if err != nil {
 			return delivered, serrors.Wrap(op, err)
 		}
-		n, err := notification.New(u.ID(), content.Title, content.Body, notification.WithTenantID(tenant), notification.WithEventKey(event.Key), notification.WithActionURL(content.ActionURL), notification.WithDedupeKey(event.Key+":"+event.ID))
+		if definition.ActionURL != nil {
+			content.ActionURL, err = definition.ActionURL(event)
+			if err != nil {
+				return delivered, serrors.Wrap(op, err)
+			}
+		}
+		n, err := notification.New(u.ID(), content.Title, content.Body, notification.WithTenantID(tenant), notification.WithEventKey(event.Key), notification.WithActionURL(content.ActionURL), notification.WithLevel(level), notification.WithDedupeKey(dedupe))
 		if err != nil {
 			return delivered, serrors.Wrap(op, err)
 		}

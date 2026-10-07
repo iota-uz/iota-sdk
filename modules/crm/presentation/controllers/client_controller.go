@@ -84,6 +84,9 @@ func (ru *ClientRealtimeUpdates) onClientCreated(event *client.CreatedEvent) {
 	})
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		if !application.CanReceiveTenantUpdates(conn.User(), event.Result.TenantID(), crmPermissions.ClientRead) {
+			return nil
+		}
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			logger.WithError(err).Error("failed to render client created event for websocket")
