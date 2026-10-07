@@ -71,6 +71,10 @@ func noStore(w http.ResponseWriter) {
 
 func (c *controller) get(w http.ResponseWriter, r *http.Request) {
 	noStore(w)
+	// Form navigation needs its same-origin Origin header. The token is only
+	// in the fragment and is removed before submission; cross-origin referrers
+	// remain suppressed.
+	w.Header().Set("Referrer-Policy", "same-origin")
 	if !c.allowed(r) {
 		http.NotFound(w, r)
 		return

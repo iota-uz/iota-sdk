@@ -5,7 +5,7 @@ import "github.com/iota-uz/iota-sdk/pkg/composables"
 templ handoff() {
 	<!DOCTYPE html>
 	<html>
-		<head><meta name="referrer" content="no-referrer"/><title>Agent Sign In</title></head>
+		<head><meta name="referrer" content="same-origin"/><title>Agent Sign In</title></head>
 		<body>
 			<form id="agent-sign-in" method="post" action="/dev/agent-sign-in">
 				@composables.CSRFTokenField()
