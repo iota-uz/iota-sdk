@@ -1,0 +1,22 @@
+package agentsignin
+
+import "github.com/iota-uz/iota-sdk/pkg/composables"
+
+templ handoff() {
+	<!DOCTYPE html>
+	<html><head><meta name="referrer" content="no-referrer"/><title>Agent Sign In</title></head><body>
+		<form id="agent-sign-in" method="post" action="/dev/agent-sign-in">
+			@composables.CSRFTokenField()
+			<input type="hidden" name="Token"/>
+		</form>
+		<script>
+			const token = new URLSearchParams(location.hash.slice(1)).get('token');
+			history.replaceState(null, '', location.pathname);
+			if (token) {
+				const form = document.getElementById('agent-sign-in');
+				form.elements.Token.value = token;
+				form.submit();
+			}
+		</script>
+	</body></html>
+}
