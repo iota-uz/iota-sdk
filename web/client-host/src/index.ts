@@ -1,3 +1,4 @@
+export * from './bichat-config'
 export * from './bootstrap'
 export * from './cache'
 export * from './draft'
