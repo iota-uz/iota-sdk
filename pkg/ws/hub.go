@@ -2,8 +2,10 @@
 package ws
 
 import (
+	"context"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
@@ -17,9 +19,10 @@ type HubOptions struct {
 }
 
 type Connection struct {
-	conn *websocket.Conn
-	hub  *Hub
-	ctx  map[string]any
+	conn    *websocket.Conn
+	writeMu sync.Mutex
+	hub     *Hub
+	ctx     map[string]any
 }
 
 var _ Connectioner = (*Connection)(nil)
@@ -30,6 +33,21 @@ func (c *Connection) Close() error {
 
 // SendMessage sends a text message to the websocket connection
 func (c *Connection) SendMessage(message []byte) error {
+	return c.SendMessageContext(context.Background(), message)
+}
+func (c *Connection) SendMessageContext(ctx context.Context, message []byte) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	if limit, ok := ctx.Deadline(); ok && limit.Before(deadline) {
+		deadline = limit
+	}
+	if err := c.conn.SetWriteDeadline(deadline); err != nil {
+		return err
+	}
 	return c.conn.WriteMessage(websocket.TextMessage, message)
 }
 

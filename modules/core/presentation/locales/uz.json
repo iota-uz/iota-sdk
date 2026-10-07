@@ -1504,7 +1504,6 @@
     "Groups": "Guruhlar",
     "Roles": "Rollar",
     "AudienceHint": "Qabul qiluvchilar takrorlanmaydi. Guruh orqali berilgan rollar ham hisobga olinadi; a’zolik hodisa yuborilganda aniqlanadi.",
-
     "UnavailableRecipients": "Ayrim tanlangan oluvchilar endi mavjud emas. Oluvchilarni tanlang va mavjud bo‘lmaganlarni olib tashlash uchun qoidani saqlang.",
     "Title": "Bildirishnoma sozlamalari",
     "Intro": "Voqealarni yoqing va oluvchilarni tanlang. Sinov yuborishdan oldin qoidani saqlang.",
@@ -1519,6 +1518,17 @@
     "PermissionRead": "Bildirishnoma sozlamalarini ko‘rish",
     "PermissionReadDescription": "Voqealar va yetkazish qoidalarini ko‘rish",
     "PermissionManage": "Bildirishnoma sozlamalarini boshqarish",
-    "PermissionManageDescription": "Voqealarni yoqish, oluvchilarni tanlash va sinov yuborish"
+    "PermissionManageDescription": "Voqealarni yoqish, oluvchilarni tanlash va sinov yuborish",
+    "Channel": "Yetkazish kanali",
+    "Level": "Bildirishnoma darajasi",
+    "DefaultLevel": "Hodisa standarti",
+    "DynamicRecipients": "Hodisa oluvchilari",
+    "Unavailable": "Mavjud emas; olib tashlash uchun belgini yeching",
+    "Queued": "{{.Count}} oluvchi uchun navbatga qo‘yildi.",
+    "Queue": "Yetkazish navbati",
+    "Pending": "Kutilmoqda",
+    "Retrying": "Qayta urinish",
+    "Completed": "Tugallangan",
+    "Retry": "Qayta urinish"
   }
 }

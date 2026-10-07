@@ -213,6 +213,9 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 			cleanupErr = errors.Join(cleanupErr, rt.Stop(stopCtx))
 		}
 		if rt.App != nil {
+			if rt.App.Websocket() != nil {
+				cleanupErr = errors.Join(cleanupErr, rt.App.Websocket().Close())
+			}
 			if binder, ok := rt.App.(application.RuntimeBinder); ok {
 				binder.DetachRuntimeSource()
 			}
