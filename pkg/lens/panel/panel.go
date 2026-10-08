@@ -723,7 +723,7 @@ type Spec struct {
 	// values used for chart geometry. SegmentBar uses it for a focal result
 	// whose allocation segments still sum to a different denominator.
 	HeadlineValue *float64
-	Trend     *TrendSpec
+	Trend         *TrendSpec
 	// Status renders a small tone-colored chip in a stat card's label row.
 	// Only Stat panels (including StatGroup children) render it.
 	Status *StatusSpec
