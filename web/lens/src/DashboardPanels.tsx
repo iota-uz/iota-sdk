@@ -592,7 +592,7 @@ function FreshnessControl() {
         {dashboard.isRecomputing ? <CircleNotch className="lens-icon-spin" /> : <ArrowClockwise />}
         <span>{freshness() ? freshness()!.label : translate('dashboard.recompute', 'Recompute')}</span>
       </button>
-      <span class="lens-sr-only" id={hintID}>{hint()}</span>
+      <span class="lens:sr-only" id={hintID}>{hint()}</span>
     </Show>
   )
 }

@@ -767,7 +767,7 @@ describe('TablePanel column reading', () => {
     expect(footer[1]).toHaveTextContent('111.18M')
     expect(footer[2]?.querySelector('.lens-table-summary-void')).toBeInTheDocument()
     expect(footer[2]).toHaveTextContent('—')
-    expect(screen.getByText('Not summable')).toHaveClass('lens-sr-only')
+    expect(screen.getByText('Not summable')).toHaveClass('lens:sr-only')
   })
 })
 

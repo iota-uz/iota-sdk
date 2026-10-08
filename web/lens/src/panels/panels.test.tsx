@@ -1874,7 +1874,7 @@ describe('cascade stages', () => {
     expect(unknownBar).not.toBeNull()
     expect(unknownBar?.getAttribute('data-no-movement')).toBe('true')
     expect(unknownBar?.querySelector('strong')).toHaveTextContent('—')
-    expect(unknownBar?.querySelector('.lens-sr-only')).toHaveTextContent('Unavailable')
+    expect(unknownBar?.querySelector('[class~="lens:sr-only"]')).toHaveTextContent('Unavailable')
     // Only the one column: the two known totals draw real bars.
     expect(view.container.querySelectorAll('.lens-waterfall-bar[data-unknown="true"]')).toHaveLength(1)
     expect(view.container.querySelector('.lens-waterfall-annotation')).toHaveTextContent('Нет данных')
@@ -1906,7 +1906,7 @@ describe('cascade stages', () => {
     expect(stages[1]?.querySelector('.lens-cascade-stage-label strong')?.textContent).not.toContain('0')
     expect(stages[1]?.querySelector('.lens-cascade-stage-annotation')).toHaveTextContent('Нет данных')
     // An em dash is a glyph; a reader who cannot see it gets the word.
-    expect(stages[1]?.querySelector('.lens-sr-only')).toHaveTextContent('Unavailable')
+    expect(stages[1]?.querySelector('[class~="lens:sr-only"]')).toHaveTextContent('Unavailable')
     // The movement into it is equally unknown, so the connector says so too.
     expect(view.container.querySelector('.lens-cascade-connector strong'))
       .toHaveAttribute('data-direction', 'unknown')
@@ -2044,7 +2044,7 @@ describe('cascade stages', () => {
     // The amount is in the accessibility tree with the bar whether or not the
     // reader has a pointer; only the visible tip waits for one.
     const band = view.container.querySelector('.lens-waterfall-bar-split')
-    expect(band?.querySelector('.lens-sr-only')).toHaveTextContent('above reserve 10')
+    expect(band?.querySelector('[class~="lens:sr-only"]')).toHaveTextContent('above reserve 10')
     expect(document.querySelector('.lens-waterfall-tip')).toBeNull()
 
     const column = band!.closest('.lens-waterfall-column')!

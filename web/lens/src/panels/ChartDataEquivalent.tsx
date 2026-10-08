@@ -86,7 +86,7 @@ export function ChartDataEquivalent(props: ChartDataEquivalentProps) {
                   {props.translate('chart.openMark', 'Open {name}', { name: datum })}
                 </button>
               ) : (
-                <span class="lens-sr-only">{datum}</span>
+                <span class="lens:sr-only">{datum}</span>
               )}
             </div>
           )

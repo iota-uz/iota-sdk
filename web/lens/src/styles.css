@@ -236,7 +236,7 @@
   }
 
   .lens-dashboard {
-    @apply lens:mx-auto lens:w-full lens:min-w-0 lens:max-w-(--breakpoint-2xl);
+    @apply lens:mx-auto lens:w-full lens:min-w-0 lens:max-w-[1536px];
 
     container: lens-dashboard / inline-size;
   }

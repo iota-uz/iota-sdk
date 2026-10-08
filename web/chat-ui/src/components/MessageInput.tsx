@@ -677,7 +677,7 @@ export const MessageInput = ((solidProps5Input: MessageInputProps & {
             if (!e.relatedTarget || !containerRef.current.contains(e.relatedTarget as Node)) {
                 setCommandListDismissed(true);
             }
-        }} placeholder={placeholder()} class="resize-none bg-transparent border-none outline-none px-1 py-2 w-full text-gray-900 dark:text-white placeholder()-gray-400 dark:placeholder()-gray-500 text-sm leading-relaxed" style={{ "max-height": `${MAX_HEIGHT}px` }} rows={1} disabled={solidProps5.disabled} aria-busy={solidProps5.loading} aria-label={solidState6.t('BiChat.Input.MessageInput')}/>
+        }} placeholder={placeholder()} class="resize-none bg-transparent border-none outline-none px-1 py-2 w-full text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm leading-relaxed" style={{ "max-height": `${MAX_HEIGHT}px` }} rows={1} disabled={solidProps5.disabled} aria-busy={solidProps5.loading} aria-label={solidState6.t('BiChat.Input.MessageInput')}/>
               </div>
 
               {/* Reasoning effort selector */}

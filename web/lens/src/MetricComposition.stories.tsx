@@ -346,7 +346,7 @@ function QualityChipSpecimens({ theme }: { theme: 'light' | 'dark' }) {
               <ul class="lens-story-chip-list">
                 {qualitySpecimens.map(({ name, props }) => (
                   <li class="lens-story-chip-row">
-                    <span class="lens-story-chip-key lens-text-muted">{name}</span>
+                    <span class="lens-story-chip-key lens:text-muted">{name}</span>
                     <QualityChip confidence={props.confidence} availability={props.availability} />
                   </li>
                 ))}

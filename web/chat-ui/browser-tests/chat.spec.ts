@@ -21,3 +21,13 @@ test('error can retry from the composer',async({page})=>{
  await expect(page.getByText('fixture unavailable')).toBeVisible();
  await page.getByRole('textbox',{name:'Message',exact:true}).fill('retry');await page.getByRole('button',{name:'Send',exact:true}).click();await expect(page.locator('strong').filter({hasText:'markdown'})).toBeVisible();
 });
+
+// Falsely green if the fixture loads without the consumer stylesheet: verify computed layout and placeholder paint, not class strings.
+test('public chat stylesheet renders the composer', async ({ page }) => {
+ await page.goto('/');
+ const input = page.getByRole('textbox', { name: 'Message', exact: true });
+ await expect(input).toHaveCSS('font-size', '14px');
+ await expect(input.locator('..')).toHaveCSS('display', 'flex');
+ await expect(page.getByRole('button', { name: 'Send', exact: true })).toHaveCSS('border-radius', '8px');
+ await expect.poll(() => input.evaluate(element => getComputedStyle(element, '::placeholder').color)).toBe('rgb(156, 163, 175)');
+});

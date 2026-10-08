@@ -1,7 +1,7 @@
 import {render} from 'solid-js/web';
 import {createSignal,Show} from 'solid-js';
 import {ChatSession,IotaContextProvider,type ChatDataSource,type IotaContext} from '@iota-uz/sdk/chat-ui';
-import '@iota-uz/sdk/chat-ui/styles.css';
+import './fixture.css';
 const stats={aborted:0,stopped:0,attempts:0};Object.assign(window,{chatFixture:stats});
 const makeSession=(id:string)=>({id,title:'Fixture conversation',status:'active' as const,pinned:false,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
 let content='';let mode='success';

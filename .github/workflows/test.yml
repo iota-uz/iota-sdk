@@ -178,6 +178,10 @@ jobs:
         working-directory: web/testing
         run: pnpm test
 
+      - name: Install Chromium for shared chat Playwright version
+        working-directory: web/chat-ui
+        run: pnpm exec playwright install --with-deps chromium
+
       - name: Test shared Solid chat in Chromium
         working-directory: web/chat-ui
         run: pnpm test:browser

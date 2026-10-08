@@ -138,7 +138,7 @@ function Family(props: { kinds: [ChartKind, ChartKind], mode: 'light' | 'dark' }
     <div class="lens-root" data-theme={props.mode} style={{ display: 'grid', 'grid-template-columns': 'repeat(2, minmax(0, 1fr))', gap: '16px' }}>
       {props.kinds.map((kind) => (
         <section class="lens-stat-card">
-          <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">{kind}</h2>
+          <h2 class="lens:m-0 lens:text-md lens:font-semibold lens:text-strong">{kind}</h2>
           <ChartPreview chartInput={input(kind)} />
         </section>
       ))}
@@ -157,11 +157,11 @@ function RadialFamily(props: { mode: 'light' | 'dark' }): JSX.Element {
   return (
     <div class="lens-root" data-theme={props.mode} style={{ display: 'grid', 'grid-template-columns': 'repeat(2, minmax(0, 1fr))', gap: '16px' }}>
       <section class="lens-stat-card">
-        <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Multi-ring partition</h2>
+        <h2 class="lens:m-0 lens:text-md lens:font-semibold lens:text-strong">Multi-ring partition</h2>
         <ChartPreview chartInput={radialInput('partition')} />
       </section>
       <section class="lens-stat-card">
-        <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Radial progress</h2>
+        <h2 class="lens:m-0 lens:text-md lens:font-semibold lens:text-strong">Radial progress</h2>
         <ChartPreview chartInput={radialInput('progress')} />
       </section>
     </div>
@@ -199,11 +199,11 @@ function receivableRingInput(): ChartInput {
 export const RadialMicroSlice = () => (
   <div class="lens-root" data-theme="light" style={{ display: 'grid', 'grid-template-columns': 'repeat(2, minmax(0, 1fr))', gap: '16px' }}>
     <section class="lens-stat-card">
-      <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Sub-1% share, called out</h2>
+      <h2 class="lens:m-0 lens:text-md lens:font-semibold lens:text-strong">Sub-1% share, called out</h2>
       <ChartPreview chartInput={receivableRingInput()} />
     </section>
     <section class="lens-stat-card lens-root" data-theme="dark">
-      <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Dark</h2>
+      <h2 class="lens:m-0 lens:text-md lens:font-semibold lens:text-strong">Dark</h2>
       <ChartPreview chartInput={receivableRingInput()} />
     </section>
   </div>
@@ -254,11 +254,11 @@ export const RadialDark = () => <RadialFamily mode="dark" />
 export const RadialThreeRings = () => (
   <div class="lens-root" data-theme="light" style={{ display: 'grid', 'grid-template-columns': 'repeat(2, minmax(0, 1fr))', gap: '16px' }}>
     <section class="lens-stat-card">
-      <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Three rings, one whole</h2>
+      <h2 class="lens:m-0 lens:text-md lens:font-semibold lens:text-strong">Three rings, one whole</h2>
       <ChartPreview chartInput={threeRingInput()} />
     </section>
     <section class="lens-stat-card lens-root" data-theme="dark">
-      <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Dark</h2>
+      <h2 class="lens:m-0 lens:text-md lens:font-semibold lens:text-strong">Dark</h2>
       <ChartPreview chartInput={threeRingInput()} />
     </section>
   </div>
@@ -266,7 +266,7 @@ export const RadialThreeRings = () => (
 export const RadialNarrow = () => (
   <div class="lens-root" data-theme="light" style={{ width: '420px' }}>
     <section class="lens-stat-card">
-      <h2 class="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Multi-ring on compact cards</h2>
+      <h2 class="lens:m-0 lens:text-md lens:font-semibold lens:text-strong">Multi-ring on compact cards</h2>
       <ChartPreview chartInput={radialInput('partition')} />
     </section>
   </div>
@@ -278,7 +278,7 @@ export const ControlledSelection = () => {
   return (
     <div class="lens-root" data-theme="light">
       <section class="lens-stat-card" style={{ 'max-width': '640px' }}>
-        <p class="lens-m-0 lens-text-md lens-text-muted">Selected NodeKey: {selectedKey() ?? 'none'}</p>
+        <p class="lens:m-0 lens:text-md lens:text-muted">Selected NodeKey: {selectedKey() ?? 'none'}</p>
         <ChartPreview chartInput={chartInput()} onSelect={(key) => setSelectedKey(key)} />
       </section>
     </div>

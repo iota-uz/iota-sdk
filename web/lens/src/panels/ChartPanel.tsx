@@ -1188,7 +1188,7 @@ function ChartLegend(props: {
             </div>
             {long() && (
               <label class="lens-chart-legend-search">
-                <span class="lens-sr-only">{translate('chart.legendSearch', 'Search legend')}</span>
+                <span class="lens:sr-only">{translate('chart.legendSearch', 'Search legend')}</span>
                 <input
                   class="lens-facet-search"
                   onChange={(event) => setSearch(event.currentTarget.value)}

@@ -711,7 +711,7 @@ export function CascadePanel(props: CascadePanelProps) {
                       </span>
                       <strong data-negative={(stage.hasValue && stage.value < 0) || undefined}>
                         {stage.formattedValue}
-                        {!stage.hasValue && <span class="lens-sr-only">{unavailable}</span>}
+                        {!stage.hasValue && <span class="lens:sr-only">{unavailable}</span>}
                       </strong>
                     </div>
                     <div class="lens-cascade-track" aria-hidden="true">

@@ -776,9 +776,15 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
   // caller's document, whose objects are shared with hosts and caches. Plain
   // data is deep-copied; anything non-plain (class instances, functions) is
   // kept by reference, since a store would not merge through it anyway.
+  let navigationState = inferredInitialNavigation(resolvedDoc)
+  const initialControlled = props.controlledNavigation
+  const initialResolved = initialControlled && resolveView(resolvedDoc, initialControlled)
+  const initialNavigation = initialControlled
+    ? initialResolved ? { ...initialResolved, history: initialControlled.history } : initialControlled
+    : navigationState
   const [dashboard, setDashboard] = createStore<DashboardContextValue>({
     document: detachDocument(resolvedDoc),
-    navigation: createNavigationState(),
+    navigation: initialNavigation,
     dismissNotice: () => setDashboard('notice', undefined),
     canRecompute: false,
     isRecomputing: false,
@@ -791,7 +797,6 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
   }))
 
   // Plain navigation state is the source of truth; the store mirrors it.
-  let navigationState = inferredInitialNavigation(resolvedDoc)
   const [navVersion, setNavVersion] = createSignal(0, { equals: false })
   const currentNavigation = createMemo<NavigationState>(() => {
     const controlled = props.controlledNavigation

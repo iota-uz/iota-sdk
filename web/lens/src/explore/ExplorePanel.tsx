@@ -150,7 +150,7 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
   const viewKey = createMemo(() => (
     `${active() ? navigation.path.join('|') : panel.drillRoot ?? panel.id}:${navigation.perspectiveId ?? ''}`
   ))
-  let previousView: string | undefined
+  let previousView = viewKey()
   const [overlay, setOverlay] = createSignal<{
     target: DrillTarget
     anchor: ChartAnchor

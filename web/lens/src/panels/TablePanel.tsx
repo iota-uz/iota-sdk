@@ -487,7 +487,7 @@ function SummaryVoid() {
     <span class="lens-table-summary-void">
       <span aria-hidden="true">—</span>
       {/* TODO(i18n): register `table.notSummable` (en «Not summable», ru «Не суммируется»). */}
-      <span class="lens-sr-only">{translate('table.notSummable', 'Not summable')}</span>
+      <span class="lens:sr-only">{translate('table.notSummable', 'Not summable')}</span>
     </span>
   )
 }
@@ -754,7 +754,7 @@ export function TablePanel(props: TablePanelProps) {
           <div class="lens-table-view">
             {panel.table?.searchable && (
               <label class="lens-table-search">
-                <span class="lens-sr-only">{translate('table.search', 'Search table')}</span>
+                <span class="lens:sr-only">{translate('table.search', 'Search table')}</span>
                 <input
                   aria-label={translate('table.search', 'Search table')}
                   onChange={(event) => setSearch(event.target.value)}
@@ -810,7 +810,7 @@ export function TablePanel(props: TablePanelProps) {
                           </For>
                           {rowLeafAction && (
                             <th class="lens-table-action-heading" scope="col">
-                              <span class="lens-sr-only">{translate('table.actions', 'Actions')}</span>
+                              <span class="lens:sr-only">{translate('table.actions', 'Actions')}</span>
                             </th>
                           )}
                         </>
@@ -838,7 +838,7 @@ export function TablePanel(props: TablePanelProps) {
                             )}
                           </For>
                           <th class="lens-table-action-heading" scope="col">
-                            <span class="lens-sr-only">{translate('table.actions', 'Actions')}</span>
+                            <span class="lens:sr-only">{translate('table.actions', 'Actions')}</span>
                           </th>
                         </>
                       )}
