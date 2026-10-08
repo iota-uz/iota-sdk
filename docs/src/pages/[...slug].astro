@@ -1,0 +1,88 @@
+---
+import DocsShell from "../components/DocsShell.astro";
+import { pages, navigation, breadcrumbs } from "../lib/catalog";
+import * as custom from "../../components";
+import * as builtin from "../lib/builtins";
+import "../../styles/globals.css";
+export function getStaticPaths() {
+  return pages.map((page) => ({
+    params: { slug: page.slug || undefined },
+    props: { page },
+  }));
+}
+const { page } = Astro.props;
+const Content = page.module.default;
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const title =
+  page.module.frontmatter.title ??
+  page.module.getHeadings?.().find((heading: any) => heading.depth === 1)
+    ?.text ??
+  "IOTA SDK";
+const headings = page.module.getHeadings?.() ?? [];
+
+const items = navigation();
+const current = base + "/" + page.slug;
+const breadcrumb = breadcrumbs(items, current, base);
+const flat = (items: any[]): any[] =>
+  items.flatMap((item) =>
+    item.separator || item.menu
+      ? []
+      : [
+          ...(item.href && !item.children.length ? [item] : []),
+          ...flat(item.children),
+        ],
+  );
+const order = flat(items);
+const pageIndex = order.findIndex((item) => base + item.href === current);
+const previous = order[pageIndex - 1];
+const previousPage = previous
+  ? { ...previous, href: base + previous.href }
+  : undefined;
+const next = order[pageIndex + 1];
+const nextPage = next ? { ...next, href: base + next.href } : undefined;
+const updatedDate = new Date().toISOString().slice(0, 10);
+const updatedLabel = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "long",
+  timeZone: "UTC",
+}).format(new Date(updatedDate));
+---
+
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head
+    ><meta charset="utf-8" /><meta
+      name="viewport"
+      content="width=device-width"
+    /><title>{title} – IOTA SDK Docs</title><script is:inline>
+      try {
+        const themeValue =
+          localStorage.getItem("docs-theme") ??
+          localStorage.getItem("theme") ??
+          "system";
+        const dark =
+          themeValue === "dark" ||
+          (themeValue === "system" &&
+            matchMedia("(prefers-color-scheme:dark)").matches);
+        document.documentElement.classList.toggle("dark", dark);
+        document.documentElement.classList.toggle("light", !dark);
+        document.documentElement.style.colorScheme = dark ? "dark" : "light";
+      } catch {}
+    </script></head
+  ><body data-docs-base={base}
+    ><DocsShell
+      items={items}
+      base={base}
+      current={current}
+      breadcrumb={breadcrumb}
+      headings={headings}
+      nextPage={nextPage}
+      previousPage={previousPage}
+      updatedDate={updatedDate}
+      updatedLabel={updatedLabel}
+      sourceCode={page.sourceCode}
+      pageTitle={title}
+      sourcePath={page.sourcePath}
+      ><Content components={{ ...custom, ...builtin }} /></DocsShell
+    ><script src="../lib/client.ts"></script></body
+  >
+</html>

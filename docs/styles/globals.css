@@ -1,4 +1,121 @@
 @import "tailwindcss";
+@import "./vendor/nextra-theme.css";
 
 /* Configure dark mode to use .dark class (nextra-theme-docs pattern) */
 @custom-variant dark (&:where(.dark, .dark *));
+
+[data-docs-branch][hidden],
+#search-results[hidden] {
+  display: none;
+}
+.nav-open .nextra-mobile-nav {
+  transform: translate3d(0, 0, 0);
+}
+#search-results {
+  position: fixed;
+  right: 1.5rem;
+  top: 4rem;
+  z-index: 40;
+  padding: 1rem;
+  background: var(--x-color-nextra-bg);
+  border: 1px solid #8884;
+  border-radius: 0.5rem;
+  max-width: 32rem;
+}
+#search-results a {
+  display: block;
+  padding: 0.5rem;
+}
+.docs-module-menu {
+  position: absolute;
+  top: 3.5rem;
+  right: 20rem;
+  background: var(--x-color-nextra-bg);
+  padding: 0.75rem;
+  border: 1px solid #8884;
+  border-radius: 0.5rem;
+  z-index: 40;
+}
+.docs-module-menu a {
+  display: block;
+  padding: 0.4rem;
+}
+
+:root {
+  --nextra-primary-hue: 212deg;
+  --nextra-primary-saturation: 100%;
+  --nextra-primary-lightness: 45%;
+  --nextra-bg: 250, 250, 250;
+  --nextra-content-width: 90rem;
+}
+.dark {
+  --nextra-primary-hue: 204deg;
+  --nextra-primary-saturation: 100%;
+  --nextra-primary-lightness: 55%;
+  --nextra-bg: 17, 17, 17;
+}
+::selection {
+  background: hsla(
+    var(--nextra-primary-hue),
+    var(--nextra-primary-saturation),
+    var(--nextra-primary-lightness),
+    0.3
+  );
+}
+html {
+  background: rgb(var(--nextra-bg));
+}
+
+.sidebar-collapsed .nextra-sidebar {
+  width: 4rem;
+  min-width: 4rem;
+}
+.sidebar-collapsed #docs-nav > div:first-child,
+.sidebar-collapsed .nextra-sidebar-footer > button:not(#sidebar-collapse) {
+  display: none;
+}
+.sidebar-collapsed #sidebar-collapse svg {
+  transform: rotate(180deg);
+}
+.docs-module-menu[hidden] {
+  display: none;
+}
+
+main pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+pre span {
+  color: var(--shiki-light);
+  background-color: var(--shiki-light-bg);
+}
+.dark pre span {
+  color: var(--shiki-dark);
+  background-color: var(--shiki-dark-bg);
+}
+
+[data-doc-tab-panel] > h3[style^="visibility:"] + * {
+  margin-top: 0;
+}
+
+.docs-choice-menu {
+  position: absolute;
+  list-style: none;
+  margin: 0;
+}
+.docs-choice-menu[hidden] {
+  display: none;
+}
+.docs-choice-menu [role="option"]:focus {
+  outline: none;
+}
+
+.nextra-toc a {
+  hyphens: manual;
+}
+
+/* Match the legacy floating menu scroll container and its SVG compositing. */
+.docs-choice-menu {
+  overflow: auto;
+}
