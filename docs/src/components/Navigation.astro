@@ -1,6 +1,125 @@
 ---
-import type { NavItem } from '../lib/catalog';
-const {items,base}=Astro.props as {items:NavItem[];base:string};
-const href=(value:string)=>/^(https?:|#|mailto:)/.test(value)||value===base||value.startsWith(base+'/')?value:base+value;
+import type { NavItem } from "../lib/catalog";
+const {
+  items,
+  base,
+  current,
+  nested = false,
+} = Astro.props as {
+  items: NavItem[];
+  base: string;
+  current: string;
+  nested?: boolean;
+};
+const href = (value: string) =>
+  /^(https?:|#|mailto:)/.test(value) ||
+  value === base ||
+  value.startsWith(base + "/")
+    ? value
+    : base + value;
+const active =
+  "x:focus-visible:nextra-focus x:flex x:rounded x:px-2 x:py-1.5 x:text-sm x:transition-colors x:[word-break:break-word] x:cursor-pointer x:contrast-more:border x:bg-primary-100 x:font-semibold x:text-primary-800 x:dark:bg-primary-400/10 x:dark:text-primary-600 x:contrast-more:border-primary-500!";
+const inactive =
+  "x:focus-visible:nextra-focus x:flex x:rounded x:px-2 x:py-1.5 x:text-sm x:transition-colors x:[word-break:break-word] x:cursor-pointer x:contrast-more:border x:text-gray-600 x:hover:bg-gray-100 x:hover:text-gray-900 x:dark:text-neutral-400 x:dark:hover:bg-primary-100/5 x:dark:hover:text-gray-50 x:contrast-more:text-gray-900 x:contrast-more:dark:text-gray-50 x:contrast-more:border-transparent x:contrast-more:hover:border-gray-900 x:contrast-more:dark:hover:border-gray-50";
+const button =
+  "x:transition x:cursor-pointer x:items-center x:justify-between x:gap-2 x:text-start x:w-full x:flex x:rounded x:px-2 x:py-1.5 x:text-sm x:transition-colors x:[word-break:break-word] x:cursor-pointer x:contrast-more:border x:text-gray-600 x:hover:bg-gray-100 x:hover:text-gray-900 x:dark:text-neutral-400 x:dark:hover:bg-primary-100/5 x:dark:hover:text-gray-50 x:contrast-more:text-gray-900 x:contrast-more:dark:text-gray-50 x:contrast-more:border-transparent x:contrast-more:hover:border-gray-900 x:contrast-more:dark:hover:border-gray-50";
 ---
-<ul>{items.map(item=><li>{item.children.length>0?<details open><summary>{item.href?<a href={href(item.href)}>{item.title}</a>:item.title}</summary><Astro.self items={item.children} base={base}/></details>:<a href={href(item.href!)}>{item.title}</a>}</li>)}</ul>
+
+<ul
+  class={nested
+    ? "x:grid x:gap-1 x:relative x:before:absolute x:before:inset-y-1 x:before:w-px x:before:bg-gray-200 x:dark:before:bg-neutral-800 x:ps-3 x:before:start-0 x:pt-1 x:ms-3"
+    : "x:grid x:gap-1"}
+>
+  {
+    items
+      .flatMap((item) => (item.page ? (current.startsWith(base+item.route)?item.children:[]) : item.menu ? [] : [item]))
+      .map((item) => (
+        <li
+          class={
+            item.separator
+              ? "[word-break:break-word] x:not-first:mt-5 x:mb-2 x:px-2 x:py-1.5 x:text-sm x:font-semibold x:text-gray-900 x:dark:text-gray-100"
+              : item.href &&
+                  href(item.href).replace(/\/$/, "") ===
+                    current.replace(/\/$/, "")
+                ? "active"
+                : ""
+          }
+        >
+          {item.separator ? (
+            <>{item.title}</>
+          ) : item.children.length > 0 ? (
+            <>
+              <button
+                type="button"
+                data-docs-toggle
+                class={
+                  item.href &&
+                  href(item.href).replace(/\/$/, "") ===
+                    current.replace(/\/$/, "")
+                    ? "x:transition x:cursor-pointer x:items-center x:justify-between x:gap-2 x:text-start x:w-full " +
+                      active
+                    : button
+                }
+                aria-expanded={item.children.some(
+                  (child) => child.href && current.startsWith(href(child.href)),
+                )}
+              >
+                {item.title}
+                <svg
+                  class={
+                    "x:shrink-0 x:rounded-sm x:p-0.5 x:hover:bg-gray-800/5 x:dark:hover:bg-gray-100/5 x:motion-reduce:transition-none x:origin-center x:transition-all x:rtl:-rotate-180 " +
+                    (item.children.some(
+                      (child) =>
+                        child.href && current.startsWith(href(child.href)),
+                    )
+                      ? "x:ltr:rotate-90 x:rtl:-rotate-270"
+                      : "")
+                  }
+                  fill="none"
+                  height="18"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M9 5l7 7-7 7"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+              <div
+                data-docs-branch
+                hidden={
+                  !item.children.some(
+                    (child) =>
+                      child.href && current.startsWith(href(child.href)),
+                  )
+                }
+              >
+                <Astro.self
+                  items={item.children}
+                  base={base}
+                  current={current}
+                  nested
+                />
+              </div>
+            </>
+          ) : (
+            <a
+              class={
+                item.href &&
+                href(item.href).replace(/\/$/, "") ===
+                  current.replace(/\/$/, "")
+                  ? active
+                  : inactive
+              }
+              href={href(item.href!)}
+            >
+              {item.title}
+            </a>
+          )}
+        </li>
+      ))
+  }
+</ul>
