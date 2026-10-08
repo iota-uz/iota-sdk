@@ -4,7 +4,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
-	lensreact "github.com/iota-uz/iota-sdk/pkg/lens/render/react"
+	lenssolid "github.com/iota-uz/iota-sdk/pkg/lens/render/solid"
 )
 
 type IndexPageProps struct {
@@ -18,11 +18,11 @@ templ DashboardContent(props *IndexPageProps) {
 	<div class="m-6">
 		if props.Available {
 			{{ pageCtx := composables.UsePageCtx(ctx) }}
-			@lensreact.LensDashboard(
+			@lenssolid.LensDashboard(
 				props.DocumentURL,
-				lensreact.WithLocale(pageCtx.GetLocale().String()),
-				lensreact.WithCSRF(props.CSRF),
-				lensreact.WithSkeleton(props.Dashboard),
+				lenssolid.WithLocale(pageCtx.GetLocale().String()),
+				lenssolid.WithCSRF(props.CSRF),
+				lenssolid.WithSkeleton(props.Dashboard),
 			)
 		} else {
 			<div class="p-8 text-center">

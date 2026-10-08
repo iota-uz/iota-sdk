@@ -1,5 +1,5 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { ClientHostProvider } from '@iota-uz/sdk/client-host'
+import type { JSX } from 'solid-js'
+import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Action, DashboardDocument } from '../contract'
 import { LensDashboard } from '../LensDashboard'
@@ -28,16 +28,10 @@ const drawerAction: Action = {
   kind: 'open_drawer', method: 'GET', urlTemplate: '/drill/loss/lens/document?token=signed', params: [], payload: {},
 }
 
-function renderWithClientHost(children: React.ReactNode) {
+function renderWithClientHost(children: () => JSX.Element) {
   const background = globalThis.document.createElement('main')
-  const portalOwner = globalThis.document.createElement('div')
-  globalThis.document.body.append(background, portalOwner)
-  return render(
-    <ClientHostProvider background={background} portalOwner={portalOwner}>
-      {children}
-    </ClientHostProvider>,
-    { container: background },
-  )
+  globalThis.document.body.append(background)
+  return render(() => <>{children()}</>, { container: background })
 }
 
 // A drawer-hosted document carries its own identity block and an empty meta
@@ -73,7 +67,7 @@ describe('Lens drawer host', () => {
       if (url === '/lens/drawer') return Promise.resolve(new Response(JSON.stringify({ url: 'http://localhost:3000/drill/loss/lens/document?ticket=short' }), { status: 200 }))
       return Promise.resolve(new Response(JSON.stringify(statDocument('Resolved detail')), { status: 200 }))
     })
-    render(<LensDashboard initialDocument={initial} fetcher={fetcher} />)
+    render(() =><LensDashboard initialDocument={initial} fetcher={fetcher} />)
 
     fireEvent.click(screen.getByRole('link', { name: 'Open Profitability metric' }))
     expect(await screen.findByRole('heading', { name: 'Resolved detail' })).toBeInTheDocument()
@@ -86,7 +80,7 @@ describe('Lens drawer host', () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(drawerDocument), {
       status: 200, headers: { 'Content-Type': 'application/json' },
     }))
-    render(<LensDashboard initialDocument={statDocument('Profitability', drawerAction)} fetcher={fetcher} />)
+    render(() =><LensDashboard initialDocument={statDocument('Profitability', drawerAction)} fetcher={fetcher} />)
     const opener = screen.getByRole('link', { name: 'Open Profitability metric' })
 
     opener.focus()
@@ -99,7 +93,7 @@ describe('Lens drawer host', () => {
     expect(await screen.findByRole('heading', { name: 'Loss ratio detail' })).toBeInTheDocument()
     expect(globalThis.document.documentElement.style.overflow).toBe('hidden')
 
-    act(() => window.history.back())
+    window.history.back()
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(opener).toHaveFocus())
     expect(opener.isConnected).toBe(true)
@@ -121,14 +115,14 @@ describe('Lens drawer host', () => {
       )
     })
     const historyGo = vi.spyOn(window.history, 'go').mockImplementation(() => undefined)
-    render(<LensDashboard initialDocument={statDocument('Dashboard', drawerAction)} fetcher={fetcher} />)
+    render(() =><LensDashboard initialDocument={statDocument('Dashboard', drawerAction)} fetcher={fetcher} />)
     fireEvent.click(screen.getByRole('link', { name: 'Open Dashboard metric' }))
 
     const dialog = await screen.findByRole('dialog')
     const close = screen.getByRole('button', { name: 'Close details' })
     expect(dialog).toContainElement(globalThis.document.activeElement as HTMLElement)
     fireEvent.click(await screen.findByRole('link', { name: 'Open Result waterfall metric' }))
-    expect(await screen.findByRole('heading', { name: 'Expenses focus' })).toBeInTheDocument()
+    await screen.findByRole('heading', { name: 'Expenses focus' })
     expect(new URL(window.location.href).searchParams.get('drawer')).toContain('/drill/expenses/lens/document')
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
     close.focus()
@@ -142,14 +136,14 @@ describe('Lens drawer host', () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(drawerHostedDocument()), {
       status: 200, headers: { 'Content-Type': 'application/json' },
     }))
-    render(<LensDashboard initialDocument={statDocument('Profitability', drawerAction)} fetcher={fetcher} />)
+    render(() =><LensDashboard initialDocument={statDocument('Profitability', drawerAction)} fetcher={fetcher} />)
     fireEvent.click(screen.getByRole('link', { name: 'Open Profitability metric' }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Drill details' })
     // Eyebrow = metric, title = scope, caption = period/note — the drawer's own
     // top-bar identity block, not the generic 'Detail view' fallback.
-    expect(screen.getByText('Cash result')).toBeInTheDocument()
-    expect(screen.getByText('ОСАГО ОБ-10-1')).toBeInTheDocument()
+    expect(await screen.findByText('Cash result')).toBeInTheDocument()
+    expect(await screen.findByText('ОСАГО ОБ-10-1')).toBeInTheDocument()
     expect(screen.getByText(/Период/)).toBeInTheDocument()
     // An empty document title means the body renders no dashboard heading, so the
     // scope is stated exactly once (in the drawer chrome).
@@ -159,9 +153,9 @@ describe('Lens drawer host', () => {
   it('closes on a mousedown directly on the backdrop but not inside the dialog', () => {
     const onClose = vi.fn()
     renderWithClientHost(
-      <LensDrawer closeLabel="Close details" eyebrow="Drill" label="Drill details" onClose={onClose}>
+      () => (<LensDrawer closeLabel="Close details" eyebrow="Drill" label="Drill details" onClose={onClose}>
         <p>Body content</p>
-      </LensDrawer>,
+      </LensDrawer>),
     )
     const dialog = screen.getByRole('dialog', { name: 'Drill details' })
     const backdrop = dialog.querySelector<HTMLElement>('.lens-drawer-backdrop')!
@@ -179,7 +173,7 @@ describe('Lens drawer host', () => {
   it('rejects a cross-origin drawer document', () => {
     const action: Action = { ...drawerAction, urlTemplate: 'https://example.test/lens/document' }
     const fetcher = vi.fn<typeof fetch>()
-    render(<LensDashboard initialDocument={statDocument('Dashboard', action)} fetcher={fetcher} />)
+    render(() =><LensDashboard initialDocument={statDocument('Dashboard', action)} fetcher={fetcher} />)
 
     expect(screen.queryByRole('link', { name: 'Open Dashboard metric' })).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

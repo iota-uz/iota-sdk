@@ -1,5 +1,4 @@
-import type { Story } from '@ladle/react'
-import { useEffect, useRef } from 'react'
+import { onCleanup, onMount, type JSX } from 'solid-js'
 import type { DashboardDocument, Frame, Panel } from './contract'
 import { DashboardPanels } from './DashboardPanels'
 import {
@@ -125,17 +124,17 @@ function storyDocument(panels: Panel[], frames: Record<string, Frame>, layout: D
   }
 }
 
-function Runtime({ children, doc }: { children: React.ReactNode; doc: DashboardDocument }) {
+function Runtime(props: { children: () => JSX.Element; doc: DashboardDocument }) {
   return (
-    <div className="lens-root">
-      <DocumentProvider initialDocument={doc}>
-        <DashboardRuntimeProvider locale="ru">{children}</DashboardRuntimeProvider>
+    <div class="lens-root">
+      <DocumentProvider initialDocument={props.doc}>
+        <DashboardRuntimeProvider locale="ru">{props.children}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
 }
 
-export const MetricGroup: Story = () => {
+export const MetricGroup = () => {
   const contextualMetrics = metrics.map(({ panel, value }, index) => ({
     panel: {
       ...panel,
@@ -168,7 +167,7 @@ export const MetricGroup: Story = () => {
       }],
     },
   )
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 
 const responsiveMetrics = metrics.map(({ panel, value }, index) => ({
@@ -182,7 +181,7 @@ const responsiveMetrics = metrics.map(({ panel, value }, index) => ({
   value,
 }))
 
-export const MetricGroupResponsive: Story = () => {
+export const MetricGroupResponsive = () => {
   const frames = Object.fromEntries(responsiveMetrics.map(({ panel, value }) => [`${panel.id}:frame`, statFrame(panel.title, value)]))
   const doc = storyDocument(
     responsiveMetrics.map(({ panel }) => panel),
@@ -198,7 +197,7 @@ export const MetricGroupResponsive: Story = () => {
       }],
     },
   )
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 MetricGroupResponsive.storyName = 'Metric group responsive'
 
@@ -215,7 +214,7 @@ const sparkMetrics: Array<{ panel: Panel; value: number }> = [
   { panel: metrics[3]!.panel, value: 92.4 },
 ]
 
-export const MetricGroupSparkline: Story = () => {
+export const MetricGroupSparkline = () => {
   const frames = Object.fromEntries(sparkMetrics.map(({ panel, value }) => [`${panel.id}:frame`, statFrame(panel.title, value)]))
   const doc = storyDocument(
     sparkMetrics.map(({ panel }) => panel),
@@ -230,7 +229,7 @@ export const MetricGroupSparkline: Story = () => {
       }],
     },
   )
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 MetricGroupSparkline.storyName = 'Metric group sparkline'
 
@@ -263,7 +262,7 @@ const loadingMetrics: Panel[] = metrics.map(({ panel }, index) => ({
 /** A request that never settles: the panels stay in flight for the capture. */
 const neverSettles: typeof fetch = () => new Promise<Response>(() => undefined)
 
-export const MetricGroupLoading: Story = () => {
+export const MetricGroupLoading = () => {
   const doc: DashboardDocument = {
     ...storyDocument(loadingMetrics, {}, {
       rows: [{
@@ -279,9 +278,9 @@ export const MetricGroupLoading: Story = () => {
     endpoints: { panel: '/lens/panel' },
   }
   return (
-    <div className="lens-root">
+    <div class="lens-root">
       <DocumentProvider fetcher={neverSettles} initialDocument={doc}>
-        <DashboardRuntimeProvider fetcher={neverSettles} locale="ru"><DashboardPanels /></DashboardRuntimeProvider>
+        <DashboardRuntimeProvider fetcher={neverSettles} locale="ru">{() => <DashboardPanels />}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
@@ -326,7 +325,7 @@ const notedMetrics: Array<{ panel: Panel; value: number }> = [
   { panel: { ...metrics[2]!.panel, caption: 'Страховая сумма по действующим полисам' }, value: 44.8 },
 ]
 
-export const MetricGroupInfo: Story = () => {
+export const MetricGroupInfo = () => {
   const frames = Object.fromEntries(notedMetrics.map(({ panel, value }) => [`${panel.id}:frame`, statFrame(panel.title, value)]))
   const doc = storyDocument(
     notedMetrics.map(({ panel }) => panel),
@@ -342,24 +341,27 @@ export const MetricGroupInfo: Story = () => {
   )
   return (
     <Runtime doc={doc}>
-      <OpenFirstInfoTip><DashboardPanels /></OpenFirstInfoTip>
+      {() => <OpenFirstInfoTip><DashboardPanels /></OpenFirstInfoTip>}
     </Runtime>
   )
 }
 MetricGroupInfo.storyName = 'Metric group info'
 
-function OpenFirstInfoTip({ children }: { children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => runWhenReady(() => {
-    const button = ref.current?.querySelector<HTMLElement>('.lens-info-tip-button-inline')
-    if (!button) return false
-    button.click()
-    return true
-  }), [])
-  return <div ref={ref}>{children}</div>
+function OpenFirstInfoTip(props: { children: JSX.Element }) {
+  let ref: HTMLDivElement | undefined
+  onMount(() => {
+    const cancel = runWhenReady(() => {
+      const button = ref?.querySelector<HTMLElement>('.lens-info-tip-button-inline')
+      if (!button) return false
+      button.click()
+      return true
+    })
+    onCleanup(cancel)
+  })
+  return <div ref={ref}>{props.children}</div>
 }
 
-export const TabGroup: Story = () => {
+export const TabGroup = () => {
   const doc = storyDocument(
     [coveragePanel, underwritingPanel, groupsPanel],
     { 'payouts:frame': coverageFrame, 'groups:frame': groupsFrame },
@@ -389,7 +391,7 @@ export const TabGroup: Story = () => {
       ],
     },
   }]
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 
 const logarithmicProductsPanel: Panel = {
@@ -416,19 +418,19 @@ const logarithmicProductsFrame: Frame = {
   ],
 }
 
-export const LogarithmicHorizontalBar: Story = () => {
+export const LogarithmicHorizontalBar = () => {
   const doc = storyDocument([logarithmicProductsPanel], { 'log-products:frame': logarithmicProductsFrame }, {
     rows: [{ heading: 'ПРОДУКТОВЫЙ ПОРТФЕЛЬ', panels: [{ panelId: 'log-products', span: 12 }] }],
   })
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 LogarithmicHorizontalBar.storyName = 'Logarithmic horizontal bar'
 
-export const CoverageComposite: Story = () => {
+export const CoverageComposite = () => {
   const doc = storyDocument([coveragePanel], { 'payouts:frame': coverageFrame }, {
     rows: [{ panels: [{ panelId: 'payouts', span: 12 }] }],
   })
-  return <Runtime doc={doc}><CoveragePanel panel={coveragePanel} /></Runtime>
+  return <Runtime doc={doc}>{() => <CoveragePanel panel={coveragePanel} />}</Runtime>
 }
 
 /**
@@ -438,18 +440,18 @@ export const CoverageComposite: Story = () => {
  * at all: this variant is the only story that exercises the track, its hover
  * emphasis, and the quieting of the segments the pointer is not on.
  */
-export const CoverageSplit: Story = () => {
+export const CoverageSplit = () => {
   const doc = storyDocument([coverageSplitPanel], { 'payouts-split:frame': coverageSplitFrame }, {
     rows: [{ panels: [{ panelId: 'payouts-split', span: 12 }] }],
   })
-  return <Runtime doc={doc}><CoveragePanel panel={coverageSplitPanel} /></Runtime>
+  return <Runtime doc={doc}>{() => <CoveragePanel panel={coverageSplitPanel} />}</Runtime>
 }
 
-export const CompactTableCells: Story = () => {
+export const CompactTableCells = () => {
   const doc = storyDocument([groupsPanel], { 'groups:frame': groupsFrame }, {
     rows: [{ panels: [{ panelId: 'groups', span: 12 }] }],
   })
-  return <Runtime doc={doc}><TablePanel panel={groupsPanel} /></Runtime>
+  return <Runtime doc={doc}>{() => <TablePanel panel={groupsPanel} />}</Runtime>
 }
 
 const premiumPanel: Panel = {
@@ -470,23 +472,23 @@ const premiumFrame: Frame = {
   ],
 }
 
-export const PieWithLegendBelow: Story = () => {
+export const PieWithLegendBelow = () => {
   const doc = storyDocument([premiumPanel], { 'premium:frame': premiumFrame }, {
     rows: [{ heading: 'ПРЕМИИ', panels: [{ panelId: 'premium', span: 6 }] }],
   })
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 PieWithLegendBelow.storyName = 'Pie with legend right - light'
 
 /** The same right-hand legend layout in the dark theme. */
-export const PieWithLegendBelowDark: Story = () => {
+export const PieWithLegendBelowDark = () => {
   const doc = storyDocument([premiumPanel], { 'premium:frame': premiumFrame }, {
     rows: [{ heading: 'ПРЕМИИ', panels: [{ panelId: 'premium', span: 6 }] }],
   })
   return (
-    <div className="lens-root" data-theme="dark">
+    <div class="lens-root" data-theme="dark">
       <DocumentProvider initialDocument={doc}>
-        <DashboardRuntimeProvider locale="ru"><DashboardPanels /></DashboardRuntimeProvider>
+        <DashboardRuntimeProvider locale="ru">{() => <DashboardPanels />}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
@@ -512,11 +514,11 @@ const premiumTallFrame: Frame = {
   ],
 }
 
-export const PieWithTallLegend: Story = () => {
+export const PieWithTallLegend = () => {
   const doc = storyDocument([premiumPanel], { 'premium:frame': premiumTallFrame }, {
     rows: [{ heading: 'ПРЕМИИ', panels: [{ panelId: 'premium', span: 6 }] }],
   })
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 PieWithTallLegend.storyName = 'Pie with tall legend'
 
@@ -545,11 +547,11 @@ const trendFrame: Frame = {
   ],
 }
 
-export const LineWithSeriesLegend: Story = () => {
+export const LineWithSeriesLegend = () => {
   const doc = storyDocument([trendPanel], { 'trend:frame': trendFrame }, {
     rows: [{ heading: 'ТЕНДЕНЦИИ', panels: [{ panelId: 'trend', span: 12 }] }],
   })
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 LineWithSeriesLegend.storyName = 'Line with series legend'
 
@@ -586,11 +588,11 @@ const compositionFrame: Frame = {
   ],
 }
 
-export const StackedComposition: Story = () => {
+export const StackedComposition = () => {
   const doc = storyDocument([compositionPanel], { 'composition:frame': compositionFrame }, {
     rows: [{ heading: 'СОСТАВ ПРЕМИИ', panels: [{ panelId: 'composition', span: 12 }] }],
   })
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 StackedComposition.storyName = 'Stacked composition with a line'
 
@@ -602,14 +604,14 @@ const skeletonRows = [
 
 function SkeletonStory({ theme }: { theme: 'light' | 'dark' }) {
   return (
-    <div className="lens-root" data-theme={theme}>
+    <div class="lens-root" data-theme={theme}>
       <DashboardSkeleton rows={skeletonRows} />
     </div>
   )
 }
 
-export const DashboardLoadingSkeletonLight: Story = () => <SkeletonStory theme="light" />
-export const DashboardLoadingSkeletonDark: Story = () => <SkeletonStory theme="dark" />
+export const DashboardLoadingSkeletonLight = () => <SkeletonStory theme="light" />
+export const DashboardLoadingSkeletonDark = () => <SkeletonStory theme="dark" />
 
 function PanelSkeletonStory({ theme }: { theme: 'light' | 'dark' }) {
   const shapes: Array<{ title: string; kind: 'pie' | 'coverage' | 'table' }> = [
@@ -618,13 +620,13 @@ function PanelSkeletonStory({ theme }: { theme: 'light' | 'dark' }) {
     { title: 'ГРУППЫ А/Б/В', kind: 'table' },
   ]
   return (
-    <div className="lens-root" data-theme={theme}>
-      <div className="lens-panel-grid">
+    <div class="lens-root" data-theme={theme}>
+      <div class="lens-panel-grid">
         {shapes.map(({ title, kind }) => (
-          <div className="lens-grid-item" key={kind} style={{ '--lens-panel-span': 4 } as React.CSSProperties}>
-            <section aria-busy="true" className="lens-panel">
-              <header className="lens-panel-header"><h3 className="lens-panel-title">{title}</h3></header>
-              <div className="lens-panel-body"><PanelSkeletonBody kind={kind} /></div>
+          <div class="lens-grid-item" style={{ '--lens-panel-span': 4 } as JSX.CSSProperties}>
+            <section aria-busy="true" class="lens-panel">
+              <header class="lens-panel-header"><h3 class="lens-panel-title">{title}</h3></header>
+              <div class="lens-panel-body"><PanelSkeletonBody kind={kind} /></div>
             </section>
           </div>
         ))}
@@ -633,8 +635,8 @@ function PanelSkeletonStory({ theme }: { theme: 'light' | 'dark' }) {
   )
 }
 
-export const PanelSkeletonsLight: Story = () => <PanelSkeletonStory theme="light" />
-export const PanelSkeletonsDark: Story = () => <PanelSkeletonStory theme="dark" />
+export const PanelSkeletonsLight = () => <PanelSkeletonStory theme="light" />
+export const PanelSkeletonsDark = () => <PanelSkeletonStory theme="dark" />
 
 const drillPillPanel: Panel = {
   ...groupsPanel,
@@ -652,11 +654,11 @@ const drillPillPanel: Panel = {
   ],
 }
 
-export const DrillPillAffordances: Story = () => {
+export const DrillPillAffordances = () => {
   const doc = storyDocument([drillPillPanel], { 'groups:frame': groupsFrame }, {
     rows: [{ panels: [{ panelId: 'drill-pills', span: 12 }] }],
   })
-  return <Runtime doc={doc}><TablePanel panel={drillPillPanel} /></Runtime>
+  return <Runtime doc={doc}>{() => <TablePanel panel={drillPillPanel} />}</Runtime>
 }
 
 function runWhenReady(action: () => boolean): () => void {
@@ -673,13 +675,16 @@ function runWhenReady(action: () => boolean): () => void {
   return () => { cancelled = true }
 }
 
-function ExpandOnMount({ label }: { label: string }) {
-  useEffect(() => runWhenReady(() => {
-    const button = window.document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
-    if (!button) return false
-    button.click()
-    return true
-  }), [label])
+function ExpandOnMount(props: { label: string }) {
+  onMount(() => {
+    const cancel = runWhenReady(() => {
+      const button = window.document.querySelector<HTMLButtonElement>(`button[aria-label="${props.label}"]`)
+      if (!button) return false
+      button.click()
+      return true
+    })
+    onCleanup(cancel)
+  })
   return null
 }
 
@@ -693,25 +698,29 @@ function ExpandedStory({ theme }: { theme: 'light' | 'dark' }) {
     }],
   })
   return (
-    <div className="lens-root" data-theme={theme}>
+    <div class="lens-root" data-theme={theme}>
       <DocumentProvider initialDocument={doc}>
         <DashboardRuntimeProvider locale="ru">
-          <DashboardPanels />
-          <ExpandOnMount label="Expand panel" />
+          {() => (
+            <>
+              <DashboardPanels />
+              <ExpandOnMount label="Expand panel" />
+            </>
+          )}
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
 }
 
-export const ExpandedPanelLight: Story = () => <ExpandedStory theme="light" />
-export const ExpandedPanelDark: Story = () => <ExpandedStory theme="dark" />
+export const ExpandedPanelLight = () => <ExpandedStory theme="light" />
+export const ExpandedPanelDark = () => <ExpandedStory theme="dark" />
 
 /**
  * One place to see every glyph the runtime draws, at the size it is used, so a
  * VR diff catches any accidental path or weight drift.
  */
-const iconSet: Array<{ name: string; size: number; Glyph: (props: { size?: number }) => React.ReactElement }> = [
+const iconSet: Array<{ name: string; size: number; Glyph: (props: { size?: number }) => JSX.Element }> = [
   { name: 'ArrowsOut', size: 14, Glyph: ArrowsOut },
   { name: 'ArrowsIn', size: 14, Glyph: ArrowsIn },
   { name: 'DownloadSimple', size: 14, Glyph: DownloadSimple },
@@ -727,18 +736,18 @@ const iconSet: Array<{ name: string; size: number; Glyph: (props: { size?: numbe
 
 function IconSetStory({ theme }: { theme: 'light' | 'dark' }) {
   return (
-    <div className="lens-root" data-theme={theme}>
-      <div className="lens-panel-grid">
-        <div className="lens-grid-item" style={{ '--lens-panel-span': 12 } as React.CSSProperties}>
-          <section className="lens-panel">
-            <header className="lens-panel-header"><h3 className="lens-panel-title">ГЛИФЫ</h3></header>
-            <div className="lens-panel-body">
-              <ul className="lens-icon-specimens">
+    <div class="lens-root" data-theme={theme}>
+      <div class="lens-panel-grid">
+        <div class="lens-grid-item" style={{ '--lens-panel-span': 12 } as JSX.CSSProperties}>
+          <section class="lens-panel">
+            <header class="lens-panel-header"><h3 class="lens-panel-title">ГЛИФЫ</h3></header>
+            <div class="lens-panel-body">
+              <ul class="lens-icon-specimens">
                 {iconSet.map(({ name, size, Glyph }) => (
-                  <li key={name}>
-                    <span className="lens-icon-button"><Glyph /></span>
+                  <li>
+                    <span class="lens-icon-button"><Glyph /></span>
                     <span>{name}</span>
-                    <span className="lens-icon-specimen-size">{size}px</span>
+                    <span class="lens-icon-specimen-size">{size}px</span>
                   </li>
                 ))}
               </ul>
@@ -750,31 +759,37 @@ function IconSetStory({ theme }: { theme: 'light' | 'dark' }) {
   )
 }
 
-export const IconSetLight: Story = () => <IconSetStory theme="light" />
-export const IconSetDark: Story = () => <IconSetStory theme="dark" />
+export const IconSetLight = () => <IconSetStory theme="light" />
+export const IconSetDark = () => <IconSetStory theme="dark" />
 
-function HiddenSeries({ label }: { label: string }) {
-  useEffect(() => runWhenReady(() => {
-    const entries = [...window.document.querySelectorAll<HTMLButtonElement>('.lens-chart-legend-toggle')]
-    const button = entries.find((entry) => entry.textContent?.includes(label))
-    if (!button) return false
-    button.click()
-    return true
-  }), [label])
+function HiddenSeries(props: { label: string }) {
+  onMount(() => {
+    const cancel = runWhenReady(() => {
+      const entries = [...window.document.querySelectorAll<HTMLButtonElement>('.lens-chart-legend-toggle')]
+      const button = entries.find((entry) => entry.textContent?.includes(props.label))
+      if (!button) return false
+      button.click()
+      return true
+    })
+    onCleanup(cancel)
+  })
   return null
 }
 
-function HideSeriesAndSelectTab({ label, tab }: { label: string; tab: string }) {
-  useEffect(() => runWhenReady(() => {
-    const entries = [...window.document.querySelectorAll<HTMLButtonElement>('.lens-chart-legend-toggle')]
-    const legendButton = entries.find((entry) => entry.textContent?.includes(label))
-    const tabs = [...window.document.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
-    const tabButton = tabs.find((entry) => entry.textContent === tab)
-    if (!legendButton || !tabButton) return false
-    legendButton.click()
-    tabButton.click()
-    return true
-  }), [label, tab])
+function HideSeriesAndSelectTab(props: { label: string; tab: string }) {
+  onMount(() => {
+    const cancel = runWhenReady(() => {
+      const entries = [...window.document.querySelectorAll<HTMLButtonElement>('.lens-chart-legend-toggle')]
+      const legendButton = entries.find((entry) => entry.textContent?.includes(props.label))
+      const tabs = [...window.document.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+      const tabButton = tabs.find((entry) => entry.textContent === props.tab)
+      if (!legendButton || !tabButton) return false
+      legendButton.click()
+      tabButton.click()
+      return true
+    })
+    onCleanup(cancel)
+  })
   return null
 }
 
@@ -782,14 +797,18 @@ function HideSeriesAndSelectTab({ label, tab }: { label: string; tab: string }) 
  * A hidden legend entry leaves the plot entirely, so the remaining slice reads
  * 100% and the total badge drops to the visible sum.
  */
-export const LegendHiddenSeries: Story = () => {
+export const LegendHiddenSeries = () => {
   const doc = storyDocument([premiumPanel], { 'premium:frame': premiumFrame }, {
     rows: [{ heading: 'ПРЕМИИ', panels: [{ panelId: 'premium', span: 6 }] }],
   })
   return (
     <Runtime doc={doc}>
-      <DashboardPanels />
-      <HiddenSeries label="Незаработанная премия" />
+      {() => (
+        <>
+          <DashboardPanels />
+          <HiddenSeries label="Незаработанная премия" />
+        </>
+      )}
     </Runtime>
   )
 }
@@ -830,7 +849,7 @@ const dailySeriesFrame = (osago: number, kasko: number): Frame => ({
   ],
 })
 
-export const TabbedLegendState: Story = () => {
+export const TabbedLegendState = () => {
   const group = (tab: string) => ({ id: 'daily', kind: 'tabs' as const, span: 12, tab })
   const doc = storyDocument(
     [dailyRevenuePanel, dailyCountPanel],
@@ -850,8 +869,12 @@ export const TabbedLegendState: Story = () => {
   )
   return (
     <Runtime doc={doc}>
-      <DashboardPanels />
-      <HideSeriesAndSelectTab label="ОСАГО" tab="Количество" />
+      {() => (
+        <>
+          <DashboardPanels />
+          <HideSeriesAndSelectTab label="ОСАГО" tab="Количество" />
+        </>
+      )}
     </Runtime>
   )
 }
@@ -870,7 +893,7 @@ const expandableTopNPanel: Panel = {
   encoding: { id: 'id', category: 'label', value: 'value' },
 }
 
-export const ChartReadabilityStates: Story = () => {
+export const ChartReadabilityStates = () => {
   const frames = {
     'readability-bar:frame': {
       columns: [{ name: 'label', type: 'string' as const }, { name: 'value', type: 'number' as const }],
@@ -902,7 +925,7 @@ export const ChartReadabilityStates: Story = () => {
       { heading: 'СВЁРНУТЫЙ ХВОСТ', panels: [{ panelId: expandableTopNPanel.id, span: 12 }] },
     ],
   })
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 ChartReadabilityStates.storyName = 'Chart readability states'
 
@@ -920,11 +943,11 @@ const donutTailFrame: Frame = {
   total: 10_000_000,
 }
 
-export const DonutCollapsedTail: Story = () => {
+export const DonutCollapsedTail = () => {
   const doc = storyDocument([donutTailPanel], { 'donut-tail:frame': donutTailFrame }, {
     rows: [{ heading: 'ДОЛИ', panels: [{ panelId: donutTailPanel.id, span: 7 }] }],
   })
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 DonutCollapsedTail.storyName = 'Donut collapsed tail'
 
@@ -936,7 +959,7 @@ const labelledLine: Panel = {
   ...trendPanel, id: 'labelled-line', title: 'Премия', frame: 'labelled-line:frame', presentation: { dataLabels: true },
 }
 
-export const OptInDataLabels: Story = () => {
+export const OptInDataLabels = () => {
   const frames = {
     'labelled-bar:frame': { columns: [{ name: 'label', type: 'string' as const }, { name: 'value', type: 'number' as const }], rows: [['Янв', 31], ['Фев', 47], ['Мар', 55]] },
     'labelled-line:frame': trendFrame,
@@ -944,7 +967,7 @@ export const OptInDataLabels: Story = () => {
   const doc = storyDocument([labelledBar, labelledLine], frames, {
     rows: [{ heading: 'ПОДПИСИ ДАННЫХ', panels: [{ panelId: labelledBar.id, span: 6 }, { panelId: labelledLine.id, span: 6 }] }],
   })
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 OptInDataLabels.storyName = 'Opt-in data labels'
 
@@ -960,12 +983,15 @@ const legendFrame: Frame = {
 }
 
 function HideEverySeries() {
-  useEffect(() => runWhenReady(() => {
-    const button = window.document.querySelector<HTMLButtonElement>('.lens-chart-legend-tools button')
-    if (!button) return false
-    button.click()
-    return true
-  }), [])
+  onMount(() => {
+    const cancel = runWhenReady(() => {
+      const button = window.document.querySelector<HTMLButtonElement>('.lens-chart-legend-tools button')
+      if (!button) return false
+      button.click()
+      return true
+    })
+    onCleanup(cancel)
+  })
   return null
 }
 
@@ -977,62 +1003,72 @@ function HideEverySeries() {
  * that looks broken and contradicts itself in the same card. Nothing shown,
  * nothing drawn, nothing totalled, and one way back stated in words.
  */
-export const LegendAllSeriesHidden: Story = () => {
+export const LegendAllSeriesHidden = () => {
   const doc = storyDocument([premiumPanel], { 'premium:frame': premiumFrame }, {
     rows: [{ heading: 'ВСЁ СКРЫТО', panels: [{ panelId: 'premium', span: 6 }] }],
   })
   return (
     <Runtime doc={doc}>
-      <DashboardPanels />
-      <HideEverySeries />
+      {() => (
+        <>
+          <DashboardPanels />
+          <HideEverySeries />
+        </>
+      )}
     </Runtime>
   )
 }
 LegendAllSeriesHidden.storyName = 'Legend all series hidden'
 
-export const LegendControlsAndSearch: Story = () => {
+export const LegendControlsAndSearch = () => {
   const doc = storyDocument([legendPanel], { 'legend-workstation:frame': legendFrame }, {
     rows: [{ heading: 'ЛЕГЕНДА', panels: [{ panelId: legendPanel.id, span: 7 }] }],
   })
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 LegendControlsAndSearch.storyName = 'Legend controls and search'
 
 function SoloLegendOnMount() {
-  useEffect(() => runWhenReady(() => {
-    const button = [...document.querySelectorAll<HTMLButtonElement>('.lens-chart-legend-toggle')]
-      .find((entry) => entry.textContent?.includes('Продукт 04'))
-    if (!button) return false
-    button.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }))
-    return true
-  }), [])
+  onMount(() => {
+    const cancel = runWhenReady(() => {
+      const button = [...document.querySelectorAll<HTMLButtonElement>('.lens-chart-legend-toggle')]
+        .find((entry) => entry.textContent?.includes('Продукт 04'))
+      if (!button) return false
+      button.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }))
+      return true
+    })
+    onCleanup(cancel)
+  })
   return null
 }
 
-export const LegendSoloState: Story = () => {
+export const LegendSoloState = () => {
   const doc = storyDocument([legendPanel], { 'legend-workstation:frame': legendFrame }, {
     rows: [{ heading: 'ИЗОЛИРОВАННАЯ СЕРИЯ', panels: [{ panelId: legendPanel.id, span: 12 }] }],
   })
-  return <Runtime doc={doc}><DashboardPanels /><SoloLegendOnMount /></Runtime>
+  return <Runtime doc={doc}>{() => (<><DashboardPanels /><SoloLegendOnMount /></>)}</Runtime>
 }
 LegendSoloState.storyName = 'Legend solo state'
 
-function HideLegendSeriesOnMount({ label }: { label: string }) {
-  useEffect(() => runWhenReady(() => {
-    const button = [...document.querySelectorAll<HTMLButtonElement>('.lens-chart-legend-toggle')]
-      .find((entry) => entry.textContent?.includes(label))
-    if (!button) return false
-    button.click()
-    return true
-  }), [label])
+function HideLegendSeriesOnMount(props: { label: string }) {
+  onMount(() => {
+    const cancel = runWhenReady(() => {
+      const button = [...document.querySelectorAll<HTMLButtonElement>('.lens-chart-legend-toggle')]
+        .find((entry) => entry.textContent?.includes(props.label))
+      if (!button) return false
+      button.click()
+      return true
+    })
+    onCleanup(cancel)
+  })
   return null
 }
 
-export const HiddenStackCollapsed: Story = () => {
+export const HiddenStackCollapsed = () => {
   const doc = storyDocument([compositionPanel], { 'composition:frame': compositionFrame }, {
     rows: [{ heading: 'СТЕК ПОСЛЕ СКРЫТИЯ', panels: [{ panelId: compositionPanel.id, span: 12 }] }],
   })
-  return <Runtime doc={doc}><DashboardPanels /><HideLegendSeriesOnMount label="Прямое страхование" /></Runtime>
+  return <Runtime doc={doc}>{() => (<><DashboardPanels /><HideLegendSeriesOnMount label="Прямое страхование" /></>)}</Runtime>
 }
 HiddenStackCollapsed.storyName = 'Hidden stack collapsed'
 
@@ -1041,11 +1077,11 @@ const gaugePanel: Panel = {
   encoding: { value: 'value' }, format: { value: { kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' } }, terminal: true, actions: [],
 }
 
-export const Gauge: Story = () => {
+export const Gauge = () => {
   const doc = storyDocument([gaugePanel], {
     'budget-gauge:frame': { columns: [{ name: 'value', type: 'number' }], rows: [[68.4]] },
   }, { rows: [{ heading: 'БЮДЖЕТ', panels: [{ panelId: gaugePanel.id, span: 5 }] }] })
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 Gauge.storyName = 'Gauge'
 
@@ -1062,11 +1098,11 @@ const crowdedHeaderPanel: Panel = {
  * so it holds its width and the badge ellipsizes (its tooltip keeps the full
  * number reachable).
  */
-export const PanelHeaderPressure: Story = () => {
+export const PanelHeaderPressure = () => {
   const doc = storyDocument([crowdedHeaderPanel], { 'premium:frame': premiumFrame }, {
     rows: [{ heading: 'ПРЕМИИ', panels: [{ panelId: 'crowded', span: 5 }] }],
   })
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 PanelHeaderPressure.storyName = 'Panel header pressure'
 
@@ -1091,14 +1127,14 @@ function ReferralHeaderStrip({ width }: { width: number }) {
       }],
     },
   )
-  return <div style={{ width }}><Runtime doc={doc}><DashboardPanels /></Runtime></div>
+  return <div style={{ width: `${width}px` }}><Runtime doc={doc}>{() => <DashboardPanels />}</Runtime></div>
 }
 
 /** Desktop-host and tablet-host content widths keep the same four-up layout.
  * Every long title must remain visible while all export/expand controls keep
  * their own stable row inside the card. */
-export const PanelHeaderFourUpPressure: Story = () => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+export const PanelHeaderFourUpPressure = () => (
+  <div style={{ display: 'flex', 'flex-direction': 'column', gap: '24px' }}>
     <ReferralHeaderStrip width={1030} />
     <ReferralHeaderStrip width={640} />
   </div>
@@ -1125,7 +1161,7 @@ const linkedCoveragePanel: Panel = {
  * Panel-level navigate actions: the KPI strip is a row of links again, and a
  * coverage card whose action reads a row field links each segment separately.
  */
-export const ClickablePanels: Story = () => {
+export const ClickablePanels = () => {
   const frames = Object.fromEntries(
     linkedMetrics.map(({ panel, value }) => [`${panel.id}:frame`, statFrame(panel.title, value)]),
   )
@@ -1145,7 +1181,7 @@ export const ClickablePanels: Story = () => {
       ],
     },
   )
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 ClickablePanels.storyName = 'Clickable panels'
 
@@ -1195,12 +1231,12 @@ const stretchTableFrame: Frame = {
   rows: Array.from({ length: 25 }, (_, index) => [`Продукт ${index + 1}`, (25 - index) * 41_000_000]),
 }
 
-export const StatBesideTallTable: Story = () => {
+export const StatBesideTallTable = () => {
   const doc = storyDocument(
     [stretchStatPanel, stretchTablePanel],
     { 'stretch-stat:frame': stretchStatFrame, 'stretch-table:frame': stretchTableFrame },
     { rows: [{ panels: [{ panelId: 'stretch-stat', span: 3 }, { panelId: 'stretch-table', span: 9 }] }] },
   )
-  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
 }
 StatBesideTallTable.storyName = 'Stat beside a tall table'

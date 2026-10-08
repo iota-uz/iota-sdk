@@ -1,5 +1,5 @@
+
 import fixture from '../fixtures/panels-v1.json'
-import { ClientHostBoundary } from '@iota-uz/sdk/client-host'
 import { parseDocument, type DashboardDocument } from './contract'
 import { DashboardPanels } from './DashboardPanels'
 import type { CalendarDate } from './controls'
@@ -9,7 +9,7 @@ export interface LensDashboardProps {
   src?: string
   /**
    * Markup the server already rendered inside the mount point (the templ
-   * skeleton). React clears the container on mount, so the runtime re-inserts
+   * skeleton). The mount clears the container on boot, so the runtime re-inserts
    * it while the first document is in flight.
    */
   fallbackHTML?: string
@@ -24,24 +24,26 @@ export interface LensDashboardProps {
 
 const bundledFixture = parseDocument(fixture)
 
-export function LensDashboard({
-  src, locale = 'en', theme = 'light', csrf, fetcher, fallbackHTML, initialDocument, filterToday,
-}: LensDashboardProps) {
+export function LensDashboard(props: LensDashboardProps) {
+  const locale = () => props.locale ?? 'en'
+  const theme = () => props.theme ?? 'light'
+  const document = () => props.initialDocument ?? (props.src ? undefined : bundledFixture)
   // The fallback is this application's own server-rendered skeleton, echoed
   // back verbatim; it never carries request data.
-  const fallback = fallbackHTML
-    ? <div aria-hidden="true" dangerouslySetInnerHTML={{ __html: fallbackHTML }} />
+  const fallback = () => props.fallbackHTML
+    ? <div aria-hidden="true" innerHTML={props.fallbackHTML} />
     : undefined
-  const document = initialDocument ?? (src ? undefined : bundledFixture)
   return (
-    <div className="lens-root" data-theme={theme} lang={locale}>
-      <ClientHostBoundary theme={theme}>
-        <DocumentProvider src={src} initialDocument={document} csrf={csrf} fetcher={fetcher}>
-          <DashboardRuntimeProvider locale={locale} csrf={csrf} fetcher={fetcher} fallback={fallback}>
-            <DashboardPanels filterToday={filterToday} />
+    <div class="lens-root" data-theme={theme()} lang={locale()}>
+      {/* The React client-host boundary is not required for the Solid mount; the
+          theme still travels on this wrapper so portalled overlays inherit it. */}
+      <div data-theme={theme()}>
+        <DocumentProvider src={props.src} initialDocument={document()} csrf={props.csrf} fetcher={props.fetcher}>
+          <DashboardRuntimeProvider locale={locale()} csrf={props.csrf} fetcher={props.fetcher} fallback={fallback()}>
+            {() => <DashboardPanels filterToday={props.filterToday} />}
           </DashboardRuntimeProvider>
         </DocumentProvider>
-      </ClientHostBoundary>
+      </div>
     </div>
   )
 }

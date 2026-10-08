@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { ClientHostProvider } from '@iota-uz/sdk/client-host'
+import type { JSX } from 'solid-js'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Action, DashboardDocument, Frame, Panel } from '../contract'
 import type { ChartAdapter, ChartInput } from '../charts/adapter'
@@ -44,26 +44,20 @@ function documentWith(panels: Panel[], frames: Record<string, Frame>): Dashboard
   }
 }
 
-function renderPanel(document: DashboardDocument, children: React.ReactNode) {
+function renderPanel(document: DashboardDocument, children: () => JSX.Element) {
   return renderWithClientHost(
-    <div className="lens-root">
+    () => (<div class="lens-root">
       <DocumentProvider initialDocument={document}>
         <DashboardRuntimeProvider locale="en">{children}</DashboardRuntimeProvider>
       </DocumentProvider>
-    </div>,
+    </div>),
   )
 }
 
-function renderWithClientHost(children: React.ReactNode) {
+function renderWithClientHost(children: () => JSX.Element) {
   const background = globalThis.document.createElement('main')
-  const portalOwner = globalThis.document.createElement('div')
-  globalThis.document.body.append(background, portalOwner)
-  return render(
-    <ClientHostProvider background={background} portalOwner={portalOwner}>
-      {children}
-    </ClientHostProvider>,
-    { container: background },
-  )
+  globalThis.document.body.append(background)
+  return render(() => <>{children()}</>, { container: background })
 }
 
 const statFrame: Frame = {
@@ -83,7 +77,7 @@ function statPanel(actions: Action[]): Panel {
 describe('stat panels with a panel-level navigate action', () => {
   it('covers the card with a link', () => {
     const panel = statPanel([navigate('/analytics/metrics/loss-ratio')])
-    renderPanel(documentWith([panel], { 'stat:root': statFrame }), <StatPanel panel={panel} />)
+    renderPanel(documentWith([panel], { 'stat:root': statFrame }), () => (<StatPanel panel={panel} />))
 
     expect(screen.getByRole('link', { name: 'Open Loss ratio' }))
       .toHaveAttribute('href', expect.stringContaining('/analytics/metrics/loss-ratio'))
@@ -91,14 +85,14 @@ describe('stat panels with a panel-level navigate action', () => {
 
   it('keeps the compact metric form clickable inside a metrics group', () => {
     const panel = statPanel([navigate('/analytics/metrics/loss-ratio')])
-    renderPanel(documentWith([panel], { 'stat:root': statFrame }), <StatMetric panel={panel} />)
+    renderPanel(documentWith([panel], { 'stat:root': statFrame }), () => (<StatMetric panel={panel} />))
 
     expect(screen.getByRole('link', { name: 'Open Loss ratio' })).toBeInTheDocument()
   })
 
   it('stays inert without an action', () => {
     const panel = statPanel([])
-    renderPanel(documentWith([panel], { 'stat:root': statFrame }), <StatPanel panel={panel} />)
+    renderPanel(documentWith([panel], { 'stat:root': statFrame }), () => (<StatPanel panel={panel} />))
 
     expect(screen.queryByRole('link')).toBeNull()
   })
@@ -130,13 +124,13 @@ describe('stat panels with a panel-level navigate action', () => {
     })
 
     renderWithClientHost(
-      <div className="lens-root">
+      () => (<div class="lens-root">
         <DocumentProvider initialDocument={document}>
-          <DashboardRuntimeProvider fetcher={fetcher} locale="en">
+          <DashboardRuntimeProvider fetcher={fetcher} locale="en">{() => (<>(
             <StatMetric panel={panel} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
-      </div>,
+      </div>),
     )
 
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2), { timeout: 2_000 })
@@ -171,7 +165,7 @@ describe('coverage panels with a panel-level navigate action', () => {
     ])])
     const { container } = renderPanel(
       documentWith([panel], { 'coverage:root': coverageFrame }),
-      <CoveragePanel panel={panel} />,
+      () => (<CoveragePanel panel={panel} />),
     )
 
     const legend = [...container.querySelectorAll<HTMLAnchorElement>('.lens-coverage-legend-link')]
@@ -188,7 +182,7 @@ describe('coverage panels with a panel-level navigate action', () => {
     ])])
     const { container } = renderPanel(
       documentWith([panel], { 'coverage:root': coverageFrame }),
-      <CoveragePanel panel={panel} />,
+      () => (<CoveragePanel panel={panel} />),
     )
 
     const segments = container.querySelectorAll('.lens-coverage-track-segment')
@@ -209,7 +203,7 @@ describe('coverage panels with a panel-level navigate action', () => {
     const panel = coveragePanel([navigate('/claims')])
     const { container } = renderPanel(
       documentWith([panel], { 'coverage:root': coverageFrame }),
-      <CoveragePanel panel={panel} />,
+      () => (<CoveragePanel panel={panel} />),
     )
 
     expect(container.querySelector('.lens-card-link')).toHaveAttribute('href', expect.stringContaining('/claims'))
@@ -242,7 +236,7 @@ describe('charts with a panel-level navigate action', () => {
     }
     const view = renderPanel(
       documentWith([panel], { [panel.frame]: frame }),
-      <ChartPanel panel={panel} adapter={adapter} />,
+      () => (<ChartPanel panel={panel} adapter={adapter} />),
     )
     return { ...view, activate: (key: string) => select?.(key) }
   }
@@ -399,7 +393,7 @@ describe('cascade stages with a row-scoped action', () => {
     const panel = cascadePanel([rowAction()], true)
     const { container } = renderPanel(
       documentWith([panel], { 'cascade:root': cascadeFrame }),
-      <CascadePanel panel={panel} />,
+      () => (<CascadePanel panel={panel} />),
     )
 
     // The whole column is the target, not the bar: a step worth a percent of
@@ -434,7 +428,7 @@ describe('cascade stages with a row-scoped action', () => {
     const panel = cascadePanel([rowAction()], true)
     const { container } = renderPanel(
       documentWith([panel], { 'cascade:root': frame }),
-      <CascadePanel panel={panel} />,
+      () => (<CascadePanel panel={panel} />),
     )
 
     const columns = [...container.querySelectorAll<HTMLElement>('.lens-waterfall-column')]
@@ -452,7 +446,7 @@ describe('cascade stages with a row-scoped action', () => {
     const panel = cascadePanel([rowAction()])
     const { container } = renderPanel(
       documentWith([panel], { 'cascade:root': frame }),
-      <CascadePanel panel={panel} />,
+      () => (<CascadePanel panel={panel} />),
     )
 
     const stages = [...container.querySelectorAll<HTMLElement>('.lens-cascade-stage')]
@@ -490,7 +484,7 @@ describe('cascade stages with a row-scoped action', () => {
     const panel = annotatedPanel(true)
     const { container } = renderPanel(
       documentWith([panel], { 'cascade:root': annotatedUnknownFrame }),
-      <CascadePanel panel={panel} />,
+      () => (<CascadePanel panel={panel} />),
     )
 
     const badges = [...container.querySelectorAll<HTMLElement>('.lens-waterfall-annotation')]
@@ -508,7 +502,7 @@ describe('cascade stages with a row-scoped action', () => {
     const panel = annotatedPanel(false)
     const { container } = renderPanel(
       documentWith([panel], { 'cascade:root': annotatedUnknownFrame }),
-      <CascadePanel panel={panel} />,
+      () => (<CascadePanel panel={panel} />),
     )
 
     const badges = [...container.querySelectorAll<HTMLElement>('.lens-cascade-stage-annotation')]
@@ -522,7 +516,7 @@ describe('cascade stages with a row-scoped action', () => {
     const panel = cascadePanel([], true)
     const { container } = renderPanel(
       documentWith([panel], { 'cascade:root': cascadeFrame }),
-      <CascadePanel panel={panel} />,
+      () => (<CascadePanel panel={panel} />),
     )
     expect(container.querySelector('.lens-waterfall')?.getAttribute('role')).toBe('img')
     expect(container.querySelector('.lens-waterfall-column[role="button"]')).toBeNull()
@@ -557,9 +551,9 @@ describe('one panel, one click behaviour', () => {
     } as typeof document.drill
     const view = renderPanel(
       document,
-      <MarkSelectionContext.Provider value={onMark}>
+      () => (<MarkSelectionContext.Provider value={onMark}>
         <ChartPanel panel={panel} adapter={adapter} />
-      </MarkSelectionContext.Provider>,
+      </MarkSelectionContext.Provider>),
     )
     return { ...view, activate: (key: string) => select?.(key) }
   }
@@ -594,9 +588,9 @@ describe('one panel, one click behaviour', () => {
     }
     renderPanel(
       documentWith([panel], { 'chart:root': chartFrame }),
-      <MarkSelectionContext.Provider value={onMark}>
+      () => (<MarkSelectionContext.Provider value={onMark}>
         <ChartPanel panel={panel} adapter={adapter} />
-      </MarkSelectionContext.Provider>,
+      </MarkSelectionContext.Provider>),
     )
 
     await waitFor(() => expect(screen.getByLabelText(/chart/)).toBeInTheDocument())
@@ -609,7 +603,7 @@ describe('one panel, one click behaviour', () => {
     const panel: Panel = { ...statPanel([navigate('/metrics/loss')]), drillRoot: 'root' }
     const { container } = renderPanel(
       documentWith([panel], { 'stat:root': statFrame }),
-      <StatPanel panel={panel} />,
+      () => (<StatPanel panel={panel} />),
     )
 
     expect(container.querySelector('.lens-card-link')).toBeNull()
@@ -686,13 +680,13 @@ describe('per-segment drawer drill', () => {
       },
     }
     const view = renderWithClientHost(
-      <div className="lens-root">
+      () => (<div class="lens-root">
         <DocumentProvider initialDocument={document}>
-          <DashboardRuntimeProvider fetcher={fetcher} locale="en">
+          <DashboardRuntimeProvider fetcher={fetcher} locale="en">{() => (<>(
             <ChartPanel adapter={adapter} panel={panel} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
-      </div>,
+      </div>),
     )
     return {
       ...view,
@@ -794,7 +788,7 @@ describe('cross-filter source panel', () => {
     }
     const view = renderPanel(
       documentWith([panel], { 'chart:root': chartFrame }),
-      <ChartPanel adapter={adapter} panel={panel} />,
+      () => (<ChartPanel adapter={adapter} panel={panel} />),
     )
     return { ...view, chartInput: () => input }
   }

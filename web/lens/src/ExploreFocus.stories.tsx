@@ -1,5 +1,3 @@
-import type { Story } from '@ladle/react'
-import { useState } from 'react'
 import fixture from '../fixtures/focus.json'
 import { parseDocument } from './contract'
 import { DashboardPanels } from './DashboardPanels'
@@ -52,24 +50,22 @@ const deepPath = ['premium', 'premium/motor', 'premium/motor/new', 'premium/moto
  * Pins the navigation to a level of the focus fixture before the runtime
  * mounts, exactly as a shared deep link would arrive.
  */
-function AtPath({ theme, path, perspectiveId, width, document = focusDocument }: {
+function AtPath(props: {
   theme: 'light' | 'dark'
   path: Array<string>
   perspectiveId?: string
   width?: string
   document?: typeof focusDocument
 }) {
-  useState(() => {
-    window.history.replaceState(null, '', navigationToURL(
-      { panelId: document.panels[0]!.id, path, ...(perspectiveId ? { perspectiveId } : {}) },
-      new URL(window.location.href),
-    ))
-    return true
-  })
+  const doc = props.document ?? focusDocument
+  window.history.replaceState(null, '', navigationToURL(
+    { panelId: doc.panels[0]!.id, path: props.path, ...(props.perspectiveId ? { perspectiveId: props.perspectiveId } : {}) },
+    new URL(window.location.href),
+  ))
   return (
-    <div className="lens-root" data-theme={theme} style={width ? { width } : undefined}>
-      <DocumentProvider initialDocument={document}>
-        <DashboardRuntimeProvider locale="en"><DashboardPanels /></DashboardRuntimeProvider>
+    <div class="lens-root" data-theme={props.theme} style={props.width ? { width: props.width } : undefined}>
+      <DocumentProvider initialDocument={doc}>
+        <DashboardRuntimeProvider locale="en">{() => <DashboardPanels />}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
@@ -80,7 +76,7 @@ function AtPath({ theme, path, perspectiveId, width, document = focusDocument }:
  * total, with no breadcrumb (there is nowhere to go back to), no lens selector
  * (the root declares no perspectives), and no source disclosure.
  */
-export const CanvasRoot: Story = () => <AtPath path={['premium']} theme="light" />
+export const CanvasRoot = () => <AtPath path={['premium']} theme="light" />
 CanvasRoot.storyName = 'Canvas at root'
 
 /**
@@ -90,14 +86,10 @@ CanvasRoot.storyName = 'Canvas at root'
  * bar chart the level claims via `Level.view`, and the collapsed source-data
  * disclosure from `Level.source`.
  */
-export const DrilledLight: Story = () => (
-  <AtPath path={drilledPath} perspectiveId="premium/motor/by-product" theme="light" />
-)
+export const DrilledLight = () => <AtPath path={drilledPath} perspectiveId="premium/motor/by-product" theme="light" />
 DrilledLight.storyName = 'Drilled - light'
 
-export const DrilledDark: Story = () => (
-  <AtPath path={drilledPath} perspectiveId="premium/motor/by-product" theme="dark" />
-)
+export const DrilledDark = () => <AtPath path={drilledPath} perspectiveId="premium/motor/by-product" theme="dark" />
 DrilledDark.storyName = 'Drilled - dark'
 
 /**
@@ -106,7 +98,7 @@ DrilledDark.storyName = 'Drilled - dark'
  * for a lens root) while the selector marks the active lens and the chart
  * follows the perspective's series semantics.
  */
-export const LensSwitched: Story = () => (
+export const LensSwitched = () => (
   <AtPath
     path={['premium', 'premium/motor', 'premium/motor/trend']}
     perspectiveId="premium/motor/trend"
@@ -120,7 +112,7 @@ LensSwitched.storyName = 'Lens switched to trend'
  * parent mini-chart steps aside, the middle of the four-crumb path collapses
  * to an ellipsis, and the metric value drops a size.
  */
-export const NarrowContainer: Story = () => <AtPath path={deepPath} theme="light" width="30rem" />
+export const NarrowContainer = () => <AtPath path={deepPath} theme="light" width="30rem" />
 NarrowContainer.storyName = 'Narrow container collapses context'
 
 /**
@@ -128,9 +120,7 @@ NarrowContainer.storyName = 'Narrow container collapses context'
  * the card keeps its authored span 6, and both cards share the row — the
  * focus-canvas opt-in changes nothing until the panel actually explores.
  */
-export const HalfWidthRest: Story = () => (
-  <AtPath document={halfWidthDocument} path={[]} theme="light" />
-)
+export const HalfWidthRest = () => <AtPath document={halfWidthDocument} path={[]} theme="light" />
 HalfWidthRest.storyName = 'Half-width host at rest'
 
 /**
@@ -140,7 +130,7 @@ HalfWidthRest.storyName = 'Half-width host at rest'
  * offers all three sibling perspectives even though the drilled level records
  * only its own ref, exactly as production documents do.
  */
-export const HalfWidthExpanded: Story = () => (
+export const HalfWidthExpanded = () => (
   <AtPath
     document={halfWidthDocument}
     path={drilledPath}

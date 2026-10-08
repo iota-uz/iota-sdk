@@ -1,4 +1,4 @@
-import type { Story } from '@ladle/react'
+import type { JSX } from 'solid-js'
 import type { DashboardDocument, Frame, Panel } from './contract'
 import { DashboardPanels } from './DashboardPanels'
 import { QualityChip, type QualityChipProps } from './panels'
@@ -35,9 +35,9 @@ function storyDocument(panels: Panel[], frames: Record<string, Frame>, layout: D
 
 function Runtime({ theme, doc }: { theme: 'light' | 'dark'; doc: DashboardDocument }) {
   return (
-    <div className="lens-root" data-theme={theme}>
+    <div class="lens-root" data-theme={theme}>
       <DocumentProvider initialDocument={doc}>
-        <DashboardRuntimeProvider locale="en"><DashboardPanels /></DashboardRuntimeProvider>
+        <DashboardRuntimeProvider locale="en">{() => (<DashboardPanels />)}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
@@ -262,8 +262,8 @@ function fullDocument(): DashboardDocument {
   )
 }
 
-export const Full: Story = () => <Runtime doc={fullDocument()} theme="light" />
-export const FullDark: Story = () => <Runtime doc={fullDocument()} theme="dark" />
+export const Full = () => <Runtime doc={fullDocument()} theme="light" />
+export const FullDark = () => <Runtime doc={fullDocument()} theme="dark" />
 
 /* -------------------------------------------------------------------------- */
 /* Narrow: same primitives at small spans, plus a fixed 320px hierarchy.      */
@@ -297,20 +297,20 @@ function narrowDocument(): DashboardDocument {
 const fixed320Hierarchy: Panel = { ...breakdownHierarchy, id: 'fixed-320-hierarchy', frame: 'fixed-320-hierarchy:frame' }
 const fixed320HierarchyFrame = breakdownHierarchyFrame
 
-export const Narrow: Story = () => (
-  <div className="lens-root">
+export const Narrow = () => (
+  <div class="lens-root">
     <DocumentProvider initialDocument={narrowDocument()}>
-      <DashboardRuntimeProvider locale="en"><DashboardPanels /></DashboardRuntimeProvider>
+      <DashboardRuntimeProvider locale="en">{() => (<DashboardPanels />)}</DashboardRuntimeProvider>
     </DocumentProvider>
     {/* A fixed 320px container exercises the hierarchy panel's narrowest
         container-query breakpoint directly, independent of the grid span. */}
-    <div style={{ width: 320 }}>
+    <div style={{ width: '320px' }}>
       <DocumentProvider
         initialDocument={storyDocument([fixed320Hierarchy], { 'fixed-320-hierarchy:frame': fixed320HierarchyFrame }, {
           rows: [{ panels: [{ panelId: 'fixed-320-hierarchy', span: 12 }] }],
         })}
       >
-        <DashboardRuntimeProvider locale="en"><DashboardPanels /></DashboardRuntimeProvider>
+        <DashboardRuntimeProvider locale="en">{() => (<DashboardPanels />)}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   </div>
@@ -333,21 +333,21 @@ const qualitySpecimens: Array<{ name: string; props: QualityChipProps }> = [
 
 function QualityChipSpecimens({ theme }: { theme: 'light' | 'dark' }) {
   return (
-    <div className="lens-root" data-theme={theme} style={{ width: 420 }}>
-      <div className="lens-panel-grid">
-        <div className="lens-grid-item" style={{ '--lens-panel-span': 12 } as React.CSSProperties}>
-          <section className="lens-panel">
-            <header className="lens-panel-header"><h3 className="lens-panel-title">Quality statuses</h3></header>
-            <div className="lens-panel-body">
+    <div class="lens-root" data-theme={theme} style={{ width: '420px' }}>
+      <div class="lens-panel-grid">
+        <div class="lens-grid-item" style={{ '--lens-panel-span': 12 } as JSX.CSSProperties}>
+          <section class="lens-panel">
+            <header class="lens-panel-header"><h3 class="lens-panel-title">Quality statuses</h3></header>
+            <div class="lens-panel-body">
               {/* Each row pairs the translation key (documentation) with the
                   chip it resolves to; `availability.available` renders no
                   chip at all — a normal element defers to the confidence
                   axis, or shows nothing when neither axis says anything. */}
-              <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', margin: 0, padding: 0, listStyle: 'none' }}>
+              <ul style={{ display: 'flex', 'flex-direction': 'column', gap: '0.75rem', margin: 0, padding: 0, 'list-style': 'none' }}>
                 {qualitySpecimens.map(({ name, props }) => (
-                  <li key={name} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <span style={{ flex: '0 0 220px', fontSize: '0.75rem' }} className="lens-text-muted">{name}</span>
-                    <QualityChip {...props} />
+                  <li style={{ display: 'flex', 'align-items': 'center', gap: '0.75rem' }}>
+                    <span style={{ flex: '0 0 220px', 'font-size': '0.75rem' }} class="lens:text-muted">{name}</span>
+                    <QualityChip confidence={props.confidence} availability={props.availability} />
                   </li>
                 ))}
               </ul>
@@ -359,7 +359,7 @@ function QualityChipSpecimens({ theme }: { theme: 'light' | 'dark' }) {
   )
 }
 
-export const QualityChips: Story = () => (
+export const QualityChips = () => (
   <div style={{ display: 'flex', gap: '1rem' }}>
     <QualityChipSpecimens theme="light" />
     <QualityChipSpecimens theme="dark" />
@@ -412,7 +412,7 @@ const relationshipVariants = [
   relationshipVariant('rv-reconciliation-gap', 'Reconciliation, target unavailable', 'reconciliation', 'bidirectional', false),
 ]
 
-export const RelationshipVariants: Story = () => {
+export const RelationshipVariants = () => {
   const doc = storyDocument(
     relationshipVariants.map(({ panel }) => panel),
     Object.fromEntries(relationshipVariants.map(({ panel, frame }) => [panel.frame, frame])),

@@ -191,16 +191,10 @@ func NewController(id string, manifest Manifest, routes []Route, options ...Opti
 		return nil, fmt.Errorf("clienthost controller: id is required")
 	}
 	routeIDs := make(map[string]struct{}, len(controller.routes))
-	var controllerRenderer application.RouteRenderer
 	for index := range controller.routes {
 		route := &controller.routes[index]
-		if route.Spec.Renderer != application.RouteRendererClient && route.Spec.Renderer != application.RouteRendererReact {
+		if route.Spec.Renderer != application.RouteRendererClient {
 			return nil, fmt.Errorf("clienthost controller %s: route %s must declare client renderer", controller.id, route.Spec.Path)
-		}
-		if controllerRenderer == "" {
-			controllerRenderer = route.Spec.Renderer
-		} else if route.Spec.Renderer != controllerRenderer {
-			return nil, fmt.Errorf("clienthost controller %s mixes %s and %s renderers", controller.id, controllerRenderer, route.Spec.Renderer)
 		}
 		if route.Spec.Renderer == application.RouteRendererClient {
 			if route.Feature != nil {

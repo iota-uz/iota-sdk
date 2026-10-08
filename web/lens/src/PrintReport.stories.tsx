@@ -1,4 +1,3 @@
-import type { Story } from '@ladle/react'
 import type { DashboardDocument, Frame, Level, Panel } from './contract'
 import { PrintReportView } from './print'
 import type { PrintReport, PrintSection } from './runtime/print'
@@ -355,17 +354,17 @@ const report: PrintReport = {
 
 function Printed() {
   return (
-    <div className="lens-root">
+    <div class="lens-root">
       <DocumentProvider initialDocument={dashboard}>
-        <DashboardRuntimeProvider locale="en">
-          <article className="lens-print-report" aria-hidden="false" data-preview="true" lang="en">
+        <DashboardRuntimeProvider locale="en">{() => (
+          <article class="lens-print-report" aria-hidden="false" data-preview="true" lang="en">
             <PrintReportView report={report} />
           </article>
-        </DashboardRuntimeProvider>
+        )}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
 }
 
-export const CoverAndContents: Story = () => <Printed />
+export const CoverAndContents = () => <Printed />
 CoverAndContents.storyName = 'Composed report'

@@ -529,7 +529,6 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		ShowLegend:            item.ShowLegend,
 		TotalBadgeValue:       item.TotalBadgeValue,
 		HeadlineValue:         item.HeadlineValue,
-		DrillTree:             item.DrillTree,
 		Trend:                 item.Trend,
 		Status:                item.Status,
 		Sparkline:             item.Sparkline,

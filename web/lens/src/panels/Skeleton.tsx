@@ -1,5 +1,6 @@
-/* eslint-disable react-refresh/only-export-components */
-import type { CSSProperties } from 'react'
+
+import type { JSX } from 'solid-js'
+import { For, Show } from 'solid-js'
 import type { LayoutItem, Panel, PanelKind } from '../contract'
 
 /**
@@ -7,22 +8,22 @@ import type { LayoutItem, Panel, PanelKind } from '../contract'
  * spinner: the same rows, the same 12-column spans and a shape per panel kind,
  * so nothing jumps when the data lands. The shape is styles.css's answer to the
  * kind each card states, which is the same answer the server fallback in
- * pkg/lens/render/react gets, so the handoff does not shift the grid.
+ * pkg/lens/render/solid gets, so the handoff does not shift the grid.
  */
 
-export function ShimmerBar({ className, style }: { className?: string; style?: CSSProperties }) {
-  return <span className={`lens-shimmer ${className ?? ''}`.trim()} style={style} />
+export function ShimmerBar(props: { class?: string; style?: JSX.CSSProperties }) {
+  return <span class={`lens-shimmer ${props.class ?? ''}`.trim()} style={props.style} />
 }
 
-function spanStyle(span: number): CSSProperties {
+function spanStyle(span: number): JSX.CSSProperties {
   const bounded = Number.isFinite(span) ? Math.min(12, Math.max(1, Math.round(span))) : 12
-  return { '--lens-panel-span': bounded } as CSSProperties
+  return { '--lens-panel-span': bounded } as JSX.CSSProperties
 }
 
 /**
  * A placeholder states the kind it stands in for and lets the stylesheet decide
  * what that kind reserves. The server fallback in
- * pkg/lens/render/react/skeleton.go emits the same `data-kind` — the runtime
+ * pkg/lens/render/solid/skeleton.go emits the same `data-kind` — the runtime
  * replaces that markup in place on the first paint, so the two must reserve the
  * same height or the grid moves at the handoff. One rule in styles.css now
  * answers for both, instead of a Go switch and this one agreeing by hand.
@@ -32,20 +33,20 @@ function spanStyle(span: number): CSSProperties {
  * card its kind suggests, and it reaches the runtime as stat panels under a
  * group rather than as a kind of its own.
  */
-export function PanelSkeletonCard({ kind, metrics }: { kind: PanelKind; metrics?: boolean }) {
+export function PanelSkeletonCard(props: { kind: PanelKind; metrics?: boolean }) {
   return (
-    <div className="lens-skeleton-card" data-kind={kind} data-metrics={metrics ? 'true' : undefined}>
-      <ShimmerBar className="lens-shimmer-label" />
-      <ShimmerBar className="lens-shimmer-body" />
+    <div class="lens-skeleton-card" data-kind={props.kind} data-metrics={props.metrics ? 'true' : undefined}>
+      <ShimmerBar class="lens-shimmer-label" />
+      <ShimmerBar class="lens-shimmer-body" />
     </div>
   )
 }
 
 /** The body-only shape used inside an existing panel card. */
-export function PanelSkeletonBody({ kind }: { kind: PanelKind }) {
+export function PanelSkeletonBody(props: { kind: PanelKind }) {
   return (
-    <div aria-hidden="true" className="lens-panel-skeleton" role="presentation">
-      <PanelSkeletonCard kind={kind} />
+    <div aria-hidden="true" class="lens-panel-skeleton" role="presentation">
+      <PanelSkeletonCard kind={props.kind} />
     </div>
   )
 }
@@ -60,26 +61,30 @@ export interface SkeletonRow {
  * first document arrives the runtime knows nothing, so the server-rendered
  * fallback is used instead and this shape only backs refreshes and stories.
  */
-export function DashboardSkeleton({ rows }: { rows: SkeletonRow[] }) {
+export function DashboardSkeleton(props: { rows: SkeletonRow[] }) {
   return (
-    <div aria-hidden="true" className="lens-dashboard-skeleton" role="presentation">
-      {rows.map((row, rowIndex) => (
-        <section className="lens-dashboard-row" key={rowIndex}>
-          {row.heading && (
-            <div className="lens-skeleton-heading">
-              <ShimmerBar className="lens-shimmer-label" style={{ width: '8rem' }} />
-              <span className="lens-skeleton-heading-rule" />
-            </div>
-          )}
-          <div className="lens-panel-grid">
-            {row.items.map((item, itemIndex) => (
-              <div className="lens-grid-item" key={itemIndex} style={spanStyle(item.span)}>
-                <PanelSkeletonCard kind={item.kind} metrics={item.metrics} />
+    <div aria-hidden="true" class="lens-dashboard-skeleton" role="presentation">
+      <For each={props.rows}>
+        {(row) => (
+          <section class="lens-dashboard-row">
+            <Show when={row.heading}>
+              <div class="lens-skeleton-heading">
+                <ShimmerBar class="lens-shimmer-label" style={{ width: '8rem' }} />
+                <span class="lens-skeleton-heading-rule" />
               </div>
-            ))}
-          </div>
-        </section>
-      ))}
+            </Show>
+            <div class="lens-panel-grid">
+              <For each={row.items}>
+                {(item) => (
+                  <div class="lens-grid-item" style={spanStyle(item.span)}>
+                    <PanelSkeletonCard kind={item.kind} metrics={item.metrics} />
+                  </div>
+                )}
+              </For>
+            </div>
+          </section>
+        )}
+      </For>
     </div>
   )
 }

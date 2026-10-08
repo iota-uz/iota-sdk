@@ -1,4 +1,5 @@
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, render } from '@solidjs/testing-library'
+import { createSignal } from 'solid-js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parseFormattedValue, StatValueTicker } from './StatValueTicker'
 
@@ -32,20 +33,22 @@ describe('parseFormattedValue', () => {
 
 describe('StatValueTicker', () => {
   it('renders the formatted string verbatim on first mount', () => {
-    const { container } = render(<StatValueTicker text="1 250 000 UZS" />)
+    const { container } = render(() =><StatValueTicker text="1 250 000 UZS" />)
     expect(container.textContent).toBe('1 250 000 UZS')
   })
 
   it('renders the final value immediately under reduced motion', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
-    const { container, rerender } = render(<StatValueTicker text="10,0%" />)
-    rerender(<StatValueTicker text="42,5%" />)
+    const [text, setText] = createSignal('10,0%')
+    const { container } = render(() =><StatValueTicker text={text()} />)
+    setText('42,5%')
     expect(container.textContent).toBe('42,5%')
   })
 
   it('swaps directly when the value is not parseable', () => {
-    const { container, rerender } = render(<StatValueTicker text="42,5%" />)
-    rerender(<StatValueTicker text="—" />)
+    const [text, setText] = createSignal('42,5%')
+    const { container } = render(() =><StatValueTicker text={text()} />)
+    setText('—')
     expect(container.textContent).toBe('—')
   })
 })

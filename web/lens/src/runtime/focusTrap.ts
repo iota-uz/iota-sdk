@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react'
+import { createEffect, onCleanup } from 'solid-js'
 
 const focusableSelector = [
   'a[href]', 'button:not([disabled])', 'input:not([disabled])', 'select:not([disabled])',
@@ -7,16 +7,16 @@ const focusableSelector = [
 
 /** Keeps keyboard focus within an open dialog and restores its trigger. */
 export function useFocusTrap(
-  dialog: RefObject<HTMLElement>,
+  dialog: () => HTMLElement | null | undefined,
   active: boolean,
   onEscape: () => void,
-  initialFocus?: RefObject<HTMLElement>,
-  restoreFocus?: RefObject<HTMLElement>,
-) {
-  useEffect(() => {
-    if (!active || typeof document === 'undefined') return undefined
-    const restoreTarget = restoreFocus?.current
-    const focusFrame = requestAnimationFrame(() => (initialFocus?.current ?? dialog.current)?.focus())
+  initialFocus?: () => HTMLElement | null | undefined,
+  restoreFocus?: () => HTMLElement | null | undefined,
+): void {
+  createEffect(() => {
+    if (!active || typeof document === 'undefined') return
+    const restoreTarget = restoreFocus?.()
+    const focusFrame = requestAnimationFrame(() => (initialFocus?.() ?? dialog())?.focus())
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -24,12 +24,12 @@ export function useFocusTrap(
         onEscape()
         return
       }
-      if (event.key !== 'Tab' || !dialog.current) return
-      const elements = [...dialog.current.querySelectorAll<HTMLElement>(focusableSelector)]
+      if (event.key !== 'Tab' || !dialog()) return
+      const elements = [...dialog()!.querySelectorAll<HTMLElement>(focusableSelector)]
         .filter((element) => element.offsetParent !== null || element === document.activeElement)
       if (elements.length === 0) {
         event.preventDefault()
-        dialog.current.focus()
+        dialog()!.focus()
         return
       }
       const first = elements[0]!
@@ -37,16 +37,16 @@ export function useFocusTrap(
       if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault()
         first.focus()
-      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) {
+      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog())) {
         event.preventDefault()
         last.focus()
       }
     }
     document.addEventListener('keydown', keydown, true)
-    return () => {
+    onCleanup(() => {
       cancelAnimationFrame(focusFrame)
       document.removeEventListener('keydown', keydown, true)
       restoreTarget?.focus()
-    }
-  }, [active, dialog, initialFocus, onEscape, restoreFocus])
+    })
+  })
 }

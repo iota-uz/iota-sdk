@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Restore Lens width, independent SVG instances, typography, initial deep-link state, modal focus and tooltip positioning; fix chat placeholder/fixture CSS, Solid templ imports and matching Chromium CI installation."
+}

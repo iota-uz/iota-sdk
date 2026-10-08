@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { render } from '@solidjs/testing-library'
 import { describe, expect, it } from 'vitest'
 import type { LayoutItem, Panel, PanelKind } from '../contract'
 import { DashboardSkeleton, PanelSkeletonCard, skeletonRowsFromLayout } from './Skeleton'
@@ -22,7 +22,7 @@ function panel(id: string, kind: PanelKind): Panel {
 
 describe('skeleton shapes', () => {
   it.each(kinds)('labels the %s placeholder with its kind', (kind) => {
-    const view = render(<PanelSkeletonCard kind={kind} />)
+    const view = render(() =><PanelSkeletonCard kind={kind} />)
     const card = view.container.querySelector('.lens-skeleton-card')
     expect(card).toHaveAttribute('data-kind', kind)
     expect(card).not.toHaveAttribute('data-metrics')
@@ -33,7 +33,7 @@ describe('skeleton shapes', () => {
     // A stat_group is several cells in one card: reserving a stat card for it
     // left the first row of every board short by ~150px. It is not a kind of
     // its own, so the card has to say so alongside the kind carrying it.
-    const view = render(<PanelSkeletonCard kind="stat" metrics />)
+    const view = render(() =><PanelSkeletonCard kind="stat" metrics />)
     const card = view.container.querySelector('.lens-skeleton-card')
     expect(card).toHaveAttribute('data-kind', 'stat')
     expect(card).toHaveAttribute('data-metrics', 'true')
@@ -53,7 +53,7 @@ describe('skeleton shapes', () => {
       items: [{ span: 8, kind: 'stat', metrics: true }, { span: 4, kind: 'pie', metrics: undefined }],
     }])
 
-    const view = render(<DashboardSkeleton rows={rows} />)
+    const view = render(() =><DashboardSkeleton rows={rows} />)
     const cards = view.container.querySelectorAll('.lens-grid-item')
     expect(cards).toHaveLength(2)
     expect(cards[0]).toHaveStyle({ '--lens-panel-span': '8' })

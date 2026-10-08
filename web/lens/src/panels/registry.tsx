@@ -1,4 +1,6 @@
-import { Component, lazy, Suspense, type ComponentType, type ErrorInfo, type ReactNode } from 'react'
+
+import { createComponent, createMemo, ErrorBoundary, lazy, Show, Suspense, type Component, type JSXElement } from 'solid-js'
+import { Dynamic } from 'solid-js/web'
 import type { Panel, PanelKind } from '../contract'
 import { useTranslate } from '../runtime'
 import type { CascadePanelProps } from './CascadePanel'
@@ -13,19 +15,24 @@ import { PanelSkeletonBody } from './Skeleton'
 import { StatPanel, type StatPanelProps } from './StatPanel'
 import type { TablePanelProps } from './TablePanel'
 
-const ChartPanel: ComponentType<ChartPanelProps> = lazy(async () => ({ default: (await import('./ChartPanel')).ChartPanel }))
-const CascadePanel: ComponentType<CascadePanelProps> = lazy(async () => ({ default: (await import('./CascadePanel')).CascadePanel }))
-const CoveragePanel: ComponentType<CoveragePanelProps> = lazy(async () => ({ default: (await import('./CoveragePanel')).CoveragePanel }))
-const GaugePanel: ComponentType<GaugePanelProps> = lazy(async () => ({ default: (await import('./GaugePanel')).GaugePanel }))
-const MetricFlowPanel: ComponentType<MetricFlowPanelProps> = lazy(async () => ({ default: (await import('./MetricFlowPanel')).MetricFlowPanel }))
-const MetricHierarchyPanel: ComponentType<MetricHierarchyPanelProps> = lazy(async () => ({ default: (await import('./MetricHierarchyPanel')).MetricHierarchyPanel }))
-const MetricRelationshipPanel: ComponentType<MetricRelationshipPanelProps> = lazy(async () => ({ default: (await import('./MetricRelationshipPanel')).MetricRelationshipPanel }))
-const MapPanel: ComponentType<MapPanelProps> = lazy(async () => ({ default: (await import('./MapPanel')).MapPanel }))
-const TablePanel: ComponentType<TablePanelProps> = lazy(async () => ({ default: (await import('./TablePanel')).TablePanel }))
+// A lazy resource belongs to one mounted panel. Sharing Solid's lazy wrapper
+// across an exploring card and its neighbor lets disposal of the first owner
+// clear the second card's pending component. ESM still shares the module load.
+function deferredPanel<Props extends object>(load: () => Promise<{ default: Component<Props> }>): Component<Props> {
+  return props => createComponent(lazy(load), props)
+}
 
-/* eslint-disable react-refresh/only-export-components */
+const ChartPanel: Component<ChartPanelProps> = deferredPanel(async () => ({ default: (await import('./ChartPanel')).ChartPanel }))
+const CascadePanel: Component<CascadePanelProps> = deferredPanel(async () => ({ default: (await import('./CascadePanel')).CascadePanel }))
+const CoveragePanel: Component<CoveragePanelProps> = deferredPanel(async () => ({ default: (await import('./CoveragePanel')).CoveragePanel }))
+const GaugePanel: Component<GaugePanelProps> = deferredPanel(async () => ({ default: (await import('./GaugePanel')).GaugePanel }))
+const MetricFlowPanel: Component<MetricFlowPanelProps> = deferredPanel(async () => ({ default: (await import('./MetricFlowPanel')).MetricFlowPanel }))
+const MetricHierarchyPanel: Component<MetricHierarchyPanelProps> = deferredPanel(async () => ({ default: (await import('./MetricHierarchyPanel')).MetricHierarchyPanel }))
+const MetricRelationshipPanel: Component<MetricRelationshipPanelProps> = deferredPanel(async () => ({ default: (await import('./MetricRelationshipPanel')).MetricRelationshipPanel }))
+const MapPanel: Component<MapPanelProps> = deferredPanel(async () => ({ default: (await import('./MapPanel')).MapPanel }))
+const TablePanel: Component<TablePanelProps> = deferredPanel(async () => ({ default: (await import('./TablePanel')).TablePanel }))
 
-export type PanelComponent = ComponentType<
+export type PanelComponent = Component<
   | StatPanelProps
   | ChartPanelProps
   | CascadePanelProps
@@ -68,66 +75,68 @@ export interface RegisteredPanelProps {
   registry?: PanelRegistry
 }
 
-export function UnsupportedPanel({ panel }: { panel: Panel }) {
+export function UnsupportedPanel(props: { panel: Panel }) {
   const translate = useTranslate()
   return (
-    <section className="lens-panel lens-panel-unsupported" aria-label={panel.title}>
-      <header className="lens-panel-header"><h3 className="lens-panel-title">{panel.title}</h3></header>
-      <div className="lens-panel-state" role="status">
-        {translate('panel.unsupported', 'Unsupported panel: {kind}', { kind: panel.kind })}
+    <section class="lens-panel lens-panel-unsupported" aria-label={props.panel.title}>
+      <header class="lens-panel-header"><h3 class="lens-panel-title">{props.panel.title}</h3></header>
+      <div class="lens-panel-state" role="status">
+        {translate('panel.unsupported', 'Unsupported panel: {kind}', { kind: props.panel.kind })}
       </div>
     </section>
   )
 }
 
-export function RegisteredPanel({ panel, registry = panelRegistry }: RegisteredPanelProps) {
+export function RegisteredPanel(props: RegisteredPanelProps) {
   const translate = useTranslate()
-  const Component = registry[panel.kind]
-  return Component ? (
-    <PanelErrorBoundary
-      fallback={translate('panel.error', 'This panel could not be rendered.')}
-      panel={panel}
-      retryLabel={translate('panel.retry', 'Retry')}
-    >
-      <Suspense fallback={<PanelModuleFallback panel={panel} />}>
-        <Component panel={panel} />
-      </Suspense>
-    </PanelErrorBoundary>
-  ) : <UnsupportedPanel panel={panel} />
+  const resolve = createMemo(() => (props.registry ?? panelRegistry)[props.panel.kind])
+  return (
+    <Show when={resolve()} fallback={<UnsupportedPanel panel={props.panel} />}>
+      {(Resolved) => (
+        <PanelErrorBoundary
+          fallback={translate('panel.error', 'This panel could not be rendered.')}
+          panel={props.panel}
+          retryLabel={translate('panel.retry', 'Retry')}
+        >
+          {() => <Suspense fallback={<PanelModuleFallback panel={props.panel} />}>
+            <Dynamic component={Resolved()} panel={props.panel} />
+          </Suspense>}
+        </PanelErrorBoundary>
+      )}
+    </Show>
+  )
 }
 
-class PanelErrorBoundary extends Component<{
-  children: ReactNode
+/**
+ * An error boundary that resets when the panel object changes, mirroring the
+ * React version's componentDidUpdate reset: a fresh document (or a drill level)
+ * remounts the boundary with a fresh render instead of a stuck failure card.
+ */
+function PanelErrorBoundary(props: {
+  children: () => JSXElement
   fallback: string
   panel: Panel
   retryLabel: string
-}, { failed: boolean }> {
-  state = { failed: false }
-
-  static getDerivedStateFromError() {
-    return { failed: true }
-  }
-
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error(`[lens] panel ${this.props.panel.id} failed to render`, error, info)
-  }
-
-  componentDidUpdate(previous: Readonly<{ panel: Panel }>) {
-    if (this.state.failed && previous.panel !== this.props.panel) this.setState({ failed: false })
-  }
-
-  render() {
-    if (!this.state.failed) return this.props.children
-    return (
-      <section aria-label={this.props.panel.title} className="lens-panel lens-panel-error">
-        <header className="lens-panel-header"><h3 className="lens-panel-title">{this.props.panel.title}</h3></header>
-        <div className="lens-panel-state" role="alert">
-          <span>{this.props.fallback}</span>
-          <button onClick={() => this.setState({ failed: false })} type="button">{this.props.retryLabel}</button>
-        </div>
-      </section>
-    )
-  }
+}) {
+  return (
+    <Show when={props.panel} keyed>
+      {(current) => (
+        <ErrorBoundary
+          fallback={(_error: unknown, reset: () => void) => (
+            <section aria-label={current.title} class="lens-panel lens-panel-error">
+              <header class="lens-panel-header"><h3 class="lens-panel-title">{current.title}</h3></header>
+              <div class="lens-panel-state" role="alert">
+                <span>{props.fallback}</span>
+                <button onClick={reset} type="button">{props.retryLabel}</button>
+              </div>
+            </section>
+          )}
+        >
+          {props.children()}
+        </ErrorBoundary>
+      )}
+    </Show>
+  )
 }
 
 /**
@@ -141,11 +150,11 @@ class PanelErrorBoundary extends Component<{
  * table-shaped card arriving in place of a chart-shaped slab is exactly the
  * jump the shapes exist to prevent.
  */
-function PanelModuleFallback({ panel }: { panel: Panel }) {
+function PanelModuleFallback(props: { panel: Panel }) {
   return (
-    <section aria-busy="true" aria-label={panel.title} className="lens-panel lens-panel-loading">
-      <header className="lens-panel-header"><h3 className="lens-panel-title">{panel.title}</h3></header>
-      <PanelSkeletonBody kind={panel.kind} />
+    <section aria-busy="true" aria-label={props.panel.title} class="lens-panel lens-panel-loading">
+      <header class="lens-panel-header"><h3 class="lens-panel-title">{props.panel.title}</h3></header>
+      <PanelSkeletonBody kind={props.panel.kind} />
     </section>
   )
 }

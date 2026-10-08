@@ -1,0 +1,4 @@
+{
+  "bump": "major",
+  "summary": "Delete the legacy Lens rendering stack: pkg/lens/render/react (templ custom-element renderer), the DrillTree/DrillHierarchy client-drill machinery and drill_tree.md, and the React surface of the client-host package. The SolidJS runtime is the only Lens renderer; @iota-uz/sdk client-host no longer carries React peer dependencies. Breaking for any consumer still importing the removed React entrypoints."
+}

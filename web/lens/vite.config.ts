@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import react from '@vitejs/plugin-react'
+import solid from 'vite-plugin-solid'
 import { defineConfig } from 'vite'
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
@@ -9,9 +9,9 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   resolve: {
     alias: {
-      '@iota-uz/sdk/client-host': path.resolve(rootDir, '../client-host/src/index.ts'),
+      '@iota-uz/sdk/client-host': path.resolve(rootDir, '../client-host/src/solid-index.ts'),
     },
-    dedupe: ['react', 'react-dom'],
+
   },
   // Relative base, verified by experiment: removing it does NOT change the
   // dist bundle (Granite loads the runtime from manifest-derived absolute
@@ -23,11 +23,11 @@ export default defineConfig({
   // no longer existed, not an asset-path bug.
   base: './',
   plugins: [
-    react(),
+    solid(),
     {
       name: 'lens-go-embed-placeholder',
       closeBundle() {
-        writeFileSync(path.resolve(rootDir, '../../pkg/lens/render/react/dist/.keep'), '')
+        writeFileSync(path.resolve(rootDir, '../../pkg/lens/render/solid/dist/.keep'), '')
       },
     },
   ],
@@ -41,12 +41,15 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: path.resolve(rootDir, '../../pkg/lens/render/react/dist'),
+    outDir: path.resolve(rootDir, '../../pkg/lens/render/solid/dist'),
     emptyOutDir: true,
     manifest: true,
     cssCodeSplit: true,
     rollupOptions: {
-      input: path.resolve(rootDir, 'index.html'),
+      input: {
+        index: path.resolve(rootDir, 'index.html'),
+        stories: path.resolve(rootDir, 'stories.html'),
+      },
       output: {
         entryFileNames: 'assets/lens-dashboard-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',

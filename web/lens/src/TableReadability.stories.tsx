@@ -1,4 +1,3 @@
-import type { Story } from '@ladle/react'
 import type { DashboardDocument, Frame, Panel } from './contract'
 import { TablePanel } from './panels'
 import { DashboardRuntimeProvider, DocumentProvider } from './runtime'
@@ -63,15 +62,14 @@ const fetcher: typeof fetch = () => Promise.resolve(new Response(`${JSON.stringi
 
 function Scene({ narrow = false }: { narrow?: boolean }) {
   return (
-    <div className="lens-root lens-story-shell" style={{ width: narrow ? 600 : 1000 }}>
+    <div class="lens-root lens-story-shell" style={{ width: narrow ? '600px' : '1000px' }}>
       <DocumentProvider initialDocument={document_}>
-        <DashboardRuntimeProvider fetcher={fetcher} locale="en">
-          <TablePanel panel={panel} />
+        <DashboardRuntimeProvider fetcher={fetcher} locale="en">{() => (<TablePanel panel={panel} />)}
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
 }
 
-export const Wide: Story = () => <Scene />
-export const Narrow: Story = () => <Scene narrow />
+export const Wide = () => <Scene />
+export const Narrow = () => <Scene narrow />

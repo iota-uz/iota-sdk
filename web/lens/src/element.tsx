@@ -1,4 +1,4 @@
-import { createRoot, type Root } from 'react-dom/client'
+import { render } from 'solid-js/web'
 import { LensDashboard } from './LensDashboard'
 import { parseDocument, type DashboardDocument } from './contract'
 import { normalizeLensTheme } from './runtime'
@@ -7,7 +7,7 @@ const tagName = 'lens-dashboard'
 
 export class LensDashboardElement extends HTMLElement {
   static readonly observedAttributes = ['src', 'locale', 'theme', 'csrf', 'initial-document']
-  private root?: Root
+  private dispose?: () => void
   private fallbackHTML?: string
 
   private initialDocument(): DashboardDocument | undefined {
@@ -23,15 +23,15 @@ export class LensDashboardElement extends HTMLElement {
   }
 
   connectedCallback() {
-    // Captured before createRoot, which clears the element's children.
+    // Captured before render, which clears the element's children.
     this.fallbackHTML ??= this.innerHTML.trim() || undefined
-    this.root ??= createRoot(this)
+    if (this.dispose) return
     this.renderDashboard()
   }
 
   disconnectedCallback() {
-    this.root?.unmount()
-    this.root = undefined
+    this.dispose?.()
+    this.dispose = undefined
   }
 
   attributeChangedCallback() {
@@ -41,7 +41,8 @@ export class LensDashboardElement extends HTMLElement {
   }
 
   private renderDashboard() {
-    this.root?.render(
+    this.dispose?.()
+    const component = () => (
       <LensDashboard
         src={this.getAttribute('src') ?? undefined}
         locale={this.getAttribute('locale') ?? undefined}
@@ -49,8 +50,9 @@ export class LensDashboardElement extends HTMLElement {
         csrf={this.getAttribute('csrf') ?? undefined}
         fallbackHTML={this.fallbackHTML}
         initialDocument={this.initialDocument()}
-      />,
+      />
     )
+    this.dispose = render(component, this)
   }
 }
 

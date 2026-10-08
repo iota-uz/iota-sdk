@@ -1,5 +1,4 @@
-import type { Story } from '@ladle/react'
-import { useEffect, useRef } from 'react'
+import { createEffect, onCleanup, onMount, type JSX } from 'solid-js'
 import type { DashboardDocument, Frame, Panel } from './contract'
 import { CascadePanel, ExportButton, TablePanel } from './panels'
 import { DashboardRuntimeProvider, DocumentProvider, useDrill, useExport, usePanelFrame, usePanelPagination } from './runtime'
@@ -168,11 +167,11 @@ function storyDocument(panel: Panel, frames: Record<string, Frame>, endpoints: D
   }
 }
 
-function Runtime({ document, fetcher, children }: { document: DashboardDocument; fetcher?: typeof fetch; children: React.ReactNode }) {
+function Runtime(props: { document: DashboardDocument; fetcher?: typeof fetch; children: () => JSX.Element }) {
   return (
-    <div className="lens-root">
-      <DocumentProvider initialDocument={document}>
-        <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{children}</DashboardRuntimeProvider>
+    <div class="lens-root">
+      <DocumentProvider initialDocument={props.document}>
+        <DashboardRuntimeProvider locale="en" fetcher={props.fetcher}>{props.children}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
@@ -189,14 +188,14 @@ const notedPanel: Panel = {
   info: 'Also the gross RNP / UPR — a management calculation under the A/B/C rules, not the official net RNP.',
 }
 
-function OpenInfoTip({ children }: { children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
+function OpenInfoTip(props: { children: JSX.Element }) {
+  let ref: HTMLDivElement | undefined
+  onMount(() => {
     let cancelled = false
     let attempts = 0
     const open = () => {
       if (cancelled) return
-      const button = ref.current?.querySelector<HTMLElement>('.lens-info-tip-button')
+      const button = ref?.querySelector<HTMLElement>('.lens-info-tip-button')
       if (button) {
         button.click()
         return
@@ -206,53 +205,53 @@ function OpenInfoTip({ children }: { children: React.ReactNode }) {
     void window.document.fonts.ready.then(() => {
       window.requestAnimationFrame(() => window.requestAnimationFrame(open))
     })
-    return () => { cancelled = true }
-  }, [])
-  return <div ref={ref}>{children}</div>
+    onCleanup(() => { cancelled = true })
+  })
+  return <div ref={ref}>{props.children}</div>
 }
 
 function InfoTipStory({ theme }: { theme: 'light' | 'dark' }) {
   const document = storyDocument(notedPanel, { bridge: cascadeFrame })
   return (
-    <div className="lens-root" data-theme={theme}>
+    <div class="lens-root" data-theme={theme}>
       <DocumentProvider initialDocument={document}>
         <DashboardRuntimeProvider locale="en">
-          <OpenInfoTip><CascadePanel panel={notedPanel} /></OpenInfoTip>
+          {() => <OpenInfoTip><CascadePanel panel={notedPanel} /></OpenInfoTip>}
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
 }
 
-export const PanelInfoTipLight: Story = () => <InfoTipStory theme="light" />
+export const PanelInfoTipLight = () => <InfoTipStory theme="light" />
 PanelInfoTipLight.storyName = 'Panel info tip light'
 
-export const PanelInfoTipDark: Story = () => <InfoTipStory theme="dark" />
+export const PanelInfoTipDark = () => <InfoTipStory theme="dark" />
 PanelInfoTipDark.storyName = 'Panel info tip dark'
 
-export const CascadeFinalStage: Story = () => {
+export const CascadeFinalStage = () => {
   const document = storyDocument(cascadePanel, { bridge: cascadeFrame })
-  return <Runtime document={document}><CascadePanel panel={cascadePanel} /></Runtime>
+  return <Runtime document={document}>{() => (<CascadePanel panel={cascadePanel} />)}</Runtime>
 }
 
 // Waterfall projection: deduction bars read red, opening/closing totals navy.
-export const WaterfallSemanticTone: Story = () => {
+export const WaterfallSemanticTone = () => {
   const document = storyDocument(tonedBridgePanel, { bridge: tonedBridgeFrame })
-  return <Runtime document={document}><CascadePanel panel={tonedBridgePanel} /></Runtime>
+  return <Runtime document={document}>{() => (<CascadePanel panel={tonedBridgePanel} />)}</Runtime>
 }
 
 // Regression guard for the duplicate closing column: an explicit final=true
 // running-total row that restates the last stage must render once as the navy
 // total, preceded by the navy opening and five red deduction bars — no "+0".
-export const WaterfallClosingTotal: Story = () => {
+export const WaterfallClosingTotal = () => {
   const document = storyDocument(officialResultPanel, { bridge: officialResultFrame })
-  return <Runtime document={document}><CascadePanel panel={officialResultPanel} /></Runtime>
+  return <Runtime document={document}>{() => (<CascadePanel panel={officialResultPanel} />)}</Runtime>
 }
 
 // A split on a late column: the callout must flip to the inner side rather than
 // run off the right edge of the plot. Also covers the guards — a split equal to
 // the whole movement, and one larger than it, both leave the bar undivided.
-export const WaterfallSplitCallout: Story = () => {
+export const WaterfallSplitCallout = () => {
   const frame: Frame = {
     ...officialResultFrame,
     rows: [
@@ -266,7 +265,7 @@ export const WaterfallSplitCallout: Story = () => {
     ],
   }
   const document = storyDocument(officialResultPanel, { bridge: frame })
-  return <Runtime document={document}><CascadePanel panel={officialResultPanel} /></Runtime>
+  return <Runtime document={document}>{() => (<CascadePanel panel={officialResultPanel} />)}</Runtime>
 }
 
 // Two totals in one cascade: the statutory underwriting result is a checkpoint
@@ -274,7 +273,7 @@ export const WaterfallSplitCallout: Story = () => {
 // to the pre-tax result. The checkpoint stands on zero where it was declared
 // (not hoisted to the end) and renders hollow, so the one solid navy column
 // stays unambiguously the finish.
-export const WaterfallCheckpointTotal: Story = () => {
+export const WaterfallCheckpointTotal = () => {
   const frame: Frame = {
     ...officialResultFrame,
     rows: [
@@ -290,7 +289,7 @@ export const WaterfallCheckpointTotal: Story = () => {
     ],
   }
   const document = storyDocument(officialResultPanel, { bridge: frame })
-  return <Runtime document={document}><CascadePanel panel={officialResultPanel} /></Runtime>
+  return <Runtime document={document}>{() => (<CascadePanel panel={officialResultPanel} />)}</Runtime>
 }
 
 // The defect this story guards, as the profitability dashboard produced it: a
@@ -337,18 +336,18 @@ const annotatedUnknownFrame: Frame = {
   ]),
 }
 
-export const WaterfallUnknownStage: Story = () => {
+export const WaterfallUnknownStage = () => {
   const document = storyDocument(unknownResultPanel, { bridge: annotatedUnknownFrame })
-  return <Runtime document={document}><CascadePanel panel={unknownResultPanel} /></Runtime>
+  return <Runtime document={document}>{() => (<CascadePanel panel={unknownResultPanel} />)}</Runtime>
 }
 
 // The stacked projection of the same bridge: an unknown stage prints the em
 // dash rather than «0 UZS», its movement says the same, and its track is an
 // outline rather than the empty rail a genuine zero draws.
-export const CascadeUnknownStage: Story = () => {
+export const CascadeUnknownStage = () => {
   const panel: Panel = { ...unknownResultPanel, id: 'unknown-result-cascade', presentation: undefined }
   const document = storyDocument(panel, { bridge: annotatedUnknownFrame })
-  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+  return <Runtime document={document}>{() => (<CascadePanel panel={panel} />)}</Runtime>
 }
 
 // The same unknown-amount bridge once its stages open something — and the
@@ -376,26 +375,26 @@ const navigableUnknownPanel: Panel = {
   actions: [{ kind: 'navigate', urlSource: { kind: 'field', name: 'detailUrl' }, params: [], payload: {} }],
 }
 
-export const WaterfallUnknownStageNavigates: Story = () => {
+export const WaterfallUnknownStageNavigates = () => {
   const document = storyDocument(navigableUnknownPanel, { 'navigable-unknown': navigableUnknownFrame })
-  return <Runtime document={document}><CascadePanel panel={navigableUnknownPanel} /></Runtime>
+  return <Runtime document={document}>{() => (<CascadePanel panel={navigableUnknownPanel} />)}</Runtime>
 }
 
 // The stacked projection of the same thing. Its rows have a hover plate and no
 // resting mark at all, so without the arrow the list says nothing about which
 // of its stages is a way in — the same failure, one layout over.
-export const CascadeUnknownStageNavigates: Story = () => {
+export const CascadeUnknownStageNavigates = () => {
   const panel: Panel = { ...navigableUnknownPanel, id: 'navigable-unknown-cascade', presentation: undefined }
   const document = storyDocument(panel, { 'navigable-unknown': navigableUnknownFrame })
-  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+  return <Runtime document={document}>{() => (<CascadePanel panel={panel} />)}</Runtime>
 }
 
 // Cascade-list projection of the same toned bridge: track fill and value text
 // follow the per-stage tone.
-export const CascadeSemanticTone: Story = () => {
+export const CascadeSemanticTone = () => {
   const panel: Panel = { ...tonedBridgePanel, id: 'result-cascade', presentation: undefined }
   const document = storyDocument(panel, { bridge: tonedBridgeFrame })
-  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+  return <Runtime document={document}>{() => (<CascadePanel panel={panel} />)}</Runtime>
 }
 
 const navigableBridgeFrame: Frame = {
@@ -409,7 +408,7 @@ const navigableBridgeFrame: Frame = {
 // which is the point — the bleed the plate needs is cancelled by the padding
 // that carries it, so switching a cascade to navigable moves nothing on screen
 // until a pointer or a Tab arrives.
-export const CascadeStagesNavigate: Story = () => {
+export const CascadeStagesNavigate = () => {
   const panel: Panel = {
     ...tonedBridgePanel,
     id: 'navigable-cascade',
@@ -418,7 +417,7 @@ export const CascadeStagesNavigate: Story = () => {
     actions: [{ kind: 'navigate', urlSource: { kind: 'field', name: 'detailUrl' }, params: [], payload: {} }],
   }
   const document = storyDocument(panel, { 'navigable-bridge': navigableBridgeFrame })
-  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+  return <Runtime document={document}>{() => (<CascadePanel panel={panel} />)}</Runtime>
 }
 
 // The waterfall projection of the same navigable bridge. Hover a column's name,
@@ -426,7 +425,7 @@ export const CascadeStagesNavigate: Story = () => {
 // now, which is what this story is for — the label used to be a second grid
 // under the plot, and the word a hand goes for was the one part of a step that
 // answered nothing.
-export const WaterfallColumnsNavigate: Story = () => {
+export const WaterfallColumnsNavigate = () => {
   const panel: Panel = {
     ...tonedBridgePanel,
     id: 'navigable-bridge-plot',
@@ -434,14 +433,14 @@ export const WaterfallColumnsNavigate: Story = () => {
     actions: [{ kind: 'navigate', urlSource: { kind: 'field', name: 'detailUrl' }, params: [], payload: {} }],
   }
   const document = storyDocument(panel, { 'navigable-bridge': navigableBridgeFrame })
-  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
+  return <Runtime document={document}>{() => (<CascadePanel panel={panel} />)}</Runtime>
 }
 
 // Names long enough to clamp, beside names that fit on one line. The bars must
 // stand on one baseline regardless: every column takes its plot band from the
 // chart's row rather than from what is left after its own label, which is the
 // whole reason the two bands are a `subgrid` and not a box per column.
-export const WaterfallMixedLabelHeights: Story = () => {
+export const WaterfallMixedLabelHeights = () => {
   const frame: Frame = {
     ...tonedBridgeFrame,
     rows: [
@@ -452,21 +451,21 @@ export const WaterfallMixedLabelHeights: Story = () => {
     ],
   }
   const document = storyDocument(tonedBridgePanel, { bridge: frame })
-  return <Runtime document={document}><CascadePanel panel={tonedBridgePanel} /></Runtime>
+  return <Runtime document={document}>{() => (<CascadePanel panel={tonedBridgePanel} />)}</Runtime>
 }
 
-function OpenEvidence({ emptyPage }: { emptyPage?: boolean }) {
+function OpenEvidence(props: { emptyPage?: boolean }) {
   const drill = useDrill()
   const pagination = usePanelPagination()
   const frame = usePanelFrame(tablePanel.id)
-  const opened = useRef(false)
-  useEffect(() => { drill.drillInto('evidence', tablePanel.id) }, [drill])
-  useEffect(() => {
-    if (emptyPage && frame.page?.number === 1 && !opened.current) {
-      opened.current = true
+  let opened = false
+  onMount(() => { drill.drillInto('evidence', tablePanel.id) })
+  createEffect(() => {
+    if (props.emptyPage && frame.page?.number === 1 && !opened) {
+      opened = true
       void pagination.loadPage(tablePanel.id, 2)
     }
-  }, [emptyPage, frame.page?.number, pagination])
+  })
   return <TablePanel panel={tablePanel} />
 }
 
@@ -490,26 +489,26 @@ function TableStory({ emptyPage = false }: { emptyPage?: boolean }) {
     const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { page: number }
     return Promise.resolve(tableResponse(request.page, emptyPage))
   }
-  return <Runtime document={document} fetcher={fetcher}><OpenEvidence emptyPage={emptyPage} /></Runtime>
+  return <Runtime document={document} fetcher={fetcher}>{() => (<OpenEvidence emptyPage={emptyPage} />)}</Runtime>
 }
 
-export const TablePaginationAndLeafActions: Story = () => <TableStory />
-export const TableEmptyPage: Story = () => <TableStory emptyPage />
+export const TablePaginationAndLeafActions = () => <TableStory />
+export const TableEmptyPage = () => <TableStory emptyPage />
 
-export const TableColumns: Story = () => {
+export const TableColumns = () => {
   const document = storyDocument(columnsPanel, { profitability: columnsFrame })
-  return <Runtime document={document}><TablePanel panel={columnsPanel} /></Runtime>
+  return <Runtime document={document}>{() => (<TablePanel panel={columnsPanel} />)}</Runtime>
 }
 
 function AutoExport() {
   const action = useExport('export-story')
-  const started = useRef(false)
-  useEffect(() => {
-    if (!started.current) {
-      started.current = true
+  let started = false
+  onMount(() => {
+    if (!started) {
+      started = true
       void action.run()
     }
-  }, [action])
+  })
   return <ExportButton panelId="export-story" />
 }
 
@@ -521,9 +520,9 @@ function ExportStory({ mode }: { mode: 'idle' | 'pending' | 'retry' }) {
       status: 410, headers: { 'Content-Type': 'application/json' },
     }))
     : new Promise<Response>(() => undefined)
-  return <Runtime document={document} fetcher={fetcher}>{mode === 'idle' ? <ExportButton panelId={panel.id} /> : <AutoExport />}</Runtime>
+  return <Runtime document={document} fetcher={fetcher}>{() => (mode === 'idle' ? <ExportButton panelId={panel.id} /> : <AutoExport />)}</Runtime>
 }
 
-export const ExportIdle: Story = () => <ExportStory mode="idle" />
-export const ExportPending: Story = () => <ExportStory mode="pending" />
-export const ExportSnapshotRetry: Story = () => <ExportStory mode="retry" />
+export const ExportIdle = () => <ExportStory mode="idle" />
+export const ExportPending = () => <ExportStory mode="pending" />
+export const ExportSnapshotRetry = () => <ExportStory mode="retry" />
