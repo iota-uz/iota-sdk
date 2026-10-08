@@ -803,3 +803,19 @@ test('facet menu receives wheel and pointer input across dimensions', async ({ p
   await menu.getByRole('button', { name: 'Apply', exact: true }).click()
   await expect(page).toHaveURL(/\/reports\/sales\?.*_f=region%3Aosago/)
 })
+
+// Falsely green if only an inline frame is used: this story loads its first page after TablePanel mounts, without hasNext in the response.
+test('an asynchronously loaded table can move to the next page', async ({ page }) => {
+  await openStory(page, 'panels-v2--table-pagination-and-leaf-actions', 0)
+  await expect(page.getByText('Orion Services', { exact: true })).toBeVisible()
+  const next = page.getByRole('button', { name: 'Next', exact: true })
+  await expect(next).toBeEnabled()
+  await next.click()
+  await expect(page.getByText('Meridian Works', { exact: true })).toBeVisible()
+  await expect(page.getByText('Orion Services', { exact: true })).toHaveCount(0)
+  await expect(next).toBeDisabled()
+  const previous = page.getByRole('button', { name: 'Previous', exact: true })
+  await expect(previous).toBeEnabled()
+  await previous.click()
+  await expect(page.getByText('Orion Services', { exact: true })).toBeVisible()
+})

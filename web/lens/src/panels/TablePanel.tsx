@@ -523,10 +523,10 @@ export function TablePanel(props: TablePanelProps) {
   // result scope; only an entirely static frame is safe to reorder locally.
   const rows = createMemo(() => frame.data ? sortedRows(frame.data, !serverSort && sortEnabled() ? sort() : undefined) : [])
   const page = () => frame.page?.number ?? 1
-  const pageSize = frame.page?.size
+  const pageSize = () => frame.page?.size
   const loadingPage = () => requestedSnapshotId === document.snapshotId ? requestedPage() : 1
   // The row-count check keeps pagination working with older servers that omit hasNext.
-  const hasNext = () => frame.page?.hasNext ?? Boolean(pageSize && (frame.data?.rows.length ?? 0) >= pageSize)
+  const hasNext = () => frame.page?.hasNext ?? Boolean(pageSize() && (frame.data?.rows.length ?? 0) >= pageSize()!)
   createEffect(() => {
     const syncLocation = () => setLocationHref(globalThis.location.href)
     globalThis.addEventListener('popstate', syncLocation)
@@ -579,17 +579,17 @@ export function TablePanel(props: TablePanelProps) {
   // The tag lives in a companion frame column named by presentation.rowGroupField.
   const [expandedGroups, setExpandedGroups] = createSignal<Record<string, boolean>>({})
   const rowGroupField = panel.presentation?.rowGroupField
-  const groupIndex = columns && frame.data && rowGroupField
+  const groupIndex = () => columns && frame.data && rowGroupField
     ? frame.data.columns.findIndex((candidate) => candidate.name === rowGroupField)
     : -1
   const toggleGroup = (group: string) => setExpandedGroups((current) => ({ ...current, [group]: !current[group] }))
   const renderRows = createMemo<Array<RenderRow>>(() => {
-    if (groupIndex < 0) return rows().map((entry) => ({ ...entry, kind: 'normal' as const }))
+    if (groupIndex() < 0) return rows().map((entry) => ({ ...entry, kind: 'normal' as const }))
     const normal: Array<RenderRow> = []
     const toggles: Array<{ entry: { row: Array<unknown>; index: number }; group: string }> = []
     const members = new Map<string, Array<{ row: Array<unknown>; index: number }>>()
     for (const entry of rows()) {
-      const raw = entry.row[groupIndex]
+      const raw = entry.row[groupIndex()]
       const tag = typeof raw === 'string' ? raw : ''
       if (!tag) { normal.push({ ...entry, kind: 'normal' }); continue }
       if (tag.endsWith(':toggle')) { toggles.push({ entry, group: tag.slice(0, -':toggle'.length) }); continue }
@@ -608,17 +608,17 @@ export function TablePanel(props: TablePanelProps) {
     return out
   })
   // The footer's "N rows" counts real data rows, never the synthetic toggle.
-  const dataRowCount = groupIndex < 0
+  const dataRowCount = () => groupIndex() < 0
     ? (frame.data?.rows.length ?? 0)
     : (frame.data?.rows.reduce((count, row) => {
-      const raw = row[groupIndex]
+      const raw = row[groupIndex()]
       return typeof raw === 'string' && raw.endsWith(':toggle') ? count : count + 1
     }, 0) ?? 0)
   // A short, unpaginated table has nothing to put in the footer, and the footer
   // is a bordered inset band — on a three-row explanatory table it reads as an
   // empty row the producer forgot to fill. Decide here whether it has anything
   // to say, so the band and its only two occupants appear and vanish together.
-  const showsRowCount = (frame.summary?.filteredRows ?? dataRowCount) > rowCountDisclosureThreshold
+  const showsRowCount = () => (frame.summary?.filteredRows ?? dataRowCount()) > rowCountDisclosureThreshold
 
   createEffect(() => {
     if (requestedSnapshotId !== document.snapshotId) {
@@ -658,7 +658,7 @@ export function TablePanel(props: TablePanelProps) {
   }
 
   const sortDirection = (name: string) => sortEnabled() && sort()?.column === name ? sort()!.direction : undefined
-  const columnCount = columns ? columns.length + (rowLeafAction ? 1 : 0) : (frame.data?.columns.length ?? 0) + 1
+  const columnCount = () => columns ? columns.length + (rowLeafAction ? 1 : 0) : (frame.data?.columns.length ?? 0) + 1
 
   createEffect(() => {
     const data = frame.data
@@ -778,7 +778,7 @@ export function TablePanel(props: TablePanelProps) {
                 tabIndex={scrollEdges().left || scrollEdges().right ? 0 : undefined}
               >
                 {/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
-                <table class={`lens-table${columnCount >= 4 ? ' lens-table-wide' : ''}`}>
+                <table class={`lens-table${columnCount() >= 4 ? ' lens-table-wide' : ''}`}>
                   <thead>
                     <tr>
                       {columns ? (
@@ -848,7 +848,7 @@ export function TablePanel(props: TablePanelProps) {
                   <tbody>
                     {rows().length === 0 ? (
                       <tr>
-                        <td class="lens-table-empty" colSpan={columnCount}>
+                        <td class="lens-table-empty" colSpan={columnCount()}>
                           {translate('table.emptyPage', 'No records on this page')}
                         </td>
                         {hasHorizontalOverflow() && <td aria-hidden="true" class="lens-table-scroll-spacer" />}
@@ -976,18 +976,18 @@ export function TablePanel(props: TablePanelProps) {
                 type="button"
               />
             </div>
-            {(showsRowCount || frame.page) && (
+            {(showsRowCount() || frame.page) && (
               <footer class="lens-table-footer">
                 <span class="lens-table-footer-notes">
                   {/* Only a paginated table has a "this page" to scope sorting to.
                   On a table that shows every row at once the caveat describes a
                   limit that does not exist, and reads as a warning that some of
                   the data is out of sight. */}
-                  {showsRowCount && (
+                  {showsRowCount() && (
                     <span class="lens-table-rowcount">
                       {frame.summary && frame.summary.totalRows > frame.summary.filteredRows
                         ? translate('table.filteredRowCount', '{filtered} of {total} rows', { filtered: frame.summary.filteredRows, total: frame.summary.totalRows })
-                        : translate('table.rowCount', '{count} rows', { count: frame.summary?.filteredRows ?? dataRowCount })}
+                        : translate('table.rowCount', '{count} rows', { count: frame.summary?.filteredRows ?? dataRowCount() })}
                     </span>
                   )}
                 </span>
