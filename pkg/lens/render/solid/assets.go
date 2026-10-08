@@ -1,4 +1,4 @@
-// Package react provides the legacy Lens custom-element compatibility adapter.
+// Package solid provides the Lens Solid custom-element adapter.
 package solid
 
 import (
@@ -17,7 +17,7 @@ import (
 const DefaultAssetBasePath = "/assets/lens"
 
 // AssetsDirEnv points the legacy custom-element adapter at a generated Vite
-// build directory. Direct React hosts consume @iota-uz/lens-web and do not need
+// build directory. Direct Solid hosts consume @iota-uz/lens-web and do not need
 // this directory or a Node installation when compiling the Go SDK.
 const AssetsDirEnv = "LENS_ASSETS_DIR"
 

@@ -663,10 +663,6 @@ func TestValidate_RejectsInvalidActionKeys(t *testing.T) {
 	}
 }
 
-func actionSpec(spec action.Spec) *action.Spec {
-	return &spec
-}
-
 func TestExecuteMarksMissingPanelFieldsAsPanelError(t *testing.T) {
 	t.Parallel()
 
