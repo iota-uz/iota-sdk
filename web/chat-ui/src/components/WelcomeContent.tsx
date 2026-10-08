@@ -138,7 +138,7 @@ function WelcomeContent(solidProps1Input: WelcomeContentProps) {
             return (<button onClick={() => handlePromptClick(prompt.text)} disabled={solidProps1.disabled} class="cursor-pointer group flex flex-col items-start text-left p-4 rounded-xl bg-white dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50/80 dark:hover:bg-gray-700/30 shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed" aria-label={`${prompt.category}: ${prompt.text}`}>
                 <div class="mb-3 flex items-center gap-2">
                   <prompt.icon size={16} weight="duotone" class={style?.icon ?? 'text-gray-500'}/>
-                  <span class={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${style?.badge ?? 'bg-gray-100 text-gray-600 ring-gray-500/10'}`}>
+                  <span class={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${style?.badge ?? 'bg-gray-100 text-gray-600 ring-gray-500/10'}`}>
                     {prompt.category}
                   </span>
                 </div>

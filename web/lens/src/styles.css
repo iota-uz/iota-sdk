@@ -4769,7 +4769,7 @@
   }
 
   .lens-table-cell-bool {
-    @apply lens:text-center;
+    @apply lens:text-left;
   }
 
   .lens-table-bool {
@@ -6827,6 +6827,10 @@
   .lens-temporal-toggle,
   .lens-temporal-select {
     @apply lens:min-h-control-md lens:max-w-full lens:truncate lens:rounded-control lens:border lens:border-border lens:bg-card lens:px-2 lens:text-sm lens:font-semibold lens:text-muted lens:transition-colors;
+  }
+
+  .lens-temporal-toggle {
+    border-style: outset;
   }
 
   .lens-temporal-toggle:hover,
