@@ -115,10 +115,10 @@ const tocHeadings = headings.filter(
   </nav>
 </header><aside
   id="docs-mobile-nav"
-  class="nextra-mobile-nav x:flex x:flex-col x:fixed x:inset-0 x:pt-(--nextra-navbar-height) x:z-20 x:md:hidden x:bg-nextra-bg x:[transform:translate3d(0,-100%,0)]"
+  class="nextra-mobile-nav x:flex x:flex-col x:fixed x:inset-0 x:pt-(--nextra-navbar-height) x:z-20 x:overscroll-contain x:[contain:layout_style] x:md:hidden x:bg-nextra-bg x:[transform:translate3d(0,-100%,0)]"
 >
   <div class="x:p-4">
-    <Navigation items={items} base={base} current={current} />
+    <Navigation items={items} base={base} current={current} mobile />
   </div>
 </aside><div id="search-results" hidden></div><div
   class="x:mx-auto x:flex x:max-w-(--nextra-content-width)"
@@ -138,7 +138,6 @@ const tocHeadings = headings.filter(
       class="x:sticky x:bottom-0 x:bg-nextra-bg nextra-sidebar-footer x:border-t nextra-border x:flex x:items-center x:gap-2 x:py-4 x:mx-4"
     >
       <button
-        
         aria-expanded="false"
         aria-haspopup="listbox"
         aria-label="Toggle theme"
@@ -403,12 +402,32 @@ const tocHeadings = headings.filter(
   </article>
 </div>
 
-<div id="modules-menu" class="docs-module-menu" hidden>
+<div
+  id="modules-menu"
+  role="menu"
+  tabindex="0"
+  class="x:focus-visible:nextra-focus nextra-scrollbar x:motion-reduce:transition-none x:origin-top x:transition x:duration-200 x:ease-out x:border x:border-black/5 x:dark:border-white/20 x:z-30 x:rounded-md x:py-1 x:text-sm x:shadow-lg x:backdrop-blur-md x:bg-nextra-bg/70 x:max-h-[min(calc(100vh-5rem),256px)]!"
+  style="position:absolute;overflow:auto"
+  hidden
+>
   {
     items
       .filter((item) => item.menu)
       .flatMap((item) => item.children)
-      .map((item) => <a href={item.href}>{item.title}</a>)
+      .map((item) => (
+        <a
+          role="menuitem"
+          tabindex="-1"
+          class="x:focus-visible:nextra-focus x:block x:py-1.5 x:transition-colors x:ps-3 x:pe-9 x:text-gray-600 x:dark:text-gray-400"
+          href={
+            item.href.startsWith("/") && !item.href.startsWith(base)
+              ? base + item.href
+              : item.href
+          }
+        >
+          {item.title}
+        </a>
+      ))
   }
 </div>
 
@@ -422,7 +441,8 @@ const tocHeadings = headings.filter(
   id="theme-menu"
   role="listbox"
   aria-label="Theme"
-  class="x:focus-visible:nextra-focus x:opacity-100 x:motion-reduce:transition-none x:transition-opacity x:min-w-(--button-width) x:z-30 x:max-h-64 x:rounded-md x:border x:border-black/5 x:backdrop-blur-md x:bg-nextra-bg/70 x:py-1 x:text-sm x:shadow-lg x:dark:border-white/20 docs-choice-menu x:nextra-focus" tabindex="0"
+  class="x:focus-visible:nextra-focus x:opacity-100 x:motion-reduce:transition-none x:transition-opacity x:min-w-(--button-width) x:z-30 x:max-h-64 x:rounded-md x:border x:border-black/5 x:backdrop-blur-md x:bg-nextra-bg/70 x:py-1 x:text-sm x:shadow-lg x:dark:border-white/20 docs-choice-menu x:nextra-focus"
+  tabindex="0"
   hidden
 >
   {
@@ -443,7 +463,8 @@ const tocHeadings = headings.filter(
   id="copy-menu"
   role="listbox"
   aria-label="Copy page options"
-  class="x:focus-visible:nextra-focus x:opacity-100 x:motion-reduce:transition-none x:transition-opacity x:min-w-(--button-width) x:z-30 x:max-h-64 x:rounded-md x:border x:border-black/5 x:backdrop-blur-md x:bg-nextra-bg/70 x:py-1 x:text-sm x:shadow-lg x:dark:border-white/20 docs-choice-menu x:nextra-focus" tabindex="0"
+  class="x:focus-visible:nextra-focus x:opacity-100 x:motion-reduce:transition-none x:transition-opacity x:min-w-(--button-width) x:z-30 x:max-h-64 x:rounded-md x:border x:border-black/5 x:backdrop-blur-md x:bg-nextra-bg/70 x:py-1 x:text-sm x:shadow-lg x:dark:border-white/20 docs-choice-menu x:nextra-focus"
+  tabindex="0"
   hidden
 >
   <li
@@ -465,7 +486,8 @@ const tocHeadings = headings.filter(
         ></path></svg
       ><div class="x:flex x:flex-col">
         <span class="x:font-medium x:flex x:gap-1">Copy page</span><span
-          class="x:text-xs">Copy page as Markdown for LLMs</span>
+          class="x:text-xs">Copy page as Markdown for LLMs</span
+        >
       </div>
     </div>
   </li><li
@@ -482,7 +504,16 @@ const tocHeadings = headings.filter(
         ></path></svg
       ><div class="x:flex x:flex-col">
         <span class="x:font-medium x:flex x:gap-1"
-          >Open in ChatGPT<svg fill="none" height="1em" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg></span
+          >Open in ChatGPT<svg
+            fill="none"
+            height="1em"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.7"
+            viewBox="0 0 24 24"
+            ><path d="M7 17L17 7"></path><path d="M7 7h10v10"></path></svg
+          ></span
         ><span class="x:text-xs">Ask questions about this page</span>
       </div>
     </div>
@@ -522,7 +553,16 @@ const tocHeadings = headings.filter(
         ></path></svg
       ><div class="x:flex x:flex-col">
         <span class="x:font-medium x:flex x:gap-1"
-          >Open in Claude<svg fill="none" height="1em" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg></span
+          >Open in Claude<svg
+            fill="none"
+            height="1em"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.7"
+            viewBox="0 0 24 24"
+            ><path d="M7 17L17 7"></path><path d="M7 7h10v10"></path></svg
+          ></span
         ><span class="x:text-xs">Ask questions about this page</span>
       </div>
     </div>

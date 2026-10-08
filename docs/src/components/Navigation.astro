@@ -5,11 +5,13 @@ const {
   base,
   current,
   nested = false,
+  mobile = false,
 } = Astro.props as {
   items: NavItem[];
   base: string;
   current: string;
   nested?: boolean;
+  mobile?: boolean;
 };
 const href = (value: string) =>
   /^(https?:|#|mailto:)/.test(value) ||
@@ -32,7 +34,17 @@ const button =
 >
   {
     items
-      .flatMap((item) => (item.page ? (current.startsWith(base+item.route)?item.children:[]) : item.menu ? [] : [item]))
+      .flatMap((item) =>
+        mobile
+          ? [item]
+          : item.page
+            ? current.startsWith(base + item.route)
+              ? item.children
+              : []
+            : item.menu
+              ? []
+              : [item],
+      )
       .map((item) => (
         <li
           class={
@@ -102,6 +114,7 @@ const button =
                   base={base}
                   current={current}
                   nested
+                  mobile={mobile}
                 />
               </div>
             </>

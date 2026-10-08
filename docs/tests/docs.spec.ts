@@ -16,7 +16,7 @@ test("static documentation preserves navigation, search, diagrams and theme", as
   await expect(page.locator(".mermaid svg").first()).toBeVisible({
     timeout: 30000,
   });
-  await page.getByRole("button", { name: "Toggle theme" }).click();
+  await page.locator("#theme-toggle").click();
   await page.getByRole("option", { name: "Dark", exact: true }).click();
   await expect(page.locator("html")).toHaveClass(/dark/);
   await page.reload();
@@ -52,13 +52,68 @@ test("narrow documentation navigation remains keyboard reachable", async ({
 });
 
 // Falsely green if controls render without handlers: drive listboxes by keyboard and verify the actual clipboard.
-test('native documentation choices and Markdown copy',async({page,context})=>{
- await context.grantPermissions(['clipboard-read','clipboard-write']);
- await page.goto("/iota-sdk/architecture");
- await page.locator('#theme-toggle').click();await page.getByRole('option',{name:'Light',exact:true}).press('Enter');
- await expect(page.locator('html')).not.toHaveClass(/dark/);
- await page.locator('#copy-menu-toggle').click();const menu=page.getByRole('listbox',{name:'Copy page options'});await expect(menu).toBeVisible();
- await menu.press('ArrowDown');await page.getByRole('option',{name:'Copy page Copy page as Markdown for LLMs',exact:true}).press('Enter');
- await expect(menu).not.toBeVisible();const copied=await page.evaluate(()=>navigator.clipboard.readText());expect(copied).toContain('##');expect(copied).toContain('```');
- await page.locator('#theme-toggle').click();await page.keyboard.press('Escape');await expect(page.getByRole('listbox',{name:'Theme'})).not.toBeVisible();await expect(page.locator('#theme-toggle')).toBeFocused();
+test("native documentation choices and Markdown copy", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/iota-sdk/architecture");
+  await page.locator("#theme-toggle").click();
+  await page.getByRole("option", { name: "Light", exact: true }).press("Enter");
+  await expect(page.locator("html")).not.toHaveClass(/dark/);
+  await page.locator("#copy-menu-toggle").click();
+  const menu = page.getByRole("listbox", { name: "Copy page options" });
+  await expect(menu).toBeVisible();
+  await menu.press("ArrowDown");
+  await page
+    .getByRole("option", {
+      name: "Copy page Copy page as Markdown for LLMs",
+      exact: true,
+    })
+    .press("Enter");
+  await expect(menu).not.toBeVisible();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain("##");
+  expect(copied).toContain("```");
+  await page.locator("#theme-toggle").click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("listbox", { name: "Theme" })).not.toBeVisible();
+  await expect(page.locator("#theme-toggle")).toBeFocused();
+});
+
+// Falsely green if the drawer only opens: choose a theme by keyboard and cross a real navigation boundary.
+test("mobile theme choices preserve state", async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.goto("/iota-sdk/");
+  await page.locator("#nav-toggle").click();
+  await page.locator("#mobile-theme-toggle").click();
+  await page.getByRole("option", { name: "Dark", exact: true }).press("Enter");
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await expect(page.locator("#mobile-theme-toggle")).toHaveText(/Dark/);
+  await expect(page.locator("#mobile-theme-toggle")).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  await page.locator("#mobile-theme-toggle").click();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#mobile-theme-toggle")).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  await expect(page.locator("#mobile-theme-toggle")).toBeFocused();
+  await page.locator("#nav-toggle").click();
+  await expect(page.locator("#docs-mobile-nav")).toHaveAttribute("inert", "");
+  await page.reload();
+  await expect(page.locator("html")).toHaveClass(/dark/);
+});
+
+// Falsely green if the menu merely renders: follow its prefixed URL and verify the destination page.
+test("module menu follows the SDK base path", async ({ page }) => {
+  await page.goto("/iota-sdk/");
+  await page.locator("#modules-toggle").click();
+  const item = page.getByRole("menuitem", { name: "Core Module", exact: true });
+  await expect(item).toHaveAttribute("href", "/iota-sdk/core");
+  await item.click();
+  await expect(page).toHaveURL(/\/iota-sdk\/core$/);
+  await expect(page.locator("main h1")).toHaveText("Core Module");
 });

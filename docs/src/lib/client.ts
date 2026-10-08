@@ -54,6 +54,7 @@ const toggle = document.querySelector<HTMLButtonElement>("#nav-toggle");
 toggle?.addEventListener("click", () => {
   const open = document.body.classList.toggle("nav-open");
   toggle.setAttribute("aria-expanded", String(open));
+  toggle.querySelector("svg")?.classList.toggle("open", open);
 });
 let tabGroup = 0;
 for (const container of document.querySelectorAll<HTMLElement>(
@@ -172,7 +173,10 @@ if (diagrams.length) {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
-    if (document.body.classList.contains("nav-open")) {
+    if (
+      document.body.classList.contains("nav-open") &&
+      !document.querySelector(".docs-choice-menu:not([hidden])")
+    ) {
       document.body.classList.remove("nav-open");
       toggle?.setAttribute("aria-expanded", "false");
       toggle?.focus();
@@ -301,6 +305,7 @@ for (const button of document.querySelectorAll<HTMLButtonElement>(
 
 const themeMenu = document.querySelector<HTMLElement>("#theme-menu");
 const themeButton = document.querySelector<HTMLButtonElement>("#theme-toggle");
+let themeTrigger = themeButton;
 function selectTheme(value: string) {
   const dark =
     value === "dark" ||
@@ -309,24 +314,42 @@ function selectTheme(value: string) {
   localStorage.setItem("docs-theme", value);
   updateTheme();
   updateThemeIcon();
+  for (const label of document.querySelectorAll<HTMLElement>(
+    "[data-mobile-theme-label]",
+  ))
+    label.textContent = value[0].toUpperCase() + value.slice(1);
+  for (const path of document.querySelectorAll<SVGPathElement>(
+    "#mobile-theme-toggle svg path",
+  )) {
+    path.setAttribute("d", dark ? moonPath : sunPath!);
+    if (dark) {
+      path.setAttribute("stroke-linejoin", "round");
+      path.removeAttribute("stroke-linecap");
+    } else {
+      path.removeAttribute("stroke-linejoin");
+      path.setAttribute("stroke-linecap", "round");
+    }
+  }
   if (themeLabel)
     themeLabel.textContent = value[0].toUpperCase() + value.slice(1);
   updateSelectedChoices();
   if (themeMenu) themeMenu.hidden = true;
-  themeButton?.setAttribute("aria-expanded", "false");
-  themeButton?.focus();
+  themeTrigger?.setAttribute("aria-expanded", "false");
+  themeTrigger?.focus();
 }
-themeButton?.addEventListener("click", () => {
+function openThemeMenu(trigger: HTMLButtonElement) {
+  themeTrigger = trigger;
   if (!themeMenu) return;
   themeMenu.hidden = !themeMenu.hidden;
-  themeButton.setAttribute("aria-expanded", String(!themeMenu.hidden));
-  const rect = themeButton.getBoundingClientRect();
+  trigger.setAttribute("aria-expanded", String(!themeMenu.hidden));
+  const rect = trigger.getBoundingClientRect();
   themeMenu.style.setProperty("--button-width", rect.width + "px");
   themeMenu.style.left = rect.left + "px";
   themeMenu.style.top =
-    Math.max(4, rect.top - themeMenu.offsetHeight - 10) + "px";
+    Math.max(4, scrollY + rect.top - themeMenu.offsetHeight - 10) + "px";
   themeMenu.querySelector<HTMLElement>('[aria-selected="true"]')?.focus();
-});
+}
+themeButton?.addEventListener("click", () => openThemeMenu(themeButton));
 for (const option of document.querySelectorAll<HTMLElement>(
   "[data-theme-choice]",
 )) {
@@ -354,8 +377,8 @@ for (const option of document.querySelectorAll<HTMLElement>(
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && themeMenu && !themeMenu.hidden) {
     themeMenu.hidden = true;
-    themeButton?.setAttribute("aria-expanded", "false");
-    themeButton?.focus();
+    themeTrigger?.setAttribute("aria-expanded", "false");
+    themeTrigger?.focus();
   }
 });
 
@@ -371,11 +394,19 @@ const focusedClasses = [
 ];
 for (const menu of choiceMenus) {
   for (const option of menu.querySelectorAll<HTMLElement>("[role=option]")) {
-    option.addEventListener("focus", () =>
-      (option.classList.remove("x:text-gray-800","x:dark:text-gray-100"),focusedClasses.forEach((c) => option.classList.add(c))),
+    option.addEventListener(
+      "focus",
+      () => (
+        option.classList.remove("x:text-gray-800", "x:dark:text-gray-100"),
+        focusedClasses.forEach((c) => option.classList.add(c))
+      ),
     );
-    option.addEventListener("blur", () =>
-      (option.classList.add("x:text-gray-800","x:dark:text-gray-100"),focusedClasses.forEach((c) => option.classList.remove(c))),
+    option.addEventListener(
+      "blur",
+      () => (
+        option.classList.add("x:text-gray-800", "x:dark:text-gray-100"),
+        focusedClasses.forEach((c) => option.classList.remove(c))
+      ),
     );
     option.addEventListener("keydown", (event) => {
       const options = [...menu.querySelectorAll<HTMLElement>("[role=option]")];
@@ -413,7 +444,14 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     const opened = choiceMenus.find((menu) => !menu.hidden);
     if (opened) {
+      const trigger = document.querySelector<HTMLElement>(
+        "[aria-haspopup=listbox][aria-expanded=true]",
+      );
       closeChoices();
+      if (trigger) {
+        trigger.focus();
+        return;
+      }
       document
         .querySelector<HTMLElement>(
           opened.id === "copy-menu"
@@ -435,7 +473,7 @@ copyToggle?.addEventListener("click", () => {
   copyToggle.setAttribute("aria-expanded", String(!copyMenu.hidden));
   const rect = copyToggle.getBoundingClientRect();
   copyMenu.style.left = Math.max(4, rect.right - copyMenu.offsetWidth) + "px";
-  copyMenu.style.top = rect.bottom + 10 + "px";
+  copyMenu.style.top = scrollY + rect.bottom + 10 + "px";
   copyMenu.focus();
 });
 for (const option of document.querySelectorAll<HTMLElement>(
@@ -523,18 +561,21 @@ function updateSelectedChoices() {
         "http://www.w3.org/2000/svg",
         "path",
       );
-      path.setAttribute("d", "M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z");
+      path.setAttribute(
+        "d",
+        "M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z",
+      );
       check.append(path);
       option.append(check);
     }
   }
 }
 updateSelectedChoices();
-for (const button of document.querySelectorAll<HTMLButtonElement>(
-  "[aria-haspopup=listbox]",
-)) {
+function observeChoiceButton(button: HTMLButtonElement) {
   new MutationObserver(() => {
     const open = button.getAttribute("aria-expanded") === "true";
+    button.classList.toggle("x:text-gray-600", !open);
+    button.classList.toggle("x:dark:text-gray-400", !open);
     for (const c of [
       "x:bg-gray-200",
       "x:text-gray-900",
@@ -544,5 +585,190 @@ for (const button of document.querySelectorAll<HTMLButtonElement>(
       button.classList.toggle(c, open);
   }).observe(button, { attributes: true, attributeFilter: ["aria-expanded"] });
 }
+for (const button of document.querySelectorAll<HTMLButtonElement>(
+  "[aria-haspopup=listbox]",
+))
+  observeChoiceButton(button);
 
-copyMenu?.addEventListener('keydown',event=>{if(event.target===copyMenu&&(event.key==='ArrowDown'||event.key==='ArrowUp')){event.preventDefault();const options=[...copyMenu.querySelectorAll<HTMLElement>('[role=option]')];options[event.key==='ArrowDown'?0:options.length-1]?.focus()}});
+copyMenu?.addEventListener("keydown", (event) => {
+  if (
+    event.target === copyMenu &&
+    (event.key === "ArrowDown" || event.key === "ArrowUp")
+  ) {
+    event.preventDefault();
+    const options = [
+      ...copyMenu.querySelectorAll<HTMLElement>("[role=option]"),
+    ];
+    options[event.key === "ArrowDown" ? 0 : options.length - 1]?.focus();
+  }
+});
+
+const choicesPortal = document.createElement("div");
+choicesPortal.id = "docs-choices-portal";
+document.body.append(choicesPortal);
+for (const menu of choiceMenus) {
+  const wrapper = document.createElement("div");
+  wrapper.append(menu);
+  choicesPortal.append(wrapper);
+}
+let choicesLocked = false;
+let previousOverflow = "";
+let previousPadding = "";
+function synchronizeChoiceScroll() {
+  const opened =
+    choiceMenus.some((menu) => !menu.hidden) ||
+    Boolean(modulesMenu && !modulesMenu.hidden);
+  if (opened && !choicesLocked) {
+    previousOverflow = document.documentElement.style.overflow;
+    previousPadding = document.documentElement.style.paddingRight;
+    const gap = innerWidth - document.documentElement.clientWidth;
+    document.documentElement.style.overflow = "hidden";
+    document.documentElement.style.paddingRight = gap + "px";
+    choicesLocked = true;
+  } else if (!opened && choicesLocked) {
+    document.documentElement.style.overflow = previousOverflow;
+    document.documentElement.style.paddingRight = previousPadding;
+    choicesLocked = false;
+  }
+}
+for (const menu of choiceMenus)
+  new MutationObserver(synchronizeChoiceScroll).observe(menu, {
+    attributes: true,
+    attributeFilter: ["hidden"],
+  });
+
+const modulesMenu = document.querySelector<HTMLElement>("#modules-menu");
+const modulesButton =
+  document.querySelector<HTMLButtonElement>("#modules-toggle");
+modulesButton?.setAttribute("aria-haspopup", "menu");
+modulesButton?.addEventListener("click", () => {
+  if (!modulesMenu) return;
+  const rect = modulesButton.getBoundingClientRect();
+  modulesMenu.style.left =
+    Math.round(
+      Math.max(16, rect.left + (rect.width - modulesMenu.offsetWidth) / 2),
+    ) + "px";
+  modulesMenu.style.top = scrollY + rect.bottom + 10 + "px";
+  modulesButton.setAttribute("aria-expanded", String(!modulesMenu.hidden));
+  if (!modulesMenu.hidden) modulesMenu.focus();
+});
+modulesMenu?.addEventListener("keydown", (event) => {
+  const options = [
+    ...modulesMenu.querySelectorAll<HTMLElement>("[role=menuitem]"),
+  ];
+  const index = options.indexOf(document.activeElement as HTMLElement);
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    options[
+      index < 0
+        ? event.key === "ArrowDown"
+          ? 0
+          : options.length - 1
+        : (index + (event.key === "ArrowDown" ? 1 : options.length - 1)) %
+          options.length
+    ]?.focus();
+  }
+  if (event.key === "Escape") {
+    modulesMenu.hidden = true;
+    modulesButton?.setAttribute("aria-expanded", "false");
+    modulesButton?.focus();
+  }
+});
+document.addEventListener("mousedown", (event) => {
+  if (
+    modulesMenu &&
+    !modulesMenu.contains(event.target as Node) &&
+    !modulesButton?.contains(event.target as Node)
+  ) {
+    modulesMenu.hidden = true;
+    modulesButton?.setAttribute("aria-expanded", "false");
+  }
+});
+
+if (modulesMenu)
+  new MutationObserver(synchronizeChoiceScroll).observe(modulesMenu, {
+    attributes: true,
+    attributeFilter: ["hidden"],
+  });
+
+if (modulesMenu) {
+  const wrapper = document.createElement("div");
+  wrapper.append(modulesMenu);
+  choicesPortal.append(wrapper);
+  modulesMenu.classList.add("x:nextra-focus");
+}
+
+const mobileNav = document.querySelector<HTMLElement>("#docs-mobile-nav");
+const mobileContent = mobileNav?.firstElementChild as HTMLElement | undefined;
+if (mobileContent) {
+  mobileContent.className =
+    "x:p-4 x:overflow-y-auto nextra-scrollbar nextra-mask";
+  const desktopSearch = document.querySelector<HTMLElement>(".nextra-search");
+  if (desktopSearch) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "x:px-4 x:pt-4";
+    const search = desktopSearch.cloneNode(true) as HTMLElement;
+    const field = search.querySelector<HTMLInputElement>("input")!;
+    field.id = "docs-mobile-search";
+    field.addEventListener("input", () => {
+      if (input) {
+        input.value = field.value;
+        input.dispatchEvent(new Event("input"));
+      }
+    });
+    wrapper.append(search);
+    mobileNav!.prepend(wrapper);
+  }
+
+  const footer = document.createElement("div");
+  footer.className =
+    "nextra-sidebar-footer x:border-t nextra-border x:flex x:items-center x:gap-2 x:py-4 x:mx-4 x:mt-auto";
+  if (themeButton) {
+    const mobileTheme = themeButton.cloneNode(true) as HTMLButtonElement;
+    mobileTheme.id = "mobile-theme-toggle";
+    observeChoiceButton(mobileTheme);
+    mobileTheme.classList.add("x:grow");
+    const label = mobileTheme.querySelector<HTMLElement>("#theme-label");
+    if (label) {
+      label.removeAttribute("id");
+      label.dataset.mobileThemeLabel = "";
+    }
+    mobileTheme.addEventListener("click", () => openThemeMenu(mobileTheme));
+    footer.append(mobileTheme);
+  }
+  mobileNav!.append(footer);
+}
+// Keep the closed mobile drawer out of the keyboard and accessibility navigation.
+const syncMobileNavigation = () => {
+  const open = document.body.classList.contains("nav-open");
+  mobileNav?.toggleAttribute("inert", !open);
+  toggle?.setAttribute("aria-expanded", String(open));
+  toggle?.querySelector("svg")?.classList.toggle("open", open);
+};
+syncMobileNavigation();
+new MutationObserver(syncMobileNavigation).observe(document.body, {
+  attributes: true,
+  attributeFilter: ["class"],
+});
+
+// Switching native choices dismisses the other popup before the target handler opens its menu.
+document.addEventListener(
+  "click",
+  (event) => {
+    const trigger = (event.target as Element).closest<HTMLButtonElement>(
+      "button[aria-haspopup=listbox]",
+    );
+    if (!trigger) return;
+    const id = trigger.id.includes("theme")
+      ? "theme-menu"
+      : trigger.id.includes("language")
+        ? "language-menu"
+        : "copy-menu";
+    for (const menu of choiceMenus) if (menu.id !== id) menu.hidden = true;
+    for (const button of document.querySelectorAll<HTMLButtonElement>(
+      "[aria-haspopup=listbox]",
+    ))
+      if (button !== trigger) button.setAttribute("aria-expanded", "false");
+  },
+  true,
+);

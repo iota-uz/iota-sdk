@@ -100,7 +100,7 @@ pre span {
 }
 
 .docs-choice-menu {
-  position: fixed;
+  position: absolute;
   list-style: none;
   margin: 0;
 }
@@ -111,4 +111,11 @@ pre span {
   outline: none;
 }
 
-.nextra-toc a { hyphens: manual; }
+.nextra-toc a {
+  hyphens: manual;
+}
+
+/* Match the legacy floating menu scroll container and its SVG compositing. */
+.docs-choice-menu {
+  overflow: auto;
+}

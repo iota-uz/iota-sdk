@@ -85,7 +85,7 @@ export function navigation(prefix = ""): NavItem[] {
             ? value
             : (value?.title ?? page?.module.frontmatter.title ?? key),
         page: value?.type === "page",
-      route: "/"+slug,
+        route: "/" + slug,
         href: page ? "/" + slug : undefined,
         children,
       },
