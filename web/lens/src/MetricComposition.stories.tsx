@@ -343,10 +343,10 @@ function QualityChipSpecimens({ theme }: { theme: 'light' | 'dark' }) {
                   chip it resolves to; `availability.available` renders no
                   chip at all — a normal element defers to the confidence
                   axis, or shows nothing when neither axis says anything. */}
-              <ul class="lens-story-chip-list">
+              <ul style={{ display: 'flex', 'flex-direction': 'column', gap: '0.75rem', margin: 0, padding: 0, 'list-style': 'none' }}>
                 {qualitySpecimens.map(({ name, props }) => (
-                  <li class="lens-story-chip-row">
-                    <span class="lens-story-chip-key lens:text-muted">{name}</span>
+                  <li style={{ display: 'flex', 'align-items': 'center', gap: '0.75rem' }}>
+                    <span style={{ flex: '0 0 220px', 'font-size': '0.75rem' }} class="lens:text-muted">{name}</span>
                     <QualityChip confidence={props.confidence} availability={props.availability} />
                   </li>
                 ))}
@@ -425,9 +425,3 @@ export const RelationshipVariants = () => {
   )
   return <Runtime doc={doc} theme="light" />
 }
-
-<style>{`
-  .lens-story-chip-list { display: flex; flex-direction: column; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
-  .lens-story-chip-row { display: flex; align-items: center; gap: 0.75rem; }
-  .lens-story-chip-key { flex: 0 0 220px; font-size: 0.75rem; }
-`}</style>

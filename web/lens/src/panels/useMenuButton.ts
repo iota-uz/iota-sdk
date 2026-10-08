@@ -221,8 +221,8 @@ export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
     get style() {
       const current = offset()
       return {
-        left: current?.left ?? 0,
-        top: current?.top ?? 0,
+        left: `${current?.left ?? 0}px`,
+        top: `${current?.top ?? 0}px`,
         // The first paint is the measurement pass: the menu has to have a box
         // before it can be told where its box goes. Hidden rather than
         // unmounted, so that measurement is of the real thing.
