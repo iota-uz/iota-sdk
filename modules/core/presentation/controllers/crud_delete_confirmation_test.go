@@ -2,7 +2,6 @@ package controllers_test
 
 import (
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -25,12 +24,12 @@ func TestCrudController_EditFormDeleteHasItsConfirmation(t *testing.T) {
 
 	body := suite.GET("/test/" + entity.ID.String() + "/edit").Expect(t).Status(http.StatusOK).Body()
 
-	assert.True(t, strings.Contains(body, "$dispatch(&#39;open-delete-user-confirmation&#39;)"),
+	assert.Contains(t, body, "$dispatch(&#39;open-delete-user-confirmation&#39;)",
 		"the Delete button no longer opens the confirmation")
-	assert.True(t, strings.Contains(body, "@open-delete-user-confirmation.window"),
+	assert.Contains(t, body, "@open-delete-user-confirmation.window",
 		"no dialog listens for the Delete button's event")
-	assert.True(t, strings.Contains(body, `htmx.ajax(&#34;DELETE&#34;, &#34;/test/`+entity.ID.String()+`&#34;`),
-		"confirming does not send the DELETE for this record")
+	assert.Contains(t, body, `htmx.ajax(&#34;DELETE&#34;, &#34;/test/`+entity.ID.String()+`&#34;`),
+		"confirming does not send the DELETE for this record"
 }
 
 // The DELETE the dialog sends removes the record and redirects to the list.
