@@ -2,7 +2,6 @@ package controllers_test
 
 import (
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
@@ -41,7 +40,7 @@ func TestCrudController_SelectKeepsLocalizationKeyAfterValueType(t *testing.T) {
 
 	body := suite.GET("/test/new").Expect(t).Status(http.StatusOK).Body()
 
-	assert.True(t, strings.Contains(body, "Option A"), "the select was not rendered")
-	assert.True(t, strings.Contains(body, "Are you sure you want to delete this item?"),
+	assert.Contains(t, body, "Option A", "the select was not rendered")
+	assert.Contains(t, body, "Are you sure you want to delete this item?",
 		"the select lost its localization key and is labelled by its field name")
 }
