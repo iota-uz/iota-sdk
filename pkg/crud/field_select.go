@@ -241,6 +241,10 @@ func (f *selectField) SetValueType(t FieldType) SelectField {
 			field.readonly = f.readonly
 			field.hidden = f.hidden
 			field.searchable = f.searchable
+			field.sortable = f.sortable
+			field.virtual = f.virtual
+			field.rendererType = f.rendererType
+			field.localizationKey = f.localizationKey
 			field.attrs = f.attrs
 			field.initialValueFn = f.initialValueFn
 			field.rules = f.rules
