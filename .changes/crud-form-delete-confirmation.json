@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"scaffold form: the CRUD form's Delete button opens a confirmation dialog that now exists, so records can be deleted from their form again; before, the click dispatched an event nothing listened for."}
