@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"crud: SelectField.SetValueType (AsUUIDSelect, AsIntSelect, AsBoolSelect, AsStringSelect) now keeps the field's localization key, sortable, virtual and renderer settings instead of dropping them when it rebuilds the base field."}
