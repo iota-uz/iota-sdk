@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"scaffold form: a refused CRUD save now shows the validation messages it was refused for (the entity error, then each field's), instead of only \"Field validation failed\"."}

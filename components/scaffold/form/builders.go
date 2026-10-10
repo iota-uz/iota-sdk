@@ -1,6 +1,7 @@
 package form
 
 import (
+	"sort"
 	"time"
 
 	"github.com/a-h/templ"
@@ -850,4 +851,31 @@ func (b *ComboboxFieldBuilder) Build() ComboboxField {
 		attrs:       b.attrs,
 		validators:  b.validators,
 	}
+}
+
+// validationMessages lists the messages behind a refused save, so the form
+// says why it was refused rather than only that it was. The entity-level
+// message (key "_general") comes first, then the field messages in field-name
+// order, each prefixed with its field.
+func validationMessages(fieldErrors map[string]string) []string {
+	out := make([]string, 0, len(fieldErrors))
+	if msg := fieldErrors["_general"]; msg != "" {
+		out = append(out, msg)
+	}
+	keys := make([]string, 0, len(fieldErrors))
+	for k := range fieldErrors {
+		if k != "_general" {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if msg := fieldErrors[k]; msg != "" {
+			out = append(out, k+": "+msg)
+		}
+	}
+	if len(out) == 0 {
+		out = append(out, "Field validation failed")
+	}
+	return out
 }
