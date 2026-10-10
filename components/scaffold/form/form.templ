@@ -1,8 +1,12 @@
 package form
 
 import (
+	"fmt"
+
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -55,6 +59,28 @@ templ FormFooter(cfg *FormConfig) {
 			{ pgCtx.T("Save") }
 		}
 	</div>
+	// The Delete button only opens this dialog; without it the click went
+	// nowhere and a CRUD record could not be deleted from its form.
+	//
+	// The DELETE is sent from here rather than by submitting #delete-form:
+	// that form sits inside #save-form, and the HTML parser drops a form nested
+	// in another, so it never reaches the page. The response is the
+	// controller's HX-Redirect back to the list.
+	@dialog.Confirmation(&dialog.Props{
+		Heading: pgCtx.T("Delete"),
+		Text:    pgCtx.T("ConfirmDelete"),
+		Icon:    icons.Trash(icons.Props{Size: "20"}),
+		Action:  "open-delete-user-confirmation",
+		Attrs: templ.Attributes{
+			"@closing": fmt.Sprintf(`({target}) => {
+				if (target.returnValue === "confirm") {
+					htmx.ajax("DELETE", %q, {source: "#delete-user-btn"});
+				}
+			}`, cfg.DeleteURL),
+		},
+		CancelText:  pgCtx.T("Cancel"),
+		ConfirmText: pgCtx.T("Delete"),
+	})
 }
 
 // Form renders a dynamic form using a slice of scaffold.Field
