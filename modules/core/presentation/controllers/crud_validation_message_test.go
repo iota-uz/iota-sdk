@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
@@ -42,10 +41,10 @@ func TestCrudController_RefusedSaveShowsThePublicReason(t *testing.T) {
 		Form(url.Values{"name": {"Too much"}, "description": {"x"}, "amount": {"150"}}).
 		Expect(t).Status(http.StatusOK).Body()
 
-	assert.True(t, strings.Contains(body, `data-testid="field-error"`), "the error block is missing")
-	assert.True(t, strings.Contains(body, "Amount must not exceed 100."),
+	assert.Contains(t, body, `data-testid="field-error"`, "the error block is missing")
+	assert.Contains(t, body, "Amount must not exceed 100.",
 		"the refused save does not say why it was refused")
-	assert.False(t, strings.Contains(body, "Field validation failed"),
+	assert.NotContains(t, body, "Field validation failed",
 		"the form still shows only the generic text")
 	assert.Empty(t, service.entities, "a refused entity was saved")
 }
@@ -62,7 +61,7 @@ func TestCrudController_RefusedSaveDoesNotLeakAnInternalReason(t *testing.T) {
 		Form(url.Values{"name": {"Too much"}, "description": {"x"}, "amount": {"150"}}).
 		Expect(t).Status(http.StatusOK).Body()
 
-	assert.True(t, strings.Contains(body, `data-testid="field-error"`), "the error block is missing")
-	assert.False(t, strings.Contains(body, "limit table missing"), "an internal error reached the form")
+	assert.Contains(t, body, `data-testid="field-error"`, "the error block is missing")
+	assert.NotContains(t, body, "limit table missing", "an internal error reached the form")
 	assert.Empty(t, service.entities, "a refused entity was saved")
 }
