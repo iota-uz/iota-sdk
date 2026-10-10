@@ -28,8 +28,8 @@ func TestCrudController_EditFormDeleteHasItsConfirmation(t *testing.T) {
 		"the Delete button no longer opens the confirmation")
 	assert.Contains(t, body, "@open-delete-user-confirmation.window",
 		"no dialog listens for the Delete button's event")
-	assert.Contains(t, body, `htmx.ajax(&#34;DELETE&#34;, &#34;/test/`+entity.ID.String()+`&#34;`),
-		"confirming does not send the DELETE for this record"
+	assert.Contains(t, body, `htmx.ajax(&#34;DELETE&#34;, &#34;/test/`+entity.ID.String()+`&#34;`,
+		"confirming does not send the DELETE for this record")
 }
 
 // The DELETE the dialog sends removes the record and redirects to the list.
