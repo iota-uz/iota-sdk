@@ -9,6 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"fmt"
+
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
@@ -79,7 +81,7 @@ func FormFooter(cfg *FormConfig) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(cfg.DeleteURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/form/form.templ`, Line: 28, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/form/form.templ`, Line: 30, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -104,7 +106,7 @@ func FormFooter(cfg *FormConfig) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pgCtx.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/form/form.templ`, Line: 45, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/form/form.templ`, Line: 47, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -144,7 +146,7 @@ func FormFooter(cfg *FormConfig) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(pgCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/form/form.templ`, Line: 57, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/form/form.templ`, Line: 59, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -174,11 +176,11 @@ func FormFooter(cfg *FormConfig) templ.Component {
 			Icon:    icons.Trash(icons.Props{Size: "20"}),
 			Action:  "open-delete-user-confirmation",
 			Attrs: templ.Attributes{
-				"@closing": `({target}) => {
+				"@closing": fmt.Sprintf(`({target}) => {
 				if (target.returnValue === "confirm") {
-					htmx.trigger(document.getElementById("delete-form"), "submit");
+					htmx.ajax("DELETE", %q, {source: "#delete-user-btn"});
 				}
-			}`,
+			}`, cfg.DeleteURL),
 			},
 			CancelText:  pgCtx.T("Cancel"),
 			ConfirmText: pgCtx.T("Delete"),
@@ -219,7 +221,7 @@ func Form(cfg *FormConfig) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(cfg.SaveURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/form/form.templ`, Line: 85, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/form/form.templ`, Line: 92, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -298,7 +300,7 @@ func FormContent(cfg *FormConfig) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(cfg.SaveURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/form/form.templ`, Line: 108, Col: 23}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/form/form.templ`, Line: 115, Col: 23}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -387,7 +389,7 @@ func FormWithErrors(cfg *FormConfig, fieldErrors map[string]string) templ.Compon
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(cfg.SaveURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/form/form.templ`, Line: 134, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/form/form.templ`, Line: 141, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
