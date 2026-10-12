@@ -61,7 +61,7 @@ func Confirmation(p *Props) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "><form method=\"dialog\"><header class=\"flex items-center gap-3 justify-between px-4 py-3 border-b border-subtle\"><h3 class=\"font-medium\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "><div><header class=\"flex items-center gap-3 justify-between px-4 py-3 border-b border-subtle\"><h3 class=\"font-medium\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -96,7 +96,7 @@ func Confirmation(p *Props) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = button.Secondary(button.Props{Size: button.SizeSM, Fixed: true, Rounded: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = button.Secondary(button.Props{Size: button.SizeSM, Fixed: true, Rounded: true, Attrs: templ.Attributes{"value": "cancel", "type": "button", "@click": "$el.closest('dialog').close($el.value)"}}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -170,7 +170,7 @@ func Confirmation(p *Props) templ.Component {
 		})
 		templ_7745c5c3_Err = button.Secondary(button.Props{
 			Class: "flex-1 justify-center",
-			Attrs: templ.Attributes{"value": "cancel", "data-test-id": "dialog-cancel-btn"},
+			Attrs: templ.Attributes{"value": "cancel", "type": "button", "@click": "$el.closest('dialog').close($el.value)", "data-test-id": "dialog-cancel-btn"},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var5), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -200,12 +200,12 @@ func Confirmation(p *Props) templ.Component {
 		})
 		templ_7745c5c3_Err = button.Primary(button.Props{
 			Class: "flex-1 justify-center",
-			Attrs: templ.Attributes{"value": "confirm", "data-test-id": "dialog-confirm-btn"},
+			Attrs: templ.Attributes{"value": "confirm", "type": "button", "@click": "$el.closest('dialog').close($el.value)", "data-test-id": "dialog-confirm-btn"},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</menu></footer></form></dialog></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</menu></footer></div></dialog></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
