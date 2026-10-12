@@ -377,6 +377,10 @@ func validateGroupDescriptor(item LayoutItem, group LayoutGroup) error {
 		return fmt.Errorf("layout panel %s group id is required", item.PanelID)
 	}
 	switch group.Kind {
+	case LayoutGroupGrid:
+		if group.Tab != "" || group.Layout != "" {
+			return fmt.Errorf("grid group %s has invalid tab or metric layout", group.ID)
+		}
 	case LayoutGroupMetrics:
 		switch group.Layout {
 		case "", LayoutGroupColumns, LayoutGroupRows:

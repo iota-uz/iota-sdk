@@ -148,6 +148,14 @@ func appendPanelTree(
 	if spec.Kind.IsContainer() {
 		//nolint:exhaustive // Only stat groups and tabs become wire containers; the rest flatten.
 		switch spec.Kind {
+		case panel.KindGrid:
+			chain := appendGroup(groups, LayoutGroup{ID: spec.ID, Kind: LayoutGroupGrid, Label: spec.Title, Caption: spec.Description, Span: containerSpan(spec)})
+			for _, child := range spec.Children {
+				if err := appendPanelTree(doc, child, result, hosts, row, chain, deferPanels); err != nil {
+					return err
+				}
+			}
+			return nil
 		case panel.KindStatGroup:
 			descriptor := LayoutGroup{
 				ID: spec.ID, Kind: LayoutGroupMetrics, Label: spec.Title,

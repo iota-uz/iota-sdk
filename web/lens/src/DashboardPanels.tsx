@@ -14,6 +14,7 @@ import {
 } from 'solid-js'
 import { For, Show } from 'solid-js'
 import type { Filter, LayoutGroup, LayoutItem, LayoutRow, Panel } from './contract'
+import type { LensToolbarContext } from './LensDashboard'
 import { useDashboard, useDocumentState, useDrawer, useDrawerHeader, useFilters, usePrint, useTranslate } from './runtime'
 import { ExportMenu } from './panels/ExportMenu'
 import { RegisteredPanel, type PanelRegistry } from './panels/registry'
@@ -34,6 +35,7 @@ const LazyPrintReport = lazy(async () => ({
 }))
 
 export interface DashboardPanelsProps {
+  toolbar?: (context: LensToolbarContext) => JSX.Element
   registry?: PanelRegistry
   /** Fixed calendar "today" for deterministic stories and visual regression. */
   filterToday?: CalendarDate
@@ -172,7 +174,7 @@ function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
     <div class="lens-grid-item" style={spanStyle(props.group.span)}>
       <section
         aria-label={props.group.label || undefined}
-        class={`lens-panel lens-panel-group ${props.group.kind === 'tabs' ? 'lens-panel-group-tabs' : 'lens-panel-group-metrics'}`}
+        class={`lens-panel lens-panel-group ${`lens-panel-group-${props.group.kind}`}`}
       >
         <Show when={Boolean(props.group.label || props.group.status)}>
           <header class="lens-panel-header lens-panel-group-header">
@@ -246,6 +248,12 @@ function GroupChain(props: {
               {(item) => <LeafItem item={item} panels={props.panels} registry={props.registry} />}
             </For>
           )
+        }
+        if (cluster.group.kind === 'grid') {
+          const contents = <div class="lens-panel-grid"><GroupChain depth={props.depth + 1} filterToday={props.filterToday} items={cluster.items} panels={props.panels} registry={props.registry} /></div>
+          return cluster.group.label || cluster.group.caption
+            ? <GroupCard group={cluster.group}>{contents}</GroupCard>
+            : <div class="lens-grid-item" style={spanStyle(cluster.group.span)}>{contents}</div>
         }
         if (cluster.group.kind === 'metrics') {
           return <MetricsGroup group={cluster.group} items={cluster.items} panels={props.panels} registry={props.registry} />
@@ -731,6 +739,7 @@ export function DashboardPanels(props: DashboardPanelsProps) {
           <Show when={hasHeader()}>
             <DocumentRefetchError />
           </Show>
+          {props.toolbar?.({ get document() { return dashboard.document } })}
           <MetricColumnsContext.Provider value={columns()}>
             <div class="lens-dashboard-rows">
               <For each={document.layout.rows}>

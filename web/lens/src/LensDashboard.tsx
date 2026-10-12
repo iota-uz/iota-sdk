@@ -1,4 +1,5 @@
 
+import type { JSX } from 'solid-js'
 import fixture from '../fixtures/panels-v1.json'
 import { parseDocument, type DashboardDocument } from './contract'
 import { DashboardPanels } from './DashboardPanels'
@@ -6,6 +7,7 @@ import type { CalendarDate } from './controls'
 import { DashboardRuntimeProvider, DocumentProvider, type LensThemeMode } from './runtime'
 
 export interface LensDashboardProps {
+  toolbar?: (context: LensToolbarContext) => JSX.Element
   src?: string
   /**
    * Markup the server already rendered inside the mount point (the templ
@@ -20,6 +22,10 @@ export interface LensDashboardProps {
   initialDocument?: DashboardDocument
   /** Fixed calendar "today" for deterministic stories and visual regression. */
   filterToday?: CalendarDate
+}
+
+export interface LensToolbarContext {
+  document: DashboardDocument
 }
 
 const bundledFixture = parseDocument(fixture)
@@ -40,7 +46,7 @@ export function LensDashboard(props: LensDashboardProps) {
       <div data-theme={theme()}>
         <DocumentProvider src={props.src} initialDocument={document()} csrf={props.csrf} fetcher={props.fetcher}>
           <DashboardRuntimeProvider locale={locale()} csrf={props.csrf} fetcher={props.fetcher} fallback={fallback()}>
-            {() => <DashboardPanels filterToday={props.filterToday} />}
+            {() => <DashboardPanels filterToday={props.filterToday} toolbar={props.toolbar} />}
           </DashboardRuntimeProvider>
         </DocumentProvider>
       </div>

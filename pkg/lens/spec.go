@@ -52,6 +52,7 @@ const (
 
 type DashboardSpec struct {
 	ID          string
+	Revision    string
 	Title       string
 	Description string
 	Rows        []RowSpec
@@ -123,7 +124,9 @@ type VariableOption struct {
 }
 
 type VariableSpec struct {
-	Name            string
+	Name string
+	// Bound keeps a host-resolved value immutable inside a composed execution.
+	Bound           bool
 	Label           string
 	Kind            VariableKind
 	Component       VariableComponent
