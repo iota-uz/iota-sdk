@@ -59,13 +59,6 @@ templ FormFooter(cfg *FormConfig) {
 			{ pgCtx.T("Save") }
 		}
 	</div>
-	// The Delete button only opens this dialog; without it the click went
-	// nowhere and a CRUD record could not be deleted from its form.
-	//
-	// The DELETE is sent from here rather than by submitting #delete-form:
-	// that form sits inside #save-form, and the HTML parser drops a form nested
-	// in another, so it never reaches the page. The response is the
-	// controller's HX-Redirect back to the list.
 	@dialog.Confirmation(&dialog.Props{
 		Heading: pgCtx.T("Delete"),
 		Text:    pgCtx.T("ConfirmDelete"),
@@ -133,7 +126,11 @@ templ FormContent(cfg *FormConfig) {
 templ FormWithErrors(cfg *FormConfig, fieldErrors map[string]string) {
 	<div class="flex flex-col justify-between h-[calc(100vh-4rem)]" id="edit-content">
 		if len(fieldErrors) > 0 {
-			<small data-testid="field-error" class="text-red-500">Field validation failed</small>
+			<div data-testid="field-error" role="alert" class="mx-4 mt-4 md:mx-6 flex flex-col gap-1 text-sm text-red-500">
+				for _, msg := range validationMessages(fieldErrors) {
+					<p>{ msg }</p>
+				}
+			</div>
 		}
 		<form
 			id="save-form"
