@@ -100,7 +100,7 @@ func TestNotificationSettings_TestUsesSavedRule(t *testing.T) {
 	}
 	ctx = intl.WithLocalizer(ctx, i18n.NewLocalizer(bundle, "en"))
 	response := httptest.NewRecorder()
-	c.Test(response, req.WithContext(ctx), service)
+	c.Test(response, req.WithContext(ctx), service, services.NewNotificationDispatchService(service, nil, nil))
 	require.Equal(t, http.StatusOK, response.Code)
 	require.Contains(t, response.Body.String(), "NotificationSettings.TestSkipped")
 }
@@ -119,7 +119,7 @@ func TestNotificationSettings_ReadOnlyCannotSaveOrTest(t *testing.T) {
 		ctx = intl.WithLocalizer(ctx, i18n.NewLocalizer(bundle, "en"))
 		response := httptest.NewRecorder()
 		if test {
-			c.Test(response, req.WithContext(ctx), nil)
+			c.Test(response, req.WithContext(ctx), nil, nil)
 		} else {
 			c.Save(response, req.WithContext(ctx), nil)
 		}
@@ -142,7 +142,7 @@ func TestNotificationSettings_ShowsUnavailableRecipients(t *testing.T) {
 	c.Index(response, req.WithContext(ctx), service)
 	require.Equal(t, http.StatusOK, response.Code)
 	require.Contains(t, response.Body.String(), "NotificationSettings.UnavailableRecipients")
-	require.NotContains(t, response.Body.String(), "999")
+	require.Contains(t, response.Body.String(), `name="user_ids" value="999" checked`)
 }
 
 type settingsAudienceRepo struct{}
@@ -155,4 +155,26 @@ func (settingsAudienceRepo) Roles(context.Context) ([]notifications.RoleOption, 
 }
 func (settingsAudienceRepo) Resolve(context.Context, []uuid.UUID, []uint) ([]uint, error) {
 	return nil, nil
+}
+
+func TestNotificationSettings_ReadOnlyCannotRetryOrEnqueue(t *testing.T) {
+	c := controllers.NewNotificationSettingsController().(*controllers.NotificationSettingsController)
+	for _, enqueue := range []bool{false, true} {
+		req := httptest.NewRequest(http.MethodPost, "/settings/notifications/queue/retry", nil)
+		ctx := composables.WithUser(req.Context(), user.New("Reader", "", nil, "en", user.WithPermissions([]permission.Permission{permissions.NotificationRulesRead})))
+		ctx = composables.WithPageCtx(ctx, settingsPageContext{})
+		ctx = context.WithValue(ctx, constants.HeadKey, layouts.DefaultHead())
+		bundle := i18n.NewBundle(language.English)
+		for _, id := range []string{"ErrorPages.Forbidden.Message", "ErrorPages.Forbidden._Description", "ErrorPages.Forbidden.Home", "ErrorPages.Forbidden.GoBack"} {
+			bundle.MustAddMessages(language.English, &i18n.Message{ID: id, Other: id})
+		}
+		ctx = intl.WithLocalizer(ctx, i18n.NewLocalizer(bundle, "en"))
+		response := httptest.NewRecorder()
+		if enqueue {
+			c.Test(response, req.WithContext(ctx), nil, nil)
+		} else {
+			c.Retry(response, req.WithContext(ctx), nil)
+		}
+		require.Equal(t, http.StatusForbidden, response.Code)
+	}
 }

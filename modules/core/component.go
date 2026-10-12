@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	twofactorentity "github.com/iota-uz/iota-sdk/modules/core/domain/entities/twofactor"
@@ -55,6 +57,8 @@ import (
 var LocaleFiles embed.FS
 
 type ModuleOptions struct {
+	// DisableNotificationWorker leaves durable jobs for a dedicated worker process.
+	DisableNotificationWorker bool
 	// NotificationEvents registers application-owned events in the settings catalog.
 	NotificationEvents       []notifications.Definition
 	PermissionSchema         *rbac.PermissionSchema
@@ -123,6 +127,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewNotificationRepository)
 	composition.ProvideFunc(builder, persistence.NewNotificationRuleRepository)
 	composition.ProvideFunc(builder, persistence.NewNotificationAudienceRepository)
+	composition.ProvideFunc(builder, persistence.NewNotificationDispatchRepository)
 	composition.ProvideFunc(builder, persistence.NewRoleRepository)
 	composition.ProvideFunc(builder, persistence.NewTenantRepository)
 	composition.ProvideFunc(builder, persistence.NewPermissionRepository)
@@ -143,8 +148,30 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, func() (*notifications.Catalog, error) {
 		return newCoreNotificationCatalog(c.options.NotificationEvents)
 	})
-	composition.ProvideFunc(builder, services.NewNotificationService)
+	composition.ProvideFunc(builder, services.NewNotificationRealtimeService)
+	composition.ProvideFunc(builder, func(repo notification.Repository, realtime *services.NotificationRealtimeService) *services.NotificationService {
+		return services.NewNotificationService(repo).WithRealtime(realtime)
+	})
+	composition.ProvideFunc(builder, func(service *services.NotificationService) services.NotificationDelivery { return service })
 	composition.ProvideFunc(builder, services.NewNotificationRoutingService)
+	composition.ProvideFunc(builder, services.NewNotificationDispatchService)
+	composition.ProvideFunc(builder, services.NewNotificationDispatchWorker)
+	composition.ContributeMiddleware(builder, func(container *composition.Container) ([]mux.MiddlewareFunc, error) {
+		service, err := composition.Resolve[*services.NotificationService](container)
+		if err != nil {
+			return nil, err
+		}
+		return []mux.MiddlewareFunc{services.WithNotificationSummary(service)}, nil
+	})
+	if !c.options.DisableNotificationWorker && (builder.Context().HasCapability(composition.CapabilityAPI) || builder.Context().HasCapability(composition.CapabilityWorker)) {
+		composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
+			worker, err := composition.Resolve[*services.NotificationDispatchWorker](container)
+			if err != nil {
+				return nil, err
+			}
+			return []composition.Hook{{Name: "notification-dispatch", Start: worker.Start}}, nil
+		})
+	}
 	composition.ProvideFunc(builder, services.NewPrivilegeGrantPolicy)
 	composition.ProvideFunc(builder, services.NewTenantService)
 	composition.ProvideFunc(builder, services.NewConfiguredUploadService)

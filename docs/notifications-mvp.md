@@ -1,88 +1,102 @@
-# In-app notifications MVP
+# Back-office notifications
 
-The core component provides persistent notifications, a notification center at
-`/notifications`, and administrator controls at `/settings/notifications`.
-The navbar count and open notification history refresh every 20 seconds from
-PostgreSQL. All replicas read the same database; Redis is not required.
+Core provides persistent notifications, the navbar bell with the latest ten
+messages, cursor-paginated history at `/notifications`, and administrator controls
+at `/settings/notifications`. This completes the notification feature following
+#216. PostgreSQL is authoritative; WebSocket events refresh the badge, dropdown,
+and open history and show the SDK toast matching the notification level.
+Reconnect and reload rebuild the UI from persistence.
 
 ## Rollout
 
-1. Apply SDK migrations before deploying the updated application:
-   `go run cmd/command/main.go migrate up` using the target database configuration.
-   `changes-1791300000.sql` creates `core.notifications`,
-   `core.notification_rules` with user, group, and role selections, their indexes,
-   and two settings permissions.
-2. Grant `NotificationRules.Read` and `NotificationRules.Manage` to the pilot
-   administrator through the application's permission provisioning process.
-   The default SDK permission schema exposes separate read and manage sets.
-   Existing users receive no new administrative rights automatically. Applications
-   with a custom permission schema must include these permissions in that schema.
-3. Open notification settings, enable **Test notification**, select users, groups or roles,
-   and save. Click **Send test using saved rule**. The result reports the recipient
-   count; disabled rules send nothing. Open another recipient tab and wait up to
-   20 seconds for its badge/history to update.
-4. Enable **User created**, select recipients who have `User.Read`, and create
-   a user normally. Recipients receive a localized snapshot with a link to that
-   user. Mark one notification read, reload, then mark all read. Disable the
-   event and verify further user creation produces no notifications.
+1. Apply SDK migrations before deploying using the target database configuration:
+   `go run cmd/command/main.go migrate up`. The notification migrations create
+   inboxes, rules, their level/audit fields, and durable dispatch jobs.
+2. Grant `NotificationRules.Read` and `NotificationRules.Manage` to pilot
+   administrators through the application's permission provisioning. Custom
+   permission schemas must include these permissions. Read-only administrators
+   may inspect rules and queue status; only managers may save rules or retry jobs.
+3. For multiple replicas configure the same `REDIS_URL` on every instance.
+   Without it realtime supports one instance. A configured Redis that cannot
+   connect or subscribe prevents startup; see [realtime fanout](notifications-realtime.md).
+4. In settings enable **Test notification**, select users, groups or roles, choose
+   a level, and save. **Send test using saved rule** reports the accepted audience
+   size. Delivery is asynchronous; the queue shows processed/delivered counts and
+   scheduled retries. Verify the recipient's badge, toast, dropdown and history
+   in another tab or replica, then mark messages read.
+5. Enable **User created** for recipients with `User.Read`, including supported
+   event participants if desired. Create a user normally and verify its localized
+   notification and internal link. Disable the rule and verify new events stop.
 
-Rules combine selected users, groups, and roles without duplicate deliveries. Roles
-include direct assignments and roles inherited through groups. Group membership
-and effective roles are resolved for each event; later membership changes affect
-new deliveries, while notification history remains unchanged. Empty groups and
-roles may be configured before members are assigned. Deleted audiences are shown
-as unavailable in settings and must be removed when saving.
+Rules union explicit users, direct group members, effective roles (including
+roles inherited through groups), and the semantic participants registered by the
+event. Missing references stay visible until removed. Only active, unblocked,
+ordinary users in the current tenant receive messages. Event permissions and
+optional object guards are checked at delivery. Settings validate tenant-owned
+references and reject unsupported semantic keys.
 
-Only active, unblocked ordinary users of the current tenant receive notifications.
-Required event permissions are checked again at delivery. Deleted, blocked,
-inactive, or unauthorized recipients are skipped. Recipient membership and text
-are snapshots; later account or language changes do not rewrite history.
+## Application event contract
 
-## Adding application events
+Register definitions through `core.ModuleOptions.NotificationEvents`. Definitions
+have stable versioned keys, localized module metadata, default levels, documented
+payload fields, and supported semantic recipient resolvers. Optional extensions
+include safe default semantic recipients, payload validation, an internal action
+URL builder, a renderer and an object-level recipient guard. Duplicate definitions
+fail composition; unknown events, version mismatches, missing required fields and
+invalid payloads fail publication. Applications own object-specific permissions
+and payload policy.
 
-Pass definitions in `core.ModuleOptions.NotificationEvents`. Each definition has
-a stable versioned key, localized name/description, an optional required permission,
-and a renderer returning title, body, and an internal action URL. Duplicate keys
-fail during composition. Definitions should render only information permitted by
-their required permission; object-specific authorization remains the producer's
-responsibility in this MVP.
+Resolve `*services.NotificationDispatchService` and call `Enqueue(ctx, event)`
+with database pool and matching tenant in context. The envelope contains `Key`,
+`Version`, stable `ID`, `TenantID`, optional `ActorUserID`, `OccurredAt`, `Subject`,
+`DedupeKey` and validated `Data`. For compatibility, omitted version/time are
+normalized to the registered version/current UTC time. Enqueue can share a
+business transaction: commit exposes the job to workers and rollback removes it.
+A stable event identity deduplicates jobs and per-recipient inbox rows; when
+present, `DedupeKey` takes precedence over `ID` within the event key and tenant.
 
-Resolve `*services.NotificationRoutingService` from composition and call
-`Publish(ctx, notifications.Event{Key: key, ID: stableEventID, TenantID: tenantID,
-Data: payload})`. The context must contain the database pool and matching tenant.
-Publish after the business transaction commits. A stable event ID deduplicates
-repeated delivery for each recipient; a new ID creates a new notification.
-Notifications are off until the tenant administrator configures a rule.
+The synchronous `NotificationRoutingService.Publish` remains available for small
+trusted producers and accepts an injected `NotificationDelivery` implementation.
+Use the durable dispatch service for large audiences. The trusted
+`NotificationService.Deliver` supports explicit recipients. When using a
+caller-owned transaction with direct delivery, call `NotifyCommitted` only after
+commit; the dispatch worker handles this automatically. Recipient-facing APIs
+always derive the recipient from authenticated context.
 
-The trusted `NotificationService.Deliver` API also supports direct user delivery.
-Recipient-facing service APIs derive the user from authenticated context and
-cannot read or mutate another user's notifications.
+## Durable dispatch and failure semantics
 
-## Operating limits
+Enqueue freezes the event payload, saved rule and expanded recipient IDs. Later
+membership/rule changes affect new events. Workers recheck current eligibility
+and authorization, then render in each recipient's current language; persisted
+text does not change afterward. Explicitly disabled rules suppress new jobs;
+events with safe default participants may run before an administrator configures
+them. An explicitly saved rule takes precedence over defaults.
 
-Delivery errors are returned by the router. The built-in user-created event
-handler logs failures with tenant and user IDs without failing user creation.
-When the producer uses a caller-owned transaction, notification writes run in a
-savepoint: successful writes share the caller's commit or rollback, while SQL
-failures roll back notification writes without aborting user creation.
-The built-in handler has a five-second deadline and no durable delivery queue.
-Large group or role audiences can exceed that deadline; outside a caller-owned
-transaction, already persisted notifications remain while later recipients may
-be omitted. Durable audience snapshots, batched delivery, and resumable retries
-remain outside this MVP and are required before a large-audience rollout.
-There is no durable event outbox/replay: an event may be lost if the process
-exits between business commit and notification persistence. Producers requiring
-guaranteed delivery should retry using a stable ID or add an outbox in their
-application. A persisted notification survives reloads and replica changes.
+Core starts a worker on API/worker compositions unless
+`core.ModuleOptions.DisableNotificationWorker` is set. Each tick processes one
+batch of up to 100 candidates per active tenant. Replicas claim jobs with
+`FOR UPDATE SKIP LOCKED`. Notification writes and the checkpoint commit in one
+transaction, so a crash resumes at the last committed checkpoint. A failed batch
+rolls back, records a generic diagnostic, and retries with exponential backoff
+capped at five minutes. Managers can request an immediate retry in settings.
+Completed jobs and inboxes have no automatic retention policy.
 
-Monitor `failed to persist user-created notifications` logs and database errors.
-Rules have no automatic retention; history grows until an application establishes
-its retention policy. Each visible tab polls at most two small endpoints every
-20 seconds (count plus history while the center is open).
+Realtime publication happens after commit. Redis failures are logged and leave
+persisted notifications intact; Pub/Sub has no replay. The UI recovers on
+reconnect or reload. Existing broad realtime handlers also check tenant and read
+permissions before sending authenticated fragments.
 
-This slice omits custom dynamic audience predicates, external delivery channels,
-WebSocket fanout, custom templates, severity overrides, per-user quiet hours,
-and retention jobs. The existing broader issues remain open for these extensions.
+The built-in user-created handler has a five-second enqueue deadline. Inside a
+caller-owned transaction it uses a savepoint, so an enqueue failure is logged
+without aborting user creation. There is no durable domain-event outbox: a crash
+between business commit and enqueue can lose an event. Producers requiring that
+guarantee must enqueue in their business transaction or use an application outbox
+and retry a stable identity. Queue durability starts once the job commits.
+
+Monitor `failed to persist user-created notifications`,
+`notification delivery batch failed; durable retry scheduled`, and realtime
+publication/subscription logs. Settings expose pending, retrying and completed
+counts plus the latest 25 jobs. Event payloads are not displayed in diagnostics.
 
 ## Validation
 
@@ -92,18 +106,15 @@ go test ./modules/core/domain/aggregates/notification ./modules/core/notificatio
 go test ./modules/core/infrastructure/persistence ./modules/core/services \
   ./modules/core/presentation/controllers ./modules/core \
   -run 'TestNotification|TestComponent' -count=1
-templ generate
-just css
+go test -race ./pkg/realtime/... ./pkg/application ./pkg/bootstrap ./pkg/ws
 ```
 
-The focused tests cover persistent recipient/tenant isolation, deduplication,
-URL validation, read state, settings authorization, routing, and an actual
-user-creation-to-inbox path. The user-created handler retains a caller-owned
-transaction, so rolling back
-user creation also rolls back its notifications.
+Browser acceptance is `e2e/tests/core/notifications.spec.ts`. Run against an
+isolated seeded SDK server using `BASE_URL`; set `SECONDARY_BASE_URL` to another
+SDK replica with the same PostgreSQL and Redis to check cross-instance delivery.
+It covers saved settings, overlapping/group/role audiences, severity toast,
+realtime dropdown/history, read persistence, membership removal and disabling.
 
-Browser acceptance is in
-`e2e/tests/core/notifications.spec.ts`; run against an isolated seeded SDK server
-using the configured `BASE_URL`. It checks saved settings, delivery to a second
-tab, read-state persistence, saved group/role selections, inherited-role delivery,
-membership removal, and disabling delivery.
+Email, SMS, Telegram, browser push, administrator-authored expressions/templates,
+quiet hours, per-user preferences, retention jobs and durable domain-event replay
+remain outside these notification tasks.

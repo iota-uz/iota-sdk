@@ -8,10 +8,12 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/toast"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/components/spotlight"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/url"
 	"strconv"
@@ -289,6 +291,10 @@ templ Authenticated(props AuthenticatedProps) {
 		pageCtx := composables.UsePageCtx(ctx)
 		sidebarProps := MustUseSidebarProps(ctx)
 	}}
+	{{if props.WebsocketURL == "" {
+	props.WebsocketURL = "/ws"
+}
+	}}
 	@Base(&props.BaseProps) {
 		@toast.Container()
 		@MobileSidebar(sidebarProps)
@@ -325,14 +331,55 @@ templ Authenticated(props AuthenticatedProps) {
 
 templ NotificationBell() {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<a href="/notifications" class="relative flex items-center justify-center w-9 h-9 rounded-md hover:bg-surface-400" aria-label={ pageCtx.T("Notifications.Title") } data-testid="notification-bell">
-		@icons.Bell(icons.Props{Size: "22"})
-		<span id="notification-bell-count" hx-get="/notifications/summary" hx-trigger="load, every 20s, notificationsChanged from:body" hx-swap="innerHTML" aria-live="polite"></span>
-	</a>
+	<details class="relative" data-testid="notification-bell" x-data @keydown.escape.stop="$el.removeAttribute('open')">
+		<summary class="relative flex items-center justify-center w-9 h-9 rounded-md hover:bg-surface-400 cursor-pointer list-none" aria-label={ pageCtx.T("Notifications.Title") }>
+			@icons.Bell(icons.Props{Size: "22"})
+			<span id="notification-bell-count" hx-get="/notifications/summary" hx-trigger="notificationsChanged from:body" hx-swap="innerHTML" aria-live="polite">
+				@NotificationBellCount(services.NotificationUnreadCount(ctx))
+			</span>
+		</summary>
+		<div class="absolute right-0 mt-2 z-[80] w-80 max-h-[70vh] overflow-y-auto rounded-lg border border-secondary bg-surface-300 shadow-lg" id="notification-dropdown" hx-get="/notifications/dropdown" hx-trigger="load, notificationsChanged from:body" hx-swap="innerHTML"></div>
+	</details>
+	<script>
+ if (!window.iotaNotificationRealtimeInstalled) {
+ window.iotaNotificationRealtimeInstalled = true;
+ document.addEventListener("htmx:wsBeforeMessage",function(event){
+ let message;try{message=JSON.parse(event.detail.message)}catch{return}
+ if(message.type!=="notification.changed")return;
+ event.preventDefault();document.body.dispatchEvent(new CustomEvent("notificationsChanged",{bubbles:true}));
+ const n=message.notification;if(n){window.dispatchEvent(new CustomEvent("notify",{detail:{title:n.title,message:n.body,variant:n.level||"info"}}));}
+ });
+ document.addEventListener("htmx:wsOpen",function(){document.body.dispatchEvent(new CustomEvent("notificationsChanged",{bubbles:true}));});
+ }
+ </script>
 }
 
 templ NotificationBellCount(count int64) {
 	if count > 0 {
-		<span class="absolute -right-2 -top-1 rounded-full bg-primary text-white text-xs min-w-5 px-1 text-center" data-testid="notification-unread-count">{ strconv.FormatInt(count, 10) }</span>
+		<span class="absolute -right-2 -top-1 rounded-full bg-primary text-white text-xs min-w-5 px-1 text-center" data-testid="notification-unread-count">{ strconv.FormatInt(count,10) }</span>
 	}
+}
+
+templ NotificationDropdown(items []notification.Notification, count int64) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="p-3 border-b border-secondary flex justify-between items-center"><a href="/notifications" class="font-semibold text-primary">{ pageCtx.T("Notifications.Title") }</a><form method="post" action="/notifications/read-all" hx-post="/notifications/read-all" hx-swap="none"><button type="submit" disabled?={ count==0 } class="text-xs text-primary disabled:opacity-50">{ pageCtx.T("Notifications.MarkAllRead") }</button></form></div>
+	if len(items)==0 {
+		<p class="p-4 text-sm text-200">{ pageCtx.T("Notifications.Empty") }</p>
+	}
+	<ul>
+		for _,n := range items {
+			<li class={ "p-3 border-b border-secondary",templ.KV("bg-surface-400",n.ReadAt()==nil) } data-testid="notification-dropdown-item">
+				<p class="font-medium break-words">{ n.Title() }</p>
+				<p class="text-sm text-200 whitespace-pre-wrap break-words">{ n.Body() }</p>
+				<div class="flex gap-3 mt-2">
+					if safe,ok:=action.SafeRelativeURL(n.ActionURL());ok {
+						<a href={ templ.URL(safe) } class="text-xs text-primary">{ pageCtx.T("Notifications.Open") }</a>
+					}
+					if n.ReadAt()==nil {
+						<form method="post" action={ templ.URL("/notifications/" + n.ID().String() + "/read") } hx-post={ "/notifications/" + n.ID().String() + "/read" } hx-swap="none"><button type="submit" class="text-xs text-primary">{ pageCtx.T("Notifications.MarkRead") }</button></form>
+					}
+				</div>
+			</li>
+		}
+	</ul>
 }

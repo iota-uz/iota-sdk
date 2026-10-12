@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -16,12 +17,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNotificationsMVP_UserCreationToInbox(t *testing.T) {
-	f := setupTestWithPermissions(t, permissions.UserCreate, permissions.UserRead)
+	f := setupNotificationTest(t, permissions.UserCreate, permissions.UserRead)
 	for _, p := range []permission.Permission{permissions.UserCreate, permissions.UserRead} {
 		require.NoError(t, persistence.NewPermissionRepository().Save(f.Ctx, p))
 	}
@@ -34,10 +36,13 @@ func TestNotificationsMVP_UserCreationToInbox(t *testing.T) {
 	ctx := userCommittedCtx(f)
 	router := itf.GetService[services.NotificationRoutingService](f)
 	inbox := itf.GetService[services.NotificationService](f)
+	dispatch := itf.GetService[services.NotificationDispatchService](f)
 	users := itf.GetService[services.UserService](f)
 	rule := notifications.Rule{EventKey: core.UserCreatedNotificationEvent, Enabled: true, UserIDs: []uint{f.User.ID()}}
 	require.NoError(t, router.SaveRule(ctx, rule))
 	created, err := users.Create(ctx, user.New("Business", "Trial", internet.MustParseEmail("trial@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
+	require.NoError(t, err)
+	_, err = dispatch.Process(ctx)
 	require.NoError(t, err)
 	items, err := inbox.List(ctx, notification.FindParams{UnreadOnly: true})
 	require.NoError(t, err)
@@ -56,7 +61,10 @@ func TestNotificationsMVP_UserCreationToInbox(t *testing.T) {
 	require.NoError(t, err)
 	inside, err := inbox.List(txCtx, notification.FindParams{})
 	require.NoError(t, err)
-	require.Len(t, inside, 2)
+	require.Len(t, inside, 1)
+	jobs, err := dispatch.Jobs(txCtx)
+	require.NoError(t, err)
+	require.Len(t, jobs, 2, "caller transaction contains the notification intent")
 	require.NoError(t, tx.Rollback(ctx))
 	items, err = inbox.List(ctx, notification.FindParams{})
 	require.NoError(t, err)
@@ -65,11 +73,11 @@ func TestNotificationsMVP_UserCreationToInbox(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = failureTx.Rollback(ctx) }()
 	failureCtx := composables.WithTx(ctx, failureTx)
-	_, err = failureTx.Exec(ctx, fmt.Sprintf(`ALTER TABLE core.notifications ADD CONSTRAINT notification_failure_test CHECK (tenant_id <> '%s'::uuid) NOT VALID`, f.TenantID()))
+	_, err = failureTx.Exec(ctx, fmt.Sprintf(`ALTER TABLE core.notification_dispatches ADD CONSTRAINT notification_failure_test CHECK (tenant_id <> '%s'::uuid) NOT VALID`, f.TenantID()))
 	require.NoError(t, err)
 	createdWithoutNotification, err := users.Create(failureCtx, user.New("Notification", "Failure", internet.MustParseEmail("notification-failure@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
 	require.NoError(t, err)
-	_, err = failureTx.Exec(ctx, `ALTER TABLE core.notifications DROP CONSTRAINT notification_failure_test`)
+	_, err = failureTx.Exec(ctx, `ALTER TABLE core.notification_dispatches DROP CONSTRAINT notification_failure_test`)
 	require.NoError(t, err, "notification SQL errors must not abort the caller transaction")
 	require.NoError(t, failureTx.Commit(ctx))
 	_, err = persistence.NewUserRepository(persistence.NewUploadRepository()).GetByID(ctx, createdWithoutNotification.ID())
@@ -87,7 +95,7 @@ func TestNotificationsMVP_UserCreationToInbox(t *testing.T) {
 }
 
 func TestNotificationsMVP_GroupAndRoleAudiences(t *testing.T) {
-	f := setupTest(t)
+	f := setupNotificationTest(t)
 	ctx := f.Ctx
 	users := persistence.NewUserRepository(persistence.NewUploadRepository())
 	recipient, err := users.Create(ctx, user.New("Audience", "Recipient", internet.MustParseEmail("audience@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
@@ -107,7 +115,11 @@ func TestNotificationsMVP_GroupAndRoleAudiences(t *testing.T) {
 	require.NoError(t, router.SaveRule(ctx, rule))
 	saved, err := router.Rule(ctx, rule.EventKey)
 	require.NoError(t, err)
-	require.Equal(t, rule, saved)
+	require.True(t, saved.Configured)
+	require.Equal(t, rule.UserIDs, saved.UserIDs)
+	require.Equal(t, rule.GroupIDs, saved.GroupIDs)
+	require.Equal(t, rule.RoleIDs, saved.RoleIDs)
+	require.Equal(t, rule.Enabled, saved.Enabled)
 	event := notifications.Event{Key: rule.EventKey, ID: uuid.NewString(), TenantID: f.TenantID()}
 	count, err := router.Publish(ctx, event)
 	require.NoError(t, err)
@@ -149,4 +161,15 @@ func TestNotificationsMVP_GroupAndRoleAudiences(t *testing.T) {
 	rule.RoleIDs = nil
 	rule.GroupIDs = []uuid.UUID{uuid.New()}
 	require.Error(t, router.SaveRule(ctx, rule))
+}
+
+func setupNotificationTest(t *testing.T, permissions ...permission.Permission) *itf.TestEnvironment {
+	t.Helper()
+	components := modules.Components()
+	for i, component := range components {
+		if component.Descriptor().Name == "core" {
+			components[i] = core.NewComponent(&core.ModuleOptions{DisableNotificationWorker: true, PermissionSchema: defaults.PermissionSchema()})
+		}
+	}
+	return itf.Setup(t, itf.WithComponents(components...), itf.WithUser(itf.User(permissions...)))
 }

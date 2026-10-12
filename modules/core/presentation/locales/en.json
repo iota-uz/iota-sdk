@@ -1505,7 +1505,6 @@
     "Groups": "Groups",
     "Roles": "Roles",
     "AudienceHint": "Recipients are combined without duplicates. Roles include assignments through groups; membership is resolved when an event is sent.",
-
     "UnavailableRecipients": "Some selected recipients are no longer available. Choose recipients and save to remove unavailable selections.",
     "Title": "Notification settings",
     "Intro": "Enable events and choose who receives notifications. Save the rule before sending a test.",
@@ -1520,6 +1519,17 @@
     "PermissionRead": "Read notification settings",
     "PermissionReadDescription": "View notification events and delivery rules",
     "PermissionManage": "Manage notification settings",
-    "PermissionManageDescription": "Enable events, select recipients and send test notifications"
+    "PermissionManageDescription": "Enable events, select recipients and send test notifications",
+    "Channel": "Delivery channel",
+    "Level": "Notification level",
+    "DefaultLevel": "Event default",
+    "DynamicRecipients": "Event recipients",
+    "Unavailable": "Unavailable selection; uncheck to remove",
+    "Queued": "Queued for delivery to {{.Count}} recipient(s).",
+    "Queue": "Delivery queue",
+    "Pending": "Pending",
+    "Retrying": "Retrying",
+    "Completed": "Completed",
+    "Retry": "Retry"
   }
 }

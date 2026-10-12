@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
@@ -10,13 +11,14 @@ import (
 type Props struct {
 	Notifications []notification.Notification
 	UnreadCount   int64
-	Page          int
+	Cursor        string
+	NextCursor    string
 	UnreadOnly    bool
 	HasMore       bool
 }
 
-func (p *Props) URL(page int) string {
-	return fmt.Sprintf("/notifications?page=%d&unread=%t", page, p.UnreadOnly)
+func (p *Props) URL(cursor string) string {
+	return "/notifications?cursor=" + url.QueryEscape(cursor) + "&unread=" + fmt.Sprint(p.UnreadOnly)
 }
 func safeActionURL(raw string) string {
 	safe, ok := action.SafeRelativeURL(raw)

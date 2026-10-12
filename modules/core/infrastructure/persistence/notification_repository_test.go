@@ -2,6 +2,7 @@ package persistence_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
@@ -62,5 +63,41 @@ func TestNotificationRepository_OwnershipDedupeAndRead(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, count)
 	_, err = r.Create(otherCtx, plain)
+	require.Error(t, err)
+}
+
+func TestNotificationRepository_CursorAndLevel(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	r := persistence.NewNotificationRepository()
+	tenant, err := composables.UseTenantID(f.Ctx)
+	require.NoError(t, err)
+	email, err := internet.NewEmail("cursor-notifications@example.com")
+	require.NoError(t, err)
+	recipient, err := persistence.NewUserRepository(persistence.NewUploadRepository()).Create(f.Ctx, user.New("Cursor", "Recipient", email, user.UILanguageEN, user.WithTenantID(tenant)))
+	require.NoError(t, err)
+	at := time.Now().UTC().Truncate(time.Microsecond)
+	for i := 0; i < 3; i++ {
+		n, err := notification.New(recipient.ID(), "Cursor", "", notification.WithCreatedAt(at), notification.WithLevel(notification.LevelWarning))
+		require.NoError(t, err)
+		_, err = r.Create(f.Ctx, n)
+		require.NoError(t, err)
+	}
+	first, err := r.List(f.Ctx, recipient.ID(), notification.FindParams{Limit: 1})
+	require.NoError(t, err)
+	require.Len(t, first, 1)
+	require.Equal(t, notification.LevelWarning, first[0].Level())
+	second, err := r.List(f.Ctx, recipient.ID(), notification.FindParams{Limit: 1, Cursor: notification.CursorFor(first[0])})
+	require.NoError(t, err)
+	require.Len(t, second, 1)
+	require.NotEqual(t, first[0].ID(), second[0].ID())
+	third, err := r.List(f.Ctx, recipient.ID(), notification.FindParams{Limit: 1, Cursor: notification.CursorFor(second[0])})
+	require.NoError(t, err)
+	require.Len(t, third, 1)
+	require.NotEqual(t, second[0].ID(), third[0].ID())
+	last, err := r.List(f.Ctx, recipient.ID(), notification.FindParams{Cursor: notification.CursorFor(third[0])})
+	require.NoError(t, err)
+	require.Empty(t, last)
+	_, err = r.List(f.Ctx, recipient.ID(), notification.FindParams{Cursor: "invalid"})
 	require.Error(t, err)
 }

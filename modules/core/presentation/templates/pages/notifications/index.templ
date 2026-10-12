@@ -27,7 +27,7 @@ templ Index(p *Props) {
 
 templ Content(p *Props) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<section id="notification-center" hx-get={ p.URL(p.Page) } hx-trigger="every 20s, notificationsChanged from:body" hx-swap="outerHTML" class="space-y-4" data-testid="notification-center">
+	<section id="notification-center" hx-get={ p.URL(p.Cursor) } hx-trigger="notificationsChanged from:body" hx-swap="outerHTML" class="space-y-4" data-testid="notification-center">
 		<div class="flex flex-wrap items-center gap-3">
 			@button.Secondary(button.Props{Href: "/notifications", Class: templ.KV("ring-2 ring-primary", !p.UnreadOnly), Attrs: templ.Attributes{"aria-current": fmt.Sprint(!p.UnreadOnly)}}) {
 				{ pageCtx.T("Notifications.All") }
@@ -68,11 +68,11 @@ templ Content(p *Props) {
 			}
 		</ul>
 		<nav class="flex justify-between" aria-label={ pageCtx.T("Notifications.Pagination") }>
-			if p.Page > 1 {
-				<a class="text-primary underline" href={ templ.URL(p.URL(p.Page - 1)) }>{ pageCtx.T("Notifications.Previous") }</a>
+			if p.Cursor != "" {
+				<a class="text-primary underline" href={ templ.URL(p.URL("")) }>{ pageCtx.T("Notifications.Previous") }</a>
 			}
 			if p.HasMore {
-				<a class="ml-auto text-primary underline" href={ templ.URL(p.URL(p.Page + 1)) }>{ pageCtx.T("Notifications.Next") }</a>
+				<a class="ml-auto text-primary underline" href={ templ.URL(p.URL(p.NextCursor)) }>{ pageCtx.T("Notifications.Next") }</a>
 			}
 		</nav>
 	</section>

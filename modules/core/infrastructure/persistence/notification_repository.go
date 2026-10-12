@@ -16,18 +16,19 @@ type PgNotificationRepository struct{}
 
 func NewNotificationRepository() notification.Repository { return &PgNotificationRepository{} }
 
-const notificationColumns = `id,tenant_id,user_id,event_key,title,body,action_url,COALESCE(dedupe_key,''),created_at,read_at`
+const notificationColumns = `id,tenant_id,user_id,event_key,level,title,body,action_url,COALESCE(dedupe_key,''),created_at,read_at`
 
 func scanNotification(row interface{ Scan(...any) error }) (notification.Notification, error) {
 	var id, tenantID uuid.UUID
 	var userID uint
+	var level notification.Level
 	var eventKey, title, body, actionURL, dedupeKey string
 	var createdAt sql.NullTime
 	var readAt sql.NullTime
-	if err := row.Scan(&id, &tenantID, &userID, &eventKey, &title, &body, &actionURL, &dedupeKey, &createdAt, &readAt); err != nil {
+	if err := row.Scan(&id, &tenantID, &userID, &eventKey, &level, &title, &body, &actionURL, &dedupeKey, &createdAt, &readAt); err != nil {
 		return nil, err
 	}
-	opts := []notification.Option{notification.WithID(id), notification.WithTenantID(tenantID), notification.WithEventKey(eventKey), notification.WithActionURL(actionURL), notification.WithDedupeKey(dedupeKey), notification.WithCreatedAt(createdAt.Time)}
+	opts := []notification.Option{notification.WithLevel(level), notification.WithID(id), notification.WithTenantID(tenantID), notification.WithEventKey(eventKey), notification.WithActionURL(actionURL), notification.WithDedupeKey(dedupeKey), notification.WithCreatedAt(createdAt.Time)}
 	if readAt.Valid {
 		opts = append(opts, notification.WithReadAt(&readAt.Time))
 	}
@@ -49,7 +50,7 @@ func (r *PgNotificationRepository) Create(ctx context.Context, n notification.No
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
-	saved, err := scanNotification(tx.QueryRow(ctx, `INSERT INTO core.notifications (id,tenant_id,user_id,event_key,title,body,action_url,dedupe_key,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8,''),$9) ON CONFLICT (tenant_id,user_id,dedupe_key) DO UPDATE SET dedupe_key=EXCLUDED.dedupe_key RETURNING `+notificationColumns, n.ID(), tenant, n.UserID(), n.EventKey(), n.Title(), n.Body(), n.ActionURL(), n.DedupeKey(), n.CreatedAt()))
+	saved, err := scanNotification(tx.QueryRow(ctx, `INSERT INTO core.notifications (id,tenant_id,user_id,event_key,level,title,body,action_url,dedupe_key,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10) ON CONFLICT (tenant_id,user_id,dedupe_key) DO UPDATE SET dedupe_key=EXCLUDED.dedupe_key RETURNING `+notificationColumns, n.ID(), tenant, n.UserID(), n.EventKey(), n.Level(), n.Title(), n.Body(), n.ActionURL(), n.DedupeKey(), n.CreatedAt()))
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
@@ -66,7 +67,11 @@ func (r *PgNotificationRepository) List(ctx context.Context, userID uint, p noti
 		return nil, serrors.Wrap(op, err)
 	}
 	p = p.Bounded()
-	rows, err := tx.Query(ctx, `SELECT `+notificationColumns+` FROM core.notifications WHERE tenant_id=$1 AND user_id=$2 AND ($3=FALSE OR read_at IS NULL) ORDER BY created_at DESC,id DESC LIMIT $4 OFFSET $5`, tenant, userID, p.UnreadOnly, p.Limit, p.Offset)
+	cursorAt, cursorID, err := notification.ParseCursor(p.Cursor)
+	if err != nil {
+		return nil, serrors.New(serrors.Invalid, "invalid notification cursor").WithOp(op)
+	}
+	rows, err := tx.Query(ctx, `SELECT `+notificationColumns+` FROM core.notifications WHERE tenant_id=$1 AND user_id=$2 AND ($3=FALSE OR read_at IS NULL) AND ($6=FALSE OR (created_at,id)<($7,$8)) ORDER BY created_at DESC,id DESC LIMIT $4 OFFSET $5`, tenant, userID, p.UnreadOnly, p.Limit, p.Offset, p.Cursor != "", cursorAt, cursorID)
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}

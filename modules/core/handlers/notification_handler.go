@@ -18,13 +18,13 @@ import (
 )
 
 type NotificationHandler struct {
-	pool   *pgxpool.Pool
-	router *services.NotificationRoutingService
-	logger *logrus.Logger
+	pool     *pgxpool.Pool
+	dispatch *services.NotificationDispatchService
+	logger   *logrus.Logger
 }
 
-func NewNotificationHandler(pool *pgxpool.Pool, router *services.NotificationRoutingService, logger *logrus.Logger) *NotificationHandler {
-	return &NotificationHandler{pool: pool, router: router, logger: logger}
+func NewNotificationHandler(pool *pgxpool.Pool, dispatch *services.NotificationDispatchService, logger *logrus.Logger) *NotificationHandler {
+	return &NotificationHandler{pool: pool, dispatch: dispatch, logger: logger}
 }
 
 func (h *NotificationHandler) OnUserCreated(event *user.CreatedEvent) {
@@ -39,7 +39,14 @@ func (h *NotificationHandler) OnUserCreated(event *user.CreatedEvent) {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	ctx = composables.WithTenantID(ctx, u.TenantID())
+	actorID := uint(0)
+	if event.Context() != nil {
+		if actor, err := composables.UseUser(event.Context()); err == nil && actor.TenantID() == u.TenantID() {
+			actorID = actor.ID()
+		}
+	}
 	err := h.publish(ctx, notifications.Event{
+		ActorUserID: actorID, OccurredAt: time.Now().UTC(), Subject: notifications.SubjectReference{Type: "user", ID: fmt.Sprint(u.ID())},
 		Key: "core.user.created.v1", ID: fmt.Sprintf("user-created:%d", u.ID()), TenantID: u.TenantID(),
 		Data: map[string]string{"user_id": fmt.Sprint(u.ID()), "name": strings.TrimSpace(u.FirstName() + " " + u.LastName())},
 	})
@@ -60,11 +67,11 @@ func (h *NotificationHandler) publish(ctx context.Context, event notifications.E
 			return savepoint.Rollback(cleanup)
 		}
 		defer func() { _ = rollback() }()
-		if _, err := h.router.Publish(composables.WithTx(ctx, savepoint), event); err != nil {
+		if _, err := h.dispatch.Enqueue(composables.WithTx(ctx, savepoint), event); err != nil {
 			return errors.Join(err, rollback())
 		}
 		return savepoint.Commit(ctx)
 	}
-	_, err := h.router.Publish(ctx, event)
+	_, err := h.dispatch.Enqueue(ctx, event)
 	return err
 }

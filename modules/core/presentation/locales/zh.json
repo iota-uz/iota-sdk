@@ -1508,7 +1508,6 @@
     "Groups": "群组",
     "Roles": "角色",
     "AudienceHint": "收件人合并且不重复。包括通过群组获得的角色；发送事件时确定成员。",
-
     "UnavailableRecipients": "某些选定的收件人已不可用。请选择收件人并保存，以移除不可用的选项。",
     "Title": "通知设置",
     "Intro": "启用事件并选择接收者。发送测试前请保存规则。",
@@ -1523,6 +1522,17 @@
     "PermissionRead": "查看通知设置",
     "PermissionReadDescription": "查看通知事件和投递规则",
     "PermissionManage": "管理通知设置",
-    "PermissionManageDescription": "启用事件、选择接收者并发送测试通知"
+    "PermissionManageDescription": "启用事件、选择接收者并发送测试通知",
+    "Channel": "发送渠道",
+    "Level": "通知级别",
+    "DefaultLevel": "事件默认值",
+    "DynamicRecipients": "事件接收者",
+    "Unavailable": "不可用；取消勾选以移除",
+    "Queued": "已加入发送队列，共 {{.Count}} 位接收者。",
+    "Queue": "发送队列",
+    "Pending": "待处理",
+    "Retrying": "重试中",
+    "Completed": "已完成",
+    "Retry": "重试"
   }
 }

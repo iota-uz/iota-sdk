@@ -3,7 +3,6 @@ package controllers
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
@@ -29,21 +28,19 @@ func (c *NotificationController) Register(r *mux.Router) {
 	router := r.PathPrefix("/notifications").Subrouter()
 	router.Use(middleware.Authorize(), middleware.RedirectNotAuthenticated(), middleware.ProvideUser(), middleware.ProvideDynamicLogo(), middleware.NavItems(), middleware.WithPageContext())
 	router.HandleFunc("", di.H(c.Index)).Methods(http.MethodGet)
+	router.HandleFunc("/dropdown", di.H(c.Dropdown)).Methods(http.MethodGet)
 	router.HandleFunc("/summary", di.H(c.Summary)).Methods(http.MethodGet)
 	router.HandleFunc("/read-all", di.H(c.MarkAllRead)).Methods(http.MethodPost)
 	router.HandleFunc("/{id}/read", di.H(c.MarkRead)).Methods(http.MethodPost)
 }
-func notificationPage(r *http.Request) int {
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
-	if err != nil || page < 1 || page > 100000 {
-		return 1
-	}
-	return page
-}
 func (c *NotificationController) Index(r *http.Request, w http.ResponseWriter, service *services.NotificationService) {
-	page := notificationPage(r)
+	cursor := r.URL.Query().Get("cursor")
+	if err := notification.ValidateCursor(cursor); err != nil {
+		http.Error(w, "Invalid cursor", http.StatusBadRequest)
+		return
+	}
 	unread := r.URL.Query().Get("unread") == "true"
-	items, err := service.List(r.Context(), notification.FindParams{Limit: 21, Offset: (page - 1) * 20, UnreadOnly: unread})
+	items, err := service.List(r.Context(), notification.FindParams{Limit: 21, Cursor: cursor, UnreadOnly: unread})
 	if err != nil {
 		http.Error(w, "Unable to retrieve notifications", http.StatusInternalServerError)
 		return
@@ -53,9 +50,10 @@ func (c *NotificationController) Index(r *http.Request, w http.ResponseWriter, s
 		http.Error(w, "Unable to retrieve notifications", http.StatusInternalServerError)
 		return
 	}
-	props := &notifications.Props{Notifications: items, UnreadCount: count, Page: page, UnreadOnly: unread, HasMore: len(items) > 20}
+	props := &notifications.Props{Notifications: items, UnreadCount: count, Cursor: cursor, UnreadOnly: unread, HasMore: len(items) > 20}
 	if props.HasMore {
 		props.Notifications = items[:20]
+		props.NextCursor = notification.CursorFor(items[19])
 	}
 	if htmx.IsHxRequest(r) {
 		templ.Handler(notifications.Content(props)).ServeHTTP(w, r)
@@ -101,4 +99,18 @@ func notificationReadResponse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	shared.Redirect(w, r, "/notifications")
+}
+
+func (c *NotificationController) Dropdown(r *http.Request, w http.ResponseWriter, service *services.NotificationService) {
+	items, err := service.List(r.Context(), notification.FindParams{Limit: 10})
+	if err != nil {
+		http.Error(w, "Unable to retrieve notifications", http.StatusInternalServerError)
+		return
+	}
+	count, err := service.UnreadCount(r.Context())
+	if err != nil {
+		http.Error(w, "Unable to retrieve notifications", http.StatusInternalServerError)
+		return
+	}
+	templ.Handler(layouts.NotificationDropdown(items, count)).ServeHTTP(w, r)
 }

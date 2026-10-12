@@ -1,8 +1,11 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"strconv"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
 
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
@@ -28,6 +31,30 @@ func newCoreNotificationCatalog(extra []notifications.Definition) (*notification
 			"zh":      "创建账户时通知选定的收件人。收件人需要查看用户的权限。",
 		},
 		RequiredPermission: permissions.UserRead,
+		DefaultLevel:       notification.LevelSuccess,
+		PayloadFields:      []notifications.PayloadField{{Key: "user_id", Required: true}, {Key: "name", Required: true}},
+		ValidatePayload: func(event notifications.Event) error {
+			id, err := strconv.ParseUint(event.Data["user_id"], 10, 32)
+			if err != nil || id == 0 {
+				return fmt.Errorf("invalid user-created user_id")
+			}
+			return nil
+		},
+		RecipientKeys: []notifications.RecipientDefinition{
+			{Key: "actor", Name: map[string]string{"en": "Event actor", "ru": "Инициатор события", "uz": "Voqea tashabbuskori", "uz-Cyrl": "Воқеа ташаббускори", "pt-BR": "Responsável pelo evento", "zh": "事件发起人"}, Resolve: func(_ context.Context, event notifications.Event) ([]uint, error) {
+				if event.ActorUserID == 0 {
+					return nil, nil
+				}
+				return []uint{event.ActorUserID}, nil
+			}},
+			{Key: "created_user", Name: map[string]string{"en": "Created user", "ru": "Созданный пользователь", "uz": "Yaratilgan foydalanuvchi", "uz-Cyrl": "Яратилган фойдаланувчи", "pt-BR": "Usuário criado", "zh": "新建用户"}, Resolve: func(_ context.Context, event notifications.Event) ([]uint, error) {
+				id, err := strconv.ParseUint(event.Data["user_id"], 10, 32)
+				if err != nil {
+					return nil, err
+				}
+				return []uint{uint(id)}, nil
+			}},
+		},
 		Render: func(event notifications.Event, language string) (notifications.Content, error) {
 			id, err := strconv.ParseUint(event.Data["user_id"], 10, 64)
 			if err != nil || id == 0 || event.Data["name"] == "" {
