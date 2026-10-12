@@ -1,18 +1,18 @@
-# Lens React runtime
+# Lens Solid runtime
 
-`@iota-uz/sdk/lens` is the canonical Lens delivery surface. Standard React
+`@iota-uz/sdk/lens` is the canonical Lens delivery surface. Standard Solid
 hosts install one SHA-stamped `@iota-uz/sdk` artifact and import both the Lens
 and client-host APIs from its bounded subpaths:
 
 ```ts
-import { ClientHostProvider } from '@iota-uz/sdk/client-host'
+import { mountSolidFeatureCatalogFromDocument } from '@iota-uz/sdk/solid'
 import { LensDashboard } from '@iota-uz/sdk/lens'
 import '@iota-uz/sdk/lens/styles.css'
 ```
 
-`pkg/lens/render/react` remains a legacy custom-element adapter. `just lens
+`pkg/lens/render/solid` remains a Solid custom-element adapter. `just lens
 build` creates its self-contained Vite bundle under the ignored
-`pkg/lens/render/react/dist`; generated chunks are not committed. Its Tailwind
+`pkg/lens/render/solid/dist`; generated chunks are not committed. Its Tailwind
 pipeline is isolated from host applications: utilities are prefixed with
 `lens-` and preflight is disabled.
 

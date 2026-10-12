@@ -6,7 +6,6 @@ import {
   type ManagedStreamOptions,
   type StreamContract,
   type StreamDiagnostics,
-  type StreamSubscription,
 } from './streaming'
 
 export type ManagedStreamState =

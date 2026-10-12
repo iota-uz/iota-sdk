@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { render } from '@solidjs/testing-library'
 import { expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import type { ChartInput } from '../charts/adapter'
@@ -36,7 +36,7 @@ it('prints the chart and evidence swatches from the same served series pins', ()
     id: 'sales', document, panel, frame, level: { path: [], label: 'Sales', children: [], perspectives: [] },
     path: [], breadcrumb: ['Sales'], depth: 0, root: true,
   }
-  const view = render(<PrintReportView report={{ document, sections: [section], warnings: [], truncated: false }} />)
+  const view = render(() => <PrintReportView report={{ document, sections: [section], warnings: [], truncated: false }} />)
   expect(view.getByTestId('printed-chart')).toBeInTheDocument()
   expect(inputs.at(-1)?.seriesColor?.('Alpha', 0)).toBe('#123456')
   expect(inputs.at(-1)?.seriesColor?.('Beta', 1)).toBe('#654321')
@@ -63,7 +63,7 @@ it('prints partition audit swatches with the category colours used by every ring
     id: 'rings', document, panel, frame, level: { path: [], label: 'Partition', children: [], perspectives: [] },
     path: [], breadcrumb: ['Partition'], depth: 0, root: true,
   }
-  const view = render(<PrintReportView report={{ document, sections: [section], warnings: [], truncated: false }} />)
+  const view = render(() => <PrintReportView report={{ document, sections: [section], warnings: [], truncated: false }} />)
   const input = inputs.at(-1)!
   const option = buildChartOption(input, buildEChartsTheme(window.document.createElement('div'), input.theme))
   const marks = option.series as Array<{ data: Array<{ itemStyle: { color: string } }> }>

@@ -1,4 +1,5 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import type { JSX } from 'solid-js'
+import { cleanup, render, screen } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { DashboardDocument, Frame, MetricRelationshipDirection, MetricRelationshipType, Panel } from '../contract'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
@@ -26,9 +27,9 @@ function documentWith(panels: Panel[], frames: Record<string, Frame>): Dashboard
   }
 }
 
-function renderDocument(document: DashboardDocument, children: React.ReactNode, dark = false) {
-  return render(
-    <div className="lens-root" data-theme={dark ? 'dark' : undefined}>
+function renderDocument(document: DashboardDocument, children: () => JSX.Element, dark = false) {
+  return render(() =>
+    <div class="lens-root" data-theme={dark ? 'dark' : undefined}>
       <DocumentProvider initialDocument={document}>
         <DashboardRuntimeProvider locale="en">{children}</DashboardRuntimeProvider>
       </DocumentProvider>
@@ -68,7 +69,7 @@ describe('MetricFlowPanel', () => {
   it('renders a populated 4-stage flow with formatted values, operators and result emphasis', () => {
     const panel = flowPanel()
     const frame = flowFrame([['premium', 1000], ['fees', 200], ['claims', 300], ['net', 900]])
-    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />))
 
     const stages = container.querySelectorAll('.lens-flow-stage')
     expect(stages).toHaveLength(4)
@@ -85,7 +86,7 @@ describe('MetricFlowPanel', () => {
   it('renders a real zero as a formatted "0", not unavailable', () => {
     const panel = flowPanel({ metricFlow: { stages: [{ key: 'zero', label: 'Zero stage', role: 'input' }] } })
     const frame = flowFrame([['zero', 0]])
-    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />))
 
     expect(container.querySelector('.lens-flow-stage-value')?.textContent).toBe('0')
     expect(container.querySelector('.lens-flow-stage-value')?.textContent).not.toBe('—')
@@ -94,7 +95,7 @@ describe('MetricFlowPanel', () => {
   it('renders a missing key as Unavailable/em dash, never "0"', () => {
     const panel = flowPanel({ metricFlow: { stages: [{ key: 'ghost', label: 'Ghost stage', role: 'input' }] } })
     const frame = flowFrame([['premium', 1000]])
-    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />))
 
     const value = container.querySelector('.lens-flow-stage-value')
     expect(value?.textContent).toBe('—')
@@ -105,7 +106,7 @@ describe('MetricFlowPanel', () => {
   it.each([['null', null], ['NaN', Number.NaN]])('renders a %s value as unavailable', (_name, raw) => {
     const panel = flowPanel({ metricFlow: { stages: [{ key: 'bad', label: 'Bad stage', role: 'input' }] } })
     const frame = flowFrame([['bad', raw]])
-    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />))
 
     expect(container.querySelector('.lens-flow-stage-value')?.textContent).toBe('—')
   })
@@ -113,7 +114,7 @@ describe('MetricFlowPanel', () => {
   it('surfaces a missing configured value column as a panel error state', () => {
     const panel = flowPanel({ encoding: { id: 'key', value: 'amount_not_in_frame' } })
     const frame = flowFrame([['premium', 1000]])
-    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />))
 
     const error = container.querySelector('.lens-panel-state-error')
     expect(error).not.toBeNull()
@@ -125,7 +126,7 @@ describe('MetricFlowPanel', () => {
   it('names a missing configured optional column in the panel error', () => {
     const panel = flowPanel({ encoding: { id: 'key', value: 'value', share: 'share_pct' } })
     const frame = flowFrame([['premium', 1000]])
-    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />))
 
     expect(container.querySelector('.lens-panel-state-error')).toHaveTextContent('This panel could not be rendered.')
     expect(container.querySelector('.lens-panel-state-error')).not.toHaveTextContent('share_pct')
@@ -134,7 +135,7 @@ describe('MetricFlowPanel', () => {
   it('surfaces duplicate frame keys as a panel error state', () => {
     const panel = flowPanel()
     const frame = flowFrame([['premium', 1000], ['premium', 1200]])
-    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />))
 
     const error = container.querySelector('.lens-panel-state-error')
     expect(error).not.toBeNull()
@@ -145,7 +146,7 @@ describe('MetricFlowPanel', () => {
   it('renders the declared structure as all-unavailable for an empty frame, distinct from the loading skeleton', () => {
     const panel = flowPanel()
     const frame: Frame = { columns: [{ name: 'key', type: 'string' }, { name: 'value', type: 'number' }], rows: [] }
-    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />))
 
     expect(container.querySelectorAll('.lens-flow-stage')).toHaveLength(4)
     expect([...container.querySelectorAll('.lens-flow-stage-value')].every((node) => node.textContent === '—')).toBe(true)
@@ -153,7 +154,7 @@ describe('MetricFlowPanel', () => {
     expect(container.querySelector('.lens-panel-skeleton')).toBeNull()
 
     cleanup()
-    const skeleton = render(<PanelSkeletonBody kind="metric_flow" />)
+    const skeleton = render(() =><PanelSkeletonBody kind="metric_flow" />)
     expect(skeleton.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
     expect(skeleton.container.querySelector('.lens-flow-stage')).toBeNull()
   })
@@ -170,7 +171,7 @@ describe('MetricFlowPanel', () => {
     // reduced the deduction — contribution flips positive, so the rendered
     // operator normalizes to "+" over the absolute magnitude.
     const frame = flowFrame([['claims', -300]])
-    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />))
 
     expect(container.querySelector('.lens-flow-op')?.textContent).toBe('+')
     expect(container.querySelector('.lens-flow-stage-value')?.textContent).toBe('300')
@@ -187,7 +188,7 @@ describe('MetricFlowPanel', () => {
       },
     })
     const frame = flowFrame([['claims', null]])
-    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />))
 
     expect(container.querySelector('.lens-flow-op')?.textContent).toBe('−')
     expect(container.querySelector('.lens-flow-stage-value')?.textContent).toBe('—')
@@ -208,14 +209,14 @@ describe('MetricFlowPanel', () => {
 
     const mismatched = renderDocument(
       documentWith([panelWithReconcile(1)], { 'flow:root': frame }),
-      <MetricFlowPanel panel={panelWithReconcile(1)} />,
+      () => (<MetricFlowPanel panel={panelWithReconcile(1)} />),
     )
     expect(mismatched.container.querySelector('.lens-flow-reconcile')?.textContent).toContain('Difference')
 
     cleanup()
     const matched = renderDocument(
       documentWith([panelWithReconcile(20)], { 'flow:root': frame }),
-      <MetricFlowPanel panel={panelWithReconcile(20)} />,
+      () => (<MetricFlowPanel panel={panelWithReconcile(20)} />),
     )
     expect(matched.container.querySelector('.lens-flow-reconcile')).toBeNull()
   })
@@ -232,7 +233,7 @@ describe('MetricFlowPanel', () => {
       },
     })
     const frame = flowFrame([['premium', 1000], ['fees', 200], ['net', 999]]) // sum 1200, but server says 999
-    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />))
 
     expect(container.querySelector('.lens-flow-stage-result .lens-flow-stage-value')?.textContent).toBe('999')
     expect(container.querySelector('.lens-flow-reconcile')?.textContent).toContain('Difference')
@@ -248,7 +249,7 @@ describe('MetricFlowPanel', () => {
       },
     })
     const frame = flowFrame([['premium', 1000]])
-    renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+    renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />))
 
     const link = screen.getByRole('link', { name: 'Open Premium' })
     expect(link).toHaveAttribute('href', expect.stringContaining('/metrics/premium'))
@@ -264,7 +265,7 @@ describe('MetricFlowPanel', () => {
       },
     })
     const frame = flowFrame([['fees', 200], ['net', 200]])
-    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />))
 
     const list = container.querySelector('ol.lens-flow')
     expect(list?.tagName).toBe('OL')
@@ -277,7 +278,7 @@ describe('MetricFlowPanel', () => {
   it('renders correctly under the dark theme (smoke)', () => {
     const panel = flowPanel()
     const frame = flowFrame([['premium', 1000], ['fees', 200], ['claims', 300], ['net', 900]])
-    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />, true)
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />), true)
 
     expect(container.querySelector('.lens-root')).toHaveAttribute('data-theme', 'dark')
     expect(container.querySelectorAll('.lens-flow-stage')).toHaveLength(4)
@@ -316,7 +317,7 @@ describe('MetricHierarchyPanel', () => {
     const frame = hierarchyFrame([
       ['total', 1000], ['segment-a', 600], ['segment-a-1', 500], ['segment-a-unalloc', 100],
     ])
-    const { container } = renderDocument(documentWith([panel], { 'hierarchy:root': frame }), <MetricHierarchyPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'hierarchy:root': frame }), () => (<MetricHierarchyPanel panel={panel} />))
 
     const rows = container.querySelectorAll('.lens-hierarchy-row')
     expect(rows).toHaveLength(4)
@@ -339,7 +340,7 @@ describe('MetricHierarchyPanel', () => {
     const frame = hierarchyFrame([
       ['total', 1000], ['segment-a', 600], ['segment-a-1', 500], ['segment-a-unalloc', 100],
     ])
-    const { container } = renderDocument(documentWith([panel], { 'hierarchy:root': frame }), <MetricHierarchyPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'hierarchy:root': frame }), () => (<MetricHierarchyPanel panel={panel} />))
 
     const segmentRow = container.querySelectorAll('.lens-hierarchy-row')[1]
     expect(segmentRow?.querySelector('.lens-hierarchy-reconcile')?.textContent).toBe('Allocated 100%')
@@ -351,7 +352,7 @@ describe('MetricHierarchyPanel', () => {
     const frame = hierarchyFrame([
       ['total', 1000], ['segment-a', 600], ['segment-a-1', 450], ['segment-a-unalloc', 100],
     ])
-    const { container } = renderDocument(documentWith([panel], { 'hierarchy:root': frame }), <MetricHierarchyPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'hierarchy:root': frame }), () => (<MetricHierarchyPanel panel={panel} />))
 
     const segmentRow = container.querySelectorAll('.lens-hierarchy-row')[1]
     const note = segmentRow?.querySelector('.lens-hierarchy-reconcile')
@@ -369,7 +370,7 @@ describe('MetricHierarchyPanel', () => {
       },
     })
     const frame = hierarchyFrame([['total', 1000], ['segment-a', 600]])
-    const { container } = renderDocument(documentWith([panel], { 'hierarchy:root': frame }), <MetricHierarchyPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'hierarchy:root': frame }), () => (<MetricHierarchyPanel panel={panel} />))
 
     const rows = container.querySelectorAll('.lens-hierarchy-row')
     expect(rows[0]).not.toHaveAttribute('aria-current')
@@ -386,7 +387,7 @@ describe('MetricHierarchyPanel', () => {
       },
     })
     const frame = hierarchyFrame([['total', 1000]])
-    renderDocument(documentWith([panel], { 'hierarchy:root': frame }), <MetricHierarchyPanel panel={panel} />)
+    renderDocument(documentWith([panel], { 'hierarchy:root': frame }), () => (<MetricHierarchyPanel panel={panel} />))
 
     const link = screen.getByRole('link', { name: /Total/ })
     expect(link).toHaveAttribute('href', expect.stringContaining('/metrics/total'))
@@ -404,7 +405,7 @@ describe('MetricHierarchyPanel', () => {
       columns: [{ name: 'key', type: 'string' }, { name: 'value', type: 'number' }, { name: 'share', type: 'number' }],
       rows: [['total', 1000, 60]],
     }
-    const { container } = renderDocument(documentWith([panel], { 'hierarchy:root': frame }), <MetricHierarchyPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'hierarchy:root': frame }), () => (<MetricHierarchyPanel panel={panel} />))
 
     expect(container.querySelector('.lens-hierarchy-share')?.textContent).toBe('60%')
   })
@@ -442,7 +443,7 @@ describe('MetricRelationshipPanel', () => {
   it('renders a symmetric ⇄ connector and a visually-hidden sentence for association', () => {
     const panel = relationshipPanel('association', undefined)
     const frame = relationshipFrame([['a', 100], ['b', 100]])
-    const { container } = renderDocument(documentWith([panel], { 'relationship:root': frame }), <MetricRelationshipPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'relationship:root': frame }), () => (<MetricRelationshipPanel panel={panel} />))
 
     expect(container.querySelector('.lens-relationship-glyph-h')?.textContent).toBe('⇄')
     expect(container.querySelector('.lens-visually-hidden')?.textContent).toBe('Metric A is economically linked to Metric B')
@@ -451,19 +452,19 @@ describe('MetricRelationshipPanel', () => {
   it('renders → for source_to_target derivation and ← for target_to_source', () => {
     const forward = relationshipPanel('derivation', 'source_to_target')
     const frame = relationshipFrame([['a', 100], ['b', 100]])
-    const forwardView = renderDocument(documentWith([forward], { 'relationship:root': frame }), <MetricRelationshipPanel panel={forward} />)
+    const forwardView = renderDocument(documentWith([forward], { 'relationship:root': frame }), () => (<MetricRelationshipPanel panel={forward} />))
     expect(forwardView.container.querySelector('.lens-relationship-glyph-h')?.textContent).toBe('→')
 
     cleanup()
     const backward = relationshipPanel('derivation', 'target_to_source')
-    const backwardView = renderDocument(documentWith([backward], { 'relationship:root': frame }), <MetricRelationshipPanel panel={backward} />)
+    const backwardView = renderDocument(documentWith([backward], { 'relationship:root': frame }), () => (<MetricRelationshipPanel panel={backward} />))
     expect(backwardView.container.querySelector('.lens-relationship-glyph-h')?.textContent).toBe('←')
   })
 
   it('renders a symmetric ⇄ connector for bidirectional reconciliation', () => {
     const panel = relationshipPanel('reconciliation', 'bidirectional')
     const frame = relationshipFrame([['a', 100], ['b', 100]])
-    const { container } = renderDocument(documentWith([panel], { 'relationship:root': frame }), <MetricRelationshipPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'relationship:root': frame }), () => (<MetricRelationshipPanel panel={panel} />))
 
     expect(container.querySelector('.lens-relationship-glyph-h')?.textContent).toBe('⇄')
     expect(container.querySelector('.lens-visually-hidden')?.textContent).toBe('Metric A reconciles with Metric B')
@@ -473,7 +474,7 @@ describe('MetricRelationshipPanel', () => {
   it('degrades one end independently when only it is unavailable', () => {
     const panel = relationshipPanel('association', undefined)
     const frame = relationshipFrame([['a', 100]]) // 'b' is missing
-    const { container } = renderDocument(documentWith([panel], { 'relationship:root': frame }), <MetricRelationshipPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'relationship:root': frame }), () => (<MetricRelationshipPanel panel={panel} />))
 
     expect(container.querySelector('.lens-relationship-end-source .lens-relationship-end-value')?.textContent).toBe('100')
     expect(container.querySelector('.lens-relationship-end-target .lens-relationship-end-value')?.textContent).toBe('—')
@@ -491,7 +492,7 @@ describe('MetricRelationshipPanel', () => {
       },
     })
     const frame = relationshipFrame([['a', 100], ['b', 100]])
-    renderDocument(documentWith([panel], { 'relationship:root': frame }), <MetricRelationshipPanel panel={panel} />)
+    renderDocument(documentWith([panel], { 'relationship:root': frame }), () => (<MetricRelationshipPanel panel={panel} />))
 
     const link = screen.getByRole('link', { name: 'Open Metric A' })
     expect(link).toHaveAttribute('href', expect.stringContaining('/metrics/a'))
@@ -512,7 +513,7 @@ describe('native tooltips in the metric family', () => {
   it('do not hide inside metric_flow decoration', () => {
     const panel = flowPanel()
     const frame = flowFrame([['premium', 1000], ['fees', 200], ['claims', 300], ['net', 900]])
-    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), () => (<MetricFlowPanel panel={panel} />))
 
     expect(container.querySelectorAll('[aria-hidden="true"][title], [aria-hidden="true"] [title]')).toHaveLength(0)
   })
@@ -520,7 +521,7 @@ describe('native tooltips in the metric family', () => {
   it('do not hide inside metric_hierarchy decoration', () => {
     const panel = hierarchyPanel()
     const frame = hierarchyFrame([['total', 1000], ['segment-a', 600], ['segment-a-1', 500]])
-    const { container } = renderDocument(documentWith([panel], { 'hierarchy:root': frame }), <MetricHierarchyPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'hierarchy:root': frame }), () => (<MetricHierarchyPanel panel={panel} />))
 
     expect(container.querySelectorAll('[aria-hidden="true"][title], [aria-hidden="true"] [title]')).toHaveLength(0)
   })
@@ -528,7 +529,7 @@ describe('native tooltips in the metric family', () => {
   it('do not hide inside metric_relationship decoration', () => {
     const panel = relationshipPanel('association', undefined)
     const frame = relationshipFrame([['a', 100], ['b', 100]])
-    const { container } = renderDocument(documentWith([panel], { 'relationship:root': frame }), <MetricRelationshipPanel panel={panel} />)
+    const { container } = renderDocument(documentWith([panel], { 'relationship:root': frame }), () => (<MetricRelationshipPanel panel={panel} />))
 
     expect(container.querySelectorAll('[aria-hidden="true"][title], [aria-hidden="true"] [title]')).toHaveLength(0)
   })

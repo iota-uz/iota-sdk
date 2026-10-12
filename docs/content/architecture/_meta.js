@@ -6,5 +6,6 @@ export default {
   'multi-tenancy': 'Multi-Tenancy',
   'frontend-stack': 'Frontend Stack',
   'solid-client-runtime': 'Solid Client Runtime',
-  'bichat-solid-migration': 'BiChat Solid Migration'
+  'bichat-solid-migration': 'BiChat Solid Migration',
+  'lens-solid-migration': 'Lens Solid Migration'
 }

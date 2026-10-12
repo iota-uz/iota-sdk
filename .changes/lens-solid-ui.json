@@ -1,0 +1,4 @@
+{
+  "bump": "major",
+  "summary": "Rewrite the Lens UI (dashboard/panels, controls, explore/drill, overlays, chart bindings) from React to Solid. Breaking change for React Lens consumers: the React public Lens component API is replaced by Solid and React/ReactDOM are no longer required for the production Lens bundle; React does not remain a second permanent client renderer. Migration guide ships with the release; new Lens capabilities (#1056-#1061) land on Solid."
+}

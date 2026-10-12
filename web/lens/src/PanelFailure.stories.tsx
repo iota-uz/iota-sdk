@@ -1,5 +1,4 @@
-import type { Story } from '@ladle/react'
-import { useEffect } from 'react'
+import { onMount, type JSX } from 'solid-js'
 import type { DashboardDocument, FailureReason, Panel } from './contract'
 import { StatPanel } from './panels'
 import { DashboardRuntimeProvider, DocumentProvider, useDrill } from './runtime'
@@ -64,51 +63,50 @@ function failureDocument(id: string): DashboardDocument {
   }
 }
 
-function TriggerQuery({ panelId }: { panelId: string }) {
+function TriggerQuery(props: { panelId: string }) {
   const { drillInto } = useDrill()
-  useEffect(() => {
-    drillInto('root/north', panelId)
-  }, [drillInto, panelId])
+  onMount(() => drillInto('root/north', props.panelId))
   return null
 }
 
-function FailureCell({ label, reason }: { label: string; reason?: FailureReason }) {
-  const id = `failure-${label}`
+function FailureCell(props: { label: string; reason?: FailureReason }): JSX.Element {
+  const id = `failure-${props.label}`
   const document = failureDocument(id)
   // The classification is the server's, so the story fails the request the way
   // the server does: the same JSON body, reason included or deliberately not.
   const fetcher: typeof fetch = () => Promise.resolve(new Response(
-    JSON.stringify({ error: 'internal', message: 'panel execution failed', ...(reason ? { reason } : {}) }),
+    JSON.stringify({ error: 'internal', message: 'panel execution failed', ...(props.reason ? { reason: props.reason } : {}) }),
     { status: 500, headers: { 'Content-Type': 'application/json' } },
   ))
   return (
-    <div className="lens-story-cell">
-      <span className="lens-story-cell-label">{label}</span>
+    <div class="lens-story-cell">
+      <span class="lens-story-cell-label">{props.label}</span>
       <DocumentProvider initialDocument={document} fetcher={fetcher}>
         <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
-          <TriggerQuery panelId={id} />
-          <StatPanel panel={document.panels[0]!} />
+          {() => (
+            <>
+              <TriggerQuery panelId={id} />
+              <StatPanel panel={document.panels[0]!} />
+            </>
+          )}
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
 }
 
-function FailureMatrix({ theme }: { theme: 'light' | 'dark' }) {
+function FailureMatrix(props: { theme: 'light' | 'dark' }): JSX.Element {
   return (
-    <div className="lens-root lens-story-matrix" data-theme={theme}>
+    <div class="lens-root lens-story-matrix" data-theme={props.theme} style={{ display: 'grid', gap: '16px', 'grid-template-columns': 'repeat(3, minmax(0, 1fr))' }}>
       {/* Three equal columns, declared here rather than in the stylesheet: the
           matrix grid next door is shaped for a label column plus one column per
           panel state, and this story has neither. */}
-      <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-        {cases.map(({ label, reason }) => <FailureCell key={label} label={label} reason={reason} />)}
-      </div>
+      {cases.map(({ label, reason }) => <FailureCell label={label} reason={reason} />)}
     </div>
   )
 }
 
-export const Light: Story = () => <FailureMatrix theme="light" />
+export const Light = () => <FailureMatrix theme="light" />
 Light.storyName = 'Failure reasons - light'
-
-export const Dark: Story = () => <FailureMatrix theme="dark" />
+export const Dark = () => <FailureMatrix theme="dark" />
 Dark.storyName = 'Failure reasons - dark'

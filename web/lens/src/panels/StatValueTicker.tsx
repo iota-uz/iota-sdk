@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { createEffect, createSignal, onCleanup } from 'solid-js'
 import { isVisualRegression } from '../visualRegression'
 
 /** Duration of the count-up when a stat value changes. */
@@ -88,20 +88,21 @@ function formatCore(value: number, parsed: ParsedValue): string {
  * byte. First mount, unparseable values, visual-regression runs and reduced
  * motion all render the final value with no animation.
  */
-export function StatValueTicker({ text }: { text: string }) {
-  const [display, setDisplay] = useState(text)
-  const previous = useRef(text)
-  const mounted = useRef(false)
-  const raf = useRef<number>()
+export function StatValueTicker(props: { text: string }) {
+  const [display, setDisplay] = createSignal(props.text)
+  let previous = props.text
+  let mounted = false
+  let raf: number | undefined
 
-  useEffect(() => {
-    const from = parseFormattedValue(previous.current)
+  createEffect(() => {
+    const text = props.text
+    const from = parseFormattedValue(previous)
     const to = parseFormattedValue(text)
-    const before = previous.current
-    previous.current = text
+    const before = previous
+    previous = text
 
-    if (!mounted.current) {
-      mounted.current = true
+    if (!mounted) {
+      mounted = true
       setDisplay(text)
       return
     }
@@ -118,19 +119,19 @@ export function StatValueTicker({ text }: { text: string }) {
       const progress = Math.min(1, (now - start) / tickerDurationMs)
       const eased = 1 - Math.pow(1 - progress, 3)
       if (progress >= 1) {
-        raf.current = undefined
+        raf = undefined
         setDisplay(text)
         return
       }
       setDisplay(formatCore(from.value + (to.value - from.value) * eased, to))
-      raf.current = requestAnimationFrame(step)
+      raf = requestAnimationFrame(step)
     }
-    raf.current = requestAnimationFrame(step)
-    return () => {
-      if (raf.current !== undefined) cancelAnimationFrame(raf.current)
-      raf.current = undefined
-    }
-  }, [text])
+    raf = requestAnimationFrame(step)
+    onCleanup(() => {
+      if (raf !== undefined) cancelAnimationFrame(raf)
+      raf = undefined
+    })
+  })
 
-  return <>{display}</>
+  return <>{display()}</>
 }

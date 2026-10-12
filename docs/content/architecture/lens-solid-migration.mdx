@@ -1,0 +1,50 @@
+---
+title: 'Lens Solid Migration'
+description: 'Solid Lens migration and breaking consumer API changes (issue #1064)'
+---
+
+# Lens Solid migration
+
+Status: implemented in an SDK candidate ready for review. `web/lens` and its public package now use Solid; the React client host API and peer dependencies are removed. Granite consumer migration and coordinated release remain pending. No production cutover or two-week production observation is claimed.
+
+The public import remains `@iota-uz/sdk/lens`, but its components are Solid components. Mount screens through the Go-owned `solid.Import` catalog and `@iota-uz/sdk/solid`. Replace React testing-library renders with Solid callback renders. The compatibility Go import is now `pkg/lens/render/solid`; React route, RPC-hook and applet bridge exports are removed from `@iota-uz/sdk/client-host`.
+
+Panels, controls, filters, navigation, drill/explore, printing and the story harness have been transferred. Existing ECharts adapters remain dynamically loaded. Every deferred panel gets its own Solid lazy resource so disposing one exploring panel cannot blank a sibling sharing its module. Chart adapter completion after unmount is ignored.
+
+The browser harness preserves story IDs and exercises interaction, focus, narrow hosts and themes. The 2026-10-08 visual audit compares Solid against freshly rendered React references from SDK commit `8313fc99550e51ce2da6e100595f43aed67cb03a`, using the same Chromium, viewport, fonts and a zero-pixel threshold. It found and corrected width, icon ownership, typography, portal positioning and initial deep-link/focus defects. Strict pixel parity remains an open acceptance gate; screenshot baselines were not replaced to hide differences. Consumer acceptance, the requested locale matrix and release verification must still run before migration issues requiring those gates can close.
+
+## Goal
+
+The Lens UI moves to Solid: dashboard/panels, controls, explore/drill, overlays, chart bindings and component extensions. The Lens document/snapshot stays the domain data contract for reports — no screen DSL, no rewrite of server-side calculations, SQL or approved report formats.
+
+## Surface inventory (verify before transfer)
+
+Current `web/lens/src` (≈200 TS/TSX files, 19 Ladle stories):
+
+- `charts/` — chart bindings and adapters (Apex-based React adapters to replace).
+- `controls/` — filter and parameter controls.
+- `explore/` — explore/drill flow and focus ring.
+- `panels/`, `print/`, `runtime/` — dashboard panels, print composition, runtime bindings.
+- `contract/` — document/snapshot contract (data contract, stays).
+- 19 React-only Ladle stories — replaced by a Solid-compatible fixture/story harness (per #1065/#1064 acceptance; the shared harness requirement).
+
+React deps: `react`/`react-dom` (18||19) plus chart adapters — removed from the production bundle at cutover.
+
+## Phases
+
+1. **Inventory freeze** — verify actual usage on current main, list live surfaces, transfer applicable fixtures/baselines.
+2. **Foundation** — Solid-compatible fixture/story harness; runtime bindings (mount, portals, chart instance lifecycle) on the client-host runtime.
+3. **Core surfaces** — panels, controls, filters, URL/back/forward/deep links, cross-filter, drill, export: snapshot/display consistency preserved.
+4. **Cutover** — public Lens component API replaced by Solid, React removed from the production bundle, legacy renderers deleted (#902), QA loop over visual baselines (#901).
+
+## Breaking change
+
+The Solid Lens API replaces the React public component API with a coordinated release (PR #984 packaging identity: one public `@iota-uz/sdk`, stable subpath APIs). React does not remain a second permanent renderer. New Lens capabilities (#1056–#1061) are implemented on Solid after or during this migration — their business scope is not duplicated here.
+
+## Dependencies
+
+#949, #951–#954 (client runtime — code largely shipped), packaging/handshake #956, QA harness #901, legacy deletion #902. Parent: #947 and #887.
+
+## Acceptance
+
+Mirrors #1064: every panel kind with loading/empty/error/stale states works on Solid; filters, URL/deep links, cross-filter, drill and export keep snapshot/display consistency; chart instances, subscriptions and portals are released on unmount; custom panels are plain Solid components without a screen schema; browser parity compares old vs Solid behavior including late responses and navigation cleanup; both themes, four locales, keyboard/focus, narrow screens.

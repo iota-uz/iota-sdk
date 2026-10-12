@@ -1,5 +1,4 @@
-import type { Story } from '@ladle/react'
-import { useEffect } from 'react'
+import { onCleanup, onMount, type JSX } from 'solid-js'
 import type { DashboardDocument, Frame, Panel, PanelTemporal } from './contract'
 import { DashboardPanels } from './DashboardPanels'
 import { DashboardRuntimeProvider, DocumentProvider } from './runtime'
@@ -102,26 +101,29 @@ function storyDocument(storyPanel: Panel, storyFrame: Frame = frame): DashboardD
   }
 }
 
-function ActivateControl({ kind }: { kind: 'regression' | 'average' | 'dismiss-overlay' }) {
-  useEffect(() => runWhenReady(() => {
-    if (kind === 'regression') {
-      const button = document.querySelector<HTMLButtonElement>('.lens-temporal-toggle')
-      if (!button) return false
-      button.click()
+function ActivateControl(props: { kind: 'regression' | 'average' | 'dismiss-overlay' }) {
+  onMount(() => {
+    const cancel = runWhenReady(() => {
+      if (props.kind === 'regression') {
+        const button = document.querySelector<HTMLButtonElement>('.lens-temporal-toggle')
+        if (!button) return false
+        button.click()
+        return true
+      }
+      if (props.kind === 'dismiss-overlay') {
+        const entry = document.querySelector<HTMLButtonElement>('.lens-chart-overlay-legend .lens-chart-legend-toggle')
+        if (!entry) return false
+        entry.click()
+        return true
+      }
+      const select = document.querySelector<HTMLSelectElement>('.lens-temporal-select')
+      if (!select) return false
+      select.value = '3'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
       return true
-    }
-    if (kind === 'dismiss-overlay') {
-      const entry = document.querySelector<HTMLButtonElement>('.lens-chart-overlay-legend .lens-chart-legend-toggle')
-      if (!entry) return false
-      entry.click()
-      return true
-    }
-    const select = document.querySelector<HTMLSelectElement>('.lens-temporal-select')
-    if (!select) return false
-    select.value = '3'
-    select.dispatchEvent(new Event('change', { bubbles: true }))
-    return true
-  }), [kind])
+    })
+    onCleanup(cancel)
+  })
   return null
 }
 
@@ -135,21 +137,25 @@ function runWhenReady(action: () => boolean): () => void {
   return () => { cancelled = true }
 }
 
-function TemporalStory({ storyPanel, storyFrame, control }: { storyPanel: Panel; storyFrame?: Frame; control?: 'regression' | 'average' | 'dismiss-overlay' }) {
-  const temporalDocument = storyDocument(storyPanel, storyFrame)
+function TemporalStory(props: { storyPanel: Panel; storyFrame?: Frame; control?: 'regression' | 'average' | 'dismiss-overlay' }): JSX.Element {
+  const temporalDocument = storyDocument(props.storyPanel, props.storyFrame)
   return (
-    <div className="lens-root" data-theme="light">
+    <div class="lens-root" data-theme="light">
       <DocumentProvider initialDocument={temporalDocument}>
         <DashboardRuntimeProvider locale="en">
-          <DashboardPanels />
-          {control && <ActivateControl kind={control} />}
+          {() => (
+            <>
+              <DashboardPanels />
+              {props.control && <ActivateControl kind={props.control} />}
+            </>
+          )}
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
 }
 
-export const Regression: Story = () => (
+export const Regression = () => (
   <TemporalStory
     control="regression"
     storyPanel={panel({ regression: { field: 'regression', label: 'Trend' } }, 'Linear regression')}
@@ -157,7 +163,7 @@ export const Regression: Story = () => (
 )
 Regression.storyName = 'Regression'
 
-export const MovingAverage: Story = () => (
+export const MovingAverage = () => (
   <TemporalStory
     control="average"
     storyPanel={panel({ movingAverages: [
@@ -169,7 +175,7 @@ export const MovingAverage: Story = () => (
 )
 MovingAverage.storyName = 'Moving average'
 
-export const ReferenceLines: Story = () => (
+export const ReferenceLines = () => (
   <TemporalStory storyPanel={panel({ referenceLines: [
     { value: 100, label: 'Operating threshold' },
     { value: 110, label: 'Stretch threshold' },
@@ -177,14 +183,14 @@ export const ReferenceLines: Story = () => (
 )
 ReferenceLines.storyName = 'Reference lines'
 
-export const IncompletePeriod: Story = () => (
+export const IncompletePeriod = () => (
   <TemporalStory storyPanel={panel({
     period: { category: '2026-12-01T00:00:00Z', state: 'annualized', annualizedField: 'annualized' },
   }, 'Incomplete period')} />
 )
 IncompletePeriod.storyName = 'Incomplete period'
 
-export const TimeAnnotations: Story = () => (
+export const TimeAnnotations = () => (
   <TemporalStory storyPanel={panel({ annotations: [
     { at: '2026-04-01T00:00:00Z', label: 'Method changed' },
     { at: '2026-08-01T00:00:00Z', label: 'New process' },
@@ -200,7 +206,7 @@ TimeAnnotations.storyName = 'Time annotations'
  * its own idiom, each with an entry beneath the data rows of the legend. Before
  * this they were four grey dashes and a stack of repeated labels.
  */
-export const OverlayVocabulary: Story = () => (
+export const OverlayVocabulary = () => (
   <TemporalStory
     control="regression"
     storyPanel={panel({
@@ -220,7 +226,7 @@ OverlayVocabulary.storyName = 'Overlay vocabulary'
  * else moves — no denominator changes, no other entry restyles — and the entry
  * stays listed so the mark can be brought back.
  */
-export const OverlayDismissed: Story = () => (
+export const OverlayDismissed = () => (
   <TemporalStory
     control="dismiss-overlay"
     storyPanel={panel({
@@ -235,13 +241,13 @@ OverlayDismissed.storyName = 'Overlay switched off'
  * The combined-ratio panel: a category axis, three series, one threshold and a
  * year that has not finished. Its 100% line is the one that never drew.
  */
-export const CategoryAxisOverlays: Story = () => (
+export const CategoryAxisOverlays = () => (
   <TemporalStory storyFrame={ratioFrame} storyPanel={ratioPanel} />
 )
 CategoryAxisOverlays.storyName = 'Category-axis overlays'
 
 /** The comparison ghost, named in the legend instead of drifting unlabelled. */
-export const ComparisonGhost: Story = () => (
+export const ComparisonGhost = () => (
   <TemporalStory
     storyFrame={comparisonFrame}
     storyPanel={{
@@ -252,7 +258,7 @@ export const ComparisonGhost: Story = () => (
 )
 ComparisonGhost.storyName = 'Comparison ghost'
 
-export const ForecastConfidence: Story = () => (
+export const ForecastConfidence = () => (
   <TemporalStory
     storyFrame={computedForecastFrame as Frame}
     storyPanel={panel({ forecast: {
@@ -273,7 +279,7 @@ ForecastConfidence.storyName = 'Forecast confidence'
  * a single letter, and the ⓘ was reparented into the icon cluster where it read
  * as another button.
  */
-export const CrowdedPanelHeader: Story = () => {
+export const CrowdedPanelHeader = () => {
   const storyPanel: Panel = {
     ...panel({
       regression: { field: 'regression', label: 'Trend' },
@@ -287,10 +293,10 @@ export const CrowdedPanelHeader: Story = () => {
     layout: { rows: [{ panels: [{ panelId: storyPanel.id, span: 6 }] }] },
   }
   return (
-    <div className="lens-root" data-theme="light">
+    <div class="lens-root" data-theme="light">
       <DocumentProvider initialDocument={crowded}>
         <DashboardRuntimeProvider locale="en">
-          <DashboardPanels />
+          {() => <DashboardPanels />}
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>

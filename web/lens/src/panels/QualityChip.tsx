@@ -1,4 +1,6 @@
-import type { ComponentType } from 'react'
+
+import type { JSX } from 'solid-js'
+import { Show } from 'solid-js'
 import type { Availability, Confidence } from '../contract'
 import { useTranslate } from '../runtime'
 import {
@@ -11,8 +13,6 @@ import {
   Tray,
   WarningTriangle,
 } from '../icons'
-
-/* eslint-disable react-refresh/only-export-components */
 
 /**
  * The two data-quality axes are shown as a single chip with a strict
@@ -27,7 +27,7 @@ import {
 
 interface QualityMeta {
   className: string
-  icon: ComponentType<IconProps>
+  icon: (props: IconProps) => JSX.Element
   /** Named labelKey so the Go i18n-parity scanner picks these up as catalog keys. */
   labelKey: string
   fallback: string
@@ -87,27 +87,36 @@ export function useQualityLabel(): (input: QualityInput) => string | undefined {
   }
 }
 
-export interface QualityChipProps extends QualityInput {
+export interface QualityChipProps {
+  confidence?: Confidence
+  availability?: Availability
   className?: string
+  /** Solid-style class override; treated the same as `className`. */
+  class?: string
 }
 
 /**
  * A single data-quality chip. Icon and translated label are always present, so
  * color is never the sole carrier of meaning.
  */
-export function QualityChip({ confidence, availability, className }: QualityChipProps) {
+export function QualityChip(props: QualityChipProps) {
   const translate = useTranslate()
-  const resolved = resolveQuality({ confidence, availability })
-  if (!resolved) return null
-  const label = translate(resolved.meta.labelKey, resolved.meta.fallback)
-  const Icon = resolved.meta.icon
+  const resolved = () => resolveQuality({ confidence: props.confidence, availability: props.availability })
   return (
-    <span
-      className={['lens-status-chip', 'lens-quality-chip', resolved.meta.className, className].filter(Boolean).join(' ')}
-      title={label}
-    >
-      <Icon className="lens-quality-chip-icon" />
-      <span className="lens-quality-chip-label">{label}</span>
-    </span>
+    <Show when={resolved()}>
+      {(value) => {
+        const label = translate(value().meta.labelKey, value().meta.fallback)
+        const Icon = value().meta.icon
+        return (
+          <span
+            class={['lens-status-chip', 'lens-quality-chip', value().meta.className, props.className, props.class].filter(Boolean).join(' ')}
+            title={label}
+          >
+            <Icon className="lens-quality-chip-icon" />
+            <span class="lens-quality-chip-label">{label}</span>
+          </span>
+        )
+      }}
+    </Show>
   )
 }

@@ -171,7 +171,6 @@ type PanelSpec struct {
 	ShowTotalBadge  bool                 `json:"showTotalBadge,omitempty"`
 	TotalBadgeValue *float64             `json:"totalBadgeValue,omitempty"`
 	HeadlineValue   *float64             `json:"headlineValue,omitempty"`
-	DrillTree       *panel.DrillTree     `json:"drillTree,omitempty"`
 	Trend           *panel.TrendSpec     `json:"trend,omitempty"`
 	Status          *panel.StatusSpec    `json:"status,omitempty"`
 	Sparkline       *panel.SparklineSpec `json:"sparkline,omitempty"`

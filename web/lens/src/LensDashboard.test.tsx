@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../fixtures/small.json'
 import { LensDashboard } from './LensDashboard'
@@ -12,7 +12,7 @@ afterEach(() => {
 
 describe('LensDashboard', () => {
   it('renders the bundled document when src is omitted', () => {
-    const view = render(<LensDashboard locale="en" />)
+    const view = render(() =><LensDashboard locale="en" />)
 
     expect(screen.getByText('$4,286,000')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Operations overview' })).toBeInTheDocument()
@@ -94,7 +94,7 @@ describe('LensDashboard', () => {
     }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<LensDashboard initialDocument={document} />)
+    render(() =><LensDashboard initialDocument={document} />)
     expect(screen.getByRole('link', { name: /Remove filter: Tashkent/ })).toHaveAttribute(
       'href', '/report?_f=product%3Aone',
     )
@@ -130,7 +130,7 @@ describe('LensDashboard', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<LensDashboard src="/lens/example" locale="en" csrf="token" />)
+    render(() =><LensDashboard src="/lens/example" locale="en" csrf="token" />)
 
     await waitFor(() => expect(screen.getByText('42')).toBeInTheDocument())
     expect(fetchMock).toHaveBeenCalledWith(
@@ -145,7 +145,7 @@ describe('LensDashboard', () => {
   it('renders initial loading and fetch error states', async () => {
     let rejectRequest: ((reason: Error) => void) | undefined
     const fetcher = vi.fn(() => new Promise<Response>((_resolve, reject) => { rejectRequest = reject }))
-    const view = render(<LensDashboard src="/lens/document" fetcher={fetcher} />)
+    const view = render(() =><LensDashboard src="/lens/document" fetcher={fetcher} />)
 
     expect(view.container.querySelector('.lens-loading')).toHaveAttribute('aria-busy', 'true')
     expect(view.container.querySelectorAll('.lens-skeleton-card').length).toBeGreaterThan(0)
@@ -159,7 +159,7 @@ describe('LensDashboard', () => {
       rejectRequest = reject
       if (fetcher.mock.calls.length > 1) resolve({ ok: true, json: () => Promise.resolve(fixture) } as Response)
     }))
-    render(<LensDashboard src="/lens/document" fetcher={fetcher} />)
+    render(() =><LensDashboard src="/lens/document" fetcher={fetcher} />)
 
     rejectRequest?.(new Error('offline'))
     // A failed document leaves nothing else on the page to act on.
@@ -173,10 +173,10 @@ describe('LensDashboard', () => {
     vi.useFakeTimers()
     try {
       const fetcher = vi.fn(() => new Promise<Response>(() => undefined))
-      const view = render(<LensDashboard src="/lens/document" fetcher={fetcher} />)
+      const view = render(() =><LensDashboard src="/lens/document" fetcher={fetcher} />)
 
       expect(view.container.querySelector('.lens-loading-notice')).toBeNull()
-      act(() => { vi.advanceTimersByTime(9000) })
+      { vi.advanceTimersByTime(9000) }
       expect(view.container.querySelector('.lens-loading-notice')).not.toBeNull()
     } finally {
       vi.useRealTimers()
@@ -185,7 +185,7 @@ describe('LensDashboard', () => {
 
   it('keeps the server-rendered skeleton until the document arrives', () => {
     const fetcher = vi.fn(() => new Promise<Response>(() => undefined))
-    const view = render(
+    const view = render(() =>
       <LensDashboard src="/lens/document" fetcher={fetcher} fallbackHTML='<div class="server-skeleton">shell</div>' />,
     )
 
@@ -198,7 +198,7 @@ describe('LensDashboard', () => {
       layout: { rows: [] },
       panels: [],
     })
-    render(<LensDashboard initialDocument={empty} />)
+    render(() =><LensDashboard initialDocument={empty} />)
     expect(screen.getByText('The document contains no panels.')).toBeInTheDocument()
   })
 
@@ -214,7 +214,7 @@ describe('LensDashboard', () => {
 
     // Header assertions do not need a real relative-URL fetch. Keep the
     // request pending so rejected network work cannot outlive jsdom teardown.
-    render(<LensDashboard initialDocument={headerless} fetcher={() => new Promise<Response>(() => undefined)} />)
+    render(() => <LensDashboard initialDocument={headerless} fetcher={() => new Promise<Response>(() => undefined)} />)
 
     // The age of the data and the remedy for it are one control: the reading is
     // the label, so the button says whether it is worth pressing.
@@ -233,7 +233,7 @@ describe('LensDashboard', () => {
         frames: {},
         endpoints: { panel: '/lens/panel' },
       })
-      render(<LensDashboard initialDocument={recomputable} fetcher={() => new Promise<Response>(() => undefined)} />)
+      render(() => <LensDashboard initialDocument={recomputable} fetcher={() => new Promise<Response>(() => undefined)} />)
 
       expect(screen.getByRole('button', { name: 'Recompute' })).toBeInTheDocument()
     } finally {
@@ -248,7 +248,7 @@ describe('LensDashboard', () => {
       frames: {},
       endpoints: { panel: '/lens/panel' },
     })
-    const view = render(<LensDashboard initialDocument={recomputable} fetcher={() => new Promise<Response>(() => undefined)} />)
+    const view = render(() => <LensDashboard initialDocument={recomputable} fetcher={() => new Promise<Response>(() => undefined)} />)
 
     const button = screen.getByRole('button', { name: /Updated/ })
     // "Recompute" is the machine's word, so the control carries the reader's.
@@ -268,7 +268,7 @@ describe('LensDashboard', () => {
 
   it('wires dashboard and panel exports when the document exposes an endpoint', () => {
     const exportable = parseDocument({ ...fixture, endpoints: { export: '/lens/export' } })
-    render(<LensDashboard initialDocument={exportable} />)
+    render(() =><LensDashboard initialDocument={exportable} />)
 
     // The dashboard's formats live behind one trigger; a panel still exports
     // its own single artefact in place.
@@ -282,7 +282,7 @@ describe('LensDashboard', () => {
       signal = init?.signal as AbortSignal
       return new Promise<Response>(() => undefined)
     })
-    const view = render(<LensDashboard src="/lens/document" fetcher={fetcher} />)
+    const view = render(() =><LensDashboard src="/lens/document" fetcher={fetcher} />)
     view.unmount()
     expect(signal?.aborted).toBe(true)
   })
@@ -298,7 +298,7 @@ describe('<lens-dashboard>', () => {
     const element = document.createElement('lens-dashboard')
     element.setAttribute('initial-document', encoded)
 
-    act(() => document.body.append(element))
+    document.body.append(element)
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Тренды страхового бизнеса' })).toBeInTheDocument())
   })
@@ -307,13 +307,13 @@ describe('<lens-dashboard>', () => {
     registerLensDashboardElement()
     const element = document.createElement('lens-dashboard')
 
-    act(() => document.body.append(element))
+    document.body.append(element)
     expect(element.querySelector('[data-theme="light"]')).not.toBeNull()
 
-    act(() => element.setAttribute('theme', 'dark'))
+    element.setAttribute('theme', 'dark')
     expect(element.querySelector('[data-theme="dark"]')).not.toBeNull()
 
-    act(() => element.remove())
+    element.remove()
     expect(element.childElementCount).toBe(0)
     expect(Reflect.get(element, 'root')).toBeUndefined()
   })

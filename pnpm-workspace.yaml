@@ -4,3 +4,4 @@ packages:
   - web/lens
   - web/solid-ui
   - web/testing
+  - web/chat-ui

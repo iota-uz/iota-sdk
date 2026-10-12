@@ -1,5 +1,4 @@
-import type { Story } from '@ladle/react'
-import { useEffect, useState } from 'react'
+import { onCleanup, onMount, type JSX } from 'solid-js'
 import fixture from '../fixtures/explore.json'
 import { parseDocument, type FieldFormat, type Level, type Node, type Perspective } from './contract'
 import { DashboardPanels } from './DashboardPanels'
@@ -13,25 +12,29 @@ const branchKey = 'profitability/operating-margin'
 
 function OpenBranch() {
   const { drillInto } = useDrill()
-  useEffect(() => drillInto(branchKey, 'margin'), [drillInto])
+  onMount(() => drillInto(branchKey, 'margin'))
   return null
 }
 
-function Walkthrough({ startAtBranch = false, children }: { startAtBranch?: boolean; children: React.ReactNode }) {
+function Walkthrough(props: { startAtBranch?: boolean; children: JSX.Element }) {
   return (
-    <div className="lens-root lens-explore-story">
-      <aside className="lens-story-guide">{children}</aside>
+    <div class="lens-root lens-explore-story">
+      <aside class="lens-story-guide">{props.children}</aside>
       <DocumentProvider initialDocument={dashboardDocument}>
         <DashboardRuntimeProvider locale="en">
-          {startAtBranch && <OpenBranch />}
-          <DashboardPanels />
+          {() => (
+            <>
+              {props.startAtBranch && <OpenBranch />}
+              <DashboardPanels />
+            </>
+          )}
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
 }
 
-export const FullDrillFlow: Story = () => (
+export const FullDrillFlow = () => (
   <Walkthrough>
     Select <strong>Operating margin</strong>, choose <strong>Composition</strong>, then move through
     <strong> Services</strong> and <strong>Sales</strong>. Use the path rail to jump back to any level.
@@ -39,7 +42,7 @@ export const FullDrillFlow: Story = () => (
 )
 FullDrillFlow.storyName = 'Full drill flow - three levels'
 
-export const PerspectiveSwitching: Story = () => (
+export const PerspectiveSwitching = () => (
   <Walkthrough startAtBranch>
     The perspective set belongs to the active <strong>Operating margin</strong> segment. Compare Composition,
     Trend, Bridge, and Evidence without leaving the panel.
@@ -52,13 +55,13 @@ PerspectiveSwitching.storyName = 'Perspective switching on a segment'
  * present a transient surface (the drill overlay, an expanded panel) as a
  * stable screenshot.
  */
-function ClickOnMount({ labels }: { labels: Array<string> }) {
-  useEffect(() => {
+function ClickOnMount(props: { labels: Array<string> }) {
+  onMount(() => {
     let cancelled = false
     let attempts = 0
     const press = (index: number) => {
-      if (cancelled || index >= labels.length) return
-      const button = window.document.querySelector<HTMLButtonElement>(`button[aria-label="${labels[index]}"]`)
+      if (cancelled || index >= props.labels.length) return
+      const button = window.document.querySelector<HTMLButtonElement>(`button[aria-label="${props.labels[index]}"]`)
       if (!button) {
         if (attempts++ < 60) window.requestAnimationFrame(() => press(index))
         return
@@ -68,31 +71,35 @@ function ClickOnMount({ labels }: { labels: Array<string> }) {
       window.requestAnimationFrame(() => press(index + 1))
     }
     window.requestAnimationFrame(() => press(0))
-    return () => { cancelled = true }
-  }, [labels])
+    onCleanup(() => { cancelled = true })
+  })
   return null
 }
 
-function OverlayStory({ theme, labels }: { theme: 'light' | 'dark'; labels: Array<string> }) {
+function OverlayStory(props: { theme: 'light' | 'dark'; labels: Array<string> }): JSX.Element {
   return (
-    <div className="lens-root" data-theme={theme}>
+    <div class="lens-root" data-theme={props.theme}>
       <DocumentProvider initialDocument={dashboardDocument}>
         <DashboardRuntimeProvider locale="en">
-          <DashboardPanels />
-          <ClickOnMount labels={labels} />
+          {() => (
+            <>
+              <DashboardPanels />
+              <ClickOnMount labels={props.labels} />
+            </>
+          )}
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
 }
 
-export const DrillOverlayLight: Story = () => <OverlayStory theme="light" labels={['Show breakdown']} />
+export const DrillOverlayLight = () => <OverlayStory theme="light" labels={['Show breakdown']} />
 DrillOverlayLight.storyName = 'Drill overlay - light'
 
-export const DrillOverlayDark: Story = () => <OverlayStory theme="dark" labels={['Show breakdown']} />
+export const DrillOverlayDark = () => <OverlayStory theme="dark" labels={['Show breakdown']} />
 DrillOverlayDark.storyName = 'Drill overlay - dark'
 
-export const DrillOverlayInExpandedPanel: Story = () => (
+export const DrillOverlayInExpandedPanel = () => (
   <OverlayStory theme="light" labels={['Expand panel', 'Show breakdown']} />
 )
 DrillOverlayInExpandedPanel.storyName = 'Drill overlay inside an expanded panel'
@@ -123,34 +130,31 @@ function narrowDocumentWithSpan(span: number) {
   }
 }
 
-function AtDeepestLevel({ theme, labels = [], span = 3 }: {
-  theme: 'light' | 'dark'
-  labels?: Array<string>
-  span?: number
-}) {
-  useState(() => {
-    window.history.replaceState(null, '', navigationToURL(
-      { panelId: narrowDocument.panels[0]!.id, path: deepPath, perspectiveId: 'profitability/operating-margin/composition' },
-      new URL(window.location.href),
-    ))
-    return true
-  })
+function AtDeepestLevel(props: { theme: 'light' | 'dark'; labels?: Array<string>; span?: number }): JSX.Element {
+  window.history.replaceState(null, '', navigationToURL(
+    { panelId: narrowDocument.panels[0]!.id, path: deepPath, perspectiveId: 'profitability/operating-margin/composition' },
+    new URL(window.location.href),
+  ))
   return (
-    <div className="lens-root" data-theme={theme}>
-      <DocumentProvider initialDocument={narrowDocumentWithSpan(span)}>
+    <div class="lens-root" data-theme={props.theme}>
+      <DocumentProvider initialDocument={narrowDocumentWithSpan(props.span ?? 3)}>
         <DashboardRuntimeProvider locale="en">
-          <DashboardPanels />
-          {labels.length > 0 && <ClickOnMount labels={labels} />}
+          {() => (
+            <>
+              <DashboardPanels />
+              {(props.labels ?? []).length > 0 && <ClickOnMount labels={props.labels ?? []} />}
+            </>
+          )}
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
 }
 
-export const NarrowDeepTrailLight: Story = () => <AtDeepestLevel theme="light" />
+export const NarrowDeepTrailLight = () => <AtDeepestLevel theme="light" />
 NarrowDeepTrailLight.storyName = 'Narrow card, deepest path - light'
 
-export const NarrowDeepTrailDark: Story = () => <AtDeepestLevel theme="dark" />
+export const NarrowDeepTrailDark = () => <AtDeepestLevel theme="dark" />
 NarrowDeepTrailDark.storyName = 'Narrow card, deepest path - dark'
 
 /**
@@ -158,7 +162,7 @@ NarrowDeepTrailDark.storyName = 'Narrow card, deepest path - dark'
  * steps aside and leaves the back button and the breakdown affordance rather
  * than a one-letter stump.
  */
-export const NarrowestTrail: Story = () => <AtDeepestLevel theme="light" span={2} />
+export const NarrowestTrail = () => <AtDeepestLevel theme="light" span={2} />
 NarrowestTrail.storyName = 'Header too narrow for a level name'
 
 /**
@@ -166,30 +170,27 @@ NarrowestTrail.storyName = 'Header too narrow for a level name'
  * asks for a view instead of keeping the parent level's numbers on screen
  * under the child's title.
  */
-function AtFork({ theme }: { theme: 'light' | 'dark' }) {
-  useState(() => {
-    window.history.replaceState(null, '', navigationToURL(
-      {
-        panelId: dashboardDocument.panels[0]!.id,
-        path: ['profitability', 'profitability/operating-margin'],
-      },
-      new URL(window.location.href),
-    ))
-    return true
-  })
+function AtFork(props: { theme: 'light' | 'dark' }): JSX.Element {
+  window.history.replaceState(null, '', navigationToURL(
+    {
+      panelId: dashboardDocument.panels[0]!.id,
+      path: ['profitability', 'profitability/operating-margin'],
+    },
+    new URL(window.location.href),
+  ))
   return (
-    <div className="lens-root" data-theme={theme}>
+    <div class="lens-root" data-theme={props.theme}>
       <DocumentProvider initialDocument={dashboardDocument}>
-        <DashboardRuntimeProvider locale="en"><DashboardPanels /></DashboardRuntimeProvider>
+        <DashboardRuntimeProvider locale="en">{() => <DashboardPanels />}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
 }
 
-export const AwaitingPerspectiveLight: Story = () => <AtFork theme="light" />
+export const AwaitingPerspectiveLight = () => <AtFork theme="light" />
 AwaitingPerspectiveLight.storyName = 'Level fork awaits a view - light'
 
-export const AwaitingPerspectiveDark: Story = () => <AtFork theme="dark" />
+export const AwaitingPerspectiveDark = () => <AtFork theme="dark" />
 AwaitingPerspectiveDark.storyName = 'Level fork awaits a view - dark'
 
 /**
@@ -226,36 +227,38 @@ const segmentTarget: DrillTarget = {
 
 const segmentValueFormat: FieldFormat = { kind: 'money', currency: 'USD', minorUnits: false, precision: 0, symbol: '$' }
 
-function SegmentOverlay({ theme }: { theme: 'light' | 'dark' }) {
+function SegmentOverlay(props: { theme: 'light' | 'dark' }): JSX.Element {
   return (
-    <div className="lens-root" data-theme={theme} style={{ minHeight: '100vh' }}>
+    <div class="lens-root" data-theme={props.theme} style={{ 'min-height': '100vh' }}>
       <DocumentProvider initialDocument={dashboardDocument}>
         <DashboardRuntimeProvider locale="en">
-          <DrillOverlay
-            accentColor="#7c3aed"
-            anchor={{ x: 420, y: 360 }}
-            dark={theme === 'dark'}
-            onClose={() => {}}
-            onDrillChild={() => {}}
-            onDrillInto={() => {}}
-            onPerspective={() => {}}
-            target={segmentTarget}
-            theme={theme}
-            valueFormat={segmentValueFormat}
-          />
+          {() => (
+            <DrillOverlay
+              accentColor="#7c3aed"
+              anchor={{ x: 420, y: 360 }}
+              dark={props.theme === 'dark'}
+              onClose={() => {}}
+              onDrillChild={() => {}}
+              onDrillInto={() => {}}
+              onPerspective={() => {}}
+              target={segmentTarget}
+              theme={props.theme}
+              valueFormat={segmentValueFormat}
+            />
+          )}
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
   )
 }
 
-export const SegmentOverlayLight: Story = () => <SegmentOverlay theme="light" />
+export const SegmentOverlayLight = () => <SegmentOverlay theme="light" />
 SegmentOverlayLight.storyName = 'Segment overlay statistics - light'
 
-export const SegmentOverlayDark: Story = () => <SegmentOverlay theme="dark" />
+export const SegmentOverlayDark = () => <SegmentOverlay theme="dark" />
 SegmentOverlayDark.storyName = 'Segment overlay statistics - dark'
 
-export const KeyboardWalkthrough: Story = () => (
+export const KeyboardWalkthrough = () => (
   <Walkthrough>
     Press <strong>Tab</strong> to reach a segment, use <strong>arrow keys</strong> between siblings, and press
     <strong> Enter</strong> or <strong>Space</strong> to explore. Press <strong>Escape</strong> to go back.

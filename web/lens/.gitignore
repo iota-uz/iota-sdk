@@ -5,3 +5,4 @@ playwright-report/
 vr/results/
 vr/baselines/darwin/
 vr/baselines/win32/
+dist/

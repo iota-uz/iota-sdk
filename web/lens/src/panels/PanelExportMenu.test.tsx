@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
@@ -15,11 +15,11 @@ afterEach(() => {
 describe('PanelExportMenu', () => {
   it('offers XLSX, PNG, and SVG for an individual panel', async () => {
     const document_ = parseDocument({ ...fixture, endpoints: { ...fixture.endpoints, export: '/lens/export' } })
-    render(
+    render(() =>
       <DocumentProvider initialDocument={document_}>
-        <DashboardRuntimeProvider locale="en">
+        <DashboardRuntimeProvider locale="en">{() => (<>(
           <DashboardPanels />
-        </DashboardRuntimeProvider>
+          )</>)}</DashboardRuntimeProvider>
       </DocumentProvider>,
     )
 
@@ -32,11 +32,11 @@ describe('PanelExportMenu', () => {
 
   it('supports keyboard navigation and returns focus to the trigger on Escape', async () => {
     const document_ = parseDocument({ ...fixture, endpoints: { ...fixture.endpoints, export: '/lens/export' } })
-    render(
+    render(() =>
       <DocumentProvider initialDocument={document_}>
-        <DashboardRuntimeProvider locale="en">
+        <DashboardRuntimeProvider locale="en">{() => (<>(
           <DashboardPanels />
-        </DashboardRuntimeProvider>
+          )</>)}</DashboardRuntimeProvider>
       </DocumentProvider>,
     )
 
@@ -62,9 +62,9 @@ describe('PanelExportMenu', () => {
       return Promise.resolve()
     })
     const document_ = parseDocument({ ...fixture, endpoints: { ...fixture.endpoints, export: '/lens/export' } })
-    render(
+    render(() =>
       <DocumentProvider initialDocument={document_}>
-        <DashboardRuntimeProvider locale="en"><DashboardPanels /></DashboardRuntimeProvider>
+        <DashboardRuntimeProvider locale="en">{() => (<>(<DashboardPanels />)</>)}</DashboardRuntimeProvider>
       </DocumentProvider>,
     )
     fireEvent.click((await screen.findAllByRole('button', { name: 'Export panel' }))[0]!)

@@ -1,4 +1,4 @@
-import { waitFor } from '@testing-library/react'
+import { waitFor } from '@solidjs/testing-library'
 import type { EChartsOption } from 'echarts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChartInput } from '../adapter'

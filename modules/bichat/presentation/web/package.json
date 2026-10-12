@@ -22,7 +22,6 @@
     "codegen": "echo \"codegen removed (RPC-only)\""
   },
   "dependencies": {
-    "@iota-uz/sdk": "0.4.39",
     "apexcharts": "^4.7.0",
     "date-fns": "^3.6.0",
     "dompurify": "^3.4.16",

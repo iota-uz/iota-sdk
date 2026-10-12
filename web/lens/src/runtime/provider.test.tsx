@@ -1,7 +1,6 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { useState } from 'react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library'
+import { createSignal, For } from 'solid-js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ClientHostBoundary } from '@iota-uz/sdk/client-host'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
 import { StatPanel } from '../panels'
@@ -186,15 +185,15 @@ function Controls() {
 
 function RuntimeFixture({ fetcher }: { fetcher: typeof fetch }) {
   return (
-    <div className="lens-root">
-      <ClientHostBoundary theme="light">
+    <div class="lens-root">
+      <div class="lens-root" data-theme="light">
         <DocumentProvider initialDocument={document} fetcher={fetcher}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
             <Controls />
             <StatPanel panel={statPanel} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
-      </ClientHostBoundary>
+      </div>
     </div>
   )
 }
@@ -242,12 +241,12 @@ describe('DashboardRuntimeProvider', () => {
       }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     })
 
-    render(
-      <div className="lens-root">
+    render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={idlePrefetchDocument} fetcher={fetcher}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
             <StatPanel panel={idlePrefetchDocument.panels[0]!} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -278,20 +277,20 @@ describe('DashboardRuntimeProvider', () => {
     })
 
     function SnapshotLeaseFixture() {
-      const [current, setCurrent] = useState(first)
+      const [current, setCurrent] = createSignal(first)
       return (
-        <div className="lens-root">
+        <div class="lens-root">
           <button type="button" onClick={() => setCurrent(second)}>Next snapshot</button>
-          <DocumentProvider initialDocument={current} fetcher={fetcher}>
-            <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
-              <StatPanel panel={current.panels[0]!} />
-            </DashboardRuntimeProvider>
+          <DocumentProvider initialDocument={current()} fetcher={fetcher}>
+            <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
+              <StatPanel panel={current().panels[0]!} />
+              )</>)}</DashboardRuntimeProvider>
           </DocumentProvider>
         </div>
       )
     }
 
-    render(<SnapshotLeaseFixture />)
+    render(() =><SnapshotLeaseFixture />)
     fireEvent.click(screen.getByRole('button', { name: 'Next snapshot' }))
     await waitFor(() => expect(releases).toContain('lease-a'))
     expect(releases).not.toContain('lease-b')
@@ -303,7 +302,7 @@ describe('DashboardRuntimeProvider', () => {
       requests.push(JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { path: Array<string>; prefetch?: boolean; revision?: number })
       return Promise.resolve(response(43))
     })
-    render(<RuntimeFixture fetcher={fetcher} />)
+    render(() =><RuntimeFixture fetcher={fetcher} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Prefetch detail' }))
 
@@ -330,21 +329,21 @@ describe('DashboardRuntimeProvider', () => {
     })
 
     function SnapshotSwitcher() {
-      const [current, setCurrent] = useState(recurringProgressiveDocument)
+      const [current, setCurrent] = createSignal(recurringProgressiveDocument)
       return (
-        <div className="lens-root">
+        <div class="lens-root">
           <button type="button" onClick={() => setCurrent(filteredProgressiveDocument)}>Filter</button>
           <button type="button" onClick={() => setCurrent(recurringProgressiveDocument)}>Back</button>
-          <DocumentProvider initialDocument={current} fetcher={fetcher}>
-            <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
-              <StatPanel panel={current.panels[0]!} />
-            </DashboardRuntimeProvider>
+          <DocumentProvider initialDocument={current()} fetcher={fetcher}>
+            <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
+              <StatPanel panel={current().panels[0]!} />
+              )</>)}</DashboardRuntimeProvider>
           </DocumentProvider>
         </div>
       )
     }
 
-    render(<SnapshotSwitcher />)
+    render(() =><SnapshotSwitcher />)
     expect(await screen.findByText('1')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
     expect(await screen.findByText('20')).toBeInTheDocument()
@@ -379,14 +378,14 @@ describe('DashboardRuntimeProvider', () => {
       }
       return Promise.resolve(panelStream(panels))
     })
-    render(
-      <div className="lens-root">
+    render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={progressiveDocument} fetcher={fetcher}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
             <RecomputeProbe />
             <StatPanel panel={progressiveDocument.panels[0]!} />
             <StatPanel panel={progressiveDocument.panels[1]!} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -431,34 +430,34 @@ describe('DashboardRuntimeProvider', () => {
       status: 200,
       headers: { 'Content-Type': 'application/x-ndjson' },
     }))
-    render(
-      <div className="lens-root">
+    render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={progressiveDocument} fetcher={fetcher}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
             <StatPanel panel={progressiveDocument.panels[0]!} />
             <StatPanel panel={progressiveDocument.panels[1]!} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
 
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
     const encode = new TextEncoder()
-    act(() => {
+    {
       controller?.enqueue(encode.encode(`${JSON.stringify({
         panelId: 'ready',
         result: { frames: { 'panel:ready': { columns: fixture.frames['panel:total'].columns, rows: [['Ready', 11]] } } },
       })}\n`))
-    })
+    }
     expect(await within(screen.getByLabelText('Ready')).findByText('11')).toBeInTheDocument()
     expect(screen.getByLabelText('Retrying')).toHaveAttribute('aria-busy', 'true')
 
-    act(() => {
+    {
       controller?.enqueue(encode.encode(`${JSON.stringify({
         panelId: 'retrying', result: { error: { error: 'internal', message: 'failed independently' } },
       })}\n${JSON.stringify({ complete: true })}\n`))
       controller?.close()
-    })
+    }
     expect(await within(screen.getByLabelText('Retrying')).findByRole('alert')).toBeInTheDocument()
     expect(within(screen.getByLabelText('Ready')).getByText('11')).toBeInTheDocument()
     expect(fetcher).toHaveBeenCalledTimes(1)
@@ -476,7 +475,7 @@ describe('DashboardRuntimeProvider', () => {
       }
       return Promise.resolve(response(request === 1 ? 43 : 44))
     })
-    const view = render(<RuntimeFixture fetcher={fetcher} />)
+    const view = render(() =><RuntimeFixture fetcher={fetcher} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Root' }))
     // A refetch swaps the stale value for the initial-load skeleton rather than
@@ -499,14 +498,14 @@ describe('DashboardRuntimeProvider', () => {
   it('notifies only subscribers for the panel whose frame changed', async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(response(43)))
     const unrelatedRender = vi.fn()
-    render(
-      <div className="lens-root">
+    render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={document}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
             <Controls />
             <StatPanel panel={statPanel} />
             <FrameProbe panelId="unrelated" onRender={unrelatedRender} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -520,7 +519,7 @@ describe('DashboardRuntimeProvider', () => {
   it('restores deep links and lets popstate replace the reducer view', async () => {
     window.history.replaceState(null, '', '/?path=root&path=detail')
     const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(response(43)))
-    render(<RuntimeFixture fetcher={fetcher} />)
+    render(() =><RuntimeFixture fetcher={fetcher} />)
 
     expect(screen.getByTestId('path')).toHaveTextContent('root/detail')
     expect(screen.getByTestId('can-go-back')).toHaveTextContent('true')
@@ -556,13 +555,13 @@ describe('DashboardRuntimeProvider', () => {
       )
     }
 
-    const view = render(
-      <div className="lens-root">
+    const view = render(() =>
+      <div class="lens-root">
         <DocumentProvider src="/lens/document" initialDocument={periodDocument} fetcher={fetcher}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>
             <PeriodControl />
-            {periodDocument.panels.map((panel) => <StatPanel key={panel.id} panel={panel} />)}
-          </DashboardRuntimeProvider>
+            <For each={periodDocument.panels}>{(panel) => <StatPanel panel={panel} />}</For>
+          </>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -579,14 +578,14 @@ describe('DashboardRuntimeProvider', () => {
     expect(view.container.querySelectorAll('[aria-busy="true"]')).toHaveLength(periodPanelIDs.length)
     expect(resolveDocument).toBeDefined()
 
-    act(() => resolveDocument?.(new Response(JSON.stringify({
+    resolveDocument?.(new Response(JSON.stringify({
       ...periodDocument,
       snapshotId: 'period-2022',
       frames: {
         'panel:alpha': { columns: fixture.frames['panel:total'].columns, rows: [['alpha', 200]] },
         'panel:beta': { columns: fixture.frames['panel:total'].columns, rows: [['beta', 201]] },
       },
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
 
     expect(await screen.findByText('200')).toBeInTheDocument()
     await waitFor(() => expect(view.container.querySelectorAll('[data-stale="true"]')).toHaveLength(0))
@@ -602,22 +601,22 @@ describe('DashboardRuntimeProvider', () => {
       }))
       .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolvePopstate = resolve }))
 
-    const view = render(
-      <div className="lens-root">
+    const view = render(() =>
+      <div class="lens-root">
         <DocumentProvider src="/lens/document" fetcher={fetcher}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
             <StatPanel panel={popstateFilteredDocument.panels[0]!} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
     expect(await screen.findByText('42')).toBeInTheDocument()
     expect(fetcher).toHaveBeenCalledTimes(1)
 
-    act(() => {
+    {
       window.history.replaceState(null, '', '/')
       window.dispatchEvent(new PopStateEvent('popstate'))
-    })
+    }
 
     expect(screen.getByLabelText('Total')).toHaveAttribute('data-stale', 'true')
     expect(screen.getByLabelText('Total')).toHaveAttribute('aria-busy', 'true')
@@ -639,10 +638,10 @@ describe('DashboardRuntimeProvider', () => {
         'panel:total': { ...popstateFilteredDocument.frames['panel:total'], rows: [['Total', 43]] },
       },
     }
-    act(() => resolvePopstate?.(new Response(JSON.stringify(unfiltered), {
+    resolvePopstate?.(new Response(JSON.stringify(unfiltered), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
-    })))
+    }))
 
     expect(await screen.findByText('43')).toBeInTheDocument()
     expect(screen.getByLabelText('Total')).not.toHaveAttribute('data-stale', 'true')
@@ -671,13 +670,13 @@ describe('DashboardRuntimeProvider', () => {
         },
       }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     })
-    render(
-      <div className="lens-root">
+    render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={dynamicDocument} fetcher={fetcher}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
             <Controls />
             <StatPanel panel={dynamicDocument.panels[0]!} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )
@@ -690,7 +689,7 @@ describe('DashboardRuntimeProvider', () => {
 
   it('restores the in-app history stack stored in browser history', async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(response(43)))
-    render(<RuntimeFixture fetcher={fetcher} />)
+    render(() =><RuntimeFixture fetcher={fetcher} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Root' }))
     const rootState: unknown = window.history.state
@@ -706,17 +705,17 @@ describe('DashboardRuntimeProvider', () => {
 
   it('pushes a drill that is batched with popstate', async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(response(43)))
-    render(<RuntimeFixture fetcher={fetcher} />)
+    render(() =><RuntimeFixture fetcher={fetcher} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Root' }))
     const rootState: unknown = window.history.state
     fireEvent.click(screen.getByRole('button', { name: 'Detail' }))
 
-    act(() => {
+    {
       window.history.replaceState(rootState, '', '/?path=root')
       window.dispatchEvent(new PopStateEvent('popstate', { state: rootState }))
       fireEvent.click(screen.getByRole('button', { name: 'Detail' }))
-    })
+    }
 
     await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('root/detail'))
     expect(new URL(window.location.href).searchParams.getAll('path')).toEqual(['root', 'detail'])
@@ -724,7 +723,7 @@ describe('DashboardRuntimeProvider', () => {
 
   it('ignores invalid drill transitions without resetting or showing a notice', async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(response(43)))
-    render(<RuntimeFixture fetcher={fetcher} />)
+    render(() =><RuntimeFixture fetcher={fetcher} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Root' }))
     fireEvent.click(screen.getByRole('button', { name: 'Detail' }))
@@ -741,7 +740,7 @@ describe('DashboardRuntimeProvider', () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(document), { status: 200 }))
 
     function InlineFetcherFixture() {
-      const [, setRender] = useState(0)
+      const [, setRender] = createSignal(0)
       return (
         <DocumentProvider src="/lens/document" fetcher={(input, init) => fetcher(input, init)}>
           <button type="button" onClick={() => setRender((value) => value + 1)}>Rerender</button>
@@ -749,7 +748,7 @@ describe('DashboardRuntimeProvider', () => {
       )
     }
 
-    render(<InlineFetcherFixture />)
+    render(() =><InlineFetcherFixture />)
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
     fireEvent.click(screen.getByRole('button', { name: 'Rerender' }))
     await Promise.resolve()
@@ -767,7 +766,7 @@ describe('DashboardRuntimeProvider', () => {
       }
       return Promise.resolve(response(43))
     })
-    render(<RuntimeFixture fetcher={fetcher} />)
+    render(() =><RuntimeFixture fetcher={fetcher} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Root' }))
     expect(await screen.findByText('43')).toBeInTheDocument()
@@ -777,7 +776,7 @@ describe('DashboardRuntimeProvider', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
     expect(query).toHaveBeenCalledTimes(1)
 
-    act(() => window.history.back())
+    window.history.back()
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(query).toHaveBeenCalledTimes(1)
   })
@@ -798,14 +797,14 @@ describe('DashboardRuntimeProvider', () => {
       }
       return Promise.resolve(response(43))
     })
-    render(<RuntimeFixture fetcher={fetcher} />)
+    render(() =><RuntimeFixture fetcher={fetcher} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open drawer at detail' }))
     const dialog = await screen.findByRole('dialog')
     await waitFor(() => expect(within(dialog).getByTestId('path')).toHaveTextContent('root/detail'))
     expect(within(dialog).getByTestId('panel')).toHaveTextContent('total')
     await waitFor(() => expect(query).toHaveBeenCalledTimes(1))
-    expect(within(dialog).getByText('43')).toBeInTheDocument()
+    expect(await within(dialog).findByText('43')).toBeInTheDocument()
   })
 
   it('preserves a data-theme dark dashboard in its drawer portal', async () => {
@@ -813,15 +812,15 @@ describe('DashboardRuntimeProvider', () => {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     }))
-    render(
-      <div className="lens-root" data-theme="dark">
-        <ClientHostBoundary theme="dark">
+    render(() =>
+      <div class="lens-root" data-theme="dark">
+        <div class="lens-root" data-theme="dark">
           <DocumentProvider initialDocument={document} fetcher={fetcher}>
-            <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
               <Controls />
-            </DashboardRuntimeProvider>
+              )</>)}</DashboardRuntimeProvider>
           </DocumentProvider>
-        </ClientHostBoundary>
+        </div>
       </div>,
     )
 

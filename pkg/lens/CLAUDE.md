@@ -221,7 +221,7 @@ Both report controllers in this repo follow that pattern through `persistentDash
 
 ## React document endpoints
 
-Mount dashboards with `render/react.LensDashboard` and serve their data through
+Mount dashboards with `render/solid.LensDashboard` and serve their data through
 `pkg/lens/serve`. Register the document, query, and export handlers below the
 same authenticated middleware chain and supply a shared, bounded
 `document.SnapshotStore`. The React runtime owns loading, error, retry, drill,

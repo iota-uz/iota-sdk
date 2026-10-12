@@ -12,7 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
-	lensreact "github.com/iota-uz/iota-sdk/pkg/lens/render/react"
+	lenssolid "github.com/iota-uz/iota-sdk/pkg/lens/render/solid"
 )
 
 type IndexPageProps struct {
@@ -49,11 +49,11 @@ func DashboardContent(props *IndexPageProps) templ.Component {
 		}
 		if props.Available {
 			pageCtx := composables.UsePageCtx(ctx)
-			templ_7745c5c3_Err = lensreact.LensDashboard(
+			templ_7745c5c3_Err = lenssolid.LensDashboard(
 				props.DocumentURL,
-				lensreact.WithLocale(pageCtx.GetLocale().String()),
-				lensreact.WithCSRF(props.CSRF),
-				lensreact.WithSkeleton(props.Dashboard),
+				lenssolid.WithLocale(pageCtx.GetLocale().String()),
+				lenssolid.WithCSRF(props.CSRF),
+				lenssolid.WithSkeleton(props.Dashboard),
 			).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

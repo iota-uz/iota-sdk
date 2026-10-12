@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
@@ -13,12 +13,12 @@ afterEach(() => {
 })
 
 function renderDashboard(document_: ReturnType<typeof parseDocument>) {
-  render(
-    <div className="lens-root">
+  render(() =>
+    <div class="lens-root">
       <DocumentProvider initialDocument={document_}>
-        <DashboardRuntimeProvider locale="en">
+        <DashboardRuntimeProvider locale="en">{() => (<>(
           <DashboardPanels />
-        </DashboardRuntimeProvider>
+          )</>)}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>,
   )

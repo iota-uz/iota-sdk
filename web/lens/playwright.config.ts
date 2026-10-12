@@ -43,7 +43,7 @@ export default defineConfig({
     use: { browserName: 'chromium' },
   }],
   webServer: {
-    command: `pnpm ladle:build && pnpm exec ladle preview --viteConfig .ladle/vite.config.ts --host 127.0.0.1 --port ${vrPort}`,
+    command: `pnpm ladle:build && node scripts/preview-stories.mjs`,
     url: vrBaseURL,
     reuseExistingServer: false,
     timeout: 120_000,

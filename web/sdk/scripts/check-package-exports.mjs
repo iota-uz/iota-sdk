@@ -13,6 +13,9 @@ const expectedExports = [
   './solid-ui',
   './solid-ui/standalone.css',
   './styles.css',
+  './chat-ui',
+  './chat-ui/icons',
+  './chat-ui/styles.css',
   './lens',
   './lens/styles.css',
 ]
@@ -23,14 +26,11 @@ if (JSON.stringify(Object.keys(packageJSON.exports).sort()) !== JSON.stringify(e
 if (Object.keys(packageJSON.dependencies ?? {}).length !== 0) {
   throw new Error('the public package must not expose implementation dependencies')
 }
-if (!packageJSON.peerDependencies?.react || !packageJSON.peerDependencies?.['react-dom']) {
-  throw new Error('React and ReactDOM must remain peer dependencies')
+if (packageJSON.peerDependencies?.react || packageJSON.peerDependencies?.['react-dom']) {
+  throw new Error('React must not be a public runtime dependency')
 }
 if (!packageJSON.peerDependencies?.['solid-js']) {
   throw new Error('Solid must be a peer dependency')
-}
-if (!packageJSON.peerDependenciesMeta?.react?.optional || !packageJSON.peerDependenciesMeta?.['react-dom']?.optional || !packageJSON.peerDependenciesMeta?.['solid-js']?.optional) {
-  throw new Error('renderer peers must be optional so consumers install only their selected renderer')
 }
 
 const targets = []

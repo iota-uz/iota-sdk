@@ -1,6 +1,6 @@
 import { render } from 'solid-js/web'
 import type { Component, JSX } from 'solid-js'
-import appletStyles from 'virtual:applet-styles'
+import appletStyles from '../../dist/style.css?raw'
 
 export interface SolidAppletContext {
   config: {
@@ -35,7 +35,7 @@ function injectStylesOnce(): void {
 }
 
 /**
- * Mounts a Solid app into an applet custom element, mirroring the React
+ * Mounts a Solid app into an applet custom element, retaining the existing
  * applet bridge contract: `base-path` / `router-mode` attributes in, Solid
  * render + dispose lifecycle out. Rendering stays in the light DOM so the
  * embedded Go shell and global styles keep applying.

@@ -1,5 +1,4 @@
-import type { Story } from '@ladle/react'
-import { useEffect } from 'react'
+import { For, onMount } from 'solid-js'
 import type { DashboardDocument, Frame, Panel, PanelKind } from './contract'
 import type { ChartAdapter, ChartInput } from './charts/adapter'
 import {
@@ -384,19 +383,20 @@ const storyChartAdapter: ChartAdapter = {
   },
 }
 
-function TriggerQuery({ enabled, panelId }: { enabled: boolean; panelId: string }) {
+function TriggerQuery(props: { enabled: boolean; panelId: string }) {
   const { drillInto } = useDrill()
-  useEffect(() => {
+  onMount(() => {
     // Needs a real child key AND the panel id: invalid drill transitions
     // no-op (A8), and without the panel id the in-flight query is never
     // associated with the panel's frame state — either way loading/error/
     // stale would silently collapse into the empty state.
-    if (enabled) drillInto('root/north', panelId)
-  }, [drillInto, enabled, panelId])
+    if (props.enabled) drillInto('root/north', props.panelId)
+  })
   return null
 }
 
-function StoryPanel({ panel }: { panel: Panel }) {
+function StoryPanel(props: { panel: Panel }) {
+  const panel = props.panel
   if (panel.kind === 'stat') return <StatPanel panel={panel} />
   if (panel.kind === 'coverage') return <CoveragePanel panel={panel} />
   if (panel.kind === 'cascade') return <CascadePanel panel={panel} />
@@ -420,12 +420,16 @@ function MatrixCell({ kind, state }: { kind: StoryKind; state: PanelState }) {
     : new Promise<Response>(() => undefined)
 
   return (
-    <div className="lens-story-cell">
-      <span className="lens-story-cell-label">{kind} · {state}</span>
+    <div class="lens-story-cell">
+      <span class="lens-story-cell-label">{kind} · {state}</span>
       <DocumentProvider initialDocument={document} fetcher={fetcher}>
         <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
-          <TriggerQuery enabled={state === 'loading' || state === 'stale' || state === 'error'} panelId={document.panels[0]!.id} />
-          <StoryPanel panel={document.panels[0]!} />
+          {() => (
+            <>
+              <TriggerQuery enabled={state === 'loading' || state === 'stale' || state === 'error'} panelId={document.panels[0]!.id} />
+              <StoryPanel panel={document.panels[0]!} />
+            </>
+          )}
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
@@ -434,23 +438,27 @@ function MatrixCell({ kind, state }: { kind: StoryKind; state: PanelState }) {
 
 function PanelMatrix({ theme }: { theme: 'light' | 'dark' }) {
   return (
-    <div className="lens-root lens-story-matrix" data-theme={theme}>
-      <div className="lens-story-matrix-grid">
+    <div class="lens-root lens-story-matrix" data-theme={theme}>
+      <div class="lens-story-matrix-grid">
         <span />
-        {states.map((state) => <strong key={state}>{state}</strong>)}
-        {kinds.flatMap((kind) => [
-          <strong className="lens-story-row-label" key={`${kind}-label`}>{kind}</strong>,
-          ...states.map((state) => <MatrixCell kind={kind} state={state} key={`${kind}-${state}`} />),
-        ])}
+        {states.map((state) => <strong>{state}</strong>)}
+        <For each={kinds}>
+          {(kind) => (
+            <>
+              <strong class="lens-story-row-label">{kind}</strong>
+              <For each={states}>{(state) => <MatrixCell kind={kind} state={state} />}</For>
+            </>
+          )}
+        </For>
       </div>
     </div>
   )
 }
 
-export const Light: Story = () => <PanelMatrix theme="light" />
+export const Light = () => <PanelMatrix theme="light" />
 Light.storyName = 'All kinds and states - light'
 
-export const Dark: Story = () => <PanelMatrix theme="dark" />
+export const Dark = () => <PanelMatrix theme="dark" />
 Dark.storyName = 'All kinds and states - dark'
 
 /**
@@ -577,12 +585,16 @@ function VariantCell({ variant, state }: { variant: PanelVariant; state: PanelSt
     : new Promise<Response>(() => undefined)
 
   return (
-    <div className="lens-story-cell">
-      <span className="lens-story-cell-label">{variant.label} · {state}</span>
+    <div class="lens-story-cell">
+      <span class="lens-story-cell-label">{variant.label} · {state}</span>
       <DocumentProvider initialDocument={document} fetcher={fetcher}>
         <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
-          <TriggerQuery enabled={state === 'loading' || state === 'stale' || state === 'error'} panelId={document.panels[0]!.id} />
-          <StoryPanel panel={document.panels[0]!} />
+          {() => (
+            <>
+              <TriggerQuery enabled={state === 'loading' || state === 'stale' || state === 'error'} panelId={document.panels[0]!.id} />
+              <StoryPanel panel={document.panels[0]!} />
+            </>
+          )}
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
@@ -591,30 +603,34 @@ function VariantCell({ variant, state }: { variant: PanelVariant; state: PanelSt
 
 function VariantMatrix({ theme, variants }: { theme: 'light' | 'dark'; variants: Array<PanelVariant> }) {
   return (
-    <div className="lens-root lens-story-matrix" data-theme={theme}>
-      <div className="lens-story-matrix-grid">
+    <div class="lens-root lens-story-matrix" data-theme={theme}>
+      <div class="lens-story-matrix-grid">
         <span />
-        {states.map((state) => <strong key={state}>{state}</strong>)}
-        {variants.flatMap((variant) => [
-          <strong className="lens-story-row-label" key={`${variant.panel.id}-label`}>{variant.label}</strong>,
-          ...states.map((state) => <VariantCell variant={variant} state={state} key={`${variant.panel.id}-${state}`} />),
-        ])}
+        {states.map((state) => <strong>{state}</strong>)}
+        <For each={variants}>
+          {(variant) => (
+            <>
+              <strong class="lens-story-row-label">{variant.label}</strong>
+              <For each={states}>{(state) => <VariantCell variant={variant} state={state} />}</For>
+            </>
+          )}
+        </For>
       </div>
     </div>
   )
 }
 
-export const VariantsLight: Story = () => <VariantMatrix theme="light" variants={panelVariants} />
+export const VariantsLight = () => <VariantMatrix theme="light" variants={panelVariants} />
 VariantsLight.storyName = 'Sparkline and coverage target - light'
 
-export const VariantsDark: Story = () => <VariantMatrix theme="dark" variants={panelVariants} />
+export const VariantsDark = () => <VariantMatrix theme="dark" variants={panelVariants} />
 VariantsDark.storyName = 'Sparkline and coverage target - dark'
 
 // A bridge with unknown amounts through every state the panel has. An unknown
 // value is a property of the DATA: none of loading, empty, error or stale may
 // stand in for it, and it may not stand in for any of them.
-export const UnknownCascadeLight: Story = () => <VariantMatrix theme="light" variants={unknownCascadeVariants} />
+export const UnknownCascadeLight = () => <VariantMatrix theme="light" variants={unknownCascadeVariants} />
 UnknownCascadeLight.storyName = 'Unknown cascade stage - light'
 
-export const UnknownCascadeDark: Story = () => <VariantMatrix theme="dark" variants={unknownCascadeVariants} />
+export const UnknownCascadeDark = () => <VariantMatrix theme="dark" variants={unknownCascadeVariants} />
 UnknownCascadeDark.storyName = 'Unknown cascade stage - dark'

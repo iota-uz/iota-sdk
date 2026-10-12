@@ -1377,9 +1377,6 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 	if err := validateAction("panel "+spec.ID, spec.Action, actionValidationOptions{allowCubeDrill: true, allowFieldSources: true}); err != nil {
 		return err
 	}
-	if err := validateDrillTree(spec); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -1479,90 +1476,6 @@ func validateActionValueSource(owner, name string, source action.ValueSource, op
 	return validateValueSource(owner, name, source)
 }
 
-func validateDrillTree(spec panel.Spec) error {
-	if spec.DrillTree == nil {
-		return nil
-	}
-	if spec.Kind != panel.KindPie && spec.Kind != panel.KindDonut {
-		return fmt.Errorf("panel %s drill tree is unsupported for kind %q", spec.ID, spec.Kind)
-	}
-	if spec.Fields.ID.Empty() {
-		return fmt.Errorf("panel %s drill tree requires id field", spec.ID)
-	}
-	if len(spec.DrillTree.Branches) == 0 {
-		return fmt.Errorf("panel %s drill tree requires at least one branch", spec.ID)
-	}
-	if spec.DrillTree.ExpandedSpan < 0 || spec.DrillTree.ExpandedSpan > 12 {
-		return fmt.Errorf("panel %s drill tree expanded span must be between 1 and 12 when configured", spec.ID)
-	}
-
-	branchKeys := make(map[string]struct{}, len(spec.DrillTree.Branches))
-	for i, branch := range spec.DrillTree.Branches {
-		key := strings.TrimSpace(branch.TriggerKey)
-		if key == "" {
-			return fmt.Errorf("panel %s drill tree branch %d requires trigger key", spec.ID, i)
-		}
-		if key != branch.TriggerKey {
-			return fmt.Errorf("panel %s drill tree branch key %q has surrounding whitespace", spec.ID, branch.TriggerKey)
-		}
-		if _, exists := branchKeys[key]; exists {
-			return fmt.Errorf("panel %s drill tree has duplicate branch key %q", spec.ID, key)
-		}
-		branchKeys[key] = struct{}{}
-		if strings.TrimSpace(branch.Label) == "" {
-			return fmt.Errorf("panel %s drill tree branch %q requires label", spec.ID, key)
-		}
-		if len(branch.Children) == 0 {
-			return fmt.Errorf("panel %s drill tree branch %q requires children", spec.ID, key)
-		}
-		if err := validateDrillNodes(spec.ID, key, branch.Children); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func validateDrillNodes(panelID, parentPath string, nodes []panel.DrillNode) error {
-	keys := make(map[string]struct{}, len(nodes))
-	total := 0.0
-	for i, node := range nodes {
-		key := strings.TrimSpace(node.Key)
-		if key == "" {
-			return fmt.Errorf("panel %s drill tree node %s[%d] requires key", panelID, parentPath, i)
-		}
-		if key != node.Key {
-			return fmt.Errorf("panel %s drill tree node key %q has surrounding whitespace", panelID, node.Key)
-		}
-		if _, exists := keys[key]; exists {
-			return fmt.Errorf("panel %s drill tree node %s has duplicate child key %q", panelID, parentPath, key)
-		}
-		keys[key] = struct{}{}
-		path := parentPath + "/" + key
-		if strings.TrimSpace(node.Label) == "" {
-			return fmt.Errorf("panel %s drill tree node %s requires label", panelID, path)
-		}
-		if math.IsNaN(node.Value) || math.IsInf(node.Value, 0) || node.Value < 0 {
-			return fmt.Errorf("panel %s drill tree node %s requires finite nonnegative value", panelID, path)
-		}
-		total += node.Value
-		if math.IsNaN(total) || math.IsInf(total, 0) {
-			return fmt.Errorf("panel %s drill tree node group %s requires finite total", panelID, parentPath)
-		}
-		if len(node.Children) > 0 && node.Action != nil {
-			return fmt.Errorf("panel %s drill tree node %s cannot have both children and action", panelID, path)
-		}
-		if err := validateAction("panel "+panelID+" drill tree node "+path, node.Action, actionValidationOptions{}); err != nil {
-			return err
-		}
-		if len(node.Children) > 0 {
-			if err := validateDrillNodes(panelID, path, node.Children); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
 	if frames == nil || frames.Primary() == nil {
 		return nil
@@ -1570,11 +1483,6 @@ func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
 	primary := frames.Primary()
 	if err := validateRequiredPanelFields(spec, primary); err != nil {
 		return err
-	}
-	if spec.DrillTree != nil {
-		if err := validateDrillTreeFrame(spec, primary); err != nil {
-			return err
-		}
 	}
 	if spec.Kind == panel.KindTable {
 		for _, column := range spec.Columns {
@@ -1604,32 +1512,6 @@ func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
 			if err := validateFrameValueSource(spec.ID, spec.Dataset, primary, source); err != nil {
 				return err
 			}
-		}
-	}
-	return nil
-}
-
-func validateDrillTreeFrame(spec panel.Spec, primary *frame.Frame) error {
-	field, ok := primary.Field(spec.Fields.ID.Name())
-	if !ok {
-		return fmt.Errorf("panel %s drill tree is missing id field %q in dataset %s", spec.ID, spec.Fields.ID.Name(), spec.Dataset)
-	}
-	counts := make(map[string]int, len(field.Values))
-	for i, value := range field.Values {
-		key, ok := value.(string)
-		if !ok || strings.TrimSpace(key) == "" || key != strings.TrimSpace(key) {
-			return fmt.Errorf("panel %s drill tree id field %q row %d requires a nonblank string", spec.ID, spec.Fields.ID.Name(), i)
-		}
-		counts[key]++
-		if counts[key] > 1 {
-			return fmt.Errorf("panel %s drill tree id field %q has duplicate key %q in dataset %s", spec.ID, spec.Fields.ID.Name(), key, spec.Dataset)
-		}
-	}
-	for _, branch := range spec.DrillTree.Branches {
-		switch counts[branch.TriggerKey] {
-		case 1:
-		case 0:
-			return fmt.Errorf("panel %s drill tree branch key %q is missing from dataset %s", spec.ID, branch.TriggerKey, spec.Dataset)
 		}
 	}
 	return nil

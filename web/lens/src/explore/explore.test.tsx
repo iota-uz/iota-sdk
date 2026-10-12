@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/explore.json'
 import { parseDocument, type Panel } from '../contract'
@@ -78,7 +78,8 @@ const dynamicDocument = parseDocument(dynamicDocumentFixture)
  * Stands in for a chart: one activatable mark per frame row, reporting the
  * row's id exactly like the ECharts adapter does.
  */
-function MarkProbe({ panel: current }: ChartPanelProps | StatPanelProps) {
+function MarkProbe(markProbeProps: ChartPanelProps | StatPanelProps) {
+  const current = markProbeProps.panel
   const frame = usePanelFrame(current.id)
   const onSelect = useMarkSelection()
   // PanelFrame renders the host's chrome in the card header; the probe mirrors
@@ -91,7 +92,7 @@ function MarkProbe({ panel: current }: ChartPanelProps | StatPanelProps) {
       {chrome?.trail}
       {chrome?.explore}
       {(frame.data?.rows ?? []).map((row, index) => (
-        <button key={index} onClick={() => onSelect?.(String(row[idIndex]))} type="button">
+        <button onClick={() => onSelect?.(String(row[idIndex]))} type="button">
           {typeof row[labelIndex] === 'string' ? row[labelIndex] : String(index)}
         </button>
       ))}
@@ -112,14 +113,14 @@ const registry: PanelRegistry = {
 }
 
 function renderExplore(currentPanel: Panel = panel, currentDocument = exploreDocument) {
-  return render(
+  return render(() =>
     <>
       <button type="button">Before explore</button>
-      <div className="lens-root">
+      <div class="lens-root">
         <DocumentProvider initialDocument={currentDocument}>
-          <DashboardRuntimeProvider locale="en">
+          <DashboardRuntimeProvider locale="en">{() => (<>(
             <ExplorePanel panel={currentPanel} registry={registry} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>
       <button type="button">After explore</button>
@@ -444,12 +445,12 @@ describe('drill overlay', () => {
     window.history.replaceState(null, '', navigationToURL(
       { path: rootPath, perspectiveId: 'profitability/operating-margin/composition' }, new URL(window.location.href),
     ))
-    render(
-      <div className="lens-root">
+    render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={lazyDocument} fetcher={fetcher}>
-          <DashboardRuntimeProvider fetcher={fetcher} locale="en" drawerDepth={1}>
+          <DashboardRuntimeProvider fetcher={fetcher} locale="en" drawerDepth={1}>{() => (<>(
             <ExplorePanel panel={lazyDocument.panels[0]!} registry={registry} />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )

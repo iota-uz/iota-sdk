@@ -267,18 +267,6 @@ func appendPanelTree(
 		semantics = defaultExplorerSemantics(explorerSpec, semantics)
 		key := explorerRootKey(explorerSpec.ID)
 		drillRoot = &key
-	} else if spec.DrillTree != nil {
-		// Static drill declarations reference the root frame before a deferred
-		// response arrives. An empty placeholder preserves that graph; the React
-		// runtime replaces it atomically with the loaded frame.
-		if deferred {
-			doc.Frames[frameRef] = Frame{Columns: []Column{}, Rows: [][]any{}}
-		}
-		key, err := buildStaticDrillTree(doc, spec, frameRef)
-		if err != nil {
-			return fmt.Errorf("panel %s drill tree: %w", spec.ID, err)
-		}
-		drillRoot = &key
 	}
 	doc.Panels = append(doc.Panels, Panel{
 		ID: spec.ID, Kind: kind, Title: spec.Title, Semantics: semantics, Frame: frameRef,
@@ -346,123 +334,7 @@ func buildTableOptions(spec panel.Spec) *TableOptions {
 	return &TableOptions{Searchable: spec.Table.Searchable}
 }
 
-// buildStaticDrillTree translates a precomputed panel.DrillTree into the wire
 // drill graph consumed by the React Lens runtime.
-func buildStaticDrillTree(doc *DashboardDocument, spec panel.Spec, rootFrame FrameRef) (NodeKey, error) {
-	rootKey := qualifiedKey("panel-drill", spec.ID)
-	rootPath := NodePath{rootKey}
-	root := Level{
-		Path:         rootPath,
-		Label:        "",
-		Children:     make([]Node, 0, len(spec.DrillTree.Branches)),
-		Frame:        rootFrame,
-		Perspectives: make([]PerspectiveRef, 0),
-		Presentation: buildPresentation(spec),
-	}
-	for _, branch := range spec.DrillTree.Branches {
-		target := qualifiedKey("panel-drill", spec.ID, branch.TriggerKey)
-		childPath := appendPath(rootPath, NodeKey(branch.TriggerKey))
-		root.Children = append(root.Children, Node{
-			Key:    NodeKey(branch.TriggerKey),
-			Path:   childPath,
-			Label:  branch.Label,
-			Target: target,
-		})
-		if err := buildStaticDrillLevel(
-			doc,
-			spec,
-			target,
-			appendPath(rootPath, target),
-			branch.Label,
-			branch.Children,
-			[]string{branch.TriggerKey},
-		); err != nil {
-			return "", err
-		}
-	}
-	doc.Drill.Edges[rootKey] = root
-	return rootKey, nil
-}
-
-func buildStaticDrillLevel(
-	doc *DashboardDocument,
-	spec panel.Spec,
-	levelKey NodeKey,
-	levelPath NodePath,
-	label string,
-	nodes []panel.DrillNode,
-	identityPath []string,
-) error {
-	idField := spec.Fields.ID.Name()
-	labelField := spec.Fields.Label.Name()
-	valueField := spec.Fields.Value.Name()
-	if idField == "" || labelField == "" || valueField == "" {
-		return fmt.Errorf("requires id, label, and value fields")
-	}
-
-	frameRef := FrameRef(qualifiedKey(append([]string{"panel-drill-frame", spec.ID}, identityPath...)...))
-	rows := make([][]any, 0, len(nodes))
-	children := make([]Node, 0, len(nodes))
-	for _, item := range nodes {
-		rows = append(rows, []any{item.Key, item.Label, item.Value})
-		childPath := appendPath(levelPath, NodeKey(item.Key))
-		child := Node{Key: NodeKey(item.Key), Path: childPath, Label: item.Label}
-		if len(item.Children) > 0 {
-			targetParts := append(append([]string{"panel-drill", spec.ID}, identityPath...), item.Key)
-			target := qualifiedKey(targetParts...)
-			child.Target = target
-			if err := buildStaticDrillLevel(
-				doc,
-				spec,
-				target,
-				appendPath(levelPath, target),
-				item.Label,
-				item.Children,
-				append(append([]string(nil), identityPath...), item.Key),
-			); err != nil {
-				return err
-			}
-		} else if item.Action != nil {
-			if converted, ok := convertAction(*item.Action, true); ok {
-				child.Action = &converted
-			}
-		}
-		children = append(children, child)
-	}
-
-	doc.Frames[frameRef] = Frame{
-		Columns: []Column{
-			{Name: idField, Type: ColumnString},
-			{Name: labelField, Type: ColumnString},
-			{Name: valueField, Type: ColumnNumber},
-		},
-		Rows: rows,
-	}
-	encoding := Encoding{ID: idField, Label: labelField, Value: valueField}
-	doc.Drill.Edges[levelKey] = Level{
-		Path:         levelPath,
-		Label:        label,
-		Children:     children,
-		Frame:        frameRef,
-		Encoding:     &encoding,
-		Perspectives: make([]PerspectiveRef, 0),
-	}
-	return nil
-}
-
-// seriesLabels returns the names a positional color list is pinned to, in the
-// order the colors are given, so a color published under index i can also be
-// published under the name it belongs to.
-//
-// What "index i" means depends on the panel. A part-to-whole panel positions
-// its colors by row, so the names are the per-row labels. A series panel
-// positions them by *series* — the n-th color is the n-th distinct series in
-// plot order, and its rows are one per (category, series) pair. Reading the row
-// label there published month names as series colors and left the series
-// themselves without an alias, so a renderer that resolves a color by series
-// name found nothing and fell back to the palette.
-// A distributed bar is the exception: it declares a series but positions its
-// colors by category, one per bar, so it keeps the row reading.
 func seriesLabels(spec panel.Spec, wireFrame Frame, semantics Semantics) []string {
 	bySeries := semantics == SemanticsSeries &&
 		!spec.Fields.Series.Empty() &&

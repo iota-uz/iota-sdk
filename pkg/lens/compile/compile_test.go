@@ -181,25 +181,6 @@ func TestDocumentFinalizesLegacyInertPanels(t *testing.T) {
 	require.True(t, compiled.Spec.Rows[0].Panels[0].Terminal)
 }
 
-func TestCompilePanelPreservesDrillTree(t *testing.T) {
-	t.Parallel()
-
-	tree := panel.DrillTree{Branches: []panel.DrillBranch{{
-		TriggerKey: "earned",
-		Label:      "Earned",
-		Children:   []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 100}},
-	}}}
-	item := lensspec.Pie("premium", "Premium", "premium_dataset").
-		IDField("metric_key").
-		DrillTree(tree).
-		Build()
-
-	compiled, err := compilePanel(item, Options{})
-	require.NoError(t, err)
-	require.Equal(t, panel.Ref("metric_key"), compiled.Fields.ID)
-	require.Equal(t, &tree, compiled.DrillTree)
-}
-
 func TestCompilePanelPreservesRadialContract(t *testing.T) {
 	t.Parallel()
 
