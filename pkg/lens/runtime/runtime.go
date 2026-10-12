@@ -836,12 +836,22 @@ func resolveDependencyFrames(name string, dependencies []string, results map[str
 	return deps, nil
 }
 
+// ResolveVariables normalizes host inputs without executing datasets. Report sources
+// use it to bind a placement's effective context before composition namespaces keys.
+func ResolveVariables(specs []lens.VariableSpec, rt Request) (map[string]any, error) {
+	return resolveVariables(specs, rt)
+}
+
 func resolveVariables(specs []lens.VariableSpec, rt Request) (map[string]any, error) {
 	values := make(map[string]any, len(specs))
 	// Date ranges are comparison anchors, so resolve them before the remaining
 	// variables regardless of declaration order.
 	for _, spec := range specs {
 		if spec.Kind != lens.VariableDateRange {
+			continue
+		}
+		if spec.Bound {
+			values[spec.Name] = spec.Default
 			continue
 		}
 		if override, ok := rt.Overrides[spec.Name]; ok {
@@ -852,6 +862,10 @@ func resolveVariables(specs []lens.VariableSpec, rt Request) (map[string]any, er
 	}
 	for _, spec := range specs {
 		if spec.Kind == lens.VariableDateRange {
+			continue
+		}
+		if spec.Bound {
+			values[spec.Name] = spec.Default
 			continue
 		}
 		if override, ok := rt.Overrides[spec.Name]; ok {

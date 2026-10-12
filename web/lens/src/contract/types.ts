@@ -257,7 +257,7 @@ export interface LayoutGroup {
   status?: PanelStatus
 }
 
-export type LayoutGroupKind = "metrics" | "tabs"
+export type LayoutGroupKind = "grid" | "metrics" | "tabs"
 
 export type LayoutGroupLayout = "columns" | "rows"
 

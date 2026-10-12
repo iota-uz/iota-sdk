@@ -242,7 +242,7 @@ jobs:
       - name: Check generated Lens types
         run: |
           just lens typegen
-          git diff --exit-code -- web/lens/src/contract
+          git diff --exit-code -- web/lens/src/contract web/lens/src/reports/contract
 
       - name: Verify clean-clone Go compatibility boundary
         run: |

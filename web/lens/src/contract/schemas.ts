@@ -280,7 +280,7 @@ export const LayoutGroupSchema: z.ZodType<Contract.LayoutGroup> = z.lazy(() => z
   status: z.lazy(() => PanelStatusSchema).optional(),
 }).strict())
 
-export const LayoutGroupKindSchema: z.ZodType<Contract.LayoutGroupKind> = z.enum(["metrics", "tabs"])
+export const LayoutGroupKindSchema: z.ZodType<Contract.LayoutGroupKind> = z.enum(["grid", "metrics", "tabs"])
 
 export const LayoutGroupLayoutSchema: z.ZodType<Contract.LayoutGroupLayout> = z.enum(["columns", "rows"])
 

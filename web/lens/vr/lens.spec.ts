@@ -2,6 +2,8 @@ import { expectChartsReady, expectFontsReady } from '@iota-uz/sdk/testing'
 import { expect, test, type Page } from '@playwright/test'
 
 const storyIds = [
+  'reusable-reports--light',
+  'reusable-reports--dark',
   'choropleth-map--dense-region-labels',
   'choropleth-map--state-matrix',
   'comparison-interactions--previous-period',
@@ -165,6 +167,8 @@ const storyIds = [
 ] as const
 
 const staticStories = [
+  ['reusable-reports--light', 0, 0],
+  ['reusable-reports--dark', 0, 0],
   ['choropleth-map--dense-region-labels', 1, 10],
   // ECharts map labels can vary by a couple of antialiased edge pixels even
   // when the rendered regions, values, and geometry are identical.
@@ -818,4 +822,28 @@ test('an asynchronously loaded table can move to the next page', async ({ page }
   await expect(previous).toBeEnabled()
   await previous.click()
   await expect(page.getByText('Orion Services', { exact: true })).toBeVisible()
+})
+
+// False green: inspecting two hand-authored documents instead of the Go-composed fixture, or accepting a save that discards the draft.
+test('reusable report drafts preserve placement scope on save failure and cancel', async ({ page }) => {
+  await openStory(page, 'reusable-reports--light', 0)
+  await expect(page.getByRole('region', { name: 'First six months', exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Revenue', exact: true })).toBeVisible()
+  await expect(page.getByRole('table')).toHaveCount(2)
+  const caption = page.getByRole('textbox', { name: 'First placement caption' })
+  await caption.fill('June only')
+  await expect(page.getByRole('status')).toContainText('Unsaved changes')
+  await expect(page.getByRole('region', { name: 'June only', exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Revenue', exact: true })).toBeVisible()
+  await page.getByRole('checkbox', { name: 'Reject next save' }).check()
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('Your changes are retained')
+  await expect(caption).toHaveValue('June only')
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(caption).toHaveValue('First six months')
+  await caption.fill('Saved June')
+  await page.getByRole('checkbox', { name: 'Reject next save' }).uncheck()
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('revision 2')
+  await expect(page.getByRole('status')).not.toContainText('Unsaved changes')
 })

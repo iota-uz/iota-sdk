@@ -130,6 +130,7 @@ const (
 	// LayoutGroupTabs renders one segmented tab per distinct member Tab
 	// value, showing only the selected tab's members.
 	LayoutGroupTabs LayoutGroupKind = "tabs"
+	LayoutGroupGrid LayoutGroupKind = "grid"
 )
 
 // LayoutGroupLayout selects a metrics group's member arrangement.

@@ -12,7 +12,7 @@ export {
   assertSDKIdentity,
 } from '@iota-uz/sdk/client-host'
 
-export { LensDashboard, type LensDashboardProps } from './LensDashboard'
+export { LensDashboard, type LensDashboardProps, type LensToolbarContext } from './LensDashboard'
 export { LensDashboardElement, registerLensDashboardElement } from './element'
 export {
   CONTRACT_VERSION,
@@ -22,3 +22,6 @@ export {
   type DashboardDocument,
 } from './contract'
 export type { LensThemeMode } from './runtime'
+
+export { createReportDraft, copyReportDefinition, duplicateReportPlacement, parseReportDefinition, parseReportComposition } from './reports/draft'
+export type { ReportDefinition, ReportComposition, ReportPlacement, ReportSourceDescriptor, ReportDraftHost, SaveIntent } from './reports/draft'
