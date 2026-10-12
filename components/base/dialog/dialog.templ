@@ -26,10 +26,10 @@ templ Confirmation(p *Props) {
 			x-bind="dialog"
 			{ p.Attrs... }
 		>
-			<form method="dialog">
+			<div>
 				<header class="flex items-center gap-3 justify-between px-4 py-3 border-b border-subtle">
 					<h3 class="font-medium">{ p.Heading }</h3>
-					@button.Secondary(button.Props{Size: button.SizeSM, Fixed: true, Rounded: true}) {
+					@button.Secondary(button.Props{Size: button.SizeSM, Fixed: true, Rounded: true, Attrs: templ.Attributes{"value": "cancel", "type": "button", "@click": "$el.closest('dialog').close($el.value)"}}) {
 						@icons.XCircle(icons.Props{Size: "20"})
 					}
 				</header>
@@ -50,19 +50,19 @@ templ Confirmation(p *Props) {
 					<menu class="flex gap-3">
 						@button.Secondary(button.Props{
 							Class: "flex-1 justify-center",
-							Attrs: templ.Attributes{"value": "cancel", "data-test-id": "dialog-cancel-btn"},
+							Attrs: templ.Attributes{"value": "cancel", "type": "button", "@click": "$el.closest('dialog').close($el.value)", "data-test-id": "dialog-cancel-btn"},
 						}) {
 							{ p.CancelText }
 						}
 						@button.Primary(button.Props{
 							Class: "flex-1 justify-center",
-							Attrs: templ.Attributes{"value": "confirm", "data-test-id": "dialog-confirm-btn"},
+							Attrs: templ.Attributes{"value": "confirm", "type": "button", "@click": "$el.closest('dialog').close($el.value)", "data-test-id": "dialog-confirm-btn"},
 						}) {
 							{ p.ConfirmText }
 						}
 					</menu>
 				</footer>
-			</form>
+			</div>
 		</dialog>
 	</div>
 }

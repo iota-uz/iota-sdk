@@ -61,3 +61,7 @@ web/client-host/test-results/
 
 web/chat-ui/test-results/
 web/chat-ui/playwright-report/
+/docs/.astro/
+
+/docs/test-results/
+/docs/playwright-report/
