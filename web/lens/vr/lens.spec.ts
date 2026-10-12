@@ -244,7 +244,8 @@ const staticStories = [
   ['filter-controls--calendar-light', 0],
   ['filter-controls--calendar-locales', 0],
   ['filter-controls--calendar-month-panel', 0],
-  ['filter-controls--comparison-custom-interval', 0],
+  // Reviewed Linux diff: one anti-aliased date-field corner pixel; the session allows two.
+  ['filter-controls--comparison-custom-interval', 0, 2],
   ['filter-controls--comparison-menu-open', 0],
   ['filter-controls--dashboard-filter-preset-applied', 0],
   ['filter-controls--dashboard-filter-dark', 0],
