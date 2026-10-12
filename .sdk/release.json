@@ -1,0 +1,54 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Publish the reusable Solid chat UI as @iota-uz/sdk/chat-ui with native icons, host-owned overlays, managed streams and scoped HTTP cancellation. Granite Ali becomes a consumer of this package rather than maintaining a private chat framework."
+    },
+    {
+      "bump": "patch",
+      "summary": "scaffold form: the CRUD form's Delete button opens a confirmation dialog that now exists, so records can be deleted from their form again; before, the click dispatched an event nothing listened for."
+    },
+    {
+      "bump": "patch",
+      "summary": "scaffold form: a refused CRUD save now shows the validation messages it was refused for (the entity error, then each field's), instead of only \"Field validation failed\"."
+    },
+    {
+      "bump": "major",
+      "summary": "Delete the legacy Lens rendering stack: pkg/lens/render/react (templ custom-element renderer), the DrillTree/DrillHierarchy client-drill machinery and drill_tree.md, and the React surface of the client-host package. The SolidJS runtime is the only Lens renderer; @iota-uz/sdk client-host no longer carries React peer dependencies. Breaking for any consumer still importing the removed React entrypoints."
+    },
+    {
+      "bump": "major",
+      "summary": "Introduce permanent Lens report definitions, independent placements, explicit host draft saves, and preserved compound grid layout."
+    },
+    {
+      "bump": "major",
+      "summary": "Rewrite the Lens UI (dashboard/panels, controls, explore/drill, overlays, chart bindings) from React to Solid. Breaking change for React Lens consumers: the React public Lens component API is replaced by Solid and React/ReactDOM are no longer required for the production Lens bundle; React does not remain a second permanent client renderer. Migration guide ships with the release; new Lens capabilities (#1056-#1061) land on Solid."
+    },
+    {
+      "bump": "patch",
+      "summary": "Restore Lens width, independent SVG instances, typography, initial deep-link state, modal focus and tooltip positioning; fix chat placeholder/fixture CSS, Solid templ imports and matching Chromium CI installation."
+    },
+    {
+      "bump": "patch",
+      "summary": "Replace the static documentation React/Next/Nextra build with Astro and Solid MDX, retaining public routes, search and diagrams."
+    },
+    {
+      "bump": "minor",
+      "summary": "Remove the deprecated Go React route renderer; client routes require explicit access and stable Solid feature identity."
+    },
+    {
+      "bump": "patch",
+      "summary": "crud: SelectField.SetValueType (AsUUIDSelect, AsIntSelect, AsBoolSelect, AsStringSelect) now keeps the field's localization key, sortable, virtual and renderer settings instead of dropping them when it rebuilds the base field."
+    },
+    {
+      "bump": "patch",
+      "summary": "Restore the React documentation visual vocabulary in static Astro/Solid output, including navigation, Markdown typography, code blocks and native keyboard-accessible menus."
+    },
+    {
+      "bump": "patch",
+      "summary": "Preserve React-era Lens small radii, temporal controls and table alignment, and Granite chat prompt badge appearance in the Solid runtime."
+    }
+  ],
+  "source": "ea8dafae98e08f2ded626220718c51c64ea2f634",
+  "version": "0.21.0"
+}
