@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Replace the static documentation React/Next/Nextra build with Astro and Solid MDX, retaining public routes, search and diagrams."
+}
