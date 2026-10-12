@@ -242,6 +242,9 @@ func Resolve(ctx context.Context, host Host, placement Placement, defaults Param
 }
 
 func (r Resolved) Changed(ctx context.Context, host Host) (bool, error) {
+	if host == nil {
+		return false, invalid("report host is required")
+	}
 	latest, err := host.Report(ctx, r.Definition.ID)
 	if err != nil {
 		return false, err

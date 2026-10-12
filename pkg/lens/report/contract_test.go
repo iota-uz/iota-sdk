@@ -200,3 +200,11 @@ func TestRejectsUnsupportedCapabilitiesAndSnapshotDocuments(t *testing.T) {
 	_, err = report.DecodeDefinition([]byte(`{"id":"r","revision":"1","title":"R","source":{"id":"sales","version":1},"view":"summary","snapshotId":"expired"}`))
 	require.True(t, serrors.HasCode(err, serrors.Invalid))
 }
+
+// False green: swallow a panic or check the error text instead of its typed code.
+func TestChangedRejectsAbsentHost(t *testing.T) {
+	t.Parallel()
+	changed, err := (report.Resolved{}).Changed(context.Background(), nil)
+	require.False(t, changed)
+	require.True(t, serrors.HasCode(err, serrors.Invalid))
+}
