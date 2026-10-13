@@ -139,7 +139,7 @@ function FacetPane(props: {
  * menus use. Like an ordinary dropdown it starts at the trigger's leading edge;
  * it flips or re-aligns only when the viewport says it must.
  */
-export function FacetFilterMenu(props: { filters: Array<Filter> }) {
+export function FacetFilterMenu(props: { filters: Array<Filter>; onApplyURL?: (url: string, selections: ReadonlyMap<string, ReadonlySet<string>>) => void }) {
   const translate = useTranslate()
   const { applyURL } = useFilters()
   const menuID = createUniqueId()
@@ -189,7 +189,8 @@ export function FacetFilterMenu(props: { filters: Array<Filter> }) {
     // cleanup synchronously, and closing first would wipe the staged set.
     const next = stagedFilterURL(base(), staged())
     close()
-    applyURL(next)
+    if (props.onApplyURL) props.onApplyURL(next, staged())
+    else applyURL(next)
   }
 
   const single = () => props.filters.length === 1

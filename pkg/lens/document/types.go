@@ -3,19 +3,22 @@ package document
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 )
 
 type FrameRef string
 
 type DashboardDocument struct {
-	Version      string             `json:"version"`
-	SnapshotID   string             `json:"snapshotId"`
-	Meta         Meta               `json:"meta"`
-	Layout       Layout             `json:"layout"`
-	Panels       []Panel            `json:"panels"`
-	Frames       map[FrameRef]Frame `json:"frames"`
-	Drill        Drill              `json:"drill"`
-	Perspectives []Perspective      `json:"perspectives"`
+	ContextEditor *filtercontext.ContextEditor `json:"contextEditor,omitempty"`
+	Version       string                       `json:"version"`
+	SnapshotID    string                       `json:"snapshotId"`
+	Meta          Meta                         `json:"meta"`
+	Layout        Layout                       `json:"layout"`
+	Panels        []Panel                      `json:"panels"`
+	Frames        map[FrameRef]Frame           `json:"frames"`
+	Drill         Drill                        `json:"drill"`
+	Perspectives  []Perspective                `json:"perspectives"`
 	// Filters declares the dashboard's controls. Optional so documents from
 	// older producers keep parsing under the same contract major.
 	Filters         []Filter          `json:"filters,omitempty"`
@@ -144,8 +147,9 @@ const (
 // LayoutGroup describes the container card that owns a run of layout items.
 // Every item of the same group repeats the identical descriptor except Tab.
 type LayoutGroup struct {
-	ID   string          `json:"id"`
-	Kind LayoutGroupKind `json:"kind"`
+	FilterContext *filtercontext.EffectiveContext `json:"filterContext,omitempty"`
+	ID            string                          `json:"id"`
+	Kind          LayoutGroupKind                 `json:"kind"`
 	// Caption explains the group as a whole — why this strip of metrics sits
 	// here, what basis it reads on — the same role Panel.Caption plays for a
 	// single panel. Without it a container's Description would be silently

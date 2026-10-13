@@ -437,6 +437,22 @@
   /* Rows B and C. The scope row never moves when a chip is added or dropped: a
      chip used to be injected among the triggers, so applying one filter
      re-wrapped the bar and the next trigger the reader was aiming at had moved. */
+  .lens-scoped-controls {
+    @apply lens:flex lens:min-w-0 lens:flex-wrap lens:items-center lens:gap-2 lens:py-2;
+  }
+
+  .lens-context-action {
+    @apply lens:rounded lens:border lens:px-2 lens:py-1 lens:text-xs lens:text-muted;
+  }
+
+  .lens-context-action:disabled {
+    @apply lens:cursor-default lens:opacity-40;
+  }
+
+  .lens-context-info {
+    @apply lens:break-words lens:text-xs lens:text-muted;
+  }
+
   .lens-filter-bar {
     @apply lens:flex lens:min-w-0 lens:max-w-full lens:flex-col lens:items-start lens:gap-1.5;
   }

@@ -11,6 +11,9 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -26,36 +29,42 @@ type SourceRef struct {
 }
 
 type Definition struct {
-	ID         string     `json:"id"`
-	Revision   string     `json:"revision"`
-	Title      string     `json:"title"`
-	Source     SourceRef  `json:"source"`
-	View       string     `json:"view"`
-	Parameters Parameters `json:"parameters,omitempty"`
+	Filters    filtercontext.ContextFilters `json:"filters,omitempty"`
+	ID         string                       `json:"id"`
+	Revision   string                       `json:"revision"`
+	Title      string                       `json:"title"`
+	Source     SourceRef                    `json:"source"`
+	View       string                       `json:"view"`
+	Parameters Parameters                   `json:"parameters,omitempty"`
 }
 
 type Placement struct {
-	ID         string     `json:"id"`
-	ReportID   string     `json:"reportId"`
-	Title      *string    `json:"title,omitempty"`
-	Span       int        `json:"span,omitempty"`
-	Parameters Parameters `json:"parameters,omitempty"`
+	Filters    filtercontext.ContextFilters `json:"filters,omitempty"`
+	SectionID  string                       `json:"sectionId,omitempty"`
+	ID         string                       `json:"id"`
+	ReportID   string                       `json:"reportId"`
+	Title      *string                      `json:"title,omitempty"`
+	Span       int                          `json:"span,omitempty"`
+	Parameters Parameters                   `json:"parameters,omitempty"`
 }
 
 type Composition struct {
-	ID         string        `json:"id"`
-	Revision   string        `json:"revision"`
-	Title      string        `json:"title"`
-	Parameters Parameters    `json:"parameters,omitempty"`
-	Rows       [][]Placement `json:"rows"`
+	Context    *filtercontext.ContextBoard `json:"context,omitempty"`
+	ID         string                      `json:"id"`
+	Revision   string                      `json:"revision"`
+	Title      string                      `json:"title"`
+	Parameters Parameters                  `json:"parameters,omitempty"`
+	Rows       [][]Placement               `json:"rows"`
 }
 
 type Capabilities struct {
-	Filters []string `json:"filters"`
-	Views   []string `json:"views"`
-	Drill   bool     `json:"drill"`
-	Save    bool     `json:"save"`
-	Export  bool     `json:"export"`
+	Dimensions     []string            `json:"dimensions,omitempty"`
+	ViewDimensions map[string][]string `json:"viewDimensions,omitempty"`
+	Filters        []string            `json:"filters"`
+	Views          []string            `json:"views"`
+	Drill          bool                `json:"drill"`
+	Save           bool                `json:"save"`
+	Export         bool                `json:"export"`
 }
 
 type SourceDescriptor struct {
@@ -77,6 +86,7 @@ type Source interface {
 }
 
 type Resolved struct {
+	Context    *filtercontext.EffectiveContext
 	Definition Definition
 	Placement  Placement
 	Source     SourceDescriptor
@@ -95,6 +105,9 @@ func (d Definition) Validate() error {
 	if !identifier.MatchString(d.Source.ID) || d.Source.Version < 1 || d.View == "" {
 		return invalid("report source version and view are required")
 	}
+	if err := filtercontext.ValidateFilters(d.Filters, false); err != nil {
+		return err
+	}
 	return validateParameters(d.Parameters)
 }
 
@@ -104,6 +117,11 @@ func (c Composition) Validate() error {
 	}
 	if err := validateParameters(c.Parameters); err != nil {
 		return err
+	}
+	if c.Context != nil {
+		if err := filtercontext.ValidateBoard(*c.Context); err != nil {
+			return err
+		}
 	}
 	seen := map[string]bool{}
 	for _, row := range c.Rows {
@@ -126,6 +144,9 @@ func (c Composition) Validate() error {
 			total += span
 			if placement.Title != nil && strings.TrimSpace(*placement.Title) == "" {
 				return invalid("placement title cannot be empty")
+			}
+			if err := filtercontext.ValidateFilters(placement.Filters, false); err != nil {
+				return err
 			}
 			if err := validateParameters(placement.Parameters); err != nil {
 				return err
@@ -180,6 +201,10 @@ func DuplicatePlacement(placement Placement, id string) (Placement, error) {
 }
 
 func Resolve(ctx context.Context, host Host, placement Placement, defaults Parameters) (Resolved, error) {
+	return resolve(ctx, host, placement, defaults, nil)
+}
+
+func resolve(ctx context.Context, host Host, placement Placement, defaults Parameters, input *filtercontext.ContextInput) (Resolved, error) {
 	if host == nil {
 		return Resolved{}, invalid("report host is required")
 	}
@@ -234,11 +259,42 @@ func Resolve(ctx context.Context, host Host, placement Placement, defaults Param
 			return Resolved{}, serrors.New(serrors.FailedPrecondition, "report parameter is unsupported")
 		}
 	}
-	spec, err := source.Build(ctx, clone(definition), clone(parameters))
+	var effective *filtercontext.EffectiveContext
+	if input != nil {
+		scoped := clone(*input)
+		scoped.SupportedDimensions = descriptor.Capabilities.Dimensions
+		if dimensions, exists := descriptor.Capabilities.ViewDimensions[definition.View]; exists {
+			scoped.SupportedDimensions = dimensions
+		}
+		supportsPeriod := slices.Contains(descriptor.Capabilities.Filters, "period")
+		scoped.SupportsPeriod = &supportsPeriod
+		scoped.Layers = append([]filtercontext.ContextLayer{{Origin: filtercontext.ContextOrigin{Scope: "report", ID: definition.ID}, Filters: definition.Filters}}, scoped.Layers...)
+		value, contextErr := filtercontext.Resolve(scoped)
+		if contextErr != nil {
+			return Resolved{}, contextErr
+		}
+		effective = &value
+	}
+	var spec lens.DashboardSpec
+	if effective != nil && !effective.Ready() {
+		data, frameErr := frame.NewBuilder("context-blocked").String("reason", frame.RoleDimension).FrameSet()
+		if frameErr != nil {
+			return Resolved{}, frameErr
+		}
+		spec = lens.DashboardSpec{ID: definition.ID, Datasets: []lens.DatasetSpec{{Name: "context-blocked", Kind: lens.DatasetKindStatic, Static: data}}, Rows: []lens.RowSpec{{Panels: []panel.Spec{panel.Table("context-blocked", "", "context-blocked").IDField("reason").Columns(panel.TableColumn{Field: "reason", Label: "Context"}).Terminal().Build()}}}}
+	} else if effective != nil {
+		scopedSource, ok := source.(ContextSource)
+		if !ok {
+			return Resolved{}, invalid("source must explicitly implement contextual execution")
+		}
+		spec, err = scopedSource.BuildContext(ctx, clone(definition), clone(parameters), clone(*effective))
+	} else {
+		spec, err = source.Build(ctx, clone(definition), clone(parameters))
+	}
 	if err != nil {
 		return Resolved{}, serrors.Wrap("lens.report.Build", err)
 	}
-	return Resolved{Definition: definition, Placement: clone(placement), Source: descriptor, Parameters: parameters, Spec: clone(spec)}, nil
+	return Resolved{Context: effective, Definition: definition, Placement: clone(placement), Source: descriptor, Parameters: parameters, Spec: clone(spec)}, nil
 }
 
 func (r Resolved) Changed(ctx context.Context, host Host) (bool, error) {
@@ -258,4 +314,8 @@ func (r Resolved) Changed(ctx context.Context, host Host) (bool, error) {
 	}
 	descriptor := source.Descriptor()
 	return latest.Revision != r.Definition.Revision || latest.Source != r.Definition.Source || descriptor.Revision != r.Source.Revision || descriptor.Version != r.Source.Version, nil
+}
+
+type ContextSource interface {
+	BuildContext(context.Context, Definition, Parameters, filtercontext.EffectiveContext) (lens.DashboardSpec, error)
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
+	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
@@ -26,7 +27,23 @@ func Compose(ctx context.Context, c Composition, host Host) (lens.DashboardSpec,
 	for _, row := range c.Rows {
 		panels := []panel.Spec{}
 		for _, placement := range row {
-			block, err := Resolve(ctx, host, placement, c.Parameters)
+			var input *filtercontext.ContextInput
+			if c.Context != nil {
+				card := placement.Filters
+				if current, exists := c.Context.Cards[placement.ID]; exists {
+					card = current
+				}
+				layers := []filtercontext.ContextLayer{
+					{Origin: filtercontext.ContextOrigin{Scope: "dashboard", ID: c.ID}, Filters: c.Context.Dashboard},
+					{Origin: filtercontext.ContextOrigin{Scope: "card", ID: placement.ID}, Filters: card},
+				}
+				if placement.SectionID != "" {
+					layers = append(layers, filtercontext.ContextLayer{Origin: filtercontext.ContextOrigin{Scope: "section", ID: placement.SectionID}, Filters: c.Context.Sections[placement.SectionID]})
+				}
+				layers = append(layers, c.Context.Groups[placement.ID]...)
+				input = &filtercontext.ContextInput{Calendar: c.Context.Calendar, Layers: layers}
+			}
+			block, err := resolve(ctx, host, placement, c.Parameters, input)
 			if err != nil {
 				return lens.DashboardSpec{}, nil, err
 			}
@@ -48,7 +65,9 @@ func Compose(ctx context.Context, c Composition, host Host) (lens.DashboardSpec,
 			if span == 0 {
 				span = 12
 			}
-			panels = append(panels, panel.Grid(placement.ID, title, children...).Span(span).Build())
+			container := panel.Grid(placement.ID, title, children...).Span(span).Build()
+			container.FilterContext = block.Context
+			panels = append(panels, container)
 			result.Datasets = append(result.Datasets, scoped.Datasets...)
 			result.Variables = append(result.Variables, scoped.Variables...)
 			result.Explorers = append(result.Explorers, scoped.Explorers...)

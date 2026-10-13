@@ -196,7 +196,7 @@ func collectNamedTypes(model *contractModel, typ types.Type) {
 	switch typed := typ.(type) {
 	case *types.Named:
 		object := typed.Obj()
-		if object.Pkg() != model.pkg {
+		if object.Pkg() != model.pkg && (object.Pkg() == nil || object.Pkg().Path() != "github.com/iota-uz/iota-sdk/pkg/lens/filtercontext") {
 			return
 		}
 		if _, exists := model.types[object.Name()]; exists {

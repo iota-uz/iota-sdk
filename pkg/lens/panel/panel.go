@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
+	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
@@ -696,6 +697,7 @@ func (f FieldRef) Empty() bool {
 }
 
 type Spec struct {
+	FilterContext   *filtercontext.EffectiveContext
 	ID              string
 	Title           string
 	Description     string

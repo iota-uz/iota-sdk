@@ -1,0 +1,33 @@
+---
+id: scoped-report-filter-context
+title: Контекст фильтров вычисляется до исполнения отчёта
+status: accepted
+date: 2026-10-13
+deciders: [unknown]
+area: platform
+applies_to:
+  - pkg/lens/filtercontext/**
+  - pkg/lens/report/**
+  - web/lens/src/controls/**
+tags: [lens, reports, filters]
+refs:
+  - https://github.com/iota-uz/iota-sdk/issues/1057
+supersedes: []
+superseded_by: []
+---
+
+## Контекст
+
+Повторное размещение отчётов требует независимых периодов и явного происхождения ограничений. Подмена локального измерения общим расширяет выборку и скрывает противоречия.
+
+## Решение
+
+SDK вычисляет отдельный immutable effective context до вызова Source. Период имеет приоритет report → dashboard → section → card → group. Отсутствие dashboard override обозначается reports; all означает отдельный выбор за всё время. Ограничения одной dimension пересекаются, ограничения и их происхождение сохраняются. Пустое пересечение или неподдержанная capability блокируют Source builder.
+
+Host передаёт timezone, asOf и defaultPeriod, определяет доступные dimensions по source/view и переводит контекст в существующие запросы. SDK не добавляет SQL, хранилище или второй runtime. Контекст передаётся через wire group; документ проверяет соответствие identity вычисленному содержимому.
+
+Apply меняет временный URL-контекст. SaveDefaults вызывается только через явный host callback; acknowledgement обновляет сохранённую базу. Ошибка сохраняет черновик.
+
+## Последствия
+
+Все источники contextual composition обязаны явно реализовать BuildContext. Нельзя выполнять старый builder без перевода контекста. Конфликтная карточка содержит диагностические данные и не исполняет более широкий запрос. Изменения находятся в отдельном SDK PR и проверяются в Granite через paired preview.
