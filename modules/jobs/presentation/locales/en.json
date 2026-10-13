@@ -1,0 +1,16 @@
+{
+  "Jobs": {
+    "Status": {
+      "Queued": "Queued",
+      "Running": "Running",
+      "Done": "Done",
+      "Failed": "Failed"
+    },
+    "Actions": {
+      "Run": "Run",
+      "Retry": "Retry",
+      "Download": "Download",
+      "Dismiss": "Dismiss"
+    }
+  }
+}
