@@ -112,7 +112,7 @@ export function FilterBar(props: FilterBarProps) {
       <div class="lens-dashboard-scope">
         {/* Declaration order is render order, and the row only wraps — it never
             reorders — so a control keeps the same neighbours at every width. */}
-        <Show when={document.contextEditor} fallback={<FilterControls filters={globalFilters} today={props.today} />}>{(editor) => <ScopedFilterControls editor={editor()} scope="dashboard" id="dashboard" facets={facets} />}</Show>
+        <Show when={document.contextEditor} fallback={<FilterControls filters={globalFilters} today={props.today} />}>{(editor) => <><ScopedFilterControls editor={editor()} scope="dashboard" id="dashboard" facets={facets} /><FilterControls filters={globalFilters.filter((filter) => filter.kind !== 'period' && filter.kind !== 'facet')} today={props.today} /></>}</Show>
         {/* Not a heading and not a control: the part of the scope no control
             owns. It sits last so the editable segments stay together at the
             left edge, where the eye lands. */}

@@ -11,6 +11,14 @@ export function encodeFilterBoard(board: ContextBoard): string {
   return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
 }
 
+export function decodeFilterBoard(value: string): ContextBoard {
+  if (value.length > 21846 || !/^[A-Za-z0-9_-]+$/.test(value)) throw new Error('Invalid filter context')
+  const raw = atob(value.replaceAll('-', '+').replaceAll('_', '/'))
+  const bytes = Uint8Array.from(raw, (character) => character.charCodeAt(0))
+  if (bytes.length > 16384) throw new Error('Filter context exceeds its limit')
+  return ContextBoardSchema.parse(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)))
+}
+
 export function filterBoardURL(base: string, board: ContextBoard): string {
   const target = new URL(base, window.location.href)
   target.searchParams.set(filterContextParam, encodeFilterBoard(board))

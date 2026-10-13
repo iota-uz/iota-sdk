@@ -5,8 +5,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
@@ -48,6 +50,18 @@ func Compose(ctx context.Context, c Composition, host Host) (lens.DashboardSpec,
 				return lens.DashboardSpec{}, nil, err
 			}
 			scoped := namespace(block.Spec, placement.ID)
+			if block.Context != nil {
+				name := scopedID(placement.ID, "filter-context")
+				data, contextErr := contextEvidence(placement.ID, *block.Context)
+				if contextErr != nil {
+					return lens.DashboardSpec{}, nil, contextErr
+				}
+				scoped.Datasets = append(scoped.Datasets, lens.DatasetSpec{Name: name, Title: "Report filter context", Kind: lens.DatasetKindStatic, Static: data, Export: exportmeta.Spec{Enabled: true, SheetName: "Scope " + placement.ID, TableName: "ctx_" + strings.ReplaceAll(placement.ID, "-", "_"), FreezeHeader: true}})
+				for i := range scoped.Rows {
+					attachContextEvidence(scoped.Rows[i].Panels, name)
+				}
+				result.Export.EvidenceDatasets = append(result.Export.EvidenceDatasets, name)
+			}
 			children := []panel.Spec{}
 			for i, sourceRow := range scoped.Rows {
 				if sourceRow.Heading != "" {
@@ -296,5 +310,49 @@ func copyValue(value reflect.Value) reflect.Value {
 		return out
 	default:
 		return value
+	}
+}
+
+// The export reads the same frozen identity/range/restrictions as the wire group.
+func contextEvidence(card string, effective filtercontext.EffectiveContext) (*frame.FrameSet, error) {
+	builder := frame.NewBuilder("context").String("card", frame.RoleDimension).String("identity", frame.RoleDimension).String("kind", frame.RoleDimension).String("scope", frame.RoleDimension).String("origin", frame.RoleDimension).String("dimension", frame.RoleDimension).String("value", frame.RoleDimension)
+	appendRow := func(kind, scope, origin, dimension, value string) error {
+		return builder.Append(frame.Row{"card": card, "identity": effective.Identity, "kind": kind, "scope": scope, "origin": origin, "dimension": dimension, "value": value})
+	}
+	selection, err := json.Marshal(effective.Period.Selection)
+	if err != nil {
+		return nil, err
+	}
+	if err := appendRow("period", effective.Period.Origin.Scope, effective.Period.Origin.ID, "selection", string(selection)); err != nil {
+		return nil, err
+	}
+	for _, entry := range []struct{ dimension, value string }{{"start", effective.Period.Start}, {"end", effective.Period.End}, {"timezone", effective.Calendar.Timezone}, {"asOf", effective.Calendar.AsOf}} {
+		if err := appendRow("calendar", effective.Period.Origin.Scope, effective.Period.Origin.ID, entry.dimension, entry.value); err != nil {
+			return nil, err
+		}
+	}
+	for _, restriction := range effective.Restrictions {
+		for _, value := range restriction.Values {
+			if err := appendRow("restriction", restriction.Origin.Scope, restriction.Origin.ID, restriction.Dimension, value); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, dimension := range effective.Conflicts {
+		if err := appendRow("conflict", "card", card, dimension, ""); err != nil {
+			return nil, err
+		}
+	}
+	for _, restriction := range effective.Unsupported {
+		if err := appendRow("unsupported", restriction.Origin.Scope, restriction.Origin.ID, restriction.Dimension, strings.Join(restriction.Values, ", ")); err != nil {
+			return nil, err
+		}
+	}
+	return builder.FrameSet()
+}
+func attachContextEvidence(panels []panel.Spec, name string) {
+	for i := range panels {
+		panels[i].Export.EvidenceDatasets = append(panels[i].Export.EvidenceDatasets, name)
+		attachContextEvidence(panels[i].Children, name)
 	}
 }

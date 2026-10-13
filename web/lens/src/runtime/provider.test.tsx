@@ -7,6 +7,8 @@ import { StatPanel } from '../panels'
 import { DashboardRuntimeProvider, DocumentProvider, panelViewportRank, useDashboard, useDrawer, useDrill, useFilters, usePanelFrame } from './provider'
 import { idleDrillPrefetchRoots } from './drillPrefetch'
 import { QueryClient } from './query'
+import { encodeFilterBoard } from '../reports/filterDraft'
+import type { ContextBoard } from '../contract/types'
 
 const document = parseDocument({
   ...fixture,
@@ -527,6 +529,36 @@ describe('DashboardRuntimeProvider', () => {
     window.dispatchEvent(new PopStateEvent('popstate'))
     await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('root'))
     expect(screen.getByTestId('can-go-back')).toHaveTextContent('true')
+  })
+
+  // False green: a fetcher respecting AbortSignal would conceal an unguarded late success callback.
+  it('refetches scoped context changes once and rejects reverse-order late document results', async () => {
+    window.history.replaceState(null, '', '/')
+    const board: ContextBoard = { calendar: { timezone: 'Asia/Tashkent', asOf: '2026-10-13T00:00:00Z', defaultPeriod: { mode: 'relative', days: 30 } }, dashboard: { period: { mode: 'reports' } } }
+    const seed = { ...document, contextEditor: { url: '/', value: board, saved: board } }
+    const pending: Array<(value: Response) => void> = []
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => new Promise<Response>((resolve) => pending.push(resolve)))
+    function Controls() {
+      const { applyURL } = useFilters()
+      const dashboard = useDashboard()
+      return <>
+        <button type="button" onClick={() => applyURL('/?lens-filters=' + encodeFilterBoard({ ...board, dashboard: { period: { mode: 'fixed', start: '2026-06-01', end: '2026-06-30' } } }))}>Scope A</button>
+        <button type="button" onClick={() => applyURL('/?lens-filters=' + encodeFilterBoard({ ...board, dashboard: { period: { mode: 'fixed', start: '2026-07-01', end: '2026-07-31' } } }))}>Scope B</button>
+        <p data-testid="accepted-document">{dashboard.document.snapshotId}</p>
+      </>
+    }
+    render(() => <DocumentProvider src="/lens/document" initialDocument={seed} fetcher={fetcher}><DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => <Controls />}</DashboardRuntimeProvider></DocumentProvider>)
+    fireEvent.click(screen.getByRole('button', { name: 'Scope A' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Scope B' }))
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    const firstInput = fetcher.mock.calls[0]![0]
+    expect(typeof firstInput === 'string' ? firstInput : firstInput instanceof URL ? firstInput.href : firstInput.url).toContain('lens-filters=')
+    pending[1]!(new Response(JSON.stringify({ ...seed, snapshotId: 'accepted-B' }), { status: 200 }))
+    await waitFor(() => expect(screen.getByTestId('accepted-document')).toHaveTextContent('accepted-B'))
+    pending[0]!(new Response(JSON.stringify({ ...seed, snapshotId: 'late-A' }), { status: 200 }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.getByTestId('accepted-document')).toHaveTextContent('accepted-B')
+    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
   it('marks every panel stale in the same commit as a period change', async () => {

@@ -213,6 +213,7 @@ export function DocumentProvider(props: DocumentProviderProps): JSX.Element {
     setState('isRefreshing', true)
     void fetchDocument(effectiveSrc() ?? src, { csrf: props.csrf, fetcher: props.fetcher, signal: controller.signal })
       .then((next) => {
+        if (controller.signal.aborted || filterController !== controller) return
         loadedAt = Date.now()
         setState({ document: next, error: null })
       })
