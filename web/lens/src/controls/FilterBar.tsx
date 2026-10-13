@@ -69,7 +69,7 @@ export function FilterBar(props: FilterBarProps) {
   const { filters, applyURL } = useFilters()
   const { document } = useDashboard()
   const translate = useTranslate()
-  const globalFilters = filters.filter((filter) => !filter.placement)
+  const globalFilters = filters.filter((filter) => !filter.placement && !filter.scope)
   if (globalFilters.length === 0 && (document.activeFilters?.length ?? 0) === 0 && !props.subtitle) return null
   const intercept = (url: string) => (event: MouseEvent) => {
     if ('metaKey' in event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)) return

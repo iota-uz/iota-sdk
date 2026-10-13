@@ -201,8 +201,9 @@ const (
 // cannot ask the snapshot store for a filter combination the server has not
 // normalized and keyed itself.
 type Filter struct {
-	ID   string     `json:"id"`
-	Kind FilterKind `json:"kind"`
+	Scope *filtercontext.ContextOrigin `json:"scope,omitempty"`
+	ID    string                       `json:"id"`
+	Kind  FilterKind                   `json:"kind"`
 	// Label is the already-localized control label.
 	Label string `json:"label,omitempty"`
 	// Placement moves a control from the dashboard header into one tab of a

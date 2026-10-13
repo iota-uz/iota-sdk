@@ -289,6 +289,7 @@ export const FieldFormatSchema: z.ZodType<Contract.FieldFormat> = z.lazy(() => z
 }).strict())
 
 export const FilterSchema: z.ZodType<Contract.Filter> = z.lazy(() => z.object({
+  scope: z.lazy(() => ContextOriginSchema).optional(),
   id: z.string(),
   kind: z.lazy(() => FilterKindSchema),
   label: z.string().optional(),

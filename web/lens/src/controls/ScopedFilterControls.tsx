@@ -92,6 +92,7 @@ export function FilterContextInfo(props: { context: EffectiveContext; labels?: R
 export function ContextGroupControls(props: { id: string; context: EffectiveContext }) {
   const { document } = useDashboard()
   const editor = () => document.contextEditor
+  const facets = (scope: Scope, id: string) => (document.filters ?? []).filter((filter) => filter.kind === 'facet' && filter.scope?.scope === scope && filter.scope.id === id)
   const section = () => props.context.input.layers.find((layer) => layer.origin.scope === 'section')?.origin.id
   const firstSectionCard = () => {
     const groups = document.layout.rows.flatMap((row) => row.panels.flatMap((item) => item.groups ?? []))
@@ -100,8 +101,8 @@ export function ContextGroupControls(props: { id: string; context: EffectiveCont
   return <>
     <FilterContextInfo context={props.context} labels={editor()?.dimensionLabels} />
     <Show when={editor()}>{(value) => <>
-      <Show when={section() && firstSectionCard() === props.id}><ScopedFilterControls editor={value()} scope="section" id={section()!} effective={props.context} /></Show>
-      <ScopedFilterControls editor={value()} scope="card" id={props.id} effective={props.context} />
+      <Show when={section() && firstSectionCard() === props.id}><ScopedFilterControls editor={value()} scope="section" id={section()!} effective={props.context} facets={facets("section", section()!)} /></Show>
+      <ScopedFilterControls editor={value()} scope="card" id={props.id} effective={props.context} facets={facets("card", props.id)} />
     </>}</Show>
   </>
 }

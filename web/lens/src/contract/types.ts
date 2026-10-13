@@ -266,6 +266,7 @@ export interface FieldFormat {
 }
 
 export interface Filter {
+  scope?: ContextOrigin
   id: string
   kind: FilterKind
   label?: string
