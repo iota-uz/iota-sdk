@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Compose immutable effective report filter contexts with scoped period inheritance, intersected constraints, provenance and explicit staged filter controls."
+    }
+  ],
+  "source": "6988384dbd9062c51871317c7e07a68db2862c39",
+  "version": "0.23.0"
+}
