@@ -1,0 +1,9 @@
+# Notification realtime fanout
+
+Bootstrap reads `redisconfig.Config` from the SDK configuration source. An absent `REDIS_URL` selects in-memory delivery for a single application instance. Configure `REDIS_URL=redis://localhost:6379` for multiple replicas. Invalid configuration, a failed Redis connection, or failed initial subscription stops startup. Each application owns one Redis client for this fanout; runtime cleanup cancels its subscriptions and closes it once.
+
+The public server API is `app.Websocket().Publish(ctx, realtime.Envelope{...})`. Use `realtime.UserChannel(tenantID, userID)`. The envelope requires a unique UUID, tenant ID, qualified channel, publication timestamp and opaque text payload. Clients cannot choose channel membership: authentication determines the user channel. Redis uses the stable `iota:realtime:v1` topic. The full encoded envelope is limited to 64 KiB; oversize publication returns `realtime.ErrOversize` before sending.
+
+A custom transport implements `realtime.Backend`. Pass it through `application.HuberOptions.Backend`; call the hub's `Start` and `Close` if building an application outside SDK bootstrap. `Subscribe` must finish initial setup before returning and deliver until the supplied context is cancelled. Consumers do not require Redis types.
+
+Delivery is best effort. Subscribers automatically reconnect, but Redis Pub/Sub has no replay during outages. The hub suppresses duplicate event IDs using a bounded 4096-entry cache. Historical notifications stay authoritative in PostgreSQL; reconnect/reload refreshes the inbox. Publication failures are observable and must not roll back committed business state. `app.Websocket().Counters()` exposes published, received, duplicate, reconnect, oversize and delivery-failure counters; structured logs identify failures.

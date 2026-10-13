@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	twofactorentity "github.com/iota-uz/iota-sdk/modules/core/domain/entities/twofactor"
@@ -17,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
+	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -54,6 +57,10 @@ import (
 var LocaleFiles embed.FS
 
 type ModuleOptions struct {
+	// DisableNotificationWorker leaves durable jobs for a dedicated worker process.
+	DisableNotificationWorker bool
+	// NotificationEvents registers application-owned events in the settings catalog.
+	NotificationEvents       []notifications.Definition
 	PermissionSchema         *rbac.PermissionSchema
 	UploadsAuthorizer        types.UploadsAuthorizer
 	DefaultTenantID          uuid.UUID
@@ -117,6 +124,10 @@ func (c *component) Build(builder *composition.Builder) error {
 	// ----- Repositories -----
 	composition.ProvideFunc(builder, persistence.NewUploadRepository)
 	composition.ProvideFunc(builder, persistence.NewUserRepository)
+	composition.ProvideFunc(builder, persistence.NewNotificationRepository)
+	composition.ProvideFunc(builder, persistence.NewNotificationRuleRepository)
+	composition.ProvideFunc(builder, persistence.NewNotificationAudienceRepository)
+	composition.ProvideFunc(builder, persistence.NewNotificationDispatchRepository)
 	composition.ProvideFunc(builder, persistence.NewRoleRepository)
 	composition.ProvideFunc(builder, persistence.NewTenantRepository)
 	composition.ProvideFunc(builder, persistence.NewPermissionRepository)
@@ -134,6 +145,33 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, query.NewPgOrgQueryRepository)
 
 	// ----- Services -----
+	composition.ProvideFunc(builder, func() (*notifications.Catalog, error) {
+		return newCoreNotificationCatalog(c.options.NotificationEvents)
+	})
+	composition.ProvideFunc(builder, services.NewNotificationRealtimeService)
+	composition.ProvideFunc(builder, func(repo notification.Repository, realtime *services.NotificationRealtimeService) *services.NotificationService {
+		return services.NewNotificationService(repo).WithRealtime(realtime)
+	})
+	composition.ProvideFunc(builder, func(service *services.NotificationService) services.NotificationDelivery { return service })
+	composition.ProvideFunc(builder, services.NewNotificationRoutingService)
+	composition.ProvideFunc(builder, services.NewNotificationDispatchService)
+	composition.ProvideFunc(builder, services.NewNotificationDispatchWorker)
+	composition.ContributeMiddleware(builder, func(container *composition.Container) ([]mux.MiddlewareFunc, error) {
+		service, err := composition.Resolve[*services.NotificationService](container)
+		if err != nil {
+			return nil, err
+		}
+		return []mux.MiddlewareFunc{services.WithNotificationSummary(service)}, nil
+	})
+	if !c.options.DisableNotificationWorker && (builder.Context().HasCapability(composition.CapabilityAPI) || builder.Context().HasCapability(composition.CapabilityWorker)) {
+		composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
+			worker, err := composition.Resolve[*services.NotificationDispatchWorker](container)
+			if err != nil {
+				return nil, err
+			}
+			return []composition.Hook{{Name: "notification-dispatch", Start: worker.Start}}, nil
+		})
+	}
 	composition.ProvideFunc(builder, services.NewPrivilegeGrantPolicy)
 	composition.ProvideFunc(builder, services.NewTenantService)
 	composition.ProvideFunc(builder, services.NewConfiguredUploadService)
@@ -156,6 +194,10 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, newCoreTwoFactorService)
 
 	// ----- Event handlers -----
+	composition.ProvideFunc(builder, handlers.NewNotificationHandler)
+	composition.ContributeEventHandlerFunc(builder, func(h *handlers.NotificationHandler) any {
+		return h.OnUserCreated
+	})
 	// Revoke active sessions whenever a user's password changes so that
 	// leaked credentials stop being honoured after a reset.
 	composition.ProvideFunc(builder, handlers.NewUserHandler)
@@ -319,6 +361,8 @@ func (c *component) Build(builder *composition.Builder) error {
 			// (e.g. superadmin) that provide their own admin interface.
 			if !opts.SkipAdminControllers {
 				ctrls = append(ctrls,
+					controllers.NewNotificationController(),
+					controllers.NewNotificationSettingsController(),
 					controllers.NewDashboardController(dbCfg, opts.DashboardLinkPermissions),
 					// aiHolder may be nil when no downstream component registered
 					// an AI search service; the controller is nil-safe and will

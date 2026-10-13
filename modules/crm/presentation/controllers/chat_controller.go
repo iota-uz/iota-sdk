@@ -21,6 +21,7 @@ import (
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	crmPermissions "github.com/iota-uz/iota-sdk/modules/crm/permissions"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
 	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
@@ -173,6 +174,9 @@ func (c *ChatController) onChatCreated(event *chat.CreatedEvent) {
 		HasMore:    false,
 	}
 	err = c.app.Websocket().ForEach(application.ChannelAuthenticated, func(ctx context.Context, conn application.Connection) error {
+		if !application.CanReceiveTenantUpdates(conn.User(), event.Result.TenantID(), crmPermissions.ClientRead) {
+			return nil
+		}
 		var buf bytes.Buffer
 		if err := chatsui.ChatList(props).Render(ctx, &buf); err != nil {
 			c.logger.WithError(err).Error("failed to render chat list for websocket")
@@ -240,6 +244,9 @@ func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
 	err = c.app.Websocket().ForEach(
 		application.ChannelAuthenticated,
 		func(ctx context.Context, conn application.Connection) error {
+			if !application.CanReceiveTenantUpdates(conn.User(), event.Result.TenantID(), crmPermissions.ClientRead) {
+				return nil
+			}
 			props := &chatsui.IndexPageProps{
 				SearchURL:  c.basePath + "/search",
 				NewChatURL: "/crm/chats/new",

@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/meiliconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/redisconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/telemetryconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/health"
@@ -131,7 +132,7 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 			return application.LoadBundle(), nil
 		}
 
-		o.appFactory = func(_ context.Context, rt *Runtime) (application.Application, error) {
+		o.appFactory = func(ctx context.Context, rt *Runtime) (application.Application, error) {
 			// Read the allowed origin for WebSocket / CORS CheckOrigin from the source.
 			var allowedOrigin string
 			if _, hasOrigin := src.Get("http.origin"); hasOrigin {
@@ -164,7 +165,16 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 				supportedLanguages = application.DefaultSupportedLanguages()
 			}
 
-			return application.New(&application.ApplicationOptions{
+			redisCfg, err := config.Register[redisconfig.Config](reg)
+			if err != nil {
+				return nil, fmt.Errorf("bootstrap: load redis config: %w", err)
+			}
+			backend, err := newRealtimeBackend(ctx, redisCfg, rt.Logger)
+			if err != nil {
+				return nil, fmt.Errorf("bootstrap: configure realtime Redis: %w", err)
+			}
+			app, err := application.New(&application.ApplicationOptions{
+
 				Pool:               rt.Pool,
 				Bundle:             rt.Bundle,
 				EventBus:           eventbus.NewEventPublisher(rt.Logger),
@@ -172,6 +182,7 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 				Meili:              meiliCfg,
 				SupportedLanguages: supportedLanguages,
 				Huber: application.NewHub(&application.HuberOptions{
+					Backend:        backend,
 					Pool:           rt.Pool,
 					Logger:         rt.Logger,
 					Bundle:         rt.Bundle,
@@ -188,6 +199,15 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 					},
 				}),
 			})
+			if err != nil {
+				_ = backend.Close()
+				return nil, err
+			}
+			if err := app.Websocket().Start(context.Background()); err != nil {
+				_ = app.Websocket().Close()
+				return nil, fmt.Errorf("bootstrap: subscribe realtime: %w", err)
+			}
+			return app, nil
 		}
 	}
 }
