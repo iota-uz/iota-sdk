@@ -7,7 +7,7 @@ import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
 import { stackedCalendarMediaQuery } from '../breakpoints'
 import { Calendar } from './Calendar'
 import { FilterBar } from './FilterBar'
-import { stagedFilterURL } from './FacetFilterMenu'
+import { FacetFilterMenu, stagedFilterURL } from './FacetFilterMenu'
 import type { RangeSelection } from './model'
 
 const identityTranslate = (_key: string, fallback: string, vars?: Readonly<Record<string, string | number>>) => {
@@ -953,6 +953,23 @@ function FacetFixture() {
 }
 
 describe('facet filter menu', () => {
+  // False green: a callback checking only the URL would miss synchronous close cleanup emptying its selections.
+  it('submits staged dimensions intact to a parent draft before cleanup', async () => {
+    window.history.replaceState(null, '', '/report')
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(optionsResponse(3))))
+    const submit = vi.fn()
+    render(() => <DocumentProvider initialDocument={facetDocument()}><DashboardRuntimeProvider locale="en">{() => <FacetFilterMenu filters={facetDocument().filters!.filter((filter) => filter.kind === 'facet')} onApplyURL={submit} />}</DashboardRuntimeProvider></DocumentProvider>)
+    fireEvent.click(screen.getByRole('button', { name: /Filters/ }))
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Option 1/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Option 2/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    expect(submit).toHaveBeenCalledTimes(1)
+    const selections = submit.mock.calls[0]![1] as ReadonlyMap<string, ReadonlySet<string>>
+    expect([...selections.get('product')!]).toEqual(['option-1', 'option-2'])
+    expect(screen.queryByRole('dialog', { name: 'Filters' })).not.toBeInTheDocument()
+    expect(window.location.search).toBe('')
+  })
+
   it('restates only the dimensions the reader staged', () => {
     window.history.replaceState(null, '', '/report')
     const url = stagedFilterURL(
