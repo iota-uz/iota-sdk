@@ -23,7 +23,7 @@ type response struct {
 }
 
 // Serve handles the local NDJSON control protocol and stops owned resources on EOF or cancellation.
-func Serve(ctx context.Context, c *Coordinator, reader io.Reader, writer io.Writer) (returnErr error) {
+func Serve(ctx context.Context, c *Coordinator, reader io.Reader, writer io.Writer) error {
 	return ServeWithOptions(ctx, c, reader, writer, ServeOptions{})
 }
 
