@@ -1,0 +1,30 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Allow notification rules to target groups and effective roles with tenant isolation and delivery-time membership resolution."
+    },
+    {
+      "bump": "patch",
+      "summary": "Adapt notification persistence, routing and settings validation to the canonical error API."
+    },
+    {
+      "bump": "minor",
+      "summary": "Complete notification routing, semantic recipients, severity, keyset history, realtime Redis fanout and durable batched delivery with retry controls."
+    },
+    {
+      "bump": "patch",
+      "summary": "Isolate best-effort user-created notification failures with a savepoint and correct notification UI wording and template formatting."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add persistent tenant-scoped in-app notifications with an event catalog, configurable recipients, test delivery, a polling notification center, and a built-in user-created event."
+    },
+    {
+      "bump": "none",
+      "summary": "Update the SDK navigation parity fixture for notification settings added by #1157. Test fixture only; no runtime or API changes."
+    }
+  ],
+  "source": "bdce8cc37a0d127c790487d66ae41e3f9982c1d7",
+  "version": "0.22.0"
+}
