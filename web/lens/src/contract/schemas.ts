@@ -113,6 +113,9 @@ export const ContextConstraintSchema: z.ZodType<Contract.ContextConstraint> = z.
 }).strict()
 
 export const ContextEditorSchema: z.ZodType<Contract.ContextEditor> = z.object({
+  readOnly: z.boolean().optional(),
+  originLabels: z.record(z.string(), z.string()).optional(),
+  valueLabels: z.record(z.string(), z.record(z.string(), z.string())).optional(),
   url: z.string(),
   value: z.lazy(() => ContextBoardSchema),
   saved: z.lazy(() => ContextBoardSchema),
@@ -125,6 +128,8 @@ export const ContextFiltersSchema: z.ZodType<Contract.ContextFilters> = z.lazy((
 }).strict())
 
 export const ContextInputSchema: z.ZodType<Contract.ContextInput> = z.lazy(() => z.object({
+  operationDimensions: z.record(z.string(), z.array(z.string())).optional(),
+  source: z.lazy(() => ContextSourceSchema).optional(),
   supportsPeriod: z.boolean().optional(),
   calendar: z.lazy(() => ContextCalendarSchema),
   layers: z.array(z.lazy(() => ContextLayerSchema)),
@@ -160,6 +165,13 @@ export const ContextRestrictionSchema: z.ZodType<Contract.ContextRestriction> = 
   dimension: z.string(),
   values: z.array(z.string()),
   origin: z.lazy(() => ContextOriginSchema),
+}).strict()
+
+export const ContextSourceSchema: z.ZodType<Contract.ContextSource> = z.object({
+  id: z.string(),
+  version: z.number().int(),
+  revision: z.string(),
+  view: z.string(),
 }).strict()
 
 export const DashboardDocumentSchema: z.ZodType<Contract.DashboardDocument> = z.lazy(() => z.object({
@@ -220,6 +232,7 @@ export const DynamicChildrenSchema: z.ZodType<Contract.DynamicChildren> = z.lazy
 }).strict())
 
 export const EffectiveContextSchema: z.ZodType<Contract.EffectiveContext> = z.object({
+  unsupportedOperations: z.record(z.string(), z.array(z.lazy(() => ContextRestrictionSchema))).optional(),
   identity: z.string(),
   calendar: z.lazy(() => ContextCalendarSchema),
   period: z.lazy(() => ContextRangeSchema),

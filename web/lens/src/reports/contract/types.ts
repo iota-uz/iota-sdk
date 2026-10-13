@@ -3,6 +3,7 @@
 export const CONTRACT_VERSION = "1"
 
 export interface Capabilities {
+  operationDimensions?: Record<string, Array<string>>
   dimensions?: Array<string>
   viewDimensions?: Record<string, Array<string>>
   filters: Array<string>

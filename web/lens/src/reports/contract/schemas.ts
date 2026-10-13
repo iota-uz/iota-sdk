@@ -26,6 +26,7 @@ export const ContractVersionSchema: z.ZodType<string> = z.string().refine(
 )
 
 export const CapabilitiesSchema: z.ZodType<Contract.Capabilities> = z.object({
+  operationDimensions: z.record(z.string(), z.array(z.string())).optional(),
   dimensions: z.array(z.string()).optional(),
   viewDimensions: z.record(z.string(), z.array(z.string())).optional(),
   filters: z.array(z.string()),

@@ -1,9 +1,10 @@
 import { createMemo, createSignal } from 'solid-js'
+import { unwrap } from 'solid-js/store'
 import { ContextBoardSchema } from '../contract/schemas'
 import type { ContextBoard, ContextFilters } from '../contract/types'
 
 export const filterContextParam = 'lens-filters'
-const copy = <T,>(value: T): T => structuredClone(value)
+const copy = <T,>(value: T): T => structuredClone(unwrap(value))
 
 export function encodeFilterBoard(board: ContextBoard): string {
   const bytes = new TextEncoder().encode(JSON.stringify(ContextBoardSchema.parse(board)))

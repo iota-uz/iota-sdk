@@ -58,13 +58,14 @@ type Composition struct {
 }
 
 type Capabilities struct {
-	Dimensions     []string            `json:"dimensions,omitempty"`
-	ViewDimensions map[string][]string `json:"viewDimensions,omitempty"`
-	Filters        []string            `json:"filters"`
-	Views          []string            `json:"views"`
-	Drill          bool                `json:"drill"`
-	Save           bool                `json:"save"`
-	Export         bool                `json:"export"`
+	OperationDimensions map[string][]string `json:"operationDimensions,omitempty"`
+	Dimensions          []string            `json:"dimensions,omitempty"`
+	ViewDimensions      map[string][]string `json:"viewDimensions,omitempty"`
+	Filters             []string            `json:"filters"`
+	Views               []string            `json:"views"`
+	Drill               bool                `json:"drill"`
+	Save                bool                `json:"save"`
+	Export              bool                `json:"export"`
 }
 
 type SourceDescriptor struct {
@@ -262,6 +263,8 @@ func resolve(ctx context.Context, host Host, placement Placement, defaults Param
 	var effective *filtercontext.EffectiveContext
 	if input != nil {
 		scoped := clone(*input)
+		scoped.OperationDimensions = clone(descriptor.Capabilities.OperationDimensions)
+		scoped.Source = &filtercontext.ContextSource{ID: descriptor.ID, Version: descriptor.Version, Revision: descriptor.Revision, View: definition.View}
 		scoped.SupportedDimensions = descriptor.Capabilities.Dimensions
 		if dimensions, exists := descriptor.Capabilities.ViewDimensions[definition.View]; exists {
 			scoped.SupportedDimensions = dimensions

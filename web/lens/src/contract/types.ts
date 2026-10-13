@@ -90,6 +90,9 @@ export interface ContextConstraint {
 }
 
 export interface ContextEditor {
+  readOnly?: boolean
+  originLabels?: Record<string, string>
+  valueLabels?: Record<string, Record<string, string>>
   url: string
   value: ContextBoard
   saved: ContextBoard
@@ -102,6 +105,8 @@ export interface ContextFilters {
 }
 
 export interface ContextInput {
+  operationDimensions?: Record<string, Array<string>>
+  source?: ContextSource
   supportsPeriod?: boolean
   calendar: ContextCalendar
   layers: Array<ContextLayer>
@@ -137,6 +142,13 @@ export interface ContextRestriction {
   dimension: string
   values: Array<string>
   origin: ContextOrigin
+}
+
+export interface ContextSource {
+  id: string
+  version: number
+  revision: string
+  view: string
 }
 
 export interface DashboardDocument {
@@ -197,6 +209,7 @@ export interface DynamicChildren {
 }
 
 export interface EffectiveContext {
+  unsupportedOperations?: Record<string, Array<ContextRestriction>>
   identity: string
   calendar: ContextCalendar
   period: ContextRange

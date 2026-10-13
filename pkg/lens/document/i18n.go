@@ -13,6 +13,10 @@ import (
 // runtime looks up; RuntimeI18nKeys keeps them in sync with the TSX call
 // sites.
 const (
+	I18nContextBack              = "filter.context.back"
+	I18nContextDrillUnavailable  = "filter.context.drillUnavailable"
+	I18nContextExportUnavailable = "filter.context.exportUnavailable"
+
 	I18nContextScopeReport    = "filter.context.scope.report"
 	I18nContextScopeDashboard = "filter.context.scope.dashboard"
 	I18nContextScopeSection   = "filter.context.scope.section"
@@ -355,6 +359,10 @@ func RuntimeLocaleKey(runtimeKey string) string {
 // Producers can range over it to assert their catalogue is complete.
 func RuntimeI18nKeys() []string {
 	keys := []string{
+		I18nContextBack,
+		I18nContextDrillUnavailable,
+		I18nContextExportUnavailable,
+
 		I18nContextScopeReport,
 		I18nContextScopeDashboard,
 		I18nContextScopeSection,

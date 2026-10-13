@@ -1,4 +1,5 @@
 import { createRoot } from 'solid-js'
+import { createStore } from 'solid-js/store'
 import { describe, expect, it, vi } from 'vitest'
 import { createFilterContextDraft, encodeFilterBoard, filterBoardURL } from './filterDraft'
 import type { ContextBoard } from '../contract/types'
@@ -30,6 +31,18 @@ describe('scoped filter drafts', () => {
       expect(draft.value().period).toEqual({ mode: 'relative', days: 30 })
       expect(apply).toHaveBeenCalledTimes(1)
     } finally { dispose() }
+  })
+
+  // False green: plain objects would not reproduce browser DataCloneError from a Solid store.
+  it('takes immutable copies from a nested Solid store without mutating its document', () => {
+    const [store] = createStore({ cards: { june: { period: { mode: 'fixed', start: '2026-06-01', end: '2026-06-30' } } } })
+    createRoot((dispose) => {
+      const draft = createFilterContextDraft(store.cards.june, {}, { apply: () => undefined })
+      draft.update(() => ({ period: { mode: 'all' } }))
+      expect(store.cards.june.period.mode).toBe('fixed')
+      expect(draft.value().period?.mode).toBe('all')
+      dispose()
+    })
   })
 
   it('keeps independent scopes and relative selections in the transport', () => {

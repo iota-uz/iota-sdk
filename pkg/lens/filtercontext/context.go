@@ -54,10 +54,19 @@ type ContextLayer struct {
 }
 
 type ContextInput struct {
-	SupportsPeriod      *bool           `json:"supportsPeriod,omitempty"`
-	Calendar            ContextCalendar `json:"calendar"`
-	Layers              []ContextLayer  `json:"layers"`
-	SupportedDimensions []string        `json:"supportedDimensions"`
+	OperationDimensions map[string][]string `json:"operationDimensions,omitempty"`
+	Source              *ContextSource      `json:"source,omitempty"`
+	SupportsPeriod      *bool               `json:"supportsPeriod,omitempty"`
+	Calendar            ContextCalendar     `json:"calendar"`
+	Layers              []ContextLayer      `json:"layers"`
+	SupportedDimensions []string            `json:"supportedDimensions"`
+}
+
+type ContextSource struct {
+	ID       string `json:"id"`
+	Version  int    `json:"version"`
+	Revision string `json:"revision"`
+	View     string `json:"view"`
 }
 
 // ContextBoard is temporary composition state. Saved report defaults stay on the host definitions.
@@ -70,10 +79,13 @@ type ContextBoard struct {
 }
 
 type ContextEditor struct {
-	URL             string            `json:"url"`
-	Value           ContextBoard      `json:"value"`
-	Saved           ContextBoard      `json:"saved"`
-	DimensionLabels map[string]string `json:"dimensionLabels,omitempty"`
+	ReadOnly        bool                         `json:"readOnly,omitempty"`
+	OriginLabels    map[string]string            `json:"originLabels,omitempty"`
+	ValueLabels     map[string]map[string]string `json:"valueLabels,omitempty"`
+	URL             string                       `json:"url"`
+	Value           ContextBoard                 `json:"value"`
+	Saved           ContextBoard                 `json:"saved"`
+	DimensionLabels map[string]string            `json:"dimensionLabels,omitempty"`
 }
 
 type ContextRestriction struct {
@@ -90,14 +102,15 @@ type ContextRange struct {
 }
 
 type EffectiveContext struct {
-	Identity     string               `json:"identity"`
-	Calendar     ContextCalendar      `json:"calendar"`
-	Period       ContextRange         `json:"period"`
-	Restrictions []ContextRestriction `json:"restrictions"`
-	Intersection []ContextConstraint  `json:"intersection"`
-	Conflicts    []string             `json:"conflicts"`
-	Unsupported  []ContextRestriction `json:"unsupported"`
-	Input        ContextInput         `json:"input"`
+	UnsupportedOperations map[string][]ContextRestriction `json:"unsupportedOperations,omitempty"`
+	Identity              string                          `json:"identity"`
+	Calendar              ContextCalendar                 `json:"calendar"`
+	Period                ContextRange                    `json:"period"`
+	Restrictions          []ContextRestriction            `json:"restrictions"`
+	Intersection          []ContextConstraint             `json:"intersection"`
+	Conflicts             []string                        `json:"conflicts"`
+	Unsupported           []ContextRestriction            `json:"unsupported"`
+	Input                 ContextInput                    `json:"input"`
 }
 
 func invalid(message string) error {
@@ -113,6 +126,9 @@ func Resolve(input ContextInput) (EffectiveContext, error) {
 	if err = json.Unmarshal(data, &copied); err != nil {
 		return EffectiveContext{}, err
 	}
+	if source := copied.Source; source != nil && (strings.TrimSpace(source.ID) == "" || source.Version < 1 || source.Revision == "" || source.View == "") {
+		return EffectiveContext{}, invalid("invalid context source identity")
+	}
 	rank := map[string]int{"report": 0, "dashboard": 1, "section": 2, "card": 3, "group": 4}
 	slices.SortStableFunc(copied.Layers, func(a, b ContextLayer) int { return rank[a.Origin.Scope] - rank[b.Origin.Scope] })
 	if copied.SupportedDimensions == nil {
@@ -121,7 +137,7 @@ func Resolve(input ContextInput) (EffectiveContext, error) {
 	sort.Strings(copied.SupportedDimensions)
 	copied.SupportedDimensions = slices.Compact(copied.SupportedDimensions)
 	location, err := time.LoadLocation(copied.Calendar.Timezone)
-	if err != nil || copied.Calendar.Timezone == "" {
+	if err != nil || copied.Calendar.Timezone == "" || copied.Calendar.Timezone == "Local" {
 		return EffectiveContext{}, invalid("host timezone is required")
 	}
 	asOf, err := time.Parse(time.RFC3339, copied.Calendar.AsOf)
@@ -129,6 +145,16 @@ func Resolve(input ContextInput) (EffectiveContext, error) {
 		return EffectiveContext{}, invalid("host as-of is required")
 	}
 	out := EffectiveContext{Calendar: copied.Calendar, Input: copied, Restrictions: []ContextRestriction{}, Intersection: []ContextConstraint{}, Conflicts: []string{}, Unsupported: []ContextRestriction{}}
+	for operation, dimensions := range copied.OperationDimensions {
+		if dimensions == nil {
+			dimensions = []string{}
+		}
+		sort.Strings(dimensions)
+		copied.OperationDimensions[operation] = slices.Compact(dimensions)
+		if operation != "drill" && operation != "export" {
+			return EffectiveContext{}, invalid("invalid context operation")
+		}
+	}
 	period := copied.Calendar.DefaultPeriod
 	origin := ContextOrigin{Scope: "host", ID: "calendar"}
 	sets := map[string][]string{}
@@ -162,6 +188,14 @@ func Resolve(input ContextInput) (EffectiveContext, error) {
 			constraint.Values = values
 			restriction := ContextRestriction{constraint.Dimension, values, layer.Origin}
 			out.Restrictions = append(out.Restrictions, restriction)
+			for operation, dimensions := range copied.OperationDimensions {
+				if !slices.Contains(dimensions, constraint.Dimension) {
+					if out.UnsupportedOperations == nil {
+						out.UnsupportedOperations = map[string][]ContextRestriction{}
+					}
+					out.UnsupportedOperations[operation] = append(out.UnsupportedOperations[operation], restriction)
+				}
+			}
 			if !slices.Contains(copied.SupportedDimensions, constraint.Dimension) {
 				out.Unsupported = append(out.Unsupported, restriction)
 			}
@@ -222,7 +256,11 @@ func resolvePeriod(p ContextPeriod, today time.Time) (string, string, error) {
 		return p.Start, p.End, nil
 	case "relative":
 		if p.Months > 0 && p.Months <= 120 && p.Days == 0 && p.Start == "" && p.End == "" {
-			return today.AddDate(0, -p.Months, 1).Format("2006-01-02"), today.Format("2006-01-02"), nil
+			month := time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, today.Location()).AddDate(0, -p.Months, 0)
+			lastDay := month.AddDate(0, 1, -1).Day()
+			day := min(today.Day(), lastDay)
+			start := time.Date(month.Year(), month.Month(), day, 0, 0, 0, 0, today.Location()).AddDate(0, 0, 1)
+			return start.Format("2006-01-02"), today.Format("2006-01-02"), nil
 		}
 		if p.Days < 1 || p.Days > 3660 || p.Months != 0 || p.Start != "" || p.End != "" {
 			return "", "", invalid("invalid relative period")

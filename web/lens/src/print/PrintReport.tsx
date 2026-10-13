@@ -1,5 +1,6 @@
 import { createContext, createMemo, useContext, For, Show, type JSX } from 'solid-js'
 import { Portal } from 'solid-js/web'
+import { FilterContextInfo } from '../controls/ScopedFilterControls'
 import type { DashboardDocument, Panel, Theme } from '../contract'
 import { buildCascadeStages, buildWaterfallModel } from '../panels/CascadePanel'
 import { ChartHost } from '../panels/ChartHost'
@@ -832,6 +833,12 @@ function MetricTile(props: {
 }
 
 function periodLabel(document: DashboardDocument, allTime: string): string | undefined {
+  if (document.contextEditor) {
+    const ranges = new Set(document.layout.rows.flatMap((row) => row.panels.flatMap((item) => item.groups ?? [])).flatMap((group) => group.filterContext ? [`${group.filterContext.period.start ?? ''} – ${group.filterContext.period.end ?? ''}`] : []))
+    if (ranges.size > 1) return document.i18n['filter.context.reportPeriods'] || 'Report periods'
+    const range = [...ranges][0]
+    if (range) return range.trim() === '–' ? allTime : range
+  }
   const period = document.filters?.find((filter) => filter.kind === 'period')?.period
   if (!period) return undefined
   const { start, end } = period.value
@@ -1025,7 +1032,7 @@ function ChapterView(props: { chapter: PrintChapter; title: string }): JSX.Eleme
   }
   for (const figure of chapter.figures) {
     const group = figure.group
-    const key = `${group?.label ?? ''}::${group?.caption ?? ''}`
+    const key = `${group?.label ?? ''}::${group?.caption ?? ''}::${group?.filterContext?.identity ?? ''}`
     if (group && !printed.has(key)) {
       printed.add(key)
       // A strip starts its own run of readings; it never shares a row with the
@@ -1039,6 +1046,7 @@ function ChapterView(props: { chapter: PrintChapter; title: string }): JSX.Eleme
           <Show when={group.caption && group.caption !== chapter.caption}>
             <p>{group.caption}</p>
           </Show>
+          <Show when={group.filterContext}>{(context) => <FilterContextInfo context={context()} labels={figure.section.document.contextEditor?.dimensionLabels} origins={figure.section.document.contextEditor?.originLabels} values={figure.section.document.contextEditor?.valueLabels} />}</Show>
         </div>
       )
     }

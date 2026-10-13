@@ -24,6 +24,9 @@ func main() {
 }
 
 func run() error {
+	if len(os.Args) > 1 && os.Args[1] == "--filters" {
+		return filterExamples()
+	}
 	definition := report.Definition{ID: "revenue", Revision: "1", Title: "Revenue", Source: report.SourceRef{ID: "monthly", Version: 1}, View: "summary", Parameters: report.Parameters{"months": json.RawMessage(`12`)}}
 	source := report.SourceFunc{Metadata: report.SourceDescriptor{ID: "monthly", Version: 1, Revision: "1", Capabilities: report.Capabilities{Filters: []string{"months"}, Views: []string{"summary"}, Save: true, Export: true}}, BuildSpec: build}
 	title := "First six months"
