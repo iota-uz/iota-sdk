@@ -24,7 +24,7 @@ func (a *deadlineAdapter) Start(ctx context.Context, spec Spec, id string) (Desc
 
 func TestServeOperationDeadline(t *testing.T) {
 	t.Parallel()
-	// False green: calling the adapter directly bypasses the NDJSON request deadline.
+	// False green if parent deadlines match requested limits, hiding an ignored operation timeout.
 	for _, tc := range []struct {
 		name    string
 		options ServeOptions

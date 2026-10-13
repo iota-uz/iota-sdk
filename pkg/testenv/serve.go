@@ -34,7 +34,7 @@ type ServeOptions struct {
 
 func ServeWithOptions(ctx context.Context, c *Coordinator, reader io.Reader, writer io.Writer, options ServeOptions) (returnErr error) {
 	if options.OperationTimeout < 0 {
-		return failure("invalid_input", "Operation timeout must be positive")
+		return failure("invalid_input", "Operation timeout must not be negative")
 	}
 	if options.OperationTimeout == 0 {
 		options.OperationTimeout = 60 * time.Second
