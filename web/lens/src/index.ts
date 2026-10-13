@@ -28,3 +28,4 @@ export type { ReportDefinition, ReportComposition, ReportPlacement, ReportSource
 
 export { createFilterContextDraft, encodeFilterBoard, filterBoardURL, filterContextParam } from './reports/filterDraft'
 export type { ContextBoard, ContextFilters, ContextPeriod, ContextInput, EffectiveContext, ContextEditor } from './contract/types'
+export type { FilterDefaultsHost } from './reports/filterHost'

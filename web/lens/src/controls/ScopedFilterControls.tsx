@@ -5,6 +5,7 @@ import { createFilterContextDraft, filterBoardURL } from '../reports/filterDraft
 import { PeriodFilterControl } from './PeriodFilterControl'
 import { FacetFilterMenu } from './FacetFilterMenu'
 import { parseISODate } from './model'
+import { useFilterDefaultsHost } from '../reports/filterHost'
 
 type Scope = 'dashboard' | 'card' | 'section'
 function scopeValue(board: ContextBoard, scope: Scope, id: string): ContextFilters {
@@ -14,6 +15,9 @@ function scopeValue(board: ContextBoard, scope: Scope, id: string): ContextFilte
 export function ScopedFilterControls(props: { editor: ContextEditor; scope: Scope; id: string; effective?: EffectiveContext; facets?: Filter[]; saveDefaults?: (filters: ContextFilters) => Promise<void> }) {
   const { applyURL } = useFilters()
   const translate = useTranslate()
+  const host = useFilterDefaultsHost()
+  const origin = { scope: props.scope, id: props.id }
+  const saveDefaults = props.saveDefaults ?? (host?.canSave(origin) ? (filters: ContextFilters) => host.saveDefaults(origin, filters) : undefined)
   const draft = createFilterContextDraft(scopeValue(props.editor.value, props.scope, props.id), scopeValue(props.editor.saved, props.scope, props.id), {
     apply(value) {
       const board = structuredClone(props.editor.value)
@@ -22,7 +26,7 @@ export function ScopedFilterControls(props: { editor: ContextEditor; scope: Scop
       else board.sections = { ...board.sections, [props.id]: value }
       applyURL(filterBoardURL(props.editor.url, board))
     },
-    saveDefaults: props.saveDefaults,
+    saveDefaults,
   })
   const inherited = () => !draft.value().period || draft.value().period?.mode === 'reports'
   const inheritText = () => props.scope === 'dashboard'
@@ -64,7 +68,7 @@ export function ScopedFilterControls(props: { editor: ContextEditor; scope: Scop
     <button type="button" class="lens-context-action" data-testid="context-apply" disabled={!draft.dirty()} onClick={() => draft.apply()}>{translate('filter.context.apply', 'Apply')}</button>
     <button type="button" class="lens-context-action" data-testid="context-reset" onClick={() => draft.reset()}>{translate('filter.context.reset', 'Restore saved filters')}</button>
     <Show when={draft.dirty()}><span role="status">{translate('filter.context.staged', 'Changes are not applied')}</span></Show>
-    <Show when={props.saveDefaults}><button type="button" class="lens-context-action" disabled={draft.saving()} onClick={() => void draft.saveDefaults().catch(() => undefined)}>{translate('filter.context.save', 'Save filter defaults')}</button></Show>
+    <Show when={saveDefaults}><button type="button" class="lens-context-action" disabled={draft.saving()} onClick={() => void draft.saveDefaults().catch(() => undefined)}>{translate('filter.context.save', 'Save filter defaults')}</button></Show>
     <Show when={draft.error()}><p role="alert">{translate('filter.context.saveFailed', 'Filter defaults could not be saved')}</p></Show>
   </div>
 }
