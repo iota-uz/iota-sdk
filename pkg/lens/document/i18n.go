@@ -13,6 +13,28 @@ import (
 // runtime looks up; RuntimeI18nKeys keeps them in sync with the TSX call
 // sites.
 const (
+	I18nContextBack              = "filter.context.back"
+	I18nContextDrillUnavailable  = "filter.context.drillUnavailable"
+	I18nContextExportUnavailable = "filter.context.exportUnavailable"
+
+	I18nContextScopeReport    = "filter.context.scope.report"
+	I18nContextScopeDashboard = "filter.context.scope.dashboard"
+	I18nContextScopeSection   = "filter.context.scope.section"
+	I18nContextScopeCard      = "filter.context.scope.card"
+	I18nContextScopeGroup     = "filter.context.scope.group"
+	I18nContextScopeHost      = "filter.context.scope.host"
+
+	I18nContextApply         = "filter.context.apply"
+	I18nContextConflict      = "filter.context.conflict"
+	I18nContextReportPeriods = "filter.context.reportPeriods"
+	I18nContextReset         = "filter.context.reset"
+	I18nContextSave          = "filter.context.save"
+	I18nContextSaveFailed    = "filter.context.saveFailed"
+	I18nContextSection       = "filter.context.section"
+	I18nContextStaged        = "filter.context.staged"
+	I18nContextUnsupported   = "filter.context.unsupported"
+	I18nContextUseDashboard  = "filter.context.useDashboard"
+
 	I18nCascadeCheckpoint             = "cascade.checkpoint"
 	I18nCascadeOpenStage              = "cascade.openStage"
 	I18nCascadeResult                 = "cascade.result"
@@ -337,6 +359,28 @@ func RuntimeLocaleKey(runtimeKey string) string {
 // Producers can range over it to assert their catalogue is complete.
 func RuntimeI18nKeys() []string {
 	keys := []string{
+		I18nContextBack,
+		I18nContextDrillUnavailable,
+		I18nContextExportUnavailable,
+
+		I18nContextScopeReport,
+		I18nContextScopeDashboard,
+		I18nContextScopeSection,
+		I18nContextScopeCard,
+		I18nContextScopeGroup,
+		I18nContextScopeHost,
+
+		I18nContextApply,
+		I18nContextConflict,
+		I18nContextReportPeriods,
+		I18nContextReset,
+		I18nContextSave,
+		I18nContextSaveFailed,
+		I18nContextSection,
+		I18nContextStaged,
+		I18nContextUnsupported,
+		I18nContextUseDashboard,
+
 		I18nCalendarAnnRange, I18nCalendarAnnStart, I18nCalendarHintEnd, I18nCalendarHintStart,
 		I18nCalendarLabel, I18nCalendarNextMonth, I18nCalendarPrevMonth,
 		I18nCalendarChooseMonth, I18nCalendarNextPage, I18nCalendarPrevPage,

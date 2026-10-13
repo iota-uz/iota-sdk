@@ -6,6 +6,7 @@ import { CompareFilterControl } from './CompareFilterControl'
 import { FacetFilterMenu } from './FacetFilterMenu'
 import { PeriodFilterControl } from './PeriodFilterControl'
 import { SegmentedFilterControl } from './SegmentedFilterControl'
+import { ScopedFilterControls } from './ScopedFilterControls'
 import type { CalendarDate } from './model'
 import { clearRendererStateFromURL } from '../runtime/url'
 import type { Filter } from '../contract'
@@ -68,8 +69,9 @@ export function FilterBar(props: FilterBarProps) {
   const { filters, applyURL } = useFilters()
   const { document } = useDashboard()
   const translate = useTranslate()
-  const globalFilters = filters.filter((filter) => !filter.placement)
-  if (globalFilters.length === 0 && (document.activeFilters?.length ?? 0) === 0 && !props.subtitle) return null
+  if (document.contextEditor?.readOnly) return null
+  const globalFilters = filters.filter((filter) => !filter.placement && !filter.scope)
+  if (!document.contextEditor && globalFilters.length === 0 && (document.activeFilters?.length ?? 0) === 0 && !props.subtitle) return null
   const intercept = (url: string) => (event: MouseEvent) => {
     if ('metaKey' in event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)) return
     event.preventDefault()
@@ -111,7 +113,7 @@ export function FilterBar(props: FilterBarProps) {
       <div class="lens-dashboard-scope">
         {/* Declaration order is render order, and the row only wraps — it never
             reorders — so a control keeps the same neighbours at every width. */}
-        <FilterControls filters={globalFilters} today={props.today} />
+        <Show when={document.contextEditor} fallback={<FilterControls filters={globalFilters} today={props.today} />}>{(editor) => <><ScopedFilterControls editor={editor()} scope="dashboard" id="dashboard" facets={facets} /><FilterControls filters={globalFilters.filter((filter) => filter.kind !== 'period' && filter.kind !== 'facet')} today={props.today} /></>}</Show>
         {/* Not a heading and not a control: the part of the scope no control
             owns. It sits last so the editable segments stay together at the
             left edge, where the eye lands. */}

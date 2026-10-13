@@ -437,6 +437,34 @@
   /* Rows B and C. The scope row never moves when a chip is added or dropped: a
      chip used to be injected among the triggers, so applying one filter
      re-wrapped the bar and the next trigger the reader was aiming at had moved. */
+  .lens-scoped-controls {
+    @apply lens:flex lens:min-w-0 lens:flex-wrap lens:items-center lens:gap-2 lens:py-2;
+  }
+
+  .lens-context-action {
+    @apply lens:flex lens:items-center lens:justify-center lens:rounded lens:border-0 lens:bg-transparent lens:px-2 lens:py-1 lens:font-sans lens:text-xs lens:font-semibold lens:text-muted;
+    min-height: var(--lens-control-h-sm);
+    text-decoration: none;
+    transition: background-color var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  .lens-context-action:hover:not(:disabled) {
+    @apply lens:text-strong;
+    background: rgb(15 23 42 / 0.06);
+  }
+
+  .lens-root[data-theme='dark'] .lens-context-action:hover:not(:disabled) {
+    background: rgb(255 255 255 / 0.08);
+  }
+
+  .lens-context-action:disabled {
+    @apply lens:cursor-default lens:opacity-40;
+  }
+
+  .lens-context-info {
+    @apply lens:break-words lens:text-xs lens:text-muted;
+  }
+
   .lens-filter-bar {
     @apply lens:flex lens:min-w-0 lens:max-w-full lens:flex-col lens:items-start lens:gap-1.5;
   }
@@ -2056,6 +2084,7 @@
   .lens-runtime-notice button,
   .lens-document-refetch-error button,
   .lens-fake-chart-footer button,
+  .lens-context-action,
   .lens-filter-chip,
   .lens-filter-trigger,
   .lens-filter-step,

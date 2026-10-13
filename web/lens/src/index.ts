@@ -25,3 +25,8 @@ export type { LensThemeMode } from './runtime'
 
 export { createReportDraft, copyReportDefinition, duplicateReportPlacement, parseReportDefinition, parseReportComposition } from './reports/draft'
 export type { ReportDefinition, ReportComposition, ReportPlacement, ReportSourceDescriptor, ReportDraftHost, SaveIntent } from './reports/draft'
+
+export { createFilterContextDraft, encodeFilterBoard, decodeFilterBoard, filterBoardURL, filterContextParam } from './reports/filterDraft'
+export type { ContextBoard, ContextFilters, ContextPeriod, ContextInput, EffectiveContext, ContextEditor } from './contract/types'
+export type { FilterDefaultsHost } from './reports/filterHost'
+export { placeOpenedReport, placeLibraryReport } from './reports/placement'

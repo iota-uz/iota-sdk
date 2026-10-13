@@ -24,6 +24,7 @@ import { PanelChromeContext, type PanelChrome } from './panels/context'
 import { ArrowClockwise, CircleNotch, Clock, X } from './icons'
 import { ExplorePanel } from './explore'
 import { FilterBar, FilterControls, type CalendarDate } from './controls'
+import { ContextGroupControls } from './controls/ScopedFilterControls'
 import { isVisualRegression } from './visualRegression'
 
  
@@ -197,7 +198,8 @@ function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
         <Show when={props.group.caption}>
           <p class="lens-panel-caption" data-stale={documentState.isRefreshing || undefined}>{props.group.caption}</p>
         </Show>
-        {props.children}
+        <Show when={props.group.filterContext}>{(context) => <ContextGroupControls id={props.group.id} context={context()} />}</Show>
+        <Show when={!props.group.filterContext || (!props.group.filterContext.conflicts.length && !props.group.filterContext.unsupported.length)}>{props.children}</Show>
       </section>
     </div>
   )

@@ -1,5 +1,6 @@
 
 import type { JSX } from 'solid-js'
+import { FilterDefaultsProvider, type FilterDefaultsHost } from './reports/filterHost'
 import fixture from '../fixtures/panels-v1.json'
 import { parseDocument, type DashboardDocument } from './contract'
 import { DashboardPanels } from './DashboardPanels'
@@ -7,6 +8,7 @@ import type { CalendarDate } from './controls'
 import { DashboardRuntimeProvider, DocumentProvider, type LensThemeMode } from './runtime'
 
 export interface LensDashboardProps {
+  filterDefaultsHost?: FilterDefaultsHost
   toolbar?: (context: LensToolbarContext) => JSX.Element
   src?: string
   /**
@@ -44,11 +46,13 @@ export function LensDashboard(props: LensDashboardProps) {
       {/* The React client-host boundary is not required for the Solid mount; the
           theme still travels on this wrapper so portalled overlays inherit it. */}
       <div data-theme={theme()}>
-        <DocumentProvider src={props.src} initialDocument={document()} csrf={props.csrf} fetcher={props.fetcher}>
-          <DashboardRuntimeProvider locale={locale()} csrf={props.csrf} fetcher={props.fetcher} fallback={fallback()}>
-            {() => <DashboardPanels filterToday={props.filterToday} toolbar={props.toolbar} />}
-          </DashboardRuntimeProvider>
-        </DocumentProvider>
+        <FilterDefaultsProvider host={props.filterDefaultsHost}>
+          <DocumentProvider src={props.src} initialDocument={document()} csrf={props.csrf} fetcher={props.fetcher}>
+            <DashboardRuntimeProvider locale={locale()} csrf={props.csrf} fetcher={props.fetcher} fallback={fallback()}>
+              {() => <DashboardPanels filterToday={props.filterToday} toolbar={props.toolbar} />}
+            </DashboardRuntimeProvider>
+          </DocumentProvider>
+        </FilterDefaultsProvider>
       </div>
     </div>
   )

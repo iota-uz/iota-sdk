@@ -3,8 +3,10 @@ package document
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 	"math"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
@@ -15,6 +17,14 @@ func (d *DashboardDocument) Validate() error {
 	const op serrors.Op = "lens/document.DashboardDocument.Validate"
 	if d == nil {
 		return serrors.Wrap(op, fmt.Errorf("document is required"))
+	}
+	if d.ContextEditor != nil {
+		if err := filtercontext.ValidateBoard(d.ContextEditor.Value); err != nil {
+			return err
+		}
+		if err := filtercontext.ValidateBoard(d.ContextEditor.Saved); err != nil {
+			return err
+		}
 	}
 	if d.Version != ContractVersion {
 		return serrors.Wrap(op, fmt.Errorf("unsupported contract version %q", d.Version))
@@ -369,10 +379,19 @@ func validateItemGroups(item LayoutItem, descriptors map[string]LayoutGroup) err
 // the same container. Tab is per-item and Status may be hoisted, so only the
 // structural descriptor (kind/label/layout/span) must match.
 func sameGroupDescriptor(a, b LayoutGroup) bool {
-	return a.Kind == b.Kind && a.Label == b.Label && a.Layout == b.Layout && a.Span == b.Span
+	return a.Kind == b.Kind && a.Label == b.Label && a.Layout == b.Layout && a.Span == b.Span && reflect.DeepEqual(a.FilterContext, b.FilterContext)
 }
 
 func validateGroupDescriptor(item LayoutItem, group LayoutGroup) error {
+	if group.FilterContext != nil {
+		resolved, err := filtercontext.Resolve(group.FilterContext.Input)
+		if err != nil {
+			return err
+		}
+		if !reflect.DeepEqual(resolved, *group.FilterContext) {
+			return fmt.Errorf("group %s has inconsistent effective context", group.ID)
+		}
+	}
 	if strings.TrimSpace(group.ID) == "" {
 		return fmt.Errorf("layout panel %s group id is required", item.PanelID)
 	}
