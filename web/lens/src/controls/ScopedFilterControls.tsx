@@ -13,7 +13,15 @@ function scopeValue(board: ContextBoard, scope: Scope, id: string): ContextFilte
   return scope === 'dashboard' ? board.dashboard : scope === 'card' ? board.cards?.[id] ?? {} : board.sections?.[id] ?? {}
 }
 
-export function ScopedFilterControls(props: { editor: ContextEditor; scope: Scope; id: string; effective?: EffectiveContext; facets?: Filter[]; saveDefaults?: (filters: ContextFilters) => Promise<void> }) {
+type ScopedFilterProps = { editor: ContextEditor; scope: Scope; id: string; effective?: EffectiveContext; facets?: Filter[]; saveDefaults?: (filters: ContextFilters) => Promise<void> }
+
+export function ScopedFilterControls(props: ScopedFilterProps) {
+  const { document } = useDashboard()
+  const identity = createMemo(() => JSON.stringify([document.snapshotId, props.scope, props.id, props.editor, props.effective?.identity]))
+  return <Show when={identity()} keyed>{(identity) => identity && <ScopedFilterDraftControls {...props} />}</Show>
+}
+
+function ScopedFilterDraftControls(props: ScopedFilterProps) {
   const { applyURL } = useFilters()
   const translate = useTranslate()
   const host = useFilterDefaultsHost()

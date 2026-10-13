@@ -9,7 +9,9 @@ const copy = <T,>(value: T): T => structuredClone(unwrap(value))
 export function encodeFilterBoard(board: ContextBoard): string {
   const bytes = new TextEncoder().encode(JSON.stringify(ContextBoardSchema.parse(board)))
   if (bytes.length > 16384) throw new Error('Filter context exceeds its limit')
-  return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
+  let binary = ''
+  for (let index = 0; index < bytes.length; index += 4096) binary += String.fromCharCode(...bytes.subarray(index, index + 4096))
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
 }
 
 export function decodeFilterBoard(value: string): ContextBoard {
