@@ -23,7 +23,22 @@ type response struct {
 }
 
 // Serve handles the local NDJSON control protocol and stops owned resources on EOF or cancellation.
-func Serve(ctx context.Context, c *Coordinator, reader io.Reader, writer io.Writer) (returnErr error) {
+func Serve(ctx context.Context, c *Coordinator, reader io.Reader, writer io.Writer) error {
+	return ServeWithOptions(ctx, c, reader, writer, ServeOptions{})
+}
+
+type ServeOptions struct {
+	// OperationTimeout bounds each start/stop request. Zero uses 60 seconds.
+	OperationTimeout time.Duration
+}
+
+func ServeWithOptions(ctx context.Context, c *Coordinator, reader io.Reader, writer io.Writer, options ServeOptions) (returnErr error) {
+	if options.OperationTimeout < 0 {
+		return failure("invalid_input", "Operation timeout must not be negative")
+	}
+	if options.OperationTimeout == 0 {
+		options.OperationTimeout = 60 * time.Second
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	defer func() {
@@ -70,7 +85,7 @@ func Serve(ctx context.Context, c *Coordinator, reader io.Reader, writer io.Writ
 			result.Error = &Error{Code: "invalid_input", Message: err.Error()}
 		} else {
 			result.ID = req.ID
-			call, done := context.WithTimeout(ctx, 60*time.Second)
+			call, done := context.WithTimeout(ctx, options.OperationTimeout)
 			defer done()
 			var err error
 			switch req.Operation {
