@@ -442,7 +442,19 @@
   }
 
   .lens-context-action {
-    @apply lens:rounded lens:border lens:px-2 lens:py-1 lens:text-xs lens:text-muted;
+    @apply lens:flex lens:items-center lens:justify-center lens:rounded lens:border-0 lens:bg-transparent lens:px-2 lens:py-1 lens:font-sans lens:text-xs lens:font-semibold lens:text-muted;
+    min-height: var(--lens-control-h-sm);
+    text-decoration: none;
+    transition: background-color var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  .lens-context-action:hover:not(:disabled) {
+    @apply lens:text-strong;
+    background: rgb(15 23 42 / 0.06);
+  }
+
+  .lens-root[data-theme='dark'] .lens-context-action:hover:not(:disabled) {
+    background: rgb(255 255 255 / 0.08);
   }
 
   .lens-context-action:disabled {
@@ -2072,6 +2084,7 @@
   .lens-runtime-notice button,
   .lens-document-refetch-error button,
   .lens-fake-chart-footer button,
+  .lens-context-action,
   .lens-filter-chip,
   .lens-filter-trigger,
   .lens-filter-step,
