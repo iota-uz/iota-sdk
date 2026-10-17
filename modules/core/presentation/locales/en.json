@@ -1547,6 +1547,6 @@
     "Unsaved": "You have unsaved changes",
     "Cancel": "Cancel",
     "AllDelivered": "Everything is being delivered",
-    "DeliveryIssues": "{{.Count}} not delivered yet, we will keep trying."
+    "DeliveryIssues": "{{.Count}} not delivered yet; we will keep trying."
   }
 }

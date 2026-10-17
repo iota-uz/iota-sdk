@@ -215,7 +215,8 @@ lang := pageCtx.GetLocale().String()
 										<button
 											type="button"
 											role="option"
-											@mousedown.prevent="add(o)"
+											@mousedown.prevent
+											@click="add(o)"
 											@mousemove="hi = i"
 											class="flex w-full flex-col px-3 py-1.5 text-left text-sm"
 											:class="i === hi && 'bg-surface-400'"

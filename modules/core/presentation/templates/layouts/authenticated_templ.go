@@ -1365,7 +1365,7 @@ func NotificationItem(n notification.Notification) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if n.ReadAt() == nil {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "<span class=\"mt-2 size-1.5 shrink-0 rounded-full bg-primary group-hover:hidden\" aria-hidden=\"true\"></span><form class=\"absolute right-3 top-3 hidden group-hover:block group-focus-within:block\" method=\"post\" action=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "<span class=\"mt-2 size-1.5 shrink-0 rounded-full bg-primary group-hover:hidden\" aria-hidden=\"true\"></span><form class=\"absolute right-3 top-3 opacity-0 group-hover:opacity-100 focus-within:opacity-100\" method=\"post\" action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1381,7 +1381,7 @@ func NotificationItem(n notification.Notification) templ.Component {
 			var templ_7745c5c3_Var54 string
 			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs("/notifications/" + n.ID().String() + "/read")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 415, Col: 227}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 415, Col: 236}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 			if templ_7745c5c3_Err != nil {

@@ -412,7 +412,7 @@ templ NotificationItem(n notification.Notification) {
 		<time class="shrink-0 pt-0.5 text-xs text-200 group-hover:invisible" datetime={ n.CreatedAt().Format("2006-01-02T15:04:05Z07:00") }>{ notificationTime(n.CreatedAt()) }</time>
 		if n.ReadAt() == nil {
 			<span class="mt-2 size-1.5 shrink-0 rounded-full bg-primary group-hover:hidden" aria-hidden="true"></span>
-			<form class="absolute right-3 top-3 hidden group-hover:block group-focus-within:block" method="post" action={ templ.URL("/notifications/" + n.ID().String() + "/read") } hx-post={ "/notifications/" + n.ID().String() + "/read" } hx-swap="none">
+			<form class="absolute right-3 top-3 opacity-0 group-hover:opacity-100 focus-within:opacity-100" method="post" action={ templ.URL("/notifications/" + n.ID().String() + "/read") } hx-post={ "/notifications/" + n.ID().String() + "/read" } hx-swap="none">
 				<button type="submit" class="flex size-7 items-center justify-center rounded-md border border-secondary bg-surface-300 text-200 hover:text-100" aria-label={ pageCtx.T("Notifications.MarkRead") } title={ pageCtx.T("Notifications.MarkRead") }>
 					@icons.Check(icons.Props{Size: "14"})
 				</button>
