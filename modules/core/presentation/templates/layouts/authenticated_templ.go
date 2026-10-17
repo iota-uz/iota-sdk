@@ -1283,7 +1283,7 @@ func NotificationItem(n notification.Notification) templ.Component {
 		var templ_7745c5c3_Var47 string
 		templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(n.Title())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 402, Col: 139}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 406, Col: 139}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 		if templ_7745c5c3_Err != nil {
@@ -1296,7 +1296,7 @@ func NotificationItem(n notification.Notification) templ.Component {
 		var templ_7745c5c3_Var48 string
 		templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(n.Body())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 403, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 407, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 		if templ_7745c5c3_Err != nil {
@@ -1323,7 +1323,7 @@ func NotificationItem(n notification.Notification) templ.Component {
 			var templ_7745c5c3_Var50 string
 			templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Notifications.Open"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 405, Col: 128}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 409, Col: 128}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 			if templ_7745c5c3_Err != nil {
@@ -1341,7 +1341,7 @@ func NotificationItem(n notification.Notification) templ.Component {
 		var templ_7745c5c3_Var51 string
 		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(n.CreatedAt().Format("2006-01-02T15:04:05Z07:00"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 408, Col: 131}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 412, Col: 131}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 		if templ_7745c5c3_Err != nil {
@@ -1354,7 +1354,7 @@ func NotificationItem(n notification.Notification) templ.Component {
 		var templ_7745c5c3_Var52 string
 		templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(notificationTime(n.CreatedAt()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 408, Col: 167}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 412, Col: 167}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 		if templ_7745c5c3_Err != nil {
@@ -1381,7 +1381,7 @@ func NotificationItem(n notification.Notification) templ.Component {
 			var templ_7745c5c3_Var54 string
 			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs("/notifications/" + n.ID().String() + "/read")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 411, Col: 227}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 415, Col: 227}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 			if templ_7745c5c3_Err != nil {
@@ -1394,7 +1394,7 @@ func NotificationItem(n notification.Notification) templ.Component {
 			var templ_7745c5c3_Var55 string
 			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Notifications.MarkRead"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 412, Col: 196}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 416, Col: 196}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 			if templ_7745c5c3_Err != nil {
@@ -1407,7 +1407,7 @@ func NotificationItem(n notification.Notification) templ.Component {
 			var templ_7745c5c3_Var56 string
 			templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Notifications.MarkRead"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 412, Col: 242}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 416, Col: 242}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 			if templ_7745c5c3_Err != nil {
@@ -1463,7 +1463,7 @@ func NotificationDropdown(items []notification.Notification, count int64) templ.
 		var templ_7745c5c3_Var58 string
 		templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Notifications.Title"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 423, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 427, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 		if templ_7745c5c3_Err != nil {
@@ -1481,7 +1481,7 @@ func NotificationDropdown(items []notification.Notification, count int64) templ.
 			var templ_7745c5c3_Var59 string
 			templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Notifications.NewCount", map[string]interface{}{"Count": count}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 425, Col: 127}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 429, Col: 127}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 			if templ_7745c5c3_Err != nil {
@@ -1509,7 +1509,7 @@ func NotificationDropdown(items []notification.Notification, count int64) templ.
 		var templ_7745c5c3_Var60 string
 		templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Notifications.MarkAllRead"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 428, Col: 151}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 432, Col: 151}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 		if templ_7745c5c3_Err != nil {
@@ -1527,7 +1527,7 @@ func NotificationDropdown(items []notification.Notification, count int64) templ.
 			var templ_7745c5c3_Var61 string
 			templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Notifications.Empty"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 433, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 437, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 			if templ_7745c5c3_Err != nil {
@@ -1540,7 +1540,7 @@ func NotificationDropdown(items []notification.Notification, count int64) templ.
 			var templ_7745c5c3_Var62 string
 			templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Notifications.EmptyHint"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 434, Col: 91}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 438, Col: 91}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 			if templ_7745c5c3_Err != nil {
@@ -1573,7 +1573,7 @@ func NotificationDropdown(items []notification.Notification, count int64) templ.
 		var templ_7745c5c3_Var63 string
 		templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Notifications.ViewAll"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 444, Col: 100}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 448, Col: 100}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 		if templ_7745c5c3_Err != nil {
@@ -1591,7 +1591,7 @@ func NotificationDropdown(items []notification.Notification, count int64) templ.
 			var templ_7745c5c3_Var64 string
 			templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Notifications.Configure"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 446, Col: 107}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 450, Col: 107}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
 			if templ_7745c5c3_Err != nil {

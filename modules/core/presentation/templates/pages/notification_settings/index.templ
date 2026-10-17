@@ -107,7 +107,7 @@ templ Index(props *Props) {
 }
 
 templ Content(props *Props) {
-	{{ pageCtx := composables.UsePageCtx(ctx)
+	{{pageCtx := composables.UsePageCtx(ctx)
 lang := pageCtx.GetLocale().String()
 	}}
 	<main id="notification-settings" class="p-4 md:p-8 max-w-4xl mx-auto">

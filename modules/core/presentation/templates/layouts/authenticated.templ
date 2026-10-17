@@ -380,17 +380,21 @@ func notificationTime(t time.Time) string {
 templ NotificationLevelIcon(level notification.Level) {
 	switch level {
 		case notification.LevelSuccess:
-			<span class="mt-0.5 text-emerald-600">@icons.Check(icons.Props{Size: "18"})
-</span>
+			<span class="mt-0.5 text-emerald-600">
+				@icons.Check(icons.Props{Size: "18"})
+			</span>
 		case notification.LevelWarning:
-			<span class="mt-0.5 text-amber-600">@icons.Warning(icons.Props{Size: "18"})
-</span>
+			<span class="mt-0.5 text-amber-600">
+				@icons.Warning(icons.Props{Size: "18"})
+			</span>
 		case notification.LevelError:
-			<span class="mt-0.5 text-red-600">@icons.X(icons.Props{Size: "18"})
-</span>
+			<span class="mt-0.5 text-red-600">
+				@icons.X(icons.Props{Size: "18"})
+			</span>
 		default:
-			<span class="mt-0.5 text-blue-600">@icons.Info(icons.Props{Size: "18"})
-</span>
+			<span class="mt-0.5 text-blue-600">
+				@icons.Info(icons.Props{Size: "18"})
+			</span>
 	}
 }
 
