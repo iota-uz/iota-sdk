@@ -16,22 +16,32 @@ test('business can configure delivery, receive notifications, read them and disa
   return role.id;
  });
  await page.goto('/settings/notifications');
-	const rule = page.locator('form').filter({ has: page.locator('input[name="event_key"][value="core.notification.test.v1"]') });
-	await rule.locator('input[name="enabled"]').check();
-	for (const checkbox of await rule.locator('input[name="user_ids"], input[name="group_ids"], input[name="role_ids"], input[name="recipient_keys"]').all()) {
+	const rule = page.locator('[data-testid="notification-rule"][data-event-key="core.notification.test.v1"]');
+	const clearRecipients = async () => {
+		const remove = rule.getByRole('button', { name: /^Remove / });
+		while (await remove.count()) await remove.first().click();
+	};
+	const addRecipient = async (query: string, option = query) => {
+		await rule.getByRole('combobox').fill(query);
+		await rule.getByRole('option').filter({ hasText: option }).first().click();
+	};
+	await rule.locator('input[name="enabled"]').check({ force: true });
+	await clearRecipients();
+	for (const checkbox of await rule.locator('input[name="recipient_keys"]').all()) {
 		await checkbox.uncheck();
 	}
-	await rule.locator('label').filter({ hasText: 'test@gmail.com' }).locator('input').check();
- await rule.locator(`input[name="group_ids"][value="${groupID}"]`).check();
- await rule.locator(`input[name="role_ids"][value="${roleID}"]`).check();
- await rule.locator('select[name="level"]').selectOption('warning');
- await rule.getByRole('button', { name: 'Save rule', exact: true }).click();
+	await addRecipient('test@gmail.com');
+	await addRecipient(`Notification pilot group ${groupID}`);
+	await addRecipient(`Notification pilot role ${groupID}`);
+	await rule.getByText('How it looks').click();
+	await rule.locator('select[name="level"]').selectOption('warning');
+	await rule.getByRole('button', { name: 'Save', exact: true }).click();
 	await expect(page.getByRole('status')).toContainText('saved');
 	await page.reload();
 	await expect(rule.locator('input[name="enabled"]')).toBeChecked();
-	await expect(rule.locator('label').filter({ hasText: 'test@gmail.com' }).locator('input')).toBeChecked();
- await expect(rule.locator(`input[name="group_ids"][value="${groupID}"]`)).toBeChecked();
- await expect(rule.locator(`input[name="role_ids"][value="${roleID}"]`)).toBeChecked();
+	await expect(rule.locator('input[name="user_ids"]')).toHaveCount(1);
+	await expect(rule.locator(`input[name="group_ids"][value="${groupID}"]`)).toHaveCount(1);
+	await expect(rule.locator(`input[name="role_ids"][value="${roleID}"]`)).toHaveCount(1);
  const inbox = await context.newPage();
 	const secondaryOrigin = process.env.SECONDARY_BASE_URL;
  await inbox.goto(secondaryOrigin ? new URL('/notifications?unread=true', secondaryOrigin).href : '/notifications?unread=true');
@@ -40,7 +50,7 @@ test('business can configure delivery, receive notifications, read them and disa
   await (window as any).htmx.ajax('GET', '/notifications?unread=true', { target: 'body', swap: 'outerHTML', headers: { 'HX-Request': 'false' } });
  });
  const before = await inbox.getByTestId('notification').count();
-	await rule.getByRole('button', { name: 'Send test using saved rule', exact: true }).click();
+	await rule.getByRole('button', { name: 'Send test using saved settings', exact: true }).click();
 	await expect(page.getByRole('status')).toContainText('1');
 	// Every connected tab receives realtime invalidation and the SDK severity toast.
 	await expect(inbox.getByTestId('notification')).toHaveCount(before + 1, { timeout: 30000 });
@@ -55,23 +65,23 @@ test('business can configure delivery, receive notifications, read them and disa
 	await expect(inbox.getByTestId('notification')).toHaveCount(before);
 	await inbox.reload();
 	await expect(inbox.getByTestId('notification')).toHaveCount(before);
- await rule.locator('input[name="user_ids"]:checked').uncheck();
- await rule.locator(`input[name="group_ids"][value="${groupID}"]`).uncheck();
- await rule.getByRole('button', { name: 'Save rule', exact: true }).click();
+ await clearRecipients();
+ await addRecipient(`Notification pilot role ${groupID}`);
+ await rule.getByRole('button', { name: 'Save', exact: true }).click();
  await expect(page.getByRole('status')).toContainText('saved');
- await rule.getByRole('button', { name: 'Send test using saved rule', exact: true }).click();
+ await rule.getByRole('button', { name: 'Send test using saved settings', exact: true }).click();
  await expect(page.getByRole('status')).toContainText('1');
  await expect(inbox.getByTestId('notification')).toHaveCount(before + 1, { timeout: 30000 });
  await withDatabase(async (db) => { await db.query('DELETE FROM group_users WHERE group_id=$1', [groupID]); });
- await rule.getByRole('button', { name: 'Send test using saved rule', exact: true }).click();
+ await rule.getByRole('button', { name: 'Send test using saved settings', exact: true }).click();
  await expect(page.getByRole('status')).toContainText('No notifications');
  await inbox.reload();
  const afterRoleDelivery = await inbox.getByTestId('notification').count();
  expect(afterRoleDelivery).toBe(before + 1);
- await rule.locator('input[name="enabled"]').uncheck();
-	await rule.getByRole('button', { name: 'Save rule', exact: true }).click();
+ await rule.locator('input[name="enabled"]').uncheck({ force: true });
+	await rule.getByRole('button', { name: 'Save', exact: true }).click();
 	await expect(page.getByRole('status')).toContainText('saved');
-	await rule.getByRole('button', { name: 'Send test using saved rule', exact: true }).click();
+	await rule.getByRole('button', { name: 'Send test using saved settings', exact: true }).click();
 	await expect(page.getByRole('status')).toContainText('No notifications');
 	await inbox.reload();
 	await expect(inbox.getByTestId('notification')).toHaveCount(afterRoleDelivery);

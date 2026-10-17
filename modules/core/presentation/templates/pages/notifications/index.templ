@@ -11,12 +11,15 @@ import (
 templ Index(p *Props) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{BaseProps: layouts.BaseProps{Title: pageCtx.T("Notifications.Title")}}) {
-		<div class="max-w-4xl mx-auto p-4 md:p-8">
-			<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
-				<h1 class="text-2xl font-semibold">{ pageCtx.T("Notifications.Title") }</h1>
+		<div class="max-w-3xl mx-auto p-4 md:p-8">
+			<div class="mb-2 flex flex-wrap items-start justify-between gap-3">
+				<div>
+					<h1 class="text-2xl font-semibold">{ pageCtx.T("Notifications.Title") }</h1>
+					<p class="mt-1 text-sm text-200">{ pageCtx.T("Notifications.Intro") }</p>
+				</div>
 				if composables.CanUserStrict(ctx, permissions.NotificationRulesRead) == nil {
 					@button.Secondary(button.Props{Href: "/settings/notifications"}) {
-						{ pageCtx.T("NotificationSettings.Title") }
+						{ pageCtx.T("Notifications.Configure") }
 					}
 				}
 			</div>
@@ -28,51 +31,48 @@ templ Index(p *Props) {
 templ Content(p *Props) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<section id="notification-center" hx-get={ p.URL(p.Cursor) } hx-trigger="notificationsChanged from:body" hx-swap="outerHTML" class="space-y-4" data-testid="notification-center">
-		<div class="flex flex-wrap items-center gap-3">
-			@button.Secondary(button.Props{Href: "/notifications", Class: templ.KV("ring-2 ring-primary", !p.UnreadOnly), Attrs: templ.Attributes{"aria-current": fmt.Sprint(!p.UnreadOnly)}}) {
-				{ pageCtx.T("Notifications.All") }
-			}
-			@button.Secondary(button.Props{Href: "/notifications?unread=true", Class: templ.KV("ring-2 ring-primary", p.UnreadOnly), Attrs: templ.Attributes{"aria-current": fmt.Sprint(p.UnreadOnly)}}) {
-				{ pageCtx.T("Notifications.Unread") } <span>({ fmt.Sprint(p.UnreadCount) })</span>
-			}
+		<div class="flex items-center gap-1 border-b border-secondary">
+			<a href="/notifications" class={ "-mb-px border-b-2 px-3 py-2.5 text-sm font-medium", templ.KV("border-primary text-100", !p.UnreadOnly), templ.KV("border-transparent text-200 hover:text-100", p.UnreadOnly) } aria-current={ fmt.Sprint(!p.UnreadOnly) }>{ pageCtx.T("Notifications.All") }</a>
+			<a href="/notifications?unread=true" class={ "-mb-px border-b-2 px-3 py-2.5 text-sm font-medium", templ.KV("border-primary text-100", p.UnreadOnly), templ.KV("border-transparent text-200 hover:text-100", !p.UnreadOnly) } aria-current={ fmt.Sprint(p.UnreadOnly) }>
+				{ pageCtx.T("Notifications.Unread") } <span class="ml-1 text-xs text-primary">{ fmt.Sprint(p.UnreadCount) }</span>
+			</a>
 			<form method="post" action="/notifications/read-all" hx-post="/notifications/read-all" hx-swap="none" class="ml-auto">
-				@button.Secondary(button.Props{Disabled: p.UnreadCount == 0, Attrs: templ.Attributes{"type": "submit"}}) {
-					{ pageCtx.T("Notifications.MarkAllRead") }
-				}
+				<button type="submit" disabled?={ p.UnreadCount == 0 } class="text-sm text-primary hover:underline disabled:hidden">{ pageCtx.T("Notifications.MarkAllRead") }</button>
 			</form>
 		</div>
 		if len(p.Notifications) == 0 {
-			<p class="rounded-lg border border-secondary p-8 text-center text-200">{ pageCtx.T("Notifications.Empty") }</p>
+			<div class="rounded-lg border border-secondary px-6 py-14 text-center">
+				<p class="font-semibold">{ pageCtx.T("Notifications.Empty") }</p>
+				<p class="mx-auto mt-1 max-w-72 text-sm text-200">{ pageCtx.T("Notifications.EmptyHint") }</p>
+			</div>
 		}
-		<ul class="space-y-3">
+		<ul class="overflow-hidden rounded-lg border border-secondary bg-surface-300 empty:hidden">
 			for _, n := range p.Notifications {
-				<li class={ "rounded-lg border p-4", templ.KV("border-primary bg-surface-400", n.ReadAt() == nil), templ.KV("border-secondary", n.ReadAt() != nil) } data-testid="notification">
-					<div class="flex items-start gap-3">
-						<div class="flex-1 min-w-0">
-							<h2 class="font-semibold break-words">{ n.Title() }</h2>
-							<p class="mt-1 whitespace-pre-wrap break-words text-200">{ n.Body() }</p>
-							<time class="block mt-2 text-xs text-200" datetime={ n.CreatedAt().Format("2006-01-02T15:04:05Z07:00") }>{ n.CreatedAt().Format("02 Jan 2006 15:04") }</time>
-						</div>
-						if n.ReadAt() == nil {
-							<form method="post" action={ templ.URL("/notifications/" + n.ID().String() + "/read") } hx-post={ "/notifications/" + n.ID().String() + "/read" } hx-swap="none">
-								@button.Secondary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "submit"}}) {
-									{ pageCtx.T("Notifications.MarkRead") }
-								}
-							</form>
+				<li class={ "group relative flex gap-3 border-t border-secondary px-5 py-4 first:border-t-0", templ.KV("bg-surface-400/60", n.ReadAt() == nil) } data-testid="notification">
+					@layouts.NotificationLevelIcon(n.Level())
+					<div class="min-w-0 flex-1">
+						<h2 class={ "break-words", templ.KV("font-semibold", n.ReadAt() == nil), templ.KV("font-medium", n.ReadAt() != nil) }>{ n.Title() }</h2>
+						<p class="mt-0.5 whitespace-pre-wrap break-words text-200">{ n.Body() }</p>
+						if safeActionURL(n.ActionURL()) != "" {
+							<a class="mt-1.5 inline-block text-sm text-primary hover:underline" href={ templ.URL(safeActionURL(n.ActionURL())) }>{ pageCtx.T("Notifications.Open") }</a>
 						}
 					</div>
-					if safeActionURL(n.ActionURL()) != "" {
-						<a class="inline-block mt-3 text-primary underline" href={ templ.URL(safeActionURL(n.ActionURL())) }>{ pageCtx.T("Notifications.Open") }</a>
+					<time class="shrink-0 pt-0.5 text-xs text-200" datetime={ n.CreatedAt().Format("2006-01-02T15:04:05Z07:00") }>{ n.CreatedAt().Format("02 Jan 2006 15:04") }</time>
+					if n.ReadAt() == nil {
+						<span class="mt-2 size-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true"></span>
+						<form method="post" action={ templ.URL("/notifications/" + n.ID().String() + "/read") } hx-post={ "/notifications/" + n.ID().String() + "/read" } hx-swap="none" class="shrink-0">
+							<button type="submit" class="rounded-md border border-secondary px-2.5 py-1 text-sm text-200 hover:text-100">{ pageCtx.T("Notifications.MarkRead") }</button>
+						</form>
 					}
 				</li>
 			}
 		</ul>
-		<nav class="flex justify-between" aria-label={ pageCtx.T("Notifications.Pagination") }>
+		<nav class="flex justify-between text-sm" aria-label={ pageCtx.T("Notifications.Pagination") }>
 			if p.Cursor != "" {
-				<a class="text-primary underline" href={ templ.URL(p.URL("")) }>{ pageCtx.T("Notifications.Previous") }</a>
+				<a class="text-primary hover:underline" href={ templ.URL(p.URL("")) }>{ pageCtx.T("Notifications.Previous") }</a>
 			}
 			if p.HasMore {
-				<a class="ml-auto text-primary underline" href={ templ.URL(p.URL(p.NextCursor)) }>{ pageCtx.T("Notifications.Next") }</a>
+				<a class="ml-auto text-primary hover:underline" href={ templ.URL(p.URL(p.NextCursor)) }>{ pageCtx.T("Notifications.Next") }</a>
 			}
 		</nav>
 	</section>

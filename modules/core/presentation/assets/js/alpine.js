@@ -2551,6 +2551,82 @@ let emptyStateCentering = () => ({
 });
 Alpine.data("emptyStateCentering", emptyStateCentering);
 
+// notificationRule powers the recipient picker of a notification rule form:
+// chips for chosen users/groups/roles, a searchable list for the rest, and
+// hidden inputs that keep the posted form fields unchanged.
+let notificationRule = (cfg = {}) => ({
+  initial: cfg.items || [],
+  items: (cfg.items || []).map((i) => ({ ...i })),
+  options: cfg.options || [],
+  manage: cfg.manage !== false,
+  q: "",
+  open: false,
+  hi: 0,
+  dirty: false,
+  get results() {
+    const q = this.q.trim().toLowerCase();
+    const taken = new Set(this.items.map((i) => i.kind + ":" + i.id));
+    const rank = (o) => (o.kind === "user" ? 0 : 1);
+    return this.options
+      .filter((o) => !taken.has(o.kind + ":" + o.id) && (!q || (o.name + " " + (o.hint || "")).toLowerCase().includes(q)))
+      .sort((a, b) => rank(a) - rank(b));
+  },
+  field(kind) {
+    return { user: "user_ids", group: "group_ids", role: "role_ids" }[kind];
+  },
+  label(key) {
+    return this.$root.dataset["label" + key.charAt(0).toUpperCase() + key.slice(1)] || "";
+  },
+  removeLabel(item) {
+    return this.label("remove") + " " + item.name;
+  },
+  add(o) {
+    this.items.push({ ...o });
+    this.q = "";
+    this.hi = 0;
+    this.dirty = true;
+    this.$nextTick(() => this.$refs.input && this.$refs.input.focus());
+  },
+  remove(i) {
+    this.items.splice(i, 1);
+    this.dirty = true;
+  },
+  removeGone() {
+    this.items = this.items.filter((i) => !i.gone);
+    this.dirty = true;
+  },
+  reset(form) {
+    this.items = this.initial.map((i) => ({ ...i }));
+    this.q = "";
+    this.open = false;
+    this.dirty = false;
+    form.reset();
+  },
+  key(e) {
+    const n = this.results.length;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      this.open = true;
+      this.hi = n ? (this.hi + 1) % n : 0;
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      this.hi = n ? (this.hi - 1 + n) % n : 0;
+    } else if (e.key === "Enter") {
+      if (this.open && n) {
+        e.preventDefault();
+        this.add(this.results[this.hi]);
+      } else {
+        e.preventDefault();
+      }
+    } else if (e.key === "Escape") {
+      this.open = false;
+    } else if (e.key === "Backspace" && !this.q && this.items.length) {
+      this.remove(this.items.length - 1);
+    }
+  },
+});
+Alpine.data("notificationRule", notificationRule);
+
 // tableKeyboardNav adds arrow-key row navigation + Enter-to-open for drawer
 // rows. Attached to the TBODY (not the configurable container) to avoid x-data
 // collision with tableConfig. It acts only when focus is on a [data-row-drawer]
