@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
@@ -63,7 +64,7 @@ func (c *NotificationSettingsController) render(w http.ResponseWriter, r *http.R
 	}
 	for _, u := range users {
 		if u.TenantID() == tenant && !u.IsBlocked() && u.Type() == user.TypeUser && u.Status() == user.StatusActive {
-			props.Recipients = append(props.Recipients, settings.Recipient{ID: u.ID(), Name: u.FirstName() + " " + u.LastName() + " (" + u.Email().Value() + ")"})
+			props.Recipients = append(props.Recipients, settings.Recipient{ID: u.ID(), Name: strings.TrimSpace(u.FirstName() + " " + u.LastName()), Hint: u.Email().Value()})
 		}
 	}
 	available := make(map[uint]bool, len(props.Recipients))
