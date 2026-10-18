@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Preserve chart totals, colors and presentation metadata across Lens snapshot cache hits without sharing mutable values."}

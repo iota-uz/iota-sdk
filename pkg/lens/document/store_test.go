@@ -193,3 +193,58 @@ func TestMemoryStore_ContextAndValidation(t *testing.T) {
 func testFrame(value int) Frame {
 	return Frame{Columns: []Column{{Name: "value", Type: ColumnNumber}}, Rows: [][]any{{value}}}
 }
+
+func TestMemoryStoreFrameMetadataIsCloneSafe(t *testing.T) {
+	t.Parallel()
+	for _, operation := range []string{"put", "append", "panel"} {
+		t.Run(operation, func(t *testing.T) {
+			store := NewMemoryStore(time.Hour, 1)
+			total, enabled := 60.0, true
+			original := Frame{
+				Total: &total, Colors: []string{"#123456"},
+				Presentation: &Presentation{
+					Stack: true, Sortable: &enabled, Expandable: &enabled, Exportable: &enabled,
+					LineSeries: []string{"forecast"},
+				},
+			}
+			encoded, err := json.Marshal(original)
+			require.NoError(t, err)
+			var expected Frame
+			require.NoError(t, json.Unmarshal(encoded, &expected))
+			snapshot := &Snapshot{ID: "metadata"}
+			if operation == "put" {
+				snapshot.Frames = map[FrameRef]Frame{"chart": original}
+			}
+			require.NoError(t, store.Put(t.Context(), snapshot))
+			switch operation {
+			case "append":
+				require.NoError(t, store.Append(t.Context(), snapshot.ID, map[FrameRef]Frame{"chart": original}))
+			case "panel":
+				require.NoError(t, store.PutPanel(t.Context(), snapshot.ID, "chart", "chart", original, PanelCalculation{}))
+			}
+			mutate := func(value Frame) {
+				*value.Total = 99
+				value.Colors[0] = "changed"
+				value.Presentation.Stack = false
+				*value.Presentation.Sortable = false
+				*value.Presentation.Expandable = false
+				*value.Presentation.Exportable = false
+				value.Presentation.LineSeries[0] = "changed"
+			}
+			// Falsely green if only values are compared without mutating both sides of the store boundary.
+			mutate(original)
+			loaded, err := store.Get(t.Context(), snapshot.ID)
+			require.NoError(t, err)
+			assertMetadata := func(actual Frame) {
+				require.Equal(t, expected.Total, actual.Total)
+				require.Equal(t, expected.Colors, actual.Colors)
+				require.Equal(t, expected.Presentation, actual.Presentation)
+			}
+			assertMetadata(loaded.Frames["chart"])
+			mutate(loaded.Frames["chart"])
+			again, err := store.Get(t.Context(), snapshot.ID)
+			require.NoError(t, err)
+			assertMetadata(again.Frames["chart"])
+		})
+	}
+}
