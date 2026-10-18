@@ -169,7 +169,7 @@
     "version": "0.24.0",
     "source": "4f9bf13960e3f6db3ca5f7853dd02ea170cfa7b4",
     "sha": "0803923c14de05b9d2e75814a803f5985f309d98",
-    "phase": "testing",
+    "phase": "failed",
     "run_id": "39132813545"
   },
   "ready": {
