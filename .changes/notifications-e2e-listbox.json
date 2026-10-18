@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Fix the notification settings e2e spec to wait for the recipient picker listbox to close instead of counting every option on the page."
+}
