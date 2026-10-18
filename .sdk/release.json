@@ -1,0 +1,18 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Make the notification settings e2e spec close the recipient picker menu by clicking away so it cannot cover the controls below."
+    },
+    {
+      "bump": "patch",
+      "summary": "Fix the notification settings e2e spec so it closes the recipient picker menu before using controls below it."
+    },
+    {
+      "bump": "minor",
+      "summary": "Redesign notification settings and the notification center for non-technical users: one searchable recipient picker for users, groups and roles, a single delivery status line, a calmer bell dropdown and history page, and a fix for the delivery status polling itself in an endless loop."
+    }
+  ],
+  "source": "7acde446367dcbd0c3ff1ffb070448509b3b3e80",
+  "version": "0.24.0"
+}
