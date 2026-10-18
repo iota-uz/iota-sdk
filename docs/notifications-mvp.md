@@ -95,8 +95,9 @@ and retry a stable identity. Queue durability starts once the job commits.
 
 Monitor `failed to persist user-created notifications`,
 `notification delivery batch failed; durable retry scheduled`, and realtime
-publication/subscription logs. Settings expose pending, retrying and completed
-counts plus the latest 25 jobs. Event payloads are not displayed in diagnostics.
+publication/subscription logs. Settings show a single delivery status line:
+everything is being delivered, or how many jobs are retrying with a retry action
+for managers. Event payloads are not displayed in diagnostics.
 
 ## Validation
 

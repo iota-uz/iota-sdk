@@ -1,9 +1,10 @@
 package notification_settings
 
 import (
+	"encoding/json"
 	"github.com/google/uuid"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
-	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
@@ -14,6 +15,7 @@ import (
 type Recipient struct {
 	ID   uint
 	Name string
+	Hint string
 }
 type EventRule struct {
 	Definition        notifications.Definition
@@ -34,6 +36,20 @@ type Props struct {
 	Delivered  int
 }
 
+type pickerItem struct {
+	Kind string `json:"kind"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Hint string `json:"hint,omitempty"`
+	Gone bool   `json:"gone,omitempty"`
+}
+
+type pickerConfig struct {
+	Items   []pickerItem `json:"items"`
+	Options []pickerItem `json:"options"`
+	Manage  bool         `json:"manage"`
+}
+
 func selected[T comparable](ids []T, id T) bool {
 	for _, v := range ids {
 		if v == id {
@@ -41,6 +57,46 @@ func selected[T comparable](ids []T, id T) bool {
 		}
 	}
 	return false
+}
+
+func pickerData(props *Props, e EventRule, unavailable string) string {
+	cfg := pickerConfig{Manage: props.CanManage, Items: []pickerItem{}, Options: []pickerItem{}}
+	for _, r := range props.Recipients {
+		id := strconv.FormatUint(uint64(r.ID), 10)
+		cfg.Options = append(cfg.Options, pickerItem{Kind: "user", ID: id, Name: r.Name, Hint: r.Hint})
+		if selected(e.Rule.UserIDs, r.ID) {
+			cfg.Items = append(cfg.Items, pickerItem{Kind: "user", ID: id, Name: r.Name, Hint: r.Hint})
+		}
+	}
+	for _, g := range props.Groups {
+		cfg.Options = append(cfg.Options, pickerItem{Kind: "group", ID: g.ID.String(), Name: g.Name})
+		if selected(e.Rule.GroupIDs, g.ID) {
+			cfg.Items = append(cfg.Items, pickerItem{Kind: "group", ID: g.ID.String(), Name: g.Name})
+		}
+	}
+	for _, r := range props.Roles {
+		id := strconv.FormatUint(uint64(r.ID), 10)
+		cfg.Options = append(cfg.Options, pickerItem{Kind: "role", ID: id, Name: r.Name})
+		if selected(e.Rule.RoleIDs, r.ID) {
+			cfg.Items = append(cfg.Items, pickerItem{Kind: "role", ID: id, Name: r.Name})
+		}
+	}
+	for _, id := range e.MissingUsers {
+		s := strconv.FormatUint(uint64(id), 10)
+		cfg.Items = append(cfg.Items, pickerItem{Kind: "user", ID: s, Name: unavailable + " " + s, Gone: true})
+	}
+	for _, id := range e.MissingGroups {
+		cfg.Items = append(cfg.Items, pickerItem{Kind: "group", ID: id.String(), Name: unavailable, Gone: true})
+	}
+	for _, id := range e.MissingRoles {
+		s := strconv.FormatUint(uint64(id), 10)
+		cfg.Items = append(cfg.Items, pickerItem{Kind: "role", ID: s, Name: unavailable + " " + s, Gone: true})
+	}
+	b, err := json.Marshal(cfg)
+	if err != nil {
+		return "notificationRule({})"
+	}
+	return "notificationRule(" + string(b) + ")"
 }
 
 templ Index(props *Props) {
@@ -54,114 +110,225 @@ templ Content(props *Props) {
 	{{pageCtx := composables.UsePageCtx(ctx)
 lang := pageCtx.GetLocale().String()
 	}}
-	<main id="notification-settings" class="p-4 md:p-6 space-y-6">
-		@Queue(notifications.DispatchStats{}, nil, props.CanManage)
-		<div><h1 class="text-2xl font-semibold">{ pageCtx.T("NotificationSettings.Title") }</h1><p class="text-sm text-gray-600 mt-2">{ pageCtx.T("NotificationSettings.Intro") }</p></div>
-		if props.MessageKey!="" {
-			<p role="status" class="rounded-lg bg-surface-200 p-4">{ pageCtx.T("NotificationSettings."+props.MessageKey,map[string]interface{}{"Count":props.Delivered}) }</p>
-		}
-		{{ previousModule := "" }}
-		for _,event:=range props.Rules {
-			if event.Definition.Module != previousModule {
-				<h2 class="text-xl font-semibold">{ event.Definition.Module }</h2> {{ previousModule = event.Definition.Module }}
+	<main id="notification-settings" class="p-4 md:p-8 max-w-4xl mx-auto">
+		<header class="mb-2">
+			<h1 class="text-2xl font-semibold">{ pageCtx.T("NotificationSettings.Title") }</h1>
+			<p class="text-sm text-200 mt-1">{ pageCtx.T("NotificationSettings.Intro") }</p>
+			if props.MessageKey != "" {
+				<p role="status" class="text-sm text-200 mt-2">{ pageCtx.T("NotificationSettings."+props.MessageKey, map[string]interface{}{"Count": props.Delivered}) }</p>
 			}
-			@card.Card(card.Props{}) {
-				<form method="post" action="/settings/notifications" hx-post="/settings/notifications" hx-target="#notification-settings" hx-swap="outerHTML" class="p-4 space-y-4">
-					<input type="hidden" name="event_key" value={ event.Definition.Key }/>
-					<h2 class="text-lg font-semibold">{ notifications.Localized(event.Definition.Name,lang) }</h2>
-					<p class="text-sm text-gray-600">{ notifications.Localized(event.Definition.Description,lang) }</p>
-					if event.MissingRecipients > 0 {
-						<p role="status" class="text-sm text-red-600">{ pageCtx.T("NotificationSettings.UnavailableRecipients") }</p>
-					}
-					<p class="text-xs text-200">{ pageCtx.T("NotificationSettings.Channel") }: in_app</p>
-					<label class="block font-medium">
-						{ pageCtx.T("NotificationSettings.Level") }
-						<select name="level" disabled?={ !props.CanManage } class="block mt-1 rounded border border-secondary bg-surface-300 p-2">
-							<option value="" selected?={ event.Rule.Level=="" }>{ pageCtx.T("NotificationSettings.DefaultLevel") } ({ string(event.Definition.DefaultLevel) })</option>
-							for _,level:=range []notification.Level{notification.LevelInfo,notification.LevelSuccess,notification.LevelWarning,notification.LevelError} {
-								<option value={ string(level) } selected?={ event.Rule.Level==level }>{ string(level) }</option>
-							}
-						</select>
+		</header>
+		if !props.CanManage {
+			<p class="text-sm text-200 rounded-lg bg-surface-400 px-4 py-3 mt-4">{ pageCtx.T("NotificationSettings.ReadOnly") }</p>
+		}
+		<section id="notification-queue" class="mt-4 h-5" hx-get="/settings/notifications/queue" hx-trigger="load" hx-swap="outerHTML"></section>
+		{{ previousModule := "" }}
+		for _, event := range props.Rules {
+			if event.Definition.Module != previousModule {
+				<h2 class="text-sm font-medium text-200 mt-8 mb-3">{ event.Definition.Module }</h2>
+				{{ previousModule = event.Definition.Module }}
+			}
+			<form
+				method="post"
+				action="/settings/notifications"
+				hx-post="/settings/notifications"
+				hx-target="#notification-settings"
+				hx-swap="outerHTML"
+				x-data={ pickerData(props, event, pageCtx.T("NotificationSettings.Unavailable")) }
+				data-label-group={ pageCtx.T("NotificationSettings.GroupLabel") }
+				data-label-role={ pageCtx.T("NotificationSettings.RoleLabel") }
+				data-label-people={ pageCtx.T("NotificationSettings.People") }
+				data-label-groups={ pageCtx.T("NotificationSettings.GroupsAndRoles") }
+				data-label-remove={ pageCtx.T("NotificationSettings.Remove") }
+				@change="dirty = true"
+				class="rounded-lg border border-secondary bg-surface-300 mb-3"
+				data-testid="notification-rule"
+				data-event-key={ event.Definition.Key }
+			>
+				<input type="hidden" name="event_key" value={ event.Definition.Key }/>
+				<div class="flex items-start gap-4 p-5">
+					<div class="flex-1 min-w-0">
+						<h3 class="font-semibold">{ notifications.Localized(event.Definition.Name, lang) }</h3>
+						<p class="text-sm text-200 mt-0.5">{ notifications.Localized(event.Definition.Description, lang) }</p>
+					</div>
+					<label class="relative inline-flex shrink-0 cursor-pointer items-center">
+						<input
+							type="checkbox"
+							name="enabled"
+							value="true"
+							class="peer sr-only"
+							aria-label={ pageCtx.T("NotificationSettings.Enabled") }
+							checked?={ event.Rule.Enabled }
+							disabled?={ !props.CanManage }
+						/>
+						<span class="relative h-5 w-9 rounded-full bg-gray-300 transition-colors peer-checked:bg-primary peer-disabled:opacity-50 peer-focus-visible:ring-2 peer-focus-visible:ring-primary after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition-transform after:content-[''] peer-checked:after:translate-x-4"></span>
 					</label>
-					<fieldset disabled?={ !props.CanManage } class="space-y-2">
-						<legend class="font-medium">{ pageCtx.T("NotificationSettings.DynamicRecipients") }</legend>
-						for _,recipient:=range event.Definition.RecipientKeys {
-							<label class="flex items-center gap-2"><input type="checkbox" name="recipient_keys" value={ recipient.Key } checked?={ selected(event.Rule.RecipientKeys,recipient.Key) }/>{ notifications.Localized(recipient.Name,lang) }</label>
+				</div>
+				<div class="mx-5 space-y-6 border-t border-secondary py-5">
+					<div>
+						<label class="font-medium text-sm" for={ "recipients-" + event.Definition.Key }>{ pageCtx.T("NotificationSettings.Recipients") }</label>
+						<div class="relative mt-2" @click.outside="open = false">
+							<div class="flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border border-secondary bg-surface-100 px-2 py-1.5 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+								<template x-for="(item, i) in items" :key="item.kind + item.id">
+									<span
+										class="inline-flex h-7 items-center gap-1.5 rounded-md pl-2.5 pr-1 text-sm"
+										:class="item.gone ? 'border border-dashed border-gray-300 text-200 line-through' : 'bg-surface-400'"
+									>
+										<span x-text="item.name"></span>
+										<span class="text-xs text-200 no-underline" x-show="item.kind !== 'user' && !item.gone" x-text="label(item.kind)"></span>
+										<button
+											type="button"
+											x-show="manage"
+											@click="remove(i)"
+											class="flex size-5 items-center justify-center rounded text-200 hover:bg-surface-500 hover:text-100"
+											:aria-label="removeLabel(item)"
+										>
+											@icons.X(icons.Props{Size: "12"})
+										</button>
+									</span>
+								</template>
+								<template x-for="item in items" :key="'f' + item.kind + item.id">
+									<input type="hidden" :name="field(item.kind)" :value="item.id"/>
+								</template>
+								if props.CanManage {
+									<input
+										id={ "recipients-" + event.Definition.Key }
+										x-ref="input"
+										x-model="q"
+										type="text"
+										autocomplete="off"
+										role="combobox"
+										aria-expanded="false"
+										:aria-expanded="open"
+										placeholder={ pageCtx.T("NotificationSettings.AddRecipient") }
+										class="h-7 min-w-32 flex-1 border-0 bg-transparent px-1 text-sm outline-none placeholder:text-200 focus:ring-0"
+										@focus="open = true"
+										@input="open = true; hi = 0"
+										@keydown="key($event)"
+									/>
+								}
+							</div>
+							<div x-show="open && results.length" x-cloak class="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-secondary bg-surface-300 py-1 shadow-lg" role="listbox">
+								<template x-for="(o, i) in results" :key="o.kind + o.id">
+									<div>
+										<div x-show="i === 0 || (results[i - 1].kind === 'user') !== (o.kind === 'user')" class="px-3 pb-1 pt-2 text-xs font-medium text-200" x-text="label(o.kind === 'user' ? 'people' : 'groups')"></div>
+										<button
+											type="button"
+											role="option"
+											@mousedown.prevent
+											@click="add(o)"
+											@mousemove="hi = i"
+											class="flex w-full flex-col px-3 py-1.5 text-left text-sm"
+											:class="i === hi && 'bg-surface-400'"
+										>
+											<span x-text="o.name"></span>
+											<span class="text-xs text-200" x-show="o.hint" x-text="o.hint"></span>
+										</button>
+									</div>
+								</template>
+							</div>
+							<p x-show="open && q && !results.length" x-cloak class="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-secondary bg-surface-300 px-3 py-3 text-sm text-200 shadow-lg">{ pageCtx.T("NotificationSettings.NothingFound") }</p>
+						</div>
+						<p class="mt-2 text-sm text-200">{ pageCtx.T("NotificationSettings.AudienceHint") }</p>
+						if event.MissingRecipients > 0 {
+							<p class="mt-2 flex flex-wrap items-center gap-2 text-sm text-red-600">
+								{ pageCtx.T("NotificationSettings.UnavailableRecipients") }
+								if props.CanManage {
+									<button type="button" class="text-primary underline" @click="removeGone()">{ pageCtx.T("NotificationSettings.RemoveUnavailable") }</button>
+								}
+							</p>
 						}
-						for _,key:=range event.MissingKeys {
-							<label class="flex items-center gap-2 text-red-600"><input type="checkbox" name="recipient_keys" value={ key } checked/>{ pageCtx.T("NotificationSettings.Unavailable") }: { key }</label>
-						}
-					</fieldset>
-					<label class="flex items-center gap-2"><input type="checkbox" name="enabled" value="true" checked?={ event.Rule.Enabled } disabled?={ !props.CanManage }/>{ pageCtx.T("NotificationSettings.Enabled") }</label>
-					<fieldset disabled?={ !props.CanManage } class="space-y-2">
-						<legend class="font-medium mb-2">{ pageCtx.T("NotificationSettings.Recipients") }</legend>
-						<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-							for _,id:=range event.MissingUsers {
-								<label class="flex items-center gap-2 text-red-600"><input type="checkbox" name="user_ids" value={ strconv.FormatUint(uint64(id), 10) } checked/>{ pageCtx.T("NotificationSettings.Unavailable") }: { strconv.FormatUint(uint64(id),10) }</label>
-							}
-							for _,recipient:=range props.Recipients {
-								<label class="flex items-center gap-2"><input type="checkbox" name="user_ids" value={ strconv.FormatUint(uint64(recipient.ID), 10) } checked?={ selected(event.Rule.UserIDs,recipient.ID) }/>{ recipient.Name }</label>
-							}
-						</div>
-					</fieldset>
-					<fieldset disabled?={ !props.CanManage } class="space-y-2">
-						<legend class="font-medium mb-2">{ pageCtx.T("NotificationSettings.Groups") }</legend>
-						<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-							for _,id:=range event.MissingGroups {
-								<label class="flex items-center gap-2 text-red-600"><input type="checkbox" name="group_ids" value={ id.String() } checked/>{ pageCtx.T("NotificationSettings.Unavailable") }: { id.String() }</label>
-							}
-							for _,group:=range props.Groups {
-								<label class="flex items-center gap-2"><input type="checkbox" name="group_ids" value={ group.ID.String() } checked?={ selected(event.Rule.GroupIDs,group.ID) }/>{ group.Name }</label>
-							}
-						</div>
-					</fieldset>
-					<fieldset disabled?={ !props.CanManage } class="space-y-2">
-						<legend class="font-medium mb-2">{ pageCtx.T("NotificationSettings.Roles") }</legend>
-						<p class="text-sm text-gray-600">{ pageCtx.T("NotificationSettings.AudienceHint") }</p>
-						<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-							for _,id:=range event.MissingRoles {
-								<label class="flex items-center gap-2 text-red-600"><input type="checkbox" name="role_ids" value={ strconv.FormatUint(uint64(id), 10) } checked/>{ pageCtx.T("NotificationSettings.Unavailable") }: { strconv.FormatUint(uint64(id),10) }</label>
-							}
-							for _,role:=range props.Roles {
-								<label class="flex items-center gap-2"><input type="checkbox" name="role_ids" value={ strconv.FormatUint(uint64(role.ID), 10) } checked?={ selected(event.Rule.RoleIDs,role.ID) }/>{ role.Name }</label>
-							}
-						</div>
-					</fieldset>
-					if props.CanManage {
-						<div class="flex flex-wrap gap-3">
-							@button.Primary(button.Props{Attrs: templ.Attributes{"type": "submit"}}) {
-								{ pageCtx.T("NotificationSettings.Save") }
-							}
-							if event.Definition.Key==notifications.TestEventKey {
-								@button.Secondary(button.Props{Attrs: templ.Attributes{"type": "submit", "formaction": "/settings/notifications/test", "hx-post": "/settings/notifications/test"}}) {
+					</div>
+					if len(event.Definition.RecipientKeys) > 0 || len(event.MissingKeys) > 0 {
+						<fieldset disabled?={ !props.CanManage }>
+							<legend class="font-medium text-sm">{ pageCtx.T("NotificationSettings.DynamicRecipients") }</legend>
+							<div class="mt-2 space-y-2">
+								for _, recipient := range event.Definition.RecipientKeys {
+									<label class="flex items-center gap-2 text-sm">
+										<input type="checkbox" name="recipient_keys" value={ recipient.Key } checked?={ selected(event.Rule.RecipientKeys, recipient.Key) }/>
+										{ notifications.Localized(recipient.Name, lang) }
+									</label>
+								}
+								for _, key := range event.MissingKeys {
+									<label class="flex items-center gap-2 text-sm text-red-600">
+										<input type="checkbox" name="recipient_keys" value={ key } checked/>
+										{ pageCtx.T("NotificationSettings.Unavailable") }: { key }
+									</label>
+								}
+							</div>
+						</fieldset>
+					}
+					<details class="group text-sm">
+						<summary class="flex cursor-pointer list-none items-center gap-1.5 text-200 hover:text-100">
+							<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-open:rotate-90" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+							{ pageCtx.T("NotificationSettings.Appearance") }
+						</summary>
+						<label class="mt-3 block font-medium">
+							{ pageCtx.T("NotificationSettings.Level") }
+							<select name="level" disabled?={ !props.CanManage } class="mt-1 block rounded-lg border border-secondary bg-surface-300 p-2 font-normal">
+								<option value="" selected?={ event.Rule.Level == "" }>{ pageCtx.T("NotificationSettings.DefaultLevel") } ({ pageCtx.T("NotificationSettings.Level" + levelKey(event.Definition.DefaultLevel)) })</option>
+								for _, level := range []notification.Level{notification.LevelInfo, notification.LevelSuccess, notification.LevelWarning, notification.LevelError} {
+									<option value={ string(level) } selected?={ event.Rule.Level == level }>{ pageCtx.T("NotificationSettings.Level" + levelKey(level)) }</option>
+								}
+							</select>
+						</label>
+					</details>
+				</div>
+				if props.CanManage {
+					<div class="flex flex-wrap items-center gap-3 border-t border-secondary px-5 py-3">
+						<span x-show="dirty" x-cloak class="mr-auto text-sm text-200">{ pageCtx.T("NotificationSettings.Unsaved") }</span>
+						if event.Definition.Key == notifications.TestEventKey {
+							<span x-show="!dirty" class="mr-auto"></span>
+							<span x-show="!dirty">
+								@button.Secondary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "submit", "formaction": "/settings/notifications/test", "hx-post": "/settings/notifications/test"}}) {
 									{ pageCtx.T("NotificationSettings.SendTest") }
 								}
+							</span>
+						}
+						<button type="button" x-show="dirty" x-cloak class="text-sm text-200 hover:text-100" @click="reset($el.form)">{ pageCtx.T("NotificationSettings.Cancel") }</button>
+						<span x-show="dirty" x-cloak>
+							@button.Primary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "submit"}}) {
+								{ pageCtx.T("NotificationSettings.Save") }
 							}
-						</div>
-					}
-				</form>
-			}
+						</span>
+					</div>
+				}
+			</form>
 		}
 	</main>
 }
 
+func levelKey(l notification.Level) string {
+	switch l {
+	case notification.LevelSuccess:
+		return "Success"
+	case notification.LevelWarning:
+		return "Warning"
+	case notification.LevelError:
+		return "Error"
+	default:
+		return "Info"
+	}
+}
+
 templ Queue(stats notifications.DispatchStats, jobs []notifications.DispatchSummary, canManage bool) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<section id="notification-queue" class="rounded-lg border border-secondary p-4 space-y-3" hx-get="/settings/notifications/queue" hx-trigger="load, every 10s" hx-swap="outerHTML">
-		<h2 class="text-lg font-semibold">{ pageCtx.T("NotificationSettings.Queue") }</h2>
-		<p>{ pageCtx.T("NotificationSettings.Pending") }: { strconv.FormatInt(stats.Pending,10) } · { pageCtx.T("NotificationSettings.Retrying") }: { strconv.FormatInt(stats.Retrying,10) } · { pageCtx.T("NotificationSettings.Completed") }: { strconv.FormatInt(stats.Completed,10) }</p>
-		<ul class="space-y-2">
-			for _,job:=range jobs {
-				<li class="text-sm flex flex-wrap items-center gap-3">
-					<span>{ job.EventKey }: { strconv.Itoa(job.Processed) }/{ strconv.Itoa(job.Total) }</span>
-					if job.LastError!="" {
-						<span class="text-red-600">{ pageCtx.T("NotificationSettings.Retrying") }</span>
-						if canManage {
-							<form method="post" action={ templ.URL("/settings/notifications/queue/" + job.ID.String() + "/retry") } hx-post={ "/settings/notifications/queue/" + job.ID.String() + "/retry" } hx-target="#notification-queue" hx-swap="outerHTML"><button type="submit" class="text-primary underline">{ pageCtx.T("NotificationSettings.Retry") }</button></form>
-						}
+	<section id="notification-queue" class="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-200" hx-get="/settings/notifications/queue" hx-trigger="every 10s" hx-swap="outerHTML">
+		if stats.Retrying > 0 {
+			<span class="size-1.5 rounded-full bg-amber-500"></span>
+			<span>{ pageCtx.T("NotificationSettings.DeliveryIssues", map[string]interface{}{"Count": stats.Retrying}) }</span>
+			if canManage {
+				for _, job := range jobs {
+					if job.LastError != "" {
+						<form class="inline" method="post" action={ templ.URL("/settings/notifications/queue/" + job.ID.String() + "/retry") } hx-post={ "/settings/notifications/queue/" + job.ID.String() + "/retry" } hx-target="#notification-queue" hx-swap="outerHTML">
+							<button type="submit" class="text-primary hover:underline">{ pageCtx.T("NotificationSettings.Retry") }</button>
+						</form>
 					}
-				</li>
+				}
 			}
-		</ul>
+		} else {
+			<span class="size-1.5 rounded-full bg-emerald-500"></span>
+			<span>{ pageCtx.T("NotificationSettings.AllDelivered") }</span>
+		}
 	</section>
 }

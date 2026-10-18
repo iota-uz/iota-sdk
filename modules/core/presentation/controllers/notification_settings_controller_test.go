@@ -142,7 +142,8 @@ func TestNotificationSettings_ShowsUnavailableRecipients(t *testing.T) {
 	c.Index(response, req.WithContext(ctx), service)
 	require.Equal(t, http.StatusOK, response.Code)
 	require.Contains(t, response.Body.String(), "NotificationSettings.UnavailableRecipients")
-	require.Contains(t, response.Body.String(), `name="user_ids" value="999" checked`)
+	require.Contains(t, response.Body.String(), `&#34;id&#34;:&#34;999&#34;`)
+	require.Contains(t, response.Body.String(), `&#34;gone&#34;:true`)
 }
 
 type settingsAudienceRepo struct{}
