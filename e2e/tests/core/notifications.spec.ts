@@ -20,8 +20,9 @@ test('business can configure delivery, receive notifications, read them and disa
 	const clearRecipients = async () => {
 		const remove = rule.getByRole('button', { name: /^Remove / });
 		while (await remove.count()) await remove.first().click();
-		// The menu stays open for adding several recipients; close it so it cannot cover the controls below.
-		await rule.getByRole('combobox').press('Escape');
+		// The menu stays open for adding several recipients; click away to close it so it cannot cover the controls below.
+		await rule.locator('h3').click();
+		await expect(rule.getByRole('option')).toHaveCount(0);
 	};
 	const addRecipient = async (query: string, option = query) => {
 		await rule.getByRole('combobox').fill(query);
