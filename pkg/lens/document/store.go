@@ -240,7 +240,23 @@ func cloneSnapshot(snapshot *Snapshot) *Snapshot {
 }
 
 func cloneFrame(frame Frame) Frame {
-	result := Frame{Columns: append([]Column(nil), frame.Columns...), Rows: make([][]any, len(frame.Rows)), Children: cloneNodes(frame.Children)}
+	result := frame
+	result.Columns = slices.Clone(frame.Columns)
+	result.Rows = make([][]any, len(frame.Rows))
+	result.Children = cloneNodes(frame.Children)
+	result.Colors = slices.Clone(frame.Colors)
+	if frame.Total != nil {
+		total := *frame.Total
+		result.Total = &total
+	}
+	if frame.Presentation != nil {
+		presentation := *frame.Presentation
+		presentation.Sortable = cloneBool(presentation.Sortable)
+		presentation.Expandable = cloneBool(presentation.Expandable)
+		presentation.Exportable = cloneBool(presentation.Exportable)
+		presentation.LineSeries = slices.Clone(presentation.LineSeries)
+		result.Presentation = &presentation
+	}
 	for rowIndex, row := range frame.Rows {
 		result.Rows[rowIndex] = make([]any, len(row))
 		for columnIndex, value := range row {
