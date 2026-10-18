@@ -167,10 +167,10 @@
   ],
   "candidate": {
     "version": "0.24.0",
-    "source": "74d1214ce3008881ffb1b9ee46ba5a4d0090de3f",
-    "sha": "b8a7d4fa29116d1401eecd873ae7c0d59728b675",
-    "phase": "failed",
-    "run_id": "39134354996"
+    "source": "7acde446367dcbd0c3ff1ffb070448509b3b3e80",
+    "sha": "81a4fa694f083e99d91c3450cf30f63611e655dd",
+    "phase": "testing",
+    "run_id": "39135761293"
   },
   "ready": {
     "version": "0.23.2",
