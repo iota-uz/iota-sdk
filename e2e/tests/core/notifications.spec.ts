@@ -26,7 +26,7 @@ test('business can configure delivery, receive notifications, read them and disa
 		await rule.getByRole('option').filter({ hasText: option }).first().click();
 		// The menu stays open for adding several recipients; click away to close it so it cannot cover the controls below.
 		await rule.locator('h3').click();
-		await expect(rule.getByRole('option')).toHaveCount(0);
+		await expect(rule.getByRole('listbox')).toHaveCount(0);
 	};
 	await rule.locator('input[name="enabled"]').check({ force: true });
 	await clearRecipients();
