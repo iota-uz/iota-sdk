@@ -687,7 +687,7 @@ func TestReportCache_PreparationOwnsProducerControlsBeforeMutation(t *testing.T)
 	key, definition := reportFixture(t)
 	cache := newReportCache(t, ReportCacheOptions[string]{})
 	definition.Options.Header = &document.DocumentHeader{Title: "producer"}
-	definition.Options.Filters = []document.Filter{{ID: "product", Kind: document.FilterKindFacet, Facet: &document.FacetFilter{Dimension: "product", OptionsEndpoint: "/options", Selections: []document.FacetSelection{{Label: "producer"}}}}}
+	definition.Options.Filters = []document.Filter{{ID: "product", Kind: document.FilterKindFacet, Facet: &document.FacetFilter{Dimension: "product", OptionsEndpoint: "/options", Selections: []document.FacetSelection{{Label: "producer", RemoveURL: "/remove"}}}}}
 	definition.Options.Theme = document.Theme{Palette: map[string]string{"brand": "producer"}}
 	definition.Prepare = func(doc *document.DashboardDocument) error {
 		if doc.Header.Title != "producer" || doc.Filters[0].Facet.Selections[0].Label != "producer" || doc.I18n["owned"] != "base" || doc.Theme.Palette["brand"] != "producer" {
