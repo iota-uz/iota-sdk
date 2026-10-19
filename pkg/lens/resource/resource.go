@@ -183,6 +183,12 @@ func (e *estimator) walk(v reflect.Value, depth int) error {
 				}
 				continue
 			}
+			if f.PkgPath != "" && v.Field(i).IsZero() {
+				if err := e.add(32); err != nil {
+					return err
+				}
+				continue
+			}
 			if f.PkgPath != "" {
 				return fmt.Errorf("unsupported lens value with private fields: %s", v.Type())
 			}
