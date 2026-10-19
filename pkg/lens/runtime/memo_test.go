@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"context"
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -101,4 +103,19 @@ func TestMemoizeJSONCoalescedColdCallersAreIndependent(t *testing.T) {
 	require.EqualValues(t, 1, calls.Load())
 	one.Values[0] = 99
 	require.Equal(t, []int{1, 2}, two.Values)
+}
+
+type hostileMemoInput struct{}
+
+func (hostileMemoInput) MarshalJSON() ([]byte, error) { panic("identity encoder must not run") }
+func TestMemoIdentityRejectsUnsafeAndLargeInputs(t *testing.T) {
+	// Validating only computed output leaves the identity encoder as an allocation bypass.
+	runtime := New(Options{})
+	_, err := memoIdentity(runtime, MemoRequest{Namespace: "safe", DataScope: "tenant", Input: hostileMemoInput{}})
+	require.Error(t, err)
+	_, err = memoIdentity(runtime, MemoRequest{Namespace: "safe", DataScope: "tenant", Input: strings.Repeat("x", 64000)})
+	require.ErrorIs(t, err, resource.ErrLimit)
+	status, ok := resource.StatusCode(err)
+	require.True(t, ok)
+	require.Equal(t, 413, status)
 }
