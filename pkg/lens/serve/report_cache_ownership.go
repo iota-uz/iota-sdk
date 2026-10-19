@@ -14,7 +14,7 @@ import (
 )
 
 func ownReportSpec(source lens.DashboardSpec, limit int64) (lens.DashboardSpec, int64, error) {
-	size, err := resource.Estimate(source, limit)
+	_, err := resource.EstimateJSON(source, limit)
 	if err != nil {
 		return lens.DashboardSpec{}, 0, err
 	}
@@ -22,7 +22,12 @@ func ownReportSpec(source lens.DashboardSpec, limit int64) (lens.DashboardSpec, 
 	if err != nil {
 		return lens.DashboardSpec{}, 0, err
 	}
-	return cloned.Interface().(lens.DashboardSpec), size, nil
+	owned := cloned.Interface().(lens.DashboardSpec)
+	size, err := resource.Estimate(owned, limit)
+	if err != nil {
+		return lens.DashboardSpec{}, 0, err
+	}
+	return owned, size, nil
 }
 
 // OwnReportDatasets preflights and deeply owns producer datasets while
@@ -41,10 +46,9 @@ func cloneSpecValue(value reflect.Value) (reflect.Value, error) {
 		return value, nil
 	}
 	if value.Type() == reflect.TypeFor[chrome.Icon]() {
-		if value.Interface().(chrome.Icon).Empty() {
-			return value, nil
-		}
-		return reflect.Value{}, fmt.Errorf("cached reports cannot retain renderer icon callbacks")
+		// React wire documents do not render host templ components. Do not
+		// retain their opaque callback captures inside a report registration.
+		return reflect.Zero(value.Type()), nil
 	}
 	if value.Type() == reflect.TypeFor[frame.Frame]() {
 		original := value.Interface().(frame.Frame)
@@ -137,7 +141,7 @@ type derivedBuildOwnership struct {
 	children      map[string]*derivedChildReceipt
 	closed        bool
 	maxChildren   int
-	acquireParent func() (func(), error)
+	acquireParent func(context.Context) (func(), error)
 	sessions      *SessionRegistry
 	dataScope     string
 }

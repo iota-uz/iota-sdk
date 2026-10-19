@@ -3,6 +3,9 @@ package serve
 import (
 	"context"
 	"fmt"
+	"github.com/a-h/templ"
+	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -606,4 +609,73 @@ func TestReportCache_FailedDerivedBuilderReleasesUnusedOwnedChildren(t *testing.
 	require.Equal(t, baseline, cache.opts.Budget.Used())
 	_, err = definition.Config.Snapshots.Get(context.Background(), childID)
 	require.ErrorIs(t, err, document.ErrSnapshotGone)
+}
+
+func TestReportCache_StaleLookupMissRechecksBeforeProducer(t *testing.T) {
+	t.Parallel()
+	key, definition := reportFixture(t)
+	cache := newReportCache(t, ReportCacheOptions[string]{})
+	var calls atomic.Int32
+	build := func(context.Context) (ReportDefinition[string], error) { calls.Add(1); return definition, nil }
+	first, err := cache.Materialize(context.Background(), key, build)
+	require.NoError(t, err)
+	defer first.Release()
+	canonical, err := key.canonical()
+	require.NoError(t, err)
+	// Model a request that observed a miss before the first flight published,
+	// but entered its own coordinator after that flight had already completed.
+	flight := &reportFlight[string]{done: make(chan struct{}), cancel: func() {}}
+	cache.run(context.Background(), canonical, key, flight, build)
+	<-flight.done
+	require.NoError(t, flight.err)
+	require.EqualValues(t, 1, calls.Load())
+	require.Equal(t, first.Document.SnapshotID, flight.entry.snapshotID)
+	cache.mu.Lock()
+	entries := cache.lru.Len()
+	cache.mu.Unlock()
+	require.Equal(t, 1, entries)
+}
+
+func TestReportCache_ChildCannotOutliveExpiredParentSnapshot(t *testing.T) {
+	t.Parallel()
+	key, definition := reportFixture(t)
+	cache := newReportCache(t, ReportCacheOptions[string]{})
+	build := func(context.Context) (ReportDefinition[string], error) { return definition, nil }
+	parent, err := cache.Materialize(context.Background(), key, build)
+	require.NoError(t, err)
+	childKey := key
+	childKey.Params = "child"
+	child, err := cache.MaterializeDerived(context.Background(), parent.Document.SnapshotID, "parent-expiry", DerivedSurfaceInteractive, func(ctx context.Context) (*document.DashboardDocument, error) {
+		view, err := cache.Materialize(ctx, childKey, build)
+		if err != nil {
+			return nil, err
+		}
+		defer view.Release()
+		return view.Document, nil
+	})
+	require.NoError(t, err)
+	parentID := parent.Document.SnapshotID
+	parent.Release()
+	require.NoError(t, definition.Config.Snapshots.(document.SnapshotDeleter).Delete(context.Background(), parentID))
+	_, err = cache.LookupSnapshotRegistration(context.Background(), child.SnapshotID)
+	require.ErrorIs(t, err, document.ErrSnapshotGone)
+	require.Zero(t, cache.opts.Budget.Used())
+}
+
+func TestReportCache_ProjectsRendererIconCallbacksOutOfOwnedSpec(t *testing.T) {
+	t.Parallel()
+	key, definition := reportFixture(t)
+	cache := newReportCache(t, ReportCacheOptions[string]{})
+	var renders atomic.Int32
+	definition.Config.Spec.Rows[0].Panels[0].Chrome.Icon = chrome.Component(templ.ComponentFunc(func(context.Context, io.Writer) error { renders.Add(1); return nil }))
+	definition.Config.Spec.Rows[0].Panels[0].Chrome.AccentColor = "blue"
+	view, err := cache.Materialize(context.Background(), key, func(context.Context) (ReportDefinition[string], error) { return definition, nil })
+	require.NoError(t, err)
+	defer view.Release()
+	owned, err := view.Spec()
+	require.NoError(t, err)
+	require.Zero(t, renders.Load())
+	require.True(t, owned.Rows[0].Panels[0].Chrome.Icon.Empty())
+	require.Equal(t, "blue", owned.Rows[0].Panels[0].Chrome.AccentColor)
+	require.False(t, definition.Config.Spec.Rows[0].Panels[0].Chrome.Icon.Empty())
 }

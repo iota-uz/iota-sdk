@@ -21,7 +21,7 @@ not escape into unrelated asynchronous work.
 `ReportDefinition` supplies serve Config, runtime Request, document BuildOptions,
 an optional one-time Prepare callback and typed host State. Specifications are
 structurally checked, deeply owned and accounted alongside wire bytes and keys.
-Renderer icon callbacks cannot be retained by this cache; empty icons are allowed.
+Renderer-only templ icon callbacks are projected out by this cache; React wire\ndocuments do not render them. Accent colors and wire presentation remain intact.
 Handlers.BuildDocument provides typed construction without an internal HTTP/JSON
 round trip. Ordinary HTTP document endpoints use the same build path.
 
