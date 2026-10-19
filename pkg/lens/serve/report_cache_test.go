@@ -225,3 +225,385 @@ func TestHandlers_DocumentResourceRejectionIsActionable(t *testing.T) {
 	require.Equal(t, http.StatusRequestEntityTooLarge, response.Code, response.Body.String())
 	require.Contains(t, response.Body.String(), "resource_exhausted")
 }
+
+func TestReportCache_RepeatedSameSnapshotRetainsConstantPayload(t *testing.T) {
+	t.Parallel()
+	// Reusing one exact identity is essential: unique keys never exercise mutation reuse.
+	key, definition := reportFixture(t)
+	cache := newReportCache(t, ReportCacheOptions[string]{})
+	var calls atomic.Int32
+	build := func(context.Context) (ReportDefinition[string], error) { calls.Add(1); return definition, nil }
+	var snapshot string
+	var retained int64
+	for i := 0; i < 64; i++ {
+		view, err := cache.Materialize(context.Background(), key, build)
+		require.NoError(t, err)
+		if i == 0 {
+			snapshot = view.Document.SnapshotID
+			retained = cache.Stats().RetainedBytes
+		}
+		require.Equal(t, snapshot, view.Document.SnapshotID)
+		require.Equal(t, retained, cache.Stats().RetainedBytes)
+		require.Equal(t, "base", view.Document.I18n["owned"])
+		view.Document.I18n["owned"] = "mutated"
+		view.Document.Layout.Rows[0].Panels[0].Groups = append(view.Document.Layout.Rows[0].Panels[0].Groups, document.LayoutGroup{ID: "growth"})
+		view.Release()
+	}
+	require.EqualValues(t, 1, calls.Load())
+	cache.Close()
+	require.Zero(t, cache.opts.Budget.Used())
+}
+
+func TestReportCache_DerivedWireOnlyOwnsSourceAndBackedChildExpires(t *testing.T) {
+	t.Parallel()
+	key, definition := reportFixture(t)
+	cache := newReportCache(t, ReportCacheOptions[string]{})
+	parent, err := cache.Materialize(context.Background(), key, func(context.Context) (ReportDefinition[string], error) { return definition, nil })
+	require.NoError(t, err)
+	defer parent.Release()
+	source := &document.DashboardDocument{SnapshotID: "wire-only", I18n: map[string]string{"owned": "base"}}
+	var wireCalls atomic.Int32
+	buildWire := func(context.Context) (*document.DashboardDocument, error) { wireCalls.Add(1); return source, nil }
+	first, err := cache.MaterializeDerived(context.Background(), parent.Document.SnapshotID, "wire", DerivedSurfaceInteractive, buildWire)
+	require.NoError(t, err)
+	source.I18n["owned"] = "producer"
+	first.I18n["owned"] = "reader"
+	again, err := cache.MaterializeDerived(context.Background(), parent.Document.SnapshotID, "wire", DerivedSurfaceInteractive, buildWire)
+	require.NoError(t, err)
+	require.Equal(t, "base", again.I18n["owned"])
+	require.EqualValues(t, 1, wireCalls.Load())
+	var backedCalls atomic.Int32
+	buildBacked := func(ctx context.Context) (*document.DashboardDocument, error) {
+		id := fmt.Sprint("backed-", backedCalls.Add(1))
+		err := definition.Config.Snapshots.Put(ctx, &document.Snapshot{ID: id})
+		return &document.DashboardDocument{SnapshotID: id}, err
+	}
+	backed, err := cache.MaterializeDerived(context.Background(), parent.Document.SnapshotID, "backed", DerivedSurfaceInteractive, buildBacked)
+	require.NoError(t, err)
+	require.NoError(t, definition.Config.Snapshots.(document.SnapshotDeleter).Delete(context.Background(), backed.SnapshotID))
+	rebuilt, err := cache.MaterializeDerived(context.Background(), parent.Document.SnapshotID, "backed", DerivedSurfaceInteractive, buildBacked)
+	require.NoError(t, err)
+	require.NotEqual(t, backed.SnapshotID, rebuilt.SnapshotID)
+	require.EqualValues(t, 2, backedCalls.Load())
+}
+
+func TestReportCache_ParentScopedChildrenSurviveChildLRUEvictionAndLeasedClose(t *testing.T) {
+	t.Parallel()
+	key, definition := reportFixture(t)
+	cache := newReportCache(t, ReportCacheOptions[string]{})
+	build := func(context.Context) (ReportDefinition[string], error) { return definition, nil }
+	parentOne, err := cache.Materialize(context.Background(), key, build)
+	require.NoError(t, err)
+	key.Params = "parent-two"
+	parentTwo, err := cache.Materialize(context.Background(), key, build)
+	require.NoError(t, err)
+	childKey := key
+	childKey.Params = "same-child"
+	childBuilder := func(ctx context.Context) (*document.DashboardDocument, error) {
+		child, err := cache.Materialize(ctx, childKey, build)
+		if err != nil {
+			return nil, err
+		}
+		// Force the exact return/adoption gap: the owner must already pin the child.
+		cache.mu.Lock()
+		entry := cache.bySnapshot[child.Document.SnapshotID]
+		cache.mu.Unlock()
+		cache.evict(entry)
+		child.Release()
+		return child.Document, nil
+	}
+	first, err := cache.MaterializeDerived(context.Background(), parentOne.Document.SnapshotID, "child", DerivedSurfaceInteractive, childBuilder)
+	require.NoError(t, err)
+	second, err := cache.MaterializeDerived(context.Background(), parentTwo.Document.SnapshotID, "child", DerivedSurfaceInteractive, childBuilder)
+	require.NoError(t, err)
+	require.NotEqual(t, first.SnapshotID, second.SnapshotID)
+	firstLease, err := cache.LookupSnapshotRegistration(context.Background(), first.SnapshotID)
+	require.NoError(t, err)
+	firstLease.Release()
+	cache.mu.Lock()
+	one := cache.bySnapshot[parentOne.Document.SnapshotID]
+	cache.mu.Unlock()
+	cache.evict(one)
+	parentOne.Release()
+	_, err = definition.Config.Snapshots.Get(context.Background(), first.SnapshotID)
+	require.ErrorIs(t, err, document.ErrSnapshotGone)
+	secondLease, err := cache.LookupSnapshotRegistration(context.Background(), second.SnapshotID)
+	require.NoError(t, err)
+	parentTwo.Release()
+	cache.Close()
+	_, err = definition.Config.Snapshots.Get(context.Background(), second.SnapshotID)
+	require.NoError(t, err)
+	_, err = definition.Config.Snapshots.Get(context.Background(), parentTwo.Document.SnapshotID)
+	require.NoError(t, err)
+	secondLease.Release()
+	require.Zero(t, cache.opts.Budget.Used())
+	_, err = definition.Config.Snapshots.Get(context.Background(), second.SnapshotID)
+	require.ErrorIs(t, err, document.ErrSnapshotGone)
+}
+
+func TestReportCache_CancelledDerivedRetainsAdmissionUntilActualCallbackExit(t *testing.T) {
+	t.Parallel()
+	key, definition := reportFixture(t)
+	var cleaned atomic.Int32
+	limiter := NewReportBuildLimiter(1, 0)
+	cache := newReportCache(t, ReportCacheOptions[string]{BuildLimiter: limiter, OnEvict: func(string) { cleaned.Add(1) }})
+	parent, err := cache.Materialize(context.Background(), key, func(context.Context) (ReportDefinition[string], error) { return definition, nil })
+	require.NoError(t, err)
+	entered, exit, callbackExited := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := cache.MaterializeDerived(ctx, parent.Document.SnapshotID, "slow", DerivedSurfaceInteractive, func(ctx context.Context) (*document.DashboardDocument, error) {
+			close(entered)
+			<-exit
+			defer close(callbackExited)
+			return nil, ctx.Err()
+		})
+		done <- err
+	}()
+	<-entered
+	cancel()
+	require.ErrorIs(t, <-done, context.Canceled)
+	parent.Release()
+	cache.Close()
+	limiter.mu.Lock()
+	admitted := limiter.admitted
+	limiter.mu.Unlock()
+	require.Equal(t, 1, admitted)
+	require.Zero(t, cleaned.Load())
+	require.Positive(t, cache.opts.Budget.Used())
+	close(exit)
+	<-callbackExited
+	require.Eventually(t, func() bool { return cleaned.Load() == 1 && cache.opts.Budget.Used() == 0 }, time.Second, time.Millisecond)
+	limiter.mu.Lock()
+	admitted = limiter.admitted
+	limiter.mu.Unlock()
+	require.Zero(t, admitted)
+}
+
+func TestReportCache_SharedLimiterSupportsNestedCrossCacheTypes(t *testing.T) {
+	t.Parallel()
+	key, definition := reportFixture(t)
+	limiter := NewReportBuildLimiter(1, 0)
+	budget := resource.NewBudget(8 << 20)
+	parentCache := newReportCache(t, ReportCacheOptions[string]{BuildLimiter: limiter, Budget: budget})
+	childCache, err := NewReportCache(ReportCacheOptions[int]{BuildLimiter: limiter, Budget: budget})
+	require.NoError(t, err)
+	defer childCache.Close()
+	parent, err := parentCache.Materialize(context.Background(), key, func(context.Context) (ReportDefinition[string], error) { return definition, nil })
+	require.NoError(t, err)
+	childKey := key
+	childKey.Namespace = "different-state-type"
+	child, err := parentCache.MaterializeDerived(context.Background(), parent.Document.SnapshotID, "cross-cache", DerivedSurfaceInteractive, func(ctx context.Context) (*document.DashboardDocument, error) {
+		childDef := ReportDefinition[int]{Config: definition.Config, Request: definition.Request, State: 42}
+		childDef.Request.Namespace = childKey.Namespace
+		view, err := childCache.Materialize(ctx, childKey, func(context.Context) (ReportDefinition[int], error) { return childDef, nil })
+		if err != nil {
+			return nil, err
+		}
+		defer view.Release()
+		return view.Document, nil
+	})
+	require.NoError(t, err)
+	lease, err := childCache.LookupSnapshotRegistration(context.Background(), child.SnapshotID)
+	require.NoError(t, err)
+	require.Equal(t, 42, lease.State)
+	require.Same(t, parent.Handlers.sessions, lease.Handlers.sessions)
+	require.Same(t, parent.Handlers.session(parent.Document.SnapshotID), lease.Handlers.session(child.SnapshotID))
+	lease.Release()
+	parent.Release()
+	parentCache.Close()
+	childCache.Close()
+	require.Zero(t, budget.Used())
+}
+
+func TestReportCache_ProducerIdentityAndPrepareIdentityAreProtected(t *testing.T) {
+	t.Parallel()
+	for _, replace := range []bool{false, true} {
+		t.Run(fmt.Sprint(replace), func(t *testing.T) {
+			t.Parallel()
+			key, definition := reportFixture(t)
+			cache := newReportCache(t, ReportCacheOptions[string]{})
+			var original string
+			if replace {
+				definition.Prepare = func(doc *document.DashboardDocument) error {
+					original = doc.SnapshotID
+					doc.SnapshotID = "replaced"
+					return nil
+				}
+			} else {
+				definition.Options.SnapshotID = "caller-selected"
+			}
+			_, err := cache.Materialize(context.Background(), key, func(context.Context) (ReportDefinition[string], error) { return definition, nil })
+			require.Error(t, err)
+			if original != "" {
+				_, err = definition.Config.Snapshots.Get(context.Background(), original)
+				require.ErrorIs(t, err, document.ErrSnapshotGone)
+			}
+			require.Eventually(t, func() bool { return cache.opts.Budget.Used() == 0 }, time.Second, time.Millisecond)
+		})
+	}
+}
+
+func TestReportCache_ColdCoalescedOwnersAdoptBeforeFirstOwnerRejects(t *testing.T) {
+	t.Parallel()
+	key, definition := reportFixture(t)
+	cache := newReportCache(t, ReportCacheOptions[string]{})
+	parent, err := cache.Materialize(context.Background(), key, func(context.Context) (ReportDefinition[string], error) { return definition, nil })
+	require.NoError(t, err)
+	defer parent.Release()
+	childKey := key
+	childKey.Params = "shared-cold-child"
+	entered, unblock, firstFailed := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var calls atomic.Int32
+	childBuild := func(context.Context) (ReportDefinition[string], error) {
+		if calls.Add(1) == 1 {
+			close(entered)
+		}
+		<-unblock
+		return definition, nil
+	}
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := cache.MaterializeDerived(context.Background(), parent.Document.SnapshotID, "rejecting-owner", DerivedSurfaceInteractive, func(ctx context.Context) (*document.DashboardDocument, error) {
+			view, err := cache.Materialize(ctx, childKey, childBuild)
+			if err != nil {
+				return nil, err
+			}
+			view.Release()
+			return nil, fmt.Errorf("host rejected child")
+		})
+		firstDone <- err
+		close(firstFailed)
+	}()
+	<-entered
+	secondDone := make(chan *document.DashboardDocument, 1)
+	secondError := make(chan error, 1)
+	go func() {
+		doc, err := cache.MaterializeDerived(context.Background(), parent.Document.SnapshotID, "accepting-owner", DerivedSurfaceInteractive, func(ctx context.Context) (*document.DashboardDocument, error) {
+			view, err := cache.Materialize(ctx, childKey, childBuild)
+			if err != nil {
+				return nil, err
+			}
+			defer view.Release()
+			<-firstFailed
+			return view.Document, nil
+		})
+		secondDone <- doc
+		secondError <- err
+	}()
+	require.Eventually(t, func() bool {
+		cache.mu.Lock()
+		defer cache.mu.Unlock()
+		for _, flight := range cache.flights {
+			if flight.waiters == 2 {
+				return true
+			}
+		}
+		return false
+	}, time.Second, time.Millisecond)
+	close(unblock)
+	require.Error(t, <-firstDone)
+	child := <-secondDone
+	require.NoError(t, <-secondError)
+	require.NotNil(t, child)
+	require.EqualValues(t, 1, calls.Load())
+	lease, err := cache.LookupSnapshotRegistration(context.Background(), child.SnapshotID)
+	require.NoError(t, err)
+	lease.Release()
+}
+
+func TestReportCache_BoundsSuccessfulCoalescedWaiters(t *testing.T) {
+	t.Parallel()
+	key, definition := reportFixture(t)
+	cache := newReportCache(t, ReportCacheOptions[string]{MaxWaitersPerBuild: 2})
+	entered, unblock := make(chan struct{}), make(chan struct{})
+	var calls atomic.Int32
+	build := func(context.Context) (ReportDefinition[string], error) {
+		if calls.Add(1) == 1 {
+			close(entered)
+		}
+		<-unblock
+		return definition, nil
+	}
+	views := make(chan *CachedReport[string], 2)
+	for i := 0; i < 2; i++ {
+		go func() { view, _ := cache.Materialize(context.Background(), key, build); views <- view }()
+	}
+	<-entered
+	require.Eventually(t, func() bool {
+		cache.mu.Lock()
+		defer cache.mu.Unlock()
+		for _, flight := range cache.flights {
+			return flight.waiters == 2
+		}
+		return false
+	}, time.Second, time.Millisecond)
+	_, err := cache.Materialize(context.Background(), key, build)
+	require.ErrorIs(t, err, resource.ErrLimit)
+	status, ok := resource.StatusCode(err)
+	require.True(t, ok)
+	require.Equal(t, 503, status)
+	close(unblock)
+	first, second := <-views, <-views
+	require.NotNil(t, first)
+	require.NotNil(t, second)
+	defer first.Release()
+	defer second.Release()
+	first.Document.I18n["owned"] = "first"
+	require.Equal(t, "base", second.Document.I18n["owned"])
+	require.EqualValues(t, 1, calls.Load())
+}
+
+func TestReportCache_WireOnlyCustomExportAndMissingProgressiveBacking(t *testing.T) {
+	t.Parallel()
+	key, definition := reportFixture(t)
+	cache := newReportCache(t, ReportCacheOptions[string]{})
+	parent, err := cache.Materialize(context.Background(), key, func(context.Context) (ReportDefinition[string], error) { return definition, nil })
+	require.NoError(t, err)
+	defer parent.Release()
+	exported, err := cache.MaterializeDerived(context.Background(), parent.Document.SnapshotID, "external-export", DerivedSurfaceInteractive, func(context.Context) (*document.DashboardDocument, error) {
+		return &document.DashboardDocument{SnapshotID: "inline-export", Endpoints: document.Endpoints{Export: "/business/export"}}, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, "/business/export", exported.Endpoints.Export)
+	_, err = cache.MaterializeDerived(context.Background(), parent.Document.SnapshotID, "missing-panel", DerivedSurfaceInteractive, func(context.Context) (*document.DashboardDocument, error) {
+		return &document.DashboardDocument{SnapshotID: "missing", Endpoints: document.Endpoints{Panel: "/panel"}}, nil
+	})
+	require.ErrorIs(t, err, document.ErrSnapshotGone)
+}
+
+func TestReportCache_FailedDerivedBuilderReleasesUnusedOwnedChildren(t *testing.T) {
+	t.Parallel()
+	key, definition := reportFixture(t)
+	var childrenCleaned atomic.Int32
+	cache := newReportCache(t, ReportCacheOptions[string]{OnEvict: func(state string) {
+		if state == "child" {
+			childrenCleaned.Add(1)
+		}
+	}})
+	parent, err := cache.Materialize(context.Background(), key, func(context.Context) (ReportDefinition[string], error) { return definition, nil })
+	require.NoError(t, err)
+	defer parent.Release()
+	baseline := cache.opts.Budget.Used()
+	childID := ""
+	childKey := key
+	childKey.Params = "unused"
+	_, err = cache.MaterializeDerived(context.Background(), parent.Document.SnapshotID, "failure", DerivedSurfaceInteractive, func(ctx context.Context) (*document.DashboardDocument, error) {
+		childDef := definition
+		childDef.State = "child"
+		child, err := cache.Materialize(ctx, childKey, func(context.Context) (ReportDefinition[string], error) { return childDef, nil })
+		if err != nil {
+			return nil, err
+		}
+		childID = child.Document.SnapshotID
+		child.Release()
+		return nil, fmt.Errorf("unused child")
+	})
+	require.Error(t, err)
+	require.EqualValues(t, 1, childrenCleaned.Load())
+	require.Equal(t, baseline, cache.opts.Budget.Used())
+	_, err = definition.Config.Snapshots.Get(context.Background(), childID)
+	require.ErrorIs(t, err, document.ErrSnapshotGone)
+}

@@ -3,11 +3,14 @@ package serve
 import (
 	"context"
 	"fmt"
+
 	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 )
 
 // BuildDocument constructs and stores a typed snapshot without an HTTP round trip.
+// Config owns inline depth and progressive mode. Options override document
+// identity, locale, endpoints, controls and presentation; zero values use defaults.
 func (h *Handlers) BuildDocument(ctx context.Context, req lensruntime.Request, opts document.BuildOptions) (*document.DashboardDocument, error) {
 	scope := lensruntime.DashboardScope()
 	if h.progressive {

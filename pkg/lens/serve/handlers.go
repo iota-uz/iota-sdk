@@ -490,6 +490,10 @@ func panelError(code document.QueryErrorCode, message string) document.PanelBatc
 // A rejected request has nothing to classify — it never ran — so those keep
 // using panelError and the runtime keeps printing its generic copy for them.
 func panelFailure(code document.QueryErrorCode, message string, cause error) document.PanelBatchResult {
+	if _, ok := resource.StatusCode(cause); ok {
+		code = document.QueryErrorResourceExhausted
+		message = "report resource budget exceeded"
+	}
 	result := panelError(code, message)
 	result.Error.Reason = document.ClassifyFailure(cause)
 	return result
@@ -957,7 +961,7 @@ func (h *Handlers) writeInternalError(ctx context.Context, w http.ResponseWriter
 		return
 	}
 	if status, ok := resource.StatusCode(err); ok {
-		writeError(w, status, document.QueryErrorCode("resource_exhausted"), "report resource budget exceeded")
+		writeError(w, status, document.QueryErrorResourceExhausted, "report resource budget exceeded")
 		return
 	}
 	wrapped := serrors.Wrap(serrors.Op(op), err)

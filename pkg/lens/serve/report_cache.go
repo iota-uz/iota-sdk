@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
@@ -19,17 +20,18 @@ import (
 // ReportKey makes tenant, producer-version and presentation identity explicit.
 // Params must contain normalized producer inputs, including permission variants.
 type ReportKey struct {
-	Namespace string
-	DataScope string
-	Version   string
-	Locale    string
-	Timezone  string
-	Variant   string
-	Params    string
+	Namespace        string
+	DataScope        string
+	Version          string
+	Locale           string
+	Timezone         string
+	Variant          string
+	Params           string
+	ParentSnapshotID string
 }
 
 func (k ReportKey) canonical() (string, error) {
-	keyBytes := len(k.Namespace) + len(k.DataScope) + len(k.Version) + len(k.Locale) + len(k.Timezone) + len(k.Variant) + len(k.Params)
+	keyBytes := len(k.Namespace) + len(k.DataScope) + len(k.Version) + len(k.Locale) + len(k.Timezone) + len(k.Variant) + len(k.Params) + len(k.ParentSnapshotID)
 	if keyBytes > 64<<10 {
 		return "", resource.NewLimitError("report key bytes", int64(keyBytes), 64<<10)
 	}
@@ -40,6 +42,7 @@ func (k ReportKey) canonical() (string, error) {
 	return string(encoded), err
 }
 
+// ReportDefinition supplies one immutable report registration and host-owned state.
 type ReportDefinition[T any] struct {
 	Config  Config
 	Request lensruntime.Request
@@ -59,6 +62,7 @@ type CachedReport[T any] struct {
 	spec     func() (lens.DashboardSpec, error)
 }
 
+// Spec returns a typed, independently owned producer specification.
 func (r *CachedReport[T]) Spec() (lens.DashboardSpec, error) { return r.spec() }
 
 // Release ends the registration lease. The owned Document can outlive it.
@@ -77,14 +81,20 @@ type ReportRegistration[T any] struct {
 	spec     func() (lens.DashboardSpec, error)
 }
 
+// Spec returns a typed copy that may be used for domain export conversion.
 func (r *ReportRegistration[T]) Spec() (lens.DashboardSpec, error) { return r.spec() }
 
+// Release ends this registration lease; repeated calls are harmless.
 func (r *ReportRegistration[T]) Release() {
 	if r != nil && r.release != nil {
 		r.release()
 	}
 }
 
+// ReportCacheOptions controls retained payload, work admission and host cleanup.
+// Zero entry/derived/document/concurrent/waiter limits use128/16/16MiB/4/128.
+// MaxPendingBuilds zero means no queue; BuildTimeout defaults to two minutes.
+// Budget is required. Share BuildLimiter across caches for process-wide admission.
 type ReportCacheOptions[T any] struct {
 	Budget              *resource.Budget
 	BuildLimiter        *ReportBuildLimiter
@@ -102,6 +112,9 @@ type cachedDerived struct {
 	document    *document.FrozenDocument
 	reservation *resource.Reservation
 	snapshotID  string
+	forget      func()
+	touch       func(context.Context) error
+	backed      bool
 }
 
 type reportEntry[T any] struct {
@@ -112,6 +125,10 @@ type reportEntry[T any] struct {
 	handlers        *Handlers
 	specReservation *resource.Reservation
 	state           T
+	parentID        string
+	acquireParent   func() (func(), error)
+	derivedOwners   int
+	dataScope       string
 	element         *list.Element
 	derived         map[string]*cachedDerived
 	active          bool
@@ -142,8 +159,10 @@ type ReportCache[T any] struct {
 	sessions       *SessionRegistry
 	admitted       int
 	closed         bool
+	rejections     atomic.Uint64
 }
 
+// NewReportCache constructs a bounded cache; it starts no permanent goroutines.
 func NewReportCache[T any](opts ReportCacheOptions[T]) (*ReportCache[T], error) {
 	if opts.Budget == nil {
 		return nil, fmt.Errorf("report cache requires a shared resource budget")
@@ -189,9 +208,22 @@ func (c *ReportCache[T]) view(entry *reportEntry[T]) (*CachedReport[T], error) {
 }
 
 func (c *ReportCache[T]) registration(entry *reportEntry[T], allowEvicted bool) (*ReportRegistration[T], error) {
+	return c.registrationWithParent(entry, allowEvicted, true)
+}
+
+func (c *ReportCache[T]) registrationWithParent(entry *reportEntry[T], allowEvicted, withParent bool) (*ReportRegistration[T], error) {
+	parentRelease := func() {}
+	if withParent && entry != nil && entry.acquireParent != nil {
+		var err error
+		parentRelease, err = entry.acquireParent()
+		if err != nil {
+			return nil, err
+		}
+	}
 	c.mu.Lock()
-	if entry == nil || entry.disposed || (!entry.active && !allowEvicted) {
+	if entry == nil || entry.disposed || (!entry.active && entry.derivedOwners == 0 && !allowEvicted) {
 		c.mu.Unlock()
+		parentRelease()
 		return nil, document.ErrSnapshotGone
 	}
 	entry.leases++
@@ -209,6 +241,7 @@ func (c *ReportCache[T]) registration(entry *reportEntry[T], allowEvicted bool) 
 			if dispose {
 				c.releaseRetained(entry)
 			}
+			parentRelease()
 		})
 	}
 	return &ReportRegistration[T]{Handlers: entry.handlers, State: entry.state, release: release, spec: func() (lens.DashboardSpec, error) {
@@ -252,14 +285,21 @@ func (c *ReportCache[T]) live(ctx context.Context, entry *reportEntry[T]) (bool,
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !entry.active {
+	if !entry.active && entry.derivedOwners == 0 {
 		return false, nil
 	}
-	c.lru.MoveToFront(entry.element)
+	if entry.active {
+		c.lru.MoveToFront(entry.element)
+	}
 	return true, nil
 }
 
+// Lookup returns a leased, independently owned view of a live keyed report.
 func (c *ReportCache[T]) Lookup(ctx context.Context, key ReportKey) (*CachedReport[T], bool, error) {
+	key = reportKeyForContext(ctx, key)
+	if owner, _ := ctx.Value(derivedBuildOwnershipKey{}).(*derivedBuildOwnership); owner != nil && owner.dataScope != key.DataScope {
+		return nil, false, fmt.Errorf("derived report cannot replace its parent data scope")
+	}
 	canonical, err := key.canonical()
 	if err != nil {
 		return nil, false, err
@@ -272,9 +312,18 @@ func (c *ReportCache[T]) Lookup(ctx context.Context, key ReportKey) (*CachedRepo
 		return nil, false, err
 	}
 	view, err := c.view(entry)
+	if err == nil {
+		if owner, _ := ctx.Value(derivedBuildOwnershipKey{}).(*derivedBuildOwnership); owner != nil {
+			if err = c.retainForOwner(entry, owner); err != nil {
+				view.Release()
+				return nil, false, err
+			}
+		}
+	}
 	return view, err == nil, err
 }
 
+// LookupSnapshot returns a leased document view by frozen snapshot identity.
 func (c *ReportCache[T]) LookupSnapshot(ctx context.Context, id string) (*CachedReport[T], error) {
 	c.mu.Lock()
 	entry := c.bySnapshot[strings.TrimSpace(id)]
@@ -289,7 +338,15 @@ func (c *ReportCache[T]) LookupSnapshot(ctx context.Context, id string) (*Cached
 	return c.view(entry)
 }
 
-func (c *ReportCache[T]) Materialize(ctx context.Context, key ReportKey, build func(context.Context) (ReportDefinition[T], error)) (*CachedReport[T], error) {
+// Materialize coalesces one identity and gives every caller an owned document.
+// The caller must Release the returned registration lease.
+func (c *ReportCache[T]) Materialize(ctx context.Context, key ReportKey, build func(context.Context) (ReportDefinition[T], error)) (view *CachedReport[T], err error) {
+	defer func() {
+		if errors.Is(err, resource.ErrLimit) {
+			c.rejections.Add(1)
+		}
+	}()
+	key = reportKeyForContext(ctx, key)
 	if result, ok, err := c.Lookup(ctx, key); ok || err != nil {
 		return result, err
 	}
@@ -358,6 +415,12 @@ func (c *ReportCache[T]) Materialize(ctx context.Context, key ReportKey, build f
 			registration.Release()
 			return nil, err
 		}
+		if owner, _ := ctx.Value(derivedBuildOwnershipKey{}).(*derivedBuildOwnership); owner != nil {
+			if err := c.retainForOwner(flight.entry, owner); err != nil {
+				registration.Release()
+				return nil, err
+			}
+		}
 		return &CachedReport[T]{Document: doc, Handlers: registration.Handlers, State: registration.State, release: registration.Release, spec: registration.spec}, nil
 	}
 }
@@ -387,6 +450,10 @@ func (c *ReportCache[T]) run(ctx context.Context, key string, identity ReportKey
 		return
 	}
 	definition.Config.Sessions = c.sessions
+	owner, _ := ctx.Value(derivedBuildOwnershipKey{}).(*derivedBuildOwnership)
+	if owner != nil {
+		definition.Config.Sessions = owner.sessions
+	}
 	if definition.Options.SnapshotID != "" {
 		c.finish(key, flight, nil, fmt.Errorf("report cache owns snapshot identities"))
 		return
@@ -442,6 +509,11 @@ func (c *ReportCache[T]) run(ctx context.Context, key string, identity ReportKey
 		return
 	}
 	entry := &reportEntry[T]{key: key, snapshotID: doc.SnapshotID, document: frozen, reservation: reservation, handlers: handlers, state: definition.State, derived: map[string]*cachedDerived{}, active: true, leases: 1}
+	entry.parentID = identity.ParentSnapshotID
+	entry.dataScope = identity.DataScope
+	if owner != nil {
+		entry.acquireParent = owner.acquireParent
+	}
 	entry.specReservation = specReservation
 	c.mu.Lock()
 	if ctx.Err() != nil {
@@ -464,6 +536,11 @@ func (c *ReportCache[T]) run(ctx context.Context, key string, identity ReportKey
 	c.mu.Unlock()
 	for _, old := range evicted {
 		c.dispose(old)
+	}
+	if owner != nil {
+		// A cancelled first builder must not poison other coalesced owners.
+		// Every waiter adopts independently before releasing the flight pin.
+		_ = c.retainForOwner(entry, owner)
 	}
 	c.finish(key, flight, entry, nil)
 }
@@ -522,7 +599,9 @@ func (c *ReportCache[T]) removeLocked(entry *reportEntry[T]) {
 	}
 	entry.active = false
 	delete(c.byKey, entry.key)
-	delete(c.bySnapshot, entry.snapshotID)
+	if entry.derivedOwners == 0 {
+		delete(c.bySnapshot, entry.snapshotID)
+	}
 	c.lru.Remove(entry.element)
 }
 
@@ -551,7 +630,11 @@ func (c *ReportCache[T]) dispose(entry *reportEntry[T]) {
 func (c *ReportCache[T]) releaseRetained(entry *reportEntry[T]) {
 	entry.handlers.ForgetSnapshot(context.Background(), entry.snapshotID)
 	for _, child := range entry.derived {
-		entry.handlers.ForgetSnapshot(context.Background(), child.snapshotID)
+		if child.forget != nil {
+			child.forget()
+		} else if child.snapshotID != entry.snapshotID {
+			entry.handlers.ForgetSnapshot(context.Background(), child.snapshotID)
+		}
 	}
 	entry.reservation.Release()
 	entry.specReservation.Release()
@@ -565,7 +648,12 @@ func (c *ReportCache[T]) releaseRetained(entry *reportEntry[T]) {
 
 // MaterializeDerived reuses the parent scheduler, with bounded distinct flights
 // reserved before enqueueing work into that scheduler.
-func (c *ReportCache[T]) MaterializeDerived(ctx context.Context, parentID, key string, class DerivedSurfaceClass, build func(context.Context) (*document.DashboardDocument, error)) (*document.DashboardDocument, error) {
+func (c *ReportCache[T]) MaterializeDerived(ctx context.Context, parentID, key string, class DerivedSurfaceClass, build func(context.Context) (*document.DashboardDocument, error)) (view *document.DashboardDocument, err error) {
+	defer func() {
+		if errors.Is(err, resource.ErrLimit) {
+			c.rejections.Add(1)
+		}
+	}()
 	if strings.TrimSpace(key) == "" || build == nil {
 		return nil, fmt.Errorf("derived report requires key and builder")
 	}
@@ -582,7 +670,7 @@ func (c *ReportCache[T]) MaterializeDerived(ctx context.Context, parentID, key s
 	}
 	if cached := parent.derived[key]; cached != nil {
 		c.mu.Unlock()
-		if cached.snapshotID == parentID {
+		if cached.snapshotID == parentID || !cached.backed {
 			return cached.document.Document()
 		}
 		c.mu.Lock()
@@ -593,7 +681,9 @@ func (c *ReportCache[T]) MaterializeDerived(ctx context.Context, parentID, key s
 			store = childEntry.handlers.snapshots
 		}
 		var liveErr error
-		if toucher, ok := store.(interface {
+		if cached.touch != nil {
+			liveErr = cached.touch(ctx)
+		} else if toucher, ok := store.(interface {
 			Touch(context.Context, string) error
 		}); ok {
 			liveErr = toucher.Touch(ctx, cached.snapshotID)
@@ -612,7 +702,11 @@ func (c *ReportCache[T]) MaterializeDerived(ctx context.Context, parentID, key s
 			cached.reservation.Release()
 		}
 		c.mu.Unlock()
-		parent.handlers.ForgetSnapshot(context.Background(), cached.snapshotID)
+		if cached.forget != nil {
+			cached.forget()
+		} else {
+			parent.handlers.ForgetSnapshot(context.Background(), cached.snapshotID)
+		}
 		c.mu.Lock()
 	}
 	flightKey := parentID + ":" + key
@@ -697,14 +791,44 @@ func (c *ReportCache[T]) runDerived(ctx context.Context, parent *reportEntry[T],
 		if !active {
 			return nil, document.ErrSnapshotGone
 		}
+		owner := &derivedBuildOwnership{sessions: parent.handlers.sessions, dataScope: parent.dataScope, children: map[string]*derivedChildReceipt{}, maxChildren: c.opts.MaxDerivedPerReport, acquireParent: func() (func(), error) {
+			lease, err := c.registration(parent, false)
+			if err != nil {
+				return nil, err
+			}
+			return lease.Release, nil
+		}}
+		ctx = context.WithValue(context.WithValue(ctx, derivedReportParentKey{}, parent.snapshotID), derivedBuildOwnershipKey{}, owner)
 		doc, err := build(ctx)
 		if err != nil {
+			owner.take("")
 			return nil, err
+		}
+		if doc == nil {
+			owner.take("")
+			return nil, fmt.Errorf("derived builder returned nil document")
+		}
+		receipt := owner.take(doc.SnapshotID)
+		backed := receipt != nil
+		if !backed && doc.SnapshotID != parent.snapshotID {
+			lookupErr := touchReportSnapshot(ctx, parent.handlers.snapshots, doc.SnapshotID)
+			if lookupErr == nil {
+				backed = true
+			} else if !errors.Is(lookupErr, document.ErrSnapshotGone) {
+				return nil, lookupErr
+			}
+		}
+		if !backed && (doc.Endpoints.Panel != "" || doc.Endpoints.Query != "") {
+			return nil, document.ErrSnapshotGone
 		}
 		published := false
 		defer func() {
-			if !published && doc != nil && doc.SnapshotID != parent.snapshotID {
-				parent.handlers.ForgetSnapshot(context.Background(), doc.SnapshotID)
+			if !published && doc.SnapshotID != parent.snapshotID {
+				if receipt != nil {
+					receipt.forget()
+				} else if backed {
+					parent.handlers.ForgetSnapshot(context.Background(), doc.SnapshotID)
+				}
 			}
 		}()
 		frozen, err := document.Freeze(doc, c.opts.MaxDocumentBytes)
@@ -716,6 +840,11 @@ func (c *ReportCache[T]) runDerived(ctx context.Context, parent *reportEntry[T],
 			return nil, err
 		}
 		child := &cachedDerived{document: frozen, reservation: reservation, snapshotID: doc.SnapshotID}
+		child.backed = backed
+		if receipt != nil {
+			child.forget = receipt.forget
+			child.touch = receipt.touch
+		}
 		if doc.SnapshotID != parent.snapshotID {
 			if err := parent.handlers.BindExecutionSession(doc.SnapshotID, parent.snapshotID); err != nil {
 				reservation.Release()
@@ -742,7 +871,7 @@ func (c *ReportCache[T]) runDerived(ctx context.Context, parent *reportEntry[T],
 		if interactive {
 			parent.handlers.promoteDerived(parent.snapshotID, "report:"+key)
 		}
-	})
+	}, true)
 	if err != nil {
 		finish(nil, err)
 		return
@@ -765,6 +894,21 @@ type derivedReportFlight struct {
 }
 
 type reportBuildContextKey struct{}
+type derivedReportParentKey struct{}
+
+// DerivedReportParent reports the parent identity supplied to a derived builder.
+// ReportCache automatically incorporates it in nested materialization keys.
+func DerivedReportParent(ctx context.Context) string {
+	parent, _ := ctx.Value(derivedReportParentKey{}).(string)
+	return parent
+}
+
+func reportKeyForContext(ctx context.Context, key ReportKey) ReportKey {
+	if parent := DerivedReportParent(ctx); parent != "" {
+		key.ParentSnapshotID = parent
+	}
+	return key
+}
 
 func (c *ReportCache[T]) admit(ctx context.Context) (context.Context, func(), error) {
 	if ctx.Value(reportBuildContextKey{}) == c.opts.BuildLimiter {
@@ -796,6 +940,7 @@ type ReportBuildLimiter struct {
 	admitted, max int
 }
 
+// NewReportBuildLimiter admits at most concurrent builders plus pending waiters.
 func NewReportBuildLimiter(concurrent, pending int) *ReportBuildLimiter {
 	if concurrent <= 0 {
 		concurrent = 4
@@ -826,15 +971,18 @@ func (l *ReportBuildLimiter) acquire(ctx context.Context) (func(), error) {
 	}
 }
 
+// ReportCacheStats reports current ownership and request rejection counters.
 type ReportCacheStats struct {
 	Entries, Derived, Flights, Admitted int
 	RetainedBytes                       int64
+	Rejections                          uint64
 }
 
+// Stats reports shared Budget usage, including other owners using that Budget.
 func (c *ReportCache[T]) Stats() ReportCacheStats {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	stats := ReportCacheStats{Entries: len(c.byKey), Flights: len(c.flights) + len(c.derivedFlights), Admitted: c.admitted, RetainedBytes: c.opts.Budget.Used()}
+	stats := ReportCacheStats{Entries: len(c.byKey), Flights: len(c.flights) + len(c.derivedFlights), Admitted: c.admitted, RetainedBytes: c.opts.Budget.Used(), Rejections: c.rejections.Load()}
 	for _, entry := range c.byKey {
 		stats.Derived += len(entry.derived)
 	}
@@ -861,4 +1009,46 @@ func (c *ReportCache[T]) Close() {
 	for _, entry := range entries {
 		c.dispose(entry)
 	}
+}
+
+func touchReportSnapshot(ctx context.Context, store document.SnapshotStore, id string) error {
+	if toucher, ok := store.(interface {
+		Touch(context.Context, string) error
+	}); ok {
+		return toucher.Touch(ctx, id)
+	}
+	_, err := store.Get(ctx, id)
+	return err
+}
+
+func (c *ReportCache[T]) retainForOwner(entry *reportEntry[T], owner *derivedBuildOwnership) error {
+	lease, err := c.registrationWithParent(entry, true, false)
+	if err != nil {
+		return err
+	}
+	c.mu.Lock()
+	entry.derivedOwners++
+	c.bySnapshot[entry.snapshotID] = entry
+	c.mu.Unlock()
+	var once sync.Once
+	return owner.add(entry.snapshotID, &derivedChildReceipt{
+		touch: func(ctx context.Context) error {
+			return touchReportSnapshot(ctx, entry.handlers.snapshots, entry.snapshotID)
+		},
+		forget: func() {
+			once.Do(func() {
+				c.mu.Lock()
+				entry.derivedOwners--
+				last := entry.derivedOwners == 0
+				if last && !entry.active && c.bySnapshot[entry.snapshotID] == entry {
+					delete(c.bySnapshot, entry.snapshotID)
+				}
+				c.mu.Unlock()
+				if last {
+					c.evict(entry)
+				}
+				lease.Release()
+			})
+		},
+	})
 }

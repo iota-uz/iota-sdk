@@ -677,7 +677,7 @@ export const PresentationSchema: z.ZodType<Contract.Presentation> = z.lazy(() =>
   lineSeries: z.array(z.string()).optional(),
 }).strict())
 
-export const QueryErrorCodeSchema: z.ZodType<Contract.QueryErrorCode> = z.enum(["bad_request", "internal", "snapshot_gone"])
+export const QueryErrorCodeSchema: z.ZodType<Contract.QueryErrorCode> = z.enum(["bad_request", "internal", "resource_exhausted", "snapshot_gone"])
 
 export const QueryErrorResponseSchema: z.ZodType<Contract.QueryErrorResponse> = z.object({
   error: z.lazy(() => QueryErrorCodeSchema),

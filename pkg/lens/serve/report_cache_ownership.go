@@ -138,6 +138,8 @@ type derivedBuildOwnership struct {
 	closed        bool
 	maxChildren   int
 	acquireParent func() (func(), error)
+	sessions      *SessionRegistry
+	dataScope     string
 }
 
 func (o *derivedBuildOwnership) add(id string, receipt *derivedChildReceipt) error {

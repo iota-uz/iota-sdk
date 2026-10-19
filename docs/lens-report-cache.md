@@ -48,3 +48,55 @@ payload accounting. Context-aware query limits and the process memory limit
 remain necessary. Structural preflight precedes encoding to reject cycles,
 unsupported encoders and oversized payloads before a full duplicate allocation.
 Budget errors map to413 for oversized payload and503 for admission pressure.
+
+Minimal registration (the executor, tenant scope and normalized parameters are
+provided by the host):
+
+```go
+budget := resource.NewBudget(64 << 20)
+work := serve.NewReportBuildLimiter(4, 16)
+snapshots := document.NewMemoryStoreWithOptions(document.MemoryStoreOptions{
+    Budget: budget, MaxEntryBytes: 16 << 20, MaxEntries: 128,
+})
+cache, err := serve.NewReportCache[string](serve.ReportCacheOptions[string]{
+    Budget: budget, BuildLimiter: work, MaxPendingBuilds: 16,
+})
+if err != nil { return err }
+defer cache.Close()
+view, err := cache.Materialize(ctx, serve.ReportKey{
+    Namespace: "sales", DataScope: request.DataScope,
+    Version: "producer-v2", Locale: request.Locale, Timezone: request.Timezone,
+    Params: normalizedParameters,
+}, func(ctx context.Context) (serve.ReportDefinition[string], error) {
+    return serve.ReportDefinition[string]{
+        Config: serve.Config{Spec: spec, Engine: executor, Snapshots: snapshots},
+        Request: request,
+    }, nil
+})
+if err != nil { return err }
+defer view.Release()
+// view.Document is request-owned; host decoration cannot mutate the cache.
+```
+
+Derived ownership uses the following lifetime graph:
+
+```text
+parent cached registration -> derived wire document -> child ownership receipt
+                                               receipt -> child registration
+external child request lease -> child registration + parent request lease
+```
+
+Nested materialization automatically includes the parent's snapshot identity and
+inherits its execution registry. Child registrations remain addressable after
+child LRU eviction while a parent receipt owns them. Each coalesced caller adopts
+its own receipt before releasing the shared computation pin. Failed builders
+release unused receipts. Parent eviction invalidates indexes immediately but
+existing child operations retain the backing data until their leases end.
+Wire-only inline documents follow the parent lifetime, including custom export
+URLs; SDK query/panel documents require backing snapshots. Cache resource
+rejections are counted by Stats().Rejections.
+
+Leases defer this report cache's own deletion and state cleanup. A backing store
+still applies its independent TTL, LRU and shared-budget admission rules; it may
+expire a snapshot during an operation. Handle snapshot-gone responses by retrying
+materialization. A lease does not pin arbitrary external stores indefinitely.

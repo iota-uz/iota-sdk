@@ -1451,9 +1451,10 @@ type TableSummary struct {
 type QueryErrorCode string
 
 const (
-	QueryErrorSnapshotGone QueryErrorCode = "snapshot_gone"
-	QueryErrorBadRequest   QueryErrorCode = "bad_request"
-	QueryErrorInternal     QueryErrorCode = "internal"
+	QueryErrorSnapshotGone      QueryErrorCode = "snapshot_gone"
+	QueryErrorBadRequest        QueryErrorCode = "bad_request"
+	QueryErrorInternal          QueryErrorCode = "internal"
+	QueryErrorResourceExhausted QueryErrorCode = "resource_exhausted"
 )
 
 type QueryErrorResponse struct {
