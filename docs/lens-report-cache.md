@@ -9,7 +9,7 @@ changing later requests.
 `ReportKey` requires namespace, nonempty data scope and producer version. Include
 normalized filter inputs and permission-dependent presentation in Params/Variant;
 locale and timezone must match the runtime request. Bump Version when a producer's
-specification or decoration semantics change. Keys are limited to64KiB.
+specification or decoration semantics change. Keys are limited to 64KiB.
 
 Use a shared `resource.Budget` for report caches and document/runtime snapshot
 stores. Inject one `serve.ReportBuildLimiter` into all related caches to bound
@@ -21,7 +21,8 @@ not escape into unrelated asynchronous work.
 `ReportDefinition` supplies serve Config, runtime Request, document BuildOptions,
 an optional one-time Prepare callback and typed host State. Specifications are
 structurally checked, deeply owned and accounted alongside wire bytes and keys.
-Renderer-only templ icon callbacks are projected out by this cache; React wire\ndocuments do not render them. Accent colors and wire presentation remain intact.
+Renderer-only templ icon callbacks are projected out by this cache; React wire
+documents do not render them. Accent colors and wire presentation remain intact.
 Handlers.BuildDocument provides typed construction without an internal HTTP/JSON
 round trip. Ordinary HTTP document endpoints use the same build path.
 
@@ -47,7 +48,7 @@ headers, datasource internals and opaque callback captures are outside retained
 payload accounting. Context-aware query limits and the process memory limit
 remain necessary. Structural preflight precedes encoding to reject cycles,
 unsupported encoders and oversized payloads before a full duplicate allocation.
-Budget errors map to413 for oversized payload and503 for admission pressure.
+Budget errors map to 413 for oversized payload and 503 for admission pressure.
 
 Minimal registration (the executor, tenant scope and normalized parameters are
 provided by the host):

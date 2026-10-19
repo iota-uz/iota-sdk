@@ -961,6 +961,7 @@ func (h *Handlers) writeInternalError(ctx context.Context, w http.ResponseWriter
 		return
 	}
 	if status, ok := resource.StatusCode(err); ok {
+		h.observer.OnError(ctx, op, serrors.Wrap(serrors.Op(op), err))
 		writeError(w, status, document.QueryErrorResourceExhausted, "report resource budget exceeded")
 		return
 	}

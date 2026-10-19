@@ -104,7 +104,7 @@ func (r *ReportRegistration[T]) Release() {
 }
 
 // ReportCacheOptions controls retained payload, work admission and host cleanup.
-// Zero entry/derived/document/concurrent/waiter limits use128 / 16 / 16MiB / 4 / 128.
+// Zero entry/derived/document/concurrent/waiter limits use 128 / 16 / 16MiB / 4 / 128.
 // MaxPendingBuilds zero means no queue; BuildTimeout defaults to two minutes.
 // Budget is required. Share BuildLimiter across caches for process-wide admission.
 type ReportCacheOptions[T any] struct {

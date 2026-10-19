@@ -3,10 +3,6 @@ package serve
 import (
 	"context"
 	"fmt"
-	"github.com/a-h/templ"
-	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/pkg/lens"
-	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,10 +10,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/a-h/templ"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
 	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
-	"github.com/stretchr/testify/require"
 )
 
 func reportFixture(t *testing.T) (ReportKey, ReportDefinition[string]) {
