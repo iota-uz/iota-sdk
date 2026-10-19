@@ -279,6 +279,10 @@ func cloneReflect(value reflect.Value) reflect.Value {
 	if !value.IsValid() {
 		return value
 	}
+	if value.Type() == reflect.TypeFor[frame.Frame]() {
+		original := value.Interface().(frame.Frame)
+		return reflect.ValueOf(*original.Clone())
+	}
 	switch value.Kind() {
 	case reflect.Interface:
 		if value.IsNil() {
@@ -322,13 +326,15 @@ func cloneReflect(value reflect.Value) reflect.Value {
 		return out
 	case reflect.Struct:
 		for i := range value.NumField() {
-			if value.Type().Field(i).PkgPath != "" {
+			if value.Type().Field(i).PkgPath != "" && !value.Field(i).IsZero() {
 				return value
 			}
 		}
 		out := reflect.New(value.Type()).Elem()
 		for i := range value.NumField() {
-			out.Field(i).Set(cloneReflect(value.Field(i)))
+			if out.Field(i).CanSet() {
+				out.Field(i).Set(cloneReflect(value.Field(i)))
+			}
 		}
 		return out
 	case reflect.Invalid, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
