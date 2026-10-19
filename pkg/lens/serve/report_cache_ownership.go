@@ -16,7 +16,7 @@ import (
 )
 
 func ownReportSpec(source lens.DashboardSpec, limit int64) (lens.DashboardSpec, int64, error) {
-	_, err := resource.EstimateJSON(source, limit)
+	_, err := resource.EstimateProjected(source, limit, reflect.TypeFor[chrome.Icon]())
 	if err != nil {
 		return lens.DashboardSpec{}, 0, err
 	}
