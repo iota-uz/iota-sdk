@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"reflect"
 	"sync"
 	"time"
@@ -138,6 +139,18 @@ func (e *estimator) walk(v reflect.Value, depth int) error {
 	}
 	if v.Type() == reflect.TypeFor[*time.Time]() {
 		return e.add(96)
+	}
+	if v.Type() == reflect.TypeFor[uuid.UUID]() {
+		return e.add(64)
+	}
+	if v.Type() == reflect.TypeFor[*uuid.UUID]() {
+		return e.add(96)
+	}
+	if v.Type() == reflect.TypeFor[uuid.NullUUID]() {
+		return e.add(96)
+	}
+	if v.Type() == reflect.TypeFor[*uuid.NullUUID]() {
+		return e.add(128)
 	}
 	if v.Type() != reflect.TypeFor[json.RawMessage]() && (v.Type().Implements(reflect.TypeFor[json.Marshaler]()) || reflect.PointerTo(v.Type()).Implements(reflect.TypeFor[json.Marshaler]()) || v.Type().Implements(reflect.TypeFor[encoding.TextMarshaler]()) || reflect.PointerTo(v.Type()).Implements(reflect.TypeFor[encoding.TextMarshaler]())) {
 		return fmt.Errorf("unsupported custom lens JSON marshaler %s", v.Type())

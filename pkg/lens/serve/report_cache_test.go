@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
 	"io"
 	"net/http"
@@ -711,4 +713,31 @@ func TestReportCache_PreparationOwnsProducerControlsBeforeMutation(t *testing.T)
 	require.Equal(t, "producer", definition.Options.Filters[0].Facet.Selections[0].Label)
 	require.Equal(t, "base", definition.Options.I18n["owned"])
 	require.Equal(t, "producer", definition.Options.Theme.Palette["brand"])
+}
+
+func TestReportCache_PreservesNativeUUIDInputsAndOwnsPointers(t *testing.T) {
+	t.Parallel()
+	id := uuid.New()
+	nullable := uuid.NullUUID{UUID: id, Valid: true}
+	key, definition := reportFixture(t)
+	cache := newReportCache(t, ReportCacheOptions[string]{})
+	definition.Config.Spec.Datasets = append(definition.Config.Spec.Datasets, lens.DatasetSpec{Name: "native-identity", Kind: lens.DatasetKindQuery, Source: "primary", Query: &lens.QuerySpec{Text: "SELECT 1", Params: map[string]lens.ParamValue{"id": {Literal: id}, "pointer": {Literal: &id}, "nullable": {Literal: nullable}}}})
+	view, err := cache.Materialize(context.Background(), key, func(context.Context) (ReportDefinition[string], error) { return definition, nil })
+	require.NoError(t, err)
+	defer view.Release()
+	spec, err := view.Spec()
+	require.NoError(t, err)
+	params := spec.Datasets[len(spec.Datasets)-1].Query.Params
+	require.Equal(t, id, params["id"].Literal)
+	require.Equal(t, id, *params["pointer"].Literal.(*uuid.UUID))
+	require.Equal(t, nullable, params["nullable"].Literal)
+	original := id
+	id = uuid.New()
+	require.Equal(t, original, *params["pointer"].Literal.(*uuid.UUID))
+	wireID := uuid.New()
+	source := &document.DashboardDocument{Frames: map[document.FrameRef]document.Frame{"native": {Rows: [][]any{{wireID, &wireID, nullable}}}}}
+	owned, err := ownPreparedDocument(source, 1<<20)
+	require.NoError(t, err)
+	wireID = uuid.New()
+	require.NotEqual(t, wireID, *owned.Frames["native"].Rows[0][1].(*uuid.UUID))
 }

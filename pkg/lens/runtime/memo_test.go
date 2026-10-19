@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 	"strings"
 	"sync"
@@ -118,4 +119,25 @@ func TestMemoIdentityRejectsUnsafeAndLargeInputs(t *testing.T) {
 	status, ok := resource.StatusCode(err)
 	require.True(t, ok)
 	require.Equal(t, 413, status)
+}
+
+func TestMemoizeJSONAcceptsNativeUUIDIdentityAndResult(t *testing.T) {
+	t.Parallel()
+	id := uuid.New()
+	nullable := uuid.NullUUID{UUID: id, Valid: true}
+	type report struct {
+		ID       uuid.UUID     `json:"id"`
+		Optional uuid.NullUUID `json:"optional"`
+	}
+	runtime := New(Options{})
+	var calls atomic.Int32
+	req := MemoRequest{Namespace: "native-uuid", DataScope: "tenant", Input: map[string]any{"id": id, "pointer": &id, "optional": nullable}}
+	compute := func(context.Context) (report, error) { calls.Add(1); return report{ID: id, Optional: nullable}, nil }
+	first, err := MemoizeJSON(t.Context(), runtime, req, compute)
+	require.NoError(t, err)
+	second, err := MemoizeJSON(t.Context(), runtime, req, compute)
+	require.NoError(t, err)
+	require.Equal(t, id, first.ID)
+	require.Equal(t, nullable, second.Optional)
+	require.EqualValues(t, 1, calls.Load())
 }

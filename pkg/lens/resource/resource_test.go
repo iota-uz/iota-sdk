@@ -1,9 +1,12 @@
 package resource
 
 import (
+	"encoding/json"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"sync"
 	"testing"
+	"time"
 )
 
 type hostile struct{}
@@ -67,5 +70,22 @@ func TestEstimateJSONSkipsOpaqueNonSerializedState(t *testing.T) {
 	_, err := EstimateJSON(value, 10000)
 	require.NoError(t, err)
 	_, err = Estimate(value, 10000)
+	require.Error(t, err)
+}
+
+func TestEstimateAcceptsBoundedNativeTransportValues(t *testing.T) {
+	t.Parallel()
+	id := uuid.New()
+	nullable := uuid.NullUUID{UUID: id, Valid: true}
+	values := []any{id, &id, nullable, &nullable, uuid.NullUUID{}, json.RawMessage(`{"ok":true}`), json.Number("123.5"), time.Now()}
+	for _, value := range values {
+		_, err := Estimate(value, 10000)
+		require.NoError(t, err)
+		_, err = EstimateJSON(value, 10000)
+		require.NoError(t, err)
+	}
+	_, err := Estimate(hostile{}, 10000)
+	require.Error(t, err)
+	_, err = EstimateJSON(hostileText{}, 10000)
 	require.Error(t, err)
 }
