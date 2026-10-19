@@ -137,9 +137,13 @@ func cloneSpecValue(value reflect.Value) (reflect.Value, error) {
 			out.Field(i).Set(child)
 		}
 		return out, nil
-	default:
+	case reflect.Invalid, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64, reflect.String:
 		return value, nil
+	case reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Chan, reflect.Func, reflect.UnsafePointer:
+		return reflect.Value{}, fmt.Errorf("unsupported report value %s", value.Kind())
 	}
+	return reflect.Value{}, fmt.Errorf("unsupported report value %s", value.Kind())
 }
 
 type derivedBuildOwnershipKey struct{}

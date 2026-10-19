@@ -20,14 +20,14 @@ import (
 // ReportKey makes tenant, producer-version and presentation identity explicit.
 // Params must contain normalized producer inputs, including permission variants.
 type ReportKey struct {
-	Namespace        string
-	DataScope        string
-	Version          string
-	Locale           string
-	Timezone         string
-	Variant          string
-	Params           string
-	ParentSnapshotID string
+	Namespace        string `json:"namespace"`
+	DataScope        string `json:"dataScope"`
+	Version          string `json:"version"`
+	Locale           string `json:"locale"`
+	Timezone         string `json:"timezone"`
+	Variant          string `json:"variant"`
+	Params           string `json:"params"`
+	ParentSnapshotID string `json:"parentSnapshotID"`
 }
 
 func (k ReportKey) canonical() (string, error) {
@@ -352,12 +352,13 @@ func (c *ReportCache[T]) LookupSnapshot(ctx context.Context, id string) (*Cached
 
 // Materialize coalesces one identity and gives every caller an owned document.
 // The caller must Release the returned registration lease.
-func (c *ReportCache[T]) Materialize(ctx context.Context, key ReportKey, build func(context.Context) (ReportDefinition[T], error)) (view *CachedReport[T], err error) {
-	defer func() {
-		if errors.Is(err, resource.ErrLimit) {
-			c.rejections.Add(1)
-		}
-	}()
+func (c *ReportCache[T]) Materialize(ctx context.Context, key ReportKey, build func(context.Context) (ReportDefinition[T], error)) (*CachedReport[T], error) {
+	view, err := c.materialize(ctx, key, build)
+	c.countRejection(err)
+	return view, err
+}
+
+func (c *ReportCache[T]) materialize(ctx context.Context, key ReportKey, build func(context.Context) (ReportDefinition[T], error)) (*CachedReport[T], error) {
 	key = reportKeyForContext(ctx, key)
 	if result, ok, err := c.Lookup(ctx, key); ok || err != nil {
 		return result, err
@@ -686,12 +687,13 @@ func (c *ReportCache[T]) releaseRetained(entry *reportEntry[T]) {
 
 // MaterializeDerived reuses the parent scheduler, with bounded distinct flights
 // reserved before enqueueing work into that scheduler.
-func (c *ReportCache[T]) MaterializeDerived(ctx context.Context, parentID, key string, class DerivedSurfaceClass, build func(context.Context) (*document.DashboardDocument, error)) (view *document.DashboardDocument, err error) {
-	defer func() {
-		if errors.Is(err, resource.ErrLimit) {
-			c.rejections.Add(1)
-		}
-	}()
+func (c *ReportCache[T]) MaterializeDerived(ctx context.Context, parentID, key string, class DerivedSurfaceClass, build func(context.Context) (*document.DashboardDocument, error)) (*document.DashboardDocument, error) {
+	view, err := c.materializeDerived(ctx, parentID, key, class, build)
+	c.countRejection(err)
+	return view, err
+}
+
+func (c *ReportCache[T]) materializeDerived(ctx context.Context, parentID, key string, class DerivedSurfaceClass, build func(context.Context) (*document.DashboardDocument, error)) (*document.DashboardDocument, error) {
 	if strings.TrimSpace(key) == "" || build == nil {
 		return nil, fmt.Errorf("derived report requires key and builder")
 	}
@@ -1094,4 +1096,10 @@ func (c *ReportCache[T]) retainForOwner(ctx context.Context, entry *reportEntry[
 			})
 		},
 	})
+}
+
+func (c *ReportCache[T]) countRejection(err error) {
+	if errors.Is(err, resource.ErrLimit) {
+		c.rejections.Add(1)
+	}
 }
