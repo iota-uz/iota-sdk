@@ -770,6 +770,10 @@ func (h *Handlers) ExecuteDerivedSurface(
 	class DerivedSurfaceClass,
 	run func(context.Context) (any, error),
 ) (any, error) {
+	return h.executeDerivedSurface(ctx, snapshotID, key, class, run, nil)
+}
+
+func (h *Handlers) executeDerivedSurface(ctx context.Context, snapshotID, key string, class DerivedSurfaceClass, run func(context.Context) (any, error), ready func()) (any, error) {
 	snapshotID = strings.TrimSpace(snapshotID)
 	key = strings.TrimSpace(key)
 	if snapshotID == "" || key == "" || run == nil {
@@ -781,6 +785,9 @@ func (h *Handlers) ExecuteDerivedSurface(
 	}
 	call := h.session(snapshotID).submit(ctx, "derived:"+snapshotID+":"+key, priority, 0, run)
 	defer call.Cancel()
+	if ready != nil {
+		ready()
+	}
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()

@@ -101,6 +101,7 @@ func (h *Handlers) BuildDocument(ctx context.Context, req lensruntime.Request, o
 		defaults.URLState = opts.URLState
 	}
 	defaults.SnapshotID, defaults.GeneratedAt = opts.SnapshotID, opts.GeneratedAt
+	defaults.Theme = opts.Theme
 	doc, err := document.Build(h.spec, result, defaults)
 	if err != nil {
 		return nil, err

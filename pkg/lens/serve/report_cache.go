@@ -387,6 +387,10 @@ func (c *ReportCache[T]) run(ctx context.Context, key string, identity ReportKey
 		return
 	}
 	definition.Config.Sessions = c.sessions
+	if definition.Options.SnapshotID != "" {
+		c.finish(key, flight, nil, fmt.Errorf("report cache owns snapshot identities"))
+		return
+	}
 	ownedSpec, specBytes, err := ownReportSpec(definition.Config.Spec, c.opts.MaxDocumentBytes)
 	if err != nil {
 		c.finish(key, flight, nil, err)
@@ -686,7 +690,7 @@ func (c *ReportCache[T]) runDerived(ctx context.Context, parent *reportEntry[T],
 	c.mu.Lock()
 	class := flight.class
 	c.mu.Unlock()
-	loaded, err := parent.handlers.ExecuteDerivedSurface(workCtx, parent.snapshotID, "report:"+key, class, func(ctx context.Context) (any, error) {
+	loaded, err := parent.handlers.executeDerivedSurface(workCtx, parent.snapshotID, "report:"+key, class, func(ctx context.Context) (any, error) {
 		c.mu.Lock()
 		active := parent.active
 		c.mu.Unlock()
@@ -731,6 +735,13 @@ func (c *ReportCache[T]) runDerived(ctx context.Context, parent *reportEntry[T],
 		parent.derived[key] = child
 		published = true
 		return child, nil
+	}, func() {
+		c.mu.Lock()
+		interactive := flight.class == DerivedSurfaceInteractive
+		c.mu.Unlock()
+		if interactive {
+			parent.handlers.promoteDerived(parent.snapshotID, "report:"+key)
+		}
 	})
 	if err != nil {
 		finish(nil, err)
