@@ -1,8 +1,10 @@
 package serve
 
 import (
+	"context"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
@@ -21,6 +23,14 @@ func ownReportSpec(source lens.DashboardSpec, limit int64) (lens.DashboardSpec, 
 		return lens.DashboardSpec{}, 0, err
 	}
 	return cloned.Interface().(lens.DashboardSpec), size, nil
+}
+
+// OwnReportDatasets preflights and deeply owns producer datasets while
+// preserving typed literals, dates and static frame indexes. Reserve the
+// returned structural size before retaining these domain-owned datasets.
+func OwnReportDatasets(source []lens.DatasetSpec, limit int64) ([]lens.DatasetSpec, int64, error) {
+	owned, size, err := ownReportSpec(lens.DashboardSpec{Datasets: source}, limit)
+	return owned.Datasets, size, err
 }
 
 func cloneSpecValue(value reflect.Value) (reflect.Value, error) {
@@ -113,4 +123,55 @@ func cloneSpecValue(value reflect.Value) (reflect.Value, error) {
 	default:
 		return value, nil
 	}
+}
+
+type derivedBuildOwnershipKey struct{}
+
+type derivedChildReceipt struct {
+	forget func()
+	touch  func(context.Context) error
+}
+
+type derivedBuildOwnership struct {
+	mu            sync.Mutex
+	children      map[string]*derivedChildReceipt
+	closed        bool
+	maxChildren   int
+	acquireParent func() (func(), error)
+}
+
+func (o *derivedBuildOwnership) add(id string, receipt *derivedChildReceipt) error {
+	o.mu.Lock()
+	if o.closed {
+		o.mu.Unlock()
+		receipt.forget()
+		return context.Canceled
+	}
+	if o.children[id] == nil && len(o.children) >= o.maxChildren {
+		requested := len(o.children) + 1
+		o.mu.Unlock()
+		receipt.forget()
+		return resource.NewLimitError("derived_reports", int64(requested), int64(o.maxChildren))
+	}
+	previous := o.children[id]
+	o.children[id] = receipt
+	o.mu.Unlock()
+	if previous != nil {
+		previous.forget()
+	}
+	return nil
+}
+
+func (o *derivedBuildOwnership) take(id string) *derivedChildReceipt {
+	o.mu.Lock()
+	o.closed = true
+	selected := o.children[id]
+	delete(o.children, id)
+	remaining := o.children
+	o.children = nil
+	o.mu.Unlock()
+	for _, child := range remaining {
+		child.forget()
+	}
+	return selected
 }
