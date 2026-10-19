@@ -2,10 +2,11 @@ package runtime
 
 import (
 	"context"
-	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 
 	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
@@ -175,4 +176,51 @@ func TestMemorySnapshotAdmissionEvictsAndSweepsExpired(t *testing.T) {
 	_, ok = store.Load(t.Context(), "b")
 	require.False(t, ok)
 	require.Len(t, store.items, 1)
+}
+
+func TestMemorySnapshotSharedPressurePreservesLiveEntries(t *testing.T) {
+	// A foreign budget owner must not cause destructive local eviction for an impossible request.
+	budget := resource.NewBudget(100000)
+	store := NewMemorySnapshotStore(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 100000})
+	require.NoError(t, store.SaveChecked(t.Context(), "kept", &ExecutionSnapshot{ID: "kept"}, 0))
+	foreign, err := budget.Reserve(budget.Limit() - budget.Used())
+	require.NoError(t, err)
+	defer foreign.Release()
+	used := budget.Used()
+	require.ErrorIs(t, store.SaveChecked(t.Context(), "large", &ExecutionSnapshot{Variables: map[string]any{"x": strings.Repeat("x", 10000)}}, 0), resource.ErrLimit)
+	got, ok := store.Load(t.Context(), "kept")
+	require.True(t, ok)
+	require.Equal(t, "kept", got.ID)
+	require.Equal(t, used, budget.Used())
+	require.Zero(t, store.Stats().Evictions)
+	require.ErrorIs(t, store.UpdateChecked(t.Context(), "kept", 0, func(snapshot *ExecutionSnapshot) *ExecutionSnapshot {
+		snapshot.Variables = map[string]any{"x": strings.Repeat("x", 10000)}
+		return snapshot
+	}), resource.ErrLimit)
+	got, ok = store.Load(t.Context(), "kept")
+	require.True(t, ok)
+	require.Empty(t, got.Variables)
+	require.Equal(t, used, budget.Used())
+}
+
+func TestMemorySnapshotReplacementReclaimsColdEntry(t *testing.T) {
+	// Previous single-reservation replacement could not reclaim another local cache entry.
+	budget := resource.NewBudget(100000)
+	store := NewMemorySnapshotStore(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 100000})
+	require.NoError(t, store.SaveChecked(t.Context(), "cold", &ExecutionSnapshot{Variables: map[string]any{"x": strings.Repeat("x", 10000)}}, 0))
+	require.NoError(t, store.SaveChecked(t.Context(), "target", &ExecutionSnapshot{ID: "target"}, 0))
+	foreign, err := budget.Reserve(budget.Limit() - budget.Used())
+	require.NoError(t, err)
+	defer foreign.Release()
+	require.NoError(t, store.UpdateChecked(t.Context(), "target", 0, func(snapshot *ExecutionSnapshot) *ExecutionSnapshot {
+		snapshot.Variables = map[string]any{"x": strings.Repeat("y", 1000)}
+		return snapshot
+	}))
+	got, ok := store.Load(t.Context(), "target")
+	require.True(t, ok)
+	require.Len(t, got.Variables["x"], 1000)
+	_, ok = store.Load(t.Context(), "cold")
+	require.False(t, ok)
+	require.EqualValues(t, 1, store.Stats().Evictions)
+	require.LessOrEqual(t, budget.Used(), budget.Limit())
 }

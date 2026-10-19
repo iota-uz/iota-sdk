@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
-	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 
 	"github.com/stretchr/testify/require"
 )
@@ -354,4 +355,84 @@ func TestMemoryStoreClonesAcceptedMixedStructAndFrameParams(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "before", got.Params["mixed"].(mixed).Public["x"][0])
 	require.Equal(t, "before", got.Params["frame"].(frame.Frame).Fields[0].Values[0])
+}
+
+func TestMemoryStoreSharedPressurePreservesLiveEntriesOnRejectedPut(t *testing.T) {
+	// Previously a foreign reservation made failed admission evict every live local snapshot.
+	budget := resource.NewBudget(100000)
+	store := NewMemoryStoreWithOptions(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 100000}).(*memoryStore)
+	require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "kept", Params: map[string]any{"x": "before"}}))
+	foreign, err := budget.Reserve(budget.Limit() - budget.Used())
+	require.NoError(t, err)
+	defer foreign.Release()
+	used := budget.Used()
+	require.ErrorIs(t, store.Put(t.Context(), &Snapshot{ID: "large", Params: map[string]any{"x": strings.Repeat("x", 10000)}}), resource.ErrLimit)
+	got, err := store.Get(t.Context(), "kept")
+	require.NoError(t, err)
+	require.Equal(t, "before", got.Params["x"])
+	require.Equal(t, used, budget.Used())
+}
+
+func TestMemoryStoreIncrementalAdmissionReclaimsOtherSnapshots(t *testing.T) {
+	for _, expired := range []bool{false, true} {
+		for _, panel := range []bool{false, true} {
+			t.Run(fmt.Sprintf("expired=%t/panel=%t", expired, panel), func(t *testing.T) {
+				// The old incremental paths rejected growth without sweeping/reclaiming other entries.
+				budget := resource.NewBudget(100000)
+				store := NewMemoryStoreWithOptions(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 100000, TTL: time.Minute}).(*memoryStore)
+				now := time.Now()
+				store.clock = func() time.Time { return now }
+				require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "cold", Params: map[string]any{"x": strings.Repeat("x", 10000)}}))
+				now = now.Add(30 * time.Second)
+				require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "growing"}))
+				foreign, err := budget.Reserve(budget.Limit() - budget.Used())
+				require.NoError(t, err)
+				defer foreign.Release()
+				if expired {
+					now = now.Add(31 * time.Second)
+				}
+				fr := Frame{Rows: [][]any{{strings.Repeat("y", 1000)}}}
+				if panel {
+					err = store.PutPanel(t.Context(), "growing", "detail", "detail", fr, PanelCalculation{})
+				} else {
+					err = store.Append(t.Context(), "growing", map[FrameRef]Frame{"detail": fr})
+				}
+				require.NoError(t, err)
+				got, err := store.Get(t.Context(), "growing")
+				require.NoError(t, err)
+				require.Equal(t, fr.Rows, got.Frames["detail"].Rows)
+				_, err = store.Get(t.Context(), "cold")
+				require.ErrorIs(t, err, ErrSnapshotGone)
+				require.LessOrEqual(t, budget.Used(), budget.Limit())
+			})
+		}
+	}
+}
+
+func TestMemoryStoreRejectedGrowthPreservesTargetAndOtherEntries(t *testing.T) {
+	for _, panel := range []bool{false, true} {
+		t.Run(fmt.Sprint(panel), func(t *testing.T) {
+			budget := resource.NewBudget(100000)
+			store := NewMemoryStoreWithOptions(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 100000})
+			require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "cold"}))
+			require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "target"}))
+			foreign, err := budget.Reserve(budget.Limit() - budget.Used())
+			require.NoError(t, err)
+			defer foreign.Release()
+			used := budget.Used()
+			fr := Frame{Rows: [][]any{{strings.Repeat("x", 10000)}}}
+			if panel {
+				err = store.PutPanel(t.Context(), "target", "detail", "detail", fr, PanelCalculation{})
+			} else {
+				err = store.Append(t.Context(), "target", map[FrameRef]Frame{"detail": fr})
+			}
+			require.ErrorIs(t, err, resource.ErrLimit)
+			got, err := store.Get(t.Context(), "target")
+			require.NoError(t, err)
+			require.Empty(t, got.Frames)
+			_, err = store.Get(t.Context(), "cold")
+			require.NoError(t, err)
+			require.Equal(t, used, budget.Used())
+		})
+	}
 }

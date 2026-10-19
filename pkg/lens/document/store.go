@@ -134,11 +134,7 @@ func (m *memoryStore) Put(ctx context.Context, snapshot *Snapshot) error {
 	if size > m.budget.Limit() {
 		return resource.NewLimitError("entry bytes", size, m.budget.Limit())
 	}
-	reservation, err := m.budget.Replace(previous, size)
-	for err != nil && previous == nil && m.lru.Len() > 0 {
-		m.remove(m.lru.Back())
-		reservation, err = m.budget.Reserve(size)
-	}
+	reservation, err := m.reserveLocked(previous, size, m.items[id])
 	if err != nil {
 		return err
 	}
@@ -190,6 +186,7 @@ func (m *memoryStore) Append(ctx context.Context, id string, frames map[FrameRef
 	id = strings.TrimSpace(id)
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.sweepExpiredLocked(m.clock())
 	element, ok := m.items[id]
 	if !ok {
 		return ErrSnapshotGone
@@ -226,7 +223,7 @@ func (m *memoryStore) Append(ctx context.Context, id string, frames map[FrameRef
 	if err != nil {
 		return err
 	}
-	reservation, err := m.budget.Replace(entry.reservation, size)
+	reservation, err := m.reserveLocked(entry.reservation, size, element)
 	if err != nil {
 		return err
 	}
@@ -259,6 +256,7 @@ func (m *memoryStore) PutPanel(
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.sweepExpiredLocked(m.clock())
 	element, ok := m.items[id]
 	if !ok {
 		return ErrSnapshotGone
@@ -285,7 +283,7 @@ func (m *memoryStore) PutPanel(
 	if err != nil {
 		return err
 	}
-	reservation, err := m.budget.Replace(entry.reservation, size)
+	reservation, err := m.reserveLocked(entry.reservation, size, element)
 	if err != nil {
 		return err
 	}
@@ -305,6 +303,35 @@ func (m *memoryStore) remove(element *list.Element) {
 	entry.reservation.Release()
 	delete(m.items, entry.snapshot.ID)
 	m.lru.Remove(element)
+}
+
+func (m *memoryStore) sweepExpiredLocked(now time.Time) {
+	for _, element := range m.items {
+		if !element.Value.(*memorySnapshot).expiresAt.After(now) {
+			m.remove(element)
+		}
+	}
+}
+
+func (m *memoryStore) reserveLocked(previous *resource.Reservation, size int64, keep *list.Element) (*resource.Reservation, error) {
+	credits := []*resource.Reservation{previous}
+	reservation, err := m.budget.ReplaceMany(credits, size)
+	var victims []*list.Element
+	for candidate := m.lru.Back(); err != nil && candidate != nil; candidate = candidate.Prev() {
+		if candidate == keep {
+			continue
+		}
+		victims = append(victims, candidate)
+		credits = append(credits, candidate.Value.(*memorySnapshot).reservation)
+		reservation, err = m.budget.ReplaceMany(credits, size)
+	}
+	if err != nil {
+		return nil, err
+	}
+	for _, victim := range victims {
+		m.remove(victim)
+	}
+	return reservation, nil
 }
 
 func (m *memoryStore) Delete(ctx context.Context, id string) error {

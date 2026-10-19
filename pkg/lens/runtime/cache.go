@@ -172,12 +172,7 @@ func (m *MemorySnapshotStore) saveLocked(key string, snapshot *ExecutionSnapshot
 	if size > m.budget.Limit() {
 		return resource.NewLimitError("entry bytes", size, m.budget.Limit())
 	}
-	reservation, err := m.budget.Replace(previous, size)
-	for err != nil && previous == nil && m.lru.Len() > 0 {
-		m.remove(m.lru.Back())
-		m.evictions.Add(1)
-		reservation, err = m.budget.Reserve(size)
-	}
+	reservation, err := m.reserveLocked(previous, size, m.items[key])
 	if err != nil {
 		return err
 	}
@@ -255,6 +250,28 @@ func (m *MemorySnapshotStore) remove(element *list.Element) {
 	element.Value.(*memoryEntry).reservation.Release()
 	delete(m.items, element.Value.(*memoryEntry).key)
 	m.lru.Remove(element)
+}
+
+func (m *MemorySnapshotStore) reserveLocked(previous *resource.Reservation, size int64, keep *list.Element) (*resource.Reservation, error) {
+	credits := []*resource.Reservation{previous}
+	reservation, err := m.budget.ReplaceMany(credits, size)
+	var victims []*list.Element
+	for candidate := m.lru.Back(); err != nil && candidate != nil; candidate = candidate.Prev() {
+		if candidate == keep {
+			continue
+		}
+		victims = append(victims, candidate)
+		credits = append(credits, candidate.Value.(*memoryEntry).reservation)
+		reservation, err = m.budget.ReplaceMany(credits, size)
+	}
+	if err != nil {
+		return nil, err
+	}
+	for _, victim := range victims {
+		m.remove(victim)
+		m.evictions.Add(1)
+	}
+	return reservation, nil
 }
 func (m *MemorySnapshotStore) Stats() CacheStats {
 	return CacheStats{m.hits.Load(), m.misses.Load(), m.stores.Load(), m.evictions.Load(), m.expirations.Load(), m.rejections.Load()}
