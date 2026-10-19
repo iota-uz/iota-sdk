@@ -57,3 +57,16 @@ func TestEstimateRejectsCustomTextMarshal(t *testing.T) {
 	_, err := Estimate(hostileText{}, 10000)
 	require.Error(t, err)
 }
+
+func TestEstimateJSONSkipsOpaqueNonSerializedState(t *testing.T) {
+	// Serialization preflight may skip opaque private/ignored state; ownership preflight may not.
+	value := struct {
+		Public  string
+		ignored func() `json:"-"`
+		private map[string]string
+	}{Public: "wire", ignored: func() {}, private: map[string]string{"private": "value"}}
+	_, err := EstimateJSON(value, 10000)
+	require.NoError(t, err)
+	_, err = Estimate(value, 10000)
+	require.Error(t, err)
+}

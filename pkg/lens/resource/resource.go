@@ -93,14 +93,26 @@ func Estimate(value any, limit int64) (int64, error) {
 	return e.size, err
 }
 
+// EstimateJSON guards serialization without claiming ownership of opaque,
+// JSON-ignored state. Ownership boundaries must use Estimate instead.
+func EstimateJSON(value any, limit int64) (int64, error) {
+	if limit <= 0 {
+		limit = DefaultEntryLimit
+	}
+	e := estimator{limit: limit, path: map[visit]bool{}, serialization: true}
+	err := e.walk(reflect.ValueOf(value), 0)
+	return e.size, err
+}
+
 type visit struct {
 	typ reflect.Type
 	ptr uintptr
 }
 type estimator struct {
-	size, limit int64
-	nodes       int
-	path        map[visit]bool
+	size, limit   int64
+	nodes         int
+	serialization bool
+	path          map[visit]bool
 }
 
 func (e *estimator) add(n int64) error {
@@ -123,6 +135,9 @@ func (e *estimator) walk(v reflect.Value, depth int) error {
 	}
 	if v.Type() == reflect.TypeFor[time.Time]() {
 		return e.add(64)
+	}
+	if v.Type() == reflect.TypeFor[*time.Time]() {
+		return e.add(96)
 	}
 	if v.Type() != reflect.TypeFor[json.RawMessage]() && (v.Type().Implements(reflect.TypeFor[json.Marshaler]()) || reflect.PointerTo(v.Type()).Implements(reflect.TypeFor[json.Marshaler]()) || v.Type().Implements(reflect.TypeFor[encoding.TextMarshaler]()) || reflect.PointerTo(v.Type()).Implements(reflect.TypeFor[encoding.TextMarshaler]())) {
 		return fmt.Errorf("unsupported custom lens JSON marshaler %s", v.Type())
@@ -177,6 +192,9 @@ func (e *estimator) walk(v reflect.Value, depth int) error {
 	case reflect.Struct:
 		for i := 0; i < v.NumField(); i++ {
 			f := v.Type().Field(i)
+			if e.serialization && (f.PkgPath != "" || f.Tag.Get("json") == "-") {
+				continue
+			}
 			if f.PkgPath != "" && v.Type().PkgPath() == "github.com/iota-uz/iota-sdk/pkg/lens/frame" && v.Type().Name() == "Frame" && f.Name == "fieldIndex" {
 				if err := e.add(int64(v.Field(i).Len()) * 64); err != nil {
 					return err
