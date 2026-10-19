@@ -2,18 +2,20 @@ package runtime
 
 import (
 	"context"
-	"github.com/shopspring/decimal"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
+
+	"github.com/stretchr/testify/require"
 
 	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMemorySnapshotStoreTTLBoundedAndCloneSafe(t *testing.T) {

@@ -3,12 +3,13 @@ package runtime
 import (
 	"container/list"
 	"context"
-	"github.com/shopspring/decimal"
 	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/shopspring/decimal"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/resource"

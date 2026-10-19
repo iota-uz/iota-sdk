@@ -3,13 +3,14 @@ package serve
 import (
 	"context"
 	"fmt"
-	"github.com/shopspring/decimal"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/shopspring/decimal"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
@@ -764,4 +765,70 @@ func TestOwnedReportDecimalCopiesCoefficientBeforeProducerBinaryMutation(t *test
 	require.Equal(t, original, params["optional"].Literal.(decimal.NullDecimal).Decimal.String())
 	require.Equal(t, original, doc.Frames["money"].Rows[0][0].(decimal.Decimal).String())
 	require.Equal(t, original, doc.Frames["money"].Rows[0][1].(*decimal.Decimal).String())
+}
+
+func TestReportCacheRejectedPressurePreservesLeasedAndColdIndexes(t *testing.T) {
+	t.Parallel()
+	for _, leased := range []bool{false, true} {
+		t.Run(fmt.Sprint(leased), func(t *testing.T) {
+			t.Parallel()
+			key, definition := reportFixture(t)
+			budget := resource.NewBudget(1 << 20)
+			var cleaned atomic.Int32
+			cache := newReportCache(t, ReportCacheOptions[string]{Budget: budget, OnEvict: func(string) { cleaned.Add(1) }})
+			view, err := cache.Materialize(t.Context(), key, func(context.Context) (ReportDefinition[string], error) { return definition, nil })
+			require.NoError(t, err)
+			if !leased {
+				view.Release()
+			}
+			held := budget.Used()
+			external, err := budget.Reserve(budget.Limit() - held - 10)
+			require.NoError(t, err)
+			defer external.Release()
+			// Even reclaiming every cold report cannot satisfy this shared-owner request.
+			requested := held + 20
+			if leased {
+				requested = 20
+			}
+			_, err = cache.reserve(requested)
+			require.ErrorIs(t, err, resource.ErrLimit)
+			require.EqualValues(t, 0, cleaned.Load())
+			require.EqualValues(t, 1, cache.Stats().Entries)
+			require.Equal(t, budget.Limit()-10, budget.Used())
+			found, ok, err := cache.Lookup(t.Context(), key)
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Equal(t, view.Document.SnapshotID, found.Document.SnapshotID)
+			found.Release()
+			view.Release()
+		})
+	}
+}
+
+func TestReportCacheColdReclaimIsAtomicAndCleansExactlyOnce(t *testing.T) {
+	t.Parallel()
+	key, definition := reportFixture(t)
+	budget := resource.NewBudget(1 << 20)
+	var cleaned atomic.Int32
+	cache := newReportCache(t, ReportCacheOptions[string]{Budget: budget, OnEvict: func(string) { cleaned.Add(1) }})
+	parent, err := cache.Materialize(t.Context(), key, func(context.Context) (ReportDefinition[string], error) { return definition, nil })
+	require.NoError(t, err)
+	_, err = cache.MaterializeDerived(t.Context(), parent.Document.SnapshotID, "wire", DerivedSurfaceInteractive, func(context.Context) (*document.DashboardDocument, error) {
+		return &document.DashboardDocument{SnapshotID: "inline-owned"}, nil
+	})
+	require.NoError(t, err)
+	parent.Release()
+	held := budget.Used()
+	external, err := budget.Reserve(budget.Limit() - held - 10)
+	require.NoError(t, err)
+	replacement, err := cache.reserve(held)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, cleaned.Load())
+	require.Zero(t, cache.Stats().Entries)
+	require.Equal(t, budget.Limit()-10, budget.Used())
+	cache.Close()
+	require.EqualValues(t, 1, cleaned.Load())
+	replacement.Release()
+	external.Release()
+	require.Zero(t, budget.Used())
 }

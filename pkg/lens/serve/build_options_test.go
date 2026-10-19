@@ -5,9 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
-	"github.com/stretchr/testify/require"
 )
 
 func TestHandlersResourceRejectionsReachObserver(t *testing.T) {

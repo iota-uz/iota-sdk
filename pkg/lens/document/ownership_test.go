@@ -1,9 +1,11 @@
 package document
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 )
 
 func TestFrozenDocument_DeepOwnsInputsAndEachReader(t *testing.T) {

@@ -2,10 +2,11 @@ package frame
 
 import (
 	"fmt"
-	"github.com/shopspring/decimal"
 	"reflect"
 	"slices"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 type FieldType string

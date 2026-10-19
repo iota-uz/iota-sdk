@@ -3,10 +3,11 @@ package serve
 import (
 	"context"
 	"fmt"
-	"github.com/shopspring/decimal"
 	"reflect"
 	"sync"
 	"time"
+
+	"github.com/shopspring/decimal"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"

@@ -610,22 +610,38 @@ func (c *ReportCache[T]) reserve(size int64) (*resource.Reservation, error) {
 	if size > c.opts.Budget.Limit() {
 		return nil, resource.NewLimitError("entry bytes", size, c.opts.Budget.Limit())
 	}
-	for {
-		reservation, err := c.opts.Budget.Reserve(size)
-		if err == nil {
-			return reservation, nil
-		}
-		c.mu.Lock()
-		oldest := c.lru.Back()
-		if oldest == nil {
-			c.mu.Unlock()
-			return nil, err
-		}
-		entry := oldest.Value.(*reportEntry[T])
-		c.removeLocked(entry)
-		c.mu.Unlock()
-		c.dispose(entry)
+	if reservation, err := c.opts.Budget.Reserve(size); err == nil {
+		return reservation, nil
 	}
+	c.mu.Lock()
+	var candidates []*reportEntry[T]
+	var credits []*resource.Reservation
+	reservation, err := c.opts.Budget.ReplaceMany(nil, size)
+	for oldest := c.lru.Back(); err != nil && oldest != nil; oldest = oldest.Prev() {
+		entry := oldest.Value.(*reportEntry[T])
+		if entry.leases != 0 || entry.derivedOwners != 0 || entry.disposed {
+			continue
+		}
+		candidates = append(candidates, entry)
+		credits = append(credits, entry.reservation, entry.specReservation)
+		for _, child := range entry.derived {
+			credits = append(credits, child.reservation)
+		}
+		reservation, err = c.opts.Budget.ReplaceMany(credits, size)
+	}
+	if err != nil {
+		c.mu.Unlock()
+		return nil, err
+	}
+	for _, entry := range candidates {
+		c.removeLocked(entry)
+		entry.disposed = true
+	}
+	c.mu.Unlock()
+	for _, entry := range candidates {
+		c.releaseRetained(entry)
+	}
+	return reservation, nil
 }
 
 func (c *ReportCache[T]) removeLocked(entry *reportEntry[T]) {

@@ -2,14 +2,16 @@ package runtime
 
 import (
 	"context"
-	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
-	"github.com/shopspring/decimal"
 	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 
 	"github.com/stretchr/testify/require"
 )

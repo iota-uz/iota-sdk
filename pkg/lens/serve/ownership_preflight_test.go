@@ -3,9 +3,10 @@ package serve
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
-	"github.com/stretchr/testify/require"
 )
 
 func TestOwnedSpecChecksIgnoredMutableFieldsBeforeCloning(t *testing.T) {

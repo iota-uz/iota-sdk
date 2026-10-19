@@ -2,13 +2,14 @@ package resource
 
 import (
 	"encoding/json"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/require"
 	"math"
 	"math/big"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDecimalNativeValuesHaveBoundedPreflight(t *testing.T) {
