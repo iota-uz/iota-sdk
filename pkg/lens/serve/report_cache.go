@@ -519,7 +519,8 @@ func (c *ReportCache[T]) run(ctx context.Context, key string, identity ReportKey
 	}
 	snapshotID := doc.SnapshotID
 	cleanup := func() { handlers.ForgetSnapshot(context.Background(), snapshotID) }
-	if definition.Prepare != nil {
+	doc, err = ownPreparedDocument(doc, c.opts.MaxDocumentBytes)
+	if err == nil && definition.Prepare != nil {
 		err = definition.Prepare(doc)
 	}
 	if err == nil && doc.SnapshotID != snapshotID {

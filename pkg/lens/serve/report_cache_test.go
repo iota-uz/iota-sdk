@@ -679,3 +679,36 @@ func TestReportCache_ProjectsRendererIconCallbacksOutOfOwnedSpec(t *testing.T) {
 	require.Equal(t, "blue", owned.Rows[0].Panels[0].Chrome.AccentColor)
 	require.False(t, definition.Config.Spec.Rows[0].Panels[0].Chrome.Icon.Empty())
 }
+
+func TestReportCache_PreparationOwnsProducerControlsBeforeMutation(t *testing.T) {
+	t.Parallel()
+	// Mutating the callback input must not feed reusable producer options into
+	// another cache miss; changing only egress copies would miss this boundary.
+	key, definition := reportFixture(t)
+	cache := newReportCache(t, ReportCacheOptions[string]{})
+	definition.Options.Header = &document.DocumentHeader{Title: "producer"}
+	definition.Options.Filters = []document.Filter{{ID: "product", Kind: document.FilterKindFacet, Facet: &document.FacetFilter{Dimension: "product", OptionsEndpoint: "/options", Selections: []document.FacetSelection{{Label: "producer"}}}}}
+	definition.Options.Theme = document.Theme{Palette: map[string]string{"brand": "producer"}}
+	definition.Prepare = func(doc *document.DashboardDocument) error {
+		if doc.Header.Title != "producer" || doc.Filters[0].Facet.Selections[0].Label != "producer" || doc.I18n["owned"] != "base" || doc.Theme.Palette["brand"] != "producer" {
+			return fmt.Errorf("producer controls were changed by an earlier preparation")
+		}
+		doc.Header.Title = "prepared"
+		doc.Filters[0].Facet.Selections[0].Label = "prepared"
+		doc.I18n["owned"] = "prepared"
+		doc.Theme.Palette["brand"] = "prepared"
+		return nil
+	}
+	for i := 0; i < 2; i++ {
+		key.Params = fmt.Sprint("independent-miss-", i)
+		view, err := cache.Materialize(context.Background(), key, func(context.Context) (ReportDefinition[string], error) { return definition, nil })
+		require.NoError(t, err)
+		require.Equal(t, "prepared", view.Document.Header.Title)
+		require.Equal(t, "prepared", view.Document.Filters[0].Facet.Selections[0].Label)
+		view.Release()
+	}
+	require.Equal(t, "producer", definition.Options.Header.Title)
+	require.Equal(t, "producer", definition.Options.Filters[0].Facet.Selections[0].Label)
+	require.Equal(t, "base", definition.Options.I18n["owned"])
+	require.Equal(t, "producer", definition.Options.Theme.Palette["brand"])
+}

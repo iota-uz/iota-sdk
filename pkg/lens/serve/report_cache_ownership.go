@@ -9,6 +9,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
+	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 )
@@ -36,6 +37,18 @@ func ownReportSpec(source lens.DashboardSpec, limit int64) (lens.DashboardSpec, 
 func OwnReportDatasets(source []lens.DatasetSpec, limit int64) ([]lens.DatasetSpec, int64, error) {
 	owned, size, err := ownReportSpec(lens.DashboardSpec{Datasets: source}, limit)
 	return owned.Datasets, size, err
+}
+
+func ownPreparedDocument(source *document.DashboardDocument, limit int64) (*document.DashboardDocument, error) {
+	type wireDocument document.DashboardDocument
+	if _, err := resource.Estimate((*wireDocument)(source), limit); err != nil {
+		return nil, err
+	}
+	owned, err := cloneSpecValue(reflect.ValueOf(source))
+	if err != nil {
+		return nil, err
+	}
+	return owned.Interface().(*document.DashboardDocument), nil
 }
 
 func cloneSpecValue(value reflect.Value) (reflect.Value, error) {
