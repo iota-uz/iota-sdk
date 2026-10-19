@@ -3,6 +3,7 @@
 package resource
 
 import (
+	"encoding"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -112,10 +113,10 @@ func (e *estimator) add(n int64) error {
 func (e *estimator) walk(v reflect.Value, depth int) error {
 	e.nodes++
 	if e.nodes > 1000000 {
-		return fmt.Errorf("lens value exceeds structural node limit")
+		return NewLimitError("structural_nodes", int64(e.nodes), 1000000)
 	}
 	if depth > 128 {
-		return fmt.Errorf("lens value nesting exceeds 128")
+		return NewLimitError("structural_depth", int64(depth), 128)
 	}
 	if !v.IsValid() {
 		return e.add(1)
@@ -123,7 +124,7 @@ func (e *estimator) walk(v reflect.Value, depth int) error {
 	if v.Type() == reflect.TypeFor[time.Time]() {
 		return e.add(64)
 	}
-	if v.Type() != reflect.TypeFor[json.RawMessage]() && (v.Type().Implements(reflect.TypeFor[json.Marshaler]()) || reflect.PointerTo(v.Type()).Implements(reflect.TypeFor[json.Marshaler]())) {
+	if v.Type() != reflect.TypeFor[json.RawMessage]() && (v.Type().Implements(reflect.TypeFor[json.Marshaler]()) || reflect.PointerTo(v.Type()).Implements(reflect.TypeFor[json.Marshaler]()) || v.Type().Implements(reflect.TypeFor[encoding.TextMarshaler]()) || reflect.PointerTo(v.Type()).Implements(reflect.TypeFor[encoding.TextMarshaler]())) {
 		return fmt.Errorf("unsupported custom lens JSON marshaler %s", v.Type())
 	}
 	switch v.Kind() {

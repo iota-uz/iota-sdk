@@ -48,3 +48,12 @@ func TestBudgetReplacementAndRelease(t *testing.T) {
 	_, err = b.Reserve(101)
 	require.True(t, errors.Is(err, ErrLimit))
 }
+
+type hostileText struct{}
+
+func (hostileText) MarshalText() ([]byte, error) { panic("must reject before encoding") }
+func TestEstimateRejectsCustomTextMarshal(t *testing.T) {
+	// encoding/json can invoke TextMarshaler even when JSONMarshaler is absent.
+	_, err := Estimate(hostileText{}, 10000)
+	require.Error(t, err)
+}
