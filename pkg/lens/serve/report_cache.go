@@ -383,7 +383,7 @@ func (c *ReportCache[T]) materialize(ctx context.Context, key ReportKey, build f
 		}
 		if ctx.Value(reportBuildContextKey{}) != c.opts.BuildLimiter && len(c.flights)+len(c.derivedFlights) >= c.opts.MaxConcurrentBuilds+c.opts.MaxPendingBuilds {
 			c.mu.Unlock()
-			return nil, resource.NewLimitError("report_build_queue", int64(len(c.flights)+1), int64(c.opts.MaxConcurrentBuilds+c.opts.MaxPendingBuilds))
+			return nil, resource.NewAdmissionError("report_build_queue", int64(len(c.flights)+1), int64(c.opts.MaxConcurrentBuilds+c.opts.MaxPendingBuilds))
 		}
 		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.opts.BuildTimeout)
 		flight = &reportFlight[T]{done: make(chan struct{}), cancel: cancel}
@@ -760,7 +760,7 @@ func (c *ReportCache[T]) materializeDerived(ctx context.Context, parentID, key s
 		if c.closed || len(c.flights)+len(c.derivedFlights) >= limit {
 			requested := len(c.flights) + len(c.derivedFlights) + 1
 			c.mu.Unlock()
-			return nil, resource.NewLimitError("report_build_queue", int64(requested), int64(limit))
+			return nil, resource.NewAdmissionError("report_build_queue", int64(requested), int64(limit))
 		}
 		if len(parent.derived) >= c.opts.MaxDerivedPerReport {
 			c.mu.Unlock()
@@ -1001,7 +1001,7 @@ func (l *ReportBuildLimiter) acquire(ctx context.Context) (func(), error) {
 	if l.admitted >= l.max {
 		requested := l.admitted + 1
 		l.mu.Unlock()
-		return nil, resource.NewLimitError("report_build_queue", int64(requested), int64(l.max))
+		return nil, resource.NewAdmissionError("report_build_queue", int64(requested), int64(l.max))
 	}
 	l.admitted++
 	l.mu.Unlock()

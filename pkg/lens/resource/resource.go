@@ -35,12 +35,15 @@ func (e *LimitError) Error() string {
 	return fmt.Sprintf("%s: requested %d, limit %d: %v", e.Resource, e.Requested, e.Limit, ErrLimit)
 }
 func (e *LimitError) Unwrap() error { return ErrLimit }
+
+// NewLimitError reports an individually oversized or invalid payload.
 func NewLimitError(name string, n, limit int64) error {
-	kind := LimitPayload
-	if name == "report_build_queue" || name == "report_builds" || name == "retained bytes" {
-		kind = LimitAdmission
-	}
-	return &LimitError{Kind: kind, Resource: name, Requested: n, Limit: limit}
+	return &LimitError{Kind: LimitPayload, Resource: name, Requested: n, Limit: limit}
+}
+
+// NewAdmissionError reports temporary shared capacity pressure.
+func NewAdmissionError(name string, n, limit int64) error {
+	return &LimitError{Kind: LimitAdmission, Resource: name, Requested: n, Limit: limit}
 }
 
 type Budget struct {
@@ -63,7 +66,7 @@ func (b *Budget) Reserve(n int64) (*Reservation, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if n < 0 || n > b.limit-b.used {
-		return nil, NewLimitError("retained bytes", n, b.limit)
+		return nil, NewAdmissionError("retained bytes", n, b.limit)
 	}
 	b.used += n
 	return &Reservation{budget: b, bytes: n}, nil
@@ -259,7 +262,7 @@ func (b *Budget) Replace(old *Reservation, n int64) (*Reservation, error) {
 		return nil, fmt.Errorf("invalid lens reservation replacement")
 	}
 	if n < 0 || n-old.bytes > b.limit-b.used {
-		return nil, NewLimitError("retained bytes", n, b.limit)
+		return nil, NewAdmissionError("retained bytes", n, b.limit)
 	}
 	b.used += n - old.bytes
 	old.bytes = n
