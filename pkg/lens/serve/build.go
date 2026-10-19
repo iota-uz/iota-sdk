@@ -10,7 +10,9 @@ import (
 
 // BuildDocument constructs and stores a typed snapshot without an HTTP round trip.
 // Config owns inline depth and progressive mode. Options override document
-// identity, locale, endpoints, controls and presentation; zero values use defaults.
+// identity, locale, controls and presentation; zero values use defaults.
+// A nonzero Options.Endpoints replaces the complete endpoint contract so hosts
+// can omit unmounted routes. Progressive overrides must include a Panel endpoint.
 func (h *Handlers) BuildDocument(ctx context.Context, req lensruntime.Request, opts document.BuildOptions) (*document.DashboardDocument, error) {
 	scope := lensruntime.DashboardScope()
 	if h.progressive {

@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 	"github.com/stretchr/testify/require"
 )
@@ -28,6 +29,30 @@ func TestHandlersResourceRejectionsReachObserver(t *testing.T) {
 			observed := observer.recorded()
 			require.Len(t, observed, 1)
 			require.ErrorIs(t, observed[0].err, resource.ErrLimit)
+		})
+	}
+}
+
+func TestBuildDocumentEndpointOverrideReplacesCompleteContract(t *testing.T) {
+	// Whole-contract replacement lets hosts omit unmounted routes; merging defaults would silently expose them again.
+	for _, item := range []struct {
+		name        string
+		progressive bool
+		endpoints   document.Endpoints
+		want        document.Endpoints
+	}{
+		{name: "defaults", want: document.Endpoints{Query: "/dash/lens/query", Release: "/dash/lens/release", Export: "/dash/export"}},
+		{name: "custom export only", endpoints: document.Endpoints{Export: "/custom/export"}, want: document.Endpoints{Export: "/custom/export"}},
+		{name: "explicit progressive routes", progressive: true, endpoints: document.Endpoints{Panel: "/custom/panel", Export: "/custom/export"}, want: document.Endpoints{Panel: "/custom/panel", Export: "/custom/export"}},
+	} {
+		t.Run(item.name, func(t *testing.T) {
+			_, definition := reportFixture(t)
+			definition.Config.Progressive = item.progressive
+			handlers, err := New(definition.Config)
+			require.NoError(t, err)
+			doc, err := handlers.BuildDocument(t.Context(), definition.Request, document.BuildOptions{Endpoints: item.endpoints})
+			require.NoError(t, err)
+			require.Equal(t, item.want, doc.Endpoints)
 		})
 	}
 }
