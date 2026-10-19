@@ -16,7 +16,7 @@ func TestHandlersResourceRejectionsReachObserver(t *testing.T) {
 		name   string
 		cause  error
 		status int
-	}{{"payload", resource.NewLimitError("entry bytes", 1000, 100), 413}, {"admission", resource.NewLimitError("report_build_queue", 2, 1), 503}} {
+	}{{"payload", resource.NewLimitError("entry bytes", 1000, 100), 413}, {"admission", resource.NewAdmissionError("report_build_queue", 2, 1), 503}} {
 		t.Run(item.name, func(t *testing.T) {
 			observer := &recordingObserver{}
 			handlers, executor, _ := newTestHandlers(t, 0)

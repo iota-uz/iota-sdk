@@ -2,6 +2,7 @@ package frame
 
 import (
 	"fmt"
+	"github.com/shopspring/decimal"
 	"reflect"
 	"slices"
 	"time"
@@ -334,6 +335,9 @@ func cloneCellReflect(v reflect.Value, seen map[cellVisit]reflect.Value) reflect
 		return v
 	}
 	var key cellVisit
+	if v.Type() == reflect.TypeFor[decimal.Decimal]() {
+		return reflect.ValueOf(v.Interface().(decimal.Decimal).Copy())
+	}
 	//nolint:exhaustive // Only reference kinds participate in cycle detection.
 	switch v.Kind() {
 	case reflect.Pointer, reflect.Map, reflect.Slice:

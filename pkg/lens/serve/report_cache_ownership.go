@@ -3,6 +3,7 @@ package serve
 import (
 	"context"
 	"fmt"
+	"github.com/shopspring/decimal"
 	"reflect"
 	"sync"
 	"time"
@@ -66,6 +67,9 @@ func cloneSpecValue(value reflect.Value) (reflect.Value, error) {
 	if value.Type() == reflect.TypeFor[frame.Frame]() {
 		original := value.Interface().(frame.Frame)
 		return reflect.ValueOf(*original.Clone()), nil
+	}
+	if value.Type() == reflect.TypeFor[decimal.Decimal]() {
+		return reflect.ValueOf(value.Interface().(decimal.Decimal).Copy()), nil
 	}
 	switch value.Kind() {
 	case reflect.Interface, reflect.Pointer:

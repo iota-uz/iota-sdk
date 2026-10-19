@@ -108,6 +108,24 @@ func EstimateJSON(value any, limit int64) (int64, error) {
 	return e.size, err
 }
 
+// EstimateProjected performs strict ownership preflight except for exact types
+// the caller removes entirely from its owned projection. It does not ignore
+// json:"-" fields or any other retained state. Omitted values cost128 units.
+func EstimateProjected(value any, limit int64, omittedTypes ...reflect.Type) (int64, error) {
+	if limit <= 0 {
+		limit = DefaultEntryLimit
+	}
+	omitted := make(map[reflect.Type]struct{}, len(omittedTypes))
+	for _, kind := range omittedTypes {
+		if kind != nil {
+			omitted[kind] = struct{}{}
+		}
+	}
+	e := estimator{limit: limit, path: map[visit]bool{}, omitted: omitted}
+	err := e.walk(reflect.ValueOf(value), 0)
+	return e.size, err
+}
+
 type visit struct {
 	typ reflect.Type
 	ptr uintptr
@@ -116,6 +134,7 @@ type estimator struct {
 	size, limit   int64
 	nodes         int
 	serialization bool
+	omitted       map[reflect.Type]struct{}
 	path          map[visit]bool
 }
 
@@ -136,6 +155,15 @@ func (e *estimator) walk(v reflect.Value, depth int) error {
 	}
 	if !v.IsValid() {
 		return e.add(1)
+	}
+	if _, omitted := e.omitted[v.Type()]; omitted {
+		return e.add(128)
+	}
+	if size, native, err := decimalEstimate(v, e.limit-e.size); native {
+		if err != nil {
+			return err
+		}
+		return e.add(size)
 	}
 	if v.Type() == reflect.TypeFor[time.Time]() {
 		return e.add(64)
@@ -202,6 +230,13 @@ func (e *estimator) walk(v reflect.Value, depth int) error {
 			}
 		}
 	case reflect.Slice, reflect.Array:
+		if v.Kind() == reflect.Slice && v.Type().Elem().Kind() == reflect.Uint8 && !hasCustomEncoder(v.Type().Elem()) {
+			multiplier := int64(2)
+			if v.Type() == reflect.TypeFor[json.RawMessage]() {
+				multiplier = 6
+			}
+			return e.add(int64(v.Len()) * multiplier)
+		}
 		for i := 0; i < v.Len(); i++ {
 			if err := e.walk(v.Index(i), depth+1); err != nil {
 				return err
@@ -267,4 +302,9 @@ func (b *Budget) Replace(old *Reservation, n int64) (*Reservation, error) {
 	b.used += n - old.bytes
 	old.bytes = n
 	return old, nil
+}
+
+func hasCustomEncoder(kind reflect.Type) bool {
+	jsonEncoder, textEncoder := reflect.TypeFor[json.Marshaler](), reflect.TypeFor[encoding.TextMarshaler]()
+	return kind.Implements(jsonEncoder) || reflect.PointerTo(kind).Implements(jsonEncoder) || kind.Implements(textEncoder) || reflect.PointerTo(kind).Implements(textEncoder)
 }

@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"github.com/shopspring/decimal"
 	"strings"
 	"testing"
 	"time"
@@ -223,4 +224,19 @@ func TestMemorySnapshotReplacementReclaimsColdEntry(t *testing.T) {
 	require.False(t, ok)
 	require.EqualValues(t, 1, store.Stats().Evictions)
 	require.LessOrEqual(t, budget.Used(), budget.Limit())
+}
+
+func TestRuntimeSnapshotOwnsDecimalCoefficient(t *testing.T) {
+	t.Parallel()
+	amount := decimal.RequireFromString("12345678901234567890.123456789")
+	original := amount.String()
+	store := NewMemorySnapshotStore(MemoryStoreOptions{})
+	store.Save(t.Context(), "decimal", &ExecutionSnapshot{Variables: map[string]any{"amount": amount, "pointer": &amount}}, time.Minute)
+	replacement, err := decimal.New(42, -1).MarshalBinary()
+	require.NoError(t, err)
+	require.NoError(t, amount.UnmarshalBinary(replacement))
+	snapshot, ok := store.Load(t.Context(), "decimal")
+	require.True(t, ok)
+	require.Equal(t, original, snapshot.Variables["amount"].(decimal.Decimal).String())
+	require.Equal(t, original, snapshot.Variables["pointer"].(*decimal.Decimal).String())
 }

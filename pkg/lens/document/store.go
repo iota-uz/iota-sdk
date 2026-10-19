@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/shopspring/decimal"
 	"reflect"
 	"slices"
 	"strings"
@@ -506,6 +507,9 @@ func cloneWireValue(v reflect.Value) reflect.Value {
 	}
 	if v.Type() == reflect.TypeFor[time.Time]() {
 		return v
+	}
+	if v.Type() == reflect.TypeFor[decimal.Decimal]() {
+		return reflect.ValueOf(v.Interface().(decimal.Decimal).Copy())
 	}
 	//nolint:exhaustive // Only mutable wire shapes need cloning; default preserves scalar values.
 	switch v.Kind() {

@@ -1,6 +1,7 @@
 package frame
 
 import (
+	"github.com/shopspring/decimal"
 	"testing"
 	"time"
 
@@ -122,4 +123,17 @@ func TestClonePreservesOverlappingTypedSliceLengths(t *testing.T) {
 	base[0] = "changed"
 	require.Equal(t, []string{"one"}, cloned.Values[0])
 	require.Equal(t, []string{"one", "two"}, cloned.Values[1])
+}
+
+func TestFrameCloneOwnsDecimalCoefficient(t *testing.T) {
+	t.Parallel()
+	amount := decimal.RequireFromString("12345678901234567890.123456789")
+	original := amount.String()
+	source := &Frame{Name: "amount", Fields: []Field{{Name: "amount", Type: FieldTypeNumber, Values: []any{amount, &amount}}}}
+	owned := source.Clone()
+	replacement, err := decimal.New(42, -1).MarshalBinary()
+	require.NoError(t, err)
+	require.NoError(t, amount.UnmarshalBinary(replacement))
+	require.Equal(t, original, owned.Fields[0].Values[0].(decimal.Decimal).String())
+	require.Equal(t, original, owned.Fields[0].Values[1].(*decimal.Decimal).String())
 }

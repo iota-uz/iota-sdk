@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/shopspring/decimal"
 	"strings"
 	"testing"
 	"time"
@@ -435,4 +436,19 @@ func TestMemoryStoreRejectedGrowthPreservesTargetAndOtherEntries(t *testing.T) {
 			require.Equal(t, used, budget.Used())
 		})
 	}
+}
+
+func TestMemorySnapshotStoreOwnsDecimalCoefficient(t *testing.T) {
+	t.Parallel()
+	amount := decimal.RequireFromString("12345678901234567890.123456789")
+	original := amount.String()
+	store := NewMemoryStore(time.Minute, 8)
+	require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "decimal", Params: map[string]any{"amount": amount, "pointer": &amount}}))
+	replacement, err := decimal.New(42, -1).MarshalBinary()
+	require.NoError(t, err)
+	require.NoError(t, amount.UnmarshalBinary(replacement))
+	snapshot, err := store.Get(t.Context(), "decimal")
+	require.NoError(t, err)
+	require.Equal(t, original, snapshot.Params["amount"].(decimal.Decimal).String())
+	require.Equal(t, original, snapshot.Params["pointer"].(*decimal.Decimal).String())
 }

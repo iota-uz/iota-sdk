@@ -3,6 +3,7 @@ package serve
 import (
 	"context"
 	"fmt"
+	"github.com/shopspring/decimal"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -741,4 +742,26 @@ func TestReportCache_PreservesNativeUUIDInputsAndOwnsPointers(t *testing.T) {
 	require.NoError(t, err)
 	wireID = uuid.New()
 	require.NotEqual(t, wireID, *owned.Frames["native"].Rows[0][1].(*uuid.UUID))
+}
+
+func TestOwnedReportDecimalCopiesCoefficientBeforeProducerBinaryMutation(t *testing.T) {
+	t.Parallel()
+	source := decimal.RequireFromString("12345678901234567890.1234567890123456789")
+	nullable := decimal.NewNullDecimal(source.Copy())
+	original := source.String()
+	spec := lens.DashboardSpec{Datasets: []lens.DatasetSpec{{Query: &lens.QuerySpec{Params: map[string]lens.ParamValue{"amount": {Literal: source}, "pointer": {Literal: &source}, "optional": {Literal: nullable}}}}}}
+	owned, _, err := ownReportSpec(spec, 1<<20)
+	require.NoError(t, err)
+	doc, err := ownPreparedDocument(&document.DashboardDocument{Frames: map[document.FrameRef]document.Frame{"money": {Rows: [][]any{{source, &source, nullable}}}}}, 1<<20)
+	require.NoError(t, err)
+	replacement, err := decimal.RequireFromString("987.65").MarshalBinary()
+	require.NoError(t, err)
+	require.NoError(t, source.UnmarshalBinary(replacement))
+	require.NoError(t, nullable.Decimal.UnmarshalBinary(replacement))
+	params := owned.Datasets[0].Query.Params
+	require.Equal(t, original, params["amount"].Literal.(decimal.Decimal).String())
+	require.Equal(t, original, params["pointer"].Literal.(*decimal.Decimal).String())
+	require.Equal(t, original, params["optional"].Literal.(decimal.NullDecimal).Decimal.String())
+	require.Equal(t, original, doc.Frames["money"].Rows[0][0].(decimal.Decimal).String())
+	require.Equal(t, original, doc.Frames["money"].Rows[0][1].(*decimal.Decimal).String())
 }

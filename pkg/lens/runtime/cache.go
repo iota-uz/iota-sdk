@@ -3,6 +3,7 @@ package runtime
 import (
 	"container/list"
 	"context"
+	"github.com/shopspring/decimal"
 	"reflect"
 	"strings"
 	"sync"
@@ -299,6 +300,9 @@ func cloneReflect(value reflect.Value) reflect.Value {
 	if value.Type() == reflect.TypeFor[frame.Frame]() {
 		original := value.Interface().(frame.Frame)
 		return reflect.ValueOf(*original.Clone())
+	}
+	if value.Type() == reflect.TypeFor[decimal.Decimal]() {
+		return reflect.ValueOf(value.Interface().(decimal.Decimal).Copy())
 	}
 	switch value.Kind() {
 	case reflect.Interface:

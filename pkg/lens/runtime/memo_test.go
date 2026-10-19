@@ -4,6 +4,8 @@ import (
 	"context"
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
+	"github.com/shopspring/decimal"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -140,4 +142,49 @@ func TestMemoizeJSONAcceptsNativeUUIDIdentityAndResult(t *testing.T) {
 	require.Equal(t, id, first.ID)
 	require.Equal(t, nullable, second.Optional)
 	require.EqualValues(t, 1, calls.Load())
+}
+
+func TestMemoizeJSONDecimalAmountsAndPreflightLimits(t *testing.T) {
+	t.Parallel()
+	type report struct {
+		Amount   decimal.Decimal     `json:"amount"`
+		Optional decimal.NullDecimal `json:"optional"`
+		Pointer  *decimal.Decimal    `json:"pointer"`
+	}
+	amount := decimal.RequireFromString("12345678901234567890.1234567890123456789")
+	runtime := New(Options{})
+	var calls atomic.Int32
+	request := MemoRequest{Namespace: "money", DataScope: "tenant", Input: map[string]any{"amount": amount}}
+	build := func(context.Context) (report, error) {
+		calls.Add(1)
+		return report{Amount: amount, Optional: decimal.NewNullDecimal(amount), Pointer: &amount}, nil
+	}
+	one, err := MemoizeJSON(t.Context(), runtime, request, build)
+	require.NoError(t, err)
+	two, err := MemoizeJSON(t.Context(), runtime, request, build)
+	require.NoError(t, err)
+	require.Equal(t, amount.String(), one.Amount.String())
+	require.Equal(t, amount.String(), two.Pointer.String())
+	require.Equal(t, amount.String(), two.Optional.Decimal.String())
+	require.EqualValues(t, 1, calls.Load())
+	request.Input = decimal.New(1, math.MaxInt32)
+	_, err = MemoizeJSON(t.Context(), runtime, request, build)
+	require.ErrorIs(t, err, resource.ErrLimit)
+	require.EqualValues(t, 1, calls.Load())
+}
+
+func TestMemoizeJSONDoesNotRetainJSONIgnoredState(t *testing.T) {
+	t.Parallel()
+	type report struct {
+		Value   string `json:"value"`
+		Hidden  []byte `json:"-"`
+		private string
+	}
+	source := report{Value: "wire", Hidden: make([]byte, 1024), private: "producer-only"}
+	runtime := New(Options{})
+	result, err := MemoizeJSON(t.Context(), runtime, MemoRequest{Namespace: "wire-only", DataScope: "tenant", Input: source}, func(context.Context) (report, error) { return source, nil })
+	require.NoError(t, err)
+	require.Equal(t, "wire", result.Value)
+	require.Nil(t, result.Hidden)
+	require.Empty(t, result.private)
 }

@@ -49,7 +49,7 @@ func MemoizeJSON[T any](ctx context.Context, runtime *Runtime, req MemoRequest, 
 		if computeErr != nil {
 			return nil, computeErr
 		}
-		if _, err := resource.Estimate(computed, resource.DefaultEntryLimit); err != nil {
+		if _, err := resource.EstimateJSON(computed, resource.DefaultEntryLimit); err != nil {
 			return nil, err
 		}
 		data, marshalErr := json.Marshal(computed)
@@ -122,7 +122,7 @@ func memoIdentity(runtime *Runtime, req MemoRequest) (string, error) {
 		return "", fmt.Errorf("memo data scope is required")
 	}
 	const maxMemoIdentityBytes int64 = 64 << 10
-	if _, err := resource.Estimate(struct {
+	if _, err := resource.EstimateJSON(struct {
 		Version, Namespace, DataScope string
 		Input                         any
 	}{runtime.version, namespace, req.DataScope, req.Input}, maxMemoIdentityBytes); err != nil {
