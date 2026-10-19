@@ -480,6 +480,7 @@ func cloneWireValue(v reflect.Value) reflect.Value {
 	if v.Type() == reflect.TypeFor[time.Time]() {
 		return v
 	}
+	//nolint:exhaustive // Only mutable wire shapes need cloning; default preserves scalar values.
 	switch v.Kind() {
 	case reflect.Interface:
 		if v.IsNil() {

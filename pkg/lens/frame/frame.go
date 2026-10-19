@@ -331,10 +331,10 @@ func cloneCellReflect(v reflect.Value, seen map[cellVisit]reflect.Value) reflect
 		return reflect.ValueOf(cloned)
 	}
 	if v.Type() == reflect.TypeFor[time.Time]() {
-
 		return v
 	}
 	var key cellVisit
+	//nolint:exhaustive // Only reference kinds participate in cycle detection.
 	switch v.Kind() {
 	case reflect.Pointer, reflect.Map, reflect.Slice:
 		if v.IsNil() {
@@ -348,6 +348,7 @@ func cloneCellReflect(v reflect.Value, seen map[cellVisit]reflect.Value) reflect
 			return previous
 		}
 	}
+	//nolint:exhaustive // Only mutable cell shapes need cloning; default preserves scalar values.
 	switch v.Kind() {
 	case reflect.Interface:
 		if v.IsNil() {

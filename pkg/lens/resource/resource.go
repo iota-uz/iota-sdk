@@ -142,6 +142,7 @@ func (e *estimator) walk(v reflect.Value, depth int) error {
 	if v.Type() != reflect.TypeFor[json.RawMessage]() && (v.Type().Implements(reflect.TypeFor[json.Marshaler]()) || reflect.PointerTo(v.Type()).Implements(reflect.TypeFor[json.Marshaler]()) || v.Type().Implements(reflect.TypeFor[encoding.TextMarshaler]()) || reflect.PointerTo(v.Type()).Implements(reflect.TypeFor[encoding.TextMarshaler]())) {
 		return fmt.Errorf("unsupported custom lens JSON marshaler %s", v.Type())
 	}
+	//nolint:exhaustive // Only reference and interface kinds need cycle tracking or unwrapping.
 	switch v.Kind() {
 	case reflect.Interface:
 		if v.IsNil() {
@@ -165,6 +166,7 @@ func (e *estimator) walk(v reflect.Value, depth int) error {
 	if err := e.add(32); err != nil {
 		return err
 	}
+	//nolint:exhaustive // Unsupported wire kinds are explicitly rejected by default.
 	switch v.Kind() {
 	case reflect.Pointer:
 		return e.walk(v.Elem(), depth+1)

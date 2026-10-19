@@ -1,7 +1,6 @@
 package resource
 
 import (
-	"errors"
 	"github.com/stretchr/testify/require"
 	"sync"
 	"testing"
@@ -46,7 +45,7 @@ func TestBudgetReplacementAndRelease(t *testing.T) {
 	r.Release()
 	require.Zero(t, b.Used())
 	_, err = b.Reserve(101)
-	require.True(t, errors.Is(err, ErrLimit))
+	require.ErrorIs(t, err, ErrLimit)
 }
 
 type hostileText struct{}

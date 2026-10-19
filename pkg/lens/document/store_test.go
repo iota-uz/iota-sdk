@@ -343,6 +343,7 @@ func TestMemoryStoreClonesAcceptedMixedStructAndFrameParams(t *testing.T) {
 		private string
 	}
 	typed := mixed{Public: map[string][]string{"x": {"before"}}}
+	require.Empty(t, typed.private)
 	fr, err := frame.New("source", frame.Field{Name: "x", Type: frame.FieldTypeString, Values: []any{"before"}})
 	require.NoError(t, err)
 	store := NewMemoryStore(time.Minute, 2)
