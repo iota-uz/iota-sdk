@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 )
 
 // ExecutionSnapshot is the immutable, clone-safe result of resolving a Lens
@@ -64,34 +65,46 @@ type SnapshotStore interface {
 	Stats() CacheStats
 }
 
-type CacheStats struct{ Hits, Misses, Stores, Evictions, Expirations uint64 }
+type CacheStats struct{ Hits, Misses, Stores, Evictions, Expirations, Rejections uint64 }
 
 type MemoryStoreOptions struct {
-	TTL        time.Duration
-	MaxEntries int
-	Clock      func() time.Time
+	Budget        *resource.Budget
+	MaxEntryBytes int64
+	TTL           time.Duration
+	MaxEntries    int
+	Clock         func() time.Time
 }
 
 type memoryEntry struct {
-	key       string
-	snapshot  *ExecutionSnapshot
-	expiresAt time.Time
+	reservation *resource.Reservation
+	key         string
+	snapshot    *ExecutionSnapshot
+	expiresAt   time.Time
 }
 type MemorySnapshotStore struct {
-	mu          sync.Mutex
-	items       map[string]*list.Element
-	lru         *list.List
-	ttl         time.Duration
-	max         int
-	clock       func() time.Time
-	hits        atomic.Uint64
-	misses      atomic.Uint64
-	stores      atomic.Uint64
-	evictions   atomic.Uint64
-	expirations atomic.Uint64
+	budget        *resource.Budget
+	maxEntryBytes int64
+	mu            sync.Mutex
+	items         map[string]*list.Element
+	lru           *list.List
+	ttl           time.Duration
+	max           int
+	clock         func() time.Time
+	rejections    atomic.Uint64
+	hits          atomic.Uint64
+	misses        atomic.Uint64
+	stores        atomic.Uint64
+	evictions     atomic.Uint64
+	expirations   atomic.Uint64
 }
 
 func NewMemorySnapshotStore(opts MemoryStoreOptions) *MemorySnapshotStore {
+	if opts.Budget == nil {
+		opts.Budget = resource.NewBudget(resource.DefaultLimit)
+	}
+	if opts.MaxEntryBytes <= 0 {
+		opts.MaxEntryBytes = resource.DefaultEntryLimit
+	}
 	if opts.TTL <= 0 {
 		opts.TTL = 5 * time.Minute
 	}
@@ -101,7 +114,7 @@ func NewMemorySnapshotStore(opts MemoryStoreOptions) *MemorySnapshotStore {
 	if opts.Clock == nil {
 		opts.Clock = time.Now
 	}
-	return &MemorySnapshotStore{items: map[string]*list.Element{}, lru: list.New(), ttl: opts.TTL, max: opts.MaxEntries, clock: opts.Clock}
+	return &MemorySnapshotStore{budget: opts.Budget, maxEntryBytes: opts.MaxEntryBytes, items: map[string]*list.Element{}, lru: list.New(), ttl: opts.TTL, max: opts.MaxEntries, clock: opts.Clock}
 }
 
 func (m *MemorySnapshotStore) Load(_ context.Context, key string) (*ExecutionSnapshot, bool) {
@@ -124,12 +137,50 @@ func (m *MemorySnapshotStore) Load(_ context.Context, key string) (*ExecutionSna
 	return entry.snapshot.Clone(), true
 }
 
-func (m *MemorySnapshotStore) Save(_ context.Context, key string, snapshot *ExecutionSnapshot, ttl time.Duration) {
+// Save preserves the interface's best-effort cache contract. SaveChecked reports admission errors.
+func (m *MemorySnapshotStore) Save(ctx context.Context, key string, snapshot *ExecutionSnapshot, ttl time.Duration) {
+	if err := m.SaveChecked(ctx, key, snapshot, ttl); err != nil {
+		m.rejections.Add(1)
+	}
+}
+func (m *MemorySnapshotStore) SaveChecked(ctx context.Context, key string, snapshot *ExecutionSnapshot, ttl time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if snapshot == nil {
-		return
+		return nil
+	}
+	size, err := estimateExecutionSnapshot(snapshot, m.maxEntryBytes)
+	if err != nil {
+		return err
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.saveLocked(key, snapshot, ttl, size)
+}
+func (m *MemorySnapshotStore) saveLocked(key string, snapshot *ExecutionSnapshot, ttl time.Duration, size int64) error {
+	for _, element := range m.items {
+		if !element.Value.(*memoryEntry).expiresAt.After(m.clock()) {
+			m.remove(element)
+			m.expirations.Add(1)
+		}
+	}
+	var previous *resource.Reservation
+	if element := m.items[key]; element != nil {
+		previous = element.Value.(*memoryEntry).reservation
+	}
+	if size > m.budget.Limit() {
+		return resource.NewLimitError("entry bytes", size, m.budget.Limit())
+	}
+	reservation, err := m.budget.Replace(previous, size)
+	for err != nil && previous == nil && m.lru.Len() > 0 {
+		m.remove(m.lru.Back())
+		m.evictions.Add(1)
+		reservation, err = m.budget.Reserve(size)
+	}
+	if err != nil {
+		return err
+	}
 	if ttl <= 0 {
 		ttl = m.ttl
 	}
@@ -140,48 +191,52 @@ func (m *MemorySnapshotStore) Save(_ context.Context, key string, snapshot *Exec
 		entry := existing.Value.(*memoryEntry)
 		entry.snapshot = cloned
 		entry.expiresAt = expiresAt
+		entry.reservation = reservation
 		m.lru.MoveToFront(existing)
 	} else {
-		m.items[key] = m.lru.PushFront(&memoryEntry{key: key, snapshot: cloned, expiresAt: expiresAt})
+		m.items[key] = m.lru.PushFront(&memoryEntry{key: key, snapshot: cloned, expiresAt: expiresAt, reservation: reservation})
 	}
 	m.stores.Add(1)
 	for len(m.items) > m.max {
 		m.remove(m.lru.Back())
 		m.evictions.Add(1)
 	}
+	return nil
+}
+func (m *MemorySnapshotStore) Update(ctx context.Context, key string, ttl time.Duration, update func(*ExecutionSnapshot) *ExecutionSnapshot) {
+	if err := m.UpdateChecked(ctx, key, ttl, update); err != nil {
+		m.rejections.Add(1)
+	}
 }
 
-func (m *MemorySnapshotStore) Update(_ context.Context, key string, ttl time.Duration, update func(*ExecutionSnapshot) *ExecutionSnapshot) {
+// UpdateChecked isolates even callback-retained aliases and rejects oversized replacements atomically.
+func (m *MemorySnapshotStore) UpdateChecked(ctx context.Context, key string, ttl time.Duration, update func(*ExecutionSnapshot) *ExecutionSnapshot) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if update == nil {
-		return
+		return nil
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var current *ExecutionSnapshot
-	if element, ok := m.items[key]; ok {
-		current = element.Value.(*memoryEntry).snapshot.Clone()
+	if element := m.items[key]; element != nil {
+		entry := element.Value.(*memoryEntry)
+		if entry.expiresAt.After(m.clock()) {
+			current = entry.snapshot.Clone()
+		} else {
+			m.remove(element)
+		}
 	}
 	next := update(current)
 	if next == nil {
-		return
+		return nil
 	}
-	if ttl <= 0 {
-		ttl = m.ttl
+	size, err := estimateExecutionSnapshot(next, m.maxEntryBytes)
+	if err != nil {
+		return err
 	}
-	expiresAt := m.clock().Add(ttl)
-	next.ExpiresAt = expiresAt
-	if existing, ok := m.items[key]; ok {
-		entry := existing.Value.(*memoryEntry)
-		entry.snapshot, entry.expiresAt = next, expiresAt
-		m.lru.MoveToFront(existing)
-	} else {
-		m.items[key] = m.lru.PushFront(&memoryEntry{key: key, snapshot: next, expiresAt: expiresAt})
-	}
-	m.stores.Add(1)
-	for len(m.items) > m.max {
-		m.remove(m.lru.Back())
-		m.evictions.Add(1)
-	}
+	return m.saveLocked(key, next, ttl, size)
 }
 
 func (m *MemorySnapshotStore) Invalidate(_ context.Context, namespace string) {
@@ -197,11 +252,12 @@ func (m *MemorySnapshotStore) remove(element *list.Element) {
 	if element == nil {
 		return
 	}
+	element.Value.(*memoryEntry).reservation.Release()
 	delete(m.items, element.Value.(*memoryEntry).key)
 	m.lru.Remove(element)
 }
 func (m *MemorySnapshotStore) Stats() CacheStats {
-	return CacheStats{m.hits.Load(), m.misses.Load(), m.stores.Load(), m.evictions.Load(), m.expirations.Load()}
+	return CacheStats{m.hits.Load(), m.misses.Load(), m.stores.Load(), m.evictions.Load(), m.expirations.Load(), m.rejections.Load()}
 }
 
 func cloneMap(in map[string]any) map[string]any {
@@ -282,4 +338,32 @@ func cloneReflect(value reflect.Value) reflect.Value {
 		return value
 	}
 	return value
+}
+
+func estimateExecutionSnapshot(snapshot *ExecutionSnapshot, limit int64) (int64, error) {
+	type frameView struct {
+		Name          string
+		Fields        []frame.Field
+		RowCount      int
+		Meta          frame.FrameMeta
+		IndexOverhead int64
+	}
+	datasets := make(map[string][]frameView, len(snapshot.Datasets))
+	for name, set := range snapshot.Datasets {
+		if set == nil {
+			continue
+		}
+		for _, fr := range set.Frames {
+			if fr != nil {
+				datasets[name] = append(datasets[name], frameView{fr.Name, fr.Fields, fr.RowCount, fr.Meta, int64(len(fr.Fields)) * 64})
+			}
+		}
+	}
+	return resource.Estimate(struct {
+		ID, SpecFingerprint, DataScope, Locale, Timezone string
+		Variables                                        map[string]any
+		Datasets                                         map[string][]frameView
+		Provenance                                       map[string]DatasetProvenance
+		CreatedAt, ExpiresAt                             time.Time
+	}{snapshot.ID, snapshot.SpecFingerprint, snapshot.DataScope, snapshot.Locale, snapshot.Timezone, snapshot.Variables, datasets, snapshot.Provenance, snapshot.CreatedAt, snapshot.ExpiresAt}, limit)
 }

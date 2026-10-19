@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -39,14 +40,17 @@ func MemoizeJSON[T any](ctx context.Context, runtime *Runtime, req MemoRequest, 
 	flight := runtime.flights.DoChan(key, func() (any, error) {
 		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runtime.workTimeout)
 		defer cancel()
-		if snapshot, ok := runtime.store.Load(ctx, key); ok {
-			if decoded, decodeErr := decodeMemo[T](snapshot); decodeErr == nil {
-				return decoded, nil
+		if snapshot, ok := runtime.store.Load(workCtx, key); ok {
+			if _, err := decodeMemo[T](snapshot); err == nil {
+				return snapshot, nil
 			}
 		}
 		computed, computeErr := compute(workCtx)
 		if computeErr != nil {
 			return nil, computeErr
+		}
+		if _, err := resource.Estimate(computed, resource.DefaultEntryLimit); err != nil {
+			return nil, err
 		}
 		data, marshalErr := json.Marshal(computed)
 		if marshalErr != nil {
@@ -65,8 +69,9 @@ func MemoizeJSON[T any](ctx context.Context, runtime *Runtime, req MemoRequest, 
 			ttl = runtime.ttl
 		}
 		now := time.Now()
-		runtime.store.Save(workCtx, key, &ExecutionSnapshot{ID: key, DataScope: req.DataScope, Datasets: map[string]*frame.FrameSet{"memo": frames}, CreatedAt: now, ExpiresAt: now.Add(ttl)}, ttl)
-		return computed, nil
+		snapshot := &ExecutionSnapshot{ID: key, DataScope: req.DataScope, Datasets: map[string]*frame.FrameSet{"memo": frames}, CreatedAt: now, ExpiresAt: now.Add(ttl)}
+		runtime.store.Save(workCtx, key, snapshot, ttl)
+		return snapshot, nil
 	})
 	var value any
 	select {
@@ -78,11 +83,11 @@ func MemoizeJSON[T any](ctx context.Context, runtime *Runtime, req MemoRequest, 
 		}
 		value = result.Val
 	}
-	result, ok := value.(T)
+	snapshot, ok := value.(*ExecutionSnapshot)
 	if !ok {
 		return zero, serrors.Wrap(op, fmt.Errorf("memo %q returned unexpected type %T", req.Namespace, value))
 	}
-	return result, nil
+	return decodeMemo[T](snapshot)
 }
 
 func LookupMemoJSON[T any](ctx context.Context, runtime *Runtime, req MemoRequest) (T, bool) {

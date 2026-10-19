@@ -113,3 +113,13 @@ func TestFieldLazyIndexBuild(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "a", field.Name)
 }
+
+func TestClonePreservesOverlappingTypedSliceLengths(t *testing.T) {
+	// Equal backing pointers do not mean two slices have equal lengths.
+	base := []string{"one", "two"}
+	field := Field{Values: []any{base[:1], base[:2]}}
+	cloned := field.Clone()
+	base[0] = "changed"
+	require.Equal(t, []string{"one"}, cloned.Values[0])
+	require.Equal(t, []string{"one", "two"}, cloned.Values[1])
+}

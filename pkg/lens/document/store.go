@@ -5,11 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 	lenstheme "github.com/iota-uz/iota-sdk/pkg/lens/theme"
 )
 
@@ -37,7 +39,22 @@ type SnapshotStore interface {
 	PutPanel(context.Context, string, string, FrameRef, Frame, PanelCalculation) error
 }
 
+type SnapshotToucher interface {
+	Touch(context.Context, string) error
+}
+type SnapshotDeleter interface {
+	Delete(context.Context, string) error
+}
+type MemoryStoreOptions struct {
+	TTL           time.Duration
+	MaxEntries    int
+	Budget        *resource.Budget
+	MaxEntryBytes int64
+}
 type memoryStore struct {
+	budget        *resource.Budget
+	maxEntryBytes int64
+
 	mu         sync.Mutex
 	ttl        time.Duration
 	maxEntries int
@@ -47,12 +64,24 @@ type memoryStore struct {
 }
 
 type memorySnapshot struct {
-	snapshot  *Snapshot
-	expiresAt time.Time
+	reservation *resource.Reservation
+	snapshot    *Snapshot
+	expiresAt   time.Time
 }
 
 // NewMemoryStore returns a bounded store whose TTL slides on Get and Append.
 func NewMemoryStore(ttl time.Duration, maxEntries int) SnapshotStore {
+	return NewMemoryStoreWithOptions(MemoryStoreOptions{TTL: ttl, MaxEntries: maxEntries})
+}
+func NewMemoryStoreWithOptions(opts MemoryStoreOptions) SnapshotStore {
+	ttl, maxEntries := opts.TTL, opts.MaxEntries
+	if opts.Budget == nil {
+		opts.Budget = resource.NewBudget(resource.DefaultLimit)
+	}
+	if opts.MaxEntryBytes <= 0 {
+		opts.MaxEntryBytes = resource.DefaultEntryLimit
+	}
+
 	if ttl <= 0 {
 		ttl = defaultSnapshotTTL
 	}
@@ -60,7 +89,7 @@ func NewMemoryStore(ttl time.Duration, maxEntries int) SnapshotStore {
 		maxEntries = defaultMaxEntries
 	}
 	return &memoryStore{
-		ttl: ttl, maxEntries: maxEntries, clock: time.Now,
+		ttl: ttl, maxEntries: maxEntries, clock: time.Now, budget: opts.Budget, maxEntryBytes: opts.MaxEntryBytes,
 		items: make(map[string]*list.Element), lru: list.New(),
 	}
 }
@@ -76,6 +105,10 @@ func (m *memoryStore) Put(ctx context.Context, snapshot *Snapshot) error {
 	if id == "" {
 		return fmt.Errorf("snapshot id is required")
 	}
+	size, err := resource.Estimate(snapshot, m.maxEntryBytes)
+	if err != nil {
+		return err
+	}
 	cloned := cloneSnapshot(snapshot)
 	if len(cloned.Frames) > maxFramesPerSnapshot {
 		return fmt.Errorf("snapshot cannot exceed %d frames", maxFramesPerSnapshot)
@@ -88,14 +121,35 @@ func (m *memoryStore) Put(ctx context.Context, snapshot *Snapshot) error {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	for _, element := range m.items {
+		if !element.Value.(*memorySnapshot).expiresAt.After(now) {
+			m.remove(element)
+		}
+	}
+	var previous *resource.Reservation
+	if element := m.items[id]; element != nil {
+		previous = element.Value.(*memorySnapshot).reservation
+	}
+	if size > m.budget.Limit() {
+		return resource.NewLimitError("entry bytes", size, m.budget.Limit())
+	}
+	reservation, err := m.budget.Replace(previous, size)
+	for err != nil && previous == nil && m.lru.Len() > 0 {
+		m.remove(m.lru.Back())
+		reservation, err = m.budget.Reserve(size)
+	}
+	if err != nil {
+		return err
+	}
 	if existing, ok := m.items[id]; ok {
 		entry := existing.Value.(*memorySnapshot)
+		entry.reservation = reservation
 		entry.snapshot = cloned
 		entry.expiresAt = now.Add(m.ttl)
 		m.lru.MoveToFront(existing)
 		return nil
 	}
-	element := m.lru.PushFront(&memorySnapshot{snapshot: cloned, expiresAt: now.Add(m.ttl)})
+	element := m.lru.PushFront(&memorySnapshot{snapshot: cloned, expiresAt: now.Add(m.ttl), reservation: reservation})
 	m.items[id] = element
 	for len(m.items) > m.maxEntries {
 		m.remove(m.lru.Back())
@@ -126,6 +180,9 @@ func (m *memoryStore) Get(ctx context.Context, id string) (*Snapshot, error) {
 }
 
 func (m *memoryStore) Append(ctx context.Context, id string, frames map[FrameRef]Frame) error {
+	if _, err := resource.Estimate(frames, m.maxEntryBytes); err != nil {
+		return err
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -142,25 +199,40 @@ func (m *memoryStore) Append(ctx context.Context, id string, frames map[FrameRef
 		m.remove(element)
 		return ErrSnapshotGone
 	}
-	if entry.snapshot.Frames == nil {
-		entry.snapshot.Frames = make(map[FrameRef]Frame)
+	candidate := cloneSnapshot(entry.snapshot)
+	if candidate.Frames == nil {
+		candidate.Frames = make(map[FrameRef]Frame)
 	}
 	newFrames := 0
 	for ref := range frames {
-		if _, materialized := entry.snapshot.Frames[ref]; !materialized {
+		if _, materialized := candidate.Frames[ref]; !materialized {
 			newFrames++
 		}
 	}
-	if len(entry.snapshot.Frames)+newFrames > maxFramesPerSnapshot {
+	if len(candidate.Frames)+newFrames > maxFramesPerSnapshot {
 		return fmt.Errorf("snapshot cannot exceed %d frames", maxFramesPerSnapshot)
 	}
 	for ref, frame := range frames {
-		if _, materialized := entry.snapshot.Frames[ref]; materialized {
+		if _, materialized := candidate.Frames[ref]; materialized {
 			continue
 		}
-		entry.snapshot.Frames[ref] = cloneFrame(frame)
+		candidate.Frames[ref] = cloneFrame(frame)
 	}
+	if len(candidate.Frames) > maxFramesPerSnapshot {
+		return fmt.Errorf("snapshot cannot exceed %d frames", maxFramesPerSnapshot)
+	}
+	size, err := resource.Estimate(candidate, m.maxEntryBytes)
+	if err != nil {
+		return err
+	}
+	reservation, err := m.budget.Replace(entry.reservation, size)
+	if err != nil {
+		return err
+	}
+	entry.reservation = reservation
+	entry.snapshot = candidate
 	entry.expiresAt = now.Add(m.ttl)
+
 	m.lru.MoveToFront(element)
 	return nil
 }
@@ -177,6 +249,9 @@ func (m *memoryStore) PutPanel(
 		return err
 	}
 	id = strings.TrimSpace(id)
+	if _, err := resource.Estimate(frame, m.maxEntryBytes); err != nil {
+		return err
+	}
 	panelID = strings.TrimSpace(panelID)
 	if panelID == "" || strings.TrimSpace(string(ref)) == "" {
 		return fmt.Errorf("panel id and frame reference are required")
@@ -193,15 +268,30 @@ func (m *memoryStore) PutPanel(
 		m.remove(element)
 		return ErrSnapshotGone
 	}
-	if entry.snapshot.Frames == nil {
-		entry.snapshot.Frames = make(map[FrameRef]Frame)
+	candidate := cloneSnapshot(entry.snapshot)
+	if candidate.Frames == nil {
+		candidate.Frames = make(map[FrameRef]Frame)
 	}
-	if entry.snapshot.Panels == nil {
-		entry.snapshot.Panels = make(map[string]PanelCalculation)
+	if candidate.Panels == nil {
+		candidate.Panels = make(map[string]PanelCalculation)
 	}
-	entry.snapshot.Frames[ref] = cloneFrame(frame)
-	entry.snapshot.Panels[panelID] = calculation
+	candidate.Frames[ref] = cloneFrame(frame)
+	candidate.Panels[panelID] = calculation
+	if len(candidate.Frames) > maxFramesPerSnapshot {
+		return fmt.Errorf("snapshot cannot exceed %d frames", maxFramesPerSnapshot)
+	}
+	size, err := resource.Estimate(candidate, m.maxEntryBytes)
+	if err != nil {
+		return err
+	}
+	reservation, err := m.budget.Replace(entry.reservation, size)
+	if err != nil {
+		return err
+	}
+	entry.reservation = reservation
+	entry.snapshot = candidate
 	entry.expiresAt = now.Add(m.ttl)
+
 	m.lru.MoveToFront(element)
 	return nil
 }
@@ -211,10 +301,20 @@ func (m *memoryStore) remove(element *list.Element) {
 		return
 	}
 	entry := element.Value.(*memorySnapshot)
+	entry.reservation.Release()
 	delete(m.items, entry.snapshot.ID)
 	m.lru.Remove(element)
 }
 
+func (m *memoryStore) Delete(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.remove(m.items[strings.TrimSpace(id)])
+	return nil
+}
 func cloneSnapshot(snapshot *Snapshot) *Snapshot {
 	if snapshot == nil {
 		return nil
@@ -362,35 +462,72 @@ func cloneAction(source *Action) *Action {
 }
 
 func cloneAny(value any) any {
-	switch typed := value.(type) {
-	case nil, bool, string,
-		int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64,
-		float32, float64, time.Time:
-		return typed
-	case []any:
-		if typed == nil {
-			return []any(nil)
+	v := cloneWireValue(reflect.ValueOf(value))
+	if !v.IsValid() {
+		return nil
+	}
+	return v.Interface()
+}
+func cloneWireValue(v reflect.Value) reflect.Value {
+	if !v.IsValid() {
+		return v
+	}
+	if v.Type() == reflect.TypeFor[time.Time]() {
+		return v
+	}
+	switch v.Kind() {
+	case reflect.Interface:
+		if v.IsNil() {
+			return reflect.Zero(v.Type())
 		}
-		result := make([]any, len(typed))
-		for index, item := range typed {
-			result[index] = cloneAny(item)
+		out := reflect.New(v.Type()).Elem()
+		out.Set(cloneWireValue(v.Elem()))
+		return out
+	case reflect.Pointer:
+		if v.IsNil() {
+			return reflect.Zero(v.Type())
 		}
-		return result
-	case map[string]any:
-		if typed == nil {
-			return map[string]any(nil)
+		out := reflect.New(v.Type().Elem())
+		out.Elem().Set(cloneWireValue(v.Elem()))
+		return out
+	case reflect.Map:
+		if v.IsNil() {
+			return reflect.Zero(v.Type())
 		}
-		result := make(map[string]any, len(typed))
-		for key, item := range typed {
-			result[key] = cloneAny(item)
+		out := reflect.MakeMapWithSize(v.Type(), v.Len())
+		it := v.MapRange()
+		for it.Next() {
+			out.SetMapIndex(it.Key(), cloneWireValue(it.Value()))
 		}
-		return result
+		return out
+	case reflect.Slice:
+		if v.IsNil() {
+			return reflect.Zero(v.Type())
+		}
+		out := reflect.MakeSlice(v.Type(), v.Len(), v.Len())
+		for i := 0; i < v.Len(); i++ {
+			out.Index(i).Set(cloneWireValue(v.Index(i)))
+		}
+		return out
+	case reflect.Array:
+		out := reflect.New(v.Type()).Elem()
+		for i := 0; i < v.Len(); i++ {
+			out.Index(i).Set(cloneWireValue(v.Index(i)))
+		}
+		return out
+	case reflect.Struct:
+		out := reflect.New(v.Type()).Elem()
+		for i := 0; i < v.NumField(); i++ {
+			if !out.Field(i).CanSet() {
+				return v
+			}
+			out.Field(i).Set(cloneWireValue(v.Field(i)))
+		}
+		return out
 	default:
-		return typed
+		return v
 	}
 }
-
 func cloneStrings(values map[string]string) map[string]string {
 	if values == nil {
 		return nil
@@ -449,4 +586,25 @@ func cloneTheme(theme Theme) Theme {
 		result.Series = make(map[string]string)
 	}
 	return result
+}
+
+func (m *memoryStore) Touch(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	element := m.items[strings.TrimSpace(id)]
+	if element == nil {
+		return ErrSnapshotGone
+	}
+	entry := element.Value.(*memorySnapshot)
+	now := m.clock()
+	if !entry.expiresAt.After(now) {
+		m.remove(element)
+		return ErrSnapshotGone
+	}
+	entry.expiresAt = now.Add(m.ttl)
+	m.lru.MoveToFront(element)
+	return nil
 }

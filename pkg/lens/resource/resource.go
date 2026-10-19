@@ -3,6 +3,7 @@
 package resource
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -15,7 +16,15 @@ const DefaultEntryLimit int64 = 16 << 20
 
 var ErrLimit = errors.New("lens resource limit exceeded")
 
+type LimitKind string
+
+const (
+	LimitPayload   LimitKind = "payload"
+	LimitAdmission LimitKind = "admission"
+)
+
 type LimitError struct {
+	Kind             LimitKind
 	Resource         string
 	Requested, Limit int64
 }
@@ -23,17 +32,23 @@ type LimitError struct {
 func (e *LimitError) Error() string {
 	return fmt.Sprintf("%s: requested %d, limit %d: %v", e.Resource, e.Requested, e.Limit, ErrLimit)
 }
-func (e *LimitError) Unwrap() error                   { return ErrLimit }
-func NewLimitError(name string, n, limit int64) error { return &LimitError{name, n, limit} }
+func (e *LimitError) Unwrap() error { return ErrLimit }
+func NewLimitError(name string, n, limit int64) error {
+	kind := LimitPayload
+	if name == "report_build_queue" || name == "report_builds" || name == "retained bytes" {
+		kind = LimitAdmission
+	}
+	return &LimitError{Kind: kind, Resource: name, Requested: n, Limit: limit}
+}
 
 type Budget struct {
 	mu          sync.Mutex
 	used, limit int64
 }
 type Reservation struct {
-	once   sync.Once
-	budget *Budget
-	bytes  int64
+	released bool
+	budget   *Budget
+	bytes    int64
 }
 
 func NewBudget(limit int64) *Budget {
@@ -52,8 +67,15 @@ func (b *Budget) Reserve(n int64) (*Reservation, error) {
 	return &Reservation{budget: b, bytes: n}, nil
 }
 func (r *Reservation) Release() {
-	if r != nil {
-		r.once.Do(func() { r.budget.mu.Lock(); r.budget.used -= r.bytes; r.budget.mu.Unlock() })
+	if r == nil {
+		return
+	}
+	b := r.budget
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if !r.released {
+		b.used -= r.bytes
+		r.released = true
 	}
 }
 func (b *Budget) Used() int64  { b.mu.Lock(); defer b.mu.Unlock(); return b.used }
@@ -76,6 +98,7 @@ type visit struct {
 }
 type estimator struct {
 	size, limit int64
+	nodes       int
 	path        map[visit]bool
 }
 
@@ -87,6 +110,10 @@ func (e *estimator) add(n int64) error {
 	return nil
 }
 func (e *estimator) walk(v reflect.Value, depth int) error {
+	e.nodes++
+	if e.nodes > 1000000 {
+		return fmt.Errorf("lens value exceeds structural node limit")
+	}
 	if depth > 128 {
 		return fmt.Errorf("lens value nesting exceeds 128")
 	}
@@ -96,6 +123,9 @@ func (e *estimator) walk(v reflect.Value, depth int) error {
 	if v.Type() == reflect.TypeFor[time.Time]() {
 		return e.add(64)
 	}
+	if v.Type() != reflect.TypeFor[json.RawMessage]() && (v.Type().Implements(reflect.TypeFor[json.Marshaler]()) || reflect.PointerTo(v.Type()).Implements(reflect.TypeFor[json.Marshaler]())) {
+		return fmt.Errorf("unsupported custom lens JSON marshaler %s", v.Type())
+	}
 	switch v.Kind() {
 	case reflect.Interface:
 		if v.IsNil() {
@@ -104,6 +134,9 @@ func (e *estimator) walk(v reflect.Value, depth int) error {
 		return e.walk(v.Elem(), depth+1)
 	case reflect.Pointer, reflect.Map, reflect.Slice:
 		if v.IsNil() {
+			if v.Kind() != reflect.Pointer {
+				return e.add(32)
+			}
 			return e.add(1)
 		}
 		key := visit{v.Type(), v.Pointer()}
@@ -143,6 +176,12 @@ func (e *estimator) walk(v reflect.Value, depth int) error {
 	case reflect.Struct:
 		for i := 0; i < v.NumField(); i++ {
 			f := v.Type().Field(i)
+			if f.PkgPath != "" && v.Type().PkgPath() == "github.com/iota-uz/iota-sdk/pkg/lens/frame" && v.Type().Name() == "Frame" && f.Name == "fieldIndex" {
+				if err := e.add(int64(v.Field(i).Len()) * 64); err != nil {
+					return err
+				}
+				continue
+			}
 			if f.PkgPath != "" {
 				return fmt.Errorf("unsupported lens value with private fields: %s", v.Type())
 			}
@@ -163,7 +202,7 @@ func StatusCode(err error) (int, bool) {
 	if !errors.As(err, &e) {
 		return 0, false
 	}
-	if e.Resource == "report_build_queue" || e.Resource == "report_builds" || e.Resource == "retained bytes" {
+	if e.Kind == LimitAdmission {
 		return 503, true
 	}
 	return 413, true
@@ -176,6 +215,9 @@ func (b *Budget) Replace(old *Reservation, n int64) (*Reservation, error) {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if old.budget != b || old.released {
+		return nil, fmt.Errorf("invalid lens reservation replacement")
+	}
 	if n < 0 || n-old.bytes > b.limit-b.used {
 		return nil, NewLimitError("retained bytes", n, b.limit)
 	}

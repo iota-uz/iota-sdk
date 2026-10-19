@@ -300,35 +300,83 @@ func InferFieldType(value any) FieldType {
 }
 
 func cloneValue(value any) any {
-	switch v := value.(type) {
-	case Formula:
-		v.Result = cloneValue(v.Result)
+	v := cloneCellReflect(reflect.ValueOf(value), map[cellVisit]reflect.Value{})
+	if !v.IsValid() {
+		return nil
+	}
+	return v.Interface()
+}
+
+type cellVisit struct {
+	typ    reflect.Type
+	ptr    uintptr
+	length int
+}
+
+func cloneCellReflect(v reflect.Value, seen map[cellVisit]reflect.Value) reflect.Value {
+	if !v.IsValid() {
 		return v
-	case *Formula:
-		if v == nil {
-			return (*Formula)(nil)
+	}
+	if v.Type() == reflect.TypeFor[time.Time]() {
+		return v
+	}
+	var key cellVisit
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice:
+		if v.IsNil() {
+			return reflect.Zero(v.Type())
 		}
-		cloned := *v
-		cloned.Result = cloneValue(v.Result)
-		return &cloned
-	case *Hyperlink:
-		if v == nil {
-			return (*Hyperlink)(nil)
+		key = cellVisit{typ: v.Type(), ptr: v.Pointer()}
+		if v.Kind() == reflect.Slice {
+			key.length = v.Len()
 		}
-		cloned := *v
-		return &cloned
-	case map[string]any:
-		cloned := make(map[string]any, len(v))
-		for key, item := range v {
-			cloned[key] = cloneValue(item)
+		if previous, ok := seen[key]; ok {
+			return previous
 		}
-		return cloned
-	case []any:
-		cloned := make([]any, len(v))
-		for i, item := range v {
-			cloned[i] = cloneValue(item)
+	}
+	switch v.Kind() {
+	case reflect.Interface:
+		if v.IsNil() {
+			return reflect.Zero(v.Type())
 		}
-		return cloned
+		out := reflect.New(v.Type()).Elem()
+		out.Set(cloneCellReflect(v.Elem(), seen))
+		return out
+	case reflect.Pointer:
+		out := reflect.New(v.Type().Elem())
+		seen[key] = out
+		out.Elem().Set(cloneCellReflect(v.Elem(), seen))
+		return out
+	case reflect.Map:
+		out := reflect.MakeMapWithSize(v.Type(), v.Len())
+		seen[key] = out
+		it := v.MapRange()
+		for it.Next() {
+			out.SetMapIndex(it.Key(), cloneCellReflect(it.Value(), seen))
+		}
+		return out
+	case reflect.Slice:
+		out := reflect.MakeSlice(v.Type(), v.Len(), v.Len())
+		seen[key] = out
+		for i := 0; i < v.Len(); i++ {
+			out.Index(i).Set(cloneCellReflect(v.Index(i), seen))
+		}
+		return out
+	case reflect.Array:
+		out := reflect.New(v.Type()).Elem()
+		for i := 0; i < v.Len(); i++ {
+			out.Index(i).Set(cloneCellReflect(v.Index(i), seen))
+		}
+		return out
+	case reflect.Struct:
+		out := reflect.New(v.Type()).Elem()
+		for i := 0; i < v.NumField(); i++ {
+			if !out.Field(i).CanSet() {
+				return v
+			}
+			out.Field(i).Set(cloneCellReflect(v.Field(i), seen))
+		}
+		return out
 	default:
 		return v
 	}

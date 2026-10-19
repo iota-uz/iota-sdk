@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
+	"strings"
 	"testing"
 	"time"
 
@@ -247,4 +249,88 @@ func TestMemoryStoreFrameMetadataIsCloneSafe(t *testing.T) {
 			assertMetadata(again.Frames["chart"])
 		})
 	}
+}
+
+func TestMemoryStoreBudgetAndTypedOwnership(t *testing.T) {
+	// Exercise public Put/Get with a retained input alias, not a clone helper alone.
+	budget := resource.NewBudget(10000)
+	store := NewMemoryStoreWithOptions(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 4000})
+	values := map[string][]string{"x": {"before"}}
+	source := &Snapshot{ID: "owned", Params: map[string]any{"typed": values}}
+	require.NoError(t, store.Put(t.Context(), source))
+	used := budget.Used()
+	require.Positive(t, used)
+	values["x"][0] = "after"
+	got, err := store.Get(t.Context(), "owned")
+	require.NoError(t, err)
+	require.Equal(t, "before", got.Params["typed"].(map[string][]string)["x"][0])
+	require.NoError(t, store.Put(t.Context(), got))
+	require.Equal(t, used, budget.Used())
+	require.Error(t, store.Put(t.Context(), &Snapshot{ID: "owned", Params: map[string]any{"large": strings.Repeat("x", 1000)}}))
+	got, err = store.Get(t.Context(), "owned")
+	require.NoError(t, err)
+	require.Equal(t, "before", got.Params["typed"].(map[string][]string)["x"][0])
+	require.NoError(t, store.(SnapshotDeleter).Delete(t.Context(), "owned"))
+	require.Zero(t, budget.Used())
+}
+func TestMemoryStorePutPanelRejectsOversizeAtomically(t *testing.T) {
+	// A rejected incremental update must neither replace the old frame nor consume budget.
+	budget := resource.NewBudget(100000)
+	store := NewMemoryStoreWithOptions(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 4000})
+	require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "x", Frames: map[FrameRef]Frame{"a": {Rows: [][]any{{"small"}}}}}))
+	before := budget.Used()
+	err := store.PutPanel(t.Context(), "x", "panel", "a", Frame{Rows: [][]any{{strings.Repeat("x", 1000)}}}, PanelCalculation{})
+	require.Error(t, err)
+	require.Equal(t, before, budget.Used())
+	got, err := store.Get(t.Context(), "x")
+	require.NoError(t, err)
+	require.Equal(t, "small", got.Frames["a"].Rows[0][0])
+}
+
+func TestMemoryStoreTouchSlidesTTLAndExpires(t *testing.T) {
+	// Touch must preserve active backing snapshots without returning cloned frame payloads.
+	now := time.Now()
+	store := NewMemoryStore(time.Minute, 2).(*memoryStore)
+	store.clock = func() time.Time { return now }
+	require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "touch"}))
+	now = now.Add(45 * time.Second)
+	require.NoError(t, store.Touch(t.Context(), "touch"))
+	now = now.Add(45 * time.Second)
+	require.NoError(t, store.Touch(t.Context(), "touch"))
+	now = now.Add(2 * time.Minute)
+	require.ErrorIs(t, store.Touch(t.Context(), "touch"), ErrSnapshotGone)
+	require.Zero(t, store.budget.Used())
+}
+func TestMemoryStorePutPanelFrameLimit(t *testing.T) {
+	// The incremental API must enforce the same limit as initial Put and Append.
+	frames := make(map[FrameRef]Frame, maxFramesPerSnapshot)
+	for i := 0; i < maxFramesPerSnapshot; i++ {
+		frames[FrameRef(fmt.Sprint(i))] = Frame{}
+	}
+	store := NewMemoryStore(time.Minute, 2)
+	require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "full", Frames: frames}))
+	require.Error(t, store.PutPanel(t.Context(), "full", "panel", "overflow", Frame{}, PanelCalculation{}))
+	got, err := store.Get(t.Context(), "full")
+	require.NoError(t, err)
+	require.Len(t, got.Frames, maxFramesPerSnapshot)
+}
+
+func TestMemoryStoreAdmissionEvictsAndSweepsExpired(t *testing.T) {
+	// Expired entries never read again must release capacity during fresh admission.
+	budget := resource.NewBudget(2000)
+	store := NewMemoryStoreWithOptions(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 2000, TTL: time.Minute}).(*memoryStore)
+	now := time.Now()
+	store.clock = func() time.Time { return now }
+	snapshot := func(id string) *Snapshot {
+		return &Snapshot{ID: id, Params: map[string]any{"x": strings.Repeat("x", 150)}}
+	}
+	require.NoError(t, store.Put(t.Context(), snapshot("a")))
+	require.NoError(t, store.Put(t.Context(), snapshot("b")))
+	_, err := store.Get(t.Context(), "a")
+	require.ErrorIs(t, err, ErrSnapshotGone)
+	now = now.Add(2 * time.Minute)
+	require.NoError(t, store.Put(t.Context(), snapshot("c")))
+	_, err = store.Get(t.Context(), "b")
+	require.ErrorIs(t, err, ErrSnapshotGone)
+	require.Len(t, store.items, 1)
 }

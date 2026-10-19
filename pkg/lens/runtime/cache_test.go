@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"context"
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
+	"strings"
 	"testing"
 	"time"
 
@@ -129,4 +131,48 @@ func TestMemorySnapshotStore_InvalidateMatchesNamespaceBoundary(t *testing.T) {
 	_, corebank := store.Load(context.Background(), "corebank:key")
 	require.False(t, core)
 	require.True(t, corebank)
+}
+
+func TestMemorySnapshotBudgetUpdateRetainedAlias(t *testing.T) {
+	// Real frame cells and a callback-retained result must not mutate cache state.
+	budget := resource.NewBudget(100000)
+	store := NewMemorySnapshotStore(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 20000})
+	cells := map[string][]string{"x": {"before"}}
+	fr, err := frame.New("typed", frame.Field{Name: "x", Type: frame.FieldTypeUnknown, Values: []any{cells}})
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(fr)
+	require.NoError(t, err)
+	require.NoError(t, store.SaveChecked(t.Context(), "a", &ExecutionSnapshot{Datasets: map[string]*frame.FrameSet{"x": frames}}, 0))
+	cells["x"][0] = "producer"
+	var retained *ExecutionSnapshot
+	require.NoError(t, store.UpdateChecked(t.Context(), "a", 0, func(s *ExecutionSnapshot) *ExecutionSnapshot { retained = s; return s }))
+	retained.Datasets["x"].Primary().Fields[0].Values[0].(map[string][]string)["x"][0] = "callback"
+	loaded, ok := store.Load(t.Context(), "a")
+	require.True(t, ok)
+	require.Equal(t, "before", loaded.Datasets["x"].Primary().Fields[0].Values[0].(map[string][]string)["x"][0])
+	used := budget.Used()
+	store.Save(t.Context(), "a", &ExecutionSnapshot{Variables: map[string]any{"x": strings.Repeat("x", 20000)}}, 0)
+	require.EqualValues(t, 1, store.Stats().Rejections)
+	require.Equal(t, used, budget.Used())
+	store.Invalidate(t.Context(), "")
+	require.Zero(t, budget.Used())
+}
+
+func TestMemorySnapshotAdmissionEvictsAndSweepsExpired(t *testing.T) {
+	// Fresh Save must recover capacity from cold expired entries without Load.
+	budget := resource.NewBudget(2200)
+	now := time.Now()
+	store := NewMemorySnapshotStore(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 2200, TTL: time.Minute, Clock: func() time.Time { return now }})
+	snapshot := func(id string) *ExecutionSnapshot {
+		return &ExecutionSnapshot{ID: id, Variables: map[string]any{"x": strings.Repeat("x", 180)}}
+	}
+	require.NoError(t, store.SaveChecked(t.Context(), "a", snapshot("a"), 0))
+	require.NoError(t, store.SaveChecked(t.Context(), "b", snapshot("b"), 0))
+	_, ok := store.Load(t.Context(), "a")
+	require.False(t, ok)
+	now = now.Add(2 * time.Minute)
+	require.NoError(t, store.SaveChecked(t.Context(), "c", snapshot("c"), 0))
+	_, ok = store.Load(t.Context(), "b")
+	require.False(t, ok)
+	require.Len(t, store.items, 1)
 }
