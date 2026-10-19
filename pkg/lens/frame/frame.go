@@ -317,7 +317,21 @@ func cloneCellReflect(v reflect.Value, seen map[cellVisit]reflect.Value) reflect
 	if !v.IsValid() {
 		return v
 	}
+	if v.Type() == reflect.TypeFor[Frame]() {
+		original := v.Interface().(Frame)
+		cloned := Frame{Name: original.Name, RowCount: original.RowCount}
+		cloned.Fields = cloneCellReflect(reflect.ValueOf(original.Fields), seen).Interface().([]Field)
+		cloned.Meta = cloneCellReflect(reflect.ValueOf(original.Meta), seen).Interface().(FrameMeta)
+		if original.fieldIndex != nil {
+			cloned.fieldIndex = make(map[string]int, len(original.fieldIndex))
+			for key, index := range original.fieldIndex {
+				cloned.fieldIndex[key] = index
+			}
+		}
+		return reflect.ValueOf(cloned)
+	}
 	if v.Type() == reflect.TypeFor[time.Time]() {
+
 		return v
 	}
 	var key cellVisit
@@ -371,6 +385,9 @@ func cloneCellReflect(v reflect.Value, seen map[cellVisit]reflect.Value) reflect
 	case reflect.Struct:
 		out := reflect.New(v.Type()).Elem()
 		for i := 0; i < v.NumField(); i++ {
+			if !out.Field(i).CanSet() && v.Field(i).IsZero() {
+				continue
+			}
 			if !out.Field(i).CanSet() {
 				return v
 			}

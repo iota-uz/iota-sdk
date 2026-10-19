@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 	"strings"
 	"testing"
@@ -333,4 +334,23 @@ func TestMemoryStoreAdmissionEvictsAndSweepsExpired(t *testing.T) {
 	_, err = store.Get(t.Context(), "b")
 	require.ErrorIs(t, err, ErrSnapshotGone)
 	require.Len(t, store.items, 1)
+}
+
+func TestMemoryStoreClonesAcceptedMixedStructAndFrameParams(t *testing.T) {
+	// Structural preflight permitting empty private metadata must still isolate public fields.
+	type mixed struct {
+		Public  map[string][]string
+		private string
+	}
+	typed := mixed{Public: map[string][]string{"x": {"before"}}}
+	fr, err := frame.New("source", frame.Field{Name: "x", Type: frame.FieldTypeString, Values: []any{"before"}})
+	require.NoError(t, err)
+	store := NewMemoryStore(time.Minute, 2)
+	require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "mixed", Params: map[string]any{"mixed": typed, "frame": *fr}}))
+	typed.Public["x"][0] = "after"
+	fr.Fields[0].Values[0] = "after"
+	got, err := store.Get(t.Context(), "mixed")
+	require.NoError(t, err)
+	require.Equal(t, "before", got.Params["mixed"].(mixed).Public["x"][0])
+	require.Equal(t, "before", got.Params["frame"].(frame.Frame).Fields[0].Values[0])
 }

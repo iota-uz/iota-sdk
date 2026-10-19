@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 	lenstheme "github.com/iota-uz/iota-sdk/pkg/lens/theme"
 )
@@ -472,6 +473,10 @@ func cloneWireValue(v reflect.Value) reflect.Value {
 	if !v.IsValid() {
 		return v
 	}
+	if v.Type() == reflect.TypeFor[frame.Frame]() {
+		original := v.Interface().(frame.Frame)
+		return reflect.ValueOf(*original.Clone())
+	}
 	if v.Type() == reflect.TypeFor[time.Time]() {
 		return v
 	}
@@ -518,6 +523,9 @@ func cloneWireValue(v reflect.Value) reflect.Value {
 	case reflect.Struct:
 		out := reflect.New(v.Type()).Elem()
 		for i := 0; i < v.NumField(); i++ {
+			if !out.Field(i).CanSet() && v.Field(i).IsZero() {
+				continue
+			}
 			if !out.Field(i).CanSet() {
 				return v
 			}
