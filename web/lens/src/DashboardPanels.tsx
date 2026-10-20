@@ -24,7 +24,7 @@ import { PanelChromeContext, type PanelChrome } from './panels/context'
 import { ArrowClockwise, CircleNotch, Clock, X } from './icons'
 import { ExplorePanel } from './explore'
 import { FilterBar, FilterControls, type CalendarDate } from './controls'
-import { ContextGroupControls } from './controls/ScopedFilterControls'
+import { ContextGroupDetails, ContextGroupToolbar, createContextGroupDisclosure, hasContextGroupToolbar } from './controls/ScopedFilterControls'
 import { isVisualRegression } from './visualRegression'
 
  
@@ -171,13 +171,17 @@ function MissingPanel(props: { panelId: string }) {
 
 function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
   const documentState = useDocumentState()
+  const { document } = useDashboard()
+  const [filtersOpen, setFiltersOpen] = createSignal(false)
+  const disclosure = createContextGroupDisclosure(filtersOpen, setFiltersOpen)
+  const contextToolbar = () => Boolean(props.group.filterContext && hasContextGroupToolbar(document.contextEditor, props.group.filterContext, props.group.id))
   return (
     <div class="lens-grid-item" style={spanStyle(props.group.span)}>
       <section
         aria-label={props.group.label || undefined}
         class={`lens-panel lens-panel-group ${`lens-panel-group-${props.group.kind}`}`}
       >
-        <Show when={Boolean(props.group.label || props.group.status)}>
+        <Show when={Boolean(props.group.label || props.group.status || contextToolbar())}>
           <header class="lens-panel-header lens-panel-group-header">
             <Show when={props.group.label}>
               <h3 class="lens-panel-title">{props.group.label}</h3>
@@ -187,6 +191,7 @@ function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
             <Show when={props.group.status}>
               <StatusChip status={props.group.status!} />
             </Show>
+            <Show when={contextToolbar() && props.group.filterContext}>{(context) => <ContextGroupToolbar id={props.group.id} context={context()} disclosure={disclosure} />}</Show>
           </header>
         </Show>
         {/* A group's caption reads for the whole strip, so it sits under the
@@ -198,7 +203,7 @@ function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
         <Show when={props.group.caption}>
           <p class="lens-panel-caption" data-stale={documentState.isRefreshing || undefined}>{props.group.caption}</p>
         </Show>
-        <Show when={props.group.filterContext}>{(context) => <ContextGroupControls id={props.group.id} context={context()} />}</Show>
+        <Show when={props.group.filterContext}>{(context) => <ContextGroupDetails id={props.group.id} context={context()} disclosure={disclosure} />}</Show>
         <Show when={!props.group.filterContext || (!props.group.filterContext.conflicts.length && !props.group.filterContext.unsupported.length)}>{props.children}</Show>
       </section>
     </div>

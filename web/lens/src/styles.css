@@ -441,28 +441,80 @@
     @apply lens:flex lens:min-w-0 lens:flex-wrap lens:items-center lens:gap-2 lens:py-2;
   }
 
+  /* SECONDARY at the scope row's height: the context verbs sit among the
+     chip-weight triggers, so they share their box and type, and carry the
+     hairline that tells a verb from a value. Borderless 10px text read as a
+     caption. */
   .lens-context-action {
-    @apply lens:flex lens:items-center lens:justify-center lens:rounded lens:border-0 lens:bg-transparent lens:px-2 lens:py-1 lens:font-sans lens:text-xs lens:font-semibold lens:text-muted;
-    min-height: var(--lens-control-h-sm);
+    @apply lens:inline-flex lens:min-h-control-sm lens:flex-none lens:items-center lens:justify-center lens:gap-1.5 lens:whitespace-nowrap lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2.5 lens:font-sans lens:text-base lens:font-semibold lens:text-muted;
     text-decoration: none;
-    transition: background-color var(--lens-dur-fast) var(--lens-ease-standard);
+    transition: background-color var(--lens-dur-fast) var(--lens-ease-standard),
+      color var(--lens-dur-fast) var(--lens-ease-standard);
   }
 
-  .lens-context-action:hover:not(:disabled) {
+  .lens-context-action:hover:not(:disabled, [aria-disabled='true']) {
     @apply lens:text-strong;
-    background: rgb(15 23 42 / 0.06);
+    background: rgb(15 23 42 / 0.04);
   }
 
-  .lens-root[data-theme='dark'] .lens-context-action:hover:not(:disabled) {
+  .lens-root[data-theme='dark'] .lens-context-action:hover:not(:disabled, [aria-disabled='true']) {
     background: rgb(255 255 255 / 0.08);
   }
 
-  .lens-context-action:disabled {
-    @apply lens:cursor-default lens:opacity-40;
+  .lens-context-action:disabled,
+  .lens-context-action[aria-disabled='true'] {
+    @apply lens:cursor-not-allowed lens:text-faint;
+    background: var(--lens-bg-inset);
+  }
+
+  .lens-context-error {
+    @apply lens:m-0 lens:basis-full lens:text-base lens:text-neg;
   }
 
   .lens-context-info {
     @apply lens:break-words lens:text-xs lens:text-muted;
+  }
+
+  .lens-context-info-live {
+    @apply lens:flex lens:flex-col lens:gap-0.5 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:px-4 lens:py-2 lens:text-md lens:leading-relaxed;
+  }
+
+  .lens-context-info-live p {
+    @apply lens:m-0;
+  }
+
+  .lens-context-info-live [role='status'] {
+    @apply lens:font-medium lens:text-strong;
+  }
+
+  /* The group header's filter cluster: what this group narrows, then the one
+     trigger that edits it, pushed to the header's trailing edge. */
+  .lens-context-toolbar {
+    @apply lens:ml-auto lens:flex lens:min-w-0 lens:max-w-full lens:flex-wrap lens:items-center lens:justify-end lens:gap-1.5;
+  }
+
+  .lens-active-filter-chip {
+    @apply lens:inline-flex lens:min-h-control-sm lens:min-w-0 lens:max-w-56 lens:items-center lens:rounded-badge lens:bg-accent-50 lens:px-2 lens:text-base lens:font-medium lens:text-accent-700;
+  }
+
+  .lens-active-filter-chip span {
+    @apply lens:overflow-hidden lens:text-ellipsis lens:whitespace-nowrap;
+  }
+
+  .lens-context-panel {
+    @apply lens:flex lens:flex-col lens:gap-3 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:bg-inset lens:px-4 lens:py-3;
+  }
+
+  .lens-context-editor {
+    @apply lens:flex lens:min-w-0 lens:flex-col lens:gap-1;
+  }
+
+  .lens-context-editor-title {
+    @apply lens:m-0 lens:text-base lens:font-semibold lens:text-strong;
+  }
+
+  .lens-context-panel .lens-scoped-controls {
+    @apply lens:py-0;
   }
 
   .lens-filter-bar {

@@ -24,14 +24,14 @@ const (
 	I18nContextScopeGroup     = "filter.context.scope.group"
 	I18nContextScopeHost      = "filter.context.scope.host"
 
-	I18nContextApply         = "filter.context.apply"
+	I18nContextCard          = "filter.context.card"
 	I18nContextConflict      = "filter.context.conflict"
+	I18nContextLocal         = "filter.context.local"
 	I18nContextReportPeriods = "filter.context.reportPeriods"
 	I18nContextReset         = "filter.context.reset"
 	I18nContextSave          = "filter.context.save"
 	I18nContextSaveFailed    = "filter.context.saveFailed"
 	I18nContextSection       = "filter.context.section"
-	I18nContextStaged        = "filter.context.staged"
 	I18nContextUnsupported   = "filter.context.unsupported"
 	I18nContextUseDashboard  = "filter.context.useDashboard"
 
@@ -370,14 +370,14 @@ func RuntimeI18nKeys() []string {
 		I18nContextScopeGroup,
 		I18nContextScopeHost,
 
-		I18nContextApply,
+		I18nContextCard,
 		I18nContextConflict,
+		I18nContextLocal,
 		I18nContextReportPeriods,
 		I18nContextReset,
 		I18nContextSave,
 		I18nContextSaveFailed,
 		I18nContextSection,
-		I18nContextStaged,
 		I18nContextUnsupported,
 		I18nContextUseDashboard,
 
