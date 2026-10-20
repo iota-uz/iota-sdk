@@ -929,11 +929,17 @@ export function DashboardPanels(props: DashboardPanelsProps) {
   const edit = untrack(() => props.edit)
   const editable = Boolean(edit) && drawer.depth === 0
   const [editModule, setEditModule] = createSignal<EditModule>()
-  if (editable) {
+  const [editLoadFailed, setEditLoadFailed] = createSignal(false)
+  // A failed chunk (a deploy replaced it, a flaky network) leaves the board
+  // read-only; the retry repeats the import while the dashboard stays mounted.
+  const loadEditModule = () => {
+    setEditLoadFailed(false)
     void import('./reports/dashboardEdit').then((module) => setEditModule(() => module), (cause: unknown) => {
       console.error('[lens] the dashboard edit mode failed to load', cause)
+      setEditLoadFailed(true)
     })
   }
+  if (editable) loadEditModule()
   const placementHost = useReportPlacementHost()
   const chrome = () => props.chrome ?? {}
 
@@ -1097,7 +1103,22 @@ export function DashboardPanels(props: DashboardPanelsProps) {
 
   // Until the edit chunk arrives the board renders read-only from the document.
   return (
-    <Show fallback={board()} when={editModule()}>
+    <Show
+      fallback={(
+        <>
+          <Show when={editLoadFailed()}>
+            <div class="lens-document-refetch-error" data-testid="dashboard-edit-load-failed" role="alert">
+              <span>{translate('dashboard.edit.loadFailed', 'Editing could not be loaded. The dashboard stays read-only.')}</span>
+              <div class="lens-document-refetch-error-actions">
+                <button onClick={loadEditModule} type="button">{translate('document.retry', 'Retry')}</button>
+              </div>
+            </div>
+          </Show>
+          {board()}
+        </>
+      )}
+      when={editModule()}
+    >
       {(module) => {
         const Scope = module().DashboardEditScope
         return <Scope edit={edit!} theme={theme}>{(editor) => board(editor)}</Scope>

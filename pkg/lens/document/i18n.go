@@ -251,6 +251,7 @@ const (
 	I18nDashboardEditPreviewPending = "dashboard.edit.previewPending"
 	I18nDashboardEditPreviewLoading = "dashboard.edit.previewLoading"
 	I18nDashboardEditPreviewFailed  = "dashboard.edit.previewFailed"
+	I18nDashboardEditLoadFailed     = "dashboard.edit.loadFailed"
 	I18nDashboardEmptyTitle         = "dashboard.empty.title"
 	I18nDashboardEmptyHint          = "dashboard.empty.hint"
 	I18nDashboardEmptyHintEditable  = "dashboard.empty.hintEditable"
@@ -694,7 +695,7 @@ func RuntimeI18nKeys() []string {
 		I18nChartSeriesYTD, I18nChartSeriesForecast, I18nChartSeriesForecastLower, I18nChartSeriesForecastConfidence,
 		I18nDashboardEmpty, I18nDashboardTabs, I18nDashboardUpdated, I18nDashboardRecompute, I18nDashboardRecomputeHint, I18nDashboardRecomputing, I18nDrillClose, I18nDrillReset,
 		I18nDashboardEdit, I18nDashboardEditStarted, I18nDashboardEditEnded, I18nDashboardEditToolbar,
-		I18nDashboardEditPreviewPending, I18nDashboardEditPreviewLoading, I18nDashboardEditPreviewFailed,
+		I18nDashboardEditPreviewPending, I18nDashboardEditPreviewLoading, I18nDashboardEditPreviewFailed, I18nDashboardEditLoadFailed,
 		I18nDashboardEmptyTitle, I18nDashboardEmptyHint, I18nDashboardEmptyHintEditable,
 		I18nFilterMore,
 		I18nDocumentRefetch, I18nDocumentRetry,
