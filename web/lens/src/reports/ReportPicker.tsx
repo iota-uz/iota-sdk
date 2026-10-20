@@ -222,6 +222,10 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
       footer={footer}
       initialFocus={() => searchRef}
       onClose={() => { if (!confirming()) props.onClose() }}
+      onEscape={() => {
+        if (previewing()) closePreview()
+        else if (!confirming()) props.onClose()
+      }}
       restoreFocus={props.restoreFocus}
       size="wide"
       testId="report-picker"

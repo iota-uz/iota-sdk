@@ -10,6 +10,8 @@ export interface ReportDialogProps {
   /** Secondary line under the title. */
   description?: string
   onClose: () => void
+  /** Escape; onClose when omitted. A dialog with a nested view steps back instead of closing. */
+  onEscape?: () => void
   /** The element focused again after the dialog closes; the active element when omitted. */
   restoreFocus?: HTMLElement
   /** Field focused on open; the dialog itself when omitted. */
@@ -45,7 +47,7 @@ export function ReportDialog(props: ReportDialogProps): JSX.Element {
     })
   })
 
-  useFocusTrap(() => dialogRef, () => Boolean(container()), () => props.onClose(), () => props.initialFocus?.(), () => restore)
+  useFocusTrap(() => dialogRef, () => Boolean(container()), () => (props.onEscape ?? props.onClose)(), () => props.initialFocus?.(), () => restore)
 
   return (
     <Show when={container()}>

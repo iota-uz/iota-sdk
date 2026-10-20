@@ -26,7 +26,8 @@ type CatalogScope string
 const (
 	CatalogScopeAll      CatalogScope = "all"
 	CatalogScopePersonal CatalogScope = "personal"
-	// CatalogScopeShared lists every report the reader does not own: shared and system reports.
+	// CatalogScopeShared lists reports other people shared with the reader. Built-in
+	// system reports appear only under CatalogScopeAll: nobody shared them.
 	CatalogScopeShared CatalogScope = "shared"
 )
 
@@ -131,7 +132,7 @@ func (s CatalogScope) Includes(ownership Ownership) bool {
 	case CatalogScopePersonal:
 		return ownership == OwnershipPersonal
 	case CatalogScopeShared:
-		return ownership == OwnershipShared || ownership == OwnershipSystem
+		return ownership == OwnershipShared
 	default:
 		return false
 	}

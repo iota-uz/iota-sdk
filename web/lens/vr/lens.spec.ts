@@ -1231,7 +1231,10 @@ test('report picker adds to the draft only on confirmation and returns the reade
   await large.getByRole('button', { name: 'Preview Large losses' }).click()
   const preview = dialog.getByRole('region', { name: 'Preview Large losses' })
   await expect(preview.getByRole('table')).toBeVisible()
-  await preview.getByRole('button', { name: 'Back to reports' }).click()
+  // Escape in the preview steps back to the list; only an Escape on the list closes the dialog.
+  await page.keyboard.press('Escape')
+  await expect(preview).toHaveCount(0)
+  await expect(dialog).toBeVisible()
   await expect(search).toHaveValue('Large')
   await expect(large.getByRole('checkbox')).toBeChecked()
   await expect(large.getByRole('button', { name: 'Preview Large losses' })).toBeFocused()

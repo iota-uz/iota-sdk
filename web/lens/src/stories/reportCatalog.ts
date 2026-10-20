@@ -41,7 +41,7 @@ export function memoryCatalog(options: MemoryCatalogOptions = {}): ReportCatalog
       }
       const needle = (query.search ?? '').toLowerCase()
       const scoped = entries.filter((entry) => (query.scope === 'personal' ? entry.ownership === 'personal'
-        : query.scope === 'shared' ? entry.ownership !== 'personal' : true))
+        : query.scope === 'shared' ? entry.ownership === 'shared' : true))
         .filter((entry) => !needle || entry.title.toLowerCase().includes(needle))
       const offset = Number(query.cursor ?? 0)
       const limit = query.limit ?? 20

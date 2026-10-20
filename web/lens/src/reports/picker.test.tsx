@@ -185,6 +185,13 @@ describe('ReportPicker', () => {
     expect(mine).toHaveAttribute('aria-selected', 'true')
     expect(document.activeElement).toBe(mine)
     await waitFor(() => expect(listed()).toEqual(entries.filter((value) => value.ownership === 'personal').slice(0, 20).map((value) => value.id)))
+    const shared = screen.getByRole('tab', { name: 'Shared with me' })
+    fireEvent.click(shared)
+    // Built-in reports were shared by nobody: they appear only under All.
+    await waitFor(() => expect(listed()).toEqual(entries.filter((value) => value.ownership === 'shared').slice(0, 20).map((value) => value.id)))
+    expect(document.querySelector('.lens-report-picker-list')).not.toHaveTextContent('Built-in')
+    fireEvent.click(screen.getByRole('tab', { name: 'All' }))
+    await waitFor(() => expect(row('report-01')).toHaveTextContent('Built-in'))
   })
 
   // False green: asserting only that onConfirm ran twice would miss a lost selection or a fresh id that duplicates cards.
@@ -269,6 +276,28 @@ describe('ReportPicker', () => {
     await waitFor(() => expect(document.activeElement).toBe(previewButton))
     expect(screen.getByRole('searchbox', { name: 'Search reports' })).toHaveValue('Large')
     expect(checkbox('report-03')).toBeChecked()
+  })
+
+  // False green: an Escape that closed the dialog would also leave the preview, but discard the selection.
+  it('steps back from the preview on Escape and closes only on an Escape from the list', async () => {
+    const { onClose, onConfirm, trigger } = mountPicker()
+    await waitFor(() => expect(listed()).toHaveLength(20))
+    fireEvent.click(checkbox('report-02'))
+    const previewButton = screen.getByRole('button', { name: 'Preview Large losses' })
+    fireEvent.click(previewButton)
+    const preview = await screen.findByRole('region', { name: 'Preview Large losses' })
+    await waitFor(() => expect(document.activeElement).toBe(within(preview).getByRole('button', { name: 'Back to reports' })))
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Preview Large losses' })).toBeNull())
+    expect(dialog()).toBeTruthy()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(checkbox('report-02')).toBeChecked()
+    await waitFor(() => expect(document.activeElement).toBe(previewButton))
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(onConfirm).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(trigger)
   })
 
   it('offers no preview without a host preview', async () => {
