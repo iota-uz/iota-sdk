@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createUniqueId, For, onCleanup, Show } from 'solid-js'
+import { createEffect, createMemo, createUniqueId, For, onCleanup, onMount, Show } from 'solid-js'
 import { unwrap } from 'solid-js/store'
 import type { ContextBoard, ContextEditor, ContextFilters, ContextOrigin, ContextPeriod, EffectiveContext, Filter, PeriodValue } from '../contract/types'
 import { useDashboard, useFilters, useTranslate } from '../runtime'
@@ -16,13 +16,45 @@ function scopeValue(board: ContextBoard, scope: Scope, id: string): ContextFilte
 
 type ScopedFilterProps = { editor: ContextEditor; scope: Scope; id: string; effective?: EffectiveContext; facets?: Filter[]; saveDefaults?: (filters: ContextFilters) => Promise<void> }
 
+const focusableControl = 'button:not(:disabled):not([aria-disabled="true"]), input:not(:disabled), a[href]'
+
+/** Apply and Restore remove themselves and Apply remounts the editor, so focus is handed back to the editor that replaces them. */
+function focusLost(root: HTMLElement) {
+  const active = root.ownerDocument.activeElement
+  return !active || active === root.ownerDocument.body || !active.isConnected
+}
+
+function focusEditor(root: HTMLElement) {
+  if (!root.isConnected || !focusLost(root)) return
+  const target = root.querySelector<HTMLElement>('[data-testid="context-apply"]') ?? root.querySelector<HTMLElement>(focusableControl)
+  target?.focus()
+}
+
 export function ScopedFilterControls(props: ScopedFilterProps) {
   const { document } = useDashboard()
   const identity = createMemo(() => JSON.stringify([document.snapshotId, props.scope, props.id, props.editor, props.effective?.identity]))
-  return <Show when={identity()} keyed>{(identity) => identity && <ScopedFilterDraftControls {...props} />}</Show>
+  const focus = { pending: false }
+  return <Show when={identity()} keyed>{(identity) => identity && <ScopedFilterDraftControls {...props} focus={focus} />}</Show>
 }
 
-function ScopedFilterDraftControls(props: ScopedFilterProps) {
+function ScopedFilterDraftControls(props: ScopedFilterProps & { focus: { pending: boolean } }) {
+  let root: HTMLDivElement | undefined
+  onMount(() => {
+    if (!props.focus.pending || !root) return
+    const element = root
+    requestAnimationFrame(() => {
+      if (!focusLost(element)) props.focus.pending = false
+      else if (element.isConnected) {
+        props.focus.pending = false
+        focusEditor(element)
+      }
+    })
+  })
+  const keepFocus = (remounts: boolean) => {
+    props.focus.pending = remounts
+    const element = root
+    if (element) requestAnimationFrame(() => focusEditor(element))
+  }
   const { applyURL } = useFilters()
   const translate = useTranslate()
   const host = useFilterDefaultsHost()
@@ -74,19 +106,19 @@ function ScopedFilterDraftControls(props: ScopedFilterProps) {
     })
   }
   const constraints = createMemo(() => draft.value().constraints ?? [])
-  return <div class="lens-scoped-controls" data-testid={`context-controls-${props.scope}-${props.id}`}>
+  return <div class="lens-scoped-controls" data-testid={`context-controls-${props.scope}-${props.id}`} ref={(element) => { root = element }}>
     <PeriodFilterControl filter={filter} today={hostToday()} inheritLabel={inherited() ? inheritText() : undefined} onChange={onPeriod} />
     <Show when={!inherited()}><button type="button" class="lens-context-action" data-testid="context-inherit" onClick={() => draft.update((value) => ({ ...value, period: props.scope === 'dashboard' ? { mode: 'reports' } : undefined }))}>{inheritText()}</button></Show>
     <Show when={props.facets?.length}><FacetFilterMenu filters={props.facets!} onApplyURL={stageFacets} /></Show>
     <For each={constraints()}>{(constraint) => <span class="lens-active-filter-chip"><span>{constraintLabel(props.editor, constraint)}</span></span>}</For>
     <Show when={draft.dirty()}>
-      <button type="button" class="lens-context-action" data-variant="primary" data-testid="context-apply" onClick={() => draft.apply()}>{translate('filter.context.apply', 'Apply')}</button>
+      <button type="button" class="lens-context-action" data-variant="primary" data-testid="context-apply" onClick={() => { draft.apply(); keepFocus(true) }}>{translate('filter.context.apply', 'Apply')}</button>
     </Show>
     <Show when={draft.restorable()}>
-      <button type="button" class="lens-context-action" data-testid="context-reset" onClick={() => draft.reset()}>{translate('filter.context.reset', 'Restore saved filters')}</button>
+      <button type="button" class="lens-context-action" data-testid="context-reset" onClick={() => { draft.reset(); keepFocus(false) }}>{translate('filter.context.reset', 'Restore saved filters')}</button>
     </Show>
     <Show when={draft.dirty()}><span class="lens-context-staged" role="status">{translate('filter.context.staged', 'Changes are not applied')}</span></Show>
-    <Show when={saveDefaults}><button type="button" class="lens-context-action" disabled={draft.saving()} onClick={() => void draft.saveDefaults().catch(() => undefined)}>{translate('filter.context.save', 'Save filter defaults')}</button></Show>
+    <Show when={saveDefaults}><button type="button" class="lens-context-action" aria-disabled={draft.saving() || undefined} onClick={() => { if (!draft.saving()) void draft.saveDefaults().catch(() => undefined) }}>{translate('filter.context.save', 'Save filter defaults')}</button></Show>
     <Show when={draft.error()}><p class="lens-context-error" role="alert">{translate('filter.context.saveFailed', 'Filter defaults could not be saved')}</p></Show>
   </div>
 }
@@ -249,7 +281,9 @@ export function ContextGroupDetails(props: { id: string; context: EffectiveConte
   let panel: HTMLDivElement | undefined
   createEffect(() => {
     if (!props.disclosure.open()) return
-    const frame = requestAnimationFrame(() => panel?.querySelector<HTMLElement>('button:not(:disabled), input, a[href]')?.focus())
+    const frame = requestAnimationFrame(() => {
+      if (panel && !panel.contains(panel.ownerDocument.activeElement)) panel.querySelector<HTMLElement>(focusableControl)?.focus()
+    })
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || !(event.target instanceof Node) || !panel?.contains(event.target)) return
       event.stopPropagation()

@@ -64,3 +64,52 @@ it('offers Restore whenever the shown selection differs from the saved one, and 
   expect(screen.queryByTestId('context-reset')).toBeNull()
   expect(screen.getByTestId('context-apply')).toBeInTheDocument()
 })
+
+const frame = () => new Promise((resolve) => requestAnimationFrame(resolve))
+
+// False green: activating Apply without removing it (or without remounting) would never lose focus in the first place.
+it('hands focus to the remounted editor after Apply removes itself', async () => {
+  const june = { period: { mode: 'fixed', start: '2026-06-01', end: '2026-06-30' } }
+  const all = { period: { mode: 'all' } }
+  const [state, setState] = createStore<{ editor: ContextEditor }>({ editor: editor(june, june) })
+  render(() => <ScopedFilterControls editor={state.editor} scope="dashboard" id="dashboard" />)
+  fireEvent.click(screen.getByText('Stage all time'))
+  const apply = screen.getByTestId('context-apply')
+  apply.focus()
+  fireEvent.click(apply)
+  expect(screen.queryByTestId('context-apply')).toBeNull()
+  setState('editor', 'value', 'dashboard', all)
+  await frame()
+  await frame()
+  expect(screen.getByTestId('context-controls-dashboard-dashboard')).toContainElement(document.activeElement as HTMLElement)
+})
+
+// False green: a Restore that leaves Apply hidden would focus nothing and still pass a body check.
+it('keeps focus in the editor after Restore removes itself', async () => {
+  render(() => <ScopedFilterControls editor={editor({ period: { mode: 'fixed', start: '2026-06-01', end: '2026-06-30' } }, { period: { mode: 'reports' } })} scope="dashboard" id="dashboard" />)
+  const reset = screen.getByTestId('context-reset')
+  reset.focus()
+  fireEvent.click(reset)
+  await frame()
+  expect(document.activeElement).toBe(screen.getByTestId('context-apply'))
+})
+
+// False green: a natively disabled button would drop focus to the body while the save is pending.
+it('keeps focus on Save filter defaults through a rejected save', async () => {
+  let reject: (error: Error) => void = () => undefined
+  const saveDefaults = vi.fn(() => new Promise<void>((_resolve, fail) => { reject = fail }))
+  const june = { period: { mode: 'fixed', start: '2026-06-01', end: '2026-06-30' } }
+  render(() => <ScopedFilterControls editor={editor(june, june)} scope="dashboard" id="dashboard" saveDefaults={saveDefaults} />)
+  const save = screen.getByRole('button', { name: 'Save filter defaults' })
+  save.focus()
+  fireEvent.click(save)
+  expect(save).toHaveAttribute('aria-disabled', 'true')
+  expect(save).not.toBeDisabled()
+  fireEvent.click(save)
+  expect(saveDefaults).toHaveBeenCalledTimes(1)
+  expect(document.activeElement).toBe(save)
+  reject(new Error('rejected'))
+  await screen.findByRole('alert')
+  expect(save).not.toHaveAttribute('aria-disabled')
+  expect(document.activeElement).toBe(save)
+})

@@ -452,12 +452,12 @@
       color var(--lens-dur-fast) var(--lens-ease-standard);
   }
 
-  .lens-context-action:hover:not(:disabled) {
+  .lens-context-action:hover:not(:disabled, [aria-disabled='true']) {
     @apply lens:text-strong;
     background: rgb(15 23 42 / 0.04);
   }
 
-  .lens-root[data-theme='dark'] .lens-context-action:hover:not(:disabled) {
+  .lens-root[data-theme='dark'] .lens-context-action:hover:not(:disabled, [aria-disabled='true']) {
     background: rgb(255 255 255 / 0.08);
   }
 
@@ -465,11 +465,12 @@
     @apply lens:border-accent-600 lens:bg-accent-600 lens:text-on-accent;
   }
 
-  .lens-context-action[data-variant='primary']:hover:not(:disabled) {
+  .lens-context-action[data-variant='primary']:hover:not(:disabled, [aria-disabled='true']) {
     @apply lens:border-accent-500 lens:bg-accent-500 lens:text-on-accent;
   }
 
-  .lens-context-action:disabled {
+  .lens-context-action:disabled,
+  .lens-context-action[aria-disabled='true'] {
     @apply lens:cursor-not-allowed lens:text-faint;
     background: var(--lens-bg-inset);
   }
