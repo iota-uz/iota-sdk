@@ -235,6 +235,12 @@
     @apply lens:box-border lens:min-h-32 lens:min-w-0 lens:bg-page lens:p-4 lens:font-sans lens:text-text;
   }
 
+  /* A Lens root that only scopes the tokens: a component mounted inside a host
+     page (the composition editor) keeps the host's surface and spacing. */
+  .lens-root.lens-root-inline {
+    @apply lens:min-h-0 lens:bg-transparent lens:p-0;
+  }
+
   .lens-dashboard {
     @apply lens:mx-auto lens:w-full lens:min-w-0 lens:max-w-[1536px];
 
