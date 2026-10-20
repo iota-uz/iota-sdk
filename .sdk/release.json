@@ -1,0 +1,14 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Compact Lens scoped filters and apply them immediately: each section or card shows one Filters trigger with an override count and chips instead of two always-open filter rows, and the effective-context line appears only when it differs from the dashboard or carries a notice. Choosing a period, the inherited period, a facet selection or Restore now applies at once (the separate Apply button and its staged notice are gone), focus returns to the operated control, and context actions share the filter-trigger height. Runtime keys: adds filter.context.local and filter.context.card, removes filter.context.apply and filter.context.staged."
+    },
+    {
+      "bump": "none",
+      "summary": "Approve Linux Lens VR baselines for the compact scoped filter controls."
+    }
+  ],
+  "source": "9c451733c087f16b2445aeee0fc52da36beecb79",
+  "version": "0.25.1"
+}
