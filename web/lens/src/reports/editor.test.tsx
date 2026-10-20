@@ -237,6 +237,15 @@ async function configure(id: string, caption: string) {
 }
 
 describe('ReportCompositionEditor', () => {
+  // False green: mounting inside a test-provided .lens-root would supply the tokens a bare host page lacks.
+  it('scopes the Lens tokens itself when a host mounts it without a Lens root', () => {
+    render(() => <ReportCompositionEditor draft={createReportDraft(base(), { save: (value) => Promise.resolve(value) })} lifecycle="existing" reportTitle={(id) => titles[id]} theme="dark" />)
+    const root = screen.getByTestId('report-editor').closest('.lens-root')
+    expect(root).not.toBeNull()
+    expect(root).toHaveClass('lens-root-inline')
+    expect(root).toHaveAttribute('data-theme', 'dark')
+  })
+
   // False green: a Cancel tested only after a reorder would miss captions, filters and added cards surviving it.
   it('cancels the whole session: layout, captions, local periods, added and removed cards', async () => {
     const { draft, save } = mountEditor({ props: { catalog: memoryCatalog() } })

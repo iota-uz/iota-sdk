@@ -235,6 +235,12 @@
     @apply lens:box-border lens:min-h-32 lens:min-w-0 lens:bg-page lens:p-4 lens:font-sans lens:text-text;
   }
 
+  /* A Lens root that only scopes the tokens: a component mounted inside a host
+     page (the composition editor) keeps the host's surface and spacing. */
+  .lens-root.lens-root-inline {
+    @apply lens:min-h-0 lens:bg-transparent lens:p-0;
+  }
+
   .lens-dashboard {
     @apply lens:mx-auto lens:w-full lens:min-w-0 lens:max-w-[1536px];
 
@@ -980,6 +986,143 @@
     .lens-report-editor-resize {
       display: none;
     }
+  }
+
+  /* In-place editing of the live dashboard. The edit bar replaces the action
+     cluster on the same row, so entering the mode never moves the filters. */
+  .lens-dashboard-edit-bar {
+    @apply lens:flex lens:min-w-0 lens:max-w-full lens:flex-wrap lens:items-center lens:justify-end lens:gap-2;
+  }
+
+  .lens-dashboard-edit-bar .lens-context-action,
+  .lens-dashboard-empty-action {
+    @apply lens:min-h-control-md;
+  }
+
+  .lens-dashboard-edit-status {
+    @apply lens:mr-1 lens:whitespace-nowrap;
+  }
+
+  .lens-dashboard-edit-notices {
+    @apply lens:flex lens:flex-col lens:gap-3;
+  }
+
+  .lens-dashboard-edit-notices > :not(.lens-visually-hidden):last-of-type {
+    @apply lens:mb-4;
+  }
+
+  /* One grid for every row: each card names its row, so a move between rows
+     re-orders nodes instead of remounting their charts. The row gap is the
+     dashboard's row rhythm. Below the twelve-column breakpoint the cards stack
+     in draft order. */
+  .lens-dashboard-edit-grid .lens-report-editor-resize {
+    display: none;
+  }
+
+  @media (min-width: 769px) {
+    .lens-dashboard-edit-grid {
+      row-gap: 1.5rem;
+    }
+
+    .lens-dashboard-edit-grid > .lens-grid-item {
+      grid-row: var(--lens-edit-row, auto);
+    }
+
+    .lens-dashboard-edit-grid .lens-report-editor-resize {
+      display: block;
+    }
+  }
+
+  .lens-dashboard-edit-grid > .lens-grid-item {
+    @apply lens:relative;
+  }
+
+  .lens-dashboard-edit-grid[data-editing] > .lens-grid-item > .lens-panel {
+    outline: 1px dashed var(--lens-border-strong);
+    outline-offset: 3px;
+  }
+
+  .lens-dashboard-edit-grid > .lens-grid-item[data-added] > .lens-panel {
+    border-color: var(--lens-accent-500);
+    box-shadow: 0 0 0 1px var(--lens-accent-500);
+  }
+
+  .lens-dashboard-edit-grid > .lens-grid-item[data-drop-target] > .lens-panel {
+    outline: 2px dashed var(--lens-accent-600);
+  }
+
+  .lens-dashboard-edit-grid .lens-panel-group-header > .lens-report-editor-handle {
+    @apply lens:-ml-1 lens:mr-1;
+  }
+
+  .lens-dashboard-edit-preview {
+    @apply lens:flex lens:min-h-24 lens:min-w-0 lens:flex-1 lens:flex-col;
+  }
+
+  .lens-dashboard-edit-preview > .lens-root {
+    @apply lens:min-h-0 lens:bg-transparent lens:p-0;
+  }
+
+  .lens-dashboard-edit-preview-state {
+    @apply lens:m-0 lens:px-4 lens:py-6 lens:text-md lens:text-muted;
+  }
+
+  /* An empty board says what it is for and, when the reader can edit it, offers
+     the one way to fill it. */
+  .lens-dashboard-empty {
+    @apply lens:mx-auto lens:my-6 lens:box-border lens:flex lens:w-full lens:max-w-xl lens:flex-col lens:items-center lens:gap-2 lens:rounded-card lens:border lens:border-dashed lens:border-border-strong lens:bg-card lens:px-6 lens:py-10 lens:text-center lens:font-sans;
+  }
+
+  .lens-dashboard-empty-icon {
+    @apply lens:mb-2 lens:inline-flex lens:size-14 lens:items-center lens:justify-center lens:rounded-full lens:text-accent-600;
+    background: var(--lens-accent-50);
+  }
+
+  .lens-dashboard-empty-title {
+    @apply lens:m-0 lens:text-lg lens:font-semibold lens:text-strong;
+  }
+
+  .lens-dashboard-empty-hint {
+    @apply lens:m-0 lens:max-w-md lens:text-md lens:text-muted;
+  }
+
+  .lens-dashboard-empty-action {
+    @apply lens:mt-3;
+  }
+
+  /* The compact bar's "More" disclosure: a trigger at the scope row's height
+     and a panel of the folded verbs under it. */
+  .lens-toolbar-overflow {
+    @apply lens:relative lens:flex lens:items-center;
+  }
+
+  .lens-dashboard-scope > .lens-toolbar-overflow::before {
+    content: none;
+  }
+
+  .lens-toolbar-overflow:not([data-filled]) {
+    @apply lens:hidden;
+  }
+
+  .lens-toolbar-overflow-trigger[hidden] {
+    @apply lens:hidden;
+  }
+
+  .lens-toolbar-overflow-panel {
+    @apply lens:absolute lens:left-0 lens:top-full lens:z-popover lens:mt-1 lens:box-border lens:flex lens:w-max lens:min-w-56 lens:flex-col lens:items-stretch lens:gap-2 lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card lens:p-2 lens:shadow-popover;
+    max-width: min(22rem, calc(100vw - 2rem));
+  }
+
+  .lens-toolbar-overflow-panel[hidden] {
+    @apply lens:hidden;
+  }
+
+  .lens-toolbar-overflow-panel > div {
+    display: contents;
+  }
+
+  .lens-toolbar-overflow-panel .lens-context-action {
+    @apply lens:justify-start;
   }
 
   .lens-report-destination-list {

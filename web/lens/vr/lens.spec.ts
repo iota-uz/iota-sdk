@@ -51,6 +51,24 @@ const storyIds = [
   'report-picker--destination-dark',
   'report-picker--in-draft-light',
   'report-picker--in-draft-dark',
+  'dashboard-edit--view-light',
+  'dashboard-edit--view-dark',
+  'dashboard-edit--edit-light',
+  'dashboard-edit--edit-dark',
+  'dashboard-edit--edit-draft-light',
+  'dashboard-edit--edit-draft-dark',
+  'dashboard-edit--dirty-light',
+  'dashboard-edit--dirty-dark',
+  'dashboard-edit--conflict-light',
+  'dashboard-edit--conflict-dark',
+  'dashboard-edit--empty-light',
+  'dashboard-edit--empty-dark',
+  'dashboard-edit--empty-editing-light',
+  'dashboard-edit--empty-editing-dark',
+  'dashboard-edit--host-chrome-light',
+  'dashboard-edit--host-chrome-dark',
+  'dashboard-edit--host-chrome-more-open-light',
+  'dashboard-edit--host-chrome-more-open-dark',
   'report-editor--existing-light',
   'report-editor--existing-dark',
   'report-editor--new-empty-light',
@@ -289,6 +307,27 @@ const staticStories = [
   ['report-picker--destination-dark', 0, 16],
   ['report-picker--in-draft-light', 0, 16],
   ['report-picker--in-draft-dark', 0, 16],
+  // The report-card board edited in place: its one bar chart and right-aligned
+  // table figures antialias like report-card's, and the edit bar's rounded
+  // buttons like the editor's.
+  ['dashboard-edit--view-light', 1, 40],
+  ['dashboard-edit--view-dark', 1, 40],
+  ['dashboard-edit--edit-light', 1, 40],
+  ['dashboard-edit--edit-dark', 1, 40],
+  ['dashboard-edit--edit-draft-light', 1, 40],
+  ['dashboard-edit--edit-draft-dark', 1, 40],
+  ['dashboard-edit--dirty-light', 1, 40],
+  ['dashboard-edit--dirty-dark', 1, 40],
+  ['dashboard-edit--conflict-light', 1, 40],
+  ['dashboard-edit--conflict-dark', 1, 40],
+  ['dashboard-edit--empty-light', 0, 40],
+  ['dashboard-edit--empty-dark', 0, 40],
+  ['dashboard-edit--empty-editing-light', 0, 40],
+  ['dashboard-edit--empty-editing-dark', 0, 40],
+  ['dashboard-edit--host-chrome-light', 0, 40],
+  ['dashboard-edit--host-chrome-dark', 0, 40],
+  ['dashboard-edit--host-chrome-more-open-light', 0, 40],
+  ['dashboard-edit--host-chrome-more-open-dark', 0, 40],
   ['report-editor--existing-light', 0, 16],
   ['report-editor--existing-dark', 0, 16],
   ['report-editor--new-empty-light', 0, 16],
@@ -1429,5 +1468,29 @@ for (const width of [1440, 1024, 390]) {
       // Button corner antialiasing alternates between two stable rasters (a few pixels); geometry is asserted above.
       await screenshot(page, `${story}-${width}`, { maxDiffPixels: 16 })
     }
+  })
+}
+
+for (const width of [1440, 1024, 390]) {
+  // False green: a 1600px baseline would hide an edit bar action or a resize handle pushed off a narrow board.
+  test(`dashboard edit mode at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await openStory(page, 'dashboard-edit--dirty-light', 1)
+    const bar = page.getByTestId('dashboard-edit-bar')
+    await expect(bar).toBeVisible()
+    await expect(page.getByTestId('report-editor-handle-revenue')).toBeVisible()
+    await expect(page.getByTestId('report-editor-resize-revenue')).toHaveCount(1)
+    await expect(page.getByTestId('report-editor-resize-revenue')).toBeVisible({ visible: width > 768 })
+    const problems = await page.evaluate(() => {
+      const found: string[] = []
+      if (document.documentElement.scrollWidth > window.innerWidth + 1) found.push(`page ${document.documentElement.scrollWidth} > ${window.innerWidth}`)
+      for (const button of document.querySelectorAll<HTMLElement>('[data-testid="dashboard-edit-bar"] button')) {
+        const rect = button.getBoundingClientRect()
+        if (rect.left < 0 || rect.right > window.innerWidth + 1) found.push(button.textContent ?? 'button')
+      }
+      return found
+    })
+    expect(problems).toEqual([])
+    await screenshot(page, `dashboard-edit--dirty-light-${width}`, { maxDiffPixels: 40 })
   })
 }

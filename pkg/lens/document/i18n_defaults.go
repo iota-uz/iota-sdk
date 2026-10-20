@@ -192,5 +192,17 @@ func RuntimeI18nDefaults() map[string]string {
 		I18nChartSeriesForecast:           "Forecast",
 		I18nChartSeriesForecastLower:      "{forecast} lower bound",
 		I18nChartSeriesForecastConfidence: "{forecast} confidence",
+		I18nDashboardEdit:                 "Edit",
+		I18nDashboardEditStarted:          "Editing the dashboard. Move, resize or remove cards, then save.",
+		I18nDashboardEditEnded:            "Finished editing the dashboard.",
+		I18nDashboardEditToolbar:          "Dashboard editing",
+		I18nDashboardEditPreviewPending:   "The figures appear once the dashboard is saved.",
+		I18nDashboardEditPreviewLoading:   "Loading the report…",
+		I18nDashboardEditPreviewFailed:    "The report could not be loaded. It stays in the draft.",
+		I18nDashboardEditLoadFailed:       "Editing could not be loaded. The dashboard stays read-only.",
+		I18nDashboardEmptyTitle:           "This dashboard has no reports yet",
+		I18nDashboardEmptyHint:            "Reports placed on this dashboard will appear here.",
+		I18nDashboardEmptyHintEditable:    "Add reports from the library to see their figures here.",
+		I18nFilterMore:                    "More filter options",
 	}
 }

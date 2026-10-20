@@ -51,6 +51,7 @@ export type {
 } from './reports/picker'
 export { ReportCompositionEditor } from './reports/ReportCompositionEditor'
 export type { ReportCompositionEditorProps, ReportEditorLifecycle, ReportProposal, ReportProposalHandlers } from './reports/ReportCompositionEditor'
+export type { LensDashboardChrome, LensDashboardEditing } from './reports/dashboardEditTypes'
 export { createReportLeaveGuard } from './reports/guard'
 export type { GuardedDraft, ReportLeaveChoice, ReportLeaveGuard } from './reports/guard'
 export { configurePlacement, diffCompositions, movePlacement, movePlacementBefore, removePlacement, resizePlacement } from './reports/layout'
