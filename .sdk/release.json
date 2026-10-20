@@ -1,0 +1,26 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Lens adds ReportCompositionEditor over createReportDraft: add from the report picker, drag-handle and keyboard reorder and resize, card captions, widths and local periods, distinct Save draft/Publish and Save changes/Cancel lifecycles, a shared-edit impact dialog with host usage counts, revision-conflict recovery (ReportRevisionConflictError, draft.rebase keep/discard, host copy), createReportLeaveGuard for unload and in-app navigation, and an external proposal preview (report.Proposal) with apply, reject and a stale-base check via reportDraftToken. createReportDraft no longer reports an unchanged draft as dirty when the host writes keys in another order."
+    },
+    {
+      "bump": "minor",
+      "summary": "Lens report placements render as one embeddable card: a host-gated actions menu (open, edit, configure, independent copy, remove), distinct deleted/forbidden/incompatible/unsupported/error states (Compose degrades placements whose Host.Report returns report.ErrReportDeleted or report.ErrReportForbidden), a card-local retry and calculation time with timezone, and host panel renderers (panel.Renderer, LensDashboard renderers) inside the shared frame."
+    },
+    {
+      "bump": "patch",
+      "summary": "Lens report picker: Escape in a report preview returns to the list and keeps the selection (only Escape on the list closes the dialog), and report.CatalogScopeShared no longer includes built-in system reports, which now appear only under All."
+    },
+    {
+      "bump": "minor",
+      "summary": "Lens adds a report picker over a host catalog: report.Library/CatalogQuery/CatalogPage/CatalogEntry (ownership, owner, compound member count, restriction, placements in the target; no totals) with Catalog.Search, MarkPlaced and PlacementCounts, and report.Destinations for adding an opened analysis to a dashboard. @iota-uz/sdk/lens exports ReportPicker (search, owner tabs, paging, preview, already-placed marking with an explicit second card, distinct empty/no-match/error states, Add N with a retry-stable confirmation id), ReportDestinationPicker, appendReportPicks, createReportPickerSelection and LensMessagesProvider. Nested Lens focus traps now yield Tab and Escape to the most recently opened one."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add Lens report placement version states (report.Resolved.Version, compareReportVersion, ReportPlacementHost): an update offer that keeps opened figures, an incompatible placement composed as an unavailable group instead of failing the dashboard, no printed figures for it, and reportPlacementActions capability gating."
+    }
+  ],
+  "source": "e6671ac97a8d70de0b4f40bcd105d1f1a7b39e81",
+  "version": "0.26.0"
+}
