@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/url"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 
@@ -396,7 +397,7 @@ func validateGroupDescriptor(item LayoutItem, group LayoutGroup) error {
 		return fmt.Errorf("layout panel %s group id is required", item.PanelID)
 	}
 	switch group.Unavailable {
-	case "", GroupUnavailableReportIncompatible:
+	case "", GroupUnavailableReportIncompatible, GroupUnavailableReportDeleted, GroupUnavailableReportForbidden:
 	default:
 		return fmt.Errorf("layout group %s has unsupported unavailable reason %q", group.ID, group.Unavailable)
 	}
@@ -470,6 +471,9 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 		}
 	}
 	if err := validatePresentation("panel "+panel.ID, panel.Presentation); err != nil {
+		return err
+	}
+	if err := validateRenderer(panel); err != nil {
 		return err
 	}
 	if err := validateValueAxis(panel, d.Frames[panel.Frame]); err != nil {
@@ -2068,3 +2072,25 @@ func numericValue(value any) (float64, bool) {
 		return 0, false
 	}
 }
+
+// maxRendererOptionsBytes bounds the opaque options a host renderer receives,
+// so a host cannot smuggle a dataset into the document outside frames.
+const maxRendererOptionsBytes = 64 << 10
+
+func validateRenderer(panel Panel) error {
+	if panel.Renderer == nil {
+		return nil
+	}
+	if !rendererName.MatchString(panel.Renderer.Name) {
+		return fmt.Errorf("panel %s renderer name %q must be a lowercase identifier", panel.ID, panel.Renderer.Name)
+	}
+	if len(panel.Renderer.Options) > maxRendererOptionsBytes {
+		return fmt.Errorf("panel %s renderer options exceed %d bytes", panel.ID, maxRendererOptionsBytes)
+	}
+	if len(panel.Renderer.Options) > 0 && !json.Valid(panel.Renderer.Options) {
+		return fmt.Errorf("panel %s renderer options must be valid JSON", panel.ID)
+	}
+	return nil
+}
+
+var rendererName = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)

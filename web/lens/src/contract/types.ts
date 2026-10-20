@@ -333,7 +333,7 @@ export interface GeoJSONSource {
   maxBytes?: number
 }
 
-export type GroupUnavailable = "report-incompatible"
+export type GroupUnavailable = "report-deleted" | "report-forbidden" | "report-incompatible"
 
 export interface HierarchyReconciliation {
   tolerance?: number
@@ -507,6 +507,7 @@ export interface PanelBase {
   deferred?: boolean
   terminal?: boolean
   comparisonUnsupported?: boolean
+  renderer?: PanelRenderer
 }
 
 export type Panel =
@@ -582,6 +583,11 @@ export interface PanelCalculation {
 }
 
 export type PanelKind = "area" | "bar" | "boxplot" | "cascade" | "coverage" | "donut" | "gauge" | "hbar" | "heatmap" | "histogram" | "line" | "map" | "metric_flow" | "metric_hierarchy" | "metric_relationship" | "pie" | "radial" | "stat" | "table"
+
+export interface PanelRenderer {
+  name: string
+  options?: unknown
+}
 
 export interface PanelRequest {
   panelId: string
