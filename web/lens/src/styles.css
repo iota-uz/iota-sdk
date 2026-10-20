@@ -1015,6 +1015,10 @@
      re-orders nodes instead of remounting their charts. The row gap is the
      dashboard's row rhythm. Below the twelve-column breakpoint the cards stack
      in draft order. */
+  .lens-dashboard-edit-grid .lens-report-editor-resize {
+    display: none;
+  }
+
   @media (min-width: 769px) {
     .lens-dashboard-edit-grid {
       row-gap: 1.5rem;
@@ -1049,10 +1053,6 @@
 
   .lens-dashboard-edit-grid .lens-panel-group-header > .lens-report-editor-handle {
     @apply lens:-ml-1 lens:mr-1;
-  }
-
-  .lens-dashboard-edit-grid .lens-report-editor-resize {
-    display: none;
   }
 
   .lens-dashboard-edit-preview {
@@ -1094,6 +1094,10 @@
      and a panel of the folded verbs under it. */
   .lens-toolbar-overflow {
     @apply lens:relative lens:flex lens:items-center;
+  }
+
+  .lens-dashboard-scope > .lens-toolbar-overflow::before {
+    content: none;
   }
 
   .lens-toolbar-overflow:not([data-filled]) {
