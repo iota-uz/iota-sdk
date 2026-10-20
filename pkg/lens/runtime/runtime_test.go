@@ -3,9 +3,15 @@ package runtime
 import (
 	"context"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
@@ -14,8 +20,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type stubDataSource struct {
@@ -85,7 +89,11 @@ func TestRunForwardsSchedulerExecutionClassWithoutChangingQueryIdentity(t *testi
 	base := datasource.QueryRequest{Source: "primary", Text: "select 1", ExecutionClass: datasource.ExecutionClassRootCritical}
 	promoted := base
 	promoted.ExecutionClass = datasource.ExecutionClassInteractiveCritical
-	require.Equal(t, queryCacheKey(base), queryCacheKey(promoted), "priority promotion must join the same semantic query")
+	baseKey, err := queryCacheKey(base)
+	require.NoError(t, err)
+	promotedKey, err := queryCacheKey(promoted)
+	require.NoError(t, err)
+	require.Equal(t, baseKey, promotedKey, "priority promotion must join the same semantic query")
 }
 
 func (s *stubDataSource) Capabilities() datasource.CapabilitySet {
@@ -834,4 +842,27 @@ func mustFrameSet(t *testing.T, name string) *frame.FrameSet {
 	})
 	require.NoError(t, err)
 	return set
+}
+
+func TestRuntimeIdentityPreflightsSerializationInputs(t *testing.T) {
+	// Output cache limits cannot protect identity encoding that happens before execution.
+	runtime := New(Options{})
+	req := Request{Namespace: "reports", DataScope: "tenant"}
+	spec := lens.DashboardSpec{ID: "owned", Datasets: []lens.DatasetSpec{{Name: "static", Kind: lens.DatasetKindStatic, Static: mustFrameSet(t, "static")}}}
+	_, _, err := runtime.executionIdentity(spec, req, map[string]any{"hostile": hostileMemoInput{}})
+	require.Error(t, err)
+	_, _, err = runtime.executionIdentity(spec, req, map[string]any{"large": strings.Repeat("x", 64000)})
+	require.ErrorIs(t, err, resource.ErrLimit)
+	_, _, err = runtime.executionIdentity(spec, req, map[string]any{"ordinary": "value"})
+	require.NoError(t, err)
+}
+func TestQueryCacheKeyRejectsUnsafeInputs(t *testing.T) {
+	// An encoder failure must propagate; formatting arbitrary objects is another unbounded serializer.
+	_, err := queryCacheKey(datasource.QueryRequest{Params: map[string]any{"hostile": hostileMemoInput{}}})
+	require.Error(t, err)
+	_, err = queryCacheKey(datasource.QueryRequest{Text: strings.Repeat("x", int(resource.DefaultEntryLimit))})
+	require.ErrorIs(t, err, resource.ErrLimit)
+	now := time.Now()
+	_, err = queryCacheKey(datasource.QueryRequest{Text: "select 1", TimeRange: datasource.TimeRange{Start: &now}})
+	require.NoError(t, err)
 }

@@ -14,6 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
+
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/comparison"
@@ -23,11 +27,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/singleflight"
 )
 
 type DatasetResult struct {
@@ -594,7 +596,11 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 		Kind:           spec.Query.Kind,
 		ExecutionClass: s.runtime.ExecutionClass,
 	}
-	flightKey := s.snapshotKey + ":dataset:" + spec.Name + ":" + queryCacheKey(request)
+	queryKey, err := queryCacheKey(request)
+	if err != nil {
+		return nil, err
+	}
+	flightKey := s.snapshotKey + ":dataset:" + spec.Name + ":" + queryKey
 	result := s.executor.flights.DoChan(flightKey, func() (any, error) {
 		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.executor.workTimeout)
 		defer cancel()
@@ -626,6 +632,9 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 
 func (r *Runtime) executionIdentity(spec lens.DashboardSpec, req Request, variables map[string]any) (string, string, error) {
 	op := serrors.Op("lens/runtime.executionIdentity")
+	if _, err := resource.EstimateJSON(spec, resource.DefaultEntryLimit); err != nil {
+		return "", "", serrors.Wrap(op, err)
+	}
 	specBytes, err := json.Marshal(spec) //nolint:musttag // Runtime specs intentionally retain their Go field names in the fingerprint.
 	if err != nil {
 		return "", "", serrors.Wrap(op, err)
@@ -642,6 +651,9 @@ func (r *Runtime) executionIdentity(spec lens.DashboardSpec, req Request, variab
 		Variables   map[string]any    `json:"variables"`
 		DataSources map[string]string `json:"dataSources"`
 	}{r.version, strings.TrimSpace(req.Namespace), specFingerprint, req.Locale, req.Timezone, req.DataScope, variables, req.DataSourceIdentities}
+	if _, err := resource.EstimateJSON(identity, 64<<10); err != nil {
+		return "", "", serrors.Wrap(op, err)
+	}
 	payload, err := json.Marshal(identity)
 	if err != nil {
 		return "", "", serrors.Wrap(op, err)
@@ -1061,17 +1073,19 @@ func resolveDatasetTimeRangeFor(dataset lens.DatasetSpec, specs []lens.VariableS
 	return resolveDatasetTimeRange(specs, variables)
 }
 
-func queryCacheKey(req datasource.QueryRequest) string {
+func queryCacheKey(req datasource.QueryRequest) (string, error) {
 	// Scheduling metadata may change while a speculative job is promoted. It
 	// must not split singleflight/cache identity for the same semantic query.
 	req.ExecutionClass = ""
+	if _, err := resource.EstimateJSON(req, resource.DefaultEntryLimit); err != nil {
+		return "", err
+	}
 	payload, err := json.Marshal(req)
 	if err != nil {
-		sum := sha256.Sum256([]byte(fmt.Sprintf("%#v", req)))
-		return fmt.Sprintf("%x", sum[:16])
+		return "", err
 	}
 	sum := sha256.Sum256(payload)
-	return fmt.Sprintf("%x", sum[:16])
+	return fmt.Sprintf("%x", sum[:16]), nil
 }
 
 func Validate(spec lens.DashboardSpec) error {

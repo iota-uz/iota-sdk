@@ -681,7 +681,7 @@ export interface Presentation {
   lineSeries?: Array<string>
 }
 
-export type QueryErrorCode = "bad_request" | "internal" | "snapshot_gone"
+export type QueryErrorCode = "bad_request" | "internal" | "resource_exhausted" | "snapshot_gone"
 
 export interface QueryErrorResponse {
   error: QueryErrorCode
