@@ -183,7 +183,7 @@
     "version": "0.25.1",
     "source": "2198a563398fcdc6c04f155eeaa32023d1fcf321",
     "sha": "3e61bf313d5cbe6577775ed83e32d4e7c4d06508",
-    "phase": "testing",
+    "phase": "failed",
     "run_id": "39380455973"
   },
   "ready": {
