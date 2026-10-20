@@ -27,6 +27,7 @@ func run() error {
 	if len(os.Args) > 1 && os.Args[1] == "--filters" {
 		return filterExamples()
 	}
+	reopen := len(os.Args) > 1 && os.Args[1] == "--reopen"
 	definition := report.Definition{ID: "revenue", Revision: "1", Title: "Revenue", Source: report.SourceRef{ID: "monthly", Version: 1}, View: "summary", Parameters: report.Parameters{"months": json.RawMessage(`12`)}}
 	source := report.SourceFunc{Metadata: report.SourceDescriptor{ID: "monthly", Version: 1, Revision: "1", Capabilities: report.Capabilities{Filters: []string{"months"}, Views: []string{"summary"}, Save: true, Export: true}}, BuildSpec: build}
 	title := "First six months"
@@ -34,7 +35,16 @@ func run() error {
 		{ID: "first", ReportID: definition.ID, Title: &title, Span: 6, Parameters: report.Parameters{"months": json.RawMessage(`6`)}},
 		{ID: "second", ReportID: definition.ID, Span: 6},
 	}}}
-	spec, _, err := report.Compose(context.Background(), composition, report.Catalog{Definitions: []report.Definition{definition}, Sources: []report.Source{source}})
+	catalog := report.Catalog{Definitions: []report.Definition{definition}, Sources: []report.Source{source}}
+	if reopen {
+		// The host's source moved to contract version 2 after the first placement
+		// was saved: on reopen that placement is unavailable, the other is current.
+		archived := definition
+		archived.ID, archived.Revision, archived.Source.Version = "archived", "2", 2
+		catalog.Definitions = append(catalog.Definitions, archived)
+		composition.Rows[0][0].ReportID = archived.ID
+	}
+	spec, _, err := report.Compose(context.Background(), composition, catalog)
 	if err != nil {
 		return err
 	}

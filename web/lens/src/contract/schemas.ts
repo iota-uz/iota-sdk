@@ -356,6 +356,8 @@ export const GeoJSONSourceSchema: z.ZodType<Contract.GeoJSONSource> = z.object({
   maxBytes: z.number().int().optional(),
 }).strict()
 
+export const GroupUnavailableSchema: z.ZodType<Contract.GroupUnavailable> = z.enum(["report-incompatible"])
+
 export const HierarchyReconciliationSchema: z.ZodType<Contract.HierarchyReconciliation> = z.object({
   tolerance: z.number().optional(),
 }).strict()
@@ -366,6 +368,7 @@ export const LayoutSchema: z.ZodType<Contract.Layout> = z.lazy(() => z.object({
 
 export const LayoutGroupSchema: z.ZodType<Contract.LayoutGroup> = z.lazy(() => z.object({
   filterContext: z.lazy(() => EffectiveContextSchema).optional(),
+  unavailable: z.lazy(() => GroupUnavailableSchema).optional(),
   id: z.string(),
   kind: z.lazy(() => LayoutGroupKindSchema),
   caption: z.string().optional(),

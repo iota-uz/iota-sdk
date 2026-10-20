@@ -249,3 +249,52 @@ func TestVersionSeparatesCompatibleUpdatesFromIncompatibleContracts(t *testing.T
 	_, err = opened.Version(context.Background(), host)
 	require.True(t, serrors.HasCode(err, serrors.NotFound))
 }
+
+// False green: composing only compatible placements, or checking the error is gone without
+// executing the others, would pass while the incompatible source still runs or its neighbours vanish.
+func TestComposeDegradesOnlyTheIncompatiblePlacement(t *testing.T) {
+	t.Parallel()
+	host, definition := fixture()
+	stale := definition
+	stale.ID, stale.Source.Version = "stale", 2
+	host.reports[stale.ID] = stale
+	title := "Archived"
+	composition := report.Composition{ID: "sales", Revision: "1", Title: "Sales", Rows: [][]report.Placement{{
+		{ID: "a", ReportID: "revenue", Span: 6},
+		{ID: "b", ReportID: "stale", Title: &title, Span: 6},
+	}}}
+	_, err := report.Resolve(context.Background(), host, composition.Rows[0][1], nil)
+	require.True(t, serrors.HasCode(err, serrors.FailedPrecondition))
+	require.ErrorIs(t, err, report.ErrIncompatible)
+
+	spec, opened, err := report.Compose(context.Background(), composition, host)
+	require.NoError(t, err)
+	require.Len(t, opened, 2)
+	require.Equal(t, report.VersionCurrent, opened[0].Status)
+	require.Equal(t, report.VersionIncompatible, opened[1].Status)
+	require.Equal(t, "stale", opened[1].Definition.ID)
+	result, err := lensruntime.New(lensruntime.Options{}).Execute(context.Background(), spec, lensruntime.Request{Locale: "en", DataScope: "test"}, lensruntime.DashboardScope())
+	require.NoError(t, err)
+	wire, err := document.Build(spec, result, document.BuildOptions{SnapshotID: "degraded", GeneratedAt: time.Unix(1, 0), Locale: "en", InlineDepth: 10})
+	require.NoError(t, err)
+	require.NoError(t, wire.Validate())
+	groups := map[string]document.LayoutGroup{}
+	for _, item := range wire.Layout.Rows[0].Panels {
+		groups[item.Groups[0].ID] = item.Groups[0]
+	}
+	require.Equal(t, document.GroupUnavailableReportIncompatible, groups["b"].Unavailable)
+	require.Equal(t, "Archived", groups["b"].Label)
+	require.Equal(t, 6, groups["b"].Span)
+	require.Empty(t, groups["a"].Unavailable)
+	values := map[string]int{}
+	for id, p := range result.Panels {
+		if p.Frames != nil {
+			values[id] = p.Frames.Primary().RowCount
+		}
+	}
+	require.Equal(t, 1, values["a::panel:amount"], "the compatible neighbour executes")
+	require.Zero(t, values["b::panel:unavailable"], "the incompatible placement has no figures")
+	for _, dataset := range spec.Datasets {
+		require.NotContains(t, dataset.Name, "b::values", "the incompatible source never builds")
+	}
+}

@@ -379,7 +379,7 @@ func validateItemGroups(item LayoutItem, descriptors map[string]LayoutGroup) err
 // the same container. Tab is per-item and Status may be hoisted, so only the
 // structural descriptor (kind/label/layout/span) must match.
 func sameGroupDescriptor(a, b LayoutGroup) bool {
-	return a.Kind == b.Kind && a.Label == b.Label && a.Layout == b.Layout && a.Span == b.Span && reflect.DeepEqual(a.FilterContext, b.FilterContext)
+	return a.Kind == b.Kind && a.Label == b.Label && a.Layout == b.Layout && a.Span == b.Span && a.Unavailable == b.Unavailable && reflect.DeepEqual(a.FilterContext, b.FilterContext)
 }
 
 func validateGroupDescriptor(item LayoutItem, group LayoutGroup) error {
@@ -394,6 +394,14 @@ func validateGroupDescriptor(item LayoutItem, group LayoutGroup) error {
 	}
 	if strings.TrimSpace(group.ID) == "" {
 		return fmt.Errorf("layout panel %s group id is required", item.PanelID)
+	}
+	switch group.Unavailable {
+	case "", GroupUnavailableReportIncompatible:
+	default:
+		return fmt.Errorf("layout group %s has unsupported unavailable reason %q", group.ID, group.Unavailable)
+	}
+	if group.Unavailable != "" && group.Kind != LayoutGroupGrid {
+		return fmt.Errorf("layout group %s: only grid groups can be unavailable", group.ID)
 	}
 	switch group.Kind {
 	case LayoutGroupGrid:

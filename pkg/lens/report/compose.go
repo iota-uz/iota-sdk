@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"reflect"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -46,6 +48,16 @@ func Compose(ctx context.Context, c Composition, host Host) (lens.DashboardSpec,
 				input = &filtercontext.ContextInput{Calendar: c.Context.Calendar, Layers: layers}
 			}
 			block, err := resolve(ctx, host, placement, c.Parameters, input)
+			if errors.Is(err, ErrIncompatible) {
+				container, datasets, unavailableErr := unavailablePlacement(block)
+				if unavailableErr != nil {
+					return lens.DashboardSpec{}, nil, unavailableErr
+				}
+				panels = append(panels, container)
+				result.Datasets = append(result.Datasets, datasets...)
+				resolved = append(resolved, block)
+				continue
+			}
 			if err != nil {
 				return lens.DashboardSpec{}, nil, err
 			}
@@ -71,15 +83,7 @@ func Compose(ctx context.Context, c Composition, host Host) (lens.DashboardSpec,
 					children = append(children, panel.Grid(scopedID(placement.ID, "row-"+strconv.Itoa(i)), "", sourceRow.Panels...).Span(12).Build())
 				}
 			}
-			title := block.Definition.Title
-			if placement.Title != nil {
-				title = *placement.Title
-			}
-			span := placement.Span
-			if span == 0 {
-				span = 12
-			}
-			container := panel.Grid(placement.ID, title, children...).Span(span).Build()
+			container := panel.Grid(placement.ID, placementTitle(block), children...).Span(placementSpan(placement)).Build()
 			container.FilterContext = block.Context
 			panels = append(panels, container)
 			result.Datasets = append(result.Datasets, scoped.Datasets...)
@@ -355,4 +359,34 @@ func attachContextEvidence(panels []panel.Spec, name string) {
 		panels[i].Export.EvidenceDatasets = append(panels[i].Export.EvidenceDatasets, name)
 		attachContextEvidence(panels[i].Children, name)
 	}
+}
+
+func placementTitle(block Resolved) string {
+	if block.Placement.Title != nil {
+		return *block.Placement.Title
+	}
+	return block.Definition.Title
+}
+
+func placementSpan(placement Placement) int {
+	if placement.Span == 0 {
+		return 12
+	}
+	return placement.Span
+}
+
+// unavailablePlacement keeps an incompatible placement's identity, caption and
+// width without executing its source. Its single member reads an empty static
+// frame, so neither the runtime, print nor export has figures to show.
+func unavailablePlacement(block Resolved) (panel.Spec, []lens.DatasetSpec, error) {
+	data, err := frame.NewBuilder("unavailable").String("reason", frame.RoleDimension).FrameSet()
+	if err != nil {
+		return panel.Spec{}, nil, err
+	}
+	id := block.Placement.ID
+	name := scopedID(id, "unavailable")
+	member := panel.Table(scopedID(id, "panel:unavailable"), "", name).IDField("reason").Columns(panel.TableColumn{Field: "reason", Label: "Reason"}).Terminal().Build()
+	container := panel.Grid(id, placementTitle(block), member).Span(placementSpan(block.Placement)).Build()
+	container.Unavailable = string(document.GroupUnavailableReportIncompatible)
+	return container, []lens.DatasetSpec{{Name: name, Kind: lens.DatasetKindStatic, Static: data}}, nil
 }
