@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Lens: LensDashboard gains an optional host-driven in-place edit mode (edit) over the live cards with drag/keyboard reorder, resize, card menu, Add report, Cancel/Save or Save draft/Publish reusing the composition draft, leave guard, conflict and proposal handling; a friendly empty state; chrome options to hide the title/description/header and a compact toolbar; ReportCompositionEditor now scopes the Lens tokens itself so hosts without a .lens-root render it styled."
+    }
+  ],
+  "source": "0e9dcdc1e3e93e043bb0d1c90e34e8c67cc8fe79",
+  "version": "0.27.0"
+}
