@@ -228,7 +228,7 @@ export function PanelFrame(props: PanelFrameProps) {
   // A deferred panel's calculation arrives with its frame. Its ⓘ is there
   // from the first paint, saying it is still calculating, so the heading does
   // not gain a control — and on a narrow card a line — when the figure lands.
-  const pendingCalculation = () => props.panel.deferred && !props.frame.calculation
+  const pendingCalculation = () => props.panel.deferred && props.frame.isLoading && !props.frame.calculation
     ? translate('panel.updating', 'Updating')
     : ''
   const infoText = () => [variant === 'chart' ? props.panel.caption : '', props.panel.info, calculationInfo() || pendingCalculation()]
