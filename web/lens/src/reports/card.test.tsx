@@ -236,7 +236,7 @@ describe('standalone and embedded parity', () => {
     const alone = await read(standalone())
     const placed = await read(embedded())
     expect(alone.text).toContain('7,200')
-    expect(alone.text).toContain('Online0')
+    expect(alone.text).toContain('Refunds0')
     expect(alone.text).not.toContain('No data')
     expect(placed).toEqual(alone)
   })

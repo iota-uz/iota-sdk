@@ -96,10 +96,19 @@ func cardSpec() (lens.DashboardSpec, error) {
 	if err != nil {
 		return lens.DashboardSpec{}, err
 	}
-	return lens.DashboardSpec{ID: "summary", Title: "Summary", Datasets: []lens.DatasetSpec{{Name: "data", Kind: lens.DatasetKindStatic, Static: data}}, Rows: []lens.RowSpec{
+	// A measured zero, kept apart from "no data" in the same strip.
+	zero := frame.NewBuilder("refunds").String("label", frame.RoleDimension).Number("refunds", frame.RoleMetric)
+	if err = zero.Append(frame.Row{"label": "Refunds", "refunds": 0.0}); err != nil {
+		return lens.DashboardSpec{}, err
+	}
+	refunds, err := zero.FrameSet()
+	if err != nil {
+		return lens.DashboardSpec{}, err
+	}
+	return lens.DashboardSpec{ID: "summary", Title: "Summary", Datasets: []lens.DatasetSpec{{Name: "data", Kind: lens.DatasetKindStatic, Static: data}, {Name: "refunds", Kind: lens.DatasetKindStatic, Static: refunds}}, Rows: []lens.RowSpec{
 		{Panels: []panel.Spec{panel.StatGroup("kpis", "Revenue by channel",
 			panel.Stat("online", "Online revenue", "data").ValueField("revenue").Terminal().Build(),
-			panel.Stat("refunds", "Refunds", "data").ValueField("refunds").Terminal().Build(),
+			panel.Stat("refunds", "Refunds", "refunds").ValueField("refunds").Terminal().Build(),
 		).Build()}},
 		{Panels: []panel.Spec{
 			panel.Bar("channels", "Revenue by channel", "data").CategoryField("label").ValueField("revenue").Terminal().Span(6).Build(),
@@ -121,6 +130,6 @@ func legacySpec() (lens.DashboardSpec, error) {
 	}
 	chart := panel.Table("legacy-chart", "Legacy chart", "legacy").IDField("month").
 		Columns(panel.TableColumn{Field: "month", Label: "Month"}, panel.TableColumn{Field: "value", Label: "Value"}).
-		Renderer("legacy-bars", json.RawMessage(`{"field":"value","label":"month"}`)).Terminal().Build()
+		Renderer("legacy-bars", json.RawMessage(`{"field":"value","label":"month"}`)).Terminal().Span(12).Build()
 	return lens.DashboardSpec{ID: "chart", Title: "Chart", Datasets: []lens.DatasetSpec{{Name: "legacy", Kind: lens.DatasetKindStatic, Static: data}}, Rows: []lens.RowSpec{{Panels: []panel.Spec{chart}}}}, nil
 }
