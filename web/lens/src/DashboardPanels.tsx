@@ -951,7 +951,7 @@ export function DashboardPanels(props: DashboardPanelsProps) {
     // identity line empty, and suppressing the document's own heading there
     // would take the drawer's only name away rather than de-duplicate it.
     const inDrawer = drawer.depth > 0 && Boolean(drawerHeader()?.title?.trim())
-    return inDrawer || chrome().title === false ? '' : documentTitle()
+    return inDrawer || chrome().title === false || chrome().header === false ? '' : documentTitle()
   })
   const hasHeader = (editor?: DashboardEditor) => {
     if (editor) return true
@@ -1010,7 +1010,7 @@ export function DashboardPanels(props: DashboardPanelsProps) {
       >
         <TabStateContext.Provider value={tabState}>
           <main
-            aria-label={(identityTitle() || (chrome().title === false ? documentTitle() : '')) || undefined}
+            aria-label={(identityTitle() || (chrome().title === false || chrome().header === false ? documentTitle() : '')) || undefined}
             class={`lens-dashboard${comparing() ? ' lens-dashboard-comparing' : ''}`}
             data-editing={editing() || undefined}
             style={{ '--lens-metric-columns': columns() } as JSX.CSSProperties}

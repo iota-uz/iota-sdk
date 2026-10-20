@@ -276,6 +276,16 @@ describe('LensDashboard chrome', () => {
     expect(within(document.querySelector<HTMLElement>('.lens-dashboard-header')!).getByText('A description from another report')).toBeInTheDocument()
   })
 
+  // False green: an edit-capable board always renders the header for its action row, so the flag must reach the title.
+  it('drops the document title for header: false on an edit-capable board', async () => {
+    const doc = editDocument()
+    doc.header = { title: 'Card dashboard' }
+    mount({ document: doc, props: { chrome: { header: false } } })
+    fireEvent.click(await screen.findByTestId('dashboard-edit'))
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+    expect(screen.getByRole('main', { name: 'Card dashboard' })).toBeInTheDocument()
+  })
+
   // False green: moving the controls into a closed panel that is never shown would also leave the scope row short.
   it('folds the secondary filter verbs into a More menu and keeps the period on the scope row', async () => {
     const doc = parseDocument({ ...structuredClone(scopedFixture[1]!.document), filters: [compareFilter] })
