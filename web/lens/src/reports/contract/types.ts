@@ -127,6 +127,13 @@ export interface Placement {
   parameters?: Parameters
 }
 
+export interface Proposal {
+  id: string
+  base: string
+  summary?: string
+  composition: Composition
+}
+
 export interface SourceDescriptor {
   id: string
   version: number

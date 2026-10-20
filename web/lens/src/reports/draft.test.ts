@@ -74,6 +74,18 @@ describe('report draft boundary', () => {
     expect(definition.title).toBe('Revenue')
   })
 
+  // False green: a fixture already in schema key order never exposes an initial draft that reads as dirty.
+  it('is clean when the host writes keys in another order', () => {
+    let dispose = () => {}
+    const draft = createRoot((cleanup) => {
+      dispose = cleanup
+      return createReportDraft({ rows: [[{ span: 6, reportId: 'revenue', id: 'a' }]], title: 'Board', revision: '1', id: 'board' }, { save: (value) => Promise.resolve(value) })
+    })
+    try {
+      expect(draft.dirty()).toBe(false)
+    } finally { dispose() }
+  })
+
   it('rejects runtime snapshots as saved report definitions', () => {
     expect(() => parseReportDefinition({ ...definition, snapshotId: 'expired' })).toThrow()
   })

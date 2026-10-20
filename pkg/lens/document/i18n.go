@@ -58,6 +58,72 @@ const (
 	I18nReportCardRetry            = "report.card.retry"
 	I18nPanelRendererUnavailable   = "panel.renderer.unavailable"
 
+	// Composition editor: lifecycle, layout, card settings, shared-edit impact, proposals and the leave guard.
+	I18nReportEditorAdd             = "report.editor.add"
+	I18nReportEditorAdded           = "report.editor.added"
+	I18nReportEditorCancel          = "report.editor.cancel"
+	I18nReportEditorCancelled       = "report.editor.cancelled"
+	I18nReportEditorCaption         = "report.editor.caption"
+	I18nReportEditorCardPeriod      = "report.editor.cardPeriod"
+	I18nReportEditorConfigureApply  = "report.editor.configureApply"
+	I18nReportEditorConfigureHint   = "report.editor.configureHint"
+	I18nReportEditorConfigureTitle  = "report.editor.configureTitle"
+	I18nReportEditorConflict        = "report.editor.conflict"
+	I18nReportEditorConflictCopy    = "report.editor.conflictCopy"
+	I18nReportEditorConflictKeep    = "report.editor.conflictKeep"
+	I18nReportEditorConflictReload  = "report.editor.conflictReload"
+	I18nReportEditorDraft           = "report.editor.draft"
+	I18nReportEditorEditReportTitle = "report.editor.editReportTitle"
+	I18nReportEditorEditShared      = "report.editor.editShared"
+	I18nReportEditorEmpty           = "report.editor.empty"
+	I18nReportEditorImpact          = "report.editor.impact"
+	I18nReportEditorImpactCopy      = "report.editor.impactCopy"
+	I18nReportEditorImpactCount     = "report.editor.impactCount"
+	I18nReportEditorMove            = "report.editor.move"
+	I18nReportEditorMoveHint        = "report.editor.moveHint"
+	I18nReportEditorMoved           = "report.editor.moved"
+	I18nReportEditorName            = "report.editor.name"
+	I18nReportEditorPeriodCustom    = "report.editor.period.custom"
+	I18nReportEditorPeriodDays      = "report.editor.period.days"
+	I18nReportEditorPeriodMonths    = "report.editor.period.months"
+	I18nReportEditorPeriodEnd       = "report.editor.periodEnd"
+	I18nReportEditorPeriodInherit   = "report.editor.periodInherit"
+	I18nReportEditorPeriodInvalid   = "report.editor.periodInvalid"
+	I18nReportEditorPeriodLabel     = "report.editor.periodLabel"
+	I18nReportEditorPeriodLocal     = "report.editor.periodLocal"
+	I18nReportEditorPeriodStart     = "report.editor.periodStart"
+	I18nReportEditorProposalApplied = "report.editor.proposalApplied"
+	I18nReportEditorPublish         = "report.editor.publish"
+	I18nReportEditorRemove          = "report.editor.remove"
+	I18nReportEditorRemoveShort     = "report.editor.removeShort"
+	I18nReportEditorRemoved         = "report.editor.removed"
+	I18nReportEditorResized         = "report.editor.resized"
+	I18nReportEditorSaveChanges     = "report.editor.saveChanges"
+	I18nReportEditorSaveDraft       = "report.editor.saveDraft"
+	I18nReportEditorSaveFailed      = "report.editor.saveFailed"
+	I18nReportEditorSaved           = "report.editor.saved"
+	I18nReportEditorSaving          = "report.editor.saving"
+	I18nReportEditorUnsaved         = "report.editor.unsaved"
+	I18nReportEditorUpToDate        = "report.editor.upToDate"
+	I18nReportEditorWidth           = "report.editor.width"
+	I18nReportEditorWidthLabel      = "report.editor.widthLabel"
+	I18nReportEditorWidthValue      = "report.editor.widthValue"
+	I18nReportLeaveDescription      = "report.leave.description"
+	I18nReportLeaveDiscard          = "report.leave.discard"
+	I18nReportLeaveSaveFailed       = "report.leave.saveFailed"
+	I18nReportLeaveStay             = "report.leave.stay"
+	I18nReportLeaveTitle            = "report.leave.title"
+	I18nReportProposalAdd           = "report.proposal.add"
+	I18nReportProposalApply         = "report.proposal.apply"
+	I18nReportProposalChange        = "report.proposal.change"
+	I18nReportProposalNone          = "report.proposal.none"
+	I18nReportProposalOpenAsDraft   = "report.proposal.openAsDraft"
+	I18nReportProposalRegenerate    = "report.proposal.regenerate"
+	I18nReportProposalReject        = "report.proposal.reject"
+	I18nReportProposalRemove        = "report.proposal.remove"
+	I18nReportProposalStale         = "report.proposal.stale"
+	I18nReportProposalTitle         = "report.proposal.title"
+
 	// Report picker and add-to-dashboard dialogs.
 	I18nReportPickerAddNone = "report.picker.addNone"
 
@@ -465,6 +531,71 @@ func RuntimeI18nKeys() []string {
 		I18nReportActionCopy, I18nReportActionRemove, I18nReportActionFailed,
 		I18nReportCardCalculated, I18nReportCardFailed, I18nReportCardRetry,
 		I18nPanelRendererUnavailable,
+
+		I18nReportEditorAdd,
+		I18nReportEditorAdded,
+		I18nReportEditorCancel,
+		I18nReportEditorCancelled,
+		I18nReportEditorCaption,
+		I18nReportEditorCardPeriod,
+		I18nReportEditorConfigureApply,
+		I18nReportEditorConfigureHint,
+		I18nReportEditorConfigureTitle,
+		I18nReportEditorConflict,
+		I18nReportEditorConflictCopy,
+		I18nReportEditorConflictKeep,
+		I18nReportEditorConflictReload,
+		I18nReportEditorDraft,
+		I18nReportEditorEditReportTitle,
+		I18nReportEditorEditShared,
+		I18nReportEditorEmpty,
+		I18nReportEditorImpact,
+		I18nReportEditorImpactCopy,
+		I18nReportEditorImpactCount,
+		I18nReportEditorMove,
+		I18nReportEditorMoveHint,
+		I18nReportEditorMoved,
+		I18nReportEditorName,
+		I18nReportEditorPeriodCustom,
+		I18nReportEditorPeriodDays,
+		I18nReportEditorPeriodMonths,
+		I18nReportEditorPeriodEnd,
+		I18nReportEditorPeriodInherit,
+		I18nReportEditorPeriodInvalid,
+		I18nReportEditorPeriodLabel,
+		I18nReportEditorPeriodLocal,
+		I18nReportEditorPeriodStart,
+		I18nReportEditorProposalApplied,
+		I18nReportEditorPublish,
+		I18nReportEditorRemove,
+		I18nReportEditorRemoveShort,
+		I18nReportEditorRemoved,
+		I18nReportEditorResized,
+		I18nReportEditorSaveChanges,
+		I18nReportEditorSaveDraft,
+		I18nReportEditorSaveFailed,
+		I18nReportEditorSaved,
+		I18nReportEditorSaving,
+		I18nReportEditorUnsaved,
+		I18nReportEditorUpToDate,
+		I18nReportEditorWidth,
+		I18nReportEditorWidthLabel,
+		I18nReportEditorWidthValue,
+		I18nReportLeaveDescription,
+		I18nReportLeaveDiscard,
+		I18nReportLeaveSaveFailed,
+		I18nReportLeaveStay,
+		I18nReportLeaveTitle,
+		I18nReportProposalAdd,
+		I18nReportProposalApply,
+		I18nReportProposalChange,
+		I18nReportProposalNone,
+		I18nReportProposalOpenAsDraft,
+		I18nReportProposalRegenerate,
+		I18nReportProposalReject,
+		I18nReportProposalRemove,
+		I18nReportProposalStale,
+		I18nReportProposalTitle,
 
 		I18nReportPickerAddNone,
 

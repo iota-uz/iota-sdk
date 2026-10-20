@@ -150,6 +150,13 @@ export const PlacementSchema: z.ZodType<Contract.Placement> = z.object({
   parameters: z.lazy(() => ParametersSchema).optional(),
 }).strict()
 
+export const ProposalSchema: z.ZodType<Contract.Proposal> = z.object({
+  id: z.string(),
+  base: z.string(),
+  summary: z.string().optional(),
+  composition: z.lazy(() => CompositionSchema),
+}).strict()
+
 export const SourceDescriptorSchema: z.ZodType<Contract.SourceDescriptor> = z.object({
   id: z.string(),
   version: z.number().int(),

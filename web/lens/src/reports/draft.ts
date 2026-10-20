@@ -12,8 +12,32 @@ export interface ReportDraftHost<T> {
   save(value: T, options: { expectedRevision: string; intent: SaveIntent }): Promise<T>
 }
 
+/**
+ * Thrown by a host save when expectedRevision is no longer the stored one.
+ * latest, when supplied, is the stored value the reader can review or adopt;
+ * the draft keeps every local edit until the reader decides.
+ */
+export class ReportRevisionConflictError<T = unknown> extends Error {
+  readonly code = 'REPORT_REVISION_CONFLICT'
+
+  constructor(readonly latest?: T, message = 'The report was saved by someone else') {
+    super(message)
+    this.name = 'ReportRevisionConflictError'
+  }
+}
+
+/** How a draft adopts a newer stored value: keep the local edits on top of it, or discard them. */
+export type ReportRebaseMode = 'keep' | 'discard'
+
 function copy<T>(value: T): T {
   return structuredClone(value)
+}
+
+/** JSON with object keys sorted, so equal values compare equal whatever order a host wrote them in. */
+function canonical(value: unknown): string {
+  return JSON.stringify(value, (_key, item: unknown) => (item && typeof item === 'object' && !Array.isArray(item)
+    ? Object.fromEntries(Object.entries(item as Record<string, unknown>).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)))
+    : item))
 }
 
 export function parseReportDefinition(value: unknown): Definition {
@@ -57,10 +81,12 @@ export function duplicateReportPlacement(value: Placement, id: string): Placemen
 export function createReportDraft<T extends Definition | Composition>(initial: T, host: ReportDraftHost<T>) {
   const validate = (value: unknown): T => ('rows' in initial ? parseReportComposition(value) : parseReportDefinition(value)) as T
   const [saved, setSaved] = createSignal(copy(validate(initial)))
-  const [draft, setDraft] = createSignal(copy(initial))
+  const [draft, setDraft] = createSignal(copy(saved()))
   const [saving, setSaving] = createSignal(false)
   const [error, setError] = createSignal<unknown>()
-  const dirty = createMemo(() => JSON.stringify(saved()) !== JSON.stringify(draft()))
+  const [sequence, setSequence] = createSignal(0)
+  const dirty = createMemo(() => canonical(saved()) !== canonical(draft()))
+  const touch = () => setSequence((value) => value + 1)
 
   return {
     value: () => copy(draft()),
@@ -68,19 +94,42 @@ export function createReportDraft<T extends Definition | Composition>(initial: T
     dirty,
     saving,
     error,
+    /** Counts local changes (edit, cancel, rebase); an external proposal is stale once it moves. */
+    sequence,
+    /** The revision conflict of the last save, or undefined. */
+    conflict: (): ReportRevisionConflictError<T> | undefined => {
+      const value = error()
+      return value instanceof ReportRevisionConflictError ? value as ReportRevisionConflictError<T> : undefined
+    },
     update(change: (current: T) => T) {
       setDraft(() => copy(('rows' in initial ? CompositionSchema : DefinitionSchema).parse(change(copy(draft()))) as T))
       setError(undefined)
+      touch()
     },
     cancel() {
       if (saving()) throw new Error('Cannot cancel an in-flight save')
       setDraft(() => copy(saved()))
       setError(undefined)
+      touch()
+    },
+    /**
+     * Adopts a newer stored value as the saved base, for example after a
+     * revision conflict. keep leaves the local edits in place to be saved
+     * against it; discard replaces them with it.
+     */
+    rebase(latest: T, mode: ReportRebaseMode) {
+      if (saving()) throw new Error('Cannot rebase during an in-flight save')
+      const base = copy(validate(latest))
+      if (base.id !== saved().id) throw new Error('A draft can only rebase onto the same report')
+      setSaved(() => base)
+      setDraft((current) => (mode === 'discard' ? copy(base) : { ...current, revision: base.revision }))
+      setError(undefined)
+      touch()
     },
     async save(intent: SaveIntent = 'draft') {
       if (saving()) throw new Error('A save is already in flight')
       const submitted = copy(draft())
-      const submittedJSON = JSON.stringify(submitted)
+      const submittedJSON = canonical(submitted)
       setSaving(true)
       setError(undefined)
       try {
@@ -89,8 +138,9 @@ export function createReportDraft<T extends Definition | Composition>(initial: T
           throw new Error('Invalid host save acknowledgement')
         }
         setSaved(() => acknowledged)
-        if (JSON.stringify(draft()) === submittedJSON) setDraft(() => copy(acknowledged))
+        if (canonical(draft()) === submittedJSON) setDraft(() => copy(acknowledged))
         else setDraft((current) => ({ ...current, revision: acknowledged.revision }))
+        touch()
         return copy(acknowledged)
       } catch (cause) {
         setError(cause)
@@ -100,4 +150,14 @@ export function createReportDraft<T extends Definition | Composition>(initial: T
       }
     },
   }
+}
+
+export type ReportDraft<T extends Definition | Composition> = ReturnType<typeof createReportDraft<T>>
+
+/**
+ * Identifies the draft state an external proposal was prepared against. A
+ * proposal whose base differs from the current token is stale.
+ */
+export function reportDraftToken(draft: Pick<ReportDraft<Composition>, 'saved' | 'sequence'>): string {
+  return `${draft.saved().revision}:${draft.sequence()}`
 }

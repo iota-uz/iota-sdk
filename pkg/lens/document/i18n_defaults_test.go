@@ -30,11 +30,12 @@ func TestRuntimeI18nDefaultsOwnNewChromeAndPlaceholders(t *testing.T) {
 	require.NotEqual(t, "mutated", RuntimeI18nDefaults()[I18nPanelError])
 }
 
-func TestRuntimeI18nDefaultsCoverReportPicker(t *testing.T) {
+func TestRuntimeI18nDefaultsCoverReportPickerAndEditor(t *testing.T) {
 	t.Parallel()
 	defaults := RuntimeI18nDefaults()
 	for _, key := range RuntimeI18nKeys() {
-		if strings.HasPrefix(key, "report.picker.") || strings.HasPrefix(key, "report.destination.") {
+		if strings.HasPrefix(key, "report.picker.") || strings.HasPrefix(key, "report.destination.") ||
+			strings.HasPrefix(key, "report.editor.") || strings.HasPrefix(key, "report.proposal.") || strings.HasPrefix(key, "report.leave.") {
 			require.NotEmptyf(t, defaults[key], "default for %s", key)
 		}
 	}
@@ -42,4 +43,7 @@ func TestRuntimeI18nDefaultsCoverReportPicker(t *testing.T) {
 	require.Contains(t, defaults[I18nReportPickerAdd], "{count}")
 	require.Contains(t, defaults[I18nReportPickerOwnershipSharedBy], "{owner}")
 	require.Contains(t, defaults[I18nReportDestinationTitle], "{title}")
+	require.Contains(t, defaults[I18nReportEditorAdded], "{count}")
+	require.Contains(t, defaults[I18nReportEditorImpactCount], "{count}")
+	require.Contains(t, defaults[I18nReportEditorMoved], "{position}")
 }

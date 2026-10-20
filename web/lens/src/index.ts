@@ -24,8 +24,8 @@ export {
 export type { LensThemeMode } from './runtime'
 export { LensMessagesProvider } from './runtime'
 
-export { createReportDraft, copyReportDefinition, duplicateReportPlacement, parseReportDefinition, parseReportComposition } from './reports/draft'
-export type { ReportDefinition, ReportComposition, ReportPlacement, ReportSourceDescriptor, ReportDraftHost, SaveIntent } from './reports/draft'
+export { createReportDraft, copyReportDefinition, duplicateReportPlacement, parseReportDefinition, parseReportComposition, ReportRevisionConflictError, reportDraftToken } from './reports/draft'
+export type { ReportDefinition, ReportComposition, ReportPlacement, ReportSourceDescriptor, ReportDraftHost, ReportDraft, ReportRebaseMode, SaveIntent } from './reports/draft'
 
 export { createFilterContextDraft, encodeFilterBoard, decodeFilterBoard, filterBoardURL, filterContextParam } from './reports/filterDraft'
 export type { ContextBoard, ContextFilters, ContextPeriod, ContextInput, EffectiveContext, ContextEditor } from './contract/types'
@@ -49,3 +49,9 @@ export type {
   ReportCatalogEntry, ReportCatalogHost, ReportCatalogPage, ReportCatalogQuery, ReportCatalogScope, ReportDestination,
   ReportDestinationChoice, ReportDestinationConfirmation, ReportDestinationHost, ReportPick, ReportPickerConfirmation,
 } from './reports/picker'
+export { ReportCompositionEditor } from './reports/ReportCompositionEditor'
+export type { ReportCompositionEditorProps, ReportEditorLifecycle, ReportProposal, ReportProposalHandlers } from './reports/ReportCompositionEditor'
+export { createReportLeaveGuard } from './reports/guard'
+export type { GuardedDraft, ReportLeaveChoice, ReportLeaveGuard } from './reports/guard'
+export { configurePlacement, diffCompositions, movePlacement, movePlacementBefore, removePlacement, resizePlacement } from './reports/layout'
+export type { CompositionChange, CompositionChangeKind, PlacementDirection, PlacementSettings } from './reports/layout'

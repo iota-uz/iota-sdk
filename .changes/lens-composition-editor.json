@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Lens adds ReportCompositionEditor over createReportDraft: add from the report picker, drag-handle and keyboard reorder and resize, card captions, widths and local periods, distinct Save draft/Publish and Save changes/Cancel lifecycles, a shared-edit impact dialog with host usage counts, revision-conflict recovery (ReportRevisionConflictError, draft.rebase keep/discard, host copy), createReportLeaveGuard for unload and in-app navigation, and an external proposal preview (report.Proposal) with apply, reject and a stale-base check via reportDraftToken. createReportDraft no longer reports an unchanged draft as dirty when the host writes keys in another order."
+}
