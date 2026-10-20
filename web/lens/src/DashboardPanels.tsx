@@ -15,7 +15,7 @@ import {
 import { For, Show } from 'solid-js'
 import type { Filter, LayoutGroup, LayoutItem, LayoutRow, Panel } from './contract'
 import type { LensToolbarContext } from './LensDashboard'
-import { useDashboard, useDocumentState, useDrawer, useDrawerHeader, useFilters, usePrint, useTranslate } from './runtime'
+import { useDashboard, useDocumentState, useDrawer, useDrawerHeader, useFilters, usePanelFrames, usePrint, useTranslate } from './runtime'
 import { ExportMenu } from './panels/ExportMenu'
 import { RegisteredPanel, type PanelRegistry } from './panels/registry'
 import { ShareSliceButton } from './panels/ShareSliceButton'
@@ -27,7 +27,12 @@ import { FilterBar, FilterControls, type CalendarDate } from './controls'
 import { ContextGroupDetails, ContextGroupToolbar, createContextGroupDisclosure, hasContextGroupToolbar } from './controls/ScopedFilterControls'
 import { isVisualRegression } from './visualRegression'
 import { ReportVersionNotice } from './reports/ReportVersionNotice'
-import { reportPlacementAvailable, useReportPlacementHost } from './reports/placementHost'
+import { ReportPlacementMenu } from './reports/ReportPlacementMenu'
+import { placementFreshness, ReportPlacementStatus } from './reports/ReportPlacementStatus'
+import { reportPlacementMenu, reportPlacementUnavailable, useReportPlacementHost } from './reports/placementHost'
+import { reportUnavailableState, reportUnavailableTitle } from './reports/unavailable'
+import { reportPlacementActions } from './reports/version'
+import { DrillGateContext, ExportGateContext, useDrillAllowed, useExportAllowed, withoutDrill } from './panels/drillGate'
 
  
 
@@ -156,10 +161,24 @@ const MetricColumnsContext = createContext<number>(4)
  */
 const TabStateContext = createContext<Map<string, string> | null>(null)
 
+/** The panel as this slot may show it: terminal inside a placement that cannot drill. */
+function useGatedPanel(panel: () => Panel | undefined): () => Panel | undefined {
+  const drill = useDrillAllowed()
+  return createMemo(() => {
+    const current = panel()
+    return current && !drill() ? withoutDrill(current) : current
+  })
+}
+
 function PanelSlot(props: { panel: Panel; registry?: PanelRegistry }) {
-  return props.panel.drillRoot
-    ? <ExplorePanel panel={props.panel} registry={props.registry} />
-    : <RegisteredPanel panel={props.panel} registry={props.registry} />
+  const panel = useGatedPanel(() => props.panel)
+  return (
+    <Show when={panel()} keyed>
+      {(current) => current.drillRoot
+        ? <ExplorePanel panel={current} registry={props.registry} />
+        : <RegisteredPanel panel={current} registry={props.registry} />}
+    </Show>
+  )
 }
 
 function MissingPanel(props: { panelId: string }) {
@@ -171,25 +190,76 @@ function MissingPanel(props: { panelId: string }) {
   )
 }
 
-function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
+function GroupCard(props: { group: LayoutGroup; items?: LayoutItem[]; panels?: Map<string, Panel>; children: JSX.Element }) {
   const documentState = useDocumentState()
   const { document } = useDashboard()
+  const translate = useTranslate()
   const [filtersOpen, setFiltersOpen] = createSignal(false)
   const disclosure = createContextGroupDisclosure(filtersOpen, setFiltersOpen)
   const contextToolbar = () => Boolean(props.group.filterContext && hasContextGroupToolbar(document.contextEditor, props.group.filterContext, props.group.id))
   const reportHost = useReportPlacementHost()
+  const frames = usePanelFrames()
+  // A report placement is an outermost grid group the host addresses, or one
+  // the wire already marked unavailable. Only placements get the card menu and
+  // status; the strips and grids inside one keep a single header and menu.
+  const outermost = () => (props.items?.[0]?.groups?.[0]?.id ?? props.group.id) === props.group.id
+  const placement = () => props.group.kind === 'grid' && outermost() && Boolean(reportHost || props.group.unavailable)
+  const unavailable = createMemo(() => props.group.kind === 'grid' ? reportPlacementUnavailable(reportHost, props.group) : undefined)
+  const blocked = () => Boolean(props.group.filterContext && (props.group.filterContext.conflicts.length || props.group.filterContext.unsupported.length))
+  const panelIds = createMemo(() => (props.items ?? []).map((item) => item.panelId))
+  const title = () => {
+    const reason = unavailable()
+    return reason ? reportUnavailableTitle(reason, props.group.label, translate) : props.group.label
+  }
+  const capabilities = () => reportHost?.capabilities?.(props.group.id)
+  // A placement named after its only panel drops the panel's repeated title.
+  const chrome = createMemo<PanelChrome | undefined>(() => {
+    if (!placement()) return undefined
+    const only = props.items?.length === 1 ? props.panels?.get(props.items[0]!.panelId) : undefined
+    const redundant = Boolean(only && props.group.label && comparableTitle(only.title) === comparableTitle(props.group.label))
+    return redundant ? { titleIsRedundant: true } : undefined
+  })
+  // Export is gated like drill: a refusal applies to every member below the
+  // placement, including nested groups that provide their own chrome.
+  const outerExport = useExportAllowed()
+  const exportAllowed = createMemo(() => {
+    if (!outerExport()) return false
+    if (!placement()) return true
+    const declared = capabilities()
+    return declared ? reportPlacementActions(declared, props.group.filterContext).export : true
+  })
+  // Drill is the source's to offer: a placement whose source or context does
+  // not carry it renders every member terminal, inheriting an outer refusal.
+  const outerDrill = useDrillAllowed()
+  const drillAllowed = createMemo(() => {
+    if (!outerDrill()) return false
+    if (!placement()) return true
+    const context = props.group.filterContext
+    const declared = capabilities()
+    return declared ? reportPlacementActions(declared, context).drill : !(context?.unsupportedOperations?.drill?.length)
+  })
+  const state = createMemo(() => {
+    const reason = unavailable()
+    if (reason) return reportUnavailableState(reason)
+    if (blocked()) return 'unsupported'
+    if (!placement()) return undefined
+    const reading = placementFreshness(panelIds().map((id) => frames(id)), document.meta.generatedAt, documentState.isRefreshing)
+    return reading?.state === 'failed' ? 'error' : reading?.state === 'updating' ? 'updating' : 'ready'
+  })
+  const menu = () => reportHost && placement() ? reportPlacementMenu(reportHost, props.group.id, { context: props.group.filterContext, unavailable: unavailable() }).length > 0 : false
   return (
     <div class="lens-grid-item" style={spanStyle(props.group.span)}>
       <section
-        aria-label={props.group.label || undefined}
+        aria-label={title() || undefined}
         class={`lens-panel lens-panel-group ${`lens-panel-group-${props.group.kind}`}`}
-        data-report-placement={reportHost ? props.group.id : undefined}
-        tabindex={reportHost ? -1 : undefined}
+        data-report-placement={placement() ? props.group.id : undefined}
+        data-state={state()}
+        tabindex={placement() ? -1 : undefined}
       >
-        <Show when={Boolean(props.group.label || props.group.status || contextToolbar())}>
+        <Show when={Boolean(title() || props.group.status || contextToolbar() || menu())}>
           <header class="lens-panel-header lens-panel-group-header">
-            <Show when={props.group.label}>
-              <h3 class="lens-panel-title">{props.group.label}</h3>
+            <Show when={title()}>
+              <h3 class="lens-panel-title">{title()}</h3>
             </Show>
             {/* A uniform-status group shows one hoisted chip here; the members
                 below then render without their own repeated chip. */}
@@ -197,6 +267,9 @@ function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
               <StatusChip status={props.group.status!} />
             </Show>
             <Show when={contextToolbar() && props.group.filterContext}>{(context) => <ContextGroupToolbar id={props.group.id} context={context()} disclosure={disclosure} />}</Show>
+            <Show when={menu()}>
+              <ReportPlacementMenu placementId={props.group.id} title={title() || props.group.id} context={props.group.filterContext} unavailable={unavailable()} />
+            </Show>
           </header>
         </Show>
         {/* A group's caption reads for the whole strip, so it sits under the
@@ -205,12 +278,21 @@ function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
             for, so while a new document is in flight it describes the previous
             one — it dims with them rather than standing at full strength over
             superseded numbers. */}
-        <Show when={props.group.caption}>
+        <Show when={props.group.caption && unavailable() !== 'report-forbidden'}>
           <p class="lens-panel-caption" data-stale={documentState.isRefreshing || undefined}>{props.group.caption}</p>
         </Show>
-        <Show when={(reportHost || props.group.unavailable) && props.group.kind === 'grid'}><ReportVersionNotice placementId={props.group.id} unavailable={props.group.unavailable} /></Show>
-        <Show when={props.group.filterContext}>{(context) => <ContextGroupDetails id={props.group.id} context={context()} disclosure={disclosure} />}</Show>
-        <Show when={reportPlacementAvailable(reportHost, props.group) && (!props.group.filterContext || (!props.group.filterContext.conflicts.length && !props.group.filterContext.unsupported.length))}>{props.children}</Show>
+        <Show when={placement()}><ReportVersionNotice placementId={props.group.id} unavailable={props.group.unavailable} /></Show>
+        <Show when={!unavailable() && props.group.filterContext}>{(context) => <ContextGroupDetails id={props.group.id} context={context()} disclosure={disclosure} />}</Show>
+        <Show when={!unavailable() && !blocked()}>
+          <ExportGateContext.Provider value={exportAllowed}>
+            <DrillGateContext.Provider value={drillAllowed}>
+              <PanelChromeContext.Provider value={chrome()}>{props.children}</PanelChromeContext.Provider>
+            </DrillGateContext.Provider>
+          </ExportGateContext.Provider>
+        </Show>
+        <Show when={reportHost && placement() && !unavailable() && !blocked()}>
+          <ReportPlacementStatus placementId={props.group.id} panelIds={panelIds()} timeZone={props.group.filterContext?.calendar.timezone} />
+        </Show>
       </section>
     </div>
   )
@@ -263,10 +345,13 @@ function GroupChain(props: {
           )
         }
         if (cluster.group.kind === 'grid') {
-          const contents = <div class="lens-panel-grid"><GroupChain depth={props.depth + 1} filterToday={props.filterToday} items={cluster.items} panels={props.panels} registry={props.registry} /></div>
-          return cluster.group.label || cluster.group.caption
-            ? <GroupCard group={cluster.group}>{contents}</GroupCard>
-            : <div class="lens-grid-item" style={spanStyle(cluster.group.span)}>{contents}</div>
+          // Built where it is placed, so the members see the card's chrome context.
+          const contents = () => <div class="lens-panel-grid"><GroupChain depth={props.depth + 1} filterToday={props.filterToday} items={cluster.items} panels={props.panels} registry={props.registry} /></div>
+          // An unavailable placement (a forbidden one has no label) still
+          // takes its slot and explains itself instead of showing its member.
+          return cluster.group.label || cluster.group.caption || cluster.group.unavailable
+            ? <GroupCard group={cluster.group} items={cluster.items} panels={props.panels}>{contents()}</GroupCard>
+            : <div class="lens-grid-item" style={spanStyle(cluster.group.span)}>{contents()}</div>
         }
         if (cluster.group.kind === 'metrics') {
           return <MetricsGroup group={cluster.group} items={cluster.items} panels={props.panels} registry={props.registry} />
@@ -292,13 +377,14 @@ function MetricsGroup(props: {
   const spans = metricSpans(props.items.length, columns)
   const spansNarrow = metricSpans(props.items.length, 2)
   return (
-    <GroupCard group={props.group}>
+    <GroupCard group={props.group} items={props.items} panels={props.panels}>
       {/* Class names stay literal: Tailwind's content scan cannot see an
           interpolated modifier and would drop the rule. */}
       <div class={`lens-metric-row ${props.group.layout === 'rows' ? 'lens-metric-row-rows' : 'lens-metric-row-columns'}`}>
         <For each={props.items}>
           {(item, index) => {
-            const panel = props.panels.get(item.panelId)
+            const gated = useGatedPanel(() => props.panels.get(item.panelId))
+            const panel = gated()
             // Every member sits in the same kind of box, whatever it contains.
             // A cell that wrapped its own content (a navigable stat used to) sized
             // itself differently from one that did not, which is how one strip
@@ -318,7 +404,7 @@ function MetricsGroup(props: {
                   // A stat that hosts a drill root needs its card chrome (the trail
                   // and the breakdown affordance live there), so it opts out of the
                   // compact metric form rather than losing its exploration.
-                  : panel.kind === 'stat' && !panel.drillRoot
+                  : panel.kind === 'stat' && !panel.drillRoot && !panel.renderer
                     ? <StatMetric panel={panel} />
                     : <PanelSlot panel={panel} registry={props.registry} />}
               </div>

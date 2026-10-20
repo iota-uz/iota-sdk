@@ -393,3 +393,13 @@ export const Clock = glyph(
   </>,
   14,
 )
+
+/** A card's own actions menu (Phosphor DotsThree). */
+export const DotsThree = glyph(
+  () => <>
+    <circle cx="128" cy="128" r="12" fill="currentColor" />
+    <circle cx="196" cy="128" r="12" fill="currentColor" />
+    <circle cx="60" cy="128" r="12" fill="currentColor" />
+  </>,
+  16,
+)

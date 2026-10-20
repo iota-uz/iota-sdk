@@ -356,7 +356,7 @@ export const GeoJSONSourceSchema: z.ZodType<Contract.GeoJSONSource> = z.object({
   maxBytes: z.number().int().optional(),
 }).strict()
 
-export const GroupUnavailableSchema: z.ZodType<Contract.GroupUnavailable> = z.enum(["report-incompatible"])
+export const GroupUnavailableSchema: z.ZodType<Contract.GroupUnavailable> = z.enum(["report-deleted", "report-forbidden", "report-incompatible"])
 
 export const HierarchyReconciliationSchema: z.ZodType<Contract.HierarchyReconciliation> = z.object({
   tolerance: z.number().optional(),
@@ -538,6 +538,7 @@ export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   deferred: z.boolean().optional(),
   terminal: z.boolean().optional(),
   comparisonUnsupported: z.boolean().optional(),
+  renderer: z.lazy(() => PanelRendererSchema).optional(),
 }).strict()).superRefine((value, ctx) => {
   const allowed = new Set<string>(PANEL_KIND_CONFIG_FIELDS[value.kind])
   const candidate = value as unknown as Record<string, unknown>
@@ -578,6 +579,11 @@ export const PanelCalculationSchema: z.ZodType<Contract.PanelCalculation> = z.ob
 }).strict()
 
 export const PanelKindSchema: z.ZodType<Contract.PanelKind> = z.enum(["area", "bar", "boxplot", "cascade", "coverage", "donut", "gauge", "hbar", "heatmap", "histogram", "line", "map", "metric_flow", "metric_hierarchy", "metric_relationship", "pie", "radial", "stat", "table"])
+
+export const PanelRendererSchema: z.ZodType<Contract.PanelRenderer> = z.lazy(() => z.object({
+  name: z.string(),
+  options: z.unknown().optional(),
+}).strict())
 
 export const PanelRequestSchema: z.ZodType<Contract.PanelRequest> = z.lazy(() => z.object({
   panelId: z.string(),

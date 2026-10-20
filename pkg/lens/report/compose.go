@@ -49,6 +49,9 @@ func Compose(ctx context.Context, c Composition, host Host) (lens.DashboardSpec,
 			}
 			block, err := resolve(ctx, host, placement, c.Parameters, input)
 			if errors.Is(err, ErrIncompatible) {
+				block.Unavailable = document.GroupUnavailableReportIncompatible
+			}
+			if block.Unavailable != "" {
 				container, datasets, unavailableErr := unavailablePlacement(block)
 				if unavailableErr != nil {
 					return lens.DashboardSpec{}, nil, unavailableErr
@@ -375,9 +378,10 @@ func placementSpan(placement Placement) int {
 	return placement.Span
 }
 
-// unavailablePlacement keeps an incompatible placement's identity, caption and
-// width without executing its source. Its single member reads an empty static
-// frame, so neither the runtime, print nor export has figures to show.
+// unavailablePlacement keeps an unavailable placement's identity and width
+// without executing its source. Its single member reads an empty static frame,
+// so neither the runtime, print nor export has figures to show. A forbidden
+// placement also drops its caption: the slot must not reveal what it hides.
 func unavailablePlacement(block Resolved) (panel.Spec, []lens.DatasetSpec, error) {
 	data, err := frame.NewBuilder("unavailable").String("reason", frame.RoleDimension).FrameSet()
 	if err != nil {
@@ -386,7 +390,11 @@ func unavailablePlacement(block Resolved) (panel.Spec, []lens.DatasetSpec, error
 	id := block.Placement.ID
 	name := scopedID(id, "unavailable")
 	member := panel.Table(scopedID(id, "panel:unavailable"), "", name).IDField("reason").Columns(panel.TableColumn{Field: "reason", Label: "Reason"}).Terminal().Build()
-	container := panel.Grid(id, placementTitle(block), member).Span(placementSpan(block.Placement)).Build()
-	container.Unavailable = string(document.GroupUnavailableReportIncompatible)
+	title := ""
+	if block.Unavailable != document.GroupUnavailableReportForbidden {
+		title = placementTitle(block)
+	}
+	container := panel.Grid(id, title, member).Span(placementSpan(block.Placement)).Build()
+	container.Unavailable = string(block.Unavailable)
 	return container, []lens.DatasetSpec{{Name: name, Kind: lens.DatasetKindStatic, Static: data}}, nil
 }

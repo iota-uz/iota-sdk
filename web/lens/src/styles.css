@@ -502,6 +502,34 @@
     color: var(--lens-text-on-accent);
   }
 
+  /* The card's one actions menu rides the far end of its heading, after any
+     hoisted chip or scope toolbar, so its position never depends on them. */
+  .lens-report-menu {
+    @apply lens:ml-auto;
+  }
+
+  .lens-export-menu-item[data-danger] {
+    @apply lens:text-neg;
+  }
+
+  /* How current the card is, and its own retry, directly under its figures. */
+  .lens-report-card-status {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-x-3 lens:gap-y-1 lens:border-0 lens:border-t lens:border-solid lens:border-border lens:px-4 lens:py-1.5 lens:text-xs lens:text-muted;
+  }
+
+  .lens-report-card-status p {
+    @apply lens:m-0;
+  }
+
+  .lens-report-card-status[data-state='failed'] {
+    @apply lens:text-strong;
+  }
+
+  .lens-panel-state-compatibility {
+    @apply lens:text-muted;
+    max-width: 60ch;
+  }
+
   .lens-context-info {
     @apply lens:break-words lens:text-xs lens:text-muted;
   }
@@ -3023,7 +3051,16 @@
      order. `:not(:where(…))` keeps this one level with the rule above it. */
   .lens-panel-skeleton .lens-skeleton-card:not(:where([data-kind="stat"], [data-kind="cascade"], [data-kind="coverage"], [data-metrics])) {
     @apply lens:p-2;
-    min-height: var(--lens-plot-min-h);
+    /* `.lens-chart-host` is the plot floor plus its own p-2 in content-box
+       terms; this card is border-box, so it adds the padding back or the
+       ready chart lands 1rem taller than its skeleton. */
+    min-height: calc(var(--lens-plot-min-h) + 1rem);
+  }
+
+  /* A table whose rows arrive later keeps the body its skeleton reserved: a
+     two-row result must not pull the cards below it up the page. */
+  .lens-panel-reserved[data-panel-kind="table"] > .lens-panel-body {
+    min-height: calc(var(--lens-plot-min-h) + 1rem);
   }
 
   .lens-dashboard-skeleton {

@@ -1,6 +1,7 @@
 package document
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -305,6 +306,7 @@ func appendPanelTree(
 		Radial: radial, Map: mapConfig,
 		Confidence: Confidence(spec.Confidence), Availability: Availability(spec.Availability), Deferred: deferred,
 		Terminal: spec.Terminal, ComparisonUnsupported: spec.ComparisonUnsupported,
+		Renderer: buildRenderer(spec.Renderer),
 	})
 	span := spec.Span
 	if span == 0 {
@@ -1537,4 +1539,11 @@ func newSnapshotID() (string, error) {
 		return "", fmt.Errorf("generate snapshot id: %w", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(raw[:]), nil
+}
+
+func buildRenderer(renderer *panel.HostRenderer) *PanelRenderer {
+	if renderer == nil {
+		return nil
+	}
+	return &PanelRenderer{Name: renderer.Name, Options: bytes.Clone(renderer.Options)}
 }

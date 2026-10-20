@@ -59,7 +59,8 @@ import { queryWithSnapshotRecovery } from './recovery'
 import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL, siteRelativeURL } from './url'
 import { navigateTo } from './navigate'
 import { X } from '../icons'
-import { reportPlacementAvailable, useReportPlacementHost } from '../reports/placementHost'
+import { reportPlacementAvailable, reportPlacementUnavailable, useReportPlacementHost } from '../reports/placementHost'
+import { reportUnavailableCopy, reportUnavailableTitle } from '../reports/unavailable'
 import { withoutUnavailablePlacements } from '../reports/version'
 
 export interface DocumentContextValue {
@@ -1640,8 +1641,10 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         reportSignal,
       )
       for (const client of printQueryClients.values()) client.dispose()
-      const unavailableNote = translate('report.version.incompatible', 'This report is unavailable: its definition no longer matches the data source. Ask the report owner to update it.')
-      report.warnings.unshift(...withheld.map((group) => `${group.label || group.id}: ${unavailableNote}`))
+      report.warnings.unshift(...withheld.map((group) => {
+        const reason = reportPlacementUnavailable(reportPlacementHost, group) ?? 'report-incompatible'
+        return `${reportUnavailableTitle(reason, group.label, translate)}: ${reportUnavailableCopy(reason, translate)}`
+      }))
       // The report body is a lazy chunk and the print-state update is what
       // mounts it, so the wait below is racing a network fetch it never
       // accounts for: two frames plus 120ms clear a warm cache and nothing
@@ -2073,6 +2076,13 @@ export function usePanelFrame(panelId: string): PanelFrameState {
   const state = store.get(panelId) ?? emptyFrameState
   if (!frames) throw new Error('usePanelFrame must be used inside DashboardRuntimeProvider')
   return state
+}
+
+/** Every panel's frame state by id, for chrome that summarises several panels at once. */
+export function usePanelFrames(): (panelId: string) => PanelFrameState {
+  const frames = useContext(FramesContext)
+  if (!frames) throw new Error('usePanelFrames must be used inside DashboardRuntimeProvider')
+  return (panelId) => frames.get(panelId) ?? emptyFrameState
 }
 
 export function usePanelPagination(): PanelPaginationContextValue {

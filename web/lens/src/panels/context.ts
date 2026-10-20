@@ -19,6 +19,11 @@ export interface PanelChrome {
    * line; the accessible name comes from the section's own aria-label.
    */
   titleIsRedundant?: boolean
+  /**
+   * False when the report placement around the panel may not export under its
+   * effective context; the panel then offers no export of its own either.
+   */
+  exportable?: boolean
 }
 
 export const PanelChromeContext = createContext<PanelChrome | undefined>(undefined)

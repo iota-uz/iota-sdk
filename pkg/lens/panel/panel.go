@@ -696,8 +696,18 @@ func (f FieldRef) Empty() bool {
 	return strings.TrimSpace(f.Name()) == ""
 }
 
+// HostRenderer names a renderer the embedding host registers on the client
+// (for example a legacy chart grammar). The panel keeps its Kind and frame, so
+// loading, error, export and placement chrome stay the SDK's; a client without
+// the named renderer shows a compatibility state instead of the kind's chart.
+type HostRenderer struct {
+	Name    string
+	Options json.RawMessage
+}
+
 type Spec struct {
 	FilterContext *filtercontext.EffectiveContext
+	Renderer      *HostRenderer
 	// Unavailable marks a grid container whose content cannot be shown; the
 	// value is the document wire reason (document.GroupUnavailable).
 	Unavailable     string
@@ -1224,6 +1234,13 @@ func (b *Builder) FocusCanvas() *Builder {
 func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; return b }
 func (b *Builder) Action(spec action.Spec) *Builder { b.spec.Action = &spec; return b }
 func (b *Builder) Terminal() *Builder               { b.spec.Terminal = true; return b }
+
+// Renderer hands the panel body to a host-registered client renderer.
+// Options are passed through verbatim and must be valid JSON when present.
+func (b *Builder) Renderer(name string, options json.RawMessage) *Builder {
+	b.spec.Renderer = &HostRenderer{Name: name, Options: bytes.Clone(options)}
+	return b
+}
 func (b *Builder) ComparisonUnsupported() *Builder {
 	b.spec.ComparisonUnsupported = true
 	return b

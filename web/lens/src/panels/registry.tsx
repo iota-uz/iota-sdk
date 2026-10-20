@@ -11,6 +11,7 @@ import type { MetricFlowPanelProps } from './MetricFlowPanel'
 import type { MetricHierarchyPanelProps } from './MetricHierarchyPanel'
 import type { MetricRelationshipPanelProps } from './MetricRelationshipPanel'
 import type { MapPanelProps } from './MapPanel'
+import { HostRenderedPanel } from './hostRenderers'
 import { PanelSkeletonBody } from './Skeleton'
 import { StatPanel, type StatPanelProps } from './StatPanel'
 import type { TablePanelProps } from './TablePanel'
@@ -89,7 +90,11 @@ export function UnsupportedPanel(props: { panel: Panel }) {
 
 export function RegisteredPanel(props: RegisteredPanelProps) {
   const translate = useTranslate()
-  const resolve = createMemo(() => (props.registry ?? panelRegistry)[props.panel.kind])
+  // A producer that names a host renderer gets that renderer or the
+  // compatibility state, never the kind's own chart.
+  const resolve = createMemo(() => props.panel.renderer
+    ? HostRenderedPanel as PanelComponent
+    : (props.registry ?? panelRegistry)[props.panel.kind])
   return (
     <Show when={resolve()} fallback={<UnsupportedPanel panel={props.panel} />}>
       {(Resolved) => (

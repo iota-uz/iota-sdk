@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -26,6 +27,15 @@ var identifier = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
 // definition's source contract version or view is no longer offered by its source.
 // Compose degrades such a placement instead of failing the composition.
 var ErrIncompatible = errors.New("report definition is incompatible with its source")
+
+// ErrReportDeleted and ErrReportForbidden are causes a Host.Report returns
+// (wrapped or bare) for a definition it no longer stores or the caller may not
+// read. Compose renders that placement as unavailable instead of failing the
+// composition; any other Host.Report error still fails it.
+var (
+	ErrReportDeleted   = errors.New("report definition was deleted")
+	ErrReportForbidden = errors.New("report definition is not accessible")
+)
 
 type Parameters map[string]json.RawMessage
 
@@ -95,13 +105,17 @@ type Source interface {
 type Resolved struct {
 	// Status is VersionCurrent for an executed placement and VersionIncompatible
 	// for one Compose rendered as unavailable without executing its source.
-	Status     VersionStatus
-	Context    *filtercontext.EffectiveContext
-	Definition Definition
-	Placement  Placement
-	Source     SourceDescriptor
-	Parameters Parameters
-	Spec       lens.DashboardSpec
+	// It is empty when the definition itself could not be read (Unavailable).
+	Status VersionStatus
+	// Unavailable is the wire reason Compose rendered this placement with, or
+	// empty when it executed.
+	Unavailable document.GroupUnavailable
+	Context     *filtercontext.EffectiveContext
+	Definition  Definition
+	Placement   Placement
+	Source      SourceDescriptor
+	Parameters  Parameters
+	Spec        lens.DashboardSpec
 }
 
 func invalid(message string) error {
@@ -218,6 +232,17 @@ func Resolve(ctx context.Context, host Host, placement Placement, defaults Param
 	return resolved, nil
 }
 
+func unreadableReason(err error) document.GroupUnavailable {
+	switch {
+	case errors.Is(err, ErrReportForbidden):
+		return document.GroupUnavailableReportForbidden
+	case errors.Is(err, ErrReportDeleted):
+		return document.GroupUnavailableReportDeleted
+	default:
+		return ""
+	}
+}
+
 func incompatible(message string) error {
 	return serrors.New(serrors.FailedPrecondition, message).WithCause(ErrIncompatible).WithOp("lens.report.Resolve")
 }
@@ -237,6 +262,9 @@ func resolve(ctx context.Context, host Host, placement Placement, defaults Param
 	}
 	definition, err := host.Report(ctx, placement.ReportID)
 	if err != nil {
+		if reason := unreadableReason(err); reason != "" {
+			return Resolved{Unavailable: reason, Placement: clone(placement)}, serrors.Wrap("lens.report.Resolve", err)
+		}
 		return Resolved{}, serrors.Wrap("lens.report.Resolve", err)
 	}
 	definition = clone(definition)

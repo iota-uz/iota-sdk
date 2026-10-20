@@ -7,6 +7,7 @@ import { PanelExportMenu } from './PanelExportMenu'
 import { InfoTip } from './InfoTip'
 import { ArrowsIn, ArrowsOut, ChartLine, TrendDown, TrendFlat, TrendUp } from '../icons'
 import { usePanelChrome } from './context'
+import { useExportAllowed } from './drillGate'
 import { panelFailureCopy } from './panelFailure'
 import { PanelOverlay } from './PanelOverlay'
 import { PanelSkeletonBody } from './Skeleton'
@@ -17,6 +18,11 @@ export interface PanelFrameProps {
   children: JSXElement
   variant?: 'stat' | 'chart'
   allowEmptyContent?: boolean
+  /**
+   * The children draw their own loading state at their final size (a host
+   * renderer), so the frame does not swap them for a kind-shaped skeleton.
+   */
+  rendersLoading?: boolean
   /** Reader controls that belong to this panel, placed before export chrome. */
   headerActions?: JSXElement
   /**
@@ -187,12 +193,12 @@ export function PanelFrame(props: PanelFrameProps) {
   const hasRows = () => Boolean(props.frame.data?.rows.length)
   // Loading is panel-local. A sibling calculation or a background document
   // refresh must never replace this panel's usable data with a skeleton.
-  const showLoading = () => props.frame.isLoading
+  const showLoading = () => props.frame.isLoading && !props.rendersLoading
   // Dimmed data being replaced is as busy as an empty skeleton is: the figures
   // under the cursor are not the answer to the question that was just asked.
   // An error left the panel stale with no request in flight, so that state is
   // idle — the retry control beside it is the thing to act on.
-  const busy = () => showLoading() || (props.frame.isStale && !props.frame.error)
+  const busy = () => props.frame.isLoading || (props.frame.isStale && !props.frame.error)
   const badgePlacement = () => props.panel.presentation?.totalBadge ?? 'header'
   const showTotal = () => variant === 'chart' && total() !== undefined && badgePlacement() === 'header'
   const totalLabel = translate('panel.total', 'Total')
@@ -200,7 +206,8 @@ export function PanelFrame(props: PanelFrameProps) {
   // Opt-out chrome: a drawer-hosted panel disables expand (an overlay over a
   // modal is meaningless), and a derived/headline panel disables export.
   const expandable = props.panel.presentation?.expandable !== false
-  const exportable = props.panel.presentation?.exportable !== false
+  const exportGate = useExportAllowed()
+  const exportable = () => props.panel.presentation?.exportable !== false && chrome?.exportable !== false && exportGate()
   // A stat headline reads number-first: the value leads, and its supporting
   // caption (exact figure, then the muted explainer + period) sits beneath it
   // rather than pushing the number below the fold.
@@ -220,7 +227,13 @@ export function PanelFrame(props: PanelFrameProps) {
         : translate('panel.cacheMiss', 'miss'),
     })
     : ''
-  const infoText = () => [variant === 'chart' ? props.panel.caption : '', props.panel.info, calculationInfo()]
+  // A deferred panel's calculation arrives with its frame. Its ⓘ is there
+  // from the first paint, saying it is still calculating, so the heading does
+  // not gain a control — and on a narrow card a line — when the figure lands.
+  const pendingCalculation = () => props.panel.deferred && props.frame.isLoading && !props.frame.calculation
+    ? translate('panel.updating', 'Updating')
+    : ''
+  const infoText = () => [variant === 'chart' ? props.panel.caption : '', props.panel.info, calculationInfo() || pendingCalculation()]
     .map((part) => part?.trim() ?? '')
     .filter(Boolean)
     .join('\n\n')
@@ -256,6 +269,7 @@ export function PanelFrame(props: PanelFrameProps) {
         // takes over the body.
         props.frame.isStale && !showLoading() ? 'lens-panel-stale' : '',
         props.panel.presentation?.fill ? 'lens-panel-fill' : '',
+        props.panel.deferred ? 'lens-panel-reserved' : '',
         expanded() ? 'lens-panel-expanded' : '',
       ].filter(Boolean).join(' ')}
       data-expanded={expanded() || undefined}
@@ -298,10 +312,10 @@ export function PanelFrame(props: PanelFrameProps) {
               {formatTotal(total())}
             </span>
           </Show>
-          <Show when={busy() && !showLoading()}>
+          <Show when={busy() && !props.frame.isLoading}>
             <span class="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>
           </Show>
-          <Show when={exportable}>
+          <Show when={exportable()}>
             <PanelExportMenu panelId={props.panel.id} title={props.panel.title} />
           </Show>
           <Show when={expandable}>
@@ -331,7 +345,7 @@ export function PanelFrame(props: PanelFrameProps) {
       <div class="lens-panel-body">
         <Show when={showLoading()} fallback={
           <Show when={props.frame.error && !props.frame.data} fallback={
-            <Show when={!hasRows() && !props.allowEmptyContent} fallback={props.children}>
+            <Show when={!hasRows() && !props.allowEmptyContent && !(props.rendersLoading && props.frame.isLoading)} fallback={props.children}>
               <div class="lens-panel-state lens-panel-state-empty">
                 <ChartLine className="lens-empty-mark" />
                 <span>{translate('panel.empty', 'No data')}</span>

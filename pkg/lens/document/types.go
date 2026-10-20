@@ -151,6 +151,12 @@ const (
 	// GroupUnavailableReportIncompatible marks a reusable report placement whose
 	// definition no longer runs on its source contract or view.
 	GroupUnavailableReportIncompatible GroupUnavailable = "report-incompatible"
+	// GroupUnavailableReportDeleted marks a placement whose report the host no
+	// longer stores. The placement keeps its own caption and width.
+	GroupUnavailableReportDeleted GroupUnavailable = "report-deleted"
+	// GroupUnavailableReportForbidden marks a placement whose report the reader
+	// may not see. Only the slot's width remains: no title, caption or context.
+	GroupUnavailableReportForbidden GroupUnavailable = "report-forbidden"
 )
 
 // LayoutGroup describes the container card that owns a run of layout items.
@@ -682,6 +688,16 @@ type Panel struct {
 	// ComparisonUnsupported marks an active comparison that this panel kind
 	// cannot visualize. The client renders its localized explanatory notice.
 	ComparisonUnsupported bool `json:"comparisonUnsupported,omitempty"`
+	// Renderer hands the panel body to a renderer the host registers on the
+	// client. Without that registration the runtime shows a compatibility
+	// state rather than drawing the panel as its kind.
+	Renderer *PanelRenderer `json:"renderer,omitempty"`
+}
+
+// PanelRenderer names a host-registered client renderer and its options.
+type PanelRenderer struct {
+	Name    string          `json:"name"`
+	Options json.RawMessage `json:"options,omitempty"`
 }
 
 // RadialMode selects a radial panel's geometry.

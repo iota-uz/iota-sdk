@@ -1,11 +1,13 @@
 import { createSignal, Show } from 'solid-js'
 import type { LayoutGroup } from '../contract/types'
 import { useDocumentState, useTranslate } from '../runtime'
-import { useReportPlacementHost } from './placementHost'
+import { reportPlacementUnavailable, useReportPlacementHost } from './placementHost'
+import { reportUnavailableCopy, reportUnavailableState } from './unavailable'
 
 /**
  * Update-available keeps the opened figures intact and offers the newer
- * version; incompatible explains why the placement cannot be shown.
+ * version; an unavailable placement (incompatible, deleted or forbidden)
+ * explains why it cannot be shown.
  */
 export function ReportVersionNotice(props: { placementId: string; unavailable?: LayoutGroup['unavailable'] }) {
   const host = useReportPlacementHost()
@@ -14,7 +16,8 @@ export function ReportVersionNotice(props: { placementId: string; unavailable?: 
   const [kept, setKept] = createSignal(false)
   const [updating, setUpdating] = createSignal(false)
   const [failed, setFailed] = createSignal(false)
-  const status = () => host?.status(props.placementId)
+  const status = () => host?.status?.(props.placementId)
+  const unavailable = () => reportPlacementUnavailable(host, { id: props.placementId, unavailable: props.unavailable })
   let root: HTMLDivElement | undefined
   /** The notice removes its own buttons; hand focus to the placement rather than the document body. */
   const keepFocus = () => {
@@ -46,7 +49,7 @@ export function ReportVersionNotice(props: { placementId: string; unavailable?: 
   return <>
     {/* The host may report `current` before the refresh settles; stay mounted
         while updating or failed so a rejected refresh still offers a retry. */}
-    <Show when={!props.unavailable && (status() === 'update-available' || updating() || failed()) && !kept()}>
+    <Show when={!unavailable() && (status() === 'update-available' || updating() || failed()) && !kept()}>
       <div class="lens-report-version" data-testid={`report-version-${props.placementId}`} data-status="update-available" role="status" ref={(element) => { root = element }}>
         <p>{translate('report.version.updateAvailable', 'A newer version of this report is available.')}</p>
         <div class="lens-report-version-actions">
@@ -65,10 +68,10 @@ export function ReportVersionNotice(props: { placementId: string; unavailable?: 
         </Show>
       </div>
     </Show>
-    <Show when={props.unavailable || status() === 'incompatible'}>
-      <div class="lens-panel-state lens-report-unavailable" data-testid={`report-version-${props.placementId}`} data-status="incompatible" role="alert">
-        <p>{translate('report.version.incompatible', 'This report is unavailable: its definition no longer matches the data source. Ask the report owner to update it.')}</p>
+    <Show when={unavailable()}>{(reason) => (
+      <div class="lens-panel-state lens-report-unavailable" data-testid={`report-version-${props.placementId}`} data-status={reportUnavailableState(reason())} role="alert">
+        <p>{reportUnavailableCopy(reason(), translate)}</p>
       </div>
-    </Show>
+    )}</Show>
   </>
 }
