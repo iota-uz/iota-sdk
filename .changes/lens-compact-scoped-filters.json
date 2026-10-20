@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Compact Lens scoped filters: each section or card shows one Filters trigger with an override count and chips instead of two always-open filter rows, the effective-context line appears only when it differs from the dashboard or carries a notice, Apply and Restore appear only when they would change something, and context actions share the filter-trigger height with a primary Apply. Adds runtime keys filter.context.local and filter.context.card."
+}

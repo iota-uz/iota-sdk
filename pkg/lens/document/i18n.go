@@ -25,7 +25,9 @@ const (
 	I18nContextScopeHost      = "filter.context.scope.host"
 
 	I18nContextApply         = "filter.context.apply"
+	I18nContextCard          = "filter.context.card"
 	I18nContextConflict      = "filter.context.conflict"
+	I18nContextLocal         = "filter.context.local"
 	I18nContextReportPeriods = "filter.context.reportPeriods"
 	I18nContextReset         = "filter.context.reset"
 	I18nContextSave          = "filter.context.save"
@@ -371,7 +373,9 @@ func RuntimeI18nKeys() []string {
 		I18nContextScopeHost,
 
 		I18nContextApply,
+		I18nContextCard,
 		I18nContextConflict,
+		I18nContextLocal,
 		I18nContextReportPeriods,
 		I18nContextReset,
 		I18nContextSave,

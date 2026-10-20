@@ -33,6 +33,27 @@ describe('scoped filter drafts', () => {
     } finally { dispose() }
   })
 
+  // False green: comparing against the initial saved value would miss defaults advanced by a successful save.
+  it('is restorable while the draft differs from acknowledged defaults, even when nothing is staged', async () => {
+    const saved = { period: { mode: 'relative', days: 30 } }
+    let dispose = () => {}
+    const draft = createRoot((cleanup) => {
+      dispose = cleanup
+      return createFilterContextDraft({ period: { mode: 'all' } }, saved, { apply: () => undefined, saveDefaults: () => Promise.resolve() })
+    })
+    try {
+      expect(draft.dirty()).toBe(false)
+      expect(draft.restorable()).toBe(true)
+      draft.reset()
+      expect(draft.restorable()).toBe(false)
+      expect(draft.dirty()).toBe(true)
+      draft.update(() => ({ period: { mode: 'fixed', start: '2026-06-01', end: '2026-06-30' } }))
+      await draft.saveDefaults()
+      expect(draft.restorable()).toBe(false)
+      expect(draft.dirty()).toBe(true)
+    } finally { dispose() }
+  })
+
   // False green: plain objects would not reproduce browser DataCloneError from a Solid store.
   it('takes immutable copies from a nested Solid store without mutating its document', () => {
     const [store] = createStore({ cards: { june: { period: { mode: 'fixed', start: '2026-06-01', end: '2026-06-30' } } } })

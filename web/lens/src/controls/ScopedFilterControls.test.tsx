@@ -26,11 +26,41 @@ it.each(['dashboard', 'card', 'section'] as const)('replaces mounted %s drafts w
   } })
   render(() => <ScopedFilterControls editor={state.editor} scope={scope} id="test" />)
   fireEvent.click(screen.getByText('Stage all time'))
-  expect(screen.getByTestId('context-apply')).not.toBeDisabled()
+  expect(screen.getByTestId('context-apply')).toBeInTheDocument()
   setState('editor', 'value', { dashboard: next, cards: { test: next }, sections: { test: next } })
   setState('editor', 'saved', { dashboard: next, cards: { test: next }, sections: { test: next } })
-  expect(screen.getByTestId('context-apply')).toBeDisabled()
+  expect(screen.queryByTestId('context-apply')).toBeNull()
   fireEvent.click(screen.getByText('Stage all time'))
   fireEvent.click(screen.getByTestId('context-reset'))
-  expect(screen.getByTestId('context-apply')).toBeDisabled()
+  expect(screen.queryByTestId('context-apply')).toBeNull()
+})
+
+const calendar = { timezone: 'Asia/Tashkent', asOf: '2026-07-01T00:00:00Z', defaultPeriod: { mode: 'all' } }
+const editor = (value: ContextEditor['value']['dashboard'], saved: ContextEditor['value']['dashboard']): ContextEditor => ({
+  url: '/sales', value: { calendar, dashboard: value }, saved: { calendar, dashboard: saved },
+})
+
+// False green: checking only that Apply is enabled would pass with the always-rendered ghost button.
+it('offers Apply and its status only while a change is staged', () => {
+  const june = { period: { mode: 'fixed', start: '2026-06-01', end: '2026-06-30' } }
+  render(() => <ScopedFilterControls editor={editor(june, june)} scope="dashboard" id="dashboard" />)
+  expect(screen.queryByTestId('context-apply')).toBeNull()
+  expect(screen.queryByRole('status')).toBeNull()
+  expect(screen.queryByTestId('context-reset')).toBeNull()
+  fireEvent.click(screen.getByText('Stage all time'))
+  expect(screen.getByTestId('context-apply')).toHaveAttribute('data-variant', 'primary')
+  expect(screen.getByRole('status')).toHaveTextContent('Changes are not applied')
+  expect(screen.getByTestId('context-reset')).toBeInTheDocument()
+  fireEvent.click(screen.getByTestId('context-reset'))
+  expect(screen.queryByTestId('context-apply')).toBeNull()
+  expect(screen.queryByTestId('context-reset')).toBeNull()
+})
+
+// False green: a draft-only dirty check would hide Restore for an applied selection that differs from saved defaults.
+it('offers Restore whenever the shown selection differs from the saved one, and staging it offers Apply', () => {
+  render(() => <ScopedFilterControls editor={editor({ period: { mode: 'fixed', start: '2026-06-01', end: '2026-06-30' } }, { period: { mode: 'reports' } })} scope="dashboard" id="dashboard" />)
+  expect(screen.queryByTestId('context-apply')).toBeNull()
+  fireEvent.click(screen.getByTestId('context-reset'))
+  expect(screen.queryByTestId('context-reset')).toBeNull()
+  expect(screen.getByTestId('context-apply')).toBeInTheDocument()
 })

@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from 'solid-js'
+import { createSignal, For, onMount, Show } from 'solid-js'
 import { LensDashboard } from './LensDashboard'
 import { parseDocument } from './contract'
 import { decodeFilterBoard } from './reports/filterDraft'
@@ -18,7 +18,7 @@ function selectionKey(board: ContextBoard) {
   return JSON.stringify({ dashboard: filters(board.dashboard), cards: scopes(board.cards), sections: scopes(board.sections) })
 }
 
-function Example(props: { theme: LensThemeMode; scenario: number }) {
+function Example(props: { theme: LensThemeMode; scenario: number; openGroup?: string }) {
   const [scenario, setScenario] = createSignal(props.scenario)
   const [reject, setReject] = createSignal(false)
   const [notice, setNotice] = createSignal('')
@@ -30,7 +30,11 @@ function Example(props: { theme: LensThemeMode; scenario: number }) {
     if (!fixture) return Promise.resolve(new Response('This synthetic host only serves the listed precompiled scenarios', { status: 422 }))
     return Promise.resolve(Response.json(fixture.document))
   }
-  return <div class="lens-root" data-theme={props.theme}>
+  let root: HTMLDivElement | undefined
+  onMount(() => {
+    if (props.openGroup) root?.querySelector<HTMLButtonElement>(`[data-testid="context-local-${props.openGroup}"]`)?.click()
+  })
+  return <div class="lens-root" data-theme={props.theme} ref={(element) => { root = element }}>
     <div class="lens-panel lens-scoped-controls">
       <label>Precompiled host scenario <select value={scenario()} onChange={(event) => setScenario(Number(event.currentTarget.value))}>
         <For each={fixtures}>{(fixture, index) => <option value={index()}>{fixture.name}</option>}</For>
@@ -53,3 +57,5 @@ export const ConflictLight = () => <Example theme="light" scenario={3} />
 export const ConflictDark = () => <Example theme="dark" scenario={3} />
 export const ReportPeriodsLight = () => <Example theme="light" scenario={0} />
 export const ReportPeriodsDark = () => <Example theme="dark" scenario={0} />
+export const LocalFiltersOpenLight = () => <Example theme="light" scenario={2} openGroup="revenue" />
+export const LocalFiltersOpenDark = () => <Example theme="dark" scenario={2} openGroup="revenue" />

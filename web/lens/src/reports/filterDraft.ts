@@ -42,6 +42,7 @@ export function createFilterContextDraft(initial: ContextFilters, saved: Context
   return {
     value: () => copy(draft()), applied: () => copy(applied()), saving, error,
     dirty: createMemo(() => JSON.stringify(draft()) !== JSON.stringify(applied())),
+    restorable: createMemo(() => JSON.stringify(draft()) !== JSON.stringify(defaults())),
     update(change: (value: ContextFilters) => ContextFilters) { setDraft(() => copy(change(copy(draft())))); setError(undefined) },
     reset() { setDraft(() => copy(defaults())); setError(undefined) },
     cancel() { setDraft(() => copy(applied())); setError(undefined) },

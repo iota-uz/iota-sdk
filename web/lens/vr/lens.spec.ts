@@ -8,6 +8,8 @@ const storyIds = [
   'scoped-filters--conflict-dark',
   'scoped-filters--report-periods-light',
   'scoped-filters--report-periods-dark',
+  'scoped-filters--local-filters-open-light',
+  'scoped-filters--local-filters-open-dark',
 
   'reusable-reports--light',
   'reusable-reports--dark',
@@ -180,6 +182,8 @@ const staticStories = [
   ['scoped-filters--conflict-dark', 0, 0],
   ['scoped-filters--report-periods-light', 0, 0],
   ['scoped-filters--report-periods-dark', 0, 0],
+  ['scoped-filters--local-filters-open-light', 0, 0],
+  ['scoped-filters--local-filters-open-dark', 0, 0],
 
   ['reusable-reports--light', 0, 0],
   ['reusable-reports--dark', 0, 0],
@@ -866,22 +870,27 @@ test('reusable report drafts preserve placement scope on save failure and cancel
 // False green: captions alone would miss the previous fixture's figures surviving a context change.
 test('scoped filters stage a period, apply through one runtime, and retain a rejected default save', async ({ page }) => {
   await openStory(page, 'scoped-filters--light', 0)
-  const controls = page.getByTestId('context-controls-card-revenue')
-  const report = controls.locator('..')
+  const trigger = page.getByTestId('context-local-revenue')
+  const report = trigger.locator('xpath=ancestor::section[1]')
   const online = report.locator('tr').filter({ hasText: 'Online' }).locator('td').last()
   await expect(online).toHaveText('1,200')
   await expect(report.getByTestId('effective-context')).toContainText('2026-06-01 – 2026-06-30')
+  await expect(page.getByTestId('context-controls-card-revenue')).toHaveCount(0)
+  await trigger.click()
+  const controls = report.getByTestId('context-controls-card-revenue')
+  await expect(controls.getByTestId('context-apply')).toHaveCount(0)
   await controls.getByTestId('context-inherit').click()
   await expect(online).toHaveText('1,200')
   await controls.getByTestId('context-apply').click()
   await expect(online).toHaveText('14,400')
   await expect(report.getByTestId('effective-context')).toContainText('2026-01-01 – 2026-12-31')
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   await page.getByRole('checkbox', { name: 'Reject default save' }).check()
   await controls.getByRole('button', { name: 'Save filter defaults' }).click()
   await expect(controls.getByRole('alert')).toBeVisible()
   await expect(online).toHaveText('14,400')
-  await controls.getByTestId('context-reset').focus()
-  await expect(controls.getByTestId('context-reset')).toBeFocused()
+  await controls.getByRole('button', { name: 'Save filter defaults' }).focus()
+  await expect(controls.getByRole('button', { name: 'Save filter defaults' })).toBeFocused()
   for (const width of [1440, 1024, 390]) {
     await page.setViewportSize({ width, height: 1000 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
