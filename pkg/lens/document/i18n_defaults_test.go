@@ -35,7 +35,8 @@ func TestRuntimeI18nDefaultsCoverReportPickerAndEditor(t *testing.T) {
 	defaults := RuntimeI18nDefaults()
 	for _, key := range RuntimeI18nKeys() {
 		if strings.HasPrefix(key, "report.picker.") || strings.HasPrefix(key, "report.destination.") ||
-			strings.HasPrefix(key, "report.editor.") || strings.HasPrefix(key, "report.proposal.") || strings.HasPrefix(key, "report.leave.") {
+			strings.HasPrefix(key, "report.editor.") || strings.HasPrefix(key, "report.proposal.") || strings.HasPrefix(key, "report.leave.") ||
+			strings.HasPrefix(key, "dashboard.edit") || strings.HasPrefix(key, "dashboard.empty.") || key == I18nFilterMore {
 			require.NotEmptyf(t, defaults[key], "default for %s", key)
 		}
 	}

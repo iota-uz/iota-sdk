@@ -87,6 +87,7 @@ export function createCompositionSession(host: CompositionSessionHost) {
   const [settledProposal, setSettledProposal] = createSignal<string>()
   const [copyFailed, setCopyFailed] = createSignal(false)
   const [picks, setPicks] = createSignal<Record<string, ReportPick['entry']>>({})
+  const title = (placement: Placement) => placement.title ?? host.reportTitle?.(placement.reportId) ?? picks()[placement.id]?.title ?? placement.reportId
   const cards = new Map<string, HTMLElement>()
   const handles = new Map<string, HTMLElement>()
   const refs: { add?: HTMLElement } = {}
@@ -95,7 +96,6 @@ export function createCompositionSession(host: CompositionSessionHost) {
   const placements = createMemo<SessionPlacement[]>(() => draft.value().rows.flatMap((row, rowIndex) => row.map((placement, index) => ({ placement, row: rowIndex, index, rowSize: row.length }))))
   const ids = createMemo(() => placements().map((item) => item.placement.id), undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) })
   const byId = (id: string) => placements().find((item) => item.placement.id === id)
-  const title = (placement: Placement) => placement.title ?? host.reportTitle?.(placement.reportId) ?? placement.reportId
   const placedCount = (reportId: string) => draft.value().rows.flat().filter((placement) => placement.reportId === reportId).length
 
   const edit = (change: (composition: Composition) => Composition) => {
@@ -136,19 +136,16 @@ export function createCompositionSession(host: CompositionSessionHost) {
   }
 
   const addPicked = (confirmation: ReportPickerConfirmation) => {
-    let placementsAdded: Placement[] = []
-    edit((composition) => {
-      const result = appendReportPicks(composition, confirmation, { span: host.addSpan })
-      placementsAdded = result.added
-      return result.composition
-    })
-    const newIds = placementsAdded.map((placement) => placement.id)
+    // The picked entries are known before the cards render, so an added card can fetch its preview at once.
+    const { composition: next, added: placementsAdded } = appendReportPicks(draft.value(), confirmation, { span: host.addSpan })
     const entries = { ...picks() }
     placementsAdded.forEach((placement) => {
       const pick = confirmation.picks.find((candidate) => candidate.entry.id === placement.reportId)
       if (pick) entries[placement.id] = pick.entry
     })
     setPicks(entries)
+    edit(() => next)
+    const newIds = placementsAdded.map((placement) => placement.id)
     setAdded(newIds)
     setNotice(translate('report.editor.added', 'Added {count} reports to the draft', { count: newIds.length }))
     const first = newIds[0]

@@ -233,15 +233,29 @@ const (
 	I18nCalendarPrevMonth             = "calendar.prevMonth"
 	// The month/year jump panel behind the calendar heading: the trigger, and
 	// the panel's own paging (one year, or one twelve-year block, at a time).
-	I18nCalendarChooseMonth        = "calendar.chooseMonth"
-	I18nCalendarNextPage           = "calendar.nextPage"
-	I18nCalendarPrevPage           = "calendar.prevPage"
-	I18nDashboardEmpty             = "dashboard.empty"
-	I18nDashboardTabs              = "dashboard.tabs"
-	I18nDashboardUpdated           = "dashboard.updated"
-	I18nDashboardRecompute         = "dashboard.recompute"
-	I18nDashboardRecomputeHint     = "dashboard.recomputeHint"
-	I18nDashboardRecomputing       = "dashboard.recomputing"
+	I18nCalendarChooseMonth    = "calendar.chooseMonth"
+	I18nCalendarNextPage       = "calendar.nextPage"
+	I18nCalendarPrevPage       = "calendar.prevPage"
+	I18nDashboardEmpty         = "dashboard.empty"
+	I18nDashboardTabs          = "dashboard.tabs"
+	I18nDashboardUpdated       = "dashboard.updated"
+	I18nDashboardRecompute     = "dashboard.recompute"
+	I18nDashboardRecomputeHint = "dashboard.recomputeHint"
+	I18nDashboardRecomputing   = "dashboard.recomputing"
+	// In-place dashboard editing: the Edit action, the edit bar, the cards
+	// added in the session and the empty board.
+	I18nDashboardEdit               = "dashboard.edit"
+	I18nDashboardEditStarted        = "dashboard.edit.started"
+	I18nDashboardEditEnded          = "dashboard.edit.ended"
+	I18nDashboardEditToolbar        = "dashboard.edit.toolbar"
+	I18nDashboardEditPreviewPending = "dashboard.edit.previewPending"
+	I18nDashboardEditPreviewLoading = "dashboard.edit.previewLoading"
+	I18nDashboardEditPreviewFailed  = "dashboard.edit.previewFailed"
+	I18nDashboardEmptyTitle         = "dashboard.empty.title"
+	I18nDashboardEmptyHint          = "dashboard.empty.hint"
+	I18nDashboardEmptyHintEditable  = "dashboard.empty.hintEditable"
+	// The compact toolbar's menu of secondary filter controls.
+	I18nFilterMore                 = "filter.more"
 	I18nDocumentRefetch            = "document.refetchFailed"
 	I18nDocumentRetry              = "document.retry"
 	I18nDrillClose                 = "drill.close"
@@ -679,6 +693,10 @@ func RuntimeI18nKeys() []string {
 		I18nChartSeriesCurrent, I18nChartSeriesPrevious, I18nChartSeriesTrend, I18nChartSeriesMovingAverage, I18nChartSeriesEstimate,
 		I18nChartSeriesYTD, I18nChartSeriesForecast, I18nChartSeriesForecastLower, I18nChartSeriesForecastConfidence,
 		I18nDashboardEmpty, I18nDashboardTabs, I18nDashboardUpdated, I18nDashboardRecompute, I18nDashboardRecomputeHint, I18nDashboardRecomputing, I18nDrillClose, I18nDrillReset,
+		I18nDashboardEdit, I18nDashboardEditStarted, I18nDashboardEditEnded, I18nDashboardEditToolbar,
+		I18nDashboardEditPreviewPending, I18nDashboardEditPreviewLoading, I18nDashboardEditPreviewFailed,
+		I18nDashboardEmptyTitle, I18nDashboardEmptyHint, I18nDashboardEmptyHintEditable,
+		I18nFilterMore,
 		I18nDocumentRefetch, I18nDocumentRetry,
 		I18nDrawerClose, I18nDrawerEyebrow, I18nDrawerLabel,
 		I18nExploreBack, I18nExploreBreakdown, I18nExploreChooseView, I18nExploreClose,

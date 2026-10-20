@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createUniqueId, For, onCleanup, onMount, Show } from 'solid-js'
+import { Portal } from 'solid-js/web'
 import { unwrap } from 'solid-js/store'
 import type { ContextBoard, ContextCalendar, ContextEditor, ContextFilters, ContextOrigin, ContextPeriod, EffectiveContext, Filter, PeriodValue } from '../contract/types'
 import { useDashboard, useFilters, useTranslate } from '../runtime'
@@ -8,6 +9,7 @@ import { PeriodFilterControl } from './PeriodFilterControl'
 import { FacetFilterMenu } from './FacetFilterMenu'
 import { parseISODate, addDays, addMonths, compactRangeLabel, formatISODate, type CalendarDate } from './model'
 import { useFilterDefaultsHost } from '../reports/filterHost'
+import { useToolbarOverflow } from './toolbarOverflow'
 
 type Scope = 'dashboard' | 'card' | 'section'
 function scopeValue(board: ContextBoard, scope: Scope, id: string): ContextFilters {
@@ -103,15 +105,21 @@ function ScopedFilterDraftControls(props: ScopedFilterProps & { focus: { pending
     }, facetTrigger)
   }
   const constraints = createMemo(() => draft.value().constraints ?? [])
-  return <div class="lens-scoped-controls" data-testid={`context-controls-${props.scope}-${props.id}`} ref={(element) => { root = element }}>
-    <PeriodFilterControl filter={filter} today={hostToday()} inheritLabel={inherited() ? inheritText() : undefined} onChange={onPeriod} />
-    <Show when={!inherited()}><button type="button" class="lens-context-action" data-testid="context-inherit" onClick={() => commit((value) => ({ ...value, period: props.scope === 'dashboard' ? { mode: 'reports' } : undefined }), periodTrigger)}>{inheritText()}</button></Show>
-    <Show when={props.facets?.length}><FacetFilterMenu filters={props.facets!} onApplyURL={applyFacets} /></Show>
-    <For each={constraints()}>{(constraint) => <span class="lens-active-filter-chip"><span>{constraintLabel(props.editor, constraint)}</span></span>}</For>
+  // A compact dashboard bar folds these verbs into its "More" menu.
+  const overflow = props.scope === 'dashboard' ? useToolbarOverflow() : undefined
+  const inherit = () => <Show when={!inherited()}><button type="button" class="lens-context-action" data-testid="context-inherit" onClick={() => commit((value) => ({ ...value, period: props.scope === 'dashboard' ? { mode: 'reports' } : undefined }), periodTrigger)}>{inheritText()}</button></Show>
+  const restore = () => <>
     <Show when={draft.restorable()}>
       <button type="button" class="lens-context-action" data-testid="context-reset" onClick={() => { draft.reset(); if (draft.dirty()) draft.apply(); keepFocus(periodTrigger) }}>{translate('filter.context.reset', 'Restore saved filters')}</button>
     </Show>
     <Show when={saveDefaults}><button type="button" class="lens-context-action" aria-disabled={draft.saving() || undefined} onClick={() => { if (!draft.saving()) void draft.saveDefaults().catch(() => undefined) }}>{translate('filter.context.save', 'Save filter defaults')}</button></Show>
+  </>
+  return <div class="lens-scoped-controls" data-testid={`context-controls-${props.scope}-${props.id}`} ref={(element) => { root = element }}>
+    <PeriodFilterControl filter={filter} today={hostToday()} inheritLabel={inherited() ? inheritText() : undefined} onChange={onPeriod} />
+    <Show when={!overflow?.()}>{inherit()}</Show>
+    <Show when={props.facets?.length}><FacetFilterMenu filters={props.facets!} onApplyURL={applyFacets} /></Show>
+    <For each={constraints()}>{(constraint) => <span class="lens-active-filter-chip"><span>{constraintLabel(props.editor, constraint)}</span></span>}</For>
+    <Show when={overflow?.()} fallback={restore()}>{(mount) => <Portal mount={mount()}>{inherit()}{restore()}</Portal>}</Show>
     <Show when={draft.error()}><p class="lens-context-error" role="alert">{translate('filter.context.saveFailed', 'Filter defaults could not be saved')}</p></Show>
   </div>
 }
