@@ -887,12 +887,14 @@ test('reusable report placements offer an update beside the opened figures and e
   await page.keyboard.press('Enter')
   await expect(notice).toHaveCount(0)
   await expect(page.getByTestId('version-host-notice')).toHaveText('Kept the opened version of first')
+  await expect(first).toBeFocused()
   await expect(first.getByRole('table')).toHaveCount(1)
 
   await openStory(page, 'reusable-reports--update-available-light', 0)
   await first.getByRole('button', { name: 'Update report' }).click()
   await expect(page.getByTestId('version-host-notice')).toHaveText('Updated first')
   await expect(first.getByTestId('report-version-first')).toHaveCount(0)
+  await expect(first).toBeFocused()
   await expect(first.getByRole('table')).toHaveCount(1)
 
   await openStory(page, 'reusable-reports--incompatible-light', 0)

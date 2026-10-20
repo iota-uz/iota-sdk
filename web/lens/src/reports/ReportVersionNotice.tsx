@@ -12,7 +12,11 @@ export interface ReportPlacementHost {
   status: (placementId: string) => ReportVersionStatus | undefined
   /** Adopt the newer definition; the document is refreshed after it resolves. */
   update?: (placementId: string) => Promise<void> | void
-  /** Record that the reader keeps the opened version. */
+  /**
+   * Record that the reader keeps the opened version. status should stop
+   * returning update-available afterwards; the local dismissal is immediate
+   * feedback only and does not survive a document refresh.
+   */
   keep?: (placementId: string) => void
 }
 
@@ -41,6 +45,20 @@ export function ReportVersionNotice(props: { placementId: string }) {
   const [updating, setUpdating] = createSignal(false)
   const [failed, setFailed] = createSignal(false)
   const status = () => host?.status(props.placementId)
+  let root: HTMLDivElement | undefined
+  /** The notice removes its own buttons; hand focus to the placement rather than the document body. */
+  const keepFocus = () => {
+    const section = root?.closest<HTMLElement>('section')
+    const id = props.placementId
+    const restore = () => {
+      const active = globalThis.document.activeElement
+      if (active && active !== globalThis.document.body && active.isConnected) return
+      const target = section?.isConnected ? section : globalThis.document.querySelector<HTMLElement>(`[data-report-placement="${CSS.escape(id)}"]`)
+      target?.focus()
+    }
+    restore()
+    requestAnimationFrame(restore)
+  }
   const update = async () => {
     if (updating()) return
     setUpdating(true)
@@ -48,6 +66,7 @@ export function ReportVersionNotice(props: { placementId: string }) {
     try {
       await host?.update?.(props.placementId)
       await documentState.refresh()
+      keepFocus()
     } catch {
       setFailed(true)
     } finally {
@@ -56,7 +75,7 @@ export function ReportVersionNotice(props: { placementId: string }) {
   }
   return <>
     <Show when={status() === 'update-available' && !kept()}>
-      <div class="lens-report-version" data-testid={`report-version-${props.placementId}`} data-status="update-available" role="status">
+      <div class="lens-report-version" data-testid={`report-version-${props.placementId}`} data-status="update-available" role="status" ref={(element) => { root = element }}>
         <p>{translate('report.version.updateAvailable', 'A newer version of this report is available.')}</p>
         <div class="lens-report-version-actions">
           <button type="button" class="lens-context-action lens-report-version-update" aria-disabled={updating() || undefined} onClick={() => void update()}>
@@ -66,6 +85,7 @@ export function ReportVersionNotice(props: { placementId: string }) {
             if (updating()) return
             host?.keep?.(props.placementId)
             setKept(true)
+            keepFocus()
           }}>{translate('report.version.keep', 'Keep this version')}</button>
         </div>
         <Show when={failed()}>

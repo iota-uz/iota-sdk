@@ -1,4 +1,4 @@
 {
   "bump": "minor",
-  "summary": "Classify an opened Lens report placement against the host's latest definition (report.Resolved.Version, report.CompareVersion, compareReportVersion), render an update offer that keeps the opened figures or an explained unavailable state for an incompatible version through ReportPlacementHost, and gate drill/save/export on source capabilities and the effective context with reportPlacementActions."
+  "summary": "Add Lens report placement version states (report.Resolved.Version, compareReportVersion, ReportPlacementHost) with an update offer that keeps opened figures, an explained incompatible state, and reportPlacementActions capability gating."
 }

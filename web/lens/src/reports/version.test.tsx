@@ -66,6 +66,7 @@ describe('report placement version notice', () => {
     fireEvent.click(within(notice).getByRole('button', { name: 'Keep this version' }))
     expect(keep).toHaveBeenCalledWith('first')
     expect(within(first).queryByTestId('report-version-first')).toBeNull()
+    expect(document.activeElement).toBe(first)
     expect(within(first).getAllByText('Online').length).toBeGreaterThan(0)
   })
 

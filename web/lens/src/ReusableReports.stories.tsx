@@ -14,7 +14,7 @@ function Example(props: { theme: LensThemeMode; firstVersion?: ReportVersionStat
   const placementHost: ReportPlacementHost | undefined = props.firstVersion ? {
     status: (id) => id === 'first' ? firstVersion() : 'current',
     update: (id) => { setFirstVersion('current'); setVersionNotice(`Updated ${id}`) },
-    keep: (id) => setVersionNotice(`Kept the opened version of ${id}`),
+    keep: (id) => { setFirstVersion('current'); setVersionNotice(`Kept the opened version of ${id}`) },
   } : undefined
   const [rejectSave, setRejectSave] = createSignal(false)
   let revision = 1

@@ -182,6 +182,8 @@ function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
       <section
         aria-label={props.group.label || undefined}
         class={`lens-panel lens-panel-group ${`lens-panel-group-${props.group.kind}`}`}
+        data-report-placement={reportHost ? props.group.id : undefined}
+        tabindex={reportHost ? -1 : undefined}
       >
         <Show when={Boolean(props.group.label || props.group.status || contextToolbar())}>
           <header class="lens-panel-header lens-panel-group-header">
