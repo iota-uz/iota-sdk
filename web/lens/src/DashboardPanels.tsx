@@ -1033,7 +1033,7 @@ export function DashboardPanels(props: DashboardPanelsProps) {
                 <div class="lens-dashboard-headline">
                   {/* Without a title an empty slot lets a host page own the heading
                     and keeps the dashboard's own chrome to the action row. */}
-                  {identityTitle() ? <h1 class="lens-dashboard-title">{identityTitle()}</h1> : <span />}
+                  {identityTitle() ? <h1 class="lens-dashboard-title" data-testid="lens-dashboard-title">{identityTitle()}</h1> : <span />}
                   {/* The actions travel as one block. Loose in the row they
                     re-ordered themselves against the filters at every wrap, so the
                     fourth control at 1440px was the second one at 1000px. */}
