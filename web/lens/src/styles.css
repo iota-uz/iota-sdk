@@ -444,7 +444,7 @@
   /* SECONDARY at the scope row's height: the context verbs sit among the
      chip-weight triggers, so they share their box and type, and carry the
      hairline that tells a verb from a value. Borderless 10px text read as a
-     caption, and a disabled Apply as a ghost of one. */
+     caption. */
   .lens-context-action {
     @apply lens:inline-flex lens:min-h-control-sm lens:flex-none lens:items-center lens:justify-center lens:gap-1.5 lens:whitespace-nowrap lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2.5 lens:font-sans lens:text-base lens:font-semibold lens:text-muted;
     text-decoration: none;
@@ -461,22 +461,10 @@
     background: rgb(255 255 255 / 0.08);
   }
 
-  .lens-context-action[data-variant='primary'] {
-    @apply lens:border-accent-600 lens:bg-accent-600 lens:text-on-accent;
-  }
-
-  .lens-context-action[data-variant='primary']:hover:not(:disabled, [aria-disabled='true']) {
-    @apply lens:border-accent-500 lens:bg-accent-500 lens:text-on-accent;
-  }
-
   .lens-context-action:disabled,
   .lens-context-action[aria-disabled='true'] {
     @apply lens:cursor-not-allowed lens:text-faint;
     background: var(--lens-bg-inset);
-  }
-
-  .lens-context-staged {
-    @apply lens:inline-flex lens:min-h-control-sm lens:items-center lens:text-base lens:text-warn;
   }
 
   .lens-context-error {

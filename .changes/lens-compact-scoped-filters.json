@@ -1,4 +1,4 @@
 {
   "bump": "patch",
-  "summary": "Compact Lens scoped filters: each section or card shows one Filters trigger with an override count and chips instead of two always-open filter rows, the effective-context line appears only when it differs from the dashboard or carries a notice, Apply and Restore appear only when they would change something, and context actions share the filter-trigger height with a primary Apply. Adds runtime keys filter.context.local and filter.context.card."
+  "summary": "Compact Lens scoped filters and apply them immediately: each section or card shows one Filters trigger with an override count and chips instead of two always-open filter rows, and the effective-context line appears only when it differs from the dashboard or carries a notice. Choosing a period, the inherited period, a facet selection or Restore now applies at once (the separate Apply button and its staged notice are gone), focus returns to the operated control, and context actions share the filter-trigger height. Runtime keys: adds filter.context.local and filter.context.card, removes filter.context.apply and filter.context.staged."
 }

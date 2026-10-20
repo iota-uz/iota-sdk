@@ -1,10 +1,11 @@
-import { cleanup, fireEvent, render, screen, within } from '@solidjs/testing-library'
-import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixtures from '../../fixtures/scoped-filters.json'
 import { LensDashboard } from '../LensDashboard'
 import { parseDocument } from '../contract'
 import type { EffectiveContext } from '../contract/types'
 import { contextDiffersFromDashboard } from './ScopedFilterControls'
+import { decodeFilterBoard, filterContextParam } from '../reports/filterDraft'
 
 afterEach(() => {
   cleanup()
@@ -68,6 +69,27 @@ describe('group filter context', () => {
     mount(document)
     expect(screen.queryByTestId('context-local-revenue')).toBeNull()
     expect(within(section('Revenue by channel')).getByText('01.06.2026 – 30.06.2026', { selector: '.lens-active-filter-chip > span' })).toBeInTheDocument()
+  })
+})
+
+describe('dashboard period', () => {
+  // False green: checking the trigger label alone would pass while the board still awaits a separate Apply (EAI-UZ/tasks#555).
+  it('applies the year-to-date preset to the document request without a further click', async () => {
+    const requests: string[] = []
+    const fetcher = vi.fn((input: RequestInfo | URL) => {
+      requests.push(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
+      return new Promise<Response>(() => undefined)
+    })
+    render(() => <LensDashboard src="/scoped-document" initialDocument={parseDocument(scenario('June card'))} fetcher={fetcher as typeof fetch} />)
+    const controls = screen.getByTestId('context-controls-dashboard-dashboard')
+    fireEvent.click(controls.querySelector<HTMLButtonElement>('.lens-filter-trigger')!)
+    fireEvent.click(await screen.findByRole('button', { name: /Current fiscal year/ }))
+    await waitFor(() => expect(requests.some((url) => url.includes(filterContextParam))).toBe(true))
+    const url = new URL(requests.find((candidate) => candidate.includes(filterContextParam))!, 'http://localhost')
+    const board = decodeFilterBoard(url.searchParams.get(filterContextParam)!)
+    expect(board.dashboard.period).toEqual({ mode: 'fixed', start: '2026-01-01', end: '2026-07-22' })
+    expect(board.cards?.revenue).toEqual({ period: { mode: 'fixed', start: '2026-06-01', end: '2026-06-30' } })
+    expect(screen.queryByTestId('context-apply')).toBeNull()
   })
 })
 

@@ -868,7 +868,7 @@ test('reusable report drafts preserve placement scope on save failure and cancel
 })
 
 // False green: captions alone would miss the previous fixture's figures surviving a context change.
-test('scoped filters stage a period, apply through one runtime, and retain a rejected default save', async ({ page }) => {
+test('scoped filters apply a restored selection at once, keep focus, and retain a rejected default save', async ({ page }) => {
   await openStory(page, 'scoped-filters--light', 0)
   const trigger = page.getByTestId('context-local-revenue')
   const report = trigger.locator('xpath=ancestor::section[1]')
@@ -878,17 +878,15 @@ test('scoped filters stage a period, apply through one runtime, and retain a rej
   await expect(page.getByTestId('context-controls-card-revenue')).toHaveCount(0)
   await trigger.click()
   const controls = report.getByTestId('context-controls-card-revenue')
-  await expect(controls.getByTestId('context-apply')).toHaveCount(0)
   const panel = report.getByTestId('context-panel-revenue')
   await expect(panel.locator(':focus')).toHaveCount(1)
+  await expect(page.getByTestId('context-apply')).toHaveCount(0)
   await controls.getByTestId('context-reset').focus()
   await page.keyboard.press('Enter')
-  await expect(controls.getByTestId('context-reset')).toHaveCount(0)
-  await expect(controls.getByTestId('context-apply')).toBeFocused()
-  await expect(online).toHaveText('1,200')
-  await page.keyboard.press('Enter')
   await expect(online).toHaveText('14,400')
+  await expect(controls.getByTestId('context-reset')).toHaveCount(0)
   await expect(panel.locator(':focus')).toHaveCount(1)
+  await expect(panel.getByRole('status')).toHaveCount(0)
   await expect(report.getByTestId('effective-context')).toContainText('2026-01-01 – 2026-12-31')
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   await page.getByRole('checkbox', { name: 'Reject default save' }).check()

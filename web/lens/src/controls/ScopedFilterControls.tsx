@@ -18,42 +18,43 @@ type ScopedFilterProps = { editor: ContextEditor; scope: Scope; id: string; effe
 
 const focusableControl = 'button:not(:disabled):not([aria-disabled="true"]), input:not(:disabled), a[href]'
 
-/** Apply and Restore remove themselves and Apply remounts the editor, so focus is handed back to the editor that replaces them. */
+/** Every selection applies at once and remounts the editor, so focus is handed back to the control the reader operated. */
 function focusLost(root: HTMLElement) {
   const active = root.ownerDocument.activeElement
   return !active || active === root.ownerDocument.body || !active.isConnected
 }
 
-function focusEditor(root: HTMLElement) {
+const periodTrigger = '.lens-filter-trigger'
+const facetTrigger = '.lens-facet-trigger'
+
+function focusEditor(root: HTMLElement, target: string) {
   if (!root.isConnected || !focusLost(root)) return
-  const target = root.querySelector<HTMLElement>('[data-testid="context-apply"]') ?? root.querySelector<HTMLElement>(focusableControl)
-  target?.focus()
+  ;(root.querySelector<HTMLElement>(target) ?? root.querySelector<HTMLElement>(focusableControl))?.focus()
 }
 
 export function ScopedFilterControls(props: ScopedFilterProps) {
   const { document } = useDashboard()
   const identity = createMemo(() => JSON.stringify([document.snapshotId, props.scope, props.id, props.editor, props.effective?.identity]))
-  const focus = { pending: false }
+  const focus: { pending?: string } = {}
   return <Show when={identity()} keyed>{(identity) => identity && <ScopedFilterDraftControls {...props} focus={focus} />}</Show>
 }
 
-function ScopedFilterDraftControls(props: ScopedFilterProps & { focus: { pending: boolean } }) {
+function ScopedFilterDraftControls(props: ScopedFilterProps & { focus: { pending?: string } }) {
   let root: HTMLDivElement | undefined
   onMount(() => {
-    if (!props.focus.pending || !root) return
+    const target = props.focus.pending
+    if (!target || !root) return
     const element = root
     requestAnimationFrame(() => {
-      if (!focusLost(element)) props.focus.pending = false
-      else if (element.isConnected) {
-        props.focus.pending = false
-        focusEditor(element)
-      }
+      if (!element.isConnected) return
+      props.focus.pending = undefined
+      focusEditor(element, target)
     })
   })
-  const keepFocus = (remounts: boolean) => {
-    props.focus.pending = remounts
+  const keepFocus = (target: string) => {
+    props.focus.pending = target
     const element = root
-    if (element) requestAnimationFrame(() => focusEditor(element))
+    if (element) requestAnimationFrame(() => focusEditor(element, target))
   }
   const { applyURL } = useFilters()
   const translate = useTranslate()
@@ -90,34 +91,36 @@ function ScopedFilterDraftControls(props: ScopedFilterProps & { focus: { pending
     get value() { return selectedRange() },
   } }
   const hostToday = () => parseISODate(new Intl.DateTimeFormat('en-CA', { timeZone: props.editor.value.calendar.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(props.editor.value.calendar.asOf)))
-  const onPeriod = (value: PeriodValue, preset?: string) => draft.update((current) => ({ ...current, period:
+  const commit = (change: (value: ContextFilters) => ContextFilters, focusTarget: string) => {
+    draft.update(change)
+    if (!draft.dirty()) return
+    draft.apply()
+    keepFocus(focusTarget)
+  }
+  const onPeriod = (value: PeriodValue, preset?: string) => commit((current) => ({ ...current, period:
     preset === 'last30days' ? { mode: 'relative', days: 30 }
       : preset === 'last12months' ? { mode: 'relative', months: 12 }
         : value.start && value.end ? { mode: 'fixed', start: value.start, end: value.end } : { mode: 'all' },
-  }))
-  const stageFacets = (_url: string, selections: ReadonlyMap<string, ReadonlySet<string>>) => {
-    draft.update((current) => {
+  }), periodTrigger)
+  const applyFacets = (_url: string, selections: ReadonlyMap<string, ReadonlySet<string>>) => {
+    commit((current) => {
       const constraints = new Map((current.constraints ?? []).map((constraint) => [constraint.dimension, constraint.values]))
       for (const [dimension, values] of selections) {
         if (values.size) constraints.set(dimension, [...values])
         else constraints.delete(dimension)
       }
       return { ...current, constraints: [...constraints].map(([dimension, values]) => ({ dimension, values })) }
-    })
+    }, facetTrigger)
   }
   const constraints = createMemo(() => draft.value().constraints ?? [])
   return <div class="lens-scoped-controls" data-testid={`context-controls-${props.scope}-${props.id}`} ref={(element) => { root = element }}>
     <PeriodFilterControl filter={filter} today={hostToday()} inheritLabel={inherited() ? inheritText() : undefined} onChange={onPeriod} />
-    <Show when={!inherited()}><button type="button" class="lens-context-action" data-testid="context-inherit" onClick={() => draft.update((value) => ({ ...value, period: props.scope === 'dashboard' ? { mode: 'reports' } : undefined }))}>{inheritText()}</button></Show>
-    <Show when={props.facets?.length}><FacetFilterMenu filters={props.facets!} onApplyURL={stageFacets} /></Show>
+    <Show when={!inherited()}><button type="button" class="lens-context-action" data-testid="context-inherit" onClick={() => commit((value) => ({ ...value, period: props.scope === 'dashboard' ? { mode: 'reports' } : undefined }), periodTrigger)}>{inheritText()}</button></Show>
+    <Show when={props.facets?.length}><FacetFilterMenu filters={props.facets!} onApplyURL={applyFacets} /></Show>
     <For each={constraints()}>{(constraint) => <span class="lens-active-filter-chip"><span>{constraintLabel(props.editor, constraint)}</span></span>}</For>
-    <Show when={draft.dirty()}>
-      <button type="button" class="lens-context-action" data-variant="primary" data-testid="context-apply" onClick={() => { draft.apply(); keepFocus(true) }}>{translate('filter.context.apply', 'Apply')}</button>
-    </Show>
     <Show when={draft.restorable()}>
-      <button type="button" class="lens-context-action" data-testid="context-reset" onClick={() => { draft.reset(); keepFocus(false) }}>{translate('filter.context.reset', 'Restore saved filters')}</button>
+      <button type="button" class="lens-context-action" data-testid="context-reset" onClick={() => { draft.reset(); if (draft.dirty()) draft.apply(); keepFocus(periodTrigger) }}>{translate('filter.context.reset', 'Restore saved filters')}</button>
     </Show>
-    <Show when={draft.dirty()}><span class="lens-context-staged" role="status">{translate('filter.context.staged', 'Changes are not applied')}</span></Show>
     <Show when={saveDefaults}><button type="button" class="lens-context-action" aria-disabled={draft.saving() || undefined} onClick={() => { if (!draft.saving()) void draft.saveDefaults().catch(() => undefined) }}>{translate('filter.context.save', 'Save filter defaults')}</button></Show>
     <Show when={draft.error()}><p class="lens-context-error" role="alert">{translate('filter.context.saveFailed', 'Filter defaults could not be saved')}</p></Show>
   </div>
