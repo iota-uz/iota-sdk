@@ -58,6 +58,56 @@ const (
 	I18nReportCardRetry            = "report.card.retry"
 	I18nPanelRendererUnavailable   = "panel.renderer.unavailable"
 
+	// Report picker and add-to-dashboard dialogs.
+	I18nReportPickerAddNone = "report.picker.addNone"
+
+	// Report picker and add-to-dashboard dialogs.
+	I18nReportDestinationConfirm      = "report.destination.confirm"
+	I18nReportDestinationDescription  = "report.destination.description"
+	I18nReportDestinationEmpty        = "report.destination.empty"
+	I18nReportDestinationFailed       = "report.destination.failed"
+	I18nReportDestinationList         = "report.destination.list"
+	I18nReportDestinationLoadFailed   = "report.destination.loadFailed"
+	I18nReportDestinationLoading      = "report.destination.loading"
+	I18nReportDestinationNew          = "report.destination.new"
+	I18nReportDestinationPlaced       = "report.destination.placed"
+	I18nReportDestinationSearch       = "report.destination.search"
+	I18nReportDestinationTitle        = "report.destination.title"
+	I18nReportPickerAdd               = "report.picker.add"
+	I18nReportPickerAddAnother        = "report.picker.addAnother"
+	I18nReportPickerAddFailed         = "report.picker.addFailed"
+	I18nReportPickerAdding            = "report.picker.adding"
+	I18nReportPickerBack              = "report.picker.back"
+	I18nReportPickerCancel            = "report.picker.cancel"
+	I18nReportPickerCompound          = "report.picker.compound"
+	I18nReportPickerCount             = "report.picker.count"
+	I18nReportPickerDescription       = "report.picker.description"
+	I18nReportPickerEmpty             = "report.picker.empty"
+	I18nReportPickerList              = "report.picker.list"
+	I18nReportPickerLoadFailed        = "report.picker.loadFailed"
+	I18nReportPickerLoadMore          = "report.picker.loadMore"
+	I18nReportPickerLoading           = "report.picker.loading"
+	I18nReportPickerNoMatches         = "report.picker.noMatches"
+	I18nReportPickerNone              = "report.picker.none"
+	I18nReportPickerOwnershipPersonal = "report.picker.ownership.personal"
+	I18nReportPickerOwnershipShared   = "report.picker.ownership.shared"
+	I18nReportPickerOwnershipSharedBy = "report.picker.ownership.sharedBy"
+	I18nReportPickerOwnershipSystem   = "report.picker.ownership.system"
+	I18nReportPickerPlaced            = "report.picker.placed"
+	I18nReportPickerPreview           = "report.picker.preview"
+	I18nReportPickerPreviewFailed     = "report.picker.previewFailed"
+	I18nReportPickerPreviewLoading    = "report.picker.previewLoading"
+	I18nReportPickerPreviewOf         = "report.picker.previewOf"
+	I18nReportPickerRestriction       = "report.picker.restriction"
+	I18nReportPickerRetry             = "report.picker.retry"
+	I18nReportPickerScopeAll          = "report.picker.scope.all"
+	I18nReportPickerScopePersonal     = "report.picker.scope.personal"
+	I18nReportPickerScopeShared       = "report.picker.scope.shared"
+	I18nReportPickerScopeLabel        = "report.picker.scopeLabel"
+	I18nReportPickerSearch            = "report.picker.search"
+	I18nReportPickerSelectReport      = "report.picker.selectReport"
+	I18nReportPickerTitle             = "report.picker.title"
+
 	I18nCascadeCheckpoint             = "cascade.checkpoint"
 	I18nCascadeOpenStage              = "cascade.openStage"
 	I18nCascadeResult                 = "cascade.result"
@@ -415,6 +465,54 @@ func RuntimeI18nKeys() []string {
 		I18nReportActionCopy, I18nReportActionRemove, I18nReportActionFailed,
 		I18nReportCardCalculated, I18nReportCardFailed, I18nReportCardRetry,
 		I18nPanelRendererUnavailable,
+
+		I18nReportPickerAddNone,
+
+		I18nReportDestinationConfirm,
+		I18nReportDestinationDescription,
+		I18nReportDestinationEmpty,
+		I18nReportDestinationFailed,
+		I18nReportDestinationList,
+		I18nReportDestinationLoadFailed,
+		I18nReportDestinationLoading,
+		I18nReportDestinationNew,
+		I18nReportDestinationPlaced,
+		I18nReportDestinationSearch,
+		I18nReportDestinationTitle,
+		I18nReportPickerAdd,
+		I18nReportPickerAddAnother,
+		I18nReportPickerAddFailed,
+		I18nReportPickerAdding,
+		I18nReportPickerBack,
+		I18nReportPickerCancel,
+		I18nReportPickerCompound,
+		I18nReportPickerCount,
+		I18nReportPickerDescription,
+		I18nReportPickerEmpty,
+		I18nReportPickerList,
+		I18nReportPickerLoadFailed,
+		I18nReportPickerLoadMore,
+		I18nReportPickerLoading,
+		I18nReportPickerNoMatches,
+		I18nReportPickerNone,
+		I18nReportPickerOwnershipPersonal,
+		I18nReportPickerOwnershipShared,
+		I18nReportPickerOwnershipSharedBy,
+		I18nReportPickerOwnershipSystem,
+		I18nReportPickerPlaced,
+		I18nReportPickerPreview,
+		I18nReportPickerPreviewFailed,
+		I18nReportPickerPreviewLoading,
+		I18nReportPickerPreviewOf,
+		I18nReportPickerRestriction,
+		I18nReportPickerRetry,
+		I18nReportPickerScopeAll,
+		I18nReportPickerScopePersonal,
+		I18nReportPickerScopeShared,
+		I18nReportPickerScopeLabel,
+		I18nReportPickerSearch,
+		I18nReportPickerSelectReport,
+		I18nReportPickerTitle,
 
 		I18nCalendarAnnRange, I18nCalendarAnnStart, I18nCalendarHintEnd, I18nCalendarHintStart,
 		I18nCalendarLabel, I18nCalendarNextMonth, I18nCalendarPrevMonth,

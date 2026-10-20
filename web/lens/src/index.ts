@@ -22,6 +22,7 @@ export {
   type DashboardDocument,
 } from './contract'
 export type { LensThemeMode } from './runtime'
+export { LensMessagesProvider } from './runtime'
 
 export { createReportDraft, copyReportDefinition, duplicateReportPlacement, parseReportDefinition, parseReportComposition } from './reports/draft'
 export type { ReportDefinition, ReportComposition, ReportPlacement, ReportSourceDescriptor, ReportDraftHost, SaveIntent } from './reports/draft'
@@ -41,3 +42,10 @@ export { reportUnavailableCopy } from './reports/unavailable'
 export type { HostPanelRenderer, HostPanelRendererProps, HostPanelRenderers } from './panels/hostRenderers'
 export type { PanelRegistry, PanelComponent } from './panels/registry'
 export type { PanelFrameState } from './runtime'
+export { ReportPicker, type ReportPickerProps } from './reports/ReportPicker'
+export { ReportDestinationPicker, type ReportDestinationPickerProps } from './reports/ReportDestinationPicker'
+export { appendReportPicks, createReportPickerSelection, parseCatalogPage, parseDestinations } from './reports/picker'
+export type {
+  ReportCatalogEntry, ReportCatalogHost, ReportCatalogPage, ReportCatalogQuery, ReportCatalogScope, ReportDestination,
+  ReportDestinationChoice, ReportDestinationConfirmation, ReportDestinationHost, ReportPick, ReportPickerConfirmation,
+} from './reports/picker'

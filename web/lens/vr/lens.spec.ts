@@ -31,6 +31,26 @@ const storyIds = [
   'report-card--card-retry-dark',
   'report-card--progressive-light',
   'report-card--progressive-dark',
+  'report-picker--light',
+  'report-picker--dark',
+  'report-picker--selected-light',
+  'report-picker--selected-dark',
+  'report-picker--preview-light',
+  'report-picker--preview-dark',
+  'report-picker--loading-light',
+  'report-picker--loading-dark',
+  'report-picker--empty-light',
+  'report-picker--empty-dark',
+  'report-picker--no-matches-light',
+  'report-picker--no-matches-dark',
+  'report-picker--load-failed-light',
+  'report-picker--load-failed-dark',
+  'report-picker--add-failed-light',
+  'report-picker--add-failed-dark',
+  'report-picker--destination-light',
+  'report-picker--destination-dark',
+  'report-picker--in-draft-light',
+  'report-picker--in-draft-dark',
   'choropleth-map--dense-region-labels',
   'choropleth-map--state-matrix',
   'comparison-interactions--previous-period',
@@ -225,6 +245,26 @@ const staticStories = [
   ['report-card--card-retry-dark', 1, 40],
   ['report-card--progressive-light', 0, 0],
   ['report-card--progressive-dark', 0, 0],
+  ['report-picker--light', 0, 0],
+  ['report-picker--dark', 0, 0],
+  ['report-picker--selected-light', 0, 0],
+  ['report-picker--selected-dark', 0, 0],
+  ['report-picker--preview-light', 0, 0],
+  ['report-picker--preview-dark', 0, 0],
+  ['report-picker--loading-light', 0, 0],
+  ['report-picker--loading-dark', 0, 0],
+  ['report-picker--empty-light', 0, 0],
+  ['report-picker--empty-dark', 0, 0],
+  ['report-picker--no-matches-light', 0, 0],
+  ['report-picker--no-matches-dark', 0, 0],
+  ['report-picker--load-failed-light', 0, 0],
+  ['report-picker--load-failed-dark', 0, 0],
+  ['report-picker--add-failed-light', 0, 0],
+  ['report-picker--add-failed-dark', 0, 0],
+  ['report-picker--destination-light', 0, 0],
+  ['report-picker--destination-dark', 0, 0],
+  ['report-picker--in-draft-light', 0, 0],
+  ['report-picker--in-draft-dark', 0, 0],
   ['choropleth-map--dense-region-labels', 1, 10],
   // ECharts map labels can vary by a couple of antialiased edge pixels even
   // when the rendered regions, values, and geometry are identical.
@@ -1120,3 +1160,97 @@ test('scoped filters apply a restored selection at once, keep focus, and retain 
     await screenshot(page, `scoped-filters-responsive-${width}`, { maxDiffPixels: 16 })
   }
 })
+
+// False green: a picker that wrote to the draft on each click, or a retry that minted a new confirmation, would still end with cards in the draft.
+test('report picker adds to the draft only on confirmation and returns the reader where they were', async ({ page }) => {
+  await openStory(page, 'report-picker--in-draft-light', 0)
+  const status = page.getByTestId('draft-status')
+  await expect(status).toHaveText('Saved · 1 cards')
+  await page.getByRole('checkbox', { name: 'Reject next add' }).check()
+  const trigger = page.getByRole('button', { name: 'Add reports', exact: true })
+  await trigger.scrollIntoViewIfNeeded()
+  const scrollY = await page.evaluate(() => window.scrollY)
+  expect(scrollY).toBeGreaterThan(0)
+  await trigger.click()
+  const dialog = page.getByRole('dialog', { name: 'Add reports to Sales board' })
+  await expect(dialog).toBeVisible()
+  const search = dialog.getByRole('searchbox', { name: 'Search reports' })
+  await expect(search).toBeFocused()
+
+  await search.fill('Large')
+  const large = dialog.locator('[data-report-id="report-03"]')
+  await expect(dialog.locator('[data-report-id]')).toHaveCount(1)
+  await large.getByRole('checkbox').check()
+  await expect(dialog).toContainText('Large losses: Shows the last 12 months only')
+  await large.getByRole('button', { name: 'Preview Large losses' }).click()
+  const preview = dialog.getByRole('region', { name: 'Preview Large losses' })
+  await expect(preview.getByRole('table')).toBeVisible()
+  await preview.getByRole('button', { name: 'Back to reports' }).click()
+  await expect(search).toHaveValue('Large')
+  await expect(large.getByRole('checkbox')).toBeChecked()
+  await expect(large.getByRole('button', { name: 'Preview Large losses' })).toBeFocused()
+
+  await search.fill('Revenue')
+  const revenue = dialog.locator('[data-report-id="report-01"]')
+  await expect(revenue).toContainText('Already on this dashboard')
+  await expect(revenue.getByRole('checkbox')).toBeDisabled()
+  await revenue.getByRole('button', { name: 'Add another card' }).click()
+  await expect(status).toHaveText('Saved · 1 cards')
+
+  const add = dialog.getByRole('button', { name: 'Add 2' })
+  await add.click()
+  await expect(dialog.getByRole('alert')).toContainText('Your selection is kept')
+  await expect(search).toHaveValue('Revenue')
+  await expect(status).toHaveText('Saved · 1 cards')
+  await add.click()
+  await expect(dialog).toHaveCount(0)
+  await expect(status).toHaveText('Unsaved changes · 3 cards')
+  await expect(page.getByTestId('draft-cards').locator('li')).toHaveText(['Revenue', 'Large losses', 'Revenue'])
+  await expect(trigger).toBeFocused()
+  expect(Math.abs(await page.evaluate(() => window.scrollY) - scrollY)).toBeLessThanOrEqual(1)
+
+  await trigger.click()
+  await dialog.getByRole('searchbox', { name: 'Search reports' }).fill('Large')
+  await expect(dialog.locator('[data-report-id="report-03"]')).toContainText('Already on this dashboard')
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+  await expect(status).toHaveText('Unsaved changes · 3 cards')
+
+  const addTo = page.getByRole('button', { name: 'Add Revenue to a dashboard' })
+  await addTo.click()
+  const destination = page.getByRole('dialog', { name: 'Add “Revenue” to a dashboard' })
+  await expect(destination.getByRole('alert')).toContainText('The dashboards could not be loaded.')
+  await destination.getByRole('button', { name: 'Try again' }).click()
+  await destination.getByRole('radio', { name: 'Claims board' }).check()
+  await destination.getByRole('button', { name: 'Add to dashboard' }).click()
+  await expect(destination).toHaveCount(0)
+  await expect(page.getByTestId('draft-log')).toHaveText('Host adds to Claims board')
+  await expect(addTo).toBeFocused()
+})
+
+for (const width of [1440, 1024, 390]) {
+  // False green: a 1600px baseline would hide a footer action pushed off a narrow dialog.
+  test(`report picker responsive states at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    for (const story of ['report-picker--selected-light', 'report-picker--preview-light', 'report-picker--destination-light'] as const) {
+      await openStory(page, story, 0)
+      const dialog = page.getByRole('dialog')
+      await expect(dialog).toBeVisible()
+      if (story === 'report-picker--selected-light') await expect(dialog.getByRole('button', { name: 'Add 3' })).toBeVisible()
+      if (story === 'report-picker--preview-light') await expect(dialog.getByRole('table')).toBeVisible()
+      const overflow = await page.evaluate(() => {
+        const problems: string[] = []
+        if (document.documentElement.scrollWidth > window.innerWidth + 1) problems.push('page')
+        for (const button of document.querySelectorAll<HTMLElement>('.lens-report-dialog-footer button, .lens-report-dialog-header button')) {
+          const rect = button.getBoundingClientRect()
+          if (rect.left < 0 || rect.right > window.innerWidth + 1 || rect.bottom > window.innerHeight + 1) problems.push(button.textContent ?? 'button')
+        }
+        return problems
+      })
+      expect(overflow).toEqual([])
+      // Button corner antialiasing alternates between two stable rasters (a few pixels); geometry is asserted above.
+      await screenshot(page, `${story}-${width}`, { maxDiffPixels: 16 })
+    }
+  })
+}

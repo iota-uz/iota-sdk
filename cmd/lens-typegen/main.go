@@ -53,7 +53,7 @@ func run() error {
 	}
 	reports, err := generate(config{
 		dir: root, packagePattern: "./pkg/lens/report", rootType: "Composition",
-		additionalTypes: []string{"Definition", "SourceDescriptor", "VersionStatus"}, versionConstant: "ContractVersion",
+		additionalTypes: []string{"Definition", "SourceDescriptor", "VersionStatus", "CatalogQuery", "CatalogPage", "Destination"}, versionConstant: "ContractVersion",
 		palette: paletteConfig{series: color.Series(), neutral: color.Neutral},
 	})
 	if err != nil {

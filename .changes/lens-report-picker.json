@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Lens adds a report picker over a host catalog: report.Library/CatalogQuery/CatalogPage/CatalogEntry (ownership, owner, compound member count, restriction, placements in the target; no totals) with Catalog.Search, MarkPlaced and PlacementCounts, and report.Destinations for adding an opened analysis to a dashboard. @iota-uz/sdk/lens exports ReportPicker (search, owner tabs, paging, preview, already-placed marking with an explicit second card, distinct empty/no-match/error states, Add N with a retry-stable confirmation id), ReportDestinationPicker, appendReportPicks, createReportPickerSelection and LensMessagesProvider. Nested Lens focus traps now yield Tab and Escape to the most recently opened one."
+}

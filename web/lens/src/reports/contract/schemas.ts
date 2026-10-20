@@ -36,6 +36,39 @@ export const CapabilitiesSchema: z.ZodType<Contract.Capabilities> = z.object({
   export: z.boolean(),
 }).strict()
 
+export const CatalogEntrySchema: z.ZodType<Contract.CatalogEntry> = z.lazy(() => z.object({
+  owner: z.lazy(() => CatalogOwnerSchema).optional(),
+  id: z.string(),
+  revision: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  source: z.string().optional(),
+  ownership: z.lazy(() => OwnershipSchema),
+  restriction: z.string().optional(),
+  members: z.number().int().optional(),
+  placed: z.number().int().optional(),
+}).strict())
+
+export const CatalogOwnerSchema: z.ZodType<Contract.CatalogOwner> = z.object({
+  id: z.string(),
+  name: z.string(),
+}).strict()
+
+export const CatalogPageSchema: z.ZodType<Contract.CatalogPage> = z.object({
+  entries: z.array(z.lazy(() => CatalogEntrySchema)),
+  next: z.string().optional(),
+}).strict()
+
+export const CatalogQuerySchema: z.ZodType<Contract.CatalogQuery> = z.lazy(() => z.object({
+  search: z.string().optional(),
+  scope: z.lazy(() => CatalogScopeSchema).optional(),
+  cursor: z.string().optional(),
+  target: z.string().optional(),
+  limit: z.number().int().optional(),
+}).strict())
+
+export const CatalogScopeSchema: z.ZodType<Contract.CatalogScope> = z.enum(["all", "personal", "shared"])
+
 export const CompositionSchema: z.ZodType<Contract.Composition> = z.lazy(() => z.object({
   context: z.lazy(() => ContextBoardSchema).optional(),
   id: z.string(),
@@ -96,6 +129,14 @@ export const DefinitionSchema: z.ZodType<Contract.Definition> = z.lazy(() => z.o
   view: z.string(),
   parameters: z.lazy(() => ParametersSchema).optional(),
 }).strict())
+
+export const DestinationSchema: z.ZodType<Contract.Destination> = z.object({
+  id: z.string(),
+  title: z.string(),
+  placed: z.number().int().optional(),
+}).strict()
+
+export const OwnershipSchema: z.ZodType<Contract.Ownership> = z.enum(["personal", "shared", "system"])
 
 export const ParametersSchema: z.ZodType<Contract.Parameters> = z.lazy(() => z.record(z.string(), z.unknown()))
 
