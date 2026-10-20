@@ -471,6 +471,37 @@
     @apply lens:m-0 lens:basis-full lens:text-base lens:text-neg;
   }
 
+  /* A placement's version notice sits between its heading and its figures:
+     the opened figures stay below an update offer, and an incompatible
+     definition replaces them with the reason instead of stale numbers. */
+  .lens-report-version {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-x-3 lens:gap-y-2 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:px-4 lens:py-2 lens:text-md lens:text-strong;
+  }
+
+  .lens-report-version p {
+    @apply lens:m-0;
+  }
+
+  .lens-report-unavailable p {
+    @apply lens:m-0;
+    max-width: 60ch;
+  }
+
+  .lens-report-version-actions {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-2;
+  }
+
+  .lens-context-action.lens-report-version-update {
+    @apply lens:border-transparent;
+    background: var(--lens-accent-600);
+    color: var(--lens-text-on-accent);
+  }
+
+  .lens-context-action.lens-report-version-update:hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--lens-accent-500);
+    color: var(--lens-text-on-accent);
+  }
+
   .lens-context-info {
     @apply lens:break-words lens:text-xs lens:text-muted;
   }

@@ -1,6 +1,7 @@
 
 import type { JSX } from 'solid-js'
 import { FilterDefaultsProvider, type FilterDefaultsHost } from './reports/filterHost'
+import { ReportPlacementProvider, type ReportPlacementHost } from './reports/ReportVersionNotice'
 import fixture from '../fixtures/panels-v1.json'
 import { parseDocument, type DashboardDocument } from './contract'
 import { DashboardPanels } from './DashboardPanels'
@@ -9,6 +10,8 @@ import { DashboardRuntimeProvider, DocumentProvider, type LensThemeMode } from '
 
 export interface LensDashboardProps {
   filterDefaultsHost?: FilterDefaultsHost
+  /** Version state of reusable report placements, keyed by placement id. */
+  reportPlacementHost?: ReportPlacementHost
   toolbar?: (context: LensToolbarContext) => JSX.Element
   src?: string
   /**
@@ -47,11 +50,13 @@ export function LensDashboard(props: LensDashboardProps) {
           theme still travels on this wrapper so portalled overlays inherit it. */}
       <div data-theme={theme()}>
         <FilterDefaultsProvider host={props.filterDefaultsHost}>
-          <DocumentProvider src={props.src} initialDocument={document()} csrf={props.csrf} fetcher={props.fetcher}>
-            <DashboardRuntimeProvider locale={locale()} csrf={props.csrf} fetcher={props.fetcher} fallback={fallback()}>
-              {() => <DashboardPanels filterToday={props.filterToday} toolbar={props.toolbar} />}
-            </DashboardRuntimeProvider>
-          </DocumentProvider>
+          <ReportPlacementProvider host={props.reportPlacementHost}>
+            <DocumentProvider src={props.src} initialDocument={document()} csrf={props.csrf} fetcher={props.fetcher}>
+              <DashboardRuntimeProvider locale={locale()} csrf={props.csrf} fetcher={props.fetcher} fallback={fallback()}>
+                {() => <DashboardPanels filterToday={props.filterToday} toolbar={props.toolbar} />}
+              </DashboardRuntimeProvider>
+            </DocumentProvider>
+          </ReportPlacementProvider>
         </FilterDefaultsProvider>
       </div>
     </div>

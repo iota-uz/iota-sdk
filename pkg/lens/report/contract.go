@@ -300,23 +300,57 @@ func resolve(ctx context.Context, host Host, placement Placement, defaults Param
 	return Resolved{Context: effective, Definition: definition, Placement: clone(placement), Source: descriptor, Parameters: parameters, Spec: clone(spec)}, nil
 }
 
+// VersionStatus compares an opened result with the host's latest definition and source.
+type VersionStatus string
+
+const (
+	// VersionCurrent means the opened result still describes the latest definition and source.
+	VersionCurrent VersionStatus = "current"
+	// VersionUpdateAvailable means reopening resolves a newer compatible definition or source.
+	VersionUpdateAvailable VersionStatus = "update-available"
+	// VersionIncompatible means the latest definition cannot run on the current source contract or view.
+	VersionIncompatible VersionStatus = "incompatible"
+)
+
+// Changed reports whether the host holds a newer definition or source than the opened result.
 func (r Resolved) Changed(ctx context.Context, host Host) (bool, error) {
+	status, err := r.Version(ctx, host)
+	if err != nil {
+		return false, err
+	}
+	return status != VersionCurrent, nil
+}
+
+// Version classifies the host's latest definition and source against the opened result.
+// The opened result is never mutated; the caller decides whether to offer an update.
+func (r Resolved) Version(ctx context.Context, host Host) (VersionStatus, error) {
 	if host == nil {
-		return false, invalid("report host is required")
+		return "", invalid("report host is required")
 	}
 	latest, err := host.Report(ctx, r.Definition.ID)
 	if err != nil {
-		return false, err
+		return "", serrors.Wrap("lens.report.Version", err)
 	}
 	source, err := host.Source(ctx, latest.Source.ID)
 	if err != nil {
-		return false, err
+		return "", serrors.Wrap("lens.report.Version", err)
 	}
 	if source == nil {
-		return false, invalid("host returned an absent source")
+		return "", invalid("host returned an absent source")
 	}
-	descriptor := source.Descriptor()
-	return latest.Revision != r.Definition.Revision || latest.Source != r.Definition.Source || descriptor.Revision != r.Source.Revision || descriptor.Version != r.Source.Version, nil
+	return CompareVersion(r.Definition, r.Source, latest, source.Descriptor()), nil
+}
+
+// CompareVersion is the storage-agnostic rule behind Resolved.Version. Hosts that already
+// hold both revisions, for example a client polling for updates, use it directly.
+func CompareVersion(opened Definition, openedSource SourceDescriptor, latest Definition, latestSource SourceDescriptor) VersionStatus {
+	if latest.Source.ID != latestSource.ID || latest.Source.Version != latestSource.Version || !slices.Contains(latestSource.Capabilities.Views, latest.View) {
+		return VersionIncompatible
+	}
+	if latest.Revision != opened.Revision || latest.Source != opened.Source || latestSource.Revision != openedSource.Revision || latestSource.Version != openedSource.Version {
+		return VersionUpdateAvailable
+	}
+	return VersionCurrent
 }
 
 type ContextSource interface {

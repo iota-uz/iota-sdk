@@ -26,6 +26,7 @@ import { ExplorePanel } from './explore'
 import { FilterBar, FilterControls, type CalendarDate } from './controls'
 import { ContextGroupDetails, ContextGroupToolbar, createContextGroupDisclosure, hasContextGroupToolbar } from './controls/ScopedFilterControls'
 import { isVisualRegression } from './visualRegression'
+import { ReportVersionNotice, reportPlacementAvailable, useReportPlacementHost } from './reports/ReportVersionNotice'
 
  
 
@@ -175,6 +176,7 @@ function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
   const [filtersOpen, setFiltersOpen] = createSignal(false)
   const disclosure = createContextGroupDisclosure(filtersOpen, setFiltersOpen)
   const contextToolbar = () => Boolean(props.group.filterContext && hasContextGroupToolbar(document.contextEditor, props.group.filterContext, props.group.id))
+  const reportHost = useReportPlacementHost()
   return (
     <div class="lens-grid-item" style={spanStyle(props.group.span)}>
       <section
@@ -203,8 +205,9 @@ function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
         <Show when={props.group.caption}>
           <p class="lens-panel-caption" data-stale={documentState.isRefreshing || undefined}>{props.group.caption}</p>
         </Show>
+        <Show when={reportHost && props.group.kind === 'grid'}><ReportVersionNotice placementId={props.group.id} /></Show>
         <Show when={props.group.filterContext}>{(context) => <ContextGroupDetails id={props.group.id} context={context()} disclosure={disclosure} />}</Show>
-        <Show when={!props.group.filterContext || (!props.group.filterContext.conflicts.length && !props.group.filterContext.unsupported.length)}>{props.children}</Show>
+        <Show when={reportPlacementAvailable(reportHost, props.group.id) && (!props.group.filterContext || (!props.group.filterContext.conflicts.length && !props.group.filterContext.unsupported.length))}>{props.children}</Show>
       </section>
     </div>
   )

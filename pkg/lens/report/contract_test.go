@@ -208,3 +208,44 @@ func TestChangedRejectsAbsentHost(t *testing.T) {
 	require.False(t, changed)
 	require.True(t, serrors.HasCode(err, serrors.Invalid))
 }
+
+// False green: Changed alone is true for both a newer revision and a broken contract, so the
+// opened result could offer an update that cannot run; each step must also leave it intact.
+func TestVersionSeparatesCompatibleUpdatesFromIncompatibleContracts(t *testing.T) {
+	t.Parallel()
+	host, definition := fixture()
+	opened, err := report.Resolve(context.Background(), host, report.Placement{ID: "first", ReportID: definition.ID}, nil)
+	require.NoError(t, err)
+	status, err := opened.Version(context.Background(), host)
+	require.NoError(t, err)
+	require.Equal(t, report.VersionCurrent, status)
+
+	host.source.descriptor.Revision = "v2"
+	status, err = opened.Version(context.Background(), host)
+	require.NoError(t, err)
+	require.Equal(t, report.VersionUpdateAvailable, status)
+
+	renamed := definition
+	renamed.Revision, renamed.View = "r2", "detail"
+	host.reports[definition.ID] = renamed
+	status, err = opened.Version(context.Background(), host)
+	require.NoError(t, err)
+	require.Equal(t, report.VersionIncompatible, status, "a view the source no longer offers cannot be adopted")
+
+	host.reports[definition.ID] = definition
+	host.source.descriptor.Version = 2
+	status, err = opened.Version(context.Background(), host)
+	require.NoError(t, err)
+	require.Equal(t, report.VersionIncompatible, status)
+	changed, err := opened.Changed(context.Background(), host)
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.Equal(t, "v1", opened.Source.Revision)
+	require.Equal(t, 1, opened.Source.Version)
+
+	_, err = (report.Resolved{}).Version(context.Background(), nil)
+	require.True(t, serrors.HasCode(err, serrors.Invalid))
+	host.reports = map[string]report.Definition{}
+	_, err = opened.Version(context.Background(), host)
+	require.True(t, serrors.HasCode(err, serrors.NotFound))
+}

@@ -4,8 +4,18 @@ import { parseDocument } from './contract'
 import { createReportDraft, parseReportComposition } from './reports/draft'
 import fixture from '../fixtures/reusable-reports.json'
 import type { LensThemeMode } from './runtime'
+import type { ReportPlacementHost } from './reports/ReportVersionNotice'
+import type { ReportVersionStatus } from './reports/version'
 
-function Example(props: { theme: LensThemeMode }) {
+function Example(props: { theme: LensThemeMode; firstVersion?: ReportVersionStatus }) {
+  // A synthetic host: the first placement was opened before its definition changed.
+  const [firstVersion, setFirstVersion] = createSignal(props.firstVersion)
+  const [versionNotice, setVersionNotice] = createSignal('')
+  const placementHost: ReportPlacementHost | undefined = props.firstVersion ? {
+    status: (id) => id === 'first' ? firstVersion() : 'current',
+    update: (id) => { setFirstVersion('current'); setVersionNotice(`Updated ${id}`) },
+    keep: (id) => setVersionNotice(`Kept the opened version of ${id}`),
+  } : undefined
   const [rejectSave, setRejectSave] = createSignal(false)
   let revision = 1
   const draft = createReportDraft(parseReportComposition(fixture.composition), {
@@ -36,10 +46,15 @@ function Example(props: { theme: LensThemeMode }) {
       <button type="button" onClick={() => draft.cancel()}>Cancel</button>
       <p role="status">{draft.dirty() ? 'Unsaved changes' : 'Saved'} · revision {draft.saved().revision}</p>
       <Show when={Boolean(draft.error())}><p role="alert">Save failed. Your changes are retained.</p></Show>
+      <Show when={versionNotice()}><p data-testid="version-host-notice">{versionNotice()}</p></Show>
     </div>
-    <LensDashboard initialDocument={document()} theme={props.theme} />
+    <LensDashboard initialDocument={document()} theme={props.theme} reportPlacementHost={placementHost} />
   </div>
 }
 
 export const Light = () => <Example theme="light" />
 export const Dark = () => <Example theme="dark" />
+export const UpdateAvailableLight = () => <Example theme="light" firstVersion="update-available" />
+export const UpdateAvailableDark = () => <Example theme="dark" firstVersion="update-available" />
+export const IncompatibleLight = () => <Example theme="light" firstVersion="incompatible" />
+export const IncompatibleDark = () => <Example theme="dark" firstVersion="incompatible" />

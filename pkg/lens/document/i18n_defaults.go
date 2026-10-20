@@ -5,6 +5,11 @@ package document
 // longer has to redeclare these keys just to avoid component-local literals.
 func RuntimeI18nDefaults() map[string]string {
 	return map[string]string{
+		I18nReportVersionUpdateAvailable:  "A newer version of this report is available.",
+		I18nReportVersionUpdate:           "Update report",
+		I18nReportVersionKeep:             "Keep this version",
+		I18nReportVersionUpdateFailed:     "The report could not be updated. The figures shown are still the opened version.",
+		I18nReportVersionIncompatible:     "This report is unavailable: its definition no longer matches the data source. Ask the report owner to update it.",
 		I18nCascadeCheckpoint:             "Interim total",
 		I18nCascadeResult:                 "Closing total",
 		I18nDrillClose:                    "Close details",
