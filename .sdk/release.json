@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Add owned Lens report caching with shared payload and build budgets, bounded snapshots and independently owned memoized results."
+    }
+  ],
+  "source": "63c4dc96b5fff7614d2ed3f9b73d2fe43dda43b6",
+  "version": "0.25.0"
+}
