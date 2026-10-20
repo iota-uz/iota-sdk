@@ -59,6 +59,15 @@ func filterExamples() error {
 		{"Annual dashboard", filtercontext.ContextBoard{Calendar: calendar, Dashboard: filtercontext.ContextFilters{Period: &annual}}},
 		{"June card", filtercontext.ContextBoard{Calendar: calendar, Dashboard: filtercontext.ContextFilters{Period: &annual}, Cards: map[string]filtercontext.ContextFilters{"revenue": {Period: &june}}}},
 		{"Conflict and unsupported", filtercontext.ContextBoard{Calendar: calendar, Dashboard: filtercontext.ContextFilters{Period: &annual, Constraints: []filtercontext.ContextConstraint{{Dimension: "product", Values: []string{"B"}}}}}},
+		// Appended last: stories address the scenarios above by position.
+		{"Report periods with June card", filtercontext.ContextBoard{Calendar: calendar, Dashboard: filtercontext.ContextFilters{Period: &filtercontext.ContextPeriod{Mode: "reports"}}, Cards: map[string]filtercontext.ContextFilters{"revenue": {Period: &june}}}},
+		{"One exploration level", filtercontext.ContextBoard{Calendar: calendar, Dashboard: filtercontext.ContextFilters{Period: &annual}, Groups: map[string][]filtercontext.ContextLayer{"revenue": {
+			{Origin: filtercontext.ContextOrigin{Scope: "group", ID: "channel"}, Filters: filtercontext.ContextFilters{Period: &june}},
+		}}}},
+		{"Two exploration levels", filtercontext.ContextBoard{Calendar: calendar, Dashboard: filtercontext.ContextFilters{Period: &annual}, Groups: map[string][]filtercontext.ContextLayer{"revenue": {
+			{Origin: filtercontext.ContextOrigin{Scope: "group", ID: "channel"}, Filters: filtercontext.ContextFilters{Period: &june}},
+			{Origin: filtercontext.ContextOrigin{Scope: "group", ID: "product"}, Filters: filtercontext.ContextFilters{Constraints: []filtercontext.ContextConstraint{{Dimension: "product", Values: []string{"A"}}}}},
+		}}}},
 	}
 	examples := []struct {
 		Name     string                      `json:"name"`
