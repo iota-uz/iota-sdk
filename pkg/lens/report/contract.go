@@ -110,12 +110,12 @@ type Resolved struct {
 	// Unavailable is the wire reason Compose rendered this placement with, or
 	// empty when it executed.
 	Unavailable document.GroupUnavailable
-	Context    *filtercontext.EffectiveContext
-	Definition Definition
-	Placement  Placement
-	Source     SourceDescriptor
-	Parameters Parameters
-	Spec       lens.DashboardSpec
+	Context     *filtercontext.EffectiveContext
+	Definition  Definition
+	Placement   Placement
+	Source      SourceDescriptor
+	Parameters  Parameters
+	Spec        lens.DashboardSpec
 }
 
 func invalid(message string) error {
