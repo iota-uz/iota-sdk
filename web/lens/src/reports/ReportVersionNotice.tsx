@@ -44,7 +44,9 @@ export function ReportVersionNotice(props: { placementId: string; unavailable?: 
     }
   }
   return <>
-    <Show when={!props.unavailable && status() === 'update-available' && !kept()}>
+    {/* The host may report `current` before the refresh settles; stay mounted
+        while updating or failed so a rejected refresh still offers a retry. */}
+    <Show when={!props.unavailable && (status() === 'update-available' || updating() || failed()) && !kept()}>
       <div class="lens-report-version" data-testid={`report-version-${props.placementId}`} data-status="update-available" role="status" ref={(element) => { root = element }}>
         <p>{translate('report.version.updateAvailable', 'A newer version of this report is available.')}</p>
         <div class="lens-report-version-actions">

@@ -97,6 +97,21 @@ describe('report placement version notice', () => {
     await waitFor(() => expect(screen.queryByTestId('report-version-first')).toBeNull())
   })
 
+  // False green: gating the notice on host status alone would unmount it when the host adopts the update, hiding a failed refresh.
+  it('keeps the failure and retry visible when the host adopts the update but the refresh fails', async () => {
+    const [status, setStatus] = createSignal<ReportVersionStatus>('update-available')
+    const update = vi.fn<(id: string) => Promise<void>>(() => {
+      setStatus('current')
+      return Promise.resolve()
+    })
+    const fetcher = vi.fn<typeof fetch>(() => Promise.reject(new TypeError('offline')))
+    mount({ status: (id) => id === 'first' ? status() : 'current', update }, fetcher, '/reports/document')
+    const first = region('First six months')
+    fireEvent.click(within(first).getByRole('button', { name: 'Update report' }))
+    await waitFor(() => expect(within(first).getByRole('alert')).toHaveTextContent('The report could not be updated'))
+    expect(within(first).getByRole('button', { name: 'Update report' })).toBeInTheDocument()
+  })
+
   // False green: hiding every placement would also pass; only the incompatible one becomes unavailable.
   it('explains an incompatible placement instead of showing its figures', () => {
     mount({ status: (id) => id === 'first' ? 'incompatible' : 'current' })
