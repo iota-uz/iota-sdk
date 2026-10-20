@@ -13,6 +13,39 @@ export interface Capabilities {
   export: boolean
 }
 
+export interface CatalogEntry {
+  owner?: CatalogOwner
+  id: string
+  revision: string
+  title: string
+  description?: string
+  source?: string
+  ownership: Ownership
+  restriction?: string
+  members?: number
+  placed?: number
+}
+
+export interface CatalogOwner {
+  id: string
+  name: string
+}
+
+export interface CatalogPage {
+  entries: Array<CatalogEntry>
+  next?: string
+}
+
+export interface CatalogQuery {
+  search?: string
+  scope?: CatalogScope
+  cursor?: string
+  target?: string
+  limit?: number
+}
+
+export type CatalogScope = "all" | "personal" | "shared"
+
 export interface Composition {
   context?: ContextBoard
   id: string
@@ -74,6 +107,14 @@ export interface Definition {
   parameters?: Parameters
 }
 
+export interface Destination {
+  id: string
+  title: string
+  placed?: number
+}
+
+export type Ownership = "personal" | "shared" | "system"
+
 export type Parameters = Record<string, unknown>
 
 export interface Placement {
@@ -84,6 +125,13 @@ export interface Placement {
   title?: string
   span?: number
   parameters?: Parameters
+}
+
+export interface Proposal {
+  id: string
+  base: string
+  summary?: string
+  composition: Composition
 }
 
 export interface SourceDescriptor {

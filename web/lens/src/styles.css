@@ -525,6 +525,495 @@
     @apply lens:text-strong;
   }
 
+  /* Report picking and editing dialogs: one portaled Lens root above the page,
+     a card-coloured frame, a scrolling body and a footer whose primary action
+     never moves. */
+  .lens-report-dialog-root {
+    @apply lens:fixed lens:inset-0 lens:bg-transparent lens:p-0;
+    z-index: var(--lens-drawer-z, 2147483640);
+  }
+
+  .lens-report-dialog-backdrop {
+    @apply lens:fixed lens:inset-0 lens:flex lens:items-center lens:justify-center lens:p-6;
+    background: var(--lens-scrim);
+  }
+
+  .lens-report-dialog {
+    @apply lens:flex lens:min-h-0 lens:flex-col lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card lens:font-sans lens:text-strong lens:outline-none;
+    width: min(560px, 100%);
+    max-height: min(90vh, 100%);
+    box-shadow: var(--lens-shadow-popover);
+  }
+
+  .lens-report-dialog[data-size='wide'] {
+    width: min(960px, 100%);
+    height: min(90vh, 100%);
+  }
+
+  .lens-report-dialog-header {
+    @apply lens:flex lens:items-start lens:gap-3 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:px-5 lens:py-4;
+  }
+
+  .lens-report-dialog-heading {
+    @apply lens:flex lens:min-w-0 lens:flex-1 lens:flex-col lens:gap-1;
+  }
+
+  .lens-report-dialog-title {
+    @apply lens:m-0 lens:text-lg lens:font-semibold lens:text-strong;
+    overflow-wrap: anywhere;
+  }
+
+  .lens-report-dialog-description {
+    @apply lens:m-0 lens:text-base lens:text-muted;
+  }
+
+  .lens-report-dialog-close {
+    @apply lens:flex-none;
+  }
+
+  .lens-report-dialog-body {
+    @apply lens:flex lens:min-h-0 lens:flex-1 lens:flex-col lens:overflow-auto;
+  }
+
+  .lens-report-dialog-footer {
+    @apply lens:flex lens:justify-end lens:border-0 lens:border-t lens:border-solid lens:border-border lens:px-5 lens:py-3;
+  }
+
+  .lens-context-action.lens-report-primary {
+    @apply lens:border-transparent;
+    background: var(--lens-accent-600);
+    color: var(--lens-text-on-accent);
+  }
+
+  .lens-context-action.lens-report-primary:hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--lens-accent-500);
+    color: var(--lens-text-on-accent);
+  }
+
+  .lens-context-action.lens-report-primary:disabled {
+    background: var(--lens-bg-inset);
+    color: var(--lens-text-faint);
+  }
+
+  .lens-report-picker-item .lens-context-action[aria-pressed='true'],
+  .lens-report-picker-preview-bar .lens-context-action[aria-pressed='true'] {
+    border-color: var(--lens-accent-300);
+    background: var(--lens-accent-50);
+    color: var(--lens-accent-700);
+  }
+
+  .lens-report-picker {
+    @apply lens:flex lens:min-h-0 lens:flex-1 lens:flex-col;
+  }
+
+  .lens-report-picker[hidden] {
+    display: none;
+  }
+
+  .lens-report-picker-filters {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-3 lens:px-5 lens:py-3;
+  }
+
+  .lens-report-picker-search {
+    @apply lens:min-h-control-md lens:min-w-0 lens:flex-1 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-3 lens:font-sans lens:text-md lens:text-strong;
+    flex-basis: 16rem;
+  }
+
+  .lens-report-picker-scopes {
+    @apply lens:inline-flex lens:flex-none lens:gap-1 lens:rounded-control lens:bg-inset lens:p-0.5;
+  }
+
+  .lens-report-picker-scope {
+    @apply lens:min-h-control-sm lens:cursor-pointer lens:rounded-control lens:border-0 lens:bg-transparent lens:px-2.5 lens:font-sans lens:text-base lens:font-semibold lens:text-muted;
+  }
+
+  .lens-report-picker-scope[aria-selected='true'] {
+    @apply lens:bg-card lens:text-strong;
+    box-shadow: var(--lens-shadow-card);
+  }
+
+  .lens-report-picker-results {
+    @apply lens:flex lens:min-h-0 lens:flex-1 lens:flex-col;
+  }
+
+  .lens-report-picker-list {
+    @apply lens:m-0 lens:list-none lens:p-0;
+  }
+
+  .lens-report-picker-item {
+    @apply lens:flex lens:items-start lens:gap-3 lens:border-0 lens:border-t lens:border-solid lens:px-5 lens:py-3;
+    border-color: var(--lens-divider);
+  }
+
+  .lens-report-picker-item[data-selected] {
+    background: var(--lens-accent-50);
+  }
+
+  .lens-report-picker-check {
+    @apply lens:m-0 lens:mt-0.5 lens:size-4 lens:flex-none;
+    accent-color: var(--lens-accent-600);
+  }
+
+  .lens-report-picker-text {
+    @apply lens:flex lens:min-w-0 lens:flex-1 lens:flex-col lens:gap-1;
+  }
+
+  .lens-report-picker-name {
+    @apply lens:cursor-pointer lens:text-md lens:font-semibold lens:text-strong;
+    overflow-wrap: anywhere;
+  }
+
+  .lens-report-picker-summary-text,
+  .lens-report-picker-meta {
+    @apply lens:m-0 lens:text-base lens:text-muted;
+  }
+
+  .lens-report-picker-meta {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-x-2 lens:gap-y-1;
+  }
+
+  .lens-report-picker-badge {
+    @apply lens:inline-flex lens:items-center lens:rounded-badge lens:bg-inset lens:px-1.5 lens:text-xs lens:font-semibold lens:text-muted;
+  }
+
+  .lens-report-picker-badge[data-tone='placed'] {
+    background: var(--lens-accent-100);
+    color: var(--lens-accent-700);
+  }
+
+  .lens-report-picker-restriction {
+    @apply lens:m-0 lens:rounded-control lens:px-2 lens:py-1 lens:text-base lens:text-strong;
+    background: var(--lens-warn-soft);
+  }
+
+  .lens-report-picker-item-actions {
+    @apply lens:flex lens:flex-none lens:flex-wrap lens:justify-end lens:gap-2;
+  }
+
+  .lens-report-picker-state {
+    @apply lens:m-0 lens:flex lens:flex-col lens:items-start lens:gap-2 lens:px-5 lens:py-8 lens:text-md lens:text-muted;
+  }
+
+  .lens-report-picker-state p {
+    @apply lens:m-0;
+  }
+
+  .lens-report-picker-more {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-3 lens:border-0 lens:border-t lens:border-solid lens:px-5 lens:py-3;
+    border-color: var(--lens-divider);
+  }
+
+  .lens-report-picker-footer {
+    @apply lens:flex lens:flex-1 lens:flex-wrap lens:items-end lens:justify-between lens:gap-3;
+  }
+
+  .lens-report-picker-summary {
+    @apply lens:flex lens:min-w-0 lens:flex-1 lens:flex-col lens:gap-1;
+    flex-basis: 14rem;
+  }
+
+  .lens-report-picker-count {
+    @apply lens:m-0 lens:text-base lens:font-semibold lens:text-strong;
+  }
+
+  .lens-report-picker-error {
+    @apply lens:m-0 lens:text-base lens:text-neg;
+  }
+
+  .lens-report-picker-actions {
+    @apply lens:ml-auto lens:flex lens:flex-none lens:gap-2;
+  }
+
+  .lens-report-picker-preview {
+    @apply lens:flex lens:min-h-0 lens:flex-1 lens:flex-col lens:gap-3 lens:px-5 lens:py-3;
+  }
+
+  .lens-report-picker-preview-bar {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-3;
+  }
+
+  .lens-report-picker-preview-title {
+    @apply lens:m-0 lens:min-w-0 lens:flex-1 lens:text-md lens:font-semibold lens:text-strong;
+    overflow-wrap: anywhere;
+  }
+
+  .lens-report-picker-preview-body {
+    @apply lens:min-h-0 lens:rounded-card lens:border lens:border-solid lens:border-border;
+    background: var(--lens-bg-page);
+  }
+
+  .lens-context-action[data-danger] {
+    @apply lens:text-neg;
+  }
+
+  /* The composition editor: a toolbar whose save actions never move, then the
+     cards on the same twelve-column grid the dashboard uses. Only the handle
+     starts a drag, so text in a card stays selectable. */
+  .lens-report-editor {
+    @apply lens:flex lens:min-w-0 lens:flex-col lens:gap-3 lens:font-sans lens:text-strong;
+    container: lens-report-editor / inline-size;
+  }
+
+  .lens-report-editor-header {
+    @apply lens:flex lens:flex-wrap lens:items-end lens:justify-between lens:gap-3;
+  }
+
+  .lens-report-editor-identity {
+    @apply lens:flex lens:min-w-0 lens:flex-1 lens:flex-col lens:gap-1;
+    flex-basis: 16rem;
+  }
+
+  .lens-report-editor-title-label,
+  .lens-report-form-field > span,
+  .lens-report-form-field > legend,
+  .lens-report-form-range span {
+    @apply lens:text-base lens:font-semibold lens:text-muted;
+  }
+
+  .lens-report-editor-title,
+  .lens-report-form input:not([type='radio']),
+  .lens-report-form select {
+    @apply lens:min-h-control-md lens:min-w-0 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-3 lens:font-sans lens:text-md lens:text-strong;
+  }
+
+  .lens-report-editor-title {
+    @apply lens:font-semibold;
+    font-size: var(--lens-type-lg);
+  }
+
+  .lens-report-editor-status {
+    @apply lens:m-0 lens:text-base lens:text-muted;
+  }
+
+  .lens-report-editor-status[data-dirty] {
+    @apply lens:font-semibold lens:text-warn;
+  }
+
+  .lens-report-editor-actions {
+    @apply lens:flex lens:flex-wrap lens:gap-2;
+  }
+
+  .lens-report-editor-alert,
+  .lens-report-editor-notice {
+    @apply lens:m-0 lens:flex lens:flex-col lens:gap-2 lens:rounded-control lens:px-3 lens:py-2 lens:text-md;
+  }
+
+  .lens-report-editor-alert p {
+    @apply lens:m-0;
+  }
+
+  .lens-report-editor-alert[data-tone='error'] {
+    @apply lens:text-neg;
+    background: var(--lens-neg-soft);
+  }
+
+  .lens-report-editor-alert[data-tone='warn'] {
+    @apply lens:text-strong;
+    background: var(--lens-warn-soft);
+  }
+
+  .lens-report-editor-notice {
+    @apply lens:text-strong;
+    background: var(--lens-accent-50);
+  }
+
+  .lens-report-editor-alert-actions,
+  .lens-report-proposal-actions {
+    @apply lens:flex lens:flex-wrap lens:gap-2;
+  }
+
+  .lens-report-editor-empty {
+    @apply lens:rounded-card lens:border lens:border-dashed lens:border-border lens:px-5 lens:py-8 lens:text-md lens:text-muted;
+  }
+
+  .lens-report-editor-empty p {
+    @apply lens:m-0;
+  }
+
+  .lens-report-editor-grid {
+    @apply lens:grid lens:gap-3;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  .lens-report-editor-card {
+    @apply lens:relative lens:flex lens:min-w-0 lens:flex-col lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card;
+    grid-column: span var(--lens-editor-span, 12);
+    grid-row: var(--lens-editor-row, auto);
+    box-shadow: var(--lens-shadow-card);
+  }
+
+  .lens-report-editor-card[data-added] {
+    border-color: var(--lens-accent-500);
+    box-shadow: 0 0 0 1px var(--lens-accent-500);
+  }
+
+  .lens-report-editor-card[data-drop-target] {
+    border-color: var(--lens-accent-600);
+    border-style: dashed;
+  }
+
+  .lens-report-editor-card-header {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-2 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:px-3 lens:py-2;
+  }
+
+  .lens-report-editor-handle {
+    @apply lens:flex-none;
+    cursor: grab;
+  }
+
+  .lens-report-editor-grip {
+    display: inline-block;
+    width: 8px;
+    height: 14px;
+    background-image: radial-gradient(currentcolor 1.2px, transparent 1.3px);
+    background-size: 4px 4px;
+  }
+
+  .lens-report-editor-card-title {
+    @apply lens:m-0 lens:min-w-0 lens:flex-1 lens:text-md lens:font-semibold lens:text-strong;
+    overflow-wrap: anywhere;
+  }
+
+  .lens-report-editor-card-actions {
+    @apply lens:ml-auto lens:flex lens:flex-wrap lens:gap-1.5;
+  }
+
+  .lens-report-editor-card-body {
+    @apply lens:min-h-24 lens:min-w-0 lens:flex-1 lens:p-3;
+  }
+
+  .lens-report-editor-card-placeholder {
+    @apply lens:m-0 lens:text-md lens:text-muted;
+  }
+
+  .lens-report-editor-resize {
+    @apply lens:absolute lens:bottom-0 lens:top-0 lens:w-2 lens:rounded-control;
+    right: -6px;
+    cursor: ew-resize;
+    touch-action: none;
+  }
+
+  .lens-report-editor-resize::after {
+    @apply lens:absolute lens:rounded-control;
+    content: '';
+    top: 50%;
+    left: 2px;
+    width: 4px;
+    height: 32px;
+    transform: translateY(-50%);
+    background: var(--lens-border-strong);
+  }
+
+  .lens-report-editor-resize:hover::after,
+  .lens-report-editor-resize:focus-visible::after {
+    background: var(--lens-accent-600);
+  }
+
+  .lens-report-proposal {
+    @apply lens:flex lens:flex-col lens:gap-2 lens:rounded-card lens:border lens:border-solid lens:px-4 lens:py-3;
+    border-color: var(--lens-accent-300);
+    background: var(--lens-accent-50);
+  }
+
+  .lens-report-proposal[data-stale] {
+    border-color: var(--lens-warn);
+    background: var(--lens-warn-soft);
+  }
+
+  .lens-report-proposal-title {
+    @apply lens:m-0 lens:text-md lens:font-semibold lens:text-strong;
+  }
+
+  .lens-report-proposal-summary,
+  .lens-report-proposal-stale {
+    @apply lens:m-0 lens:text-base lens:text-strong;
+  }
+
+  .lens-report-proposal-list {
+    @apply lens:m-0 lens:flex lens:list-none lens:flex-col lens:gap-1 lens:p-0 lens:text-md;
+  }
+
+  .lens-report-proposal-list li {
+    @apply lens:flex lens:items-center lens:gap-2;
+  }
+
+  .lens-report-picker-badge[data-tone='add'] {
+    background: var(--lens-pos-soft);
+    color: var(--lens-pos);
+  }
+
+  .lens-report-picker-badge[data-tone='remove'] {
+    background: var(--lens-neg-soft);
+    color: var(--lens-neg);
+  }
+
+  .lens-report-form {
+    @apply lens:flex lens:flex-col lens:gap-4 lens:px-5 lens:py-4 lens:text-md;
+  }
+
+  .lens-report-form p {
+    @apply lens:m-0;
+  }
+
+  .lens-report-form-field {
+    @apply lens:m-0 lens:flex lens:min-w-0 lens:flex-col lens:gap-1.5 lens:border-0 lens:p-0;
+  }
+
+  .lens-report-form-choice {
+    @apply lens:flex lens:items-center lens:gap-2;
+  }
+
+  .lens-report-form-range {
+    @apply lens:flex lens:flex-wrap lens:gap-3;
+  }
+
+  .lens-report-form-range label {
+    @apply lens:flex lens:flex-col lens:gap-1;
+  }
+
+  @container lens-report-editor (max-width: 640px) {
+    .lens-report-editor-card {
+      grid-column: 1 / -1;
+      grid-row: auto;
+    }
+
+    .lens-report-editor-resize {
+      display: none;
+    }
+  }
+
+  .lens-report-destination-list {
+    @apply lens:m-0 lens:min-w-0 lens:border-0 lens:p-0;
+  }
+
+  .lens-report-destination-legend {
+    @apply lens:px-5 lens:pb-2 lens:text-base lens:font-semibold lens:text-muted;
+  }
+
+  @media (max-width: 640px) {
+    .lens-report-dialog-backdrop {
+      @apply lens:p-0;
+    }
+
+    .lens-report-dialog,
+    .lens-report-dialog[data-size='wide'] {
+      @apply lens:rounded-none lens:border-0;
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+    }
+
+    .lens-report-picker-item {
+      @apply lens:flex-wrap;
+    }
+
+    .lens-report-picker-item-actions {
+      @apply lens:justify-start;
+      flex-basis: 100%;
+      padding-left: 1.75rem;
+    }
+  }
+
   .lens-panel-state-compatibility {
     @apply lens:text-muted;
     max-width: 60ch;
@@ -5716,7 +6205,7 @@
      specific member (`[tabindex]`, a class-level match), which would outrank
      those single-class exception rules regardless of source order — hence the
      explicit `:not()` rather than a bet on cascade position. */
-  .lens-root :is(button, a, input, select, textarea, summary, [role='option'], [tabindex]):not(.lens-drawer, .lens-filter-popover, .lens-explore-level):focus-visible {
+  .lens-root :is(button, a, input, select, textarea, summary, [role='option'], [tabindex]):not(.lens-drawer, .lens-filter-popover, .lens-explore-level, .lens-report-dialog):focus-visible {
     outline: var(--lens-focus-ring-width) solid var(--lens-focus-ring-color);
     outline-offset: var(--lens-focus-ring-offset);
   }

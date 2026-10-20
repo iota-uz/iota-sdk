@@ -2116,6 +2116,17 @@ function useI18nMessages(): Accessor<Record<string, string>> {
   return useContext(I18nContext) ?? (() => ({}))
 }
 
+/**
+ * Runtime chrome messages for a surface rendered outside a dashboard document,
+ * such as a report picker or editor. Keys follow document.RuntimeI18nKeys;
+ * an enclosing document's messages apply unless overridden here.
+ */
+export function LensMessagesProvider(props: { messages?: Record<string, string>; children: JSX.Element }): JSX.Element {
+  const outer = useI18nMessages()
+  const messages = createMemo(() => ({ ...outer(), ...props.messages }))
+  return <I18nContext.Provider value={messages}>{props.children}</I18nContext.Provider>
+}
+
 export function useFormat(field?: FieldFormat): (value: unknown) => string {
   const locale = useLocale()
   return (value: unknown) => formatFieldValue(value, field, locale())
