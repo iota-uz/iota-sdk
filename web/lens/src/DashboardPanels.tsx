@@ -32,7 +32,7 @@ import { placementFreshness, ReportPlacementStatus } from './reports/ReportPlace
 import { reportPlacementMenu, reportPlacementUnavailable, useReportPlacementHost } from './reports/placementHost'
 import { reportUnavailableState, reportUnavailableTitle } from './reports/unavailable'
 import { reportPlacementActions } from './reports/version'
-import { DrillGateContext, useDrillAllowed, withoutDrill } from './panels/drillGate'
+import { DrillGateContext, ExportGateContext, useDrillAllowed, useExportAllowed, withoutDrill } from './panels/drillGate'
 
  
 
@@ -212,15 +212,21 @@ function GroupCard(props: { group: LayoutGroup; items?: LayoutItem[]; panels?: M
     return reason ? reportUnavailableTitle(reason, props.group.label, translate) : props.group.label
   }
   const capabilities = () => reportHost?.capabilities?.(props.group.id)
-  // The placement's context decides what its members may offer; a source that
-  // cannot export under this context hides every member's export as well.
+  // A placement named after its only panel drops the panel's repeated title.
   const chrome = createMemo<PanelChrome | undefined>(() => {
     if (!placement()) return undefined
-    const allowed = capabilities() ? reportPlacementActions(capabilities()!, props.group.filterContext) : undefined
     const only = props.items?.length === 1 ? props.panels?.get(props.items[0]!.panelId) : undefined
     const redundant = Boolean(only && props.group.label && comparableTitle(only.title) === comparableTitle(props.group.label))
-    if (!redundant && allowed?.export !== false) return undefined
-    return { titleIsRedundant: redundant || undefined, exportable: allowed?.export === false ? false : undefined }
+    return redundant ? { titleIsRedundant: true } : undefined
+  })
+  // Export is gated like drill: a refusal applies to every member below the
+  // placement, including nested groups that provide their own chrome.
+  const outerExport = useExportAllowed()
+  const exportAllowed = createMemo(() => {
+    if (!outerExport()) return false
+    if (!placement()) return true
+    const declared = capabilities()
+    return declared ? reportPlacementActions(declared, props.group.filterContext).export : true
   })
   // Drill is the source's to offer: a placement whose source or context does
   // not carry it renders every member terminal, inheriting an outer refusal.
@@ -278,9 +284,11 @@ function GroupCard(props: { group: LayoutGroup; items?: LayoutItem[]; panels?: M
         <Show when={placement()}><ReportVersionNotice placementId={props.group.id} unavailable={props.group.unavailable} /></Show>
         <Show when={!unavailable() && props.group.filterContext}>{(context) => <ContextGroupDetails id={props.group.id} context={context()} disclosure={disclosure} />}</Show>
         <Show when={!unavailable() && !blocked()}>
-          <DrillGateContext.Provider value={drillAllowed}>
-            <PanelChromeContext.Provider value={chrome()}>{props.children}</PanelChromeContext.Provider>
-          </DrillGateContext.Provider>
+          <ExportGateContext.Provider value={exportAllowed}>
+            <DrillGateContext.Provider value={drillAllowed}>
+              <PanelChromeContext.Provider value={chrome()}>{props.children}</PanelChromeContext.Provider>
+            </DrillGateContext.Provider>
+          </ExportGateContext.Provider>
         </Show>
         <Show when={reportHost && placement() && !unavailable() && !blocked()}>
           <ReportPlacementStatus placementId={props.group.id} panelIds={panelIds()} timeZone={props.group.filterContext?.calendar.timezone} />

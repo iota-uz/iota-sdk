@@ -12,6 +12,16 @@ export function useDrillAllowed(): () => boolean {
   return useContext(DrillGateContext)
 }
 
+/**
+ * Whether panels below may offer export. Like drill, a placement whose source
+ * or context cannot export refuses it for every member, nested groups included.
+ */
+export const ExportGateContext = createContext<() => boolean>(() => true)
+
+export function useExportAllowed(): () => boolean {
+  return useContext(ExportGateContext)
+}
+
 /** Cross-filtering narrows the board in place; every other action continues the analysis elsewhere. */
 function keep(action: Action | undefined): Action | undefined {
   return action?.kind === 'cross_filter' ? action : undefined

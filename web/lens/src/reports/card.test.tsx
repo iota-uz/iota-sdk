@@ -149,6 +149,26 @@ describe('report card menu', () => {
     expect(within(placement('revenue')).queryAllByRole('button', { name: 'Export panel' })).toHaveLength(0)
     expect(within(placement('legacy')).getAllByRole('button', { name: 'Export panel' }).length).toBeGreaterThan(0)
   })
+
+  // False green: the revenue members are still loading, and unlabelled rows render without a nested card; a labelled inner group provides its own chrome and must still inherit the refusal.
+  it('keeps member export hidden inside nested labelled groups', () => {
+    const labelled = () => {
+      const doc = embedded()
+      for (const item of doc.layout.rows.flatMap((row) => row.panels)) {
+        const inner = item.groups?.find((group) => group.id === 'legacy::row-0')
+        if (inner) inner.label = 'Breakdown'
+      }
+      return doc
+    }
+    mount(labelled(), { capabilities: () => ({ drill: false, save: false, export: true }) })
+    expect(within(placement('legacy')).getByRole('region', { name: 'Breakdown' })).toBeInTheDocument()
+    expect(within(placement('legacy')).getAllByRole('button', { name: 'Export panel' }).length).toBeGreaterThan(0)
+    cleanup()
+
+    mount(labelled(), { capabilities: (id) => ({ drill: false, save: false, export: id !== 'legacy' }) })
+    expect(within(placement('legacy')).getByRole('region', { name: 'Breakdown' })).toBeInTheDocument()
+    expect(within(placement('legacy')).queryAllByRole('button', { name: 'Export panel' })).toHaveLength(0)
+  })
 })
 
 describe('host renderers', () => {

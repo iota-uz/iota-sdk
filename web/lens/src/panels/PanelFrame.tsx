@@ -7,6 +7,7 @@ import { PanelExportMenu } from './PanelExportMenu'
 import { InfoTip } from './InfoTip'
 import { ArrowsIn, ArrowsOut, ChartLine, TrendDown, TrendFlat, TrendUp } from '../icons'
 import { usePanelChrome } from './context'
+import { useExportAllowed } from './drillGate'
 import { panelFailureCopy } from './panelFailure'
 import { PanelOverlay } from './PanelOverlay'
 import { PanelSkeletonBody } from './Skeleton'
@@ -205,7 +206,8 @@ export function PanelFrame(props: PanelFrameProps) {
   // Opt-out chrome: a drawer-hosted panel disables expand (an overlay over a
   // modal is meaningless), and a derived/headline panel disables export.
   const expandable = props.panel.presentation?.expandable !== false
-  const exportable = () => props.panel.presentation?.exportable !== false && chrome?.exportable !== false
+  const exportGate = useExportAllowed()
+  const exportable = () => props.panel.presentation?.exportable !== false && chrome?.exportable !== false && exportGate()
   // A stat headline reads number-first: the value leads, and its supporting
   // caption (exact figure, then the muted explainer + period) sits beneath it
   // rather than pushing the number below the fold.
