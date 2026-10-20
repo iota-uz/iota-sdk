@@ -121,3 +121,5 @@ export const SourceRefSchema: z.ZodType<Contract.SourceRef> = z.object({
   version: z.number().int(),
 }).strict()
 
+export const VersionStatusSchema: z.ZodType<Contract.VersionStatus> = z.enum(["current", "incompatible", "update-available"])
+

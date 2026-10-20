@@ -35,6 +35,13 @@ const (
 	I18nContextUnsupported   = "filter.context.unsupported"
 	I18nContextUseDashboard  = "filter.context.useDashboard"
 
+	// Reusable report placement version notices (pkg/lens/report.VersionStatus).
+	I18nReportVersionUpdateAvailable = "report.version.updateAvailable"
+	I18nReportVersionUpdate          = "report.version.update"
+	I18nReportVersionKeep            = "report.version.keep"
+	I18nReportVersionUpdateFailed    = "report.version.updateFailed"
+	I18nReportVersionIncompatible    = "report.version.incompatible"
+
 	I18nCascadeCheckpoint             = "cascade.checkpoint"
 	I18nCascadeOpenStage              = "cascade.openStage"
 	I18nCascadeResult                 = "cascade.result"
@@ -380,6 +387,12 @@ func RuntimeI18nKeys() []string {
 		I18nContextSection,
 		I18nContextUnsupported,
 		I18nContextUseDashboard,
+
+		I18nReportVersionUpdateAvailable,
+		I18nReportVersionUpdate,
+		I18nReportVersionKeep,
+		I18nReportVersionUpdateFailed,
+		I18nReportVersionIncompatible,
 
 		I18nCalendarAnnRange, I18nCalendarAnnStart, I18nCalendarHintEnd, I18nCalendarHintStart,
 		I18nCalendarLabel, I18nCalendarNextMonth, I18nCalendarPrevMonth,

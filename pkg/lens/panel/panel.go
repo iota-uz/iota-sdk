@@ -697,7 +697,10 @@ func (f FieldRef) Empty() bool {
 }
 
 type Spec struct {
-	FilterContext   *filtercontext.EffectiveContext
+	FilterContext *filtercontext.EffectiveContext
+	// Unavailable marks a grid container whose content cannot be shown; the
+	// value is the document wire reason (document.GroupUnavailable).
+	Unavailable     string
 	ID              string
 	Title           string
 	Description     string

@@ -26,6 +26,8 @@ import { ExplorePanel } from './explore'
 import { FilterBar, FilterControls, type CalendarDate } from './controls'
 import { ContextGroupDetails, ContextGroupToolbar, createContextGroupDisclosure, hasContextGroupToolbar } from './controls/ScopedFilterControls'
 import { isVisualRegression } from './visualRegression'
+import { ReportVersionNotice } from './reports/ReportVersionNotice'
+import { reportPlacementAvailable, useReportPlacementHost } from './reports/placementHost'
 
  
 
@@ -175,11 +177,14 @@ function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
   const [filtersOpen, setFiltersOpen] = createSignal(false)
   const disclosure = createContextGroupDisclosure(filtersOpen, setFiltersOpen)
   const contextToolbar = () => Boolean(props.group.filterContext && hasContextGroupToolbar(document.contextEditor, props.group.filterContext, props.group.id))
+  const reportHost = useReportPlacementHost()
   return (
     <div class="lens-grid-item" style={spanStyle(props.group.span)}>
       <section
         aria-label={props.group.label || undefined}
         class={`lens-panel lens-panel-group ${`lens-panel-group-${props.group.kind}`}`}
+        data-report-placement={reportHost ? props.group.id : undefined}
+        tabindex={reportHost ? -1 : undefined}
       >
         <Show when={Boolean(props.group.label || props.group.status || contextToolbar())}>
           <header class="lens-panel-header lens-panel-group-header">
@@ -203,8 +208,9 @@ function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
         <Show when={props.group.caption}>
           <p class="lens-panel-caption" data-stale={documentState.isRefreshing || undefined}>{props.group.caption}</p>
         </Show>
+        <Show when={(reportHost || props.group.unavailable) && props.group.kind === 'grid'}><ReportVersionNotice placementId={props.group.id} unavailable={props.group.unavailable} /></Show>
         <Show when={props.group.filterContext}>{(context) => <ContextGroupDetails id={props.group.id} context={context()} disclosure={disclosure} />}</Show>
-        <Show when={!props.group.filterContext || (!props.group.filterContext.conflicts.length && !props.group.filterContext.unsupported.length)}>{props.children}</Show>
+        <Show when={reportPlacementAvailable(reportHost, props.group) && (!props.group.filterContext || (!props.group.filterContext.conflicts.length && !props.group.filterContext.unsupported.length))}>{props.children}</Show>
       </section>
     </div>
   )

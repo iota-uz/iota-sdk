@@ -144,12 +144,24 @@ const (
 	LayoutGroupRows    LayoutGroupLayout = "rows"
 )
 
+// GroupUnavailable explains why a group's figures are withheld.
+type GroupUnavailable string
+
+const (
+	// GroupUnavailableReportIncompatible marks a reusable report placement whose
+	// definition no longer runs on its source contract or view.
+	GroupUnavailableReportIncompatible GroupUnavailable = "report-incompatible"
+)
+
 // LayoutGroup describes the container card that owns a run of layout items.
 // Every item of the same group repeats the identical descriptor except Tab.
 type LayoutGroup struct {
 	FilterContext *filtercontext.EffectiveContext `json:"filterContext,omitempty"`
-	ID            string                          `json:"id"`
-	Kind          LayoutGroupKind                 `json:"kind"`
+	// Unavailable replaces the group's figures with an explained state; the
+	// runtime renders no member panel, print or export figure for it.
+	Unavailable GroupUnavailable `json:"unavailable,omitempty"`
+	ID          string           `json:"id"`
+	Kind        LayoutGroupKind  `json:"kind"`
 	// Caption explains the group as a whole — why this strip of metrics sits
 	// here, what basis it reads on — the same role Panel.Caption plays for a
 	// single panel. Without it a container's Description would be silently

@@ -97,3 +97,5 @@ export interface SourceRef {
   id: string
   version: number
 }
+
+export type VersionStatus = "current" | "incompatible" | "update-available"

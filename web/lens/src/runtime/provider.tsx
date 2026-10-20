@@ -59,6 +59,8 @@ import { queryWithSnapshotRecovery } from './recovery'
 import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL, siteRelativeURL } from './url'
 import { navigateTo } from './navigate'
 import { X } from '../icons'
+import { reportPlacementAvailable, useReportPlacementHost } from '../reports/placementHost'
+import { withoutUnavailablePlacements } from '../reports/version'
 
 export interface DocumentContextValue {
   readonly document?: DashboardDocument
@@ -764,6 +766,7 @@ interface RuntimeCoreProps {
 
 function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
   const drawerDepth = props.drawerDepth ?? 0
+  const reportPlacementHost = useReportPlacementHost()
   const refreshDocument = props.refreshDocument
   const applyFilters = props.applyFilters
 
@@ -1609,9 +1612,11 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     const detailSignal = () => anySignal([reportSignal, timeoutSignal(20_000)])
     try {
       const { buildPrintReport } = await import('./print')
+      // An unavailable report placement prints its explanation, never figures.
+      const { document: printable, withheld } = withoutUnavailablePlacements(resolvedDoc, (group) => !reportPlacementAvailable(reportPlacementHost, group))
       const report = await buildPrintReport(
-        resolvedDoc,
-        (request, owner = resolvedDoc) => {
+        printable,
+        (request, owner = printable) => {
           const endpoint = owner.endpoints.query
           if (!endpoint) {
             return Promise.reject(new Error(
@@ -1635,6 +1640,8 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         reportSignal,
       )
       for (const client of printQueryClients.values()) client.dispose()
+      const unavailableNote = translate('report.version.incompatible', 'This report is unavailable: its definition no longer matches the data source. Ask the report owner to update it.')
+      report.warnings.unshift(...withheld.map((group) => `${group.label || group.id}: ${unavailableNote}`))
       // The report body is a lazy chunk and the print-state update is what
       // mounts it, so the wait below is racing a network fetch it never
       // accounts for: two frames plus 120ms clear a warm cache and nothing

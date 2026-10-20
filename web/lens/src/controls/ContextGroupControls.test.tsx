@@ -138,3 +138,76 @@ describe('calendarToday', () => {
     expect(calendarToday({ timezone: 'America/New_York', asOf: '2026-07-22T02:30:00Z', defaultPeriod: { mode: 'all' } })).toEqual({ year: 2026, month: 7, day: 21 })
   })
 })
+
+describe('context A→B with reverse-order responses', () => {
+  const onlineValue = (region: HTMLElement) => within(region).queryAllByRole('row').find((row) => row.textContent?.includes('Online'))?.querySelector('td:last-child')?.textContent
+  // False green: asserting the URL or snapshot id alone would pass while the late A document repaints the card's figures and context line.
+  it('keeps the figures, context line and URL of the last selection when the earlier response lands last', async () => {
+    window.history.replaceState(null, '', '/')
+    const requests: Array<{ board: ReturnType<typeof decodeFilterBoard>; resolve: (value: Response) => void }> = []
+    const fetcher = vi.fn((input: RequestInfo | URL) => {
+      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, 'http://localhost')
+      return new Promise<Response>((resolve) => requests.push({ board: decodeFilterBoard(url.searchParams.get(filterContextParam)!), resolve }))
+    })
+    render(() => <LensDashboard src="/scoped-document" initialDocument={parseDocument(scenario('June card'))} fetcher={fetcher as typeof fetch} />)
+    const revenue = section('Revenue by channel')
+    await waitFor(() => expect(onlineValue(revenue)).toBe('1,200'))
+    expect(within(revenue).getByTestId('effective-context')).toHaveTextContent('2026-06-01 – 2026-06-30')
+
+    // A: the dashboard returns to report periods; the June card override stays.
+    fireEvent.click(within(screen.getByTestId('context-controls-dashboard-dashboard')).getByTestId('context-inherit'))
+    // B: the card returns to the dashboard's annual period.
+    fireEvent.click(within(revenue).getByTestId('context-local-revenue'))
+    fireEvent.click(within(within(revenue).getByTestId('context-controls-card-revenue')).getByTestId('context-inherit'))
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    const [a, b] = requests
+    expect(a!.board.dashboard.period).toEqual({ mode: 'reports' })
+    expect(a!.board.cards?.revenue?.period).toEqual({ mode: 'fixed', start: '2026-06-01', end: '2026-06-30' })
+    expect(b!.board.dashboard.period).toEqual({ mode: 'fixed', start: '2026-01-01', end: '2026-12-31' })
+    expect(b!.board.cards?.revenue?.period).toBeUndefined()
+
+    b!.resolve(Response.json(scenario('Annual dashboard')))
+    await waitFor(() => expect(onlineValue(section('Revenue by channel'))).toBe('14,400'))
+    a!.resolve(Response.json(scenario('Report periods with June card')))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+
+    const settled = section('Revenue by channel')
+    expect(onlineValue(settled)).toBe('14,400')
+    expect(within(settled).getByTestId('effective-context')).toHaveTextContent('2026-01-01 – 2026-12-31 · Dashboard')
+    expect(within(settled).getByTestId('effective-context')).not.toHaveTextContent('2026-06-01')
+    expect(settled).not.toHaveTextContent('01.06.2026 – 30.06.2026')
+    expect(within(settled).getByTestId('context-local-revenue')).not.toHaveTextContent(/\d/)
+    const url = new URL(window.location.href)
+    expect(decodeFilterBoard(url.searchParams.get(filterContextParam)!).dashboard.period).toEqual({ mode: 'fixed', start: '2026-01-01', end: '2026-12-31' })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('exploration back', () => {
+  // False green: checking that a request was sent would pass if Back cleared every level or dropped the dashboard period.
+  it('removes only the last exploration level and shows the remaining one', async () => {
+    window.history.replaceState(null, '', '/')
+    const requests: Array<{ board: ReturnType<typeof decodeFilterBoard>; resolve: (value: Response) => void }> = []
+    const fetcher = vi.fn((input: RequestInfo | URL) => {
+      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, 'http://localhost')
+      return new Promise<Response>((resolve) => requests.push({ board: decodeFilterBoard(url.searchParams.get(filterContextParam)!), resolve }))
+    })
+    render(() => <LensDashboard src="/scoped-document" initialDocument={parseDocument(scenario('Two exploration levels'))} fetcher={fetcher as typeof fetch} />)
+    const context = within(section('Revenue by channel')).getByTestId('effective-context')
+    expect(context).toHaveTextContent('2026-06-01 – 2026-06-30 · Exploration')
+    expect(context).toHaveTextContent('Product: A · Exploration')
+
+    fireEvent.click(within(section('Revenue by channel')).getByTestId('context-back'))
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    const { board, resolve } = requests[0]!
+    expect(board.groups?.revenue?.map((layer) => layer.origin.id)).toEqual(['channel'])
+    expect(board.dashboard.period).toEqual({ mode: 'fixed', start: '2026-01-01', end: '2026-12-31' })
+
+    resolve(Response.json(scenario('One exploration level')))
+    await waitFor(() => expect(within(section('Revenue by channel')).getByTestId('effective-context')).not.toHaveTextContent('Product: A · Exploration'))
+    const remaining = within(section('Revenue by channel')).getByTestId('effective-context')
+    expect(remaining).toHaveTextContent('2026-06-01 – 2026-06-30 · Exploration')
+    expect(within(section('Revenue by channel')).getByTestId('context-back')).toBeInTheDocument()
+  })
+})

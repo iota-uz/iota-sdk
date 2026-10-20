@@ -333,6 +333,8 @@ export interface GeoJSONSource {
   maxBytes?: number
 }
 
+export type GroupUnavailable = "report-incompatible"
+
 export interface HierarchyReconciliation {
   tolerance?: number
 }
@@ -343,6 +345,7 @@ export interface Layout {
 
 export interface LayoutGroup {
   filterContext?: EffectiveContext
+  unavailable?: GroupUnavailable
   id: string
   kind: LayoutGroupKind
   caption?: string

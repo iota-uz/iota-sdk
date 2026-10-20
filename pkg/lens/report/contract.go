@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"regexp"
 	"slices"
@@ -20,6 +21,11 @@ import (
 const ContractVersion = "1"
 
 var identifier = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
+
+// ErrIncompatible is the cause of the FailedPrecondition Resolve returns when a
+// definition's source contract version or view is no longer offered by its source.
+// Compose degrades such a placement instead of failing the composition.
+var ErrIncompatible = errors.New("report definition is incompatible with its source")
 
 type Parameters map[string]json.RawMessage
 
@@ -87,6 +93,9 @@ type Source interface {
 }
 
 type Resolved struct {
+	// Status is VersionCurrent for an executed placement and VersionIncompatible
+	// for one Compose rendered as unavailable without executing its source.
+	Status     VersionStatus
 	Context    *filtercontext.EffectiveContext
 	Definition Definition
 	Placement  Placement
@@ -202,7 +211,15 @@ func DuplicatePlacement(placement Placement, id string) (Placement, error) {
 }
 
 func Resolve(ctx context.Context, host Host, placement Placement, defaults Parameters) (Resolved, error) {
-	return resolve(ctx, host, placement, defaults, nil)
+	resolved, err := resolve(ctx, host, placement, defaults, nil)
+	if err != nil {
+		return Resolved{}, err
+	}
+	return resolved, nil
+}
+
+func incompatible(message string) error {
+	return serrors.New(serrors.FailedPrecondition, message).WithCause(ErrIncompatible).WithOp("lens.report.Resolve")
 }
 
 func resolve(ctx context.Context, host Host, placement Placement, defaults Parameters, input *filtercontext.ContextInput) (Resolved, error) {
@@ -241,10 +258,10 @@ func resolve(ctx context.Context, host Host, placement Placement, defaults Param
 		return Resolved{}, invalid("invalid source descriptor")
 	}
 	if descriptor.Version != definition.Source.Version {
-		return Resolved{}, serrors.New(serrors.FailedPrecondition, "report source contract is incompatible").WithOp("lens.report.Resolve")
+		return Resolved{Status: VersionIncompatible, Definition: definition, Placement: clone(placement), Source: descriptor}, incompatible("report source contract is incompatible")
 	}
 	if !slices.Contains(descriptor.Capabilities.Views, definition.View) {
-		return Resolved{}, serrors.New(serrors.FailedPrecondition, "report view is unavailable")
+		return Resolved{Status: VersionIncompatible, Definition: definition, Placement: clone(placement), Source: descriptor}, incompatible("report view is unavailable")
 	}
 	parameters := clone(definition.Parameters)
 	if parameters == nil {
@@ -297,26 +314,60 @@ func resolve(ctx context.Context, host Host, placement Placement, defaults Param
 	if err != nil {
 		return Resolved{}, serrors.Wrap("lens.report.Build", err)
 	}
-	return Resolved{Context: effective, Definition: definition, Placement: clone(placement), Source: descriptor, Parameters: parameters, Spec: clone(spec)}, nil
+	return Resolved{Status: VersionCurrent, Context: effective, Definition: definition, Placement: clone(placement), Source: descriptor, Parameters: parameters, Spec: clone(spec)}, nil
 }
 
+// VersionStatus compares an opened result with the host's latest definition and source.
+type VersionStatus string
+
+const (
+	// VersionCurrent means the opened result still describes the latest definition and source.
+	VersionCurrent VersionStatus = "current"
+	// VersionUpdateAvailable means reopening resolves a newer compatible definition or source.
+	VersionUpdateAvailable VersionStatus = "update-available"
+	// VersionIncompatible means the latest definition cannot run on the current source contract or view.
+	VersionIncompatible VersionStatus = "incompatible"
+)
+
+// Changed reports whether the host holds a newer definition or source than the opened result.
 func (r Resolved) Changed(ctx context.Context, host Host) (bool, error) {
+	status, err := r.Version(ctx, host)
+	if err != nil {
+		return false, err
+	}
+	return status != VersionCurrent, nil
+}
+
+// Version classifies the host's latest definition and source against the opened result.
+// The opened result is never mutated; the caller decides whether to offer an update.
+func (r Resolved) Version(ctx context.Context, host Host) (VersionStatus, error) {
 	if host == nil {
-		return false, invalid("report host is required")
+		return "", invalid("report host is required")
 	}
 	latest, err := host.Report(ctx, r.Definition.ID)
 	if err != nil {
-		return false, err
+		return "", serrors.Wrap("lens.report.Version", err)
 	}
 	source, err := host.Source(ctx, latest.Source.ID)
 	if err != nil {
-		return false, err
+		return "", serrors.Wrap("lens.report.Version", err)
 	}
 	if source == nil {
-		return false, invalid("host returned an absent source")
+		return "", invalid("host returned an absent source")
 	}
-	descriptor := source.Descriptor()
-	return latest.Revision != r.Definition.Revision || latest.Source != r.Definition.Source || descriptor.Revision != r.Source.Revision || descriptor.Version != r.Source.Version, nil
+	return CompareVersion(r.Definition, r.Source, latest, source.Descriptor()), nil
+}
+
+// CompareVersion is the storage-agnostic rule behind Resolved.Version. Hosts that already
+// hold both revisions, for example a client polling for updates, use it directly.
+func CompareVersion(opened Definition, openedSource SourceDescriptor, latest Definition, latestSource SourceDescriptor) VersionStatus {
+	if latest.Source.ID != latestSource.ID || latest.Source.Version != latestSource.Version || !slices.Contains(latestSource.Capabilities.Views, latest.View) {
+		return VersionIncompatible
+	}
+	if latest.Revision != opened.Revision || latest.Source != opened.Source || latestSource.Revision != openedSource.Revision || latestSource.Version != openedSource.Version {
+		return VersionUpdateAvailable
+	}
+	return VersionCurrent
 }
 
 type ContextSource interface {

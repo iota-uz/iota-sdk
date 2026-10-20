@@ -30,3 +30,8 @@ export { createFilterContextDraft, encodeFilterBoard, decodeFilterBoard, filterB
 export type { ContextBoard, ContextFilters, ContextPeriod, ContextInput, EffectiveContext, ContextEditor } from './contract/types'
 export type { FilterDefaultsHost } from './reports/filterHost'
 export { placeOpenedReport, placeLibraryReport } from './reports/placement'
+export { compareReportVersion, reportPlacementActions, withoutUnavailablePlacements } from './reports/version'
+export type { ReportVersionStatus, ReportRevision, ReportOperation, ReportActions } from './reports/version'
+export { ReportVersionNotice } from './reports/ReportVersionNotice'
+export { ReportPlacementProvider, reportPlacementAvailable, useReportPlacementHost } from './reports/placementHost'
+export type { ReportPlacementHost } from './reports/placementHost'
