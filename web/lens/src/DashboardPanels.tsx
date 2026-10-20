@@ -32,6 +32,7 @@ import { placementFreshness, ReportPlacementStatus } from './reports/ReportPlace
 import { reportPlacementMenu, reportPlacementUnavailable, useReportPlacementHost } from './reports/placementHost'
 import { reportUnavailableState, reportUnavailableTitle } from './reports/unavailable'
 import { reportPlacementActions } from './reports/version'
+import { DrillGateContext, useDrillAllowed, withoutDrill } from './panels/drillGate'
 
  
 
@@ -160,10 +161,24 @@ const MetricColumnsContext = createContext<number>(4)
  */
 const TabStateContext = createContext<Map<string, string> | null>(null)
 
+/** The panel as this slot may show it: terminal inside a placement that cannot drill. */
+function useGatedPanel(panel: () => Panel | undefined): () => Panel | undefined {
+  const drill = useDrillAllowed()
+  return createMemo(() => {
+    const current = panel()
+    return current && !drill() ? withoutDrill(current) : current
+  })
+}
+
 function PanelSlot(props: { panel: Panel; registry?: PanelRegistry }) {
-  return props.panel.drillRoot
-    ? <ExplorePanel panel={props.panel} registry={props.registry} />
-    : <RegisteredPanel panel={props.panel} registry={props.registry} />
+  const panel = useGatedPanel(() => props.panel)
+  return (
+    <Show when={panel()} keyed>
+      {(current) => current.drillRoot
+        ? <ExplorePanel panel={current} registry={props.registry} />
+        : <RegisteredPanel panel={current} registry={props.registry} />}
+    </Show>
+  )
 }
 
 function MissingPanel(props: { panelId: string }) {
@@ -206,6 +221,16 @@ function GroupCard(props: { group: LayoutGroup; items?: LayoutItem[]; panels?: M
     const redundant = Boolean(only && props.group.label && comparableTitle(only.title) === comparableTitle(props.group.label))
     if (!redundant && allowed?.export !== false) return undefined
     return { titleIsRedundant: redundant || undefined, exportable: allowed?.export === false ? false : undefined }
+  })
+  // Drill is the source's to offer: a placement whose source or context does
+  // not carry it renders every member terminal, inheriting an outer refusal.
+  const outerDrill = useDrillAllowed()
+  const drillAllowed = createMemo(() => {
+    if (!outerDrill()) return false
+    if (!placement()) return true
+    const context = props.group.filterContext
+    const declared = capabilities()
+    return declared ? reportPlacementActions(declared, context).drill : !(context?.unsupportedOperations?.drill?.length)
   })
   const state = createMemo(() => {
     const reason = unavailable()
@@ -253,7 +278,9 @@ function GroupCard(props: { group: LayoutGroup; items?: LayoutItem[]; panels?: M
         <Show when={placement()}><ReportVersionNotice placementId={props.group.id} unavailable={props.group.unavailable} /></Show>
         <Show when={!unavailable() && props.group.filterContext}>{(context) => <ContextGroupDetails id={props.group.id} context={context()} disclosure={disclosure} />}</Show>
         <Show when={!unavailable() && !blocked()}>
-          <PanelChromeContext.Provider value={chrome()}>{props.children}</PanelChromeContext.Provider>
+          <DrillGateContext.Provider value={drillAllowed}>
+            <PanelChromeContext.Provider value={chrome()}>{props.children}</PanelChromeContext.Provider>
+          </DrillGateContext.Provider>
         </Show>
         <Show when={reportHost && placement() && !unavailable() && !blocked()}>
           <ReportPlacementStatus placementId={props.group.id} panelIds={panelIds()} timeZone={props.group.filterContext?.calendar.timezone} />
@@ -348,7 +375,8 @@ function MetricsGroup(props: {
       <div class={`lens-metric-row ${props.group.layout === 'rows' ? 'lens-metric-row-rows' : 'lens-metric-row-columns'}`}>
         <For each={props.items}>
           {(item, index) => {
-            const panel = props.panels.get(item.panelId)
+            const gated = useGatedPanel(() => props.panels.get(item.panelId))
+            const panel = gated()
             // Every member sits in the same kind of box, whatever it contains.
             // A cell that wrapped its own content (a navigable stat used to) sized
             // itself differently from one that did not, which is how one strip
