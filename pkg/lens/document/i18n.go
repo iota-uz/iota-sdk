@@ -58,6 +58,10 @@ const (
 	I18nReportCardRetry            = "report.card.retry"
 	I18nPanelRendererUnavailable   = "panel.renderer.unavailable"
 
+	// Composition editor: invalid proposals and a failed discard on leave.
+	I18nReportLeaveDiscardFailed = "report.leave.discardFailed"
+	I18nReportProposalInvalid    = "report.proposal.invalid"
+
 	// Composition editor: lifecycle, layout, card settings, shared-edit impact, proposals and the leave guard.
 	I18nReportEditorAdd             = "report.editor.add"
 	I18nReportEditorAdded           = "report.editor.added"
@@ -531,6 +535,9 @@ func RuntimeI18nKeys() []string {
 		I18nReportActionCopy, I18nReportActionRemove, I18nReportActionFailed,
 		I18nReportCardCalculated, I18nReportCardFailed, I18nReportCardRetry,
 		I18nPanelRendererUnavailable,
+
+		I18nReportLeaveDiscardFailed,
+		I18nReportProposalInvalid,
 
 		I18nReportEditorAdd,
 		I18nReportEditorAdded,

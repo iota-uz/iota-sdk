@@ -24,6 +24,8 @@ func RuntimeI18nDefaults() map[string]string {
 		I18nReportCardFailed:              "Not updated: some figures in this card could not be loaded.",
 		I18nReportCardRetry:               "Retry this card",
 		I18nPanelRendererUnavailable:      "This view cannot be shown here. Its data is unchanged and can still be exported.",
+		I18nReportLeaveDiscardFailed:      "The changes could not be discarded, so you are still here. Try again or stay.",
+		I18nReportProposalInvalid:         "This proposal cannot be applied: its layout is not valid for this dashboard.",
 		I18nReportEditorAdd:               "Add report",
 		I18nReportEditorAdded:             "Added {count} reports to the draft",
 		I18nReportEditorCancel:            "Cancel",

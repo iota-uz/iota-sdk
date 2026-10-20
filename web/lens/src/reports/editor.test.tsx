@@ -132,6 +132,76 @@ describe('draft rebase and leave guard', () => {
   })
 })
 
+// False green: a guard that opened the dialog during a save would race it; one that let cancel/save throw would hang silently.
+describe('leave guard during an in-flight save', () => {
+  function deferredDraft() {
+    let settle!: { resolve: () => void; reject: () => void }
+    const { draft, dispose } = draftOf({ save: (value) => new Promise((resolve, reject) => {
+      settle = { resolve: () => resolve({ ...value, revision: String(Number(value.revision) + 1) }), reject: () => reject(new Error('offline')) }
+    }) })
+    return { draft, dispose, settle: () => settle }
+  }
+
+  it('waits for the save and lets the reader leave when it succeeded', async () => {
+    const { draft, dispose, settle } = deferredDraft()
+    const guard = createRoot(() => createReportLeaveGuard(draft))
+    draft.update((value) => ({ ...value, title: 'Saving' }))
+    const saving = draft.save()
+    const leaving = guard.request()
+    expect(guard.pending()).toBe(false)
+    settle().resolve()
+    await saving
+    await expect(leaving).resolves.toBe(true)
+    expect(guard.pending()).toBe(false)
+    dispose()
+  })
+
+  it('asks once the save failed, keeping the edits', async () => {
+    const { draft, dispose, settle } = deferredDraft()
+    const guard = createRoot(() => createReportLeaveGuard(draft))
+    draft.update((value) => ({ ...value, title: 'Saving' }))
+    const saving = draft.save().catch(() => undefined)
+    const leaving = guard.request()
+    settle().reject()
+    await saving
+    await waitFor(() => expect(guard.pending()).toBe(true))
+    expect(draft.value().title).toBe('Saving')
+    await guard.choose('stay')
+    await expect(leaving).resolves.toBe(false)
+    dispose()
+  })
+
+  it('lets a choice made during a save wait for it instead of failing', async () => {
+    const { draft, dispose, settle } = deferredDraft()
+    const guard = createRoot(() => createReportLeaveGuard(draft))
+    draft.update((value) => ({ ...value, title: 'Mine' }))
+    const leaving = guard.request()
+    expect(guard.pending()).toBe(true)
+    const saving = draft.save()
+    const discard = guard.choose('discard')
+    expect(guard.saving()).toBe(true)
+    settle().resolve()
+    await saving
+    await discard
+    await expect(leaving).resolves.toBe(true)
+    expect(guard.failed()).toBe(false)
+    expect(draft.value().title).toBe('Mine')
+    dispose()
+  })
+
+  it('reports a failing cancel instead of losing it', async () => {
+    const guard = createRoot(() => createReportLeaveGuard({
+      dirty: () => true, saving: () => false, cancel: () => { throw new Error('locked') }, save: () => Promise.resolve(),
+    }, { beforeUnload: false }))
+    const leaving = guard.request()
+    await expect(guard.choose('discard')).resolves.toBeUndefined()
+    expect(guard.failure()).toBe('discard')
+    expect(guard.pending()).toBe(true)
+    await guard.choose('stay')
+    await expect(leaving).resolves.toBe(false)
+  })
+})
+
 interface Mounted {
   draft: ReportDraft<Composition>
   save: ReturnType<typeof vi.fn>
@@ -333,6 +403,39 @@ describe('ReportCompositionEditor', () => {
     expect(mounted.draft.value().revision).toBe('3')
     expect(mounted.draft.dirty()).toBe(true)
     expect(screen.getByTestId('report-editor-notice')).toHaveTextContent('Nothing is published until you save')
+  })
+
+  // False green: checking only that Apply is hidden would miss an invalid proposal written into the draft some other way.
+  it('refuses an invalid proposal: duplicate placement ids or a row wider than twelve columns', () => {
+    const settled = vi.fn()
+    const openAsDraft = vi.fn()
+    const broken = {
+      duplicate: (composition: Composition) => ({ ...composition, rows: [[{ id: 'a', reportId: 'report-01', span: 6 }, { id: 'a', reportId: 'report-02', span: 6 }]] }),
+      wide: (composition: Composition) => ({ ...composition, rows: [[{ id: 'a', reportId: 'report-01', span: 8 }, { id: 'b', reportId: 'report-02', span: 8 }]] }),
+      empty: (composition: Composition) => ({ ...composition, rows: [[]] }),
+    }
+    for (const [name, mutate] of Object.entries(broken)) {
+      let mounted!: Mounted
+      render(() => {
+        const value = createReportDraft(base(), { save: (composition) => Promise.resolve(composition) })
+        mounted = { draft: value, save: vi.fn(), guard: createReportLeaveGuard(value) }
+        const proposal: ReportProposal = { id: `p-${name}`, base: reportDraftToken(value), composition: mutate(value.value()) }
+        return <ReportCompositionEditor draft={value} guard={mounted.guard} lifecycle="existing" proposal={proposal} proposalHandlers={{ settled, openAsDraft }} reportTitle={(id) => titles[id]} />
+      })
+      const panel = screen.getByTestId('report-proposal')
+      expect(within(panel).getByRole('alert'), name).toHaveTextContent('its layout is not valid')
+      expect(within(panel).queryByRole('button', { name: 'Apply to draft' }), name).toBeNull()
+      expect(within(panel).queryByRole('button', { name: 'Prepare again' }), name).toBeNull()
+      expect(panel.querySelectorAll('li'), name).toHaveLength(0)
+      fireEvent.click(within(panel).getByRole('button', { name: 'Open as a separate draft' }))
+      expect(openAsDraft).toHaveBeenLastCalledWith(expect.objectContaining({ id: `p-${name}` }))
+      fireEvent.click(within(panel).getByRole('button', { name: 'Reject' }))
+      expect(settled).toHaveBeenLastCalledWith(`p-${name}`, 'rejected')
+      expect(mounted.draft.value(), name).toEqual(base())
+      expect(mounted.draft.dirty(), name).toBe(false)
+      cleanup()
+      document.body.replaceChildren()
+    }
   })
 
   // False green: an impact dialog that edited before showing the count would leave no chance to copy instead.

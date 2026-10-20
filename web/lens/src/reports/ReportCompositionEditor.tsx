@@ -2,7 +2,7 @@ import { createMemo, createSignal, createUniqueId, For, Show, untrack, type JSX 
 import { compactRangeLabel, parseISODate } from '../controls/model'
 import { LensMessagesProvider, useTranslate, type LensThemeMode } from '../runtime'
 import type { Composition, ContextPeriod, Placement, Proposal } from './contract/types'
-import { reportDraftToken, type ReportDraft, type SaveIntent } from './draft'
+import { parseReportComposition, reportDraftToken, type ReportDraft, type SaveIntent } from './draft'
 import { createReportLeaveGuard, type ReportLeaveGuard } from './guard'
 import {
   configurePlacement, diffCompositions, fullSpan, minimumSpan, movePlacement, movePlacementBefore, removePlacement, resizePlacement, spanOf,
@@ -193,6 +193,16 @@ function Editor(props: ReportCompositionEditorProps): JSX.Element {
   }
 
   const proposal = () => (props.proposal && props.proposal.id !== settledProposal() ? props.proposal : undefined)
+  // A proposal comes from outside the editor: it must pass the same validation as a saved
+  // composition (unique placement ids, rows within twelve columns, no empty rows) and
+  // target this draft, or it never reaches the draft.
+  const proposalValid = (value: ReportProposal): boolean => {
+    try {
+      return parseReportComposition(value.composition).id === draft.value().id
+    } catch {
+      return false
+    }
+  }
 
   return (
     <div class="lens-report-editor" data-testid="report-editor">
@@ -295,8 +305,10 @@ function Editor(props: ReportCompositionEditorProps): JSX.Element {
           <ProposalPanel
             base={draft.value()}
             handlers={props.proposalHandlers}
+            invalid={!proposalValid(value())}
             onApply={() => {
               const current = value()
+              if (!proposalValid(current) || current.base !== reportDraftToken(draft)) return
               edit((composition) => ({ ...structuredClone(current.composition), id: composition.id, revision: composition.revision }))
               setSettledProposal(current.id)
               setNotice(translate('report.editor.proposalApplied', 'The proposal was applied to the draft. Nothing is published until you save.'))
@@ -308,7 +320,7 @@ function Editor(props: ReportCompositionEditorProps): JSX.Element {
               props.proposalHandlers?.settled?.(current.id, 'rejected')
             }}
             proposal={value()}
-            stale={value().base !== reportDraftToken(draft) || value().composition.id !== draft.value().id}
+            stale={value().base !== reportDraftToken(draft)}
             title={(placementId, reportId) => {
               const placement = [...value().composition.rows.flat(), ...draft.value().rows.flat()].find((candidate) => candidate.id === placementId)
               return placement ? title(placement) : props.reportTitle(reportId) ?? reportId
@@ -578,13 +590,15 @@ function ProposalPanel(props: {
   proposal: ReportProposal
   base: Composition
   stale: boolean
+  invalid: boolean
   handlers?: ReportProposalHandlers
   title: (placementId: string, reportId: string) => string
   onApply: () => void
   onReject: () => void
 }): JSX.Element {
   const translate = useTranslate()
-  const changes = () => diffCompositions(props.base, props.proposal.composition)
+  const changes = () => (props.invalid ? [] : diffCompositions(props.base, props.proposal.composition))
+  const blocked = () => props.stale || props.invalid
   const kind = (change: CompositionChange) => {
     switch (change.kind) {
       case 'add': return translate('report.proposal.add', 'Add')
@@ -593,13 +607,17 @@ function ProposalPanel(props: {
     }
   }
   return (
-    <section aria-label={translate('report.proposal.title', 'Proposed changes')} class="lens-report-proposal" data-stale={props.stale || undefined} data-testid="report-proposal">
+    <section aria-label={translate('report.proposal.title', 'Proposed changes')} class="lens-report-proposal" data-invalid={props.invalid || undefined} data-stale={blocked() || undefined} data-testid="report-proposal">
       <h3 class="lens-report-proposal-title">{translate('report.proposal.title', 'Proposed changes')}</h3>
       <Show when={props.proposal.summary}>
         <p class="lens-report-proposal-summary">{props.proposal.summary}</p>
       </Show>
       <Show
-        fallback={<p class="lens-report-proposal-summary">{translate('report.proposal.none', 'The proposal does not change the draft.')}</p>}
+        fallback={(
+          <Show when={!props.invalid}>
+            <p class="lens-report-proposal-summary">{translate('report.proposal.none', 'The proposal does not change the draft.')}</p>
+          </Show>
+        )}
         when={changes().length > 0}
       >
         <ul class="lens-report-proposal-list">
@@ -613,7 +631,12 @@ function ProposalPanel(props: {
           </For>
         </ul>
       </Show>
-      <Show when={props.stale}>
+      <Show when={props.invalid}>
+        <p class="lens-report-proposal-stale" role="alert">
+          {translate('report.proposal.invalid', 'This proposal cannot be applied: its layout is not valid for this dashboard.')}
+        </p>
+      </Show>
+      <Show when={props.stale && !props.invalid}>
         <p class="lens-report-proposal-stale" role="alert">
           {translate('report.proposal.stale', 'The draft changed after this proposal was prepared, so it can no longer be applied.')}
         </p>
@@ -622,7 +645,7 @@ function ProposalPanel(props: {
         <Show
           fallback={(
             <>
-              <Show when={props.handlers?.regenerate}>
+              <Show when={props.handlers?.regenerate && !props.invalid}>
                 <button class="lens-context-action" onClick={() => props.handlers?.regenerate?.(props.proposal)} type="button">
                   {translate('report.proposal.regenerate', 'Prepare again')}
                 </button>
@@ -634,7 +657,7 @@ function ProposalPanel(props: {
               </Show>
             </>
           )}
-          when={!props.stale}
+          when={!blocked()}
         >
           <button class="lens-context-action lens-report-primary" disabled={changes().length === 0} onClick={() => props.onApply()} type="button">
             {translate('report.proposal.apply', 'Apply to draft')}
@@ -843,7 +866,9 @@ function LeaveDialog(props: { guard: ReportLeaveGuard; lifecycle: ReportEditorLi
     >
       <Show when={props.guard.failed()}>
         <p class="lens-report-picker-error lens-report-form" role="alert">
-          {translate('report.leave.saveFailed', 'The changes could not be saved, so you are still here. Try again or leave without saving.')}
+          {props.guard.failure() === 'discard'
+            ? translate('report.leave.discardFailed', 'The changes could not be discarded, so you are still here. Try again or stay.')
+            : translate('report.leave.saveFailed', 'The changes could not be saved, so you are still here. Try again or leave without saving.')}
         </p>
       </Show>
     </ReportDialog>
