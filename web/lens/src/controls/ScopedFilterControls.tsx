@@ -6,7 +6,7 @@ import { CaretDown, FunnelSimple } from '../icons'
 import { createFilterContextDraft, filterBoardURL } from '../reports/filterDraft'
 import { PeriodFilterControl } from './PeriodFilterControl'
 import { FacetFilterMenu } from './FacetFilterMenu'
-import { parseISODate, addDays, addMonths, compactRangeLabel, formatISODate } from './model'
+import { parseISODate, addDays, addMonths, compactRangeLabel, formatISODate, type CalendarDate } from './model'
 import { useFilterDefaultsHost } from '../reports/filterHost'
 
 type Scope = 'dashboard' | 'card' | 'section'
@@ -121,8 +121,11 @@ function constraintLabel(editor: ContextEditor, constraint: { dimension: string;
   return `${editor.dimensionLabels?.[constraint.dimension] || constraint.dimension}: ${values}`
 }
 
-const calendarToday = (calendar: ContextCalendar) =>
-  parseISODate(new Intl.DateTimeFormat('en-CA', { timeZone: calendar.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(calendar.asOf)))
+export function calendarToday(calendar: ContextCalendar): CalendarDate | undefined {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: calendar.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(calendar.asOf))
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((value) => value.type === type)?.value ?? ''
+  return parseISODate(`${part('year')}-${part('month')}-${part('day')}`)
+}
 
 /** A selection's dates on the report calendar, the same way the host resolves a relative period. */
 function periodRange(period: ContextPeriod | undefined, calendar: ContextCalendar): PeriodValue {

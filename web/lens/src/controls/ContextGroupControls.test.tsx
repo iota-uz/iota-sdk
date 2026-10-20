@@ -4,7 +4,7 @@ import fixtures from '../../fixtures/scoped-filters.json'
 import { LensDashboard } from '../LensDashboard'
 import { parseDocument } from '../contract'
 import type { ContextEditor, EffectiveContext } from '../contract/types'
-import { contextDiffersFromDashboard, localOverrides } from './ScopedFilterControls'
+import { calendarToday, contextDiffersFromDashboard, localOverrides } from './ScopedFilterControls'
 import { decodeFilterBoard, filterContextParam } from '../reports/filterDraft'
 
 afterEach(() => {
@@ -129,5 +129,12 @@ describe('localOverrides', () => {
     expect(context.period.origin).toEqual({ scope: 'card', id: 'revenue' })
     const labels = localOverrides(editor, context, 'revenue', (_key, fallback) => fallback).map((override) => override.label)
     expect(labels).toEqual(['Section · 23.06.2026 – 22.07.2026', 'Section · Product: A', '01.06.2026 – 30.06.2026'])
+  })
+})
+
+describe('calendarToday', () => {
+  it('reads the calendar date in the report timezone', () => {
+    expect(calendarToday({ timezone: 'Asia/Tashkent', asOf: '2026-07-22T20:30:00Z', defaultPeriod: { mode: 'all' } })).toEqual({ year: 2026, month: 7, day: 23 })
+    expect(calendarToday({ timezone: 'America/New_York', asOf: '2026-07-22T02:30:00Z', defaultPeriod: { mode: 'all' } })).toEqual({ year: 2026, month: 7, day: 21 })
   })
 })
