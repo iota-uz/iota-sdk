@@ -200,7 +200,7 @@ export function PanelFrame(props: PanelFrameProps) {
   // Opt-out chrome: a drawer-hosted panel disables expand (an overlay over a
   // modal is meaningless), and a derived/headline panel disables export.
   const expandable = props.panel.presentation?.expandable !== false
-  const exportable = props.panel.presentation?.exportable !== false
+  const exportable = () => props.panel.presentation?.exportable !== false && chrome?.exportable !== false
   // A stat headline reads number-first: the value leads, and its supporting
   // caption (exact figure, then the muted explainer + period) sits beneath it
   // rather than pushing the number below the fold.
@@ -301,7 +301,7 @@ export function PanelFrame(props: PanelFrameProps) {
           <Show when={busy() && !showLoading()}>
             <span class="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>
           </Show>
-          <Show when={exportable}>
+          <Show when={exportable()}>
             <PanelExportMenu panelId={props.panel.id} title={props.panel.title} />
           </Show>
           <Show when={expandable}>

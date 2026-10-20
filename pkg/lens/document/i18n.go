@@ -42,6 +42,22 @@ const (
 	I18nReportVersionUpdateFailed    = "report.version.updateFailed"
 	I18nReportVersionIncompatible    = "report.version.incompatible"
 
+	// Embeddable report card: unavailable states, the card menu and freshness.
+	I18nReportUnavailableDeleted   = "report.unavailable.deleted"
+	I18nReportUnavailableForbidden = "report.unavailable.forbidden"
+	I18nReportUnavailableTitle     = "report.unavailable.title"
+	I18nReportActionMenu           = "report.action.menu"
+	I18nReportActionOpen           = "report.action.open"
+	I18nReportActionEdit           = "report.action.edit"
+	I18nReportActionConfigure      = "report.action.configure"
+	I18nReportActionCopy           = "report.action.copy"
+	I18nReportActionRemove         = "report.action.remove"
+	I18nReportActionFailed         = "report.action.failed"
+	I18nReportCardCalculated       = "report.card.calculated"
+	I18nReportCardFailed           = "report.card.failed"
+	I18nReportCardRetry            = "report.card.retry"
+	I18nPanelRendererUnavailable   = "panel.renderer.unavailable"
+
 	I18nCascadeCheckpoint             = "cascade.checkpoint"
 	I18nCascadeOpenStage              = "cascade.openStage"
 	I18nCascadeResult                 = "cascade.result"
@@ -393,6 +409,12 @@ func RuntimeI18nKeys() []string {
 		I18nReportVersionKeep,
 		I18nReportVersionUpdateFailed,
 		I18nReportVersionIncompatible,
+
+		I18nReportUnavailableDeleted, I18nReportUnavailableForbidden, I18nReportUnavailableTitle,
+		I18nReportActionMenu, I18nReportActionOpen, I18nReportActionEdit, I18nReportActionConfigure,
+		I18nReportActionCopy, I18nReportActionRemove, I18nReportActionFailed,
+		I18nReportCardCalculated, I18nReportCardFailed, I18nReportCardRetry,
+		I18nPanelRendererUnavailable,
 
 		I18nCalendarAnnRange, I18nCalendarAnnStart, I18nCalendarHintEnd, I18nCalendarHintStart,
 		I18nCalendarLabel, I18nCalendarNextMonth, I18nCalendarPrevMonth,

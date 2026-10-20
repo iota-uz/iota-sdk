@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Lens report placements render as one embeddable card: a host-gated actions menu (open, edit, configure, independent copy, remove), distinct deleted/forbidden/incompatible/unsupported/error states (Compose degrades placements whose Host.Report returns report.ErrReportDeleted or report.ErrReportForbidden), a card-local retry and calculation time with timezone, and host panel renderers (panel.Renderer, LensDashboard renderers) inside the shared frame."
+}

@@ -5,13 +5,25 @@ import { ReportPlacementProvider, type ReportPlacementHost } from './reports/pla
 import fixture from '../fixtures/panels-v1.json'
 import { parseDocument, type DashboardDocument } from './contract'
 import { DashboardPanels } from './DashboardPanels'
+import { HostRenderersProvider, type HostPanelRenderers } from './panels/hostRenderers'
+import type { PanelRegistry } from './panels/registry'
 import type { CalendarDate } from './controls'
 import { DashboardRuntimeProvider, DocumentProvider, type LensThemeMode } from './runtime'
 
 export interface LensDashboardProps {
   filterDefaultsHost?: FilterDefaultsHost
-  /** Version state of reusable report placements, keyed by placement id. */
+  /**
+   * Reusable report placements, keyed by placement id: version state,
+   * availability, source capabilities and the card menu's handlers.
+   */
   reportPlacementHost?: ReportPlacementHost
+  /**
+   * Host renderers for panels whose document names one (panel.renderer). The
+   * SDK frame keeps title, states, retry, export and the placement menu.
+   */
+  renderers?: HostPanelRenderers
+  /** Replaces the built-in component of a panel kind. */
+  registry?: PanelRegistry
   toolbar?: (context: LensToolbarContext) => JSX.Element
   src?: string
   /**
@@ -51,11 +63,13 @@ export function LensDashboard(props: LensDashboardProps) {
       <div data-theme={theme()}>
         <FilterDefaultsProvider host={props.filterDefaultsHost}>
           <ReportPlacementProvider host={props.reportPlacementHost}>
-            <DocumentProvider src={props.src} initialDocument={document()} csrf={props.csrf} fetcher={props.fetcher}>
-              <DashboardRuntimeProvider locale={locale()} csrf={props.csrf} fetcher={props.fetcher} fallback={fallback()}>
-                {() => <DashboardPanels filterToday={props.filterToday} toolbar={props.toolbar} />}
-              </DashboardRuntimeProvider>
-            </DocumentProvider>
+            <HostRenderersProvider renderers={props.renderers}>
+              <DocumentProvider src={props.src} initialDocument={document()} csrf={props.csrf} fetcher={props.fetcher}>
+                <DashboardRuntimeProvider locale={locale()} csrf={props.csrf} fetcher={props.fetcher} fallback={fallback()}>
+                  {() => <DashboardPanels filterToday={props.filterToday} registry={props.registry} toolbar={props.toolbar} />}
+                </DashboardRuntimeProvider>
+              </DocumentProvider>
+            </HostRenderersProvider>
           </ReportPlacementProvider>
         </FilterDefaultsProvider>
       </div>

@@ -19,6 +19,16 @@ const storyIds = [
   'reusable-reports--incompatible-dark',
   'reusable-reports--reopened-incompatible-light',
   'reusable-reports--reopened-incompatible-dark',
+  'report-card--embedded-light',
+  'report-card--embedded-dark',
+  'report-card--standalone-light',
+  'report-card--standalone-dark',
+  'report-card--compatibility-light',
+  'report-card--compatibility-dark',
+  'report-card--menu-open-light',
+  'report-card--menu-open-dark',
+  'report-card--card-retry-light',
+  'report-card--card-retry-dark',
   'choropleth-map--dense-region-labels',
   'choropleth-map--state-matrix',
   'comparison-interactions--previous-period',
@@ -199,6 +209,17 @@ const staticStories = [
   ['reusable-reports--incompatible-dark', 0, 0],
   ['reusable-reports--reopened-incompatible-light', 0, 0],
   ['reusable-reports--reopened-incompatible-dark', 0, 0],
+  // One bar chart per card; its canvas antialiasing is the only variance.
+  ['report-card--embedded-light', 1, 2],
+  ['report-card--embedded-dark', 1, 2],
+  ['report-card--standalone-light', 1, 2],
+  ['report-card--standalone-dark', 1, 2],
+  ['report-card--compatibility-light', 1, 2],
+  ['report-card--compatibility-dark', 1, 2],
+  ['report-card--menu-open-light', 1, 2],
+  ['report-card--menu-open-dark', 1, 2],
+  ['report-card--card-retry-light', 1, 2],
+  ['report-card--card-retry-dark', 1, 2],
   ['choropleth-map--dense-region-labels', 1, 10],
   // ECharts map labels can vary by a couple of antialiased edge pixels even
   // when the rendered regions, values, and geometry are identical.
@@ -877,6 +898,35 @@ test('reusable report drafts preserve placement scope on save failure and cancel
   await page.getByRole('button', { name: 'Save draft', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('revision 2')
   await expect(page.getByRole('status')).not.toContainText('Unsaved changes')
+})
+
+// False green: a card retry that refetched the board, or a menu that lost focus, would still look settled.
+test('report card retries only itself and its menu is keyboard operable', async ({ page }) => {
+  await openStory(page, 'report-card--card-retry-light', 1)
+  const card = page.locator('[data-report-placement="revenue"]')
+  await expect(card).toHaveAttribute('data-state', 'error')
+  await expect(card.getByRole('table')).toHaveCount(0)
+  await page.getByTestId('report-retry-revenue').click()
+  await expect(card.getByRole('table')).toHaveCount(1)
+  await expect(card).toHaveAttribute('data-state', 'ready')
+  await expect(page.getByTestId('report-status-revenue')).toContainText('Calculated')
+
+  await openStory(page, 'report-card--embedded-light', 1)
+  const trigger = page.getByTestId('report-menu-revenue')
+  await trigger.focus()
+  await page.keyboard.press('Enter')
+  const menu = page.getByRole('menu', { name: 'Card actions: Revenue' })
+  await expect(menu.getByRole('menuitem').first()).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(menu.getByRole('menuitem', { name: 'Edit report' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+  await trigger.click()
+  await page.getByRole('menuitem', { name: 'Configure card' }).click()
+  await expect(page.getByTestId('report-card-host-log')).toHaveText('configure revenue')
+  await expect(page.locator('[data-report-placement="forbidden"]')).toHaveAttribute('data-state', 'forbidden')
+  await expect(page.locator('[data-report-placement="forbidden"]')).not.toContainText('Archived')
 })
 
 // False green: a notice that replaced or hid the opened figures would still read as "update offered".
