@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixtures from '../../fixtures/scoped-filters.json'
 import { LensDashboard } from '../LensDashboard'
 import { parseDocument } from '../contract'
-import type { EffectiveContext } from '../contract/types'
-import { contextDiffersFromDashboard } from './ScopedFilterControls'
+import type { ContextEditor, EffectiveContext } from '../contract/types'
+import { contextDiffersFromDashboard, localOverrides } from './ScopedFilterControls'
 import { decodeFilterBoard, filterContextParam } from '../reports/filterDraft'
 
 afterEach(() => {
@@ -106,12 +106,28 @@ describe('contextDiffersFromDashboard', () => {
     ['identical', base, false],
     ['card period', { ...base, period: { ...base.period, origin: { scope: 'card', id: 'c' } } }, true],
     ['report period', { ...base, period: { ...base.period, origin: { scope: 'report', id: 'r' } } }, true],
-    ['restriction', { ...base, restrictions: [{ dimension: 'p', values: ['a'], origin: { scope: 'section', id: 's' } }] }, true],
+    ['section restriction', { ...base, restrictions: [{ dimension: 'p', values: ['a'], origin: { scope: 'section', id: 's' } }] }, true],
+    ['card restriction', { ...base, restrictions: [{ dimension: 'p', values: ['a'], origin: { scope: 'card', id: 'c' } }] }, true],
+    ['dashboard restriction only', { ...base, restrictions: [{ dimension: 'p', values: ['a'], origin: { scope: 'dashboard', id: 'd' } }] }, false],
     ['conflict', { ...base, conflicts: ['p'] }, true],
     ['unsupported', { ...base, unsupported: [{ dimension: 'p', values: ['a'], origin: { scope: 'dashboard', id: 'd' } }] }, true],
     ['unsupported export', { ...base, unsupportedOperations: { export: [{ dimension: 'p', values: ['a'], origin: { scope: 'dashboard', id: 'd' } }] } }, true],
     ['empty unsupported operations', { ...base, unsupportedOperations: { export: [] } }, false],
   ] as const)('%s', (_name, context, expected) => {
     expect(contextDiffersFromDashboard(context as EffectiveContext)).toBe(expected)
+  })
+})
+
+describe('localOverrides', () => {
+  // False green: a section period resolved through the effective context only works while no card overrides it.
+  it('dates a relative section period on the report calendar beneath a card override, and names its scope', () => {
+    const document = scenario('June card')
+    const editor = document.contextEditor as ContextEditor
+    editor.value.sections = { sales: { period: { mode: 'relative', days: 30 }, constraints: [{ dimension: 'product', values: ['A'] }] } }
+    const group = document.layout.rows[0]!.panels[0]!.groups.find((candidate) => candidate.id === 'revenue')!
+    const context = group.filterContext!
+    expect(context.period.origin).toEqual({ scope: 'card', id: 'revenue' })
+    const labels = localOverrides(editor, context, 'revenue', (_key, fallback) => fallback).map((override) => override.label)
+    expect(labels).toEqual(['Section · 23.06.2026 – 22.07.2026', 'Section · Product: A', '01.06.2026 – 30.06.2026'])
   })
 })

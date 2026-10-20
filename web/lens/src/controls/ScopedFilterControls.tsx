@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createUniqueId, For, onCleanup, onMount, Show } from 'solid-js'
 import { unwrap } from 'solid-js/store'
-import type { ContextBoard, ContextEditor, ContextFilters, ContextOrigin, ContextPeriod, EffectiveContext, Filter, PeriodValue } from '../contract/types'
+import type { ContextBoard, ContextCalendar, ContextEditor, ContextFilters, ContextOrigin, ContextPeriod, EffectiveContext, Filter, PeriodValue } from '../contract/types'
 import { useDashboard, useFilters, useTranslate } from '../runtime'
 import { CaretDown, FunnelSimple } from '../icons'
 import { createFilterContextDraft, filterBoardURL } from '../reports/filterDraft'
@@ -75,22 +75,12 @@ function ScopedFilterDraftControls(props: ScopedFilterProps & { focus: { pending
   const inheritText = () => props.scope === 'dashboard'
     ? translate('filter.context.reportPeriods', 'Report periods')
     : translate('filter.context.useDashboard', 'Use dashboard period')
-  const selectedRange = (): PeriodValue => {
-    const period = draft.value().period
-    if (period?.mode === 'fixed') return { start: period.start ?? '', end: period.end ?? '' }
-    if (period?.mode === 'relative') {
-      const today = hostToday()
-      if (!today) return { start: '', end: '' }
-      const start = period.months ? addDays(addMonths(today, -period.months), 1) : addDays(today, 1 - (period.days ?? 1))
-      return { start: formatISODate(start), end: formatISODate(today) }
-    }
-    return { start: '', end: '' }
-  }
+  const selectedRange = (): PeriodValue => periodRange(draft.value().period, props.editor.value.calendar)
   const filter: Filter = { id: `context-${props.scope}-${props.id}`, kind: 'period', period: {
     startParam: 'context-start', endParam: 'context-end', allowEmpty: true,
     get value() { return selectedRange() },
   } }
-  const hostToday = () => parseISODate(new Intl.DateTimeFormat('en-CA', { timeZone: props.editor.value.calendar.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(props.editor.value.calendar.asOf)))
+  const hostToday = () => calendarToday(props.editor.value.calendar)
   const commit = (change: (value: ContextFilters) => ContextFilters, focusTarget: string) => {
     draft.update(change)
     if (!draft.dirty()) return
@@ -131,12 +121,27 @@ function constraintLabel(editor: ContextEditor, constraint: { dimension: string;
   return `${editor.dimensionLabels?.[constraint.dimension] || constraint.dimension}: ${values}`
 }
 
+const calendarToday = (calendar: ContextCalendar) =>
+  parseISODate(new Intl.DateTimeFormat('en-CA', { timeZone: calendar.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(calendar.asOf)))
+
+/** A selection's dates on the report calendar, the same way the host resolves a relative period. */
+function periodRange(period: ContextPeriod | undefined, calendar: ContextCalendar): PeriodValue {
+  if (period?.mode === 'fixed') return { start: period.start ?? '', end: period.end ?? '' }
+  if (period?.mode === 'relative') {
+    const today = calendarToday(calendar)
+    if (!today) return { start: '', end: '' }
+    const start = period.months ? addDays(addMonths(today, -period.months), 1) : addDays(today, 1 - (period.days ?? 1))
+    return { start: formatISODate(start), end: formatISODate(today) }
+  }
+  return { start: '', end: '' }
+}
+
 const inheritsPeriod = (period?: ContextPeriod) => !period || period.mode === 'reports'
 
-/** A group context carries something the dashboard bar does not already say. */
+/** A group context carries something the dashboard bar does not already say; dashboard restrictions are the bar's own chips. */
 export function contextDiffersFromDashboard(context: EffectiveContext): boolean {
   return context.period.origin.scope !== 'dashboard'
-    || context.restrictions.length > 0
+    || context.restrictions.some((restriction) => restriction.origin.scope !== 'dashboard')
     || context.conflicts.length > 0
     || context.unsupported.length > 0
     || Object.values(context.unsupportedOperations ?? {}).some((restrictions) => restrictions.length > 0)
@@ -153,9 +158,10 @@ export function localOverrides(editor: ContextEditor, context: EffectiveContext,
   ]
   return scopes.flatMap(({ scope, id: scopeID, origin }) => {
     const filters = (scope === 'section' ? editor.value.sections : editor.value.cards)?.[scopeID] ?? {}
-    const period = inheritsPeriod(filters.period) ? [] : [{ key: `${scope}:period`, label: periodLabel(filters.period!, context, { scope, id: scopeID }, translate), origin }]
+    const prefix = scope === 'section' ? `${translate('filter.context.scope.section', 'Section')} · ` : ''
+    const period = inheritsPeriod(filters.period) ? [] : [{ key: `${scope}:period`, label: prefix + periodLabel(filters.period!, context, { scope, id: scopeID }, translate), origin }]
     return [...period, ...(filters.constraints ?? []).filter((constraint) => constraint.values.length > 0).map((constraint) => ({
-      key: `${scope}:${constraint.dimension}`, label: constraintLabel(editor, constraint), origin,
+      key: `${scope}:${constraint.dimension}`, label: prefix + constraintLabel(editor, constraint), origin,
     }))]
   })
 }
@@ -163,7 +169,7 @@ export function localOverrides(editor: ContextEditor, context: EffectiveContext,
 function periodLabel(period: ContextPeriod, context: EffectiveContext, origin: ContextOrigin, translate: ReturnType<typeof useTranslate>) {
   const resolved = context.period.origin.scope === origin.scope && context.period.origin.id === origin.id
     ? { start: context.period.start, end: context.period.end }
-    : period.mode === 'fixed' ? { start: period.start, end: period.end } : {}
+    : periodRange(period, context.calendar)
   const start = resolved.start ? parseISODate(resolved.start) : undefined
   const end = resolved.end ? parseISODate(resolved.end) : undefined
   if (start && end) return compactRangeLabel(start, end)

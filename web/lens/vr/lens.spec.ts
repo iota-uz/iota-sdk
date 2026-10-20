@@ -897,6 +897,8 @@ test('scoped filters apply a restored selection at once, keep focus, and retain 
   for (const width of [1440, 1024, 390]) {
     await page.setViewportSize({ width, height: 1000 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    await screenshot(page, `scoped-filters-responsive-${width}`, { maxDiffPixels: 0 })
+    // The just-pressed Save button's rounded corners alternate between two
+    // stable Chromium rasters (a few antialiased pixels); its geometry is exact.
+    await screenshot(page, `scoped-filters-responsive-${width}`, { maxDiffPixels: 16 })
   }
 })
