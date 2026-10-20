@@ -1,43 +1,13 @@
-import { createContext, createSignal, Show, useContext, type JSX } from 'solid-js'
+import { createSignal, Show } from 'solid-js'
+import type { LayoutGroup } from '../contract/types'
 import { useDocumentState, useTranslate } from '../runtime'
-import type { ReportVersionStatus } from './version'
-
-/**
- * The host knows which revision each placement was opened with and which is
- * latest (report.Resolved.Version or compareReportVersion); the SDK only
- * renders that state. Placement ids are the report group ids on the wire.
- */
-export interface ReportPlacementHost {
-  /** Read reactively: return a signal-backed value to update an open notice. */
-  status: (placementId: string) => ReportVersionStatus | undefined
-  /** Adopt the newer definition; the document is refreshed after it resolves. */
-  update?: (placementId: string) => Promise<void> | void
-  /**
-   * Record that the reader keeps the opened version. status should stop
-   * returning update-available afterwards; the local dismissal is immediate
-   * feedback only and does not survive a document refresh.
-   */
-  keep?: (placementId: string) => void
-}
-
-const ReportPlacementContext = createContext<ReportPlacementHost>()
-
-export function ReportPlacementProvider(props: { host?: ReportPlacementHost; children: JSX.Element }) {
-  return <ReportPlacementContext.Provider value={props.host}>{props.children}</ReportPlacementContext.Provider>
-}
-
-export function useReportPlacementHost() { return useContext(ReportPlacementContext) }
-
-/** Whether a placement's figures may be shown; an incompatible definition is unavailable rather than silently stale. */
-export function reportPlacementAvailable(host: ReportPlacementHost | undefined, placementId: string): boolean {
-  return host?.status(placementId) !== 'incompatible'
-}
+import { useReportPlacementHost } from './placementHost'
 
 /**
  * Update-available keeps the opened figures intact and offers the newer
  * version; incompatible explains why the placement cannot be shown.
  */
-export function ReportVersionNotice(props: { placementId: string }) {
+export function ReportVersionNotice(props: { placementId: string; unavailable?: LayoutGroup['unavailable'] }) {
   const host = useReportPlacementHost()
   const documentState = useDocumentState()
   const translate = useTranslate()
@@ -74,7 +44,7 @@ export function ReportVersionNotice(props: { placementId: string }) {
     }
   }
   return <>
-    <Show when={status() === 'update-available' && !kept()}>
+    <Show when={!props.unavailable && status() === 'update-available' && !kept()}>
       <div class="lens-report-version" data-testid={`report-version-${props.placementId}`} data-status="update-available" role="status" ref={(element) => { root = element }}>
         <p>{translate('report.version.updateAvailable', 'A newer version of this report is available.')}</p>
         <div class="lens-report-version-actions">
@@ -93,7 +63,7 @@ export function ReportVersionNotice(props: { placementId: string }) {
         </Show>
       </div>
     </Show>
-    <Show when={status() === 'incompatible'}>
+    <Show when={props.unavailable || status() === 'incompatible'}>
       <div class="lens-panel-state lens-report-unavailable" data-testid={`report-version-${props.placementId}`} data-status="incompatible" role="alert">
         <p>{translate('report.version.incompatible', 'This report is unavailable: its definition no longer matches the data source. Ask the report owner to update it.')}</p>
       </div>

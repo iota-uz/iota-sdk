@@ -1,4 +1,4 @@
 {
   "bump": "minor",
-  "summary": "Add Lens report placement version states (report.Resolved.Version, compareReportVersion, ReportPlacementHost) with an update offer that keeps opened figures, an explained incompatible state, and reportPlacementActions capability gating."
+  "summary": "Add Lens report placement version states (report.Resolved.Version, compareReportVersion, ReportPlacementHost): an update offer that keeps opened figures, an incompatible placement composed as an unavailable group instead of failing the dashboard, no printed figures for it, and reportPlacementActions capability gating."
 }

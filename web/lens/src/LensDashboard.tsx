@@ -1,7 +1,7 @@
 
 import type { JSX } from 'solid-js'
 import { FilterDefaultsProvider, type FilterDefaultsHost } from './reports/filterHost'
-import { ReportPlacementProvider, type ReportPlacementHost } from './reports/ReportVersionNotice'
+import { ReportPlacementProvider, type ReportPlacementHost } from './reports/placementHost'
 import fixture from '../fixtures/panels-v1.json'
 import { parseDocument, type DashboardDocument } from './contract'
 import { DashboardPanels } from './DashboardPanels'

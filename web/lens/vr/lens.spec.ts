@@ -17,6 +17,8 @@ const storyIds = [
   'reusable-reports--update-available-dark',
   'reusable-reports--incompatible-light',
   'reusable-reports--incompatible-dark',
+  'reusable-reports--reopened-incompatible-light',
+  'reusable-reports--reopened-incompatible-dark',
   'choropleth-map--dense-region-labels',
   'choropleth-map--state-matrix',
   'comparison-interactions--previous-period',
@@ -195,6 +197,8 @@ const staticStories = [
   ['reusable-reports--update-available-dark', 0, 0],
   ['reusable-reports--incompatible-light', 0, 0],
   ['reusable-reports--incompatible-dark', 0, 0],
+  ['reusable-reports--reopened-incompatible-light', 0, 0],
+  ['reusable-reports--reopened-incompatible-dark', 0, 0],
   ['choropleth-map--dense-region-labels', 1, 10],
   // ECharts map labels can vary by a couple of antialiased edge pixels even
   // when the rendered regions, values, and geometry are identical.
@@ -901,6 +905,21 @@ test('reusable report placements offer an update beside the opened figures and e
   await expect(first.getByRole('alert')).toContainText('This report is unavailable')
   await expect(first.getByRole('table')).toHaveCount(0)
   await expect(page.getByRole('region', { name: 'Revenue', exact: true }).getByRole('table')).toHaveCount(1)
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 1000 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+})
+
+// False green: a reopen that failed the whole composition, or hid every placement, would not show the current neighbour's figures.
+test('a reopened composition renders its current placement and explains the incompatible one', async ({ page }) => {
+  await openStory(page, 'reusable-reports--reopened-incompatible-light', 0)
+  const first = page.getByRole('region', { name: 'First six months', exact: true })
+  const second = page.getByRole('region', { name: 'Revenue', exact: true })
+  await expect(first.getByRole('alert')).toContainText('This report is unavailable')
+  await expect(first.getByRole('table')).toHaveCount(0)
+  await expect(first.getByRole('button')).toHaveCount(0)
+  await expect(second.locator('tr').filter({ hasText: 'Online' }).locator('td').last()).toHaveText('14,400')
   for (const width of [1440, 1024, 390]) {
     await page.setViewportSize({ width, height: 1000 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
