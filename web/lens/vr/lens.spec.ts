@@ -29,6 +29,8 @@ const storyIds = [
   'report-card--menu-open-dark',
   'report-card--card-retry-light',
   'report-card--card-retry-dark',
+  'report-card--progressive-light',
+  'report-card--progressive-dark',
   'choropleth-map--dense-region-labels',
   'choropleth-map--state-matrix',
   'comparison-interactions--previous-period',
@@ -209,17 +211,20 @@ const staticStories = [
   ['reusable-reports--incompatible-dark', 0, 0],
   ['reusable-reports--reopened-incompatible-light', 0, 0],
   ['reusable-reports--reopened-incompatible-dark', 0, 0],
-  // One bar chart per card; its canvas antialiasing is the only variance.
-  ['report-card--embedded-light', 1, 2],
-  ['report-card--embedded-dark', 1, 2],
-  ['report-card--standalone-light', 1, 2],
-  ['report-card--standalone-dark', 1, 2],
-  ['report-card--compatibility-light', 1, 2],
-  ['report-card--compatibility-dark', 1, 2],
-  ['report-card--menu-open-light', 1, 2],
-  ['report-card--menu-open-dark', 1, 2],
-  ['report-card--card-retry-light', 1, 2],
-  ['report-card--card-retry-dark', 1, 2],
+  // One bar chart per card, plus the table's right-aligned figures, whose glyph
+  // antialiasing is bistable run to run (≤28px) with identical geometry.
+  ['report-card--embedded-light', 1, 40],
+  ['report-card--embedded-dark', 1, 40],
+  ['report-card--standalone-light', 1, 40],
+  ['report-card--standalone-dark', 1, 40],
+  ['report-card--compatibility-light', 1, 40],
+  ['report-card--compatibility-dark', 1, 40],
+  ['report-card--menu-open-light', 1, 40],
+  ['report-card--menu-open-dark', 1, 40],
+  ['report-card--card-retry-light', 1, 40],
+  ['report-card--card-retry-dark', 1, 40],
+  ['report-card--progressive-light', 0, 0],
+  ['report-card--progressive-dark', 0, 0],
   ['choropleth-map--dense-region-labels', 1, 10],
   // ECharts map labels can vary by a couple of antialiased edge pixels even
   // when the rendered regions, values, and geometry are identical.
@@ -899,6 +904,110 @@ test('reusable report drafts preserve placement scope on save failure and cancel
   await expect(page.getByRole('status')).toContainText('revision 2')
   await expect(page.getByRole('status')).not.toContainText('Unsaved changes')
 })
+
+type Box = { x: number; y: number; width: number; height: number }
+
+/** Every card, member panel and KPI cell of the progressive board, keyed by identity. */
+async function cardGeometry(page: Page): Promise<Record<string, Box>> {
+  return page.evaluate(() => {
+    const boxes: Record<string, { x: number; y: number; width: number; height: number }> = {}
+    const add = (key: string, element: Element) => {
+      const rect = element.getBoundingClientRect()
+      boxes[key] = { x: rect.x, y: rect.y + window.scrollY, width: rect.width, height: rect.height }
+    }
+    document.querySelectorAll('[data-report-placement]').forEach((element) => add(`card:${element.getAttribute('data-report-placement')}`, element))
+    document.querySelectorAll('[data-report-placement] [data-panel-id]').forEach((element) => add(`panel:${element.getAttribute('data-panel-id')}`, element))
+    document.querySelectorAll('[data-report-placement] .lens-metric-cell').forEach((element, index) => add(`metric:${index}`, element))
+    return boxes
+  })
+}
+
+/** Nothing on the page is wider than the viewport, and no card clips its own text. */
+async function expectNoCardOverflow(page: Page): Promise<void> {
+  const problems = await page.evaluate(() => {
+    const found: string[] = []
+    if (document.documentElement.scrollWidth > window.innerWidth + 1) found.push(`page ${document.documentElement.scrollWidth} > ${window.innerWidth}`)
+    const text = '[data-report-placement] :is(h3, p, .lens-stat-metric-value, .lens-panel-state, button), .lens-report-menu-list [role="menuitem"]'
+    document.querySelectorAll<HTMLElement>(text).forEach((element) => {
+      if (element.closest('.lens-table-scroll, .lens-chart-host, .lens-panel-header')) return
+      if (element.scrollWidth > element.clientWidth + 1) found.push(`${element.className || element.tagName}: ${element.textContent?.slice(0, 40)}`)
+    })
+    document.querySelectorAll('.lens-report-menu-list').forEach((menu) => {
+      const rect = menu.getBoundingClientRect()
+      if (rect.left < 0 || rect.right > window.innerWidth) found.push(`menu ${rect.left}-${rect.right}`)
+    })
+    return found
+  })
+  expect(problems).toEqual([])
+}
+
+/** Skeleton → ready may only grow a body to its content; position, width and the KPI grid stay put. */
+const geometryTolerance = { position: 1, width: 1, height: 1 } as const
+
+for (const [width, height] of [[1440, 900], [1024, 900], [390, 844]] as const) {
+  // False green: a skeleton with zero height, or a story already showing figures, would also "not move".
+  test(`report-card geometry holds from skeleton to figures at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height })
+    await openStory(page, 'report-card--progressive-light', 0)
+    const revenue = page.locator('[data-report-placement="revenue"]')
+    await expect(revenue.locator('[aria-busy="true"]').first()).toBeVisible()
+    await expect(page.locator('.lens-stat-metric-value-shimmer')).toHaveCount(3)
+    const before = await cardGeometry(page)
+    expect(Object.keys(before).length).toBeGreaterThan(8)
+    for (const [key, box] of Object.entries(before)) {
+      expect(box.width, key).toBeGreaterThan(0)
+      expect(box.height, key).toBeGreaterThan(0)
+    }
+    await page.evaluate(() => (globalThis as unknown as { __lensCard: { release: () => void } }).__lensCard.release())
+    await expect(revenue).toHaveAttribute('data-state', 'ready')
+    await expect(page.locator('canvas')).toHaveCount(1)
+    await waitForCharts(page)
+    const after = await cardGeometry(page)
+    expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort())
+    const moved = Object.entries(before).flatMap(([key, box]) => {
+      const next = after[key]!
+      const drift = [
+        ['x', next.x - box.x, geometryTolerance.position], ['y', next.y - box.y, geometryTolerance.position],
+        ['width', next.width - box.width, geometryTolerance.width], ['height', next.height - box.height, geometryTolerance.height],
+      ] as const
+      return drift.filter(([, delta, limit]) => Math.abs(delta) > limit).map(([axis, delta]) => `${key} ${axis} ${delta.toFixed(1)}`)
+    })
+    expect(moved).toEqual([])
+    const premium = page.locator('[data-report-placement="revenue"] .lens-metric-cell').nth(2).locator('.lens-stat-metric-value')
+    // The whole amount and its currency are on screen, not clipped by the cell.
+    await expect(premium).toHaveText('1,234,567,890,123.45 so’m')
+    expect(await premium.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
+    await expectNoCardOverflow(page)
+
+    // Stale on refresh, then a card-local failure and retry.
+    await page.evaluate(() => { (globalThis as unknown as { __lensCard: { failTable: boolean } }).__lensCard.failTable = true })
+    await page.getByRole('button', { name: /Recompute|Updated/ }).click()
+    await expect(page.locator('[data-panel-id="revenue::panel:table"]')).toHaveAttribute('data-stale', 'true')
+    await expect(revenue).toHaveAttribute('data-state', 'updating')
+    await page.evaluate(() => (globalThis as unknown as { __lensCard: { release: () => void } }).__lensCard.release())
+    await expect(revenue).toHaveAttribute('data-state', 'error')
+    await expect(page.getByTestId('report-status-revenue')).toContainText('Not updated')
+    await page.evaluate(() => { const card = (globalThis as unknown as { __lensCard: { failTable: boolean } }).__lensCard; card.failTable = false })
+    await page.getByTestId('report-retry-revenue').click()
+    await page.evaluate(() => (globalThis as unknown as { __lensCard: { release: () => void } }).__lensCard.release())
+    await expect(revenue).toHaveAttribute('data-state', 'ready')
+    const requests = await page.evaluate(() => (globalThis as unknown as { __lensCard: { requests: string[][] } }).__lensCard.requests)
+    expect(requests.at(-1)).toEqual(['revenue::panel:table'])
+  })
+
+  // False green: a 1600px-only baseline hides a menu or footer pushed off a narrow card.
+  test(`report-card responsive states at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height })
+    for (const story of ['report-card--embedded-light', 'report-card--menu-open-light'] as const) {
+      await openStory(page, story, 1)
+      if (story === 'report-card--menu-open-light') await expect(page.getByRole('menu')).toBeVisible()
+      await expect(page.locator('[data-report-placement="forbidden"]')).toHaveAttribute('data-state', 'forbidden')
+      await expect(page.getByTestId('report-status-revenue')).toBeVisible()
+      await expectNoCardOverflow(page)
+      await screenshot(page, `${story}-${width}`, { maxDiffPixels: 40 })
+    }
+  })
+}
 
 // False green: a card retry that refetched the board, or a menu that lost focus, would still look settled.
 test('report card retries only itself and its menu is keyboard operable', async ({ page }) => {

@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
+	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/report"
@@ -60,16 +61,24 @@ func cardExamples() error {
 		}),
 	}
 	documents := map[string]*document.DashboardDocument{}
+	// "progressive" is the embedded board as a structure-only shell: the same
+	// containers, panels and captions with every frame deferred to the panel
+	// endpoint, which is what a host serves before any figure is computed.
+	compositions["progressive"] = compositions["embedded"]
 	for name, composition := range compositions {
 		spec, _, err := report.Compose(ctx, composition, host)
 		if err != nil {
 			return err
 		}
-		result, err := lensruntime.New(lensruntime.Options{}).Execute(ctx, spec, lensruntime.Request{Locale: "en", DataScope: "synthetic"}, lensruntime.DashboardScope())
+		scope, options := lensruntime.DashboardScope(), document.BuildOptions{SnapshotID: "card-" + name, Locale: "en", GeneratedAt: time.Date(2026, 10, 12, 6, 30, 0, 0, time.UTC), InlineDepth: 10}
+		if name == "progressive" {
+			scope, options.DeferPanels, options.Endpoints = lensruntime.ShellScope(), true, document.Endpoints{Panel: "/lens/panel"}
+		}
+		result, err := lensruntime.New(lensruntime.Options{}).Execute(ctx, spec, lensruntime.Request{Locale: "en", DataScope: "synthetic"}, scope)
 		if err != nil {
 			return err
 		}
-		doc, err := document.Build(spec, result, document.BuildOptions{SnapshotID: "card-" + name, Locale: "en", GeneratedAt: time.Date(2026, 10, 12, 6, 30, 0, 0, time.UTC), InlineDepth: 10})
+		doc, err := document.Build(spec, result, options)
 		if err != nil {
 			return err
 		}
@@ -79,10 +88,11 @@ func cardExamples() error {
 		documents[name] = doc
 	}
 	return json.NewEncoder(os.Stdout).Encode(struct {
-		Source     report.SourceDescriptor     `json:"source"`
-		Standalone *document.DashboardDocument `json:"standalone"`
-		Embedded   *document.DashboardDocument `json:"embedded"`
-	}{monthly.Metadata, documents["standalone"], documents["embedded"]})
+		Source      report.SourceDescriptor     `json:"source"`
+		Standalone  *document.DashboardDocument `json:"standalone"`
+		Embedded    *document.DashboardDocument `json:"embedded"`
+		Progressive *document.DashboardDocument `json:"progressive"`
+	}{monthly.Metadata, documents["standalone"], documents["embedded"], documents["progressive"]})
 }
 
 func cardSpec() (lens.DashboardSpec, error) {
@@ -97,8 +107,8 @@ func cardSpec() (lens.DashboardSpec, error) {
 		return lens.DashboardSpec{}, err
 	}
 	// A measured zero, kept apart from "no data" in the same strip.
-	zero := frame.NewBuilder("refunds").String("label", frame.RoleDimension).Number("refunds", frame.RoleMetric)
-	if err = zero.Append(frame.Row{"label": "Refunds", "refunds": 0.0}); err != nil {
+	zero := frame.NewBuilder("refunds").String("label", frame.RoleDimension).String("premiumLabel", frame.RoleDimension).Number("refunds", frame.RoleMetric).Number("premium", frame.RoleMetric)
+	if err = zero.Append(frame.Row{"label": "Refunds", "premiumLabel": "Gross written premium", "refunds": 0.0, "premium": 1234567890123.45}); err != nil {
 		return lens.DashboardSpec{}, err
 	}
 	refunds, err := zero.FrameSet()
@@ -109,6 +119,8 @@ func cardSpec() (lens.DashboardSpec, error) {
 		{Panels: []panel.Spec{panel.StatGroup("kpis", "Revenue by channel",
 			panel.Stat("online", "Online revenue", "data").ValueField("revenue").Terminal().Build(),
 			panel.Stat("refunds", "Refunds", "refunds").ValueField("refunds").Terminal().Build(),
+			// A long money figure: the strip wraps it, never clips value or currency.
+			panel.Stat("premium", "Gross written premium", "refunds").LabelField("premiumLabel").ValueField("premium").Format(format.Money("UZS", 2)).Terminal().Build(),
 		).Build()}},
 		{Panels: []panel.Spec{
 			panel.Bar("channels", "Revenue by channel", "data").CategoryField("label").ValueField("revenue").Terminal().Span(6).Build(),

@@ -17,7 +17,8 @@ function LegacyBars(props: HostPanelRendererProps) {
   const rows = () => props.frame.data?.rows ?? []
   const max = () => Math.max(1, ...rows().map((row) => Number(row[index(options().field)]) || 0))
   return (
-    <ul class="lens:m-0 lens:flex lens:list-none lens:flex-col lens:gap-2 lens:p-4" data-testid="legacy-bars">
+    // The host view owns its loading placeholder: the same box, empty until rows arrive.
+    <ul aria-busy={props.frame.isLoading || undefined} class="lens:m-0 lens:flex lens:list-none lens:flex-col lens:gap-2 lens:p-4" data-testid="legacy-bars" style={{ 'min-height': '6rem', 'box-sizing': 'border-box' }}>
       {rows().map((row) => {
         const value = Number(row[index(options().field)]) || 0
         return (
@@ -118,3 +119,43 @@ function Failing(props: { theme: LensThemeMode }): JSX.Element {
 }
 export const CardRetryLight = () => <Failing theme="light" />
 export const CardRetryDark = () => <Failing theme="dark" />
+
+/**
+ * Browser-test control for the progressive card: panel requests stay pending
+ * until release() and the next table request fails while failTable is set.
+ */
+interface ProgressiveControl { release: () => void; failTable: boolean; requests: string[][] }
+
+function progressive(): { document: DashboardDocument; fetcher: typeof fetch } {
+  const document = parseDocument(structuredClone(fixture.progressive))
+  const frames = fixture.embedded.frames as Record<string, unknown>
+  const waiting: Array<() => void> = []
+  const control: ProgressiveControl = {
+    failTable: false,
+    requests: [],
+    release: () => { for (const resolve of waiting.splice(0)) resolve() },
+  }
+  ;(globalThis as { __lensCard?: ProgressiveControl }).__lensCard = control
+  const fetcher: typeof fetch = async (_input, init) => {
+    const body = JSON.parse(init?.body as string) as { panels: Array<{ panelId: string }> }
+    control.requests.push(body.panels.map(({ panelId }) => panelId))
+    await new Promise<void>((resolve) => waiting.push(resolve))
+    const events: unknown[] = body.panels.map(({ panelId }) => {
+      const panel = document.panels.find((candidate) => candidate.id === panelId)!
+      return { panelId, result: control.failTable && panelId === 'revenue::panel:table'
+        ? { error: { error: 'internal', message: 'synthetic failure' } }
+        : { frames: { [panel.frame]: frames[panel.frame] }, calculation: { durationMs: 12, cacheHit: false, calculatedAt: '2026-10-12T06:00:00Z' } } }
+    })
+    events.push({ complete: true })
+    return new Response(`${events.map((event) => JSON.stringify(event)).join('\n')}\n`, { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } })
+  }
+  return { document, fetcher }
+}
+
+function Progressive(props: { theme: LensThemeMode }): JSX.Element {
+  const { document, fetcher } = progressive()
+  return <Card theme={props.theme} document={document} fetcher={fetcher} />
+}
+/** The first paint of a composed board: real containers, every figure pending. */
+export const ProgressiveLight = () => <Progressive theme="light" />
+export const ProgressiveDark = () => <Progressive theme="dark" />

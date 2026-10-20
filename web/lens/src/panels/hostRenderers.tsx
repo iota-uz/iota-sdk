@@ -13,8 +13,11 @@ export interface HostPanelRendererProps {
 
 /**
  * A host-owned body for a panel whose document names it (panel.renderer). It
- * renders only the figure: the SDK frame around it owns the title, loading,
- * empty, error and stale states, retry, export and the placement menu.
+ * renders only the figure: the SDK frame around it owns the title, empty,
+ * error and stale states, retry, export and the placement menu. While the
+ * first frame is loading (frame.isLoading without frame.data) the renderer
+ * draws its own placeholder at its final size, so the card does not move
+ * when the figure lands.
  */
 export type HostPanelRenderer = Component<HostPanelRendererProps>
 
@@ -43,7 +46,7 @@ export function HostRenderedPanel(props: { panel: Panel }) {
   const lookup = useHostRenderers()
   const renderer = () => lookup(props.panel.renderer?.name)
   return (
-    <PanelFrame panel={props.panel} frame={frame} allowEmptyContent={!renderer()}>
+    <PanelFrame panel={props.panel} frame={frame} allowEmptyContent={!renderer()} rendersLoading={Boolean(renderer())}>
       <Show when={renderer()} fallback={
         <div class="lens-panel-state lens-panel-state-compatibility" data-panel-state="compatibility" role="status">
           {translate('panel.renderer.unavailable', 'This view cannot be shown here. Its data is unchanged and can still be exported.')}
