@@ -184,8 +184,8 @@
     "version": "0.25.1",
     "source": "9c451733c087f16b2445aeee0fc52da36beecb79",
     "sha": "31d06881f0298062642aa0e18399a481079a32b2",
-    "phase": "failed",
-    "run_id": "39382218340"
+    "phase": "testing",
+    "run_id": "39383381759"
   },
   "ready": {
     "version": "0.25.0",
