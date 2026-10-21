@@ -18,7 +18,7 @@ try {
     name: 'sdk-consumer', private: true, type: 'module', packageManager: 'pnpm@9.15.0',
   }, null, 2)}\n`)
   await writeFile(path.join(consumer, '.npmrc'), '@iota-uz:registry=http://127.0.0.1:9/\nfetch-retries=0\n')
-  run('pnpm', ['add', '--ignore-scripts', '--strict-peer-dependencies', tarball, 'react@19.2.4', 'react-dom@19.2.4', 'vite@7.3.6'])
+  run('pnpm', ['add', '--ignore-scripts', '--strict-peer-dependencies', tarball, 'solid-js@1.9.15', 'vite@7.3.6'])
 
   const installedPackage = JSON.parse(await readFile(path.join(consumer, 'node_modules/@iota-uz/sdk/package.json'), 'utf8'))
   if (installedPackage.version !== manifest.packageVersion) throw new Error('consumer installed the wrong package version')
@@ -31,8 +31,8 @@ try {
 
   await writeFile(path.join(consumer, 'index.html'), '<main id="app"></main><script type="module" src="/main.js"></script>\n')
   await writeFile(path.join(consumer, 'main.js'), [
-    "import { ClientHostBoundary, SDK_IDENTITY } from '@iota-uz/sdk/client-host'",
-    "document.querySelector('#app').dataset.runtime = ClientHostBoundary.name + SDK_IDENTITY.releaseVersion",
+    "import { mountSolidClientRoute, SDK_IDENTITY } from '@iota-uz/sdk/client-host'",
+    "document.querySelector('#app').dataset.runtime = mountSolidClientRoute.name + SDK_IDENTITY.releaseVersion",
     '',
   ].join('\n'))
   run('pnpm', ['exec', 'vite', 'build'])
@@ -42,7 +42,7 @@ try {
     throw new Error('client-host-only bundle pulled Lens implementation code')
   }
 
-  run('pnpm', ['add', '--ignore-scripts', '--strict-peer-dependencies', 'solid-js@1.9.15', 'vite-plugin-solid@2.11.8'])
+  run('pnpm', ['add', '--ignore-scripts', '--strict-peer-dependencies', 'vite-plugin-solid@2.11.8'])
   await rm(path.join(consumer, 'dist'), { recursive: true, force: true })
   await writeFile(path.join(consumer, 'main.js'), [
     "import { createDraft, SDK_IDENTITY } from '@iota-uz/sdk/solid'",
@@ -66,10 +66,20 @@ try {
   ].join('\n'))
   run('pnpm', ['exec', 'vite', 'build'])
 
+  await rm(path.join(consumer, 'dist'), { recursive: true, force: true })
+  await writeFile(path.join(consumer, 'main.js'), [
+    "import { ChatSession, ManagedHttpDataSource } from '@iota-uz/sdk/chat-ui'",
+    "import { Lock } from '@iota-uz/sdk/chat-ui/icons'",
+    "import '@iota-uz/sdk/chat-ui/styles.css'",
+    "document.querySelector('#app').dataset.runtime = ChatSession.name + ManagedHttpDataSource.name + Lock.name",
+    '',
+  ].join('\n'))
+  run('pnpm', ['exec', 'vite', 'build'])
+
   const list = run('pnpm', ['list', 'react', 'react-dom', '--depth', 'Infinity', '--json'])
   const graph = JSON.parse(list)
-  const serialized = JSON.stringify(graph)
-  if ((serialized.match(/react@19\.2\.4/g) ?? []).length === 0) throw new Error('React peer was not resolved')
+  const containsReact = value => value && typeof value === 'object' && Object.entries(value).some(([name, child]) => name === 'react' || name === 'react-dom' || containsReact(child))
+  if (containsReact(graph)) throw new Error('React remains in the installed consumer graph')
 } finally {
   await rm(consumer, { recursive: true, force: true })
 }

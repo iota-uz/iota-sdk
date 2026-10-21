@@ -178,6 +178,7 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 			details.StripeWithBillingReason(d.BillingReason),
 			details.StripeWithSessionID(d.SessionID),
 			details.StripeWithInvoiceID(d.InvoiceID),
+			details.StripeWithPaymentIntentID(d.PaymentIntentID),
 			details.StripeWithSubscriptionID(d.SubscriptionID),
 			details.StripeWithCustomerID(d.CustomerID),
 			details.StripeWithItems(items),
@@ -211,7 +212,7 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 	case billing.Uzum:
 		var d models.PayoutDetails
 		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, serrors.E(op, err, "deserialize payout details")
+			return nil, serrors.WrapContext(op, err, "deserialize payout details")
 		}
 		return details.NewPayoutDetails(details.PayoutWithData(d.Data)), nil
 
@@ -335,6 +336,7 @@ func ToDBDetails(data details.Details) (json.RawMessage, error) {
 			SessionID:         d.SessionID(),
 			ClientReferenceID: d.ClientReferenceID(),
 			InvoiceID:         d.InvoiceID(),
+			PaymentIntentID:   d.PaymentIntentID(),
 			SubscriptionID:    d.SubscriptionID(),
 			CustomerID:        d.CustomerID(),
 			SubscriptionData:  nil,
@@ -354,7 +356,7 @@ func ToDBDetails(data details.Details) (json.RawMessage, error) {
 			Data: d.Data(),
 		})
 		if err != nil {
-			return nil, serrors.E(op, err, "serialize payout details")
+			return nil, serrors.WrapContext(op, err, "serialize payout details")
 		}
 		return result, nil
 

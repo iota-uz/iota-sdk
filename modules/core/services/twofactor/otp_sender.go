@@ -42,13 +42,13 @@ func (e *EmailOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error 
 	const op serrors.Op = "EmailOTPSender.Send"
 
 	if req.Channel != pkgtf.ChannelEmail {
-		return serrors.E(op, serrors.Invalid, fmt.Errorf("EmailOTPSender only supports email channel, got %s", req.Channel))
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("EmailOTPSender only supports email channel, got %s", req.Channel))
 	}
 	if req.Recipient == "" {
-		return serrors.E(op, serrors.Invalid, errors.New("email recipient cannot be empty"))
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("email recipient cannot be empty"))
 	}
 	if req.Code == "" {
-		return serrors.E(op, serrors.Invalid, errors.New("OTP code cannot be empty"))
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("OTP code cannot be empty"))
 	}
 
 	subject := e.getSubject(req.LanguageCode)
@@ -59,7 +59,7 @@ func (e *EmailOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error 
 	addr := fmt.Sprintf("%s:%d", e.host, e.port)
 	err := e.sendWithTLS(ctx, addr, auth, e.from, []string{req.Recipient}, []byte(msg))
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	logger := composables.UseLogger(ctx)
@@ -75,13 +75,13 @@ func (e *EmailOTPSender) sendWithTLS(ctx context.Context, addr string, auth smtp
 	d := net.Dialer{Timeout: 30 * time.Second}
 	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	client, err := smtp.NewClient(conn, e.host)
 	if err != nil {
 		_ = conn.Close()
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	defer func() {
 		if quitErr := client.Quit(); quitErr != nil {
@@ -94,32 +94,32 @@ func (e *EmailOTPSender) sendWithTLS(ctx context.Context, addr string, auth smtp
 		MinVersion: tls.VersionTLS12,
 	}
 	if err = client.StartTLS(tlsConfig); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if auth != nil {
 		if err = client.Auth(auth); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	if err = client.Mail(from); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	for _, recipient := range to {
 		if err = client.Rcpt(recipient); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	w, err := client.Data()
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	_, err = w.Write(msg)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	err = w.Close()
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	return nil
@@ -171,13 +171,13 @@ func (s *SMSOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error {
 	const op serrors.Op = "SMSOTPSender.Send"
 
 	if req.Channel != pkgtf.ChannelSMS {
-		return serrors.E(op, serrors.Invalid, fmt.Errorf("SMSOTPSender only supports SMS channel, got %s", req.Channel))
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("SMSOTPSender only supports SMS channel, got %s", req.Channel))
 	}
 	if req.Recipient == "" {
-		return serrors.E(op, serrors.Invalid, errors.New("SMS recipient cannot be empty"))
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("SMS recipient cannot be empty"))
 	}
 	if req.Code == "" {
-		return serrors.E(op, serrors.Invalid, errors.New("OTP code cannot be empty"))
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("OTP code cannot be empty"))
 	}
 
 	body := s.buildMessage(req.Code, req.LanguageCode)
@@ -188,10 +188,10 @@ func (s *SMSOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error {
 
 	resp, err := s.client.Api.CreateMessage(params)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if resp == nil || resp.Sid == nil {
-		return serrors.E(op, serrors.Invalid, errors.New("invalid Twilio response"))
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("invalid Twilio response"))
 	}
 
 	logger := composables.UseLogger(ctx)

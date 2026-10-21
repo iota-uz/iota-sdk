@@ -11,3 +11,11 @@ export function fallbackMarkKey(category: string, series: string): string | unde
   if (!series) return category || undefined
   return `${seriesMarkPrefix}${JSON.stringify([category, series])}`
 }
+
+/** Unformatted scalar identity shared by marks and their printed evidence. */
+export function markCellText(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return String(value)
+  return ''
+}

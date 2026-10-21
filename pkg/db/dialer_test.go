@@ -8,8 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- DialPool (primary API) ---
-
 func TestDialPool_EmptyDSN_ReturnsFallback(t *testing.T) {
 	t.Parallel()
 	fallback := poolSentinel()

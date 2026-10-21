@@ -5,7 +5,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/jackc/pgx/v5"
@@ -72,6 +76,62 @@ func TestPgGroupQueryRepositoryBatchesRelationsAndAssignmentOptions(t *testing.T
 		}
 	}
 	require.Equal(t, 30, found)
+}
+
+func TestPgGroupQueryRepositoryFindGroupPermissionsByIDs(t *testing.T) {
+	fixtures := setupTest(t)
+	tenantID, err := composables.UseTenantID(fixtures.Ctx)
+	require.NoError(t, err)
+	permissionRepository := persistence.NewPermissionRepository()
+	for _, candidate := range []permission.Permission{permissions.GroupRead, permissions.GroupUpdate, permissions.DepartmentDelete} {
+		require.NoError(t, permissionRepository.Save(fixtures.Ctx, candidate))
+	}
+	roleRepository := persistence.NewRoleRepository()
+	readRole, err := roleRepository.Create(fixtures.Ctx, role.New("Group permissions read",
+		role.WithTenantID(tenantID), role.WithPermissions([]permission.Permission{permissions.GroupRead})))
+	require.NoError(t, err)
+	manageRole, err := roleRepository.Create(fixtures.Ctx, role.New("Group permissions manage",
+		role.WithTenantID(tenantID), role.WithPermissions([]permission.Permission{permissions.GroupRead, permissions.GroupUpdate, permissions.DepartmentDelete})))
+	require.NoError(t, err)
+
+	otherTenantID := uuid.New()
+	_, err = fixtures.Tx.Exec(fixtures.Ctx, `INSERT INTO tenants (id, name) VALUES ($1, $2)`, otherTenantID, "Group permissions other tenant")
+	require.NoError(t, err)
+	insertGroup := func(groupTenantID uuid.UUID, roleIDs ...uint) uuid.UUID {
+		id := uuid.New()
+		_, execErr := fixtures.Tx.Exec(fixtures.Ctx, `INSERT INTO user_groups (id, type, tenant_id, name, description, created_at, updated_at)
+			VALUES ($1, 'user', $2, $3, '', NOW(), NOW())`, id, groupTenantID, "Group permissions "+id.String())
+		require.NoError(t, execErr)
+		for _, roleID := range roleIDs {
+			_, execErr = fixtures.Tx.Exec(fixtures.Ctx, `INSERT INTO group_roles (group_id, role_id) VALUES ($1, $2)`, id, roleID)
+			require.NoError(t, execErr)
+		}
+		return id
+	}
+	readGroup := insertGroup(tenantID, readRole.ID())
+	overlappingGroup := insertGroup(tenantID, readRole.ID(), manageRole.ID())
+	emptyGroup := insertGroup(tenantID)
+	foreignGroup := insertGroup(otherTenantID, readRole.ID())
+
+	measured := &countingTx{Tx: fixtures.Tx}
+	result, err := query.NewPgGroupQueryRepository().FindGroupPermissionsByIDs(
+		composables.WithTx(fixtures.Ctx, measured),
+		[]uuid.UUID{readGroup, overlappingGroup, emptyGroup, foreignGroup},
+	)
+	require.NoError(t, err)
+	// Falsely green if permissions are loaded per group or the foreign-tenant group leaks through the shared role.
+	require.Equal(t, 1, measured.queries)
+	names := func(id uuid.UUID) []string {
+		out := make([]string, 0, len(result[id]))
+		for _, candidate := range result[id] {
+			out = append(out, candidate.Name())
+		}
+		return out
+	}
+	require.ElementsMatch(t, []string{permissions.GroupRead.Name()}, names(readGroup))
+	require.ElementsMatch(t, []string{permissions.GroupRead.Name(), permissions.GroupUpdate.Name(), permissions.DepartmentDelete.Name()}, names(overlappingGroup))
+	require.NotContains(t, result, emptyGroup)
+	require.NotContains(t, result, foreignGroup)
 }
 
 func TestPgGroupQueryRepository_FindGroups(t *testing.T) {

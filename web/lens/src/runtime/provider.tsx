@@ -59,6 +59,9 @@ import { queryWithSnapshotRecovery } from './recovery'
 import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL, siteRelativeURL } from './url'
 import { navigateTo } from './navigate'
 import { X } from '../icons'
+import { reportPlacementAvailable, reportPlacementUnavailable, useReportPlacementHost } from '../reports/placementHost'
+import { reportUnavailableCopy, reportUnavailableTitle } from '../reports/unavailable'
+import { withoutUnavailablePlacements } from '../reports/version'
 
 export interface DocumentContextValue {
   readonly document?: DashboardDocument
@@ -213,6 +216,7 @@ export function DocumentProvider(props: DocumentProviderProps): JSX.Element {
     setState('isRefreshing', true)
     void fetchDocument(effectiveSrc() ?? src, { csrf: props.csrf, fetcher: props.fetcher, signal: controller.signal })
       .then((next) => {
+        if (controller.signal.aborted || filterController !== controller) return
         loadedAt = Date.now()
         setState({ document: next, error: null })
       })
@@ -763,6 +767,7 @@ interface RuntimeCoreProps {
 
 function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
   const drawerDepth = props.drawerDepth ?? 0
+  const reportPlacementHost = useReportPlacementHost()
   const refreshDocument = props.refreshDocument
   const applyFilters = props.applyFilters
 
@@ -776,9 +781,15 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
   // caller's document, whose objects are shared with hosts and caches. Plain
   // data is deep-copied; anything non-plain (class instances, functions) is
   // kept by reference, since a store would not merge through it anyway.
+  let navigationState = inferredInitialNavigation(resolvedDoc)
+  const initialControlled = props.controlledNavigation
+  const initialResolved = initialControlled && resolveView(resolvedDoc, initialControlled)
+  const initialNavigation = initialControlled
+    ? initialResolved ? { ...initialResolved, history: initialControlled.history } : initialControlled
+    : navigationState
   const [dashboard, setDashboard] = createStore<DashboardContextValue>({
     document: detachDocument(resolvedDoc),
-    navigation: createNavigationState(),
+    navigation: initialNavigation,
     dismissNotice: () => setDashboard('notice', undefined),
     canRecompute: false,
     isRecomputing: false,
@@ -791,7 +802,6 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
   }))
 
   // Plain navigation state is the source of truth; the store mirrors it.
-  let navigationState = inferredInitialNavigation(resolvedDoc)
   const [navVersion, setNavVersion] = createSignal(0, { equals: false })
   const currentNavigation = createMemo<NavigationState>(() => {
     const controlled = props.controlledNavigation
@@ -1603,9 +1613,11 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     const detailSignal = () => anySignal([reportSignal, timeoutSignal(20_000)])
     try {
       const { buildPrintReport } = await import('./print')
+      // An unavailable report placement prints its explanation, never figures.
+      const { document: printable, withheld } = withoutUnavailablePlacements(resolvedDoc, (group) => !reportPlacementAvailable(reportPlacementHost, group))
       const report = await buildPrintReport(
-        resolvedDoc,
-        (request, owner = resolvedDoc) => {
+        printable,
+        (request, owner = printable) => {
           const endpoint = owner.endpoints.query
           if (!endpoint) {
             return Promise.reject(new Error(
@@ -1629,6 +1641,10 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         reportSignal,
       )
       for (const client of printQueryClients.values()) client.dispose()
+      report.warnings.unshift(...withheld.map((group) => {
+        const reason = reportPlacementUnavailable(reportPlacementHost, group) ?? 'report-incompatible'
+        return `${reportUnavailableTitle(reason, group.label, translate)}: ${reportUnavailableCopy(reason, translate)}`
+      }))
       // The report body is a lazy chunk and the print-state update is what
       // mounts it, so the wait below is racing a network fetch it never
       // accounts for: two frames plus 120ms clear a warm cache and nothing
@@ -1739,9 +1755,10 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     applyURL: applyFilterURL,
   })
   createEffect(() => {
-    const doc = dashboard.document
-    const next = filtersEnabled ? declaredFilters(doc) : []
-    console.log('FILTERS-RECONCILE', JSON.stringify(next.map((f) => ({ id: f.id, mode: f.compare?.value.mode }))))
+    // Reconcile preserves document identity; every document revision must also
+    // refresh comparison values nested inside its existing filter objects.
+    void docVersion()
+    const next = filtersEnabled ? declaredFilters(resolvedDoc) : []
     setFiltersStore('filters', reconcile(next))
   })
   createEffect(() => {
@@ -2061,6 +2078,13 @@ export function usePanelFrame(panelId: string): PanelFrameState {
   return state
 }
 
+/** Every panel's frame state by id, for chrome that summarises several panels at once. */
+export function usePanelFrames(): (panelId: string) => PanelFrameState {
+  const frames = useContext(FramesContext)
+  if (!frames) throw new Error('usePanelFrames must be used inside DashboardRuntimeProvider')
+  return (panelId) => frames.get(panelId) ?? emptyFrameState
+}
+
 export function usePanelPagination(): PanelPaginationContextValue {
   const context = useContext(PanelPaginationContext)
   if (!context) throw new Error('usePanelPagination must be used inside DashboardRuntimeProvider')
@@ -2090,6 +2114,17 @@ function useLocale(): Accessor<string> {
 
 function useI18nMessages(): Accessor<Record<string, string>> {
   return useContext(I18nContext) ?? (() => ({}))
+}
+
+/**
+ * Runtime chrome messages for a surface rendered outside a dashboard document,
+ * such as a report picker or editor. Keys follow document.RuntimeI18nKeys;
+ * an enclosing document's messages apply unless overridden here.
+ */
+export function LensMessagesProvider(props: { messages?: Record<string, string>; children: JSX.Element }): JSX.Element {
+  const outer = useI18nMessages()
+  const messages = createMemo(() => ({ ...outer(), ...props.messages }))
+  return <I18nContext.Provider value={messages}>{props.children}</I18nContext.Provider>
 }
 
 export function useFormat(field?: FieldFormat): (value: unknown) => string {

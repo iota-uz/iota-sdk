@@ -65,6 +65,10 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewTokenRepository)
 	composition.ProvideFunc(builder, services.NewOIDCService)
 	composition.ProvideFunc(builder, newOIDCStorage)
+	composition.ProvideFunc(builder, services.NewTokenRevocationHandler)
+	composition.ContributeEventHandlerFunc(builder, func(h *services.TokenRevocationHandler) any {
+		return h.OnPasswordUpdated
+	})
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		pool := builder.Context().DB()
@@ -79,12 +83,12 @@ func (c *component) Build(builder *composition.Builder) error {
 				Start: func(ctx context.Context) (composition.StopFn, error) {
 					const op serrors.Op = "oidc.bootstrap.Start"
 					if pool == nil {
-						return nil, serrors.E(op, serrors.Invalid, "database pool is nil")
+						return nil, serrors.New(serrors.Invalid, "database pool is nil").WithOp(op)
 					}
 					startCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 					defer cancel()
 					if err := oidcinfra.BootstrapKeys(startCtx, pool, cryptoKey); err != nil {
-						return nil, serrors.E(op, err)
+						return nil, serrors.Wrap(op, err)
 					}
 					return func(context.Context) error { return nil }, nil
 				},

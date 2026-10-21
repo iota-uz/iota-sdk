@@ -25,7 +25,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/money"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/validate"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -75,19 +76,22 @@ func (c *EmployeeController) Register(r *mux.Router) {
 
 func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 	params := composables.UsePaginated(r)
+	status, _ := employee.ParseStatus(r.URL.Query().Get("status"))
 	employeeEntities, err := c.employeeService.GetPaginated(r.Context(), &employee.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
 		SortBy: []string{"id"},
+		Status: status,
 	})
 	if err != nil {
-		http.Error(w, errors.Wrap(err, "Error retrieving employees").Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, errors.Wrap(err, "Error retrieving employees"), http.StatusInternalServerError, nil)
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &employees.IndexPageProps{
 		Employees: mapping.MapViewModels(employeeEntities, mappers.EmployeeToViewModel),
 		NewURL:    fmt.Sprintf("%s/new", c.basePath),
+		Status:    string(status),
 	}
 	if isHxRequest {
 		templ.Handler(employees.EmployeesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -141,7 +145,7 @@ func (c *EmployeeController) GetEdit(w http.ResponseWriter, r *http.Request) {
 func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&employee.CreateDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -173,31 +177,31 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		l, ok := intl.UseLocalizer(r.Context())
 		if !ok {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
 		// Check if it's a domain validation error (TIN/PIN)
-		validationErrors := make(serrors.ValidationErrors)
+		validationErrors := make(map[string]error)
 		if errors.Is(err, tax.ErrInvalidTin) {
-			validationErrors["Tin"] = serrors.NewInvalidTINError(
+			validationErrors["Tin"] = validate.TIN(
 				"Tin",
 				"Employees.Private.TIN.Label",
 				err.Error(),
 			)
 		} else if errors.Is(err, tax.ErrInvalidPin) {
-			validationErrors["Pin"] = serrors.NewInvalidPINError(
+			validationErrors["Pin"] = validate.PIN(
 				"Pin",
 				"Employees.Private.Pin.Label",
 				err.Error(),
 			)
 		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
 		// Localize validation errors
-		errorsMap := serrors.LocalizeValidationErrors(validationErrors, l)
+		errorsMap := validate.Map(validationErrors, l)
 
 		// Re-render form with errors
 		props := &employees.CreatePageProps{
@@ -227,12 +231,12 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 func (c *EmployeeController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("%+v", err), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	dto, err := composables.UseForm(&employee.UpdateDTO{}, r)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("%+v", err), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	errorsMap, ok := dto.Ok(r.Context())
@@ -243,31 +247,31 @@ func (c *EmployeeController) Update(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			l, ok := intl.UseLocalizer(r.Context())
 			if !ok {
-				http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
+				serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 				return
 			}
 
 			// Check if it's a domain validation error (TIN/PIN)
-			validationErrors := make(serrors.ValidationErrors)
+			validationErrors := make(map[string]error)
 			if errors.Is(err, tax.ErrInvalidTin) {
-				validationErrors["Tin"] = serrors.NewInvalidTINError(
+				validationErrors["Tin"] = validate.TIN(
 					"Tin",
 					"Employees.Private.TIN.Label",
 					err.Error(),
 				)
 			} else if errors.Is(err, tax.ErrInvalidPin) {
-				validationErrors["Pin"] = serrors.NewInvalidPINError(
+				validationErrors["Pin"] = validate.PIN(
 					"Pin",
 					"Employees.Private.Pin.Label",
 					err.Error(),
 				)
 			} else {
-				http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
+				serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 				return
 			}
 
 			// Localize validation errors
-			errorsMap = serrors.LocalizeValidationErrors(validationErrors, l)
+			errorsMap = validate.Map(validationErrors, l)
 
 			// Re-render form with errors
 			entity, err := c.employeeService.GetByID(r.Context(), id)
@@ -313,7 +317,7 @@ func (c *EmployeeController) Delete(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)

@@ -51,7 +51,7 @@ func BootstrapKeys(ctx context.Context, db *pgxpool.Pool, cryptoKey string) erro
 	const advisoryLockID = 1
 	_, err := db.Exec(ctx, "SELECT pg_advisory_lock($1)", advisoryLockID)
 	if err != nil {
-		return serrors.E(op, fmt.Errorf("failed to acquire advisory lock: %w", err))
+		return serrors.Wrap(op, fmt.Errorf("failed to acquire advisory lock: %w", err))
 	}
 	defer func() {
 		_, _ = db.Exec(ctx, "SELECT pg_advisory_unlock($1)", advisoryLockID)
@@ -61,7 +61,7 @@ func BootstrapKeys(ctx context.Context, db *pgxpool.Pool, cryptoKey string) erro
 	var count int
 	err = db.QueryRow(ctx, checkActiveKeysQuery).Scan(&count)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if count > 0 {
@@ -72,13 +72,13 @@ func BootstrapKeys(ctx context.Context, db *pgxpool.Pool, cryptoKey string) erro
 	// Generate new RSA keypair
 	privateKey, err := rsa.GenerateKey(rand.Reader, rsaKeySize)
 	if err != nil {
-		return serrors.E(op, fmt.Errorf("failed to generate RSA key: %w", err))
+		return serrors.Wrap(op, fmt.Errorf("failed to generate RSA key: %w", err))
 	}
 
 	// Marshal private key to PKCS8 format
 	privateKeyBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
-		return serrors.E(op, fmt.Errorf("failed to marshal private key: %w", err))
+		return serrors.Wrap(op, fmt.Errorf("failed to marshal private key: %w", err))
 	}
 
 	// PEM encode private key
@@ -90,13 +90,13 @@ func BootstrapKeys(ctx context.Context, db *pgxpool.Pool, cryptoKey string) erro
 	// Encrypt private key with AES-256
 	encryptedPrivateKey, err := encryptAES256(privateKeyPEM, cryptoKey)
 	if err != nil {
-		return serrors.E(op, fmt.Errorf("failed to encrypt private key: %w", err))
+		return serrors.Wrap(op, fmt.Errorf("failed to encrypt private key: %w", err))
 	}
 
 	// Marshal public key to PKIX format
 	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
 	if err != nil {
-		return serrors.E(op, fmt.Errorf("failed to marshal public key: %w", err))
+		return serrors.Wrap(op, fmt.Errorf("failed to marshal public key: %w", err))
 	}
 
 	// PEM encode public key
@@ -119,7 +119,7 @@ func BootstrapKeys(ctx context.Context, db *pgxpool.Pool, cryptoKey string) erro
 		true,
 	)
 	if err != nil {
-		return serrors.E(op, fmt.Errorf("failed to store signing key: %w", err))
+		return serrors.Wrap(op, fmt.Errorf("failed to store signing key: %w", err))
 	}
 
 	return nil
@@ -135,30 +135,30 @@ func GetActiveSigningKey(ctx context.Context, db *pgxpool.Pool, cryptoKey string
 	err := db.QueryRow(ctx, getActiveSigningKeyQuery).Scan(&keyID, &encryptedPrivateKey)
 
 	if err != nil {
-		return nil, "", serrors.E(op, fmt.Errorf("failed to query signing key: %w", err))
+		return nil, "", serrors.Wrap(op, fmt.Errorf("failed to query signing key: %w", err))
 	}
 
 	// Decrypt private key
 	decryptedPEM, err := decryptAES256(encryptedPrivateKey, cryptoKey)
 	if err != nil {
-		return nil, "", serrors.E(op, fmt.Errorf("failed to decrypt private key: %w", err))
+		return nil, "", serrors.Wrap(op, fmt.Errorf("failed to decrypt private key: %w", err))
 	}
 
 	// Decode PEM
 	block, _ := pem.Decode(decryptedPEM)
 	if block == nil {
-		return nil, "", serrors.E(op, fmt.Errorf("failed to decode PEM block"))
+		return nil, "", serrors.Wrap(op, fmt.Errorf("failed to decode PEM block"))
 	}
 
 	// Parse private key
 	privateKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		return nil, "", serrors.E(op, fmt.Errorf("failed to parse private key: %w", err))
+		return nil, "", serrors.Wrap(op, fmt.Errorf("failed to parse private key: %w", err))
 	}
 
 	rsaKey, ok := privateKey.(*rsa.PrivateKey)
 	if !ok {
-		return nil, "", serrors.E(op, fmt.Errorf("private key is not RSA"))
+		return nil, "", serrors.Wrap(op, fmt.Errorf("private key is not RSA"))
 	}
 
 	return rsaKey, keyID, nil
@@ -170,7 +170,7 @@ func GetPublicKeys(ctx context.Context, db *pgxpool.Pool) ([]*rsa.PublicKey, err
 
 	rows, err := db.Query(ctx, getPublicKeysQuery)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	defer rows.Close()
 
@@ -178,7 +178,7 @@ func GetPublicKeys(ctx context.Context, db *pgxpool.Pool) ([]*rsa.PublicKey, err
 	for rows.Next() {
 		var publicKeyPEM []byte
 		if err := rows.Scan(&publicKeyPEM); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 
 		// Decode PEM
@@ -202,7 +202,7 @@ func GetPublicKeys(ctx context.Context, db *pgxpool.Pool) ([]*rsa.PublicKey, err
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return publicKeys, nil
@@ -220,7 +220,7 @@ func GetPublicKeysWithIDs(ctx context.Context, db *pgxpool.Pool) ([]PublicKeyWit
 
 	rows, err := db.Query(ctx, getPublicKeysWithIDQuery)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	defer rows.Close()
 
@@ -229,7 +229,7 @@ func GetPublicKeysWithIDs(ctx context.Context, db *pgxpool.Pool) ([]PublicKeyWit
 		var keyID string
 		var publicKeyPEM []byte
 		if err := rows.Scan(&keyID, &publicKeyPEM); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 
 		// Decode PEM
@@ -256,7 +256,7 @@ func GetPublicKeysWithIDs(ctx context.Context, db *pgxpool.Pool) ([]PublicKeyWit
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return keys, nil

@@ -211,9 +211,7 @@ func (b *docBuffer) add(providerID string, tenantID uuid.UUID, docs []SearchDocu
 	now := time.Now().UTC()
 	for i := range docs {
 		if docs[i].TenantID != uuid.Nil && docs[i].TenantID != tenantID {
-			return serrors.E(op,
-				fmt.Sprintf("provider %s emitted document with tenant %s but pipeline scope is %s", providerID, docs[i].TenantID, tenantID),
-				errTenantMismatch)
+			return serrors.WrapContext(op, errTenantMismatch, fmt.Sprintf("provider %s emitted document with tenant %s but pipeline scope is %s", providerID, docs[i].TenantID, tenantID))
 		}
 		docs[i].TenantID = tenantID
 		docs[i].Provider = providerID
@@ -255,8 +253,7 @@ func (b *docBuffer) flush() error {
 func (b *docBuffer) upsert(batch []SearchDocument, providerID string) error {
 	upsertStart := time.Now()
 	if err := b.pipeline.engine.UpsertAsync(b.ctx, batch); err != nil {
-		return serrors.E("spotlight.IndexerPipeline.processProviderBatch",
-			fmt.Sprintf("provider %s upsert batch of %d failed", providerID, len(batch)), err)
+		return serrors.WrapContext("spotlight.IndexerPipeline.processProviderBatch", err, fmt.Sprintf("provider %s upsert batch of %d failed", providerID, len(batch)))
 	}
 	b.stats.upsertDuration += time.Since(upsertStart)
 	b.stats.batchCount++

@@ -33,12 +33,12 @@ func (a *DefaultUploadsAuthorizer) CanQueryUploads(ctx context.Context) error {
 
 	_, err := composables.UseUser(ctx)
 	if err != nil {
-		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
-		return serrors.E(op, err)
+		graphql.AddError(ctx, serrors.NewUnauthenticated(""))
+		return serrors.Wrap(op, err)
 	}
 
 	if err := composables.CanUser(ctx, permissions.UploadRead); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	return nil
@@ -61,12 +61,12 @@ func (a *DefaultUploadsAuthorizer) CanUploadFileWithSlug(ctx context.Context) er
 
 	_, err := composables.UseUser(ctx)
 	if err != nil {
-		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
-		return serrors.E(op, err)
+		graphql.AddError(ctx, serrors.NewUnauthenticated(""))
+		return serrors.Wrap(op, err)
 	}
 
 	if err := composables.CanUser(ctx, permissions.UploadCreate); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	return nil
@@ -78,12 +78,12 @@ func (a *DefaultUploadsAuthorizer) CanDeleteUpload(ctx context.Context, id int64
 
 	_, err := composables.UseUser(ctx)
 	if err != nil {
-		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
-		return serrors.E(op, err)
+		graphql.AddError(ctx, serrors.NewUnauthenticated(""))
+		return serrors.Wrap(op, err)
 	}
 
 	if err := composables.CanUser(ctx, permissions.UploadDelete); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	return nil

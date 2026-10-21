@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
+	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
@@ -386,6 +387,9 @@ type PresentationHints struct {
 	// HideTotalBadge suppresses the total badge, e.g. when a trend chip
 	// already carries the panel's summary.
 	HideTotalBadge bool
+	// KeepTotalBadge opts an additive chart into a persistent total, including zero.
+	// A served total takes precedence; otherwise the runtime sums the loaded rows.
+	KeepTotalBadge bool
 	// Waterfall renders a Cascade as a conventional vertical waterfall:
 	// opening total, floating signed movements, and closing total connected
 	// at their running-balance levels. The Cascade data contract remains
@@ -692,7 +696,21 @@ func (f FieldRef) Empty() bool {
 	return strings.TrimSpace(f.Name()) == ""
 }
 
+// HostRenderer names a renderer the embedding host registers on the client
+// (for example a legacy chart grammar). The panel keeps its Kind and frame, so
+// loading, error, export and placement chrome stay the SDK's; a client without
+// the named renderer shows a compatibility state instead of the kind's chart.
+type HostRenderer struct {
+	Name    string
+	Options json.RawMessage
+}
+
 type Spec struct {
+	FilterContext *filtercontext.EffectiveContext
+	Renderer      *HostRenderer
+	// Unavailable marks a grid container whose content cannot be shown; the
+	// value is the document wire reason (document.GroupUnavailable).
+	Unavailable     string
 	ID              string
 	Title           string
 	Description     string
@@ -720,7 +738,7 @@ type Spec struct {
 	// values used for chart geometry. SegmentBar uses it for a focal result
 	// whose allocation segments still sum to a different denominator.
 	HeadlineValue *float64
-	Trend     *TrendSpec
+	Trend         *TrendSpec
 	// Status renders a small tone-colored chip in a stat card's label row.
 	// Only Stat panels (including StatGroup children) render it.
 	Status *StatusSpec
@@ -1216,6 +1234,13 @@ func (b *Builder) FocusCanvas() *Builder {
 func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; return b }
 func (b *Builder) Action(spec action.Spec) *Builder { b.spec.Action = &spec; return b }
 func (b *Builder) Terminal() *Builder               { b.spec.Terminal = true; return b }
+
+// Renderer hands the panel body to a host-registered client renderer.
+// Options are passed through verbatim and must be valid JSON when present.
+func (b *Builder) Renderer(name string, options json.RawMessage) *Builder {
+	b.spec.Renderer = &HostRenderer{Name: name, Options: bytes.Clone(options)}
+	return b
+}
 func (b *Builder) ComparisonUnsupported() *Builder {
 	b.spec.ComparisonUnsupported = true
 	return b

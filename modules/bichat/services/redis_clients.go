@@ -31,15 +31,15 @@ func NewSharedRedisClient() (*redis.Client, error) {
 // client was supplied externally (ownsClient == false). The caller MUST
 // invoke the returned closeFunc exactly once during shutdown to release the
 // shared connection. The closeFunc is nil when Redis is not configured.
-func newConfiguredRedisComponents() (RunEventLog, ActiveRunIndex, *RedisRunJobQueue, func() error, error) {
+func newConfiguredRedisComponents() (RunEventLog, ActiveRunIndex, *RedisRunJobQueue, *RedisRunSessionQueue, func() error, error) {
 	client, err := NewSharedRedisClient()
 	if err != nil {
 		// REDIS_URL was set but dialling failed — surface the error.
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 	if client == nil {
 		// REDIS_URL unset — intentional in-memory fallback, not an error.
-		return nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, nil, nil
 	}
 
 	closeClient := func() error { return client.Close() }
@@ -47,20 +47,26 @@ func newConfiguredRedisComponents() (RunEventLog, ActiveRunIndex, *RedisRunJobQu
 	eventLog, err := NewRedisRunEventLog(RedisRunEventLogConfig{Client: client})
 	if err != nil {
 		_ = client.Close()
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
 	index, err := NewRedisActiveRunIndex(RedisActiveRunIndexConfig{Client: client})
 	if err != nil {
 		_ = client.Close()
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
 	queue, err := NewRedisRunJobQueue(RedisRunJobQueueConfig{Client: client})
 	if err != nil {
 		_ = client.Close()
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
-	return eventLog, index, queue, closeClient, nil
+	sessionQueue, err := NewRedisRunSessionQueue(RedisRunSessionQueueConfig{Client: client})
+	if err != nil {
+		_ = client.Close()
+		return nil, nil, nil, nil, nil, err
+	}
+
+	return eventLog, index, queue, sessionQueue, closeClient, nil
 }

@@ -43,8 +43,7 @@ func TestImplicitDisable_WhenURLUnset(t *testing.T) {
 		t.Fatalf("Register: %v", err)
 	}
 
-	// Unset URL means Redis is off. Previously a localhost:6379 tag default
-	// masked the unset state; removing it lets gate helpers detect disabled.
+	// Unset URL means Redis is off so gate helpers can detect disabled state.
 	if cfg.URL != "" {
 		t.Errorf("URL should be empty when unset (no default); got %q", cfg.URL)
 	}

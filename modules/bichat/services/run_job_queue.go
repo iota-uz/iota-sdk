@@ -49,6 +49,12 @@ type RunJobPayload struct {
 	Content   string  `json:"content"`
 	UploadIDs []int64 `json:"upload_ids,omitempty"`
 
+	// UserMessageID is the id of the user message the enqueuer already
+	// persisted alongside the run. When zero (a job queued behind an
+	// active run before its message was committed), the executor persists
+	// the user message + attachment artifacts itself before generating.
+	UserMessageID uuid.UUID `json:"user_message_id,omitempty"`
+
 	// Edit/regenerate support.
 	ReplaceFromMessageID *uuid.UUID `json:"replace_from_message_id,omitempty"`
 
@@ -150,13 +156,13 @@ func (q *RedisRunJobQueue) Enqueue(ctx context.Context, payload RunJobPayload) (
 	const op serrors.Op = "RedisRunJobQueue.Enqueue"
 
 	if payload.TenantID == uuid.Nil {
-		return uuid.Nil, false, serrors.E(op, serrors.KindValidation, "tenant id is required")
+		return uuid.Nil, false, serrors.New(serrors.Invalid, "tenant id is required").WithOp(op)
 	}
 	if payload.SessionID == uuid.Nil {
-		return uuid.Nil, false, serrors.E(op, serrors.KindValidation, "session id is required")
+		return uuid.Nil, false, serrors.New(serrors.Invalid, "session id is required").WithOp(op)
 	}
 	if payload.RequestID == uuid.Nil {
-		return uuid.Nil, false, serrors.E(op, serrors.KindValidation, "request id is required")
+		return uuid.Nil, false, serrors.New(serrors.Invalid, "request id is required").WithOp(op)
 	}
 
 	// Delegate the SetNX dance to ClaimRequest so the inline request
@@ -165,7 +171,7 @@ func (q *RedisRunJobQueue) Enqueue(ctx context.Context, payload RunJobPayload) (
 	// the two code paths.
 	runID, deduped, err := q.ClaimRequest(ctx, payload.TenantID, payload.RequestID, payload.RunID)
 	if err != nil {
-		return uuid.Nil, false, serrors.E(op, err)
+		return uuid.Nil, false, serrors.Wrap(op, err)
 	}
 	if deduped {
 		return runID, true, nil
@@ -175,10 +181,52 @@ func (q *RedisRunJobQueue) Enqueue(ctx context.Context, payload RunJobPayload) (
 		payload.EnqueuedAt = time.Now().UTC()
 	}
 
+	if err := q.xaddPayload(ctx, payload); err != nil {
+		// Roll the dedupe claim back so a client retry with the same
+		// request_id can mint a fresh run instead of dead-ending on the
+		// never-enqueued one.
+		_, _ = q.client.Del(context.WithoutCancel(ctx), q.dedupeKey(payload.TenantID, payload.RequestID)).Result()
+		return uuid.Nil, false, err
+	}
+	return payload.RunID, false, nil
+}
+
+// EnqueueClaimed posts a job to the stream WITHOUT touching the request
+// dedupe key. It is used by callers that already claimed the request_id via
+// ClaimRequest (the HTTP send path) and by the session-FIFO promoter, which
+// replays a queued job after the run ahead of it terminated. Re-claiming
+// there would either no-op against our own claim or, worse, release and
+// race a concurrent duplicate send.
+func (q *RedisRunJobQueue) EnqueueClaimed(ctx context.Context, payload RunJobPayload) (uuid.UUID, error) {
+	const op serrors.Op = "RedisRunJobQueue.EnqueueClaimed"
+
+	if payload.TenantID == uuid.Nil {
+		return uuid.Nil, serrors.New(serrors.Invalid, "tenant id is required").WithOp(op)
+	}
+	if payload.SessionID == uuid.Nil {
+		return uuid.Nil, serrors.New(serrors.Invalid, "session id is required").WithOp(op)
+	}
+	if payload.RunID == uuid.Nil {
+		return uuid.Nil, serrors.New(serrors.Invalid, "run id is required").WithOp(op)
+	}
+	if payload.EnqueuedAt.IsZero() {
+		payload.EnqueuedAt = time.Now().UTC()
+	}
+	if err := q.xaddPayload(ctx, payload); err != nil {
+		return uuid.Nil, err
+	}
+	return payload.RunID, nil
+}
+
+// xaddPayload marshals the payload and writes the stream entry. On a failed
+// XAdd nothing needs cleanup because the caller either never wrote the
+// dedupe key (EnqueueClaimed) or cleans it up itself (Enqueue).
+func (q *RedisRunJobQueue) xaddPayload(ctx context.Context, payload RunJobPayload) error {
+	const op serrors.Op = "RedisRunJobQueue.xaddPayload"
+
 	body, err := json.Marshal(payload)
 	if err != nil {
-		_, _ = q.client.Del(context.WithoutCancel(ctx), q.dedupeKey(payload.TenantID, payload.RequestID)).Result()
-		return uuid.Nil, false, serrors.E(op, "marshal run payload", err)
+		return serrors.WrapContext(op, err, "marshal run payload")
 	}
 
 	enqueueCtx := context.WithoutCancel(ctx)
@@ -197,12 +245,10 @@ func (q *RedisRunJobQueue) Enqueue(ctx context.Context, payload RunJobPayload) (
 		},
 	}).Result()
 	if err != nil {
-		_, _ = q.client.Del(enqueueCtx, q.dedupeKey(payload.TenantID, payload.RequestID)).Result()
-		return uuid.Nil, false, serrors.E(op, "xadd run job", err)
+		return serrors.WrapContext(op, err, "xadd run job")
 	}
 	_, _ = q.client.XTrimMaxLenApprox(enqueueCtx, q.stream, q.maxLen, 1).Result()
-
-	return payload.RunID, false, nil
+	return nil
 }
 
 // ClaimRequest acquires the request_id dedupe lock WITHOUT enqueuing a
@@ -225,10 +271,10 @@ func (q *RedisRunJobQueue) ClaimRequest(ctx context.Context, tenantID, requestID
 	const op serrors.Op = "RedisRunJobQueue.ClaimRequest"
 	const maxRetries = 3
 	if tenantID == uuid.Nil {
-		return uuid.Nil, false, serrors.E(op, serrors.KindValidation, "tenant id is required")
+		return uuid.Nil, false, serrors.New(serrors.Invalid, "tenant id is required").WithOp(op)
 	}
 	if requestID == uuid.Nil {
-		return uuid.Nil, false, serrors.E(op, serrors.KindValidation, "request id is required")
+		return uuid.Nil, false, serrors.New(serrors.Invalid, "request id is required").WithOp(op)
 	}
 	candidate := assignedRunID
 	if candidate == uuid.Nil {
@@ -243,7 +289,7 @@ func (q *RedisRunJobQueue) ClaimRequest(ctx context.Context, tenantID, requestID
 	for attempt := range maxRetries {
 		acquired, err := q.client.SetNX(writeCtx, dedupeKey, candidate.String(), q.dedupeTTL).Result()
 		if err != nil {
-			return uuid.Nil, false, serrors.E(op, "set request dedupe key", err)
+			return uuid.Nil, false, serrors.WrapContext(op, err, "set request dedupe key")
 		}
 		if acquired {
 			return candidate, false, nil
@@ -255,17 +301,17 @@ func (q *RedisRunJobQueue) ClaimRequest(ctx context.Context, tenantID, requestID
 				if attempt < maxRetries-1 {
 					continue
 				}
-				return uuid.Nil, false, serrors.E(op, "request dedupe retry exhausted")
+				return uuid.Nil, false, serrors.New(serrors.Internal, "request dedupe retry exhausted").WithOp(op)
 			}
-			return uuid.Nil, false, serrors.E(op, "read request dedupe key", err)
+			return uuid.Nil, false, serrors.WrapContext(op, err, "read request dedupe key")
 		}
 		existingID, parseErr := uuid.Parse(existing)
 		if parseErr != nil {
-			return uuid.Nil, false, serrors.E(op, "parse existing run id", parseErr)
+			return uuid.Nil, false, serrors.WrapContext(op, parseErr, "parse existing run id")
 		}
 		return existingID, true, nil
 	}
-	return uuid.Nil, false, serrors.E(op, "request dedupe retry exhausted")
+	return uuid.Nil, false, serrors.New(serrors.Internal, "request dedupe retry exhausted").WithOp(op)
 }
 
 // ReleaseRequest drops the tenant-scoped dedupe mapping for a request_id.
@@ -311,16 +357,16 @@ func ParseRunJobPayload(values map[string]any) (RunJobPayload, error) {
 
 	raw, ok := values["payload"]
 	if !ok {
-		return RunJobPayload{}, serrors.E(op, serrors.KindValidation, "missing payload field")
+		return RunJobPayload{}, serrors.New(serrors.Invalid, "missing payload field").WithOp(op)
 	}
 	body, err := coerceBytes(raw)
 	if err != nil {
-		return RunJobPayload{}, serrors.E(op, "coerce payload bytes", err)
+		return RunJobPayload{}, serrors.WrapContext(op, err, "coerce payload bytes")
 	}
 
 	var payload RunJobPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return RunJobPayload{}, serrors.E(op, "unmarshal run job payload", err)
+		return RunJobPayload{}, serrors.WrapContext(op, err, "unmarshal run job payload")
 	}
 	return payload, nil
 }

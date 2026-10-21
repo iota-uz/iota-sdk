@@ -166,7 +166,7 @@
     "Back": "Назад",
     "InstantMessages": "Мгновенные сообщения",
     "NoSelectedChat": "Выберите чат...",
-    "ChatNotFound": "Чат не найден..."
+    "ChatNotFound": "Чат не найден...",
+    "NoMessages": "Нет сообщений"
   }
 }
-

@@ -78,7 +78,7 @@ type UploadsAuthorizer interface {
 //
 //	    // Check department-level access
 //	    if currentUser.DepartmentID != targetUser.DepartmentID {
-//	        return serrors.E(op, serrors.KindPermission, "cannot view users outside your department")
+//	        return serrors.NewPermissionDenied("cannot view users outside your department").WithOp(op)
 //	    }
 //
 //	    return a.base.CanQueryUser(ctx, id)

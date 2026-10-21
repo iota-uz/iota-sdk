@@ -1261,3 +1261,23 @@ describe('quieting the siblings', () => {
     expect(chart.series.some((series) => series.emphasis?.focus === 'self')).toBe(false)
   })
 })
+
+// Falsely green if tooltip input uses a hand-written name rather than the name emitted by the adapter.
+describe('comparison period names', () => {
+  it.each(['bar', 'hbar', 'line', 'area'] as const)('names both periods for an unnamed %s measure', (kind) => {
+    const chartInput = input(kind)
+    chartInput.frame = { columns: [{ name: 'category', type: 'string' }, { name: 'value', type: 'number' }, { name: 'previous', type: 'number' }], rows: [['Jan', 1200, 900], ['Feb', 1500, 1100]] }
+    chartInput.encoding = { category: 'category', value: 'value', previous: 'previous' }
+    const chart = testOption(buildChartOption(chartInput, theme))
+    const current = chart.series.find((entry) => entry.name === 'Current period')
+    const previous = chart.series.find((entry) => entry.name === 'Previous')
+    expect(current).toBeDefined()
+    expect(previous).toBeDefined()
+    const tooltip = chart.tooltip.formatter?.([
+      { axisValueLabel: 'Jan', seriesName: current?.name, value: 1200 },
+      { axisValueLabel: 'Jan', seriesName: previous?.name, value: 900 },
+    ]) ?? ''
+    expect(tooltip).toContain('Current period')
+    expect(tooltip).toContain('Previous')
+  })
+})

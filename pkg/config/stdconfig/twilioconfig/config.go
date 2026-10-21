@@ -4,7 +4,7 @@ package twilioconfig
 
 // Config holds Twilio API credentials and webhook settings.
 //
-// Env prefix: "twilio" (e.g. TWILIO_ACCOUNT_SID → twilio.accountsid).
+// Env prefix: "twilio" (e.g. TWILIO_ACCOUNTSID → twilio.accountsid).
 type Config struct {
 	WebhookURL  string `koanf:"webhookurl"`
 	AccountSID  string `koanf:"accountsid"`

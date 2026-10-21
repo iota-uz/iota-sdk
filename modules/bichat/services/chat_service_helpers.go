@@ -236,10 +236,10 @@ func (s *chatServiceImpl) persistAssistantMessageCritical(
 		attemptCtx, cancel := context.WithTimeout(ctx, streamPersistenceTimeout)
 		err = s.withinTx(attemptCtx, func(txCtx context.Context) error {
 			if saveErr := s.chatRepo.SaveMessage(txCtx, msg); saveErr != nil {
-				return serrors.E(op, saveErr)
+				return serrors.Wrap(op, saveErr)
 			}
 			if updateErr := s.chatRepo.UpdateSession(txCtx, session); updateErr != nil {
-				return serrors.E(op, updateErr)
+				return serrors.Wrap(op, updateErr)
 			}
 			return nil
 		})
@@ -287,23 +287,23 @@ func (s *chatServiceImpl) maybeReplaceHistoryFromMessage(
 
 	msg, err := s.chatRepo.GetMessage(ctx, *replaceFromMessageID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if msg.SessionID() != session.ID() {
-		return nil, serrors.E(op, serrors.KindValidation, "replaceFromMessageId does not belong to session")
+		return nil, serrors.New(serrors.Invalid, "replaceFromMessageId does not belong to session").WithOp(op)
 	}
 	if msg.Role() != types.RoleUser {
-		return nil, serrors.E(op, serrors.KindValidation, "replaceFromMessageId must point to a user message")
+		return nil, serrors.New(serrors.Invalid, "replaceFromMessageId must point to a user message").WithOp(op)
 	}
 
 	if _, err := s.chatRepo.TruncateMessagesFrom(ctx, session.ID(), msg.CreatedAt()); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	updated := session.SetPreviousResponseID(nil, time.Now())
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return updated, nil
@@ -675,7 +675,7 @@ func (s *chatServiceImpl) saveAgentResult(
 	if result.interrupt != nil {
 		qd, err := hitlsvc.BuildQuestionData(result.interrupt.CheckpointID, result.interruptAgentName, result.interrupt.Questions)
 		if err != nil {
-			return nil, nil, serrors.E(op, err)
+			return nil, nil, serrors.Wrap(op, err)
 		}
 		if qd != nil {
 			assistantQuestionData = qd
@@ -690,18 +690,18 @@ func (s *chatServiceImpl) saveAgentResult(
 		QuestionData: assistantQuestionData,
 	})
 	if err != nil {
-		return nil, nil, serrors.E(op, serrors.KindValidation, err)
+		return nil, nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 	if err := s.chatRepo.SaveMessage(ctx, assistantMsg); err != nil {
-		return nil, nil, serrors.E(op, err)
+		return nil, nil, serrors.Wrap(op, err)
 	}
 	if err := s.persistGeneratedArtifacts(ctx, session, assistantMsg.ID(), result.artifacts); err != nil {
-		return nil, nil, serrors.E(op, err)
+		return nil, nil, serrors.Wrap(op, err)
 	}
 
 	session = session.SetPreviousResponseID(result.providerResponseID, time.Now())
 	if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
-		return nil, nil, serrors.E(op, err)
+		return nil, nil, serrors.Wrap(op, err)
 	}
 
 	return assistantMsg, session, nil
@@ -743,10 +743,10 @@ func (s *chatServiceImpl) persistGeneratedArtifacts(
 			Metadata:       artifact.Metadata,
 		})
 		if err != nil {
-			return serrors.E(op, serrors.KindValidation, err)
+			return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 		}
 		if err := s.chatRepo.SaveArtifact(ctx, artifactEntity); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 

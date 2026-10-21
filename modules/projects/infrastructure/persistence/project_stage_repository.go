@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/projects/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 var (
@@ -60,6 +61,15 @@ const (
 		JOIN payments p ON psp.payment_id = p.id
 		JOIN transactions t ON p.transaction_id = t.id
 		WHERE psp.project_stage_id = $1`
+	paidTotalsQuery = `
+		SELECT ma.balance_currency_id, SUM(t.amount)::bigint
+		FROM project_stage_payments psp
+		JOIN project_stages ps ON ps.id = psp.project_stage_id
+		JOIN payments p ON p.id = psp.payment_id
+		JOIN transactions t ON t.id = p.transaction_id
+		JOIN money_accounts ma ON ma.id = t.destination_account_id
+		WHERE p.tenant_id = $1 AND ps.project_id = ANY($2)
+		GROUP BY ma.balance_currency_id`
 )
 
 type ProjectStageRepository struct {
@@ -340,4 +350,12 @@ func (r *ProjectStageRepository) queryProjectStages(ctx context.Context, query s
 	return mapping.MapViewModels(dbRows, func(model *models.ProjectStage) projectstage.ProjectStage {
 		return ProjectStageModelToDomain(*model)
 	}), nil
+}
+
+func (r *ProjectStageRepository) PaidTotals(ctx context.Context, projectIDs []uuid.UUID) ([]*money.Money, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return sumByCurrency(ctx, paidTotalsQuery, tenantID, projectIDs)
 }

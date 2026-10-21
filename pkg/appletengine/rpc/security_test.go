@@ -103,6 +103,44 @@ func TestRegistry_PublicOptInAllowsAnonymous(t *testing.T) {
 	assert.True(t, method.Contract.public)
 }
 
+// A falsely green result would let an authenticated caller with neither grant
+// through, or require both grants instead of either one.
+func TestDispatcher_AnyPermissionPolicy(t *testing.T) {
+	t.Parallel()
+	registry := NewRegistry()
+	require.NoError(t, registry.RegisterPublicContract("bichat", "bichat.viewer", applets.RPCMethod{
+		Handler: func(_ context.Context, _ json.RawMessage) (any, error) {
+			return map[string]any{"ok": true}, nil
+		},
+	}, nil, Query(false, 0), RequireAnyPermissions("dashboards.read", "dashboards.manage")))
+
+	for _, tc := range []struct {
+		name          string
+		user          applets.AppletUser
+		wantForbidden bool
+	}{
+		{name: "read only", user: &stubUser{permissions: map[string]bool{"dashboards.read": true}}},
+		{name: "manage only", user: &stubUser{permissions: map[string]bool{"dashboards.manage": true}}},
+		{name: "neither", user: &stubUser{permissions: map[string]bool{}}, wantForbidden: true},
+		{name: "anonymous", wantForbidden: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dispatcher := NewDispatcher(registry, &stubHost{user: tc.user}, logrus.New())
+			resp := doRPCRequest(t, dispatcher.HandlePublicHTTP, `{"id":"1","method":"bichat.viewer","params":{}}`)
+			decoded := decodeObject(t, resp.Body.Bytes())
+			if tc.wantForbidden {
+				errorObj, ok := decoded["error"].(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, "forbidden", errorObj["code"])
+			} else {
+				assert.Nil(t, decoded["error"])
+				assert.NotNil(t, decoded["result"])
+			}
+		})
+	}
+}
+
 func TestRegistry_RejectsCrossOwnerNamespace(t *testing.T) {
 	t.Parallel()
 

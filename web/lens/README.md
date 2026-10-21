@@ -1,11 +1,11 @@
-# Lens React runtime
+# Lens Solid runtime
 
-`@iota-uz/sdk/lens` is the canonical Lens delivery surface. Standard React
+`@iota-uz/sdk/lens` is the canonical Lens delivery surface. Standard Solid
 hosts install one SHA-stamped `@iota-uz/sdk` artifact and import both the Lens
 and client-host APIs from its bounded subpaths:
 
 ```ts
-import { ClientHostProvider } from '@iota-uz/sdk/client-host'
+import { mountSolidFeatureCatalogFromDocument } from '@iota-uz/sdk/solid'
 import { LensDashboard } from '@iota-uz/sdk/lens'
 import '@iota-uz/sdk/lens/styles.css'
 ```

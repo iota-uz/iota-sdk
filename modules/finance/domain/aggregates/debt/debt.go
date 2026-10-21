@@ -23,7 +23,14 @@ const (
 	DebtStatusSettled    DebtStatus = "SETTLED"     // Fully paid
 	DebtStatusPartial    DebtStatus = "PARTIAL"     // Partially paid
 	DebtStatusWrittenOff DebtStatus = "WRITTEN_OFF" // Bad debt written off
+	DebtStatusCancelled  DebtStatus = "CANCELLED"   // No longer owed by either side
 )
+
+// IsOpen reports whether something is still owed. Only open payable debts
+// reserve money: settled, written off and cancelled ones do not.
+func (s DebtStatus) IsOpen() bool {
+	return s == DebtStatusPending || s == DebtStatusPartial
+}
 
 type Debt interface {
 	ID() uuid.UUID
@@ -55,6 +62,14 @@ type Debt interface {
 
 	SettlementTransactionID() *uuid.UUID
 	UpdateSettlementTransactionID(transactionID *uuid.UUID) Debt
+
+	// MoneyAccountID is the account the debt is paid from or into. An open
+	// payable debt reserves its outstanding amount on that account.
+	MoneyAccountID() *uuid.UUID
+	UpdateMoneyAccountID(accountID *uuid.UUID) Debt
+
+	ProjectID() *uuid.UUID
+	UpdateProjectID(projectID *uuid.UUID) Debt
 
 	User() user.User
 	CreatedAt() time.Time

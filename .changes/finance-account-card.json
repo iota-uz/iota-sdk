@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "The money account drawer opens as a card: money on the account, reserved by open obligations and available, the obligations reserving it, and a history of the account's transactions with type and date filters that loads more while scrolling and opens the payment or expense behind each entry. A balance typed in the account form is now booked as an ADJUSTMENT transaction for the difference, so the history always adds up to the balance. The transactions list `account` filter now matches both sides of a transaction. Adds transaction.Adjustment, query.FieldAccountID, debt.Repository.OpenPayables and BalanceService.Reserves; moneyaccounts.DrawerEditProps.Transactions is replaced by History."
+}

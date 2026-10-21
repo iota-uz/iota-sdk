@@ -5,7 +5,7 @@ import {
   ArrowClockwise, ArrowsIn, ArrowsLeftRight, ArrowsOut, ArrowUpRight, CaretDown, CaretLeft, CaretRight,
   CircleNotch, DownloadSimple, X,
 } from './icons'
-import { DashboardSkeleton, PanelSkeletonBody } from './panels'
+import { CoveragePanel, DashboardSkeleton, PanelSkeletonBody, TablePanel } from './panels'
 import { DashboardRuntimeProvider, DocumentProvider } from './runtime'
 import './styles.css'
 
@@ -430,7 +430,7 @@ export const CoverageComposite = () => {
   const doc = storyDocument([coveragePanel], { 'payouts:frame': coverageFrame }, {
     rows: [{ panels: [{ panelId: 'payouts', span: 12 }] }],
   })
-  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
+  return <Runtime doc={doc}>{() => <CoveragePanel panel={coveragePanel} />}</Runtime>
 }
 
 /**
@@ -444,14 +444,14 @@ export const CoverageSplit = () => {
   const doc = storyDocument([coverageSplitPanel], { 'payouts-split:frame': coverageSplitFrame }, {
     rows: [{ panels: [{ panelId: 'payouts-split', span: 12 }] }],
   })
-  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
+  return <Runtime doc={doc}>{() => <CoveragePanel panel={coverageSplitPanel} />}</Runtime>
 }
 
 export const CompactTableCells = () => {
   const doc = storyDocument([groupsPanel], { 'groups:frame': groupsFrame }, {
     rows: [{ panels: [{ panelId: 'groups', span: 12 }] }],
   })
-  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
+  return <Runtime doc={doc}>{() => <TablePanel panel={groupsPanel} />}</Runtime>
 }
 
 const premiumPanel: Panel = {
@@ -658,7 +658,7 @@ export const DrillPillAffordances = () => {
   const doc = storyDocument([drillPillPanel], { 'groups:frame': groupsFrame }, {
     rows: [{ panels: [{ panelId: 'drill-pills', span: 12 }] }],
   })
-  return <Runtime doc={doc}>{() => <DashboardPanels />}</Runtime>
+  return <Runtime doc={doc}>{() => <TablePanel panel={drillPillPanel} />}</Runtime>
 }
 
 function runWhenReady(action: () => boolean): () => void {

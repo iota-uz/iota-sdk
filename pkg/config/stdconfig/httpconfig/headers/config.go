@@ -4,7 +4,7 @@ package headers
 
 // Config holds HTTP header name settings.
 //
-// Env prefix: "http.headers" (e.g. REQUEST_ID_HEADER → http.headers.requestid).
+// Env prefix: "http.headers" (e.g. HTTP_HEADERS_REQUESTID → http.headers.requestid).
 type Config struct {
 	// RequestID is the header name SDK looks for to propagate request IDs.
 	RequestID string `koanf:"requestid" default:"X-Request-ID"`

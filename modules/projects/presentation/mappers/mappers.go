@@ -2,6 +2,9 @@
 package mappers
 
 import (
+	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/acceptance"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project"
 	projectstage "github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project_stage"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers/dtos"
@@ -29,18 +32,27 @@ func ProjectDomainToViewModels(projects []project.Project) []viewmodels.ProjectV
 }
 
 func ProjectDomainToViewUpdateModel(p project.Project) dtos.ProjectUpdateDTO {
-	return dtos.ProjectUpdateDTO{
-		CounterpartyID: p.CounterpartyID().String(),
-		Name:           p.Name(),
-		Description:    p.Description(),
+	dto := dtos.ProjectUpdateDTO{
+		CounterpartyID:   p.CounterpartyID().String(),
+		Name:             p.Name(),
+		Description:      p.Description(),
+		ContractAmount:   0,
+		ContractCurrency: "",
 	}
+	if contract := p.Contract(); contract != nil {
+		dto.ContractAmount = contract.AsMajorUnits()
+		dto.ContractCurrency = contract.Currency().Code
+	}
+	return dto
 }
 
 func ProjectViewModelToUpdateDTO(vm viewmodels.ProjectViewModel) dtos.ProjectUpdateDTO {
 	return dtos.ProjectUpdateDTO{
-		CounterpartyID: vm.CounterpartyID,
-		Name:           vm.Name,
-		Description:    vm.Description,
+		CounterpartyID:   vm.CounterpartyID,
+		Name:             vm.Name,
+		Description:      vm.Description,
+		ContractAmount:   0,
+		ContractCurrency: "",
 	}
 }
 
@@ -88,5 +100,19 @@ func ProjectStageViewModelToUpdateDTO(vm viewmodels.ProjectStageViewModel) dtos.
 		StartDate:      startDate,
 		PlannedEndDate: plannedEndDate,
 		FactualEndDate: factualEndDate,
+	}
+}
+
+func AcceptanceDocumentToViewModel(d acceptance.Document) *viewmodels.AcceptanceDocument {
+	return &viewmodels.AcceptanceDocument{
+		ID:          d.ID().String(),
+		Kind:        string(d.Kind()),
+		Number:      d.Number(),
+		Date:        d.Date().Format(time.DateOnly),
+		Amount:      d.Amount().Display(),
+		Status:      string(d.Status()),
+		Description: d.Description(),
+		CanSign:     d.Status() == acceptance.StatusDraft,
+		CanCancel:   d.Status() != acceptance.StatusCancelled,
 	}
 }

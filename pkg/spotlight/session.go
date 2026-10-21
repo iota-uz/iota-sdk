@@ -168,12 +168,12 @@ func (s *SpotlightService) CreateSession(ctx context.Context, req SearchRequest)
 	}
 	if !s.isStarted() {
 		if err := s.Start(ctx); err != nil {
-			return SearchSessionSnapshot{}, serrors.E(op, err)
+			return SearchSessionSnapshot{}, serrors.Wrap(op, err)
 		}
 	}
 	req.Query = strings.TrimSpace(req.Query)
 	if req.Query == "" {
-		return SearchSessionSnapshot{}, serrors.E(op, errors.New("search query is required"))
+		return SearchSessionSnapshot{}, serrors.Wrap(op, errors.New("search query is required"))
 	}
 	if req.TopK <= 0 {
 		req.TopK = 30
@@ -472,7 +472,7 @@ func (s *SpotlightService) searchStage(ctx context.Context, req SearchRequest) (
 
 	hits, err := s.engine.Search(ctx, req)
 	if err != nil {
-		return SearchResponse{}, nil, serrors.E(op, err)
+		return SearchResponse{}, nil, serrors.Wrap(op, err)
 	}
 	filtered := s.filterAuthorized(ctx, req, hits)
 	ranked := s.ranker.Rank(ctx, req, filtered)

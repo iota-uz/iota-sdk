@@ -1366,13 +1366,15 @@ func TestTenantsController_ResetUserPassword_Success(t *testing.T) {
 	resp.ExpectOK()
 	jsonResp := resp.ExpectJSON()
 	jsonResp.ExpectField("success", true)
-	jsonResp.ExpectField("message", "Password reset successfully")
+	jsonResp.ExpectField("message", "Temporary password issued")
 
-	// Verify password was actually changed
+	// The superadmin can only issue a temporary password that forces onboarding.
 	updatedUser, err := userService.GetByID(ctx, createdUser.ID())
 	require.NoError(t, err)
 	require.True(t, updatedUser.CheckPassword(newPassword), "New password should work")
 	require.False(t, updatedUser.CheckPassword("oldpassword123"), "Old password should not work")
+	require.True(t, updatedUser.IsPendingOnboarding(), "The user must set their own password")
+	require.True(t, updatedUser.HasTemporaryPassword())
 }
 
 // TestTenantsController_ResetUserPassword_InvalidTenantID tests malformed tenant UUID
@@ -1619,7 +1621,7 @@ func TestTenantsController_ResetUserPassword_PasswordTooLong(t *testing.T) {
 	).Scan(&userID)
 	require.NoError(t, err)
 
-	// Create 200-character password (exceeds 128 limit)
+	// Create 200-character password (exceeds the 72-byte bcrypt limit)
 	longPassword := strings.Repeat("a", 200)
 
 	suite.POST(fmt.Sprintf("/superadmin/tenants/%s/users/%d/reset-password", tenant.ID.String(), userID)).

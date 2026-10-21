@@ -492,3 +492,26 @@ func TestResolveDimensionDataset_DatasetColorFieldCollisionKeepsFilterValue(t *t
 	require.NotNil(t, lookup)
 	require.Equal(t, map[string]string{"agency_name": "filter_value"}, lookup.Fields)
 }
+
+func TestResolveTitlesDatasetsForExportLineage(t *testing.T) {
+	t.Parallel()
+
+	spec := New("insurance-sales", "Sales").
+		SQL("primary", "insurance.contracts c").
+		Dimension("product", "Product").
+		Column("c.product_id::text").
+		Measure("total_policies", "Total Policies").
+		Column("DISTINCT c.id").
+		Count().
+		DefaultDimension("product").
+		Build()
+
+	dashboard, err := Resolve(spec, DrillContext{}, "/sales")
+	require.NoError(t, err)
+	titles := map[string]string{}
+	for _, dataset := range dashboard.Datasets {
+		titles[dataset.Name] = dataset.Title
+	}
+	require.Equal(t, "Sales", titles["cube_stats"])
+	require.Equal(t, "Product", titles["cube_dim_product"])
+}

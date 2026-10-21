@@ -37,21 +37,21 @@ func (s *OIDCService) CompleteAuthRequest(
 	// Parse auth request ID
 	authID, err := uuid.Parse(authRequestID)
 	if err != nil {
-		return serrors.E(op, serrors.KindValidation, "invalid auth request ID", err)
+		return serrors.New(serrors.Invalid, "invalid auth request ID").WithOp(op).WithCause(err)
 	}
 
 	// Get auth request by ID
 	authReq, err := s.authRequestRepo.GetByID(ctx, authID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Check if expired
 	if authReq.IsExpired() {
-		return serrors.E(op, serrors.KindValidation, "auth request has expired")
+		return serrors.New(serrors.Invalid, "auth request has expired").WithOp(op)
 	}
 	if authReq.IsAuthenticated() || authReq.IsCodeUsed() || authReq.Code() != nil {
-		return serrors.E(op, serrors.KindValidation, "auth request has already been consumed")
+		return serrors.New(serrors.Invalid, "auth request has already been consumed").WithOp(op)
 	}
 
 	// Complete authentication
@@ -59,7 +59,7 @@ func (s *OIDCService) CompleteAuthRequest(
 
 	// Update via repository
 	if err := s.authRequestRepo.Update(ctx, completedReq); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	return nil
@@ -72,13 +72,13 @@ func (s *OIDCService) GetAuthRequest(ctx context.Context, authRequestID string) 
 	// Parse auth request ID
 	authID, err := uuid.Parse(authRequestID)
 	if err != nil {
-		return nil, serrors.E(op, serrors.KindValidation, "invalid auth request ID", err)
+		return nil, serrors.New(serrors.Invalid, "invalid auth request ID").WithOp(op).WithCause(err)
 	}
 
 	// Get from repository
 	authReq, err := s.authRequestRepo.GetByID(ctx, authID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return authReq, nil
@@ -88,10 +88,10 @@ func (s *OIDCService) ValidateAuthorizationRequest(ctx context.Context, authRequ
 	const op serrors.Op = "OIDCService.ValidateAuthorizationRequest"
 	authReq, err := s.GetAuthRequest(ctx, authRequestID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if authReq.IsExpired() || authReq.IsAuthenticated() || authReq.IsCodeUsed() || authReq.Code() != nil {
-		return serrors.E(op, serrors.KindValidation, "auth request is no longer valid")
+		return serrors.New(serrors.Invalid, "auth request is no longer valid").WithOp(op)
 	}
 	return nil
 }

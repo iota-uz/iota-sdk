@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Allow hosts to configure test-environment NDJSON operation deadlines for cold development startup while preserving parent cancellation and cleanup."}

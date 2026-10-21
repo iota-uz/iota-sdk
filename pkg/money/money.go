@@ -45,7 +45,7 @@ func defaultUnmarshalJSON(m *Money, b []byte) error {
 	dec.UseNumber()
 	data := make(map[string]interface{})
 	if err := dec.Decode(&data); err != nil {
-		return serrors.E(opUnmarshalJSON, err)
+		return serrors.Wrap(opUnmarshalJSON, err)
 	}
 
 	var amount *big.Int
@@ -57,14 +57,14 @@ func defaultUnmarshalJSON(m *Money, b []byte) error {
 				// Try parsing as float
 				f, err := v.Float64()
 				if err != nil {
-					return serrors.E(opUnmarshalJSON, ErrInvalidJSONUnmarshal)
+					return serrors.Wrap(opUnmarshalJSON, ErrInvalidJSONUnmarshal)
 				}
 				amount = bigIntFromFloat(f)
 			}
 		case float64:
 			amount = bigIntFromFloat(v)
 		default:
-			return serrors.E(opUnmarshalJSON, ErrInvalidJSONUnmarshal)
+			return serrors.Wrap(opUnmarshalJSON, ErrInvalidJSONUnmarshal)
 		}
 	}
 
@@ -74,7 +74,7 @@ func defaultUnmarshalJSON(m *Money, b []byte) error {
 		case string:
 			currency = v
 		default:
-			return serrors.E(opUnmarshalJSON, ErrInvalidJSONUnmarshal)
+			return serrors.Wrap(opUnmarshalJSON, ErrInvalidJSONUnmarshal)
 		}
 	}
 

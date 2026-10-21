@@ -16,7 +16,7 @@ func VerifyLocks(ctx context.Context, runner Runner, root string, d Dependency) 
 	if err != nil {
 		return err
 	}
-	out, err := runner.Run(ctx, goDir, nil, "env", "GOWORK=off", "go", "list", "-m", "-json", Repository)
+	out, err := runner.Run(ctx, goDir, nil, "env", "GOWORK=off", "go", "list", "-m", "-json", GoModulePath)
 	if err != nil {
 		return err
 	}

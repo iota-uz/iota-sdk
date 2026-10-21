@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Load the groups list with a fixed number of queries: management actions are evaluated from one batched role-permission lookup instead of loading every group with its members per row. GroupQueryRepository gains FindGroupPermissionsByIDs, so custom implementations must add it."
+}

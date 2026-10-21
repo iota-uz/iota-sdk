@@ -52,6 +52,8 @@ type MethodContract struct {
 	Cacheable   bool       `json:"cacheable,omitempty"`
 	MaxRetries  int        `json:"maxRetries,omitempty"`
 	Invalidates []string   `json:"invalidates,omitempty"`
+	// AnyPermissions grants access when the caller has at least one listed permission.
+	AnyPermissions []string `json:"anyPermissions,omitempty"`
 
 	// kindExplicit records whether the caller set the kind through Query or
 	// Mutation instead of relying on a default. It is not serialized.
@@ -92,6 +94,19 @@ func Mutation() ContractOption {
 func Public() ContractOption {
 	return func(contract *MethodContract) {
 		contract.public = true
+	}
+}
+
+// RequireAnyPermissions grants access to callers holding at least one of the
+// named permissions. It can be combined with RPCMethod.RequirePermissions,
+// whose entries must all be held.
+func RequireAnyPermissions(permissions ...string) ContractOption {
+	return func(contract *MethodContract) {
+		for _, permission := range permissions {
+			if name := strings.TrimSpace(permission); name != "" {
+				contract.AnyPermissions = append(contract.AnyPermissions, name)
+			}
+		}
 	}
 }
 
@@ -207,7 +222,7 @@ func (r *Registry) register(method Method) error {
 		// methods require a non-empty RBAC requirement or an explicit Public
 		// opt-in. The compatibility path (no contract) cannot express the
 		// opt-in, so it always requires permissions.
-		if len(method.Method.RequirePermissions) == 0 && !method.Contract.public {
+		if len(method.Method.RequirePermissions) == 0 && len(method.Contract.AnyPermissions) == 0 && !method.Contract.public {
 			return fmt.Errorf("rpc registry: method %q has no access policy: set RequirePermissions or register with rpc.Public()", name)
 		}
 	}
@@ -239,6 +254,7 @@ func (r *Registry) PublicContracts() []MethodContract {
 		}
 		contract := method.Contract
 		contract.Invalidates = append([]string(nil), contract.Invalidates...)
+		contract.AnyPermissions = append([]string(nil), contract.AnyPermissions...)
 		contracts = append(contracts, contract)
 	}
 	sort.Slice(contracts, func(i, j int) bool { return contracts[i].Method < contracts[j].Method })

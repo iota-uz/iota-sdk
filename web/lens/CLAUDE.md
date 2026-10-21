@@ -1,4 +1,4 @@
-# Lens React runtime workflow
+# Lens Solid runtime workflow
 
 Lens runtime work is verified through fixtures, Solid story-harness stories, and Chromium
 screenshots. The normal loop does not require a running ERP:
@@ -41,7 +41,7 @@ just lens watch       # rebuild it on every source change
 
 ## Seeing a change in a real host
 
-Standard React hosts consume the SHA-stamped `@iota-uz/sdk/lens` package and its
+Standard Solid hosts consume the SHA-stamped `@iota-uz/sdk/lens` package and its
 public stylesheet. Use the frontend release-train artifact for a PR preview;
 generated compatibility chunks under `pkg/lens/render/solid/dist` are ignored
 and must never be committed.

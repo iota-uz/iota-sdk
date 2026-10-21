@@ -341,7 +341,7 @@ func (s *SpotlightService) ReindexTenant(ctx context.Context, tenantID uuid.UUID
 		Intent:   SearchIntentMixed,
 	})
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Use rebuild session if engine supports it — builds a fresh index
@@ -350,7 +350,7 @@ func (s *SpotlightService) ReindexTenant(ctx context.Context, tenantID uuid.UUID
 	rebuildable, ok := s.engine.(RebuildableIndexEngine)
 	if !ok {
 		if err := s.engine.DeleteTenant(ctx, tenantID); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		return s.pipeline.Sync(ctx, tenantID, language, "", 0, scope)
 	}
@@ -358,7 +358,7 @@ func (s *SpotlightService) ReindexTenant(ctx context.Context, tenantID uuid.UUID
 	rebuildStart := time.Now()
 	session, err := rebuildable.StartRebuild(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Track commit success explicitly so the deferred Abort only fires on
@@ -385,11 +385,11 @@ func (s *SpotlightService) ReindexTenant(ctx context.Context, tenantID uuid.UUID
 
 	buildPipeline := NewIndexerPipeline(s.registry, session.Engine(), s.logger)
 	if err := buildPipeline.Sync(ctx, tenantID, language, "", 0, scope); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if err := session.Commit(ctx); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	committed = true
 
@@ -411,7 +411,7 @@ func (s *SpotlightService) PruneOrphanBuildIndexes(ctx context.Context, minAge t
 
 	pruner, ok := s.engine.(RebuildArtifactPruner)
 	if !ok {
-		return nil, serrors.E(op, errors.New("spotlight engine does not support rebuild artifact pruning"))
+		return nil, serrors.Wrap(op, errors.New("spotlight engine does not support rebuild artifact pruning"))
 	}
 	return pruner.PruneOrphanBuildIndexes(ctx, minAge)
 }
@@ -425,7 +425,7 @@ func (s *SpotlightService) Stats(ctx context.Context) (*ServiceStats, error) {
 
 	engineStats, err := s.engine.Stats(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	providers := s.registry.All()

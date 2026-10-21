@@ -163,7 +163,7 @@ func newDoctorCommand() *cobra.Command {
 			}
 			targetPlan, err := execution.Plan(cmd.Context(), opts)
 			if err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			_, _ = fmt.Fprintf(out, "policy hash: %s\n", policy.HashPolicy(payload))
 			_, _ = fmt.Fprintf(out, "policy envs: %d\n", len(cfg.Environments))

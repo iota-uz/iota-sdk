@@ -139,7 +139,7 @@ function FacetPane(props: {
  * menus use. Like an ordinary dropdown it starts at the trigger's leading edge;
  * it flips or re-aligns only when the viewport says it must.
  */
-export function FacetFilterMenu(props: { filters: Array<Filter> }) {
+export function FacetFilterMenu(props: { filters: Array<Filter>; onApplyURL?: (url: string, selections: ReadonlyMap<string, ReadonlySet<string>>) => void }) {
   const translate = useTranslate()
   const { applyURL } = useFilters()
   const menuID = createUniqueId()
@@ -187,13 +187,15 @@ export function FacetFilterMenu(props: { filters: Array<Filter> }) {
     if (staged().size === 0 || !base()) return
     // The URL is built before closing: Solid runs the close-time staging
     // cleanup synchronously, and closing first would wipe the staged set.
-    const next = stagedFilterURL(base(), staged())
+    const submitted = staged()
+    const next = stagedFilterURL(base(), submitted)
     close()
-    applyURL(next)
+    if (props.onApplyURL) props.onApplyURL(next, submitted)
+    else applyURL(next)
   }
 
-  const single = props.filters.length === 1
-  const label = single ? (props.filters[0]?.label ?? '') : translate('filter.facet.filters', 'Filters')
+  const single = () => props.filters.length === 1
+  const label = () => single() ? (props.filters[0]?.label ?? '') : translate('filter.facet.filters', 'Filters')
   // Clear removes a selection, so it is only there when there is one to remove.
   // A facet holding a single option used to render it (and a search box) beside
   // an untouched list: two controls that could not do anything.
@@ -215,14 +217,14 @@ export function FacetFilterMenu(props: { filters: Array<Filter> }) {
           type="button"
         >
           <FunnelSimple aria-hidden="true" />
-          <span>{label}</span>
+          <span>{label()}</span>
           {appliedCount() > 0 && <span class="lens-facet-count">{appliedCount()}</span>}
           <CaretDown aria-hidden="true" />
         </button>
         <Show when={open() && overlay()}>
           <Portal mount={overlay()}>
             <div
-              aria-label={label}
+              aria-label={label()}
               class="lens-filter-menu-popover"
               id={menuID}
               ref={(el) => { menu.current = el }}
@@ -232,12 +234,12 @@ export function FacetFilterMenu(props: { filters: Array<Filter> }) {
               style={menuPlacementProps().style}
             >
               <div class="lens-filter-menu-body">
-                {!single && (
-                  <div aria-label={label} class="lens-filter-menu-rail" role="tablist">
+                {!single() && (
+                  <div aria-label={label()} class="lens-filter-menu-rail" role="tablist">
                     <For each={props.filters}>
                       {(filter) => {
                         const dimension = filter.facet?.dimension ?? ''
-                        const count = drafts().has(dimension) && touched().has(dimension)
+                        const count = () => drafts().has(dimension) && touched().has(dimension)
                           ? (drafts().get(dimension)?.size ?? 0)
                           : (filter.facet?.selections?.length ?? 0)
                         return (
@@ -249,7 +251,7 @@ export function FacetFilterMenu(props: { filters: Array<Filter> }) {
                             type="button"
                           >
                             <span class="lens-filter-menu-rail-label">{filter.label}</span>
-                            {count > 0 && <span class="lens-facet-count">{count}</span>}
+                            {count() > 0 && <span class="lens-facet-count">{count()}</span>}
                           </button>
                         )
                       }}
@@ -257,14 +259,14 @@ export function FacetFilterMenu(props: { filters: Array<Filter> }) {
                   </div>
                 )}
                 <div class="lens-filter-menu-pane-host">
-                  {active() && (
+                  <Show when={active()} keyed>{filter => (
                     <FacetPane
                       draft={touched().has(active()!.facet?.dimension ?? '') ? drafts().get(active()!.facet?.dimension ?? '') : undefined}
-                      filter={active()!}
+                      filter={filter}
                       onTarget={rememberTarget}
                       onToggle={toggle}
                     />
-                  )}
+                  )}</Show>
                 </div>
               </div>
               {/* The footer states the size of what Apply is about to do. It used to

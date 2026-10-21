@@ -64,5 +64,5 @@ func (m *flatMapper[TEntity]) FromJSON(jsonData any) (TEntity, error) {
 		return deserializer.FromJSON(jsonData)
 	}
 
-	return zero, serrors.E("mapper does not support JSON deserialization")
+	return zero, serrors.NewUnimplemented("mapper does not support JSON deserialization")
 }

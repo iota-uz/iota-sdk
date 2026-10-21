@@ -4,6 +4,7 @@ export type ChartKind = Extract<PanelKind, 'pie' | 'donut' | 'radial' | 'bar' | 
 export type ChartFormatResolver = (field: string, value: unknown) => string
 
 export interface ChartLabels {
+  current?: string
   previous?: string
   trend?: string
   movingAverage?: (window: number) => string

@@ -10,8 +10,9 @@ applies_to:
   - modules/core/infrastructure/query/group_query_repository.go
   - modules/core/infrastructure/query/user_query_repository.go
   - modules/core/presentation/controllers/user_page_builder.go
+  - modules/core/presentation/controllers/group_controller.go
 tags: [core, users, roles, groups, rbac, cqrs]
-refs: [EAI-UZ/tasks#404]
+refs: [EAI-UZ/tasks#404, iota-uz/iota-sdk#1090]
 supersedes: [user-form-assignment-options]
 superseded_by: []
 ---
@@ -32,7 +33,9 @@ superseded_by: []
 не имеют скрытой пагинации и не загружают агрегаты или участников групп.
 Списочные методы групп и пользователей сохраняют подробные контракты, но
 гидратируют связи пакетно с фиксированным числом запросов. Для подписей групп
-используется отдельная лёгкая выборка по ID.
+используется отдельная лёгкая выборка по ID. Доступные действия в списке групп
+вычисляются по пакетной проекции разрешений ролей группы, без загрузки агрегата
+на каждую строку.
 
 Presentation builder координирует существующие query-сервисы, применяет общую
 чистую policy grantability и формирует свойства формы. В edit текущие назначения

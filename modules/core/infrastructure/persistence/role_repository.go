@@ -264,14 +264,14 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.R
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	dbRole.TenantID = tenantID.String()
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	updateTag, err := tx.Exec(
@@ -284,7 +284,7 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.R
 		dbRole.TenantID,
 	)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	if updateTag.RowsAffected() == 0 {
 		return nil, ErrRoleNotFound
@@ -296,20 +296,20 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.R
 		dbRole.ID,
 		dbRole.TenantID,
 	); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	for _, permission := range dbPermissions {
 		permissionID, err := g.upsertPermissionAndGetID(ctx, permission)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		if err := g.execQuery(ctx, roleInsertPermissionQuery,
 			dbRole.ID,
 			permissionID,
 			dbRole.TenantID,
 		); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 	}
 	return g.GetByID(ctx, dbRole.ID)
@@ -319,20 +319,20 @@ func (g *GormRoleRepository) Delete(ctx context.Context, id uint) error {
 	op := serrors.Op("RoleRepository.Delete")
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if err := g.execQuery(ctx, roleDeletePermissionsQuery, id, tenantID.String()); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	tag, err := tx.Exec(ctx, roleDeleteQuery, id, tenantID.String())
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrRoleNotFound
@@ -442,7 +442,7 @@ func (g *GormRoleRepository) upsertPermissionAndGetID(ctx context.Context, permi
 	op := serrors.Op("RoleRepository.upsertPermissionAndGetID")
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 
 	var permissionID string
@@ -456,7 +456,7 @@ func (g *GormRoleRepository) upsertPermissionAndGetID(ctx context.Context, permi
 		permission.Modifier,
 		permission.Description,
 	).Scan(&permissionID); err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.FromDB(op, err)
 	}
 
 	return permissionID, nil

@@ -57,7 +57,7 @@ func (rm *RelationMapper[T]) ToEntity(ctx context.Context, allFields []FieldValu
 	var zero T
 
 	if rm.mapOwn == nil {
-		return zero, serrors.E(op, serrors.Invalid, "mapOwn function is nil")
+		return zero, serrors.New(serrors.Invalid, "mapOwn function is nil").WithOp(op)
 	}
 
 	entity := rm.mapOwn(allFields)
@@ -93,14 +93,14 @@ func (rm *RelationMapper[T]) ToEntity(ctx context.Context, allFields []FieldValu
 			// We use map[string]any since we don't know the concrete type
 			items, err := parseHasManyJSON[map[string]any](jsonData)
 			if err != nil {
-				return zero, serrors.E(op, err, "parsing "+jsonFieldName)
+				return zero, serrors.WrapContext(op, err, "parsing "+jsonFieldName)
 			}
 
 			for _, item := range items {
 				result := setOnParent(entity, item)
 				typedResult, ok := result.(T)
 				if !ok {
-					return zero, serrors.E(op, serrors.Invalid, "relation %q setOnParent returned unexpected type", alias)
+					return zero, serrors.NewInvalid(fmt.Sprintf("relation %q setOnParent returned unexpected type", alias)).WithOp(op)
 				}
 				entity = typedResult
 			}
@@ -122,18 +122,18 @@ func (rm *RelationMapper[T]) ToEntity(ctx context.Context, allFields []FieldValu
 
 		childMapper, ok := mapper.(RelationEntityMapper)
 		if !ok {
-			return zero, serrors.E(op, serrors.Invalid, "relation %q mapper does not implement RelationEntityMapper", alias)
+			return zero, serrors.NewInvalid(fmt.Sprintf("relation %q mapper does not implement RelationEntityMapper", alias)).WithOp(op)
 		}
 
 		child, err := childMapper.MapEntity(ctx, childFields)
 		if err != nil {
-			return zero, serrors.E(op, "relation %q", alias, err)
+			return zero, serrors.NewInternal(fmt.Sprintf("relation %q", alias)).WithOp(op).WithCause(err)
 		}
 
 		result := setOnParent(entity, child)
 		typedResult, ok := result.(T)
 		if !ok {
-			return zero, serrors.E(op, serrors.Invalid, "relation %q setOnParent returned %T, expected %T", alias, result, zero)
+			return zero, serrors.NewInvalid(fmt.Sprintf("relation %q setOnParent returned %T, expected %T", alias, result, zero)).WithOp(op)
 		}
 		entity = typedResult
 	}
@@ -213,7 +213,7 @@ func parseHasManyJSON[T any](jsonData any) ([]T, error) {
 			if typed, ok := item.(T); ok {
 				result[i] = typed
 			} else {
-				return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("item %d has unexpected type %T", i, item))
+				return nil, serrors.New(serrors.Invalid, fmt.Sprintf("item %d has unexpected type %T", i, item)).WithOp(op)
 			}
 		}
 		return result, nil
@@ -225,7 +225,7 @@ func parseHasManyJSON[T any](jsonData any) ([]T, error) {
 			if typed, ok := any(item).(T); ok {
 				result[i] = typed
 			} else {
-				return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("item %d cannot be converted to target type", i))
+				return nil, serrors.New(serrors.Invalid, fmt.Sprintf("item %d cannot be converted to target type", i)).WithOp(op)
 			}
 		}
 		return result, nil
@@ -245,7 +245,7 @@ func parseHasManyJSON[T any](jsonData any) ([]T, error) {
 		}
 		data = []byte(v)
 	default:
-		return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("unexpected type %T", jsonData))
+		return nil, serrors.New(serrors.Invalid, fmt.Sprintf("unexpected type %T", jsonData)).WithOp(op)
 	}
 
 	// Handle null and empty array
@@ -259,7 +259,7 @@ func parseHasManyJSON[T any](jsonData any) ([]T, error) {
 
 	var items []T
 	if err := json.Unmarshal(data, &items); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return items, nil

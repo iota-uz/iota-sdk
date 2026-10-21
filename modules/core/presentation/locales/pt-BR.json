@@ -1,4 +1,36 @@
 {
+	"Onboarding": {
+		"Errors": {
+			"FirstNameRequired": "Informe seu nome",
+			"LastNameRequired": "Informe seu sobrenome",
+			"LanguageRequired": "Escolha um idioma suportado",
+			"PhoneInvalid": "Informe um telefone válido",
+			"PasswordTooShort": "A senha deve ter pelo menos 8 caracteres",
+			"PasswordTooLong": "A senha é longa demais: use até 72 caracteres latinos",
+			"PasswordReusesTemporary": "A nova senha deve ser diferente da temporária",
+			"PasswordInvalid": "A senha não atende à política de senhas",
+			"ConfirmationMismatch": "As senhas não coincidem",
+			"AvatarNotImage": "O avatar deve ser uma imagem"
+		},
+		"Title": "Configure sua conta",
+		"Intro": "Escolha um idioma, preencha seu perfil e defina sua própria senha. Depois, entre com ela.",
+		"Email": "Email",
+		"Language": "Idioma da interface",
+		"FirstName": "Nome",
+		"LastName": "Sobrenome",
+		"MiddleName": "Nome do meio (opcional)",
+		"Phone": "Telefone (opcional)",
+		"Avatar": "Avatar (opcional)",
+		"PasswordHint": "Use pelo menos {{.Min}} caracteres. Frases-senha e gerenciadores de senhas são bem-vindos.",
+		"NewPassword": "Nova senha",
+		"ConfirmPassword": "Confirme a nova senha",
+		"Submit": "Concluir configuração",
+		"Logout": "Sair",
+		"Completed": "Sua conta está pronta. Entre com a nova senha.",
+		"Meta": {
+			"Title": "Configuração da conta"
+		}
+	},
   "Authorization": {
     "Errors": {
       "Title": "Ação não permitida",
@@ -143,7 +175,9 @@
   "Common": {
     "CloseNotification": "Fechar notificação",
     "TabNavigation": "Navegação por abas",
-    "Loading": "Carregando..."
+    "Loading": "Carregando...",
+    "LoadFailed": "Não foi possível carregar os dados",
+    "Retry": "Tentar novamente"
   },
   "ConfirmDelete": "Tem certeza de que deseja excluir este item?",
   "Countries": {
@@ -470,6 +504,8 @@
 		"UseAnotherAccount": "Usar outra conta",
 		"ActiveAccount": "Ativa",
     "Errors": {
+			"TemporaryPasswordExpired": "A senha temporária não é mais válida. Peça uma nova ao administrador.",
+			"OnboardingRequired": "Conclua a configuração da conta: entre com a senha temporária fornecida pelo administrador.",
       "PasswordInvalid": "E-mail ou senha inválidos",
       "OauthStateNotFound": "Estado oAuth não encontrado. Por favor, tente novamente.",
       "OauthStateInvalid": "Estado oAuth inválido. Por favor, tente novamente.",
@@ -1099,6 +1135,19 @@
   "System": "Sistema",
   "UpdatedAt": "Atualizado em",
   "Users": {
+		"PendingOnboarding": {
+			"Notice": "O usuário ainda não concluiu a configuração: o acesso é liberado depois que ele definir a própria senha."
+		},
+		"TemporaryPassword": {
+			"Issued": "Senha temporária para {{.Email}}",
+			"Copy": "Copiar",
+			"Copied": "Copiado",
+			"ExpiresAt": "Válida até",
+			"ShownOnce": "Esta senha é exibida apenas uma vez. Entregue-a ao usuário você mesmo.",
+			"BackToUsers": "Voltar para usuários",
+			"Confirm": "Emitir uma nova senha temporária? A senha atual deixa de funcionar e todas as sessões do usuário são encerradas.",
+			"Button": "Emitir senha temporária"
+		},
     "Meta": {
       "List": {
         "Title": "Usuários"
@@ -1140,6 +1189,9 @@
       "Sessions": "Sessões"
     },
     "Single": {
+			"TemporaryPassword": "Senha temporária",
+			"TemporaryPasswordPlaceholder": "Deixe vazio para gerar",
+			"TemporaryPasswordHint": "O usuário entra com ela uma vez e define a própria senha. Válida por 72 horas.",
       "EditUser": "Editar usuário",
       "FirstName": "Nome",
       "LastName": "Sobrenome",
@@ -1440,5 +1492,65 @@
   "Error": {
     "ProcessingFailed": "Falha na importação"
   },
-  "DryRunNotice": "Esta é uma visualização — nenhum dado foi alterado ainda. Revise os resultados acima e confirme para aplicar a importação."
+  "DryRunNotice": "Esta é uma visualização — nenhum dado foi alterado ainda. Revise os resultados acima e confirme para aplicar a importação.",
+  "Notifications": {
+    "Title": "Notificações",
+    "All": "Todas",
+    "Unread": "Não lidas",
+    "MarkAllRead": "Marcar todas como lidas",
+    "MarkRead": "Marcar como lida",
+    "Empty": "Nenhuma notificação",
+    "Open": "Abrir",
+    "Pagination": "Paginação",
+    "Previous": "Anterior",
+    "Next": "Próxima",
+    "Intro": "Tudo o que o sistema avisou a você.",
+    "EmptyHint": "Quando algo acontecer, você verá aqui.",
+    "NewCount": "{{.Count}} nova(s)",
+    "ViewAll": "Todas as notificações",
+    "Configure": "Configurar"
+  },
+  "NotificationSettings": {
+    "AudienceHint": "Quem está em um grupo e também na lista recebe uma única notificação.",
+    "UnavailableRecipients": "Alguns destinatários não estão mais disponíveis e não receberão notificações.",
+    "Title": "Configurações de notificações",
+    "Intro": "Escolha quais eventos notificam sua equipe e quem os recebe.",
+    "Enabled": "Ativado",
+    "Recipients": "Quem é notificado",
+    "Save": "Salvar",
+    "SendTest": "Enviar teste com as configurações salvas",
+    "Saved": "Configurações salvas.",
+    "InvalidRule": "Escolha destinatários válidos. Eventos ativados exigem pelo menos um destinatário.",
+    "TestSent": "Teste enviado a {{.Count}} destinatários.",
+    "TestSkipped": "Nenhuma notificação enviada. Ative o evento de teste, escolha os destinatários e salve a regra.",
+    "PermissionRead": "Ver configurações de notificações",
+    "PermissionReadDescription": "Ver eventos e regras de entrega de notificações",
+    "PermissionManage": "Gerenciar configurações de notificações",
+    "PermissionManageDescription": "Ativar eventos, escolher destinatários e enviar testes",
+    "Level": "Importância",
+    "DefaultLevel": "Padrão do evento",
+    "DynamicRecipients": "Notificar também",
+    "Unavailable": "Indisponível",
+    "Queued": "Entrega enfileirada para {{.Count}} destinatários.",
+    "Retrying": "Tentando novamente",
+    "Retry": "Tentar agora",
+    "ReadOnly": "Você pode ver estas configurações. Somente administradores podem alterá-las.",
+    "AddRecipient": "Adicionar pessoa, grupo ou função…",
+    "People": "Pessoas",
+    "GroupsAndRoles": "Grupos e funções",
+    "GroupLabel": "grupo",
+    "RoleLabel": "função",
+    "Remove": "Remover",
+    "NothingFound": "Nada encontrado",
+    "RemoveUnavailable": "Remover",
+    "Appearance": "Aparência",
+    "LevelInfo": "Informação",
+    "LevelSuccess": "Sucesso",
+    "LevelWarning": "Aviso",
+    "LevelError": "Erro",
+    "Unsaved": "Há alterações não salvas",
+    "Cancel": "Cancelar",
+    "AllDelivered": "Tudo está sendo entregue",
+    "DeliveryIssues": "{{.Count}} não entregue(s); continuaremos tentando."
+  }
 }

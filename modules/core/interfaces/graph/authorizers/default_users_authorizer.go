@@ -42,7 +42,7 @@ func (a *DefaultUsersAuthorizer) CanQueryUser(ctx context.Context, id int64) err
 	// Check if user exists
 	_, err := a.userService.GetByID(ctx, uint(id))
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	return nil

@@ -563,3 +563,34 @@ func TestTokenRepository_AMR(t *testing.T) {
 		assert.Equal(t, customAMR, retrieved.AMR())
 	})
 }
+
+// Falsely green if tokens of other users are removed too or a client filter is kept.
+func TestTokenRepository_DeleteByUserID(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	tenantID := setupTokenFixtures(t, f)
+	tokenRepo := persistence.NewTokenRepository()
+
+	for _, tc := range []struct {
+		hash     string
+		clientID string
+		userID   int
+	}{
+		{"reset-1", "client-1", 9},
+		{"reset-2", "client-2", 9},
+		{"other-user", "client-1", 10},
+	} {
+		require.NoError(t, tokenRepo.Create(f.Ctx, token.New(
+			hashToken(tc.hash), tc.clientID, tc.userID, tenantID, []string{"openid"}, time.Now(), 24*time.Hour,
+		)))
+	}
+
+	require.NoError(t, tokenRepo.DeleteByUserID(f.Ctx, 9))
+
+	for _, revoked := range []string{"reset-1", "reset-2"} {
+		_, err := tokenRepo.GetByTokenHash(f.Ctx, hashToken(revoked))
+		require.Error(t, err)
+	}
+	_, err := tokenRepo.GetByTokenHash(f.Ctx, hashToken("other-user"))
+	require.NoError(t, err)
+}

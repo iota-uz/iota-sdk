@@ -129,7 +129,7 @@ func (r *entityNameRepository) FindAll(
     // Execute
     rows, err := tx.Query(ctx, query, args...)
     if err != nil {
-        return nil, 0, serrors.E(op, err)
+        return nil, 0, serrors.FromDB(op, err)
     }
     defer rows.Close()
 
@@ -138,7 +138,7 @@ func (r *entityNameRepository) FindAll(
     for rows.Next() {
         entity, err := scanEntity(rows)
         if err != nil {
-            return nil, 0, serrors.E(op, err)
+            return nil, 0, serrors.FromDB(op, err)
         }
         entities = append(entities, entity)
     }
@@ -154,7 +154,7 @@ func (r *entityNameRepository) FindAll(
     var total int
     err = tx.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
     if err != nil {
-        return nil, 0, serrors.E(op, err)
+        return nil, 0, serrors.FromDB(op, err)
     }
 
     return entities, total, nil
@@ -193,9 +193,9 @@ func (r *entityNameRepository) FindByID(
 
     if err != nil {
         if errors.Is(err, pgx.ErrNoRows) {
-            return nil, serrors.E(op, serrors.KindNotFound, err)
+            return nil, serrors.NewNotFound("entity not found").WithOp(op).WithCause(err)
         }
-        return nil, serrors.E(op, err)
+        return nil, serrors.FromDB(op, err)
     }
 
     return &entity, nil
@@ -238,7 +238,7 @@ func (r *entityNameRepository) Create(
     )
 
     if err != nil {
-        return serrors.E(op, err)
+        return serrors.FromDB(op, err)
     }
 
     return nil
@@ -297,7 +297,7 @@ func (r *entityNameRepository) Create(
     )
 
     if err != nil {
-        return serrors.E(op, err)
+        return serrors.FromDB(op, err)
     }
 
     return nil
@@ -332,9 +332,9 @@ func (r *entityNameRepository) FindByID(
 
     if err != nil {
         if errors.Is(err, pgx.ErrNoRows) {
-            return nil, serrors.E(op, serrors.KindNotFound, err)
+            return nil, serrors.NewNotFound("entity not found").WithOp(op).WithCause(err)
         }
-        return nil, serrors.E(op, err)
+        return nil, serrors.FromDB(op, err)
     }
 
     return &entity, nil
@@ -362,11 +362,11 @@ func (r *entityNameRepository) Update(
     )
 
     if err != nil {
-        return serrors.E(op, err)
+        return serrors.FromDB(op, err)
     }
 
     if result.RowsAffected() == 0 {
-        return serrors.E(op, serrors.KindNotFound, "entity not found")
+        return serrors.NewNotFound("entity not found").WithOp(op)
     }
 
     return nil
@@ -393,11 +393,11 @@ func (r *entityNameRepository) Delete(
     )
 
     if err != nil {
-        return serrors.E(op, err)
+        return serrors.FromDB(op, err)
     }
 
     if result.RowsAffected() == 0 {
-        return serrors.E(op, serrors.KindNotFound, "entity not found")
+        return serrors.NewNotFound("entity not found").WithOp(op)
     }
 
     return nil
@@ -421,17 +421,17 @@ const op serrors.Op = "repositoryName.MethodName"
 ```go
 // Not found error
 if errors.Is(err, pgx.ErrNoRows) {
-    return nil, serrors.E(op, serrors.KindNotFound, err)
+    return nil, serrors.NewNotFound("entity not found").WithOp(op).WithCause(err)
 }
 
 // General database error
 if err != nil {
-    return serrors.E(op, err)
+    return serrors.FromDB(op, err)
 }
 
 // No rows affected (for UPDATE/DELETE)
 if result.RowsAffected() == 0 {
-    return serrors.E(op, serrors.KindNotFound, "entity not found")
+    return serrors.NewNotFound("entity not found").WithOp(op)
 }
 ```
 
@@ -533,7 +533,7 @@ func TestRepositoryName_FindByID(t *testing.T) {
 - [ ] SQL as constants, `pkg/repo` for dynamic queries
 - [ ] Soft deletes (update deleted_at, not physical DELETE)
 - [ ] Check RowsAffected() for UPDATE/DELETE
-- [ ] Return `serrors.KindNotFound` for missing records
+- [ ] Return `serrors.NotFound` for missing records
 
 ### Never
 
@@ -542,7 +542,7 @@ func TestRepositoryName_FindByID(t *testing.T) {
 - [ ] Put business logic in repositories (belongs in services)
 - [ ] Use concrete types in repository interface (use domain interfaces)
 - [ ] Forget to check RowsAffected()
-- [ ] Skip error wrapping with `serrors.E`
+- [ ] Skip error wrapping with `serrors.Wrap`
 - [ ] Use transactions directly in repositories (let services manage)
 
 ## Common Patterns
@@ -597,7 +597,7 @@ func (r *repo) CreateBatch(ctx context.Context, entities []Entity) error {
     for range entities {
         _, err := results.Exec()
         if err != nil {
-            return serrors.E(op, err)
+            return serrors.FromDB(op, err)
         }
     }
 

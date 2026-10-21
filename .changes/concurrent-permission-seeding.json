@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Serialize concurrent permission upserts by name and preserve the original admin-role lookup or permission seeding error instead of continuing an aborted transaction."}

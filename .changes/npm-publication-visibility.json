@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Verify delayed npm package and provenance visibility without cached metadata, preserve immutable publication retries, and distinguish timeouts from integrity conflicts."}

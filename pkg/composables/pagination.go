@@ -11,11 +11,9 @@ const (
 	QueryParamPage  = "page"
 
 	// DefaultPageSize is the default number of items returned per page.
-	// Mirrors the legacy PAGE_SIZE env default (25).
 	DefaultPageSize = 25
 
 	// DefaultMaxPageSize is the upper bound for client-supplied page sizes.
-	// Mirrors the legacy MAX_PAGE_SIZE env default (100).
 	DefaultMaxPageSize = 100
 )
 

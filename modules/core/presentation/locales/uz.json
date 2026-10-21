@@ -1,4 +1,36 @@
 {
+	"Onboarding": {
+		"Errors": {
+			"FirstNameRequired": "Ismni kiriting",
+			"LastNameRequired": "Familiyani kiriting",
+			"LanguageRequired": "Qo'llab-quvvatlanadigan tilni tanlang",
+			"PhoneInvalid": "To'g'ri telefon raqamini kiriting",
+			"PasswordTooShort": "Parol kamida 8 ta belgidan iborat bo'lishi kerak",
+			"PasswordTooLong": "Parol juda uzun: ko'pi bilan 72 ta lotin belgisi",
+			"PasswordReusesTemporary": "Yangi parol vaqtinchalik paroldan farq qilishi kerak",
+			"PasswordInvalid": "Parol parol siyosatiga mos kelmaydi",
+			"ConfirmationMismatch": "Parollar mos kelmadi",
+			"AvatarNotImage": "Avatar rasm bo'lishi kerak"
+		},
+		"Title": "Akkauntni sozlash",
+		"Intro": "Tilni tanlang, profilni to'ldiring va o'z parolingizni o'rnating. Keyin u bilan kiring.",
+		"Email": "Email",
+		"Language": "Interfeys tili",
+		"FirstName": "Ism",
+		"LastName": "Familiya",
+		"MiddleName": "Otasining ismi (ixtiyoriy)",
+		"Phone": "Telefon (ixtiyoriy)",
+		"Avatar": "Avatar (ixtiyoriy)",
+		"PasswordHint": "Kamida {{.Min}} ta belgi. Parol iborasi va parol menejeridan foydalanish mumkin.",
+		"NewPassword": "Yangi parol",
+		"ConfirmPassword": "Yangi parolni takrorlang",
+		"Submit": "Sozlashni yakunlash",
+		"Logout": "Chiqish",
+		"Completed": "Akkaunt tayyor. Yangi parol bilan kiring.",
+		"Meta": {
+			"Title": "Akkauntni sozlash"
+		}
+	},
   "Authorization": {
     "Errors": {
       "Title": "Amalga ruxsat berilmagan",
@@ -143,7 +175,9 @@
   "Common": {
     "CloseNotification": "Bildirishnomani yopish",
     "TabNavigation": "Ichki bo‘limlar navigatsiyasi",
-    "Loading": "Yuklanmoqda..."
+    "Loading": "Yuklanmoqda...",
+    "LoadFailed": "Ma'lumotlarni yuklab bo'lmadi",
+    "Retry": "Qayta urinish"
   },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
@@ -470,6 +504,8 @@
 		"UseAnotherAccount": "Boshqa akkauntdan foydalanish",
 		"ActiveAccount": "Faol",
     "Errors": {
+			"TemporaryPasswordExpired": "Vaqtinchalik parol endi amal qilmaydi. Administratordan yangisini so'rang.",
+			"OnboardingRequired": "Akkaunt sozlashni yakunlang: administrator bergan vaqtinchalik parol bilan kiring.",
       "PasswordInvalid": "Email yoki parol noto'g'ri",
       "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
       "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
@@ -1094,6 +1130,19 @@
   "System": "Tizim",
   "UpdatedAt": "Yangilangan sana",
   "Users": {
+		"PendingOnboarding": {
+			"Notice": "Foydalanuvchi hali sozlashni yakunlamagan: o'z parolini o'rnatgandan keyin kirish ochiladi."
+		},
+		"TemporaryPassword": {
+			"Issued": "{{.Email}} uchun vaqtinchalik parol",
+			"Copy": "Nusxalash",
+			"Copied": "Nusxalandi",
+			"ExpiresAt": "Amal qilish muddati",
+			"ShownOnce": "Parol faqat bir marta ko'rsatiladi. Uni foydalanuvchiga o'zingiz yetkazing.",
+			"BackToUsers": "Foydalanuvchilar ro'yxatiga",
+			"Confirm": "Yangi vaqtinchalik parol berilsinmi? Joriy parol ishlamay qoladi va foydalanuvchining barcha sessiyalari yakunlanadi.",
+			"Button": "Vaqtinchalik parol berish"
+		},
     "Meta": {
       "List": {
         "Title": "Foydalanuvchilar"
@@ -1135,6 +1184,9 @@
       "Sessions": "Sessiyalar"
     },
     "Single": {
+			"TemporaryPassword": "Vaqtinchalik parol",
+			"TemporaryPasswordPlaceholder": "Yaratish uchun bo'sh qoldiring",
+			"TemporaryPasswordHint": "Foydalanuvchi u bilan bir marta kiradi va o'z parolini o'rnatadi. 72 soat amal qiladi.",
       "EditUser": "Foydalanuvchini tahrirlash",
       "FirstName": "Ism",
       "LastName": "Familiya",
@@ -1435,5 +1487,65 @@
   "Error": {
     "ProcessingFailed": "Import xatosi"
   },
-  "DryRunNotice": "Bu — oldindan ko‘rish. Ma’lumotlar hali o‘zgartirilmadi. Yuqoridagi natijalarni tekshiring va importni qo‘llash uchun tasdiqlang."
+  "DryRunNotice": "Bu — oldindan ko‘rish. Ma’lumotlar hali o‘zgartirilmadi. Yuqoridagi natijalarni tekshiring va importni qo‘llash uchun tasdiqlang.",
+  "Notifications": {
+    "Title": "Bildirishnomalar",
+    "All": "Barchasi",
+    "Unread": "O‘qilmagan",
+    "MarkAllRead": "Barchasini o‘qilgan deb belgilash",
+    "MarkRead": "O‘qilgan deb belgilash",
+    "Empty": "Bildirishnomalar yo‘q",
+    "Open": "Ochish",
+    "Pagination": "Sahifalar",
+    "Previous": "Oldingi",
+    "Next": "Keyingi",
+    "Intro": "Tizim sizga xabar bergan hamma narsa.",
+    "EmptyHint": "Biror narsa yuz bersa, uni shu yerda ko‘rasiz.",
+    "NewCount": "{{.Count}} ta yangi",
+    "ViewAll": "Barcha bildirishnomalar",
+    "Configure": "Sozlash"
+  },
+  "NotificationSettings": {
+    "AudienceHint": "Guruhda ham, ro‘yxatda ham bo‘lgan odam bitta xabar oladi.",
+    "UnavailableRecipients": "Ba’zi oluvchilar endi mavjud emas va xabar olmaydi.",
+    "Title": "Bildirishnoma sozlamalari",
+    "Intro": "Qaysi voqealar haqida va kimga xabar berilishini tanlang.",
+    "Enabled": "Yoqilgan",
+    "Recipients": "Kimga xabar beriladi",
+    "Save": "Saqlash",
+    "SendTest": "Saqlangan sozlamalar bo‘yicha sinov yuborish",
+    "Saved": "Sozlamalar saqlandi.",
+    "InvalidRule": "Yaroqli oluvchilarni tanlang. Yoqilgan voqea uchun kamida bitta oluvchi kerak.",
+    "TestSent": "Sinov {{.Count}} oluvchiga yuborildi.",
+    "TestSkipped": "Bildirishnomalar yuborilmadi. Sinov voqeasini yoqing, oluvchilarni tanlang va qoidani saqlang.",
+    "PermissionRead": "Bildirishnoma sozlamalarini ko‘rish",
+    "PermissionReadDescription": "Voqealar va yetkazish qoidalarini ko‘rish",
+    "PermissionManage": "Bildirishnoma sozlamalarini boshqarish",
+    "PermissionManageDescription": "Voqealarni yoqish, oluvchilarni tanlash va sinov yuborish",
+    "Level": "Muhimlik",
+    "DefaultLevel": "Voqea uchun standart",
+    "DynamicRecipients": "Shuningdek xabar berish",
+    "Unavailable": "Mavjud emas",
+    "Queued": "{{.Count}} oluvchi uchun navbatga qo‘yildi.",
+    "Retrying": "Qayta urinish",
+    "Retry": "Hozir qayta urinish",
+    "ReadOnly": "Siz sozlamalarni ko‘rishingiz mumkin. Ularni faqat administratorlar o‘zgartira oladi.",
+    "AddRecipient": "Odam, guruh yoki rol qo‘shing…",
+    "People": "Odamlar",
+    "GroupsAndRoles": "Guruhlar va rollar",
+    "GroupLabel": "guruh",
+    "RoleLabel": "rol",
+    "Remove": "Olib tashlash",
+    "NothingFound": "Hech narsa topilmadi",
+    "RemoveUnavailable": "Ularni olib tashlash",
+    "Appearance": "Qanday ko‘rinadi",
+    "LevelInfo": "Oddiy",
+    "LevelSuccess": "Muvaffaqiyatli",
+    "LevelWarning": "Muhim",
+    "LevelError": "Shoshilinch",
+    "Unsaved": "Saqlanmagan o‘zgarishlar bor",
+    "Cancel": "Bekor qilish",
+    "AllDelivered": "Hammasi yetkazilmoqda",
+    "DeliveryIssues": "Yetkazilmadi: {{.Count}}. Urinishni davom ettiramiz."
+  }
 }

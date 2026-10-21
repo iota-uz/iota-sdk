@@ -196,7 +196,7 @@ func collectNamedTypes(model *contractModel, typ types.Type) {
 	switch typed := typ.(type) {
 	case *types.Named:
 		object := typed.Obj()
-		if object.Pkg() != model.pkg {
+		if object.Pkg() != model.pkg && (object.Pkg() == nil || object.Pkg().Path() != "github.com/iota-uz/iota-sdk/pkg/lens/filtercontext") {
 			return
 		}
 		if _, exists := model.types[object.Name()]; exists {
@@ -497,6 +497,10 @@ func emitSchemas(model *contractModel, discriminatedTypes map[string]discriminat
 		output.WriteString("\n\n")
 	}
 
+	if model.root != "DashboardDocument" {
+		return output.String(), nil
+	}
+
 	output.WriteString("const DocumentVersionSchema = z.object({ version: z.string() }).passthrough()\n\n")
 	output.WriteString(`function panelIsActionable(panel: Contract.Panel): boolean {
   return Boolean(
@@ -566,6 +570,9 @@ func emitTSType(typ types.Type, omitNilPointer bool) (string, error) {
 	typ = types.Unalias(typ)
 	switch typed := typ.(type) {
 	case *types.Named:
+		if isRawJSON(typed) {
+			return "unknown", nil
+		}
 		if isTime(typed) {
 			return "string", nil
 		}
@@ -617,6 +624,9 @@ func emitZodType(typ types.Type, omitNilPointer bool, indent int) (string, error
 	typ = types.Unalias(typ)
 	switch typed := typ.(type) {
 	case *types.Named:
+		if isRawJSON(typed) {
+			return "z.unknown()", nil
+		}
 		if isTime(typed) {
 			return "z.string().datetime({ offset: true })", nil
 		}
@@ -879,4 +889,9 @@ func writeGeneratedDirectory(outputDir string, files map[string]string) error {
 		}
 	}
 	return nil
+}
+
+func isRawJSON(named *types.Named) bool {
+	object := named.Obj()
+	return object.Pkg() != nil && object.Pkg().Path() == "encoding/json" && object.Name() == "RawMessage"
 }

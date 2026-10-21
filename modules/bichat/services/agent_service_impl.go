@@ -151,7 +151,7 @@ func (s *agentServiceImpl) ProcessContinuation(
 	const op serrors.Op = "agentServiceImpl.ProcessContinuation"
 	prompt, err := event.Prompt()
 	if err != nil {
-		return nil, serrors.E(op, serrors.KindValidation, err)
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 	ctx = services.WithContinuationEvent(ctx, event)
 	return s.process(ctx, sessionID, "", nil, prompt)
@@ -170,19 +170,19 @@ func (s *agentServiceImpl) process(
 	// Get tenant ID for multi-tenant isolation
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Load session messages from repository
 	opts := domain.ListOptions{Limit: 100, Offset: 0}
 	sessionMessages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, opts)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Build context graph using Context Builder
@@ -258,7 +258,7 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 	// Compile with renderer and policy
 	compiled, err := builder.Compile(s.renderer, s.policy)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Emit context.compile event
@@ -324,13 +324,13 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 
 	// Validate inputs
 	if checkpointID == "" {
-		return nil, serrors.E(op, serrors.KindValidation, "checkpointID is required")
+		return nil, serrors.New(serrors.Invalid, "checkpointID is required").WithOp(op)
 	}
 
 	// Get tenant ID for multi-tenant isolation (validates it exists in context)
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	executor := s.buildExecutor(ctx, sessionID, tenantID)

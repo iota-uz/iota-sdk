@@ -4,12 +4,9 @@ package bichatconfig
 
 // OpenAIConfig groups OpenAI API settings.
 //
-// Env prefix: "bichat.openai" (e.g. BICHAT_OPENAI_API_KEY → bichat.openai.apikey,
-// BICHAT_OPENAI_MODEL → bichat.openai.model, BICHAT_OPENAI_BASE_URL → bichat.openai.baseurl,
-// BICHAT_OPENAI_API_RESOLVE_IP → bichat.openai.resolveip).
-//
-// Note: legacy env var OPENAI_API_KEY maps to this field via FromLegacy / the
-// env provider's single-underscore dot transform.
+// Env prefix: "bichat.openai" (e.g. BICHAT_OPENAI_APIKEY → bichat.openai.apikey,
+// BICHAT_OPENAI_MODEL → bichat.openai.model, BICHAT_OPENAI_BASEURL → bichat.openai.baseurl,
+// BICHAT_OPENAI_RESOLVEIP → bichat.openai.resolveip).
 type OpenAIConfig struct {
 	APIKey    string `koanf:"apikey"    secret:"true"`
 	Model     string `koanf:"model"`
@@ -24,9 +21,9 @@ func (c OpenAIConfig) IsConfigured() bool {
 
 // LangfuseConfig groups Langfuse observability settings.
 //
-// Env prefix: "bichat.langfuse" (e.g. BICHAT_LANGFUSE_PUBLIC_KEY → bichat.langfuse.publickey,
-// BICHAT_LANGFUSE_SECRET_KEY → bichat.langfuse.secretkey,
-// BICHAT_LANGFUSE_BASE_URL → bichat.langfuse.baseurl,
+// Env prefix: "bichat.langfuse" (e.g. BICHAT_LANGFUSE_PUBLICKEY → bichat.langfuse.publickey,
+// BICHAT_LANGFUSE_SECRETKEY → bichat.langfuse.secretkey,
+// BICHAT_LANGFUSE_BASEURL → bichat.langfuse.baseurl,
 // BICHAT_LANGFUSE_HOST → bichat.langfuse.host).
 type LangfuseConfig struct {
 	PublicKey string `koanf:"publickey" secret:"true"`
@@ -43,9 +40,9 @@ func (c LangfuseConfig) IsConfigured() bool {
 // KnowledgeConfig groups knowledge-base and schema-metadata settings.
 //
 // Env prefix: "bichat.knowledge" (e.g. BICHAT_KNOWLEDGE_DIR → bichat.knowledge.dir,
-// BICHAT_KNOWLEDGE_KB_INDEX_PATH → bichat.knowledge.kbindexpath,
-// BICHAT_KNOWLEDGE_SCHEMA_METADATA → bichat.knowledge.schemametadata,
-// BICHAT_KNOWLEDGE_AUTO_LOAD → bichat.knowledge.autoload).
+// BICHAT_KNOWLEDGE_KBINDEXPATH → bichat.knowledge.kbindexpath,
+// BICHAT_KNOWLEDGE_SCHEMAMETADATA → bichat.knowledge.schemametadata,
+// BICHAT_KNOWLEDGE_AUTOLOAD → bichat.knowledge.autoload).
 type KnowledgeConfig struct {
 	Dir            string `koanf:"dir"`
 	KBIndexPath    string `koanf:"kbindexpath"`
@@ -55,7 +52,7 @@ type KnowledgeConfig struct {
 
 // AppletConfig groups dev-mode Vite applet settings.
 //
-// Env prefix: "bichat.applet" (e.g. BICHAT_APPLET_VITE_URL → bichat.applet.viteurl,
+// Env prefix: "bichat.applet" (e.g. BICHAT_APPLET_VITEURL → bichat.applet.viteurl,
 // BICHAT_APPLET_ENTRY → bichat.applet.entry,
 // BICHAT_APPLET_CLIENT → bichat.applet.client).
 type AppletConfig struct {

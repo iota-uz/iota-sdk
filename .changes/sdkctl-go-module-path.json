@@ -1,0 +1,4 @@
+{
+  "bump": "none",
+  "summary": "Fix sdkctl consumer promotion and lock verification to use the SDK Go module path; this changes CLI tooling only, not published SDK runtime APIs."
+}

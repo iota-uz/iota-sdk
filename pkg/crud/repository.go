@@ -138,12 +138,12 @@ func (r *repository[TEntity]) getAllWithJoins(ctx context.Context, joins *JoinOp
 
 	baseQuery, err := r.buildJoinQuery(&FindParams{Joins: joins})
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	entities, err := r.queryEntities(ctx, baseQuery)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return entities, nil
@@ -206,7 +206,7 @@ func (r *repository[TEntity]) getWithJoins(ctx context.Context, keyValues []Fiel
 
 	query, err := r.buildGetWithJoinsQuery(keyValues, &FindParams{Joins: joins})
 	if err != nil {
-		return zero, serrors.E(op, err)
+		return zero, serrors.Wrap(op, err)
 	}
 
 	args := make([]any, len(keyValues))
@@ -216,10 +216,10 @@ func (r *repository[TEntity]) getWithJoins(ctx context.Context, keyValues []Fiel
 
 	entities, err := r.queryEntities(ctx, query, args...)
 	if err != nil {
-		return zero, serrors.E(op, err)
+		return zero, serrors.Wrap(op, err)
 	}
 	if len(entities) == 0 {
-		return zero, serrors.E(op, serrors.NotFound, "entity not found")
+		return zero, serrors.New(serrors.NotFound, "entity not found").WithOp(op)
 	}
 
 	return entities[0], nil
@@ -281,12 +281,12 @@ func (r *repository[TEntity]) existsWithJoins(ctx context.Context, keyValues []F
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	query, err := r.buildExistsWithJoinsQuery(keyValues, &FindParams{Joins: joins})
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	args := make([]any, len(keyValues))
@@ -296,7 +296,7 @@ func (r *repository[TEntity]) existsWithJoins(ctx context.Context, keyValues []F
 
 	exists := false
 	if err := tx.QueryRow(ctx, query, args...).Scan(&exists); err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.FromDB(op, err)
 	}
 
 	return exists, nil
@@ -402,12 +402,12 @@ func (r *repository[TEntity]) listWithJoins(ctx context.Context, params *FindPar
 
 	baseQuery, err := r.buildJoinQuery(params)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	whereClauses, args, err := r.buildFilters(params)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	query := baseQuery
@@ -423,7 +423,7 @@ func (r *repository[TEntity]) listWithJoins(ctx context.Context, params *FindPar
 
 	entities, err := r.queryEntities(ctx, query, args...)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return entities, nil

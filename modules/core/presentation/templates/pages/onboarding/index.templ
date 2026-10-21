@@ -1,0 +1,153 @@
+package onboarding
+
+import (
+	"strconv"
+
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	usercomponents "github.com/iota-uz/iota-sdk/components/user"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
+)
+
+type Props struct {
+	Email           string
+	FirstName       string
+	LastName        string
+	MiddleName      string
+	Phone           string
+	Language        string
+	Languages       []intl.SupportedLanguage
+	MinPasswordSize int
+	Errors          map[string]string
+}
+
+templ Index(p *Props) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Base(&layouts.BaseProps{Title: pageCtx.T("Onboarding.Meta.Title")}) {
+		<div class="flex flex-col min-h-screen overflow-y-auto">
+			<div class="flex-1 flex items-center justify-center py-8">
+				<div class="mx-4 max-w-xl w-full p-6 md:p-11 flex flex-col gap-6">
+					<div class="text-center">
+						<h1 class="text-2xl text-100 mb-2">{ pageCtx.T("Onboarding.Title") }</h1>
+						<p class="text-200">{ pageCtx.T("Onboarding.Intro") }</p>
+					</div>
+					<form
+						method="post"
+						action="/onboarding"
+						enctype="multipart/form-data"
+						class="flex flex-col gap-4"
+						data-testid="onboarding-form"
+					>
+						@composables.CSRFTokenField()
+						@input.Email(&input.Props{
+							Label: pageCtx.T("Onboarding.Email"),
+							Attrs: templ.Attributes{
+								"value":        p.Email,
+								"readonly":     true,
+								"disabled":     true,
+								"autocomplete": "username",
+								"data-testid":  "onboarding-email",
+							},
+						})
+						@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
+							Label:       pageCtx.T("Onboarding.Language"),
+							Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
+							Value:       p.Language,
+							Attrs:       templ.Attributes{"name": "Language", "required": true, "data-testid": "onboarding-language"},
+							Error:       p.Errors["Language"],
+							Languages:   p.Languages,
+						})
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+							@input.Text(&input.Props{
+								Label: pageCtx.T("Onboarding.FirstName"),
+								Attrs: templ.Attributes{
+									"name":         "FirstName",
+									"value":        p.FirstName,
+									"required":     true,
+									"autocomplete": "given-name",
+								},
+								Error: p.Errors["FirstName"],
+							})
+							@input.Text(&input.Props{
+								Label: pageCtx.T("Onboarding.LastName"),
+								Attrs: templ.Attributes{
+									"name":         "LastName",
+									"value":        p.LastName,
+									"required":     true,
+									"autocomplete": "family-name",
+								},
+								Error: p.Errors["LastName"],
+							})
+							@input.Text(&input.Props{
+								Label: pageCtx.T("Onboarding.MiddleName"),
+								Attrs: templ.Attributes{
+									"name":         "MiddleName",
+									"value":        p.MiddleName,
+									"autocomplete": "additional-name",
+								},
+								Error: p.Errors["MiddleName"],
+							})
+							@input.Tel(&input.Props{
+								Label:       pageCtx.T("Onboarding.Phone"),
+								Placeholder: "+998 XX XXX XXXX",
+								Attrs: templ.Attributes{
+									"name":         "Phone",
+									"value":        p.Phone,
+									"autocomplete": "tel",
+								},
+								Error: p.Errors["Phone"],
+							})
+						</div>
+						<div class="flex flex-col gap-2">
+							<label for="onboarding-avatar" class="form-control-label">{ pageCtx.T("Onboarding.Avatar") }</label>
+							<input id="onboarding-avatar" type="file" name="Avatar" accept="image/*" class="text-sm text-200"/>
+							if p.Errors["Avatar"] != "" {
+								<small class="text-xs text-red-500" data-testid="field-error">{ p.Errors["Avatar"] }</small>
+							}
+						</div>
+						<hr class="border-primary"/>
+						<p class="text-sm text-200">
+							{ pageCtx.T("Onboarding.PasswordHint", map[string]interface{}{"Min": p.MinPasswordSize}) }
+						</p>
+						@input.Password(&input.Props{
+							Label: pageCtx.T("Onboarding.NewPassword"),
+							Attrs: templ.Attributes{
+								"name":         "NewPassword",
+								"required":     true,
+								"autocomplete": "new-password",
+								"minlength":    strconv.Itoa(p.MinPasswordSize),
+								"data-testid":  "onboarding-new-password",
+							},
+							Error: p.Errors["NewPassword"],
+						})
+						@input.Password(&input.Props{
+							Label: pageCtx.T("Onboarding.ConfirmPassword"),
+							Attrs: templ.Attributes{
+								"name":         "ConfirmPassword",
+								"required":     true,
+								"autocomplete": "new-password",
+								"data-testid":  "onboarding-confirm-password",
+							},
+							Error: p.Errors["ConfirmPassword"],
+						})
+						@button.Primary(button.Props{
+							Size:  button.SizeMD,
+							Class: "justify-center w-full",
+							Attrs: templ.Attributes{"type": "submit", "data-testid": "onboarding-submit"},
+						}) {
+							{ pageCtx.T("Onboarding.Submit") }
+						}
+					</form>
+					<form method="post" action="/logout" class="text-center">
+						@composables.CSRFTokenField()
+						<button type="submit" class="text-sm text-200 hover:underline" data-testid="onboarding-logout">
+							{ pageCtx.T("Onboarding.Logout") }
+						</button>
+					</form>
+				</div>
+			</div>
+		</div>
+	}
+}

@@ -18,7 +18,9 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
+	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -26,6 +28,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 )
@@ -36,11 +39,6 @@ type PaymentsController struct {
 	counterpartyService    *services.CounterpartyService
 	paymentCategoryService *services.PaymentCategoryService
 	basePath               string
-}
-
-type PaymentPaginatedResponse struct {
-	Payments        []*viewmodels.Payment
-	PaginationState *pagination.State
 }
 
 func NewPaymentsController(
@@ -113,68 +111,80 @@ func (c *PaymentsController) viewModelPaymentCategories(r *http.Request) ([]*vie
 	return mapping.MapViewModels(categories, mappers.PaymentCategoryToViewModel), nil
 }
 
-func (c *PaymentsController) viewModelPayments(r *http.Request) (*PaymentPaginatedResponse, error) {
+func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 	paginationParams := composables.UsePaginated(r)
 	params, err := composables.UseQuery(&payment.FindParams{
 		Limit:  paginationParams.Limit,
 		Offset: paginationParams.Offset,
-		SortBy: []string{"created_at desc"},
 	}, r)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error parsing query")
+		http.Error(w, "Error parsing query", http.StatusBadRequest)
+		return
 	}
 	paymentEntities, err := c.paymentService.GetPaginated(r.Context(), params)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving payments")
-	}
-	viewPayments := mapping.MapViewModels(paymentEntities, mappers.PaymentToViewModel)
-	total, err := c.paymentService.Count(r.Context())
-	if err != nil {
-		return nil, errors.Wrap(err, "Error counting payments")
-	}
-
-	return &PaymentPaginatedResponse{
-		Payments:        viewPayments,
-		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
-	}, nil
-}
-
-func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
-	paginated, err := c.viewModelPayments(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Error retrieving payments", http.StatusInternalServerError)
 		return
 	}
-	isEmbedded := r.URL.Query().Get("embedded") == "true"
-
-	props := &payments.IndexPageProps{
-		Payments:        paginated.Payments,
-		PaginationState: paginated.PaginationState,
+	total, err := c.paymentService.Count(r.Context(), params)
+	if err != nil {
+		http.Error(w, "Error counting payments", http.StatusInternalServerError)
+		return
 	}
 
-	if isEmbedded {
-		templ.Handler(payments.PaymentsEmbedded(props), templ.WithStreaming()).ServeHTTP(w, r)
-	} else if htmx.IsHxRequest(r) {
-		templ.Handler(payments.PaymentsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
-	} else {
-		templ.Handler(payments.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+	cfg := c.tableConfig(r, paginationParams, int(total))
+	for _, p := range paymentEntities {
+		cfg.AddRows(table.Row(
+			table.Cell(templ.Raw(p.Amount().Display()), p.Amount().Display()),
+			table.Cell(table.DateTime(p.UpdatedAt()), p.UpdatedAt()),
+			table.Cell(actions.RenderRowActions(actions.EditAction(fmt.Sprintf("%s/%s", c.basePath, p.ID()))), nil),
+		))
 	}
+
+	// The overview tab loads the first chunk embedded; later chunks and
+	// searches only need rows.
+	if r.URL.Query().Get("embedded") == "true" && paginationParams.Page == 1 {
+		templ.Handler(table.EmbeddedContent(cfg), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+	templ.Handler(table.ContentHTMX(cfg), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *PaymentsController) tableConfig(r *http.Request, params composables.PaginationParams, total int) *table.TableConfig {
+	pageCtx := composables.UsePageCtx(r.Context())
+	cfg := table.NewTableConfig(
+		pageCtx.T("NavigationLinks.Payments"),
+		c.basePath,
+		// The overview shows several tables on one address, so each keeps
+		// its column settings under its own key.
+		table.WithID("finance-payments"),
+		table.WithSearchValue(table.UseSearchQuery(r)),
+		table.WithInfiniteScroll(total > params.Page*params.Limit, params.Page, params.Limit),
+	)
+	cfg.AddCols(
+		table.Column("amount", pageCtx.T("Payments.List.Amount")),
+		table.Column("updated_at", pageCtx.T("UpdatedAt")),
+		table.Column("actions", pageCtx.T("Actions"), table.WithClass("w-16")),
+	)
+	cfg.AddFilters(filters.CreatedAt())
+	cfg.AddActions(actions.RenderAction(actions.CreateAction(pageCtx.T("Payments.List.New"), c.basePath+"/new")))
+	return cfg
 }
 
 func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	paymentViewModel, err := c.viewModelPayment(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	accounts, err := c.viewModelAccounts(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	categories, err := c.viewModelPaymentCategories(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -195,7 +205,7 @@ func (c *PaymentsController) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := c.paymentService.Delete(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -286,24 +296,24 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 
 	dto, err := composables.UseForm(&dtos.PaymentUpdateDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		paymentViewModel, err := c.viewModelPayment(r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		accounts, err := c.viewModelAccounts(r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		categories, err := c.viewModelPaymentCategories(r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		props := &payments.EditPageProps{
@@ -326,7 +336,7 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 		}
 		categoryEntity, err = c.paymentCategoryService.GetByID(r.Context(), categoryID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 	} else {
@@ -347,11 +357,11 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 
 	entity, err := dto.Apply(existing, categoryEntity, user)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if _, err := c.paymentService.Update(r.Context(), entity); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -371,12 +381,12 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 	accounts, err := c.viewModelAccounts(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	categories, err := c.viewModelPaymentCategories(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -392,13 +402,13 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&dtos.PaymentCreateDTO{}, r)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("%+v", err), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	u, err := composables.UseUser(r.Context())
 	if err != nil {
-		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	dto.UserID = u.ID()
@@ -406,12 +416,12 @@ func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		accounts, err := c.viewModelAccounts(r)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		categories, err := c.viewModelPaymentCategories(r)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		// Create a default payment viewmodel for displaying errors
@@ -442,7 +452,7 @@ func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	categoryEntity, err := c.paymentCategoryService.GetByID(r.Context(), categoryID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -455,7 +465,7 @@ func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 	entity := dto.ToEntity(tenantID, categoryEntity)
 	createdEntity, err := c.paymentService.Create(r.Context(), entity)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

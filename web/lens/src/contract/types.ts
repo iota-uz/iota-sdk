@@ -70,7 +70,89 @@ export interface CompareValue {
 
 export type Confidence = "calculated" | "proxy" | "requires_reconciliation" | "verified"
 
+export interface ContextBoard {
+  calendar: ContextCalendar
+  dashboard: ContextFilters
+  cards?: Record<string, ContextFilters>
+  sections?: Record<string, ContextFilters>
+  groups?: Record<string, Array<ContextLayer>>
+}
+
+export interface ContextCalendar {
+  timezone: string
+  asOf: string
+  defaultPeriod: ContextPeriod
+}
+
+export interface ContextConstraint {
+  dimension: string
+  values: Array<string>
+}
+
+export interface ContextEditor {
+  readOnly?: boolean
+  originLabels?: Record<string, string>
+  valueLabels?: Record<string, Record<string, string>>
+  url: string
+  value: ContextBoard
+  saved: ContextBoard
+  dimensionLabels?: Record<string, string>
+}
+
+export interface ContextFilters {
+  period?: ContextPeriod
+  constraints?: Array<ContextConstraint>
+}
+
+export interface ContextInput {
+  operationDimensions?: Record<string, Array<string>>
+  source?: ContextSource
+  supportsPeriod?: boolean
+  calendar: ContextCalendar
+  layers: Array<ContextLayer>
+  supportedDimensions: Array<string>
+}
+
+export interface ContextLayer {
+  origin: ContextOrigin
+  filters: ContextFilters
+}
+
+export interface ContextOrigin {
+  scope: string
+  id: string
+}
+
+export interface ContextPeriod {
+  mode: string
+  start?: string
+  end?: string
+  days?: number
+  months?: number
+}
+
+export interface ContextRange {
+  selection: ContextPeriod
+  origin: ContextOrigin
+  start?: string
+  end?: string
+}
+
+export interface ContextRestriction {
+  dimension: string
+  values: Array<string>
+  origin: ContextOrigin
+}
+
+export interface ContextSource {
+  id: string
+  version: number
+  revision: string
+  view: string
+}
+
 export interface DashboardDocument {
+  contextEditor?: ContextEditor
   version: string
   snapshotId: string
   meta: Meta
@@ -124,6 +206,18 @@ export interface DynamicChildren {
   label: Source
   target?: Source
   action?: Action
+}
+
+export interface EffectiveContext {
+  unsupportedOperations?: Record<string, Array<ContextRestriction>>
+  identity: string
+  calendar: ContextCalendar
+  period: ContextRange
+  restrictions: Array<ContextRestriction>
+  intersection: Array<ContextConstraint>
+  conflicts: Array<string>
+  unsupported: Array<ContextRestriction>
+  input: ContextInput
 }
 
 export interface Encoding {
@@ -185,6 +279,7 @@ export interface FieldFormat {
 }
 
 export interface Filter {
+  scope?: ContextOrigin
   id: string
   kind: FilterKind
   label?: string
@@ -238,6 +333,8 @@ export interface GeoJSONSource {
   maxBytes?: number
 }
 
+export type GroupUnavailable = "report-deleted" | "report-forbidden" | "report-incompatible"
+
 export interface HierarchyReconciliation {
   tolerance?: number
 }
@@ -247,6 +344,8 @@ export interface Layout {
 }
 
 export interface LayoutGroup {
+  filterContext?: EffectiveContext
+  unavailable?: GroupUnavailable
   id: string
   kind: LayoutGroupKind
   caption?: string
@@ -257,7 +356,7 @@ export interface LayoutGroup {
   status?: PanelStatus
 }
 
-export type LayoutGroupKind = "metrics" | "tabs"
+export type LayoutGroupKind = "grid" | "metrics" | "tabs"
 
 export type LayoutGroupLayout = "columns" | "rows"
 
@@ -408,6 +507,7 @@ export interface PanelBase {
   deferred?: boolean
   terminal?: boolean
   comparisonUnsupported?: boolean
+  renderer?: PanelRenderer
 }
 
 export type Panel =
@@ -483,6 +583,11 @@ export interface PanelCalculation {
 }
 
 export type PanelKind = "area" | "bar" | "boxplot" | "cascade" | "coverage" | "donut" | "gauge" | "hbar" | "heatmap" | "histogram" | "line" | "map" | "metric_flow" | "metric_hierarchy" | "metric_relationship" | "pie" | "radial" | "stat" | "table"
+
+export interface PanelRenderer {
+  name: string
+  options?: unknown
+}
 
 export interface PanelRequest {
   panelId: string
@@ -570,6 +675,7 @@ export interface Presentation {
   legendValue?: LegendValue
   sliceLabels?: SliceLabels
   totalBadge?: TotalBadgePlacement
+  keepTotalBadge?: boolean
   colorBy?: ColorBy
   valueSpreadThreshold?: number
   fill?: boolean
@@ -584,7 +690,7 @@ export interface Presentation {
   lineSeries?: Array<string>
 }
 
-export type QueryErrorCode = "bad_request" | "internal" | "snapshot_gone"
+export type QueryErrorCode = "bad_request" | "internal" | "resource_exhausted" | "snapshot_gone"
 
 export interface QueryErrorResponse {
   error: QueryErrorCode

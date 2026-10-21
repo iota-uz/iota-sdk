@@ -20,7 +20,7 @@ func FromRecords[T any](name string, records []T) (*FrameSet, error) {
 		typeOf = typeOf.Elem()
 	}
 	if typeOf.Kind() != reflect.Struct {
-		return nil, serrors.E(op, fmt.Errorf("records must contain structs, got %s", typeOf))
+		return nil, serrors.Wrap(op, fmt.Errorf("records must contain structs, got %s", typeOf))
 	}
 	fields := make([]Field, 0, typeOf.NumField())
 	indexes := make([]int, 0, typeOf.NumField())
@@ -60,11 +60,11 @@ func FromRecords[T any](name string, records []T) (*FrameSet, error) {
 	}
 	fr, err := New(name, fields...)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	frames, err := NewFrameSet(fr)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return frames, nil
 }

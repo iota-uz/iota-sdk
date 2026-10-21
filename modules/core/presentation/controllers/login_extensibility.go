@@ -65,6 +65,7 @@ type LoginAccount struct {
 type LoginPageViewModel struct {
 	ErrorsMap                   map[string]string
 	ErrorMessage                string
+	NoticeMessage               string
 	Email                       string
 	Methods                     []LoginMethod
 	Logo                        templ.Component

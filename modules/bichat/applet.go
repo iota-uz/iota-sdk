@@ -55,7 +55,7 @@ func (a *BiChatApplet) RPCMethodContracts() map[string]appletenginerpc.MethodCon
 }
 
 // Config returns the applet configuration for BiChat.
-// This configures how the SDK integrates with the BiChat React application.
+// This configures how the SDK integrates with the BiChat Solid application.
 //
 // Note: This requires the application to be available in the context.
 // The middleware uses composables.UseApp() which depends on prior middleware setup.
@@ -70,7 +70,7 @@ func (a *BiChatApplet) Config() applets.Config {
 			Stream: "/bi-chat/stream", // SSE streaming endpoint
 		},
 
-		// Assets configuration for serving the built React app
+		// Assets configuration for serving the built Solid app
 		// Uses Vite manifest for hashed asset resolution
 		Assets: applets.AssetConfig{
 			FS:           distFS,                // Sub-filesystem rooted at dist/ for direct file access

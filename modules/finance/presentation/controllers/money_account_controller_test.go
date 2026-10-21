@@ -254,6 +254,59 @@ func TestMoneyAccountController_Create_ValidationError(t *testing.T) {
 	require.Empty(t, accounts)
 }
 
+func TestMoneyAccountController_Create_DuplicateAccountNumber(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User()
+
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewComponent()).Build().
+		AsUser(adminUser)
+
+	env := suite.Environment()
+	createCurrencies(t, env, currency.USD)
+
+	service := itf.GetService[services.MoneyAccountService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	currencySvc := itf.GetService[coreservices.CurrencyService](env)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
+	suite.Register(controller)
+
+	existing := moneyAccountEntity.New(
+		"Existing Account",
+		money.NewFromFloat(100, string(currency.UsdCode)),
+		moneyAccountEntity.WithTenantID(env.Tenant.ID),
+		moneyAccountEntity.WithAccountNumber("ACC-DUP-1"),
+	)
+	// Committed context so the duplicate insert below (which runs in the
+	// request's transaction) actually collides with a persisted row.
+	_, err := service.Create(committedCtx(env), existing)
+	require.NoError(t, err)
+
+	formData := url.Values{}
+	formData.Set("Name", "Duplicate Account")
+	formData.Set("Balance", "50")
+	formData.Set("CurrencyCode", "USD")
+	formData.Set("AccountNumber", "ACC-DUP-1")
+	formData.Set("Description", "Should not be created")
+
+	response := suite.POST(MoneyAccountBasePath).
+		Form(formData).
+		HTMX().
+		Header("Hx-Target", "money-account-create-drawer").
+		Expect(t).
+		Status(200)
+
+	response.Contains("An account with this number already exists")
+
+	// The failed insert aborted the request-scoped transaction; read the
+	// final state on a fresh context.
+	accounts, err := service.GetAll(committedCtx(env))
+	require.NoError(t, err)
+	require.Len(t, accounts, 1, "duplicate submission must not create a second account")
+	require.Equal(t, "Existing Account", accounts[0].Name())
+}
+
 func TestMoneyAccountController_GetEdit_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()

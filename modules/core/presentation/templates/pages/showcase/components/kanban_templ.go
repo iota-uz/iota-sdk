@@ -93,6 +93,24 @@ var board = kanban.NewBoard("board", "Tasks board",
 	),
 )
 
+const guardedHook = `(ctx) => {
+	if (ctx.newCol === 'binding') {
+		window.alert('Moves into Binding require approval. The card was rolled back.');
+		return false;
+	}
+	return true;
+}`
+
+var guardedBoard = kanban.NewBoard("guarded-board", "Guarded tasks board",
+	kanban.NewColumn("triage", templ.Raw("Triage"),
+		kanban.NewCard("10", taskCard("REINS-2085 * Aon Reinsurance", "Proportional Agreement for Q3", "50,000,000 USD")),
+		kanban.NewCard("2", taskCard("REINS-2087 * Aon Reinsurance", "Proportional Agreement for Q4", "75,000,000 USD")),
+	),
+	kanban.NewColumn("binding", templ.Raw("Binding"),
+		kanban.NewCard("1", taskCard("REINS-2000 * Aon Reinsurance", "Proportional Agreement for Q3", "33,000,000 USD")),
+	),
+)
+
 func KanbanBoard() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -118,6 +136,15 @@ func KanbanBoard() templ.Component {
 			Board:           board,
 			ColumnChangeURL: "/column-changed",
 			CardChangeURL:   "/card-changed",
+		}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = kanban.Content(&kanban.Config[kanban.Card]{
+			Board:            guardedBoard,
+			ColumnChangeURL:  "/column-changed",
+			CardChangeURL:    "/card-changed",
+			BeforeCardChange: guardedHook,
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

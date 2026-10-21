@@ -3,10 +3,17 @@ package moneyaccount
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
+
+// ErrDuplicateAccountNumber is returned by the repository when an insert or
+// update violates the per-tenant unique constraint on
+// money_accounts(tenant_id, account_number). Controllers map it to a
+// user-facing validation message instead of leaking the raw SQL error.
+var ErrDuplicateAccountNumber = errors.New("moneyaccount: account number already exists in tenant")
 
 type Field int
 

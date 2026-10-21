@@ -235,8 +235,14 @@
     @apply lens:box-border lens:min-h-32 lens:min-w-0 lens:bg-page lens:p-4 lens:font-sans lens:text-text;
   }
 
+  /* A Lens root that only scopes the tokens: a component mounted inside a host
+     page (the composition editor) keeps the host's surface and spacing. */
+  .lens-root.lens-root-inline {
+    @apply lens:min-h-0 lens:bg-transparent lens:p-0;
+  }
+
   .lens-dashboard {
-    @apply lens:mx-auto lens:w-full lens:min-w-0 lens:max-w-(--breakpoint-2xl);
+    @apply lens:mx-auto lens:w-full lens:min-w-0 lens:max-w-[1536px];
 
     container: lens-dashboard / inline-size;
   }
@@ -437,6 +443,771 @@
   /* Rows B and C. The scope row never moves when a chip is added or dropped: a
      chip used to be injected among the triggers, so applying one filter
      re-wrapped the bar and the next trigger the reader was aiming at had moved. */
+  .lens-scoped-controls {
+    @apply lens:flex lens:min-w-0 lens:flex-wrap lens:items-center lens:gap-2 lens:py-2;
+  }
+
+  /* SECONDARY at the scope row's height: the context verbs sit among the
+     chip-weight triggers, so they share their box and type, and carry the
+     hairline that tells a verb from a value. Borderless 10px text read as a
+     caption. */
+  .lens-context-action {
+    @apply lens:inline-flex lens:min-h-control-sm lens:flex-none lens:items-center lens:justify-center lens:gap-1.5 lens:whitespace-nowrap lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2.5 lens:font-sans lens:text-base lens:font-semibold lens:text-muted;
+    text-decoration: none;
+    transition: background-color var(--lens-dur-fast) var(--lens-ease-standard),
+      color var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  .lens-context-action:hover:not(:disabled, [aria-disabled='true']) {
+    @apply lens:text-strong;
+    background: rgb(15 23 42 / 0.04);
+  }
+
+  .lens-root[data-theme='dark'] .lens-context-action:hover:not(:disabled, [aria-disabled='true']) {
+    background: rgb(255 255 255 / 0.08);
+  }
+
+  .lens-context-action:disabled,
+  .lens-context-action[aria-disabled='true'] {
+    @apply lens:cursor-not-allowed lens:text-faint;
+    background: var(--lens-bg-inset);
+  }
+
+  .lens-context-error {
+    @apply lens:m-0 lens:basis-full lens:text-base lens:text-neg;
+  }
+
+  /* A placement's version notice sits between its heading and its figures:
+     the opened figures stay below an update offer, and an incompatible
+     definition replaces them with the reason instead of stale numbers. */
+  .lens-report-version {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-x-3 lens:gap-y-2 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:px-4 lens:py-2 lens:text-md lens:text-strong;
+  }
+
+  .lens-report-version p {
+    @apply lens:m-0;
+  }
+
+  .lens-report-unavailable p {
+    @apply lens:m-0;
+    max-width: 60ch;
+  }
+
+  .lens-report-version-actions {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-2;
+  }
+
+  .lens-context-action.lens-report-version-update {
+    @apply lens:border-transparent;
+    background: var(--lens-accent-600);
+    color: var(--lens-text-on-accent);
+  }
+
+  .lens-context-action.lens-report-version-update:hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--lens-accent-500);
+    color: var(--lens-text-on-accent);
+  }
+
+  /* The card's one actions menu rides the far end of its heading, after any
+     hoisted chip or scope toolbar, so its position never depends on them. */
+  .lens-report-menu {
+    @apply lens:ml-auto;
+  }
+
+  .lens-export-menu-item[data-danger] {
+    @apply lens:text-neg;
+  }
+
+  /* How current the card is, and its own retry, directly under its figures. */
+  .lens-report-card-status {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-x-3 lens:gap-y-1 lens:border-0 lens:border-t lens:border-solid lens:border-border lens:px-4 lens:py-1.5 lens:text-xs lens:text-muted;
+  }
+
+  .lens-report-card-status p {
+    @apply lens:m-0;
+  }
+
+  .lens-report-card-status[data-state='failed'] {
+    @apply lens:text-strong;
+  }
+
+  /* Report picking and editing dialogs: one portaled Lens root above the page,
+     a card-coloured frame, a scrolling body and a footer whose primary action
+     never moves. */
+  .lens-report-dialog-root {
+    @apply lens:fixed lens:inset-0 lens:bg-transparent lens:p-0;
+    z-index: var(--lens-drawer-z, 2147483640);
+  }
+
+  .lens-report-dialog-backdrop {
+    @apply lens:fixed lens:inset-0 lens:flex lens:items-center lens:justify-center lens:p-6;
+    background: var(--lens-scrim);
+  }
+
+  .lens-report-dialog {
+    @apply lens:flex lens:min-h-0 lens:flex-col lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card lens:font-sans lens:text-strong lens:outline-none;
+    width: min(560px, 100%);
+    max-height: min(90vh, 100%);
+    box-shadow: var(--lens-shadow-popover);
+  }
+
+  .lens-report-dialog[data-size='wide'] {
+    width: min(960px, 100%);
+    height: min(90vh, 100%);
+  }
+
+  .lens-report-dialog-header {
+    @apply lens:flex lens:items-start lens:gap-3 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:px-5 lens:py-4;
+  }
+
+  .lens-report-dialog-heading {
+    @apply lens:flex lens:min-w-0 lens:flex-1 lens:flex-col lens:gap-1;
+  }
+
+  .lens-report-dialog-title {
+    @apply lens:m-0 lens:text-lg lens:font-semibold lens:text-strong;
+    overflow-wrap: anywhere;
+  }
+
+  .lens-report-dialog-description {
+    @apply lens:m-0 lens:text-base lens:text-muted;
+  }
+
+  .lens-report-dialog-close {
+    @apply lens:flex-none;
+  }
+
+  .lens-report-dialog-body {
+    @apply lens:flex lens:min-h-0 lens:flex-1 lens:flex-col lens:overflow-auto;
+  }
+
+  .lens-report-dialog-footer {
+    @apply lens:flex lens:justify-end lens:border-0 lens:border-t lens:border-solid lens:border-border lens:px-5 lens:py-3;
+  }
+
+  .lens-context-action.lens-report-primary {
+    @apply lens:border-transparent;
+    background: var(--lens-accent-600);
+    color: var(--lens-text-on-accent);
+  }
+
+  .lens-context-action.lens-report-primary:hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--lens-accent-500);
+    color: var(--lens-text-on-accent);
+  }
+
+  .lens-context-action.lens-report-primary:disabled {
+    background: var(--lens-bg-inset);
+    color: var(--lens-text-faint);
+  }
+
+  .lens-report-picker-item .lens-context-action[aria-pressed='true'],
+  .lens-report-picker-preview-bar .lens-context-action[aria-pressed='true'] {
+    border-color: var(--lens-accent-300);
+    background: var(--lens-accent-50);
+    color: var(--lens-accent-700);
+  }
+
+  .lens-report-picker {
+    @apply lens:flex lens:min-h-0 lens:flex-1 lens:flex-col;
+  }
+
+  .lens-report-picker[hidden] {
+    display: none;
+  }
+
+  .lens-report-picker-filters {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-3 lens:px-5 lens:py-3;
+  }
+
+  .lens-report-picker-search {
+    @apply lens:min-h-control-md lens:min-w-0 lens:flex-1 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-3 lens:font-sans lens:text-md lens:text-strong;
+    flex-basis: 16rem;
+  }
+
+  .lens-report-picker-scopes {
+    @apply lens:inline-flex lens:flex-none lens:gap-1 lens:rounded-control lens:bg-inset lens:p-0.5;
+  }
+
+  .lens-report-picker-scope {
+    @apply lens:min-h-control-sm lens:cursor-pointer lens:rounded-control lens:border-0 lens:bg-transparent lens:px-2.5 lens:font-sans lens:text-base lens:font-semibold lens:text-muted;
+  }
+
+  .lens-report-picker-scope[aria-selected='true'] {
+    @apply lens:bg-card lens:text-strong;
+    box-shadow: var(--lens-shadow-card);
+  }
+
+  .lens-report-picker-results {
+    @apply lens:flex lens:min-h-0 lens:flex-1 lens:flex-col;
+  }
+
+  .lens-report-picker-list {
+    @apply lens:m-0 lens:list-none lens:p-0;
+  }
+
+  .lens-report-picker-item {
+    @apply lens:flex lens:items-start lens:gap-3 lens:border-0 lens:border-t lens:border-solid lens:px-5 lens:py-3;
+    border-color: var(--lens-divider);
+  }
+
+  .lens-report-picker-item[data-selected] {
+    background: var(--lens-accent-50);
+  }
+
+  .lens-report-picker-check {
+    @apply lens:m-0 lens:mt-0.5 lens:size-4 lens:flex-none;
+    accent-color: var(--lens-accent-600);
+  }
+
+  .lens-report-picker-text {
+    @apply lens:flex lens:min-w-0 lens:flex-1 lens:flex-col lens:gap-1;
+  }
+
+  .lens-report-picker-name {
+    @apply lens:cursor-pointer lens:text-md lens:font-semibold lens:text-strong;
+    overflow-wrap: anywhere;
+  }
+
+  .lens-report-picker-summary-text,
+  .lens-report-picker-meta {
+    @apply lens:m-0 lens:text-base lens:text-muted;
+  }
+
+  .lens-report-picker-meta {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-x-2 lens:gap-y-1;
+  }
+
+  .lens-report-picker-badge {
+    @apply lens:inline-flex lens:items-center lens:rounded-badge lens:bg-inset lens:px-1.5 lens:text-xs lens:font-semibold lens:text-muted;
+  }
+
+  .lens-report-picker-badge[data-tone='placed'] {
+    background: var(--lens-accent-100);
+    color: var(--lens-accent-700);
+  }
+
+  .lens-report-picker-restriction {
+    @apply lens:m-0 lens:rounded-control lens:px-2 lens:py-1 lens:text-base lens:text-strong;
+    background: var(--lens-warn-soft);
+  }
+
+  .lens-report-picker-item-actions {
+    @apply lens:flex lens:flex-none lens:flex-wrap lens:justify-end lens:gap-2;
+  }
+
+  .lens-report-picker-state {
+    @apply lens:m-0 lens:flex lens:flex-col lens:items-start lens:gap-2 lens:px-5 lens:py-8 lens:text-md lens:text-muted;
+  }
+
+  .lens-report-picker-state p {
+    @apply lens:m-0;
+  }
+
+  .lens-report-picker-more {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-3 lens:border-0 lens:border-t lens:border-solid lens:px-5 lens:py-3;
+    border-color: var(--lens-divider);
+  }
+
+  .lens-report-picker-footer {
+    @apply lens:flex lens:flex-1 lens:flex-wrap lens:items-end lens:justify-between lens:gap-3;
+  }
+
+  .lens-report-picker-summary {
+    @apply lens:flex lens:min-w-0 lens:flex-1 lens:flex-col lens:gap-1;
+    flex-basis: 14rem;
+  }
+
+  .lens-report-picker-count {
+    @apply lens:m-0 lens:text-base lens:font-semibold lens:text-strong;
+  }
+
+  .lens-report-picker-error {
+    @apply lens:m-0 lens:text-base lens:text-neg;
+  }
+
+  .lens-report-picker-actions {
+    @apply lens:ml-auto lens:flex lens:flex-none lens:gap-2;
+  }
+
+  .lens-report-picker-preview {
+    @apply lens:flex lens:min-h-0 lens:flex-1 lens:flex-col lens:gap-3 lens:px-5 lens:py-3;
+  }
+
+  .lens-report-picker-preview-bar {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-3;
+  }
+
+  .lens-report-picker-preview-title {
+    @apply lens:m-0 lens:min-w-0 lens:flex-1 lens:text-md lens:font-semibold lens:text-strong;
+    overflow-wrap: anywhere;
+  }
+
+  .lens-report-picker-preview-body {
+    @apply lens:min-h-0 lens:rounded-card lens:border lens:border-solid lens:border-border;
+    background: var(--lens-bg-page);
+  }
+
+  .lens-context-action[data-danger] {
+    @apply lens:text-neg;
+  }
+
+  /* The composition editor: a toolbar whose save actions never move, then the
+     cards on the same twelve-column grid the dashboard uses. Only the handle
+     starts a drag, so text in a card stays selectable. */
+  .lens-report-editor {
+    @apply lens:flex lens:min-w-0 lens:flex-col lens:gap-3 lens:font-sans lens:text-strong;
+    container: lens-report-editor / inline-size;
+  }
+
+  .lens-report-editor-header {
+    @apply lens:flex lens:flex-wrap lens:items-end lens:justify-between lens:gap-3;
+  }
+
+  .lens-report-editor-identity {
+    @apply lens:flex lens:min-w-0 lens:flex-1 lens:flex-col lens:gap-1;
+    flex-basis: 16rem;
+  }
+
+  .lens-report-editor-title-label,
+  .lens-report-form-field > span,
+  .lens-report-form-field > legend,
+  .lens-report-form-range span {
+    @apply lens:text-base lens:font-semibold lens:text-muted;
+  }
+
+  .lens-report-editor-title,
+  .lens-report-form input:not([type='radio']),
+  .lens-report-form select {
+    @apply lens:min-h-control-md lens:min-w-0 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-3 lens:font-sans lens:text-md lens:text-strong;
+  }
+
+  .lens-report-editor-title {
+    @apply lens:font-semibold;
+    font-size: var(--lens-type-lg);
+  }
+
+  .lens-report-editor-status {
+    @apply lens:m-0 lens:text-base lens:text-muted;
+  }
+
+  .lens-report-editor-status[data-dirty] {
+    @apply lens:font-semibold lens:text-warn;
+  }
+
+  .lens-report-editor-actions {
+    @apply lens:flex lens:flex-wrap lens:gap-2;
+  }
+
+  .lens-report-editor-alert,
+  .lens-report-editor-notice {
+    @apply lens:m-0 lens:flex lens:flex-col lens:gap-2 lens:rounded-control lens:px-3 lens:py-2 lens:text-md;
+  }
+
+  .lens-report-editor-alert p {
+    @apply lens:m-0;
+  }
+
+  .lens-report-editor-alert[data-tone='error'] {
+    @apply lens:text-neg;
+    background: var(--lens-neg-soft);
+  }
+
+  .lens-report-editor-alert[data-tone='warn'] {
+    @apply lens:text-strong;
+    background: var(--lens-warn-soft);
+  }
+
+  .lens-report-editor-notice {
+    @apply lens:text-strong;
+    background: var(--lens-accent-50);
+  }
+
+  .lens-report-editor-alert-actions,
+  .lens-report-proposal-actions {
+    @apply lens:flex lens:flex-wrap lens:gap-2;
+  }
+
+  .lens-report-editor-empty {
+    @apply lens:rounded-card lens:border lens:border-dashed lens:border-border lens:px-5 lens:py-8 lens:text-md lens:text-muted;
+  }
+
+  .lens-report-editor-empty p {
+    @apply lens:m-0;
+  }
+
+  .lens-report-editor-grid {
+    @apply lens:grid lens:gap-3;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  .lens-report-editor-card {
+    @apply lens:relative lens:flex lens:min-w-0 lens:flex-col lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card;
+    grid-column: span var(--lens-editor-span, 12);
+    grid-row: var(--lens-editor-row, auto);
+    box-shadow: var(--lens-shadow-card);
+  }
+
+  .lens-report-editor-card[data-added] {
+    border-color: var(--lens-accent-500);
+    box-shadow: 0 0 0 1px var(--lens-accent-500);
+  }
+
+  .lens-report-editor-card[data-drop-target] {
+    border-color: var(--lens-accent-600);
+    border-style: dashed;
+  }
+
+  .lens-report-editor-card-header {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-2 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:px-3 lens:py-2;
+  }
+
+  .lens-report-editor-handle {
+    @apply lens:flex-none;
+    cursor: grab;
+  }
+
+  .lens-report-editor-grip {
+    display: inline-block;
+    width: 8px;
+    height: 14px;
+    background-image: radial-gradient(currentcolor 1.2px, transparent 1.3px);
+    background-size: 4px 4px;
+  }
+
+  .lens-report-editor-card-title {
+    @apply lens:m-0 lens:min-w-0 lens:flex-1 lens:text-md lens:font-semibold lens:text-strong;
+    overflow-wrap: anywhere;
+  }
+
+  .lens-report-editor-card-actions {
+    @apply lens:ml-auto lens:flex lens:flex-wrap lens:gap-1.5;
+  }
+
+  .lens-report-editor-card-body {
+    @apply lens:min-h-24 lens:min-w-0 lens:flex-1 lens:p-3;
+  }
+
+  .lens-report-editor-card-placeholder {
+    @apply lens:m-0 lens:text-md lens:text-muted;
+  }
+
+  .lens-report-editor-resize {
+    @apply lens:absolute lens:bottom-0 lens:top-0 lens:w-2 lens:rounded-control;
+    right: -6px;
+    cursor: ew-resize;
+    touch-action: none;
+  }
+
+  .lens-report-editor-resize::after {
+    @apply lens:absolute lens:rounded-control;
+    content: '';
+    top: 50%;
+    left: 2px;
+    width: 4px;
+    height: 32px;
+    transform: translateY(-50%);
+    background: var(--lens-border-strong);
+  }
+
+  .lens-report-editor-resize:hover::after,
+  .lens-report-editor-resize:focus-visible::after {
+    background: var(--lens-accent-600);
+  }
+
+  .lens-report-proposal {
+    @apply lens:flex lens:flex-col lens:gap-2 lens:rounded-card lens:border lens:border-solid lens:px-4 lens:py-3;
+    border-color: var(--lens-accent-300);
+    background: var(--lens-accent-50);
+  }
+
+  .lens-report-proposal[data-stale] {
+    border-color: var(--lens-warn);
+    background: var(--lens-warn-soft);
+  }
+
+  .lens-report-proposal-title {
+    @apply lens:m-0 lens:text-md lens:font-semibold lens:text-strong;
+  }
+
+  .lens-report-proposal-summary,
+  .lens-report-proposal-stale {
+    @apply lens:m-0 lens:text-base lens:text-strong;
+  }
+
+  .lens-report-proposal-list {
+    @apply lens:m-0 lens:flex lens:list-none lens:flex-col lens:gap-1 lens:p-0 lens:text-md;
+  }
+
+  .lens-report-proposal-list li {
+    @apply lens:flex lens:items-center lens:gap-2;
+  }
+
+  .lens-report-picker-badge[data-tone='add'] {
+    background: var(--lens-pos-soft);
+    color: var(--lens-pos);
+  }
+
+  .lens-report-picker-badge[data-tone='remove'] {
+    background: var(--lens-neg-soft);
+    color: var(--lens-neg);
+  }
+
+  .lens-report-form {
+    @apply lens:flex lens:flex-col lens:gap-4 lens:px-5 lens:py-4 lens:text-md;
+  }
+
+  .lens-report-form p {
+    @apply lens:m-0;
+  }
+
+  .lens-report-form-field {
+    @apply lens:m-0 lens:flex lens:min-w-0 lens:flex-col lens:gap-1.5 lens:border-0 lens:p-0;
+  }
+
+  .lens-report-form-choice {
+    @apply lens:flex lens:items-center lens:gap-2;
+  }
+
+  .lens-report-form-range {
+    @apply lens:flex lens:flex-wrap lens:gap-3;
+  }
+
+  .lens-report-form-range label {
+    @apply lens:flex lens:flex-col lens:gap-1;
+  }
+
+  @container lens-report-editor (max-width: 640px) {
+    .lens-report-editor-card {
+      grid-column: 1 / -1;
+      grid-row: auto;
+    }
+
+    .lens-report-editor-resize {
+      display: none;
+    }
+  }
+
+  /* In-place editing of the live dashboard. The edit bar replaces the action
+     cluster on the same row, so entering the mode never moves the filters. */
+  .lens-dashboard-edit-bar {
+    @apply lens:flex lens:min-w-0 lens:max-w-full lens:flex-wrap lens:items-center lens:justify-end lens:gap-2;
+  }
+
+  .lens-dashboard-edit-bar .lens-context-action,
+  .lens-dashboard-empty-action {
+    @apply lens:min-h-control-md;
+  }
+
+  .lens-dashboard-edit-status {
+    @apply lens:mr-1 lens:whitespace-nowrap;
+  }
+
+  .lens-dashboard-edit-notices {
+    @apply lens:flex lens:flex-col lens:gap-3;
+  }
+
+  .lens-dashboard-edit-notices > :not(.lens-visually-hidden):last-of-type {
+    @apply lens:mb-4;
+  }
+
+  /* One grid for every row: each card names its row, so a move between rows
+     re-orders nodes instead of remounting their charts. The row gap is the
+     dashboard's row rhythm. Below the twelve-column breakpoint the cards stack
+     in draft order. */
+  .lens-dashboard-edit-grid .lens-report-editor-resize {
+    display: none;
+  }
+
+  @media (min-width: 769px) {
+    .lens-dashboard-edit-grid {
+      row-gap: 1.5rem;
+    }
+
+    .lens-dashboard-edit-grid > .lens-grid-item {
+      grid-row: var(--lens-edit-row, auto);
+    }
+
+    .lens-dashboard-edit-grid .lens-report-editor-resize {
+      display: block;
+    }
+  }
+
+  .lens-dashboard-edit-grid > .lens-grid-item {
+    @apply lens:relative;
+  }
+
+  .lens-dashboard-edit-grid[data-editing] > .lens-grid-item > .lens-panel {
+    outline: 1px dashed var(--lens-border-strong);
+    outline-offset: 3px;
+  }
+
+  .lens-dashboard-edit-grid > .lens-grid-item[data-added] > .lens-panel {
+    border-color: var(--lens-accent-500);
+    box-shadow: 0 0 0 1px var(--lens-accent-500);
+  }
+
+  .lens-dashboard-edit-grid > .lens-grid-item[data-drop-target] > .lens-panel {
+    outline: 2px dashed var(--lens-accent-600);
+  }
+
+  .lens-dashboard-edit-grid .lens-panel-group-header > .lens-report-editor-handle {
+    @apply lens:-ml-1 lens:mr-1;
+  }
+
+  .lens-dashboard-edit-preview {
+    @apply lens:flex lens:min-h-24 lens:min-w-0 lens:flex-1 lens:flex-col;
+  }
+
+  .lens-dashboard-edit-preview > .lens-root {
+    @apply lens:min-h-0 lens:bg-transparent lens:p-0;
+  }
+
+  .lens-dashboard-edit-preview-state {
+    @apply lens:m-0 lens:px-4 lens:py-6 lens:text-md lens:text-muted;
+  }
+
+  /* An empty board says what it is for and, when the reader can edit it, offers
+     the one way to fill it. */
+  .lens-dashboard-empty {
+    @apply lens:mx-auto lens:my-6 lens:box-border lens:flex lens:w-full lens:max-w-xl lens:flex-col lens:items-center lens:gap-2 lens:rounded-card lens:border lens:border-dashed lens:border-border-strong lens:bg-card lens:px-6 lens:py-10 lens:text-center lens:font-sans;
+  }
+
+  .lens-dashboard-empty-icon {
+    @apply lens:mb-2 lens:inline-flex lens:size-14 lens:items-center lens:justify-center lens:rounded-full lens:text-accent-600;
+    background: var(--lens-accent-50);
+  }
+
+  .lens-dashboard-empty-title {
+    @apply lens:m-0 lens:text-lg lens:font-semibold lens:text-strong;
+  }
+
+  .lens-dashboard-empty-hint {
+    @apply lens:m-0 lens:max-w-md lens:text-md lens:text-muted;
+  }
+
+  .lens-dashboard-empty-action {
+    @apply lens:mt-3;
+  }
+
+  /* The compact bar's "More" disclosure: a trigger at the scope row's height
+     and a panel of the folded verbs under it. */
+  .lens-toolbar-overflow {
+    @apply lens:relative lens:flex lens:items-center;
+  }
+
+  .lens-dashboard-scope > .lens-toolbar-overflow::before {
+    content: none;
+  }
+
+  .lens-toolbar-overflow:not([data-filled]) {
+    @apply lens:hidden;
+  }
+
+  .lens-toolbar-overflow-trigger[hidden] {
+    @apply lens:hidden;
+  }
+
+  .lens-toolbar-overflow-panel {
+    @apply lens:absolute lens:left-0 lens:top-full lens:z-popover lens:mt-1 lens:box-border lens:flex lens:w-max lens:min-w-56 lens:flex-col lens:items-stretch lens:gap-2 lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card lens:p-2 lens:shadow-popover;
+    max-width: min(22rem, calc(100vw - 2rem));
+  }
+
+  .lens-toolbar-overflow-panel[hidden] {
+    @apply lens:hidden;
+  }
+
+  .lens-toolbar-overflow-panel > div {
+    display: contents;
+  }
+
+  .lens-toolbar-overflow-panel .lens-context-action {
+    @apply lens:justify-start;
+  }
+
+  .lens-report-destination-list {
+    @apply lens:m-0 lens:min-w-0 lens:border-0 lens:p-0;
+  }
+
+  .lens-report-destination-legend {
+    @apply lens:px-5 lens:pb-2 lens:text-base lens:font-semibold lens:text-muted;
+  }
+
+  @media (max-width: 640px) {
+    .lens-report-dialog-backdrop {
+      @apply lens:p-0;
+    }
+
+    .lens-report-dialog,
+    .lens-report-dialog[data-size='wide'] {
+      @apply lens:rounded-none lens:border-0;
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+    }
+
+    .lens-report-picker-item {
+      @apply lens:flex-wrap;
+    }
+
+    .lens-report-picker-item-actions {
+      @apply lens:justify-start;
+      flex-basis: 100%;
+      padding-left: 1.75rem;
+    }
+  }
+
+  .lens-panel-state-compatibility {
+    @apply lens:text-muted;
+    max-width: 60ch;
+  }
+
+  .lens-context-info {
+    @apply lens:break-words lens:text-xs lens:text-muted;
+  }
+
+  .lens-context-info-live {
+    @apply lens:flex lens:flex-col lens:gap-0.5 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:px-4 lens:py-2 lens:text-md lens:leading-relaxed;
+  }
+
+  .lens-context-info-live p {
+    @apply lens:m-0;
+  }
+
+  .lens-context-info-live [role='status'] {
+    @apply lens:font-medium lens:text-strong;
+  }
+
+  /* The group header's filter cluster: what this group narrows, then the one
+     trigger that edits it, pushed to the header's trailing edge. */
+  .lens-context-toolbar {
+    @apply lens:ml-auto lens:flex lens:min-w-0 lens:max-w-full lens:flex-wrap lens:items-center lens:justify-end lens:gap-1.5;
+  }
+
+  .lens-active-filter-chip {
+    @apply lens:inline-flex lens:min-h-control-sm lens:min-w-0 lens:max-w-56 lens:items-center lens:rounded-badge lens:bg-accent-50 lens:px-2 lens:text-base lens:font-medium lens:text-accent-700;
+  }
+
+  .lens-active-filter-chip span {
+    @apply lens:overflow-hidden lens:text-ellipsis lens:whitespace-nowrap;
+  }
+
+  .lens-context-panel {
+    @apply lens:flex lens:flex-col lens:gap-3 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:bg-inset lens:px-4 lens:py-3;
+  }
+
+  .lens-context-editor {
+    @apply lens:flex lens:min-w-0 lens:flex-col lens:gap-1;
+  }
+
+  .lens-context-editor-title {
+    @apply lens:m-0 lens:text-base lens:font-semibold lens:text-strong;
+  }
+
+  .lens-context-panel .lens-scoped-controls {
+    @apply lens:py-0;
+  }
+
   .lens-filter-bar {
     @apply lens:flex lens:min-w-0 lens:max-w-full lens:flex-col lens:items-start lens:gap-1.5;
   }
@@ -645,7 +1416,7 @@
 
   .lens-filter-menu-popover,
   .lens-compare-popover {
-    @apply lens:z-[1100] lens:flex lens:max-w-[calc(100vw-24px)] lens:flex-col lens:overflow-hidden lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card;
+    @apply lens:pointer-events-auto lens:z-[1100] lens:flex lens:max-w-[calc(100vw-24px)] lens:flex-col lens:overflow-hidden lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card;
 
     box-shadow: var(--lens-shadow-popover);
   }
@@ -2056,6 +2827,7 @@
   .lens-runtime-notice button,
   .lens-document-refetch-error button,
   .lens-fake-chart-footer button,
+  .lens-context-action,
   .lens-filter-chip,
   .lens-filter-trigger,
   .lens-filter-step,
@@ -2911,7 +3683,16 @@
      order. `:not(:where(…))` keeps this one level with the rule above it. */
   .lens-panel-skeleton .lens-skeleton-card:not(:where([data-kind="stat"], [data-kind="cascade"], [data-kind="coverage"], [data-metrics])) {
     @apply lens:p-2;
-    min-height: var(--lens-plot-min-h);
+    /* `.lens-chart-host` is the plot floor plus its own p-2 in content-box
+       terms; this card is border-box, so it adds the padding back or the
+       ready chart lands 1rem taller than its skeleton. */
+    min-height: calc(var(--lens-plot-min-h) + 1rem);
+  }
+
+  /* A table whose rows arrive later keeps the body its skeleton reserved: a
+     two-row result must not pull the cards below it up the page. */
+  .lens-panel-reserved[data-panel-kind="table"] > .lens-panel-body {
+    min-height: calc(var(--lens-plot-min-h) + 1rem);
   }
 
   .lens-dashboard-skeleton {
@@ -4769,7 +5550,7 @@
   }
 
   .lens-table-cell-bool {
-    @apply lens:text-center;
+    @apply lens:text-left;
   }
 
   .lens-table-bool {
@@ -5567,7 +6348,7 @@
      specific member (`[tabindex]`, a class-level match), which would outrank
      those single-class exception rules regardless of source order — hence the
      explicit `:not()` rather than a bet on cascade position. */
-  .lens-root :is(button, a, input, select, textarea, summary, [role='option'], [tabindex]):not(.lens-drawer, .lens-filter-popover, .lens-explore-level):focus-visible {
+  .lens-root :is(button, a, input, select, textarea, summary, [role='option'], [tabindex]):not(.lens-drawer, .lens-filter-popover, .lens-explore-level, .lens-report-dialog):focus-visible {
     outline: var(--lens-focus-ring-width) solid var(--lens-focus-ring-color);
     outline-offset: var(--lens-focus-ring-offset);
   }
@@ -6827,6 +7608,10 @@
   .lens-temporal-toggle,
   .lens-temporal-select {
     @apply lens:min-h-control-md lens:max-w-full lens:truncate lens:rounded-control lens:border lens:border-border lens:bg-card lens:px-2 lens:text-sm lens:font-semibold lens:text-muted lens:transition-colors;
+  }
+
+  .lens-temporal-toggle {
+    border-style: outset;
   }
 
   .lens-temporal-toggle:hover,

@@ -17,7 +17,7 @@ func TestFinalizeInteractionContractMarksOnlyNonActionableLeaves(t *testing.T) {
 			{ID: "plain"},
 			{ID: "already-terminal", Terminal: true},
 			{ID: "panel-action", Action: actionSpec},
-						{ID: "column-action", Columns: []TableColumnSpec{{Action: actionSpec}}},
+			{ID: "column-action", Columns: []TableColumnSpec{{Action: actionSpec}}},
 			{ID: "flow-action", FlowStages: []panel.FlowStage{{Action: actionSpec}}},
 			{ID: "hierarchy-action", HierarchyRows: []panel.HierarchyRow{{Action: actionSpec}}},
 			{ID: "relationship-action", Relationship: &panel.RelationshipSpec{Source: panel.RelationshipEnd{Action: actionSpec}}},

@@ -1,4 +1,36 @@
 {
+	"Onboarding": {
+		"Errors": {
+			"FirstNameRequired": "Исмни киритинг",
+			"LastNameRequired": "Фамилияни киритинг",
+			"LanguageRequired": "Қўллаб-қувватланадиган тилни танланг",
+			"PhoneInvalid": "Тўғри телефон рақамини киритинг",
+			"PasswordTooShort": "Парол камида 8 та белгидан иборат бўлиши керак",
+			"PasswordTooLong": "Парол жуда узун: кўпи билан 72 та лотин белгиси",
+			"PasswordReusesTemporary": "Янги парол вақтинчалик паролдан фарқ қилиши керак",
+			"PasswordInvalid": "Парол парол сиёсатига мос келмайди",
+			"ConfirmationMismatch": "Пароллар мос келмади",
+			"AvatarNotImage": "Аватар расм бўлиши керак"
+		},
+		"Title": "Аккаунтни созлаш",
+		"Intro": "Тилни танланг, профилни тўлдиринг ва ўз паролингизни ўрнатинг. Кейин у билан киринг.",
+		"Email": "Email",
+		"Language": "Интерфейс тили",
+		"FirstName": "Исм",
+		"LastName": "Фамилия",
+		"MiddleName": "Отасининг исми (ихтиёрий)",
+		"Phone": "Телефон (ихтиёрий)",
+		"Avatar": "Аватар (ихтиёрий)",
+		"PasswordHint": "Камида {{.Min}} та белги. Парол ибораси ва парол менежеридан фойдаланиш мумкин.",
+		"NewPassword": "Янги парол",
+		"ConfirmPassword": "Янги паролни такрорланг",
+		"Submit": "Созлашни якунлаш",
+		"Logout": "Чиқиш",
+		"Completed": "Аккаунт тайёр. Янги парол билан киринг.",
+		"Meta": {
+			"Title": "Аккаунтни созлаш"
+		}
+	},
   "Authorization": {
     "Errors": {
       "Title": "Амалга рухсат берилмаган",
@@ -143,7 +175,9 @@
   "Common": {
     "CloseNotification": "Билдиришномани ёпиш",
     "TabNavigation": "Ички бўлимлар навигацияси",
-    "Loading": "Yuklanmoqda..."
+    "Loading": "Yuklanmoqda...",
+    "LoadFailed": "Маълумотларни юклаб бўлмади",
+    "Retry": "Қайта уриниш"
   },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
@@ -470,6 +504,8 @@
 		"UseAnotherAccount": "Бошқа аккаунтдан фойдаланиш",
 		"ActiveAccount": "Фаол",
     "Errors": {
+			"TemporaryPasswordExpired": "Вақтинчалик парол энди амал қилмайди. Администратордан янгисини сўранг.",
+			"OnboardingRequired": "Аккаунт созлашни якунланг: администратор берган вақтинчалик парол билан киринг.",
       "PasswordInvalid": "Email yoki parol noto'g'ri",
       "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
       "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
@@ -1094,6 +1130,19 @@
   "System": "Tizim",
   "UpdatedAt": "Yangilangan sana",
   "Users": {
+		"PendingOnboarding": {
+			"Notice": "Фойдаланувчи ҳали созлашни якунламаган: ўз паролини ўрнатгандан кейин кириш очилади."
+		},
+		"TemporaryPassword": {
+			"Issued": "{{.Email}} учун вақтинчалик парол",
+			"Copy": "Нусхалаш",
+			"Copied": "Нусхаланди",
+			"ExpiresAt": "Амал қилиш муддати",
+			"ShownOnce": "Парол фақат бир марта кўрсатилади. Уни фойдаланувчига ўзингиз етказинг.",
+			"BackToUsers": "Фойдаланувчилар рўйхатига",
+			"Confirm": "Янги вақтинчалик парол берилсинми? Жорий парол ишламай қолади ва фойдаланувчининг барча сессиялари якунланади.",
+			"Button": "Вақтинчалик парол бериш"
+		},
     "Meta": {
       "List": {
         "Title": "Foydalanuvchilar"
@@ -1135,6 +1184,9 @@
       "Sessions": "Sessiyalar"
     },
     "Single": {
+			"TemporaryPassword": "Вақтинчалик парол",
+			"TemporaryPasswordPlaceholder": "Яратиш учун бўш қолдиринг",
+			"TemporaryPasswordHint": "Фойдаланувчи у билан бир марта киради ва ўз паролини ўрнатади. 72 соат амал қилади.",
       "EditUser": "Foydalanuvchini tahrirlash",
       "FirstName": "Ism",
       "LastName": "Familiya",
@@ -1435,5 +1487,65 @@
   "Error": {
     "ProcessingFailed": "Импорт хатоси"
   },
-  "DryRunNotice": "Бу — олдиндан кўриш. Маълумотлар ҳали ўзгартирилмади. Юқоридаги натижаларни текширинг ва импортни қўллаш учун тасдиқланг."
+  "DryRunNotice": "Бу — олдиндан кўриш. Маълумотлар ҳали ўзгартирилмади. Юқоридаги натижаларни текширинг ва импортни қўллаш учун тасдиқланг.",
+  "Notifications": {
+    "Title": "Билдиришномалар",
+    "All": "Барчаси",
+    "Unread": "Ўқилмаган",
+    "MarkAllRead": "Барчасини ўқилган деб белгилаш",
+    "MarkRead": "Ўқилган деб белгилаш",
+    "Empty": "Билдиришномалар йўқ",
+    "Open": "Очиш",
+    "Pagination": "Саҳифалар",
+    "Previous": "Олдинги",
+    "Next": "Кейинги",
+    "Intro": "Тизим сизга хабар берган ҳамма нарса.",
+    "EmptyHint": "Бирор нарса юз берса, уни шу ерда кўрасиз.",
+    "NewCount": "{{.Count}} та янги",
+    "ViewAll": "Барча билдиришномалар",
+    "Configure": "Созлаш"
+  },
+  "NotificationSettings": {
+    "AudienceHint": "Гуруҳда ҳам, рўйхатда ҳам бўлган одам битта хабар олади.",
+    "UnavailableRecipients": "Баъзи олувчилар энди мавжуд эмас ва хабар олмайди.",
+    "Title": "Билдиришнома созламалари",
+    "Intro": "Қайси воқеалар ҳақида ва кимга хабар берилишини танланг.",
+    "Enabled": "Ёқилган",
+    "Recipients": "Кимга хабар берилади",
+    "Save": "Сақлаш",
+    "SendTest": "Сақланган созламалар бўйича синов юбориш",
+    "Saved": "Созламалар сақланди.",
+    "InvalidRule": "Яроқли олувчиларни танланг. Ёқилган воқеа учун камида битта олувчи керак.",
+    "TestSent": "Синов {{.Count}} олувчига юборилди.",
+    "TestSkipped": "Билдиришномалар юборилмади. Синов воқеасини ёқинг, олувчиларни танланг ва қоидани сақланг.",
+    "PermissionRead": "Билдиришнома созламаларини кўриш",
+    "PermissionReadDescription": "Воқеалар ва етказиш қоидаларини кўриш",
+    "PermissionManage": "Билдиришнома созламаларини бошқариш",
+    "PermissionManageDescription": "Воқеаларни ёқиш, олувчиларни танлаш ва синов юбориш",
+    "Level": "Муҳимлик",
+    "DefaultLevel": "Воқеа учун стандарт",
+    "DynamicRecipients": "Шунингдек хабар бериш",
+    "Unavailable": "Мавжуд эмас",
+    "Queued": "{{.Count}} олувчи учун навбатга қўйилди.",
+    "Retrying": "Қайта уриниш",
+    "Retry": "Ҳозир қайта уриниш",
+    "ReadOnly": "Сиз созламаларни кўришингиз мумкин. Уларни фақат администраторлар ўзгартира олади.",
+    "AddRecipient": "Одам, гуруҳ ёки рол қўшинг…",
+    "People": "Одамлар",
+    "GroupsAndRoles": "Гуруҳлар ва ролар",
+    "GroupLabel": "гуруҳ",
+    "RoleLabel": "рол",
+    "Remove": "Олиб ташлаш",
+    "NothingFound": "Ҳеч нарса топилмади",
+    "RemoveUnavailable": "Уларни олиб ташлаш",
+    "Appearance": "Қандай кўринади",
+    "LevelInfo": "Оддий",
+    "LevelSuccess": "Муваффақиятли",
+    "LevelWarning": "Муҳим",
+    "LevelError": "Шошилинч",
+    "Unsaved": "Сақланмаган ўзгаришлар бор",
+    "Cancel": "Бекор қилиш",
+    "AllDelivered": "Ҳаммаси етказилмоқда",
+    "DeliveryIssues": "Етказилмади: {{.Count}}. Уринишни давом эттирамиз."
+  }
 }

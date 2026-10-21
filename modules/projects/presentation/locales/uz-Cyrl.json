@@ -49,7 +49,37 @@
       "SelectCounterparty": "Kontragentni tanlang",
       "NoCounterpartiesFound": "Kontragentlar topilmadi",
       "_Description": "Tavsif",
-      "DeleteConfirmation": "Ushbu loyihani o'chirishni xohlaysizmi?"
+      "DeleteConfirmation": "Ushbu loyihani o'chirishni xohlaysizmi?",
+      "General": "Лойиҳа",
+      "ContractAmount": "Шартнома суммаси",
+      "ContractCurrency": "Шартнома валютаси",
+      "SelectCurrency": "Валютани танланг"
+    },
+    "Acceptance": {
+      "Title": "Қабул қилиш",
+      "New": "Янги ҳужжат",
+      "Kind": "Тури",
+      "Number": "Рақами",
+      "Date": "Сана",
+      "Amount": "Сумма",
+      "CurrencyCode": "Валюта",
+      "_Description": "Тавсиф",
+      "Add": "Қўшиш",
+      "Sign": "Имзолаш",
+      "Cancel": "Бекор қилиш",
+      "CancelConfirmation": "Ҳужжат бекор қилинсинми?",
+      "DeleteConfirmation": "Ҳужжат ўчирилсинми?",
+      "Empty": "Қабул ҳужжатлари ҳали йўқ",
+      "Kinds": {
+        "_ACT": "Бажарилган ишлар далолатномаси",
+        "_DELIVERY_NOTE": "Юк хати",
+        "_OTHER": "Бошқа ҳужжат"
+      },
+      "Statuses": {
+        "DRAFT": "Қоралама",
+        "SIGNED": "Имзоланган",
+        "CANCELLED": "Бекор қилинган"
+      }
     }
   },
   "ProjectStages": {

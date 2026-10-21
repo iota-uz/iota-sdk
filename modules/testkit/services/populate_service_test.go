@@ -80,7 +80,7 @@ func TestPopulateService_AssignsRequestedUserPermissionsWithoutAdminRole(t *test
 				require.Error(t, err)
 				var structuredErr *serrors.Error
 				require.ErrorAs(t, err, &structuredErr)
-				assert.Equal(t, serrors.Op("PopulateService.createUsers"), structuredErr.Op)
+				assert.Equal(t, serrors.Op("PopulateService.createUsers"), serrors.OpOf(structuredErr))
 				assert.Equal(t, tt.wantErrorKind, structuredErr.ErrorKind())
 				// Falsely green if unavailable names are silently ignored instead of rejecting the fixture.
 				return

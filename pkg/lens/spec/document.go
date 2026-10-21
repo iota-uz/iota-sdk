@@ -372,10 +372,10 @@ func Load(data []byte) (Document, error) {
 
 	//nolint:musttag // Document is the canonical Lens JSON payload owned by this package.
 	if err := decoder.Decode(&doc); err != nil {
-		return Document{}, serrors.E(op, err)
+		return Document{}, serrors.Wrap(op, err)
 	}
 	if err := doc.Validate(); err != nil {
-		return Document{}, serrors.E(op, err)
+		return Document{}, serrors.Wrap(op, err)
 	}
 	return doc, nil
 }
@@ -385,11 +385,11 @@ func LoadFS(fsys fs.FS, name string) (Document, error) {
 
 	data, err := fs.ReadFile(fsys, name)
 	if err != nil {
-		return Document{}, serrors.E(op, err)
+		return Document{}, serrors.Wrap(op, err)
 	}
 	doc, err := Load(data)
 	if err != nil {
-		return Document{}, serrors.E(op, err)
+		return Document{}, serrors.Wrap(op, err)
 	}
 	return doc, nil
 }

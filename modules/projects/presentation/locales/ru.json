@@ -49,7 +49,37 @@
       "SelectCounterparty": "Выберите контрагента",
       "NoCounterpartiesFound": "Контрагенты не найдены",
       "_Description": "Описание",
-      "DeleteConfirmation": "Вы уверены, что хотите удалить этот проект?"
+      "DeleteConfirmation": "Вы уверены, что хотите удалить этот проект?",
+      "General": "Проект",
+      "ContractAmount": "Сумма договора",
+      "ContractCurrency": "Валюта договора",
+      "SelectCurrency": "Выберите валюту"
+    },
+    "Acceptance": {
+      "Title": "Приёмка",
+      "New": "Новый документ",
+      "Kind": "Тип",
+      "Number": "Номер",
+      "Date": "Дата",
+      "Amount": "Сумма",
+      "CurrencyCode": "Валюта",
+      "_Description": "Описание",
+      "Add": "Добавить",
+      "Sign": "Подписать",
+      "Cancel": "Аннулировать",
+      "CancelConfirmation": "Аннулировать документ?",
+      "DeleteConfirmation": "Удалить документ?",
+      "Empty": "Документов приёмки пока нет",
+      "Kinds": {
+        "_ACT": "Акт выполненных работ",
+        "_DELIVERY_NOTE": "Накладная",
+        "_OTHER": "Другой документ"
+      },
+      "Statuses": {
+        "DRAFT": "Черновик",
+        "SIGNED": "Подписан",
+        "CANCELLED": "Аннулирован"
+      }
     }
   },
   "ProjectStages": {

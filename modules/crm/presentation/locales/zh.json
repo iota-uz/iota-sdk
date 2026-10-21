@@ -166,6 +166,7 @@
     "Back": "返回",
     "InstantMessages": "即时消息",
     "NoSelectedChat": "选择一个聊天...",
-    "ChatNotFound": "未找到聊天..."
+    "ChatNotFound": "未找到聊天...",
+    "NoMessages": "暂无消息"
   }
 }

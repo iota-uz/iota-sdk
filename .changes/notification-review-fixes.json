@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Isolate best-effort user-created notification failures with a savepoint and correct notification UI wording and template formatting."
+}

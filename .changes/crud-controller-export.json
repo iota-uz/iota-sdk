@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "CrudController gains WithExport: a CSV and XLSX export of the list that writes every schema field (hidden ones included), one column per stored language of a multilingual field, a relation as label plus stored value, every row of the current search across pages over a total order, and never a field named in the exclusion list."
+}

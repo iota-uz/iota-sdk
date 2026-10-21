@@ -6,6 +6,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/stretchr/testify/assert"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/applets"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -32,7 +34,7 @@ func TestRunMigrationPolicy_Scenarios(t *testing.T) {
 		policy           MigrationPolicy
 		pool             schemaReadinessQuerier
 		expectErr        bool
-		expectErrKind    serrors.Kind
+		expectErrKind    serrors.Code
 		expectErrOp      serrors.Op
 		expectErrContext string
 		expectCalled     bool
@@ -53,7 +55,7 @@ func TestRunMigrationPolicy_Scenarios(t *testing.T) {
 			policy:           MigrationSkip,
 			pool:             fakeSchemaReadinessPool{row: fakeBoolRow{value: false}},
 			expectErr:        true,
-			expectErrKind:    serrors.KindValidation,
+			expectErrKind:    serrors.Invalid,
 			expectErrOp:      opSchemaReadiness,
 			expectErrContext: "schema not ready",
 			expectCalled:     false,
@@ -91,11 +93,11 @@ func TestRunMigrationPolicy_Scenarios(t *testing.T) {
 				require.Error(t, err)
 				var serr *serrors.Error
 				require.ErrorAs(t, err, &serr)
-				if tt.expectErrKind != serrors.Other {
-					assert.Equal(t, tt.expectErrKind, serr.Kind)
+				if tt.expectErrKind != 0 {
+					assert.Equal(t, tt.expectErrKind, serrors.CodeOf(serr))
 				}
 				if tt.expectErrOp != "" {
-					assert.Equal(t, tt.expectErrOp, serr.Op)
+					assert.Equal(t, tt.expectErrOp, serrors.OpOf(serr))
 				}
 				if tt.expectErrContext != "" {
 					assert.Contains(t, serr.Error(), tt.expectErrContext)
@@ -203,7 +205,7 @@ func (a *testApp) NavWorkspaces() []types.NavWorkspace             { return nil 
 func (a *testApp) GraphSchemas() []application.GraphSchema         { return nil }
 func (a *testApp) Bundle() *i18n.Bundle                            { return nil }
 func (a *testApp) GetSupportedLanguages() []string                 { return nil }
-func (a *testApp) AppletRegistry() application.AppletRegistry      { return nil }
+func (a *testApp) AppletRegistry() applets.Registry                { return nil }
 func (a *testApp) Session() session.Session                        { return nil }
 func (a *testApp) SetSession(session session.Session)              {}
 func (a *testApp) Migrations() application.MigrationManager        { return a.migrations }
@@ -236,4 +238,75 @@ func TestSharedHarnessManagerCloseSurvivesASettledEntry(t *testing.T) {
 
 	require.NoError(t, manager.close(key, CleanupKeep))
 	require.Equal(t, 1, manager.entries[key].refs, "a settled entry is left untouched, not counted down")
+}
+
+type notifyUnlockLocker struct {
+	sync.Locker
+	unlocked chan<- struct{}
+}
+
+func (l notifyUnlockLocker) Unlock() {
+	select {
+	case l.unlocked <- struct{}{}:
+	default:
+	}
+	l.Locker.Unlock()
+}
+
+// A waiter must re-read the manager entry after the entry it waited on is replaced.
+// This would be falsely green if the waiter never entered the old entry's Cond.Wait.
+func TestSharedHarnessManagerWaiterKeepsReplacementEntry(t *testing.T) {
+	manager := &harnessManager{entries: map[string]*managedHarnessState{}}
+	const key = "itf-replaced-entry-test"
+	unlocked := make(chan struct{}, 1)
+	old := &managedHarnessState{
+		closing: true,
+		cond:    sync.NewCond(notifyUnlockLocker{Locker: &manager.mu, unlocked: unlocked}),
+	}
+	manager.entries[key] = old
+
+	type result struct {
+		state *harnessState
+		err   error
+	}
+	returned := make(chan result, 1)
+	go func() {
+		state, err := manager.getOrCreate(key, HarnessConfig{Name: key})
+		returned <- result{state: state, err: err}
+	}()
+
+	select {
+	case <-unlocked:
+	case <-time.After(10 * time.Second):
+		t.Fatal("waiter did not enter Cond.Wait")
+	}
+
+	replacementState := &harnessState{dbName: key}
+	replacement := &managedHarnessState{
+		state: replacementState,
+		refs:  1,
+		cond:  sync.NewCond(&manager.mu),
+	}
+	manager.mu.Lock()
+	manager.entries[key] = replacement
+	old.closing = false
+	old.cond.Broadcast()
+	manager.mu.Unlock()
+
+	select {
+	case got := <-returned:
+		require.NoError(t, got.err)
+		require.Same(t, replacementState, got.state)
+	case <-time.After(10 * time.Second):
+		t.Fatal("waiter did not return")
+	}
+
+	manager.mu.Lock()
+	current := manager.entries[key]
+	refs := replacement.refs
+	manager.mu.Unlock()
+	require.Same(t, replacement, current)
+	require.Equal(t, 2, refs)
+	require.NoError(t, manager.close(key, CleanupKeep))
+	require.NoError(t, manager.close(key, CleanupKeep))
 }

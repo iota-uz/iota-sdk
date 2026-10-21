@@ -151,7 +151,7 @@ func TestApplication_AttachRuntimeSource_BuildsAppletRegistry(t *testing.T) {
 		require.NoError(t, err)
 		applet := &mockApplet{name: "test", basePath: "/test"}
 
-		attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{applet}})
+		attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{applet}})
 
 		registry := app.AppletRegistry()
 		assert.True(t, registry.Has("test"))
@@ -169,7 +169,7 @@ func TestApplication_AttachRuntimeSource_BuildsAppletRegistry(t *testing.T) {
 		applet2 := &mockApplet{name: "dup", basePath: "/path2"}
 
 		binder := app.(RuntimeBinder)
-		err = binder.AttachRuntimeSource(&testRuntimeSource{applets: []Applet{applet1, applet2}})
+		err = binder.AttachRuntimeSource(&testRuntimeSource{applets: []applets.Applet{applet1, applet2}})
 		assert.Error(t, err)
 	})
 }
@@ -203,7 +203,7 @@ func TestApplication_AppletRegistry(t *testing.T) {
 		require.NoError(t, err)
 		applet := &mockApplet{name: "test", basePath: "/test"}
 
-		attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{applet}})
+		attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{applet}})
 
 		registry1 := app.AppletRegistry()
 		registry2 := app.AppletRegistry()

@@ -195,7 +195,7 @@ type ApplicationOptions struct {
 	Huber              Huber
 	SupportedLanguages []string
 	// Meili holds MeiliSearch settings. When nil or empty URL, the application
-	// uses a no-op search engine. Previously read from configuration.Use().
+	// uses a no-op search engine.
 	Meili *meiliconfig.Config
 	// DBConfig provides typed database config for the migration manager.
 	// When nil, migrations are disabled (no-op manager).
@@ -493,7 +493,7 @@ func (app *application) GetSupportedLanguages() []string {
 	return app.supportedLanguages
 }
 
-func (app *application) AppletRegistry() AppletRegistry {
+func (app *application) AppletRegistry() applets.Registry {
 	return app.appletRegistry
 }
 

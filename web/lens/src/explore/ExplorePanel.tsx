@@ -150,7 +150,7 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
   const viewKey = createMemo(() => (
     `${active() ? navigation.path.join('|') : panel.drillRoot ?? panel.id}:${navigation.perspectiveId ?? ''}`
   ))
-  let previousView: string | undefined
+  let previousView = viewKey()
   const [overlay, setOverlay] = createSignal<{
     target: DrillTarget
     anchor: ChartAnchor
@@ -465,7 +465,9 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
             <FocusContextHeader
               breadcrumbs={breadcrumbs()}
               colorFor={miniColorFor}
-              context={context()}
+              // A host-rendered view draws no Lens mini chart of its parent:
+              // that would be a lookalike of a view the host owns.
+              context={panel.renderer ? { ...context(), parent: undefined } : context()}
               onCrumb={jumpToCrumb}
               onParent={focusParent() ? () => jumpToCrumb(focusParent()!.pathIndex) : undefined}
               periodLabel={document.header?.subtitle?.trim() || undefined}

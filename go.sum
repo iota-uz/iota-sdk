@@ -289,8 +289,8 @@ github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/iota-uz/applets v0.4.32-0.20260621150342-5bc121489de1 h1:IBZOzA13zSdWGgqig0QJfFSzQKVgVaCIy0EcOWjTCL0=
 github.com/iota-uz/applets v0.4.32-0.20260621150342-5bc121489de1/go.mod h1:PnaI9UI+C+cnx9HaV8kTMzozO7h+ycBvQUn1hFHIARY=
-github.com/iota-uz/click v1.0.5-0.20260429132149-cf24863b0f7e h1:837CEXuzIT0a2l7Ll55Lyau6k4S1i+xIXy8lOfGakPU=
-github.com/iota-uz/click v1.0.5-0.20260429132149-cf24863b0f7e/go.mod h1:WamcxWiFXli4WMWiPQgeNHX/hU4Ac/Xmx1N1ok6vbkQ=
+github.com/iota-uz/click v1.0.5 h1:Jk8hx+g045umTlwxqvFIB8JgzpZvSafZksEyeVUAIj0=
+github.com/iota-uz/click v1.0.5/go.mod h1:WamcxWiFXli4WMWiPQgeNHX/hU4Ac/Xmx1N1ok6vbkQ=
 github.com/iota-uz/eskiz v0.0.0-20260512120215-4347c50e0295 h1:ocqppj/WF80umki5qNPJxp9wWWW0ix6L6cN5wrp8Bzw=
 github.com/iota-uz/eskiz v0.0.0-20260512120215-4347c50e0295/go.mod h1:AQhBUxkNnq/mVuJQY+WTt1KfHaM/UoRV4m1sFxadUr0=
 github.com/iota-uz/go-i18n/v2 v2.6.1 h1:TqeZQAjlc7jSOuCgvulH9HvNXjeaKrbEXxXicx9Sfv8=
@@ -410,6 +410,8 @@ github.com/rubenv/sql-migrate v1.7.0 h1:HtQq1xyTN2ISmQDggnh0c9U3JlP8apWh8YO2jzlX
 github.com/rubenv/sql-migrate v1.7.0/go.mod h1:S4wtDEG1CKn+0ShpTtzWhFpHHI5PvCUtiGI+C+Z2THE=
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
+github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 h1:KRzFb2m7YtdldCEkzs6KqmJw4nqEVZGK7IN2kJkjTuQ=
+github.com/santhosh-tekuri/jsonschema/v6 v6.0.2/go.mod h1:JXeL+ps8p7/KNMjDQk3TCwPpBy0wYklyWTfbkIzdIFU=
 github.com/segmentio/asm v1.2.0 h1:9BQrFxC+YOHJlTlHGkTrFWf59nbL3XnCoFLTwDCI7ys=
 github.com/segmentio/asm v1.2.0/go.mod h1:BqMnlJP91P8d+4ibuonYZw9mfnzI9HfxselHZr5aAcs=
 github.com/sergi/go-diff v1.3.1 h1:xkr+Oxo4BOQKmkn/B9eMK0g5Kg/983T9DqqPHwYqD+8=

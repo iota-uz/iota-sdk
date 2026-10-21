@@ -11,6 +11,7 @@ static
 uploads
 *_templ.txt
 modules/core/presentation/assets/css/main.min.css
+styles/tailwind/main.generated.css
 modules/bichat/presentation/assets/dist/
 /tailwind/
 /assets/
@@ -57,3 +58,10 @@ web/client-host/test-results/
 # Playwright CLI snapshots/artifacts
 .playwright-cli/
 .claude/scheduled_tasks.lock
+
+web/chat-ui/test-results/
+web/chat-ui/playwright-report/
+/docs/.astro/
+
+/docs/test-results/
+/docs/playwright-report/

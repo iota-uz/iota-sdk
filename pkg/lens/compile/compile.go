@@ -496,7 +496,7 @@ func compileRow(item lensspec.RowSpec, opts Options) (lens.RowSpec, error) {
 
 	heading := strings.TrimSpace(resolveText(item.Heading, opts))
 	if heading != "" && len(item.Panels) > 0 {
-		return lens.RowSpec{}, serrors.E(op, fmt.Errorf("row heading %q cannot be combined with panels", heading))
+		return lens.RowSpec{}, serrors.Wrap(op, fmt.Errorf("row heading %q cannot be combined with panels", heading))
 	}
 	out := lens.RowSpec{
 		Panels:  make([]panel.Spec, 0, len(item.Panels)),
@@ -524,6 +524,8 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		Dataset:               resolveString(item.Dataset, opts.Values),
 		Span:                  item.Span,
 		Colors:                resolveStringSlice(item.Colors, opts.Values),
+		ColorScale:            resolveString(item.ColorScale, opts.Values),
+		ColorField:            panel.Ref(resolveString(item.ColorField, opts.Values)),
 		ShowLegend:            item.ShowLegend,
 		TotalBadgeValue:       item.TotalBadgeValue,
 		HeadlineValue:         item.HeadlineValue,

@@ -25,6 +25,17 @@ func TestWithDeferredPanels(t *testing.T) {
 	assert.Equal(t, "/orders/summary", cfg.DeferredPanels[0].URL)
 }
 
+func TestTableDefinition_WithDeferredPanels(t *testing.T) {
+	builder := NewTableDefinition("Debts", "/debts").
+		WithDeferredPanels(DeferredPanel{ID: "debt-balances", URL: "/balances"})
+	definition := builder.Build()
+	builder.WithDeferredPanels(DeferredPanel{ID: "later", URL: "/later"})
+
+	require.Len(t, definition.DeferredPanels(), 1, "a built definition does not change with its builder")
+	assert.Equal(t, "debt-balances", definition.DeferredPanels()[0].ID)
+	assert.Equal(t, "/balances", definition.DeferredPanels()[0].URL)
+}
+
 func TestFormHxAttrs(t *testing.T) {
 	// No panels → no re-broadcast attribute.
 	assert.Empty(t, (&TableConfig{ID: "orders"}).FormHxAttrs())

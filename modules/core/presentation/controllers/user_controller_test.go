@@ -87,7 +87,7 @@ func TestUsersController_Delete_SelfDeletionPrevention(t *testing.T) {
 		// Attempt to delete non-existent user
 		suite.DELETE(fmt.Sprintf("/users/%d", nonExistentID)).
 			Assert(t).
-			ExpectStatus(500) // Internal server error due to user not found
+			ExpectStatus(404) // The user does not exist
 	})
 
 	t.Run("Delete_Invalid_User_ID_Should_Fail", func(t *testing.T) {
@@ -124,20 +124,20 @@ func TestUsersController_Delete_Permissions(t *testing.T) {
 		{
 			name:           "No_Permission",
 			permissions:    []permission.Permission{}, // No permissions
-			expectedStatus: 500,
-			expectedBody:   "forbidden",
+			expectedStatus: 403,
+			expectedBody:   "You do not have permission",
 		},
 		{
 			name:           "Read_Only",
 			permissions:    []permission.Permission{permissions.UserRead}, // Only read permission
-			expectedStatus: 500,
-			expectedBody:   "forbidden",
+			expectedStatus: 403,
+			expectedBody:   "You do not have permission",
 		},
 		{
 			name:           "With_Delete_Permission",
 			permissions:    []permission.Permission{permissions.UserDelete, permissions.UserRead},
-			expectedStatus: 500,              // Still 500 because user doesn't exist, but authorization passes
-			expectedBody:   "user not found", // Different error message indicates authorization passed
+			expectedStatus: 404,                                // The user does not exist after authorization passes
+			expectedBody:   "The requested item was not found", // Different error message indicates authorization passed
 		},
 	}
 
@@ -184,7 +184,7 @@ func TestUsersController_Delete_EdgeCases(t *testing.T) {
 	cases := itf.Cases(
 		itf.DELETE("/users/0").
 			Named("Zero_ID").
-			ExpectStatus(500), // User ID 0 is invalid
+			ExpectStatus(404), // User ID 0 is invalid
 
 		itf.DELETE("/users/-1").
 			Named("Negative_ID").
@@ -196,7 +196,7 @@ func TestUsersController_Delete_EdgeCases(t *testing.T) {
 
 		itf.DELETE("/users/999999999").
 			Named("Large_ID").
-			ExpectStatus(500), // Large ID should still reach controller but user not found
+			ExpectStatus(404), // Large ID should still reach controller but user not found
 	)
 
 	suite.RunCases(cases)

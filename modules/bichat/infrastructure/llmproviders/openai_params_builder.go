@@ -124,7 +124,7 @@ func (m *OpenAIModel) SetCodeInterpreterMemoryLimit(limit string) error {
 	const op serrors.Op = "OpenAIModel.SetCodeInterpreterMemoryLimit"
 	normalized, ok := normalizeCodeInterpreterMemoryLimit(limit)
 	if !ok {
-		return serrors.E(op, serrors.KindValidation, "invalid code interpreter memory limit: must be one of 1g, 4g, 16g, 64g")
+		return serrors.New(serrors.Invalid, "invalid code interpreter memory limit: must be one of 1g, 4g, 16g, 64g").WithOp(op)
 	}
 	m.mu.Lock()
 	m.codeInterpreterMemoryLimit = normalized

@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/roles"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -94,15 +95,19 @@ templ CreateForm(props *CreateFormProps) {
 						Error:    props.Errors["GroupIDs"],
 						Name:     "GroupIDs",
 					})
-					@input.Password(&input.Props{
-						Label:       pageCtx.T("Users.Single.Password"),
-						Placeholder: pageCtx.T("Users.Single.EnterPassword"),
-						Attrs: templ.Attributes{
-							"autocomplete": "new-password",
-							"name":         "Password",
-							"required":     true,
-						},
-					})
+					<div class="flex flex-col gap-1">
+						@input.Password(&input.Props{
+							Label:       pageCtx.T("Users.Single.TemporaryPassword"),
+							Placeholder: pageCtx.T("Users.Single.TemporaryPasswordPlaceholder"),
+							Attrs: templ.Attributes{
+								"autocomplete": "new-password",
+								"name":         "Password",
+								"data-testid":  "temporary-password-input",
+							},
+							Error: props.Errors["Password"],
+						})
+						<small class="text-xs text-200">{ pageCtx.T("Users.Single.TemporaryPasswordHint") }</small>
+					</div>
 					@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 						Label:       pageCtx.T("Users.Single.Language"),
 						Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
@@ -122,6 +127,23 @@ templ CreateForm(props *CreateFormProps) {
 				})
 			}
 		</div>
+		if len(props.ResourcePermissionGroups) > 0 {
+			<div class="flex flex-col gap-5 px-4 pb-4 md:px-6 md:pb-6" data-testid="create-user-permissions">
+				<h2 class="text-lg font-semibold text-100">{ pageCtx.T("Users.Tabs.Permissions") }</h2>
+				for i, group := range props.ResourcePermissionGroups {
+					@card.Card(card.Props{
+						Class: "space-y-3",
+					}) {
+						@roles.ResourceGroup(roles.ResourceGroupProps{
+							PageContext:   pageCtx,
+							ResourceGroup: group,
+							GroupIndex:    i,
+							InputName:     "PermissionIDs",
+						})
+					}
+				}
+			</div>
+		}
 		<div class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			@button.Primary(button.Props{
 				Size: button.SizeMD,

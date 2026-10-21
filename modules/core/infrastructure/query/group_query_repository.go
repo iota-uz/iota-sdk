@@ -54,6 +54,7 @@ type GroupQueryRepository interface {
 	FindGroups(ctx context.Context, params *GroupFindParams) ([]*viewmodels.Group, int, error)
 	FindAssignmentOptions(ctx context.Context) ([]*viewmodels.AssignmentOption, error)
 	FindGroupLabelsByIDs(ctx context.Context, groupIDs []uuid.UUID) ([]*viewmodels.Group, error)
+	FindGroupPermissionsByIDs(ctx context.Context, groupIDs []uuid.UUID) (map[uuid.UUID][]permission.Permission, error)
 	FindGroupByID(ctx context.Context, groupID string) (*viewmodels.Group, error)
 	SearchGroups(ctx context.Context, params *GroupFindParams) ([]*viewmodels.Group, int, error)
 }
@@ -68,11 +69,11 @@ func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*
 	const op = serrors.Op("GroupQueryRepository.FindAssignmentOptions")
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, `
@@ -81,7 +82,7 @@ func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*
 		WHERE g.tenant_id = $1
 		ORDER BY LOWER(g.name), g.id`, tenantID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -92,7 +93,7 @@ func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*
 		var id uuid.UUID
 		option := &viewmodels.AssignmentOption{Permissions: []permission.Permission{}}
 		if err := rows.Scan(&id, &option.Type, &option.Name, &option.Description); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		option.ID = id.String()
 		options = append(options, option)
@@ -100,13 +101,48 @@ func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*
 		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	if len(ids) == 0 {
 		return options, nil
 	}
 
-	permissionRows, err := tx.Query(ctx, `
+	permissionsByGroup, err := queryGroupPermissions(ctx, tx, ids, tenantID)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	for id, groupPermissions := range permissionsByGroup {
+		if option := byID[id]; option != nil {
+			option.Permissions = groupPermissions
+		}
+	}
+	return options, nil
+}
+
+// FindGroupPermissionsByIDs returns the permissions granted through each group's roles, keyed by group ID,
+// in one query for the whole set. Groups without role permissions or outside the tenant are absent.
+func (r *pgGroupQueryRepository) FindGroupPermissionsByIDs(ctx context.Context, groupIDs []uuid.UUID) (map[uuid.UUID][]permission.Permission, error) {
+	const op = serrors.Op("GroupQueryRepository.FindGroupPermissionsByIDs")
+	if len(groupIDs) == 0 {
+		return map[uuid.UUID][]permission.Permission{}, nil
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	result, err := queryGroupPermissions(ctx, tx, groupIDs, tenantID)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	return result, nil
+}
+
+func queryGroupPermissions(ctx context.Context, tx repo.Tx, groupIDs []uuid.UUID, tenantID uuid.UUID) (map[uuid.UUID][]permission.Permission, error) {
+	rows, err := tx.Query(ctx, `
 		SELECT gr.group_id, p.id, p.name, p.resource, p.action, p.modifier
 		FROM group_roles gr
 		JOIN user_groups g ON g.id = gr.group_id
@@ -115,28 +151,27 @@ func (r *pgGroupQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*
 		JOIN permissions p ON p.id = rp.permission_id
 		WHERE gr.group_id = ANY($1::uuid[]) AND g.tenant_id = $2
 		GROUP BY gr.group_id, p.id, p.name, p.resource, p.action, p.modifier
-		ORDER BY gr.group_id, p.name, p.id`, ids, tenantID)
+		ORDER BY gr.group_id, p.name, p.id`, groupIDs, tenantID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, err
 	}
-	defer permissionRows.Close()
-	for permissionRows.Next() {
+	defer rows.Close()
+	result := make(map[uuid.UUID][]permission.Permission)
+	for rows.Next() {
 		var groupID, id uuid.UUID
 		var name, resource, action, modifier string
-		if err := permissionRows.Scan(&groupID, &id, &name, &resource, &action, &modifier); err != nil {
-			return nil, serrors.E(op, err)
+		if err := rows.Scan(&groupID, &id, &name, &resource, &action, &modifier); err != nil {
+			return nil, err
 		}
-		if option := byID[groupID]; option != nil {
-			option.Permissions = append(option.Permissions, permission.New(
-				permission.WithID(id), permission.WithName(name), permission.WithResource(permission.Resource(resource)),
-				permission.WithAction(permission.Action(action)), permission.WithModifier(permission.Modifier(modifier)),
-			))
-		}
+		result[groupID] = append(result[groupID], permission.New(
+			permission.WithID(id), permission.WithName(name), permission.WithResource(permission.Resource(resource)),
+			permission.WithAction(permission.Action(action)), permission.WithModifier(permission.Modifier(modifier)),
+		))
 	}
-	if err := permissionRows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
-	return options, nil
+	return result, nil
 }
 
 func (r *pgGroupQueryRepository) FindGroupLabelsByIDs(ctx context.Context, groupIDs []uuid.UUID) ([]*viewmodels.Group, error) {
@@ -146,11 +181,11 @@ func (r *pgGroupQueryRepository) FindGroupLabelsByIDs(ctx context.Context, group
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	rows, err := tx.Query(ctx, `
 		SELECT g.id, g.type, g.name, COALESCE(g.description, '')
@@ -158,7 +193,7 @@ func (r *pgGroupQueryRepository) FindGroupLabelsByIDs(ctx context.Context, group
 		WHERE g.tenant_id = $1 AND g.id = ANY($2::uuid[])
 		ORDER BY LOWER(g.name), g.id`, tenantID, groupIDs)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 	groups := make([]*viewmodels.Group, 0, len(groupIDs))
@@ -166,13 +201,13 @@ func (r *pgGroupQueryRepository) FindGroupLabelsByIDs(ctx context.Context, group
 		var id uuid.UUID
 		group := &viewmodels.Group{}
 		if err := rows.Scan(&id, &group.Type, &group.Name, &group.Description); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		group.ID = id.String()
 		groups = append(groups, group)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return groups, nil
 }
@@ -444,7 +479,7 @@ func (r *pgGroupQueryRepository) loadGroupRelationsBatch(ctx context.Context, gr
 	userRows, err := tx.Query(ctx, `SELECT gu.group_id,
 		u.id, u.tenant_id, u.type, u.first_name, u.last_name, u.middle_name,
 		u.email, u.phone, u.ui_language, u.avatar_id, u.last_login, u.last_action,
-		u.created_at, u.updated_at
+		u.created_at, u.updated_at, u.status
 		FROM group_users gu
 		JOIN user_groups g ON g.id = gu.group_id
 		JOIN users u ON u.id = gu.user_id AND u.tenant_id = g.tenant_id
@@ -462,7 +497,7 @@ func (r *pgGroupQueryRepository) loadGroupRelationsBatch(ctx context.Context, gr
 			&groupID,
 			&dbUser.ID, &dbUser.TenantID, &dbUser.Type, &dbUser.FirstName, &dbUser.LastName, &dbUser.MiddleName,
 			&dbUser.Email, &dbUser.Phone, &dbUser.UILanguage, &dbUser.AvatarID, &dbUser.LastLogin, &dbUser.LastAction,
-			&dbUser.CreatedAt, &dbUser.UpdatedAt,
+			&dbUser.CreatedAt, &dbUser.UpdatedAt, &dbUser.Status,
 		)
 		if err != nil {
 			return errors.Wrap(err, "failed to scan user")

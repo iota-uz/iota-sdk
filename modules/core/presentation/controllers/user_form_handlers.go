@@ -3,6 +3,7 @@ package controllers
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -13,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/validators"
 )
@@ -66,8 +68,7 @@ func (c *UsersController) Create(
 
 	dto, err := composables.UseForm(&dtos.CreateUserDTO{}, r)
 	if err != nil {
-		logger.WithError(err).Error("error parsing form")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -85,12 +86,17 @@ func (c *UsersController) Create(
 
 	userEntity, err := dto.ToEntity(tenantID)
 	if err != nil {
-		logger.WithError(err).Error("error converting dto to entity")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
+	if dto.Language == "" {
+		if actor, err := composables.UseUser(r.Context()); err == nil {
+			userEntity = userEntity.SetUILanguage(actor.UILanguage())
+		}
+	}
 
-	if _, err := userService.Create(r.Context(), userEntity); err != nil {
+	result, err := userService.CreateWithTemporaryPassword(r.Context(), userEntity, dto.Password)
+	if err != nil {
 		var errs *validators.ValidationError
 		if errors.As(err, &errs) {
 			respondWithForm(errs.Fields, dto)
@@ -100,12 +106,55 @@ func (c *UsersController) Create(
 			return
 		}
 
-		logger.WithError(err).Error("error creating user")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
-	shared.Redirect(w, r, c.basePath)
+	w.Header().Set("Cache-Control", "no-store")
+	if err := users.Created(users.TemporaryPasswordProps{
+		Email:     result.User.Email().Value(),
+		Password:  result.Password,
+		ExpiresAt: result.ExpiresAt.Format(time.RFC3339),
+		BackURL:   c.basePath,
+	}).Render(r.Context(), w); err != nil {
+		logger.WithError(err).Error("error rendering created user")
+	}
+}
+
+// IssueTemporaryPassword replaces the user's password with a new temporary
+// one, revokes the user's sessions and shows the password once.
+func (c *UsersController) IssueTemporaryPassword(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	userService *services.UserService,
+) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
+		return
+	}
+	result, err := userService.IssueTemporaryPassword(r.Context(), id, "")
+	if err != nil {
+		if respondPrivilegeDenied(w, r, err) {
+			return
+		}
+		if errors.Is(err, composables.ErrForbidden) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		logger.WithError(err).Error("error issuing temporary password")
+		http.Error(w, "Error issuing temporary password", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	if err := users.TemporaryPassword(users.TemporaryPasswordProps{
+		Email:     result.User.Email().Value(),
+		Password:  result.Password,
+		ExpiresAt: result.ExpiresAt.Format(time.RFC3339),
+	}).Render(r.Context(), w); err != nil {
+		logger.WithError(err).Error("error rendering temporary password")
+	}
 }
 
 func (c *UsersController) Update(
@@ -120,15 +169,13 @@ func (c *UsersController) Update(
 ) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		logger.WithError(err).Error("error parsing user id")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.UpdateUserDTO{}, r)
 	if err != nil {
-		logger.WithError(err).Error("error parsing form")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -156,8 +203,7 @@ func (c *UsersController) Update(
 
 	userEntity, err := userService.GetByID(r.Context(), id)
 	if err != nil {
-		logger.WithError(err).Error("error retrieving user")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -170,7 +216,7 @@ func (c *UsersController) Update(
 	for _, permissionID := range dto.PermissionIDs {
 		permissionUUID, err := uuid.Parse(permissionID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 			return
 		}
 		permissions = append(permissions, permission.New(permission.WithID(permissionUUID)))
@@ -178,8 +224,7 @@ func (c *UsersController) Update(
 
 	userEntity, err = dto.Apply(userEntity, roles, permissions)
 	if err != nil {
-		logger.WithError(err).Error("error applying user update")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -193,8 +238,7 @@ func (c *UsersController) Update(
 			return
 		}
 
-		logger.WithError(err).Error("error updating user")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -209,8 +253,7 @@ func (c *UsersController) Delete(
 ) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		logger.WithError(err).Error("error parsing user id")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -218,8 +261,8 @@ func (c *UsersController) Delete(
 		if respondPrivilegeDenied(w, r, err) {
 			return
 		}
-		logger.WithError(err).Error("error deleting user")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

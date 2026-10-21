@@ -62,7 +62,7 @@ func NewApplication(pool *pgxpool.Pool, logger *logrus.Logger, src config.Source
 
 	engine := composition.NewEngine()
 	if err := engine.Register(components...); err != nil {
-		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
+		return nil, serrors.Wrap(serrors.Op("commands.common.NewApplication"), err)
 	}
 	_, err = engine.Compile(
 		composition.NewBuildContext(app, src, composition.WithLogger(logger)),
@@ -70,7 +70,7 @@ func NewApplication(pool *pgxpool.Pool, logger *logrus.Logger, src config.Source
 		composition.CapabilityWorker,
 	)
 	if err != nil {
-		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
+		return nil, serrors.Wrap(serrors.Op("commands.common.NewApplication"), err)
 	}
 
 	return app, nil

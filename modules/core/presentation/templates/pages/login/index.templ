@@ -24,6 +24,7 @@ type LoginMethod struct {
 type LoginProps struct {
 	ErrorsMap                   map[string]string
 	ErrorMessage                string
+	NoticeMessage               string
 	Email                       string
 	Methods                     []LoginMethod
 	Logo                        templ.Component
@@ -188,6 +189,13 @@ templ Index(p *LoginProps) {
 										@alert.Error() {
 											{ p.ErrorMessage }
 										}
+									}
+									if len(p.NoticeMessage) > 0 {
+										<div data-testid="login-notice">
+											@alert.Success() {
+												{ p.NoticeMessage }
+											}
+										</div>
 									}
 									if hasPasswordMethod {
 										@input.Email(&input.Props{

@@ -22,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -108,7 +109,7 @@ func (c *UnitsController) viewModelUnits(r *http.Request) (*UnitPaginatedRespons
 func (c *UnitsController) List(w http.ResponseWriter, r *http.Request) {
 	paginated, err := c.viewModelUnits(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
@@ -126,7 +127,7 @@ func (c *UnitsController) List(w http.ResponseWriter, r *http.Request) {
 func (c *UnitsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -154,7 +155,7 @@ func (c *UnitsController) Delete(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -168,12 +169,12 @@ func (c *UnitsController) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	dto := unit.UpdateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	uniTranslator, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if errorsMap, ok := dto.Ok(uniTranslator); !ok {
@@ -194,7 +195,7 @@ func (c *UnitsController) Update(w http.ResponseWriter, r *http.Request) {
 		return c.unitService.Update(txCtx, id, &dto)
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -211,25 +212,25 @@ func (c *UnitsController) GetNew(w http.ResponseWriter, r *http.Request) {
 
 func (c *UnitsController) Create(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto := unit.CreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	uniTranslator, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if errorsMap, ok := dto.Ok(uniTranslator); !ok {
 		entity, err := dto.ToEntity()
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		props := &units2.CreatePageProps{
@@ -245,7 +246,7 @@ func (c *UnitsController) Create(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

@@ -1,6 +1,7 @@
 package document
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -50,13 +51,13 @@ type BuildOptions struct {
 func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (*DashboardDocument, error) {
 	const op serrors.Op = "lens/document.Build"
 	if result == nil {
-		return nil, serrors.E(op, fmt.Errorf("runtime result is required"))
+		return nil, serrors.Wrap(op, fmt.Errorf("runtime result is required"))
 	}
 	if err := runtime.Validate(spec); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if opts.InlineDepth < 0 {
-		return nil, serrors.E(op, fmt.Errorf("inline depth cannot be negative"))
+		return nil, serrors.Wrap(op, fmt.Errorf("inline depth cannot be negative"))
 	}
 
 	snapshotID := strings.TrimSpace(opts.SnapshotID)
@@ -64,7 +65,7 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 		var err error
 		snapshotID, err = newSnapshotID()
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 	}
 	generatedAt := opts.GeneratedAt
@@ -113,18 +114,18 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 		layoutRow := LayoutRow{Heading: rowSpec.Heading, Class: rowSpec.Class, Anchor: rowSpec.Anchor, Panels: make([]LayoutItem, 0)}
 		for _, panelSpec := range rowSpec.Panels {
 			if err := appendPanelTree(doc, panelSpec, result, hosts, &layoutRow, nil, opts.DeferPanels); err != nil {
-				return nil, serrors.E(op, err)
+				return nil, serrors.Wrap(op, err)
 			}
 		}
 		doc.Layout.Rows = append(doc.Layout.Rows, layoutRow)
 	}
 	for _, explorerSpec := range spec.Explorers {
 		if err := buildExplorer(doc, explorerSpec, result); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 	}
 	if err := doc.Validate(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return doc, nil
 }
@@ -148,6 +149,14 @@ func appendPanelTree(
 	if spec.Kind.IsContainer() {
 		//nolint:exhaustive // Only stat groups and tabs become wire containers; the rest flatten.
 		switch spec.Kind {
+		case panel.KindGrid:
+			chain := appendGroup(groups, LayoutGroup{ID: spec.ID, Kind: LayoutGroupGrid, Label: spec.Title, Caption: spec.Description, FilterContext: spec.FilterContext, Unavailable: GroupUnavailable(spec.Unavailable), Span: containerSpan(spec)})
+			for _, child := range spec.Children {
+				if err := appendPanelTree(doc, child, result, hosts, row, chain, deferPanels); err != nil {
+					return err
+				}
+			}
+			return nil
 		case panel.KindStatGroup:
 			descriptor := LayoutGroup{
 				ID: spec.ID, Kind: LayoutGroupMetrics, Label: spec.Title,
@@ -297,6 +306,7 @@ func appendPanelTree(
 		Radial: radial, Map: mapConfig,
 		Confidence: Confidence(spec.Confidence), Availability: Availability(spec.Availability), Deferred: deferred,
 		Terminal: spec.Terminal, ComparisonUnsupported: spec.ComparisonUnsupported,
+		Renderer: buildRenderer(spec.Renderer),
 	})
 	span := spec.Span
 	if span == 0 {
@@ -501,6 +511,7 @@ func presentationForKind(hints panel.PresentationHints, kind panel.Kind) *Presen
 func convertPresentation(hints panel.PresentationHints) *Presentation {
 	presentation := Presentation{
 		DataLabels: hints.DataLabels, Fill: hints.FillPlot, BarWidthPx: hints.BarWidthPx,
+		KeepTotalBadge:       hints.KeepTotalBadge,
 		ValueSpreadThreshold: hints.ValueSpreadThreshold,
 	}
 	if hints.LegendBelow {
@@ -1036,11 +1047,11 @@ func buildFrame(source *frame.Frame) (Frame, error) {
 func ProjectPanelFrame(spec panel.Spec, source *frame.Frame, dynamicChildren *explore.DynamicChildren) (Frame, error) {
 	const op serrors.Op = "lens/document.ProjectPanelFrame"
 	if source == nil {
-		return Frame{}, serrors.E(op, fmt.Errorf("source frame is required"))
+		return Frame{}, serrors.Wrap(op, fmt.Errorf("source frame is required"))
 	}
 	projected, err := buildPanelFrame(spec, source, dynamicChildFrameDependencies(dynamicChildren))
 	if err != nil {
-		return Frame{}, serrors.E(op, err)
+		return Frame{}, serrors.Wrap(op, err)
 	}
 	return projected, nil
 }
@@ -1203,7 +1214,7 @@ func panelFrameColors(spec panel.Spec, source *frame.Frame) []string {
 				if strings.EqualFold(spec.ColorScale, "literal") {
 					colors[index] = key
 				} else if key != "" {
-					colors[index] = lenscolor.Semantic(spec.ColorScale, key)
+					colors[index] = lenscolor.CategoricalKey(spec.ColorScale, key)
 				}
 			}
 			return colors
@@ -1528,4 +1539,11 @@ func newSnapshotID() (string, error) {
 		return "", fmt.Errorf("generate snapshot id: %w", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(raw[:]), nil
+}
+
+func buildRenderer(renderer *panel.HostRenderer) *PanelRenderer {
+	if renderer == nil {
+		return nil
+	}
+	return &PanelRenderer{Name: renderer.Name, Options: bytes.Clone(renderer.Options)}
 }

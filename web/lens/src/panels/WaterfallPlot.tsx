@@ -278,7 +278,7 @@ function WaterfallColumn(props: WaterfallColumnProps) {
           <strong>
             {props.item.formattedValue}
             <Show when={props.item.unknown && props.unknownLabel}>
-              <span class="lens-sr-only">{props.unknownLabel}</span>
+              <span class="lens:sr-only">{props.unknownLabel}</span>
             </Show>
           </strong>
           <Show when={props.item.splitHeight !== undefined}>
@@ -297,7 +297,7 @@ function WaterfallColumn(props: WaterfallColumnProps) {
                   {splitText}
                 </span>
               }>
-                <span class="lens-sr-only">{splitText}</span>
+                <span class="lens:sr-only">{splitText}</span>
               </Show>
             </span>
           </Show>

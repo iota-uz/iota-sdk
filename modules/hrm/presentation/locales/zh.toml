@@ -27,6 +27,12 @@
     Position = "职位"
     Email = "电子邮件"
     NoEmployees = { Title = "未找到员工", _Description = "还没有员工。点击'添加员工'创建一个。" }
+    Status = "状态"
+    AllStatuses = "全部"
+
+  [Employees.Status]
+    active = "在职"
+    former = "离职"
 
   [Employees.Tabs]
     Public = "公开"

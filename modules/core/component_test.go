@@ -2,7 +2,12 @@ package core_test
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"slices"
 	"testing"
+
+	"github.com/gorilla/mux"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core"
@@ -56,6 +61,24 @@ func TestComponentSkipAdminNavItems(t *testing.T) {
 func compileCoreNav(t *testing.T, opts *core.ModuleOptions) ([]types.NavigationItem, map[string]struct{}) {
 	t.Helper()
 
+	container, app := compileCore(t, opts)
+
+	docs, err := spotlight.CollectDocuments(context.Background(), app.QuickLinks(), spotlight.ProviderScope{
+		TenantID: uuid.New(),
+		Language: "en",
+	})
+	require.NoError(t, err)
+
+	keys := make(map[string]struct{}, len(docs))
+	for _, doc := range docs {
+		keys[doc.Metadata["tr_key"]] = struct{}{}
+	}
+	return container.NavItems(), keys
+}
+
+func compileCore(t *testing.T, opts *core.ModuleOptions) (*composition.Container, application.Application) {
+	t.Helper()
+
 	if opts == nil {
 		opts = &core.ModuleOptions{}
 	}
@@ -88,17 +111,73 @@ func compileCoreNav(t *testing.T, opts *core.ModuleOptions) ([]types.NavigationI
 	)
 	require.NoError(t, err)
 
-	docs, err := spotlight.CollectDocuments(context.Background(), app.QuickLinks(), spotlight.ProviderScope{
-		TenantID: uuid.New(),
-		Language: "en",
-	})
-	require.NoError(t, err)
+	return container, app
+}
 
-	keys := make(map[string]struct{}, len(docs))
-	for _, doc := range docs {
-		keys[doc.Metadata["tr_key"]] = struct{}{}
+func TestComponentSkipDashboardController(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		opts          *core.ModuleOptions
+		wantDashboard bool
+		wantAdmin     bool
+	}{
+		{
+			name:          "zero value keeps the dashboard",
+			opts:          &core.ModuleOptions{},
+			wantDashboard: true,
+			wantAdmin:     true,
+		},
+		{
+			name:          "SkipDashboardController drops the dashboard only",
+			opts:          &core.ModuleOptions{SkipDashboardController: true},
+			wantDashboard: false,
+			wantAdmin:     true,
+		},
+		{
+			name:          "SkipAdminControllers drops the dashboard too",
+			opts:          &core.ModuleOptions{SkipAdminControllers: true},
+			wantDashboard: false,
+			wantAdmin:     false,
+		},
 	}
-	return container.NavItems(), keys
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			container, _ := compileCore(t, tt.opts)
+			ids := controllerIDs(container)
+
+			assert.Equal(t, tt.wantDashboard, slices.Contains(ids, "core.dashboard"))
+			assert.Equal(t, tt.wantDashboard, hasNavItem(container.NavItems(), "core.dashboard"))
+			assert.Equal(t, tt.wantAdmin, slices.Contains(ids, "core.roles"))
+			assert.Contains(t, ids, "core.login")
+
+			if !tt.wantDashboard {
+				// Building the router must not touch the Lens Solid assets: that is
+				// the panic this option exists to avoid in a consumer without them.
+				router := mux.NewRouter()
+				require.NotPanics(t, func() {
+					for _, ctrl := range container.Controllers() {
+						ctrl.Register(router)
+					}
+				})
+				// The dashboard is the only core controller that answers "/", so
+				// skipping it must leave the site root unrouted.
+				assert.False(t, router.Match(httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil), &mux.RouteMatch{}))
+			}
+		})
+	}
+}
+
+func controllerIDs(container *composition.Container) []string {
+	controllers := container.Controllers()
+	ids := make([]string, 0, len(controllers))
+	for _, ctrl := range controllers {
+		ids = append(ids, ctrl.Descriptor().ID)
+	}
+	return ids
 }
 
 func hasNavItem(items []types.NavigationItem, key string) bool {

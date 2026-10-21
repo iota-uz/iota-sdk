@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Restore the React documentation visual vocabulary in static Astro/Solid output, including navigation, Markdown typography, code blocks and native keyboard-accessible menus."
+}

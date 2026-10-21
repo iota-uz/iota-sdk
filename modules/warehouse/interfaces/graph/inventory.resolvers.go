@@ -18,7 +18,7 @@ import (
 func (r *mutationResolver) CompleteInventoryCheck(ctx context.Context, items []*model.InventoryItem) (bool, error) {
 	_, err := composables.UseUser(ctx)
 	if err != nil {
-		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		graphql.AddError(ctx, serrors.NewUnauthenticated(""))
 		return false, err
 	}
 	dto := &inventory.CreateCheckDTO{
@@ -41,7 +41,7 @@ func (r *mutationResolver) CompleteInventoryCheck(ctx context.Context, items []*
 func (r *queryResolver) Inventory(ctx context.Context) ([]*model.InventoryPosition, error) {
 	_, err := composables.UseUser(ctx)
 	if err != nil {
-		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		graphql.AddError(ctx, serrors.NewUnauthenticated(""))
 		return nil, err
 	}
 	positions, err := r.inventoryService.Positions(ctx)

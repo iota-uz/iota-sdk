@@ -51,6 +51,17 @@ func run() error {
 	if err := writeGeneratedDirectory(outputDir, files); err != nil {
 		return fmt.Errorf("write Lens contract: %w", err)
 	}
+	reports, err := generate(config{
+		dir: root, packagePattern: "./pkg/lens/report", rootType: "Composition",
+		additionalTypes: []string{"Definition", "SourceDescriptor", "VersionStatus", "CatalogQuery", "CatalogPage", "Destination", "Proposal"}, versionConstant: "ContractVersion",
+		palette: paletteConfig{series: color.Series(), neutral: color.Neutral},
+	})
+	if err != nil {
+		return fmt.Errorf("generate Lens report contract: %w", err)
+	}
+	if err := writeGeneratedDirectory(filepath.Join(root, "web", "lens", "src", "reports", "contract"), reports); err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -2442,6 +2442,12 @@ let tableConfig = (id) => ({
 // overflows. x-tooltip (Tippy) disables itself when overflowText is falsy.
 let cellTruncate = () => ({
   overflowText: '',
+  // Declared so the writes in init() stay in this cell instead of landing on
+  // the enclosing table wrapper's scope (see emptyStateCentering).
+  _measure: null,
+  _schedule: null,
+  _raf: 0,
+  _ro: null,
   init() {
     this._measure = () => {
       const el = this.$el;
@@ -2472,6 +2478,11 @@ let scrollAffordance = () => ({
   canScrollLeft: false,
   canScrollRight: false,
   stickyR: 0,
+  // Declared so that components nested in the table (emptyStateCentering,
+  // cellTruncate) keep their own observers instead of overwriting these.
+  sc: null,
+  _ro: null,
+  _mo: null,
   init() {
     this.sc = this.$refs.sc;
     if (!this.sc) return;
@@ -2512,25 +2523,109 @@ let scrollAffordance = () => ({
 // to the scroll container's visible width so its own justify-center lands in
 // view. Mirrors scrollAffordance's ResizeObserver approach; works for both
 // scroll-wrapper variants since the wrapper is always the <table>'s parent.
+//
+// Every key is declared up front. This component always sits inside the
+// table wrapper's own x-data, and Alpine writes an undeclared key into the
+// nearest enclosing scope that already owns it: assigning this.measure in
+// init() replaced the wrapper's measure(), so the proxy scrollbar under a
+// sticky header never learned the table width and rendered 0px wide.
 let emptyStateCentering = () => ({
+  sc: null,
+  _ro: null,
   init() {
     const table = this.$el.closest("table");
     this.sc = table && table.parentElement;
-    this.measure = () => {
-      if (!this.sc || !this.sc.isConnected) return;
-      this.$el.style.width = this.sc.clientWidth + "px";
-    };
     this.$nextTick(() => this.measure());
     if (this.sc) {
       this._ro = new ResizeObserver(() => this.measure());
       this._ro.observe(this.sc);
     }
   },
+  measure() {
+    if (!this.sc || !this.sc.isConnected) return;
+    this.$el.style.width = this.sc.clientWidth + "px";
+  },
   destroy() {
     if (this._ro) this._ro.disconnect();
   },
 });
 Alpine.data("emptyStateCentering", emptyStateCentering);
+
+// notificationRule powers the recipient picker of a notification rule form:
+// chips for chosen users/groups/roles, a searchable list for the rest, and
+// hidden inputs that keep the posted form fields unchanged.
+let notificationRule = (cfg = {}) => ({
+  initial: cfg.items || [],
+  items: (cfg.items || []).map((i) => ({ ...i })),
+  options: cfg.options || [],
+  manage: cfg.manage !== false,
+  q: "",
+  open: false,
+  hi: 0,
+  dirty: false,
+  get results() {
+    const q = this.q.trim().toLowerCase();
+    const taken = new Set(this.items.map((i) => i.kind + ":" + i.id));
+    const rank = (o) => (o.kind === "user" ? 0 : 1);
+    return this.options
+      .filter((o) => !taken.has(o.kind + ":" + o.id) && (!q || (o.name + " " + (o.hint || "")).toLowerCase().includes(q)))
+      .sort((a, b) => rank(a) - rank(b));
+  },
+  field(kind) {
+    return { user: "user_ids", group: "group_ids", role: "role_ids" }[kind];
+  },
+  label(key) {
+    return this.$root.dataset["label" + key.charAt(0).toUpperCase() + key.slice(1)] || "";
+  },
+  removeLabel(item) {
+    return this.label("remove") + " " + item.name;
+  },
+  add(o) {
+    this.items.push({ ...o });
+    this.q = "";
+    this.hi = 0;
+    this.dirty = true;
+    this.$nextTick(() => this.$refs.input && this.$refs.input.focus());
+  },
+  remove(i) {
+    this.items.splice(i, 1);
+    this.dirty = true;
+  },
+  removeGone() {
+    this.items = this.items.filter((i) => !i.gone);
+    this.dirty = true;
+  },
+  reset(form) {
+    this.items = this.initial.map((i) => ({ ...i }));
+    this.q = "";
+    this.open = false;
+    this.dirty = false;
+    form.reset();
+  },
+  key(e) {
+    const n = this.results.length;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      this.open = true;
+      this.hi = n ? (this.hi + 1) % n : 0;
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      this.hi = n ? (this.hi - 1 + n) % n : 0;
+    } else if (e.key === "Enter") {
+      if (this.open && n) {
+        e.preventDefault();
+        this.add(this.results[this.hi]);
+      } else {
+        e.preventDefault();
+      }
+    } else if (e.key === "Escape") {
+      this.open = false;
+    } else if (e.key === "Backspace" && !this.q && this.items.length) {
+      this.remove(this.items.length - 1);
+    }
+  },
+});
+Alpine.data("notificationRule", notificationRule);
 
 // tableKeyboardNav adds arrow-key row navigation + Enter-to-open for drawer
 // rows. Attached to the TBODY (not the configurable container) to avoid x-data

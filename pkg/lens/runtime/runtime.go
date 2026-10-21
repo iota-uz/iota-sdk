@@ -14,6 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
+
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/comparison"
@@ -23,11 +27,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/singleflight"
 )
 
 type DatasetResult struct {
@@ -112,11 +114,15 @@ type Request struct {
 }
 
 type Options struct {
-	Store        SnapshotStore
-	DefaultTTL   time.Duration
-	CacheVersion string
-	Observer     Observer
-	WorkTimeout  time.Duration
+	Store SnapshotStore
+	// MaxEntryBytes bounds spec identities, query identities and memo payloads.
+	// Zero inherits Store.PayloadLimit when available, otherwise the SDK default.
+	// An explicit store limit always remains an upper bound.
+	MaxEntryBytes int64
+	DefaultTTL    time.Duration
+	CacheVersion  string
+	Observer      Observer
+	WorkTimeout   time.Duration
 }
 
 type Observer interface {
@@ -133,6 +139,7 @@ type DatasourceObserver interface {
 // construct one instance and share it across render, fragment and export paths.
 type Runtime struct {
 	store          SnapshotStore
+	maxEntryBytes  int64
 	ttl            time.Duration
 	version        string
 	observer       Observer
@@ -143,8 +150,16 @@ type Runtime struct {
 }
 
 func New(opts Options) *Runtime {
+	if policy, ok := opts.Store.(interface{ PayloadLimit() int64 }); ok {
+		if limit := policy.PayloadLimit(); limit > 0 && (opts.MaxEntryBytes <= 0 || opts.MaxEntryBytes > limit) {
+			opts.MaxEntryBytes = limit
+		}
+	}
+	if opts.MaxEntryBytes <= 0 {
+		opts.MaxEntryBytes = resource.DefaultEntryLimit
+	}
 	if opts.Store == nil {
-		opts.Store = NewMemorySnapshotStore(MemoryStoreOptions{})
+		opts.Store = NewMemorySnapshotStore(MemoryStoreOptions{MaxEntryBytes: opts.MaxEntryBytes})
 	}
 	if opts.DefaultTTL <= 0 {
 		opts.DefaultTTL = 5 * time.Minute
@@ -156,7 +171,7 @@ func New(opts Options) *Runtime {
 		opts.WorkTimeout = 2 * time.Minute
 	}
 	return &Runtime{
-		store: opts.Store, ttl: opts.DefaultTTL, version: opts.CacheVersion, observer: opts.Observer, workTimeout: opts.WorkTimeout,
+		store: opts.Store, maxEntryBytes: opts.MaxEntryBytes, ttl: opts.DefaultTTL, version: opts.CacheVersion, observer: opts.Observer, workTimeout: opts.WorkTimeout,
 		activeBySource: make(map[string]int),
 	}
 }
@@ -212,19 +227,19 @@ func PanelExportScope(panelID string) Scope {
 func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
 	op := serrors.Op("lens/runtime.Execute")
 	if err := Validate(spec); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if err := validateExecutionIdentity(spec, req); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	startedAt := time.Now()
 	variables, err := resolveVariables(spec.Variables, req)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	internalPlan, err := compileExecutionPlan(spec, scope)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	result := &DashboardResult{
@@ -251,7 +266,7 @@ func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Requ
 	}
 	state.snapshotKey, state.specFingerprint, err = r.executionIdentity(spec, req, variables)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	result.SnapshotID = state.snapshotKey
 	cacheHit := false
@@ -283,10 +298,10 @@ func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Requ
 	result.CacheHit = cacheHit
 
 	if err := state.executeDatasets(ctx, internalPlan.datasetStages, result.Datasets); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if err := state.executePanels(ctx, internalPlan.panels, result.Datasets, result.Panels); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	result.Duration = time.Since(startedAt)
 	if spec.Cache.Mode != lens.CacheDisabled {
@@ -314,11 +329,11 @@ type executionPlan struct {
 func Plan(spec lens.DashboardSpec, scope Scope) (ExecutionPlan, error) {
 	op := serrors.Op("lens/runtime.Plan")
 	if err := Validate(spec); err != nil {
-		return ExecutionPlan{}, serrors.E(op, err)
+		return ExecutionPlan{}, serrors.Wrap(op, err)
 	}
 	plan, err := compileExecutionPlan(spec, scope)
 	if err != nil {
-		return ExecutionPlan{}, serrors.E(op, err)
+		return ExecutionPlan{}, serrors.Wrap(op, err)
 	}
 	return plan.view, nil
 }
@@ -594,7 +609,11 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 		Kind:           spec.Query.Kind,
 		ExecutionClass: s.runtime.ExecutionClass,
 	}
-	flightKey := s.snapshotKey + ":dataset:" + spec.Name + ":" + queryCacheKey(request)
+	queryKey, err := s.executor.queryCacheKey(request)
+	if err != nil {
+		return nil, err
+	}
+	flightKey := s.snapshotKey + ":dataset:" + spec.Name + ":" + queryKey
 	result := s.executor.flights.DoChan(flightKey, func() (any, error) {
 		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.executor.workTimeout)
 		defer cancel()
@@ -626,9 +645,12 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 
 func (r *Runtime) executionIdentity(spec lens.DashboardSpec, req Request, variables map[string]any) (string, string, error) {
 	op := serrors.Op("lens/runtime.executionIdentity")
+	if _, err := resource.EstimateJSON(spec, r.maxEntryBytes); err != nil {
+		return "", "", serrors.Wrap(op, err)
+	}
 	specBytes, err := json.Marshal(spec) //nolint:musttag // Runtime specs intentionally retain their Go field names in the fingerprint.
 	if err != nil {
-		return "", "", serrors.E(op, err)
+		return "", "", serrors.Wrap(op, err)
 	}
 	specSum := sha256.Sum256(specBytes)
 	specFingerprint := fmt.Sprintf("%x", specSum[:])
@@ -642,9 +664,12 @@ func (r *Runtime) executionIdentity(spec lens.DashboardSpec, req Request, variab
 		Variables   map[string]any    `json:"variables"`
 		DataSources map[string]string `json:"dataSources"`
 	}{r.version, strings.TrimSpace(req.Namespace), specFingerprint, req.Locale, req.Timezone, req.DataScope, variables, req.DataSourceIdentities}
+	if _, err := resource.EstimateJSON(identity, 64<<10); err != nil {
+		return "", "", serrors.Wrap(op, err)
+	}
 	payload, err := json.Marshal(identity)
 	if err != nil {
-		return "", "", serrors.E(op, err)
+		return "", "", serrors.Wrap(op, err)
 	}
 	sum := sha256.Sum256(payload)
 	return strings.TrimSpace(req.Namespace) + ":" + fmt.Sprintf("%x", sum[:]), specFingerprint, nil
@@ -836,12 +861,22 @@ func resolveDependencyFrames(name string, dependencies []string, results map[str
 	return deps, nil
 }
 
+// ResolveVariables normalizes host inputs without executing datasets. Report sources
+// use it to bind a placement's effective context before composition namespaces keys.
+func ResolveVariables(specs []lens.VariableSpec, rt Request) (map[string]any, error) {
+	return resolveVariables(specs, rt)
+}
+
 func resolveVariables(specs []lens.VariableSpec, rt Request) (map[string]any, error) {
 	values := make(map[string]any, len(specs))
 	// Date ranges are comparison anchors, so resolve them before the remaining
 	// variables regardless of declaration order.
 	for _, spec := range specs {
 		if spec.Kind != lens.VariableDateRange {
+			continue
+		}
+		if spec.Bound {
+			values[spec.Name] = spec.Default
 			continue
 		}
 		if override, ok := rt.Overrides[spec.Name]; ok {
@@ -852,6 +887,10 @@ func resolveVariables(specs []lens.VariableSpec, rt Request) (map[string]any, er
 	}
 	for _, spec := range specs {
 		if spec.Kind == lens.VariableDateRange {
+			continue
+		}
+		if spec.Bound {
+			values[spec.Name] = spec.Default
 			continue
 		}
 		if override, ok := rt.Overrides[spec.Name]; ok {
@@ -1047,29 +1086,31 @@ func resolveDatasetTimeRangeFor(dataset lens.DatasetSpec, specs []lens.VariableS
 	return resolveDatasetTimeRange(specs, variables)
 }
 
-func queryCacheKey(req datasource.QueryRequest) string {
+func (r *Runtime) queryCacheKey(req datasource.QueryRequest) (string, error) {
 	// Scheduling metadata may change while a speculative job is promoted. It
 	// must not split singleflight/cache identity for the same semantic query.
 	req.ExecutionClass = ""
+	if _, err := resource.EstimateJSON(req, r.maxEntryBytes); err != nil {
+		return "", err
+	}
 	payload, err := json.Marshal(req)
 	if err != nil {
-		sum := sha256.Sum256([]byte(fmt.Sprintf("%#v", req)))
-		return fmt.Sprintf("%x", sum[:16])
+		return "", err
 	}
 	sum := sha256.Sum256(payload)
-	return fmt.Sprintf("%x", sum[:16])
+	return fmt.Sprintf("%x", sum[:16]), nil
 }
 
 func Validate(spec lens.DashboardSpec) error {
 	op := serrors.Op("lens/runtime.Validate")
 	invalid := func(format string, args ...any) error {
-		return serrors.E(op, fmt.Errorf(format, args...))
+		return serrors.Wrap(op, fmt.Errorf(format, args...))
 	}
 	wrap := func(err error) error {
 		if err == nil {
 			return nil
 		}
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	datasets := make(map[string]lens.DatasetSpec, len(spec.Datasets))
 	for _, dataset := range spec.Datasets {

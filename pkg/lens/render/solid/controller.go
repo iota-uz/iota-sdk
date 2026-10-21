@@ -6,6 +6,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 const immutableCacheControl = "public, max-age=31536000, immutable"
@@ -61,7 +62,7 @@ func (c *StaticController) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	relativePath := strings.TrimPrefix(r.URL.Path, c.basePath+"/")
 	assets, err := source.assets()
 	if err != nil {
-		http.Error(w, compatibilityAssetsError(err).Error(), http.StatusServiceUnavailable)
+		serrorhttp.WriteTextContext(r.Context(), w, compatibilityAssetsError(err), http.StatusServiceUnavailable, nil)
 		return
 	}
 	revision := assets.Revision
