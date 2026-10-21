@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Honor the host's Lens snapshot payload limit in runtime fingerprints, query identities and typed memoization instead of silently rejecting permitted reports at the default 16 MiB boundary."
+    }
+  ],
+  "source": "9a61c7bf9339a3b809bdeddaba6412830a4c0bf1",
+  "version": "0.27.1"
+}
