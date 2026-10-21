@@ -294,7 +294,7 @@ templ PermissionSetInline(props PermissionSetProps) {
 			LabelClasses: templ.Classes("text-gray-900"),
 			Checked:      props.Set.Checked,
 			LabelAttrs:   templ.Attributes{"title": hint},
-			Attrs:      permissionAttrs(templ.Attributes{}, props.Form, props.InputName, props.Set.Permissions[0].ID),
+			Attrs:        permissionAttrs(templ.Attributes{}, props.Form, props.InputName, props.Set.Permissions[0].ID),
 		})
 	} else {
 		<div
@@ -333,7 +333,7 @@ templ PermissionSetInline(props PermissionSetProps) {
 					for _, perm := range props.Set.Permissions {
 						<div class="child-permission">
 							@input.Switch(&input.SwitchProps{
-								ID:      fmt.Sprintf("%s-perm-%s", setId, perm.ID),
+								ID:           fmt.Sprintf("%s-perm-%s", setId, perm.ID),
 								Label:        tOrKey(props.PageContext, fmt.Sprintf("Permissions.%s", perm.Name)),
 								LabelClasses: templ.Classes("text-gray-900"),
 								Size:         input.SwitchSizeSM,
