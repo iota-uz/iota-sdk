@@ -1,0 +1,22 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Lens Excel export applies number formats and column widths, writes stat panels as one metric table, humanizes parameters, titles cube datasets and adds ExportSpec.OmitLineage."
+    },
+    {
+      "bump": "none",
+      "summary": "Reconcile the original legacy Lens removal branch with the completed Solid cutover already merged in PR #1162, retaining current package verification and subsequent fixes; no runtime change or additional release bump."
+    },
+    {
+      "bump": "none",
+      "summary": "Reconcile the original Lens Solid migration PR with the completed implementation and subsequent fixes already merged through PR #1162; no runtime change or additional release bump."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add core.ModuleOptions.SkipDashboardController so a consumer that serves its own home page can leave the Lens-rendered finance dashboard out without also dropping the rest of the admin UI, and without building the Lens Solid assets to start the server."
+    }
+  ],
+  "source": "f3bcafa5cec96283006982e8622680bb76bc52b3",
+  "version": "0.28.0"
+}
