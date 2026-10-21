@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Lens Excel export keeps the whole frame when exporting a single stat panel; only dashboard exports condense stat cards into the metric table."}

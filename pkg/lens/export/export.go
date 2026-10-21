@@ -234,9 +234,12 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) (err err
 		dashboardRow = 1
 	}
 	dashboardColumns := 2
+	// A single-panel export keeps the panel's full frame; only a dashboard
+	// export condenses its stat cards into one metric table.
+	condense := func(p *lensruntime.PanelResult) bool { return req.PanelID == "" && isSingleValuePanel(p) }
 	statRows := [][]any{{labels.Metric, labels.Value}}
 	for _, panelResult := range panels {
-		if !isSingleValuePanel(panelResult) {
+		if !condense(panelResult) {
 			continue
 		}
 		value, _ := singleValue(panelResult)
@@ -252,7 +255,7 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) (err err
 		dashboardRow += len(statRows) + 1
 	}
 	for _, panelResult := range panels {
-		if panelResult == nil || panelResult.Frames == nil || isSingleValuePanel(panelResult) {
+		if panelResult == nil || panelResult.Frames == nil || condense(panelResult) {
 			continue
 		}
 		panelCell := cell(1, dashboardRow)

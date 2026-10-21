@@ -360,3 +360,26 @@ func mustFrames(t *testing.T, name string, fields ...frame.Field) *frame.FrameSe
 	require.NoError(t, err)
 	return fs
 }
+
+func TestExporterWrite_SinglePanelExportKeepsWholeFrame(t *testing.T) {
+	t.Parallel()
+	kpis := mustFrames(t, "kpis",
+		frame.Field{Name: "expense", Values: []any{nil}},
+		frame.Field{Name: "revenue", Values: []any{132.3}},
+	)
+	panelSpec := panel.Spec{ID: "expense", Title: "Expense", Kind: panel.KindStat, Dataset: "kpis", Fields: panel.FieldMapping{Value: panel.Ref("expense")}}
+	result := &lensruntime.DashboardResult{
+		Spec:     lens.DashboardSpec{Datasets: []lens.DatasetSpec{{Name: "kpis"}}},
+		Datasets: map[string]*lensruntime.DatasetResult{"kpis": {Frames: kpis}},
+		Panels:   map[string]*lensruntime.PanelResult{"expense": {Panel: panelSpec, Frames: kpis}},
+	}
+	var out bytes.Buffer
+	require.NoError(t, New().Write(context.Background(), &out, Request{Result: result, PanelID: "expense"}))
+	book, err := excelize.OpenReader(bytes.NewReader(out.Bytes()))
+	require.NoError(t, err)
+	defer func() { _ = book.Close() }()
+	rows, err := book.GetRows("Summary", excelize.Options{RawCellValue: true})
+	require.NoError(t, err)
+	require.Contains(t, rows, []string{"expense", "revenue"})
+	require.Contains(t, rows, []string{"", "132.3"})
+}
