@@ -77,17 +77,17 @@ func NewRedisTitleJobQueue(cfg RedisTitleJobQueueConfig) (*RedisTitleJobQueue, e
 func (q *RedisTitleJobQueue) Enqueue(ctx context.Context, tenantID uuid.UUID, sessionID uuid.UUID) error {
 	const op serrors.Op = "RedisTitleJobQueue.Enqueue"
 	if tenantID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant id is required")
+		return serrors.New(serrors.Invalid, "tenant id is required").WithOp(op)
 	}
 	if sessionID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "session id is required")
+		return serrors.New(serrors.Invalid, "session id is required").WithOp(op)
 	}
 
 	dedupeKey := q.dedupeKey(tenantID, sessionID)
 	enqueueCtx := context.WithoutCancel(ctx)
 	queued, err := q.client.SetNX(enqueueCtx, dedupeKey, "1", q.dedupeTTL).Result()
 	if err != nil {
-		return serrors.E(op, "set title queue dedupe key", err)
+		return serrors.WrapContext(op, err, "set title queue dedupe key")
 	}
 	if !queued {
 		return nil
@@ -107,7 +107,7 @@ func (q *RedisTitleJobQueue) Enqueue(ctx context.Context, tenantID uuid.UUID, se
 	if err != nil {
 		cleanupCtx := context.WithoutCancel(ctx)
 		_, _ = q.client.Del(cleanupCtx, dedupeKey).Result()
-		return serrors.E(op, "enqueue title job", err)
+		return serrors.WrapContext(op, err, "enqueue title job")
 	}
 	_, _ = q.client.XTrimMaxLenApprox(enqueueCtx, q.stream, defaultTitleQueueMaxLen, 1).Result()
 
@@ -126,7 +126,7 @@ func newRedisClient(redisURL string) (*redis.Client, error) {
 	const op serrors.Op = "RedisTitleJobQueue.newRedisClient"
 	redisURL = strings.TrimSpace(redisURL)
 	if redisURL == "" {
-		return nil, serrors.E(op, serrors.KindValidation, "redis url is required")
+		return nil, serrors.New(serrors.Invalid, "redis url is required").WithOp(op)
 	}
 
 	var opts *redis.Options
@@ -134,7 +134,7 @@ func newRedisClient(redisURL string) (*redis.Client, error) {
 	if strings.Contains(redisURL, "://") {
 		opts, err = redis.ParseURL(redisURL)
 		if err != nil {
-			return nil, serrors.E(op, "parse redis url", err)
+			return nil, serrors.WrapContext(op, err, "parse redis url")
 		}
 	} else {
 		opts = &redis.Options{Addr: redisURL}
@@ -145,7 +145,7 @@ func newRedisClient(redisURL string) (*redis.Client, error) {
 	defer pingCancel()
 	if pingErr := client.Ping(pingCtx).Err(); pingErr != nil {
 		_ = client.Close()
-		return nil, serrors.E(op, "ping redis", pingErr)
+		return nil, serrors.WrapContext(op, pingErr, "ping redis")
 	}
 
 	return client, nil

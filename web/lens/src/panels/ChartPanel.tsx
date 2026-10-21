@@ -23,7 +23,7 @@ import { usePanelNavigation } from './actions'
 import { ChartDataEquivalent, chartRowKey } from './ChartDataEquivalent'
 import { ChartHost } from './ChartHost'
 import { useMarkSelection } from './context'
-import { colorLabels, encodingRoles, rowColorResolver, seriesColorResolver } from './data'
+import { colorLabels, encodingRoles, frameSeriesColorResolver, rowColorResolver } from './data'
 import { PanelFrame } from './PanelFrame'
 
 // Below 2% a donut label cannot fit reliably inside its arc.
@@ -138,31 +138,6 @@ export function rowIndexForKey(frame: Frame, panel: Panel, key: string): number 
 function legendSeriesIndex(frame: Frame, panel: Panel): number {
   if (panel.semantics !== 'series' || !panel.encoding.series) return -1
   return frame.columns.findIndex((column) => column.name === panel.encoding.series)
-}
-
-/**
- * Ordinal of each series name in the panel's *own* frame, in plot order.
- *
- * A colour pinned to a panel is pinned by position (`panelId:index`), and the
- * chart derives that position from the frame it is drawing. Hiding a legend
- * entry drops its rows, so every series after it slides one position down and
- * repaints itself in the hidden series' colour — while the legend, which is
- * built over the full frame, keeps printing the old one. Resolving against the
- * full frame's order pins a series to its colour for as long as the panel is
- * showing that frame, however few of its series are on screen.
- */
-function seriesOrder(frame: Frame | undefined, panel: Panel): Map<string, number> {
-  const order = new Map<string, number>()
-  if (!frame) return order
-  const seriesIndex = frame.columns.findIndex((column) => column.name === panel.encoding.series)
-  if (seriesIndex < 0) return order
-  for (const row of frame.rows) {
-    const raw = row[seriesIndex]
-    if (typeof raw !== 'string' && typeof raw !== 'number' && typeof raw !== 'bigint') continue
-    const name = String(raw)
-    if (!order.has(name)) order.set(name, order.size)
-  }
-  return order
 }
 
 function legendEntryKey(frame: Frame, panel: Panel, index: number): string {
@@ -497,14 +472,15 @@ export function ChartPanel(props: ChartPanelProps) {
   // hiding a series does not conjure one either. The badge used to *appear* on
   // the first legend click, which shifted the export/expand icons under the
   // pointer and gave the recomputed figure no baseline to be compared against.
-  const restingTotal = () => frame.data && frame.data.rows.length > 0
+  const keepTotal = () => (frame.data?.presentation ?? panel.presentation)?.keepTotalBadge === true
+  const restingTotal = () => frame.data && (frame.data.rows.length > 0 || keepTotal())
     ? frame.data.total
-      ?? (active() || panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial' ? frameRowsTotal() : undefined)
+      ?? (keepTotal() || active() || panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial' ? frameRowsTotal() : undefined)
       ?? panel.total
     : undefined
   // `null`, not `undefined`: this is the panel's answer, and the header badge
   // must not fall back to the root total behind it. See PanelFrame's `total`.
-  const shareTotal = createMemo<number | null>(() => restingTotal() === undefined || nothingVisible()
+  const shareTotal = createMemo<number | null>(() => restingTotal() === undefined || (nothingVisible() && !keepTotal())
     ? null
     : hidden().size > 0
       ? visibleTotal() ?? null
@@ -538,24 +514,7 @@ export function ChartPanel(props: ChartPanelProps) {
   // neither. Resolving them separately is how the legend came to print one
   // colour beside a line drawn in another.
   const paletteLabels = createMemo(() => colorLabels(frame.data, panel))
-  const seriesColor = createMemo(() => {
-    const resolve = seriesColorResolver(document.theme, panel, { positional: !active(), labels: paletteLabels() })
-    const order = seriesOrder(frame.data, panel)
-    const frameSeries = new Map<string, string>()
-    const seriesIndex = frame.data?.columns.findIndex((column) => column.name === panel.encoding.series) ?? -1
-    if (seriesIndex >= 0) {
-      for (const [rowIndex, row] of (frame.data?.rows ?? []).entries()) {
-        const raw = row[seriesIndex]
-        const color = frameColors()?.[rowIndex]?.trim()
-        if ((typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'bigint') && color) {
-          const label = String(raw)
-          if (!frameSeries.has(label)) frameSeries.set(label, color)
-        }
-      }
-    }
-    if (order.size === 0 && frameSeries.size === 0) return resolve
-    return (label: string, index: number) => frameSeries.get(label) ?? resolve(label, order.get(label) ?? index)
-  })
+  const seriesColor = createMemo(() => frameSeriesColorResolver(document.theme, panel, frame.data, !active()))
   // The row-indexed half of the same rule. It is handed the *visible* palette
   // because the plot draws the visible rows; the legend builds its own over the
   // full frame, and the two agree row for row either way.
@@ -622,6 +581,7 @@ export function ChartPanel(props: ChartPanelProps) {
     ) : undefined
 
   const chartLabels = createMemo(() => ({
+    current: translate('chart.series.current', 'Current period'),
     previous: translate('chart.series.previous', 'Previous'),
     trend: translate('chart.series.trend', 'Trend'),
     movingAverage: (window: number) => translate('chart.series.movingAverage', 'SMA {window}', { window: String(window) }),
@@ -1025,7 +985,7 @@ function ChartLegend(props: {
   // positional color pins no longer describe them.
   const atLevel = () => navigation.panelId === panel.id && navigation.path.length > 0
   const legendLabels = colorLabels(frame, panel)
-  const color = seriesColorResolver(document.theme, panel, { positional: !atLevel(), labels: legendLabels })
+  const color = frameSeriesColorResolver(document.theme, panel, frame, !atLevel())
   // Part-to-whole entries stand for rows, and a row's colour can come off the
   // frame the level served — which `color` cannot see. Same resolver the plot
   // is built with, over the whole frame rather than the visible part of it.
@@ -1108,7 +1068,7 @@ function ChartLegend(props: {
   // its palette index is the category's, not the row's (see `categoryOrder` in
   // the chart adapter). Anywhere else a row is its own category.
   const swatch = (label: string, index: number, entryIndex: number): string | undefined => {
-    if (seriesLegendIndex >= 0) return color(label, entryIndex)
+    if (seriesLegendIndex >= 0) return color(model().entryKeys[index]!, entryIndex)
     const raw = idIndex >= 0 ? frame.rows[index]?.[idIndex] : undefined
     const nodeKey = typeof raw === 'string' && raw.trim() !== '' ? raw : undefined
     return rowColor(label, model().categoryOrder.get(model().rowKeys[index]!) ?? index, nodeKey)
@@ -1228,7 +1188,7 @@ function ChartLegend(props: {
             </div>
             {long() && (
               <label class="lens-chart-legend-search">
-                <span class="lens-sr-only">{translate('chart.legendSearch', 'Search legend')}</span>
+                <span class="lens:sr-only">{translate('chart.legendSearch', 'Search legend')}</span>
                 <input
                   class="lens-facet-search"
                   onChange={(event) => setSearch(event.currentTarget.value)}

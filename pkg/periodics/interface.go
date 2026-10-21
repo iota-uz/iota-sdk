@@ -86,6 +86,8 @@ type Manager interface {
 
 	// RunTask executes a registered task immediately (out-of-schedule).
 	// Returns an error if the task is not found, is disabled, or is already running.
+	// The built-in manager atomically reserves an exclusive manual invocation;
+	// RunController optionally exposes its receipt and actual completion.
 	RunTask(name string) error
 }
 

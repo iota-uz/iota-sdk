@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "outDir": "package-dist",
+    "rootDir": "src",
+    "paths": {
+      "@iota-uz/sdk/client-host": [
+        "../client-host/dist/index.d.ts"
+      ],
+      "@iota-uz/sdk/solid": [
+        "../client-host/dist/solid-index.d.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/index.ts",
+    "src/icons/index.tsx",
+    "src/vite-env.d.ts"
+  ]
+}

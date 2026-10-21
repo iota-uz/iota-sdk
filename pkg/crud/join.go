@@ -94,15 +94,15 @@ func (jc *JoinClause) Validate() error {
 	op := serrors.Op("JoinClause.Validate")
 
 	if jc.Table == "" {
-		return serrors.E(op, serrors.Invalid, "join table cannot be empty")
+		return serrors.New(serrors.Invalid, "join table cannot be empty").WithOp(op)
 	}
 
 	if jc.LeftColumn == "" {
-		return serrors.E(op, serrors.Invalid, "join left column cannot be empty")
+		return serrors.New(serrors.Invalid, "join left column cannot be empty").WithOp(op)
 	}
 
 	if jc.RightColumn == "" {
-		return serrors.E(op, serrors.Invalid, "join right column cannot be empty")
+		return serrors.New(serrors.Invalid, "join right column cannot be empty").WithOp(op)
 	}
 
 	// Check for dangerous SQL keywords/patterns FIRST (security priority)
@@ -111,25 +111,25 @@ func (jc *JoinClause) Validate() error {
 			continue
 		}
 		if err := checkDangerousSQL(val); err != nil {
-			return serrors.E(op, serrors.Invalid, fmt.Sprintf("join specification %s: %q", err, val))
+			return serrors.New(serrors.Invalid, fmt.Sprintf("join specification %s: %q", err, val)).WithOp(op)
 		}
 	}
 
 	// Then validate format patterns
 	if !validColumnPattern.MatchString(jc.Table) {
-		return serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid table specification: %q", jc.Table))
+		return serrors.New(serrors.Invalid, fmt.Sprintf("invalid table specification: %q", jc.Table)).WithOp(op)
 	}
 
 	if !validColumnPattern.MatchString(jc.LeftColumn) {
-		return serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid left column specification: %q", jc.LeftColumn))
+		return serrors.New(serrors.Invalid, fmt.Sprintf("invalid left column specification: %q", jc.LeftColumn)).WithOp(op)
 	}
 
 	if !validColumnPattern.MatchString(jc.RightColumn) {
-		return serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid right column specification: %q", jc.RightColumn))
+		return serrors.New(serrors.Invalid, fmt.Sprintf("invalid right column specification: %q", jc.RightColumn)).WithOp(op)
 	}
 
 	if jc.TableAlias != "" && !validColumnPattern.MatchString(jc.TableAlias) {
-		return serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid table alias specification: %q", jc.TableAlias))
+		return serrors.New(serrors.Invalid, fmt.Sprintf("invalid table alias specification: %q", jc.TableAlias)).WithOp(op)
 	}
 
 	return nil
@@ -171,13 +171,13 @@ func (jo *JoinOptions) Validate() error {
 	// Validate each join clause
 	for i, join := range jo.Joins {
 		if err := join.Validate(); err != nil {
-			return serrors.E(op, fmt.Sprintf("join clause %d", i), err)
+			return serrors.WrapContext(op, err, fmt.Sprintf("join clause %d", i))
 		}
 	}
 
 	// Validate SelectColumns for SQL injection
 	if err := validateSelectColumns(jo.SelectColumns); err != nil {
-		return serrors.E(op, serrors.Invalid, err)
+		return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 
 	return nil

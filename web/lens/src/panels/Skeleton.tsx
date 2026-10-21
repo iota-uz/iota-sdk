@@ -8,7 +8,7 @@ import type { LayoutItem, Panel, PanelKind } from '../contract'
  * spinner: the same rows, the same 12-column spans and a shape per panel kind,
  * so nothing jumps when the data lands. The shape is styles.css's answer to the
  * kind each card states, which is the same answer the server fallback in
- * pkg/lens/render/react gets, so the handoff does not shift the grid.
+ * pkg/lens/render/solid gets, so the handoff does not shift the grid.
  */
 
 export function ShimmerBar(props: { class?: string; style?: JSX.CSSProperties }) {
@@ -23,7 +23,7 @@ function spanStyle(span: number): JSX.CSSProperties {
 /**
  * A placeholder states the kind it stands in for and lets the stylesheet decide
  * what that kind reserves. The server fallback in
- * pkg/lens/render/react/skeleton.go emits the same `data-kind` — the runtime
+ * pkg/lens/render/solid/skeleton.go emits the same `data-kind` — the runtime
  * replaces that markup in place on the first paint, so the two must reserve the
  * same height or the grid moves at the handoff. One rule in styles.css now
  * answers for both, instead of a Go switch and this one agreeing by hand.

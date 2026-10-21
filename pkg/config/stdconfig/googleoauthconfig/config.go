@@ -3,7 +3,7 @@
 package googleoauthconfig
 
 // Config holds all Google OAuth settings.
-// Env prefix: "googleoauth" (e.g. GOOGLE_REDIRECT_URL → googleoauth.redirecturl).
+// Env prefix: "googleoauth" (e.g. GOOGLEOAUTH_REDIRECTURL → googleoauth.redirecturl).
 type Config struct {
 	RedirectURL  string `koanf:"redirecturl"`
 	ClientID     string `koanf:"clientid"`
@@ -11,9 +11,7 @@ type Config struct {
 }
 
 // ConfigPrefix returns the koanf prefix for googleoauthconfig ("googleoauth").
-// Legacy env aliases (GOOGLE_*) still map to the "google.*" path via the env
-// provider's alias table; the canonical prefix is "googleoauth" to avoid
-// collisions with future Google sub-services.
+// The prefix avoids collisions with future Google sub-services.
 func (Config) ConfigPrefix() string { return "googleoauth" }
 
 // IsConfigured returns true when both ClientID and ClientSecret are set.

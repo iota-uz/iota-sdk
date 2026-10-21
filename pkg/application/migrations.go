@@ -34,7 +34,7 @@ type MigrationManager interface {
 }
 
 // NewMigrationManager creates a MigrationManager driven by an explicit
-// dbconfig.Config. Prefer this over NewMigrationManagerLegacy in new code.
+// dbconfig.Config.
 func NewMigrationManager(pool *pgxpool.Pool, db dbconfig.Config, logger logrus.FieldLogger) MigrationManager {
 	return &migrationManager{
 		migrationsDir: db.MigrationsDir,

@@ -1,0 +1,4 @@
+{
+  "bump": "none",
+  "summary": "Reconcile the original Lens Solid migration PR with the completed implementation and subsequent fixes already merged through PR #1162; no runtime change or additional release bump."
+}

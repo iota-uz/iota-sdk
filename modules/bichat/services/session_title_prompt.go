@@ -16,7 +16,7 @@ func renderSessionTitlePrompt(userMessage, assistantMessage string) (string, err
 		AssistantMessage: strings.TrimSpace(assistantMessage),
 	})
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 	return prompt, nil
 }

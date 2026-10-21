@@ -33,7 +33,7 @@ const (
 	`
 )
 
-var ErrArtifactProviderFileNotFound = errors.New("artifact provider file mapping not found")
+var ErrArtifactProviderFileNotFound = serrors.NewNotFound("artifact provider file mapping not found")
 
 // GetArtifactProviderFile returns the provider file mapping for an artifact.
 func (r *PostgresChatRepository) GetArtifactProviderFile(
@@ -45,17 +45,17 @@ func (r *PostgresChatRepository) GetArtifactProviderFile(
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return "", "", 0, serrors.E(op, err)
+		return "", "", 0, serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return "", "", 0, serrors.E(op, err)
+		return "", "", 0, serrors.Wrap(op, err)
 	}
 
 	normalizedProvider := strings.ToLower(strings.TrimSpace(provider))
 	if normalizedProvider == "" {
-		return "", "", 0, serrors.E(op, serrors.KindValidation, "provider is required")
+		return "", "", 0, serrors.New(serrors.Invalid, "provider is required").WithOp(op)
 	}
 
 	var (
@@ -68,9 +68,9 @@ func (r *PostgresChatRepository) GetArtifactProviderFile(
 		Scan(&providerFileID, &sourceURL, &sourceSizeBytes)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", "", 0, serrors.E(op, ErrArtifactProviderFileNotFound)
+			return "", "", 0, serrors.Wrap(op, errors.Join(ErrArtifactProviderFileNotFound, err))
 		}
-		return "", "", 0, serrors.E(op, err)
+		return "", "", 0, serrors.FromDB(op, err)
 	}
 
 	return providerFileID, sourceURL, sourceSizeBytes, nil
@@ -89,25 +89,25 @@ func (r *PostgresChatRepository) UpsertArtifactProviderFile(
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	normalizedProvider := strings.ToLower(strings.TrimSpace(provider))
 	normalizedProviderFileID := strings.TrimSpace(providerFileID)
 	normalizedSourceURL := strings.TrimSpace(sourceURL)
 	if normalizedProvider == "" {
-		return serrors.E(op, serrors.KindValidation, "provider is required")
+		return serrors.New(serrors.Invalid, "provider is required").WithOp(op)
 	}
 	if normalizedProviderFileID == "" {
-		return serrors.E(op, serrors.KindValidation, "provider_file_id is required")
+		return serrors.New(serrors.Invalid, "provider_file_id is required").WithOp(op)
 	}
 	if normalizedSourceURL == "" {
-		return serrors.E(op, serrors.KindValidation, "source_url is required")
+		return serrors.New(serrors.Invalid, "source_url is required").WithOp(op)
 	}
 
 	now := time.Now()
@@ -123,7 +123,7 @@ func (r *PostgresChatRepository) UpsertArtifactProviderFile(
 		now,
 	)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	return nil

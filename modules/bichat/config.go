@@ -14,6 +14,7 @@ import (
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/analytics"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -317,6 +318,14 @@ type ServiceContainer struct {
 	reaperInterval       time.Duration
 	reaperStaleThreshold time.Duration
 	reaperLockTTL        time.Duration
+	// Run-workers wiring. runJobQueue/runSessionQueue/runExecutor are nil
+	// when Redis is unconfigured — enqueue mode and the run worker are
+	// automatically inactive in that case and sends execute inline.
+	runJobQueue     *services.RedisRunJobQueue
+	runSessionQueue *services.RedisRunSessionQueue
+	runExecutor     services.RunExecutor
+	activeRunIndex  services.ActiveRunIndex
+	failStalledRun  func(ctx context.Context, job services.RunJobPayload, cause error)
 }
 
 // SessionCommands returns session mutating actions.
@@ -418,7 +427,26 @@ func (sc *ServiceContainer) CloseSharedRedis() error {
 // the reaper without branching on a sentinel. Reaper interval / stale
 // threshold / lock TTL are forwarded from the ModuleConfig tunables;
 // zero values fall back to the per-constant defaults in run_reaper.go.
+// When the Redis run components are configured the reaper also promotes
+// the next queued session-FIFO job after reaping a stale run, so the
+// FIFO cannot deadlock behind a run whose worker died.
 func (sc *ServiceContainer) NewRunReaper() (*services.RunReaper, error) {
+	if sc.runSessionQueue != nil && sc.runJobQueue != nil {
+		return services.NewConfiguredRunReaperWithHook(
+			sc.logger,
+			sc.reaperInterval,
+			sc.reaperStaleThreshold,
+			sc.reaperLockTTL,
+			func(ctx context.Context, tenantID, sessionID uuid.UUID) {
+				if _, err := services.PromoteNextQueuedRun(ctx, sc.runSessionQueue, sc.runJobQueue, sc.activeRunIndex, tenantID, sessionID); err != nil && sc.logger != nil {
+					sc.logger.WithError(err).
+						WithField("tenant_id", tenantID.String()).
+						WithField("session_id", sessionID.String()).
+						Warn("bichat: failed to promote queued run after reaping stale run")
+				}
+			},
+		)
+	}
 	return services.NewConfiguredRunReaperWithTunables(
 		sc.logger,
 		sc.reaperInterval,
@@ -427,10 +455,32 @@ func (sc *ServiceContainer) NewRunReaper() (*services.RunReaper, error) {
 	)
 }
 
+// NewRunJobWorker builds the Redis-backed generation run worker.
+// Returns ErrRunJobWorkerDisabled when Redis is unconfigured — enqueue
+// mode is inactive in that case and sends execute inline.
+func (sc *ServiceContainer) NewRunJobWorker(pool *pgxpool.Pool) (*services.RunJobWorker, error) {
+	if sc.runJobQueue == nil || sc.runExecutor == nil {
+		return nil, ErrRunJobWorkerDisabled
+	}
+	return services.NewRunJobWorker(services.RunJobWorkerConfig{
+		Queue:                sc.runJobQueue,
+		Executor:             sc.runExecutor,
+		SessionQueue:         sc.runSessionQueue,
+		ActiveRunIndex:       sc.activeRunIndex,
+		OnJobTerminalFailure: sc.failStalledRun,
+		Pool:                 pool,
+		Users:                corepersistence.NewUserRepository(corepersistence.NewUploadRepository()),
+		Logger:               sc.logger,
+	})
+}
+
 // ConfigOption is a functional option for ModuleConfig
 type ConfigOption func(*ModuleConfig)
 
-var ErrTitleJobWorkerDisabled = errors.New("title job worker is disabled")
+var (
+	ErrTitleJobWorkerDisabled = errors.New("title job worker is disabled")
+	ErrRunJobWorkerDisabled   = errors.New("run job worker is disabled")
+)
 
 // NewModuleConfig creates a new module configuration.
 // Use ConfigOption functions to set optional dependencies.

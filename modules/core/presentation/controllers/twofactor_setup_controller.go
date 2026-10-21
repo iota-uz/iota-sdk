@@ -23,6 +23,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/security"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
@@ -120,11 +121,11 @@ func (c *TwoFactorSetupController) activateSession(w http.ResponseWriter, r *htt
 	)
 
 	if err := c.sessionService.Update(r.Context(), updatedSession); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	cookie, err := c.browserSessions.AddFromRequest(r.Context(), r, updatedSession)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	http.SetCookie(w, cookie)
 
@@ -201,7 +202,7 @@ func (c *TwoFactorSetupController) GetMethodChoice(w http.ResponseWriter, r *htt
 	if err := twofactorsetup.MethodChoice(&twofactorsetup.MethodChoiceProps{
 		NextURL: nextURL,
 	}).Render(r.Context(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -213,7 +214,7 @@ func (c *TwoFactorSetupController) PostMethodChoice(w http.ResponseWriter, r *ht
 
 	dto, err := composables.UseForm(&methodChoiceDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -335,8 +336,7 @@ func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.R
 		OTPAuthURL:   challenge.QRCodeURL,
 		ErrorMessage: string(errorMessage),
 	}).Render(r.Context(), w); err != nil {
-		logger.WithError(err).Error("failed to render TOTP setup template")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -402,8 +402,7 @@ func (c *TwoFactorSetupController) GetOTPSetup(w http.ResponseWriter, r *http.Re
 		ErrorMessage:   string(errorMessage),
 		SuccessMessage: string(successMessage),
 	}).Render(r.Context(), w); err != nil {
-		logger.WithError(err).Error("failed to render OTP setup template")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -415,7 +414,7 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 
 	dto, err := composables.UseForm(&totpConfirmDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -462,8 +461,7 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 		RecoveryCodes: result.RecoveryCodes,
 		NextURL:       nextURL,
 	}).Render(r.Context(), w); err != nil {
-		logger.WithError(err).Error("failed to render setup complete template")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 	}
 }
 
@@ -475,7 +473,7 @@ func (c *TwoFactorSetupController) PostOTPSend(w http.ResponseWriter, r *http.Re
 
 	dto, err := composables.UseForm(&otpSendDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -541,7 +539,7 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 
 	dto, err := composables.UseForm(&otpConfirmDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 

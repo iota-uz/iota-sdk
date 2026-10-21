@@ -1,19 +1,12 @@
-interface DateGroupHeaderProps {
-  groupName: string
-  count: number
-}
+import type { JSX } from 'solid-js'
 
-/**
- * Sticky header for date-based session groups
- * Displays group name and session count
- */
-export default function DateGroupHeader({ groupName, count }: DateGroupHeaderProps) {
+export function DateGroupHeader(props: { name: string; count: number }): JSX.Element {
   return (
-    <div className="sticky top-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm px-4 py-2 text-sm font-medium z-10 border-b border-gray-100 dark:border-gray-800/80">
-      <div className="flex items-center justify-between">
-        <span className="text-gray-600 dark:text-gray-400 font-medium">{groupName}</span>
-        <span className="text-[10px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded-md font-medium tabular-nums">
-          {count}
+    <div class="sticky top-0 z-10 border-b border-neutral-100 bg-white/95 px-3 py-2 backdrop-blur-sm">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-semibold tracking-wide text-neutral-500 uppercase">{props.name}</span>
+        <span class="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-neutral-400">
+          {props.count}
         </span>
       </div>
     </div>

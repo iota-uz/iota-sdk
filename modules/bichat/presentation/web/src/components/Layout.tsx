@@ -1,128 +1,101 @@
-/**
- * Layout Component
- * Main layout (sidebar + content area).
- * Responsive: desktop sidebar + mobile drawer with focus trap and swipe-to-close.
- */
+import { useNavigate } from '@solidjs/router'
+import { createEffect, createSignal, onCleanup, onMount, Show, type JSX } from 'solid-js'
+import { useI18n } from '../i18n/i18n'
+import { PanelLeftIcon, XIcon } from '../ui/icons'
+import { SkipLink } from '../ui/primitives'
+import { Sidebar } from './Sidebar'
 
-import { useEffect, useRef } from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { AnimatePresence, motion, type PanInfo } from 'framer-motion'
-import { List } from '@phosphor-icons/react'
-import { SkipLink, useFocusTrap, useKeyboardShortcuts } from '@iota-uz/sdk/bichat'
-import Sidebar from './Sidebar'
-import { useSidebarState } from '../hooks/useSidebarState'
-
-export default function Layout() {
+export function Layout(props: { children: JSX.Element }): JSX.Element {
+  const { t } = useI18n()
   const navigate = useNavigate()
-  const location = useLocation()
-  const { isMobile, isMobileOpen, openMobile, closeMobile } = useSidebarState()
-  const drawerRef = useRef<HTMLDivElement>(null)
-  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const [drawerOpen, setDrawerOpen] = createSignal(false)
+  const [drawerMounted, setDrawerMounted] = createSignal(false)
+  let closeButton: HTMLButtonElement | undefined
 
-  // Handle new chat button - just navigate to home page
-  const handleNewChat = () => {
-    navigate('/')
-  }
+  createEffect(() => {
+    if (drawerOpen()) {
+      setDrawerMounted(true)
+      queueMicrotask(() => closeButton?.focus())
+    }
+  })
 
-  useKeyboardShortcuts([
-    {
-      key: 'n',
-      ctrl: true,
-      description: 'New chat',
-      callback: () => navigate('/'),
-    },
-  ])
-
-  useFocusTrap(drawerRef, isMobile && isMobileOpen, menuButtonRef.current)
-
-  useEffect(() => {
-    if (!isMobile || !isMobileOpen) return
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        closeMobile()
+  onMount(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && drawerOpen()) {
+        event.preventDefault()
+        setDrawerOpen(false)
+        return
+      }
+      if ((event.metaKey || event.ctrlKey) && (event.key === 'n' || event.key === 'N')) {
+        event.preventDefault()
+        navigate('/')
       }
     }
     document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [closeMobile, isMobile, isMobileOpen])
-
-  const handleDrawerDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    // Swipe-left to close
-    if (info.offset.x < -80) {
-      closeMobile()
-    }
-  }
+    onCleanup(() => document.removeEventListener('keydown', onKeyDown))
+  })
 
   return (
-    <div className="relative flex flex-1 w-full h-full min-h-0 overflow-hidden">
+    <div class="relative flex h-full w-full min-h-0 flex-1 overflow-hidden">
       <SkipLink />
 
-      {/* Sidebar - desktop */}
-      <div className="hidden md:block">
-        <Sidebar onNewChat={handleNewChat} creating={false} />
+      {/* Sidebar — desktop */}
+      <div class="hidden md:block">
+        <Sidebar />
       </div>
 
-      {/* Sidebar - mobile drawer */}
-      <AnimatePresence>
-        {isMobile && isMobileOpen && (
-          <>
-            <motion.div
-              className="fixed inset-0 z-40 bg-black/40"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={closeMobile}
-              aria-hidden="true"
-            />
-            <motion.div
-              className="fixed inset-y-0 left-0 z-50 w-[18rem] max-w-[85vw] shadow-2xl"
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              drag="x"
-              dragDirectionLock
-              dragConstraints={{ left: -120, right: 0 }}
-              dragElastic={{ left: 0.2, right: 0 }}
-              onDragEnd={handleDrawerDragEnd}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div ref={drawerRef} className="h-full bg-white dark:bg-gray-900">
-                <Sidebar onNewChat={handleNewChat} creating={false} onClose={closeMobile} />
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {/* Sidebar — mobile drawer */}
+      <Show when={drawerMounted()}>
+        <div
+          class={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-200 md:hidden ${
+            drawerOpen() ? 'opacity-100' : 'pointer-events-none opacity-0'
+          }`}
+          aria-hidden="true"
+          onClick={() => setDrawerOpen(false)}
+        />
+        <div
+          id="bichat-drawer"
+          aria-hidden={!drawerOpen()}
+          class={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-white shadow-2xl transition-transform duration-200 md:hidden ${
+            drawerOpen() ? 'translate-x-0' : 'pointer-events-none -translate-x-full'
+          }`}
+        >
+          <div class="flex h-full flex-col">
+            <div class="flex items-center justify-between border-b border-neutral-100 px-3 py-2">
+              <span class="text-sm font-semibold text-neutral-800">{t('nav.chats')}</span>
+              <button
+                ref={closeButton}
+                type="button"
+                onClick={() => setDrawerOpen(false)}
+                aria-label={t('nav.closeMenu')}
+                class="cursor-pointer rounded-lg p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+              >
+                <XIcon class="h-5 w-5" />
+              </button>
+            </div>
+            <div class="min-h-0 flex-1">
+              <Sidebar onNavigate={() => setDrawerOpen(false)} />
+            </div>
+          </div>
+        </div>
+      </Show>
 
-      {/* Main Content */}
-      <main id="main-content" className="relative flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* Mobile menu button */}
-        {isMobile && !isMobileOpen && (
+      {/* Main content */}
+      <main id="bichat-main" class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div class="flex items-center gap-2 border-b border-neutral-200 bg-white px-3 py-2 md:hidden">
           <button
-            ref={menuButtonRef}
-            onClick={openMobile}
-            className="md:hidden absolute top-3 left-3 z-30 w-10 h-10 rounded-xl bg-white/90 dark:bg-gray-900/90 text-gray-700 dark:text-gray-200 border border-gray-200/60 dark:border-gray-800/80 shadow-sm flex items-center justify-center hover:bg-white dark:hover:bg-gray-900 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-primary-400/50"
-            aria-label="Open sidebar"
-            title="Open sidebar"
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            aria-label={t('nav.openMenu')}
+            aria-expanded={drawerOpen()}
+            aria-controls="bichat-drawer"
+            class="cursor-pointer rounded-lg p-1.5 text-neutral-600 transition-colors hover:bg-neutral-100"
           >
-            <List size={20} weight="bold" />
+            <PanelLeftIcon class="h-5 w-5" />
           </button>
-        )}
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={location.pathname}
-            className="flex flex-1 min-h-0"
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
-          >
-            <Outlet />
-          </motion.div>
-        </AnimatePresence>
+          <span class="text-sm font-semibold text-neutral-800">{t('nav.chats')}</span>
+        </div>
+        <div class="flex min-h-0 flex-1 flex-col">{props.children}</div>
       </main>
     </div>
   )

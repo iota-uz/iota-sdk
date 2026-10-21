@@ -55,7 +55,7 @@ func NewEventDeduper(cfg EventDedupConfig) (*EventDeduper, error) {
 	}
 	cache, err := lru.New[string, time.Time](cfg.Capacity)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return &EventDeduper{cfg: cfg, cache: cache}, nil
 }

@@ -1,32 +1,30 @@
-'use client'
-
-import React, { ReactNode } from 'react'
+import { children as solidChildren, type JSX } from 'solid-js'
 
 interface InfoCardProps {
-  children: ReactNode
+  children: JSX.Element
   title: string
-  icon?: ReactNode
+  icon?: JSX.Element
 }
 
 interface InfoCardSectionProps {
-  children: ReactNode
+  children: JSX.Element
   title: string
   nested?: boolean
 }
 
 interface InfoCardLimitProps {
-  children: ReactNode
+  children: JSX.Element
   label?: string
 }
 
 const InfoCardBase = ({ children, title, icon }: InfoCardProps) => {
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4 bg-white dark:bg-gray-950">
-      <div className="flex items-center gap-2 mb-4">
-        {icon && <div className="text-blue-500 dark:text-blue-400">{icon}</div>}
-        <h3 className="font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
+    <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4 bg-white dark:bg-gray-950">
+      <div class="flex items-center gap-2 mb-4">
+        {icon && <div class="text-blue-500 dark:text-blue-400">{icon}</div>}
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
       </div>
-      <div className="space-y-2">{children}</div>
+      <div class="space-y-2">{children}</div>
     </div>
   )
 }
@@ -35,26 +33,26 @@ const Section = ({ children, title, nested = false }: InfoCardSectionProps) => {
   const paddingClass = nested ? 'pl-4 border-l-2 border-gray-300 dark:border-gray-600' : ''
 
   return (
-    <div className={`${paddingClass}`}>
+    <div class={`${paddingClass}`}>
       {title && (
-        <h4 className={`font-medium mb-2 ${nested ? 'text-gray-700 dark:text-gray-300' : 'text-gray-800 dark:text-gray-200'}`}>
+        <h4 class={`font-medium mb-2 ${nested ? 'text-gray-700 dark:text-gray-300' : 'text-gray-800 dark:text-gray-200'}`}>
           {title}
         </h4>
       )}
-      <div className="space-y-2">{children}</div>
+      <div class="space-y-2">{children}</div>
     </div>
   )
 }
 
 const Limit = ({ children, label }: InfoCardLimitProps) => {
   return (
-    <div className="bg-blue-50 dark:bg-blue-950 border-l-4 border-blue-500 dark:border-blue-400 p-3 rounded">
+    <div class="bg-blue-50 dark:bg-blue-950 border-l-4 border-blue-500 dark:border-blue-400 p-3 rounded">
       {label && (
-        <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-1">
+        <p class="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-1">
           {label}
         </p>
       )}
-      <p className="text-sm text-gray-800 dark:text-gray-200">{children}</p>
+      <p class="text-sm text-gray-800 dark:text-gray-200">{children}</p>
     </div>
   )
 }

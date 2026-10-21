@@ -171,7 +171,7 @@ func (t *ExportToExcelTool) CallStructured(ctx context.Context, input string) (*
 				Message: fmt.Sprintf("failed to export Excel: %v", err),
 				Hints:   []string{"Verify data format is valid", "Check for special characters in data"},
 			},
-		}, serrors.E(op, err, "failed to export Excel")
+		}, serrors.WrapContext(op, err, "failed to export Excel")
 	}
 
 	filePath := filepath.Join(t.outputDir, filename)
@@ -183,7 +183,7 @@ func (t *ExportToExcelTool) CallStructured(ctx context.Context, input string) (*
 				Message: fmt.Sprintf("failed to save Excel file: %v", err),
 				Hints:   []string{"File system may be full or permissions issue", tools.HintRetryLater},
 			},
-		}, serrors.E(op, err, "failed to save Excel file")
+		}, serrors.WrapContext(op, err, "failed to save Excel file")
 	}
 
 	url := buildDownloadURL(ctx, t.baseURL, filename)

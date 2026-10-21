@@ -9,12 +9,14 @@ import {
   onMount,
   useContext,
   Suspense,
+  untrack,
   type Accessor,
   type JSX,
 } from 'solid-js'
 import { For, Show } from 'solid-js'
 import type { Filter, LayoutGroup, LayoutItem, LayoutRow, Panel } from './contract'
-import { useDashboard, useDocumentState, useDrawer, useDrawerHeader, useFilters, usePrint, useTranslate } from './runtime'
+import type { LensToolbarContext } from './LensDashboard'
+import { useDashboard, useDocumentState, useDrawer, useDrawerHeader, useFilters, usePanelFrames, usePrint, useTranslate } from './runtime'
 import { ExportMenu } from './panels/ExportMenu'
 import { RegisteredPanel, type PanelRegistry } from './panels/registry'
 import { ShareSliceButton } from './panels/ShareSliceButton'
@@ -23,7 +25,24 @@ import { PanelChromeContext, type PanelChrome } from './panels/context'
 import { ArrowClockwise, CircleNotch, Clock, X } from './icons'
 import { ExplorePanel } from './explore'
 import { FilterBar, FilterControls, type CalendarDate } from './controls'
+import { ContextGroupDetails, ContextGroupToolbar, createContextGroupDisclosure, hasContextGroupToolbar } from './controls/ScopedFilterControls'
 import { isVisualRegression } from './visualRegression'
+import { ReportVersionNotice } from './reports/ReportVersionNotice'
+import { ReportPlacementMenu } from './reports/ReportPlacementMenu'
+import { placementFreshness, ReportPlacementStatus } from './reports/ReportPlacementStatus'
+import { reportPlacementMenu, reportPlacementUnavailable, useReportPlacementHost } from './reports/placementHost'
+import { reportUnavailableState, reportUnavailableTitle } from './reports/unavailable'
+import { reportPlacementActions } from './reports/version'
+import { DrillGateContext, ExportGateContext, useDrillAllowed, useExportAllowed, withoutDrill } from './panels/drillGate'
+import { ReportPlacementProvider } from './reports/placementHost'
+import type { Placement } from './reports/contract/types'
+import { spanOf } from './reports/layout'
+import type { DashboardEditor } from './reports/dashboardEdit'
+import type { LensDashboardChrome, LensDashboardEditing } from './reports/dashboardEditTypes'
+import { DashboardEmptyState } from './reports/DashboardEmptyState'
+import type { LensThemeMode } from './runtime'
+
+type EditModule = typeof import('./reports/dashboardEdit')
 
  
 
@@ -34,9 +53,16 @@ const LazyPrintReport = lazy(async () => ({
 }))
 
 export interface DashboardPanelsProps {
+  toolbar?: (context: LensToolbarContext) => JSX.Element
   registry?: PanelRegistry
   /** Fixed calendar "today" for deterministic stories and visual regression. */
   filterToday?: CalendarDate
+  edit?: LensDashboardEditing
+  chrome?: LensDashboardChrome
+  theme?: LensThemeMode
+  locale?: string
+  csrf?: string
+  fetcher?: typeof fetch
 }
 
 function boundedSpan(span: number): number {
@@ -151,14 +177,24 @@ const MetricColumnsContext = createContext<number>(4)
  */
 const TabStateContext = createContext<Map<string, string> | null>(null)
 
-// The explore surface keeps its React signature during the Solid migration;
-// this typed bridge lets the composition root compile against the pending port.
-const ExplorePanelBridge = ExplorePanel as unknown as (props: { panel: Panel; registry?: PanelRegistry }) => JSX.Element
+/** The panel as this slot may show it: terminal inside a placement that cannot drill. */
+function useGatedPanel(panel: () => Panel | undefined): () => Panel | undefined {
+  const drill = useDrillAllowed()
+  return createMemo(() => {
+    const current = panel()
+    return current && !drill() ? withoutDrill(current) : current
+  })
+}
 
 function PanelSlot(props: { panel: Panel; registry?: PanelRegistry }) {
-  return props.panel.drillRoot
-    ? <ExplorePanelBridge panel={props.panel} registry={props.registry} />
-    : <RegisteredPanel panel={props.panel} registry={props.registry} />
+  const panel = useGatedPanel(() => props.panel)
+  return (
+    <Show when={panel()} keyed>
+      {(current) => current.drillRoot
+        ? <ExplorePanel panel={current} registry={props.registry} />
+        : <RegisteredPanel panel={current} registry={props.registry} />}
+    </Show>
+  )
 }
 
 function MissingPanel(props: { panelId: string }) {
@@ -170,23 +206,105 @@ function MissingPanel(props: { panelId: string }) {
   )
 }
 
-function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
+/** A placement card's edit-mode chrome: the handle, the width slider and the drop target. */
+type GroupCardEdit = ReturnType<DashboardEditor['cardEdit']>
+
+function GroupCard(props: { group: LayoutGroup; items?: LayoutItem[]; panels?: Map<string, Panel>; edit?: GroupCardEdit; children: JSX.Element }) {
   const documentState = useDocumentState()
+  const { document } = useDashboard()
+  const translate = useTranslate()
+  const [filtersOpen, setFiltersOpen] = createSignal(false)
+  const disclosure = createContextGroupDisclosure(filtersOpen, setFiltersOpen)
+  const contextToolbar = () => Boolean(props.group.filterContext && hasContextGroupToolbar(document.contextEditor, props.group.filterContext, props.group.id))
+  const reportHost = useReportPlacementHost()
+  const frames = usePanelFrames()
+  // A report placement is an outermost grid group the host addresses, or one
+  // the wire already marked unavailable. Only placements get the card menu and
+  // status; the strips and grids inside one keep a single header and menu.
+  const outermost = () => (props.items?.[0]?.groups?.[0]?.id ?? props.group.id) === props.group.id
+  const placement = () => props.group.kind === 'grid' && outermost() && Boolean(reportHost || props.group.unavailable)
+  const unavailable = createMemo(() => props.group.kind === 'grid' ? reportPlacementUnavailable(reportHost, props.group) : undefined)
+  const blocked = () => Boolean(props.group.filterContext && (props.group.filterContext.conflicts.length || props.group.filterContext.unsupported.length))
+  const panelIds = createMemo(() => (props.items ?? []).map((item) => item.panelId))
+  const title = () => {
+    const reason = unavailable()
+    return reason ? reportUnavailableTitle(reason, props.group.label, translate) : props.group.label
+  }
+  const capabilities = () => reportHost?.capabilities?.(props.group.id)
+  // A placement named after its only panel drops the panel's repeated title.
+  const chrome = createMemo<PanelChrome | undefined>(() => {
+    if (!placement()) return undefined
+    const only = props.items?.length === 1 ? props.panels?.get(props.items[0]!.panelId) : undefined
+    const redundant = Boolean(only && props.group.label && comparableTitle(only.title) === comparableTitle(props.group.label))
+    return redundant ? { titleIsRedundant: true } : undefined
+  })
+  // Export is gated like drill: a refusal applies to every member below the
+  // placement, including nested groups that provide their own chrome.
+  const outerExport = useExportAllowed()
+  const exportAllowed = createMemo(() => {
+    if (!outerExport()) return false
+    if (!placement()) return true
+    const declared = capabilities()
+    return declared ? reportPlacementActions(declared, props.group.filterContext).export : true
+  })
+  // Drill is the source's to offer: a placement whose source or context does
+  // not carry it renders every member terminal, inheriting an outer refusal.
+  const outerDrill = useDrillAllowed()
+  const drillAllowed = createMemo(() => {
+    if (!outerDrill()) return false
+    if (!placement()) return true
+    const context = props.group.filterContext
+    const declared = capabilities()
+    return declared ? reportPlacementActions(declared, context).drill : !(context?.unsupportedOperations?.drill?.length)
+  })
+  const state = createMemo(() => {
+    const reason = unavailable()
+    if (reason) return reportUnavailableState(reason)
+    if (blocked()) return 'unsupported'
+    if (!placement()) return undefined
+    const reading = placementFreshness(panelIds().map((id) => frames(id)), document.meta.generatedAt, documentState.isRefreshing)
+    return reading?.state === 'failed' ? 'error' : reading?.state === 'updating' ? 'updating' : 'ready'
+  })
+  const menu = () => reportHost && placement() ? reportPlacementMenu(reportHost, props.group.id, { context: props.group.filterContext, unavailable: unavailable() }).length > 0 : false
+  const edit = props.edit
+  const editing = () => Boolean(props.edit?.editing)
+  const live = () => !props.edit?.preview
+  const itemStyle = (): JSX.CSSProperties => edit
+    ? { ...spanStyle(edit.span()), '--lens-edit-row': String(edit.row + 1) } as JSX.CSSProperties
+    : spanStyle(props.group.span)
   return (
-    <div class="lens-grid-item" style={spanStyle(props.group.span)}>
+    <div
+      class="lens-grid-item"
+      data-added={(edit && editing() && edit.added) || undefined}
+      data-drop-target={(edit && editing() && edit.dropTarget()) || undefined}
+      data-edit-placement={edit ? props.group.id : undefined}
+      onDragLeave={edit ? () => edit.dropProps.onDragLeave() : undefined}
+      onDragOver={edit ? (event) => { if (edit.editing) edit.dropProps.onDragOver(event) } : undefined}
+      onDrop={edit ? (event) => { if (edit.editing) edit.dropProps.onDrop(event) } : undefined}
+      ref={(element) => edit?.cardRef(element)}
+      style={itemStyle()}
+    >
       <section
-        aria-label={props.group.label || undefined}
-        class={`lens-panel lens-panel-group ${props.group.kind === 'tabs' ? 'lens-panel-group-tabs' : 'lens-panel-group-metrics'}`}
+        aria-label={title() || undefined}
+        class={`lens-panel lens-panel-group ${`lens-panel-group-${props.group.kind}`}`}
+        data-report-placement={placement() ? props.group.id : undefined}
+        data-state={state()}
+        tabindex={placement() ? -1 : undefined}
       >
-        <Show when={Boolean(props.group.label || props.group.status)}>
+        <Show when={Boolean(title() || props.group.status || contextToolbar() || menu() || editing())}>
           <header class="lens-panel-header lens-panel-group-header">
-            <Show when={props.group.label}>
-              <h3 class="lens-panel-title">{props.group.label}</h3>
+            <Show when={edit && editing()}>{edit!.handle()}</Show>
+            <Show when={title()}>
+              <h3 class="lens-panel-title">{title()}</h3>
             </Show>
             {/* A uniform-status group shows one hoisted chip here; the members
                 below then render without their own repeated chip. */}
             <Show when={props.group.status}>
               <StatusChip status={props.group.status!} />
+            </Show>
+            <Show when={contextToolbar() && props.group.filterContext}>{(context) => <ContextGroupToolbar id={props.group.id} context={context()} disclosure={disclosure} />}</Show>
+            <Show when={menu()}>
+              <ReportPlacementMenu placementId={props.group.id} title={title() || props.group.id} context={props.group.filterContext} unavailable={unavailable()} />
             </Show>
           </header>
         </Show>
@@ -196,11 +314,23 @@ function GroupCard(props: { group: LayoutGroup; children: JSX.Element }) {
             for, so while a new document is in flight it describes the previous
             one — it dims with them rather than standing at full strength over
             superseded numbers. */}
-        <Show when={props.group.caption}>
+        <Show when={props.group.caption && unavailable() !== 'report-forbidden'}>
           <p class="lens-panel-caption" data-stale={documentState.isRefreshing || undefined}>{props.group.caption}</p>
         </Show>
-        {props.children}
+        <Show when={placement() && live()}><ReportVersionNotice placementId={props.group.id} unavailable={props.group.unavailable} /></Show>
+        <Show when={!unavailable() && props.group.filterContext}>{(context) => <ContextGroupDetails id={props.group.id} context={context()} disclosure={disclosure} />}</Show>
+        <Show when={!unavailable() && !blocked()}>
+          <ExportGateContext.Provider value={exportAllowed}>
+            <DrillGateContext.Provider value={drillAllowed}>
+              <PanelChromeContext.Provider value={chrome()}>{props.children}</PanelChromeContext.Provider>
+            </DrillGateContext.Provider>
+          </ExportGateContext.Provider>
+        </Show>
+        <Show when={reportHost && placement() && !unavailable() && !blocked() && live()}>
+          <ReportPlacementStatus placementId={props.group.id} panelIds={panelIds()} timeZone={props.group.filterContext?.calendar.timezone} />
+        </Show>
       </section>
+      <Show when={edit && editing()}>{edit!.resize()}</Show>
     </div>
   )
 }
@@ -251,6 +381,15 @@ function GroupChain(props: {
             </For>
           )
         }
+        if (cluster.group.kind === 'grid') {
+          // Built where it is placed, so the members see the card's chrome context.
+          const contents = () => <div class="lens-panel-grid"><GroupChain depth={props.depth + 1} filterToday={props.filterToday} items={cluster.items} panels={props.panels} registry={props.registry} /></div>
+          // An unavailable placement (a forbidden one has no label) still
+          // takes its slot and explains itself instead of showing its member.
+          return cluster.group.label || cluster.group.caption || cluster.group.unavailable
+            ? <GroupCard group={cluster.group} items={cluster.items} panels={props.panels}>{contents()}</GroupCard>
+            : <div class="lens-grid-item" style={spanStyle(cluster.group.span)}>{contents()}</div>
+        }
         if (cluster.group.kind === 'metrics') {
           return <MetricsGroup group={cluster.group} items={cluster.items} panels={props.panels} registry={props.registry} />
         }
@@ -275,13 +414,14 @@ function MetricsGroup(props: {
   const spans = metricSpans(props.items.length, columns)
   const spansNarrow = metricSpans(props.items.length, 2)
   return (
-    <GroupCard group={props.group}>
+    <GroupCard group={props.group} items={props.items} panels={props.panels}>
       {/* Class names stay literal: Tailwind's content scan cannot see an
           interpolated modifier and would drop the rule. */}
       <div class={`lens-metric-row ${props.group.layout === 'rows' ? 'lens-metric-row-rows' : 'lens-metric-row-columns'}`}>
         <For each={props.items}>
           {(item, index) => {
-            const panel = props.panels.get(item.panelId)
+            const gated = useGatedPanel(() => props.panels.get(item.panelId))
+            const panel = gated()
             // Every member sits in the same kind of box, whatever it contains.
             // A cell that wrapped its own content (a navigable stat used to) sized
             // itself differently from one that did not, which is how one strip
@@ -301,7 +441,7 @@ function MetricsGroup(props: {
                   // A stat that hosts a drill root needs its card chrome (the trail
                   // and the breakdown affordance live there), so it opts out of the
                   // compact metric form rather than losing its exploration.
-                  : panel.kind === 'stat' && !panel.drillRoot
+                  : panel.kind === 'stat' && !panel.drillRoot && !panel.renderer
                     ? <StatMetric panel={panel} />
                     : <PanelSlot panel={panel} registry={props.registry} />}
               </div>
@@ -596,7 +736,7 @@ function FreshnessControl() {
         {dashboard.isRecomputing ? <CircleNotch className="lens-icon-spin" /> : <ArrowClockwise />}
         <span>{freshness() ? freshness()!.label : translate('dashboard.recompute', 'Recompute')}</span>
       </button>
-      <span class="lens-sr-only" id={hintID}>{hint()}</span>
+      <span class="lens:sr-only" id={hintID}>{hint()}</span>
     </Show>
   )
 }
@@ -645,6 +785,127 @@ function usePrintPreview(): void {
   })
 }
 
+interface PlacementSource {
+  group: LayoutGroup
+  items: LayoutItem[]
+}
+
+/** The report placements of a composed document: outermost grid groups, keyed by placement id, with their items. */
+export function documentPlacements(rows: LayoutRow[]): Map<string, PlacementSource> {
+  const placements = new Map<string, PlacementSource>()
+  for (const row of rows) {
+    for (const item of row.panels) {
+      const group = item.groups?.[0]
+      if (!group || group.kind !== 'grid') continue
+      const existing = placements.get(group.id)
+      if (existing) existing.items.push(item)
+      else placements.set(group.id, { group, items: [item] })
+    }
+  }
+  return placements
+}
+
+/**
+ * The board drawn from the host's composition draft rather than the document
+ * layout. Cards are keyed by placement id, so a move, a resize or a caption
+ * change re-renders the card in place: its panels keep their mounted charts and
+ * the frames already loaded. One grid holds every row, each card naming its
+ * row, so a card crossing rows moves instead of remounting.
+ */
+function DraftLayout(props: {
+  editor: DashboardEditor
+  rows: LayoutRow[]
+  panels: Map<string, Panel>
+  registry?: PanelRegistry
+  filterToday?: CalendarDate
+  entrance: boolean
+  theme: LensThemeMode
+  locale?: string
+  csrf?: string
+  fetcher?: typeof fetch
+}) {
+  const sources = createMemo(() => documentPlacements(props.rows))
+  let grid: HTMLDivElement | undefined
+  return (
+    <div class="lens-dashboard-rows">
+      <div
+        class={`lens-panel-grid lens-dashboard-edit-grid${props.entrance ? ' lens-entrance' : ''}`}
+        data-editing={props.editor.editing() || undefined}
+        data-testid="dashboard-draft-grid"
+        ref={(element) => { grid = element }}
+      >
+        <For each={props.editor.session.ids()}>
+          {(id) => (
+            <DraftPlacement
+              csrf={props.csrf}
+              editor={props.editor}
+              fetcher={props.fetcher}
+              filterToday={props.filterToday}
+              grid={() => grid}
+              id={id}
+              locale={props.locale}
+              panels={props.panels}
+              registry={props.registry}
+              source={() => sources().get(id)}
+              theme={props.theme}
+            />
+          )}
+        </For>
+      </div>
+    </div>
+  )
+}
+
+function DraftPlacement(props: {
+  id: string
+  editor: DashboardEditor
+  source: () => PlacementSource | undefined
+  panels: Map<string, Panel>
+  registry?: PanelRegistry
+  filterToday?: CalendarDate
+  grid: () => HTMLElement | undefined
+  theme: LensThemeMode
+  locale?: string
+  csrf?: string
+  fetcher?: typeof fetch
+}) {
+  const session = props.editor.session
+  const current = () => session.byId(props.id)
+  const placement = (): Placement | undefined => current()?.placement
+  // The figures stay the document's; the caption and width are the draft's.
+  // A report the reader may not see keeps the document's withheld label.
+  const group = createMemo<LayoutGroup>(() => {
+    const base = props.source()?.group
+    const value = placement()
+    const span = value ? spanOf(value) : base?.span ?? 12
+    if (base?.unavailable) return { ...base, span }
+    if (!base) return { id: props.id, kind: 'grid', span, label: value ? session.title(value) : props.id }
+    const label = value?.title ?? (value ? session.host.reportTitle?.(value.reportId) : undefined) ?? base.label
+    return { ...base, span, label }
+  })
+  const edit = props.editor.cardEdit(props.id, {
+    title: () => group().unavailable === 'report-forbidden' ? reportUnavailableTitle('report-forbidden', undefined, session.translate) : group().label || props.id,
+    preview: () => !props.source(),
+    grid: props.grid,
+  })
+  return (
+    <Show when={placement()}>
+      <GroupCard edit={edit} group={group()} items={props.source()?.items} panels={props.panels}>
+        <Show
+          fallback={props.editor.Added({ csrf: props.csrf, fetcher: props.fetcher, locale: props.locale, placement: placement()!, theme: props.theme })}
+          when={props.source()}
+        >
+          {(source) => (
+            <div class="lens-panel-grid">
+              <GroupChain depth={1} filterToday={props.filterToday} items={source().items} panels={props.panels} registry={props.registry} />
+            </div>
+          )}
+        </Show>
+      </GroupCard>
+    </Show>
+  )
+}
+
 export function DashboardPanels(props: DashboardPanelsProps) {
   const { document } = useDashboard()
   const dashboard = useDashboard()
@@ -661,7 +922,28 @@ export function DashboardPanels(props: DashboardPanelsProps) {
   // Active-tab memory shared by every (possibly nested) tab group in this mount.
   const tabState = new Map<string, string>()
   usePrintPreview()
+  const theme = () => props.theme ?? 'light'
+  // An edit-capable host draws the board from its composition draft, in view
+  // mode too: entering edit mode then keeps every card mounted, and a saved
+  // layout stays on screen until the host refreshes the document.
+  const edit = untrack(() => props.edit)
+  const editable = Boolean(edit) && drawer.depth === 0
+  const [editModule, setEditModule] = createSignal<EditModule>()
+  const [editLoadFailed, setEditLoadFailed] = createSignal(false)
+  // A failed chunk (a deploy replaced it, a flaky network) leaves the board
+  // read-only; the retry repeats the import while the dashboard stays mounted.
+  const loadEditModule = () => {
+    setEditLoadFailed(false)
+    void import('./reports/dashboardEdit').then((module) => setEditModule(() => module), (cause: unknown) => {
+      console.error('[lens] the dashboard edit mode failed to load', cause)
+      setEditLoadFailed(true)
+    })
+  }
+  if (editable) loadEditModule()
+  const placementHost = useReportPlacementHost()
+  const chrome = () => props.chrome ?? {}
 
+  const documentTitle = () => document.header?.title || document.meta.title
   const identityTitle = createMemo(() => {
     // A drawer whose document carries a `drawer` block states its own identity
     // in the chrome — eyebrow, title, caption and period. The document then
@@ -675,10 +957,21 @@ export function DashboardPanels(props: DashboardPanelsProps) {
     // identity line empty, and suppressing the document's own heading there
     // would take the drawer's only name away rather than de-duplicate it.
     const inDrawer = drawer.depth > 0 && Boolean(drawerHeader()?.title?.trim())
-    return inDrawer ? '' : (document.header?.title || document.meta.title)
+    return inDrawer || chrome().title === false || chrome().header === false ? '' : documentTitle()
   })
-  const hasHeader = createMemo(() => Boolean(identityTitle()) || Boolean(document.endpoints.export) || print.available ||
-    (document.filters?.length ?? 0) > 0 || dashboard.canRecompute)
+  const hasHeader = (editor?: DashboardEditor) => {
+    if (editor) return true
+    if (chrome().header === false) return false
+    return Boolean(identityTitle()) || Boolean(document.endpoints.export) || print.available ||
+      (document.filters?.length ?? 0) > 0 || dashboard.canRecompute
+  }
+  const showFilters = () => chrome().header !== false
+  const subtitle = () => {
+    if (chrome().description === false) return undefined
+    return drawer.depth > 0 && Boolean(drawerHeader()?.title?.trim()) ? undefined : document.header?.subtitle
+  }
+  const documentEmpty = () => !(document.layout.rows.length > 0 && document.panels.length > 0)
+  const empty = (editor?: DashboardEditor) => editor ? editor.session.ids().length === 0 : documentEmpty()
   const columns = createMemo(() => metricColumnCount(document.layout.rows))
   // Comparison is a property of the dashboard, not of the panels that happen to
   // carry a delta: with it on, every strip reserves the chip's row. Otherwise
@@ -687,83 +980,149 @@ export function DashboardPanels(props: DashboardPanelsProps) {
   const comparing = createMemo(() => (document.filters ?? []).some((filter) =>
     filter.kind === 'compare' && filter.compare !== undefined && filter.compare.value.mode !== 'off'))
 
-  return (
-    <Show
-      when={document.layout.rows.length > 0 && document.panels.length > 0}
-      fallback={
-        <div class="lens-placeholder-state">
-          {translate('dashboard.empty', 'The document contains no panels.')}
-        </div>
-      }
-    >
-      <TabStateContext.Provider value={tabState}>
-        <main
-          aria-label={identityTitle() || undefined}
-          class={`lens-dashboard${comparing() ? ' lens-dashboard-comparing' : ''}`}
-          style={{ '--lens-metric-columns': columns() } as JSX.CSSProperties}
-        >
-          <Show when={hasHeader()}>
-            <header class="lens-dashboard-header">
-              {/* Three rows, each answering one question, in the order a reader
+  const documentRows = () => (
+    <div class="lens-dashboard-rows">
+      <For each={document.layout.rows}>
+        {(row, rowIndex) => (
+          <section
+            class={`lens-dashboard-row${row.class ? ` ${row.class}` : ''}`}
+            id={row.anchor || undefined}
+          >
+            <Show when={row.heading}>
+              <h2 class="lens-row-heading"><span>{row.heading}</span></h2>
+            </Show>
+            <div
+              class={`lens-panel-grid${entrance ? ' lens-entrance' : ''}`}
+              style={entrance ? ({ '--lens-row-delay': `${Math.min(rowIndex() * 60, 180)}ms` } as JSX.CSSProperties) : undefined}
+            >
+              <GroupChain depth={0} filterToday={props.filterToday} items={row.panels} panels={panels()} registry={props.registry} />
+            </div>
+          </section>
+        )}
+      </For>
+    </div>
+  )
+
+  const board = (editor?: DashboardEditor) => {
+    const editing = () => Boolean(editor?.editing())
+    return (
+      <Show
+        when={!documentEmpty() || editable || placementHost}
+        fallback={
+          <div class="lens-placeholder-state">
+            {translate('dashboard.empty', 'The document contains no panels.')}
+          </div>
+        }
+      >
+        <TabStateContext.Provider value={tabState}>
+          <main
+            aria-label={(identityTitle() || (chrome().title === false || chrome().header === false ? documentTitle() : '')) || undefined}
+            class={`lens-dashboard${comparing() ? ' lens-dashboard-comparing' : ''}`}
+            data-editing={editing() || undefined}
+            style={{ '--lens-metric-columns': columns() } as JSX.CSSProperties}
+          >
+            <Show when={hasHeader(editor)}>
+              <header class="lens-dashboard-header">
+                {/* Three rows, each answering one question, in the order a reader
                   asks them: what page is this and what can I do with it, what
                   slice am I looking at, and what is currently narrowing it.
                   They used to be two columns — identity opposite a single wrapping
                   cluster that mixed the controls changing the data with the verbs
                   carrying it away, at one weight and with no divider, so nothing
                   said which half did which. */}
-              <div class="lens-dashboard-headline">
-                {/* Without a title an empty slot lets a host page own the heading
+                <div class="lens-dashboard-headline">
+                  {/* Without a title an empty slot lets a host page own the heading
                     and keeps the dashboard's own chrome to the action row. */}
-                {identityTitle() ? <h1 class="lens-dashboard-title">{identityTitle()}</h1> : <span />}
-                {/* The actions travel as one block. Loose in the row they
+                  {identityTitle() ? <h1 class="lens-dashboard-title" data-testid="lens-dashboard-title">{identityTitle()}</h1> : <span />}
+                  {/* The actions travel as one block. Loose in the row they
                     re-ordered themselves against the filters at every wrap, so the
                     fourth control at 1440px was the second one at 1000px. */}
-                <div class="lens-dashboard-actions">
-                  <FreshnessControl />
-                  <ShareSliceButton />
-                  <ExportMenu />
+                  <Show
+                    fallback={(
+                      <div class="lens-dashboard-actions">
+                        <FreshnessControl />
+                        <ShareSliceButton />
+                        <ExportMenu />
+                        <Show when={editor && editor.edit.toggle !== false}>{editor!.Toggle()}</Show>
+                      </div>
+                    )}
+                    when={editing()}
+                  >
+                    {editor!.Bar()}
+                  </Show>
                 </div>
-              </div>
-              {/* The producer's own scope line rides with the controls that change
+                {/* The producer's own scope line rides with the controls that change
                   it rather than under the title: on the analytics boards it
                   restated the period the period control was already printing, so
                   the same fact occupied three surfaces. What is left of it is what
                   no control states — the date the data itself was cut. */}
-              <FilterBar subtitle={drawer.depth > 0 && Boolean(drawerHeader()?.title?.trim()) ? undefined : document.header?.subtitle} today={props.filterToday} />
-            </header>
-          </Show>
-          <Show when={hasHeader()}>
-            <DocumentRefetchError />
-          </Show>
-          <MetricColumnsContext.Provider value={columns()}>
-            <div class="lens-dashboard-rows">
-              <For each={document.layout.rows}>
-                {(row, rowIndex) => (
-                  <section
-                    class={`lens-dashboard-row${row.class ? ` ${row.class}` : ''}`}
-                    id={row.anchor || undefined}
-                  >
-                    <Show when={row.heading}>
-                      <h2 class="lens-row-heading"><span>{row.heading}</span></h2>
-                    </Show>
-                    <div
-                      class={`lens-panel-grid${entrance ? ' lens-entrance' : ''}`}
-                      style={entrance ? ({ '--lens-row-delay': `${Math.min(rowIndex() * 60, 180)}ms` } as JSX.CSSProperties) : undefined}
-                    >
-                      <GroupChain depth={0} filterToday={props.filterToday} items={row.panels} panels={panels()} registry={props.registry} />
-                    </div>
-                  </section>
-                )}
-              </For>
+                <Show when={showFilters()}>
+                  <FilterBar compact={chrome().toolbar === 'compact'} subtitle={subtitle()} today={props.filterToday} />
+                </Show>
+                <Show when={editor}>
+                  <p aria-live="polite" class="lens-visually-hidden" data-testid="dashboard-edit-announcement">{editor!.modeAnnouncement()}</p>
+                </Show>
+              </header>
+            </Show>
+            <Show when={hasHeader(editor)}>
+              <DocumentRefetchError />
+            </Show>
+            <Show when={editor && editing()}>{editor!.Notices()}</Show>
+            {props.toolbar?.({ get document() { return dashboard.document } })}
+            <MetricColumnsContext.Provider value={columns()}>
+              <Show when={!empty(editor)} fallback={<DashboardEmptyState onAdd={editor?.session.host.catalog ? (trigger) => editor.addReport(trigger) : undefined} />}>
+                <Show fallback={documentRows()} when={editor}>
+                  <ReportPlacementProvider host={editor!.placementHost(placementHost)}>
+                    <DraftLayout
+                      csrf={props.csrf}
+                      editor={editor!}
+                      entrance={entrance}
+                      fetcher={props.fetcher}
+                      filterToday={props.filterToday}
+                      locale={props.locale}
+                      panels={panels()}
+                      registry={props.registry}
+                      rows={document.layout.rows}
+                      theme={theme()}
+                    />
+                  </ReportPlacementProvider>
+                </Show>
+              </Show>
+            </MetricColumnsContext.Provider>
+            <Show when={editor}>{editor!.Dialogs()}</Show>
+            <Show when={print.active}>
+              <Suspense fallback={null}>
+                <LazyPrintReport />
+              </Suspense>
+            </Show>
+          </main>
+        </TabStateContext.Provider>
+      </Show>
+    )
+  }
+
+  // Until the edit chunk arrives the board renders read-only from the document.
+  return (
+    <Show
+      fallback={(
+        <>
+          <Show when={editLoadFailed()}>
+            <div class="lens-document-refetch-error" data-testid="dashboard-edit-load-failed" role="alert">
+              <span>{translate('dashboard.edit.loadFailed', 'Editing could not be loaded. The dashboard stays read-only.')}</span>
+              <div class="lens-document-refetch-error-actions">
+                <button onClick={loadEditModule} type="button">{translate('document.retry', 'Retry')}</button>
+              </div>
             </div>
-          </MetricColumnsContext.Provider>
-          <Show when={print.active}>
-            <Suspense fallback={null}>
-              <LazyPrintReport />
-            </Suspense>
           </Show>
-        </main>
-      </TabStateContext.Provider>
+          {board()}
+        </>
+      )}
+      when={editModule()}
+    >
+      {(module) => {
+        const Scope = module().DashboardEditScope
+        return <Scope edit={edit!} theme={theme}>{(editor) => board(editor)}</Scope>
+      }}
     </Show>
   )
 }

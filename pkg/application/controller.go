@@ -57,9 +57,6 @@ type RouteRenderer string
 const (
 	RouteRendererServer RouteRenderer = "server"
 	RouteRendererClient RouteRenderer = "client"
-	// RouteRendererReact is retained while existing React routes migrate. New
-	// client routes should use RouteRendererClient.
-	RouteRendererReact RouteRenderer = "react"
 )
 
 type Surface string

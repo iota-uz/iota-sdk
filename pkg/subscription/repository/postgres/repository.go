@@ -252,7 +252,7 @@ func (r *Repository) GetEntitlement(ctx context.Context, tenantID uuid.UUID) (*r
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	var model entitlementModel
@@ -273,12 +273,12 @@ func (r *Repository) GetEntitlement(ctx context.Context, tenantID uuid.UUID) (*r
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, repository.ErrEntitlementNotFound
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	entitlement, err := toDomain(&model)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return entitlement, nil
@@ -289,12 +289,12 @@ func (r *Repository) UpsertEntitlement(ctx context.Context, entitlement *reposit
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	model, err := toModel(entitlement)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if model.CreatedAt.IsZero() {
 		model.CreatedAt = time.Now().UTC()
@@ -317,7 +317,7 @@ func (r *Repository) UpsertEntitlement(ctx context.Context, entitlement *reposit
 		model.UpdatedAt,
 	)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	return nil
@@ -328,12 +328,12 @@ func (r *Repository) SetStripeReferences(ctx context.Context, tenantID uuid.UUID
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := db.Exec(ctx, querySetStripeReferences, tenantID, customerID, subscriptionID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if result.RowsAffected() == 0 {
 		return repository.ErrEntitlementNotFound
@@ -346,7 +346,7 @@ func (r *Repository) GetStripeReferences(ctx context.Context, tenantID uuid.UUID
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	var refs repository.StripeReferences
@@ -356,7 +356,7 @@ func (r *Repository) GetStripeReferences(ctx context.Context, tenantID uuid.UUID
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, repository.ErrEntitlementNotFound
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return &refs, nil
 }
@@ -366,7 +366,7 @@ func (r *Repository) FindTenantByStripeCustomer(ctx context.Context, customerID 
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return uuid.Nil, serrors.E(op, err)
+		return uuid.Nil, serrors.Wrap(op, err)
 	}
 
 	var tenantID uuid.UUID
@@ -375,7 +375,7 @@ func (r *Repository) FindTenantByStripeCustomer(ctx context.Context, customerID 
 		if errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, repository.ErrEntitlementNotFound
 		}
-		return uuid.Nil, serrors.E(op, err)
+		return uuid.Nil, serrors.FromDB(op, err)
 	}
 	return tenantID, nil
 }
@@ -385,7 +385,7 @@ func (r *Repository) FindTenantByStripeSubscription(ctx context.Context, subscri
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return uuid.Nil, serrors.E(op, err)
+		return uuid.Nil, serrors.Wrap(op, err)
 	}
 
 	var tenantID uuid.UUID
@@ -394,7 +394,7 @@ func (r *Repository) FindTenantByStripeSubscription(ctx context.Context, subscri
 		if errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, repository.ErrEntitlementNotFound
 		}
-		return uuid.Nil, serrors.E(op, err)
+		return uuid.Nil, serrors.FromDB(op, err)
 	}
 	return tenantID, nil
 }
@@ -404,11 +404,11 @@ func (r *Repository) SetGracePeriod(ctx context.Context, tenantID uuid.UUID, inG
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	result, err := db.Exec(ctx, querySetGracePeriod, tenantID, inGrace, endsAt)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if result.RowsAffected() == 0 {
 		return repository.ErrEntitlementNotFound
@@ -421,11 +421,11 @@ func (r *Repository) SetPlan(ctx context.Context, tenantID uuid.UUID, planID str
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	result, err := db.Exec(ctx, querySetPlan, tenantID, planID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if result.RowsAffected() == 0 {
 		return repository.ErrEntitlementNotFound
@@ -438,11 +438,11 @@ func (r *Repository) TouchSyncedAt(ctx context.Context, tenantID uuid.UUID, sync
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	result, err := db.Exec(ctx, queryTouchSyncedAt, tenantID, syncedAt.UTC())
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if result.RowsAffected() == 0 {
 		return repository.ErrEntitlementNotFound
@@ -455,17 +455,17 @@ func (r *Repository) UpdateFeaturesAndSync(ctx context.Context, tenantID uuid.UU
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	featuresJSON, err := json.Marshal(features)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := db.Exec(ctx, queryUpdateFeaturesAndSync, tenantID, featuresJSON, syncedAt.UTC())
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if result.RowsAffected() == 0 {
 		return repository.ErrEntitlementNotFound
@@ -478,12 +478,12 @@ func (r *Repository) GetEntityCounts(ctx context.Context, tenantID uuid.UUID) (m
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := db.Query(ctx, queryGetEntityCounts, tenantID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -492,12 +492,12 @@ func (r *Repository) GetEntityCounts(ctx context.Context, tenantID uuid.UUID) (m
 		var entityType string
 		var current int
 		if err := rows.Scan(&entityType, &current); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		counts[entityType] = current
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return counts, nil
 }
@@ -507,13 +507,13 @@ func (r *Repository) GetEntityCount(ctx context.Context, tenantID uuid.UUID, ent
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	var current int
 	err = db.QueryRow(ctx, queryGetEntityCount, tenantID, entityType).Scan(&current)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.FromDB(op, err)
 	}
 	return current, nil
 }
@@ -521,17 +521,17 @@ func (r *Repository) GetEntityCount(ctx context.Context, tenantID uuid.UUID, ent
 func (r *Repository) SetEntityCount(ctx context.Context, tenantID uuid.UUID, entityType string, count int) error {
 	const op serrors.Op = "SubscriptionRepository.SetEntityCount"
 	if count < 0 {
-		return serrors.E(op, fmt.Errorf("count must be non-negative"))
+		return serrors.Wrap(op, fmt.Errorf("count must be non-negative"))
 	}
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	_, err = db.Exec(ctx, querySetEntityCount, tenantID, entityType, count)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	return nil
 }
@@ -541,12 +541,12 @@ func (r *Repository) IncrementEntityCount(ctx context.Context, tenantID uuid.UUI
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	_, err = db.Exec(ctx, queryIncrementEntityCount, tenantID, entityType)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	return nil
 }
@@ -561,13 +561,13 @@ func (r *Repository) IncrementEntityCountIfBelow(
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	var ok bool
 	err = db.QueryRow(ctx, queryIncrementEntityCountIfBelow, tenantID, entityType, maxCount).Scan(&ok)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.FromDB(op, err)
 	}
 
 	return ok, nil
@@ -578,12 +578,12 @@ func (r *Repository) DecrementEntityCount(ctx context.Context, tenantID uuid.UUI
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	_, err = db.Exec(ctx, queryDecrementEntityCount, tenantID, entityType)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	return nil
 }
@@ -593,18 +593,18 @@ func (r *Repository) AddSeatIfBelow(ctx context.Context, tenantID uuid.UUID, max
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	result, err := db.Exec(ctx, queryAddSeatIfBelow, tenantID, maxCount)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.FromDB(op, err)
 	}
 	if result.RowsAffected() == 0 {
 		var exists bool
 		existsErr := db.QueryRow(ctx, queryEntitlementExists, tenantID).Scan(&exists)
 		if existsErr != nil {
-			return false, serrors.E(op, existsErr)
+			return false, serrors.FromDB(op, existsErr)
 		}
 		if !exists {
 			return false, repository.ErrEntitlementNotFound
@@ -619,12 +619,12 @@ func (r *Repository) IncrementSeat(ctx context.Context, tenantID uuid.UUID) erro
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := db.Exec(ctx, queryIncrementSeat, tenantID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if result.RowsAffected() == 0 {
 		return repository.ErrEntitlementNotFound
@@ -637,12 +637,12 @@ func (r *Repository) DecrementSeat(ctx context.Context, tenantID uuid.UUID) erro
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := db.Exec(ctx, queryDecrementSeat, tenantID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if result.RowsAffected() == 0 {
 		return repository.ErrEntitlementNotFound
@@ -655,17 +655,17 @@ func (r *Repository) UpsertPlans(ctx context.Context, plans []subscription.PlanD
 
 	if tx, err := composables.UseTx(ctx); err == nil {
 		if err := r.upsertPlans(ctx, tx, plans); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		return nil
 	}
 
 	if r.pool == nil {
-		return serrors.E(op, composables.ErrNoPool)
+		return serrors.Wrap(op, composables.ErrNoPool)
 	}
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	committed := false
 	defer func() {
@@ -675,10 +675,10 @@ func (r *Repository) UpsertPlans(ctx context.Context, plans []subscription.PlanD
 	}()
 
 	if err := r.upsertPlans(ctx, tx, plans); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	committed = true
 	return nil
@@ -718,16 +718,16 @@ func (r *Repository) TryMarkWebhookEventProcessed(
 
 	db, err := r.getQueryer(ctx)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	if err := r.maybeCleanupExpiredWebhookEvents(ctx, db); err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	result, err := db.Exec(ctx, queryInsertWebhookEvent, eventID, eventType, int(ttl.Seconds()))
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.FromDB(op, err)
 	}
 
 	return result.RowsAffected() > 0, nil

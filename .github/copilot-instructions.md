@@ -109,7 +109,7 @@ Always wrap errors with operation context:
 ```go
 const op = serrors.Op("service.PaymentService.GetByID")
 if err != nil {
-    return nil, serrors.E(op, err)
+    return nil, serrors.Wrap(op, err)
 }
 ```
 

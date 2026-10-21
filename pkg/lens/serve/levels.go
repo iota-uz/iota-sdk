@@ -298,17 +298,17 @@ func (h *Handlers) executeLevel(ctx context.Context, base lensruntime.Request, p
 		}
 		loader, err := h.resolveLoader(ctx, load, req)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		if node, ok := target.perspective.Node(target.nodeKey); ok && !node.DynamicEdges {
 			loader = fixedTopologyLoader{ExplorationLoader: loader}
 		}
 		explored, err := h.exploration.ExecuteExploration(ctx, h.spec, loader, load, req)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		if explored == nil || explored.Panel == nil {
-			return nil, serrors.E(op, fmt.Errorf("exploration loader did not execute panel %q", target.panel.ID))
+			return nil, serrors.Wrap(op, fmt.Errorf("exploration loader did not execute panel %q", target.panel.ID))
 		}
 		result := *explored.Panel
 		resolved := result.Panel
@@ -319,14 +319,14 @@ func (h *Handlers) executeLevel(ctx context.Context, base lensruntime.Request, p
 	}
 	result, err := h.engine.Execute(ctx, levelSpec(h.spec, target.panel), req, lensruntime.PanelScope(target.panel.ID))
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if result == nil || result.Panel(target.panel.ID) == nil {
-		return nil, serrors.E(op, fmt.Errorf("panel %q was not executed", target.panel.ID))
+		return nil, serrors.Wrap(op, fmt.Errorf("panel %q was not executed", target.panel.ID))
 	}
 	panelResult := result.Panel(target.panel.ID)
 	if panelResult.Error != nil {
-		return panelResult, serrors.E(op, panelResult.Error)
+		return panelResult, serrors.Wrap(op, panelResult.Error)
 	}
 	return panelResult, nil
 }
@@ -402,14 +402,14 @@ func (h *Handlers) executeSourcePanel(ctx context.Context, base lensruntime.Requ
 	base.Request = cloneValues(base.Request)
 	result, err := h.engine.Execute(ctx, levelSpec(h.spec, target.panel), base, lensruntime.PanelScope(target.panel.ID))
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if result == nil || result.Panel(target.panel.ID) == nil {
-		return nil, serrors.E(op, fmt.Errorf("panel %q was not executed", target.panel.ID))
+		return nil, serrors.Wrap(op, fmt.Errorf("panel %q was not executed", target.panel.ID))
 	}
 	panelResult := result.Panel(target.panel.ID)
 	if panelResult.Error != nil {
-		return panelResult, serrors.E(op, panelResult.Error)
+		return panelResult, serrors.Wrap(op, panelResult.Error)
 	}
 	return panelResult, nil
 }

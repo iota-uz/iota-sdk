@@ -30,14 +30,7 @@ var (
 // against this constraint maps to department.ErrDuplicateCode.
 const departmentsTenantCodeUniqueConstraint = "departments_tenant_id_code_key"
 
-// classifyDepartmentDBError maps the Postgres unique-constraint violation on
-// (tenant_id, code) for core.departments to department.ErrDuplicateCode wrapped
-// in serrors.KindValidation, so admin controllers can render a field-level
-// "code already in use" message instead of a 500. Unrecognized errors keep
-// their original shape (wrapped with op for tracing). Currently routed from
-// the create() and update() write paths; Delete() does not need it (it has no
-// 23505 surface today — a FK-violation classifier for child-dept references
-// can be added here when the admin "cascade delete" UX is built).
+// classifyDepartmentDBError preserves the repository sentinel and driver cause.
 func classifyDepartmentDBError(op serrors.Op, err error) error {
 	if err == nil {
 		return nil
@@ -45,10 +38,9 @@ func classifyDepartmentDBError(op serrors.Op, err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" &&
 		pgErr.ConstraintName == departmentsTenantCodeUniqueConstraint {
-		return serrors.E(op, serrors.KindValidation,
-			fmt.Errorf("department code already exists in tenant: %w", department.ErrDuplicateCode))
+		return serrors.FromConstraint(op, err, serrors.Constraint{SQLState: "23505", Name: departmentsTenantCodeUniqueConstraint, Reason: "department_code_duplicate", Message: serrors.Message{ID: "Departments.Errors.DuplicateCode"}}).(*serrors.Error).WithCause(serrors.Multi(err, department.ErrDuplicateCode)).WithFields(serrors.FieldViolation{Field: "Code", Reason: "department_code_duplicate", Message: serrors.Message{ID: "Departments.Errors.DuplicateCode"}})
 	}
-	return serrors.E(op, err)
+	return serrors.FromDB(op, err)
 }
 
 const (
@@ -95,7 +87,7 @@ func (r *PgDepartmentRepository) buildFilters(
 	const op serrors.Op = "PgDepartmentRepository.buildFilters"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, nil, serrors.E(op, err)
+		return nil, nil, serrors.Wrap(op, err)
 	}
 
 	where := []string{"d.tenant_id = $1"}
@@ -104,7 +96,7 @@ func (r *PgDepartmentRepository) buildFilters(
 	for _, filter := range params.Filters {
 		column, ok := r.fieldMap[filter.Column]
 		if !ok {
-			return nil, nil, serrors.E(op, fmt.Errorf("unknown filter field: %v", filter.Column))
+			return nil, nil, serrors.Wrap(op, fmt.Errorf("unknown filter field: %v", filter.Column))
 		}
 		where = append(where, filter.Filter.String(column, len(args)+1))
 		args = append(args, filter.Filter.Value()...)
@@ -130,7 +122,7 @@ func (r *PgDepartmentRepository) GetPaginated(
 
 	where, args, err := r.buildFilters(ctx, params)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	query := repo.Join(
@@ -142,7 +134,7 @@ func (r *PgDepartmentRepository) GetPaginated(
 
 	departments, err := r.queryDepartments(ctx, query, args...)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return departments, nil
 }
@@ -155,12 +147,12 @@ func (r *PgDepartmentRepository) Count(ctx context.Context, params *department.F
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	where, args, err := r.buildFilters(ctx, params)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 
 	query := repo.Join(
@@ -170,7 +162,7 @@ func (r *PgDepartmentRepository) Count(ctx context.Context, params *department.F
 
 	var count int64
 	if err := tx.QueryRow(ctx, query, args...).Scan(&count); err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.FromDB(op, err)
 	}
 	return count, nil
 }
@@ -179,16 +171,16 @@ func (r *PgDepartmentRepository) GetByID(ctx context.Context, id uuid.UUID) (dep
 	const op serrors.Op = "PgDepartmentRepository.GetByID"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	q := repo.Join(departmentFindQuery, "WHERE d.id = $1 AND d.tenant_id = $2")
 	departments, err := r.queryDepartments(ctx, q, id.String(), tenantID.String())
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if len(departments) == 0 {
-		return nil, serrors.E(op, serrors.NotFound, ErrDepartmentNotFound)
+		return nil, serrors.New(serrors.NotFound, "").WithOp(op).WithCause(ErrDepartmentNotFound)
 	}
 	return departments[0], nil
 }
@@ -201,13 +193,13 @@ func (r *PgDepartmentRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) 
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	q := repo.Join(departmentFindQuery, "WHERE d.id = ANY($1) AND d.tenant_id = $2")
 	departments, err := r.queryDepartments(ctx, q, ids, tenantID.String())
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return departments, nil
 }
@@ -216,17 +208,17 @@ func (r *PgDepartmentRepository) Exists(ctx context.Context, id uuid.UUID) (bool
 	const op serrors.Op = "PgDepartmentRepository.Exists"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	var exists bool
 	if err := tx.QueryRow(ctx, departmentExistsQuery, id.String(), tenantID.String()).Scan(&exists); err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.FromDB(op, err)
 	}
 	return exists, nil
 }
@@ -235,7 +227,7 @@ func (r *PgDepartmentRepository) Save(ctx context.Context, entity department.Dep
 	const op serrors.Op = "PgDepartmentRepository.Save"
 	exists, err := r.Exists(ctx, entity.ID())
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if exists {
@@ -251,19 +243,19 @@ func (r *PgDepartmentRepository) create(
 	const op serrors.Op = "PgDepartmentRepository.create"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Tenant ownership comes from the request context, never the entity
 	// payload, so a mismatched-entity tenant cannot insert into another tenant.
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	dbDepartment, err := ToDBDepartment(entity)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	dbDepartment.TenantID = tenantID.String()
 	if entity.ID() == uuid.Nil {
@@ -300,7 +292,7 @@ func (r *PgDepartmentRepository) create(
 
 	id, err := uuid.Parse(dbDepartment.ID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return r.GetByID(ctx, id)
 }
@@ -312,19 +304,19 @@ func (r *PgDepartmentRepository) update(
 	const op serrors.Op = "PgDepartmentRepository.update"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Tenant ownership comes from the request context, never the entity
 	// payload, so the update can only ever target the caller's own tenant row.
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	dbDepartment, err := ToDBDepartment(entity)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	dbDepartment.TenantID = tenantID.String()
 
@@ -360,7 +352,7 @@ func (r *PgDepartmentRepository) update(
 
 	id, err := uuid.Parse(dbDepartment.ID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return r.GetByID(ctx, id)
 }
@@ -369,20 +361,20 @@ func (r *PgDepartmentRepository) Delete(ctx context.Context, id uuid.UUID) error
 	const op serrors.Op = "PgDepartmentRepository.Delete"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	tag, err := tx.Exec(ctx, departmentDeleteQuery, id.String(), tenantID.String())
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 	if tag.RowsAffected() == 0 {
-		return serrors.E(op, serrors.NotFound, ErrDepartmentNotFound)
+		return serrors.New(serrors.NotFound, "").WithOp(op).WithCause(ErrDepartmentNotFound)
 	}
 	return nil
 }
@@ -395,12 +387,12 @@ func (r *PgDepartmentRepository) queryDepartments(
 	const op serrors.Op = "PgDepartmentRepository.queryDepartments"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -418,20 +410,20 @@ func (r *PgDepartmentRepository) queryDepartments(
 			&dbDepartment.CreatedAt,
 			&dbDepartment.UpdatedAt,
 		); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		dbDepartments = append(dbDepartments, &dbDepartment)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	entities := make([]department.Department, 0, len(dbDepartments))
 	for _, dbDepartment := range dbDepartments {
 		domainDepartment, err := ToDomainDepartment(dbDepartment)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		entities = append(entities, domainDepartment)
 	}

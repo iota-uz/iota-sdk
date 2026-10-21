@@ -10,6 +10,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -19,9 +20,19 @@ var ErrPrivateUploadPathRequired = errors.New("private upload path is required")
 var ErrPrivateUploadPathInvalid = errors.New("private upload path escapes namespace")
 
 type UploadService struct {
-	repo      upload.Repository
-	storage   upload.Storage
-	publisher eventbus.EventBus
+	repo        upload.Repository
+	storage     upload.Storage
+	publisher   eventbus.EventBus
+	uploadsPath string
+}
+
+// NewConfiguredUploadService uses the same upload root as the mounted file controller.
+func NewConfiguredUploadService(repo upload.Repository, storage upload.Storage, publisher eventbus.EventBus, cfg *uploadsconfig.Config) *UploadService {
+	service := NewUploadService(repo, storage, publisher)
+	if cfg != nil {
+		service.uploadsPath = cfg.Path
+	}
+	return service
 }
 
 func NewUploadService(
@@ -70,7 +81,12 @@ func (s *UploadService) GetPaginated(ctx context.Context, params *upload.FindPar
 }
 
 func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error) {
-	return s.create(ctx, data, true, true)
+	if data.UploadsPath != "" || s.uploadsPath == "" {
+		return s.create(ctx, data, true, true)
+	}
+	configured := *data
+	configured.UploadsPath = s.uploadsPath
+	return s.create(ctx, &configured, true, true)
 }
 
 // CreatePrivate stores an upload in a caller-provided non-public namespace.
@@ -79,7 +95,7 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upl
 func (s *UploadService) CreatePrivate(ctx context.Context, data *upload.CreateDTO, privatePath string) (upload.Upload, error) {
 	const op serrors.Op = "UploadService.CreatePrivate"
 	if privatePath == "" {
-		return nil, serrors.E(op, ErrPrivateUploadPathRequired)
+		return nil, serrors.Wrap(op, ErrPrivateUploadPathRequired)
 	}
 	privateData := *data
 	privateData.UploadsPath = privatePath
@@ -98,7 +114,7 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 		return nil, err
 	}
 	if len(requiredPath) > 0 && !pathWithin(requiredPath[0], entity.Path()) {
-		return nil, serrors.E(op, ErrPrivateUploadPathInvalid)
+		return nil, serrors.Wrap(op, ErrPrivateUploadPathInvalid)
 	}
 
 	up, err := s.repo.GetBySlug(ctx, entity.Slug())
@@ -114,11 +130,11 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 	}
 	if up != nil {
 		if len(requiredPath) > 0 && !pathWithin(requiredPath[0], up.Path()) {
-			return nil, serrors.E(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug()))
+			return nil, serrors.Wrap(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug()))
 		}
 		if up.Hash() != entity.Hash() {
 			if !replaceSlug {
-				return nil, serrors.E(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug()))
+				return nil, serrors.Wrap(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug()))
 			}
 			existing, err := s.repo.GetByHash(ctx, entity.Hash())
 			if err != nil && !errors.Is(err, persistence.ErrUploadNotFound) {
@@ -151,6 +167,17 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 				}
 				up = entity
 			}
+		}
+		if data.UploadsPath != "" && !pathWithin(data.UploadsPath, up.Path()) {
+			rooted := upload.NewWithID(up.ID(), up.TenantID(), up.Hash(), filepath.Join(data.UploadsPath, filepath.Base(up.Path())), up.Name(), up.Slug(), up.Size().Bytes(), up.Mimetype(), up.Type(), up.CreatedAt(), up.UpdatedAt(), upload.WithUploadsPath(data.UploadsPath))
+			rooted.SetGeoPoint(up.GeoPoint())
+			if err := s.storage.Save(ctx, rooted.Path(), bytes); err != nil {
+				return nil, err
+			}
+			if err := s.repo.Update(ctx, rooted); err != nil {
+				return nil, err
+			}
+			up = rooted
 		}
 		return up, nil
 	}

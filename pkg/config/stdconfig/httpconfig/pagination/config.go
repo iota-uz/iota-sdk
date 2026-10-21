@@ -6,7 +6,7 @@ import "fmt"
 
 // Config holds page-size settings.
 //
-// Env prefix: "http.pagination" (e.g. PAGE_SIZE → http.pagination.pagesize).
+// Env prefix: "http.pagination" (e.g. HTTP_PAGINATION_PAGESIZE → http.pagination.pagesize).
 type Config struct {
 	// PageSize is the default number of items per page.
 	PageSize int `koanf:"pagesize" default:"25"`

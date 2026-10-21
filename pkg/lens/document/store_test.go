@@ -4,8 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/shopspring/decimal"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 
 	"github.com/stretchr/testify/require"
 )
@@ -192,4 +198,258 @@ func TestMemoryStore_ContextAndValidation(t *testing.T) {
 
 func testFrame(value int) Frame {
 	return Frame{Columns: []Column{{Name: "value", Type: ColumnNumber}}, Rows: [][]any{{value}}}
+}
+
+func TestMemoryStoreFrameMetadataIsCloneSafe(t *testing.T) {
+	t.Parallel()
+	for _, operation := range []string{"put", "append", "panel"} {
+		t.Run(operation, func(t *testing.T) {
+			store := NewMemoryStore(time.Hour, 1)
+			total, enabled := 60.0, true
+			original := Frame{
+				Total: &total, Colors: []string{"#123456"},
+				Presentation: &Presentation{
+					Stack: true, Sortable: &enabled, Expandable: &enabled, Exportable: &enabled,
+					LineSeries: []string{"forecast"},
+				},
+			}
+			encoded, err := json.Marshal(original)
+			require.NoError(t, err)
+			var expected Frame
+			require.NoError(t, json.Unmarshal(encoded, &expected))
+			snapshot := &Snapshot{ID: "metadata"}
+			if operation == "put" {
+				snapshot.Frames = map[FrameRef]Frame{"chart": original}
+			}
+			require.NoError(t, store.Put(t.Context(), snapshot))
+			switch operation {
+			case "append":
+				require.NoError(t, store.Append(t.Context(), snapshot.ID, map[FrameRef]Frame{"chart": original}))
+			case "panel":
+				require.NoError(t, store.PutPanel(t.Context(), snapshot.ID, "chart", "chart", original, PanelCalculation{}))
+			}
+			mutate := func(value Frame) {
+				*value.Total = 99
+				value.Colors[0] = "changed"
+				value.Presentation.Stack = false
+				*value.Presentation.Sortable = false
+				*value.Presentation.Expandable = false
+				*value.Presentation.Exportable = false
+				value.Presentation.LineSeries[0] = "changed"
+			}
+			// Falsely green if only values are compared without mutating both sides of the store boundary.
+			mutate(original)
+			loaded, err := store.Get(t.Context(), snapshot.ID)
+			require.NoError(t, err)
+			assertMetadata := func(actual Frame) {
+				require.Equal(t, expected.Total, actual.Total)
+				require.Equal(t, expected.Colors, actual.Colors)
+				require.Equal(t, expected.Presentation, actual.Presentation)
+			}
+			assertMetadata(loaded.Frames["chart"])
+			mutate(loaded.Frames["chart"])
+			again, err := store.Get(t.Context(), snapshot.ID)
+			require.NoError(t, err)
+			assertMetadata(again.Frames["chart"])
+		})
+	}
+}
+
+func TestMemoryStoreBudgetAndTypedOwnership(t *testing.T) {
+	// Exercise public Put/Get with a retained input alias, not a clone helper alone.
+	budget := resource.NewBudget(10000)
+	store := NewMemoryStoreWithOptions(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 4000})
+	values := map[string][]string{"x": {"before"}}
+	source := &Snapshot{ID: "owned", Params: map[string]any{"typed": values}}
+	require.NoError(t, store.Put(t.Context(), source))
+	used := budget.Used()
+	require.Positive(t, used)
+	values["x"][0] = "after"
+	got, err := store.Get(t.Context(), "owned")
+	require.NoError(t, err)
+	require.Equal(t, "before", got.Params["typed"].(map[string][]string)["x"][0])
+	require.NoError(t, store.Put(t.Context(), got))
+	require.Equal(t, used, budget.Used())
+	require.Error(t, store.Put(t.Context(), &Snapshot{ID: "owned", Params: map[string]any{"large": strings.Repeat("x", 1000)}}))
+	got, err = store.Get(t.Context(), "owned")
+	require.NoError(t, err)
+	require.Equal(t, "before", got.Params["typed"].(map[string][]string)["x"][0])
+	require.NoError(t, store.(SnapshotDeleter).Delete(t.Context(), "owned"))
+	require.Zero(t, budget.Used())
+}
+func TestMemoryStorePutPanelRejectsOversizeAtomically(t *testing.T) {
+	// A rejected incremental update must neither replace the old frame nor consume budget.
+	budget := resource.NewBudget(100000)
+	store := NewMemoryStoreWithOptions(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 4000})
+	require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "x", Frames: map[FrameRef]Frame{"a": {Rows: [][]any{{"small"}}}}}))
+	before := budget.Used()
+	err := store.PutPanel(t.Context(), "x", "panel", "a", Frame{Rows: [][]any{{strings.Repeat("x", 1000)}}}, PanelCalculation{})
+	require.Error(t, err)
+	require.Equal(t, before, budget.Used())
+	got, err := store.Get(t.Context(), "x")
+	require.NoError(t, err)
+	require.Equal(t, "small", got.Frames["a"].Rows[0][0])
+}
+
+func TestMemoryStoreTouchSlidesTTLAndExpires(t *testing.T) {
+	// Touch must preserve active backing snapshots without returning cloned frame payloads.
+	now := time.Now()
+	store := NewMemoryStore(time.Minute, 2).(*memoryStore)
+	store.clock = func() time.Time { return now }
+	require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "touch"}))
+	now = now.Add(45 * time.Second)
+	require.NoError(t, store.Touch(t.Context(), "touch"))
+	now = now.Add(45 * time.Second)
+	require.NoError(t, store.Touch(t.Context(), "touch"))
+	now = now.Add(2 * time.Minute)
+	require.ErrorIs(t, store.Touch(t.Context(), "touch"), ErrSnapshotGone)
+	require.Zero(t, store.budget.Used())
+}
+func TestMemoryStorePutPanelFrameLimit(t *testing.T) {
+	// The incremental API must enforce the same limit as initial Put and Append.
+	frames := make(map[FrameRef]Frame, maxFramesPerSnapshot)
+	for i := 0; i < maxFramesPerSnapshot; i++ {
+		frames[FrameRef(fmt.Sprint(i))] = Frame{}
+	}
+	store := NewMemoryStore(time.Minute, 2)
+	require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "full", Frames: frames}))
+	require.Error(t, store.PutPanel(t.Context(), "full", "panel", "overflow", Frame{}, PanelCalculation{}))
+	got, err := store.Get(t.Context(), "full")
+	require.NoError(t, err)
+	require.Len(t, got.Frames, maxFramesPerSnapshot)
+}
+
+func TestMemoryStoreAdmissionEvictsAndSweepsExpired(t *testing.T) {
+	// Expired entries never read again must release capacity during fresh admission.
+	budget := resource.NewBudget(2000)
+	store := NewMemoryStoreWithOptions(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 2000, TTL: time.Minute}).(*memoryStore)
+	now := time.Now()
+	store.clock = func() time.Time { return now }
+	snapshot := func(id string) *Snapshot {
+		return &Snapshot{ID: id, Params: map[string]any{"x": strings.Repeat("x", 150)}}
+	}
+	require.NoError(t, store.Put(t.Context(), snapshot("a")))
+	require.NoError(t, store.Put(t.Context(), snapshot("b")))
+	_, err := store.Get(t.Context(), "a")
+	require.ErrorIs(t, err, ErrSnapshotGone)
+	now = now.Add(2 * time.Minute)
+	require.NoError(t, store.Put(t.Context(), snapshot("c")))
+	_, err = store.Get(t.Context(), "b")
+	require.ErrorIs(t, err, ErrSnapshotGone)
+	require.Len(t, store.items, 1)
+}
+
+func TestMemoryStoreClonesAcceptedMixedStructAndFrameParams(t *testing.T) {
+	// Structural preflight permitting empty private metadata must still isolate public fields.
+	type mixed struct {
+		Public  map[string][]string
+		private string
+	}
+	typed := mixed{Public: map[string][]string{"x": {"before"}}}
+	require.Empty(t, typed.private)
+	fr, err := frame.New("source", frame.Field{Name: "x", Type: frame.FieldTypeString, Values: []any{"before"}})
+	require.NoError(t, err)
+	store := NewMemoryStore(time.Minute, 2)
+	require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "mixed", Params: map[string]any{"mixed": typed, "frame": *fr}}))
+	typed.Public["x"][0] = "after"
+	fr.Fields[0].Values[0] = "after"
+	got, err := store.Get(t.Context(), "mixed")
+	require.NoError(t, err)
+	require.Equal(t, "before", got.Params["mixed"].(mixed).Public["x"][0])
+	require.Equal(t, "before", got.Params["frame"].(frame.Frame).Fields[0].Values[0])
+}
+
+func TestMemoryStoreSharedPressurePreservesLiveEntriesOnRejectedPut(t *testing.T) {
+	// Previously a foreign reservation made failed admission evict every live local snapshot.
+	budget := resource.NewBudget(100000)
+	store := NewMemoryStoreWithOptions(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 100000}).(*memoryStore)
+	require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "kept", Params: map[string]any{"x": "before"}}))
+	foreign, err := budget.Reserve(budget.Limit() - budget.Used())
+	require.NoError(t, err)
+	defer foreign.Release()
+	used := budget.Used()
+	require.ErrorIs(t, store.Put(t.Context(), &Snapshot{ID: "large", Params: map[string]any{"x": strings.Repeat("x", 10000)}}), resource.ErrLimit)
+	got, err := store.Get(t.Context(), "kept")
+	require.NoError(t, err)
+	require.Equal(t, "before", got.Params["x"])
+	require.Equal(t, used, budget.Used())
+}
+
+func TestMemoryStoreIncrementalAdmissionReclaimsOtherSnapshots(t *testing.T) {
+	for _, expired := range []bool{false, true} {
+		for _, panel := range []bool{false, true} {
+			t.Run(fmt.Sprintf("expired=%t/panel=%t", expired, panel), func(t *testing.T) {
+				// The old incremental paths rejected growth without sweeping/reclaiming other entries.
+				budget := resource.NewBudget(100000)
+				store := NewMemoryStoreWithOptions(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 100000, TTL: time.Minute}).(*memoryStore)
+				now := time.Now()
+				store.clock = func() time.Time { return now }
+				require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "cold", Params: map[string]any{"x": strings.Repeat("x", 10000)}}))
+				now = now.Add(30 * time.Second)
+				require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "growing"}))
+				foreign, err := budget.Reserve(budget.Limit() - budget.Used())
+				require.NoError(t, err)
+				defer foreign.Release()
+				if expired {
+					now = now.Add(31 * time.Second)
+				}
+				fr := Frame{Rows: [][]any{{strings.Repeat("y", 1000)}}}
+				if panel {
+					err = store.PutPanel(t.Context(), "growing", "detail", "detail", fr, PanelCalculation{})
+				} else {
+					err = store.Append(t.Context(), "growing", map[FrameRef]Frame{"detail": fr})
+				}
+				require.NoError(t, err)
+				got, err := store.Get(t.Context(), "growing")
+				require.NoError(t, err)
+				require.Equal(t, fr.Rows, got.Frames["detail"].Rows)
+				_, err = store.Get(t.Context(), "cold")
+				require.ErrorIs(t, err, ErrSnapshotGone)
+				require.LessOrEqual(t, budget.Used(), budget.Limit())
+			})
+		}
+	}
+}
+
+func TestMemoryStoreRejectedGrowthPreservesTargetAndOtherEntries(t *testing.T) {
+	for _, panel := range []bool{false, true} {
+		t.Run(fmt.Sprint(panel), func(t *testing.T) {
+			budget := resource.NewBudget(100000)
+			store := NewMemoryStoreWithOptions(MemoryStoreOptions{Budget: budget, MaxEntryBytes: 100000})
+			require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "cold"}))
+			require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "target"}))
+			foreign, err := budget.Reserve(budget.Limit() - budget.Used())
+			require.NoError(t, err)
+			defer foreign.Release()
+			used := budget.Used()
+			fr := Frame{Rows: [][]any{{strings.Repeat("x", 10000)}}}
+			if panel {
+				err = store.PutPanel(t.Context(), "target", "detail", "detail", fr, PanelCalculation{})
+			} else {
+				err = store.Append(t.Context(), "target", map[FrameRef]Frame{"detail": fr})
+			}
+			require.ErrorIs(t, err, resource.ErrLimit)
+			got, err := store.Get(t.Context(), "target")
+			require.NoError(t, err)
+			require.Empty(t, got.Frames)
+			_, err = store.Get(t.Context(), "cold")
+			require.NoError(t, err)
+			require.Equal(t, used, budget.Used())
+		})
+	}
+}
+
+func TestMemorySnapshotStoreOwnsDecimalCoefficient(t *testing.T) {
+	t.Parallel()
+	amount := decimal.RequireFromString("12345678901234567890.123456789")
+	original := amount.String()
+	store := NewMemoryStore(time.Minute, 8)
+	require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "decimal", Params: map[string]any{"amount": amount, "pointer": &amount}}))
+	replacement, err := decimal.New(42, -1).MarshalBinary()
+	require.NoError(t, err)
+	require.NoError(t, amount.UnmarshalBinary(replacement))
+	snapshot, err := store.Get(t.Context(), "decimal")
+	require.NoError(t, err)
+	require.Equal(t, original, snapshot.Params["amount"].(decimal.Decimal).String())
+	require.Equal(t, original, snapshot.Params["pointer"].(*decimal.Decimal).String())
 }

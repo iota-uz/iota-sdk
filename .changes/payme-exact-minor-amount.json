@@ -1,0 +1,1 @@
+{"bump": "patch", "summary": "Preserve exact two-decimal transaction amounts in Payme checkout links instead of adding a tiyin through floating-point ceiling."}

@@ -4,7 +4,7 @@ package cookies
 
 // Config holds cookie key name settings.
 //
-// Env prefix: "http.cookies" (e.g. SID_COOKIE_KEY → http.cookies.sid).
+// Env prefix: "http.cookies" (e.g. HTTP_COOKIES_SID → http.cookies.sid).
 type Config struct {
 	// SID is the session-ID cookie key.
 	SID string `koanf:"sid" default:"sid"`

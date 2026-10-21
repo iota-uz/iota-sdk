@@ -1,5 +1,5 @@
 
-import { createEffect, on, onCleanup, onMount } from 'solid-js'
+import { createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import type { JSXElement } from 'solid-js'
 import { Show } from 'solid-js'
@@ -32,6 +32,7 @@ const focusableSelector = [
 export function PanelOverlay(props: PanelOverlayProps) {
   const container = useOverlayContainer(() => true, props.source)
   let dialogRef: HTMLDivElement | undefined
+  const [dialogReady, setDialogReady] = createSignal(false)
   const translate = useTranslate()
 
   onMount(() => {
@@ -76,9 +77,9 @@ export function PanelOverlay(props: PanelOverlayProps) {
     onCleanup(() => document.removeEventListener('keydown', onKeyDown, true))
   })
 
-  createEffect(on(container, (current) => {
-    if (current) dialogRef?.focus()
-  }))
+  createEffect(() => {
+    if (container() && dialogReady()) dialogRef?.focus()
+  })
 
   return (
     <Show when={container()}>
@@ -94,7 +95,7 @@ export function PanelOverlay(props: PanelOverlayProps) {
             aria-label={props.label}
             aria-modal="true"
             class="lens-panel-overlay-frame"
-            ref={(el) => { dialogRef = el }}
+            ref={(el) => { dialogRef = el; setDialogReady(true) }}
             role="dialog"
             tabIndex={-1}
           >

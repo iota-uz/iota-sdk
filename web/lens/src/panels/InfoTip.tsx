@@ -1,5 +1,5 @@
 
-import { createEffect, createSignal, createUniqueId, on, onCleanup, untrack } from 'solid-js'
+import { createEffect, createSignal, createUniqueId, onCleanup, untrack } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import type { JSX } from 'solid-js'
 import { Show, For } from 'solid-js'
@@ -84,7 +84,7 @@ export function InfoTip(props: InfoTipProps) {
   const [tailOffset, setTailOffset] = createSignal(tailInset)
   let wrapperRef: HTMLSpanElement | undefined
   let buttonRef: HTMLButtonElement | undefined
-  let bubbleRef: HTMLSpanElement | undefined
+  const [bubbleRef, setBubbleRef] = createSignal<HTMLSpanElement>()
   let closeTimer: ReturnType<typeof globalThis.setTimeout> | undefined
   const bubbleId = createUniqueId()
   const label = translate('panel.info', 'About this metric')
@@ -100,7 +100,7 @@ export function InfoTip(props: InfoTipProps) {
 
   const reposition = () => {
     const anchor = buttonRef?.getBoundingClientRect()
-    const bubble = bubbleRef?.getBoundingClientRect()
+    const bubble = bubbleRef()?.getBoundingClientRect()
     if (!anchor || !bubble) return
     const next = positionInfoTip(
       anchor,
@@ -113,14 +113,15 @@ export function InfoTip(props: InfoTipProps) {
     setTailOffset(infoTipTailOffset((anchor.left + anchor.right) / 2, next.left, bubble.width))
   }
 
-  createEffect(on(container, (current) => {
-    if (current) untrack(reposition)
-  }))
+  createEffect(() => {
+    if (container() && bubbleRef()) untrack(reposition)
+  })
 
   createEffect(() => {
     if (!container()) return
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reposition)
-    if (bubbleRef) observer?.observe(bubbleRef)
+    const bubble = bubbleRef()
+    if (bubble) observer?.observe(bubble)
     globalThis.addEventListener('resize', reposition)
     // Capture scrolls from the dashboard's own scroll container as well as the
     // document; a fixed portal must continue to follow its trigger.
@@ -144,7 +145,7 @@ export function InfoTip(props: InfoTipProps) {
     }
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node
-      if (!wrapperRef?.contains(target) && !bubbleRef?.contains(target)) setPinned(false)
+      if (!wrapperRef?.contains(target) && !bubbleRef()?.contains(target)) setPinned(false)
     }
     document.addEventListener('keydown', onKeyDown)
     document.addEventListener('pointerdown', onPointerDown)
@@ -169,8 +170,8 @@ export function InfoTip(props: InfoTipProps) {
   onCleanup(() => cancelClose())
 
   const bubbleStyle = (): JSX.CSSProperties => ({
-    left: position()?.left ?? 0,
-    top: position()?.top ?? 0,
+    left: `${position()?.left ?? 0}px`,
+    top: `${position()?.top ?? 0}px`,
     'pointer-events': 'auto',
     visibility: position() ? 'visible' : 'hidden',
     '--lens-info-tip-tail': `${tailOffset()}px`,
@@ -182,7 +183,7 @@ export function InfoTip(props: InfoTipProps) {
       // interpolated modifier and would drop the rule.
       class={props.inline ? 'lens-info-tip lens-info-tip-inline' : 'lens-info-tip'}
       onMouseEnter={() => { cancelClose(); setHovered(true) }}
-      onMouseLeave={(event) => leavingSurface(event, bubbleRef)}
+      onMouseLeave={(event) => leavingSurface(event, bubbleRef())}
       ref={(el) => { wrapperRef = el }}
     >
       <button
@@ -211,7 +212,7 @@ export function InfoTip(props: InfoTipProps) {
             id={bubbleId}
             onMouseEnter={() => { cancelClose(); setHovered(true) }}
             onMouseLeave={(event) => leavingSurface(event, wrapperRef)}
-            ref={(el) => { bubbleRef = el }}
+            ref={setBubbleRef}
             role="tooltip"
             style={bubbleStyle()}
           >

@@ -1,17 +1,13 @@
 // Package viewmodels provides this package.
 package viewmodels
 
-import (
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-)
-
 type Position struct {
 	ID        string
 	Title     string
 	Barcode   string
 	UnitID    string
 	Unit      Unit
-	Images    []*viewmodels.Upload
+	Images    []*Upload
 	CreatedAt string
 	UpdatedAt string
 }

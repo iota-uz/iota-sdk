@@ -10,11 +10,13 @@ const (
 	Withdrawal Type = "WITHDRAWAL"
 	Transfer   Type = "TRANSFER"
 	Exchange   Type = "EXCHANGE"
+	// Adjustment records a manual correction of an account balance.
+	Adjustment Type = "ADJUSTMENT"
 )
 
 func (s Type) IsValid() bool {
 	switch s {
-	case Deposit, Withdrawal, Transfer, Exchange:
+	case Deposit, Withdrawal, Transfer, Exchange, Adjustment:
 		return true
 	}
 	return false

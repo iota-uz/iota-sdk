@@ -15,6 +15,7 @@ type FindParams struct {
 	Query     string
 	Field     string
 	CreatedAt DateRange
+	Status    Status
 }
 
 type Repository interface {

@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Make the notification settings e2e spec close the recipient picker menu by clicking away so it cannot cover the controls below."
+}

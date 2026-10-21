@@ -1,6 +1,96 @@
+import { expectChartsReady, expectFontsReady } from '@iota-uz/sdk/testing'
 import { expect, test, type Page } from '@playwright/test'
 
 const storyIds = [
+  'scoped-filters--light',
+  'scoped-filters--dark',
+  'scoped-filters--conflict-light',
+  'scoped-filters--conflict-dark',
+  'scoped-filters--report-periods-light',
+  'scoped-filters--report-periods-dark',
+  'scoped-filters--local-filters-open-light',
+  'scoped-filters--local-filters-open-dark',
+
+  'reusable-reports--light',
+  'reusable-reports--dark',
+  'reusable-reports--update-available-light',
+  'reusable-reports--update-available-dark',
+  'reusable-reports--incompatible-light',
+  'reusable-reports--incompatible-dark',
+  'reusable-reports--reopened-incompatible-light',
+  'reusable-reports--reopened-incompatible-dark',
+  'report-card--embedded-light',
+  'report-card--embedded-dark',
+  'report-card--standalone-light',
+  'report-card--standalone-dark',
+  'report-card--compatibility-light',
+  'report-card--compatibility-dark',
+  'report-card--menu-open-light',
+  'report-card--menu-open-dark',
+  'report-card--card-retry-light',
+  'report-card--card-retry-dark',
+  'report-card--progressive-light',
+  'report-card--progressive-dark',
+  'report-picker--light',
+  'report-picker--dark',
+  'report-picker--selected-light',
+  'report-picker--selected-dark',
+  'report-picker--preview-light',
+  'report-picker--preview-dark',
+  'report-picker--loading-light',
+  'report-picker--loading-dark',
+  'report-picker--empty-light',
+  'report-picker--empty-dark',
+  'report-picker--no-matches-light',
+  'report-picker--no-matches-dark',
+  'report-picker--load-failed-light',
+  'report-picker--load-failed-dark',
+  'report-picker--add-failed-light',
+  'report-picker--add-failed-dark',
+  'report-picker--destination-light',
+  'report-picker--destination-dark',
+  'report-picker--in-draft-light',
+  'report-picker--in-draft-dark',
+  'dashboard-edit--view-light',
+  'dashboard-edit--view-dark',
+  'dashboard-edit--edit-light',
+  'dashboard-edit--edit-dark',
+  'dashboard-edit--edit-draft-light',
+  'dashboard-edit--edit-draft-dark',
+  'dashboard-edit--dirty-light',
+  'dashboard-edit--dirty-dark',
+  'dashboard-edit--conflict-light',
+  'dashboard-edit--conflict-dark',
+  'dashboard-edit--empty-light',
+  'dashboard-edit--empty-dark',
+  'dashboard-edit--empty-editing-light',
+  'dashboard-edit--empty-editing-dark',
+  'dashboard-edit--host-chrome-light',
+  'dashboard-edit--host-chrome-dark',
+  'dashboard-edit--host-chrome-more-open-light',
+  'dashboard-edit--host-chrome-more-open-dark',
+  'report-editor--existing-light',
+  'report-editor--existing-dark',
+  'report-editor--new-empty-light',
+  'report-editor--new-empty-dark',
+  'report-editor--dirty-light',
+  'report-editor--dirty-dark',
+  'report-editor--save-failed-light',
+  'report-editor--save-failed-dark',
+  'report-editor--conflict-light',
+  'report-editor--conflict-dark',
+  'report-editor--leave-guard-light',
+  'report-editor--leave-guard-dark',
+  'report-editor--configure-card-light',
+  'report-editor--configure-card-dark',
+  'report-editor--shared-edit-impact-light',
+  'report-editor--shared-edit-impact-dark',
+  'report-editor--proposal-light',
+  'report-editor--proposal-dark',
+  'report-editor--proposal-stale-light',
+  'report-editor--proposal-stale-dark',
+  'report-editor--walkthrough-light',
+  'report-editor--walkthrough-dark',
   'choropleth-map--dense-region-labels',
   'choropleth-map--state-matrix',
   'comparison-interactions--previous-period',
@@ -164,6 +254,102 @@ const storyIds = [
 ] as const
 
 const staticStories = [
+  ['scoped-filters--light', 0, 0],
+  ['scoped-filters--dark', 0, 0],
+  ['scoped-filters--conflict-light', 0, 0],
+  ['scoped-filters--conflict-dark', 0, 0],
+  ['scoped-filters--report-periods-light', 0, 0],
+  ['scoped-filters--report-periods-dark', 0, 0],
+  ['scoped-filters--local-filters-open-light', 0, 0],
+  ['scoped-filters--local-filters-open-dark', 0, 0],
+
+  ['reusable-reports--light', 0, 0],
+  ['reusable-reports--dark', 0, 0],
+  ['reusable-reports--update-available-light', 0, 0],
+  ['reusable-reports--update-available-dark', 0, 0],
+  ['reusable-reports--incompatible-light', 0, 0],
+  ['reusable-reports--incompatible-dark', 0, 0],
+  ['reusable-reports--reopened-incompatible-light', 0, 0],
+  ['reusable-reports--reopened-incompatible-dark', 0, 0],
+  // One bar chart per card, plus the table's right-aligned figures, whose glyph
+  // antialiasing is bistable run to run (≤28px) with identical geometry.
+  ['report-card--embedded-light', 1, 40],
+  ['report-card--embedded-dark', 1, 40],
+  ['report-card--standalone-light', 1, 40],
+  ['report-card--standalone-dark', 1, 40],
+  ['report-card--compatibility-light', 1, 40],
+  ['report-card--compatibility-dark', 1, 40],
+  ['report-card--menu-open-light', 1, 40],
+  ['report-card--menu-open-dark', 1, 40],
+  ['report-card--card-retry-light', 1, 40],
+  ['report-card--card-retry-dark', 1, 40],
+  ['report-card--progressive-light', 0, 0],
+  ['report-card--progressive-dark', 0, 0],
+  // Rounded button corners in the picker and editor alternate between two stable
+  // rasters a few pixels apart; geometry is asserted by the interaction tests.
+  ['report-picker--light', 0, 16],
+  ['report-picker--dark', 0, 16],
+  ['report-picker--selected-light', 0, 16],
+  ['report-picker--selected-dark', 0, 16],
+  ['report-picker--preview-light', 0, 16],
+  ['report-picker--preview-dark', 0, 16],
+  ['report-picker--loading-light', 0, 16],
+  ['report-picker--loading-dark', 0, 16],
+  ['report-picker--empty-light', 0, 16],
+  ['report-picker--empty-dark', 0, 16],
+  ['report-picker--no-matches-light', 0, 16],
+  ['report-picker--no-matches-dark', 0, 16],
+  ['report-picker--load-failed-light', 0, 16],
+  ['report-picker--load-failed-dark', 0, 16],
+  ['report-picker--add-failed-light', 0, 16],
+  ['report-picker--add-failed-dark', 0, 16],
+  ['report-picker--destination-light', 0, 16],
+  ['report-picker--destination-dark', 0, 16],
+  ['report-picker--in-draft-light', 0, 16],
+  ['report-picker--in-draft-dark', 0, 16],
+  // The report-card board edited in place: its one bar chart and right-aligned
+  // table figures antialias like report-card's, and the edit bar's rounded
+  // buttons like the editor's.
+  ['dashboard-edit--view-light', 1, 40],
+  ['dashboard-edit--view-dark', 1, 40],
+  ['dashboard-edit--edit-light', 1, 40],
+  ['dashboard-edit--edit-dark', 1, 40],
+  ['dashboard-edit--edit-draft-light', 1, 40],
+  ['dashboard-edit--edit-draft-dark', 1, 40],
+  ['dashboard-edit--dirty-light', 1, 40],
+  ['dashboard-edit--dirty-dark', 1, 40],
+  ['dashboard-edit--conflict-light', 1, 40],
+  ['dashboard-edit--conflict-dark', 1, 40],
+  ['dashboard-edit--empty-light', 0, 40],
+  ['dashboard-edit--empty-dark', 0, 40],
+  ['dashboard-edit--empty-editing-light', 0, 40],
+  ['dashboard-edit--empty-editing-dark', 0, 40],
+  ['dashboard-edit--host-chrome-light', 0, 40],
+  ['dashboard-edit--host-chrome-dark', 0, 40],
+  ['dashboard-edit--host-chrome-more-open-light', 0, 40],
+  ['dashboard-edit--host-chrome-more-open-dark', 0, 40],
+  ['report-editor--existing-light', 0, 16],
+  ['report-editor--existing-dark', 0, 16],
+  ['report-editor--new-empty-light', 0, 16],
+  ['report-editor--new-empty-dark', 0, 16],
+  ['report-editor--dirty-light', 0, 16],
+  ['report-editor--dirty-dark', 0, 16],
+  ['report-editor--save-failed-light', 0, 16],
+  ['report-editor--save-failed-dark', 0, 16],
+  ['report-editor--conflict-light', 0, 16],
+  ['report-editor--conflict-dark', 0, 16],
+  ['report-editor--leave-guard-light', 0, 16],
+  ['report-editor--leave-guard-dark', 0, 16],
+  ['report-editor--configure-card-light', 0, 16],
+  ['report-editor--configure-card-dark', 0, 16],
+  ['report-editor--shared-edit-impact-light', 0, 16],
+  ['report-editor--shared-edit-impact-dark', 0, 16],
+  ['report-editor--proposal-light', 0, 16],
+  ['report-editor--proposal-dark', 0, 16],
+  ['report-editor--proposal-stale-light', 0, 16],
+  ['report-editor--proposal-stale-dark', 0, 16],
+  ['report-editor--walkthrough-light', 0, 16],
+  ['report-editor--walkthrough-dark', 0, 16],
   ['choropleth-map--dense-region-labels', 1, 10],
   // ECharts map labels can vary by a couple of antialiased edge pixels even
   // when the rendered regions, values, and geometry are identical.
@@ -239,7 +425,8 @@ const staticStories = [
   ['filter-controls--calendar-light', 0],
   ['filter-controls--calendar-locales', 0],
   ['filter-controls--calendar-month-panel', 0],
-  ['filter-controls--comparison-custom-interval', 0],
+  // Reviewed Linux diff: one anti-aliased date-field corner pixel; the session allows two.
+  ['filter-controls--comparison-custom-interval', 0, 2],
   ['filter-controls--comparison-menu-open', 0],
   ['filter-controls--dashboard-filter-preset-applied', 0],
   ['filter-controls--dashboard-filter-dark', 0],
@@ -320,7 +507,10 @@ const staticStories = [
   ['temporal-overlays--reference-lines', 1],
   ['temporal-overlays--regression', 1],
   ['temporal-overlays--time-annotations', 1],
-  ['sharing--panel-image-formats', 0],
+  // Two Linux CI runs produced the same six anti-aliasing pixels at the
+  // rounded menu corners, with unchanged menu geometry/content. Keep the
+  // allowance local so layout and missing-item changes still fail.
+  ['sharing--panel-image-formats', 0, 6],
   ['sharing--slice-link', 0],
   ['table-readability--narrow', 0],
   ['table-readability--wide', 0],
@@ -368,21 +558,19 @@ const staticStories = [
 ] as const
 
 async function waitForCharts(page: Page): Promise<void> {
-  await expect.poll(async () => page.locator('[_echarts_instance_]').evaluateAll((elements) =>
-    elements.every((element) => element.getAttribute('data-chart-ready') === 'true'),
-  )).toBe(true)
+  await expectChartsReady(page.locator('[_echarts_instance_]'), { allowEmpty: true })
 }
 
 async function openStory(page: Page, storyId: string, canvasCount: number): Promise<void> {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const query = new URLSearchParams({ story: storyId, mode: 'preview', 'lens-vr': '1' })
-  await page.goto(`/?${query.toString()}`, { waitUntil: 'networkidle' })
+  await page.goto(`/?${query.toString()}`, { waitUntil: 'domcontentloaded' })
   // An expanded panel portals a second .lens-root (its dialog host) to body.
   await expect(page.locator('.lens-root').first()).toBeVisible()
   await expect(page.locator('canvas')).toHaveCount(canvasCount)
   await waitForCharts(page)
+  await expectFontsReady(page)
   await page.evaluate(async () => {
-    await document.fonts.ready
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
   })
   await expect(page.locator('html')).toHaveAttribute('data-lens-vr', 'true')
@@ -403,8 +591,8 @@ async function screenshot(page: Page, name: string, { pointer = 'park', maxDiffP
   // lands the pointer on a different element and fails a story that did not
   // actually change. Park the pointer off the content before every capture.
   if (pointer === 'park') await page.mouse.move(0, 0)
+  await expectFontsReady(page)
   await page.evaluate(async () => {
-    await document.fonts.ready
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
   })
   // Fonts and container layout can cause a final ResizeObserver pass after the
@@ -780,3 +968,529 @@ test('nested tabs: keyboard navigation and inner-tab persistence', async ({ page
   await expect(page.getByText(/800,000/).first()).toBeVisible()
   await screenshot(page, 'metric-composition-inner-tab-persisted')
 })
+
+// Falsely green if clicks are dispatched through JS or scrolling is assigned directly: both bypass hit testing.
+test('facet menu receives wheel and pointer input across dimensions', async ({ page }) => {
+  await openStory(page, 'filter-controls--filters-menu-open', 0)
+  const menu = page.getByRole('dialog', { name: 'Filters', exact: true })
+  const options = menu.locator('.lens-facet-options')
+  await expect(options.getByRole('checkbox')).toHaveCount(6)
+  const before = await options.evaluate((element) => element.scrollTop)
+  await options.hover()
+  await page.mouse.wheel(0, 250)
+  await expect.poll(() => options.evaluate((element) => element.scrollTop)).toBeGreaterThan(before)
+  await menu.getByRole('tab', { name: /^Region/ }).click()
+  await expect(menu.getByRole('tab', { name: /^Region/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(options.getByRole('checkbox')).toHaveCount(6)
+  const choice = options.getByRole('checkbox').nth(1)
+  await choice.check()
+  await expect(choice).toBeChecked()
+  await expect(menu.getByRole('button', { name: 'Apply', exact: true })).toBeEnabled()
+  await menu.getByRole('button', { name: 'Apply', exact: true }).click()
+  await expect(page).toHaveURL(/\/reports\/sales\?.*_f=region%3Aosago/)
+})
+
+// Falsely green if only an inline frame is used: this story loads its first page after TablePanel mounts, without hasNext in the response.
+test('an asynchronously loaded table can move to the next page', async ({ page }) => {
+  await openStory(page, 'panels-v2--table-pagination-and-leaf-actions', 0)
+  await expect(page.getByText('Orion Services', { exact: true })).toBeVisible()
+  const next = page.getByRole('button', { name: 'Next', exact: true })
+  await expect(next).toBeEnabled()
+  await next.click()
+  await expect(page.getByText('Meridian Works', { exact: true })).toBeVisible()
+  await expect(page.getByText('Orion Services', { exact: true })).toHaveCount(0)
+  await expect(next).toBeDisabled()
+  const previous = page.getByRole('button', { name: 'Previous', exact: true })
+  await expect(previous).toBeEnabled()
+  await previous.click()
+  await expect(page.getByText('Orion Services', { exact: true })).toBeVisible()
+})
+
+// False green: inspecting two hand-authored documents instead of the Go-composed fixture, or accepting a save that discards the draft.
+test('reusable report drafts preserve placement scope on save failure and cancel', async ({ page }) => {
+  await openStory(page, 'reusable-reports--light', 0)
+  await expect(page.getByRole('region', { name: 'First six months', exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Revenue', exact: true })).toBeVisible()
+  await expect(page.getByRole('table')).toHaveCount(2)
+  const caption = page.getByRole('textbox', { name: 'First placement caption' })
+  await caption.fill('June only')
+  await expect(page.getByRole('status')).toContainText('Unsaved changes')
+  await expect(page.getByRole('region', { name: 'June only', exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Revenue', exact: true })).toBeVisible()
+  await page.getByRole('checkbox', { name: 'Reject next save' }).check()
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('Your changes are retained')
+  await expect(caption).toHaveValue('June only')
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(caption).toHaveValue('First six months')
+  await caption.fill('Saved June')
+  await page.getByRole('checkbox', { name: 'Reject next save' }).uncheck()
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('revision 2')
+  await expect(page.getByRole('status')).not.toContainText('Unsaved changes')
+})
+
+type Box = { x: number; y: number; width: number; height: number }
+
+/** Every card, member panel and KPI cell of the progressive board, keyed by identity. */
+async function cardGeometry(page: Page): Promise<Record<string, Box>> {
+  return page.evaluate(() => {
+    const boxes: Record<string, { x: number; y: number; width: number; height: number }> = {}
+    const add = (key: string, element: Element) => {
+      const rect = element.getBoundingClientRect()
+      boxes[key] = { x: rect.x, y: rect.y + window.scrollY, width: rect.width, height: rect.height }
+    }
+    document.querySelectorAll('[data-report-placement]').forEach((element) => add(`card:${element.getAttribute('data-report-placement')}`, element))
+    document.querySelectorAll('[data-report-placement] [data-panel-id]').forEach((element) => add(`panel:${element.getAttribute('data-panel-id')}`, element))
+    document.querySelectorAll('[data-report-placement] .lens-metric-cell').forEach((element, index) => add(`metric:${index}`, element))
+    return boxes
+  })
+}
+
+/** Nothing on the page is wider than the viewport, and no card clips its own text. */
+async function expectNoCardOverflow(page: Page): Promise<void> {
+  const problems = await page.evaluate(() => {
+    const found: string[] = []
+    if (document.documentElement.scrollWidth > window.innerWidth + 1) found.push(`page ${document.documentElement.scrollWidth} > ${window.innerWidth}`)
+    const text = '[data-report-placement] :is(h3, p, .lens-stat-metric-value, .lens-panel-state, button), .lens-report-menu-list [role="menuitem"]'
+    document.querySelectorAll<HTMLElement>(text).forEach((element) => {
+      if (element.closest('.lens-table-scroll, .lens-chart-host, .lens-panel-header')) return
+      if (element.scrollWidth > element.clientWidth + 1) found.push(`${element.className || element.tagName}: ${element.textContent?.slice(0, 40)}`)
+    })
+    document.querySelectorAll('.lens-report-menu-list').forEach((menu) => {
+      const rect = menu.getBoundingClientRect()
+      if (rect.left < 0 || rect.right > window.innerWidth) found.push(`menu ${rect.left}-${rect.right}`)
+    })
+    return found
+  })
+  expect(problems).toEqual([])
+}
+
+/** Skeleton → ready may only grow a body to its content; position, width and the KPI grid stay put. */
+const geometryTolerance = { position: 1, width: 1, height: 1 } as const
+
+for (const [width, height] of [[1440, 900], [1024, 900], [390, 844]] as const) {
+  // False green: a skeleton with zero height, or a story already showing figures, would also "not move".
+  test(`report-card geometry holds from skeleton to figures at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height })
+    await openStory(page, 'report-card--progressive-light', 0)
+    const revenue = page.locator('[data-report-placement="revenue"]')
+    await expect(revenue.locator('[aria-busy="true"]').first()).toBeVisible()
+    await expect(page.locator('.lens-stat-metric-value-shimmer')).toHaveCount(3)
+    const before = await cardGeometry(page)
+    expect(Object.keys(before).length).toBeGreaterThan(8)
+    for (const [key, box] of Object.entries(before)) {
+      expect(box.width, key).toBeGreaterThan(0)
+      expect(box.height, key).toBeGreaterThan(0)
+    }
+    await page.evaluate(() => (globalThis as unknown as { __lensCard: { release: () => void } }).__lensCard.release())
+    await expect(revenue).toHaveAttribute('data-state', 'ready')
+    await expect(page.locator('canvas')).toHaveCount(1)
+    await waitForCharts(page)
+    const after = await cardGeometry(page)
+    expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort())
+    const moved = Object.entries(before).flatMap(([key, box]) => {
+      const next = after[key]!
+      const drift = [
+        ['x', next.x - box.x, geometryTolerance.position], ['y', next.y - box.y, geometryTolerance.position],
+        ['width', next.width - box.width, geometryTolerance.width], ['height', next.height - box.height, geometryTolerance.height],
+      ] as const
+      return drift.filter(([, delta, limit]) => Math.abs(delta) > limit).map(([axis, delta]) => `${key} ${axis} ${delta.toFixed(1)}`)
+    })
+    expect(moved).toEqual([])
+    const premium = page.locator('[data-report-placement="revenue"] .lens-metric-cell').nth(2).locator('.lens-stat-metric-value')
+    // The whole amount and its currency are on screen, not clipped by the cell.
+    await expect(premium).toHaveText('1,234,567,890,123.45 so’m')
+    expect(await premium.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
+    await expectNoCardOverflow(page)
+
+    // Stale on refresh, then a card-local failure and retry.
+    await page.evaluate(() => { (globalThis as unknown as { __lensCard: { failTable: boolean } }).__lensCard.failTable = true })
+    await page.getByRole('button', { name: /Recompute|Updated/ }).click()
+    await expect(page.locator('[data-panel-id="revenue::panel:table"]')).toHaveAttribute('data-stale', 'true')
+    await expect(revenue).toHaveAttribute('data-state', 'updating')
+    await page.evaluate(() => (globalThis as unknown as { __lensCard: { release: () => void } }).__lensCard.release())
+    await expect(revenue).toHaveAttribute('data-state', 'error')
+    await expect(page.getByTestId('report-status-revenue')).toContainText('Not updated')
+    await page.evaluate(() => { const card = (globalThis as unknown as { __lensCard: { failTable: boolean } }).__lensCard; card.failTable = false })
+    await page.getByTestId('report-retry-revenue').click()
+    await page.evaluate(() => (globalThis as unknown as { __lensCard: { release: () => void } }).__lensCard.release())
+    await expect(revenue).toHaveAttribute('data-state', 'ready')
+    const requests = await page.evaluate(() => (globalThis as unknown as { __lensCard: { requests: string[][] } }).__lensCard.requests)
+    expect(requests.at(-1)).toEqual(['revenue::panel:table'])
+  })
+
+  // False green: a 1600px-only baseline hides a menu or footer pushed off a narrow card.
+  test(`report-card responsive states at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height })
+    for (const story of ['report-card--embedded-light', 'report-card--menu-open-light'] as const) {
+      await openStory(page, story, 1)
+      if (story === 'report-card--menu-open-light') await expect(page.getByRole('menu')).toBeVisible()
+      await expect(page.locator('[data-report-placement="forbidden"]')).toHaveAttribute('data-state', 'forbidden')
+      await expect(page.getByTestId('report-status-revenue')).toBeVisible()
+      await expectNoCardOverflow(page)
+      await screenshot(page, `${story}-${width}`, { maxDiffPixels: 40 })
+    }
+  })
+}
+
+// False green: a card retry that refetched the board, or a menu that lost focus, would still look settled.
+test('report card retries only itself and its menu is keyboard operable', async ({ page }) => {
+  await openStory(page, 'report-card--card-retry-light', 1)
+  const card = page.locator('[data-report-placement="revenue"]')
+  await expect(card).toHaveAttribute('data-state', 'error')
+  await expect(card.getByRole('table')).toHaveCount(0)
+  await page.getByTestId('report-retry-revenue').click()
+  await expect(card.getByRole('table')).toHaveCount(1)
+  await expect(card).toHaveAttribute('data-state', 'ready')
+  await expect(page.getByTestId('report-status-revenue')).toContainText('Calculated')
+
+  await openStory(page, 'report-card--embedded-light', 1)
+  const trigger = page.getByTestId('report-menu-revenue')
+  await trigger.focus()
+  await page.keyboard.press('Enter')
+  const menu = page.getByRole('menu', { name: 'Card actions: Revenue' })
+  await expect(menu.getByRole('menuitem').first()).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(menu.getByRole('menuitem', { name: 'Edit report' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+  await trigger.click()
+  await page.getByRole('menuitem', { name: 'Configure card' }).click()
+  await expect(page.getByTestId('report-card-host-log')).toHaveText('configure revenue')
+  await expect(page.locator('[data-report-placement="forbidden"]')).toHaveAttribute('data-state', 'forbidden')
+  await expect(page.locator('[data-report-placement="forbidden"]')).not.toContainText('Archived')
+})
+
+// False green: a notice that replaced or hid the opened figures would still read as "update offered".
+test('reusable report placements offer an update beside the opened figures and explain an incompatible version', async ({ page }) => {
+  await openStory(page, 'reusable-reports--update-available-light', 0)
+  const first = page.getByRole('region', { name: 'First six months', exact: true })
+  const notice = first.getByTestId('report-version-first')
+  await expect(notice).toContainText('A newer version of this report is available.')
+  await expect(first.getByRole('table')).toHaveCount(1)
+  await expect(page.getByRole('region', { name: 'Revenue', exact: true }).getByTestId('report-version-second')).toHaveCount(0)
+  await notice.getByRole('button', { name: 'Keep this version' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(notice).toHaveCount(0)
+  await expect(page.getByTestId('version-host-notice')).toHaveText('Kept the opened version of first')
+  await expect(first).toBeFocused()
+  await expect(first.getByRole('table')).toHaveCount(1)
+
+  await openStory(page, 'reusable-reports--update-available-light', 0)
+  await first.getByRole('button', { name: 'Update report' }).click()
+  await expect(page.getByTestId('version-host-notice')).toHaveText('Updated first')
+  await expect(first.getByTestId('report-version-first')).toHaveCount(0)
+  await expect(first).toBeFocused()
+  await expect(first.getByRole('table')).toHaveCount(1)
+
+  await openStory(page, 'reusable-reports--incompatible-light', 0)
+  await expect(first.getByRole('alert')).toContainText('This report is unavailable')
+  await expect(first.getByRole('table')).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Revenue', exact: true }).getByRole('table')).toHaveCount(1)
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 1000 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+})
+
+// False green: a reopen that failed the whole composition, or hid every placement, would not show the current neighbour's figures.
+test('a reopened composition renders its current placement and explains the incompatible one', async ({ page }) => {
+  await openStory(page, 'reusable-reports--reopened-incompatible-light', 0)
+  const first = page.getByRole('region', { name: 'First six months', exact: true })
+  const second = page.getByRole('region', { name: 'Revenue', exact: true })
+  await expect(first.getByRole('alert')).toContainText('This report is unavailable')
+  await expect(first.getByRole('table')).toHaveCount(0)
+  await expect(first.getByRole('button')).toHaveCount(0)
+  await expect(second.locator('tr').filter({ hasText: 'Online' }).locator('td').last()).toHaveText('14,400')
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 1000 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+})
+
+// False green: captions alone would miss the previous fixture's figures surviving a context change.
+test('scoped filters apply a restored selection at once, keep focus, and retain a rejected default save', async ({ page }) => {
+  await openStory(page, 'scoped-filters--light', 0)
+  const trigger = page.getByTestId('context-local-revenue')
+  const report = trigger.locator('xpath=ancestor::section[1]')
+  const online = report.locator('tr').filter({ hasText: 'Online' }).locator('td').last()
+  await expect(online).toHaveText('1,200')
+  await expect(report.getByTestId('effective-context')).toContainText('2026-06-01 – 2026-06-30')
+  await expect(page.getByTestId('context-controls-card-revenue')).toHaveCount(0)
+  await trigger.click()
+  const controls = report.getByTestId('context-controls-card-revenue')
+  const panel = report.getByTestId('context-panel-revenue')
+  await expect(panel.locator(':focus')).toHaveCount(1)
+  await expect(page.getByTestId('context-apply')).toHaveCount(0)
+  await controls.getByTestId('context-reset').focus()
+  await page.keyboard.press('Enter')
+  await expect(online).toHaveText('14,400')
+  await expect(controls.getByTestId('context-reset')).toHaveCount(0)
+  await expect(panel.locator(':focus')).toHaveCount(1)
+  await expect(panel.getByRole('status')).toHaveCount(0)
+  await expect(report.getByTestId('effective-context')).toContainText('2026-01-01 – 2026-12-31')
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+  await page.getByRole('checkbox', { name: 'Reject default save' }).check()
+  await controls.getByRole('button', { name: 'Save filter defaults' }).click()
+  await expect(controls.getByRole('alert')).toBeVisible()
+  await expect(online).toHaveText('14,400')
+  await expect(controls.getByRole('button', { name: 'Save filter defaults' })).toBeFocused()
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 1000 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    // The just-pressed Save button's rounded corners alternate between two
+    // stable Chromium rasters (a few antialiased pixels); its geometry is exact.
+    await screenshot(page, `scoped-filters-responsive-${width}`, { maxDiffPixels: 16 })
+  }
+})
+
+// False green: a picker that wrote to the draft on each click, or a retry that minted a new confirmation, would still end with cards in the draft.
+test('report picker adds to the draft only on confirmation and returns the reader where they were', async ({ page }) => {
+  await openStory(page, 'report-picker--in-draft-light', 0)
+  const status = page.getByTestId('draft-status')
+  await expect(status).toHaveText('Saved · 1 cards')
+  await page.getByRole('checkbox', { name: 'Reject next add' }).check()
+  const trigger = page.getByRole('button', { name: 'Add reports', exact: true })
+  await trigger.scrollIntoViewIfNeeded()
+  const scrollY = await page.evaluate(() => window.scrollY)
+  expect(scrollY).toBeGreaterThan(0)
+  await trigger.click()
+  const dialog = page.getByRole('dialog', { name: 'Add reports to Sales board' })
+  await expect(dialog).toBeVisible()
+  const search = dialog.getByRole('searchbox', { name: 'Search reports' })
+  await expect(search).toBeFocused()
+
+  await search.fill('Large')
+  const large = dialog.locator('[data-report-id="report-03"]')
+  await expect(dialog.locator('[data-report-id]')).toHaveCount(1)
+  await large.getByRole('checkbox').check()
+  await expect(dialog).toContainText('Large losses: Shows the last 12 months only')
+  await large.getByRole('button', { name: 'Preview Large losses' }).click()
+  const preview = dialog.getByRole('region', { name: 'Preview Large losses' })
+  await expect(preview.getByRole('table')).toBeVisible()
+  // Escape in the preview steps back to the list; only an Escape on the list closes the dialog.
+  await page.keyboard.press('Escape')
+  await expect(preview).toHaveCount(0)
+  await expect(dialog).toBeVisible()
+  await expect(search).toHaveValue('Large')
+  await expect(large.getByRole('checkbox')).toBeChecked()
+  await expect(large.getByRole('button', { name: 'Preview Large losses' })).toBeFocused()
+
+  await search.fill('Revenue')
+  const revenue = dialog.locator('[data-report-id="report-01"]')
+  await expect(revenue).toContainText('Already on this dashboard')
+  await expect(revenue.getByRole('checkbox')).toBeDisabled()
+  await revenue.getByRole('button', { name: 'Add another card' }).click()
+  await expect(status).toHaveText('Saved · 1 cards')
+
+  const add = dialog.getByRole('button', { name: 'Add 2' })
+  await add.click()
+  await expect(dialog.getByRole('alert')).toContainText('Your selection is kept')
+  await expect(search).toHaveValue('Revenue')
+  await expect(status).toHaveText('Saved · 1 cards')
+  await add.click()
+  await expect(dialog).toHaveCount(0)
+  await expect(status).toHaveText('Unsaved changes · 3 cards')
+  await expect(page.getByTestId('draft-cards').locator('li')).toHaveText(['Revenue', 'Large losses', 'Revenue'])
+  await expect(trigger).toBeFocused()
+  expect(Math.abs(await page.evaluate(() => window.scrollY) - scrollY)).toBeLessThanOrEqual(1)
+
+  await trigger.click()
+  await dialog.getByRole('searchbox', { name: 'Search reports' }).fill('Large')
+  await expect(dialog.locator('[data-report-id="report-03"]')).toContainText('Already on this dashboard')
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+  await expect(status).toHaveText('Unsaved changes · 3 cards')
+
+  const addTo = page.getByRole('button', { name: 'Add Revenue to a dashboard' })
+  await addTo.click()
+  const destination = page.getByRole('dialog', { name: 'Add “Revenue” to a dashboard' })
+  await expect(destination.getByRole('alert')).toContainText('The dashboards could not be loaded.')
+  await destination.getByRole('button', { name: 'Try again' }).click()
+  await destination.getByRole('radio', { name: 'Claims board' }).check()
+  await destination.getByRole('button', { name: 'Add to dashboard' }).click()
+  await expect(destination).toHaveCount(0)
+  await expect(page.getByTestId('draft-log')).toHaveText('Host adds to Claims board')
+  await expect(addTo).toBeFocused()
+})
+
+for (const width of [1440, 1024, 390]) {
+  // False green: a 1600px baseline would hide a footer action pushed off a narrow dialog.
+  test(`report picker responsive states at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    for (const story of ['report-picker--selected-light', 'report-picker--preview-light', 'report-picker--destination-light'] as const) {
+      await openStory(page, story, 0)
+      const dialog = page.getByRole('dialog')
+      await expect(dialog).toBeVisible()
+      if (story === 'report-picker--selected-light') await expect(dialog.getByRole('button', { name: 'Add 3' })).toBeVisible()
+      if (story === 'report-picker--preview-light') await expect(dialog.getByRole('table')).toBeVisible()
+      const overflow = await page.evaluate(() => {
+        const problems: string[] = []
+        if (document.documentElement.scrollWidth > window.innerWidth + 1) problems.push('page')
+        for (const button of document.querySelectorAll<HTMLElement>('.lens-report-dialog-footer button, .lens-report-dialog-header button')) {
+          const rect = button.getBoundingClientRect()
+          if (rect.left < 0 || rect.right > window.innerWidth + 1 || rect.bottom > window.innerHeight + 1) problems.push(button.textContent ?? 'button')
+        }
+        return problems
+      })
+      expect(overflow).toEqual([])
+      // Button corner antialiasing alternates between two stable rasters (a few pixels); geometry is asserted above.
+      await screenshot(page, `${story}-${width}`, { maxDiffPixels: 16 })
+    }
+  })
+}
+
+const editorOrder = (page: Page) => page.locator('[data-placement-editor]').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-placement-editor')))
+
+// False green: an always-successful host save, or a Cancel checked only after a reorder, would pass while edits were lost.
+test('report editor walkthrough: add, arrange, save failure, conflict, proposal and leave guard', async ({ page }) => {
+  await openStory(page, 'report-editor--walkthrough-light', 0)
+  const status = page.getByTestId('report-editor-status')
+  await expect(status).toHaveText('No changes')
+
+  await page.getByRole('button', { name: 'Add report' }).click()
+  const picker = page.getByRole('dialog', { name: 'Add reports to Sales board' })
+  await picker.locator('[data-report-id="report-05"]').getByRole('checkbox').check()
+  await picker.getByRole('button', { name: 'Add 1' }).click()
+  await expect(picker).toHaveCount(0)
+  await expect(page.getByTestId('report-editor-notice')).toHaveText('Added 1 reports to the draft')
+  const added = page.locator('[data-placement-editor][data-added]')
+  await expect(added).toHaveCount(1)
+  await expect(added.getByRole('button', { name: /^Move / })).toBeFocused()
+  await expect(added).toBeInViewport()
+  await expect(status).toHaveText('Unsaved changes')
+
+  const finance = page.getByTestId('report-editor-handle-finance')
+  await finance.focus()
+  await page.keyboard.press('ArrowLeft')
+  await expect.poll(() => editorOrder(page)).toEqual(['revenue', 'portfolio', 'finance', 'losses', expect.stringMatching(/^pick-/)])
+  await expect(finance).toBeFocused()
+
+  const resize = page.getByTestId('report-editor-resize-revenue')
+  const box = (await resize.boundingBox())!
+  const grid = (await page.locator('.lens-report-editor-grid').boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x - grid.width / 6, box.y + box.height / 2, { steps: 4 })
+  await page.mouse.up()
+  await expect(resize).toHaveAttribute('aria-valuenow', '6')
+
+  await page.getByTestId('report-editor-handle-losses').dragTo(page.locator('[data-placement-editor="revenue"]'))
+  await expect.poll(async () => (await editorOrder(page))[0]).toBe('losses')
+
+  await page.getByRole('checkbox', { name: 'Reject next save' }).check()
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  await expect(page.getByRole('alert')).toContainText('They are kept here')
+  await expect(status).toHaveText('Unsaved changes')
+  await expect.poll(async () => (await editorOrder(page))[0]).toBe('losses')
+  await page.getByRole('checkbox', { name: 'Reject next save' }).uncheck()
+
+  await page.getByRole('checkbox', { name: 'Conflict on next save' }).check()
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  const conflict = page.getByTestId('report-editor-conflict')
+  await expect(conflict).toContainText('Your changes are kept')
+  await conflict.getByRole('button', { name: 'Keep my changes' }).click()
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  await expect(status).toHaveText('All changes saved')
+  await expect.poll(async () => (await editorOrder(page))[0]).toBe('losses')
+
+  await page.getByRole('button', { name: 'Receive proposal' }).click()
+  const proposal = page.getByTestId('report-proposal')
+  for (const line of ['ChangeRevenue this year', 'AddClaims report 07', 'RemoveFinance report 04']) {
+    await expect(proposal.locator('li').filter({ hasText: line })).toHaveCount(1)
+  }
+  await page.getByTestId('report-editor-handle-portfolio').focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(proposal.getByRole('alert')).toContainText('can no longer be applied')
+  await expect(proposal.getByRole('button', { name: 'Apply to draft' })).toHaveCount(0)
+  await proposal.getByRole('button', { name: 'Prepare again' }).click()
+  await proposal.getByRole('button', { name: 'Apply to draft' }).click()
+  await expect(proposal).toHaveCount(0)
+  await expect(page.getByTestId('editor-host-log')).toHaveText(/applied$/)
+  await expect(page.locator('[data-placement-editor="finance"]')).toHaveCount(0)
+  await expect(page.locator('[data-placement-editor="proposal-claims"]')).toHaveCount(1)
+
+  await page.getByRole('button', { name: 'Navigate away' }).click()
+  const leave = page.getByRole('alertdialog', { name: 'Save changes before leaving?' })
+  await expect(leave.getByRole('button', { name: 'Stay' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('editor-host-log')).toHaveText('Navigation cancelled')
+  await page.getByRole('button', { name: 'Navigate away' }).click()
+  await leave.getByRole('button', { name: 'Leave without saving' }).click()
+  await expect(page.getByTestId('editor-host-log')).toHaveText('Navigation allowed')
+  await expect(page.locator('[data-placement-editor="finance"]')).toHaveCount(1)
+  await expect(status).toHaveText('No changes')
+})
+
+// False green: checking the caption alone would miss a local period or removed card surviving Cancel.
+test('report editor Cancel restores captions, card periods and removed cards', async ({ page }) => {
+  await openStory(page, 'report-editor--existing-light', 0)
+  const losses = page.locator('[data-placement-editor="losses"]')
+  await losses.getByRole('button', { name: 'Configure card' }).click()
+  const dialog = page.getByRole('dialog', { name: /^Configure card/ })
+  await expect(dialog.getByLabel('Card caption')).toBeFocused()
+  await dialog.getByLabel('Card caption').fill('Losses, all year')
+  await dialog.getByLabel('Use the dashboard period').check()
+  await dialog.getByRole('button', { name: 'Apply to draft' }).click()
+  await expect(page.getByTestId('report-editor-handle-losses')).toBeFocused()
+  await expect(page.getByTestId('report-editor-period-losses')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Remove Finance report 04' }).click()
+  await expect(page.locator('[data-placement-editor="finance"]')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Large losses, June' })).toBeVisible()
+  await expect(page.getByTestId('report-editor-period-losses')).toContainText('Card period')
+  await expect(page.locator('[data-placement-editor="finance"]')).toHaveCount(1)
+  await expect(page.getByTestId('report-editor-status')).toHaveText('No changes')
+})
+
+for (const width of [1440, 1024, 390]) {
+  // False green: a wide baseline hides save actions pushed off a narrow screen or cards read out of order.
+  test(`report editor responsive states at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    for (const story of ['report-editor--existing-light', 'report-editor--conflict-light', 'report-editor--proposal-light'] as const) {
+      await openStory(page, story, 0)
+      await expect(page.getByTestId('report-editor')).toBeVisible()
+      if (story === 'report-editor--conflict-light') await expect(page.getByTestId('report-editor-conflict')).toBeVisible()
+      expect(await editorOrder(page)).toEqual(['revenue', 'portfolio', 'losses', 'finance'])
+      const problems = await page.evaluate(() => {
+        const found: string[] = []
+        if (document.documentElement.scrollWidth > window.innerWidth + 1) found.push('page')
+        for (const button of document.querySelectorAll<HTMLElement>('.lens-report-editor-actions button, .lens-report-editor-card-actions button')) {
+          const rect = button.getBoundingClientRect()
+          if (rect.left < 0 || rect.right > window.innerWidth + 1) found.push(button.textContent ?? 'button')
+        }
+        return found
+      })
+      expect(problems).toEqual([])
+      // Button corner antialiasing alternates between two stable rasters (a few pixels); geometry is asserted above.
+      await screenshot(page, `${story}-${width}`, { maxDiffPixels: 16 })
+    }
+  })
+}
+
+for (const width of [1440, 1024, 390]) {
+  // False green: a 1600px baseline would hide an edit bar action or a resize handle pushed off a narrow board.
+  test(`dashboard edit mode at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await openStory(page, 'dashboard-edit--dirty-light', 1)
+    const bar = page.getByTestId('dashboard-edit-bar')
+    await expect(bar).toBeVisible()
+    await expect(page.getByTestId('report-editor-handle-revenue')).toBeVisible()
+    await expect(page.getByTestId('report-editor-resize-revenue')).toHaveCount(1)
+    await expect(page.getByTestId('report-editor-resize-revenue')).toBeVisible({ visible: width > 768 })
+    const problems = await page.evaluate(() => {
+      const found: string[] = []
+      if (document.documentElement.scrollWidth > window.innerWidth + 1) found.push(`page ${document.documentElement.scrollWidth} > ${window.innerWidth}`)
+      for (const button of document.querySelectorAll<HTMLElement>('[data-testid="dashboard-edit-bar"] button')) {
+        const rect = button.getBoundingClientRect()
+        if (rect.left < 0 || rect.right > window.innerWidth + 1) found.push(button.textContent ?? 'button')
+      }
+      return found
+    })
+    expect(problems).toEqual([])
+    await screenshot(page, `dashboard-edit--dirty-light-${width}`, { maxDiffPixels: 40 })
+  })
+}

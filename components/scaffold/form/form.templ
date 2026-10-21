@@ -1,8 +1,12 @@
 package form
 
 import (
+	"fmt"
+
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -55,6 +59,21 @@ templ FormFooter(cfg *FormConfig) {
 			{ pgCtx.T("Save") }
 		}
 	</div>
+	@dialog.Confirmation(&dialog.Props{
+		Heading: pgCtx.T("Delete"),
+		Text:    pgCtx.T("ConfirmDelete"),
+		Icon:    icons.Trash(icons.Props{Size: "20"}),
+		Action:  "open-delete-user-confirmation",
+		Attrs: templ.Attributes{
+			"@closing": fmt.Sprintf(`({target}) => {
+				if (target.returnValue === "confirm") {
+					htmx.ajax("DELETE", %q, {source: "#delete-user-btn"});
+				}
+			}`, cfg.DeleteURL),
+		},
+		CancelText:  pgCtx.T("Cancel"),
+		ConfirmText: pgCtx.T("Delete"),
+	})
 }
 
 // Form renders a dynamic form using a slice of scaffold.Field
@@ -107,7 +126,11 @@ templ FormContent(cfg *FormConfig) {
 templ FormWithErrors(cfg *FormConfig, fieldErrors map[string]string) {
 	<div class="flex flex-col justify-between h-[calc(100vh-4rem)]" id="edit-content">
 		if len(fieldErrors) > 0 {
-			<small data-testid="field-error" class="text-red-500">Field validation failed</small>
+			<div data-testid="field-error" role="alert" class="mx-4 mt-4 md:mx-6 flex flex-col gap-1 text-sm text-red-500">
+				for _, msg := range validationMessages(fieldErrors) {
+					<p>{ msg }</p>
+				}
+			</div>
 		}
 		<form
 			id="save-form"

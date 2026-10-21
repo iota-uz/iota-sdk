@@ -247,7 +247,7 @@ eventLoop:
 				interrupted = true
 				break eventLoop
 			}
-		case EventTypeChunk:
+		case EventTypeContent:
 			// Content events from child are not forwarded — only the final
 			// result matters to the parent agent.
 		}

@@ -215,7 +215,7 @@ func TestBillingService_Cancel_RefusesTerminalStatus(t *testing.T) {
 
 			var wrapped *serrors.Error
 			require.ErrorAs(t, err, &wrapped, "the refusal carries its operation")
-			assert.Equal(t, serrors.Op("BillingService.Cancel"), wrapped.Op)
+			assert.Equal(t, serrors.Op("BillingService.Cancel"), serrors.OpOf(wrapped))
 
 			stored, err := billingService.GetByID(f.Ctx, terminal.ID())
 			require.NoError(t, err)

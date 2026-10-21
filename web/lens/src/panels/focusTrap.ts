@@ -5,6 +5,10 @@ const focusableSelector = [
   'textarea:not([disabled])', '[tabindex]:not([tabindex="-1"])',
 ].join(',')
 
+// Only the most recently opened trap answers Tab and Escape: a confirmation
+// over an editor closes on its own, never together with the editor below.
+const openTraps: symbol[] = []
+
 /** Keeps keyboard focus within an open dialog and restores its trigger. */
 export function useFocusTrap(
   dialog: () => HTMLElement | null | undefined,
@@ -17,8 +21,11 @@ export function useFocusTrap(
     const isActive = typeof active === 'function' ? active() : active
     if (!isActive || typeof document === 'undefined') return
     const restoreTarget = restoreFocus?.()
+    const token = Symbol('focus-trap')
+    openTraps.push(token)
     const focusFrame = requestAnimationFrame(() => (initialFocus?.() ?? dialog())?.focus())
     const keydown = (event: KeyboardEvent) => {
+      if (openTraps[openTraps.length - 1] !== token) return
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopPropagation()
@@ -47,7 +54,8 @@ export function useFocusTrap(
     onCleanup(() => {
       cancelAnimationFrame(focusFrame)
       document.removeEventListener('keydown', keydown, true)
-      restoreTarget?.focus()
+      openTraps.splice(openTraps.indexOf(token), 1)
+      restoreTarget?.focus({ preventScroll: true })
     })
   })
 }

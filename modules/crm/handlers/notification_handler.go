@@ -23,11 +23,11 @@ type NotificationHandler struct {
 func NewNotificationHandler(botToken string) (*NotificationHandler, error) {
 	const op serrors.Op = "crm.handlers.NewNotificationHandler"
 	if botToken == "" {
-		return nil, serrors.E(op, errors.New("telegram bot token is required"))
+		return nil, serrors.Wrap(op, errors.New("telegram bot token is required"))
 	}
 	bot, err := telegram.NewBot(botToken)
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to create telegram bot")
+		return nil, serrors.WrapContext(op, err, "failed to create telegram bot")
 	}
 	return &NotificationHandler{tgBot: bot}, nil
 }

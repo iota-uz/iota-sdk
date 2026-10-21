@@ -1,0 +1,41 @@
+package components
+
+import (
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+// RevenueSummary shows, per currency, the contract, what signed acceptance
+// documents recognised, what the contract still has open, what was invoiced
+// and what was paid — each on its own, never added together.
+templ RevenueSummary(lines []*viewmodels.Revenue) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	if len(lines) > 0 {
+		<div class="overflow-x-auto">
+			<table class="w-full text-sm">
+				<thead>
+					<tr class="text-left text-200">
+						<th class="py-2 pr-4 font-medium">{ pageCtx.T("Finance.Revenue.Currency") }</th>
+						<th class="py-2 pr-4 font-medium">{ pageCtx.T("Finance.Revenue.Contract") }</th>
+						<th class="py-2 pr-4 font-medium">{ pageCtx.T("Finance.Revenue.Accepted") }</th>
+						<th class="py-2 pr-4 font-medium">{ pageCtx.T("Finance.Revenue.Open") }</th>
+						<th class="py-2 pr-4 font-medium">{ pageCtx.T("Finance.Revenue.Invoiced") }</th>
+						<th class="py-2 font-medium">{ pageCtx.T("Finance.Revenue.Paid") }</th>
+					</tr>
+				</thead>
+				<tbody class="tabular-nums">
+					for _, line := range lines {
+						<tr class="border-t border-primary">
+							<td class="py-2 pr-4">{ line.CurrencyCode }</td>
+							<td class="py-2 pr-4">{ line.Contract }</td>
+							<td class="py-2 pr-4">{ line.Accepted }</td>
+							<td class={ "py-2 pr-4", templ.KV("text-red-500", line.Overaccepted) }>{ line.Open }</td>
+							<td class="py-2 pr-4">{ line.Invoiced }</td>
+							<td class="py-2">{ line.Paid }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}

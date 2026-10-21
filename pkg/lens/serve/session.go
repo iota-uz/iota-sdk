@@ -27,6 +27,8 @@ type scheduledResult struct {
 }
 
 type scheduledJob struct {
+	finished   chan struct{}
+	finishOnce sync.Once
 	key        string
 	priority   int
 	order      int
@@ -43,8 +45,17 @@ type scheduledJob struct {
 }
 
 type scheduledCall struct {
-	result <-chan scheduledResult
-	cancel func()
+	result   <-chan scheduledResult
+	cancel   func()
+	finished <-chan struct{}
+}
+
+func (j *scheduledJob) finish() {
+	j.finishOnce.Do(func() {
+		if j.finished != nil {
+			close(j.finished)
+		}
+	})
 }
 
 // DerivedSurfaceClass selects the SDK-owned dynamic priority for host-rendered
@@ -176,7 +187,9 @@ func (s *executionSession) submit(
 		s.mu.Unlock()
 		result <- scheduledResult{err: context.Canceled}
 		close(result)
-		return scheduledCall{result: result}
+		finished := make(chan struct{})
+		close(finished)
+		return scheduledCall{result: result, finished: finished}
 	}
 	s.nextWaiter++
 	waiterID := s.nextWaiter
@@ -193,11 +206,12 @@ func (s *executionSession) submit(
 		}
 		s.dispatchLocked()
 		s.mu.Unlock()
-		return scheduledCall{result: result, cancel: func() { s.detach(key, waiterID) }}
+		return scheduledCall{result: result, cancel: func() { s.detach(key, waiterID) }, finished: existing.finished}
 	}
 	s.nextSequence++
 	job := &scheduledJob{
-		key: key, priority: priority, order: order, sequence: s.nextSequence,
+		finished: make(chan struct{}),
+		key:      key, priority: priority, order: order, sequence: s.nextSequence,
 		queuedAt:   time.Now(),
 		background: priority >= priorityIntent,
 		base:       base,
@@ -209,7 +223,7 @@ func (s *executionSession) submit(
 	s.queue = append(s.queue, job)
 	s.dispatchLocked()
 	s.mu.Unlock()
-	return scheduledCall{result: result, cancel: func() { s.detach(key, waiterID) }}
+	return scheduledCall{result: result, cancel: func() { s.detach(key, waiterID) }, finished: job.finished}
 }
 
 func (s *executionSession) promoteLocked(job *scheduledJob, priority, order int) {
@@ -243,6 +257,7 @@ func (s *executionSession) advanceRevision(revision int) {
 	for _, job := range s.queue {
 		if job.revision > 0 && job.revision < revision && job.priority <= priorityIntent {
 			delete(s.jobs, job.key)
+			job.finish()
 			for _, waiter := range job.waiters {
 				queuedWaiters = append(queuedWaiters, waiter)
 			}
@@ -291,6 +306,7 @@ func (s *executionSession) detach(key string, waiterID uint64) {
 		}
 	}
 	delete(s.jobs, key)
+	job.finish()
 	if job.background {
 		s.reportLocked(Metric{Name: MetricCancelledSpeculation, Value: 1, Labels: map[string]string{"class": priorityClass(job.priority)}})
 	}
@@ -427,6 +443,7 @@ func agedPriority(job *scheduledJob, now time.Time, allowRootAging bool) int {
 }
 
 func (s *executionSession) execute(job *scheduledJob) {
+	defer job.finish()
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(job.base), s.workTimeout)
 	s.mu.Lock()
 	job.cancel = cancel
@@ -534,6 +551,7 @@ func (s *executionSession) cancelBackgroundLocked() []chan scheduledResult {
 			continue
 		}
 		delete(s.jobs, job.key)
+		job.finish()
 		for _, waiter := range job.waiters {
 			waiters = append(waiters, waiter)
 		}
@@ -636,6 +654,11 @@ func (h *Handlers) session(snapshotID string) *executionSession {
 	for id, session := range registry.sessions {
 		if session.idleBefore(cutoff) {
 			delete(registry.sessions, id)
+			for child, parent := range registry.aliases {
+				if registry.canonicalLocked(parent) == id {
+					delete(registry.aliases, child)
+				}
+			}
 		}
 	}
 	if existing := registry.sessions[snapshotID]; existing != nil {
@@ -686,6 +709,48 @@ func (h *Handlers) BindExecutionSession(childSnapshotID, parentSnapshotID string
 	return h.sessions.bind(childSnapshotID, parentSnapshotID)
 }
 
+func (h *Handlers) promoteDerived(snapshotID, key string) {
+	session := h.session(snapshotID)
+	session.mu.Lock()
+	if job := session.jobs["derived:"+snapshotID+":"+key]; job != nil {
+		session.promoteLocked(job, priorityInteractive, 0)
+		session.dispatchLocked()
+	}
+	session.mu.Unlock()
+}
+
+// ForgetSnapshot removes cache-owned execution state and, when supported by the
+// backing store, its retained snapshot. Browser Release has different semantics:
+// it preserves frozen data for Back and export.
+func (h *Handlers) ForgetSnapshot(ctx context.Context, snapshotID string) {
+	registry := h.sessions
+	if registry != nil {
+		registry.mu.Lock()
+		canonical := registry.canonicalLocked(snapshotID)
+		if canonical != snapshotID {
+			delete(registry.aliases, snapshotID)
+			registry.mu.Unlock()
+		} else {
+			session := registry.sessions[snapshotID]
+			delete(registry.sessions, snapshotID)
+			for child, parent := range registry.aliases {
+				if registry.canonicalLocked(parent) == snapshotID {
+					delete(registry.aliases, child)
+				}
+			}
+			registry.mu.Unlock()
+			if session != nil {
+				session.release()
+			}
+		}
+	}
+	if store, ok := h.snapshots.(interface {
+		Delete(context.Context, string) error
+	}); ok {
+		_ = store.Delete(ctx, snapshotID)
+	}
+}
+
 // ExecuteExportSurface runs a snapshot export in the same execution graph as
 // root panels, explorations and derived documents. Export is user-visible
 // foreground work, but unlike viewport-driven root rendering it deliberately
@@ -723,6 +788,10 @@ func (h *Handlers) ExecuteDerivedSurface(
 	class DerivedSurfaceClass,
 	run func(context.Context) (any, error),
 ) (any, error) {
+	return h.executeDerivedSurface(ctx, snapshotID, key, class, run, nil, false)
+}
+
+func (h *Handlers) executeDerivedSurface(ctx context.Context, snapshotID, key string, class DerivedSurfaceClass, run func(context.Context) (any, error), ready func(), waitCompletion bool) (any, error) {
 	snapshotID = strings.TrimSpace(snapshotID)
 	key = strings.TrimSpace(key)
 	if snapshotID == "" || key == "" || run == nil {
@@ -734,10 +803,20 @@ func (h *Handlers) ExecuteDerivedSurface(
 	}
 	call := h.session(snapshotID).submit(ctx, "derived:"+snapshotID+":"+key, priority, 0, run)
 	defer call.Cancel()
+	if ready != nil {
+		ready()
+	}
 	select {
 	case <-ctx.Done():
+		if waitCompletion {
+			call.Cancel()
+			<-call.finished
+		}
 		return nil, ctx.Err()
 	case result := <-call.result:
+		if waitCompletion {
+			<-call.finished
+		}
 		return result.value, result.err
 	}
 }

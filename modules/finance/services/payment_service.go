@@ -143,8 +143,16 @@ func (s *PaymentService) Delete(ctx context.Context, id uuid.UUID) (payment.Paym
 	return entity, nil
 }
 
-func (s *PaymentService) Count(ctx context.Context) (int64, error) {
-	return s.repo.Count(ctx)
+func (s *PaymentService) Count(ctx context.Context, params *payment.FindParams) (int64, error) {
+	const op serrors.Op = "PaymentService.Count"
+	if err := composables.CanUser(ctx, permissions.PaymentRead); err != nil {
+		return 0, serrors.Wrap(op, err)
+	}
+	count, err := s.repo.Count(ctx, params)
+	if err != nil {
+		return 0, serrors.Wrap(op, err)
+	}
+	return count, nil
 }
 
 // AttachFileToPayment attaches an upload to a payment
@@ -171,7 +179,7 @@ func (s *PaymentService) AttachFileToPayment(ctx context.Context, paymentID uuid
 		return fmt.Errorf("failed to get tenant ID: %w", err)
 	}
 	if upload.TenantID() != tenantID {
-		return serrors.NewError("TENANT_MISMATCH", "upload does not belong to this tenant", "upload.tenant_mismatch")
+		return serrors.NewPermissionDenied("upload does not belong to this tenant").WithReason("TENANT_MISMATCH").WithPublic(serrors.Message{ID: "upload.tenant_mismatch"})
 	}
 
 	return composables.InTx(ctx, func(txCtx context.Context) error {

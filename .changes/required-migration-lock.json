@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Add context-aware required migration advisory locking on the shared maintenance database, reusing the canonical lock while preserving legacy best-effort behavior."}

@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Redesign notification settings and the notification center for non-technical users: one searchable recipient picker for users, groups and roles, a single delivery status line, a calmer bell dropdown and history page, and a fix for the delivery status polling itself in an endless loop."
+}

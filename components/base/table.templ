@@ -258,6 +258,8 @@ templ Table(props TableProps) {
 				touch: false,
 				canScrollLeft: false,
 				canScrollRight: false,
+				_ro: null,
+				_mo: null,
 				init() {
 					const sc = this.$refs.sc;
 					if (!sc) return;
@@ -277,8 +279,13 @@ templ Table(props TableProps) {
 						sc.querySelector('tbody') || sc,
 						{ childList: true, subtree: true }
 					);
+					/* Horizontal overflow is hidden in favour of the proxy scrollbar,
+					   so the browser never scrolls sideways on its own. A trackpad
+					   sends deltaX; a mouse wheel with Shift held sends deltaY on
+					   Windows Chrome, so treat that as a sideways scroll too. */
 					sc.addEventListener('wheel', (e) => {
-						if (e.deltaX !== 0) { sc.scrollLeft += e.deltaX; }
+						const dx = e.deltaX !== 0 ? e.deltaX : (e.shiftKey ? e.deltaY : 0);
+						if (dx !== 0) { sc.scrollLeft += dx; }
 					}, { passive: true });
 				},
 				destroy() {

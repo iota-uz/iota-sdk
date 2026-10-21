@@ -27,7 +27,7 @@ export default defineConfig({
     {
       name: 'lens-go-embed-placeholder',
       closeBundle() {
-        writeFileSync(path.resolve(rootDir, '../../pkg/lens/render/react/dist/.keep'), '')
+        writeFileSync(path.resolve(rootDir, '../../pkg/lens/render/solid/dist/.keep'), '')
       },
     },
   ],
@@ -41,7 +41,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: path.resolve(rootDir, '../../pkg/lens/render/react/dist'),
+    outDir: path.resolve(rootDir, '../../pkg/lens/render/solid/dist'),
     emptyOutDir: true,
     manifest: true,
     cssCodeSplit: true,

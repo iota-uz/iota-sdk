@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "@iota-uz/sdk/chat-ui/styles.css";
+@config "./tailwind.config.ts";
+@source "../../src";
+html,body {margin:0;height:100%;}

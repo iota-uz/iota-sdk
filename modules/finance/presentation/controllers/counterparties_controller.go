@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
@@ -16,6 +17,7 @@ import (
 	counterpartiesui "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/counterparties"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -25,6 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 type CounterpartiesController struct {
@@ -37,6 +40,17 @@ func NewCounterpartiesController(counterpartiesService *services.CounterpartySer
 		counterpartiesService: counterpartiesService,
 		basePath:              "/finance/counterparties",
 	}
+}
+
+// revenue is shown next to the counterparty form; the form stays available
+// without it when it cannot be read.
+func revenue(r *http.Request, clientRevenue services.ClientRevenueSource, id uuid.UUID) []*viewmodels.Revenue {
+	lines, err := clientRevenue.ClientRevenue(r.Context(), id)
+	if err != nil {
+		logrus.WithError(err).Error("Error retrieving client revenue")
+		return nil
+	}
+	return mapping.MapViewModels(lines, mappers.RevenueToViewModel)
 }
 
 func (c *CounterpartiesController) Descriptor() application.ControllerDescriptor {
@@ -61,11 +75,11 @@ func (c *CounterpartiesController) Register(r *mux.Router) {
 		middleware.WithPageContext(),
 	)
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.GetEdit).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.GetEdit)).Methods(http.MethodGet)
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 	router.HandleFunc("/search", c.Search).Methods(http.MethodGet)
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Update).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Update)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Delete).Methods(http.MethodDelete)
 }
 
@@ -120,8 +134,7 @@ func (c *CounterpartiesController) GetNew(w http.ResponseWriter, r *http.Request
 func (c *CounterpartiesController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&dtos.CounterpartyCreateDTO{}, r)
 	if err != nil {
-		logrus.WithError(err).Error("Error parsing form")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -145,21 +158,23 @@ func (c *CounterpartiesController) Create(w http.ResponseWriter, r *http.Request
 
 	entity, err := dto.ToEntity(tenantID)
 	if err != nil {
-		logrus.WithError(err).Error("Error converting DTO to entity")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := c.counterpartiesService.Create(r.Context(), entity); err != nil {
-		logrus.WithError(err).Error("Error creating counterparty")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *CounterpartiesController) GetEdit(w http.ResponseWriter, r *http.Request) {
+func (c *CounterpartiesController) GetEdit(
+	w http.ResponseWriter,
+	r *http.Request,
+	clientRevenue services.ClientRevenueSource,
+) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
 		logrus.WithError(err).Error("Error parsing counterparty ID")
@@ -179,11 +194,16 @@ func (c *CounterpartiesController) GetEdit(w http.ResponseWriter, r *http.Reques
 		Errors:       map[string]string{},
 		PostPath:     c.basePath + "/" + id.String(),
 		DeletePath:   c.basePath + "/" + id.String(),
+		Revenue:      revenue(r, clientRevenue, id),
 	}
 	templ.Handler(counterpartiesui.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *CounterpartiesController) Update(w http.ResponseWriter, r *http.Request) {
+func (c *CounterpartiesController) Update(
+	w http.ResponseWriter,
+	r *http.Request,
+	clientRevenue services.ClientRevenueSource,
+) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
 		logrus.WithError(err).Error("Error parsing counterparty ID")
@@ -217,6 +237,7 @@ func (c *CounterpartiesController) Update(w http.ResponseWriter, r *http.Request
 			Errors:       errorsMap,
 			PostPath:     c.basePath + "/" + id.String(),
 			DeletePath:   c.basePath + "/" + id.String(),
+			Revenue:      revenue(r, clientRevenue, id),
 		}
 		templ.Handler(counterpartiesui.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -224,14 +245,12 @@ func (c *CounterpartiesController) Update(w http.ResponseWriter, r *http.Request
 
 	entity, err := dto.Apply(existing)
 	if err != nil {
-		logrus.WithError(err).Error("Error applying DTO to entity")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := c.counterpartiesService.Update(r.Context(), entity); err != nil {
-		logrus.WithError(err).Error("Error updating counterparty")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -247,8 +266,7 @@ func (c *CounterpartiesController) Delete(w http.ResponseWriter, r *http.Request
 	}
 
 	if _, err := c.counterpartiesService.Delete(r.Context(), id); err != nil {
-		logrus.WithError(err).Error("Error deleting counterparty")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -261,7 +279,7 @@ func (c *CounterpartiesController) Search(w http.ResponseWriter, r *http.Request
 		Limit:  10,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := mapping.MapViewModels(entities, func(e counterparty.Counterparty) *base.ComboboxOption {

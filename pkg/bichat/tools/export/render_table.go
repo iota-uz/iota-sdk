@@ -192,7 +192,7 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 				Message: fmt.Sprintf("query execution failed: %v", err),
 				Hints:   []string{tools.HintCheckSQLSyntax, tools.HintVerifyTableNames, tools.HintCheckJoinConditions},
 			},
-		}, serrors.E(op, err)
+		}, serrors.Wrap(op, err)
 	}
 
 	rows := result.Rows
@@ -235,7 +235,7 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 					Message: fmt.Sprintf("failed to generate Excel export: %v", exportErr),
 					Hints:   []string{tools.HintRetryLater, tools.HintServiceMayBeDown},
 				},
-			}, serrors.E(op, exportErr)
+			}, serrors.Wrap(op, exportErr)
 		}
 
 		filename := buildRenderTableFilename()
@@ -247,7 +247,7 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 					Message: fmt.Sprintf("failed to prepare export directory: %v", err),
 					Hints:   []string{tools.HintRetryLater},
 				},
-			}, serrors.E(op, err)
+			}, serrors.Wrap(op, err)
 		}
 
 		filePath := filepath.Join(t.outputDir, filename)
@@ -259,7 +259,7 @@ func (t *RenderTableTool) CallStructured(ctx context.Context, input string) (*ty
 					Message: fmt.Sprintf("failed to save Excel export: %v", err),
 					Hints:   []string{tools.HintRetryLater},
 				},
-			}, serrors.E(op, err)
+			}, serrors.Wrap(op, err)
 		}
 
 		output.Export = &renderTableExport{

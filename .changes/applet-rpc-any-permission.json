@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Allow typed applet RPC contracts to require any one of several permissions, so callers with independent read or manage grants can use the same method without broadening anonymous access."
+}

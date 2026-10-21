@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,11 @@ const (
 	defaultActiveRunIndexEventsTop = "bichat:active-runs:events"
 )
 
+// ActiveRunStatusQueued marks a session whose newest send is parked on the
+// per-session FIFO behind an active run. The reaper skips non-streaming
+// entries, so queued jobs are never reaped while waiting.
+const ActiveRunStatusQueued = "queued"
+
 // ActiveRunStatus is the canonical shape rendered on sidebar dots and
 // emitted on the status pubsub topic. Terminal statuses (completed /
 // cancelled / failed) are published once and then the hash entry is
@@ -34,8 +40,13 @@ type ActiveRunStatus struct {
 	RunID     uuid.UUID `json:"run_id"`
 	// Status matches domain.GenerationRunStatus values + "queued" (used
 	// by the FIFO queue for messages waiting behind an active run).
-	Status    string    `json:"status"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Status string `json:"status"`
+	// QueuedRuns is the number of sends parked on the session FIFO behind
+	// this run. Maintained additively so it never disturbs Status/RunID of
+	// the entry that owns the hash field (the reaper only reaps entries
+	// whose Status is streaming).
+	QueuedRuns int64     `json:"queued_runs,omitempty"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // ActiveRunIndex is the per-tenant live view of in-flight generations.
@@ -72,6 +83,15 @@ type ActiveRunIndex interface {
 	// breaks. Subscribers are tenant-scoped: a listener for tenant A
 	// will not receive tenant B events.
 	Subscribe(ctx context.Context, tenantID uuid.UUID) (<-chan ActiveRunStatus, error)
+
+	// AddQueuedRuns adjusts the number of sends parked on the session
+	// FIFO behind the session's active run. It mutates only the QueuedRuns
+	// count of the existing entry — never Status/RunID — so the reaper
+	// keeps seeing a streaming run as streaming. When no entry exists and
+	// delta > 0, a queued-status entry is created for runID; a queued-only
+	// entry whose count reaches zero is removed. The resulting entry is
+	// published as a delta.
+	AddQueuedRuns(ctx context.Context, tenantID, sessionID, runID uuid.UUID, delta int64) error
 }
 
 // RedisActiveRunIndexConfig configures the Redis-backed index.
@@ -127,17 +147,17 @@ func NewRedisActiveRunIndex(cfg RedisActiveRunIndexConfig) (*RedisActiveRunIndex
 func (idx *RedisActiveRunIndex) Upsert(ctx context.Context, tenantID uuid.UUID, status ActiveRunStatus) error {
 	const op serrors.Op = "RedisActiveRunIndex.Upsert"
 	if tenantID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant id is required")
+		return serrors.New(serrors.Invalid, "tenant id is required").WithOp(op)
 	}
 	if status.SessionID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "session id is required")
+		return serrors.New(serrors.Invalid, "session id is required").WithOp(op)
 	}
 	if status.UpdatedAt.IsZero() {
 		status.UpdatedAt = time.Now().UTC()
 	}
 	body, err := json.Marshal(status)
 	if err != nil {
-		return serrors.E(op, "marshal status", err)
+		return serrors.WrapContext(op, err, "marshal status")
 	}
 
 	writeCtx := context.WithoutCancel(ctx)
@@ -145,7 +165,7 @@ func (idx *RedisActiveRunIndex) Upsert(ctx context.Context, tenantID uuid.UUID, 
 	pipe.HSet(writeCtx, idx.hashKey(tenantID), status.SessionID.String(), body)
 	pipe.Publish(writeCtx, idx.eventsChannel(tenantID), body)
 	if _, err := pipe.Exec(writeCtx); err != nil {
-		return serrors.E(op, "hset+publish", err)
+		return serrors.WrapContext(op, err, "hset+publish")
 	}
 	return nil
 }
@@ -154,17 +174,17 @@ func (idx *RedisActiveRunIndex) Upsert(ctx context.Context, tenantID uuid.UUID, 
 func (idx *RedisActiveRunIndex) PublishAndRemove(ctx context.Context, tenantID uuid.UUID, status ActiveRunStatus) error {
 	const op serrors.Op = "RedisActiveRunIndex.PublishAndRemove"
 	if tenantID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant id is required")
+		return serrors.New(serrors.Invalid, "tenant id is required").WithOp(op)
 	}
 	if status.SessionID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "session id is required")
+		return serrors.New(serrors.Invalid, "session id is required").WithOp(op)
 	}
 	if status.UpdatedAt.IsZero() {
 		status.UpdatedAt = time.Now().UTC()
 	}
 	body, err := json.Marshal(status)
 	if err != nil {
-		return serrors.E(op, "marshal status", err)
+		return serrors.WrapContext(op, err, "marshal status")
 	}
 
 	writeCtx := context.WithoutCancel(ctx)
@@ -172,7 +192,7 @@ func (idx *RedisActiveRunIndex) PublishAndRemove(ctx context.Context, tenantID u
 	pipe.Publish(writeCtx, idx.eventsChannel(tenantID), body)
 	pipe.HDel(writeCtx, idx.hashKey(tenantID), status.SessionID.String())
 	if _, err := pipe.Exec(writeCtx); err != nil {
-		return serrors.E(op, "publish+hdel", err)
+		return serrors.WrapContext(op, err, "publish+hdel")
 	}
 	return nil
 }
@@ -181,11 +201,11 @@ func (idx *RedisActiveRunIndex) PublishAndRemove(ctx context.Context, tenantID u
 func (idx *RedisActiveRunIndex) Remove(ctx context.Context, tenantID, sessionID uuid.UUID) error {
 	const op serrors.Op = "RedisActiveRunIndex.Remove"
 	if tenantID == uuid.Nil || sessionID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant id and session id are required")
+		return serrors.New(serrors.Invalid, "tenant id and session id are required").WithOp(op)
 	}
 	writeCtx := context.WithoutCancel(ctx)
 	if err := idx.client.HDel(writeCtx, idx.hashKey(tenantID), sessionID.String()).Err(); err != nil {
-		return serrors.E(op, "hdel", err)
+		return serrors.WrapContext(op, err, "hdel")
 	}
 	return nil
 }
@@ -194,14 +214,14 @@ func (idx *RedisActiveRunIndex) Remove(ctx context.Context, tenantID, sessionID 
 func (idx *RedisActiveRunIndex) Snapshot(ctx context.Context, tenantID uuid.UUID) ([]ActiveRunStatus, error) {
 	const op serrors.Op = "RedisActiveRunIndex.Snapshot"
 	if tenantID == uuid.Nil {
-		return nil, serrors.E(op, serrors.KindValidation, "tenant id is required")
+		return nil, serrors.New(serrors.Invalid, "tenant id is required").WithOp(op)
 	}
 	raw, err := idx.client.HGetAll(ctx, idx.hashKey(tenantID)).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, nil
 		}
-		return nil, serrors.E(op, "hgetall", err)
+		return nil, serrors.WrapContext(op, err, "hgetall")
 	}
 	out := make([]ActiveRunStatus, 0, len(raw))
 	for _, v := range raw {
@@ -220,14 +240,14 @@ func (idx *RedisActiveRunIndex) Snapshot(ctx context.Context, tenantID uuid.UUID
 func (idx *RedisActiveRunIndex) Subscribe(ctx context.Context, tenantID uuid.UUID) (<-chan ActiveRunStatus, error) {
 	const op serrors.Op = "RedisActiveRunIndex.Subscribe"
 	if tenantID == uuid.Nil {
-		return nil, serrors.E(op, serrors.KindValidation, "tenant id is required")
+		return nil, serrors.New(serrors.Invalid, "tenant id is required").WithOp(op)
 	}
 	sub := idx.client.Subscribe(ctx, idx.eventsChannel(tenantID))
 	// Ensure the subscription is actually established before returning
 	// so callers don't race with the first Publish.
 	if _, err := sub.Receive(ctx); err != nil {
 		_ = sub.Close()
-		return nil, serrors.E(op, "subscribe", err)
+		return nil, serrors.WrapContext(op, err, "subscribe")
 	}
 
 	out := make(chan ActiveRunStatus)
@@ -256,6 +276,78 @@ func (idx *RedisActiveRunIndex) Subscribe(ctx context.Context, tenantID uuid.UUI
 		}
 	}()
 	return out, nil
+}
+
+// addQueuedRunsScript mutates only the queued_runs count of the session's
+// entry. Missing entry + positive delta creates a queued-status entry (the
+// reaper skips non-streaming entries); a queued-only entry whose count
+// reaches zero is deleted. Returns the encoded entry, or nil when the field
+// was removed (or nothing needed creating).
+const addQueuedRunsScript = `
+local raw = redis.call('HGET', KEYS[1], ARGV[1])
+local delta = tonumber(ARGV[2])
+local runID = ARGV[3]
+local now = ARGV[4]
+if raw then
+  local entry = cjson.decode(raw)
+  local queued = 0
+  if entry.queued_runs then queued = entry.queued_runs end
+  queued = queued + delta
+  if queued < 0 then queued = 0 end
+  entry.queued_runs = queued
+  if queued == 0 and entry.status == 'queued' then
+    redis.call('HDEL', KEYS[1], ARGV[1])
+    return nil
+  end
+  entry.updated_at = now
+  local body = cjson.encode(entry)
+  redis.call('HSET', KEYS[1], ARGV[1], body)
+  return body
+end
+if delta <= 0 then
+  return nil
+end
+local entry = {session_id=ARGV[1], run_id=runID, status='queued', queued_runs=delta, updated_at=now}
+local body = cjson.encode(entry)
+redis.call('HSET', KEYS[1], ARGV[1], body)
+return body
+`
+
+// AddQueuedRuns implements ActiveRunIndex.
+func (idx *RedisActiveRunIndex) AddQueuedRuns(ctx context.Context, tenantID, sessionID, runID uuid.UUID, delta int64) error {
+	const op serrors.Op = "RedisActiveRunIndex.AddQueuedRuns"
+	if tenantID == uuid.Nil || sessionID == uuid.Nil {
+		return serrors.New(serrors.Invalid, "tenant id and session id are required").WithOp(op)
+	}
+
+	writeCtx := context.WithoutCancel(ctx)
+	result, err := idx.client.Eval(writeCtx, addQueuedRunsScript, []string{idx.hashKey(tenantID)},
+		sessionID.String(),
+		strconv.FormatInt(delta, 10),
+		runID.String(),
+		time.Now().UTC().Format(time.RFC3339Nano),
+	).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return serrors.WrapContext(op, err, "eval queued runs")
+	}
+
+	if body, ok := result.(string); ok && body != "" {
+		_ = idx.client.Publish(writeCtx, idx.eventsChannel(tenantID), body).Err()
+		return nil
+	}
+	// Field removed (queued-only entry drained to zero): publish a
+	// zero-count delta so live subscribers clear the badge.
+	removed, marshalErr := json.Marshal(ActiveRunStatus{
+		SessionID:  sessionID,
+		RunID:      runID,
+		Status:     ActiveRunStatusQueued,
+		QueuedRuns: 0,
+		UpdatedAt:  time.Now().UTC(),
+	})
+	if marshalErr == nil {
+		_ = idx.client.Publish(writeCtx, idx.eventsChannel(tenantID), removed).Err()
+	}
+	return nil
 }
 
 // Close releases the underlying Redis connection. When the client was

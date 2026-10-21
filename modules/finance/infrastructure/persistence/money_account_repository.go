@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -229,7 +230,7 @@ func (g *GormMoneyAccountRepository) Create(ctx context.Context, data moneyaccou
 	row := tx.QueryRow(ctx, insertQuery, args...)
 	var id uuid.UUID
 	if err := row.Scan(&id); err != nil {
-		return nil, err
+		return nil, translateMoneyAccountWriteError(err)
 	}
 	return g.GetByID(ctx, id)
 }
@@ -253,9 +254,25 @@ func (g *GormMoneyAccountRepository) Update(ctx context.Context, data moneyaccou
 		dbAccount.TenantID,
 	}
 	if err := g.execQuery(ctx, updateQuery, args...); err != nil {
-		return nil, err
+		return nil, translateMoneyAccountWriteError(err)
 	}
 	return g.GetByID(ctx, data.ID())
+}
+
+// moneyAccountsTenantAccountNumberUniqueConstraint is the PostgreSQL default
+// name of the UNIQUE (tenant_id, account_number) constraint on
+// money_accounts (see schema/finance-schema.sql).
+const moneyAccountsTenantAccountNumberUniqueConstraint = "money_accounts_tenant_id_account_number_key"
+
+// translateMoneyAccountWriteError maps the per-tenant unique-violation on
+// account_number to moneyaccount.ErrDuplicateAccountNumber so controllers
+// can render a field-level validation message instead of a raw SQL error.
+func translateMoneyAccountWriteError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == moneyAccountsTenantAccountNumberUniqueConstraint {
+		return fmt.Errorf("%w: %w", moneyaccount.ErrDuplicateAccountNumber, err)
+	}
+	return err
 }
 
 func (g *GormMoneyAccountRepository) Delete(ctx context.Context, id uuid.UUID) error {

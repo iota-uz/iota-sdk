@@ -53,7 +53,7 @@ func NewTOTPService(
 
 	// CRITICAL: Encryptor is required for OWASP compliance - TOTP secrets must never be stored in plaintext
 	if encryptor == nil {
-		return nil, serrors.E(op, serrors.Invalid, errors.New("encryptor is required for TOTP secret encryption"))
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("encryptor is required for TOTP secret encryption"))
 	}
 
 	if skew == 0 {
@@ -85,7 +85,7 @@ func (s *TOTPService) GenerateSecret() (string, error) {
 		AccountName: "placeholder", // Placeholder - actual account name set in QR URL generation
 	})
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 	return key.Secret(), nil
 }
@@ -101,10 +101,10 @@ func (s *TOTPService) GenerateQRCodeURL(accountName, secret string) (string, err
 	const op serrors.Op = "TOTPService.GenerateQRCodeURL"
 
 	if accountName == "" {
-		return "", serrors.E(op, serrors.Invalid, errors.New("account name cannot be empty"))
+		return "", serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("account name cannot be empty"))
 	}
 	if secret == "" {
-		return "", serrors.E(op, pkgtf.ErrInvalidSecret)
+		return "", serrors.Wrap(op, pkgtf.ErrInvalidSecret)
 	}
 
 	// Build otpauth URL
@@ -143,7 +143,7 @@ func (s *TOTPService) GenerateQRCodePNG(accountName, secret string, size int) (s
 	// Generate otpauth URL
 	otpauthURL, err := s.GenerateQRCodeURL(accountName, secret)
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 
 	// Generate QR code using yeqown/go-qrcode (actively maintained replacement for skip2/go-qrcode)
@@ -152,7 +152,7 @@ func (s *TOTPService) GenerateQRCodePNG(accountName, secret string, size int) (s
 		qrcode.WithErrorCorrectionLevel(qrcode.ErrorCorrectionMedium),
 	)
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 
 	// Write QR code to buffer as PNG
@@ -165,7 +165,7 @@ func (s *TOTPService) GenerateQRCodePNG(accountName, secret string, size int) (s
 	// Wrap buffer with nopCloser to satisfy io.WriteCloser interface
 	writer := standard.NewWithWriter(nopCloser{buf}, standard.WithQRWidth(moduleWidth))
 	if err := qrc.Save(writer); err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 
 	// Encode to base64
@@ -198,10 +198,10 @@ func (s *TOTPService) ValidateWithSkew(secret, code string, skew uint) (bool, er
 	const op serrors.Op = "TOTPService.ValidateWithSkew"
 
 	if secret == "" {
-		return false, serrors.E(op, pkgtf.ErrInvalidSecret)
+		return false, serrors.Wrap(op, pkgtf.ErrInvalidSecret)
 	}
 	if code == "" {
-		return false, serrors.E(op, pkgtf.ErrInvalidCode)
+		return false, serrors.Wrap(op, pkgtf.ErrInvalidCode)
 	}
 
 	// Use configured skew if not specified
@@ -221,7 +221,7 @@ func (s *TOTPService) ValidateWithSkew(secret, code string, skew uint) (bool, er
 		},
 	)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	return valid, nil
@@ -240,12 +240,12 @@ func (s *TOTPService) EncryptSecret(ctx context.Context, secret string) (string,
 
 	// CRITICAL: Fail fast - encryption is required for OWASP compliance
 	if s.encryptor == nil {
-		return "", serrors.E(op, serrors.Invalid, errors.New("encryptor is required for TOTP secret encryption"))
+		return "", serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("encryptor is required for TOTP secret encryption"))
 	}
 
 	encrypted, err := s.encryptor.Encrypt(ctx, secret)
 	if err != nil {
-		return "", serrors.E(op, pkgtf.ErrEncryptionFailed, err)
+		return "", serrors.Wrap(op, serrors.Multi(pkgtf.ErrEncryptionFailed, err))
 	}
 
 	return encrypted, nil
@@ -263,12 +263,12 @@ func (s *TOTPService) DecryptSecret(ctx context.Context, encrypted string) (stri
 
 	// CRITICAL: Fail fast - encryption is required for OWASP compliance
 	if s.encryptor == nil {
-		return "", serrors.E(op, serrors.Invalid, errors.New("encryptor is required for TOTP secret encryption"))
+		return "", serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("encryptor is required for TOTP secret encryption"))
 	}
 
 	plaintext, err := s.encryptor.Decrypt(ctx, encrypted)
 	if err != nil {
-		return "", serrors.E(op, pkgtf.ErrDecryptionFailed, err)
+		return "", serrors.Wrap(op, serrors.Multi(pkgtf.ErrDecryptionFailed, err))
 	}
 
 	return plaintext, nil

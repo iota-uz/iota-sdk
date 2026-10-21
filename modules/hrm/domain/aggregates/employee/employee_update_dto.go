@@ -14,7 +14,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/validate"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -43,7 +43,7 @@ func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	}
 
 	// Create validation errors collection
-	validationErrors := make(serrors.ValidationErrors)
+	validationErrors := make(map[string]error)
 
 	// Process standard validator errors
 	errs := constants.Validate.Struct(d)
@@ -64,7 +64,7 @@ func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 		}
 
 		// Process validator errors to our custom format
-		for field, err := range serrors.ProcessValidatorErrors(validatorErrs, getFieldLocaleKey) {
+		for field, err := range validate.Fields(validatorErrs, getFieldLocaleKey) {
 			validationErrors[field] = err
 		}
 	}
@@ -72,7 +72,7 @@ func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	// Custom Email validation
 	if d.Email != "" {
 		if _, err := internet.NewEmail(d.Email); err != nil {
-			validationErrors["Email"] = serrors.NewInvalidEmailError(
+			validationErrors["Email"] = validate.Email(
 				"Email",
 				"Employees.Public.Email.Label",
 			)
@@ -82,7 +82,7 @@ func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	// Custom TIN validation
 	if d.Tin != "" {
 		if _, err := parseTin(d.Tin); err != nil {
-			validationErrors["Tin"] = serrors.NewInvalidTINError(
+			validationErrors["Tin"] = validate.TIN(
 				"Tin",
 				"Employees.Private.TIN.Label",
 				err.Error(),
@@ -93,7 +93,7 @@ func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	// Custom PIN validation
 	if d.Pin != "" {
 		if _, err := parsePin(d.Pin); err != nil {
-			validationErrors["Pin"] = serrors.NewInvalidPINError(
+			validationErrors["Pin"] = validate.PIN(
 				"Pin",
 				"Employees.Private.Pin.Label",
 				err.Error(),
@@ -102,7 +102,7 @@ func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	}
 
 	// Localize all validation errors
-	errorMessages := serrors.LocalizeValidationErrors(validationErrors, l)
+	errorMessages := validate.Map(validationErrors, l)
 	return errorMessages, len(errorMessages) == 0
 }
 

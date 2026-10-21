@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Complete notification routing, semantic recipients, severity, keyset history, realtime Redis fanout and durable batched delivery with retry controls."
+}

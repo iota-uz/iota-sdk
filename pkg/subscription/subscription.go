@@ -84,7 +84,7 @@ func NewService(cfg Config, opts ...Option) (Engine, error) {
 	cfg = cfg.normalized()
 	plans, err := ResolvePlans(cfg)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	svc := &service{
@@ -110,14 +110,14 @@ func (s *service) UpsertGrant(_ context.Context, grant Grant) error {
 	const op serrors.Op = "SubscriptionEngine.UpsertGrant"
 
 	if strings.TrimSpace(grant.ID) == "" {
-		return serrors.E(op, ErrGrantIDRequired)
+		return serrors.Wrap(op, ErrGrantIDRequired)
 	}
 	if err := validateSubjectRef(grant.Subject); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if grant.PlanID != "" {
 		if _, ok := s.plans[grant.PlanID]; !ok {
-			return serrors.E(op, ErrPlanNotFound)
+			return serrors.Wrap(op, ErrPlanNotFound)
 		}
 	}
 
@@ -159,7 +159,7 @@ func (s *service) RevokeGrant(_ context.Context, grantID string) error {
 	const op serrors.Op = "SubscriptionEngine.RevokeGrant"
 
 	if strings.TrimSpace(grantID) == "" {
-		return serrors.E(op, ErrGrantIDRequired)
+		return serrors.Wrap(op, ErrGrantIDRequired)
 	}
 
 	s.mu.Lock()
@@ -167,7 +167,7 @@ func (s *service) RevokeGrant(_ context.Context, grantID string) error {
 
 	grant, ok := s.grants[grantID]
 	if !ok {
-		return serrors.E(op, ErrGrantNotFound)
+		return serrors.Wrap(op, ErrGrantNotFound)
 	}
 	delete(s.grants, grantID)
 	s.detachGrantLocked(grant.Subject, grantID)
@@ -178,7 +178,7 @@ func (s *service) ListGrants(_ context.Context, subject SubjectRef) ([]Grant, er
 	const op serrors.Op = "SubscriptionEngine.ListGrants"
 
 	if err := validateSubjectRef(subject); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	s.mu.RLock()
@@ -206,10 +206,10 @@ func (s *service) AssignPlan(ctx context.Context, subject SubjectRef, planID str
 	const op serrors.Op = "SubscriptionEngine.AssignPlan"
 
 	if err := validateSubjectRef(subject); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if _, ok := s.plans[planID]; !ok {
-		return serrors.E(op, ErrPlanNotFound)
+		return serrors.Wrap(op, ErrPlanNotFound)
 	}
 
 	grant := Grant{
@@ -219,7 +219,7 @@ func (s *service) AssignPlan(ctx context.Context, subject SubjectRef, planID str
 		PlanID:  planID,
 	}
 	if err := s.UpsertGrant(ctx, grant); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -228,7 +228,7 @@ func (s *service) CurrentPlan(_ context.Context, subject Subject) (PlanInfo, err
 	const op serrors.Op = "SubscriptionEngine.CurrentPlan"
 
 	if err := validateSubject(subject); err != nil {
-		return PlanInfo{}, serrors.E(op, err)
+		return PlanInfo{}, serrors.Wrap(op, err)
 	}
 
 	s.mu.RLock()
@@ -246,10 +246,10 @@ func (s *service) EvaluateFeature(_ context.Context, subject Subject, feature Fe
 	const op serrors.Op = "SubscriptionEngine.EvaluateFeature"
 
 	if err := validateSubject(subject); err != nil {
-		return Decision{}, serrors.E(op, err)
+		return Decision{}, serrors.Wrap(op, err)
 	}
 	if strings.TrimSpace(string(feature)) == "" {
-		return Decision{}, serrors.E(op, fmt.Errorf("feature is required"))
+		return Decision{}, serrors.Wrap(op, fmt.Errorf("feature is required"))
 	}
 
 	s.mu.RLock()
@@ -311,11 +311,11 @@ func (s *service) EvaluateLimit(_ context.Context, subject Subject, quota QuotaK
 	const op serrors.Op = "SubscriptionEngine.EvaluateLimit"
 
 	if err := validateSubject(subject); err != nil {
-		return LimitDecision{}, serrors.E(op, err)
+		return LimitDecision{}, serrors.Wrap(op, err)
 	}
 	normalizedQuota, err := validateQuota(quota)
 	if err != nil {
-		return LimitDecision{}, serrors.E(op, err)
+		return LimitDecision{}, serrors.Wrap(op, err)
 	}
 	quota = normalizedQuota
 
@@ -329,18 +329,18 @@ func (s *service) Reserve(_ context.Context, subject Subject, quota QuotaKey, am
 	const op serrors.Op = "SubscriptionEngine.Reserve"
 
 	if err := validateSubject(subject); err != nil {
-		return Reservation{}, serrors.E(op, err)
+		return Reservation{}, serrors.Wrap(op, err)
 	}
 	normalizedQuota, err := validateQuota(quota)
 	if err != nil {
-		return Reservation{}, serrors.E(op, err)
+		return Reservation{}, serrors.Wrap(op, err)
 	}
 	quota = normalizedQuota
 	if amount <= 0 {
-		return Reservation{}, serrors.E(op, fmt.Errorf("reservation amount must be positive"))
+		return Reservation{}, serrors.Wrap(op, fmt.Errorf("reservation amount must be positive"))
 	}
 	if strings.TrimSpace(token) == "" {
-		return Reservation{}, serrors.E(op, fmt.Errorf("reservation token is required"))
+		return Reservation{}, serrors.Wrap(op, fmt.Errorf("reservation token is required"))
 	}
 
 	s.mu.Lock()
@@ -357,13 +357,13 @@ func (s *service) Reserve(_ context.Context, subject Subject, quota QuotaKey, am
 		} else if existing.Subject == subject.Ref() && existing.Quota == quota && existing.Amount == amount {
 			return cloneReservation(*existing), nil
 		} else {
-			return Reservation{}, serrors.E(op, fmt.Errorf("reservation token conflict"))
+			return Reservation{}, serrors.Wrap(op, fmt.Errorf("reservation token conflict"))
 		}
 	}
 
 	limitDecision := s.evaluateLimitLocked(subject, quota)
 	if limitDecision.Limit >= 0 && limitDecision.Current+amount > limitDecision.Limit {
-		return Reservation{}, serrors.E(op, LimitExceededError{
+		return Reservation{}, serrors.Wrap(op, LimitExceededError{
 			Quota:   quota,
 			Current: limitDecision.Current,
 			Limit:   limitDecision.Limit,
@@ -396,7 +396,7 @@ func (s *service) Commit(_ context.Context, reservationID string) error {
 	const op serrors.Op = "SubscriptionEngine.Commit"
 
 	if strings.TrimSpace(reservationID) == "" {
-		return serrors.E(op, ErrReservationNotFound)
+		return serrors.Wrap(op, ErrReservationNotFound)
 	}
 
 	s.mu.Lock()
@@ -406,14 +406,14 @@ func (s *service) Commit(_ context.Context, reservationID string) error {
 
 	reservation, ok := s.reservations[reservationID]
 	if !ok {
-		return serrors.E(op, ErrReservationNotFound)
+		return serrors.Wrap(op, ErrReservationNotFound)
 	}
 	switch reservation.Status {
 	case ReservationPending:
 	case ReservationCommitted:
 		return nil
 	case ReservationReleased, ReservationExpired:
-		return serrors.E(op, fmt.Errorf("reservation is not committable: %s", reservation.Status))
+		return serrors.Wrap(op, fmt.Errorf("reservation is not committable: %s", reservation.Status))
 	}
 
 	now := s.now()
@@ -428,7 +428,7 @@ func (s *service) Release(_ context.Context, reservationID string) error {
 	const op serrors.Op = "SubscriptionEngine.Release"
 
 	if strings.TrimSpace(reservationID) == "" {
-		return serrors.E(op, ErrReservationNotFound)
+		return serrors.Wrap(op, ErrReservationNotFound)
 	}
 
 	s.mu.Lock()
@@ -436,7 +436,7 @@ func (s *service) Release(_ context.Context, reservationID string) error {
 
 	reservation, ok := s.reservations[reservationID]
 	if !ok {
-		return serrors.E(op, ErrReservationNotFound)
+		return serrors.Wrap(op, ErrReservationNotFound)
 	}
 	if reservation.Status == ReservationReleased {
 		return nil
@@ -457,15 +457,15 @@ func (s *service) SetUsage(_ context.Context, subject SubjectRef, quota QuotaKey
 	const op serrors.Op = "SubscriptionEngine.SetUsage"
 
 	if err := validateSubjectRef(subject); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	normalizedQuota, err := validateQuota(quota)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	quota = normalizedQuota
 	if amount < 0 {
-		return serrors.E(op, fmt.Errorf("usage cannot be negative"))
+		return serrors.Wrap(op, fmt.Errorf("usage cannot be negative"))
 	}
 
 	s.mu.Lock()
@@ -744,12 +744,12 @@ func ResolvePlans(cfg Config) (map[string]PlanDefinition, error) {
 			return plan, nil
 		}
 		if visiting[planID] {
-			return PlanDefinition{}, serrors.E(op, fmt.Errorf("plan inheritance cycle detected: %s", planID))
+			return PlanDefinition{}, serrors.Wrap(op, fmt.Errorf("plan inheritance cycle detected: %s", planID))
 		}
 
 		current, ok := byPlan[planID]
 		if !ok {
-			return PlanDefinition{}, serrors.E(op, fmt.Errorf("plan not found: %s", planID))
+			return PlanDefinition{}, serrors.Wrap(op, fmt.Errorf("plan not found: %s", planID))
 		}
 		visiting[planID] = true
 
@@ -798,7 +798,7 @@ func ResolvePlans(cfg Config) (map[string]PlanDefinition, error) {
 
 	for planID := range byPlan {
 		if _, err := dfs(planID); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 	}
 	return resolved, nil

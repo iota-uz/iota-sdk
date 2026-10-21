@@ -92,15 +92,11 @@ func (s *attachmentService) ValidateAndSave(
 
 	canonicalMime, err := normalizeAttachmentMimeType(filename, mimeType)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if size > maxAttachmentSize {
-		return nil, serrors.E(
-			op,
-			serrors.KindValidation,
-			fmt.Sprintf("attachment too large: %d bytes (max: %d bytes / 20MB)", size, maxAttachmentSize),
-		)
+		return nil, serrors.New(serrors.Invalid, fmt.Sprintf("attachment too large: %d bytes (max: %d bytes / 20MB)", size, maxAttachmentSize)).WithOp(op)
 	}
 
 	// Save to storage
@@ -112,7 +108,7 @@ func (s *attachmentService) ValidateAndSave(
 
 	url, err := s.storage.Save(ctx, filename, reader, metadata)
 	if err != nil {
-		return nil, serrors.E(op, serrors.Internal, "failed to save attachment", err)
+		return nil, serrors.New(serrors.Internal, "failed to save attachment").WithOp(op).WithCause(err)
 	}
 
 	attachment := domain.NewAttachment(
@@ -130,24 +126,16 @@ func (s *attachmentService) ValidateMultiple(files []bichatservices.FileUpload) 
 	const op serrors.Op = "AttachmentService.ValidateMultiple"
 
 	if len(files) > maxAttachmentCount {
-		return serrors.E(
-			op,
-			serrors.KindValidation,
-			fmt.Sprintf("too many attachments: %d (max: %d)", len(files), maxAttachmentCount),
-		)
+		return serrors.New(serrors.Invalid, fmt.Sprintf("too many attachments: %d (max: %d)", len(files), maxAttachmentCount)).WithOp(op)
 	}
 
 	for i, file := range files {
 		if _, err := normalizeAttachmentMimeType(file.Filename, file.MimeType); err != nil {
-			return serrors.E(op, serrors.KindValidation, fmt.Sprintf("attachment %d: %v", i+1, err))
+			return serrors.New(serrors.Invalid, fmt.Sprintf("attachment %d: %v", i+1, err)).WithOp(op)
 		}
 
 		if file.Size > maxAttachmentSize {
-			return serrors.E(
-				op,
-				serrors.KindValidation,
-				fmt.Sprintf("attachment %d too large: %d bytes (max: 20MB)", i+1, file.Size),
-			)
+			return serrors.New(serrors.Invalid, fmt.Sprintf("attachment %d too large: %d bytes (max: 20MB)", i+1, file.Size)).WithOp(op)
 		}
 	}
 

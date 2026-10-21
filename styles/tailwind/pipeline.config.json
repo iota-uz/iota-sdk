@@ -1,0 +1,13 @@
+{
+  "input": "styles/tailwind/input.css",
+  "generated": "styles/tailwind/main.generated.css",
+  "output": "modules/core/presentation/assets/css/main.min.css",
+  "sources": [
+    "../../cmd/**/*.{go,templ,html,js,ts,tsx}",
+    "../../components/**/*.{go,templ,html,js,ts,tsx}",
+    "../../internal/**/*.{go,templ,html,js,ts,tsx}",
+    "../../modules/**/*.{go,templ,html,js,ts,tsx}",
+    "../../pkg/**/*.{go,templ,html,js,ts,tsx}",
+    "../../ui/src/**/*.{js,ts,jsx,tsx}"
+  ]
+}

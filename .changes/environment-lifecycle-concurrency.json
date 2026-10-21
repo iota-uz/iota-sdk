@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Keep owned process and PostgreSQL lifecycle locks per environment so unrelated slots can start and stop concurrently."}

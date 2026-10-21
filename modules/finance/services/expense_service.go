@@ -177,7 +177,7 @@ func (s *ExpenseService) AttachFileToExpense(ctx context.Context, expenseID uuid
 		return fmt.Errorf("failed to get tenant ID: %w", err)
 	}
 	if upload.TenantID() != tenantID {
-		return serrors.NewError("TENANT_MISMATCH", "upload does not belong to this tenant", "upload.tenant_mismatch")
+		return serrors.NewPermissionDenied("upload does not belong to this tenant").WithReason("TENANT_MISMATCH").WithPublic(serrors.Message{ID: "upload.tenant_mismatch"})
 	}
 
 	return composables.InTx(ctx, func(txCtx context.Context) error {

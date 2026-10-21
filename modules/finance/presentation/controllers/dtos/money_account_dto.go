@@ -5,11 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/money"
@@ -104,6 +106,18 @@ func (p *MoneyAccountUpdateDTO) ToEntity(id uuid.UUID, tenantID uuid.UUID) (mone
 		moneyaccount.WithAccountNumber(p.AccountNumber),
 		moneyaccount.WithDescription(p.Description),
 	), nil
+}
+
+// ToViewModel keeps what was typed when the form is shown again.
+func (p *MoneyAccountUpdateDTO) ToViewModel(id uuid.UUID) *viewmodels.MoneyAccountUpdateDTO {
+	return &viewmodels.MoneyAccountUpdateDTO{
+		ID:            id.String(),
+		Name:          p.Name,
+		Description:   p.Description,
+		AccountNumber: p.AccountNumber,
+		Balance:       strconv.FormatFloat(p.Balance, 'f', -1, 64),
+		CurrencyCode:  p.CurrencyCode,
+	}
 }
 
 func (p *MoneyAccountUpdateDTO) Apply(existing moneyaccount.Account) (moneyaccount.Account, error) {

@@ -221,7 +221,7 @@ Both report controllers in this repo follow that pattern through `persistentDash
 
 ## React document endpoints
 
-Mount dashboards with `render/react.LensDashboard` and serve their data through
+Mount dashboards with `render/solid.LensDashboard` and serve their data through
 `pkg/lens/serve`. Register the document, query, and export handlers below the
 same authenticated middleware chain and supply a shared, bounded
 `document.SnapshotStore`. The React runtime owns loading, error, retry, drill,
@@ -232,6 +232,13 @@ when one panel can be executed independently. Do not add renderer-specific panel
 URLs or reintroduce `PanelBasePath`.
 
 ## Performance Profiling
+
+Runtime payload preflights follow `runtime.Options.MaxEntryBytes`. When omitted,
+the runtime inherits `Store.PayloadLimit()` if exposed by the store (including
+`MemorySnapshotStore`); otherwise it uses the SDK default. A smaller explicit
+store bound wins. Configure the document store and report cache with the same
+host policy. This does not change the shared retained budget or small identity
+metadata limits, and a larger allowed entry does not grant extra shared capacity.
 
 Cube SQL is generated dynamically, so profiling is part of the implementation work for production-facing dashboards.
 

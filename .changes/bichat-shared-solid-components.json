@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Publish the reusable Solid chat UI as @iota-uz/sdk/chat-ui with native icons, host-owned overlays, managed streams and scoped HTTP cancellation. Granite Ali becomes a consumer of this package rather than maintaining a private chat framework."
+}

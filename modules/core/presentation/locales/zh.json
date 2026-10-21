@@ -1,4 +1,36 @@
 {
+	"Onboarding": {
+		"Errors": {
+			"FirstNameRequired": "请输入名",
+			"LastNameRequired": "请输入姓",
+			"LanguageRequired": "请选择受支持的语言",
+			"PhoneInvalid": "请输入有效的电话号码",
+			"PasswordTooShort": "密码至少需要 8 个字符",
+			"PasswordTooLong": "密码过长：最多 72 个拉丁字符",
+			"PasswordReusesTemporary": "新密码必须与临时密码不同",
+			"PasswordInvalid": "密码不符合密码策略",
+			"ConfirmationMismatch": "两次输入的密码不一致",
+			"AvatarNotImage": "头像必须是图片"
+		},
+		"Title": "设置您的账户",
+		"Intro": "选择语言，填写个人资料并设置您自己的密码。之后请使用该密码登录。",
+		"Email": "邮箱",
+		"Language": "界面语言",
+		"FirstName": "名",
+		"LastName": "姓",
+		"MiddleName": "中间名（可选）",
+		"Phone": "电话（可选）",
+		"Avatar": "头像（可选）",
+		"PasswordHint": "至少 {{.Min}} 个字符。可以使用密码短语和密码管理器。",
+		"NewPassword": "新密码",
+		"ConfirmPassword": "确认新密码",
+		"Submit": "完成设置",
+		"Logout": "退出",
+		"Completed": "账户已就绪。请使用新密码登录。",
+		"Meta": {
+			"Title": "账户设置"
+		}
+	},
   "Authorization": {
     "Errors": {
       "Title": "不允许执行此操作",
@@ -143,7 +175,9 @@
   "Common": {
     "CloseNotification": "关闭通知",
     "TabNavigation": "标签导航",
-    "Loading": "加载中..."
+    "Loading": "加载中...",
+    "LoadFailed": "无法加载数据",
+    "Retry": "重试"
   },
   "ConfirmDelete": "您确定要删除此项吗？",
   "Countries": {
@@ -470,6 +504,8 @@
 		"UseAnotherAccount": "使用其他账户",
 		"ActiveAccount": "当前",
     "Errors": {
+			"TemporaryPasswordExpired": "临时密码已失效。请向管理员索取新的临时密码。",
+			"OnboardingRequired": "请完成账户设置：使用管理员提供的临时密码登录。",
       "PasswordInvalid": "电子邮件或密码无效",
       "OauthStateNotFound": "未找到 oAuth 状态。请重试。",
       "OauthStateInvalid": "无效的 oAuth 状态。请重试。",
@@ -1098,6 +1134,19 @@
   "System": "系统",
   "UpdatedAt": "更新于",
   "Users": {
+		"PendingOnboarding": {
+			"Notice": "该用户尚未完成账户设置：设置自己的密码后才能访问。"
+		},
+		"TemporaryPassword": {
+			"Issued": "{{.Email}} 的临时密码",
+			"Copy": "复制",
+			"Copied": "已复制",
+			"ExpiresAt": "有效期至",
+			"ShownOnce": "该密码仅显示一次。请自行转交给用户。",
+			"BackToUsers": "返回用户列表",
+			"Confirm": "发放新的临时密码？当前密码将失效，并结束该用户的所有会话。",
+			"Button": "发放临时密码"
+		},
     "Meta": {
       "List": {
         "Title": "用户"
@@ -1139,6 +1188,9 @@
       "Sessions": "会话"
     },
     "Single": {
+			"TemporaryPassword": "临时密码",
+			"TemporaryPasswordPlaceholder": "留空则自动生成",
+			"TemporaryPasswordHint": "用户使用它登录一次后设置自己的密码。有效期 72 小时。",
       "EditUser": "编辑用户",
       "FirstName": "名",
       "LastName": "姓",
@@ -1439,5 +1491,65 @@
   "Error": {
     "ProcessingFailed": "导入失败"
   },
-  "DryRunNotice": "这是预览——数据尚未更改。请查看上方结果，然后确认以执行导入。"
+  "DryRunNotice": "这是预览——数据尚未更改。请查看上方结果，然后确认以执行导入。",
+  "Notifications": {
+    "Title": "通知",
+    "All": "全部",
+    "Unread": "未读",
+    "MarkAllRead": "全部标为已读",
+    "MarkRead": "标为已读",
+    "Empty": "暂无通知",
+    "Open": "打开",
+    "Pagination": "分页",
+    "Previous": "上一页",
+    "Next": "下一页",
+    "Intro": "系统通知您的所有内容。",
+    "EmptyHint": "有新动态时会显示在这里。",
+    "NewCount": "{{.Count}} 条新通知",
+    "ViewAll": "全部通知",
+    "Configure": "设置"
+  },
+  "NotificationSettings": {
+    "AudienceHint": "既在群组中又单独列出的人只会收到一条通知。",
+    "UnavailableRecipients": "部分接收人已不可用，将不会收到通知。",
+    "Title": "通知设置",
+    "Intro": "选择哪些事件需要通知，以及通知谁。",
+    "Enabled": "已启用",
+    "Recipients": "通知对象",
+    "Save": "保存",
+    "SendTest": "使用已保存的设置发送测试",
+    "Saved": "设置已保存。",
+    "InvalidRule": "请选择有效接收者。启用事件至少需要一位接收者。",
+    "TestSent": "已向 {{.Count}} 位接收者发送测试。",
+    "TestSkipped": "未发送通知。请启用测试事件、选择接收者并保存规则。",
+    "PermissionRead": "查看通知设置",
+    "PermissionReadDescription": "查看通知事件和投递规则",
+    "PermissionManage": "管理通知设置",
+    "PermissionManageDescription": "启用事件、选择接收者并发送测试通知",
+    "Level": "重要程度",
+    "DefaultLevel": "事件默认值",
+    "DynamicRecipients": "同时通知",
+    "Unavailable": "不可用",
+    "Queued": "已加入发送队列，共 {{.Count}} 位接收者。",
+    "Retrying": "重试中",
+    "Retry": "立即重试",
+    "ReadOnly": "您可以查看这些设置，只有管理员可以修改。",
+    "AddRecipient": "添加人员、群组或角色…",
+    "People": "人员",
+    "GroupsAndRoles": "群组和角色",
+    "GroupLabel": "群组",
+    "RoleLabel": "角色",
+    "Remove": "移除",
+    "NothingFound": "未找到结果",
+    "RemoveUnavailable": "移除",
+    "Appearance": "显示方式",
+    "LevelInfo": "普通",
+    "LevelSuccess": "成功",
+    "LevelWarning": "警告",
+    "LevelError": "错误",
+    "Unsaved": "有未保存的更改",
+    "Cancel": "取消",
+    "AllDelivered": "一切正常送达",
+    "DeliveryIssues": "{{.Count}} 条未送达，我们会继续尝试。"
+  }
 }

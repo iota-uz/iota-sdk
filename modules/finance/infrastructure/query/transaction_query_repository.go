@@ -61,6 +61,8 @@ const (
 	FieldDestinationAccountID Field = "destination_account_id"
 	FieldCreatedAt            Field = "created_at"
 	FieldTenantID             Field = "tenant_id"
+	// FieldAccountID matches transactions on either side of the account.
+	FieldAccountID Field = "account_id"
 )
 
 type SortBy = repo.SortBy[Field]
@@ -108,11 +110,20 @@ func (r *pgTransactionQueryRepository) buildFilterConditionsWithStartIndex(filte
 	var args []interface{}
 
 	for _, f := range filters {
+		argIndex := startIndex + len(args)
+		if f.Column == FieldAccountID {
+			conditions = append(conditions, fmt.Sprintf("(%s OR %s)",
+				f.Filter.String("t.origin_account_id", argIndex),
+				f.Filter.String("t.destination_account_id", argIndex),
+			))
+			args = append(args, f.Filter.Value()...)
+			continue
+		}
 		fieldName := r.fieldMapping()[f.Column]
 		if fieldName == "" {
 			continue
 		}
-		condition := f.Filter.String(fieldName, startIndex+len(args))
+		condition := f.Filter.String(fieldName, argIndex)
 		if condition != "" {
 			conditions = append(conditions, condition)
 			args = append(args, f.Filter.Value()...)
@@ -298,6 +309,8 @@ func (r *pgTransactionQueryRepository) scanTransaction(row interface{ Scan(...in
 		vm.TypeBadgeClass = "badge-info"
 	case transaction.Exchange:
 		vm.TypeBadgeClass = "badge-warning"
+	case transaction.Adjustment:
+		vm.TypeBadgeClass = "badge-primary"
 	default:
 		vm.TypeBadgeClass = "badge-primary"
 	}
@@ -334,6 +347,13 @@ func (r *pgTransactionQueryRepository) scanTransaction(row interface{ Scan(...in
 	if dbTransaction.DestinationAmount.Valid && destinationCurrency != nil {
 		destAmount := money.New(dbTransaction.DestinationAmount.Int64, *destinationCurrency)
 		vm.DestinationAmountWithCurrency = destAmount.Display()
+	}
+
+	if expenseID != nil {
+		vm.ExpenseID = *expenseID
+	}
+	if paymentID != nil {
+		vm.PaymentID = *paymentID
 	}
 
 	// Set category information

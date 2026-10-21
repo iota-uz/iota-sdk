@@ -1,5 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
-import { login, logout, populateTestData, resetTestDatabase, seedScenario, waitForAlpine } from '../../fixtures';
+import {
+	login,
+	loginThroughOnboarding,
+	logout,
+	populateTestData,
+	resetTestDatabase,
+	seedScenario,
+	submitNewUserForm,
+	waitForAlpine,
+} from '../../fixtures';
 
 const limitedAdmin = {
 	email: 'limited-administrator@test.com',
@@ -9,6 +18,7 @@ const limitedAdmin = {
 const permissions = {
 	userRead: '13f011c8-1107-4957-ad19-70cfc167a775',
 	groupRead: '8f9a0b1c-2d3e-4f5a-6b7c-8d9e0f1a2b3c',
+	uploadRead: 'b2c3d4e5-f6a7-8901-bcde-f23456789012',
 };
 
 const limitedAdminPermissionNames = [
@@ -106,8 +116,8 @@ async function createUser(
 	if (data.roleNames) await selectOptionsByLabel(page, 'select[name="RoleIDs"]', data.roleNames);
 	if (data.groupNames) await selectOptionsByLabel(page, 'select[name="GroupIDs"]', data.groupNames);
 
-	await page.locator('#save-btn').click();
-	await page.waitForURL(/\/users$/);
+	await submitNewUserForm(page);
+	await page.goto('/users');
 
 	const row = page.locator('tbody tr').filter({ hasText: `${data.firstName} ${data.lastName}` });
 	await expect(row).toBeVisible();
@@ -115,6 +125,18 @@ async function createUser(
 	const match = href?.match(/\/users\/(\d+)\/edit$/);
 	if (!match) throw new Error(`user edit URL was not rendered for ${data.email}`);
 	return match[1];
+}
+
+async function createGroup(page: Page, name: string, roleID: string): Promise<void> {
+	await page.goto('/groups');
+	await page.locator('button:visible').filter({ hasText: 'New group' }).click();
+	const newDrawer = page.locator('#new-group-drawer');
+	await expect(newDrawer.locator('form[hx-post="/groups"]')).toBeVisible();
+	await newDrawer.locator('[name=Name]').fill(name);
+	await setCheckboxState(page, `#new-group-drawer input[name=RoleIDs][value="${roleID}"]`, true);
+	await newDrawer.locator('#save-btn').click();
+	await page.waitForURL(/\/groups$/);
+	await expect(page.locator('#groups-table-body tr').filter({ hasText: name })).toBeVisible();
 }
 
 async function submitDeleteFormViaHTMX(page: Page): Promise<void> {
@@ -263,7 +285,8 @@ test.describe('limited administrator P0 management flows', () => {
 		const groupName = 'P0 Permission Group';
 		const updatedGroupName = 'P0 Permission Group Updated';
 		const targetEmail = 'p0-group-user@test.com';
-		const targetPassword = 'GroupUserPass123!';
+		const targetTemporaryPassword = 'GroupUserPass123!';
+		const targetPassword = 'GroupUserOwnPass123!';
 		const roleID = await createRole(page, roleName, [permissions.userRead]);
 
 		await page.goto('/groups');
@@ -295,12 +318,16 @@ test.describe('limited administrator P0 management flows', () => {
 			lastName: 'User',
 			email: targetEmail,
 			phone: '+998901112202',
-			password: targetPassword,
+			password: targetTemporaryPassword,
 			groupNames: [updatedGroupName],
 		});
 
 		await logout(page);
-		await login(page, targetEmail, targetPassword);
+		await loginThroughOnboarding(page, targetEmail, targetTemporaryPassword, {
+			firstName: 'P0Group',
+			lastName: 'User',
+			newPassword: targetPassword,
+		});
 		const inheritedAccess = await page.goto('/users');
 		expect(inheritedAccess?.status()).toBe(200);
 		await expect(page.locator('table')).toBeVisible();
@@ -336,5 +363,45 @@ test.describe('limited administrator P0 management flows', () => {
 
 		// Falsely green if the target receives User.Read directly or through a
 		// role: removing its only group must turn the same /users request to 403.
+	});
+
+	test('lists groups with per-group management actions and search', async ({ page }) => {
+		const strongGroupName = 'P0 List Upload Group';
+		const weakGroupName = 'P0 List Reader Group';
+
+		await logout(page);
+		await login(page, 'test@gmail.com', 'TestPass123!');
+		const strongRoleID = await createRole(page, 'P0 List Upload Reader', [permissions.uploadRead]);
+		await createGroup(page, strongGroupName, strongRoleID);
+
+		await logout(page);
+		await login(page, limitedAdmin.email, limitedAdmin.password);
+		const weakRoleID = await createRole(page, 'P0 List User Reader', [permissions.userRead]);
+		await createGroup(page, weakGroupName, weakRoleID);
+
+		await page.goto('/groups');
+		const rows = page.locator('#groups-table-body tr');
+		const weakRow = rows.filter({ hasText: weakGroupName });
+		const strongRow = rows.filter({ hasText: strongGroupName });
+		await expect(weakRow).toHaveAttribute('hx-get', /^\/groups\/[0-9a-f-]+$/);
+		await expect(strongRow).toBeVisible();
+		await expect(strongRow).not.toHaveAttribute('hx-get', /.*/);
+
+		const searchResponse = page.waitForResponse((response) =>
+			new URL(response.url()).pathname === '/groups' &&
+			new URL(response.url()).searchParams.get('name') === 'Upload' &&
+			response.ok(),
+		);
+		await page.locator('input[name="name"]').pressSequentially('Upload');
+		await searchResponse;
+		await expect(rows.filter({ hasText: strongGroupName })).toBeVisible();
+		await expect(rows.filter({ hasText: weakGroupName })).toHaveCount(0);
+
+		await page.goto('/groups');
+		await weakRow.click();
+		await expect(page.locator('#edit-group-drawer [name=Name]')).toHaveValue(weakGroupName);
+
+		// Falsely green if every row is rendered as editable: the stronger group
+		// must stay visible but without the edit action for the limited actor.
 	});
 });

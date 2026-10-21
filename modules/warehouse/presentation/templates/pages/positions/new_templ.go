@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -55,7 +56,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(props.SaveURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/new.templ`, Line: 26, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/new.templ`, Line: 27, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -83,6 +84,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				Class:    "col-span-3",
 				Form:     "save-form",
 				Multiple: true,
+				Uploads:  mappers.UploadsToCoreViewItems(props.Position.Images),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -163,7 +165,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/new.templ`, Line: 76, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/new.templ`, Line: 78, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {

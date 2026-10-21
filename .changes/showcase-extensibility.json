@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add showcase controller extensibility for child projects: thread-safe pkg/showcase registry with validation, dynamic /_dev/components/{categoryPath} route and sidebar integration, custom category templ page."
+}

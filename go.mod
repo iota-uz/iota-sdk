@@ -41,7 +41,7 @@ require (
 	github.com/gotd/td v0.115.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/iota-uz/applets v0.4.32-0.20260621150342-5bc121489de1
-	github.com/iota-uz/click v1.0.5-0.20260429132149-cf24863b0f7e
+	github.com/iota-uz/click v1.0.5
 	github.com/iota-uz/eskiz v0.0.0-20260512120215-4347c50e0295
 	github.com/iota-uz/go-i18n/v2 v2.6.1
 	github.com/iota-uz/icons v0.0.3
@@ -72,6 +72,7 @@ require (
 	github.com/rs/cors v1.11.1
 	github.com/rubenv/sql-migrate v1.7.0
 	github.com/shopspring/decimal v1.4.0
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/spf13/cobra v1.10.1

@@ -6,7 +6,7 @@ import "time"
 
 // Config holds OIDC issuer and token lifetime settings.
 //
-// Env prefix: "oidc" (e.g. OIDC_ISSUER_URL → oidc.issuerurl, OIDC_CRYPTO_KEY → oidc.cryptokey).
+// Env prefix: "oidc" (e.g. OIDC_ISSUERURL → oidc.issuerurl, OIDC_CRYPTOKEY → oidc.cryptokey).
 type Config struct {
 	IssuerURL            string        `koanf:"issuerurl"`
 	CryptoKey            string        `koanf:"cryptokey"            secret:"true"`

@@ -296,10 +296,20 @@
           "logic": "all"
         },
         {
+          "key": "core.notification_settings",
+          "name": "NotificationSettings.Title",
+          "href": "/settings/notifications",
+          "order": 6,
+          "permissions": [
+            "NotificationRules.Read"
+          ],
+          "logic": "all"
+        },
+        {
           "key": "core.system_info",
           "name": "NavigationLinks.SystemInfo",
           "href": "/system/info",
-          "order": 6,
+          "order": 7,
           "logic": "all"
         }
       ],
@@ -799,6 +809,23 @@
       },
       "permissions": [
         "Unit.Read"
+      ]
+    },
+    {
+      "tr_key": "NotificationSettings.Title",
+      "link": "/settings/notifications",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "NotificationRules.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "NotificationRules.Read"
       ]
     },
     {

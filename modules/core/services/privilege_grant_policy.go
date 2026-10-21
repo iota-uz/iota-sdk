@@ -119,7 +119,7 @@ func Dominates(actorPermissions, requestedPermissions []permission.Permission) b
 func (p *PrivilegeGrantPolicy) actor(ctx context.Context, additionalUserIDs ...uint) (user.User, error) {
 	contextActor, err := composables.UseUser(ctx)
 	if err != nil {
-		return nil, serrors.E(serrors.Op("PrivilegeGrantPolicy.actor"), serrors.PermissionDenied, err)
+		return nil, serrors.NewUnauthenticated("").WithOp(serrors.Op("PrivilegeGrantPolicy.actor")).WithCause(err)
 	}
 	if err := p.locks.LockTenant(ctx); err != nil {
 		return nil, err
@@ -162,10 +162,10 @@ func (p *PrivilegeGrantPolicy) actor(ctx context.Context, additionalUserIDs ...u
 func (p *PrivilegeGrantPolicy) LockUser(ctx context.Context, userID uint) error {
 	const op = serrors.Op("PrivilegeGrantPolicy.LockUser")
 	if err := p.locks.LockTenant(ctx); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if err := p.locks.LockUsers(ctx, userID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -638,10 +638,17 @@ func (p *PrivilegeGrantPolicy) CanManageRole(actor user.User, target role.Role) 
 }
 
 func (p *PrivilegeGrantPolicy) CanManageGroup(actor user.User, target group.Group) bool {
-	if actor == nil || target == nil || target.Type() == group.TypeSystem {
+	if target == nil {
 		return false
 	}
-	return actor.TenantID() == target.TenantID() && Dominates(user.EffectivePermissions(actor), permissionsForRoles(target.Roles()))
+	return p.CanManageGroupProjection(actor, target.TenantID(), target.Type(), permissionsForRoles(target.Roles()))
+}
+
+func (p *PrivilegeGrantPolicy) CanManageGroupProjection(actor user.User, targetTenantID uuid.UUID, targetType group.Type, targetPermissions []permission.Permission) bool {
+	if actor == nil || targetType == group.TypeSystem {
+		return false
+	}
+	return actor.TenantID() == targetTenantID && Dominates(user.EffectivePermissions(actor), targetPermissions)
 }
 
 func (p *PrivilegeGrantPolicy) InvalidSelection(ctx context.Context, action, targetType, targetID string) error {

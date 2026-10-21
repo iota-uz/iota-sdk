@@ -32,11 +32,11 @@ func (s *chatServiceImpl) CreateSession(ctx context.Context, tenantID uuid.UUID,
 		session, err = domain.NewSession(spec)
 	}
 	if err != nil {
-		return nil, serrors.E(op, serrors.KindValidation, err)
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 
 	if err := s.chatRepo.CreateSession(ctx, session); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return session, nil
 }
@@ -46,7 +46,7 @@ func (s *chatServiceImpl) GetSession(ctx context.Context, sessionID uuid.UUID) (
 	const op serrors.Op = "chatServiceImpl.GetSession"
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return session, nil
 }
@@ -57,7 +57,7 @@ func (s *chatServiceImpl) ListUserSessions(ctx context.Context, userID int64, op
 
 	summaries, err := s.ListAccessibleSessions(ctx, userID, opts)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	sessions := make([]domain.Session, 0, len(summaries))
@@ -73,7 +73,7 @@ func (s *chatServiceImpl) CountUserSessions(ctx context.Context, userID int64, o
 
 	count, err := s.CountAccessibleSessions(ctx, userID, opts)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 	return count, nil
 }
@@ -83,7 +83,7 @@ func (s *chatServiceImpl) ListAccessibleSessions(ctx context.Context, userID int
 
 	out, err := s.sessionAccess.ListAccessibleSessionSummaries(ctx, userID, opts)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return out, nil
 }
@@ -93,7 +93,7 @@ func (s *chatServiceImpl) CountAccessibleSessions(ctx context.Context, userID in
 
 	count, err := s.sessionAccess.CountAccessibleSessions(ctx, userID, opts)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 	return count, nil
 }
@@ -103,7 +103,7 @@ func (s *chatServiceImpl) ListAllSessions(ctx context.Context, requestingUserID 
 
 	out, err := s.sessionAccess.ListAllSessionSummaries(ctx, requestingUserID, opts, ownerUserID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return out, nil
 }
@@ -113,7 +113,7 @@ func (s *chatServiceImpl) CountAllSessions(ctx context.Context, opts domain.List
 
 	count, err := s.sessionAccess.CountAllSessions(ctx, opts, ownerUserID)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 	return count, nil
 }
@@ -123,7 +123,7 @@ func (s *chatServiceImpl) ResolveSessionAccess(ctx context.Context, sessionID uu
 
 	access, err := s.sessionAccess.ResolveSessionAccess(ctx, sessionID, userID)
 	if err != nil {
-		return domain.SessionAccess{}, serrors.E(op, err)
+		return domain.SessionAccess{}, serrors.Wrap(op, err)
 	}
 	if access.CanRead {
 		return access, nil
@@ -131,7 +131,7 @@ func (s *chatServiceImpl) ResolveSessionAccess(ctx context.Context, sessionID uu
 	if allowReadAll {
 		elevated, elevateErr := access.GrantReadAll()
 		if elevateErr != nil {
-			return domain.SessionAccess{}, serrors.E(op, elevateErr)
+			return domain.SessionAccess{}, serrors.Wrap(op, elevateErr)
 		}
 		return elevated, nil
 	}
@@ -143,7 +143,7 @@ func (s *chatServiceImpl) ListSessionMembers(ctx context.Context, sessionID uuid
 
 	members, err := s.sessionAccess.ListSessionMembers(ctx, sessionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return members, nil
 }
@@ -152,7 +152,7 @@ func (s *chatServiceImpl) UpsertSessionMember(ctx context.Context, command domai
 	const op serrors.Op = "chatServiceImpl.UpsertSessionMember"
 
 	if err := s.sessionAccess.UpsertSessionMember(ctx, command); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -161,7 +161,7 @@ func (s *chatServiceImpl) RemoveSessionMember(ctx context.Context, command domai
 	const op serrors.Op = "chatServiceImpl.RemoveSessionMember"
 
 	if err := s.sessionAccess.RemoveSessionMember(ctx, command); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -171,7 +171,7 @@ func (s *chatServiceImpl) ListTenantUsers(ctx context.Context) ([]domain.Session
 
 	users, err := s.sessionAccess.ListTenantUsers(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return users, nil
 }
@@ -181,7 +181,7 @@ func (s *chatServiceImpl) GetTenantUser(ctx context.Context, userID int64) (doma
 
 	user, err := s.sessionAccess.GetTenantUser(ctx, userID)
 	if err != nil {
-		return domain.SessionUser{}, serrors.E(op, err)
+		return domain.SessionUser{}, serrors.Wrap(op, err)
 	}
 	return user, nil
 }
@@ -192,14 +192,14 @@ func (s *chatServiceImpl) ArchiveSession(ctx context.Context, sessionID uuid.UUI
 
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	updated, err := session.Archive(time.Now())
 	if err != nil {
-		return nil, serrors.E(op, serrors.KindValidation, err)
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return updated, nil
 }
@@ -210,14 +210,14 @@ func (s *chatServiceImpl) UnarchiveSession(ctx context.Context, sessionID uuid.U
 
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	updated, err := session.Unarchive(time.Now())
 	if err != nil {
-		return nil, serrors.E(op, serrors.KindValidation, err)
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return updated, nil
 }
@@ -228,14 +228,14 @@ func (s *chatServiceImpl) PinSession(ctx context.Context, sessionID uuid.UUID) (
 
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	updated, err := session.Pin(time.Now())
 	if err != nil {
-		return nil, serrors.E(op, serrors.KindValidation, err)
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return updated, nil
 }
@@ -246,14 +246,14 @@ func (s *chatServiceImpl) UnpinSession(ctx context.Context, sessionID uuid.UUID)
 
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	updated, err := session.Unpin(time.Now())
 	if err != nil {
-		return nil, serrors.E(op, serrors.KindValidation, err)
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return updated, nil
 }
@@ -264,14 +264,14 @@ func (s *chatServiceImpl) UpdateSessionTitle(ctx context.Context, sessionID uuid
 
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	updated, err := session.Rename(title, time.Now())
 	if err != nil {
-		return nil, serrors.E(op, serrors.KindValidation, err)
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 	}
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return updated, nil
 }
@@ -281,7 +281,7 @@ func (s *chatServiceImpl) DeleteSession(ctx context.Context, sessionID uuid.UUID
 	const op serrors.Op = "chatServiceImpl.DeleteSession"
 
 	if err := s.chatRepo.DeleteSession(ctx, sessionID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }

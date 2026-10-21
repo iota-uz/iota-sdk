@@ -4,7 +4,7 @@
 // Key transform (locked — do not change without Wave approval):
 // Single underscore → dot, lowercased. Leading/trailing underscores stripped.
 //
-//	BICHAT_OPENAI_API_KEY → bichat.openai.api_key
+//	BICHAT_OPENAI_APIKEY → bichat.openai.apikey
 //	_LEADING → leading
 //	TRAILING_ → trailing
 //

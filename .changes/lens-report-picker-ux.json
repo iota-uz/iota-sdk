@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Lens report picker: Escape in a report preview returns to the list and keeps the selection (only Escape on the list closes the dialog), and report.CatalogScopeShared no longer includes built-in system reports, which now appear only under All."
+}

@@ -72,6 +72,9 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 		user.WithBlockedAt(dbUser.BlockedAt.Time),
 		user.WithBlockedBy(uint(dbUser.BlockedBy.Int64)),
 		user.WithBlockedByTenantID(blockedByTenantID),
+		user.WithStatus(user.Status(dbUser.Status)),
+		user.WithPasswordExpiresAt(dbUser.PasswordExpiresAt.Time),
+		user.WithFailedPasswordAttempts(dbUser.FailedPasswordAttempts),
 	}
 
 	// Add 2FA settings if available
@@ -133,30 +136,33 @@ func toDBUser(entity user.User) (*models.User, []*models.Role) {
 	}
 
 	return &models.User{
-		ID:                  entity.ID(),
-		Type:                string(entity.Type()),
-		TenantID:            entity.TenantID().String(),
-		FirstName:           entity.FirstName(),
-		LastName:            entity.LastName(),
-		MiddleName:          mapping.ValueToSQLNullString(entity.MiddleName()),
-		Email:               entity.Email().Value(),
-		Phone:               phoneValue,
-		UILanguage:          string(entity.UILanguage()),
-		Password:            mapping.ValueToSQLNullString(entity.Password()),
-		AvatarID:            mapping.ValueToSQLNullInt32(int32(entity.AvatarID())),
-		LastIP:              mapping.ValueToSQLNullString(entity.LastIP()),
-		LastLogin:           mapping.ValueToSQLNullTime(entity.LastLogin()),
-		LastAction:          mapping.ValueToSQLNullTime(entity.LastAction()),
-		CreatedAt:           entity.CreatedAt(),
-		UpdatedAt:           entity.UpdatedAt(),
-		IsBlocked:           entity.IsBlocked(),
-		BlockReason:         mapping.ValueToSQLNullString(entity.BlockReason()),
-		BlockedAt:           mapping.ValueToSQLNullTime(entity.BlockedAt()),
-		BlockedBy:           mapping.ValueToSQLNullInt64(int64(entity.BlockedBy())),
-		BlockedByTenantID:   blockedByTenantID,
-		TwoFactorMethod:     mapping.ValueToSQLNullString(string(entity.TwoFactorMethod())),
-		TOTPSecretEncrypted: mapping.ValueToSQLNullString(entity.TOTPSecretEncrypted()),
-		TwoFactorEnabledAt:  mapping.ValueToSQLNullTime(entity.TwoFactorEnabledAt()),
+		ID:                     entity.ID(),
+		Type:                   string(entity.Type()),
+		TenantID:               entity.TenantID().String(),
+		FirstName:              entity.FirstName(),
+		LastName:               entity.LastName(),
+		MiddleName:             mapping.ValueToSQLNullString(entity.MiddleName()),
+		Email:                  entity.Email().Value(),
+		Phone:                  phoneValue,
+		UILanguage:             string(entity.UILanguage()),
+		Password:               mapping.ValueToSQLNullString(entity.Password()),
+		AvatarID:               mapping.ValueToSQLNullInt32(int32(entity.AvatarID())),
+		LastIP:                 mapping.ValueToSQLNullString(entity.LastIP()),
+		LastLogin:              mapping.ValueToSQLNullTime(entity.LastLogin()),
+		LastAction:             mapping.ValueToSQLNullTime(entity.LastAction()),
+		CreatedAt:              entity.CreatedAt(),
+		UpdatedAt:              entity.UpdatedAt(),
+		IsBlocked:              entity.IsBlocked(),
+		BlockReason:            mapping.ValueToSQLNullString(entity.BlockReason()),
+		BlockedAt:              mapping.ValueToSQLNullTime(entity.BlockedAt()),
+		BlockedBy:              mapping.ValueToSQLNullInt64(int64(entity.BlockedBy())),
+		BlockedByTenantID:      blockedByTenantID,
+		TwoFactorMethod:        mapping.ValueToSQLNullString(string(entity.TwoFactorMethod())),
+		TOTPSecretEncrypted:    mapping.ValueToSQLNullString(entity.TOTPSecretEncrypted()),
+		TwoFactorEnabledAt:     mapping.ValueToSQLNullTime(entity.TwoFactorEnabledAt()),
+		Status:                 string(entity.Status()),
+		PasswordExpiresAt:      mapping.ValueToSQLNullTime(entity.PasswordExpiresAt()),
+		FailedPasswordAttempts: entity.FailedPasswordAttempts(),
 	}, roles
 }
 
@@ -579,7 +585,7 @@ func ToDomainDepartment(dbDepartment *models.Department) (department.Department,
 	const op serrors.Op = "ToDomainDepartment"
 	name, err := crudmodels.MultiLangFromJSON(dbDepartment.Name)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	opts := []department.Option{
@@ -602,7 +608,7 @@ func ToDBDepartment(d department.Department) (*models.Department, error) {
 	const op serrors.Op = "ToDBDepartment"
 	name, err := d.NameI18n().ToJSON()
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	var parentID sql.NullString
@@ -627,7 +633,7 @@ func ToDomainUserPosition(dbPosition *models.UserPosition) (userposition.UserPos
 	const op serrors.Op = "ToDomainUserPosition"
 	title, err := crudmodels.MultiLangFromJSON(dbPosition.Title)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	opts := []userposition.Option{
@@ -647,7 +653,7 @@ func ToDBUserPosition(p userposition.UserPosition) (*models.UserPosition, error)
 	const op serrors.Op = "ToDBUserPosition"
 	title, err := p.TitleI18n().ToJSON()
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return &models.UserPosition{

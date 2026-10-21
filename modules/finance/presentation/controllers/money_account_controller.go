@@ -3,11 +3,14 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/filters"
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
@@ -19,18 +22,19 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/moneyaccounts"
-	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 
 	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -197,6 +201,7 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 			).
 			WithActions(actions.RenderAction(createAction)).
 			WithFilters(filters.CreatedAt()).
+			WithDeferredPanels(table.DeferredPanel{ID: "account-balances", URL: "/finance/balances"}).
 			WithInfiniteScroll(true).
 			Build()
 	} else {
@@ -249,7 +254,7 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 func (c *MoneyAccountController) GetEditDrawer(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -261,23 +266,22 @@ func (c *MoneyAccountController) GetEditDrawer(w http.ResponseWriter, r *http.Re
 
 	currencies, err := c.viewModelCurrencies(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
-	// Get recent transactions for this account (limit to 10)
-	transactions, err := c.getAccountTransactions(r.Context(), id, 10)
+	history, err := c.accountHistory(r, id)
 	if err != nil {
 		http.Error(w, "Error retrieving account transactions", http.StatusInternalServerError)
 		return
 	}
 
 	props := &moneyaccounts.DrawerEditProps{
-		Account:      mappers.MoneyAccountToViewModel(entity),
-		UpdateData:   mappers.MoneyAccountToViewUpdateModel(entity),
-		Currencies:   currencies,
-		Transactions: transactions,
-		Errors:       map[string]string{},
+		Account:    mappers.MoneyAccountToViewModel(entity),
+		UpdateData: mappers.MoneyAccountToViewUpdateModel(entity),
+		Currencies: currencies,
+		History:    history,
+		Errors:     map[string]string{},
 	}
 	templ.Handler(moneyaccounts.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -285,7 +289,7 @@ func (c *MoneyAccountController) GetEditDrawer(w http.ResponseWriter, r *http.Re
 func (c *MoneyAccountController) GetNewDrawer(w http.ResponseWriter, r *http.Request) {
 	currencies, err := c.viewModelCurrencies(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -305,7 +309,7 @@ func (c *MoneyAccountController) Delete(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if _, err := c.moneyAccountService.Delete(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -314,12 +318,12 @@ func (c *MoneyAccountController) Delete(w http.ResponseWriter, r *http.Request) 
 func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	dto, err := composables.UseForm(&dtos.MoneyAccountUpdateDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -334,11 +338,39 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 
 		entity, err := dto.Apply(existing)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		if _, err := c.moneyAccountService.Update(r.Context(), entity); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			if !errors.Is(err, moneyAccount.ErrDuplicateAccountNumber) {
+				serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
+				return
+			}
+			// The failed update aborted any surrounding transaction; reads
+			// below must not reuse it (SQLSTATE 25P02).
+			freshCtx := context.WithValue(r.Context(), constants.TxKey, nil)
+			currencies, currenciesErr := c.viewModelCurrencies(r.WithContext(freshCtx))
+			if currenciesErr != nil {
+				serrorhttp.WriteTextContext(r.Context(), w, currenciesErr, http.StatusInternalServerError, nil)
+				return
+			}
+			history, historyErr := c.accountHistory(r.WithContext(freshCtx), id)
+			if historyErr != nil {
+				http.Error(w, "Error retrieving account transactions", http.StatusInternalServerError)
+				return
+			}
+			props := &moneyaccounts.DrawerEditProps{
+				// Render the persisted record — `entity` holds the rejected
+				// submitted values.
+				Account:    mappers.MoneyAccountToViewModel(existing),
+				UpdateData: dto.ToViewModel(id),
+				Currencies: currencies,
+				History:    history,
+				Errors: map[string]string{
+					"AccountNumber": composables.UsePageCtx(r.Context()).T("MoneyAccounts.Errors.DuplicateAccountNumber"),
+				},
+			}
+			templ.Handler(moneyaccounts.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 
@@ -353,15 +385,21 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 
 		currencies, err := c.viewModelCurrencies(r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
 		if isDrawer {
+			history, err := c.accountHistory(r, id)
+			if err != nil {
+				http.Error(w, "Error retrieving account transactions", http.StatusInternalServerError)
+				return
+			}
 			props := &moneyaccounts.DrawerEditProps{
 				Account:    mappers.MoneyAccountToViewModel(entity),
-				UpdateData: mappers.MoneyAccountToViewUpdateModel(entity),
+				UpdateData: dto.ToViewModel(id),
 				Currencies: currencies,
+				History:    history,
 				Errors:     errorsMap,
 			}
 			templ.Handler(moneyaccounts.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -374,7 +412,7 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&dtos.MoneyAccountCreateDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -383,7 +421,7 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		currencies, err := c.viewModelCurrencies(r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
@@ -408,22 +446,58 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 
 	entity, err := dto.ToEntity(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := c.moneyAccountService.Create(r.Context(), entity); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if !errors.Is(err, moneyAccount.ErrDuplicateAccountNumber) {
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
+			return
+		}
+		if renderErr := c.renderCreateDuplicateAccountNumber(w, r, dto, isDrawer); renderErr != nil {
+			serrorhttp.WriteTextContext(r.Context(), w, renderErr, http.StatusInternalServerError, nil)
+			return
+		}
 		return
 	}
 
 	shared.Redirect(w, r, c.basePath)
 }
 
+// renderCreateDuplicateAccountNumber re-renders the create drawer with a
+// field-level validation message when the account number collides with an
+// existing account in the tenant, instead of returning a raw SQL error.
+// The failed insert aborted any surrounding transaction, so currency reads
+// run on a context with TxKey cleared — reusing the aborted transaction
+// would fail with SQLSTATE 25P02.
+func (c *MoneyAccountController) renderCreateDuplicateAccountNumber(w http.ResponseWriter, r *http.Request, dto *dtos.MoneyAccountCreateDTO, isDrawer bool) error {
+	pageCtx := composables.UsePageCtx(r.Context())
+	errorsMap := map[string]string{
+		"AccountNumber": pageCtx.T("MoneyAccounts.Errors.DuplicateAccountNumber"),
+	}
+	if !isDrawer {
+		http.Error(w, errorsMap["AccountNumber"], http.StatusConflict)
+		return nil
+	}
+	freshCtx := context.WithValue(r.Context(), constants.TxKey, nil)
+	currencies, err := c.viewModelCurrencies(r.WithContext(freshCtx))
+	if err != nil {
+		return err
+	}
+	props := &moneyaccounts.DrawerCreateProps{
+		Errors:     errorsMap,
+		Account:    *dto,
+		Currencies: currencies,
+	}
+	templ.Handler(moneyaccounts.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+	return nil
+}
+
 func (c *MoneyAccountController) GetTransferDrawer(w http.ResponseWriter, r *http.Request) {
 	sourceAccountID, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -460,13 +534,13 @@ func (c *MoneyAccountController) GetTransferDrawer(w http.ResponseWriter, r *htt
 func (c *MoneyAccountController) CreateTransfer(w http.ResponseWriter, r *http.Request) {
 	sourceAccountID, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.TransferDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -596,108 +670,61 @@ func (c *MoneyAccountController) CreateTransfer(w http.ResponseWriter, r *http.R
 		return nil
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	shared.Redirect(w, r, c.basePath)
 }
 
-// getAccountTransactions retrieves transactions for a specific account
-func (c *MoneyAccountController) getAccountTransactions(ctx context.Context, accountID fmt.Stringer, limit int) ([]*viewmodels.Transaction, error) {
-	// Build query to find transactions where this account is either source or destination
+// accountHistory loads one page of the transactions on either side of the
+// account, filtered the same way as the transactions list.
+func (c *MoneyAccountController) accountHistory(r *http.Request, accountID uuid.UUID) (*moneyaccounts.TransactionsTabProps, error) {
+	values := r.URL.Query()
+	values.Set("account", accountID.String())
+	paginationParams := composables.UsePaginated(r)
 	params := &query.FindParams{
-		Limit:  limit,
-		Offset: 0,
+		Limit:  paginationParams.Limit,
+		Offset: paginationParams.Offset,
 		SortBy: query.SortBy{
 			Fields: []repo.SortByField[query.Field]{
-				{
-					Field:     query.FieldTransactionDate,
-					Ascending: false,
-				},
+				{Field: query.FieldTransactionDate, Ascending: false},
+				{Field: query.FieldCreatedAt, Ascending: false},
+				{Field: query.FieldID, Ascending: false},
 			},
 		},
-		Filters: []query.Filter{
-			{
-				Column: query.FieldOriginAccountID,
-				Filter: repo.Eq(accountID.String()),
-			},
-		},
+		Filters: transactionFilters(values),
 	}
-
-	// Add destination account filter with OR logic
-	// Note: This is a simplified approach. In a real implementation,
-	// you might want to use a more sophisticated OR query
-	transactions1, _, err := c.transactionQuery.FindTransactions(ctx, params)
+	transactions, total, err := c.transactionQuery.FindTransactions(r.Context(), params)
 	if err != nil {
 		return nil, err
 	}
 
-	// Query for transactions where this account is the destination
-	params.Filters = []query.Filter{
-		{
-			Column: query.FieldDestinationAccountID,
-			Filter: repo.Eq(accountID.String()),
-		},
+	props := &moneyaccounts.TransactionsTabProps{
+		AccountID:    accountID.String(),
+		Transactions: transactions,
 	}
-
-	transactions2, _, err := c.transactionQuery.FindTransactions(ctx, params)
-	if err != nil {
-		return nil, err
+	if params.Offset+len(transactions) < total {
+		next := r.URL.Query()
+		next.Set(composables.QueryParamPage, strconv.Itoa(paginationParams.Page+1))
+		props.NextURL = fmt.Sprintf("%s/%s/transactions?%s", c.basePath, accountID, next.Encode())
 	}
-
-	// Combine and deduplicate transactions
-	txMap := make(map[string]*viewmodels.Transaction)
-	for _, tx := range transactions1 {
-		txMap[tx.ID] = tx
-	}
-	for _, tx := range transactions2 {
-		txMap[tx.ID] = tx
-	}
-
-	// Convert map back to slice and sort by date
-	result := make([]*viewmodels.Transaction, 0, len(txMap))
-	for _, tx := range txMap {
-		result = append(result, tx)
-	}
-
-	// Sort by transaction date (most recent first)
-	// Note: This is a simple sort. For better performance with large datasets,
-	// consider doing this at the database level
-	for i := 0; i < len(result); i++ {
-		for j := i + 1; j < len(result); j++ {
-			if result[i].TransactionDate.Before(result[j].TransactionDate) {
-				result[i], result[j] = result[j], result[i]
-			}
-		}
-	}
-
-	// Limit the results
-	if len(result) > limit {
-		result = result[:limit]
-	}
-
-	return result, nil
+	return props, nil
 }
 
-// GetAccountTransactions handles the HTMX request for the transactions tab
+// GetAccountTransactions renders a page of the account history for the
+// history filters and for scrolling.
 func (c *MoneyAccountController) GetAccountTransactions(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
-	// Get transactions for this account
-	transactions, err := c.getAccountTransactions(r.Context(), id, 10)
+	history, err := c.accountHistory(r, id)
 	if err != nil {
 		http.Error(w, "Error retrieving account transactions", http.StatusInternalServerError)
 		return
 	}
-
-	props := &moneyaccounts.TransactionsTabProps{
-		AccountID:    id.String(),
-		Transactions: transactions,
-	}
-	templ.Handler(moneyaccounts.TransactionsTab(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(moneyaccounts.TransactionRows(history), templ.WithStreaming()).ServeHTTP(w, r)
 }

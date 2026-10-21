@@ -34,6 +34,8 @@ import {
 
 export interface PeriodFilterControlProps {
   filter: Filter
+  onChange?: (value: PeriodValue, preset?: string) => void
+  inheritLabel?: string
   /** Fixed "today" for deterministic stories and visual regression. */
   today?: CalendarDate
 }
@@ -371,8 +373,9 @@ export function PeriodFilterControl(props: PeriodFilterControlProps) {
     close()
   }
 
-  const applyValue = (next: PeriodValue) => {
-    setPeriod(props.filter, next)
+  const applyValue = (next: PeriodValue, preset?: string) => {
+    if (props.onChange) props.onChange(next, preset)
+    else setPeriod(props.filter, next)
     if (open()) close(false)
   }
 
@@ -435,7 +438,7 @@ export function PeriodFilterControl(props: PeriodFilterControlProps) {
   const start = () => parseISODate(value().start)
   const end = () => parseISODate(value().end)
   const triggerLabel = () => value().start === '' && value().end === ''
-    ? allTime
+    ? (props.inheritLabel || allTime)
     : start() && end()
       ? compactRangeLabel(start()!, end()!)
       : translate('filter.period.custom', 'Custom range')
@@ -528,7 +531,7 @@ export function PeriodFilterControl(props: PeriodFilterControlProps) {
                     <button
                       aria-pressed={sameValue(preset.value, value())}
                       class="lens-filter-preset"
-                      onClick={() => applyValue(preset.value)}
+                      onClick={() => applyValue(preset.value, preset.id)}
                       type="button"
                     >
                       <PresetIcon glyph={preset.icon} />
@@ -546,7 +549,7 @@ export function PeriodFilterControl(props: PeriodFilterControlProps) {
                     <button
                       aria-pressed={sameValue(preset.value, value())}
                       class="lens-filter-preset"
-                      onClick={() => applyValue(preset.value)}
+                      onClick={() => applyValue(preset.value, preset.id)}
                       type="button"
                     >
                       <PresetIcon glyph={preset.icon} />
@@ -564,7 +567,7 @@ export function PeriodFilterControl(props: PeriodFilterControlProps) {
                     <button
                       aria-pressed={sameValue(preset.value, value())}
                       class="lens-filter-preset"
-                      onClick={() => applyValue(preset.value)}
+                      onClick={() => applyValue(preset.value, preset.id)}
                       type="button"
                     >
                       <PresetIcon glyph={preset.icon} />

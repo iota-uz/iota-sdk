@@ -1,4 +1,3 @@
-// Package importpkg provides this package.
 package importpkg
 
 import (
@@ -6,74 +5,33 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-// DefaultErrorFactory implements ErrorFactory
 type DefaultErrorFactory struct{}
 
-// NewDefaultErrorFactory creates a new error factory
-func NewDefaultErrorFactory() *DefaultErrorFactory {
-	return &DefaultErrorFactory{}
-}
-
+func NewDefaultErrorFactory() *DefaultErrorFactory { return &DefaultErrorFactory{} }
 func (f *DefaultErrorFactory) NewInvalidCellError(col string, row uint) error {
-	return &InvalidCellError{
-		BaseError: serrors.BaseError{
-			Code:    "ERR_INVALID_CELL",
-			Message: "Invalid cell found",
-		},
-		Col: col,
-		Row: row,
-	}
+	return &InvalidCellError{detail: serrors.NewInvalid("Invalid cell found").WithReason("ERR_INVALID_CELL").WithPublic(serrors.Message{ID: "ERR_INVALID_CELL", Args: map[string]serrors.Value{"Row": serrors.Number(int64(row)), "Col": serrors.Text(col)}}), Col: col, Row: row}
 }
-
 func (f *DefaultErrorFactory) NewValidationError(col, value string, rowNum uint, message string) error {
-	return &ValidationError{
-		BaseError: serrors.BaseError{
-			Code:    "ERR_VALIDATION",
-			Message: message,
-		},
-		Col:    col,
-		Value:  value,
-		RowNum: rowNum,
-	}
+	return &ValidationError{detail: serrors.NewInvalid(message).WithReason("ERR_VALIDATION").WithPublic(serrors.Message{ID: "Error.ERR_VALIDATION", Args: map[string]serrors.Value{"Col": serrors.Text(col), "Value": serrors.Text(value), "RowNum": serrors.Number(int64(rowNum)), "Message": serrors.Text(message)}}), Col: col, Value: value, RowNum: rowNum}
 }
 
-// InvalidCellError represents an error in a specific cell
 type InvalidCellError struct {
-	serrors.BaseError
-	Col string
-	Row uint
+	detail *serrors.Error
+	Col    string
+	Row    uint
 }
 
-func (e *InvalidCellError) Localize(l *i18n.Localizer) string {
-	return l.MustLocalize(&i18n.LocalizeConfig{
-		DefaultMessage: &i18n.Message{
-			ID: e.Code,
-		},
-		TemplateData: map[string]interface{}{
-			"Row": e.Row,
-			"Col": e.Col,
-		},
-	})
-}
+func (e *InvalidCellError) Unwrap() error                     { return e.detail }
+func (e *InvalidCellError) Localize(l *i18n.Localizer) string { return serrors.Public(e, l).Message }
 
-// ValidationError represents a validation error with context
 type ValidationError struct {
-	serrors.BaseError
+	detail *serrors.Error
 	Col    string
 	Value  string
 	RowNum uint
 }
 
-func (e *ValidationError) Localize(l *i18n.Localizer) string {
-	return l.MustLocalize(&i18n.LocalizeConfig{
-		DefaultMessage: &i18n.Message{
-			ID: "Error.ERR_VALIDATION",
-		},
-		TemplateData: map[string]interface{}{
-			"Col":     e.Col,
-			"Value":   e.Value,
-			"RowNum":  e.RowNum,
-			"Message": e.Message,
-		},
-	})
-}
+func (e *ValidationError) Unwrap() error                     { return e.detail }
+func (e *ValidationError) Localize(l *i18n.Localizer) string { return serrors.Public(e, l).Message }
+func (e *InvalidCellError) Error() string                    { return e.detail.Error() }
+func (e *ValidationError) Error() string                     { return e.detail.Error() }

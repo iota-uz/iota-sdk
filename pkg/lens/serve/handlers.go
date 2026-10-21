@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	lensexport "github.com/iota-uz/iota-sdk/pkg/lens/export"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -45,97 +46,9 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, document.QueryErrorBadRequest, "method must be GET")
 		return
 	}
-	req := h.runtimeRequest(r)
-	scope := lensruntime.DashboardScope()
-	if h.progressive {
-		scope = lensruntime.ShellScope()
-	}
-	result, err := h.engine.Execute(r.Context(), h.spec, req, scope)
+	doc, err := h.BuildDocument(r.Context(), h.runtimeRequest(r), document.BuildOptions{})
 	if err != nil {
 		h.writeExecutionError(r.Context(), w, err)
-		return
-	}
-	if result == nil {
-		h.writeInternalError(r.Context(), w, "lens/serve.Document", "dashboard execution failed", fmt.Errorf("executor returned a nil dashboard result"))
-		return
-	}
-	if result.Panels == nil {
-		result.Panels = make(map[string]*lensruntime.PanelResult)
-	}
-	frozen := freezeParams(result, req)
-	for _, target := range inlineTargets(h.spec, h.inlineDepth) {
-		if h.progressive {
-			break
-		}
-		existing := result.Panel(target.panel.ID)
-		if existing != nil && existing.Error == nil && existing.Frames != nil && existing.Frames.Primary() != nil {
-			continue
-		}
-		levelResult, execErr := h.executeLevel(r.Context(), req, frozen, target, 0)
-		if execErr != nil {
-			if levelResult != nil && levelResult.Error != nil {
-				continue
-			}
-			h.writeExecutionError(r.Context(), w, execErr)
-			return
-		}
-		result.Panels[target.panel.ID] = levelResult
-	}
-	for _, target := range sourceDataTargets(h.spec, h.inlineDepth) {
-		if h.progressive {
-			break
-		}
-		existing := result.Panel(target.panel.ID)
-		if existing != nil && existing.Error == nil && existing.Frames != nil && existing.Frames.Primary() != nil {
-			continue
-		}
-		sourceResult, execErr := h.executeSourcePanel(r.Context(), req, frozen, target)
-		if execErr != nil {
-			// A panel-level failure drops the disclosure (document.Build skips
-			// declarations without an executed frame) instead of failing the
-			// whole document; transport failures still surface.
-			if sourceResult != nil && sourceResult.Error != nil {
-				continue
-			}
-			h.writeExecutionError(r.Context(), w, execErr)
-			return
-		}
-		result.Panels[target.panel.ID] = sourceResult
-	}
-	doc, err := document.Build(h.spec, result, document.BuildOptions{
-		Locale: result.Locale, InlineDepth: h.inlineDepth,
-		I18n: document.RuntimeI18nDefaults(),
-		Endpoints: document.Endpoints{
-			Query: h.endpoint("/lens/query"), Export: h.endpoint("/export"),
-			Release: h.endpoint("/lens/release"),
-			Panel: func() string {
-				if h.progressive {
-					return h.endpoint("/lens/panel")
-				}
-				return ""
-			}(),
-			Drawer: func() string {
-				if h.drawerResolver != nil {
-					return h.endpoint("/lens/drawer")
-				}
-				return ""
-			}(),
-		},
-		DeferPanels: h.progressive,
-		Filters:     wireVariableFilters(result.Filters),
-		URLState:    &document.URLStateContract{Version: document.URLStateVersion, Param: document.URLStateParam, MaxBytes: document.URLStateMaxBytes},
-	})
-	if err != nil {
-		h.writeInternalError(r.Context(), w, "lens/serve.Document", "document build failed", err)
-		return
-	}
-	if err := h.snapshots.Put(r.Context(), &document.Snapshot{
-		ID: doc.SnapshotID, Params: frozen, Frames: doc.Frames, Levels: doc.Drill.Edges, CreatedAt: doc.Meta.GeneratedAt,
-	}); err != nil {
-		if r.Context().Err() != nil {
-			return
-		}
-		h.writeInternalError(r.Context(), w, "lens/serve.Document", "snapshot storage failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, doc)
@@ -151,7 +64,7 @@ func (h *Handlers) Release(w http.ResponseWriter, r *http.Request) {
 	}
 	var req document.ReleaseRequest
 	if err := decodeJSON(w, r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 	req.SnapshotID = strings.TrimSpace(req.SnapshotID)
@@ -190,7 +103,7 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 	}
 	var req PanelBatchRequest
 	if err := decodeJSON(w, r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 	req.SnapshotID = strings.TrimSpace(req.SnapshotID)
@@ -577,6 +490,10 @@ func panelError(code document.QueryErrorCode, message string) document.PanelBatc
 // A rejected request has nothing to classify — it never ran — so those keep
 // using panelError and the runtime keeps printing its generic copy for them.
 func panelFailure(code document.QueryErrorCode, message string, cause error) document.PanelBatchResult {
+	if _, ok := resource.StatusCode(cause); ok {
+		code = document.QueryErrorResourceExhausted
+		message = "report resource budget exceeded"
+	}
 	result := panelError(code, message)
 	result.Error.Reason = document.ClassifyFailure(cause)
 	return result
@@ -595,7 +512,7 @@ func (h *Handlers) Drawer(w http.ResponseWriter, r *http.Request) {
 	}
 	var req document.DrawerResolveRequest
 	if err := decodeJSON(w, r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 	req.SnapshotID = strings.TrimSpace(req.SnapshotID)
@@ -676,7 +593,7 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 	}
 	var req QueryRequest
 	if err := decodeJSON(w, r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 	req.SnapshotID = strings.TrimSpace(req.SnapshotID)
@@ -722,11 +639,11 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 	}
 	target, err := resolveTarget(h.spec, req.Path, req.Perspective)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 	if err := validateTableSort(target.panel, req.Sort); err != nil {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, serrors.Public(err, nil).Message)
 		return
 	}
 	if !target.evidence {
@@ -1043,7 +960,12 @@ func (h *Handlers) writeInternalError(ctx context.Context, w http.ResponseWriter
 	if ctx.Err() != nil {
 		return
 	}
-	wrapped := serrors.E(serrors.Op(op), err)
+	if status, ok := resource.StatusCode(err); ok {
+		h.observer.OnError(ctx, op, serrors.Wrap(serrors.Op(op), err))
+		writeError(w, status, document.QueryErrorResourceExhausted, "report resource budget exceeded")
+		return
+	}
+	wrapped := serrors.Wrap(serrors.Op(op), err)
 	h.observer.OnError(ctx, op, wrapped)
 	// Same contract as a streamed panel failure: a query that dies of its own
 	// deadline reads the same to a person whichever endpoint was carrying it.
@@ -1059,13 +981,13 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
-		return fmt.Errorf("invalid JSON body: %w", err)
+		return invalidJSON(err)
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return fmt.Errorf("request body must contain one JSON object")
+			return serrors.NewInvalid("").WithPublic(serrors.Message{Text: "request body must contain one JSON object"})
 		}
-		return fmt.Errorf("invalid JSON body: %w", err)
+		return invalidJSON(err)
 	}
 	return nil
 }
@@ -1091,4 +1013,15 @@ func cloneParams(values map[string]any) map[string]any {
 		result[key] = value
 	}
 	return result
+}
+
+func invalidJSON(err error) error {
+	message := "invalid JSON body"
+	var limit *http.MaxBytesError
+	if errors.As(err, &limit) {
+		message = "request body too large"
+	} else if strings.HasPrefix(err.Error(), "json: unknown field ") {
+		message = "invalid JSON body: unknown field"
+	}
+	return serrors.NewInvalid("").WithCause(err).WithPublic(serrors.Message{Text: message})
 }

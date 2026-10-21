@@ -119,23 +119,14 @@ func TestController_RejectsInvalidClientRoutesAndProtocolMismatch(t *testing.T) 
 	require.ErrorContains(t, manifest.Validate(), "incompatible")
 }
 
-func TestController_PreservesLegacyReactRoute(t *testing.T) {
+func TestController_RejectsRemovedReactRenderer(t *testing.T) {
 	t.Parallel()
+	// Falsely green if missing identity/access causes rejection: supply the complete route contract.
 	_, err := NewController("legacy", testManifest(), []Route{{
-		Spec:  application.Get("/legacy", application.RenderedBy(application.RouteRendererReact)),
+		Spec:  application.Get("/legacy", application.ClientFeature("legacy.route", "legacy.feature"), application.RenderedBy(application.RouteRenderer("react")), application.Public()),
 		Build: func(_ context.Context, _ *http.Request) (RoutePayload, error) { return RoutePayload{}, nil },
 	}})
-	require.NoError(t, err)
-}
-
-func TestController_RejectsMixedRenderers(t *testing.T) {
-	t.Parallel()
-	build := func(_ context.Context, _ *http.Request) (RoutePayload, error) { return RoutePayload{}, nil }
-	_, err := NewController("mixed", testManifest(), []Route{
-		{Spec: application.Get("/legacy", application.RenderedBy(application.RouteRendererReact)), Build: build},
-		{Spec: application.Get("/solid", application.ClientFeature("solid.route", "solid.feature"), application.Public()), Build: build},
-	})
-	require.ErrorContains(t, err, "mixes react and client renderers")
+	require.Error(t, err)
 }
 
 func TestController_RequiresExplicitAccessAndUniqueIdentity(t *testing.T) {

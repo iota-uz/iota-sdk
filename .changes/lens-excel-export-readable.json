@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Lens Excel export applies number formats and column widths, writes stat panels as one metric table, humanizes parameters, titles cube datasets and adds ExportSpec.OmitLineage."}

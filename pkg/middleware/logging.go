@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -23,6 +24,8 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorlog"
 )
 
 type LoggerOptions struct {
@@ -112,12 +115,42 @@ func formatHeaders(h http.Header) map[string]string {
 	return headers
 }
 
+const redactedValue = "[REDACTED]"
+
+// isSecretField matches request fields that carry passwords or tokens.
+func isSecretField(key string) bool {
+	key = strings.ToLower(key)
+	return strings.Contains(key, "password") || strings.Contains(key, "secret") || strings.Contains(key, "token")
+}
+
 func formatFormValues(f url.Values) map[string]string {
 	formValues := make(map[string]string)
 	for key, values := range f {
+		if isSecretField(key) {
+			formValues[key] = redactedValue
+			continue
+		}
 		formValues[key] = strings.Join(values, ",")
 	}
 	return formValues
+}
+
+func redactJSONSecrets(v interface{}) interface{} {
+	switch typed := v.(type) {
+	case map[string]interface{}:
+		for key, value := range typed {
+			if isSecretField(key) {
+				typed[key] = redactedValue
+				continue
+			}
+			typed[key] = redactJSONSecrets(value)
+		}
+	case []interface{}:
+		for i, value := range typed {
+			typed[i] = redactJSONSecrets(value)
+		}
+	}
+	return v
 }
 
 func shouldLogBody(contentType string) bool {
@@ -172,7 +205,7 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions, cfg *headers.Config) 
 							http.Error(w, "failed to parse JSON request-body", http.StatusBadRequest)
 							return
 						}
-						fieldsLogger.WithField("request-body", jsonRequestBody).Info("JSON request-body parsed")
+						fieldsLogger.WithField("request-body", redactJSONSecrets(jsonRequestBody)).Info("JSON request-body parsed")
 					case strings.Contains(reqContentType, "application/x-www-form-urlencoded"):
 						if err := r.ParseForm(); err != nil {
 							fieldsLogger.WithError(err).Error("failed to parse form-urlencoded request-body")
@@ -244,31 +277,12 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions, cfg *headers.Config) 
 							return
 						}
 
-						duration := time.Since(start)
-
-						// Build comprehensive panic log fields
-						panicFields := logrus.Fields{
-							"panic":       recovered,
-							"stack":       string(debug.Stack()),
-							"method":      r.Method,
-							"path":        r.URL.Path,
-							"remote_addr": getRealIP(r, cfg),
-							"user_agent":  r.UserAgent(),
-							"status":      http.StatusInternalServerError,
-							"duration":    duration,
+						err := serrors.NewInternal("request handler panic").WithOp("middleware.Recover")
+						panicFields := logrus.Fields{"status": http.StatusInternalServerError, "duration": time.Since(start), "panic": fmt.Sprint(recovered), "stack": string(debug.Stack()), "path": r.URL.Path, "method": r.Method}
+						for _, attr := range serrorlog.Attributes(err, requestID) {
+							panicFields[attr.Key] = attr.Value.Any()
 						}
-
-						// Add query string if present
-						if r.URL.RawQuery != "" {
-							panicFields["query"] = r.URL.RawQuery
-						}
-
-						// Add content type if present
-						if contentType := r.Header.Get("Content-Type"); contentType != "" {
-							panicFields["content_type"] = contentType
-						}
-
-						fieldsLogger.WithFields(panicFields).Error("panic recovered in request handler")
+						logger.WithFields(panicFields).Error("panic recovered in request handler")
 
 						// Set 500 status code so client receives proper HTTP response
 						// Don't re-panic - instead write a proper error response
@@ -303,7 +317,7 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions, cfg *headers.Config) 
 					case strings.Contains(respContentType, "application/json"):
 						var parsed interface{}
 						if err := json.Unmarshal(body, &parsed); err == nil {
-							fieldsLogger.WithField("response-body", parsed).Info("JSON response-body parsed")
+							fieldsLogger.WithField("response-body", redactJSONSecrets(parsed)).Info("JSON response-body parsed")
 						}
 					case strings.Contains(respContentType, "application/xml"), strings.Contains(respContentType, "text/xml"):
 						var parsed interface{}

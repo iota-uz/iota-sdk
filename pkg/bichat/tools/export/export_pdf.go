@@ -155,7 +155,7 @@ func (t *ExportToPDFTool) CallStructured(ctx context.Context, input string) (*ty
 				Message: fmt.Sprintf("PDF conversion failed: %v", err),
 				Hints:   []string{tools.HintServiceMayBeDown, "Verify Gotenberg service is running", tools.HintRetryLater},
 			},
-		}, serrors.E(op, err, "PDF conversion failed")
+		}, serrors.WrapContext(op, err, "PDF conversion failed")
 	}
 
 	url := fmt.Sprintf("/exports/%s", filename) // Fallback URL
@@ -173,7 +173,7 @@ func (t *ExportToPDFTool) CallStructured(ctx context.Context, input string) (*ty
 					Message: fmt.Sprintf("failed to save PDF file: %v", err),
 					Hints:   []string{"File system may be full or permissions issue", tools.HintRetryLater},
 				},
-			}, serrors.E(op, err, "failed to save PDF file")
+			}, serrors.WrapContext(op, err, "failed to save PDF file")
 		}
 		url = savedURL
 	}
@@ -219,14 +219,14 @@ func (t *ExportToPDFTool) convertHTMLToPDF(ctx context.Context, html string, lan
 
 	jsonData, err := json.Marshal(requestBody)
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to marshal request")
+		return nil, serrors.WrapContext(op, err, "failed to marshal request")
 	}
 
 	// Make request to Gotenberg
 	url := fmt.Sprintf("%s/forms/chromium/convert/html", strings.TrimRight(t.gotenbergURL, "/"))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to create request")
+		return nil, serrors.WrapContext(op, err, "failed to create request")
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -235,7 +235,7 @@ func (t *ExportToPDFTool) convertHTMLToPDF(ctx context.Context, html string, lan
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to send request")
+		return nil, serrors.WrapContext(op, err, "failed to send request")
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -248,13 +248,13 @@ func (t *ExportToPDFTool) convertHTMLToPDF(ctx context.Context, html string, lan
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, serrors.E(op, fmt.Sprintf("Gotenberg returned status %d: %s", resp.StatusCode, string(body)))
+		return nil, serrors.New(serrors.Internal, fmt.Sprintf("Gotenberg returned status %d: %s", resp.StatusCode, string(body))).WithOp(op)
 	}
 
 	// Read PDF data
 	pdfData, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, serrors.E(op, err, "failed to read PDF data")
+		return nil, serrors.WrapContext(op, err, "failed to read PDF data")
 	}
 
 	return pdfData, nil

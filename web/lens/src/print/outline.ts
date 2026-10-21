@@ -1,4 +1,4 @@
-import type { DashboardDocument, LayoutGroup, LayoutItem, Panel } from '../contract'
+import type { DashboardDocument, EffectiveContext, LayoutGroup, LayoutItem, Panel } from '../contract'
 import { resolveQuality, type QualityInput } from '../panels/QualityChip'
 import type { PrintReport, PrintSection } from '../runtime/print'
 import { chartKinds, frameSignature, sectionPanel } from './values'
@@ -20,7 +20,7 @@ export interface PrintFigure {
   metric: boolean
   width: 'half' | 'full'
   /** The metric strip this reading was authored inside, when it was. */
-  group?: { id: string; label?: string; caption?: string }
+  group?: { id: string; label?: string; caption?: string; filterContext?: EffectiveContext }
   /**
    * A headline reading the cover lifts into its "at a glance" strip. It is not
    * printed a second time in the chapter body.
@@ -113,7 +113,10 @@ function widthFor(panel: Panel): 'half' | 'full' {
  * reader sees directly above the numbers.
  */
 function innermostGroup(item: LayoutItem): LayoutGroup | undefined {
-  return [...(item.groups ?? [])].reverse().find((group) => group.label || group.caption)
+  const chain = [...(item.groups ?? [])].reverse()
+  const group = chain.find((value) => value.label || value.caption) ?? chain.find((value) => value.filterContext)
+  const context = chain.find((value) => value.filterContext)?.filterContext
+  return group ? { ...group, ...(context ? { filterContext: context } : {}) } : undefined
 }
 
 function chapterTitle(index: number, heading: string | undefined, fallback: string): string {
@@ -223,8 +226,8 @@ export function buildOutline(
       // A reading that prints its calculation needs the width to hold it; half
       // a page beside another figure is where the two collide.
       width: breakdown.length > 0 ? 'full' : single ? 'half' : widthFor(panel),
-      ...(group && (group.label || group.caption)
-        ? { group: { id: group.id, ...(group.label ? { label: group.label } : {}), ...(group.caption ? { caption: group.caption } : {}) } }
+      ...(group && (group.label || group.caption || group.filterContext)
+        ? { group: { id: group.id, ...(group.filterContext ? { filterContext: group.filterContext } : {}), ...(group.label ? { label: group.label } : {}), ...(group.caption ? { caption: group.caption } : {}) } }
         : {}),
       // The opening chapter's single-value readings are the dashboard's
       // headline; the cover carries them so page one is already informative.

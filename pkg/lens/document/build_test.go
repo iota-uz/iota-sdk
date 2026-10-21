@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
+	lenscolor "github.com/iota-uz/iota-sdk/pkg/lens/color"
 	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
@@ -304,72 +305,6 @@ func TestBuild_InlineDepthIncludesOnlyMaterializedAggregateLevels(t *testing.T) 
 	require.NotContains(t, doc.Frames, FrameRef("explore:metric/focus/composition:detail"))
 }
 
-func TestBuild_StaticDrillTreeBecomesReactDrillGraph(t *testing.T) {
-	t.Parallel()
-
-	primary, err := frame.New("broker_receivables",
-		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{"broker-a", "broker-b"}},
-		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Broker A", "Broker B"}},
-		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: []any{100.0, 50.0}},
-	)
-	require.NoError(t, err)
-	frames, err := frame.NewFrameSet(primary)
-	require.NoError(t, err)
-
-	tree := panel.DrillTree{ExpandedSpan: 8, Branches: []panel.DrillBranch{
-		{
-			TriggerKey: "broker-a",
-			Label:      "Broker A",
-			Children: []panel.DrillNode{{
-				Key: "proxy", Label: "Management estimate", Value: 100,
-				Children: []panel.DrillNode{{Key: "USD", Label: "USD", Value: 100}},
-			}},
-		},
-		{
-			TriggerKey: "broker-b",
-			Label:      "Broker B",
-			Children:   []panel.DrillNode{{Key: "scheduled", Label: "Schedule", Value: 50}},
-		},
-	}}
-	chart := panel.Pie("brokers", "Broker receivables", "broker_receivables").
-		IDField("id").
-		LabelField("label").
-		ValueField("amount").
-		DrillTree(tree).
-		FocusCanvas().
-		Build()
-	spec := lensbuild.Dashboard("underwriting", "Underwriting", lensbuild.Row(chart)).
-		Datasets(lensbuild.StaticDataset("broker_receivables", frames)).
-		Build()
-	executed, err := runtime.New(runtime.Options{}).Execute(
-		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
-	)
-	require.NoError(t, err)
-
-	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "static-tree", GeneratedAt: time.Unix(1, 0), Locale: "en"})
-	require.NoError(t, err)
-	require.Len(t, doc.Panels, 1)
-	require.NotNil(t, doc.Panels[0].DrillRoot)
-	root := doc.Drill.Edges[*doc.Panels[0].DrillRoot]
-	require.Equal(t, FocusModeCanvas, root.Presentation.Focus)
-	require.Len(t, root.Children, 2)
-	require.Equal(t, NodeKey("broker-a"), root.Children[0].Key)
-	require.NotEmpty(t, root.Children[0].Target)
-
-	brokerLevel := doc.Drill.Edges[root.Children[0].Target]
-	require.Equal(t, "Broker A", brokerLevel.Label)
-	require.Equal(t, &Encoding{ID: "id", Label: "label", Value: "amount"}, brokerLevel.Encoding)
-	require.Len(t, doc.Frames[brokerLevel.Frame].Rows, 1)
-	require.NotEmpty(t, brokerLevel.Children[0].Target)
-	currencyLevel := doc.Drill.Edges[brokerLevel.Children[0].Target]
-	require.Equal(t, "Management estimate", currencyLevel.Label)
-	require.Equal(t, "USD", doc.Frames[currencyLevel.Frame].Rows[0][1])
-}
-
-// TestBuild_SparklineTargetAndFocusCanvas covers the focus-canvas panel
-// additions end to end: a stat's Go-side sparkline reaches the wire, a
-// coverage panel carries its bullet target marker, and FocusCanvas surfaces as
-// Presentation.Focus="canvas".
 func TestBuild_SparklineTargetAndFocusCanvas(t *testing.T) {
 	t.Parallel()
 	primary, err := frame.New("rows",
@@ -1214,6 +1149,30 @@ func TestBuild_PanelColorsPublishIndexAndLabelSeriesKeys(t *testing.T) {
 	require.Equal(t, "#d97706", doc.Theme.Series["premium:1"])
 	require.Equal(t, "#2563eb", doc.Theme.Series["Earned"])
 	require.Equal(t, "#d97706", doc.Theme.Series["Unearned"])
+}
+
+func TestPanelFrameColorsUseGenericScaleAndPreserveLiteralColors(t *testing.T) {
+	t.Parallel()
+	rows, err := frame.New("rows", frame.Field{
+		Name: "category", Type: frame.FieldTypeString, Values: []any{"OSAGO", "TRAVEL"},
+	})
+	require.NoError(t, err)
+
+	// This would be falsely green if the document still routed PRODUCT through
+	// a domain-specific palette before using the generic color package.
+	spec := panel.Pie("products", "Products", "rows").SemanticColors("PRODUCT", "category").Build()
+	colors := panelFrameColors(spec, rows)
+	require.Len(t, colors, 2)
+	for _, color := range colors {
+		require.Contains(t, lenscolor.Series(), color)
+	}
+	require.NotEqual(t, "#4338CA", colors[0])
+
+	spec.ColorScale = "literal"
+	require.Equal(t, []string{"OSAGO", "TRAVEL"}, panelFrameColors(spec, rows))
+	spec.ColorField = ""
+	spec.Colors = []string{"#123456", "#abcdef"}
+	require.Equal(t, spec.Colors, panelFrameColors(spec, rows))
 }
 
 // A series panel positions its colors by series, not by row: the n-th color is

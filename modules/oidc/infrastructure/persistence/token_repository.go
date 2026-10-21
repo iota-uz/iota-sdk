@@ -33,6 +33,7 @@ const (
 	deleteRefreshTokenByHashQuery          = `DELETE FROM oidc.refresh_tokens WHERE token_hash = $1`
 	deleteRefreshTokenByUserAndClientQuery = `DELETE FROM oidc.refresh_tokens WHERE user_id = $1 AND client_id = $2`
 	deleteExpiredRefreshTokensQuery        = `DELETE FROM oidc.refresh_tokens WHERE expires_at < NOW()`
+	deleteRefreshTokensByUserQuery         = `DELETE FROM oidc.refresh_tokens WHERE user_id = $1`
 )
 
 type TokenRepository struct{}
@@ -46,7 +47,7 @@ func (r *TokenRepository) Create(ctx context.Context, t token.RefreshToken) erro
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	dbToken := ToDBRefreshToken(t)
@@ -68,7 +69,7 @@ func (r *TokenRepository) Create(ctx context.Context, t token.RefreshToken) erro
 	)
 
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	return nil
@@ -80,11 +81,11 @@ func (r *TokenRepository) GetByTokenHash(ctx context.Context, tokenHash string) 
 	query := selectRefreshTokenQuery + " WHERE token_hash = $1"
 	tokens, err := r.queryTokens(ctx, op, query, tokenHash)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if len(tokens) == 0 {
-		return nil, serrors.E(op, serrors.NotFound, "refresh token not found")
+		return nil, serrors.New(serrors.NotFound, "refresh token not found").WithOp(op)
 	}
 
 	return tokens[0], nil
@@ -95,16 +96,16 @@ func (r *TokenRepository) Delete(ctx context.Context, id uuid.UUID) error {
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := tx.Exec(ctx, deleteRefreshTokenQuery, id)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, serrors.NotFound, "refresh token not found")
+		return serrors.New(serrors.NotFound, "refresh token not found").WithOp(op)
 	}
 
 	return nil
@@ -115,18 +116,31 @@ func (r *TokenRepository) DeleteByTokenHash(ctx context.Context, tokenHash strin
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	result, err := tx.Exec(ctx, deleteRefreshTokenByHashQuery, tokenHash)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	if result.RowsAffected() == 0 {
-		return serrors.E(op, serrors.NotFound, "refresh token not found")
+		return serrors.New(serrors.NotFound, "refresh token not found").WithOp(op)
 	}
 
+	return nil
+}
+
+func (r *TokenRepository) DeleteByUserID(ctx context.Context, userID int) error {
+	const op serrors.Op = "TokenRepository.DeleteByUserID"
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	if _, err := tx.Exec(ctx, deleteRefreshTokensByUserQuery, userID); err != nil {
+		return serrors.FromDB(op, err)
+	}
 	return nil
 }
 
@@ -135,13 +149,13 @@ func (r *TokenRepository) DeleteByUserAndClient(ctx context.Context, userID int,
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Delete all refresh tokens for this user + client combination
 	_, err = tx.Exec(ctx, deleteRefreshTokenByUserAndClientQuery, userID, clientID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	return nil
@@ -152,12 +166,12 @@ func (r *TokenRepository) DeleteExpired(ctx context.Context) error {
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	_, err = tx.Exec(ctx, deleteExpiredRefreshTokensQuery)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.FromDB(op, err)
 	}
 
 	return nil
@@ -168,12 +182,12 @@ func (r *TokenRepository) DeleteExpired(ctx context.Context) error {
 func (r *TokenRepository) queryTokens(ctx context.Context, op serrors.Op, query string, args ...interface{}) ([]token.RefreshToken, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -193,12 +207,12 @@ func (r *TokenRepository) queryTokens(ctx context.Context, op serrors.Op, query 
 			&dbToken.ExpiresAt,
 			&dbToken.CreatedAt,
 		); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 
 		domainToken, err := ToDomainRefreshToken(&dbToken)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		tokens = append(tokens, domainToken)
 	}
@@ -207,7 +221,7 @@ func (r *TokenRepository) queryTokens(ctx context.Context, op serrors.Op, query 
 		if errors.Is(err, pgx.ErrNoRows) {
 			return []token.RefreshToken{}, nil
 		}
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 
 	return tokens, nil

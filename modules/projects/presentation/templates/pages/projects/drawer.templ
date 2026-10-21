@@ -5,24 +5,64 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/components/scaffold/table"
+	corecomponents "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
+	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers/dtos"
 	projectViewModels "github.com/iota-uz/iota-sdk/modules/projects/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"strconv"
 )
 
 type DrawerEditProps struct {
 	Project        projectViewModels.ProjectViewModel
 	UpdateData     dtos.ProjectUpdateDTO
 	Counterparties []*viewmodels.Counterparty
+	Currencies     []*coreviewmodels.Currency
 	Errors         map[string]string
 }
 
 type DrawerCreateProps struct {
 	Project        dtos.ProjectCreateDTO
 	Counterparties []*viewmodels.Counterparty
+	Currencies     []*coreviewmodels.Currency
 	Errors         map[string]string
+}
+
+func amountValue(amount float64) string {
+	if amount == 0 {
+		return ""
+	}
+	return strconv.FormatFloat(amount, 'f', -1, 64)
+}
+
+// contractFields asks for the amount agreed with the client and its currency;
+// both empty mean the project has no contract amount.
+templ contractFields(amount float64, currency string, currencies []*coreviewmodels.Currency, errors map[string]string) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+		@input.Number(&input.Props{
+			Label: pageCtx.T("Projects.Single.ContractAmount"),
+			Attrs: templ.Attributes{
+				"value": amountValue(amount),
+				"name":  "ContractAmount",
+				"step":  "0.01",
+				"min":   "0",
+			},
+			Error: errors["ContractAmount"],
+		})
+		@corecomponents.CurrencySelect(&corecomponents.CurrencySelectProps{
+			Label:       pageCtx.T("Projects.Single.ContractCurrency"),
+			Placeholder: pageCtx.T("Projects.Single.SelectCurrency"),
+			Value:       currency,
+			Currencies:  currencies,
+			Error:       errors["ContractCurrency"],
+			Attrs:       templ.Attributes{"name": "ContractCurrency"},
+		})
+	</div>
 }
 
 templ EditDrawer(props *DrawerEditProps) {
@@ -38,73 +78,99 @@ templ EditDrawer(props *DrawerEditProps) {
 				"@closed":  fmt.Sprintf("document.getElementById('project-drawer-%s').remove()", props.Project.ID),
 			},
 		}) {
-			<form
-				id={ fmt.Sprintf("edit-form-%s", props.Project.ID) }
-				method="post"
-				hx-post={ fmt.Sprintf("/projects/%s", props.Project.ID) }
-				hx-target={ fmt.Sprintf("#project-drawer-%s", props.Project.ID) }
-				hx-swap="outerHTML"
-				class="flex flex-col h-full"
-			>
-				<div class="flex-1 p-6 space-y-4">
-					@input.Text(&input.Props{
-						Label: pageCtx.T("Projects.Single.Name"),
-						Attrs: templ.Attributes{
-							"value": props.UpdateData.Name,
-							"name":  "Name",
-						},
-						Error: props.Errors["Name"],
-					})
-					@components.CounterpartySelect(&components.CounterpartySelectProps{
-						Label:          pageCtx.T("Projects.Single.Counterparty"),
-						Placeholder:    pageCtx.T("Projects.Single.SelectCounterparty"),
-						Value:          props.UpdateData.CounterpartyID,
-						Name:           "CounterpartyID",
-						NotFoundText:   pageCtx.T("Projects.Single.NoCounterpartiesFound"),
-						Counterparties: props.Counterparties,
-					})
-					@input.TextArea(&input.TextAreaProps{
-						Label: pageCtx.T("Projects.Single._Description"),
-						Attrs: templ.Attributes{
-							"name": "Description",
-						},
-						Value: props.UpdateData.Description,
-						Error: props.Errors["Description"],
-					})
-				</div>
-				<div class="p-6 border-t border-subtle flex justify-between">
-					@button.Danger(button.Props{
-						Attrs: templ.Attributes{
-							"type":       "button",
-							"hx-delete":  fmt.Sprintf("/projects/%s", props.Project.ID),
-							"hx-confirm": pageCtx.T("Projects.Single.DeleteConfirmation"),
-							"hx-target":  "body",
-							"hx-swap":    "beforeend",
-						},
-					}) {
-						{ pageCtx.T("Delete") }
+			@tab.Root(tab.Props{DefaultValue: "project", Class: "flex flex-col h-full"}) {
+				<div class="border-b">
+					@tab.List(tab.ListProps{Class: "px-6"}) {
+						@tab.Button("project") {
+							{ pageCtx.T("Projects.Single.General") }
+						}
+						@tab.Button("acceptance") {
+							{ pageCtx.T("Projects.Acceptance.Title") }
+						}
 					}
-					<div class="flex gap-3">
-						@button.Secondary(button.Props{
-							Attrs: templ.Attributes{
-								"type":   "button",
-								"@click": fmt.Sprintf("document.getElementById('project-drawer-%s-dialog').close()", props.Project.ID),
-							},
-						}) {
-							{ pageCtx.T("Cancel") }
-						}
-						@button.Primary(button.Props{
-							Attrs: templ.Attributes{
-								"type":  "submit",
-								"name":  "_action",
-								"value": "save",
-							},
-						}) {
-							{ pageCtx.T("Save") }
-						}
-					</div>
 				</div>
-			</form>
+				@tab.Content("project") {
+					<form
+						id={ fmt.Sprintf("edit-form-%s", props.Project.ID) }
+						method="post"
+						hx-post={ fmt.Sprintf("/projects/%s", props.Project.ID) }
+						hx-target={ fmt.Sprintf("#project-drawer-%s", props.Project.ID) }
+						hx-swap="outerHTML"
+						class="flex flex-col h-full"
+					>
+						<div class="flex-1 p-6 space-y-4">
+							@input.Text(&input.Props{
+								Label: pageCtx.T("Projects.Single.Name"),
+								Attrs: templ.Attributes{
+									"value": props.UpdateData.Name,
+									"name":  "Name",
+								},
+								Error: props.Errors["Name"],
+							})
+							@components.CounterpartySelect(&components.CounterpartySelectProps{
+								Label:          pageCtx.T("Projects.Single.Counterparty"),
+								Placeholder:    pageCtx.T("Projects.Single.SelectCounterparty"),
+								Value:          props.UpdateData.CounterpartyID,
+								Name:           "CounterpartyID",
+								NotFoundText:   pageCtx.T("Projects.Single.NoCounterpartiesFound"),
+								Counterparties: props.Counterparties,
+							})
+							@contractFields(props.UpdateData.ContractAmount, props.UpdateData.ContractCurrency, props.Currencies, props.Errors)
+							@input.TextArea(&input.TextAreaProps{
+								Label: pageCtx.T("Projects.Single._Description"),
+								Attrs: templ.Attributes{
+									"name": "Description",
+								},
+								Value: props.UpdateData.Description,
+								Error: props.Errors["Description"],
+							})
+						</div>
+						<div class="p-6 border-t border-subtle flex justify-between">
+							@button.Danger(button.Props{
+								Attrs: templ.Attributes{
+									"type":       "button",
+									"hx-delete":  fmt.Sprintf("/projects/%s", props.Project.ID),
+									"hx-confirm": pageCtx.T("Projects.Single.DeleteConfirmation"),
+									"hx-target":  "body",
+									"hx-swap":    "beforeend",
+								},
+							}) {
+								{ pageCtx.T("Delete") }
+							}
+							<div class="flex gap-3">
+								@button.Secondary(button.Props{
+									Attrs: templ.Attributes{
+										"type":   "button",
+										"@click": fmt.Sprintf("document.getElementById('project-drawer-%s-dialog').close()", props.Project.ID),
+									},
+								}) {
+									{ pageCtx.T("Cancel") }
+								}
+								@button.Primary(button.Props{
+									Attrs: templ.Attributes{
+										"type":  "submit",
+										"name":  "_action",
+										"value": "save",
+									},
+								}) {
+									{ pageCtx.T("Save") }
+								}
+							</div>
+						</div>
+					</form>
+				}
+				@tab.Content("acceptance") {
+					<div
+						id={ fmt.Sprintf("project-acceptance-%s", props.Project.ID) }
+						class="p-6"
+						hx-get={ fmt.Sprintf("/projects/%s/acceptance", props.Project.ID) }
+						hx-trigger="load"
+						hx-swap="innerHTML"
+					>
+						@table.DefaultPanelSkeleton()
+					</div>
+				}
+			}
 		}
 	</div>
 }
@@ -147,6 +213,7 @@ templ CreateDrawer(props *DrawerCreateProps) {
 						NotFoundText:   pageCtx.T("Projects.Single.NoCounterpartiesFound"),
 						Counterparties: props.Counterparties,
 					})
+					@contractFields(props.Project.ContractAmount, props.Project.ContractCurrency, props.Currencies, props.Errors)
 					@input.TextArea(&input.TextAreaProps{
 						Label: pageCtx.T("Projects.Single._Description"),
 						Attrs: templ.Attributes{

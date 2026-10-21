@@ -14,6 +14,23 @@ import (
 
 type Option func(e *employee)
 
+// Status is derived from the resignation date: an employee with one is former.
+type Status string
+
+const (
+	StatusActive Status = "active"
+	StatusFormer Status = "former"
+)
+
+func ParseStatus(v string) (Status, bool) {
+	switch Status(v) {
+	case StatusActive, StatusFormer:
+		return Status(v), true
+	default:
+		return "", false
+	}
+}
+
 type Language interface {
 	Primary() string
 	Secondary() string
@@ -93,6 +110,7 @@ type Employee interface {
 	Pin() tax.Pin
 	Notes() string
 	ResignationDate() *time.Time
+	Status() Status
 
 	// Behavioral methods
 	UpdateName(firstName, lastName, middleName string) Employee
@@ -265,6 +283,13 @@ func (e *employee) HireDate() time.Time {
 
 func (e *employee) ResignationDate() *time.Time {
 	return e.resignationDate
+}
+
+func (e *employee) Status() Status {
+	if e.resignationDate != nil {
+		return StatusFormer
+	}
+	return StatusActive
 }
 
 func (e *employee) UpdateName(firstName, lastName, middleName string) Employee {

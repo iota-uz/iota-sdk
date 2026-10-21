@@ -7,8 +7,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// defaultSessionDuration matches the legacy GO env default ("720h").
-// Services that inject httpconfig.Config should pass WithExpiresAt explicitly.
+// defaultSessionDuration is the fallback session lifetime when the caller
+// does not pass WithExpiresAt. Services that inject session config should
+// pass WithExpiresAt explicitly.
 const defaultSessionDuration = 720 * time.Hour
 
 // SessionAudience represents the audience/context for which the session is valid
@@ -23,6 +24,9 @@ const (
 
 	// StatusPending2FA indicates the session is pending 2FA verification
 	StatusPending2FA SessionStatus = "pending_2fa"
+
+	// StatusPendingOnboarding limits a temporary-password session to onboarding
+	StatusPendingOnboarding SessionStatus = "pending_onboarding"
 )
 
 // Option is a functional option for configuring Session
@@ -70,6 +74,7 @@ type Session interface {
 
 	IsExpired() bool
 	IsPending() bool
+	IsPendingOnboarding() bool
 	IsActive() bool
 }
 
@@ -148,6 +153,10 @@ func (s *session) IsExpired() bool {
 
 func (s *session) IsPending() bool {
 	return s.status == StatusPending2FA
+}
+
+func (s *session) IsPendingOnboarding() bool {
+	return s.status == StatusPendingOnboarding
 }
 
 func (s *session) IsActive() bool {

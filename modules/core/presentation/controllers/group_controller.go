@@ -27,6 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 )
@@ -50,6 +51,9 @@ func (ru *GroupRealtimeUpdates) OnGroupCreated(event *group.CreatedEvent) {
 	})
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		if !application.CanReceiveTenantUpdates(conn.User(), event.Group.TenantID(), permissions.GroupRead) {
+			return nil
+		}
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			ru.logger.WithError(err).Error("failed to render group created event for websocket")
@@ -74,6 +78,9 @@ func (ru *GroupRealtimeUpdates) OnGroupDeleted(event *group.DeletedEvent) {
 	})
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		if !application.CanReceiveTenantUpdates(conn.User(), event.Group.TenantID(), permissions.GroupRead) {
+			return nil
+		}
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			ru.logger.WithError(err).Error("failed to render group deleted event for websocket")
@@ -96,6 +103,9 @@ func (ru *GroupRealtimeUpdates) OnGroupUpdated(event *group.UpdatedEvent) {
 	})
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		if !application.CanReceiveTenantUpdates(conn.User(), event.Group.TenantID(), permissions.GroupRead) {
+			return nil
+		}
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			ru.logger.WithError(err).Error("failed to render group updated event for websocket")
@@ -163,7 +173,6 @@ func (c *GroupsController) Groups(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	groupQueryService *services.GroupQueryService,
-	groupService *services.GroupService,
 	policy *services.PrivilegeGrantPolicy,
 ) {
 	if err := composables.CanUser(r.Context(), permissions.GroupRead); err != nil {
@@ -223,21 +232,30 @@ func (c *GroupsController) Groups(
 		http.Error(w, "Error retrieving current user", http.StatusInternalServerError)
 		return
 	}
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		logger.WithError(err).Error("Error retrieving tenant")
+		http.Error(w, "Error retrieving tenant", http.StatusInternalServerError)
+		return
+	}
+	groupIDs := make([]uuid.UUID, 0, len(groupViewModels))
+	for _, groupViewModel := range groupViewModels {
+		if groupID, parseErr := uuid.Parse(groupViewModel.ID); parseErr == nil {
+			groupIDs = append(groupIDs, groupID)
+		}
+	}
+	groupPermissions, permissionsErr := groupQueryService.FindGroupPermissionsByIDs(r.Context(), groupIDs)
+	if permissionsErr != nil {
+		logger.WithError(permissionsErr).Warn("failed to evaluate group management actions")
+	}
 	for _, groupViewModel := range groupViewModels {
 		groupID, parseErr := uuid.Parse(groupViewModel.ID)
-		if parseErr != nil {
+		if parseErr != nil || permissionsErr != nil {
 			groupViewModel.CanUpdate = false
 			groupViewModel.CanDelete = false
 			continue
 		}
-		groupEntity, loadErr := groupService.GetByID(r.Context(), groupID)
-		if loadErr != nil {
-			logger.WithField("groupID", groupViewModel.ID).WithError(loadErr).Warn("failed to evaluate group management actions")
-			groupViewModel.CanUpdate = false
-			groupViewModel.CanDelete = false
-			continue
-		}
-		canManage := policy.CanManageGroup(actor, groupEntity)
+		canManage := policy.CanManageGroupProjection(actor, tenantID, group.Type(groupViewModel.Type), groupPermissions[groupID])
 		groupViewModel.CanUpdate = groupViewModel.CanUpdate && canManage
 		groupViewModel.CanDelete = groupViewModel.CanDelete && canManage
 	}
@@ -380,7 +398,7 @@ func (c *GroupsController) Create(
 	}
 	dto, err := composables.UseForm(&dtos.CreateGroupDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -409,7 +427,7 @@ func (c *GroupsController) Create(
 
 	groupEntity, err := dto.ToEntity()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -427,7 +445,7 @@ func (c *GroupsController) Create(
 	for _, roleIDStr := range dto.RoleIDs {
 		roleID, err := strconv.ParseUint(roleIDStr, 10, 64)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 			return
 		}
 		groupEntity = groupEntity.AssignRole(role.New("", role.WithID(uint(roleID))))
@@ -437,7 +455,7 @@ func (c *GroupsController) Create(
 		if respondPrivilegeDenied(w, r, err) {
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -464,7 +482,7 @@ func (c *GroupsController) Update(
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -475,7 +493,7 @@ func (c *GroupsController) Update(
 
 	dto, err := composables.UseForm(&dtos.UpdateGroupDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -502,8 +520,7 @@ func (c *GroupsController) Update(
 
 	existingGroup, err := groupService.GetByID(r.Context(), id)
 	if err != nil {
-		logger.Errorf("Error retrieving group: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -512,8 +529,7 @@ func (c *GroupsController) Update(
 	for _, rID := range dto.RoleIDs {
 		rUintID, err := strconv.ParseUint(rID, 10, 64)
 		if err != nil {
-			logger.Errorf("Error parsing role id: %v", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 			return
 		}
 		roles = append(roles, role.New("", role.WithID(uint(rUintID))))
@@ -521,8 +537,7 @@ func (c *GroupsController) Update(
 
 	groupEntity, err := dto.Apply(existingGroup, roles)
 	if err != nil {
-		logger.Errorf("Error updating group: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -530,7 +545,7 @@ func (c *GroupsController) Update(
 		if respondPrivilegeDenied(w, r, err) {
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -552,7 +567,7 @@ func (c *GroupsController) Delete(
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -560,7 +575,7 @@ func (c *GroupsController) Delete(
 		if respondPrivilegeDenied(w, r, err) {
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)

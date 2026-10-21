@@ -3,19 +3,22 @@ package document
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 )
 
 type FrameRef string
 
 type DashboardDocument struct {
-	Version      string             `json:"version"`
-	SnapshotID   string             `json:"snapshotId"`
-	Meta         Meta               `json:"meta"`
-	Layout       Layout             `json:"layout"`
-	Panels       []Panel            `json:"panels"`
-	Frames       map[FrameRef]Frame `json:"frames"`
-	Drill        Drill              `json:"drill"`
-	Perspectives []Perspective      `json:"perspectives"`
+	ContextEditor *filtercontext.ContextEditor `json:"contextEditor,omitempty"`
+	Version       string                       `json:"version"`
+	SnapshotID    string                       `json:"snapshotId"`
+	Meta          Meta                         `json:"meta"`
+	Layout        Layout                       `json:"layout"`
+	Panels        []Panel                      `json:"panels"`
+	Frames        map[FrameRef]Frame           `json:"frames"`
+	Drill         Drill                        `json:"drill"`
+	Perspectives  []Perspective                `json:"perspectives"`
 	// Filters declares the dashboard's controls. Optional so documents from
 	// older producers keep parsing under the same contract major.
 	Filters         []Filter          `json:"filters,omitempty"`
@@ -130,6 +133,7 @@ const (
 	// LayoutGroupTabs renders one segmented tab per distinct member Tab
 	// value, showing only the selected tab's members.
 	LayoutGroupTabs LayoutGroupKind = "tabs"
+	LayoutGroupGrid LayoutGroupKind = "grid"
 )
 
 // LayoutGroupLayout selects a metrics group's member arrangement.
@@ -140,11 +144,30 @@ const (
 	LayoutGroupRows    LayoutGroupLayout = "rows"
 )
 
+// GroupUnavailable explains why a group's figures are withheld.
+type GroupUnavailable string
+
+const (
+	// GroupUnavailableReportIncompatible marks a reusable report placement whose
+	// definition no longer runs on its source contract or view.
+	GroupUnavailableReportIncompatible GroupUnavailable = "report-incompatible"
+	// GroupUnavailableReportDeleted marks a placement whose report the host no
+	// longer stores. The placement keeps its own caption and width.
+	GroupUnavailableReportDeleted GroupUnavailable = "report-deleted"
+	// GroupUnavailableReportForbidden marks a placement whose report the reader
+	// may not see. Only the slot's width remains: no title, caption or context.
+	GroupUnavailableReportForbidden GroupUnavailable = "report-forbidden"
+)
+
 // LayoutGroup describes the container card that owns a run of layout items.
 // Every item of the same group repeats the identical descriptor except Tab.
 type LayoutGroup struct {
-	ID   string          `json:"id"`
-	Kind LayoutGroupKind `json:"kind"`
+	FilterContext *filtercontext.EffectiveContext `json:"filterContext,omitempty"`
+	// Unavailable replaces the group's figures with an explained state; the
+	// runtime renders no member panel, print or export figure for it.
+	Unavailable GroupUnavailable `json:"unavailable,omitempty"`
+	ID          string           `json:"id"`
+	Kind        LayoutGroupKind  `json:"kind"`
 	// Caption explains the group as a whole — why this strip of metrics sits
 	// here, what basis it reads on — the same role Panel.Caption plays for a
 	// single panel. Without it a container's Description would be silently
@@ -196,8 +219,9 @@ const (
 // cannot ask the snapshot store for a filter combination the server has not
 // normalized and keyed itself.
 type Filter struct {
-	ID   string     `json:"id"`
-	Kind FilterKind `json:"kind"`
+	Scope *filtercontext.ContextOrigin `json:"scope,omitempty"`
+	ID    string                       `json:"id"`
+	Kind  FilterKind                   `json:"kind"`
 	// Label is the already-localized control label.
 	Label string `json:"label,omitempty"`
 	// Placement moves a control from the dashboard header into one tab of a
@@ -664,6 +688,16 @@ type Panel struct {
 	// ComparisonUnsupported marks an active comparison that this panel kind
 	// cannot visualize. The client renders its localized explanatory notice.
 	ComparisonUnsupported bool `json:"comparisonUnsupported,omitempty"`
+	// Renderer hands the panel body to a renderer the host registers on the
+	// client. Without that registration the runtime shows a compatibility
+	// state rather than drawing the panel as its kind.
+	Renderer *PanelRenderer `json:"renderer,omitempty"`
+}
+
+// PanelRenderer names a host-registered client renderer and its options.
+type PanelRenderer struct {
+	Name    string          `json:"name"`
+	Options json.RawMessage `json:"options,omitempty"`
 }
 
 // RadialMode selects a radial panel's geometry.
@@ -897,12 +931,13 @@ const (
 
 type Presentation struct {
 	// DataLabels writes formatted values directly on bar and line marks.
-	DataLabels  bool                `json:"dataLabels,omitempty"`
-	Legend      LegendPlacement     `json:"legend,omitempty"`
-	LegendValue LegendValue         `json:"legendValue,omitempty"`
-	SliceLabels SliceLabels         `json:"sliceLabels,omitempty"`
-	TotalBadge  TotalBadgePlacement `json:"totalBadge,omitempty"`
-	ColorBy     ColorBy             `json:"colorBy,omitempty"`
+	DataLabels     bool                `json:"dataLabels,omitempty"`
+	Legend         LegendPlacement     `json:"legend,omitempty"`
+	LegendValue    LegendValue         `json:"legendValue,omitempty"`
+	SliceLabels    SliceLabels         `json:"sliceLabels,omitempty"`
+	TotalBadge     TotalBadgePlacement `json:"totalBadge,omitempty"`
+	KeepTotalBadge bool                `json:"keepTotalBadge,omitempty"`
+	ColorBy        ColorBy             `json:"colorBy,omitempty"`
 	// ValueSpreadThreshold is the producer-selected max/min ratio used to
 	// decide when a requested logarithmic scale is material and when a linear
 	// scale needs readability assistance. Zero leaves the policy unset.
@@ -952,7 +987,7 @@ type Presentation struct {
 func (p Presentation) isZero() bool {
 	return len(p.LineSeries) == 0 && !p.DataLabels &&
 		p.Legend == "" && p.LegendValue == "" && p.SliceLabels == "" &&
-		p.TotalBadge == "" && p.ColorBy == "" && p.ValueSpreadThreshold == 0 && !p.Fill && p.BarWidthPx == 0 &&
+		p.TotalBadge == "" && !p.KeepTotalBadge && p.ColorBy == "" && p.ValueSpreadThreshold == 0 && !p.Fill && p.BarWidthPx == 0 &&
 		p.BridgeLayout == "" && p.Sortable == nil && p.Expandable == nil &&
 		p.Exportable == nil && p.RowGroupField == "" && p.Focus == "" && !p.Stack
 }
@@ -1444,9 +1479,10 @@ type TableSummary struct {
 type QueryErrorCode string
 
 const (
-	QueryErrorSnapshotGone QueryErrorCode = "snapshot_gone"
-	QueryErrorBadRequest   QueryErrorCode = "bad_request"
-	QueryErrorInternal     QueryErrorCode = "internal"
+	QueryErrorSnapshotGone      QueryErrorCode = "snapshot_gone"
+	QueryErrorBadRequest        QueryErrorCode = "bad_request"
+	QueryErrorInternal          QueryErrorCode = "internal"
+	QueryErrorResourceExhausted QueryErrorCode = "resource_exhausted"
 )
 
 type QueryErrorResponse struct {
