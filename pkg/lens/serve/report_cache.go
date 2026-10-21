@@ -1015,7 +1015,7 @@ func NewReportBuildLimiter(concurrent, pending int) *ReportBuildLimiter {
 // Acquire admits request-owned work such as lazy export evidence under the
 // same concurrency policy as report construction. Always call the release
 // function when work finishes; cancellation removes a queued waiter.
-func (l *ReportBuildLimiter) Acquire(ctx context.Context) (release func(), err error) {
+func (l *ReportBuildLimiter) Acquire(ctx context.Context) (func(), error) {
 	return l.acquire(ctx)
 }
 
