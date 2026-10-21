@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Role forms render permissions as a compact matrix: one row per resource with inline permission-set switches and expandable individual permissions; form fields and saving are unchanged."}

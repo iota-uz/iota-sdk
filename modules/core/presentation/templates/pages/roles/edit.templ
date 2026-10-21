@@ -82,26 +82,11 @@ templ EditForm(props *EditFormProps) {
 					}
 					for _, moduleGroup := range props.ModulePermissionGroups {
 						@tab.Content(moduleGroup.Module) {
-							<div class="space-y-3 pt-4" data-test-id={ fmt.Sprintf("module-content-%s", moduleGroup.Module) }>
-								for _, resourceGroup := range moduleGroup.ResourceGroups {
-									@card.Card(card.Props{
-										Class: "space-y-3",
-									}) {
-										<div class="space-y-3">
-											<h3 class="text-lg font-medium text-gray-900">
-												{ tOrKey(pageCtx, fmt.Sprintf("Resources.%s", resourceGroup.Resource)) }
-											</h3>
-											for setIndex, permissionSet := range resourceGroup.PermissionSets {
-												@PermissionSet(PermissionSetProps{
-													PageContext:  pageCtx,
-													Set:          permissionSet,
-													ResourceName: resourceGroup.Resource,
-													SetIndex:     setIndex,
-												})
-											}
-										</div>
-									}
-								}
+							<div class="pt-4" data-test-id={ fmt.Sprintf("module-content-%s", moduleGroup.Module) }>
+								@PermissionMatrix(PermissionMatrixProps{
+									PageContext:    pageCtx,
+									ResourceGroups: moduleGroup.ResourceGroups,
+								})
 							</div>
 						}
 					}

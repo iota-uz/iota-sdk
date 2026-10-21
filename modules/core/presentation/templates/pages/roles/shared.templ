@@ -245,3 +245,108 @@ templ ResourceGroup(props ResourceGroupProps) {
 		</div>
 	</div>
 }
+
+type PermissionMatrixProps struct {
+	PageContext    types.PageContext
+	ResourceGroups []*viewmodels.ResourcePermissionGroup
+	Form           string
+	InputName      string
+}
+
+templ PermissionMatrix(props PermissionMatrixProps) {
+	<div class="rounded-md border border-default bg-surface-100 divide-y divide-gray-200" data-test-id="permission-matrix">
+		for _, resourceGroup := range props.ResourceGroups {
+			<div
+				class="flex flex-col gap-2 px-3 py-2 md:flex-row md:items-start md:gap-4"
+				data-test-id={ fmt.Sprintf("permission-row-%s", resourceGroup.Resource) }
+			>
+				<h3 class="text-sm font-medium text-gray-900 md:w-56 md:shrink-0 md:pt-0.5">
+					{ tOrKey(props.PageContext, fmt.Sprintf("Resources.%s", resourceGroup.Resource)) }
+				</h3>
+				<div class="flex flex-1 flex-wrap items-center gap-x-6 gap-y-2">
+					for setIndex, set := range resourceGroup.PermissionSets {
+						@PermissionSetInline(PermissionSetProps{
+							PageContext:  props.PageContext,
+							Set:          set,
+							ResourceName: resourceGroup.Resource,
+							SetIndex:     setIndex,
+							Form:         props.Form,
+							InputName:    props.InputName,
+						})
+					}
+				</div>
+			</div>
+		}
+	</div>
+}
+
+templ PermissionSetInline(props PermissionSetProps) {
+	{{ setId := fmt.Sprintf("%s-set-%d", props.ResourceName, props.SetIndex) }}
+	{{ label := tOrKey(props.PageContext, props.Set.Label) }}
+	{{ hint := "" }}
+	if props.Set.Description != "" {
+		{{ hint = tOrKey(props.PageContext, props.Set.Description) }}
+	}
+	if len(props.Set.Permissions) == 1 {
+		@input.Switch(&input.SwitchProps{
+			ID:           fmt.Sprintf("toggle-%s", setId),
+			Label:        label,
+			LabelClasses: templ.Classes("text-gray-900"),
+			Checked:      props.Set.Checked,
+			LabelAttrs:   templ.Attributes{"title": hint},
+			Attrs:      permissionAttrs(templ.Attributes{}, props.Form, props.InputName, props.Set.Permissions[0].ID),
+		})
+	} else {
+		<div
+			class="contents"
+			x-data={ fmt.Sprintf("createPermissionSetData(%t, %t, %s, '%s')", props.Set.Checked, props.Set.Partial, toJSON(getPermissionIds(props.Set.Permissions)), setId) }
+			x-init="init()"
+			@change="updateState()"
+			data-set-id={ setId }
+		>
+			<div class="inline-flex items-center gap-1">
+				<button type="button" class="inline-flex items-center gap-3" title={ hint } @click="toggleAll()">
+					{{ toggleClasses := "bg-gray-200 after:border-default" }}
+					{{
+						if props.Set.Checked {
+							toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
+						}
+					}}
+					<div id={ fmt.Sprintf("toggle-visual-%s", setId) } class={ fmt.Sprintf("relative w-11 h-6 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all %s", toggleClasses) }></div>
+					<span class="text-sm">{ label }</span>
+				</button>
+				<button
+					type="button"
+					class="text-gray-400 hover:text-gray-700 p-0.5"
+					:aria-expanded="expanded"
+					@click="expanded = !expanded"
+				>
+					@icons.CaretDown(icons.Props{
+						Size:       "16",
+						Class:      "transition-transform",
+						Attributes: templ.Attributes{"x-bind:class": "{'rotate-180': expanded}"},
+					})
+				</button>
+			</div>
+			<div x-show="expanded" x-collapse class="basis-full w-full">
+				<div class="flex flex-wrap gap-x-6 gap-y-2 rounded-md bg-surface-300 px-3 py-2">
+					for _, perm := range props.Set.Permissions {
+						<div class="child-permission">
+							@input.Switch(&input.SwitchProps{
+								ID:      fmt.Sprintf("%s-perm-%s", setId, perm.ID),
+								Label:        tOrKey(props.PageContext, fmt.Sprintf("Permissions.%s", perm.Name)),
+								LabelClasses: templ.Classes("text-gray-900"),
+								Size:         input.SwitchSizeSM,
+								Checked:      perm.Checked,
+								Attrs: permissionAttrs(templ.Attributes{
+									"@change":            "updateState()",
+									"data-permission-id": perm.ID,
+								}, props.Form, props.InputName, perm.ID),
+							})
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
