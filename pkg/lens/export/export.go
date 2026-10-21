@@ -811,6 +811,8 @@ func numberFormat(spec *format.Spec, value any) string {
 		return decimalFormat(spec.Precision) + `"%"`
 	case format.KindMoney, format.KindAbbreviatedMoney:
 		return decimalFormat(spec.Precision)
+	case format.KindDate, format.KindMonthLabel, format.KindDuration, format.KindLocalizedString:
+		return numberFormat(nil, value)
 	default:
 		return numberFormat(nil, value)
 	}
