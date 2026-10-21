@@ -233,6 +233,13 @@ URLs or reintroduce `PanelBasePath`.
 
 ## Performance Profiling
 
+Runtime payload preflights follow `runtime.Options.MaxEntryBytes`. When omitted,
+the runtime inherits `Store.PayloadLimit()` if exposed by the store (including
+`MemorySnapshotStore`); otherwise it uses the SDK default. A smaller explicit
+store bound wins. Configure the document store and report cache with the same
+host policy. This does not change the shared retained budget or small identity
+metadata limits, and a larger allowed entry does not grant extra shared capacity.
+
 Cube SQL is generated dynamically, so profiling is part of the implementation work for production-facing dashboards.
 
 Before calling a cube rollout done:

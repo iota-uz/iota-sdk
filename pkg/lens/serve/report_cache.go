@@ -1012,6 +1012,13 @@ func NewReportBuildLimiter(concurrent, pending int) *ReportBuildLimiter {
 	return &ReportBuildLimiter{slots: make(chan struct{}, concurrent), max: concurrent + pending}
 }
 
+// Acquire admits request-owned work such as lazy export evidence under the
+// same concurrency policy as report construction. Always call the release
+// function when work finishes; cancellation removes a queued waiter.
+func (l *ReportBuildLimiter) Acquire(ctx context.Context) (release func(), err error) {
+	return l.acquire(ctx)
+}
+
 func (l *ReportBuildLimiter) acquire(ctx context.Context) (func(), error) {
 	l.mu.Lock()
 	if l.admitted >= l.max {

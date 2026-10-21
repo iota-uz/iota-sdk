@@ -49,15 +49,15 @@ func MemoizeJSON[T any](ctx context.Context, runtime *Runtime, req MemoRequest, 
 		if computeErr != nil {
 			return nil, computeErr
 		}
-		if _, err := resource.EstimateJSON(computed, resource.DefaultEntryLimit); err != nil {
+		if _, err := resource.EstimateJSON(computed, runtime.maxEntryBytes); err != nil {
 			return nil, err
 		}
 		data, marshalErr := json.Marshal(computed)
 		if marshalErr != nil {
 			return nil, marshalErr
 		}
-		if int64(len(data)) > resource.DefaultEntryLimit {
-			return nil, resource.NewLimitError("memo_bytes", int64(len(data)), resource.DefaultEntryLimit)
+		if int64(len(data)) > runtime.maxEntryBytes {
+			return nil, resource.NewLimitError("memo_bytes", int64(len(data)), runtime.maxEntryBytes)
 		}
 		fr, frameErr := frame.New("memo", frame.Field{Name: "json", Type: frame.FieldTypeString, Values: []any{string(data)}})
 		if frameErr != nil {

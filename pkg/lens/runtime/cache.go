@@ -100,6 +100,9 @@ type MemorySnapshotStore struct {
 	expirations   atomic.Uint64
 }
 
+// PayloadLimit lets runtime preflights use the same policy as retention.
+func (m *MemorySnapshotStore) PayloadLimit() int64 { return m.maxEntryBytes }
+
 func NewMemorySnapshotStore(opts MemoryStoreOptions) *MemorySnapshotStore {
 	if opts.Budget == nil {
 		opts.Budget = resource.NewBudget(resource.DefaultLimit)
