@@ -89,9 +89,9 @@ func TestRunForwardsSchedulerExecutionClassWithoutChangingQueryIdentity(t *testi
 	base := datasource.QueryRequest{Source: "primary", Text: "select 1", ExecutionClass: datasource.ExecutionClassRootCritical}
 	promoted := base
 	promoted.ExecutionClass = datasource.ExecutionClassInteractiveCritical
-	baseKey, err := queryCacheKey(base)
+	baseKey, err := New(Options{}).queryCacheKey(base)
 	require.NoError(t, err)
-	promotedKey, err := queryCacheKey(promoted)
+	promotedKey, err := New(Options{}).queryCacheKey(promoted)
 	require.NoError(t, err)
 	require.Equal(t, baseKey, promotedKey, "priority promotion must join the same semantic query")
 }
@@ -858,11 +858,11 @@ func TestRuntimeIdentityPreflightsSerializationInputs(t *testing.T) {
 }
 func TestQueryCacheKeyRejectsUnsafeInputs(t *testing.T) {
 	// An encoder failure must propagate; formatting arbitrary objects is another unbounded serializer.
-	_, err := queryCacheKey(datasource.QueryRequest{Params: map[string]any{"hostile": hostileMemoInput{}}})
+	_, err := New(Options{}).queryCacheKey(datasource.QueryRequest{Params: map[string]any{"hostile": hostileMemoInput{}}})
 	require.Error(t, err)
-	_, err = queryCacheKey(datasource.QueryRequest{Text: strings.Repeat("x", int(resource.DefaultEntryLimit))})
+	_, err = New(Options{}).queryCacheKey(datasource.QueryRequest{Text: strings.Repeat("x", int(resource.DefaultEntryLimit))})
 	require.ErrorIs(t, err, resource.ErrLimit)
 	now := time.Now()
-	_, err = queryCacheKey(datasource.QueryRequest{Text: "select 1", TimeRange: datasource.TimeRange{Start: &now}})
+	_, err = New(Options{}).queryCacheKey(datasource.QueryRequest{Text: "select 1", TimeRange: datasource.TimeRange{Start: &now}})
 	require.NoError(t, err)
 }

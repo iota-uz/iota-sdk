@@ -114,11 +114,15 @@ type Request struct {
 }
 
 type Options struct {
-	Store        SnapshotStore
-	DefaultTTL   time.Duration
-	CacheVersion string
-	Observer     Observer
-	WorkTimeout  time.Duration
+	Store SnapshotStore
+	// MaxEntryBytes bounds spec identities, query identities and memo payloads.
+	// Zero inherits Store.PayloadLimit when available, otherwise the SDK default.
+	// An explicit store limit always remains an upper bound.
+	MaxEntryBytes int64
+	DefaultTTL    time.Duration
+	CacheVersion  string
+	Observer      Observer
+	WorkTimeout   time.Duration
 }
 
 type Observer interface {
@@ -135,6 +139,7 @@ type DatasourceObserver interface {
 // construct one instance and share it across render, fragment and export paths.
 type Runtime struct {
 	store          SnapshotStore
+	maxEntryBytes  int64
 	ttl            time.Duration
 	version        string
 	observer       Observer
@@ -145,8 +150,16 @@ type Runtime struct {
 }
 
 func New(opts Options) *Runtime {
+	if policy, ok := opts.Store.(interface{ PayloadLimit() int64 }); ok {
+		if limit := policy.PayloadLimit(); limit > 0 && (opts.MaxEntryBytes <= 0 || opts.MaxEntryBytes > limit) {
+			opts.MaxEntryBytes = limit
+		}
+	}
+	if opts.MaxEntryBytes <= 0 {
+		opts.MaxEntryBytes = resource.DefaultEntryLimit
+	}
 	if opts.Store == nil {
-		opts.Store = NewMemorySnapshotStore(MemoryStoreOptions{})
+		opts.Store = NewMemorySnapshotStore(MemoryStoreOptions{MaxEntryBytes: opts.MaxEntryBytes})
 	}
 	if opts.DefaultTTL <= 0 {
 		opts.DefaultTTL = 5 * time.Minute
@@ -158,7 +171,7 @@ func New(opts Options) *Runtime {
 		opts.WorkTimeout = 2 * time.Minute
 	}
 	return &Runtime{
-		store: opts.Store, ttl: opts.DefaultTTL, version: opts.CacheVersion, observer: opts.Observer, workTimeout: opts.WorkTimeout,
+		store: opts.Store, maxEntryBytes: opts.MaxEntryBytes, ttl: opts.DefaultTTL, version: opts.CacheVersion, observer: opts.Observer, workTimeout: opts.WorkTimeout,
 		activeBySource: make(map[string]int),
 	}
 }
@@ -596,7 +609,7 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 		Kind:           spec.Query.Kind,
 		ExecutionClass: s.runtime.ExecutionClass,
 	}
-	queryKey, err := queryCacheKey(request)
+	queryKey, err := s.executor.queryCacheKey(request)
 	if err != nil {
 		return nil, err
 	}
@@ -632,7 +645,7 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 
 func (r *Runtime) executionIdentity(spec lens.DashboardSpec, req Request, variables map[string]any) (string, string, error) {
 	op := serrors.Op("lens/runtime.executionIdentity")
-	if _, err := resource.EstimateJSON(spec, resource.DefaultEntryLimit); err != nil {
+	if _, err := resource.EstimateJSON(spec, r.maxEntryBytes); err != nil {
 		return "", "", serrors.Wrap(op, err)
 	}
 	specBytes, err := json.Marshal(spec) //nolint:musttag // Runtime specs intentionally retain their Go field names in the fingerprint.
@@ -1073,11 +1086,11 @@ func resolveDatasetTimeRangeFor(dataset lens.DatasetSpec, specs []lens.VariableS
 	return resolveDatasetTimeRange(specs, variables)
 }
 
-func queryCacheKey(req datasource.QueryRequest) (string, error) {
+func (r *Runtime) queryCacheKey(req datasource.QueryRequest) (string, error) {
 	// Scheduling metadata may change while a speculative job is promoted. It
 	// must not split singleflight/cache identity for the same semantic query.
 	req.ExecutionClass = ""
-	if _, err := resource.EstimateJSON(req, resource.DefaultEntryLimit); err != nil {
+	if _, err := resource.EstimateJSON(req, r.maxEntryBytes); err != nil {
 		return "", err
 	}
 	payload, err := json.Marshal(req)
