@@ -14,7 +14,10 @@ type Spec struct {
 	SheetName    string `json:"sheetName,omitempty"`
 	TableName    string `json:"tableName,omitempty"`
 	FreezeHeader bool   `json:"freezeHeader,omitempty"`
-	// OmitLineage drops the technical dataset lineage sheet from a dashboard
-	// workbook meant for business readers.
+	// Lineage marks an export-only dataset that records how the figures were
+	// produced, such as a report's filter context, rather than business rows.
+	Lineage bool `json:"lineage,omitempty"`
+	// OmitLineage drops the audit lineage from a dashboard workbook meant for
+	// business readers: the dataset sources sheet and Lineage datasets.
 	OmitLineage bool `json:"omitLineage,omitempty"`
 }

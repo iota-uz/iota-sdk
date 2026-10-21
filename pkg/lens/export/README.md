@@ -16,7 +16,7 @@ Numeric cells keep their values and get an Excel number format from the panel
 `Formatter`, a table column `Formatter` or the field `FormatterHint`. Percent
 values are already scaled (`45.3` is 45.3%). Parameters show the dashboard's
 declared variables by label with humanized values. Set
-`ExportSpec.OmitLineage` to drop the technical lineage sheet. Use `export.Handler` when a standard HTTP
+`ExportSpec.OmitLineage` to drop the technical lineage sheet and datasets marked `Export.Lineage` (such as report filter context). Use `export.Handler` when a standard HTTP
 endpoint is desired, or call `Exporter.Write` from an existing authorized
 route.
 

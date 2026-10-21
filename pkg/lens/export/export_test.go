@@ -300,18 +300,34 @@ func TestExporterWrite_OmitLineage(t *testing.T) {
 	t.Parallel()
 	chart := mustFrames(t, "chart", frame.Field{Name: "value", Values: []any{1}})
 	panelSpec := panel.Spec{ID: "total", Title: "Total", Kind: panel.KindStat, Dataset: "chart", Fields: panel.FieldMapping{Value: panel.Ref("value")}}
+	scope := mustFrames(t, "scope", frame.Field{Name: "identity", Values: []any{"8720f763"}})
+	rawRows := mustFrames(t, "raw", frame.Field{Name: "number", Values: []any{"SR-001"}})
+	period := lens.DateRangeValue{Mode: "bounded", Start: pointer(time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)), End: pointer(time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC))}
 	result := &lensruntime.DashboardResult{
-		Spec:     lens.DashboardSpec{Export: exportmeta.Spec{OmitLineage: true}, Datasets: []lens.DatasetSpec{{Name: "chart"}}},
-		Datasets: map[string]*lensruntime.DatasetResult{"chart": {Frames: chart}},
-		Panels:   map[string]*lensruntime.PanelResult{"total": {Panel: panelSpec, Frames: chart}},
+		Spec: lens.DashboardSpec{
+			Export: exportmeta.Spec{OmitLineage: true, EvidenceDatasets: []string{"scope", "raw"}},
+			Variables: []lens.VariableSpec{
+				{Name: "a__period", Label: "Period", Kind: lens.VariableDateRange},
+				{Name: "b__period", Label: "Period", Kind: lens.VariableDateRange},
+			},
+			Datasets: []lens.DatasetSpec{
+				{Name: "chart"},
+				{Name: "scope", Export: exportmeta.Spec{Enabled: true, Lineage: true, SheetName: "Scope a"}},
+				{Name: "raw", Export: exportmeta.Spec{Enabled: true, SheetName: "Rows"}},
+			},
+		},
+		Variables: map[string]any{"a__period": period, "b__period": period},
+		Datasets:  map[string]*lensruntime.DatasetResult{"chart": {Frames: chart}, "scope": {Frames: scope}, "raw": {Frames: rawRows}},
+		Panels:    map[string]*lensruntime.PanelResult{"total": {Panel: panelSpec, Frames: chart}},
 	}
 	var out bytes.Buffer
 	require.NoError(t, New().Write(context.Background(), &out, Request{Result: result}))
 	book, err := excelize.OpenReader(bytes.NewReader(out.Bytes()))
 	require.NoError(t, err)
 	defer func() { _ = book.Close() }()
-	require.Equal(t, []string{"Summary", "Parameters"}, book.GetSheetList())
+	require.Equal(t, []string{"Summary", "Parameters", "Rows"}, book.GetSheetList(), "lineage goes, business evidence stays")
 	require.Equal(t, [][]string{{"Metric", "Value"}, {"Total", "1"}}, sheetRows(t, book, "Summary"))
+	require.Equal(t, [][]string{{"Parameter", "Value"}, {"Period", "01.06.2026 – 30.06.2026"}}, sheetRows(t, book, "Parameters"))
 }
 
 func sheetRows(t *testing.T, book *excelize.File, sheet string) [][]string {

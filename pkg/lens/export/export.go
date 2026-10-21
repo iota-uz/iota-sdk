@@ -171,6 +171,9 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) (err err
 		if dataset == "" || exportedDatasets[dataset] {
 			return false
 		}
+		if !includeLineage && findDataset(req.Result.Spec, dataset).Export.Lineage {
+			return false
+		}
 		exportedDatasets[dataset] = true
 		exportOrder = append(exportOrder, dataset)
 		return true
@@ -490,6 +493,7 @@ func panelFormats(spec panel.Spec) fieldFormats {
 
 func parameterRows(result *lensruntime.DashboardResult, labels Labels) [][]any {
 	rows := [][]any{{labels.Parameter, labels.Value}}
+	seen := map[string]bool{}
 	for _, variable := range result.Spec.Variables {
 		value, ok := result.Variables[variable.Name]
 		if !ok {
@@ -503,6 +507,11 @@ func parameterRows(result *lensruntime.DashboardResult, labels Labels) [][]any {
 		if label == "" {
 			label = variable.Name
 		}
+		key := label + "\x00" + fmt.Sprint(display)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
 		rows = append(rows, []any{label, display})
 	}
 	return rows
