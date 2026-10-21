@@ -71,7 +71,7 @@ func Compose(ctx context.Context, c Composition, host Host) (lens.DashboardSpec,
 				if contextErr != nil {
 					return lens.DashboardSpec{}, nil, contextErr
 				}
-				scoped.Datasets = append(scoped.Datasets, lens.DatasetSpec{Name: name, Title: "Report filter context", Kind: lens.DatasetKindStatic, Static: data, Export: exportmeta.Spec{Enabled: true, SheetName: "Scope " + placement.ID, TableName: "ctx_" + strings.ReplaceAll(placement.ID, "-", "_"), FreezeHeader: true}})
+				scoped.Datasets = append(scoped.Datasets, lens.DatasetSpec{Name: name, Title: "Report filter context", Kind: lens.DatasetKindStatic, Static: data, Export: exportmeta.Spec{Enabled: true, Lineage: true, SheetName: "Scope " + placement.ID, TableName: "ctx_" + strings.ReplaceAll(placement.ID, "-", "_"), FreezeHeader: true}})
 				for i := range scoped.Rows {
 					attachContextEvidence(scoped.Rows[i].Panels, name)
 				}
