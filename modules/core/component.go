@@ -76,6 +76,14 @@ type ModuleOptions struct {
 	// provide their own admin UI.
 	SkipAdminControllers bool
 
+	// SkipDashboardController suppresses the finance dashboard controller only,
+	// leaving the rest of the admin UI registered. Use it when the consumer
+	// serves its own home page and does not build the Lens Solid assets the
+	// dashboard renders, which it otherwise has to do just to start the server.
+	// It cannot be combined with a component that replaces "core.dashboard"
+	// (superadmin does): the replacement would have nothing to replace.
+	SkipDashboardController bool
+
 	// SkipAdminNavItems suppresses contribution of the built-in admin
 	// navigation without affecting controller or spotlight registration.
 	SkipAdminNavItems bool
@@ -363,7 +371,13 @@ func (c *component) Build(builder *composition.Builder) error {
 				ctrls = append(ctrls,
 					controllers.NewNotificationController(),
 					controllers.NewNotificationSettingsController(),
-					controllers.NewDashboardController(dbCfg, opts.DashboardLinkPermissions),
+				)
+				// The dashboard renders through the Lens Solid bundle, which a
+				// consumer that serves its own home page may never build.
+				if !opts.SkipDashboardController {
+					ctrls = append(ctrls, controllers.NewDashboardController(dbCfg, opts.DashboardLinkPermissions))
+				}
+				ctrls = append(ctrls,
 					// aiHolder may be nil when no downstream component registered
 					// an AI search service; the controller is nil-safe and will
 					// surface the feature as unavailable in that case.

@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add core.ModuleOptions.SkipDashboardController so a consumer that serves its own home page can leave the Lens-rendered finance dashboard out without also dropping the rest of the admin UI, and without building the Lens Solid assets to start the server."
+}
