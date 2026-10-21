@@ -14,4 +14,7 @@ type Spec struct {
 	SheetName    string `json:"sheetName,omitempty"`
 	TableName    string `json:"tableName,omitempty"`
 	FreezeHeader bool   `json:"freezeHeader,omitempty"`
+	// OmitLineage drops the technical dataset lineage sheet from a dashboard
+	// workbook meant for business readers.
+	OmitLineage bool `json:"omitLineage,omitempty"`
 }

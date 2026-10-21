@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
+	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
@@ -34,22 +37,25 @@ func TestExporterWrite_PanelAndEvidenceWithoutDatasourceQueries(t *testing.T) {
 	require.NotContains(t, book.GetSheetList(), "Premium")
 	require.Contains(t, book.GetSheetList(), "Policies")
 	require.Equal(t, []string{"Summary", "Parameters", "Sources", "Policies"}, book.GetSheetList())
-	formula, err := book.GetCellFormula("Summary", "B5")
+	formula, err := book.GetCellFormula("Summary", "B3")
 	require.NoError(t, err)
 	require.Equal(t, `HYPERLINK("#'Sources'!A1","Sources")`, formula)
+	total, err := book.GetCellValue("Summary", "B2")
+	require.NoError(t, err)
+	require.Equal(t, "42", total)
 	formula, err = book.GetCellFormula("Sources", "A2")
 	require.NoError(t, err)
-	require.Equal(t, `HYPERLINK("#'Summary'!A7","chart")`, formula)
+	require.Equal(t, `HYPERLINK("#'Summary'!A5","chart")`, formula)
 	formula, err = book.GetCellFormula("Sources", "A3")
 	require.NoError(t, err)
 	require.Equal(t, `HYPERLINK("#'Policies'!A1","Policy evidence")`, formula)
-	value, err := book.GetCellValue("Summary", "A7")
+	value, err := book.GetCellValue("Summary", "A5")
 	require.NoError(t, err)
 	require.Equal(t, "Premium", value)
-	value, err = book.GetCellValue("Summary", "A8")
+	value, err = book.GetCellValue("Summary", "A6")
 	require.NoError(t, err)
 	require.Equal(t, "label", value)
-	value, err = book.GetCellValue("Summary", "B9")
+	value, err = book.GetCellValue("Summary", "B7")
 	require.NoError(t, err)
 	require.Equal(t, "42", value)
 	dimension, err := book.GetSheetDimension("Policies")
@@ -173,15 +179,161 @@ func TestExporterWritesExplorationMetadataWithoutChangingLegacyLayout(t *testing
 	require.NoError(t, err)
 	defer func() { _ = book.Close() }()
 
-	value, err := book.GetCellValue("Summary", "B9")
+	value, err := book.GetCellValue("Summary", "B7")
 	require.NoError(t, err)
 	require.Equal(t, "Products", value)
-	value, err = book.GetCellValue("Summary", "B10")
+	value, err = book.GetCellValue("Summary", "B8")
 	require.NoError(t, err)
 	require.Equal(t, "Property", value)
-	value, err = book.GetCellValue("Summary", "A13")
+	value, err = book.GetCellValue("Summary", "A11")
 	require.NoError(t, err)
 	require.Equal(t, "Premium", value)
+}
+
+func TestExporterWrite_ReadableBusinessWorkbook(t *testing.T) {
+	t.Parallel()
+
+	policies := mustFrames(t, "policies", frame.Field{Name: "value", Labels: map[string]string{"default": "Полисов"}, Values: []any{1234.0}})
+	premium := mustFrames(t, "premium", frame.Field{Name: "value", Labels: map[string]string{"default": "Премия"}, Values: []any{1063542000.5}})
+	byProduct := mustFrames(t, "cube_dim_product",
+		frame.Field{Name: "label", Values: []any{"ОСАГО", "КАСКО"}},
+		frame.Field{Name: "value", Values: []any{1000000000.0, 63542000.5}},
+		frame.Field{Name: "share", FormatterHint: "percent", Values: []any{94.0, 6.0}},
+		frame.Field{Name: "issued", Values: []any{time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)}},
+	)
+	money := format.Money("UZS", 2)
+	policiesPanel := panel.Spec{ID: "policies", Title: "Полисов", Kind: panel.KindStat, Dataset: "policies", Fields: panel.FieldMapping{Value: panel.Ref("value")}, Formatter: pointer(format.Count())}
+	premiumPanel := panel.Spec{ID: "premium", Title: "Премия", Kind: panel.KindStat, Dataset: "premium", Fields: panel.FieldMapping{Value: panel.Ref("value")}, Formatter: &money}
+	productPanel := panel.Spec{ID: "product", Title: "По продуктам", Kind: panel.KindBar, Dataset: "cube_dim_product", Fields: panel.FieldMapping{Label: panel.Ref("label"), Value: panel.Ref("value")}, Formatter: &money}
+	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 10, 21, 23, 59, 59, 0, time.UTC)
+	result := &lensruntime.DashboardResult{
+		SnapshotID: "snapshot-123",
+		Locale:     "ru",
+		Spec: lens.DashboardSpec{
+			Title: "Продажи",
+			Rows: []lens.RowSpec{
+				{Panels: []panel.Spec{{ID: "kpis", Kind: panel.KindStatGroup, Children: []panel.Spec{policiesPanel, premiumPanel}}}},
+				{Panels: []panel.Spec{productPanel}},
+			},
+			Variables: []lens.VariableSpec{
+				{Name: "period", Label: "Период", Kind: lens.VariableDateRange},
+				{Name: "compare", Label: "Сравнение", Kind: lens.VariableCompare, CompareTo: "period"},
+				{Name: "channel", Label: "Канал", Kind: lens.VariableSingleSelect, Options: []lens.VariableOption{{Label: "Онлайн", Value: "online"}}},
+				{Name: "all", Kind: lens.VariableDateRange},
+			},
+			Datasets: []lens.DatasetSpec{
+				{Name: "policies", Title: "Полисов", Source: "primary"},
+				{Name: "premium", Source: "primary"},
+				{Name: "cube_dim_product", Title: "Продукт", Source: "primary", DependsOn: []string{"policies"}},
+			},
+		},
+		Variables: map[string]any{
+			"period":   lens.DateRangeValue{Mode: "bounded", Start: &start, End: &end},
+			"compare":  lens.CompareValue{Mode: lens.CompareOff},
+			"channel":  "online",
+			"all":      lens.DateRangeValue{Mode: "all"},
+			"timezone": "Asia/Tashkent",
+		},
+		Datasets: map[string]*lensruntime.DatasetResult{"policies": {Frames: policies}, "premium": {Frames: premium}, "cube_dim_product": {Frames: byProduct}},
+		Panels: map[string]*lensruntime.PanelResult{
+			"policies": {Panel: policiesPanel, Frames: policies},
+			"premium":  {Panel: premiumPanel, Frames: premium},
+			"product":  {Panel: productPanel, Frames: byProduct},
+		},
+	}
+	var out bytes.Buffer
+	require.NoError(t, New().Write(context.Background(), &out, Request{Result: result}))
+	book, err := excelize.OpenReader(bytes.NewReader(out.Bytes()))
+	require.NoError(t, err)
+	defer func() { _ = book.Close() }()
+
+	summary := sheetRows(t, book, "Сводка")
+	require.Equal(t, [][]string{
+		{"Продажи"},
+		{"Источники", ""},
+		nil,
+		{"Показатель", "Значение"},
+		{"Полисов", "1,234"},
+		{"Премия", "1,063,542,000.50"},
+		nil,
+		{"По продуктам"},
+		{"label", "value", "share", "issued"},
+		{"ОСАГО", "1,000,000,000.00", "94.0%", "01.10.2026"},
+		{"КАСКО", "63,542,000.50", "6.0%", "02.10.2026"},
+	}, summary)
+	require.Equal(t, "#,##0", cellNumFmt(t, book, "Сводка", "B5"))
+	require.Equal(t, "#,##0.00", cellNumFmt(t, book, "Сводка", "B6"))
+	require.Equal(t, `#,##0.0"%"`, cellNumFmt(t, book, "Сводка", "C10"))
+	width, err := book.GetColWidth("Сводка", "B")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, width, 15.0)
+
+	require.Equal(t, [][]string{
+		{"Параметр", "Значение"},
+		{"Период", "01.10.2026 – 21.10.2026"},
+		{"Канал", "Онлайн"},
+		{"all", "За всё время"},
+	}, sheetRows(t, book, "Параметры"))
+
+	sources := sheetRows(t, book, "Источники")
+	require.Len(t, sources, 4)
+	require.Equal(t, []string{"", "primary", "Полисов"}, sources[3])
+	formula, err := book.GetCellFormula("Источники", "A4")
+	require.NoError(t, err)
+	require.Equal(t, `HYPERLINK("#'Сводка'!A8","Продукт")`, formula)
+	formula, err = book.GetCellFormula("Источники", "A3")
+	require.NoError(t, err)
+	require.Equal(t, `HYPERLINK("#'Сводка'!A6","premium")`, formula)
+	for _, sheet := range book.GetSheetList() {
+		for _, row := range sheetRows(t, book, sheet) {
+			for _, value := range row {
+				for _, raw := range []string{"<nil>", "{off", "bounded", "cube_dim_", "snapshot-123", "Asia/Tashkent"} {
+					require.NotContains(t, value, raw, "sheet %s", sheet)
+				}
+			}
+		}
+	}
+}
+
+func TestExporterWrite_OmitLineage(t *testing.T) {
+	t.Parallel()
+	chart := mustFrames(t, "chart", frame.Field{Name: "value", Values: []any{1}})
+	panelSpec := panel.Spec{ID: "total", Title: "Total", Kind: panel.KindStat, Dataset: "chart", Fields: panel.FieldMapping{Value: panel.Ref("value")}}
+	result := &lensruntime.DashboardResult{
+		Spec:     lens.DashboardSpec{Export: exportmeta.Spec{OmitLineage: true}, Datasets: []lens.DatasetSpec{{Name: "chart"}}},
+		Datasets: map[string]*lensruntime.DatasetResult{"chart": {Frames: chart}},
+		Panels:   map[string]*lensruntime.PanelResult{"total": {Panel: panelSpec, Frames: chart}},
+	}
+	var out bytes.Buffer
+	require.NoError(t, New().Write(context.Background(), &out, Request{Result: result}))
+	book, err := excelize.OpenReader(bytes.NewReader(out.Bytes()))
+	require.NoError(t, err)
+	defer func() { _ = book.Close() }()
+	require.Equal(t, []string{"Summary", "Parameters"}, book.GetSheetList())
+	require.Equal(t, [][]string{{"Metric", "Value"}, {"Total", "1"}}, sheetRows(t, book, "Summary"))
+}
+
+func sheetRows(t *testing.T, book *excelize.File, sheet string) [][]string {
+	t.Helper()
+	rows, err := book.GetRows(sheet)
+	require.NoError(t, err)
+	for i, row := range rows {
+		if strings.Join(row, "") == "" {
+			rows[i] = nil
+		}
+	}
+	return rows
+}
+
+func cellNumFmt(t *testing.T, book *excelize.File, sheet, coordinate string) string {
+	t.Helper()
+	id, err := book.GetCellStyle(sheet, coordinate)
+	require.NoError(t, err)
+	style, err := book.GetStyle(id)
+	require.NoError(t, err)
+	require.NotNil(t, style.CustomNumFmt)
+	return *style.CustomNumFmt
 }
 
 func mustFrames(t *testing.T, name string, fields ...frame.Field) *frame.FrameSet {
