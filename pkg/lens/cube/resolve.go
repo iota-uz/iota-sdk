@@ -112,7 +112,7 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 	if comparison.Enabled {
 		statsResolution = compareStatDatasets(spec, statsResolution, comparison)
 	}
-	dashboard.Datasets = append(dashboard.Datasets, statsResolution.Datasets...)
+	dashboard.Datasets = append(dashboard.Datasets, titledDatasets(statsResolution.Datasets, spec.Title)...)
 	if statPanels := buildStatPanelsCompared(spec, statsResolution.DatasetByMeasure, comparison.Enabled); len(statPanels) > 0 {
 		dashboard.Rows = append(dashboard.Rows, lens.RowSpec{Panels: []panel.Spec{buildStatStrip(spec, statPanels)}})
 	}
@@ -130,7 +130,7 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 		if comparison.Enabled {
 			resolved = compareDimensionDataset(spec, resolved, comparison)
 		}
-		dashboard.Datasets = append(dashboard.Datasets, resolved.Datasets...)
+		dashboard.Datasets = append(dashboard.Datasets, titledDatasets(resolved.Datasets, dim.Label)...)
 		dimensionPanels = append(dimensionPanels, buildDimensionPanel(spec, dim, resolved, baseURL, len(ordered), idx))
 	}
 	if len(dimensionPanels) > 0 {
@@ -169,6 +169,16 @@ func resolveStatDatasets(spec CubeSpec, ctx DrillContext) (statDatasetResolution
 		resolved.DatasetByMeasure[measure.Name] = statsDataset.Name
 	}
 	return resolved, nil
+}
+
+func titledDatasets(datasets []lens.DatasetSpec, title string) []lens.DatasetSpec {
+	title = strings.TrimSpace(title)
+	for i := range datasets {
+		if strings.TrimSpace(datasets[i].Title) == "" {
+			datasets[i].Title = title
+		}
+	}
+	return datasets
 }
 
 func resolveStatsDataset(spec CubeSpec, ctx DrillContext) (lens.DatasetSpec, error) {
