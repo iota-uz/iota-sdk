@@ -406,7 +406,7 @@ templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 			WrapperClasses:       templ.Classes(templ.KV("h-full", config.Head.Sticky)),
 			Classes:              templ.Classes(templ.KV("h-full", config.Head.Sticky)),
 			Columns:              toBaseTableColumns(config, pageCtx),
-			TBodyAttrs: tbodyAttrs,
+			TBodyAttrs:           tbodyAttrs,
 			THead: base.TableHead{
 				Attrs: headAttrs,
 				Classes: templ.Classes(
