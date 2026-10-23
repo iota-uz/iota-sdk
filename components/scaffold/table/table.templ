@@ -388,6 +388,16 @@ templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 				foot = tableFooter(config)
 			}
 		}}
+		{{
+			tbodyAttrs := templ.Attributes{}
+			maps.Copy(tbodyAttrs, config.BodyAttrs)
+			maps.Copy(tbodyAttrs, templ.Attributes{
+				"id":          "table-body",
+				"hx-push-url": "false",
+				"x-data":      "tableKeyboardNav",
+				"@keydown":    "onKey",
+			})
+		}}
 		@base.Table(base.TableProps{
 			Configurable:         config.Configurable,
 			ScrollbarPosition:    config.ScrollbarPosition,
@@ -396,12 +406,7 @@ templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 			WrapperClasses:       templ.Classes(templ.KV("h-full", config.Head.Sticky)),
 			Classes:              templ.Classes(templ.KV("h-full", config.Head.Sticky)),
 			Columns:              toBaseTableColumns(config, pageCtx),
-			TBodyAttrs: templ.Attributes{
-				"id":          "table-body",
-				"hx-push-url": "false",
-				"x-data":      "tableKeyboardNav",
-				"@keydown":    "onKey",
-			},
+			TBodyAttrs: tbodyAttrs,
 			THead: base.TableHead{
 				Attrs: headAttrs,
 				Classes: templ.Classes(

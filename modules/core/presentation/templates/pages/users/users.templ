@@ -73,6 +73,7 @@ func BuildTableConfig(ctx context.Context, props *IndexPageProps, r *http.Reques
 		table.WithStackedToolbar(),
 	)
 
+	cfg.BodyAttrs = templ.Attributes{usersTableBodyAttr: true}
 	cfg.AddCols(TableColumns(ctx)...)
 
 	cfg.AddActions(sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"}))
@@ -208,13 +209,21 @@ templ actionsCell(user *viewmodels.User) {
 	</div>
 }
 
+// usersTableBodyAttr marks the Users list <tbody>. Every sfui table body has
+// id="table-body", and the created-user broadcast reaches every connection
+// with UserRead, so the out-of-band insert must match only this table.
+const usersTableBodyAttr = "data-users-table"
+
+// UsersTableBodySelector is the out-of-band target for a newly-created user
+// row: the Users list body, and no other table that may be open.
+const UsersTableBodySelector = "#table-body[" + usersTableBodyAttr + "]"
+
 // UserCreatedEvent is the realtime websocket broadcast entry point for a
 // newly-created user: it wraps the row in a <tbody hx-swap-oob="afterbegin:
-// #table-body"> so the ws extension inserts it at the top of the live table
-// body (see components/scaffold/table's Table(), which hardcodes tbody
-// id="table-body").
+// ..."> so the ws extension inserts it at the top of the Users list. On any
+// other page the selector matches nothing and htmx skips the insert.
 templ UserCreatedEvent(user *viewmodels.User, rowProps *base.TableRowProps) {
-	<tbody hx-swap-oob="afterbegin:#table-body">
+	<tbody hx-swap-oob={ "afterbegin:" + UsersTableBodySelector }>
 		@UserRow(user, rowProps)
 	</tbody>
 }
