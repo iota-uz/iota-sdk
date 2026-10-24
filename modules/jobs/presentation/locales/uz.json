@@ -1,0 +1,16 @@
+{
+  "Jobs": {
+    "Status": {
+      "Queued": "Navbatda",
+      "Running": "Bajarilmoqda",
+      "Done": "Bajarildi",
+      "Failed": "Xatolik"
+    },
+    "Actions": {
+      "Run": "Ishga tushirish",
+      "Retry": "Qayta urinish",
+      "Download": "Yuklab olish",
+      "Dismiss": "Yashirish"
+    }
+  }
+}

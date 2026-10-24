@@ -1,0 +1,75 @@
+package jobs
+
+import (
+	"encoding/json"
+
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/loaders"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+// TriggerProps configures the standard job trigger button.
+type TriggerProps struct {
+	// Kind is the registered job kind to enqueue.
+	Kind string
+	// Params are serialised to JSON and passed to the handler.
+	Params map[string]any
+	// Label overrides the translated default label.
+	Label string
+	// Icon replaces the default download icon.
+	Icon  templ.Component
+	Size  button.Size
+	Class string
+	Attrs templ.Attributes
+}
+
+// Trigger is the standard "start a long-running operation" button. Clicking
+// it POSTs /jobs, disables itself with a spinner for the duration of the
+// request (immediate visual feedback), and appends the new job to the
+// #jobs-operations-list stack rendered by Operations. The button never waits
+// for the job itself — progress is reported by the polling job item.
+templ Trigger(props TriggerProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ paramsJSON, _ := json.Marshal(props.Params) }}
+	<button
+		type="button"
+		class={ "cursor-pointer shrink-0 btn btn-secondary btn-with-icon flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed", buttonSizeClass(props.Size), props.Class }
+		hx-post="/jobs"
+		hx-target="#jobs-operations-list"
+		hx-swap="beforeend"
+		hx-disabled-elt="this"
+		{ props.Attrs... }
+	>
+		<input type="hidden" name="kind" value={ props.Kind }/>
+		<input type="hidden" name="params" value={ string(paramsJSON) }/>
+		<span class="htmx-indicator flex items-center">
+			@loaders.Spinner(loaders.SpinnerProps{SpinnerClass: templ.Classes("w-4 h-4")})
+		</span>
+		<span class="htmx-request:hidden flex items-center gap-2">
+			if props.Icon != nil {
+				@props.Icon
+			} else {
+				@icons.Download(icons.Props{Size: "18"})
+			}
+			if props.Label != "" {
+				{ props.Label }
+			} else {
+				{ orDefault(pageCtx.TSafe("Jobs.Actions.Run"), "Run") }
+			}
+		</span>
+	</button>
+}
+
+func buttonSizeClass(size button.Size) string {
+	switch size {
+	case button.SizeMD:
+		return "btn-md"
+	case button.SizeSM:
+		return "btn-sm"
+	case button.SizeXS:
+		return "btn-xs"
+	default:
+		return "btn-normal"
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm"
 	"github.com/iota-uz/iota-sdk/modules/finance"
 	"github.com/iota-uz/iota-sdk/modules/hrm"
+	"github.com/iota-uz/iota-sdk/modules/jobs"
 	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/modules/oidc"
 	"github.com/iota-uz/iota-sdk/modules/projects"
@@ -35,6 +36,7 @@ func Components() []composition.Component {
 		website.NewComponent(),
 		billing.NewComponent(),
 		oidc.NewComponent(&oidc.ModuleOptions{}),
+		jobs.NewComponent(),
 		testkit.NewComponent(),
 	}
 }
