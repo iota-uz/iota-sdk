@@ -160,6 +160,19 @@ func TestUsersTable_BodyMatchesCreatedEventTarget(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, doc.Find(UsersTableBodySelector).Length())
 
+	editable := table.NewTableConfig("Editable users", "/users")
+	editable.BodyAttrs = cfg.BodyAttrs
+	editable.Editable.Enabled = true
+	b.Reset()
+	require.NoError(t, table.Table(editable).Render(ctx, &b))
+	doc, err = goquery.NewDocumentFromReader(strings.NewReader(b.String()))
+	require.NoError(t, err)
+	body := doc.Find(UsersTableBodySelector)
+	require.Equal(t, 1, body.Length())
+	assert.Equal(t, "false", body.AttrOr("hx-push-url", ""))
+	assert.Equal(t, "tableKeyboardNav", body.AttrOr("x-data", ""))
+	assert.Equal(t, "onKey", body.AttrOr("@keydown", ""))
+
 	other := table.NewTableConfig("Leads", "/leads")
 	b.Reset()
 	require.NoError(t, table.Table(other).Render(ctx, &b))

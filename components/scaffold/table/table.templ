@@ -436,7 +436,7 @@ templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 				}
 			}
 			if config.Editable.Enabled {
-				<tbody>
+				<tbody { tbodyAttrs... }>
 					<tr @click="addRow">
 						<td colspan="100%" class={ "border-t border-subtle", templ.KV("pt-4 px-4", !config.Editable.WithoutCreate) } id={ fmt.Sprintf("%s-add", config.Editable.Key) } hx-swap-oob="true">
 							if  !config.Editable.WithoutCreate {
