@@ -1166,15 +1166,19 @@ type DeferredPanel struct {
 }
 
 type TableConfig struct {
-	ID                string
-	Configurable      bool
-	Title             string
-	DataURL           string
-	Filters           []templ.Component
-	Actions           []templ.Component // Actions like Create button
-	Columns           []TableColumn
-	Rows              []TableRow
-	Head              TableHeadConfig
+	ID           string
+	Configurable bool
+	Title        string
+	DataURL      string
+	Filters      []templ.Component
+	Actions      []templ.Component // Actions like Create button
+	Columns      []TableColumn
+	Rows         []TableRow
+	Head         TableHeadConfig
+	// BodyAttrs adds attributes to the rows <tbody>. Its id stays "table-body",
+	// so realtime out-of-band swaps can target one table with
+	// "#table-body[attr]" instead of every table on the page.
+	BodyAttrs         templ.Attributes
 	Infinite          *InfiniteScrollConfig
 	SideFilter        templ.Component
 	Editable          TableEditableConfig

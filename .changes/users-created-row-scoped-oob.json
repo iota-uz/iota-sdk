@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Insert a newly created user's realtime row only into the Users list instead of every open sfui table, and add TableConfig.BodyAttrs for extra tbody attributes."}

@@ -11,6 +11,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
@@ -121,8 +122,9 @@ func TestUserRow_RendersUserContent(t *testing.T) {
 }
 
 // TestUserCreatedEvent_OOBTarget verifies the realtime "row created" broadcast
-// targets #table-body (sfui's hardcoded tbody id), not the old
-// #users-table-body id the legacy base.Table implementation used.
+// targets only the Users list body. Every sfui table body has id="table-body",
+// so a bare "#table-body" target inserted the user row into whatever table the
+// recipient had open (iota-uz/iota-sdk#1181).
 func TestUserCreatedEvent_OOBTarget(t *testing.T) {
 	t.Parallel()
 
@@ -136,7 +138,35 @@ func TestUserCreatedEvent_OOBTarget(t *testing.T) {
 	require.Equal(t, 1, tbody.Length())
 	swapOOB, ok := tbody.Attr("hx-swap-oob")
 	require.True(t, ok)
-	assert.Equal(t, "afterbegin:#table-body", swapOOB)
+	assert.Equal(t, "afterbegin:#table-body[data-users-table]", swapOOB)
+	assert.NotEqual(t, "afterbegin:#table-body", swapOOB)
+}
+
+// TestUsersTable_BodyMatchesCreatedEventTarget verifies the rendered Users
+// list carries the marker the created-user broadcast targets, so the row
+// still appears live on /users, while a table without it does not match.
+func TestUsersTable_BodyMatchesCreatedEventTarget(t *testing.T) {
+	t.Parallel()
+
+	email, err := internet.NewEmail("jane@example.com")
+	require.NoError(t, err)
+	ctx := composables.WithUser(usersTestCtx(), user.New("Jane", "Doe", email, user.UILanguageEN))
+	req := httptest.NewRequest(http.MethodGet, "/users", nil)
+	cfg := BuildTableConfig(ctx, &IndexPageProps{Users: []*viewmodels.User{testUser()}}, req)
+
+	var b strings.Builder
+	require.NoError(t, table.Table(cfg).Render(ctx, &b))
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(b.String()))
+	require.NoError(t, err)
+	assert.Equal(t, 1, doc.Find(UsersTableBodySelector).Length())
+
+	other := table.NewTableConfig("Leads", "/leads")
+	b.Reset()
+	require.NoError(t, table.Table(other).Render(ctx, &b))
+	doc, err = goquery.NewDocumentFromReader(strings.NewReader(b.String()))
+	require.NoError(t, err)
+	assert.Equal(t, 1, doc.Find("#table-body").Length())
+	assert.Equal(t, 0, doc.Find(UsersTableBodySelector).Length())
 }
 
 // TestBuildTableConfig_ActionGating verifies the "New user" action (folded
