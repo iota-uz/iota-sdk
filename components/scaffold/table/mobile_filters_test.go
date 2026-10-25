@@ -3,6 +3,7 @@ package table
 import (
 	"context"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -41,7 +42,15 @@ func TestMobileFiltersReachableInPageAndEmbeddedTable(t *testing.T) {
 				if filterKind == "none" {
 					expected = 0
 				}
-				require.Equal(t, expected, strings.Count(output.String(), "$dispatch(&#39;open-filters&#39;)"))
+				require.Equal(t, expected, strings.Count(output.String(), "$dispatch(&#39;open-filters-"))
+				if expected > 0 {
+					action := regexp.MustCompile(`\$dispatch\(&#39;(open-filters-[a-f0-9-]+)&#39;\)`).FindStringSubmatch(output.String())
+					require.Len(t, action, 2)
+					require.Contains(t, output.String(), "@"+action[1]+".window")
+					var second strings.Builder
+					require.NoError(t, layout.render(cfg).Render(ctx, &second))
+					require.NotContains(t, second.String(), action[1], "even repeated configurations must have isolated drawer actions")
+				}
 				require.Equal(t, 1, strings.Count(output.String(), "<form"), "drawer close must not nest a form inside the filter form")
 			})
 		}

@@ -710,6 +710,10 @@ templ TableContent(config *TableConfig) {
 
 // TableSection combines filters and table into one form to enable unified HTMX update
 templ TableSection(config *TableConfig) {
+	@tableSection(config, "open-filters")
+}
+
+templ tableSection(config *TableConfig, filterAction string) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{
 		// Editor controls inside filter-builder popovers must not resubmit the
@@ -769,7 +773,7 @@ templ TableSection(config *TableConfig) {
 		</div>
 		@filters.Drawer(filters.DrawerProps{
 			Heading: pageCtx.T("Scaffold.Filters.Title"),
-			Action:  "open-filters",
+			Action:  filterAction,
 		}) {
 			<div x-data="disableFormElementsWhen('(min-width: 48rem)')">
 				if config.SideFilter != nil {
@@ -850,17 +854,18 @@ templ TableSettingsTrigger() {
 
 // EmbeddedContent renders the table content without margins for embedded view
 templ EmbeddedContent(config *TableConfig) {
+	{{ filterAction := "open-filters-" + uuid.NewString() }}
 	if config.SideFilter != nil || len(config.Filters) > 0 {
 		<div class="flex justify-end mb-3 md:hidden">
-			@mobileFiltersTrigger()
+			@mobileFiltersTrigger(filterAction)
 		</div>
 	}
-	@TableSection(config)
+	@tableSection(config, filterAction)
 	<!-- Placeholder for the view drawer -->
 	<div id="view-drawer"></div>
 }
 
-templ mobileFiltersTrigger() {
+templ mobileFiltersTrigger(action string) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@button.Secondary(button.Props{
 		Size: button.SizeNormal,
@@ -868,7 +873,7 @@ templ mobileFiltersTrigger() {
 		Attrs: templ.Attributes{
 			"type":   "button",
 			"x-data": "",
-			"@click": "$dispatch('open-filters')",
+			"@click": fmt.Sprintf("$dispatch('%s')", action),
 		},
 	}) {
 		{ pageCtx.T("Scaffold.Filters.Title") }

@@ -26,7 +26,7 @@ templ ProjectStagesContent(props *IndexPageProps) {
 				hx-swap="outerHTML"
 			>
 				<div class="w-full md:flex-1">
-				@filters.Search([]filters.SearchField{
+					@filters.Search([]filters.SearchField{
 						{
 							Label: pageCtx.T("ProjectStages.List._Description"),
 							Key:   "description",
@@ -35,7 +35,7 @@ templ ProjectStagesContent(props *IndexPageProps) {
 							Label: pageCtx.T("ProjectStages.List.StageNumber"),
 							Key:   "stage_number",
 						},
-				})
+					})
 				</div>
 				@filters.PageSize()
 				@filters.CreatedAt()
