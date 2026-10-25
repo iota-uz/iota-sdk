@@ -67,18 +67,15 @@ let dateFns = () => ({
   },
   startOfWeek(factor = 0) {
     let date = new Date();
-    let firstDay = (date.getDate() - date.getDay() + 1) - factor * 7
-    date.setDate(firstDay)
+    const daysSinceMonday = (date.getDay() + 6) % 7;
+    date.setDate(date.getDate() - daysSinceMonday - factor * 7);
     date.setHours(0, 0, 0, 0);
-    return new Date(date).toISOString();
+    return date.toISOString();
   },
   endOfWeek(factor = 0) {
-    let date = new Date();
-    let firstDay = (date.getDate() - date.getDay() + 1) - factor * 7
-    let lastDay = firstDay + 7
-    date.setDate(lastDay);
-    date.setHours(0, 0, 0, 0);
-    return new Date(date.setDate(lastDay)).toISOString();
+    const date = new Date(this.startOfWeek(factor));
+    date.setDate(date.getDate() + 7);
+    return date.toISOString();
   },
   startOfMonth(months = 0) {
     let date = new Date();

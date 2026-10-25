@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Correct Monday-based date filter weeks on Sundays and calculate exclusive week ends across month, year, and daylight-saving boundaries."}
