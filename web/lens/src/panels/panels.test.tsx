@@ -162,6 +162,15 @@ function renderKind(kind: PanelKind) {
 
 const baseDocument = runtime.document
 
+it('shows category names for a compact pie without explicit legend hints', async () => {
+  runtime.frame = { data: { columns: [{ name: 'label', type: 'string' }, { name: 'value', type: 'number' }], rows: [['Alpha', 10], ['Beta', 20]] }, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(360)
+  const view = render(() => <PiePanel panel={panel('pie', { encoding: { label: 'label', value: 'value' } })} adapter={fakeAdapter()} />)
+  await screen.findByRole('button', { name: 'chart data' })
+  expect(legendLabels(view.container)).toEqual(['Alpha', 'Beta'])
+  vi.restoreAllMocks()
+})
+
 afterEach(() => {
   cleanup()
   runtime.drillInto.mockReset()
