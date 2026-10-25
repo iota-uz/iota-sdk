@@ -8,7 +8,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { compactChartLabelWidth } from '../../breakpoints'
 import type { ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../adapter'
 import { nodeKeyFromEvent } from './events'
-import { annotationsAtAxisValue, buildChartOption, categoryLabelLimit } from './options'
+import { annotationsAtAxisValue, buildChartOption, categoryTickBudget, categoryLabelLimit } from './options'
 import { installTooltipCopyDelegate } from './tooltip'
 import { buildEChartsTheme } from './theme'
 
@@ -159,7 +159,11 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
       let renderRevision = 0
       let readinessFrame: number | undefined
 
-      const responsiveInput = (): ChartInput => ({ ...input, viewportWidth: element.clientWidth })
+      let renderedWidth = element.clientWidth
+      const responsiveInput = (): ChartInput => {
+        renderedWidth = element.clientWidth
+        return { ...input, viewportWidth: renderedWidth }
+      }
 
       // `setOption` and `resize` only enqueue work in ECharts. In particular,
       // ResizeObserver can fire after the first option has been accepted and
@@ -340,8 +344,8 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
         // width changes, keeps that off the per-pixel resize path.
         const labelDecision = (box: number) => input.kind === 'donut' || input.kind === 'pie'
           ? String(box < compactChartLabelWidth)
-          : input.kind === 'hbar' ? String(categoryLabelLimit(box)) : ''
-        const labelsChanged = appliedBox ? labelDecision(appliedBox.width) !== labelDecision(width) : false
+          : input.kind === 'hbar' ? String(categoryLabelLimit(box)) : String(categoryTickBudget(box))
+        const labelsChanged = labelDecision(renderedWidth) !== labelDecision(width)
         appliedBox = { width, height }
         beginRender()
         chart.resize({ width, height })

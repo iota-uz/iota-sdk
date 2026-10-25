@@ -13,6 +13,7 @@ export interface ChartHostProps {
   label?: string
   drillable?: boolean
   resetZoomKey?: number
+  onWidthChange?: (width: number) => void
 }
 
 export function ChartHost(props: ChartHostProps) {
@@ -32,6 +33,10 @@ export function ChartHost(props: ChartHostProps) {
   // chart.
   onMount(() => {
     let disposed = false
+    const measureWidth = () => { if (hostRef) props.onWidthChange?.(hostRef.clientWidth) }
+    measureWidth()
+    const widthObserver = props.onWidthChange && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measureWidth) : undefined
+    if (hostRef) widthObserver?.observe(hostRef)
     const events: ChartEvents = {
       onSelect: (key, anchor, activation) => props.onSelect?.(key, anchor, activation),
       onHover: (key) => props.onHover?.(key),
@@ -52,6 +57,7 @@ export function ChartHost(props: ChartHostProps) {
       })
 
     onCleanup(() => {
+      widthObserver?.disconnect()
       disposed = true
       instance?.dispose()
       instance = undefined

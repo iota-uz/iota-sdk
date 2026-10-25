@@ -39,3 +39,8 @@ export const stackedCalendarMediaQuery = `(max-width: ${stackedCalendarMaxWidth}
  * time and a resize alone will not revisit it.
  */
 export const compactChartLabelWidth = 500
+
+export function hideOutsidePieLabels(kind: string, width: number | undefined, sliceLabels: string | undefined): boolean {
+  return (kind === 'pie' || kind === 'donut') && width !== undefined && width < compactChartLabelWidth
+    && sliceLabels !== 'percent' && sliceLabels !== 'label'
+}

@@ -1,7 +1,7 @@
 import { Portal as HostPortal } from '@iota-uz/sdk/solid';
 import { cssLength } from "../utils/cssLength";
 import { type JSX, splitProps, mergeProps, createSignal, createMemo, createEffect, on, onMount, onCleanup, untrack, createContext, useContext, lazy, Suspense, createUniqueId, Show, For } from "solid-js";
-import { Sidebar, ShareNetwork } from '../icons';
+import { Sidebar, ShareNetwork, X } from '../icons';
 import { ChatSessionProvider, useChatSession, useChatMessaging, useChatInput } from '../context/ChatContext';
 import { ChatDataSource, ConversationTurn, type SessionUser } from '../types';
 import { RateLimiter } from '../utils/RateLimiter';
@@ -343,8 +343,15 @@ function ChatSessionCore(solidProps1Input: Omit<ChatSessionProps, 'sessionId'>) 
 
         
           {shouldRenderArtifactsPanel() && activeSessionId() && narrowArtifacts() && (<HostPortal surface="drawer" class="fixed inset-0 flex" label={solidState2.t('BiChat.Artifacts.Title')} onEscape={handleToggleArtifactsPanel}>
-              <button type="button" class="cursor-pointer flex-1 bg-black/40" onClick={handleToggleArtifactsPanel} aria-label={solidState2.t('BiChat.Common.Close')}/>
-              <SessionArtifactsPanel dataSource={solidProps1.dataSource} sessionId={activeSessionId()!} isStreaming={solidState4.isStreaming} allowDrop={!effectiveReadOnly()} className="flex h-full w-full max-w-sm min-h-0"/>
+              <div class="cursor-pointer min-w-0 flex-1 bg-black/40" onClick={handleToggleArtifactsPanel} aria-hidden="true"/>
+              <div class="flex h-full w-full max-w-sm flex-none flex-col bg-white dark:bg-gray-900">
+                <div class="flex justify-end border-b border-gray-200 p-2 dark:border-gray-700">
+                  <button type="button" class="cursor-pointer rounded-lg p-2 text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800" onClick={handleToggleArtifactsPanel} aria-label={solidState2.t('BiChat.Common.Close')}>
+                    <X size={20}/>
+                  </button>
+                </div>
+                <SessionArtifactsPanel dataSource={solidProps1.dataSource} sessionId={activeSessionId()!} isStreaming={solidState4.isStreaming} allowDrop={!effectiveReadOnly()} className="min-h-0 w-full"/>
+              </div>
             </HostPortal>)}
         
       </div>

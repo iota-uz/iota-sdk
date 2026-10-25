@@ -162,6 +162,15 @@ function renderKind(kind: PanelKind) {
 
 const baseDocument = runtime.document
 
+it.each(['label', 'missing-label'])('shows compact pie category names when the label role is %s', async (label) => {
+  runtime.frame = { data: { columns: [{ name: 'label', type: 'string' }, { name: 'value', type: 'number' }], rows: [['Alpha', 10], ['Beta', 20]] }, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(360)
+  const view = render(() => <PiePanel panel={panel('pie', { encoding: { label, category: 'label', value: 'value' } })} adapter={fakeAdapter()} />)
+  await screen.findByRole('button', { name: 'chart data' })
+  expect(legendLabels(view.container)).toEqual(['Alpha', 'Beta'])
+  vi.restoreAllMocks()
+})
+
 afterEach(() => {
   cleanup()
   runtime.drillInto.mockReset()
