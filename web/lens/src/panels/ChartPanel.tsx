@@ -979,7 +979,8 @@ function ChartLegend(props: {
   const [beyondFold, setBeyondFold] = createSignal(0)
   const [expanded, setExpanded] = createSignal(false)
   const seriesLegendIndex = legendSeriesIndex(frame, panel)
-  const labelField = seriesLegendIndex >= 0 ? panel.encoding.series : (panel.encoding.label ?? panel.encoding.category)
+  const labelField = seriesLegendIndex >= 0 ? panel.encoding.series : [panel.encoding.label, panel.encoding.category]
+    .find(field => field !== undefined && frame.columns.some(column => column.name === field))
   const valueField = panel.encoding.value
   const formatValue = useFormat(valueField ? panel.format[valueField] : undefined)
   const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
