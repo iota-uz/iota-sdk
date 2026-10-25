@@ -1,0 +1,14 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Reserve mobile BiChat header space for navigation and adapt Lens axis density and pie callouts to narrow chart widths."
+    },
+    {
+      "bump": "patch",
+      "summary": "Restore mobile embedded table filters, wrap project stage controls, recalculate workspace tab indicators after opening hidden navigation, and preserve avatar proportions."
+    }
+  ],
+  "source": "ba33e63dfeda4e637a51d926d561b3d055ffa7c4",
+  "version": "0.29.1"
+}
