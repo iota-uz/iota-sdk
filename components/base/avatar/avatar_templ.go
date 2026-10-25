@@ -73,7 +73,7 @@ func Avatar(props Props) templ.Component {
 		var templ_7745c5c3_Var2 = []any{
 			twmerge.Merge(
 				// TODO: sizes should be enums
-				"w-9 h-9 font-medium flex items-center justify-center cursor-pointer text-white",
+				"w-9 h-9 shrink-0 font-medium flex items-center justify-center cursor-pointer text-white",
 				props.Class.String(),
 			),
 			templ.KV("rounded-full", props.Variant != Square),

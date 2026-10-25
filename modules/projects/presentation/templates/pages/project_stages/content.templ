@@ -19,14 +19,14 @@ templ ProjectStagesContent(props *IndexPageProps) {
 		</div>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg" x-data="dateFns">
 			<form
-				class="p-4 flex items-center gap-3"
+				class="p-4 flex flex-wrap items-center gap-3 [&>div]:min-w-0"
 				hx-get="/project-stages"
 				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
 				hx-target=".table-wrapper"
 				hx-swap="outerHTML"
 			>
-				@filters.Default(&filters.Props{
-					Fields: []filters.SearchField{
+				<div class="w-full md:flex-1">
+				@filters.Search([]filters.SearchField{
 						{
 							Label: pageCtx.T("ProjectStages.List._Description"),
 							Key:   "description",
@@ -35,8 +35,10 @@ templ ProjectStagesContent(props *IndexPageProps) {
 							Label: pageCtx.T("ProjectStages.List.StageNumber"),
 							Key:   "stage_number",
 						},
-					},
 				})
+				</div>
+				@filters.PageSize()
+				@filters.CreatedAt()
 				@button.Primary(button.Props{
 					Size: button.SizeNormal,
 					Href: "/project-stages/new/drawer",

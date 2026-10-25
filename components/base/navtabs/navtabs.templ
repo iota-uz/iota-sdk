@@ -18,7 +18,6 @@ type Props struct {
 templ Root(props Props) {
 	<div
 		x-data={ fmt.Sprintf("navTabs('%s')", props.DefaultValue) }
-		x-init="init()"
 		class={ props.Class }
 		{ props.Attrs... }
 	>
