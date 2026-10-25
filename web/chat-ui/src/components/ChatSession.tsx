@@ -343,7 +343,7 @@ function ChatSessionCore(solidProps1Input: Omit<ChatSessionProps, 'sessionId'>) 
 
         
           {shouldRenderArtifactsPanel() && activeSessionId() && narrowArtifacts() && (<HostPortal surface="drawer" class="fixed inset-0 flex" label={solidState2.t('BiChat.Artifacts.Title')} onEscape={handleToggleArtifactsPanel}>
-              <button type="button" class="cursor-pointer min-w-0 flex-1 bg-black/40" onClick={handleToggleArtifactsPanel} aria-label={solidState2.t('BiChat.Common.Close')} tabindex={-1}/>
+              <div class="cursor-pointer min-w-0 flex-1 bg-black/40" onClick={handleToggleArtifactsPanel} aria-hidden="true"/>
               <div class="flex h-full w-full max-w-sm flex-none flex-col bg-white dark:bg-gray-900">
                 <div class="flex justify-end border-b border-gray-200 p-2 dark:border-gray-700">
                   <button type="button" class="cursor-pointer rounded-lg p-2 text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800" onClick={handleToggleArtifactsPanel} aria-label={solidState2.t('BiChat.Common.Close')}>
