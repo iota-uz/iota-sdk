@@ -1,5 +1,5 @@
 import type { EChartsOption } from 'echarts'
-import { compactChartLabelWidth } from '../../breakpoints'
+import { compactChartLabelWidth, hideOutsidePieLabels } from '../../breakpoints'
 import type { Presentation } from '../../contract'
 import { isVisualRegression } from '../../visualRegression'
 import { radialNodeKey, type ChartInput } from '../adapter'
@@ -724,7 +724,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const fill = input.presentation?.fill === true
   const sliceLabels = input.presentation?.sliceLabels
   const insideLabels = sliceLabels === 'percent' || sliceLabels === 'label'
-  const hideOutsideLabels = !insideLabels && input.viewportWidth !== undefined && input.viewportWidth < compactChartLabelWidth
+  const hideOutsideLabels = hideOutsidePieLabels(input.kind, input.viewportWidth, sliceLabels)
   // Shares are resolved here, once, against the authoritative total — not left
   // to ECharts' `params.percent`, which can only ever normalize the rows it was
   // handed and so drifts as soon as anything is collapsed or hidden.

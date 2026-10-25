@@ -25,6 +25,7 @@ import { ChartHost } from './ChartHost'
 import { useMarkSelection } from './context'
 import { colorLabels, encodingRoles, frameSeriesColorResolver, rowColorResolver } from './data'
 import { PanelFrame } from './PanelFrame'
+import { hideOutsidePieLabels } from '../breakpoints'
 
 // Below 2% a donut label cannot fit reliably inside its arc.
 const minorDonutShare = 0.02
@@ -704,7 +705,9 @@ export function ChartPanel(props: ChartPanelProps) {
   // the plot's width. Naming the marks (79f477ac8) was right; taking a column
   // for them meant «Поступления денежных средств» gave up 240px to print a
   // heading and two struck-through names of marks it was not currently drawing.
-  const hasLegend = () => !compact() && presentation()?.legend === 'below' && Boolean(renderFrame())
+  const [plotWidth, setPlotWidth] = createSignal<number>()
+  const hasLegend = () => Boolean(renderFrame()) && ((!compact() && presentation()?.legend === 'below')
+    || hideOutsidePieLabels(kind, plotWidth(), presentation()?.sliceLabels))
   const hasMarks = () => !compact() && overlays().length > 0 && Boolean(renderFrame())
   const chartInteractive = () => interactive() || collapsedRemainder().collapsed
   const categoryField = panel.encoding.category ?? panel.encoding.label
@@ -816,6 +819,7 @@ export function ChartPanel(props: ChartPanelProps) {
                 translate={translate}
               />
               <ChartHost
+                onWidthChange={setPlotWidth}
                 input={hostInput()!}
                 panelId={panel.id}
                 adapter={props.adapter}

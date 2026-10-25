@@ -159,7 +159,11 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
       let renderRevision = 0
       let readinessFrame: number | undefined
 
-      const responsiveInput = (): ChartInput => ({ ...input, viewportWidth: element.clientWidth })
+      let renderedWidth = element.clientWidth
+      const responsiveInput = (): ChartInput => {
+        renderedWidth = element.clientWidth
+        return { ...input, viewportWidth: renderedWidth }
+      }
 
       // `setOption` and `resize` only enqueue work in ECharts. In particular,
       // ResizeObserver can fire after the first option has been accepted and
@@ -341,7 +345,7 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
         const labelDecision = (box: number) => input.kind === 'donut' || input.kind === 'pie'
           ? String(box < compactChartLabelWidth)
           : input.kind === 'hbar' ? String(categoryLabelLimit(box)) : String(categoryTickBudget(box))
-        const labelsChanged = appliedBox ? labelDecision(appliedBox.width) !== labelDecision(width) : false
+        const labelsChanged = labelDecision(renderedWidth) !== labelDecision(width)
         appliedBox = { width, height }
         beginRender()
         chart.resize({ width, height })
