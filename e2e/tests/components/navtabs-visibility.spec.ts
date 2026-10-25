@@ -17,7 +17,7 @@ test('workspace indicator follows first opening of a hidden sidebar', async ({ p
 				<div x-show="!isCollapsed" x-transition>
 					<div x-data="navTabs('erp')">
 						<div x-ref="tabsContainer" style="display:flex;position:relative;width:260px">
-							<div data-indicator :style="'width:'+backgroundStyle.width+'px;left:'+backgroundStyle.left+'px'"></div>
+							<div data-indicator :style="'width:'+backgroundStyle.width+'px;left:'+backgroundStyle.left+'px;opacity:'+backgroundStyle.opacity"></div>
 							<button data-tab-value="erp" style="width:130px">ERP</button>
 							<button data-tab-value="edo" style="width:130px">EDO</button>
 						</div>
@@ -30,6 +30,7 @@ test('workspace indicator follows first opening of a hidden sidebar', async ({ p
 	await page.getByRole('button', { name: 'Expand sidebar' }).click();
 	await expect(page.locator('[data-tab-value="erp"]')).toBeVisible();
 	await expect.poll(() => page.locator('[data-indicator]').evaluate((element) => element.style.width)).toBe('130px');
+	await expect(page.locator('[data-indicator]')).toHaveCSS('opacity', '1');
 });
 
 test('HTMX-swapped filter drawer initializes once and remains open', async ({ page }) => {

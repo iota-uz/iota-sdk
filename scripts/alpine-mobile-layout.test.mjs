@@ -35,6 +35,7 @@ test("workspace indicator measures again after hidden mobile navigation becomes 
   resized();
   assert.equal(state.backgroundStyle.left, 6);
   assert.equal(state.backgroundStyle.width, 120);
+  assert.equal(state.backgroundStyle.opacity, 1);
   state.destroy();
   assert.equal(disconnected, true);
 });
