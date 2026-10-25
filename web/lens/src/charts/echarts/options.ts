@@ -724,6 +724,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const fill = input.presentation?.fill === true
   const sliceLabels = input.presentation?.sliceLabels
   const insideLabels = sliceLabels === 'percent' || sliceLabels === 'label'
+  const hideOutsideLabels = !insideLabels && input.viewportWidth !== undefined && input.viewportWidth < compactChartLabelWidth
   // Shares are resolved here, once, against the authoritative total — not left
   // to ECharts' `params.percent`, which can only ever normalize the rows it was
   // handed and so drifts as soon as anything is collapsed or hidden.
@@ -788,8 +789,8 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       // where the true value reads 87.6. Ask for the raw share and round once.
       percentPrecision: rawPercentPrecision,
       minAngle: minimumSliceAngle,
-      label,
-      labelLine: insideLabels ? { show: false } : { lineStyle: { color: theme.border } },
+      label: hideOutsideLabels ? { show: false } : label,
+      labelLine: insideLabels || hideOutsideLabels ? { show: false } : { lineStyle: { color: theme.border } },
       ...compositionFocus(theme),
       data: points.map((point, index) => {
         const item = dataItem(point, input, theme)
@@ -1287,9 +1288,13 @@ export function shouldPrintDataLabels(options: {
  * stacked over the same quarters — the premium bars and the ratio line beneath
  * them — labelled every third quarter and every second one respectively, and
  * could not be read against each other at all. Deriving the stride from the
- * category count alone makes it a property of the domain, so two panels sharing
- * a domain share a grid whatever their labels happen to measure.
+ * category count and available width keeps equally sized panels on the same
+ * domain aligned while leaving room for month/year labels on mobile.
  */
+export function categoryTickBudget(plotWidth: number | undefined): number {
+  return plotWidth === undefined ? 8 : Math.max(1, Math.min(8, Math.floor((plotWidth - 96) / 80)))
+}
+
 export function categoryTickInterval(count: number, maximumTicks = 8): number {
   if (count <= maximumTicks) return 0
   return Math.ceil(count / maximumTicks) - 1
@@ -1760,12 +1765,12 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     ...axisStyle(theme),
     // One stride for a given number of categories, so two panels over the same
     // domain print the same grid.
-    ...(horizontal ? {} : { axisLabel: { color: theme.mutedText, interval: categoryTickInterval(categories.length) } }),
+    ...(horizontal ? {} : { axisLabel: { color: theme.mutedText, interval: categoryTickInterval(categories.length, categoryTickBudget(input.viewportWidth)), hideOverlap: true } }),
     ...(annotatedTicks.size > 0 && !horizontal
       ? {
         axisLabel: {
           color: theme.mutedText,
-          interval: categoryTickInterval(categories.length),
+          interval: categoryTickInterval(categories.length, categoryTickBudget(input.viewportWidth)), hideOverlap: true,
           formatter: (value: string) => tickLabel(String(value)),
           rich: annotatedRich,
         },
@@ -1787,11 +1792,13 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   }
   const temporalAxis = {
     type: 'time' as const,
+    splitNumber: categoryTickBudget(input.viewportWidth),
     triggerEvent: true,
     ...axisStyle(theme),
     axisLabel: {
       color: theme.mutedText,
       formatter: (value: number) => tickLabel(timeLabel(input, categoryField, value)),
+      hideOverlap: true,
       ...(annotatedTicks.size > 0 ? { rich: annotatedRich } : {}),
     },
   }

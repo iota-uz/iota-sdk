@@ -506,7 +506,7 @@ export default function Sidebar(solidProps2Input: SidebarProps) {
     return (<>
       <aside onClick={collapsible() ? handleSidebarClick : undefined} class={`relative bg-surface-300 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 h-full min-h-0 flex flex-col ${collapsedOverflowVisible() ? 'overflow-visible' : 'overflow-hidden'} transition-[width] duration-300 ease-in-out ${showCollapsed() ? 'w-16 cursor-e-resize'
             : collapsible() ? 'w-64 cursor-w-resize'
-                : 'w-64'} ${solidProps2.className}`} style={{ "will-change": 'width' }} role="navigation" aria-label={solidState3.t('BiChat.Sidebar.ChatSessions')}>
+                : 'w-full'} ${solidProps2.className}`} style={{ "will-change": 'width' }} role="navigation" aria-label={solidState3.t('BiChat.Sidebar.ChatSessions')}>
         {/* Collapsed overlay — absolutely positioned, fades in after width shrinks */}
         {collapsible() && (<div class={`absolute inset-x-0 top-0 bottom-0 z-10 flex flex-col items-center pt-3 gap-3 transition-opacity ${showCollapsed() ? 'opacity-100 duration-150 delay-100'
                 : 'opacity-0 pointer-events-none duration-100'}`}>

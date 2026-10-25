@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ChartInput } from '../adapter'
 import { fallbackMarkKey } from '../keys'
 import {
-  buildChartOption, categoryLabelLimit, categoryLabelWidth, categoryTickInterval, donutSliceLabel, middleEllipsis,
+  buildChartOption, categoryLabelLimit, categoryLabelWidth, categoryTickBudget, categoryTickInterval, donutSliceLabel, middleEllipsis,
   niceLogMaximum, rawPercentPrecision, slicePercentLabel,
 } from './options'
 import type { EChartsTheme } from './theme'
@@ -585,6 +585,28 @@ describe('buildChartOption', () => {
     expect(categoryTickInterval(24)).toBe(2)
     // Two panels over the same domain therefore agree, whatever they label.
     expect(categoryTickInterval(24)).toBe(categoryTickInterval(24))
+  })
+
+  it.each([360, 390, 430])('keeps monthly categories readable in a %ipx plot', (width) => {
+    const value = input('bar')
+    value.viewportWidth = width
+    value.frame.rows = Array.from({ length: 12 }, (_, month) => [String(month), `${month + 1}.2026`, 'Revenue', 1200])
+    const chart = buildChartOption(value, theme) as { xAxis: { axisLabel: { interval: number, hideOverlap: boolean } } }
+    const visibleTicks = Math.ceil(12 / (chart.xAxis.axisLabel.interval + 1))
+    expect(visibleTicks).toBeLessThanOrEqual(categoryTickBudget(width))
+    expect(chart.xAxis.axisLabel.hideOverlap).toBe(true)
+    const desktop = buildChartOption({ ...value, viewportWidth: 1200 }, theme) as typeof chart
+    expect(desktop.xAxis.axisLabel.interval).toBeLessThan(chart.xAxis.axisLabel.interval)
+  })
+
+  it.each([360, 390, 430])('uses the legend instead of clipped outside pie labels at %ipx', (width) => {
+    const value = { ...input('pie'), viewportWidth: width }
+    const chart = buildChartOption(value, theme) as { series: Array<{ label: { show?: boolean }, labelLine: { show?: boolean }, data: unknown[] }> }
+    expect(chart.series[0]?.label.show).toBe(false)
+    expect(chart.series[0]?.labelLine.show).toBe(false)
+    expect(chart.series[0]?.data).toHaveLength(value.frame.rows.length)
+    const desktop = buildChartOption({ ...value, viewportWidth: 1200 }, theme) as typeof chart
+    expect(desktop.series[0]?.label.show).not.toBe(false)
   })
 
   it('sizes the horizontal-bar name column off the plot instead of a constant', () => {

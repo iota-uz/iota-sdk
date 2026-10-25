@@ -47,7 +47,7 @@ export function BiChatLayout(solidProps1Input: BiChatLayoutProps) {
             solidState3.closeMobile();
         }
     };
-    return (<div class={`relative flex flex-1 w-full h-full min-h-0 overflow-hidden ${solidProps1.className}`}>
+    return (<div class={`relative flex flex-1 w-full h-full min-h-0 overflow-hidden ${solidProps1.className}`} style={{ "--bichat-header-start-padding": solidState3.isMobile ? "4rem" : "1rem", "--bichat-header-min-height": solidState3.isMobile ? "4rem" : "auto" }}>
       <SkipLink />
 
       {/* Sidebar — desktop */}
@@ -61,7 +61,7 @@ export function BiChatLayout(solidProps1Input: BiChatLayoutProps) {
             {/* Backdrop */}
             <div class="fixed inset-0 z-[var(--bichat-z-overlay,30)] bg-black/40" onClick={solidState3.closeMobile} aria-hidden="true"/>
             {/* Drawer */}
-            <div class="fixed inset-y-0 left-0 z-[var(--bichat-z-modal,40)] w-[18rem] max-w-[85vw] shadow-2xl" {...drawerGesture.handlers} style={{ "transform": `translateX(${drawerGesture.offset()}px)`, "touch-action": "pan-y" }} onClick={(e) => e.stopPropagation()}>
+            <div class="fixed inset-y-0 left-0 z-[var(--bichat-z-modal,40)] w-64 max-w-[85vw] shadow-2xl" {...drawerGesture.handlers} style={{ "transform": `translateX(${drawerGesture.offset()}px)`, "touch-action": "pan-y" }} onClick={(e) => e.stopPropagation()}>
               <div ref={element => drawerRef.current = element} class="h-full bg-white dark:bg-gray-900">
                 {solidProps1.renderSidebar({ onClose: solidState3.closeMobile })}
               </div>
