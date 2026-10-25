@@ -31,3 +31,40 @@ test('workspace indicator follows first opening of a hidden sidebar', async ({ p
 	await expect(page.locator('[data-tab-value="erp"]')).toBeVisible();
 	await expect.poll(() => page.locator('[data-indicator]').evaluate((element) => element.style.width)).toBe('130px');
 });
+
+test('HTMX-swapped filter drawer initializes once and remains open', async ({ page }) => {
+	const assets = path.resolve(__dirname, '../../../modules/core/presentation/assets');
+	await page.route('http://sdk-fixture.test/**', async (route) => {
+		const asset = new URL(route.request().url()).pathname;
+		if (asset.startsWith('/assets/')) {
+			await route.fulfill({ contentType: 'text/javascript', body: await readFile(path.join(assets, asset.slice('/assets/'.length))) });
+			return;
+		}
+		if (asset === '/fragment') {
+			await route.fulfill({ contentType: 'text/html', body: `
+				<button type="button" x-data="" @click="$dispatch('open-filter-fixture')">Filters</button>
+				<div x-data="dialog(false)" @open-filter-fixture.window="toggle">
+					<dialog x-bind="dialog"><button type="button" @click="toggle">Close filters</button></dialog>
+				</div>` });
+			return;
+		}
+		await route.fulfill({ contentType: 'text/html', body: `
+			<html><head>
+				<script src="/assets/js/lib/htmx.min.js"></script>
+				<script src="/assets/js/lib/htmx-alpine-init.js"></script>
+				<script type="module" src="/assets/js/alpine.js"></script>
+			</head><body>
+				<button hx-get="/fragment" hx-target="#target">Load filters</button>
+				<div id="target"></div>
+			</body></html>` });
+	});
+	await page.goto('http://sdk-fixture.test/');
+	for (let swap = 0; swap < 2; swap++) {
+		await page.getByRole('button', { name: 'Load filters' }).click();
+		await page.getByRole('button', { name: 'Filters', exact: true }).click();
+		await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+		await expect(page.getByRole('dialog')).toBeVisible();
+		await page.getByRole('button', { name: 'Close filters' }).click();
+		await expect(page.getByRole('dialog')).toBeHidden();
+	}
+});
