@@ -421,6 +421,9 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Test Alpine calendar and layout helpers
+        run: node --test scripts/alpine-date-filters.test.mjs scripts/alpine-mobile-layout.test.mjs
+
       - name: Setup pnpm
         uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # v3
         with:
