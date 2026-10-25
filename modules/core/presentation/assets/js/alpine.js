@@ -1338,9 +1338,17 @@ let navTabs = (defaultValue = '') => ({
   activeTab: defaultValue,
   backgroundStyle: { left: 0, width: 0, opacity: 0 },
   restoreHandler: null,
+  resizeObserver: null,
 
   init() {
-    this.$nextTick(() => this.updateBackground());
+    this.$nextTick(() => {
+      this.updateBackground();
+      const tabsContainer = this.$refs.tabsContainer;
+      if (tabsContainer) {
+        this.resizeObserver = new ResizeObserver(() => this.updateBackground());
+        this.resizeObserver.observe(tabsContainer);
+      }
+    });
 
     // Listen for restore-tab event on document since it bubbles up
     this.restoreHandler = (event) => {
@@ -1354,6 +1362,7 @@ let navTabs = (defaultValue = '') => ({
   },
 
   destroy() {
+    if (this.resizeObserver) this.resizeObserver.disconnect();
     if (this.restoreHandler) {
       document.removeEventListener('restore-tab', this.restoreHandler);
     }

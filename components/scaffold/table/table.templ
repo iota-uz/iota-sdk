@@ -596,7 +596,7 @@ templ toolbarSearch(config *TableConfig) {
 	}
 	}}
 	if config.SearchClearable {
-		<div class="flex-1" x-data={ fmt.Sprintf("{ searchVal: '%s' }", config.SearchValue) }>
+		<div class="w-full min-w-0 md:flex-1" x-data={ fmt.Sprintf("{ searchVal: '%s' }", config.SearchValue) }>
 			@input.Text(&input.Props{
 				AddonLeft: &input.Addon{
 					Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
@@ -613,7 +613,7 @@ templ toolbarSearch(config *TableConfig) {
 			})
 		</div>
 	} else {
-		<div class="flex-1">
+		<div class="w-full min-w-0 md:flex-1">
 			@input.Text(&input.Props{
 				AddonLeft: &input.Addon{
 					Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
@@ -710,6 +710,10 @@ templ TableContent(config *TableConfig) {
 
 // TableSection combines filters and table into one form to enable unified HTMX update
 templ TableSection(config *TableConfig) {
+	@tableSection(config, "open-filters")
+}
+
+templ tableSection(config *TableConfig, filterAction string) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{
 		// Editor controls inside filter-builder popovers must not resubmit the
@@ -769,7 +773,7 @@ templ TableSection(config *TableConfig) {
 		</div>
 		@filters.Drawer(filters.DrawerProps{
 			Heading: pageCtx.T("Scaffold.Filters.Title"),
-			Action:  "open-filters",
+			Action:  filterAction,
 		}) {
 			<div x-data="disableFormElementsWhen('(min-width: 48rem)')">
 				if config.SideFilter != nil {
@@ -850,14 +854,34 @@ templ TableSettingsTrigger() {
 
 // EmbeddedContent renders the table content without margins for embedded view
 templ EmbeddedContent(config *TableConfig) {
-	@TableSection(config)
+	{{ filterAction := "open-filters-" + uuid.NewString() }}
+	if config.SideFilter != nil || len(config.Filters) > 0 {
+		<div class="flex justify-end mb-3 md:hidden">
+			@mobileFiltersTrigger(filterAction)
+		</div>
+	}
+	@tableSection(config, filterAction)
 	<!-- Placeholder for the view drawer -->
 	<div id="view-drawer"></div>
 }
 
+templ mobileFiltersTrigger(action string) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@button.Secondary(button.Props{
+		Size: button.SizeNormal,
+		Icon: icons.List(icons.Props{Size: "18"}),
+		Attrs: templ.Attributes{
+			"type":   "button",
+			"x-data": "",
+			"@click": fmt.Sprintf("$dispatch('%s')", action),
+		},
+	}) {
+		{ pageCtx.T("Scaffold.Filters.Title") }
+	}
+}
+
 // Content renders the complete scaffold page content with filters and table
 templ Content(config *TableConfig) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<div
 			class={
@@ -885,17 +909,6 @@ templ Content(config *TableConfig) {
 				</div>
 			}
 			<div class="flex md:hidden flex-wrap justify-end gap-2">
-				@button.Secondary(button.Props{
-					Size:  button.SizeNormal,
-					Class: "bg-transparent",
-					Icon:  icons.List(icons.Props{Size: "18"}),
-					Attrs: templ.Attributes{
-						"x-data": "",
-						"@click": "$dispatch('open-filters')",
-					},
-				}) {
-					{ pageCtx.T("Scaffold.Filters.Title") }
-				}
 				for _, action := range config.Actions {
 					<div class="shrink-0">
 						@action
