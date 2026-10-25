@@ -8,7 +8,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { compactChartLabelWidth } from '../../breakpoints'
 import type { ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../adapter'
 import { nodeKeyFromEvent } from './events'
-import { annotationsAtAxisValue, buildChartOption, categoryLabelLimit } from './options'
+import { annotationsAtAxisValue, buildChartOption, categoryTickBudget, categoryLabelLimit } from './options'
 import { installTooltipCopyDelegate } from './tooltip'
 import { buildEChartsTheme } from './theme'
 
@@ -340,7 +340,7 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
         // width changes, keeps that off the per-pixel resize path.
         const labelDecision = (box: number) => input.kind === 'donut' || input.kind === 'pie'
           ? String(box < compactChartLabelWidth)
-          : input.kind === 'hbar' ? String(categoryLabelLimit(box)) : ''
+          : input.kind === 'hbar' ? String(categoryLabelLimit(box)) : String(categoryTickBudget(box))
         const labelsChanged = appliedBox ? labelDecision(appliedBox.width) !== labelDecision(width) : false
         appliedBox = { width, height }
         beginRender()

@@ -41,12 +41,12 @@ export function ChatHeader(solidProps1: ChatHeaderProps) {
     const Logo = solidProps1.logoSlot || (branding.logoUrl ? (<img src={branding.logoUrl} alt={branding.appName} class="h-6 w-auto"/>) : null);
     return <>{createMemo(() => {
             if (!solidProps1.session) {
-                return (<header class="bichat-header border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+                return (<header class="bichat-header border-b border-gray-200 dark:border-gray-700 px-4 py-3" style={{ "padding-inline-start": "var(--bichat-header-start-padding, 1rem)", "min-height": "var(--bichat-header-min-height, auto)" }}>
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 min-w-0">
             {BackButton}
             {Logo}
-            <h1 class="text-lg font-semibold text-[var(--bichat-text)]">
+            <h1 class="text-lg font-semibold text-[var(--bichat-text)] truncate">
               {solidState2.t('BiChat.Chat.NewChat')}
             </h1>
           </div>
@@ -59,7 +59,7 @@ export function ChatHeader(solidProps1: ChatHeaderProps) {
             const memberCount = solidProps1.session.memberCount ?? 0;
             // Avatar stack: use provided members or empty array
             const stackUsers = solidProps1.members && solidProps1.members.length > 0 ? solidProps1.members : [];
-            return (<header class="bichat-header border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+            return (<header class="bichat-header border-b border-gray-200 dark:border-gray-700 px-4 py-3" style={{ "padding-inline-start": "var(--bichat-header-start-padding, 1rem)", "min-height": "var(--bichat-header-min-height, auto)" }}>
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3 min-w-0">
           {BackButton}
