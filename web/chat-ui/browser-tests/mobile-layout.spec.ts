@@ -27,9 +27,11 @@ for (const width of [360, 390, 430]) {
   await page.getByRole('button',{name:/Artifacts/,exact:false}).click();
   const artifacts = page.getByRole('dialog',{name:'Artifacts',exact:true});
   await expect(artifacts.getByRole('heading',{name:'Artifacts (0)'})).toBeVisible();
+  const panel = await artifacts.locator('aside').boundingBox();
+  expect(panel!.width).toBe(Math.min(width,384));
   const heading = artifacts.getByRole('heading',{name:'Artifacts (0)'});
   expect(await heading.evaluate(el=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))})).toBe(true);
-  await page.keyboard.press('Escape');
+  await artifacts.getByRole('button',{name:'Close',exact:true}).last().click();
   await expect(artifacts).toHaveCount(0);
  });
 }
