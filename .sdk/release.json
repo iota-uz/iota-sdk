@@ -1,0 +1,18 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Preserve custom body attributes and standard table behavior on editable scaffold tables."
+    },
+    {
+      "bump": "minor",
+      "summary": "Scaffold tables gain a money column: MoneyColumn and MoneyCell align amounts to the right with tabular digits, expose the exact decimal in data-value and state a missing currency instead of assuming one. MoneyFromMinor formats minor units with an integer-exact value; MoneyValue renders a figure outside a table."
+    },
+    {
+      "bump": "patch",
+      "summary": "Insert a newly created user's realtime row only into the Users list instead of every open sfui table, and add TableConfig.BodyAttrs for extra tbody attributes."
+    }
+  ],
+  "source": "337cfa1a419601c621e00e6a7ef1f3f114c0e1c6",
+  "version": "0.29.0"
+}
