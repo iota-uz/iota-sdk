@@ -221,6 +221,13 @@
   "requests": [
     1202
   ],
+  "candidate": {
+    "version": "0.29.1",
+    "source": "ba33e63dfeda4e637a51d926d561b3d055ffa7c4",
+    "sha": "aa7f672abcf7165b0477bf3123346df05a604db8",
+    "phase": "testing",
+    "run_id": "40184029977"
+  },
   "ready": {
     "version": "0.29.0",
     "source": "337cfa1a419601c621e00e6a7ef1f3f114c0e1c6",
