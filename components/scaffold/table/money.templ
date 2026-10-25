@@ -1,0 +1,25 @@
+package table
+
+// MoneyValue renders an amount as a non-wrapping figure with tabular digits,
+// its exact value in data-value and its currency beside it.
+templ MoneyValue(amount MoneyAmount) {
+	<span class="whitespace-nowrap tabular-nums">
+		<span
+			class="text-100"
+			if amount.TestID != "" {
+				data-testid={ amount.TestID }
+			}
+			data-value={ amount.Value }
+		>{ amount.Text }</span>
+		if amount.Currency != "" {
+			<small class="text-xs text-200">{ amount.Currency }</small>
+		} else if amount.MissingCurrency != "" {
+			<small
+				class="text-xs text-yellow"
+				if amount.MissingCurrencyTestID != "" {
+					data-testid={ amount.MissingCurrencyTestID }
+				}
+			>{ amount.MissingCurrency }</small>
+		}
+	</span>
+}

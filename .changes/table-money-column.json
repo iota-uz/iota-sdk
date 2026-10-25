@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Scaffold tables gain a money column: MoneyColumn and MoneyCell align amounts to the right with tabular digits, expose the exact decimal in data-value and state a missing currency instead of assuming one. MoneyFromMinor formats minor units with an integer-exact value; MoneyValue renders a figure outside a table."
+}
