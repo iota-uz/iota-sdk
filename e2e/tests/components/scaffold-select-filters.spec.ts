@@ -46,6 +46,8 @@ test('select changes submit current derived date fields on the first and subsequ
 		const request = page.waitForRequest((request) => new URL(request.url()).pathname === '/filter');
 		await page.getByRole('combobox', { name: 'Period' }).selectOption(range[0] ? range.join('|') : '');
 		const query = new URL((await request).url()).searchParams;
+		await expect(page.locator('input[name="CreatedAt.From"]:enabled')).toHaveValue(range[0]);
+		await expect(page.locator('input[name="CreatedAt.To"]:enabled')).toHaveValue(range[1]);
 		expect(query.getAll('CreatedAt.From')).toEqual([range[0]]);
 		expect(query.getAll('CreatedAt.To')).toEqual([range[1]]);
 	}
