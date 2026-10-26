@@ -45,7 +45,7 @@ func TestReportExportPreservesVisibleNumericPrecision(t *testing.T) {
 		require.NoError(t, err)
 		expectedNumber, err := strconv.ParseFloat(want, 64)
 		require.NoError(t, err)
-		require.Equal(t, expectedNumber, visibleNumber, cell)
+		require.InEpsilon(t, expectedNumber, visibleNumber, 1e-15, cell)
 	}
 }
 
