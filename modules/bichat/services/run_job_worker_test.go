@@ -565,6 +565,8 @@ func TestRunJobWorker_BusyJobRemainsPendingWhenFIFOStorageFails(t *testing.T) {
 	client := redis.NewClient(&redis.Options{Addr: fifo.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
 	sessionQueue.client = client
+	// Fail FIFO storage only after Redis protocol negotiation has completed.
+	require.NoError(t, client.Ping(ctx).Err())
 	payload := RunJobPayload{TenantID: uuid.New(), SessionID: uuid.New(), RunID: uuid.New(), RequestID: uuid.New()}
 	require.NoError(t, worker.ensureConsumerGroup(ctx))
 	_, _, err := queue.Enqueue(ctx, payload)
@@ -577,7 +579,10 @@ func TestRunJobWorker_BusyJobRemainsPendingWhenFIFOStorageFails(t *testing.T) {
 	require.Len(t, streams[0].Messages, 1)
 	message := streams[0].Messages[0]
 	fifo.SetError("ERR FIFO storage unavailable")
-	require.Error(t, worker.processMessage(ctx, message))
+	processErr := worker.processMessage(ctx, message)
+	var storageErr redis.Error
+	require.ErrorAs(t, processErr, &storageErr)
+	require.EqualError(t, storageErr, "ERR FIFO storage unavailable")
 	pending, err := queue.client.XPending(ctx, queue.stream, worker.group).Result()
 	require.NoError(t, err)
 	require.Equal(t, int64(1), pending.Count)
