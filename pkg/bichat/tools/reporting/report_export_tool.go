@@ -65,6 +65,7 @@ func (t *ReportExportTool) CallStructured(ctx context.Context, input string) (*t
 	frozen := &reportResultExecutor{result: excelResult}
 	options := excel.DefaultOptions()
 	options.DateTimeFormat = ""
+	options.FloatNumberFormat = "General"
 	delegate := export.NewExportQueryToExcelTool(frozen, export.WithQueryOutputDir(t.dir), export.WithQueryBaseURL(t.baseURL), export.WithQueryExportOptions(options))
 	request, err := agents.FormatToolOutput(params)
 	if err != nil {

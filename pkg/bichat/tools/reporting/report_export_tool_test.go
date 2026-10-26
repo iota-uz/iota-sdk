@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -14,6 +15,39 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/xuri/excelize/v2"
 )
+
+// False green if only raw values are checked: a two-decimal style hides valid
+// fractions even though the saved numeric cell retains them.
+func TestReportExportPreservesVisibleNumericPrecision(t *testing.T) {
+	t.Parallel()
+	r := &bichatsql.QueryResult{
+		Columns: []string{"amount"}, ColumnTypes: []string{"number"},
+		Rows: [][]any{{"1.234"}, {"1234"}, {"0.00000123"}, {"0.00000000000000000001"}}, RowCount: 4,
+	}
+	dir := t.TempDir()
+	tool := NewReportExportTool(NewReportExecutor(&reportResultExecutor{r}), dir, "/exports")
+	out, err := tool.CallStructured(context.Background(), `{"sql":"SELECT amounts"}`)
+	require.NoError(t, err)
+	require.Len(t, out.Artifacts, 1)
+	file, err := excelize.OpenFile(filepath.Join(dir, out.Artifacts[0].Name))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, file.Close()) })
+	for i, want := range []string{"1.234", "1234", "0.00000123", "0.00000000000000000001"} {
+		cell, err := excelize.CoordinatesToCellName(1, i+2)
+		require.NoError(t, err)
+		raw, err := file.GetCellValue("Sheet1", cell, excelize.Options{RawCellValue: true})
+		require.NoError(t, err)
+		require.Equal(t, want, raw, cell)
+		display, err := file.GetCellValue("Sheet1", cell)
+		require.NoError(t, err)
+		// General may use scientific notation for small magnitudes.
+		visibleNumber, err := strconv.ParseFloat(display, 64)
+		require.NoError(t, err)
+		expectedNumber, err := strconv.ParseFloat(want, 64)
+		require.NoError(t, err)
+		require.Equal(t, expectedNumber, visibleNumber, cell)
+	}
+}
 
 // False-green risk: checking JSON row_count alone misses a truncated workbook
 // and numeric strings. Read the actual saved XLSX and its last data row.
