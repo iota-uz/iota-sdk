@@ -1,0 +1,14 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Expose a deterministic value snapshot of registered currency metadata, including minor-unit fractions and formatting variants."
+    },
+    {
+      "bump": "patch",
+      "summary": "Preserve visible fractional precision in generic report Excel exports with General numeric formatting, including very small values."
+    }
+  ],
+  "source": "59f15a77d025c09735ce5cc1fb83e9613921662a",
+  "version": "0.31.0"
+}
