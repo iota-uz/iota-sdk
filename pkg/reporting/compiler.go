@@ -53,6 +53,10 @@ type Compiled struct {
 	Fingerprint string
 }
 
+// MaxReportColumns bounds the complete visible result, including automatically
+// selected currency dimensions and measures. It is not a truncation allowance.
+const MaxReportColumns = 64
+
 func ParsePlan(input string) (Plan, error) {
 	var p Plan
 	d := json.NewDecoder(bytes.NewBufferString(input))
@@ -75,7 +79,7 @@ func (c *Catalog) Compile(p Plan) (*Compiled, error) {
 	if p.Version != d.Version {
 		return nil, fmt.Errorf("%w: dataset %s; current version %s", ErrVersion, d.ID, d.Version)
 	}
-	if (p.Mode != "detail" && p.Mode != "aggregate") || len(p.Measures) == 0 || len(p.Measures) > 16 || len(p.Dimensions) > 32 || len(p.Filters) > 32 || len(p.Order) > 16 {
+	if (p.Mode != "detail" && p.Mode != "aggregate") || len(p.Measures) == 0 || len(p.Measures) > 16 || len(p.Dimensions) > MaxReportColumns || len(p.Filters) > 32 || len(p.Order) > 16 {
 		return nil, ErrPlan
 	}
 	zone, err := time.LoadLocation(d.Timezone)
@@ -106,6 +110,18 @@ func (c *Catalog) Compile(p Plan) (*Compiled, error) {
 	// Currency is a mandatory unbucketed dimension, including in detail plans.
 	// Never silently add unlike currencies; normalize it into the recorded plan.
 	out.Plan.Dimensions = append([]Dimension(nil), p.Dimensions...)
+	addCurrency := func(name string) error {
+		for _, dim := range out.Plan.Dimensions {
+			if dim.Name == name {
+				if dim.Bucket != "" {
+					return ErrPlan
+				}
+				return nil
+			}
+		}
+		out.Plan.Dimensions = append(out.Plan.Dimensions, Dimension{Name: name})
+		return nil
+	}
 	selected := map[string]bool{}
 	for _, name := range p.Measures {
 		m, ok := measures[name]
@@ -115,19 +131,20 @@ func (c *Catalog) Compile(p Plan) (*Compiled, error) {
 		selected[name] = true
 		out.Measures = append(out.Measures, m)
 		if m.CurrencyDimension != "" {
-			found := false
-			for _, dim := range out.Plan.Dimensions {
-				if dim.Name == m.CurrencyDimension {
-					found = true
-					if dim.Bucket != "" {
-						return nil, ErrPlan
-					}
-				}
-			}
-			if !found {
-				out.Plan.Dimensions = append(out.Plan.Dimensions, Dimension{Name: m.CurrencyDimension})
+			if err := addCurrency(m.CurrencyDimension); err != nil {
+				return nil, err
 			}
 		}
+	}
+	for _, dim := range p.Dimensions {
+		if currency := fields[dim.Name].CurrencyDimension; currency != "" {
+			if err := addCurrency(currency); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if len(out.Plan.Dimensions)+len(out.Measures) > MaxReportColumns {
+		return nil, ErrPlan
 	}
 	selects, groups := []string{}, []string{}
 	for _, dim := range out.Plan.Dimensions {

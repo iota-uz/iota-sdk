@@ -154,9 +154,8 @@ exportOpts := &excel.ExportOptions{
     IncludeHeaders: true,
     AutoFilter:     true,
     FreezeHeader:   true,
-    DateFormat:     "2006-01-02",
-    TimeFormat:     "15:04:05",
-    DateTimeFormat: "2006-01-02 15:04:05",
+    DateTimeNumberFormat: "yyyy-mm-dd hh:mm:ss", // Excel format, not a Go layout
+    FloatNumberFormat: "#,##0.00",
     MaxRows:        10000, // Limit export to 10k rows
 }
 
@@ -178,6 +177,61 @@ styleOpts := &excel.StyleOptions{
 
 exporter := excel.NewExcelExporter(exportOpts, styleOpts)
 ```
+
+### Typed workbook cells
+
+Both `Export` and streaming `ExportToWriter` preserve numbers, booleans and
+dates as native Excel values. Formatting changes their display, not their type:
+
+```go
+date := excel.Date(issuedAt.In(businessLocation))
+date.NumberFormat = "dd.mm.yyyy"
+row := []any{
+    "00001234567890123456", // identifiers stay text, including leading zeros
+    excel.Cell{Value: 1500.25, NumberFormat: "#,##0.00"},
+    excel.Cell{Value: 0.2, NumberFormat: "0.00%"}, // 20%, underlying fraction 0.2
+    excel.PercentPoints(20.2), // 20.20%, underlying fraction 0.202
+    excel.Cell{Value: 12850.12345678, NumberFormat: "0.00000000"},
+    date,
+    excel.DateTime(updatedAt.In(businessLocation)),
+}
+```
+
+`Date` keeps the supplied calendar date and strips its time of day, using UTC
+midnight to avoid timezone midnight gaps changing that calendar date; `DateTime`
+keeps its wall clock. Neither helper chooses a business timezone. Zero dates,
+zero date-times and nil time pointers produce empty cells. Unsupported dates
+outside 1900–9999 fail without returning a partial workbook. A bare `time.Time`
+also remains a native Excel value, using `DateTimeNumberFormat` (ISO by default).
+
+`Cell.NumberFormat` is an Excel number format code and overrides the exporter
+defaults. It never reinterprets a string as a number, date or formula. Use numeric
+Go values for numeric columns; use strings for policy numbers, tax identifiers,
+phone numbers and other identifiers. Native `pgtype.Numeric` is written as a
+number when it fits Excel's 15 significant decimal digits. Integers and floating
+values use the same precision check. Floats are checked through their shortest
+decimal representation (using float32 precision for float32 inputs), so common
+values such as 0.1 and 0.29 are accepted without exposing binary expansion.
+Approximate values with more than 15 significant digits, such as float64(1/3),
+are rejected instead of silently rounded. Use `PercentPoints` when the source
+stores percentage points: it scales their decimal representation by 100 without
+introducing binary-division artifacts. It refuses loss of precision or underflow
+instead of inventing a zero fraction. Unsafe precision and
+non-finite values fail instead of silently rounding. Its decimal scale is kept
+unless an explicit number format overrides it. A database driver returning a
+decimal as an ordinary string must supply its type through a typed data source;
+the exporter does not guess from the string's contents.
+
+`ExportOptions.DecimalComma` is retained for source compatibility but ignored
+for XLSX: Excel renders numeric separators according to the opener's locale.
+`CSVOptions.DecimalComma` retains its text-formatting behavior. CSV unwraps `Cell`
+and renders its underlying value using CSV options, with the same formula-safety
+rules as ordinary values.
+
+The former Go-layout `DateTimeFormat` no longer turns dates into text. Empty and
+default ISO layouts work as native dates. For a different legacy layout, migrate
+to the equivalent Excel `DateTimeNumberFormat` or `Cell.NumberFormat`; otherwise
+the exporter returns an error rather than ignoring the requested display.
 
 ## CSV Export and Formula Safety
 
@@ -257,9 +311,8 @@ type ExportOptions struct {
     IncludeHeaders bool   // Include header row
     AutoFilter     bool   // Add auto-filter to headers
     FreezeHeader   bool   // Freeze header row
-    DateFormat     string // Format for date values
-    TimeFormat     string // Format for time values
-    DateTimeFormat string // Format for datetime values
+    DateTimeNumberFormat string // Excel display format for native time.Time values
+    FloatNumberFormat string // Excel display format for floating-point values
     MaxRows        int    // Maximum rows to export (0 = unlimited)
 }
 ```

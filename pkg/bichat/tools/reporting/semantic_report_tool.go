@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -94,7 +95,7 @@ func (t *SemanticReportTool) Parameters() map[string]any {
 		"mode":       map[string]any{"type": "string", "enum": []string{"detail", "aggregate"}},
 		"period":     map[string]any{"type": "object", "additionalProperties": false, "properties": map[string]any{"start": map[string]any{"type": "string"}, "end_exclusive": map[string]any{"type": "string"}}, "required": []string{"start", "end_exclusive"}},
 		"measures":   map[string]any{"type": "array", "minItems": 1, "maxItems": 16, "items": map[string]any{"type": "string"}},
-		"dimensions": map[string]any{"type": "array", "maxItems": 32, "items": map[string]any{"type": "object", "additionalProperties": false, "properties": map[string]any{"name": map[string]any{"type": "string"}, "bucket": map[string]any{"type": "string", "enum": []string{"day", "week", "month", "quarter", "year"}}}, "required": []string{"name"}}},
+		"dimensions": map[string]any{"type": "array", "maxItems": reporting.MaxReportColumns, "items": map[string]any{"type": "object", "additionalProperties": false, "properties": map[string]any{"name": map[string]any{"type": "string"}, "bucket": map[string]any{"type": "string", "enum": []string{"day", "week", "month", "quarter", "year"}}}, "required": []string{"name"}}},
 		"filters":    map[string]any{"type": "array", "maxItems": 32, "items": map[string]any{"type": "object", "additionalProperties": false, "properties": map[string]any{"field": map[string]any{"type": "string"}, "operator": map[string]any{"type": "string", "enum": []string{"eq", "ne", "in", "gt", "gte", "lt", "lte", "is_null", "not_null"}}, "values": map[string]any{"type": "array", "maxItems": 100, "items": map[string]any{"type": []string{"string", "number"}}}}, "required": []string{"field", "operator"}}},
 		"order":      map[string]any{"type": "array", "maxItems": 16, "items": map[string]any{"type": "object", "additionalProperties": false, "properties": map[string]any{"field": map[string]any{"type": "string"}, "descending": map[string]any{"type": "boolean"}}, "required": []string{"field"}}},
 	}, "required": []string{"dataset", "version", "mode", "period", "measures", "dimensions"}}
@@ -237,6 +238,24 @@ func semanticTotals(c *reporting.Compiled, r *bichatsql.QueryResult) (map[string
 			return nil, ErrReportShape
 		}
 		indices[f.Name] = i
+	}
+	for _, row := range r.Rows {
+		if len(row) != len(c.Columns) {
+			return nil, ErrReportShape
+		}
+		for _, field := range c.Columns {
+			if field.CurrencyDimension == "" || row[indices[field.Name]] == nil {
+				continue
+			}
+			index, exists := indices[field.CurrencyDimension]
+			if !exists {
+				return nil, ErrReportShape
+			}
+			currency, ok := row[index].(string)
+			if !ok || strings.TrimSpace(currency) == "" {
+				return nil, ErrReportShape
+			}
+		}
 	}
 	result := map[string]map[string]string{}
 	for _, m := range c.Measures {

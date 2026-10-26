@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Keep XLSX numbers and dates typed in buffered and streaming exports; add explicit cell number formats and safe native numeric handling without changing CSV formula safety."
+}

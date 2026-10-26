@@ -17,11 +17,38 @@ The compiler is independent of any assistant and individual reports. Owners regi
 }
 ```
 
-The compiler adds each measure's registered `currency_dimension` and records
-the normalized plan. The dimension name belongs to the source definition. Each
+The compiler adds each measure's and selected numeric dimension's registered
+`currency_dimension` and records the normalized plan. The dimension name belongs to the source definition. Each
 currency stays separate. Detail projects measures at source grain; aggregates
 support additive sums and population counts. Filters act before grouping.
 Output row count means rows/groups in the workbook, not population count.
+
+Monetary values that are not additive (a limit, object value or balance) can be
+declared as numeric dimensions without inventing a SUM rule:
+
+```go
+Dimensions: []reporting.Field{
+    {Name: "limit_amount", Type: "number", CurrencyDimension: "limit_currency"},
+    {Name: "limit_currency", Type: "string"},
+}
+```
+
+The binding must target an existing string dimension; missing targets, chains,
+self-references and bindings on non-numeric dimensions are rejected. Measures
+continue using their existing `Measure.CurrencyDimension` property, not the
+embedded `Field.CurrencyDimension`. A selected numeric dimension automatically
+selects its currency for detail and grouping. In aggregate mode it remains a
+grouping value rather than an additive measure. Its binding survives discovery,
+the recorded definition and the workbook manifest. A non-null dimension value
+(including zero) requires a nonblank string currency in every result row. An
+unavailable dimension may have a null amount and null currency; it is not
+converted to zero. Missing currency columns remain a shape error. Additive
+measures retain their stricter missing-value and same-statement SUM checks.
+
+`MaxReportColumns` bounds the complete visible output at 64 columns, counting
+both measures and automatically added currencies. The compiler rejects an
+over-budget plan before execution, rather than dropping requested fields. The
+independent 16-measure, filter, order and 50,000-row export limits still apply.
 
 ## Register a source
 
