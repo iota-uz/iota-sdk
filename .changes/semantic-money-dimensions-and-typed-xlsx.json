@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add currency-bound non-additive numeric report dimensions and a complete 64-column report budget. XLSX exports now preserve numeric/date types instead of DecimalComma or legacy Go-layout text rendering; migrate custom DateTimeFormat callers to DateTimeNumberFormat or Cell.NumberFormat."
+}

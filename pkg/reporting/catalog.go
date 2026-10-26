@@ -19,9 +19,10 @@ var (
 )
 
 type Field struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Type        string `json:"type"` // string, number, date
+	Name              string `json:"name"`
+	Description       string `json:"description"`
+	Type              string `json:"type"`                         // string, number, date
+	CurrencyDimension string `json:"currency_dimension,omitempty"` // number dimensions only
 }
 
 // Measure supports additive sums and population counts. Ratios, distinct
@@ -83,8 +84,16 @@ func NewCatalog(definitions ...Dataset) (*Catalog, error) {
 		if !exists || date.Type != "date" {
 			return nil, ErrDefinition
 		}
+		for _, f := range d.Dimensions {
+			if f.CurrencyDimension != "" {
+				currency, exists := fields[f.CurrencyDimension]
+				if f.Type != "number" || !exists || currency.Type != "string" || currency.CurrencyDimension != "" {
+					return nil, ErrDefinition
+				}
+			}
+		}
 		for _, m := range d.Measures {
-			if !validField(m.Field) || m.Type != "number" || m.Unit == "" || (m.Aggregation != "sum" && m.Aggregation != "count") {
+			if !validField(m.Field) || m.Field.CurrencyDimension != "" || m.Type != "number" || m.Unit == "" || (m.Aggregation != "sum" && m.Aggregation != "count") {
 				return nil, ErrDefinition
 			}
 			if _, exists := fields[m.Name]; exists {
