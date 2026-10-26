@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Expose a deterministic value snapshot of registered currency metadata, including minor-unit fractions and formatting variants."
+}
