@@ -1,8 +1,6 @@
 // Package excel provides this package.
 package excel
 
-import "time"
-
 // ExportOptions configures the Excel export behavior
 type ExportOptions struct {
 	// IncludeHeaders adds header row with column names
@@ -11,21 +9,26 @@ type ExportOptions struct {
 	AutoFilter bool
 	// FreezeHeader freezes the header row
 	FreezeHeader bool
-	// DateFormat specifies the format for date columns
+	// DateFormat is retained for source compatibility. XLSX values stay typed;
+	// use Date or Cell.NumberFormat to choose their Excel display format.
 	DateFormat string
-	// TimeFormat specifies the format for time columns
+	// TimeFormat is retained for source compatibility; use Cell.NumberFormat.
 	TimeFormat string
-	// DateTimeFormat specifies the format for datetime columns
+	// DateTimeFormat is a legacy Go layout. The default ISO layout and an empty
+	// layout keep native dates; other layouts require DateTimeNumberFormat or an
+	// explicit Cell.NumberFormat instead of being silently emitted as text.
 	DateTimeFormat string
+	// DateTimeNumberFormat is an Excel format code for native time.Time values.
+	// Empty uses "yyyy-mm-dd hh:mm:ss". Cell.NumberFormat overrides this option.
+	DateTimeNumberFormat string
 	// MaxRows limits the number of rows to export (0 = no limit)
 	MaxRows int
 	// FloatNumberFormat is an optional Excel number format code for floating-point
 	// cells. Values remain numeric and can be used in formulas.
 	FloatNumberFormat string
-	// DecimalComma renders numeric values with a comma decimal separator
-	// ("14773814,00") instead of a dot, so locale-neutral Excel (ru/uz) shows
-	// the expected separator. Numbers are emitted as text (Excel can't force a
-	// comma on a numeric cell regardless of the opener's locale).
+	// DecimalComma is deprecated and ignored for XLSX. Numeric cells must remain
+	// numbers; Excel chooses decimal separators from the user's locale.
+	// CSVOptions.DecimalComma still controls CSV text rendering.
 	DecimalComma bool
 }
 
@@ -121,27 +124,4 @@ type ColumnOptions struct {
 	Width    float64
 	Format   string
 	DataType string
-}
-
-// formatValue formats a value based on its type
-func formatValue(val interface{}, opts *ExportOptions) interface{} {
-	normalized := convertPgxValue(val)
-
-	switch v := normalized.(type) {
-	case time.Time:
-		if opts != nil && opts.DateTimeFormat != "" {
-			return v.Format(opts.DateTimeFormat)
-		}
-		return v
-	case *time.Time:
-		if v != nil {
-			if opts != nil && opts.DateTimeFormat != "" {
-				return v.Format(opts.DateTimeFormat)
-			}
-			return *v
-		}
-		return nil
-	default:
-		return normalized
-	}
 }

@@ -225,9 +225,13 @@ func (p *PgxDataSource) GetRows(ctx context.Context) (func() ([]interface{}, err
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
-		// Convert pgx types if needed
+		// Keep Numeric's SQL type until the exporter can choose typed XLSX or CSV.
 		for i, val := range values {
-			values[i] = convertPgxValue(val)
+			switch val.(type) {
+			case pgtype.Numeric, *pgtype.Numeric:
+			default:
+				values[i] = convertPgxValue(val)
+			}
 		}
 
 		return values, nil
