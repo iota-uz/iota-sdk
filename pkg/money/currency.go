@@ -2,6 +2,7 @@
 package money
 
 import (
+	"sort"
 	"strings"
 )
 
@@ -288,6 +289,19 @@ func AddCurrency(code, Grapheme, Template, Decimal, Thousand string, Fraction in
 
 func newCurrency(code string) *Currency {
 	return &Currency{Code: strings.ToUpper(code)}
+}
+
+// RegisteredCurrencies returns a snapshot of all registered currencies, including
+// formatting variants, sorted by Code. Modifying the returned values does not
+// change the registered metadata. Like GetCurrency, it must not run concurrently
+// with AddCurrency.
+func RegisteredCurrencies() []Currency {
+	result := make([]Currency, 0, len(currencies))
+	for _, currency := range currencies {
+		result = append(result, *currency)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Code < result[j].Code })
+	return result
 }
 
 // GetCurrency returns the currency given the code.
