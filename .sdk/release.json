@@ -1,0 +1,22 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Validate floating XLSX values against the same 15-digit precision contract as integer/SQL numeric values, preserve calendar dates across midnight DST gaps, and provide decimal-safe percentage-point cells."
+    },
+    {
+      "bump": "none",
+      "summary": "Initialize the Redis FIFO test connection before injecting storage failure and verify the intended failure explicitly; production behavior is unchanged."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add currency-bound non-additive numeric report dimensions and a complete 64-column report budget. XLSX exports now preserve numeric/date types instead of DecimalComma or legacy Go-layout text rendering; migrate custom DateTimeFormat callers to DateTimeNumberFormat or Cell.NumberFormat."
+    },
+    {
+      "bump": "patch",
+      "summary": "Keep XLSX numbers and dates typed in buffered and streaming exports; add explicit cell number formats and safe native numeric handling without changing CSV formula safety."
+    }
+  ],
+  "source": "968d145a41f3fcdb881c98d8c22c173a332bda31",
+  "version": "0.30.0"
+}
