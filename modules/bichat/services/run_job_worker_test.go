@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -582,7 +581,7 @@ func TestRunJobWorker_BusyJobRemainsPendingWhenFIFOStorageFails(t *testing.T) {
 	fifo.SetError("ERR FIFO storage unavailable")
 	processErr := worker.processMessage(ctx, message)
 	var storageErr redis.Error
-	require.True(t, errors.As(processErr, &storageErr), "expected FIFO Redis storage error, got %v", processErr)
+	require.ErrorAs(t, processErr, &storageErr)
 	require.EqualError(t, storageErr, "ERR FIFO storage unavailable")
 	pending, err := queue.client.XPending(ctx, queue.stream, worker.group).Result()
 	require.NoError(t, err)
