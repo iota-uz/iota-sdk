@@ -25,8 +25,22 @@ func Date(value time.Time) Cell {
 		return Cell{}
 	}
 	return Cell{
-		Value:        time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, value.Location()),
+		Value:        time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, time.UTC),
 		NumberFormat: "yyyy-mm-dd",
+	}
+}
+
+// PercentPoints converts a percentage-point value such as 20.2 to the numeric
+// fraction 0.202 displayed by Excel as 20.20%. Decimal scaling avoids introducing
+// binary-division artifacts before the workbook's precision validation.
+func PercentPoints(value float64) Cell {
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return Cell{Value: value, NumberFormat: "0.00%"}
+	}
+	decimalFraction := decimal.NewFromFloat(value).Shift(-2)
+	return Cell{
+		Value:        pgtype.Numeric{Int: decimalFraction.Coefficient(), Exp: decimalFraction.Exponent(), Valid: true},
+		NumberFormat: "0.00%",
 	}
 }
 
@@ -96,9 +110,15 @@ func workbookValue(value any, opts *ExportOptions) (any, int, string, error) {
 		if math.IsNaN(v) || math.IsInf(v, 0) {
 			return nil, 0, "", fmt.Errorf("non-finite Excel number")
 		}
+		if !excelFloatPreserves(v, 64) {
+			return nil, 0, "", fmt.Errorf("float exceeds Excel's 15 significant digit precision")
+		}
 	case float32:
 		if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
 			return nil, 0, "", fmt.Errorf("non-finite Excel number")
+		}
+		if !excelFloatPreserves(float64(v), 32) {
+			return nil, 0, "", fmt.Errorf("float exceeds Excel's 15 significant digit precision")
 		}
 	}
 	switch value.(type) {
@@ -156,4 +176,9 @@ func excelNumberPreserves(number decimal.Decimal) bool {
 	value, _ := number.Float64()
 	restored, err := decimal.NewFromString(strconv.FormatFloat(value, 'g', 15, 64))
 	return err == nil && restored.Equal(number)
+}
+
+func excelFloatPreserves(value float64, bits int) bool {
+	shortest, err := decimal.NewFromString(strconv.FormatFloat(value, 'g', -1, bits))
+	return err == nil && excelNumberPreserves(shortest)
 }

@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Validate floating XLSX values against the same 15-digit precision contract as integer/SQL numeric values, preserve calendar dates across midnight DST gaps, and provide decimal-safe percentage-point cells."
+}

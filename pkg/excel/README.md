@@ -190,13 +190,15 @@ row := []any{
     "00001234567890123456", // identifiers stay text, including leading zeros
     excel.Cell{Value: 1500.25, NumberFormat: "#,##0.00"},
     excel.Cell{Value: 0.2, NumberFormat: "0.00%"}, // 20%, underlying fraction 0.2
+    excel.PercentPoints(20.2), // 20.20%, underlying fraction 0.202
     excel.Cell{Value: 12850.12345678, NumberFormat: "0.00000000"},
     date,
     excel.DateTime(updatedAt.In(businessLocation)),
 }
 ```
 
-`Date` keeps the supplied calendar date and strips its time of day; `DateTime`
+`Date` keeps the supplied calendar date and strips its time of day, using UTC
+midnight to avoid timezone midnight gaps changing that calendar date; `DateTime`
 keeps its wall clock. Neither helper chooses a business timezone. Zero dates,
 zero date-times and nil time pointers produce empty cells. Unsupported dates
 outside 1900–9999 fail without returning a partial workbook. A bare `time.Time`
@@ -206,8 +208,15 @@ also remains a native Excel value, using `DateTimeNumberFormat` (ISO by default)
 defaults. It never reinterprets a string as a number, date or formula. Use numeric
 Go values for numeric columns; use strings for policy numbers, tax identifiers,
 phone numbers and other identifiers. Native `pgtype.Numeric` is written as a
-number when it fits Excel's 15 significant decimal digits. Integers use the
-same precision check; unsafe precision and
+number when it fits Excel's 15 significant decimal digits. Integers and floating
+values use the same precision check. Floats are checked through their shortest
+decimal representation (using float32 precision for float32 inputs), so common
+values such as 0.1 and 0.29 are accepted without exposing binary expansion.
+Approximate values with more than 15 significant digits, such as float64(1/3),
+are rejected instead of silently rounded. Use `PercentPoints` when the source
+stores percentage points: it scales their decimal representation by 100 without
+introducing binary-division artifacts. It refuses loss of precision or underflow
+instead of inventing a zero fraction. Unsafe precision and
 non-finite values fail instead of silently rounding. Its decimal scale is kept
 unless an explicit number format overrides it. A database driver returning a
 decimal as an ordinary string must supply its type through a typed data source;
