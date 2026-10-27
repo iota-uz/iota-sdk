@@ -41,4 +41,10 @@ export interface LensDashboardChrome {
   header?: boolean
   /** compact folds report periods, restoring saved filters, filter defaults and comparison into a "More" menu. */
   toolbar?: 'full' | 'compact'
+  /**
+   * How a composed report's placements read. `cards` (default) frames each placement with its
+   * own title, filters, menu and calculation time; `flat` renders only the panels, so the
+   * dashboard header carries the one shared set of filters and actions.
+   */
+  placements?: 'cards' | 'flat'
 }

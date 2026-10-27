@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Add chrome.placements: 'flat' so a composed Lens report renders each placement as its panels alone, leaving the dashboard header as the one filter and action row."}

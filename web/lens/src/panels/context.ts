@@ -44,3 +44,10 @@ export const MarkSelectionContext = createContext<MarkSelectionHandler | undefin
 export function useMarkSelection(): MarkSelectionHandler | undefined {
   return useContext(MarkSelectionContext)
 }
+
+/** `flat` renders a report placement as its panels alone: no card, header, menu or status line. */
+export const PlacementLayoutContext = createContext<'cards' | 'flat'>('cards')
+
+export function usePlacementLayout(): 'cards' | 'flat' {
+  return useContext(PlacementLayoutContext)
+}

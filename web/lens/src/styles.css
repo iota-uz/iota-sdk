@@ -3089,6 +3089,12 @@
     @apply lens:min-h-0;
   }
 
+  /* A flat placement is only the room its panels sit in: the panels keep their own cards. */
+  .lens-panel.lens-panel-group-flat {
+    @apply lens:gap-4 lens:overflow-visible lens:border-0 lens:bg-transparent lens:shadow-none;
+    min-height: 0;
+  }
+
   .lens-panel-group-metrics {
     container: lens-metric-group / inline-size;
   }
