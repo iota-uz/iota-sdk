@@ -1,0 +1,16 @@
+{
+  "Jobs": {
+    "Status": {
+      "Queued": "排队中",
+      "Running": "运行中",
+      "Done": "已完成",
+      "Failed": "失败"
+    },
+    "Actions": {
+      "Run": "运行",
+      "Retry": "重试",
+      "Download": "下载",
+      "Dismiss": "忽略"
+    }
+  }
+}
