@@ -277,6 +277,8 @@ const staticStories = [
   // antialiasing is bistable run to run (≤28px) with identical geometry.
   ['report-card--embedded-light', 1, 40],
   ['report-card--embedded-dark', 1, 40],
+  ['report-card--flat-light', 1, 40],
+  ['report-card--flat-dark', 1, 40],
   ['report-card--standalone-light', 1, 40],
   ['report-card--standalone-dark', 1, 40],
   ['report-card--compatibility-light', 1, 40],
