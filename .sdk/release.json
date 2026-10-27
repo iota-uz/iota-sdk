@@ -1,0 +1,30 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Add async long-running operation primitive (#866): pkg/jobs with a Redis-backed (or in-memory) TTL-evicted job store, in-process runner pool with progress reporting and heartbeats, polling endpoints under /jobs with result streaming, and standard trigger/operations/download templ components with retry and dismiss. No database tables or RBAC additions."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add chrome.placements: 'flat' so a composed Lens report renders each placement as its panels alone, leaving the dashboard header as the one filter and action row."
+    },
+    {
+      "bump": "none",
+      "summary": "Add approved Linux visual baselines for the flat report placement stories."
+    },
+    {
+      "bump": "none",
+      "summary": "Cover the flat report placement stories in the Lens visual regression manifest."
+    },
+    {
+      "bump": "none",
+      "summary": "Give the shared-execution cancellation test timing headroom on loaded CI runners."
+    },
+    {
+      "bump": "patch",
+      "summary": "Sidebar navigation follows effective permissions: a user without own roles who holds permissions directly or through a group role sees the menu again instead of an empty sidebar."
+    }
+  ],
+  "source": "4805ca8aad3e22584ad1ac535a62be4435c9b811",
+  "version": "0.33.0"
+}
