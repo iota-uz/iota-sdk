@@ -32,7 +32,9 @@ type TriggerProps struct {
 templ Trigger(props TriggerProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{ params := props.Params }}
-	{{ if params == nil { params = map[string]any{} } }}
+	{{ if params == nil {
+	params = map[string]any{}
+} }}
 	{{ paramsJSON, _ := json.Marshal(params) }}
 	<button
 		type="button"
