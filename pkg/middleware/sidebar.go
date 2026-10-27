@@ -62,6 +62,15 @@ func SetNavItemsDecorator(decorator NavItemsDecorator) {
 	navItemsDecorator = decorator
 }
 
+// visibleNavItems returns the items the user may open. A user without any
+// effective permission sees no navigation, not even items that require none.
+func visibleNavItems(items []types.NavigationItem, u user.User) []types.NavigationItem {
+	if len(user.EffectivePermissions(u)) == 0 {
+		return []types.NavigationItem{}
+	}
+	return filterItems(items, u)
+}
+
 func filterItems(items []types.NavigationItem, user user.User) []types.NavigationItem {
 	filteredItems := make([]types.NavigationItem, 0, len(items))
 	for _, item := range items {
@@ -181,10 +190,7 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 					})
 				}
 				items = navItemsDecorator(r.Context(), r, items)
-				filtered := filterItems(items, u)
-				if len(u.Roles()) == 0 {
-					filtered = []types.NavigationItem{}
-				}
+				filtered := visibleNavItems(items, u)
 				pinnedItems, unpinnedItems := splitPinnedItems(filtered)
 				enabledPinnedItems := getEnabledNavItems(pinnedItems)
 				enabledNavItems := getEnabledNavItems(unpinnedItems)
