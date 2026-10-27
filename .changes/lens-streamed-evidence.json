@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Stream selected Lens evidence rows into bounded request-owned XLSX artifacts without retaining full export datasets or publishing partial files."
+}

@@ -70,6 +70,13 @@ func unwrapCell(value any) (any, string) {
 func workbookValue(value any, opts *ExportOptions) (any, int, string, error) {
 	value, format := unwrapCell(value)
 	switch numeric := value.(type) {
+	case decimal.Decimal:
+		return workbookNumeric(pgtype.Numeric{Int: numeric.Coefficient(), Exp: numeric.Exponent(), Valid: true}, format, opts)
+	case *decimal.Decimal:
+		if numeric == nil {
+			return nil, 0, format, nil
+		}
+		return workbookNumeric(pgtype.Numeric{Int: numeric.Coefficient(), Exp: numeric.Exponent(), Valid: true}, format, opts)
 	case pgtype.Numeric:
 		return workbookNumeric(numeric, format, opts)
 	case *pgtype.Numeric:
@@ -136,6 +143,20 @@ func workbookValue(value any, opts *ExportOptions) (any, int, string, error) {
 	default:
 		return value, 0, format, nil
 	}
+}
+
+// NormalizeNumeric converts supported numeric scalars into native Excel values
+// using the workbook's precision validation. Nullable numerics stay blank;
+// decimal.Decimal uses its exact coefficient/exponent before conversion.
+// Strings are rejected rather than guessing whether an identifier is a number.
+func NormalizeNumeric(value any) (any, error) {
+	switch value.(type) {
+	case nil, decimal.Decimal, *decimal.Decimal, pgtype.Numeric, *pgtype.Numeric, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+	default:
+		return nil, fmt.Errorf("unsupported numeric scalar %T", value)
+	}
+	result, _, _, err := workbookValue(value, nil)
+	return result, err
 }
 
 func workbookNumeric(value pgtype.Numeric, format string, opts *ExportOptions) (any, int, string, error) {

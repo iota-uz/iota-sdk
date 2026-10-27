@@ -73,11 +73,13 @@ func LabelsForLocale(locale string) Labels {
 }
 
 type Request struct {
-	Result      *lensruntime.DashboardResult
-	PanelID     string
-	DrillPath   []string
-	Labels      Labels
-	Exploration *explore.ExportRequest
+	Result          *lensruntime.DashboardResult
+	PanelID         string
+	DrillPath       []string
+	Labels          Labels
+	Exploration     *explore.ExportRequest
+	EvidenceSources map[string]EvidenceSource
+	Spool           *SpoolOptions
 }
 
 type sheetTarget struct {
@@ -89,6 +91,9 @@ type Exporter struct{}
 
 func New() *Exporter { return &Exporter{} }
 
+// Write streams the archive to w; archive errors may leave partial output.
+// Use Prepare or WriteHTTP when failed generation must not reach a response.
+// SpoolOptions.MaxBytes bounds combined XML/archive work (default 256 MiB).
 func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) (err error) {
 	op := serrors.Op("lens/export.Exporter.Write")
 	defer func() {
@@ -105,11 +110,16 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) (err err
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	work, err := newExportWork(ctx, req.Spool)
+	if err != nil {
+		return err
+	}
+	defer work.close()
 	labels := req.Labels
 	if labels.Summary == "" {
 		labels = LabelsForLocale(req.Result.Locale)
 	}
-	file := excelize.NewFile()
+	file := excelize.NewFile(excelize.Options{TmpDir: work.dir})
 	defer func() { _ = file.Close() }()
 	book := newWorkbook(file)
 	defaultSheet := file.GetSheetName(0)
@@ -163,51 +173,15 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) (err err
 		return err
 	}
 
-	exportedDatasets := map[string]bool{}
 	datasetTargets := map[string]sheetTarget{}
-	exportOrder := make([]string, 0)
-	addDataset := func(dataset string) bool {
-		dataset = strings.TrimSpace(dataset)
-		if dataset == "" || exportedDatasets[dataset] {
-			return false
-		}
-		if !includeLineage && findDataset(req.Result.Spec, dataset).Export.Lineage {
-			return false
-		}
-		exportedDatasets[dataset] = true
-		exportOrder = append(exportOrder, dataset)
-		return true
-	}
-	if req.PanelID == "" {
-		for _, dataset := range req.Result.Spec.Export.EvidenceDatasets {
-			addDataset(dataset)
-			if req.Result.Spec.Export.IncludeUpstream {
-				collectUpstream(req.Result.Spec, dataset, addDataset)
-			}
-		}
-	}
-	for _, panelResult := range panels {
-		if panelResult == nil || panelResult.Frames == nil {
-			continue
-		}
-		addDataset(panelResult.Panel.Dataset)
-		evidence := panelResult.Panel.Export.EvidenceDatasets
-		if len(evidence) == 0 {
-			evidence = datasetExport(req.Result.Spec, panelResult.Panel.Dataset).EvidenceDatasets
-		}
-		for _, dataset := range evidence {
-			addDataset(dataset)
-		}
-		if panelResult.Panel.Export.IncludeUpstream || datasetExport(req.Result.Spec, panelResult.Panel.Dataset).IncludeUpstream {
-			collectUpstream(req.Result.Spec, panelResult.Panel.Dataset, addDataset)
-		}
-	}
+	exportOrder := exportDatasetNames(req.Result.Spec, panels, req.PanelID, includeLineage)
 	for _, dataset := range exportOrder {
 		if containsPanelDataset(panels, dataset) {
 			continue
 		}
 		result := req.Result.Datasets[dataset]
-		if result == nil || result.Frames == nil {
+		source, streamed := req.EvidenceSources[dataset]
+		if !streamed && (result == nil || result.Frames == nil) {
 			return fmt.Errorf("declared export evidence dataset %q is unavailable", dataset)
 		}
 		datasetSpec := findDataset(req.Result.Spec, dataset)
@@ -221,11 +195,17 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) (err err
 		if sheetErr != nil {
 			return sheetErr
 		}
-		if err := book.writeFrameSet(sheet, result.Frames, hintFormats); err != nil {
-			return err
-		}
-		if err := configureEvidenceSheet(file, sheet, result.Frames, datasetSpec.Export); err != nil {
-			return err
+		if streamed {
+			if err := work.writeEvidence(ctx, book, sheet, source, datasetSpec.Export); err != nil {
+				return err
+			}
+		} else {
+			if err := book.writeFrameSet(sheet, result.Frames, hintFormats); err != nil {
+				return err
+			}
+			if err := configureEvidenceSheet(file, sheet, result.Frames, datasetSpec.Export); err != nil {
+				return err
+			}
 		}
 		datasetTargets[dataset] = sheetTarget{Sheet: sheet, Cell: "A1"}
 	}
@@ -307,7 +287,10 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) (err err
 	}
 	index, _ := file.GetSheetIndex(summary)
 	file.SetActiveSheet(index)
-	return file.Write(w)
+	// Excelize's default ZIP writer builds a whole-file bytes.Buffer. Its public
+	// ZIP factory allows the archive itself to flow to the bounded destination.
+	file.SetZipWriter(func(io.Writer) excelize.ZipWriter { return work.zipWriter(ctx, w) })
+	return file.Write(io.Discard)
 }
 
 func explorationSummaryRows(labels Labels, req explore.ExportRequest) [][]any {
@@ -685,12 +668,21 @@ func (b *workbook) writeCell(sheet string, col, row int, value any) error {
 	if formatted, ok := value.(formattedValue); ok {
 		value, spec = formatted.Value, formatted.Format
 	}
+	exact := exactValue(value)
+	var err error
+	value, err = normalizeExactValue(value)
+	if err != nil {
+		return err
+	}
 	coordinate := cell(col, row)
 	if err := writeCell(b.file, sheet, coordinate, value); err != nil {
 		return err
 	}
 	b.track(sheet, col, displayWidth(value))
 	numFmt := numberFormat(spec, value)
+	if exact && spec == nil {
+		numFmt = "General"
+	}
 	if numFmt == "" {
 		return nil
 	}
