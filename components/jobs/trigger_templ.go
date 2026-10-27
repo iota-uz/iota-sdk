@@ -150,12 +150,15 @@ func Trigger(props TriggerProps) templ.Component {
 	})
 }
 
-func triggerValues(props TriggerProps) string {
+func triggerValues(props TriggerProps) (string, error) {
 	params := props.Params
 	if params == nil {
 		params = map[string]any{}
 	}
-	paramsJSON, _ := json.Marshal(params)
+	paramsJSON, err := json.Marshal(params)
+	if err != nil {
+		return "", err
+	}
 	return templ.JSONString(map[string]string{"kind": props.Kind, "params": string(paramsJSON)})
 }
 
