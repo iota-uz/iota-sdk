@@ -91,6 +91,9 @@ type Exporter struct{}
 
 func New() *Exporter { return &Exporter{} }
 
+// Write streams the archive to w; archive errors may leave partial output.
+// Use Prepare or WriteHTTP when failed generation must not reach a response.
+// SpoolOptions.MaxBytes bounds combined XML/archive work (default 256 MiB).
 func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) (err error) {
 	op := serrors.Op("lens/export.Exporter.Write")
 	defer func() {

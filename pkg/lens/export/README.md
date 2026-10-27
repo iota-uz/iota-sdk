@@ -17,8 +17,9 @@ Numeric cells keep their values and get an Excel number format from the panel
 values are already scaled (`45.3` is 45.3%). Parameters show the dashboard's
 declared variables by label with humanized values. Set
 `ExportSpec.OmitLineage` to drop the technical lineage sheet and datasets marked `Export.Lineage` (such as report filter context). Use `export.Handler` when a standard HTTP
-endpoint is desired, or call `Exporter.Write` from an existing authorized
-route.
+endpoint is desired. Direct `Exporter.Write` streams archive bytes to its
+writer and can leave partial output if archive generation fails. Use `Prepare`
+or `WriteHTTP` when failed generation must not reach a download response.
 
 ## Audit workbooks
 
