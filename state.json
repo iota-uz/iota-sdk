@@ -217,6 +217,13 @@
       "phase": "ready",
       "run_id": "40414089277"
     },
+    "0.32.0": {
+      "version": "0.32.0",
+      "source": "3ee815d61f4ecde6b5e7139cacca0e9875fbf8ed",
+      "sha": "3f2cc52dfa032e7d2b7879346f928f0b6fb0182a",
+      "phase": "ready",
+      "run_id": "40451419199"
+    },
     "0.6.0": {
       "version": "0.6.0",
       "source": "8040ff2301500a20901ef40ddd899d3e1cf8ff64",
@@ -256,18 +263,11 @@
   "requests": [
     1213
   ],
-  "candidate": {
+  "ready": {
     "version": "0.32.0",
     "source": "3ee815d61f4ecde6b5e7139cacca0e9875fbf8ed",
     "sha": "3f2cc52dfa032e7d2b7879346f928f0b6fb0182a",
-    "phase": "publishing",
-    "run_id": "40451419199"
-  },
-  "ready": {
-    "version": "0.31.0",
-    "source": "59f15a77d025c09735ce5cc1fb83e9613921662a",
-    "sha": "3124ba0ae6c895b085626a3a22356ea3bfa93084",
     "phase": "ready",
-    "run_id": "40414089277"
+    "run_id": "40451419199"
   }
 }
