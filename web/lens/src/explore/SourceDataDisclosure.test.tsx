@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/explore.json'
 import { parseDocument } from '../contract'
@@ -38,11 +38,11 @@ describe('SourceDataDisclosure', () => {
         },
       }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     vi.stubGlobal('fetch', fetcher)
-    render(
+    render(() =>
       <DocumentProvider initialDocument={document}>
-        <DashboardRuntimeProvider locale="en" drawerDepth={1}>
+        <DashboardRuntimeProvider locale="en" drawerDepth={1}>{() => (<>(
           <DisclosureHarness />
-        </DashboardRuntimeProvider>
+          )</>)}</DashboardRuntimeProvider>
       </DocumentProvider>,
     )
 

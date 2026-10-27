@@ -1,17 +1,10 @@
-/**
- * SessionSkeleton Component
- * Loading skeleton for session list using reusable Skeleton from @iota-uz/sdk/bichat
- */
-import { SkeletonGroup, ListItemSkeleton } from '@iota-uz/sdk/bichat'
+import type { JSX } from 'solid-js'
+import { SkeletonGroup } from '../ui/primitives'
 
-interface SessionSkeletonProps {
-  count?: number
-}
-
-export default function SessionSkeleton({ count = 5 }: SessionSkeletonProps) {
+export function SessionSkeleton(): JSX.Element {
   return (
-    <SkeletonGroup count={count} gap="sm" className="px-2">
-      {() => <ListItemSkeleton />}
-    </SkeletonGroup>
+    <div class="px-2 pt-2">
+      <SkeletonGroup count={5} />
+    </div>
   )
 }

@@ -664,7 +664,7 @@ func renderComponent(r *http.Request, component templ.Component) (string, error)
 
 	var buffer bytes.Buffer
 	if err := component.Render(r.Context(), &buffer); err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 	return buffer.String(), nil
 }

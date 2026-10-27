@@ -1,4 +1,5 @@
-import { act, render, waitFor } from '@testing-library/react'
+import { render, waitFor } from '@solidjs/testing-library'
+import { batch, createSignal } from 'solid-js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ChartAdapter, ChartEvents, ChartInput, ChartInstance } from '../charts/adapter'
 
@@ -51,10 +52,15 @@ describe('ChartHost', () => {
     const adapter: ChartAdapter = { mount }
     const firstSelect = vi.fn()
     const secondSelect = vi.fn()
-    const view = render(<ChartHost input={input([['a', 1]])} adapter={adapter} onSelect={firstSelect} />)
+    const [currentInput, setCurrentInput] = createSignal(input([['a', 1]]))
+    const [currentSelect, setCurrentSelect] = createSignal(firstSelect)
+    const view = render(() =><ChartHost input={currentInput()} adapter={adapter} onSelect={currentSelect()} />)
     await waitFor(() => expect(mount).toHaveBeenCalledTimes(1))
 
-    view.rerender(<ChartHost input={input([['b', 2]])} adapter={adapter} onSelect={secondSelect} />)
+    batch(() => {
+      setCurrentInput(input([['b', 2]]))
+      setCurrentSelect(() => secondSelect)
+    })
     expect(update.mock.calls.at(-1)?.[0].frame.rows).toEqual([['b', 2]])
     select?.('b')
     expect(firstSelect).not.toHaveBeenCalled()
@@ -71,14 +77,12 @@ describe('ChartHost', () => {
     const mount = vi.fn<ChartAdapter['mount']>(() => ({ update: vi.fn(), dispose }))
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     charts.getChartAdapter.mockReturnValue(pending.promise)
-    const view = render(<ChartHost input={input([['a', 1]])} />)
+    const view = render(() =><ChartHost input={input([['a', 1]])} />)
     await waitFor(() => expect(charts.getChartAdapter).toHaveBeenCalledTimes(1))
 
     view.unmount()
-    await act(async () => {
-      pending.resolve({ mount })
-      await pending.promise
-    })
+    pending.resolve({ mount })
+    await pending.promise
 
     expect(mount).not.toHaveBeenCalled()
     expect(dispose).not.toHaveBeenCalled()
@@ -90,16 +94,13 @@ describe('ChartHost', () => {
     const pending = deferred<ChartAdapter>()
     const mount = vi.fn<ChartAdapter['mount']>(() => ({ update: vi.fn(), dispose: vi.fn() }))
     charts.getChartAdapter.mockReturnValue(pending.promise)
-    const view = render(<ChartHost input={input([['old', 1]])} />)
+    const [currentInput, setCurrentInput] = createSignal(input([['old', 1]]))
+    render(() =><ChartHost input={currentInput()} />)
     await waitFor(() => expect(charts.getChartAdapter).toHaveBeenCalledTimes(1))
 
-    view.rerender(<ChartHost input={input([['latest', 2]])} />)
-    await act(async () => {
-      pending.resolve({ mount })
-      await pending.promise
-    })
-
-    expect(mount).toHaveBeenCalledTimes(1)
+    setCurrentInput(input([['latest', 2]]))
+    pending.resolve({ mount })
+    await waitFor(() => expect(mount).toHaveBeenCalledTimes(1))
     expect(mount.mock.calls[0]?.[1].frame.rows).toEqual([['latest', 2]])
   })
 
@@ -107,7 +108,7 @@ describe('ChartHost', () => {
     const mount = vi.fn<ChartAdapter['mount']>(() => ({ update: vi.fn(), dispose: vi.fn() }))
     charts.getChartAdapter.mockResolvedValue({ mount })
 
-    render(<ChartHost input={input([['a', 1]])} />)
+    render(() =><ChartHost input={input([['a', 1]])} />)
 
     await waitFor(() => expect(mount).toHaveBeenCalledTimes(1))
     expect(charts.getChartAdapter).toHaveBeenCalledTimes(1)

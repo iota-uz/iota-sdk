@@ -190,7 +190,7 @@ func (e *TiktokenEstimator) EstimateTokens(ctx context.Context, text string) (in
     const op = serrors.Op("agents.TiktokenEstimator.EstimateTokens")
     tkm, err := tiktoken.GetEncoding(e.encoding)
     if err != nil {
-        return 0, serrors.E(op, err)
+        return 0, serrors.Wrap(op, err)
     }
     // ...
 }

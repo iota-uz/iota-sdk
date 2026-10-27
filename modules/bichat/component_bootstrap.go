@@ -108,12 +108,12 @@ func loadModule(
 
 	pool := ctx.DB()
 	if pool == nil {
-		return nil, nil, nil, serrors.E(op, "database pool is required")
+		return nil, nil, nil, serrors.New(serrors.Internal, "database pool is required").WithOp(op)
 	}
 
 	moduleConfig, eventBridge, err := buildModuleConfig(ctx, pool, extraAgentOpts, extraConfigOpts)
 	if err != nil {
-		return nil, nil, nil, serrors.E(op, err)
+		return nil, nil, nil, serrors.Wrap(op, err)
 	}
 	if moduleConfig == nil {
 		return nil, nil, nil, nil
@@ -121,7 +121,7 @@ func loadModule(
 
 	servicesContainer, err := moduleConfig.BuildServices()
 	if err != nil {
-		return nil, nil, nil, serrors.E(op, err, "build services")
+		return nil, nil, nil, serrors.WrapContext(op, err, "build services")
 	}
 	return moduleConfig, servicesContainer, eventBridge, nil
 }
@@ -135,7 +135,7 @@ func buildModuleConfig(
 	const op serrors.Op = "bichat.buildModuleConfig"
 
 	if pool == nil {
-		return nil, nil, serrors.E(op, "database pool is required")
+		return nil, nil, serrors.New(serrors.Internal, "database pool is required").WithOp(op)
 	}
 
 	bichatCfg, httpCfg, appCfg, uploadsCfg, logger := resolveBichatConfigs(buildCtx)

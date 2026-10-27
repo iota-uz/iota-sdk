@@ -1,0 +1,4 @@
+{
+  "bump": "major",
+  "summary": "Rewrite the BiChat UI from React to Solid on the shared client-host runtime. This is a breaking change for consumers embedding the React chat components: the React surface of modules/bichat/presentation/web is removed and React/ReactDOM leave the production bundle; React is not kept as a second permanent client renderer. Migration guide ships with the release; rollout is coordinated with EAI-UZ/granite#4600."
+}

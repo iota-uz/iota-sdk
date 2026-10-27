@@ -1,5 +1,5 @@
 @config "../tailwind.config.js";
-@import "@iota-uz/sdk/bichat/styles.css";
+@import "../../../../../web/chat-ui/src/styles.css";
 @import "tailwindcss";
 
 @layer base {

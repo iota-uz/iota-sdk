@@ -51,6 +51,9 @@ func (ru *UserRealtimeUpdates) OnUserCreated(event *user.CreatedEvent) {
 	})
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		if !application.CanReceiveTenantUpdates(conn.User(), event.Result.TenantID(), corepermissions.UserRead) {
+			return nil
+		}
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			ru.logger.WithError(err).Error("failed to render user created event for websocket")
@@ -77,6 +80,9 @@ func (ru *UserRealtimeUpdates) OnUserDeleted(event *user.DeletedEvent) {
 	})
 
 	err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		if !application.CanReceiveTenantUpdates(conn.User(), event.Result.TenantID(), corepermissions.UserRead) {
+			return nil
+		}
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			ru.logger.WithError(err).Error("failed to render user deleted event for websocket")
@@ -102,6 +108,9 @@ func (ru *UserRealtimeUpdates) OnUserUpdated(event *user.UpdatedEvent) {
 	})
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		if !application.CanReceiveTenantUpdates(conn.User(), event.Result.TenantID(), corepermissions.UserRead) {
+			return nil
+		}
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			ru.logger.WithError(err).Error("failed to render user updated event for websocket")
@@ -211,6 +220,7 @@ func (c *UsersController) Register(r *mux.Router) {
 	router.HandleFunc("/{id:[0-9]+}/block/drawer", di.H(c.GetBlockDrawer)).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9]+}/block", di.H(c.BlockUser)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}/unblock", di.H(c.UnblockUser)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}/temporary-password", di.H(c.IssueTemporaryPassword)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}/sessions", di.H(c.GetUserSessions)).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9]+}/sessions/{token}", di.H(c.RevokeUserSession)).Methods(http.MethodDelete)
 }

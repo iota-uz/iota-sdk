@@ -22,6 +22,7 @@ func NewCreatedEvent(ctx context.Context, data User) *CreatedEvent {
 	}
 
 	return &CreatedEvent{
+		ctx:     ctx,
 		Sender:  sender,
 		Session: sess,
 		Data:    data,
@@ -69,11 +70,15 @@ func NewDeletedEvent(ctx context.Context) *DeletedEvent {
 }
 
 type CreatedEvent struct {
+	ctx     context.Context
 	Sender  User
 	Session *session.Session
 	Data    User
 	Result  User
 }
+
+// Context preserves a caller-owned transaction for atomic event consumers.
+func (e *CreatedEvent) Context() context.Context { return e.ctx }
 
 type UpdatedEvent struct {
 	Sender  User

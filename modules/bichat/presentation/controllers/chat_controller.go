@@ -130,11 +130,11 @@ func (c *ChatController) ListSessions(w http.ResponseWriter, r *http.Request) {
 
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusUnauthorized)
 		return
 	}
 	if err := c.enforceAccess(r.Context()); err != nil {
-		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
+		c.sendError(w, serrors.New(serrors.PermissionDenied, "").WithOp(op).WithCause(errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
@@ -147,7 +147,7 @@ func (c *ChatController) ListSessions(w http.ResponseWriter, r *http.Request) {
 
 	sessions, err := c.sessionQueries.ListUserSessions(r.Context(), int64(user.ID()), opts)
 	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusInternalServerError)
 		return
 	}
 	resp := make([]sessionResponse, len(sessions))
@@ -163,17 +163,17 @@ func (c *ChatController) CreateSession(w http.ResponseWriter, r *http.Request) {
 
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusUnauthorized)
 		return
 	}
 	if err := c.enforceAccess(r.Context()); err != nil {
-		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
+		c.sendError(w, serrors.New(serrors.PermissionDenied, "").WithOp(op).WithCause(errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
 	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusBadRequest)
 		return
 	}
 
@@ -183,13 +183,13 @@ func (c *ChatController) CreateSession(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusBadRequest)
 		return
 	}
 
 	session, err := c.sessionCommands.CreateSession(r.Context(), tenantID, int64(user.ID()), req.Title)
 	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusInternalServerError)
 		return
 	}
 	c.sendJSON(w, sessionToResponse(session), http.StatusCreated)
@@ -199,14 +199,14 @@ func (c *ChatController) CreateSession(w http.ResponseWriter, r *http.Request) {
 func (c *ChatController) GetSession(w http.ResponseWriter, r *http.Request) {
 	const op serrors.Op = "ChatController.GetSession"
 	if err := c.enforceAccess(r.Context()); err != nil {
-		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
+		c.sendError(w, serrors.New(serrors.PermissionDenied, "").WithOp(op).WithCause(errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		c.sendError(w, serrors.E(op, errors.New("invalid session ID")), http.StatusBadRequest)
+		c.sendError(w, serrors.Wrap(op, errors.New("invalid session ID")), http.StatusBadRequest)
 		return
 	}
 
@@ -223,18 +223,18 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusUnauthorized)
 		return
 	}
 	if err := c.enforceAccess(r.Context()); err != nil {
-		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
+		c.sendError(w, serrors.New(serrors.PermissionDenied, "").WithOp(op).WithCause(errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		c.sendError(w, serrors.E(op, errors.New("invalid session ID")), http.StatusBadRequest)
+		c.sendError(w, serrors.Wrap(op, errors.New("invalid session ID")), http.StatusBadRequest)
 		return
 	}
 
@@ -250,13 +250,13 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusBadRequest)
 		return
 	}
 
 	domainAttachments, err := convertAttachmentDTOs(r.Context(), req.Attachments)
 	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusBadRequest)
 		return
 	}
 
@@ -267,7 +267,7 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		Attachments: domainAttachments,
 	})
 	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusInternalServerError)
 		return
 	}
 
@@ -279,14 +279,14 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 	const op serrors.Op = "ChatController.ResumeWithAnswer"
 
 	if err := c.enforceAccess(r.Context()); err != nil {
-		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
+		c.sendError(w, serrors.New(serrors.PermissionDenied, "").WithOp(op).WithCause(errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		c.sendError(w, serrors.E(op, errors.New("invalid session ID")), http.StatusBadRequest)
+		c.sendError(w, serrors.Wrap(op, errors.New("invalid session ID")), http.StatusBadRequest)
 		return
 	}
 
@@ -302,7 +302,7 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusBadRequest)
 		return
 	}
 
@@ -312,7 +312,7 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 		Answers:      req.Answers,
 	})
 	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusInternalServerError)
 		return
 	}
 
@@ -324,14 +324,14 @@ func (c *ChatController) ArchiveSession(w http.ResponseWriter, r *http.Request) 
 	const op serrors.Op = "ChatController.ArchiveSession"
 
 	if err := c.enforceAccess(r.Context()); err != nil {
-		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
+		c.sendError(w, serrors.New(serrors.PermissionDenied, "").WithOp(op).WithCause(errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		c.sendError(w, serrors.E(op, errors.New("invalid session ID")), http.StatusBadRequest)
+		c.sendError(w, serrors.Wrap(op, errors.New("invalid session ID")), http.StatusBadRequest)
 		return
 	}
 
@@ -342,7 +342,7 @@ func (c *ChatController) ArchiveSession(w http.ResponseWriter, r *http.Request) 
 
 	updatedSession, err := c.sessionCommands.ArchiveSession(r.Context(), session.ID())
 	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusInternalServerError)
 		return
 	}
 	c.sendJSON(w, sessionToResponse(updatedSession), http.StatusOK)
@@ -353,14 +353,14 @@ func (c *ChatController) TogglePin(w http.ResponseWriter, r *http.Request) {
 	const op serrors.Op = "ChatController.TogglePin"
 
 	if err := c.enforceAccess(r.Context()); err != nil {
-		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
+		c.sendError(w, serrors.New(serrors.PermissionDenied, "").WithOp(op).WithCause(errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		c.sendError(w, serrors.E(op, errors.New("invalid session ID")), http.StatusBadRequest)
+		c.sendError(w, serrors.Wrap(op, errors.New("invalid session ID")), http.StatusBadRequest)
 		return
 	}
 
@@ -375,7 +375,7 @@ func (c *ChatController) TogglePin(w http.ResponseWriter, r *http.Request) {
 		updatedSession, err = c.sessionCommands.PinSession(r.Context(), session.ID())
 	}
 	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusInternalServerError)
 		return
 	}
 	c.sendJSON(w, sessionToResponse(updatedSession), http.StatusOK)
@@ -386,14 +386,14 @@ func (c *ChatController) DeleteSession(w http.ResponseWriter, r *http.Request) {
 	const op serrors.Op = "ChatController.DeleteSession"
 
 	if err := c.enforceAccess(r.Context()); err != nil {
-		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
+		c.sendError(w, serrors.New(serrors.PermissionDenied, "").WithOp(op).WithCause(errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		c.sendError(w, serrors.E(op, errors.New("invalid session ID")), http.StatusBadRequest)
+		c.sendError(w, serrors.Wrap(op, errors.New("invalid session ID")), http.StatusBadRequest)
 		return
 	}
 
@@ -404,7 +404,7 @@ func (c *ChatController) DeleteSession(w http.ResponseWriter, r *http.Request) {
 
 	// Delete session (cascades to messages/attachments)
 	if err := c.sessionCommands.DeleteSession(r.Context(), session.ID()); err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusInternalServerError)
 		return
 	}
 
@@ -424,7 +424,7 @@ func (c *ChatController) sendJSON(w http.ResponseWriter, data interface{}, statu
 func (c *ChatController) sendError(w http.ResponseWriter, err error, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+	if encErr := json.NewEncoder(w).Encode(map[string]string{"error": serrors.Public(err, nil).Message}); encErr != nil {
 		slog.Error("failed to encode error response", "err", encErr)
 	}
 }
@@ -447,16 +447,16 @@ func (c *ChatController) requireSessionAccess(
 
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusUnauthorized)
 		return nil, false
 	}
 
 	session, err := c.sessionQueries.GetSession(r.Context(), sessionID)
 	if err != nil {
 		if errors.Is(err, persistence.ErrSessionNotFound) {
-			c.sendError(w, serrors.E(op, err), http.StatusNotFound)
+			c.sendError(w, serrors.Wrap(op, err), http.StatusNotFound)
 		} else {
-			c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
+			c.sendError(w, serrors.Wrap(op, err), http.StatusInternalServerError)
 		}
 		return nil, false
 	}
@@ -467,12 +467,12 @@ func (c *ChatController) requireSessionAccess(
 	}
 	access, err := c.sessionQueries.ResolveSessionAccess(r.Context(), sessionID, int64(user.ID()), readAll)
 	if err != nil {
-		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
+		c.sendError(w, serrors.Wrap(op, err), http.StatusInternalServerError)
 		return nil, false
 	}
 
 	if err := access.Require(requireWrite, requireManageMembers); err != nil {
-		c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
+		c.sendError(w, serrors.New(serrors.PermissionDenied, "").WithOp(op).WithCause(errors.New("access denied")), http.StatusForbidden)
 		return nil, false
 	}
 

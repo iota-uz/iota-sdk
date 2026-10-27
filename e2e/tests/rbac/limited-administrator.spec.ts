@@ -1,5 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
-import { login, logout, populateTestData, resetTestDatabase, seedScenario, waitForAlpine } from '../../fixtures';
+import {
+	login,
+	loginThroughOnboarding,
+	logout,
+	populateTestData,
+	resetTestDatabase,
+	seedScenario,
+	submitNewUserForm,
+	waitForAlpine,
+} from '../../fixtures';
 
 const limitedAdmin = {
 	email: 'limited-administrator@test.com',
@@ -107,8 +116,8 @@ async function createUser(
 	if (data.roleNames) await selectOptionsByLabel(page, 'select[name="RoleIDs"]', data.roleNames);
 	if (data.groupNames) await selectOptionsByLabel(page, 'select[name="GroupIDs"]', data.groupNames);
 
-	await page.locator('#save-btn').click();
-	await page.waitForURL(/\/users$/);
+	await submitNewUserForm(page);
+	await page.goto('/users');
 
 	const row = page.locator('tbody tr').filter({ hasText: `${data.firstName} ${data.lastName}` });
 	await expect(row).toBeVisible();
@@ -276,7 +285,8 @@ test.describe('limited administrator P0 management flows', () => {
 		const groupName = 'P0 Permission Group';
 		const updatedGroupName = 'P0 Permission Group Updated';
 		const targetEmail = 'p0-group-user@test.com';
-		const targetPassword = 'GroupUserPass123!';
+		const targetTemporaryPassword = 'GroupUserPass123!';
+		const targetPassword = 'GroupUserOwnPass123!';
 		const roleID = await createRole(page, roleName, [permissions.userRead]);
 
 		await page.goto('/groups');
@@ -308,12 +318,16 @@ test.describe('limited administrator P0 management flows', () => {
 			lastName: 'User',
 			email: targetEmail,
 			phone: '+998901112202',
-			password: targetPassword,
+			password: targetTemporaryPassword,
 			groupNames: [updatedGroupName],
 		});
 
 		await logout(page);
-		await login(page, targetEmail, targetPassword);
+		await loginThroughOnboarding(page, targetEmail, targetTemporaryPassword, {
+			firstName: 'P0Group',
+			lastName: 'User',
+			newPassword: targetPassword,
+		});
 		const inheritedAccess = await page.goto('/users');
 		expect(inheritedAccess?.status()).toBe(200);
 		await expect(page.locator('table')).toBeVisible();

@@ -5,5 +5,7 @@ export default {
   'module-system': 'Module System',
   'multi-tenancy': 'Multi-Tenancy',
   'frontend-stack': 'Frontend Stack',
-  'solid-client-runtime': 'Solid Client Runtime'
+  'solid-client-runtime': 'Solid Client Runtime',
+  'bichat-solid-migration': 'BiChat Solid Migration',
+  'lens-solid-migration': 'Lens Solid Migration'
 }

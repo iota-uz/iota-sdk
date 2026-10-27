@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { DashboardDocument, Frame, LayoutGroup, LayoutItem, Panel } from './contract'
 import { DashboardPanels } from './DashboardPanels'
@@ -27,10 +27,10 @@ function documentWith(panels: Panel[], frames: Record<string, Frame>, layout: Da
 }
 
 function renderDocument(document: DashboardDocument, registry?: PanelRegistry) {
-  return render(
-    <div className="lens-root">
+  return render(() =>
+    <div class="lens-root">
       <DocumentProvider initialDocument={document}>
-        <DashboardRuntimeProvider locale="en"><DashboardPanels registry={registry} /></DashboardRuntimeProvider>
+        <DashboardRuntimeProvider locale="en">{() => (<>(<DashboardPanels registry={registry} />)</>)}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>,
   )

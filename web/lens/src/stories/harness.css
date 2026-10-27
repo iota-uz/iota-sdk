@@ -1,0 +1,4 @@
+/* Minimal chrome for the story harness itself. */
+body { margin: 0; }
+#story-root { min-height: 100vh; }
+pre[data-story-missing] { padding: 2rem; font-size: 0.85rem; }

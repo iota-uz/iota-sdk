@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
@@ -25,6 +23,11 @@ type manager struct {
 	tasks         map[string]PeriodicTask
 	taskEntryIDs  map[string]cron.EntryID
 	disabledTasks []RegisteredTask
+	runsMu        sync.Mutex
+	runs          map[string]*managedRun
+	activeRuns    map[string][]*managedRun
+	completedRuns []string
+	stopping      bool
 }
 
 // NewManager creates a new periodic task manager
@@ -37,6 +40,8 @@ func NewManager(logger *logrus.Logger, pool *pgxpool.Pool, tenantID uuid.UUID) M
 		tenantID:     tenantID,
 		tasks:        make(map[string]PeriodicTask),
 		taskEntryIDs: make(map[string]cron.EntryID),
+		runs:         make(map[string]*managedRun),
+		activeRuns:   make(map[string][]*managedRun),
 	}
 }
 
@@ -72,6 +77,9 @@ func (m *manager) Start() error {
 	if m.cron != nil {
 		return fmt.Errorf("manager is already running")
 	}
+	m.runsMu.Lock()
+	m.stopping = false
+	m.runsMu.Unlock()
 
 	// Create cron with timezone and logger
 	m.cron = cron.New(
@@ -90,7 +98,7 @@ func (m *manager) Start() error {
 	m.cron.Start()
 	m.logger.WithField("tasks_count", len(m.tasks)).Info("Periodic task manager started")
 
-	// Execute tasks that should run on startup using the same wrapper chain as cron
+	// Startup and cron use the same owned invocation path.
 	for _, task := range m.tasks {
 		if task.RunOnStart() {
 			executor := m.buildWrappedExecutor(task)
@@ -115,25 +123,36 @@ func (m *manager) Start() error {
 // Stop gracefully stops all running tasks
 func (m *manager) Stop(ctx context.Context) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.cron == nil {
-		return nil // Already stopped
+	var stopCtx context.Context
+	if m.cron != nil {
+		stopCtx = m.cron.Stop()
 	}
-
-	// Create a context for graceful shutdown
-	stopCtx := m.cron.Stop()
-
-	// Wait for all jobs to complete or timeout
-	select {
-	case <-stopCtx.Done():
-		m.logger.Info("Periodic task manager stopped gracefully")
-	case <-ctx.Done():
-		m.logger.Warn("Periodic task manager stop timed out, some tasks may still be running")
-	}
-
 	m.cron = nil
-	m.logger.Info("Periodic task manager stopped")
+	m.runsMu.Lock()
+	m.stopping = true
+	var pending []<-chan struct{}
+	for _, runs := range m.activeRuns {
+		for _, run := range runs {
+			run.cancel()
+			pending = append(pending, run.done)
+		}
+	}
+	m.runsMu.Unlock()
+	m.mu.Unlock()
+	for _, done := range pending {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	if stopCtx != nil {
+		select {
+		case <-stopCtx.Done():
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	return nil
 }
 
@@ -165,61 +184,18 @@ func (m *manager) GetEntries() []Entry {
 	return entries
 }
 
-// buildWrappedExecutor creates a fully wrapped execution function for a task.
-// Both addTaskToCron and startup use this to ensure the same wrapper chain is applied.
+// buildWrappedExecutor waits for the owned invocation, so cron shutdown joins
+// actual execution even when the task ignores its deadline.
 func (m *manager) buildWrappedExecutor(task PeriodicTask) func() {
-	config := mergeWithDefaults(task.Config())
-	taskName := task.Name()
-
-	// Create the job wrapper chain
-	wrappers := []cron.JobWrapper{
-		// Recovery wrapper (always first)
-		cron.Recover(cron.VerbosePrintfLogger(m.logger)),
-	}
-
-	// Add skip if running wrapper (if enabled)
-	if config.EnableSkipIfRunning != nil && *config.EnableSkipIfRunning {
-		wrappers = append(wrappers, cron.SkipIfStillRunning(cron.VerbosePrintfLogger(m.logger)))
-	}
-
-	// Add timeout wrapper
-	wrappers = append(wrappers, TimeoutWrapper(config.Timeout, m.logger))
-
-	// Add retry wrapper
-	wrappers = append(wrappers, RetryWrapper(*config.MaxRetries, config.RetryDelay, m.logger))
-
-	// Add metrics wrapper
-	wrappers = append(wrappers, MetricsWrapper(taskName, m.metrics))
-
-	// Add logging wrapper (last, so it logs the final result)
-	wrappers = append(wrappers, LoggingWrapper(taskName, m.logger))
-
-	// Create the chain
-	chain := cron.NewChain(wrappers...)
-
-	// Create the job that will execute the task
-	job := cron.FuncJob(func() {
-		// cron's Job.Run() has no ctx parameter, so TimeoutWrapper's deadline
-		// cannot reach Execute via the chain. Apply config.Timeout here so
-		// downstream calls observe the budget; TimeoutWrapper still logs and
-		// stops waiting after the deadline, but cannot preempt the goroutine.
-		ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
-		defer cancel()
-
-		// Add database pool, tenant ID, and logger to context for task execution
-		ctx = composables.WithPool(ctx, m.pool)
-		ctx = composables.WithTenantID(ctx, m.tenantID)
-		ctx = context.WithValue(ctx, constants.LoggerKey, m.logger.WithField("task", taskName))
-
-		if err := task.Execute(ctx); err != nil {
-			panic(fmt.Errorf("task execution failed: %w", err))
+	return func() {
+		cfg := mergeWithDefaults(task.Config())
+		receipt, err := m.startRun(task.Name(), !*cfg.EnableSkipIfRunning)
+		if err != nil {
+			m.logger.WithError(err).WithField("task", task.Name()).Debug("Periodic invocation skipped")
+			return
 		}
-	})
-
-	// Wrap the job with the chain
-	wrappedJob := chain.Then(job)
-
-	return wrappedJob.Run
+		_, _ = m.WaitRun(context.Background(), receipt.ID)
+	}
 }
 
 // addTaskToCron adds a single task to the cron scheduler
@@ -315,35 +291,8 @@ func (m *manager) AddDisabledTaskInfo(name, schedule string) {
 
 // RunTask executes a registered task immediately (out-of-schedule).
 func (m *manager) RunTask(name string) error {
-	m.mu.RLock()
-	task, exists := m.tasks[name]
-	m.mu.RUnlock()
-
-	if !exists {
-		return fmt.Errorf("task '%s' not found or disabled", name)
-	}
-
-	// Check if already running
-	metrics := m.metrics.GetMetrics()
-	if tm, ok := metrics[name]; ok && tm.IsRunning {
-		return fmt.Errorf("task '%s' is already running", name)
-	}
-
-	executor := m.buildWrappedExecutor(task)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				m.logger.WithFields(logrus.Fields{
-					"task":  name,
-					"panic": r,
-				}).Error("Manually triggered task panicked")
-			}
-		}()
-		m.logger.WithField("task", name).Info("Running periodic task manually")
-		executor()
-	}()
-
-	return nil
+	_, err := m.RunTaskWithReceipt(name)
+	return err
 }
 
 // GetRegisteredTasks returns information about all registered tasks (both enabled and disabled).

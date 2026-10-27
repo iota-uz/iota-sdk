@@ -1,4 +1,3 @@
-import type { Story } from '@ladle/react'
 import type { DashboardDocument, Panel } from './contract'
 import { LensDashboard } from './LensDashboard'
 import './styles.css'
@@ -105,8 +104,8 @@ const comparisonDocument: DashboardDocument = {
   theme: { palette: {}, series: {} },
 }
 
-export const PreviousPeriod: Story = () => (
-  <div style={{ width: 1080 }}>
+export const PreviousPeriod = () => (
+  <div style={{ width: '1080px' }}>
     <LensDashboard initialDocument={comparisonDocument} theme="light" />
   </div>
 )

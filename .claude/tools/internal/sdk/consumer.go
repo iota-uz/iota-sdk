@@ -399,7 +399,7 @@ func (g GitHub) Finalize(ctx context.Context, root string) (changed bool, result
 	if err != nil {
 		return false, err
 	}
-	if _, err = g.Runner.Run(ctx, goDir, nil, "env", "GOWORK=off", "go", "get", Repository+"@v"+ready.Version); err != nil {
+	if _, err = g.Runner.Run(ctx, goDir, nil, "env", "GOWORK=off", "go", "get", GoModulePath+"@v"+ready.Version); err != nil {
 		return false, err
 	}
 	if d.WebDir != "" {

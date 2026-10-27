@@ -20,7 +20,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
 	"github.com/xuri/excelize/v2"
 
@@ -38,6 +37,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	importpkg "github.com/iota-uz/iota-sdk/pkg/import"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -143,17 +143,17 @@ func (c *PositionsController) HandleUpload(
 	positionService *positionservice.PositionService,
 ) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	dto := dtos.PositionsUploadDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -211,10 +211,13 @@ func (c *PositionsController) HandleUpload(
 						"Col":     e.Col,
 						"Value":   e.Value,
 						"RowNum":  e.RowNum,
-						"Message": e.Message,
+						"Message": e.Localize(localizer),
 					})
 				default:
-					if baseErr, ok := vErr.(serrors.Base); ok {
+					if baseErr, ok := vErr.(interface {
+						error
+						Localize(*i18n.Localizer) string
+					}); ok {
 						localizedError = baseErr.Localize(localizer)
 					} else {
 						localizedError = vErr.Error()
@@ -248,7 +251,10 @@ func (c *PositionsController) HandleUpload(
 		}
 
 		// Handle single errors for backward compatibility
-		var vErr serrors.Base
+		var vErr interface {
+			error
+			Localize(*i18n.Localizer) string
+		}
 		if errors.As(err, &vErr) {
 			// Create namespaced context for error localization
 			pageCtx := composables.UsePageCtx(r.Context())
@@ -267,7 +273,7 @@ func (c *PositionsController) HandleUpload(
 					"Col":     e.Col,
 					"Value":   e.Value,
 					"RowNum":  e.RowNum,
-					"Message": e.Message,
+					"Message": e.Localize(localizer),
 				})
 			default:
 				localizedError = vErr.Localize(localizer)
@@ -292,7 +298,7 @@ func (c *PositionsController) HandleUpload(
 			templ.Handler(contentComponent, templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -345,13 +351,13 @@ func (c *PositionsController) List(
 ) {
 	paginated, err := c.viewModelPositions(r, positionService)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	unitViewModels, err := c.viewModelUnits(r, unitService)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
@@ -375,7 +381,7 @@ func (c *PositionsController) GetEdit(
 ) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -386,7 +392,7 @@ func (c *PositionsController) GetEdit(
 	}
 	unitViewModels, err := c.viewModelUnits(r, unitService)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := &positions2.EditPageProps{
@@ -411,7 +417,7 @@ func (c *PositionsController) Search(
 		Limit: 10,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := mapping.MapViewModels(entities, func(pos position.Position) *base.ComboboxOption {
@@ -436,12 +442,12 @@ func (c *PositionsController) Update(
 	}
 	dto := position.UpdateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
@@ -452,7 +458,7 @@ func (c *PositionsController) Update(
 		}
 		unitViewModels, err := c.viewModelUnits(r, unitService)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		props := &positions2.EditPageProps{
@@ -469,7 +475,7 @@ func (c *PositionsController) Update(
 		return positionService.Update(txCtx, id, &dto)
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -482,7 +488,7 @@ func (c *PositionsController) GetNew(
 ) {
 	unitViewModels, err := c.viewModelUnits(r, unitService)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := &positions2.CreatePageProps{
@@ -500,25 +506,25 @@ func (c *PositionsController) Create(
 	positionService *positionservice.PositionService,
 ) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	dto := position.CreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
 		entity, err := dto.ToEntity()
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		props := &positions2.CreatePageProps{
@@ -534,7 +540,7 @@ func (c *PositionsController) Create(
 		return err
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -548,7 +554,7 @@ func (c *PositionsController) Delete(
 ) {
 	id, err := shared.ParseID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
@@ -556,7 +562,7 @@ func (c *PositionsController) Delete(
 		return err
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)

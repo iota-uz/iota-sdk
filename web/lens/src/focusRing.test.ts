@@ -51,7 +51,7 @@ describe('one keyboard-focus ring', () => {
     // may not do so *instead* of a ring. `outline-none` is the tell: it suppresses
     // the real ring and leaves a transparent 2px outline where the reader expects
     // one — which is exactly how the table search field ended up unreadable.
-    const suppressors = focusRules().filter(({ body }) => /lens-outline-none|outline:\s*none/.test(body))
+    const suppressors = focusRules().filter(({ body }) => /lens:outline-none|lens-outline-none|outline:\s*none/.test(body))
     expect(suppressors.map(({ selector }) => selector)).toEqual(['.lens-drawer:focus'])
   })
 

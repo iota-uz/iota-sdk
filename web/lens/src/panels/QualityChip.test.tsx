@@ -1,4 +1,5 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import type { JSX } from 'solid-js'
+import { cleanup, render, screen } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Availability, Confidence, DashboardDocument, Frame, Panel } from '../contract'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
@@ -30,9 +31,9 @@ function documentWith(i18n: Record<string, string> = {}): DashboardDocument {
   }
 }
 
-function renderWithDocument(children: React.ReactNode, i18n: Record<string, string> = {}) {
-  return render(
-    <div className="lens-root">
+function renderWithDocument(children: () => JSX.Element, i18n: Record<string, string> = {}) {
+  return render(() =>
+    <div class="lens-root">
       <DocumentProvider initialDocument={documentWith(i18n)}>
         <DashboardRuntimeProvider locale="en">{children}</DashboardRuntimeProvider>
       </DocumentProvider>
@@ -57,7 +58,7 @@ describe('QualityChip confidence axis', () => {
   it.each(Object.entries(CONFIDENCE_LABELS) as Array<[Confidence, string]>)(
     'renders icon + translated label for confidence %s',
     (confidence, label) => {
-      const { container } = render(<QualityChip confidence={confidence} />)
+      const { container } = render(() =><QualityChip confidence={confidence} />)
       const chip = container.querySelector('.lens-quality-chip')
       expect(chip).not.toBeNull()
       expect(chip?.querySelector('svg.lens-quality-chip-icon')).not.toBeNull()
@@ -72,7 +73,7 @@ describe('QualityChip availability axis', () => {
   it.each(Object.entries(AVAILABILITY_LABELS) as Array<[Exclude<Availability, 'available'>, string]>)(
     'renders icon + translated label for availability %s',
     (availability, label) => {
-      const { container } = render(<QualityChip availability={availability} />)
+      const { container } = render(() =><QualityChip availability={availability} />)
       const chip = container.querySelector('.lens-quality-chip')
       expect(chip).not.toBeNull()
       expect(chip?.querySelector('svg.lens-quality-chip-icon')).not.toBeNull()
@@ -83,40 +84,40 @@ describe('QualityChip availability axis', () => {
   )
 
   it('renders "available" as no chip at all (available is not a status)', () => {
-    const { container } = render(<QualityChip availability="available" />)
+    const { container } = render(() =><QualityChip availability="available" />)
     expect(container.querySelector('.lens-quality-chip')).toBeNull()
   })
 })
 
 describe('QualityChip precedence', () => {
   it('shows the availability chip when availability is set and not available, even with a confidence value', () => {
-    render(<QualityChip confidence="verified" availability="config_required" />)
+    render(() =><QualityChip confidence="verified" availability="config_required" />)
 
     expect(screen.getByText('Configuration required')).toBeInTheDocument()
     expect(screen.queryByText('Verified')).toBeNull()
   })
 
   it('shows the confidence chip when availability is available (or unset)', () => {
-    render(<QualityChip confidence="proxy" availability="available" />)
+    render(() =><QualityChip confidence="proxy" availability="available" />)
 
     expect(screen.getByText('Proxy')).toBeInTheDocument()
   })
 
   it('shows the confidence chip when availability is entirely unset', () => {
-    render(<QualityChip confidence="calculated" />)
+    render(() =><QualityChip confidence="calculated" />)
 
     expect(screen.getByText('Calculated')).toBeInTheDocument()
   })
 
   it('renders nothing when neither axis is set', () => {
-    const { container } = render(<QualityChip />)
+    const { container } = render(() =><QualityChip />)
 
     expect(container.querySelector('.lens-quality-chip')).toBeNull()
     expect(container).toBeEmptyDOMElement()
   })
 
   it('never renders more than one chip', () => {
-    const { container } = render(<QualityChip confidence="verified" availability="unavailable" />)
+    const { container } = render(() =><QualityChip confidence="verified" availability="unavailable" />)
 
     expect(container.querySelectorAll('.lens-quality-chip')).toHaveLength(1)
   })
@@ -141,14 +142,14 @@ describe('resolveQuality', () => {
 
 describe('QualityChip i18n override', () => {
   it('uses a document-supplied confidence label over the built-in fallback', () => {
-    renderWithDocument(<QualityChip confidence="verified" />, { 'confidence.verified': 'Проверено' })
+    renderWithDocument(() => (<QualityChip confidence="verified" />), { 'confidence.verified': 'Проверено' })
 
     expect(screen.getByText('Проверено')).toBeInTheDocument()
     expect(screen.queryByText('Verified')).toBeNull()
   })
 
   it('uses a document-supplied availability label over the built-in fallback', () => {
-    renderWithDocument(<QualityChip availability="unavailable" />, { 'availability.unavailable': 'Недоступно' })
+    renderWithDocument(() => (<QualityChip availability="unavailable" />), { 'availability.unavailable': 'Недоступно' })
 
     expect(screen.getByText('Недоступно')).toBeInTheDocument()
     expect(screen.queryByText('Unavailable')).toBeNull()

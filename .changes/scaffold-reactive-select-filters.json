@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Wait for Alpine-derived hidden filter values before serializing scaffold table select changes, preventing date filters from submitting the previous range."}

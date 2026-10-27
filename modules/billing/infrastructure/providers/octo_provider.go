@@ -48,7 +48,7 @@ func (o *octoProvider) Create(ctx context.Context, t billing.Transaction) (billi
 	const op serrors.Op = "octoProvider.Create"
 	octoDetails, err := toOctoDetails(t.Details())
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	apiClient := newAPIClient(o.logger)
@@ -81,7 +81,7 @@ func (o *octoProvider) Create(ctx context.Context, t billing.Transaction) (billi
 	}
 
 	if err != nil {
-		return nil, serrors.E(op, serrors.Internal, err)
+		return nil, serrors.New(serrors.Internal, "").WithOp(op).WithCause(err)
 	}
 
 	if resp.ApiMessageForDevelopers != nil {
@@ -149,11 +149,11 @@ func (o *octoProvider) Refund(ctx context.Context, t billing.Transaction, amount
 	const op serrors.Op = "octoProvider.Refund"
 	octoDetails, err := toOctoDetails(t.Details())
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if octoDetails.OctoPaymentUUID() == "" {
-		return nil, serrors.E(op, serrors.Invalid, "cannot refund: octo_payment_uuid not found in details")
+		return nil, serrors.New(serrors.Invalid, "cannot refund: octo_payment_uuid not found in details").WithOp(op)
 	}
 
 	apiClient := newAPIClient(o.logger)
@@ -180,11 +180,11 @@ func (o *octoProvider) Refund(ctx context.Context, t billing.Transaction, amount
 	}
 
 	if err != nil {
-		return nil, serrors.E(op, serrors.Internal, err)
+		return nil, serrors.New(serrors.Internal, "").WithOp(op).WithCause(err)
 	}
 
 	if resp.GetError() != 0 {
-		return nil, serrors.E(op, serrors.Internal, fmt.Sprintf("octo refund error: %s", resp.GetErrMessage()))
+		return nil, serrors.New(serrors.Internal, fmt.Sprintf("octo refund error: %s", resp.GetErrMessage())).WithOp(op)
 	}
 
 	totalRefunded := octoDetails.RefundedSum() + amount
@@ -221,11 +221,11 @@ func (o *octoProvider) CheckStatus(ctx context.Context, shopTransactionID string
 	}
 
 	if err != nil {
-		return nil, serrors.E(op, serrors.Internal, err)
+		return nil, serrors.New(serrors.Internal, "").WithOp(op).WithCause(err)
 	}
 
 	if resp.GetError() != 0 {
-		return nil, serrors.E(op, serrors.Internal, fmt.Sprintf("octo check status error: %s", resp.GetErrMessage()))
+		return nil, serrors.New(serrors.Internal, fmt.Sprintf("octo check status error: %s", resp.GetErrMessage())).WithOp(op)
 	}
 
 	result := &billing.StatusCheckResult{
@@ -240,7 +240,7 @@ func (o *octoProvider) CheckStatus(ctx context.Context, shopTransactionID string
 func toOctoDetails(detailsObj details.Details) (details.OctoDetails, error) {
 	octoDetails, ok := detailsObj.(details.OctoDetails)
 	if !ok {
-		return nil, serrors.E(serrors.Invalid, fmt.Sprintf("failed to cast details to OctoDetails: invalid type %T", detailsObj))
+		return nil, serrors.NewInvalid(fmt.Sprintf("failed to cast details to OctoDetails: invalid type %T", detailsObj))
 	}
 	return octoDetails, nil
 }

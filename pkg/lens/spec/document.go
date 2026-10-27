@@ -171,7 +171,6 @@ type PanelSpec struct {
 	ShowTotalBadge  bool                 `json:"showTotalBadge,omitempty"`
 	TotalBadgeValue *float64             `json:"totalBadgeValue,omitempty"`
 	HeadlineValue   *float64             `json:"headlineValue,omitempty"`
-	DrillTree       *panel.DrillTree     `json:"drillTree,omitempty"`
 	Trend           *panel.TrendSpec     `json:"trend,omitempty"`
 	Status          *panel.StatusSpec    `json:"status,omitempty"`
 	Sparkline       *panel.SparklineSpec `json:"sparkline,omitempty"`
@@ -373,10 +372,10 @@ func Load(data []byte) (Document, error) {
 
 	//nolint:musttag // Document is the canonical Lens JSON payload owned by this package.
 	if err := decoder.Decode(&doc); err != nil {
-		return Document{}, serrors.E(op, err)
+		return Document{}, serrors.Wrap(op, err)
 	}
 	if err := doc.Validate(); err != nil {
-		return Document{}, serrors.E(op, err)
+		return Document{}, serrors.Wrap(op, err)
 	}
 	return doc, nil
 }
@@ -386,11 +385,11 @@ func LoadFS(fsys fs.FS, name string) (Document, error) {
 
 	data, err := fs.ReadFile(fsys, name)
 	if err != nil {
-		return Document{}, serrors.E(op, err)
+		return Document{}, serrors.Wrap(op, err)
 	}
 	doc, err := Load(data)
 	if err != nil {
-		return Document{}, serrors.E(op, err)
+		return Document{}, serrors.Wrap(op, err)
 	}
 	return doc, nil
 }

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	twofactorentity "github.com/iota-uz/iota-sdk/modules/core/domain/entities/twofactor"
@@ -17,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
+	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -54,6 +57,10 @@ import (
 var LocaleFiles embed.FS
 
 type ModuleOptions struct {
+	// DisableNotificationWorker leaves durable jobs for a dedicated worker process.
+	DisableNotificationWorker bool
+	// NotificationEvents registers application-owned events in the settings catalog.
+	NotificationEvents       []notifications.Definition
 	PermissionSchema         *rbac.PermissionSchema
 	UploadsAuthorizer        types.UploadsAuthorizer
 	DefaultTenantID          uuid.UUID
@@ -68,6 +75,14 @@ type ModuleOptions struct {
 	// registered. Use this for specialized binaries like superadmin that
 	// provide their own admin UI.
 	SkipAdminControllers bool
+
+	// SkipDashboardController suppresses the finance dashboard controller only,
+	// leaving the rest of the admin UI registered. Use it when the consumer
+	// serves its own home page and does not build the Lens Solid assets the
+	// dashboard renders, which it otherwise has to do just to start the server.
+	// It cannot be combined with a component that replaces "core.dashboard"
+	// (superadmin does): the replacement would have nothing to replace.
+	SkipDashboardController bool
 
 	// SkipAdminNavItems suppresses contribution of the built-in admin
 	// navigation without affecting controller or spotlight registration.
@@ -117,6 +132,10 @@ func (c *component) Build(builder *composition.Builder) error {
 	// ----- Repositories -----
 	composition.ProvideFunc(builder, persistence.NewUploadRepository)
 	composition.ProvideFunc(builder, persistence.NewUserRepository)
+	composition.ProvideFunc(builder, persistence.NewNotificationRepository)
+	composition.ProvideFunc(builder, persistence.NewNotificationRuleRepository)
+	composition.ProvideFunc(builder, persistence.NewNotificationAudienceRepository)
+	composition.ProvideFunc(builder, persistence.NewNotificationDispatchRepository)
 	composition.ProvideFunc(builder, persistence.NewRoleRepository)
 	composition.ProvideFunc(builder, persistence.NewTenantRepository)
 	composition.ProvideFunc(builder, persistence.NewPermissionRepository)
@@ -134,9 +153,36 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, query.NewPgOrgQueryRepository)
 
 	// ----- Services -----
+	composition.ProvideFunc(builder, func() (*notifications.Catalog, error) {
+		return newCoreNotificationCatalog(c.options.NotificationEvents)
+	})
+	composition.ProvideFunc(builder, services.NewNotificationRealtimeService)
+	composition.ProvideFunc(builder, func(repo notification.Repository, realtime *services.NotificationRealtimeService) *services.NotificationService {
+		return services.NewNotificationService(repo).WithRealtime(realtime)
+	})
+	composition.ProvideFunc(builder, func(service *services.NotificationService) services.NotificationDelivery { return service })
+	composition.ProvideFunc(builder, services.NewNotificationRoutingService)
+	composition.ProvideFunc(builder, services.NewNotificationDispatchService)
+	composition.ProvideFunc(builder, services.NewNotificationDispatchWorker)
+	composition.ContributeMiddleware(builder, func(container *composition.Container) ([]mux.MiddlewareFunc, error) {
+		service, err := composition.Resolve[*services.NotificationService](container)
+		if err != nil {
+			return nil, err
+		}
+		return []mux.MiddlewareFunc{services.WithNotificationSummary(service)}, nil
+	})
+	if !c.options.DisableNotificationWorker && (builder.Context().HasCapability(composition.CapabilityAPI) || builder.Context().HasCapability(composition.CapabilityWorker)) {
+		composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
+			worker, err := composition.Resolve[*services.NotificationDispatchWorker](container)
+			if err != nil {
+				return nil, err
+			}
+			return []composition.Hook{{Name: "notification-dispatch", Start: worker.Start}}, nil
+		})
+	}
 	composition.ProvideFunc(builder, services.NewPrivilegeGrantPolicy)
 	composition.ProvideFunc(builder, services.NewTenantService)
-	composition.ProvideFunc(builder, services.NewUploadService)
+	composition.ProvideFunc(builder, services.NewConfiguredUploadService)
 	composition.ProvideFunc(builder, services.NewSessionService)
 	composition.ProvideFunc(builder, newCoreUserService)
 	composition.ProvideFunc(builder, services.NewBrowserSessionService)
@@ -156,6 +202,10 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, newCoreTwoFactorService)
 
 	// ----- Event handlers -----
+	composition.ProvideFunc(builder, handlers.NewNotificationHandler)
+	composition.ContributeEventHandlerFunc(builder, func(h *handlers.NotificationHandler) any {
+		return h.OnUserCreated
+	})
 	// Revoke active sessions whenever a user's password changes so that
 	// leaked credentials stop being honoured after a reset.
 	composition.ProvideFunc(builder, handlers.NewUserHandler)
@@ -207,7 +257,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		}
 		browserSessions, err := composition.Resolve[*services.BrowserSessionService](container)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		httpCfg, err := composition.Resolve[*httpconfig.Config](container)
 		if err != nil {
@@ -247,11 +297,11 @@ func (c *component) Build(builder *composition.Builder) error {
 				Start: func(ctx context.Context) (composition.StopFn, error) {
 					if meiliCfg.URL != "" {
 						if err := service.Readiness(ctx); err != nil {
-							return nil, serrors.E(op, err, "spotlight preflight check")
+							return nil, serrors.WrapContext(op, err, "spotlight preflight check")
 						}
 					}
 					if err := service.Start(ctx); err != nil {
-						return nil, serrors.E(op, err, "start spotlight service")
+						return nil, serrors.WrapContext(op, err, "start spotlight service")
 					}
 					return service.Stop, nil
 				},
@@ -303,6 +353,7 @@ func (c *component) Build(builder *composition.Builder) error {
 				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService, httpCfg, sessionCfg, browserSessions),
 				controllers.NewAccountController(app, userService, tenantService, uploadService, sessionService, cookiesCfg),
 				controllers.NewLogoutController(httpCfg, browserSessions),
+				controllers.NewOnboardingController(app, userService, uploadService, browserSessions),
 				controllers.NewUploadController(uploadService, uploadsCfg),
 			}
 			if opts.UploadsAuthorizer != nil || opts.DefaultTenantID != uuid.Nil {
@@ -318,7 +369,15 @@ func (c *component) Build(builder *composition.Builder) error {
 			// (e.g. superadmin) that provide their own admin interface.
 			if !opts.SkipAdminControllers {
 				ctrls = append(ctrls,
-					controllers.NewDashboardController(dbCfg, opts.DashboardLinkPermissions),
+					controllers.NewNotificationController(),
+					controllers.NewNotificationSettingsController(),
+				)
+				// The dashboard renders through the Lens Solid bundle, which a
+				// consumer that serves its own home page may never build.
+				if !opts.SkipDashboardController {
+					ctrls = append(ctrls, controllers.NewDashboardController(dbCfg, opts.DashboardLinkPermissions))
+				}
+				ctrls = append(ctrls,
 					// aiHolder may be nil when no downstream component registered
 					// an AI search service; the controller is nil-safe and will
 					// surface the feature as unavailable in that case.
@@ -400,13 +459,13 @@ func newCoreTwoFactorService(
 	isCI := os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true"
 
 	if appCfg.IsProduction() && appCfg.EnableTestEndpoints && !isCI {
-		return nil, serrors.E(op, serrors.Invalid, errors.New("test endpoints cannot be enabled in production"))
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("test endpoints cannot be enabled in production"))
 	}
 	if !appCfg.EnableTestEndpoints &&
 		appCfg.IsProduction() &&
 		twoFactorCfg.Enabled &&
 		twoFactorCfg.EncryptionKey == "" {
-		return nil, serrors.E(op, serrors.Invalid, errors.New("TOTP encryption key is required in production"))
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("TOTP encryption key is required in production"))
 	}
 
 	var encryptor pkgtwofactor.SecretEncryptor
@@ -465,7 +524,7 @@ func newCoreTwoFactorService(
 		coreservices2fa.WithOTPSender(otpSender),
 	)
 	if err != nil {
-		return nil, serrors.E(op, "failed to create two-factor service", err)
+		return nil, serrors.WrapContext(op, err, "failed to create two-factor service")
 	}
 	return svc, nil
 }

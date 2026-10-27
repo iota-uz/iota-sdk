@@ -54,13 +54,13 @@ func NewRecoveryCodeService(repo twofactor.RecoveryCodeRepository) *RecoveryCode
 func (s *RecoveryCodeService) Generate(count int) ([]string, error) {
 	const op serrors.Op = "RecoveryCodeService.Generate"
 	if count < 1 || count > 100 {
-		return nil, serrors.E(op, serrors.Invalid, errors.New("recovery code count must be between 1 and 100"))
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("recovery code count must be between 1 and 100"))
 	}
 	codes := make([]string, count)
 	for i := 0; i < count; i++ {
 		code, err := s.generateSingleCode()
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		codes[i] = code
 	}
@@ -73,7 +73,7 @@ func (s *RecoveryCodeService) generateSingleCode() (string, error) {
 	// Generate random bytes (more than needed to ensure base32 length)
 	bytes := make([]byte, 10)
 	if _, err := rand.Read(bytes); err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 
 	// Encode to base32 and take first 12 characters
@@ -106,7 +106,7 @@ func (s *RecoveryCodeService) hashCode(code string) (string, error) {
 	const op serrors.Op = "RecoveryCodeService.hashCode"
 	hashed, err := bcrypt.GenerateFromPassword([]byte(code), bcryptCost)
 	if err != nil {
-		return "", serrors.E(op, err)
+		return "", serrors.Wrap(op, err)
 	}
 	return string(hashed), nil
 }
@@ -124,7 +124,7 @@ func (s *RecoveryCodeService) Store(ctx context.Context, userID uint, codes []st
 	const op serrors.Op = "RecoveryCodeService.Store"
 	_, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	// Hash all codes
@@ -133,14 +133,14 @@ func (s *RecoveryCodeService) Store(ctx context.Context, userID uint, codes []st
 		normalized := normalizeRecoveryCode(code)
 		hash, err := s.hashCode(normalized)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		hashes[i] = hash
 	}
 
 	// Store in repository
 	if err := s.repository.Create(ctx, userID, hashes); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	return nil
@@ -163,7 +163,7 @@ func (s *RecoveryCodeService) Validate(ctx context.Context, userID uint, code st
 	// Get all unused codes for the user
 	codes, err := s.repository.FindUnused(ctx, userID)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	if len(codes) == 0 {
@@ -175,7 +175,7 @@ func (s *RecoveryCodeService) Validate(ctx context.Context, userID uint, code st
 		if err := bcrypt.CompareHashAndPassword([]byte(rc.CodeHash()), []byte(normalized)); err == nil {
 			// Code matches, mark as used
 			if err := s.repository.MarkUsed(ctx, rc.ID()); err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			return nil
 		}
@@ -195,7 +195,7 @@ func (s *RecoveryCodeService) Remaining(ctx context.Context, userID uint) (int, 
 	const op serrors.Op = "RecoveryCodeService.Remaining"
 	count, err := s.repository.CountRemaining(ctx, userID)
 	if err != nil {
-		return 0, serrors.E(op, err)
+		return 0, serrors.Wrap(op, err)
 	}
 	return count, nil
 }
@@ -213,26 +213,26 @@ func (s *RecoveryCodeService) Regenerate(ctx context.Context, userID uint, count
 	const op serrors.Op = "RecoveryCodeService.Regenerate"
 	// Validate count
 	if count < 1 || count > 100 {
-		return nil, serrors.E(op, serrors.Invalid, errors.New("recovery code count must be between 1 and 100"))
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("recovery code count must be between 1 and 100"))
 	}
 
 	_, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Generate codes ONCE before transaction starts
 	// This ensures the codes returned to the user match exactly what was stored
 	codes, err := s.Generate(count)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	// Start transaction
 	if err := composables.InTx(ctx, func(txCtx context.Context) error {
 		// Delete all existing codes
 		if err := s.repository.DeleteAll(txCtx, userID); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		// Hash and store the codes that were generated above
@@ -241,13 +241,13 @@ func (s *RecoveryCodeService) Regenerate(ctx context.Context, userID uint, count
 			normalized := normalizeRecoveryCode(code)
 			hash, err := s.hashCode(normalized)
 			if err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			hashes[i] = hash
 		}
 
 		if err := s.repository.Create(txCtx, userID, hashes); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 
 		return nil
@@ -269,7 +269,7 @@ func (s *RecoveryCodeService) Regenerate(ctx context.Context, userID uint, count
 func (s *RecoveryCodeService) DeleteAll(ctx context.Context, userID uint) error {
 	const op serrors.Op = "RecoveryCodeService.DeleteAll"
 	if err := s.repository.DeleteAll(ctx, userID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }

@@ -121,7 +121,7 @@ func (t *KBSearchTool) CallStructured(ctx context.Context, input string) (*types
 				Message: "knowledge base is not available",
 				Hints:   []string{tools.HintServiceMayBeDown, tools.HintRetryLater, "Contact administrator to enable knowledge base"},
 			},
-		}, serrors.E(op, "knowledge base is not available")
+		}, serrors.New(serrors.Internal, "knowledge base is not available").WithOp(op)
 	}
 
 	results, err := t.searcher.Search(ctx, params.Query, limit)
@@ -133,7 +133,7 @@ func (t *KBSearchTool) CallStructured(ctx context.Context, input string) (*types
 				Message: fmt.Sprintf("knowledge base search failed: %v", err),
 				Hints:   []string{tools.HintServiceMayBeDown, tools.HintRetryLater},
 			},
-		}, serrors.E(op, err, "knowledge base search failed")
+		}, serrors.WrapContext(op, err, "knowledge base search failed")
 	}
 
 	if len(results) == 0 {

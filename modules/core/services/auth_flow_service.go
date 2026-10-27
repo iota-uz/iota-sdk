@@ -30,6 +30,9 @@ type AuthenticationResult struct {
 	Method             pkgtwofactor.AuthMethod
 	AuthenticatorID    string
 	SatisfiesTwoFactor bool
+	// temporaryPasswordVerified is set only by AuthenticatePassword, so a
+	// custom login method cannot open onboarding by labelling itself password.
+	temporaryPasswordVerified bool
 }
 
 type FinalizeAuthenticationOptions struct {
@@ -111,13 +114,14 @@ func (s *AuthFlowService) AuthenticatePassword(
 
 	u, err := s.authService.VerifyPassword(ctx, email, password)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return &AuthenticationResult{
-		User:            u,
-		Method:          pkgtwofactor.AuthMethodPassword,
-		AuthenticatorID: "password",
+		User:                      u,
+		Method:                    pkgtwofactor.AuthMethodPassword,
+		AuthenticatorID:           "password",
+		temporaryPasswordVerified: u.HasTemporaryPassword(),
 	}, nil
 }
 
@@ -126,7 +130,7 @@ func (s *AuthFlowService) AuthenticateGoogle(ctx context.Context, code string) (
 
 	u, err := s.authService.VerifyGoogle(ctx, code)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	return &AuthenticationResult{
@@ -157,7 +161,7 @@ func (s *AuthFlowService) FinalizeAuthentication(
 	const op serrors.Op = "core.AuthFlowService.FinalizeAuthentication"
 
 	if auth == nil || auth.User == nil {
-		return nil, serrors.E(op, serrors.Invalid, errors.New("authentication result is required"))
+		return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(errors.New("authentication result is required"))
 	}
 
 	validatedNextURL := security.GetValidatedRedirect(opts.NextURL)
@@ -166,23 +170,27 @@ func (s *AuthFlowService) FinalizeAuthentication(
 		if err := opts.AccessCheck(ctx, auth.User); err != nil {
 			return nil, &UserVisibleError{
 				Message: err.Error(),
-				Err:     serrors.E(op, err),
+				Err:     serrors.Wrap(op, err),
 			}
 		}
+	}
+
+	if auth.User.IsPendingOnboarding() {
+		return s.startOnboarding(ctx, auth, opts)
 	}
 
 	sess := auth.Session
 	if sess == nil {
 		createdSession, err := s.authService.CreateSession(ctx, auth.User)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		sess = createdSession
 	}
 
 	requires2FA, err := s.requiresTwoFactor(ctx, auth)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if requires2FA {
@@ -198,7 +206,7 @@ func (s *AuthFlowService) FinalizeAuthentication(
 			session.WithCreatedAt(sess.CreatedAt()),
 		)
 		if err := s.sessionService.Update(ctx, pendingSession); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 
 		redirectURL := fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(validatedNextURL))
@@ -208,7 +216,7 @@ func (s *AuthFlowService) FinalizeAuthentication(
 
 		cookie, err := s.sessionCookie(ctx, opts.SessionCookieValue, pendingSession)
 		if err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		return &FinalizeAuthenticationResult{
 			Cookie:      cookie,
@@ -218,11 +226,40 @@ func (s *AuthFlowService) FinalizeAuthentication(
 
 	cookie, err := s.sessionCookie(ctx, opts.SessionCookieValue, sess)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return &FinalizeAuthenticationResult{
 		Cookie:      cookie,
 		RedirectURL: validatedNextURL,
+	}, nil
+}
+
+// startOnboarding opens the restricted onboarding flow. Only a verified
+// temporary password can open it; 2FA runs on the first full login afterwards.
+func (s *AuthFlowService) startOnboarding(
+	ctx context.Context,
+	auth *AuthenticationResult,
+	opts FinalizeAuthenticationOptions,
+) (*FinalizeAuthenticationResult, error) {
+	const op serrors.Op = "core.AuthFlowService.startOnboarding"
+
+	if auth.User.IsBlocked() {
+		return nil, serrors.Wrap(op, ErrUserBlocked)
+	}
+	if !auth.temporaryPasswordVerified {
+		return nil, serrors.Wrap(op, ErrOnboardingRequired)
+	}
+	sess, err := s.authService.CreateOnboardingSession(ctx, auth.User)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	cookie, err := s.sessionCookie(ctx, opts.SessionCookieValue, sess)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	return &FinalizeAuthenticationResult{
+		Cookie:      cookie,
+		RedirectURL: OnboardingPath,
 	}, nil
 }
 
@@ -253,7 +290,7 @@ func (s *AuthFlowService) requiresTwoFactor(
 	}
 	policyRequires2FA, err := s.twoFactorPolicy.Requires(ctx, attempt)
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 
 	// Intentional OR: policies can tighten (add) the 2FA requirement but cannot relax it.

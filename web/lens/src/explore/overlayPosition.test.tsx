@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
 import fixture from '../../fixtures/explore.json'
@@ -53,10 +53,10 @@ describe('positionOverlay', () => {
 
 describe('DrillOverlay placement', () => {
   function renderOverlay(anchorElement: HTMLElement) {
-    return render(
-      <div className="lens-root">
+    return render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={exploreDocument}>
-          <DashboardRuntimeProvider locale="en">
+          <DashboardRuntimeProvider locale="en">{() => (<>(
             <DrillOverlay
               anchor={{ x: 100, y: 100 }}
               anchorElement={anchorElement}
@@ -66,7 +66,7 @@ describe('DrillOverlay placement', () => {
               onPerspective={() => {}}
               target={target}
             />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )

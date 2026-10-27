@@ -1,11 +1,8 @@
 import type { Config } from 'tailwindcss'
 
 export default {
-  content: ['./index.html', './src/**/*.{ts,tsx}', './.ladle/**/*.{ts,tsx}'],
-  prefix: 'lens-',
-  corePlugins: {
-    preflight: false,
-  },
+  content: ['./index.html', './stories.html', './src/**/*.{ts,tsx}'],
+  prefix: 'lens',
   theme: {
     // The Lens type scale, reachable as `lens-text-3xs … lens-text-3xl`. It sits
     // on `theme.fontSize` rather than `theme.extend.fontSize` on purpose: this
@@ -72,6 +69,7 @@ export default {
       // `--lens-radius-sm` is missing on purpose: `sm` is already Tailwind's
       // 2px corner, and the token is 7px.
       borderRadius: {
+        sm: '2px',
         card: 'var(--lens-radius-card)',
         control: 'var(--lens-radius-control)',
         badge: 'var(--lens-radius-badge)',

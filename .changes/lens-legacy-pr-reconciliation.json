@@ -1,0 +1,4 @@
+{
+  "bump": "none",
+  "summary": "Reconcile the original legacy Lens removal branch with the completed Solid cutover already merged in PR #1162, retaining current package verification and subsequent fixes; no runtime change or additional release bump."
+}

@@ -122,7 +122,7 @@ modules/{module}/
 ## Core Rules
 
 - **Multi-tenant isolation**: Always include `tenant_id` in WHERE clauses
-- **Error handling**: Use `pkg/serrors` - `serrors.E(op, err)` pattern
+- **Error handling**: Use `pkg/serrors` - `serrors.Wrap(op, err)` pattern
 - **HTMX**: Check `htmx.IsHxRequest(r)`, use `htmx.SetTrigger(w, "event", payload)`
 - **Templ**: Edit `.templ` sources, not generated `*_templ.go` files. Inspect generated diffs or compiler errors when validating a change, and exclude unrelated generator churn.
 
@@ -158,6 +158,21 @@ to wait for a verified release and update local production dependencies. See [do
 - Run specific subtest: `go test -v ./path/to/package -run TestName/SubtestName`
 - Apply migrations: `just db migrate up`
 
+## Local browser sign-in for agents
+
+For manual browser verification against a local development database, use the
+SDK's `agent sign-in --user <ID-or-email> --next /internal/path --output json`
+CLI command and open the returned URL in the agent's browser within one minute.
+Each link works once; issue a fresh one for retries or another account. Choose
+an existing user with the roles required by the task; their permissions remain
+unchanged.
+
+Both CLI and server require `-tags dev`, `APP_ENVIRONMENT=development`, and
+`AGENT_SIGNIN_ENABLED=true`, the same OS user, loopback origin and tenant.
+Read [docs/agent-sign-in.md](docs/agent-sign-in.md) for setup, controller
+registration, and consumer CLI integration. Use this flow only for local
+development.
+
 ## E2E Testing
 
 ```bash
@@ -172,7 +187,7 @@ cd e2e && npx playwright test tests/module/specific.spec.ts  # Single test
 - File organization: group related functionality in modules/ or pkg/ directories
 - Naming: use camelCase for variables, PascalCase for exported functions/types
 - Testing: table-driven tests with descriptive names (TestFunctionName_Scenario), use the `require` and `assert` packages from `github.com/stretchr/testify`
-- Error handling: use `pkg/serrors` with pattern `serrors.E(op, err)` for standard error types
+- Error handling: use `pkg/serrors` with pattern `serrors.Wrap(op, err)` for standard error types
 - When writing a mapper function, always use utilities from `pkg/mapping` to ensure consistency
 - Type safety: use strong typing and avoid interface{} where possible
 - Follow existing patterns for database operations with jmoiron/sqlx

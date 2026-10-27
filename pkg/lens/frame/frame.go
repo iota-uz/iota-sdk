@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"slices"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 type FieldType string
@@ -300,35 +302,104 @@ func InferFieldType(value any) FieldType {
 }
 
 func cloneValue(value any) any {
-	switch v := value.(type) {
-	case Formula:
-		v.Result = cloneValue(v.Result)
+	v := cloneCellReflect(reflect.ValueOf(value), map[cellVisit]reflect.Value{})
+	if !v.IsValid() {
+		return nil
+	}
+	return v.Interface()
+}
+
+type cellVisit struct {
+	typ    reflect.Type
+	ptr    uintptr
+	length int
+}
+
+func cloneCellReflect(v reflect.Value, seen map[cellVisit]reflect.Value) reflect.Value {
+	if !v.IsValid() {
 		return v
-	case *Formula:
-		if v == nil {
-			return (*Formula)(nil)
+	}
+	if v.Type() == reflect.TypeFor[Frame]() {
+		original := v.Interface().(Frame)
+		cloned := Frame{Name: original.Name, RowCount: original.RowCount}
+		cloned.Fields = cloneCellReflect(reflect.ValueOf(original.Fields), seen).Interface().([]Field)
+		cloned.Meta = cloneCellReflect(reflect.ValueOf(original.Meta), seen).Interface().(FrameMeta)
+		if original.fieldIndex != nil {
+			cloned.fieldIndex = make(map[string]int, len(original.fieldIndex))
+			for key, index := range original.fieldIndex {
+				cloned.fieldIndex[key] = index
+			}
 		}
-		cloned := *v
-		cloned.Result = cloneValue(v.Result)
-		return &cloned
-	case *Hyperlink:
-		if v == nil {
-			return (*Hyperlink)(nil)
+		return reflect.ValueOf(cloned)
+	}
+	if v.Type() == reflect.TypeFor[time.Time]() {
+		return v
+	}
+	var key cellVisit
+	if v.Type() == reflect.TypeFor[decimal.Decimal]() {
+		return reflect.ValueOf(v.Interface().(decimal.Decimal).Copy())
+	}
+	//nolint:exhaustive // Only reference kinds participate in cycle detection.
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice:
+		if v.IsNil() {
+			return reflect.Zero(v.Type())
 		}
-		cloned := *v
-		return &cloned
-	case map[string]any:
-		cloned := make(map[string]any, len(v))
-		for key, item := range v {
-			cloned[key] = cloneValue(item)
+		key = cellVisit{typ: v.Type(), ptr: v.Pointer()}
+		if v.Kind() == reflect.Slice {
+			key.length = v.Len()
 		}
-		return cloned
-	case []any:
-		cloned := make([]any, len(v))
-		for i, item := range v {
-			cloned[i] = cloneValue(item)
+		if previous, ok := seen[key]; ok {
+			return previous
 		}
-		return cloned
+	}
+	//nolint:exhaustive // Only mutable cell shapes need cloning; default preserves scalar values.
+	switch v.Kind() {
+	case reflect.Interface:
+		if v.IsNil() {
+			return reflect.Zero(v.Type())
+		}
+		out := reflect.New(v.Type()).Elem()
+		out.Set(cloneCellReflect(v.Elem(), seen))
+		return out
+	case reflect.Pointer:
+		out := reflect.New(v.Type().Elem())
+		seen[key] = out
+		out.Elem().Set(cloneCellReflect(v.Elem(), seen))
+		return out
+	case reflect.Map:
+		out := reflect.MakeMapWithSize(v.Type(), v.Len())
+		seen[key] = out
+		it := v.MapRange()
+		for it.Next() {
+			out.SetMapIndex(it.Key(), cloneCellReflect(it.Value(), seen))
+		}
+		return out
+	case reflect.Slice:
+		out := reflect.MakeSlice(v.Type(), v.Len(), v.Len())
+		seen[key] = out
+		for i := 0; i < v.Len(); i++ {
+			out.Index(i).Set(cloneCellReflect(v.Index(i), seen))
+		}
+		return out
+	case reflect.Array:
+		out := reflect.New(v.Type()).Elem()
+		for i := 0; i < v.Len(); i++ {
+			out.Index(i).Set(cloneCellReflect(v.Index(i), seen))
+		}
+		return out
+	case reflect.Struct:
+		out := reflect.New(v.Type()).Elem()
+		for i := 0; i < v.NumField(); i++ {
+			if !out.Field(i).CanSet() && v.Field(i).IsZero() {
+				continue
+			}
+			if !out.Field(i).CanSet() {
+				return v
+			}
+			out.Field(i).Set(cloneCellReflect(v.Field(i), seen))
+		}
+		return out
 	default:
 		return v
 	}

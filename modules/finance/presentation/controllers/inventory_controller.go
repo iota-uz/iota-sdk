@@ -22,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -125,7 +126,7 @@ func (c *InventoryController) viewModelInventory(r *http.Request) (*InventoryPag
 func (c *InventoryController) List(w http.ResponseWriter, r *http.Request) {
 	paginated, err := c.viewModelInventory(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
@@ -154,7 +155,7 @@ func (c *InventoryController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	currencies, err := c.viewModelCurrencies(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := &inventoryTemplates.EditPageProps{
@@ -177,12 +178,12 @@ func (c *InventoryController) Delete(w http.ResponseWriter, r *http.Request) {
 	// Check if item exists first
 	_, err = c.inventoryService.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if err := c.inventoryService.Delete(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
@@ -191,13 +192,13 @@ func (c *InventoryController) Delete(w http.ResponseWriter, r *http.Request) {
 func (c *InventoryController) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	dto, err := composables.UseForm(&dtos.InventoryUpdateDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
@@ -209,7 +210,7 @@ func (c *InventoryController) Update(w http.ResponseWriter, r *http.Request) {
 		}
 		currencies, err := c.viewModelCurrencies(r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		props := &inventoryTemplates.EditPageProps{
@@ -231,11 +232,11 @@ func (c *InventoryController) Update(w http.ResponseWriter, r *http.Request) {
 
 	entity, err := dto.Apply(existing)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if _, err := c.inventoryService.Update(r.Context(), entity); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -245,7 +246,7 @@ func (c *InventoryController) Update(w http.ResponseWriter, r *http.Request) {
 func (c *InventoryController) GetNew(w http.ResponseWriter, r *http.Request) {
 	currencies, err := c.viewModelCurrencies(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	props := &inventoryTemplates.CreatePageProps{
@@ -260,19 +261,19 @@ func (c *InventoryController) GetNew(w http.ResponseWriter, r *http.Request) {
 func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&dtos.InventoryCreateDTO{}, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		currencies, err := c.viewModelCurrencies(r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		entity, err := dto.ToEntity()
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 		props := &inventoryTemplates.CreatePageProps{
@@ -287,12 +288,12 @@ func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
 
 	entity, err := dto.ToEntity()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
 	if _, err := c.inventoryService.Create(r.Context(), entity); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 

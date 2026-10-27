@@ -41,11 +41,11 @@ func (r *pgRoleQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*v
 	const op = serrors.Op("RoleQueryRepository.FindAssignmentOptions")
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	rows, err := tx.Query(ctx, `
@@ -54,7 +54,7 @@ func (r *pgRoleQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*v
 		WHERE r.tenant_id = $1
 		ORDER BY LOWER(r.name), r.id`, tenantID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer rows.Close()
 
@@ -65,7 +65,7 @@ func (r *pgRoleQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*v
 		var id uint
 		option := &viewmodels.AssignmentOption{Permissions: []permission.Permission{}}
 		if err := rows.Scan(&id, &option.Type, &option.Name, &option.Description); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		option.ID = strconv.FormatUint(uint64(id), 10)
 		options = append(options, option)
@@ -73,7 +73,7 @@ func (r *pgRoleQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*v
 		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	if len(ids) == 0 {
 		return options, nil
@@ -87,7 +87,7 @@ func (r *pgRoleQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*v
 		WHERE rp.role_id = ANY($1) AND r.tenant_id = $2
 		ORDER BY rp.role_id, p.name, p.id`, ids, tenantID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	defer permissionRows.Close()
 	for permissionRows.Next() {
@@ -95,7 +95,7 @@ func (r *pgRoleQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*v
 		var id uuid.UUID
 		var name, resource, action, modifier string
 		if err := permissionRows.Scan(&roleID, &id, &name, &resource, &action, &modifier); err != nil {
-			return nil, serrors.E(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
 		if option := byID[roleID]; option != nil {
 			option.Permissions = append(option.Permissions, permission.New(
@@ -105,7 +105,7 @@ func (r *pgRoleQueryRepository) FindAssignmentOptions(ctx context.Context) ([]*v
 		}
 	}
 	if err := permissionRows.Err(); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.FromDB(op, err)
 	}
 	return options, nil
 }

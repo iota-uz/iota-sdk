@@ -30,7 +30,7 @@ func BuildQuestionData(checkpointID, agentName string, questions []bichatservice
 	}
 	qd, err := types.NewQuestionData(checkpointID, agentName, items)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return qd, nil
 }

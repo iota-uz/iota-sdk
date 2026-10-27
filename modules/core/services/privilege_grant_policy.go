@@ -119,7 +119,7 @@ func Dominates(actorPermissions, requestedPermissions []permission.Permission) b
 func (p *PrivilegeGrantPolicy) actor(ctx context.Context, additionalUserIDs ...uint) (user.User, error) {
 	contextActor, err := composables.UseUser(ctx)
 	if err != nil {
-		return nil, serrors.E(serrors.Op("PrivilegeGrantPolicy.actor"), serrors.PermissionDenied, err)
+		return nil, serrors.NewUnauthenticated("").WithOp(serrors.Op("PrivilegeGrantPolicy.actor")).WithCause(err)
 	}
 	if err := p.locks.LockTenant(ctx); err != nil {
 		return nil, err
@@ -162,10 +162,10 @@ func (p *PrivilegeGrantPolicy) actor(ctx context.Context, additionalUserIDs ...u
 func (p *PrivilegeGrantPolicy) LockUser(ctx context.Context, userID uint) error {
 	const op = serrors.Op("PrivilegeGrantPolicy.LockUser")
 	if err := p.locks.LockTenant(ctx); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if err := p.locks.LockUsers(ctx, userID); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
@@ -16,11 +16,11 @@ describe('ShareSliceButton', () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
 
-    render(
+    render(() =>
       <DocumentProvider initialDocument={parseDocument(fixture)}>
-        <DashboardRuntimeProvider locale="en">
+        <DashboardRuntimeProvider locale="en">{() => (<>(
           <DashboardPanels />
-        </DashboardRuntimeProvider>
+          )</>)}</DashboardRuntimeProvider>
       </DocumentProvider>,
     )
 

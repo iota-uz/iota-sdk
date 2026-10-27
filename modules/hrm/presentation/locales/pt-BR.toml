@@ -25,6 +25,12 @@ New = "Adicionar funcionário"
 FullName = "Nome completo"
 Position = "Cargo"
 Email = "E-mail"
+Status = "Status"
+AllStatuses = "Todos"
+
+[Employees.Status]
+active = "Ativo"
+former = "Ex-funcionário"
 
 [Employees.List.NoEmployees]
 Title = "Nenhum funcionário encontrado"

@@ -1,0 +1,4 @@
+{
+  "bump": "none",
+  "summary": "Initialize the Redis FIFO test connection before injecting storage failure and verify the intended failure explicitly; production behavior is unchanged."
+}

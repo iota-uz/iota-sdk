@@ -30,7 +30,7 @@ func (d *ProjectDirectory) Has(ctx context.Context, id uuid.UUID) (bool, error) 
 		return false, nil
 	}
 	if err != nil {
-		return false, serrors.E(op, err)
+		return false, serrors.Wrap(op, err)
 	}
 	return true, nil
 }

@@ -35,7 +35,7 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 	}
 	cookie, err := r.browserSessions.AddFromRequest(ctx, request, sess)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	http.SetCookie(writer, cookie)
 	return mappers.SessionToGraphModel(sess), nil

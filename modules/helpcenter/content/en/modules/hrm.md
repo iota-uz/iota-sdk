@@ -26,6 +26,7 @@ Clear employee records support access control, reporting, approvals, and account
 - Maintain position names and responsibilities.
 - Review team composition.
 - Keep employee information current when roles change.
+- Record a resignation date when an employee leaves: the employee becomes former, stays in the records, and can be found with the Status filter.
 
 ## Best practices
 

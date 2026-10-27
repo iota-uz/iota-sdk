@@ -2,11 +2,16 @@ package runtime
 
 import (
 	"context"
-	"math"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/resource"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
@@ -15,8 +20,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type stubDataSource struct {
@@ -86,7 +89,11 @@ func TestRunForwardsSchedulerExecutionClassWithoutChangingQueryIdentity(t *testi
 	base := datasource.QueryRequest{Source: "primary", Text: "select 1", ExecutionClass: datasource.ExecutionClassRootCritical}
 	promoted := base
 	promoted.ExecutionClass = datasource.ExecutionClassInteractiveCritical
-	require.Equal(t, queryCacheKey(base), queryCacheKey(promoted), "priority promotion must join the same semantic query")
+	baseKey, err := New(Options{}).queryCacheKey(base)
+	require.NoError(t, err)
+	promotedKey, err := New(Options{}).queryCacheKey(promoted)
+	require.NoError(t, err)
+	require.Equal(t, baseKey, promotedKey, "priority promotion must join the same semantic query")
 }
 
 func (s *stubDataSource) Capabilities() datasource.CapabilitySet {
@@ -635,67 +642,6 @@ func TestValidateRejectsEmptyActionURLFieldSource(t *testing.T) {
 	require.ErrorContains(t, err, "action value url requires source name")
 }
 
-func TestValidate_AcceptsKeyedPieDrillTree(t *testing.T) {
-	t.Parallel()
-
-	spec := drillTreeDashboard(t, panel.KindPie, panel.DrillTree{Branches: []panel.DrillBranch{{
-		TriggerKey: "earned",
-		Label:      "Earned",
-		Children: []panel.DrillNode{
-			{Key: "direct", Label: "Direct", Value: 70, Action: actionSpec(action.Navigate("/portfolio"))},
-			{Key: "reinsurance", Label: "Reinsurance", Value: 30, Action: actionSpec(action.HtmxSwap("/reinsurance", "#drawer"))},
-		},
-	}}}, frame.Row{"id": "earned", "label": "Earned", "value": 100.0})
-
-	require.NoError(t, Validate(spec))
-	result, err := execute(context.Background(), spec, Request{})
-	require.NoError(t, err)
-	require.NoError(t, result.Panels["drill"].Error)
-}
-
-func TestValidate_RejectsInvalidDrillTrees(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		kind    panel.Kind
-		tree    panel.DrillTree
-		mutate  func(*panel.Spec)
-		wantErr string
-	}{
-		{name: "unsupported panel kind", kind: panel.KindBar, tree: validDrillTree(), wantErr: `unsupported for kind "bar"`},
-		{name: "empty branches", kind: panel.KindPie, tree: panel.DrillTree{}, wantErr: "requires at least one branch"},
-		{name: "blank branch key", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}}}}}, wantErr: "requires trigger key"},
-		{name: "duplicate branch key", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}}}, {TriggerKey: "earned", Label: "Other", Children: []panel.DrillNode{{Key: "other", Label: "Other", Value: 1}}}}}, wantErr: `duplicate branch key "earned"`},
-		{name: "branch without children", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned"}}}, wantErr: "requires children"},
-		{name: "duplicate sibling key", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}, {Key: "direct", Label: "Again", Value: 2}}}}}, wantErr: `duplicate child key "direct"`},
-		{name: "negative value", kind: panel.KindDonut, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: -1}}}}}, wantErr: "finite nonnegative value"},
-		{name: "nonfinite value", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: math.Inf(1)}}}}}, wantErr: "finite nonnegative value"},
-		{name: "overflowed sibling total", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: math.MaxFloat64}, {Key: "reinsurance", Label: "Reinsurance", Value: math.MaxFloat64}}}}}, wantErr: "requires finite total"},
-		{name: "children and action", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, Action: actionSpec(action.Navigate("/portfolio")), Children: []panel.DrillNode{{Key: "q1", Label: "Q1", Value: 1}}}}}}}, wantErr: "cannot have both children and action"},
-		{name: "cube action", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, Action: actionSpec(action.CubeDrill("/portfolio", "source"))}}}}}, wantErr: `unsupported kind "cube_drill"`},
-		{name: "field action source", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, Action: actionSpec(action.Navigate("").WithFieldURL("url"))}}}}}, wantErr: "cannot use a field source"},
-		{name: "missing id mapping", kind: panel.KindPie, tree: validDrillTree(), mutate: func(spec *panel.Spec) { spec.Fields.ID = "" }, wantErr: "requires id field"},
-		{name: "invalid expanded span", kind: panel.KindPie, tree: panel.DrillTree{ExpandedSpan: 13, Branches: validDrillTree().Branches}, wantErr: "expanded span must be between 1 and 12"},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			built := panel.Pie("drill", "Drill", "dataset").LabelField("label").ValueField("value").DrillTree(test.tree).Build()
-			built.Kind = test.kind
-			if test.mutate != nil {
-				test.mutate(&built)
-			}
-			spec := lensbuild.Dashboard("drill", "Drill", lensbuild.Row(built)).Datasets(
-				lensbuild.StaticDataset("dataset", mustFrameSet(t, "dataset")),
-			).Build()
-			err := Validate(spec)
-			require.ErrorContains(t, err, test.wantErr)
-		})
-	}
-}
-
 func TestValidate_RejectsInvalidActionKeys(t *testing.T) {
 	t.Parallel()
 
@@ -723,59 +669,6 @@ func TestValidate_RejectsInvalidActionKeys(t *testing.T) {
 			require.ErrorContains(t, Validate(spec), test.wantErr)
 		})
 	}
-}
-
-func TestExecuteRejectsDrillTreeWithoutUniqueMatchingDatasetID(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		rows    []frame.Row
-		wantErr string
-	}{
-		{name: "missing id field", rows: []frame.Row{{"label": "Earned", "value": 100.0}}, wantErr: `missing id field "id"`},
-		{name: "missing branch key", rows: []frame.Row{{"id": "unearned", "label": "Unearned", "value": 100.0}}, wantErr: `branch key "earned" is missing`},
-		{name: "duplicate branch key", rows: []frame.Row{{"id": "earned", "label": "Earned", "value": 60.0}, {"id": "earned", "label": "Earned", "value": 40.0}}, wantErr: `id field "id" has duplicate key "earned"`},
-		{name: "duplicate nonbranch key", rows: []frame.Row{{"id": "earned", "label": "Earned", "value": 60.0}, {"id": "unearned", "label": "Unearned", "value": 20.0}, {"id": "unearned", "label": "Unearned", "value": 20.0}}, wantErr: `id field "id" has duplicate key "unearned"`},
-		{name: "id with surrounding whitespace", rows: []frame.Row{{"id": " earned ", "label": "Earned", "value": 100.0}}, wantErr: `requires a nonblank string`},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			spec := drillTreeDashboard(t, panel.KindPie, validDrillTree(), test.rows...)
-			result, err := execute(context.Background(), spec, Request{})
-			require.NoError(t, err)
-			require.ErrorContains(t, result.Panels["drill"].Error, test.wantErr)
-		})
-	}
-}
-
-func validDrillTree() panel.DrillTree {
-	return panel.DrillTree{Branches: []panel.DrillBranch{{
-		TriggerKey: "earned",
-		Label:      "Earned",
-		Children:   []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 100}},
-	}}}
-}
-
-func drillTreeDashboard(t *testing.T, kind panel.Kind, tree panel.DrillTree, rows ...frame.Row) lens.DashboardSpec {
-	t.Helper()
-	set, err := frame.FromRows("dataset", rows...)
-	require.NoError(t, err)
-	chart := panel.Pie("drill", "Drill", "dataset").
-		LabelField("label").
-		ValueField("value").
-		DrillTree(tree).
-		Build()
-	chart.Kind = kind
-	return lensbuild.Dashboard("drill", "Drill", lensbuild.Row(chart)).Datasets(
-		lensbuild.StaticDataset("dataset", set),
-	).Build()
-}
-
-func actionSpec(spec action.Spec) *action.Spec {
-	return &spec
 }
 
 func TestExecuteMarksMissingPanelFieldsAsPanelError(t *testing.T) {
@@ -949,4 +842,27 @@ func mustFrameSet(t *testing.T, name string) *frame.FrameSet {
 	})
 	require.NoError(t, err)
 	return set
+}
+
+func TestRuntimeIdentityPreflightsSerializationInputs(t *testing.T) {
+	// Output cache limits cannot protect identity encoding that happens before execution.
+	runtime := New(Options{})
+	req := Request{Namespace: "reports", DataScope: "tenant"}
+	spec := lens.DashboardSpec{ID: "owned", Datasets: []lens.DatasetSpec{{Name: "static", Kind: lens.DatasetKindStatic, Static: mustFrameSet(t, "static")}}}
+	_, _, err := runtime.executionIdentity(spec, req, map[string]any{"hostile": hostileMemoInput{}})
+	require.Error(t, err)
+	_, _, err = runtime.executionIdentity(spec, req, map[string]any{"large": strings.Repeat("x", 64000)})
+	require.ErrorIs(t, err, resource.ErrLimit)
+	_, _, err = runtime.executionIdentity(spec, req, map[string]any{"ordinary": "value"})
+	require.NoError(t, err)
+}
+func TestQueryCacheKeyRejectsUnsafeInputs(t *testing.T) {
+	// An encoder failure must propagate; formatting arbitrary objects is another unbounded serializer.
+	_, err := New(Options{}).queryCacheKey(datasource.QueryRequest{Params: map[string]any{"hostile": hostileMemoInput{}}})
+	require.Error(t, err)
+	_, err = New(Options{}).queryCacheKey(datasource.QueryRequest{Text: strings.Repeat("x", int(resource.DefaultEntryLimit))})
+	require.ErrorIs(t, err, resource.ErrLimit)
+	now := time.Now()
+	_, err = New(Options{}).queryCacheKey(datasource.QueryRequest{Text: "select 1", TimeRange: datasource.TimeRange{Start: &now}})
+	require.NoError(t, err)
 }

@@ -22,17 +22,20 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
+// CreateUserDTO creates an account that the user activates through onboarding.
+// Password is the temporary password; an empty one is generated.
 type CreateUserDTO struct {
-	FirstName  string   `form:"FirstName" validate:"required"`
-	LastName   string   `form:"LastName" validate:"required"`
-	MiddleName string   `form:"MiddleName" validate:"omitempty"`
-	Email      string   `form:"Email" validate:"required,email"`
-	Phone      string   `form:"Phone" validate:"omitempty"`
-	Password   string   `form:"Password" validate:"required"`
-	RoleIDs    []uint   `form:"RoleIDs" validate:"omitempty,dive,required"`
-	GroupIDs   []string `form:"GroupIDs" validate:"omitempty,dive,required"`
-	AvatarID   uint     `form:"AvatarID" validate:"omitempty,gt=0"`
-	Language   string   `form:"Language" validate:"required"`
+	FirstName     string   `form:"FirstName" validate:"omitempty"`
+	LastName      string   `form:"LastName" validate:"omitempty"`
+	MiddleName    string   `form:"MiddleName" validate:"omitempty"`
+	Email         string   `form:"Email" validate:"required,email"`
+	Phone         string   `form:"Phone" validate:"omitempty"`
+	Password      string   `form:"Password" validate:"omitempty"`
+	RoleIDs       []uint   `form:"RoleIDs" validate:"omitempty,dive,required"`
+	GroupIDs      []string `form:"GroupIDs" validate:"omitempty,dive,required"`
+	PermissionIDs []string `form:"PermissionIDs" validate:"omitempty,dive,uuid"`
+	AvatarID      uint     `form:"AvatarID" validate:"omitempty,gt=0"`
+	Language      string   `form:"Language" validate:"omitempty"`
 }
 
 type UpdateUserDTO struct {
@@ -41,7 +44,6 @@ type UpdateUserDTO struct {
 	MiddleName    string   `form:"MiddleName" validate:"omitempty"`
 	Email         string   `form:"Email" validate:"required,email"`
 	Phone         string   `form:"Phone" validate:"omitempty"`
-	Password      string   `form:"Password" validate:"omitempty"`
 	RoleIDs       []uint   `form:"RoleIDs" validate:"omitempty,dive,required"`
 	GroupIDs      []string `form:"GroupIDs" validate:"omitempty,dive,required"`
 	PermissionIDs []string `form:"PermissionIDs" validate:"omitempty,dive,uuid"`
@@ -55,9 +57,17 @@ func (dto *CreateUserDTO) Ok(ctx context.Context) (map[string]string, bool) {
 		panic(intl.ErrNoLocalizer)
 	}
 	errorMessages := map[string]string{}
+	if dto.Language != "" && !user.UILanguage(dto.Language).IsValid() {
+		errorMessages["Language"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Onboarding.Errors.LanguageRequired"})
+	}
+	if dto.Password != "" {
+		if messageID := PasswordPolicyMessageID(user.ValidatePassword(dto.Password)); messageID != "" {
+			errorMessages["Password"] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: messageID})
+		}
+	}
 	errs := constants.Validate.Struct(dto)
 	if errs == nil {
-		return errorMessages, true
+		return errorMessages, len(errorMessages) == 0
 	}
 	for _, err := range errs.(validator.ValidationErrors) {
 		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
@@ -99,6 +109,8 @@ func (dto *UpdateUserDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
+// ToEntity builds the account without credentials; the caller issues the
+// temporary password.
 func (dto *CreateUserDTO) ToEntity(tenantID uuid.UUID) (user.User, error) {
 	roles := make([]role.Role, len(dto.RoleIDs))
 	for i, rID := range dto.RoleIDs {
@@ -115,6 +127,15 @@ func (dto *CreateUserDTO) ToEntity(tenantID uuid.UUID) (user.User, error) {
 		groupUUIDs[i] = groupUUID
 	}
 
+	permissions := make([]permission.Permission, len(dto.PermissionIDs))
+	for i, pID := range dto.PermissionIDs {
+		permissionUUID, err := uuid.Parse(pID)
+		if err != nil {
+			return nil, err
+		}
+		permissions[i] = permission.New(permission.WithID(permissionUUID))
+	}
+
 	email, err := internet.NewEmail(dto.Email)
 	if err != nil {
 		return nil, err
@@ -123,8 +144,8 @@ func (dto *CreateUserDTO) ToEntity(tenantID uuid.UUID) (user.User, error) {
 	options := []user.Option{
 		user.WithTenantID(tenantID),
 		user.WithMiddleName(dto.MiddleName),
-		user.WithPassword(dto.Password),
 		user.WithRoles(roles),
+		user.WithPermissions(permissions),
 		user.WithGroupIDs(groupUUIDs),
 		user.WithAvatarID(dto.AvatarID),
 	}
@@ -137,22 +158,13 @@ func (dto *CreateUserDTO) ToEntity(tenantID uuid.UUID) (user.User, error) {
 		options = append(options, user.WithPhone(p))
 	}
 
-	u := user.New(
+	return user.New(
 		dto.FirstName,
 		dto.LastName,
 		email,
 		user.UILanguage(dto.Language),
 		options...,
-	)
-
-	if dto.Password != "" {
-		u, err = u.SetPassword(dto.Password)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return u, nil
+	), nil
 }
 
 func (dto *UpdateUserDTO) Apply(u user.User, roles []role.Role, permissions []permission.Permission) (user.User, error) {
@@ -189,13 +201,6 @@ func (dto *UpdateUserDTO) Apply(u user.User, roles []role.Role, permissions []pe
 		u = u.SetPhone(p)
 	} else {
 		u = u.SetPhone(nil)
-	}
-
-	if dto.Password != "" {
-		u, err = u.SetPassword(dto.Password)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return u, nil

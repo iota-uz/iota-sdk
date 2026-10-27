@@ -1,7 +1,6 @@
 package export
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
 
 const (
@@ -40,6 +40,7 @@ type Handler struct {
 	Authorize Authorize
 	Exporter  *Exporter
 	Now       func() time.Time
+	Spool     *SpoolOptions
 }
 
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +50,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	exploration, hasExploration, err := ParseExplorationExportRequest(r.URL.Query())
 	if err != nil {
 		SetDownloadSignal(w, r, DownloadSignalError)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	if !hasExploration {
@@ -98,17 +99,15 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if exporter == nil {
 		exporter = New()
 	}
-	var workbook bytes.Buffer
-	if err := exporter.Write(r.Context(), &workbook, Request{Result: result, PanelID: panelID, DrillPath: exportDrillPath(result), Exploration: exploration}); err != nil {
+	workbook, err := exporter.Prepare(r.Context(), Request{Result: result, PanelID: panelID, DrillPath: exportDrillPath(result), Exploration: exploration, Spool: h.Spool})
+	if err != nil {
 		SetDownloadSignal(w, r, DownloadSignalError)
 		http.Error(w, "export failed", http.StatusInternalServerError)
 		return
 	}
+	defer func() { _ = workbook.Close() }()
 	SetDownloadSignal(w, r, DownloadSignalStarted)
-	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", ContentDisposition(filename))
-	w.Header().Set("Content-Length", fmt.Sprint(workbook.Len()))
-	_, _ = w.Write(workbook.Bytes())
+	_ = workbook.WriteHTTP(w, filename)
 }
 
 func exportDrillPath(result *runtime.DashboardResult) []string {

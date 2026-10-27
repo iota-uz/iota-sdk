@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
 
@@ -32,6 +33,11 @@ func SeedRaw(cfg *dbconfig.Config, logger *logrus.Logger) error {
 	}
 	defer pool.Close()
 
+	return SeedPool(ctx, pool, logger)
+}
+
+// SeedPool seeds an explicitly owned database without changing process environment.
+func SeedPool(ctx context.Context, pool *pgxpool.Pool, logger *logrus.Logger) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)

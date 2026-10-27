@@ -7,6 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,6 +59,7 @@ func TestPostgresChatRepository_SaveAndGetArtifact(t *testing.T) {
 	assert.WithinDuration(t, createdAt, got.CreatedAt(), time.Second)
 }
 
+// Falsely green if only sentinel identity survives: a real missing row must stay NotFound and retain the driver cause.
 func TestPostgresChatRepository_GetArtifact_NotFound(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)
@@ -66,6 +69,8 @@ func TestPostgresChatRepository_GetArtifact_NotFound(t *testing.T) {
 	_, err := repo.GetArtifact(env.Ctx, uuid.New())
 	require.Error(t, err)
 	require.ErrorIs(t, err, persistence.ErrArtifactNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
+	require.ErrorIs(t, err, pgx.ErrNoRows)
 }
 
 func TestPostgresChatRepository_GetSessionArtifacts_OrderAndTypeFilter(t *testing.T) {
@@ -159,6 +164,7 @@ func TestPostgresChatRepository_UpdateAndDeleteArtifact(t *testing.T) {
 	_, err = repo.GetArtifact(env.Ctx, artifact.ID())
 	require.Error(t, err)
 	require.ErrorIs(t, err, persistence.ErrArtifactNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 }
 
 func TestPostgresChatRepository_TenantIsolation_Artifacts(t *testing.T) {
@@ -187,6 +193,7 @@ func TestPostgresChatRepository_TenantIsolation_Artifacts(t *testing.T) {
 	_, err := repo.GetArtifact(envB.Ctx, artifactA.ID())
 	require.Error(t, err)
 	require.ErrorIs(t, err, persistence.ErrArtifactNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
 }
 
 func TestPostgresChatRepository_DeleteSessionArtifacts(t *testing.T) {
@@ -301,6 +308,7 @@ func TestPostgresChatRepository_UpsertAndGetArtifactProviderFile(t *testing.T) {
 	assert.Equal(t, artifact.SizeBytes(), sourceSize)
 }
 
+// Falsely green if only the mapping sentinel survives: a real missing row must retain both NotFound and the driver cause.
 func TestPostgresChatRepository_GetArtifactProviderFile_NotFound(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)
@@ -310,6 +318,8 @@ func TestPostgresChatRepository_GetArtifactProviderFile_NotFound(t *testing.T) {
 	fileID, sourceURL, sourceSize, err := repo.GetArtifactProviderFile(env.Ctx, uuid.New(), "openai")
 	require.Error(t, err)
 	require.ErrorIs(t, err, persistence.ErrArtifactProviderFileNotFound)
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(err))
+	require.ErrorIs(t, err, pgx.ErrNoRows)
 	assert.Empty(t, fileID)
 	assert.Empty(t, sourceURL)
 	assert.Zero(t, sourceSize)

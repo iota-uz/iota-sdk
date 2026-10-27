@@ -3,3 +3,5 @@ packages:
   - web/client-host
   - web/lens
   - web/solid-ui
+  - web/testing
+  - web/chat-ui

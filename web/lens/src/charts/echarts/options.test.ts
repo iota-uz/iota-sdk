@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ChartInput } from '../adapter'
 import { fallbackMarkKey } from '../keys'
 import {
-  buildChartOption, categoryLabelLimit, categoryLabelWidth, categoryTickInterval, donutSliceLabel, middleEllipsis,
+  buildChartOption, categoryLabelLimit, categoryLabelWidth, categoryTickBudget, categoryTickInterval, donutSliceLabel, middleEllipsis,
   niceLogMaximum, rawPercentPrecision, slicePercentLabel,
 } from './options'
 import type { EChartsTheme } from './theme'
@@ -585,6 +585,28 @@ describe('buildChartOption', () => {
     expect(categoryTickInterval(24)).toBe(2)
     // Two panels over the same domain therefore agree, whatever they label.
     expect(categoryTickInterval(24)).toBe(categoryTickInterval(24))
+  })
+
+  it.each([360, 390, 430])('keeps monthly categories readable in a %ipx plot', (width) => {
+    const value = input('bar')
+    value.viewportWidth = width
+    value.frame.rows = Array.from({ length: 12 }, (_, month) => [String(month), `${month + 1}.2026`, 'Revenue', 1200])
+    const chart = buildChartOption(value, theme) as { xAxis: { axisLabel: { interval: number, hideOverlap: boolean } } }
+    const visibleTicks = Math.ceil(12 / (chart.xAxis.axisLabel.interval + 1))
+    expect(visibleTicks).toBeLessThanOrEqual(categoryTickBudget(width))
+    expect(chart.xAxis.axisLabel.hideOverlap).toBe(true)
+    const desktop = buildChartOption({ ...value, viewportWidth: 1200 }, theme) as typeof chart
+    expect(desktop.xAxis.axisLabel.interval).toBeLessThan(chart.xAxis.axisLabel.interval)
+  })
+
+  it.each([360, 390, 430])('uses the legend instead of clipped outside pie labels at %ipx', (width) => {
+    const value = { ...input('pie'), viewportWidth: width }
+    const chart = buildChartOption(value, theme) as { series: Array<{ label: { show?: boolean }, labelLine: { show?: boolean }, data: unknown[] }> }
+    expect(chart.series[0]?.label.show).toBe(false)
+    expect(chart.series[0]?.labelLine.show).toBe(false)
+    expect(chart.series[0]?.data).toHaveLength(value.frame.rows.length)
+    const desktop = buildChartOption({ ...value, viewportWidth: 1200 }, theme) as typeof chart
+    expect(desktop.series[0]?.label.show).not.toBe(false)
   })
 
   it('sizes the horizontal-bar name column off the plot instead of a constant', () => {
@@ -1259,5 +1281,25 @@ describe('quieting the siblings', () => {
 
     expect(chart.series.some((series) => series.blur !== undefined)).toBe(false)
     expect(chart.series.some((series) => series.emphasis?.focus === 'self')).toBe(false)
+  })
+})
+
+// Falsely green if tooltip input uses a hand-written name rather than the name emitted by the adapter.
+describe('comparison period names', () => {
+  it.each(['bar', 'hbar', 'line', 'area'] as const)('names both periods for an unnamed %s measure', (kind) => {
+    const chartInput = input(kind)
+    chartInput.frame = { columns: [{ name: 'category', type: 'string' }, { name: 'value', type: 'number' }, { name: 'previous', type: 'number' }], rows: [['Jan', 1200, 900], ['Feb', 1500, 1100]] }
+    chartInput.encoding = { category: 'category', value: 'value', previous: 'previous' }
+    const chart = testOption(buildChartOption(chartInput, theme))
+    const current = chart.series.find((entry) => entry.name === 'Current period')
+    const previous = chart.series.find((entry) => entry.name === 'Previous')
+    expect(current).toBeDefined()
+    expect(previous).toBeDefined()
+    const tooltip = chart.tooltip.formatter?.([
+      { axisValueLabel: 'Jan', seriesName: current?.name, value: 1200 },
+      { axisValueLabel: 'Jan', seriesName: previous?.name, value: 900 },
+    ]) ?? ''
+    expect(tooltip).toContain('Current period')
+    expect(tooltip).toContain('Previous')
   })
 })

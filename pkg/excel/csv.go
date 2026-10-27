@@ -24,7 +24,7 @@ type CSVOptions struct {
 	Comma rune
 	// DecimalComma renders floats and plain decimal strings with a comma
 	// decimal separator ("14773814,00") for locale-neutral ru/uz spreadsheets,
-	// the same conversion ExportOptions.DecimalComma applies to XLSX.
+	// without changing XLSX's typed numeric values.
 	DecimalComma bool
 	// DateTimeFormat formats time.Time values; empty means time.Time.String().
 	DateTimeFormat string
@@ -98,6 +98,7 @@ func CSVCell(v interface{}) string {
 
 // cell renders one value with the writer's options; see CSVCell.
 func (c *CSVWriter) cell(v interface{}) string {
+	v, _ = unwrapCell(v)
 	value := convertPgxValue(v)
 	if c.opts.DecimalComma {
 		value = toDecimalComma(value)

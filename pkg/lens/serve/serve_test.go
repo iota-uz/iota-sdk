@@ -362,6 +362,8 @@ func TestHandlers_ProgressivePanelUsesExecutedTotalInsteadOfShellPlaceholder(t *
 	actualPanel := shellPanel
 	actualTotal := float64(total)
 	actualPanel.TotalBadgeValue = &actualTotal
+	actualPanel.Colors = []string{"#123456", "#abcdef", "#fedcba"}
+	actualPanel.Presentation.KeepTotalBadge = true
 	spec := lens.DashboardSpec{
 		ID: "expenses", Title: "Expenses", Rows: []lens.RowSpec{{Panels: []panel.Spec{shellPanel}}},
 		Datasets: []lens.DatasetSpec{staticDataset("expenses", frames)},
@@ -385,6 +387,17 @@ func TestHandlers_ProgressivePanelUsesExecutedTotalInsteadOfShellPlaceholder(t *
 	wire := response.Frames[document.FrameRef("panel:expenses")]
 	require.NotNil(t, wire.Total)
 	require.InDelta(t, total, *wire.Total, 0.01)
+	// Falsely green if the second request executes again instead of reading the snapshot.
+	cached := requestPanel(t, handlers, doc.SnapshotID, PanelRequest{PanelID: "expenses"}, "")
+	require.Equal(t, http.StatusOK, cached.Code, cached.Body.String())
+	var cachedResponse PanelResponse
+	require.NoError(t, json.Unmarshal(cached.Body.Bytes(), &cachedResponse))
+	require.True(t, cachedResponse.Calculation.CacheHit)
+	require.Equal(t, 1, executor.callCount("expenses"))
+	require.NotEmpty(t, wire.Colors)
+	require.NotNil(t, wire.Presentation)
+	require.True(t, wire.Presentation.KeepTotalBadge)
+	require.Equal(t, wire, cachedResponse.Frames[document.FrameRef("panel:expenses")])
 }
 
 func TestHandlers_PanelBatchFlushesFastResultBeforeSlowPanelCompletes(t *testing.T) {

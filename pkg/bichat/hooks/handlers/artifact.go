@@ -69,7 +69,7 @@ func (h *ArtifactHandler) handleCodeInterpreter(ctx context.Context, e *events.T
 
 	var result codeInterpreterResult
 	if err := json.Unmarshal([]byte(e.Result), &result); err != nil {
-		return serrors.E(op, err, "failed to parse code_interpreter result")
+		return serrors.WrapContext(op, err, "failed to parse code_interpreter result")
 	}
 	if len(result.Outputs) == 0 {
 		return nil
@@ -93,7 +93,7 @@ func (h *ArtifactHandler) handleCodeInterpreter(ctx context.Context, e *events.T
 
 		a := domain.NewArtifact(opts...)
 		if err := h.repo.SaveArtifact(ctx, a); err != nil {
-			return serrors.E(op, err, "failed to save code_output artifact")
+			return serrors.WrapContext(op, err, "failed to save code_output artifact")
 		}
 	}
 	return nil
@@ -104,7 +104,7 @@ func (h *ArtifactHandler) handleChart(ctx context.Context, e *events.ToolComplet
 
 	spec, metadata, artifactName, err := parseChartArtifactPayload(e)
 	if err != nil {
-		return serrors.E(op, err, "failed to parse draw_chart result")
+		return serrors.WrapContext(op, err, "failed to parse draw_chart result")
 	}
 	title := resolveChartTitle(spec, artifactName)
 
@@ -122,7 +122,7 @@ func (h *ArtifactHandler) handleChart(ctx context.Context, e *events.ToolComplet
 
 	a := domain.NewArtifact(opts...)
 	if err := h.repo.SaveArtifact(ctx, a); err != nil {
-		return serrors.E(op, err, "failed to save chart artifact")
+		return serrors.WrapContext(op, err, "failed to save chart artifact")
 	}
 	return nil
 }
@@ -197,7 +197,7 @@ func (h *ArtifactHandler) handleExport(ctx context.Context, e *events.ToolComple
 
 	var result exportResult
 	if err := json.Unmarshal([]byte(e.Result), &result); err != nil {
-		return serrors.E(op, err, "failed to parse export result")
+		return serrors.WrapContext(op, err, "failed to parse export result")
 	}
 
 	name := result.Filename
@@ -245,7 +245,7 @@ func (h *ArtifactHandler) handleExport(ctx context.Context, e *events.ToolComple
 
 	a := domain.NewArtifact(opts...)
 	if err := h.repo.SaveArtifact(ctx, a); err != nil {
-		return serrors.E(op, err, "failed to save export artifact")
+		return serrors.WrapContext(op, err, "failed to save export artifact")
 	}
 	return nil
 }

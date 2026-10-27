@@ -24,6 +24,9 @@ const (
 
 	// StatusPending2FA indicates the session is pending 2FA verification
 	StatusPending2FA SessionStatus = "pending_2fa"
+
+	// StatusPendingOnboarding limits a temporary-password session to onboarding
+	StatusPendingOnboarding SessionStatus = "pending_onboarding"
 )
 
 // Option is a functional option for configuring Session
@@ -71,6 +74,7 @@ type Session interface {
 
 	IsExpired() bool
 	IsPending() bool
+	IsPendingOnboarding() bool
 	IsActive() bool
 }
 
@@ -149,6 +153,10 @@ func (s *session) IsExpired() bool {
 
 func (s *session) IsPending() bool {
 	return s.status == StatusPending2FA
+}
+
+func (s *session) IsPendingOnboarding() bool {
+	return s.status == StatusPendingOnboarding
 }
 
 func (s *session) IsActive() bool {

@@ -48,7 +48,7 @@ func (v *viewAccessControl) CanAccess(ctx context.Context, viewName string) (boo
 
 	u, err := composables.UseUser(ctx)
 	if err != nil {
-		return false, serrors.E(op, "failed to get user from context", err)
+		return false, serrors.NewUnauthenticated("failed to get user from context").WithOp(op).WithCause(err)
 	}
 
 	normalizedName := normalizeViewName(viewName)
@@ -112,7 +112,7 @@ func (v *viewAccessControl) GetAccessibleViews(ctx context.Context, views []stri
 	for _, viewName := range views {
 		canAccess, err := v.CanAccess(ctx, viewName)
 		if err != nil {
-			return nil, serrors.E(op, "failed to check access for view "+viewName, err)
+			return nil, serrors.WrapContext(op, err, "failed to check access for view "+viewName)
 		}
 
 		access := "denied"
@@ -154,7 +154,7 @@ func (v *viewAccessControl) CheckQueryPermissions(ctx context.Context, sql strin
 	for viewName := range viewSet {
 		canAccess, err := v.CanAccess(ctx, viewName)
 		if err != nil {
-			return nil, serrors.E(op, "failed to check access for view "+viewName, err)
+			return nil, serrors.WrapContext(op, err, "failed to check access for view "+viewName)
 		}
 
 		if !canAccess {

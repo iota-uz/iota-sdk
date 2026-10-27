@@ -22,6 +22,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// ErrRunBusy signals that the session gained another active run between a
+// queued job's promotion and its execution (the promoted job lost the
+// CreateRun race). The worker parks the job back at the head of the FIFO
+// instead of retrying or failing it — the new run's terminal transition
+// re-promotes it.
+var ErrRunBusy = errors.New("bichat: session has an active run")
+
 // RunExecutor executes one generation turn from a self-contained
 // RunJobPayload. Both execution modes funnel through it: the inline POST
 // path spawns a goroutine calling Execute in the same process, and the
@@ -54,13 +61,13 @@ func (e *chatRunExecutor) Execute(ctx context.Context, job RunJobPayload) error 
 	const op serrors.Op = "chatRunExecutor.Execute"
 
 	if job.TenantID == uuid.Nil || job.SessionID == uuid.Nil || job.RunID == uuid.Nil {
-		return serrors.E(op, serrors.KindValidation, "tenant, session and run ids are required")
+		return serrors.New(serrors.Invalid, "tenant, session and run ids are required").WithOp(op)
 	}
 
 	svc := e.svc
 	attachments, err := resolveUploadAttachments(ctx, job.UploadIDs)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 
 	var (
@@ -75,12 +82,12 @@ func (e *chatRunExecutor) Execute(ctx context.Context, job RunJobPayload) error 
 		prepareErr := svc.withinTx(ctx, func(txCtx context.Context) error {
 			s, err := svc.chatRepo.GetSession(txCtx, job.SessionID)
 			if err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			session = s
 			session, err = svc.maybeReplaceHistoryFromMessage(txCtx, session, job.ReplaceFromMessageID)
 			if err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			if err := svc.ensureNoOpenQuestionForSend(txCtx, job.SessionID); err != nil {
 				return err
@@ -97,10 +104,10 @@ func (e *chatRunExecutor) Execute(ctx context.Context, job RunJobPayload) error 
 				Attachments:  attachments,
 			})
 			if err != nil {
-				return serrors.E(op, serrors.KindValidation, err)
+				return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 			}
 			if err := svc.chatRepo.SaveMessage(txCtx, userMsg); err != nil {
-				return serrors.E(op, err)
+				return serrors.Wrap(op, err)
 			}
 			if err := svc.saveAttachmentArtifacts(txCtx, session, userMsg.ID(), attachments); err != nil {
 				return err
@@ -115,16 +122,24 @@ func (e *chatRunExecutor) Execute(ctx context.Context, job RunJobPayload) error 
 					UserID:    session.UserID(),
 				})
 				if err != nil {
-					return serrors.E(op, serrors.KindValidation, err)
+					return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 				}
 				if err := svc.chatRepo.CreateRun(txCtx, run); err != nil {
-					return serrors.E(op, err)
+					if errors.Is(err, domain.ErrActiveRunExists) {
+						// A newer send won the session while this job sat in
+						// the stream — re-queue it instead of failing it.
+						return fmt.Errorf("%w: %w", ErrRunBusy, err)
+					}
+					return serrors.Wrap(op, err)
 				}
 			} else if getErr != nil {
-				return serrors.E(op, getErr)
+				return serrors.Wrap(op, getErr)
 			}
 			if _, err := svc.createRunStateRecoveringOrphan(txCtx, run); err != nil {
-				return serrors.E(op, err)
+				if errors.Is(err, domain.ErrActiveRunExists) {
+					return fmt.Errorf("%w: %w", ErrRunBusy, err)
+				}
+				return serrors.Wrap(op, err)
 			}
 			return nil
 		})
@@ -135,7 +150,7 @@ func (e *chatRunExecutor) Execute(ctx context.Context, job RunJobPayload) error 
 	} else {
 		session, err = svc.chatRepo.GetSession(ctx, job.SessionID)
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		artifactMsgID = job.UserMessageID
 	}
@@ -150,7 +165,8 @@ func (e *chatRunExecutor) Execute(ctx context.Context, job RunJobPayload) error 
 	ownsActive := active == nil
 	if ownsActive {
 		var cancelProcess context.CancelFunc
-		processCtx, cancelProcess = context.WithCancel(context.WithoutCancel(ctx))
+		processCtx, cancelProcess = context.WithCancel(ctx)
+		defer cancelProcess()
 		svc.registerStreamCancel(job.SessionID, cancelProcess)
 		active = streamingsvc.NewActiveRun(job.RunID, job.SessionID, cancelProcess, startedAt)
 		svc.runRegistry.Add(active)
@@ -254,6 +270,7 @@ func (e *chatRunExecutor) executeTurn(t turnExecution) {
 	var thinking strings.Builder
 	var observationReason string
 	emitDoneChunk := false
+	generationFailed := false
 
 	for {
 		event, err := gen.Next(t.processCtx)
@@ -261,6 +278,7 @@ func (e *chatRunExecutor) executeTurn(t turnExecution) {
 			break
 		}
 		if err != nil {
+			generationFailed = true
 			active.Broadcast(streamingsvc.TerminalChunk(err, 0))
 			break
 		}
@@ -411,12 +429,12 @@ func (e *chatRunExecutor) executeTurn(t turnExecution) {
 
 	if t.processCtx.Err() != nil {
 		svc.log().
-			WithError(serrors.E(op, t.processCtx.Err())).
+			WithError(serrors.Wrap(op, t.processCtx.Err())).
 			WithField("session_id", job.SessionID.String()).
 			WithField("run_id", runID.String()).
 			WithField("tenant_id", session.TenantID().String()).
 			Error("bichat: stream generation context ended before finalization")
-		active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, t.processCtx.Err()), 0))
+		active.Broadcast(streamingsvc.TerminalChunk(serrors.Wrap(op, t.processCtx.Err()), 0))
 		_ = svc.cancelRunState(t.persistCtx, session.TenantID(), job.SessionID, runID)
 		return
 	}
@@ -451,7 +469,7 @@ func (e *chatRunExecutor) executeTurn(t turnExecution) {
 		assistantDebugTrace = debugTrace
 	}
 	var assistantQuestionData *types.QuestionData
-	if interrupt != nil {
+	if interrupt != nil && !generationFailed {
 		qd, err := hitlsvc.BuildQuestionData(interrupt.CheckpointID, interruptAgentName, interrupt.Questions)
 		if err == nil && qd != nil {
 			assistantQuestionData = qd
@@ -467,14 +485,14 @@ func (e *chatRunExecutor) executeTurn(t turnExecution) {
 	})
 	if err != nil {
 		svc.log().
-			WithError(serrors.E(op, serrors.KindValidation, err)).
+			WithError(serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)).
 			WithField("session_id", job.SessionID.String()).
 			WithField("run_id", runID.String()).
 			WithField("tenant_id", session.TenantID().String()).
 			WithField("content_len", len(assistantContent)).
 			WithField("tool_calls", len(savedToolCalls)).
 			Error("bichat: assistant message failed validation before persistence")
-		active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, serrors.KindValidation, err), 0))
+		active.Broadcast(streamingsvc.TerminalChunk(serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err), 0))
 		_ = svc.cancelRunState(t.persistCtx, session.TenantID(), job.SessionID, runID)
 		return
 	}
@@ -522,8 +540,12 @@ func (e *chatRunExecutor) executeTurn(t turnExecution) {
 
 	runStateCtx, runStateCancel := context.WithTimeout(context.WithoutCancel(t.persistCtx), streamPersistenceTimeout)
 	defer runStateCancel()
-	_ = svc.completeRunState(runStateCtx, session.TenantID(), job.SessionID, runID)
-	if emitDoneChunk {
+	if generationFailed {
+		_ = svc.cancelRunState(runStateCtx, session.TenantID(), job.SessionID, runID)
+	} else {
+		_ = svc.completeRunState(runStateCtx, session.TenantID(), job.SessionID, runID)
+	}
+	if !generationFailed && (emitDoneChunk || interrupt != nil) {
 		active.Broadcast(streamingsvc.TerminalChunk(nil, generationMs))
 	}
 	if interrupt == nil {
@@ -554,10 +576,10 @@ func (s *chatServiceImpl) saveAttachmentArtifacts(ctx context.Context, session d
 		}
 		artifactEntity, err := domain.NewArtifactFromSpec(artifact)
 		if err != nil {
-			return serrors.E(op, serrors.KindValidation, err)
+			return serrors.New(serrors.Invalid, "").WithOp(op).WithCause(err)
 		}
 		if err := s.chatRepo.SaveArtifact(ctx, artifactEntity); err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 	}
 	return nil
@@ -570,7 +592,7 @@ func (s *chatServiceImpl) promoteNextQueuedRun(ctx context.Context, tenantID, se
 	if s.runSessionQueue == nil || s.runJobQueue == nil {
 		return
 	}
-	promoted, err := PromoteNextQueuedRun(ctx, s.runSessionQueue, s.runJobQueue, tenantID, sessionID)
+	promoted, err := PromoteNextQueuedRun(ctx, s.runSessionQueue, s.runJobQueue, s.activeRunIndex, tenantID, sessionID)
 	if err != nil {
 		if e := s.logEntry(); e != nil {
 			e.WithError(err).WithFields(logrus.Fields{
@@ -593,8 +615,10 @@ func (s *chatServiceImpl) promoteNextQueuedRun(ctx context.Context, tenantID, se
 // PromoteNextQueuedRun drains one job from the per-session FIFO and posts it
 // onto the run job stream. Returns false when the queue is empty. Used by the
 // executor's terminal path, the run worker's terminal-failure path, and the
-// reaper's OnRunTerminal hook.
-func PromoteNextQueuedRun(ctx context.Context, sessionQueue *RedisRunSessionQueue, jobQueue *RedisRunJobQueue, tenantID, sessionID uuid.UUID) (bool, error) {
+// reaper's OnRunTerminal hook. A failed stream enqueue pushes the job back to
+// the head of the FIFO so it is never lost; the index's queued count is
+// decremented after a successful promotion (nil-safe).
+func PromoteNextQueuedRun(ctx context.Context, sessionQueue *RedisRunSessionQueue, jobQueue *RedisRunJobQueue, index ActiveRunIndex, tenantID, sessionID uuid.UUID) (bool, error) {
 	if sessionQueue == nil || jobQueue == nil {
 		return false, nil
 	}
@@ -608,10 +632,14 @@ func PromoteNextQueuedRun(ctx context.Context, sessionQueue *RedisRunSessionQueu
 	queued.Payload.Attempt = 0
 	queued.Payload.EnqueuedAt = time.Now().UTC()
 	if _, err := jobQueue.EnqueueClaimed(ctx, queued.Payload); err != nil {
-		// Re-queue at the front is not possible with LPOP semantics; the job
-		// is logged and dropped. The client can retry the send — the request
-		// dedupe claim is still held by this payload's request id TTL.
+		// Restore the job to the head of the FIFO so it keeps its position
+		// — the client is already tailing this run's event log, so losing
+		// the job here would strand that stream without a terminal event.
+		_ = sessionQueue.PushFront(ctx, tenantID, sessionID, queued)
 		return false, err
+	}
+	if index != nil {
+		_ = index.AddQueuedRuns(ctx, tenantID, sessionID, queued.Payload.RunID, -1)
 	}
 	return true, nil
 }
@@ -639,7 +667,7 @@ func resolveUploadAttachments(ctx context.Context, uploadIDs []int64) ([]domain.
 	repo := corepersistence.NewUploadRepository()
 	found, err := repo.GetByIDs(ctx, unique)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	byID := make(map[uint]int, len(found))
 	for i, entity := range found {
@@ -650,7 +678,7 @@ func resolveUploadAttachments(ctx context.Context, uploadIDs []int64) ([]domain.
 	for _, id := range uploadIDs {
 		idx, ok := byID[uint(id)]
 		if !ok {
-			return nil, serrors.E(op, serrors.KindValidation, fmt.Errorf("upload not found: %d", id))
+			return nil, serrors.New(serrors.Invalid, "").WithOp(op).WithCause(fmt.Errorf("upload not found: %d", id))
 		}
 		entity := found[idx]
 		mimeType := ""

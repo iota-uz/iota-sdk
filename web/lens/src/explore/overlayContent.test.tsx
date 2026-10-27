@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/explore.json'
 import { parseDocument, type Level, type Node } from '../contract'
@@ -18,10 +18,10 @@ const node = { key: 'services', path: ['services'], label: 'Services' } as Node
 const level = {} as Level
 
 function renderOverlay(target: DrillTarget, props: Partial<Parameters<typeof DrillOverlay>[0]> = {}) {
-  return render(
-    <div className="lens-root">
+  return render(() =>
+    <div class="lens-root">
       <DocumentProvider initialDocument={exploreDocument}>
-        <DashboardRuntimeProvider locale="en">
+        <DashboardRuntimeProvider locale="en">{() => (<>(
           <DrillOverlay
             anchor={{ x: 200, y: 200 }}
             onClose={() => {}}
@@ -31,7 +31,7 @@ function renderOverlay(target: DrillTarget, props: Partial<Parameters<typeof Dri
             target={target}
             {...props}
           />
-        </DashboardRuntimeProvider>
+          )</>)}</DashboardRuntimeProvider>
       </DocumentProvider>
     </div>,
   )
@@ -65,10 +65,10 @@ describe('overlay segment header', () => {
   })
 
   it('stacks a segment overlay above the drawer that opened it', () => {
-    render(
-      <div className="lens-root">
+    render(() =>
+      <div class="lens-root">
         <DocumentProvider initialDocument={exploreDocument}>
-          <DashboardRuntimeProvider drawerDepth={1} locale="en">
+          <DashboardRuntimeProvider drawerDepth={1} locale="en">{() => (<>(
             <DrillOverlay
               anchor={{ x: 200, y: 200 }}
               onClose={() => {}}
@@ -77,7 +77,7 @@ describe('overlay segment header', () => {
               onPerspective={() => {}}
               target={{ node, label: 'Services', value: 8_765_432, breakdown: [], perspectives: [] }}
             />
-          </DashboardRuntimeProvider>
+            )</>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       </div>,
     )

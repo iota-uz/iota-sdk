@@ -34,7 +34,7 @@ func TestRunMigrationPolicy_Scenarios(t *testing.T) {
 		policy           MigrationPolicy
 		pool             schemaReadinessQuerier
 		expectErr        bool
-		expectErrKind    serrors.Kind
+		expectErrKind    serrors.Code
 		expectErrOp      serrors.Op
 		expectErrContext string
 		expectCalled     bool
@@ -55,7 +55,7 @@ func TestRunMigrationPolicy_Scenarios(t *testing.T) {
 			policy:           MigrationSkip,
 			pool:             fakeSchemaReadinessPool{row: fakeBoolRow{value: false}},
 			expectErr:        true,
-			expectErrKind:    serrors.KindValidation,
+			expectErrKind:    serrors.Invalid,
 			expectErrOp:      opSchemaReadiness,
 			expectErrContext: "schema not ready",
 			expectCalled:     false,
@@ -93,11 +93,11 @@ func TestRunMigrationPolicy_Scenarios(t *testing.T) {
 				require.Error(t, err)
 				var serr *serrors.Error
 				require.ErrorAs(t, err, &serr)
-				if tt.expectErrKind != serrors.Other {
-					assert.Equal(t, tt.expectErrKind, serr.Kind)
+				if tt.expectErrKind != 0 {
+					assert.Equal(t, tt.expectErrKind, serrors.CodeOf(serr))
 				}
 				if tt.expectErrOp != "" {
-					assert.Equal(t, tt.expectErrOp, serr.Op)
+					assert.Equal(t, tt.expectErrOp, serrors.OpOf(serr))
 				}
 				if tt.expectErrContext != "" {
 					assert.Contains(t, serr.Error(), tt.expectErrContext)

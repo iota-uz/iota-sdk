@@ -10,6 +10,13 @@
 **GoMoney** provides ability to work with [monetary value using a currency's smallest unit](https://martinfowler.com/eaaCatalog/money.html).
 This package provides basic and precise Money operations such as rounding, splitting and allocating.  Monetary values should not be stored as floats due to small rounding differences.
 
+`RegisteredCurrencies()` returns currency metadata sorted by alphabetic `Code`,
+including each currency's `Fraction` (minor-unit decimal places) and registered
+formatting variants. The returned slice contains independent values: editing it
+does not change the registry. Use `GetCurrencyByNumericCode` when resolving a
+numeric ISO code to the catalog's canonical currency. Register custom currencies
+before reading the catalog; registration and reads are not synchronized.
+
 ```go
 package main
 

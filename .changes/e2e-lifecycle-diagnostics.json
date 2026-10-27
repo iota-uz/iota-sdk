@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Preserve environment lifecycle failure and compensation causes with structured operation, environment and artifact diagnostics; execute up to four NDJSON requests concurrently with synchronized replies and EOF cleanup."
+}

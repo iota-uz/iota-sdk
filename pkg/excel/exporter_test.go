@@ -210,9 +210,7 @@ func TestExcelExporter_FloatNumberFormat(t *testing.T) {
 	})
 }
 
-// TestExcelExporter_DecimalComma verifies that with DecimalComma enabled, both
-// Go floats and pgx numeric-decimal strings render with a comma decimal
-// separator (as text), while dates and non-numeric text are left untouched.
+// DecimalComma may not turn usable workbook numbers into text or alter IDs.
 func TestExcelExporter_DecimalComma(t *testing.T) {
 	headers := []string{"Float", "NumericText", "Date", "Label", "Int"}
 	// "14773814.00" mimics a pgx numeric column (arrives as text to avoid
@@ -234,8 +232,8 @@ func TestExcelExporter_DecimalComma(t *testing.T) {
 			require.NoError(t, err)
 			return v
 		}
-		assert.Equal(t, "1234,50", cellAt(1), "Go float should use comma")
-		assert.Equal(t, "14773814,00", cellAt(2), "numeric-decimal text should use comma")
+		assert.Equal(t, "1234.50", cellAt(1), "Go float stays numeric")
+		assert.Equal(t, "14773814.00", cellAt(2), "plain decimal text is not reinterpreted")
 		assert.Equal(t, "21.01.2026", cellAt(3), "dates must be left untouched")
 		assert.Equal(t, "COBALT, 01Q", cellAt(4), "labels must be left untouched")
 		assert.Equal(t, "42", cellAt(5), "integers unaffected")

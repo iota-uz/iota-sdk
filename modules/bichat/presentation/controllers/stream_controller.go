@@ -182,7 +182,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		message := "Invalid attachments"
 		errorText := err.Error()
 		if strings.Contains(errorText, "uploadId is required") || strings.Contains(errorText, "uploadId not found") {
-			message = fmt.Sprintf("Invalid attachments: %s; upload artifacts first", errorText)
+			message = "Invalid attachments; upload artifacts first"
 		}
 		http.Error(w, message, http.StatusBadRequest)
 		return
@@ -261,7 +261,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		// Log actual error server-side
 		if c.logger != nil {
-			c.logger.WithError(serrors.E(op, err)).Error("Stream error")
+			c.logger.WithError(serrors.Wrap(op, err)).Error("Stream error")
 		}
 
 		// Send sanitized error to client
@@ -309,7 +309,7 @@ func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := c.streamService.StopGeneration(r.Context(), req.SessionID); err != nil {
-		wrapped := serrors.E(op, err)
+		wrapped := serrors.Wrap(op, err)
 		if errors.Is(err, domain.ErrNoActiveRun) || errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
 			// Known condition: stop called when session is no longer streaming.
 			// Preserve idempotent API behavior and just log for observability.
@@ -484,7 +484,7 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		if c.logger != nil {
-			c.logger.WithError(serrors.E(op, err)).Error("Resume stream error")
+			c.logger.WithError(serrors.Wrap(op, err)).Error("Resume stream error")
 		}
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -584,7 +584,7 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, bichatservices.ErrRunEventLogUnavailable) {
 			if c.logger != nil {
-				c.logger.WithError(serrors.E(op, err)).Warn("TailEvents: run event log unavailable")
+				c.logger.WithError(serrors.Wrap(op, err)).Warn("TailEvents: run event log unavailable")
 			}
 			writeMu.Lock()
 			defer writeMu.Unlock()
@@ -597,7 +597,7 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
 			if c.logger != nil {
-				c.logger.WithError(serrors.E(op, err)).Warn("TailEvents: run not found or already finished")
+				c.logger.WithError(serrors.Wrap(op, err)).Warn("TailEvents: run not found or already finished")
 			}
 			writeMu.Lock()
 			defer writeMu.Unlock()
@@ -609,7 +609,7 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if c.logger != nil {
-			c.logger.WithError(serrors.E(op, err)).
+			c.logger.WithError(serrors.Wrap(op, err)).
 				WithField("session_id", sessionID.String()).
 				WithField("run_id", runID.String()).
 				WithField("stage", "event_log_tail").Error("TailEvents failed")
@@ -698,7 +698,7 @@ func (c *StreamController) TailActiveRuns(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		if errors.Is(err, bichatservices.ErrActiveRunIndexUnavailable) || errors.Is(err, bichatservices.ErrRunEventLogUnavailable) {
 			if c.logger != nil {
-				c.logger.WithError(serrors.E(op, err)).Warn("TailActiveRuns: active-run index unavailable")
+				c.logger.WithError(serrors.Wrap(op, err)).Warn("TailActiveRuns: active-run index unavailable")
 			}
 			writeMu.Lock()
 			defer writeMu.Unlock()
@@ -708,7 +708,7 @@ func (c *StreamController) TailActiveRuns(w http.ResponseWriter, r *http.Request
 			return
 		}
 		if c.logger != nil {
-			c.logger.WithError(serrors.E(op, err)).Error("TailActiveRuns failed")
+			c.logger.WithError(serrors.Wrap(op, err)).Error("TailActiveRuns failed")
 		}
 	}
 }

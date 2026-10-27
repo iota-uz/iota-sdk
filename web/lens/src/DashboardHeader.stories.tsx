@@ -1,4 +1,3 @@
-import type { Story } from '@ladle/react'
 import type { DashboardDocument, Filter, Panel } from './contract'
 import { LensDashboard } from './LensDashboard'
 import type { LensThemeMode } from './runtime'
@@ -127,7 +126,7 @@ function HeaderScene(options: SceneOptions) {
       theme={options.theme ?? 'light'}
     />
   )
-  return options.width ? <div style={{ width: options.width }}>{scene}</div> : scene
+  return options.width ? <div style={{ width: `${options.width}px` }}>{scene}</div> : scene
 }
 
 /**
@@ -136,12 +135,12 @@ function HeaderScene(options: SceneOptions) {
  * carries the freshness control, copy link and export. Three bordered controls
  * where there were eight.
  */
-export const HeaderLight: Story = () => (
+export const HeaderLight = () => (
   <HeaderScene filters={[periodFilter, compareFilter, regionFacet]} theme="light" />
 )
 HeaderLight.storyName = 'Header light'
 
-export const HeaderDark: Story = () => (
+export const HeaderDark = () => (
   <HeaderScene filters={[periodFilter, compareFilter, regionFacet]} theme="dark" />
 )
 HeaderDark.storyName = 'Header dark'
@@ -151,7 +150,7 @@ HeaderDark.storyName = 'Header dark'
  * cannot export, so the freshness reading renders as a bare stamp on the same
  * baseline and the row keeps its geometry rather than collapsing.
  */
-export const HeaderReadOnly: Story = () => (
+export const HeaderReadOnly = () => (
   <HeaderScene endpoints={{}} filters={[periodFilter]} theme="light" />
 )
 HeaderReadOnly.storyName = 'Header read only'
@@ -160,7 +159,7 @@ HeaderReadOnly.storyName = 'Header read only'
  * The producer's own line, which states what no control can — here a data
  * cut-off. It is the tail of the scope sentence, not a second heading.
  */
-export const HeaderWithSubtitle: Story = () => (
+export const HeaderWithSubtitle = () => (
   <HeaderScene subtitle="Data as of 22 July 2026" theme="light" />
 )
 HeaderWithSubtitle.storyName = 'Header with subtitle'
@@ -169,7 +168,7 @@ HeaderWithSubtitle.storyName = 'Header with subtitle'
  * Under the 1100px threshold the action row drops below the title instead of
  * squeezing it, and the scope sentence wraps clause by clause.
  */
-export const HeaderNarrow: Story = () => (
+export const HeaderNarrow = () => (
   <HeaderScene filters={[periodFilter, compareFilter, regionFacet]} theme="light" width={720} />
 )
 HeaderNarrow.storyName = 'Header narrow'

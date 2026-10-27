@@ -13,6 +13,171 @@ import (
 // runtime looks up; RuntimeI18nKeys keeps them in sync with the TSX call
 // sites.
 const (
+	I18nContextBack              = "filter.context.back"
+	I18nContextDrillUnavailable  = "filter.context.drillUnavailable"
+	I18nContextExportUnavailable = "filter.context.exportUnavailable"
+
+	I18nContextScopeReport    = "filter.context.scope.report"
+	I18nContextScopeDashboard = "filter.context.scope.dashboard"
+	I18nContextScopeSection   = "filter.context.scope.section"
+	I18nContextScopeCard      = "filter.context.scope.card"
+	I18nContextScopeGroup     = "filter.context.scope.group"
+	I18nContextScopeHost      = "filter.context.scope.host"
+
+	I18nContextCard          = "filter.context.card"
+	I18nContextConflict      = "filter.context.conflict"
+	I18nContextLocal         = "filter.context.local"
+	I18nContextReportPeriods = "filter.context.reportPeriods"
+	I18nContextReset         = "filter.context.reset"
+	I18nContextSave          = "filter.context.save"
+	I18nContextSaveFailed    = "filter.context.saveFailed"
+	I18nContextSection       = "filter.context.section"
+	I18nContextUnsupported   = "filter.context.unsupported"
+	I18nContextUseDashboard  = "filter.context.useDashboard"
+
+	// Reusable report placement version notices (pkg/lens/report.VersionStatus).
+	I18nReportVersionUpdateAvailable = "report.version.updateAvailable"
+	I18nReportVersionUpdate          = "report.version.update"
+	I18nReportVersionKeep            = "report.version.keep"
+	I18nReportVersionUpdateFailed    = "report.version.updateFailed"
+	I18nReportVersionIncompatible    = "report.version.incompatible"
+
+	// Embeddable report card: unavailable states, the card menu and freshness.
+	I18nReportUnavailableDeleted   = "report.unavailable.deleted"
+	I18nReportUnavailableForbidden = "report.unavailable.forbidden"
+	I18nReportUnavailableTitle     = "report.unavailable.title"
+	I18nReportActionMenu           = "report.action.menu"
+	I18nReportActionOpen           = "report.action.open"
+	I18nReportActionEdit           = "report.action.edit"
+	I18nReportActionConfigure      = "report.action.configure"
+	I18nReportActionCopy           = "report.action.copy"
+	I18nReportActionRemove         = "report.action.remove"
+	I18nReportActionFailed         = "report.action.failed"
+	I18nReportCardCalculated       = "report.card.calculated"
+	I18nReportCardFailed           = "report.card.failed"
+	I18nReportCardRetry            = "report.card.retry"
+	I18nPanelRendererUnavailable   = "panel.renderer.unavailable"
+
+	// Composition editor: invalid proposals and a failed discard on leave.
+	I18nReportLeaveDiscardFailed = "report.leave.discardFailed"
+	I18nReportProposalInvalid    = "report.proposal.invalid"
+
+	// Composition editor: lifecycle, layout, card settings, shared-edit impact, proposals and the leave guard.
+	I18nReportEditorAdd             = "report.editor.add"
+	I18nReportEditorAdded           = "report.editor.added"
+	I18nReportEditorCancel          = "report.editor.cancel"
+	I18nReportEditorCancelled       = "report.editor.cancelled"
+	I18nReportEditorCaption         = "report.editor.caption"
+	I18nReportEditorCardPeriod      = "report.editor.cardPeriod"
+	I18nReportEditorConfigureApply  = "report.editor.configureApply"
+	I18nReportEditorConfigureHint   = "report.editor.configureHint"
+	I18nReportEditorConfigureTitle  = "report.editor.configureTitle"
+	I18nReportEditorConflict        = "report.editor.conflict"
+	I18nReportEditorConflictCopy    = "report.editor.conflictCopy"
+	I18nReportEditorConflictKeep    = "report.editor.conflictKeep"
+	I18nReportEditorConflictReload  = "report.editor.conflictReload"
+	I18nReportEditorDraft           = "report.editor.draft"
+	I18nReportEditorEditReportTitle = "report.editor.editReportTitle"
+	I18nReportEditorEditShared      = "report.editor.editShared"
+	I18nReportEditorEmpty           = "report.editor.empty"
+	I18nReportEditorImpact          = "report.editor.impact"
+	I18nReportEditorImpactCopy      = "report.editor.impactCopy"
+	I18nReportEditorImpactCount     = "report.editor.impactCount"
+	I18nReportEditorMove            = "report.editor.move"
+	I18nReportEditorMoveHint        = "report.editor.moveHint"
+	I18nReportEditorMoved           = "report.editor.moved"
+	I18nReportEditorName            = "report.editor.name"
+	I18nReportEditorPeriodCustom    = "report.editor.period.custom"
+	I18nReportEditorPeriodDays      = "report.editor.period.days"
+	I18nReportEditorPeriodMonths    = "report.editor.period.months"
+	I18nReportEditorPeriodEnd       = "report.editor.periodEnd"
+	I18nReportEditorPeriodInherit   = "report.editor.periodInherit"
+	I18nReportEditorPeriodInvalid   = "report.editor.periodInvalid"
+	I18nReportEditorPeriodLabel     = "report.editor.periodLabel"
+	I18nReportEditorPeriodLocal     = "report.editor.periodLocal"
+	I18nReportEditorPeriodStart     = "report.editor.periodStart"
+	I18nReportEditorProposalApplied = "report.editor.proposalApplied"
+	I18nReportEditorPublish         = "report.editor.publish"
+	I18nReportEditorRemove          = "report.editor.remove"
+	I18nReportEditorRemoveShort     = "report.editor.removeShort"
+	I18nReportEditorRemoved         = "report.editor.removed"
+	I18nReportEditorResized         = "report.editor.resized"
+	I18nReportEditorSaveChanges     = "report.editor.saveChanges"
+	I18nReportEditorSaveDraft       = "report.editor.saveDraft"
+	I18nReportEditorSaveFailed      = "report.editor.saveFailed"
+	I18nReportEditorSaved           = "report.editor.saved"
+	I18nReportEditorSaving          = "report.editor.saving"
+	I18nReportEditorUnsaved         = "report.editor.unsaved"
+	I18nReportEditorUpToDate        = "report.editor.upToDate"
+	I18nReportEditorWidth           = "report.editor.width"
+	I18nReportEditorWidthLabel      = "report.editor.widthLabel"
+	I18nReportEditorWidthValue      = "report.editor.widthValue"
+	I18nReportLeaveDescription      = "report.leave.description"
+	I18nReportLeaveDiscard          = "report.leave.discard"
+	I18nReportLeaveSaveFailed       = "report.leave.saveFailed"
+	I18nReportLeaveStay             = "report.leave.stay"
+	I18nReportLeaveTitle            = "report.leave.title"
+	I18nReportProposalAdd           = "report.proposal.add"
+	I18nReportProposalApply         = "report.proposal.apply"
+	I18nReportProposalChange        = "report.proposal.change"
+	I18nReportProposalNone          = "report.proposal.none"
+	I18nReportProposalOpenAsDraft   = "report.proposal.openAsDraft"
+	I18nReportProposalRegenerate    = "report.proposal.regenerate"
+	I18nReportProposalReject        = "report.proposal.reject"
+	I18nReportProposalRemove        = "report.proposal.remove"
+	I18nReportProposalStale         = "report.proposal.stale"
+	I18nReportProposalTitle         = "report.proposal.title"
+
+	// Report picker and add-to-dashboard dialogs.
+	I18nReportPickerAddNone = "report.picker.addNone"
+
+	// Report picker and add-to-dashboard dialogs.
+	I18nReportDestinationConfirm      = "report.destination.confirm"
+	I18nReportDestinationDescription  = "report.destination.description"
+	I18nReportDestinationEmpty        = "report.destination.empty"
+	I18nReportDestinationFailed       = "report.destination.failed"
+	I18nReportDestinationList         = "report.destination.list"
+	I18nReportDestinationLoadFailed   = "report.destination.loadFailed"
+	I18nReportDestinationLoading      = "report.destination.loading"
+	I18nReportDestinationNew          = "report.destination.new"
+	I18nReportDestinationPlaced       = "report.destination.placed"
+	I18nReportDestinationSearch       = "report.destination.search"
+	I18nReportDestinationTitle        = "report.destination.title"
+	I18nReportPickerAdd               = "report.picker.add"
+	I18nReportPickerAddAnother        = "report.picker.addAnother"
+	I18nReportPickerAddFailed         = "report.picker.addFailed"
+	I18nReportPickerAdding            = "report.picker.adding"
+	I18nReportPickerBack              = "report.picker.back"
+	I18nReportPickerCancel            = "report.picker.cancel"
+	I18nReportPickerCompound          = "report.picker.compound"
+	I18nReportPickerCount             = "report.picker.count"
+	I18nReportPickerDescription       = "report.picker.description"
+	I18nReportPickerEmpty             = "report.picker.empty"
+	I18nReportPickerList              = "report.picker.list"
+	I18nReportPickerLoadFailed        = "report.picker.loadFailed"
+	I18nReportPickerLoadMore          = "report.picker.loadMore"
+	I18nReportPickerLoading           = "report.picker.loading"
+	I18nReportPickerNoMatches         = "report.picker.noMatches"
+	I18nReportPickerNone              = "report.picker.none"
+	I18nReportPickerOwnershipPersonal = "report.picker.ownership.personal"
+	I18nReportPickerOwnershipShared   = "report.picker.ownership.shared"
+	I18nReportPickerOwnershipSharedBy = "report.picker.ownership.sharedBy"
+	I18nReportPickerOwnershipSystem   = "report.picker.ownership.system"
+	I18nReportPickerPlaced            = "report.picker.placed"
+	I18nReportPickerPreview           = "report.picker.preview"
+	I18nReportPickerPreviewFailed     = "report.picker.previewFailed"
+	I18nReportPickerPreviewLoading    = "report.picker.previewLoading"
+	I18nReportPickerPreviewOf         = "report.picker.previewOf"
+	I18nReportPickerRestriction       = "report.picker.restriction"
+	I18nReportPickerRetry             = "report.picker.retry"
+	I18nReportPickerScopeAll          = "report.picker.scope.all"
+	I18nReportPickerScopePersonal     = "report.picker.scope.personal"
+	I18nReportPickerScopeShared       = "report.picker.scope.shared"
+	I18nReportPickerScopeLabel        = "report.picker.scopeLabel"
+	I18nReportPickerSearch            = "report.picker.search"
+	I18nReportPickerSelectReport      = "report.picker.selectReport"
+	I18nReportPickerTitle             = "report.picker.title"
+
 	I18nCascadeCheckpoint             = "cascade.checkpoint"
 	I18nCascadeOpenStage              = "cascade.openStage"
 	I18nCascadeResult                 = "cascade.result"
@@ -50,6 +215,7 @@ const (
 	I18nChartOpenMark                 = "chart.openMark"
 	I18nChartRegression               = "chart.regression"
 	I18nChartResetZoom                = "chart.resetZoom"
+	I18nChartSeriesCurrent            = "chart.series.current"
 	I18nChartSeriesPrevious           = "chart.series.previous"
 	I18nChartSeriesTrend              = "chart.series.trend"
 	I18nChartSeriesMovingAverage      = "chart.series.movingAverage"
@@ -67,15 +233,30 @@ const (
 	I18nCalendarPrevMonth             = "calendar.prevMonth"
 	// The month/year jump panel behind the calendar heading: the trigger, and
 	// the panel's own paging (one year, or one twelve-year block, at a time).
-	I18nCalendarChooseMonth        = "calendar.chooseMonth"
-	I18nCalendarNextPage           = "calendar.nextPage"
-	I18nCalendarPrevPage           = "calendar.prevPage"
-	I18nDashboardEmpty             = "dashboard.empty"
-	I18nDashboardTabs              = "dashboard.tabs"
-	I18nDashboardUpdated           = "dashboard.updated"
-	I18nDashboardRecompute         = "dashboard.recompute"
-	I18nDashboardRecomputeHint     = "dashboard.recomputeHint"
-	I18nDashboardRecomputing       = "dashboard.recomputing"
+	I18nCalendarChooseMonth    = "calendar.chooseMonth"
+	I18nCalendarNextPage       = "calendar.nextPage"
+	I18nCalendarPrevPage       = "calendar.prevPage"
+	I18nDashboardEmpty         = "dashboard.empty"
+	I18nDashboardTabs          = "dashboard.tabs"
+	I18nDashboardUpdated       = "dashboard.updated"
+	I18nDashboardRecompute     = "dashboard.recompute"
+	I18nDashboardRecomputeHint = "dashboard.recomputeHint"
+	I18nDashboardRecomputing   = "dashboard.recomputing"
+	// In-place dashboard editing: the Edit action, the edit bar, the cards
+	// added in the session and the empty board.
+	I18nDashboardEdit               = "dashboard.edit"
+	I18nDashboardEditStarted        = "dashboard.edit.started"
+	I18nDashboardEditEnded          = "dashboard.edit.ended"
+	I18nDashboardEditToolbar        = "dashboard.edit.toolbar"
+	I18nDashboardEditPreviewPending = "dashboard.edit.previewPending"
+	I18nDashboardEditPreviewLoading = "dashboard.edit.previewLoading"
+	I18nDashboardEditPreviewFailed  = "dashboard.edit.previewFailed"
+	I18nDashboardEditLoadFailed     = "dashboard.edit.loadFailed"
+	I18nDashboardEmptyTitle         = "dashboard.empty.title"
+	I18nDashboardEmptyHint          = "dashboard.empty.hint"
+	I18nDashboardEmptyHintEditable  = "dashboard.empty.hintEditable"
+	// The compact toolbar's menu of secondary filter controls.
+	I18nFilterMore                 = "filter.more"
 	I18nDocumentRefetch            = "document.refetchFailed"
 	I18nDocumentRetry              = "document.retry"
 	I18nDrillClose                 = "drill.close"
@@ -336,6 +517,156 @@ func RuntimeLocaleKey(runtimeKey string) string {
 // Producers can range over it to assert their catalogue is complete.
 func RuntimeI18nKeys() []string {
 	keys := []string{
+		I18nContextBack,
+		I18nContextDrillUnavailable,
+		I18nContextExportUnavailable,
+
+		I18nContextScopeReport,
+		I18nContextScopeDashboard,
+		I18nContextScopeSection,
+		I18nContextScopeCard,
+		I18nContextScopeGroup,
+		I18nContextScopeHost,
+
+		I18nContextCard,
+		I18nContextConflict,
+		I18nContextLocal,
+		I18nContextReportPeriods,
+		I18nContextReset,
+		I18nContextSave,
+		I18nContextSaveFailed,
+		I18nContextSection,
+		I18nContextUnsupported,
+		I18nContextUseDashboard,
+
+		I18nReportVersionUpdateAvailable,
+		I18nReportVersionUpdate,
+		I18nReportVersionKeep,
+		I18nReportVersionUpdateFailed,
+		I18nReportVersionIncompatible,
+
+		I18nReportUnavailableDeleted, I18nReportUnavailableForbidden, I18nReportUnavailableTitle,
+		I18nReportActionMenu, I18nReportActionOpen, I18nReportActionEdit, I18nReportActionConfigure,
+		I18nReportActionCopy, I18nReportActionRemove, I18nReportActionFailed,
+		I18nReportCardCalculated, I18nReportCardFailed, I18nReportCardRetry,
+		I18nPanelRendererUnavailable,
+
+		I18nReportLeaveDiscardFailed,
+		I18nReportProposalInvalid,
+
+		I18nReportEditorAdd,
+		I18nReportEditorAdded,
+		I18nReportEditorCancel,
+		I18nReportEditorCancelled,
+		I18nReportEditorCaption,
+		I18nReportEditorCardPeriod,
+		I18nReportEditorConfigureApply,
+		I18nReportEditorConfigureHint,
+		I18nReportEditorConfigureTitle,
+		I18nReportEditorConflict,
+		I18nReportEditorConflictCopy,
+		I18nReportEditorConflictKeep,
+		I18nReportEditorConflictReload,
+		I18nReportEditorDraft,
+		I18nReportEditorEditReportTitle,
+		I18nReportEditorEditShared,
+		I18nReportEditorEmpty,
+		I18nReportEditorImpact,
+		I18nReportEditorImpactCopy,
+		I18nReportEditorImpactCount,
+		I18nReportEditorMove,
+		I18nReportEditorMoveHint,
+		I18nReportEditorMoved,
+		I18nReportEditorName,
+		I18nReportEditorPeriodCustom,
+		I18nReportEditorPeriodDays,
+		I18nReportEditorPeriodMonths,
+		I18nReportEditorPeriodEnd,
+		I18nReportEditorPeriodInherit,
+		I18nReportEditorPeriodInvalid,
+		I18nReportEditorPeriodLabel,
+		I18nReportEditorPeriodLocal,
+		I18nReportEditorPeriodStart,
+		I18nReportEditorProposalApplied,
+		I18nReportEditorPublish,
+		I18nReportEditorRemove,
+		I18nReportEditorRemoveShort,
+		I18nReportEditorRemoved,
+		I18nReportEditorResized,
+		I18nReportEditorSaveChanges,
+		I18nReportEditorSaveDraft,
+		I18nReportEditorSaveFailed,
+		I18nReportEditorSaved,
+		I18nReportEditorSaving,
+		I18nReportEditorUnsaved,
+		I18nReportEditorUpToDate,
+		I18nReportEditorWidth,
+		I18nReportEditorWidthLabel,
+		I18nReportEditorWidthValue,
+		I18nReportLeaveDescription,
+		I18nReportLeaveDiscard,
+		I18nReportLeaveSaveFailed,
+		I18nReportLeaveStay,
+		I18nReportLeaveTitle,
+		I18nReportProposalAdd,
+		I18nReportProposalApply,
+		I18nReportProposalChange,
+		I18nReportProposalNone,
+		I18nReportProposalOpenAsDraft,
+		I18nReportProposalRegenerate,
+		I18nReportProposalReject,
+		I18nReportProposalRemove,
+		I18nReportProposalStale,
+		I18nReportProposalTitle,
+
+		I18nReportPickerAddNone,
+
+		I18nReportDestinationConfirm,
+		I18nReportDestinationDescription,
+		I18nReportDestinationEmpty,
+		I18nReportDestinationFailed,
+		I18nReportDestinationList,
+		I18nReportDestinationLoadFailed,
+		I18nReportDestinationLoading,
+		I18nReportDestinationNew,
+		I18nReportDestinationPlaced,
+		I18nReportDestinationSearch,
+		I18nReportDestinationTitle,
+		I18nReportPickerAdd,
+		I18nReportPickerAddAnother,
+		I18nReportPickerAddFailed,
+		I18nReportPickerAdding,
+		I18nReportPickerBack,
+		I18nReportPickerCancel,
+		I18nReportPickerCompound,
+		I18nReportPickerCount,
+		I18nReportPickerDescription,
+		I18nReportPickerEmpty,
+		I18nReportPickerList,
+		I18nReportPickerLoadFailed,
+		I18nReportPickerLoadMore,
+		I18nReportPickerLoading,
+		I18nReportPickerNoMatches,
+		I18nReportPickerNone,
+		I18nReportPickerOwnershipPersonal,
+		I18nReportPickerOwnershipShared,
+		I18nReportPickerOwnershipSharedBy,
+		I18nReportPickerOwnershipSystem,
+		I18nReportPickerPlaced,
+		I18nReportPickerPreview,
+		I18nReportPickerPreviewFailed,
+		I18nReportPickerPreviewLoading,
+		I18nReportPickerPreviewOf,
+		I18nReportPickerRestriction,
+		I18nReportPickerRetry,
+		I18nReportPickerScopeAll,
+		I18nReportPickerScopePersonal,
+		I18nReportPickerScopeShared,
+		I18nReportPickerScopeLabel,
+		I18nReportPickerSearch,
+		I18nReportPickerSelectReport,
+		I18nReportPickerTitle,
+
 		I18nCalendarAnnRange, I18nCalendarAnnStart, I18nCalendarHintEnd, I18nCalendarHintStart,
 		I18nCalendarLabel, I18nCalendarNextMonth, I18nCalendarPrevMonth,
 		I18nCalendarChooseMonth, I18nCalendarNextPage, I18nCalendarPrevPage,
@@ -360,9 +691,13 @@ func RuntimeI18nKeys() []string {
 		I18nChartLegendToggleHint,
 		I18nChartLegendShowAll, I18nChartLogScale, I18nChartLogScaleHint, I18nChartMovingAverage,
 		I18nChartOpenMark, I18nChartOther, I18nChartRegression, I18nChartResetZoom,
-		I18nChartSeriesPrevious, I18nChartSeriesTrend, I18nChartSeriesMovingAverage, I18nChartSeriesEstimate,
+		I18nChartSeriesCurrent, I18nChartSeriesPrevious, I18nChartSeriesTrend, I18nChartSeriesMovingAverage, I18nChartSeriesEstimate,
 		I18nChartSeriesYTD, I18nChartSeriesForecast, I18nChartSeriesForecastLower, I18nChartSeriesForecastConfidence,
 		I18nDashboardEmpty, I18nDashboardTabs, I18nDashboardUpdated, I18nDashboardRecompute, I18nDashboardRecomputeHint, I18nDashboardRecomputing, I18nDrillClose, I18nDrillReset,
+		I18nDashboardEdit, I18nDashboardEditStarted, I18nDashboardEditEnded, I18nDashboardEditToolbar,
+		I18nDashboardEditPreviewPending, I18nDashboardEditPreviewLoading, I18nDashboardEditPreviewFailed, I18nDashboardEditLoadFailed,
+		I18nDashboardEmptyTitle, I18nDashboardEmptyHint, I18nDashboardEmptyHintEditable,
+		I18nFilterMore,
 		I18nDocumentRefetch, I18nDocumentRetry,
 		I18nDrawerClose, I18nDrawerEyebrow, I18nDrawerLabel,
 		I18nExploreBack, I18nExploreBreakdown, I18nExploreChooseView, I18nExploreClose,

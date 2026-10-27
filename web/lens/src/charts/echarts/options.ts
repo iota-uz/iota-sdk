@@ -1,9 +1,9 @@
 import type { EChartsOption } from 'echarts'
-import { compactChartLabelWidth } from '../../breakpoints'
+import { compactChartLabelWidth, hideOutsidePieLabels } from '../../breakpoints'
 import type { Presentation } from '../../contract'
 import { isVisualRegression } from '../../visualRegression'
 import { radialNodeKey, type ChartInput } from '../adapter'
-import { fallbackMarkKey } from '../keys'
+import { fallbackMarkKey, markCellText as text } from '../keys'
 import { activeOverlayIds, categoryDisplayFormatter, chartOverlays, overlayId } from '../overlays'
 import { linearScaleObscuresValues, shouldUseLogarithmicScale } from '../scales'
 import { distributeShares, formatShare } from '../shares'
@@ -30,13 +30,6 @@ function columnIndex(input: ChartInput, field: string | undefined): number {
 
 function availableEncodingField(input: ChartInput, ...fields: Array<string | undefined>): string | undefined {
   return fields.find((field) => field !== undefined && columnIndex(input, field) >= 0)
-}
-
-function text(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return String(value)
-  return ''
 }
 
 function chartValue(value: unknown): ChartValue {
@@ -731,6 +724,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const fill = input.presentation?.fill === true
   const sliceLabels = input.presentation?.sliceLabels
   const insideLabels = sliceLabels === 'percent' || sliceLabels === 'label'
+  const hideOutsideLabels = hideOutsidePieLabels(input.kind, input.viewportWidth, sliceLabels)
   // Shares are resolved here, once, against the authoritative total — not left
   // to ECharts' `params.percent`, which can only ever normalize the rows it was
   // handed and so drifts as soon as anything is collapsed or hidden.
@@ -795,8 +789,8 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       // where the true value reads 87.6. Ask for the raw share and round once.
       percentPrecision: rawPercentPrecision,
       minAngle: minimumSliceAngle,
-      label,
-      labelLine: insideLabels ? { show: false } : { lineStyle: { color: theme.border } },
+      label: hideOutsideLabels ? { show: false } : label,
+      labelLine: insideLabels || hideOutsideLabels ? { show: false } : { lineStyle: { color: theme.border } },
       ...compositionFocus(theme),
       data: points.map((point, index) => {
         const item = dataItem(point, input, theme)
@@ -1294,9 +1288,13 @@ export function shouldPrintDataLabels(options: {
  * stacked over the same quarters — the premium bars and the ratio line beneath
  * them — labelled every third quarter and every second one respectively, and
  * could not be read against each other at all. Deriving the stride from the
- * category count alone makes it a property of the domain, so two panels sharing
- * a domain share a grid whatever their labels happen to measure.
+ * category count and available width keeps equally sized panels on the same
+ * domain aligned while leaving room for month/year labels on mobile.
  */
+export function categoryTickBudget(plotWidth: number | undefined): number {
+  return plotWidth === undefined ? 8 : Math.max(1, Math.min(8, Math.floor((plotWidth - 96) / 80)))
+}
+
 export function categoryTickInterval(count: number, maximumTicks = 8): number {
   if (count <= maximumTicks) return 0
   return Math.ceil(count / maximumTicks) - 1
@@ -1438,9 +1436,13 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         periodShown,
       )
     })))
+  const currentName = (name: string) => input.encoding.previous
+    ? `${name ? `${name} · ` : ''}${input.labels?.current ?? 'Current period'}`
+    : name || undefined
+  const namedLineSeries = new Set([...lineSeries].flatMap((name) => [name, currentName(name) ?? name, `${name ? `${name} · ` : ''}${input.labels?.previous ?? 'Previous'}`]))
   const currentSeries = seriesNames.map((name, index) => ({
     type: isBar && !lineSeries.has(name) ? 'bar' as const : 'line' as const,
-    name: name || undefined,
+    name: currentName(name),
     universalTransition: { enabled: morphEnabled() },
     stack: stacked && !lineSeries.has(name) ? 'total' : undefined,
     barWidth: isBar && !lineSeries.has(name) && barWidth ? barWidth : undefined,
@@ -1493,7 +1495,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     if (tail.length < 2) return []
     return [{
       type: 'line' as const,
-      name: name || undefined,
+      name: currentName(name),
       id: `lens-incomplete-tail-${index}`,
       z: 3,
       showSymbol: true,
@@ -1763,12 +1765,12 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     ...axisStyle(theme),
     // One stride for a given number of categories, so two panels over the same
     // domain print the same grid.
-    ...(horizontal ? {} : { axisLabel: { color: theme.mutedText, interval: categoryTickInterval(categories.length) } }),
+    ...(horizontal ? {} : { axisLabel: { color: theme.mutedText, interval: categoryTickInterval(categories.length, categoryTickBudget(input.viewportWidth)), hideOverlap: true } }),
     ...(annotatedTicks.size > 0 && !horizontal
       ? {
         axisLabel: {
           color: theme.mutedText,
-          interval: categoryTickInterval(categories.length),
+          interval: categoryTickInterval(categories.length, categoryTickBudget(input.viewportWidth)), hideOverlap: true,
           formatter: (value: string) => tickLabel(String(value)),
           rich: annotatedRich,
         },
@@ -1790,11 +1792,13 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   }
   const temporalAxis = {
     type: 'time' as const,
+    splitNumber: categoryTickBudget(input.viewportWidth),
     triggerEvent: true,
     ...axisStyle(theme),
     axisLabel: {
       color: theme.mutedText,
       formatter: (value: number) => tickLabel(timeLabel(input, categoryField, value)),
+      hideOverlap: true,
       ...(annotatedTicks.size > 0 ? { rich: annotatedRich } : {}),
     },
   }
@@ -1877,7 +1881,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       ...tooltipChrome(theme),
       formatter: timeAxis
         ? timeTooltipFormatter(input, categoryField, showSeriesName)
-        : categoryTooltipFormatter(input, categoryField, stacked, lineSeries, showSeriesName),
+        : categoryTooltipFormatter(input, categoryField, stacked, namedLineSeries, showSeriesName),
       valueFormatter: timeAxis ? undefined : formatter,
     },
     xAxis: horizontal ? valueAxis : timeAxis ? temporalAxis : categoryAxis,

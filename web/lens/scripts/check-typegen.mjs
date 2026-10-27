@@ -5,21 +5,23 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
-const contract = path.join(root, 'web', 'lens', 'src', 'contract')
+const contracts = ['contract', 'reports/contract'].map((name) => path.join(root, 'web', 'lens', 'src', name))
 const temporary = mkdtempSync(path.join(tmpdir(), 'lens-typegen-'))
-const snapshot = path.join(temporary, 'contract')
+const snapshots = contracts.map((_, index) => path.join(temporary, `contract-${index}`))
 let status = 0
 
 try {
-  cpSync(contract, snapshot, { recursive: true })
+  contracts.forEach((contract, index) => cpSync(contract, snapshots[index], { recursive: true }))
   const generated = spawnSync('go', ['run', './cmd/lens-typegen'], { cwd: root, env: process.env, stdio: 'inherit' })
   status = generated.status ?? 1
   if (status === 0) {
-    const drift = spawnSync('diff', ['-ru', snapshot, contract], { cwd: root, encoding: 'utf8' })
-    status = drift.status ?? 1
-    if (status !== 0) {
-      process.stderr.write(drift.stdout)
-      process.stderr.write('Lens contract output drifted; review and keep the regenerated files.\n')
+    for (const [index, contract] of contracts.entries()) {
+      const drift = spawnSync('diff', ['-ru', snapshots[index], contract], { cwd: root, encoding: 'utf8' })
+      status = status || (drift.status ?? 1)
+      if (drift.status !== 0) {
+        process.stderr.write(drift.stdout)
+        process.stderr.write('Lens contract output drifted; review and keep the regenerated files.\n')
+      }
     }
   }
 } finally {

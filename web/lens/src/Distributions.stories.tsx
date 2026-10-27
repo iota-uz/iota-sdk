@@ -1,4 +1,3 @@
-import type { Story } from '@ladle/react'
 import type { DashboardDocument, Frame, Panel } from './contract'
 import { LensDashboard } from './LensDashboard'
 import './styles.css'
@@ -52,9 +51,9 @@ function documentFor(kind: keyof typeof panels): DashboardDocument {
 }
 
 function Scene({ kind }: { kind: keyof typeof panels }) {
-  return <div style={{ width: 820 }}><LensDashboard initialDocument={documentFor(kind)} theme="light" /></div>
+  return <div style={{ width: '820px' }}><LensDashboard initialDocument={documentFor(kind)} theme="light" /></div>
 }
 
-export const Histogram: Story = () => <Scene kind="histogram" />
-export const BoxPlot: Story = () => <Scene kind="boxplot" />
-export const Heatmap: Story = () => <Scene kind="heatmap" />
+export const Histogram = () => <Scene kind="histogram" />
+export const BoxPlot = () => <Scene kind="boxplot" />
+export const Heatmap = () => <Scene kind="heatmap" />

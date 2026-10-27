@@ -1,60 +1,36 @@
-// Package order provides this package.
 package order
 
 import (
+	"fmt"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type OrderIsCompleteError struct {
-	serrors.BaseError
+	detail  *serrors.Error
 	Current Status
 }
 
 func NewErrOrderIsComplete(current Status) *OrderIsCompleteError {
-	return &OrderIsCompleteError{
-		BaseError: serrors.BaseError{
-			Code:    "ERR_ORDER_IS_ALREADY_COMPLETED",
-			Message: "order is already complete",
-		},
-		Current: current,
-	}
+	return &OrderIsCompleteError{detail: serrors.NewFailedPrecondition("order is already complete").WithReason("ERR_ORDER_IS_ALREADY_COMPLETED").WithPublic(serrors.Message{ID: "Errors.ERR_ORDER_IS_ALREADY_COMPLETED", Args: map[string]serrors.Value{"Current": serrors.Text(fmt.Sprint(current))}}), Current: current}
 }
-
+func (e *OrderIsCompleteError) Unwrap() error { return e.detail }
 func (e *OrderIsCompleteError) Localize(l *i18n.Localizer) string {
-	return l.MustLocalize(&i18n.LocalizeConfig{
-		DefaultMessage: &i18n.Message{
-			ID: "Errors." + e.Code,
-		},
-		TemplateData: map[string]interface{}{
-			"Current": e.Current,
-		},
-	})
+	return serrors.Public(e, l).Message
 }
 
 type ProductIsShippedError struct {
-	serrors.BaseError
+	detail  *serrors.Error
 	Current product.Status
 }
 
 func NewErrProductIsShipped(current product.Status) *ProductIsShippedError {
-	return &ProductIsShippedError{
-		BaseError: serrors.BaseError{
-			Code:    "ERR_PRODUCT_IS_SHIPPED",
-			Message: "product is already shipped",
-		},
-		Current: current,
-	}
+	return &ProductIsShippedError{detail: serrors.NewFailedPrecondition("product is already shipped").WithReason("ERR_PRODUCT_IS_SHIPPED").WithPublic(serrors.Message{ID: "Errors.ERR_PRODUCT_IS_SHIPPED", Args: map[string]serrors.Value{"Current": serrors.Text(fmt.Sprint(current))}}), Current: current}
 }
-
+func (e *ProductIsShippedError) Unwrap() error { return e.detail }
 func (e *ProductIsShippedError) Localize(l *i18n.Localizer) string {
-	return l.MustLocalize(&i18n.LocalizeConfig{
-		DefaultMessage: &i18n.Message{
-			ID: "Errors." + e.Code,
-		},
-		TemplateData: map[string]interface{}{
-			"Current": e.Current,
-		},
-	})
+	return serrors.Public(e, l).Message
 }
+func (e *OrderIsCompleteError) Error() string  { return e.detail.Error() }
+func (e *ProductIsShippedError) Error() string { return e.detail.Error() }

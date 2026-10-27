@@ -22,6 +22,7 @@ import (
 	"time"
 
 	appletenginerpc "github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/sirupsen/logrus"
 )
 
@@ -701,7 +702,7 @@ func (m *Manager) handleFileStore(w http.ResponseWriter, r *http.Request) {
 	}
 	store, ctx, err := m.fileStoreFromRequest(r.Context(), r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	defer func() { _ = r.Body.Close() }()
@@ -726,7 +727,7 @@ func (m *Manager) handleFileStore(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := store.Store(ctx, fileName, contentType, payload)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	writeJSONResponse(w, http.StatusOK, result)
@@ -739,7 +740,7 @@ func (m *Manager) handleFileGet(w http.ResponseWriter, r *http.Request) {
 	}
 	store, ctx, err := m.fileStoreFromRequest(r.Context(), r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	fileID := strings.TrimSpace(r.URL.Query().Get("id"))
@@ -749,7 +750,7 @@ func (m *Manager) handleFileGet(w http.ResponseWriter, r *http.Request) {
 	}
 	result, found, err := store.Get(ctx, fileID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if !found {
@@ -766,7 +767,7 @@ func (m *Manager) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	store, ctx, err := m.fileStoreFromRequest(r.Context(), r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
 	fileID := strings.TrimSpace(r.URL.Query().Get("id"))
@@ -776,7 +777,7 @@ func (m *Manager) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	ok, err := store.Delete(ctx, fileID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	writeJSONResponse(w, http.StatusOK, map[string]any{"ok": ok})

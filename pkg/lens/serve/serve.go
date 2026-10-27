@@ -135,30 +135,30 @@ func (h *Handlers) observeMetric(ctx context.Context, metric Metric) {
 func New(cfg Config) (*Handlers, error) {
 	const op serrors.Op = "lens/serve.New"
 	if cfg.Engine == nil {
-		return nil, serrors.E(op, fmt.Errorf("lens executor is required"))
+		return nil, serrors.Wrap(op, fmt.Errorf("lens executor is required"))
 	}
 	if cfg.Snapshots == nil {
-		return nil, serrors.E(op, fmt.Errorf("snapshot store is required"))
+		return nil, serrors.Wrap(op, fmt.Errorf("snapshot store is required"))
 	}
 	if cfg.InlineDepth < 0 {
-		return nil, serrors.E(op, fmt.Errorf("inline depth cannot be negative"))
+		return nil, serrors.Wrap(op, fmt.Errorf("inline depth cannot be negative"))
 	}
 	if cfg.PageSize < 0 {
-		return nil, serrors.E(op, fmt.Errorf("page size cannot be negative"))
+		return nil, serrors.Wrap(op, fmt.Errorf("page size cannot be negative"))
 	}
 	if (cfg.Exploration == nil) != (cfg.ResolveLoader == nil) {
-		return nil, serrors.E(op, fmt.Errorf("exploration executor and loader resolver must be configured together"))
+		return nil, serrors.Wrap(op, fmt.Errorf("exploration executor and loader resolver must be configured together"))
 	}
 	if err := lensruntime.Validate(cfg.Spec); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	plan, err := lens.CompileExecutionPlan(cfg.Spec)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	basePath, err := normalizeBasePath(cfg.BasePath)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	pageSize := cfg.PageSize
 	if pageSize == 0 {

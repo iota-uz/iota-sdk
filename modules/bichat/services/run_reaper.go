@@ -140,7 +140,7 @@ func NewConfiguredRunReaperWithHook(
 func NewRunReaper(cfg RunReaperConfig) (*RunReaper, error) {
 	const op serrors.Op = "NewRunReaper"
 	if cfg.RunStore == nil {
-		return nil, serrors.E(op, serrors.KindValidation, "run store is required")
+		return nil, serrors.New(serrors.Invalid, "run store is required").WithOp(op)
 	}
 	client := cfg.Client
 	if client == nil {
@@ -267,7 +267,7 @@ func (r *RunReaper) sweep(ctx context.Context) error {
 		}
 		keys, next, err := r.client.Scan(ctx, cursor, pattern, defaultReaperScanBatchSize).Result()
 		if err != nil {
-			return serrors.E(op, "scan active-run keys", err)
+			return serrors.WrapContext(op, err, "scan active-run keys")
 		}
 		for _, key := range keys {
 			tenantID, ok := parseTenantFromActiveRunKey(r.keyPrefix, key)
@@ -292,7 +292,7 @@ func (r *RunReaper) sweepTenant(ctx context.Context, tenantID uuid.UUID, cutoff 
 	hashKey := fmt.Sprintf("%s:%s", r.keyPrefix, tenantID.String())
 	raw, err := r.client.HGetAll(ctx, hashKey).Result()
 	if err != nil {
-		return serrors.E(op, "hgetall tenant", err)
+		return serrors.WrapContext(op, err, "hgetall tenant")
 	}
 	for sessionIDStr, value := range raw {
 		var entry ActiveRunStatus

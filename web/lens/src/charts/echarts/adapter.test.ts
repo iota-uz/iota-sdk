@@ -1,4 +1,4 @@
-import { waitFor } from '@testing-library/react'
+import { waitFor } from '@solidjs/testing-library'
 import type { EChartsOption } from 'echarts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChartInput } from '../adapter'
@@ -300,6 +300,45 @@ describe('ECharts adapter', () => {
     expect(chart.options.length).toBeGreaterThan(built)
     expect(nameColumn()).toBe(166)
 
+    instance.dispose()
+  })
+
+  it('rebuilds category tick density when a chart is narrowed or expanded', () => {
+    const chart = new FakeChart()
+    const element = document.createElement('div')
+    let clientWidth = 1200
+    Object.defineProperty(element, 'clientWidth', { get: () => clientWidth })
+    document.body.append(element)
+    const input = chartInput()
+    input.frame.rows = Array.from({ length: 12 }, (_, month) => [String(month), `${month + 1}.2026`, month])
+    const instance = createEChartsAdapter(() => chart as never).mount(element, input, { onSelect: vi.fn(), onHover: vi.fn() })
+    const observer = FakeResizeObserver.instances[0]!
+    const stride = () => (chart.options.at(-1) as { xAxis: { axisLabel: { interval: number } } }).xAxis.axisLabel.interval
+    observer.resize({ width: clientWidth, height: 320 })
+    expect(stride()).toBe(1)
+    clientWidth = 360
+    observer.resize({ width: clientWidth, height: 320 })
+    expect(stride()).toBe(3)
+    clientWidth = 1200
+    observer.resize({ width: clientWidth, height: 320 })
+    expect(stride()).toBe(1)
+    instance.dispose()
+  })
+
+  it('rebuilds width-dependent labels when a hidden chart becomes visible', () => {
+    const chart = new FakeChart()
+    const element = document.createElement('div')
+    let clientWidth = 0
+    Object.defineProperty(element, 'clientWidth', { get: () => clientWidth })
+    document.body.append(element)
+    const input = chartInput()
+    input.frame.rows = Array.from({ length: 12 }, (_, month) => [String(month), `${month + 1}.2026`, month])
+    const instance = createEChartsAdapter(() => chart as never).mount(element, input, { onSelect: vi.fn(), onHover: vi.fn() })
+    const stride = () => (chart.options.at(-1) as { xAxis: { axisLabel: { interval: number } } }).xAxis.axisLabel.interval
+    expect(stride()).toBe(11)
+    clientWidth = 1200
+    FakeResizeObserver.instances[0]!.resize({ width: clientWidth, height: 320 })
+    expect(stride()).toBe(1)
     instance.dispose()
   })
 

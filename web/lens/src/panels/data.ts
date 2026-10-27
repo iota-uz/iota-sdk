@@ -35,6 +35,25 @@ export function seriesColorResolver(
     ?? panel.accent
 }
 
+/** Resolve series pins once from the full frame, before hiding or reordering rows. */
+export function frameSeriesColorResolver(theme: Theme, panel: Panel, frame: Frame | undefined, positional = true) {
+  const labels = colorLabels(frame, panel)
+  const fallback = seriesColorResolver(theme, panel, { positional, labels })
+  const pins = new Map<string, string>()
+  const seriesIndex = frame?.columns.findIndex((column) => column.name === panel.encoding.series) ?? -1
+  if (seriesIndex >= 0 && frame) {
+    const seriesPins = frame.colors?.length === labels.length && frame.colors.length !== frame.rows.length
+    frame.rows.forEach((row, rowIndex) => {
+      const raw = row[seriesIndex]
+      if (typeof raw !== 'string' && typeof raw !== 'number' && typeof raw !== 'bigint') return
+      const label = String(raw)
+      const pin = frame.colors?.[seriesPins ? labels.indexOf(label) : rowIndex]?.trim()
+      if (pin && !pins.has(label)) pins.set(label, theme.palette[pin] ?? pin)
+    })
+  }
+  return (label: string, index: number) => pins.get(label) ?? fallback(label, labels.indexOf(label) >= 0 ? labels.indexOf(label) : index)
+}
+
 /**
  * Resolves the colour of one frame *row*: the served frame's own positional
  * palette first, then a series entry keyed by the row's id, then everything

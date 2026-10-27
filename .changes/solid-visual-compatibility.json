@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Preserve React-era Lens small radii, temporal controls and table alignment, and Granite chat prompt badge appearance in the Solid runtime."
+}

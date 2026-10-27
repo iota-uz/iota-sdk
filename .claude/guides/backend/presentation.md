@@ -71,15 +71,15 @@ func (c *EntityNameController) List(
     // 2. Parse query parameters
     params, err := composables.UseQuery(&ListParams{}, r)
     if err != nil {
-        logger.WithError(err).Error("Failed to parse query")
-        http.Error(w, err.Error(), http.StatusBadRequest)
+        serrorlog.Log(r.Context(), err, "Failed to parse query")
+        serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, intl.UseLocalizer(r.Context()))
         return
     }
 
     // 3. Call service
     entities, total, err := service.FindAll(r.Context(), params)
     if err != nil {
-        logger.WithError(err).Error("Failed to fetch entities")
+        serrorlog.Log(r.Context(), err, "Failed to fetch entities")
         http.Error(w, "Internal Server Error", http.StatusInternalServerError)
         return
     }
@@ -121,18 +121,18 @@ func (c *EntityNameController) Create(
     // 2. Parse form data (CamelCase field names)
     formData, err := composables.UseForm(&CreateDTO{}, r)
     if err != nil {
-        logger.WithError(err).Error("Failed to parse form")
-        http.Error(w, err.Error(), http.StatusBadRequest)
+        serrorlog.Log(r.Context(), err, "Failed to parse form")
+        serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, intl.UseLocalizer(r.Context()))
         return
     }
 
     // 3. Call service
     entity, err := service.Create(r.Context(), formData)
     if err != nil {
-        logger.WithError(err).Error("Failed to create entity")
+        serrorlog.Log(r.Context(), err, "Failed to create entity")
 
         // Handle validation errors
-        if serrors.Kind(err) == serrors.KindValidation {
+        if serrors.HasCode(err, serrors.Invalid) {
             pageCtx := composables.UsePageCtx(r.Context())
             vm := viewmodels.NewEntityFormViewModel(formData, err)
             templates.EntityForm(pageCtx, vm).Render(r.Context(), w)
@@ -626,7 +626,7 @@ flash, err := composables.UseFlash(w, r, "success")
 - [ ] Use DI for service dependencies
 - [ ] Parse form/query with `composables.UseForm/UseQuery`
 - [ ] Use `pkg/htmx` package (never raw headers)
-- [ ] Wrap errors with `serrors.E(op, err)`
+- [ ] Wrap errors with `serrors.Wrap(op, err)`
 - [ ] Handle HTMX vs full page rendering
 
 ### ViewModels

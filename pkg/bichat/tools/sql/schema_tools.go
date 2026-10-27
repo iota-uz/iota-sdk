@@ -87,7 +87,7 @@ func (t *SchemaListTool) CallStructured(ctx context.Context, input string) (*typ
 				Message: fmt.Sprintf("failed to list schema: %v", err),
 				Hints:   []string{tools.HintCheckConnection},
 			},
-		}, serrors.E(op, err, "failed to list schema")
+		}, serrors.WrapContext(op, err, "failed to list schema")
 	}
 
 	if len(tables) == 0 {
@@ -118,7 +118,7 @@ func (t *SchemaListTool) CallStructured(ctx context.Context, input string) (*typ
 					Message: fmt.Sprintf("failed to check view access: %v", err),
 					Hints:   []string{"Contact administrator if this error persists"},
 				},
-			}, serrors.E(op, err)
+			}, serrors.Wrap(op, err)
 		}
 		for _, info := range rawInfos {
 			viewInfos = append(viewInfos, types.ViewAccessInfo{Access: info.Access})

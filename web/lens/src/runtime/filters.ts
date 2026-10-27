@@ -1,5 +1,6 @@
 import type { Action, CompareValue, DashboardDocument, Filter, PeriodFilter, PeriodValue, SegmentedFilter } from '../contract'
 import { parseISODate } from '../controls/model'
+import { decodeFilterBoard, filterContextParam } from '../reports/filterDraft'
 import { resolveSourceValue, variablesFromLocation } from '../explore/actions'
 
 /**
@@ -32,6 +33,7 @@ export function filterParamNames(document: DashboardDocument): Array<string> {
   // inventing one URL parameter per declaration. Keep both cube parameters in
   // this canonical set so read, write, and stateful-URL detection agree.
   const names: Array<string> = [cubeFilterParam, cubeGroupByParam]
+  if (document.contextEditor) names.push(filterContextParam)
   for (const filter of declaredFilters(document)) {
     if (filter.kind === 'period' && filter.period) names.push(filter.period.startParam, filter.period.endParam)
     if (filter.kind === 'compare' && filter.compare) names.push(filter.compare.modeParam, filter.compare.startParam, filter.compare.endParam)
@@ -56,6 +58,11 @@ function validBoundary(period: PeriodFilter, raw: string): boolean {
  */
 export function readFilterValues(document: DashboardDocument, url: URL): FilterValues {
   const values: FilterValues = {}
+  const context = url.searchParams.get(filterContextParam)
+  if (document.contextEditor && context) {
+    try { decodeFilterBoard(context); values[filterContextParam] = context }
+    catch { /* Invalid URL state is not forwarded to the document endpoint. */ }
+  }
   for (const filter of declaredFilters(document)) {
     if (filter.kind !== 'period') continue
     const period = filter.period

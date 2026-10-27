@@ -24,6 +24,7 @@ import (
 	copybutton "github.com/iota-uz/iota-sdk/components/copy_button"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"golang.org/x/text/language"
 )
@@ -91,7 +92,7 @@ func fixture(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := component.Render(context.Background(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	if specimen == "copy-button" {

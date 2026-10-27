@@ -1,0 +1,1 @@
+{"bump":"major","summary":"Replace legacy serrors constructors and mutable error types with the canonical typed API; migrate SDK callers and safe transport presenters."}

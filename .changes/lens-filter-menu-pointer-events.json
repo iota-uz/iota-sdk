@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Restore pointer and wheel interaction in Lens facet and comparison popovers inside pass-through menu portals."
+}

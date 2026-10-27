@@ -40,16 +40,16 @@ func NewBalanceService(accountRepo moneyaccount.Repository, debtRepo debt.Reposi
 func (s *BalanceService) Balances(ctx context.Context) ([]Balance, error) {
 	const op serrors.Op = "BalanceService.Balances"
 	if err := composables.CanUser(ctx, permissions.DebtRead); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	accounts, err := s.accountRepo.GetAll(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	reserved, err := s.debtRepo.OpenPayableTotals(ctx, nil)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	onAccounts := make([]*money.Money, 0, len(accounts))
@@ -58,7 +58,7 @@ func (s *BalanceService) Balances(ctx context.Context) ([]Balance, error) {
 	}
 	byCurrency, err := combine(onAccounts, reserved)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	codes := make([]string, 0, len(byCurrency))
@@ -78,26 +78,26 @@ func (s *BalanceService) Balances(ctx context.Context) ([]Balance, error) {
 func (s *BalanceService) AccountBalance(ctx context.Context, accountID uuid.UUID) (Balance, error) {
 	const op serrors.Op = "BalanceService.AccountBalance"
 	if err := composables.CanUser(ctx, permissions.DebtRead); err != nil {
-		return Balance{}, serrors.E(op, err)
+		return Balance{}, serrors.Wrap(op, err)
 	}
 
 	account, err := s.accountRepo.GetByID(ctx, accountID)
 	if err != nil {
-		return Balance{}, serrors.E(op, err)
+		return Balance{}, serrors.Wrap(op, err)
 	}
 	reserved, err := s.debtRepo.OpenPayableTotals(ctx, &accountID)
 	if err != nil {
-		return Balance{}, serrors.E(op, err)
+		return Balance{}, serrors.Wrap(op, err)
 	}
 
 	byCurrency, err := combine([]*money.Money{account.Balance()}, reserved)
 	if err != nil {
-		return Balance{}, serrors.E(op, err)
+		return Balance{}, serrors.Wrap(op, err)
 	}
 	accountCurrency := account.Balance().Currency().Code
 	for code := range byCurrency {
 		if code != accountCurrency {
-			return Balance{}, serrors.E(op, fmt.Errorf("account in %s has a reserve in %s", accountCurrency, code))
+			return Balance{}, serrors.Wrap(op, fmt.Errorf("account in %s has a reserve in %s", accountCurrency, code))
 		}
 	}
 	return byCurrency[accountCurrency], nil
@@ -107,12 +107,12 @@ func (s *BalanceService) AccountBalance(ctx context.Context, accountID uuid.UUID
 func (s *BalanceService) Reserves(ctx context.Context, accountID uuid.UUID) ([]debt.Debt, error) {
 	const op serrors.Op = "BalanceService.Reserves"
 	if err := composables.CanUser(ctx, permissions.DebtRead); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	debts, err := s.debtRepo.OpenPayables(ctx, accountID)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return debts, nil
 }

@@ -50,7 +50,7 @@ lens cmd="help" *args="":
   case "{{cmd}}" in \
     dev|build|ladle|install) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
     watch) (cd web/lens && pnpm exec vite build --watch {{args}}) ;; \
-    serve-from-disk) echo "export LENS_ASSETS_DIR={{justfile_directory()}}/pkg/lens/render/react/dist" ;; \
+    serve-from-disk) echo "export LENS_ASSETS_DIR={{justfile_directory()}}/pkg/lens/render/solid/dist" ;; \
     smoke) \
       if [ -z "{{args}}" ]; then echo "Usage: just lens smoke <test file | -t 'test name'>" ; exit 2 ; fi ; \
       smoke_args='{{args}}' ; \
@@ -467,7 +467,7 @@ applet cmd="help" name="":
     check) applet check ;; \
     rpc-gen) applet rpc gen --name "{{name}}" ;; \
     rpc-check) applet rpc check --name "{{name}}" ;; \
-    deps-check) applet deps check ;; \
+    deps-check) node --test scripts/check-applet-dependencies.test.mjs && node scripts/check-applet-dependencies.mjs ;; \
     *) \
       echo "Usage: just applet [dev <name>|list|build <name>|check|rpc-gen <name>|rpc-check <name>|deps-check]" ; \
       exit 2 ;; \

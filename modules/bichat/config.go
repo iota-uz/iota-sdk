@@ -14,6 +14,7 @@ import (
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/analytics"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -253,14 +254,6 @@ type ModuleConfig struct {
 	// Use WithTitleQueueRedis(url) or set directly.
 	TitleQueue *TitleQueueConfig
 
-	// RunWorkersEnabled switches SendMessageStream to enqueue mode: send
-	// requests hand generation jobs to the Redis run queue (bichat:run:jobs)
-	// and become event-log cursor readers instead of executing inline. A
-	// worker-capable process (composition.CapabilityWorker) boots the
-	// RunJobWorker. Effective only when Redis is configured; when unset it
-	// can still be enabled via the BICHAT_RUN_WORKERS_ENABLED env var.
-	RunWorkersEnabled bool
-
 	// Optional: ViewManager manages analytics view definitions and syncs them to DB.
 	// When configured, views are synced on startup and used for permission-based access control.
 	ViewManager *analytics.ViewManager
@@ -326,13 +319,13 @@ type ServiceContainer struct {
 	reaperStaleThreshold time.Duration
 	reaperLockTTL        time.Duration
 	// Run-workers wiring. runJobQueue/runSessionQueue/runExecutor are nil
-	// when Redis is unconfigured; runWorkersEnabled gates enqueue mode and
-	// worker boot.
-	runJobQueue       *services.RedisRunJobQueue
-	runSessionQueue   *services.RedisRunSessionQueue
-	runExecutor       services.RunExecutor
-	runWorkersEnabled bool
-	failStalledRun    func(ctx context.Context, job services.RunJobPayload, cause error)
+	// when Redis is unconfigured — enqueue mode and the run worker are
+	// automatically inactive in that case and sends execute inline.
+	runJobQueue     *services.RedisRunJobQueue
+	runSessionQueue *services.RedisRunSessionQueue
+	runExecutor     services.RunExecutor
+	activeRunIndex  services.ActiveRunIndex
+	failStalledRun  func(ctx context.Context, job services.RunJobPayload, cause error)
 }
 
 // SessionCommands returns session mutating actions.
@@ -434,18 +427,18 @@ func (sc *ServiceContainer) CloseSharedRedis() error {
 // the reaper without branching on a sentinel. Reaper interval / stale
 // threshold / lock TTL are forwarded from the ModuleConfig tunables;
 // zero values fall back to the per-constant defaults in run_reaper.go.
-// When run workers are enabled the reaper also promotes the next queued
-// session-FIFO job after reaping a stale run, so the FIFO cannot deadlock
-// behind a run whose worker died.
+// When the Redis run components are configured the reaper also promotes
+// the next queued session-FIFO job after reaping a stale run, so the
+// FIFO cannot deadlock behind a run whose worker died.
 func (sc *ServiceContainer) NewRunReaper() (*services.RunReaper, error) {
-	if sc.runWorkersEnabled && sc.runSessionQueue != nil && sc.runJobQueue != nil {
+	if sc.runSessionQueue != nil && sc.runJobQueue != nil {
 		return services.NewConfiguredRunReaperWithHook(
 			sc.logger,
 			sc.reaperInterval,
 			sc.reaperStaleThreshold,
 			sc.reaperLockTTL,
 			func(ctx context.Context, tenantID, sessionID uuid.UUID) {
-				if _, err := services.PromoteNextQueuedRun(ctx, sc.runSessionQueue, sc.runJobQueue, tenantID, sessionID); err != nil && sc.logger != nil {
+				if _, err := services.PromoteNextQueuedRun(ctx, sc.runSessionQueue, sc.runJobQueue, sc.activeRunIndex, tenantID, sessionID); err != nil && sc.logger != nil {
 					sc.logger.WithError(err).
 						WithField("tenant_id", tenantID.String()).
 						WithField("session_id", sessionID.String()).
@@ -462,20 +455,21 @@ func (sc *ServiceContainer) NewRunReaper() (*services.RunReaper, error) {
 	)
 }
 
-// NewRunJobWorker builds the Redis-backed generation run worker when run
-// workers are enabled. Returns ErrRunJobWorkerDisabled when the feature is
-// off or Redis is unconfigured, so callers can skip booting it — enqueue
-// mode is likewise off in that case and sends execute inline.
+// NewRunJobWorker builds the Redis-backed generation run worker.
+// Returns ErrRunJobWorkerDisabled when Redis is unconfigured — enqueue
+// mode is inactive in that case and sends execute inline.
 func (sc *ServiceContainer) NewRunJobWorker(pool *pgxpool.Pool) (*services.RunJobWorker, error) {
-	if !sc.runWorkersEnabled || sc.runJobQueue == nil || sc.runExecutor == nil {
+	if sc.runJobQueue == nil || sc.runExecutor == nil {
 		return nil, ErrRunJobWorkerDisabled
 	}
 	return services.NewRunJobWorker(services.RunJobWorkerConfig{
 		Queue:                sc.runJobQueue,
 		Executor:             sc.runExecutor,
 		SessionQueue:         sc.runSessionQueue,
+		ActiveRunIndex:       sc.activeRunIndex,
 		OnJobTerminalFailure: sc.failStalledRun,
 		Pool:                 pool,
+		Users:                corepersistence.NewUserRepository(corepersistence.NewUploadRepository()),
 		Logger:               sc.logger,
 	})
 }

@@ -44,7 +44,7 @@ func (s *stripeProvider) Create(_ context.Context, t billing.Transaction) (billi
 
 	stripeDetails, err := toStripeDetails(t.Details())
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	lineItems := make([]*stripe.CheckoutSessionLineItemParams, len(stripeDetails.Items()))
@@ -84,7 +84,7 @@ func (s *stripeProvider) Create(_ context.Context, t billing.Transaction) (billi
 
 	sess, err := session.New(params)
 	if err != nil {
-		return nil, serrors.E(op, serrors.Internal, err)
+		return nil, serrors.New(serrors.Internal, "").WithOp(op).WithCause(err)
 	}
 
 	stripeDetails = stripeDetails.
@@ -107,7 +107,7 @@ func (s *stripeProvider) Cancel(_ context.Context, t billing.Transaction) (billi
 
 	stripeDetails, err := toStripeDetails(t.Details())
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if stripeDetails.SubscriptionID() != "" {
@@ -116,7 +116,7 @@ func (s *stripeProvider) Cancel(_ context.Context, t billing.Transaction) (billi
 		}
 		_, err := subscription.Update(stripeDetails.SubscriptionID(), params)
 		if err != nil {
-			return nil, serrors.E(op, serrors.Internal, err)
+			return nil, serrors.New(serrors.Internal, "").WithOp(op).WithCause(err)
 		}
 		return t.SetStatus(billing.Canceled), nil
 	}
@@ -124,12 +124,12 @@ func (s *stripeProvider) Cancel(_ context.Context, t billing.Transaction) (billi
 	if stripeDetails.SessionID() != "" {
 		_, err := session.Expire(stripeDetails.SessionID(), nil)
 		if err != nil {
-			return nil, serrors.E(op, serrors.Internal, err)
+			return nil, serrors.New(serrors.Internal, "").WithOp(op).WithCause(err)
 		}
 		return t.SetStatus(billing.Canceled), nil
 	}
 
-	return nil, serrors.E(op, serrors.Invalid, "cannot cancel: neither subscription_id nor session_id found in stripe details")
+	return nil, serrors.New(serrors.Invalid, "cannot cancel: neither subscription_id nor session_id found in stripe details").WithOp(op)
 }
 
 // Refund processes a full or partial refund for Stripe.
@@ -139,19 +139,19 @@ func (s *stripeProvider) Refund(_ context.Context, t billing.Transaction, amount
 
 	stripeDetails, err := toStripeDetails(t.Details())
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 
 	if stripeDetails.PaymentIntentID() == "" {
-		return nil, serrors.E(op, serrors.Invalid, "cannot refund: payment_intent_id not found in stripe details")
+		return nil, serrors.New(serrors.Invalid, "cannot refund: payment_intent_id not found in stripe details").WithOp(op)
 	}
 
 	if amount <= 0 {
-		return nil, serrors.E(op, serrors.Invalid, "refund amount must be positive")
+		return nil, serrors.New(serrors.Invalid, "refund amount must be positive").WithOp(op)
 	}
 
 	if amount > t.Amount().Quantity()+0.001 {
-		return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid refund amount: %f. Amount exceeds transaction total: %f", amount, t.Amount().Quantity()))
+		return nil, serrors.New(serrors.Invalid, fmt.Sprintf("invalid refund amount: %f. Amount exceeds transaction total: %f", amount, t.Amount().Quantity())).WithOp(op)
 	}
 
 	params := &stripe.RefundParams{
@@ -161,7 +161,7 @@ func (s *stripeProvider) Refund(_ context.Context, t billing.Transaction, amount
 
 	_, err = refund.New(params)
 	if err != nil {
-		return nil, serrors.E(op, serrors.Internal, err)
+		return nil, serrors.New(serrors.Internal, "").WithOp(op).WithCause(err)
 	}
 
 	if amount >= t.Amount().Quantity()-0.001 {
@@ -174,7 +174,7 @@ func (s *stripeProvider) Refund(_ context.Context, t billing.Transaction, amount
 func toStripeDetails(detailsObj details.Details) (details.StripeDetails, error) {
 	stripeDetails, ok := detailsObj.(details.StripeDetails)
 	if !ok {
-		return nil, serrors.E(serrors.Invalid, fmt.Sprintf("failed to cast details to StripeDetails: invalid type %T", detailsObj))
+		return nil, serrors.NewInvalid(fmt.Sprintf("failed to cast details to StripeDetails: invalid type %T", detailsObj))
 	}
 	return stripeDetails, nil
 }

@@ -110,6 +110,12 @@ templ EditFormInner(props *EditFormProps) {
 					</div>
 				</div>
 			}
+			if props.User.PendingOnboarding {
+				<div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900" data-testid="pending-onboarding-notice">
+					{ pageCtx.T("Users.PendingOnboarding.Notice") }
+				</div>
+			}
+			<div id="temporary-password-result" class="mb-6 empty:hidden"></div>
 			@tab.Root(tab.Props{
 				DefaultValue: "userinfo",
 			}) {
@@ -192,14 +198,6 @@ templ EditFormInner(props *EditFormProps) {
 								Error:    props.Errors["GroupIDs"],
 								Name:     "GroupIDs",
 							})
-							@input.Password(&input.Props{
-								Label:       pageCtx.T("Users.Single.Password"),
-								Placeholder: pageCtx.T("Users.Single.EnterPassword"),
-								Attrs: templ.Attributes{
-									"autocomplete": "new-password",
-									"name":         "Password",
-								},
-							})
 							@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 								Label:       pageCtx.T("Users.Single.Language"),
 								Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
@@ -251,6 +249,20 @@ templ EditFormInner(props *EditFormProps) {
 			}
 		</div>
 		<div class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			if composables.CanUser(ctx, permissions.UserUpdate) == nil && props.User.CanUpdate {
+				<button
+					type="button"
+					class="btn btn-secondary flex items-center gap-2"
+					hx-post={ fmt.Sprintf("/users/%s/temporary-password", props.User.ID) }
+					hx-target="#temporary-password-result"
+					hx-swap="innerHTML show:top"
+					hx-confirm={ pageCtx.T("Users.TemporaryPassword.Confirm") }
+					data-testid="issue-temporary-password"
+				>
+					@icons.Key(icons.Props{Size: "20"})
+					<span>{ pageCtx.T("Users.TemporaryPassword.Button") }</span>
+				</button>
+			}
 			if composables.CanUser(ctx, permissions.UserUpdateBlockStatus) == nil && props.User.CanUpdate {
 				if !props.User.IsBlocked {
 					<button

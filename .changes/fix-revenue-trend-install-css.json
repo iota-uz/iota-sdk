@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Fix the Revenue Trend dashboard panel's date field and document the CSS build step before starting the development server."
+}

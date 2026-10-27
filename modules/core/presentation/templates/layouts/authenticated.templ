@@ -8,12 +8,17 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/toast"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/components/spotlight"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/url"
+	"strconv"
+	"time"
 )
 
 var (
@@ -129,6 +134,7 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 			<div class="hidden lg:block">
 				@spotlight.Spotlight()
 			</div>
+			@NotificationBell()
 			@ThemeSwitcher()
 			@base.DetailsDropdown(&base.DetailsDropdownProps{
 				Summary:     Avatar(),
@@ -287,6 +293,10 @@ templ Authenticated(props AuthenticatedProps) {
 		pageCtx := composables.UsePageCtx(ctx)
 		sidebarProps := MustUseSidebarProps(ctx)
 	}}
+	{{if props.WebsocketURL == "" {
+	props.WebsocketURL = "/ws"
+}
+	}}
 	@Base(&props.BaseProps) {
 		@toast.Container()
 		@MobileSidebar(sidebarProps)
@@ -319,4 +329,125 @@ templ Authenticated(props AuthenticatedProps) {
 			</div>
 		</div>
 	}
+}
+
+templ NotificationBell() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<details class="relative" data-testid="notification-bell" x-data @keydown.escape.stop="$el.removeAttribute('open')">
+		<summary class="relative flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-lg text-gray-700 hover:bg-surface-400" aria-label={ pageCtx.T("Notifications.Title") }>
+			@icons.Bell(icons.Props{Size: "22"})
+			<span id="notification-bell-count" hx-get="/notifications/summary" hx-trigger="notificationsChanged from:body" hx-swap="innerHTML" aria-live="polite">
+				@NotificationBellCount(services.NotificationUnreadCount(ctx))
+			</span>
+		</summary>
+		<div class="absolute right-0 z-[80] mt-2 max-h-[75vh] w-96 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-secondary bg-surface-300 shadow-lg" id="notification-dropdown" hx-get="/notifications/dropdown" hx-trigger="load, notificationsChanged from:body" hx-swap="innerHTML"></div>
+	</details>
+	<script>
+ if (!window.iotaNotificationRealtimeInstalled) {
+ window.iotaNotificationRealtimeInstalled = true;
+ document.addEventListener("htmx:wsBeforeMessage",function(event){
+ let message;try{message=JSON.parse(event.detail.message)}catch{return}
+ if(message.type!=="notification.changed")return;
+ event.preventDefault();document.body.dispatchEvent(new CustomEvent("notificationsChanged",{bubbles:true}));
+ const n=message.notification;if(n){window.dispatchEvent(new CustomEvent("notify",{detail:{title:n.title,message:n.body,variant:n.level||"info"}}));}
+ });
+ document.addEventListener("htmx:wsOpen",function(){document.body.dispatchEvent(new CustomEvent("notificationsChanged",{bubbles:true}));});
+ }
+ </script>
+}
+
+templ NotificationBellCount(count int64) {
+	if count > 0 {
+		<span class="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white" data-testid="notification-unread-count" title={ strconv.FormatInt(count, 10) }>{ notificationCountLabel(count) }</span>
+	}
+}
+
+func notificationCountLabel(count int64) string {
+	if count > 9 {
+		return "9+"
+	}
+	return strconv.FormatInt(count, 10)
+}
+
+func notificationTime(t time.Time) string {
+	now := time.Now()
+	if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
+		return t.Format("15:04")
+	}
+	return t.Format("02 Jan")
+}
+
+templ NotificationLevelIcon(level notification.Level) {
+	switch level {
+		case notification.LevelSuccess:
+			<span class="mt-0.5 text-emerald-600">
+				@icons.Check(icons.Props{Size: "18"})
+			</span>
+		case notification.LevelWarning:
+			<span class="mt-0.5 text-amber-600">
+				@icons.Warning(icons.Props{Size: "18"})
+			</span>
+		case notification.LevelError:
+			<span class="mt-0.5 text-red-600">
+				@icons.X(icons.Props{Size: "18"})
+			</span>
+		default:
+			<span class="mt-0.5 text-blue-600">
+				@icons.Info(icons.Props{Size: "18"})
+			</span>
+	}
+}
+
+templ NotificationItem(n notification.Notification) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<li class={ "group relative flex gap-3 border-t border-secondary px-4 py-3 first:border-t-0", templ.KV("bg-surface-400/60", n.ReadAt() == nil) } data-testid="notification-dropdown-item">
+		@NotificationLevelIcon(n.Level())
+		<div class="min-w-0 flex-1">
+			<p class={ "break-words text-sm", templ.KV("font-semibold", n.ReadAt() == nil), templ.KV("font-medium", n.ReadAt() != nil) }>{ n.Title() }</p>
+			<p class="mt-0.5 whitespace-pre-wrap break-words text-sm text-200">{ n.Body() }</p>
+			if safe, ok := action.SafeRelativeURL(n.ActionURL()); ok {
+				<a href={ templ.URL(safe) } class="mt-1 inline-block text-sm text-primary hover:underline">{ pageCtx.T("Notifications.Open") }</a>
+			}
+		</div>
+		<time class="shrink-0 pt-0.5 text-xs text-200 group-hover:invisible" datetime={ n.CreatedAt().Format("2006-01-02T15:04:05Z07:00") }>{ notificationTime(n.CreatedAt()) }</time>
+		if n.ReadAt() == nil {
+			<span class="mt-2 size-1.5 shrink-0 rounded-full bg-primary group-hover:hidden" aria-hidden="true"></span>
+			<form class="absolute right-3 top-3 opacity-0 group-hover:opacity-100 focus-within:opacity-100" method="post" action={ templ.URL("/notifications/" + n.ID().String() + "/read") } hx-post={ "/notifications/" + n.ID().String() + "/read" } hx-swap="none">
+				<button type="submit" class="flex size-7 items-center justify-center rounded-md border border-secondary bg-surface-300 text-200 hover:text-100" aria-label={ pageCtx.T("Notifications.MarkRead") } title={ pageCtx.T("Notifications.MarkRead") }>
+					@icons.Check(icons.Props{Size: "14"})
+				</button>
+			</form>
+		}
+	</li>
+}
+
+templ NotificationDropdown(items []notification.Notification, count int64) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex items-center gap-2 border-b border-secondary px-4 py-3">
+		<h2 class="text-sm font-semibold">{ pageCtx.T("Notifications.Title") }</h2>
+		if count > 0 {
+			<span class="text-xs font-medium text-primary">{ pageCtx.T("Notifications.NewCount", map[string]interface{}{"Count": count}) }</span>
+		}
+		<form class="ml-auto" method="post" action="/notifications/read-all" hx-post="/notifications/read-all" hx-swap="none">
+			<button type="submit" disabled?={ count == 0 } class="text-sm text-primary hover:underline disabled:hidden">{ pageCtx.T("Notifications.MarkAllRead") }</button>
+		</form>
+	</div>
+	if len(items) == 0 {
+		<div class="px-6 py-10 text-center">
+			<p class="text-sm font-semibold">{ pageCtx.T("Notifications.Empty") }</p>
+			<p class="mx-auto mt-1 max-w-60 text-sm text-200">{ pageCtx.T("Notifications.EmptyHint") }</p>
+		</div>
+	} else {
+		<ul>
+			for _, n := range items {
+				@NotificationItem(n)
+			}
+		</ul>
+	}
+	<div class="flex items-center justify-between border-t border-secondary bg-surface-400/40 px-4 py-2.5 text-sm">
+		<a href="/notifications" class="text-primary hover:underline">{ pageCtx.T("Notifications.ViewAll") }</a>
+		if composables.CanUserStrict(ctx, permissions.NotificationRulesRead) == nil {
+			<a href="/settings/notifications" class="text-200 hover:text-100">{ pageCtx.T("Notifications.Configure") }</a>
+		}
+	</div>
 }

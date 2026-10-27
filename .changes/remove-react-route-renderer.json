@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Remove the deprecated Go React route renderer; client routes require explicit access and stable Solid feature identity."
+}

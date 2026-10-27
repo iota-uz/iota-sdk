@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useState } from 'react'
+import { createSignal } from 'solid-js'
+import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
@@ -43,18 +43,18 @@ describe('ExportButton snapshot recovery', () => {
     }))
 
     function Fixture() {
-      const [current, setCurrent] = useState(firstDocument)
+      const [current, setCurrent] = createSignal(firstDocument)
       return (
-        <DocumentProvider initialDocument={current}>
-          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+        <DocumentProvider initialDocument={current()}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>
             <button type="button" onClick={() => setCurrent(nextDocument)}>Navigate</button>
             <ExportButton panelId="total" />
-          </DashboardRuntimeProvider>
+          </>)}</DashboardRuntimeProvider>
         </DocumentProvider>
       )
     }
 
-    render(<Fixture />)
+    render(() =><Fixture />)
     fireEvent.click(screen.getByRole('button', { name: 'Export panel' }))
     expect(await screen.findByText('Export failed')).toBeInTheDocument()
 
@@ -93,11 +93,11 @@ describe('ExportButton snapshot recovery', () => {
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL })
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL })
 
-    render(
+    render(() =>
       <DocumentProvider src="/lens/document" fetcher={fetcher}>
-        <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+        <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
           <ExportButton panelId="total" />
-        </DashboardRuntimeProvider>
+          )</>)}</DashboardRuntimeProvider>
       </DocumentProvider>,
     )
 
@@ -119,12 +119,12 @@ describe('ExportButton snapshot recovery', () => {
     let settle: ((value: Response) => void) | undefined
     const fetcher = vi.fn<typeof fetch>().mockImplementation(() => new Promise<Response>((resolve) => { settle = resolve }))
 
-    render(
+    render(() =>
       <DocumentProvider initialDocument={firstDocument}>
-        <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+        <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
           <ExportButton panelId="total" iconOnly />
           <ExportButton />
-        </DashboardRuntimeProvider>
+          )</>)}</DashboardRuntimeProvider>
       </DocumentProvider>,
     )
 
