@@ -1358,7 +1358,7 @@ func TestHandlers_FirstCanceledCallerDoesNotAbortSharedExecution(t *testing.T) {
 	t.Parallel()
 	handlers, executor, _ := newTestHandlers(t, 0)
 	doc := requestDocument(t, handlers, "/dash/document")
-	executor.delay = 75 * time.Millisecond
+	executor.delay = 400 * time.Millisecond
 	executor.started = make(chan struct{})
 	payload, err := json.Marshal(QueryRequest{
 		SnapshotID:  doc.SnapshotID,
@@ -1381,7 +1381,9 @@ func TestHandlers_FirstCanceledCallerDoesNotAbortSharedExecution(t *testing.T) {
 	}
 
 	canceled := make(chan struct{})
-	timer := time.AfterFunc(10*time.Millisecond, func() {
+	// The second caller must have joined the shared execution before the first leaves; a loaded
+	// runner needs more than a few milliseconds for that.
+	timer := time.AfterFunc(150*time.Millisecond, func() {
 		cancelFirst()
 		close(canceled)
 	})
