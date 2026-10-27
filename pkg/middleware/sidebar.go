@@ -182,7 +182,7 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 				}
 				items = navItemsDecorator(r.Context(), r, items)
 				filtered := filterItems(items, u)
-				if len(u.Roles()) == 0 {
+				if len(user.EffectivePermissions(u)) == 0 {
 					filtered = []types.NavigationItem{}
 				}
 				pinnedItems, unpinnedItems := splitPinnedItems(filtered)

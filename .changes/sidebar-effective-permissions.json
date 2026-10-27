@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Sidebar navigation follows effective permissions: a user without own roles who holds permissions directly or through a group role sees the menu again instead of an empty sidebar."}
