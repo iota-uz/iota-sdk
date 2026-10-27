@@ -1,0 +1,18 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Add async long-running operation primitive (#866): pkg/jobs with a Redis-backed (or in-memory) TTL-evicted job store, in-process runner pool with progress reporting and heartbeats, polling endpoints under /jobs with result streaming, and standard trigger/operations/download templ components with retry and dismiss. No database tables or RBAC additions."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add chrome.placements: 'flat' so a composed Lens report renders each placement as its panels alone, leaving the dashboard header as the one filter and action row."
+    },
+    {
+      "bump": "patch",
+      "summary": "Sidebar navigation follows effective permissions: a user without own roles who holds permissions directly or through a group role sees the menu again instead of an empty sidebar."
+    }
+  ],
+  "source": "226f5d8c72663fdc87ba38a48b9791d04f2714f6",
+  "version": "0.33.0"
+}
