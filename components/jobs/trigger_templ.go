@@ -59,11 +59,6 @@ func Trigger(props TriggerProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		params := props.Params
-		if params == nil {
-			params = map[string]any{}
-		}
-		paramsJSON, _ := json.Marshal(params)
 		var templ_7745c5c3_Var2 = []any{"cursor-pointer shrink-0 btn btn-secondary btn-with-icon flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed", buttonSizeClass(props.Size), props.Class}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 		if templ_7745c5c3_Err != nil {
@@ -87,9 +82,9 @@ func Trigger(props TriggerProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 string
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(templ.JSONString(map[string]string{"kind": props.Kind, "params": string(paramsJSON)}))
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(triggerValues(props))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/trigger.templ`, Line: 43, Col: 97}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/trigger.templ`, Line: 38, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -130,7 +125,7 @@ func Trigger(props TriggerProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/trigger.templ`, Line: 59, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/trigger.templ`, Line: 54, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -140,7 +135,7 @@ func Trigger(props TriggerProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(orDefault(pageCtx.TSafe("Jobs.Actions.Run"), "Run"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/trigger.templ`, Line: 61, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/jobs/trigger.templ`, Line: 56, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -153,6 +148,15 @@ func Trigger(props TriggerProps) templ.Component {
 		}
 		return nil
 	})
+}
+
+func triggerValues(props TriggerProps) string {
+	params := props.Params
+	if params == nil {
+		params = map[string]any{}
+	}
+	paramsJSON, _ := json.Marshal(params)
+	return templ.JSONString(map[string]string{"kind": props.Kind, "params": string(paramsJSON)})
 }
 
 func buttonSizeClass(size button.Size) string {
