@@ -47,7 +47,7 @@ func WithStaleAfter(d time.Duration) StoreOption {
 func NewRedisStore(client redis.UniversalClient, retention time.Duration, opts ...StoreOption) (*RedisStore, error) {
 	const op serrors.Op = "jobs.NewRedisStore"
 	if client == nil {
-		return nil, serrors.E(op, "redis client is required")
+		return nil, serrors.NewInvalid("redis client is required").WithOp(op)
 	}
 	if retention <= 0 {
 		retention = DefaultRetention
@@ -155,10 +155,10 @@ func (s *RedisStore) writeJob(ctx context.Context, j Job) error {
 	const op serrors.Op = "jobs.RedisStore.writeJob"
 	raw, err := json.Marshal(encodeJob(j))
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	if err := s.client.Set(ctx, jobKey(j.ID), raw, s.ttl(j)).Err(); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	s.indexUser(ctx, j)
 	return nil
@@ -194,15 +194,15 @@ func (s *RedisStore) Get(ctx context.Context, id uuid.UUID) (Job, bool, error) {
 		if err == redis.Nil {
 			return Job{}, false, nil
 		}
-		return Job{}, false, serrors.E(op, err)
+		return Job{}, false, serrors.Wrap(op, err)
 	}
 	var e encodedJob
 	if err := json.Unmarshal(raw, &e); err != nil {
-		return Job{}, false, serrors.E(op, err)
+		return Job{}, false, serrors.Wrap(op, err)
 	}
 	j, err := decodeJob(e)
 	if err != nil {
-		return Job{}, false, serrors.E(op, err)
+		return Job{}, false, serrors.Wrap(op, err)
 	}
 	return j, true, nil
 }
@@ -211,7 +211,7 @@ func (s *RedisStore) ListByUser(ctx context.Context, tenantID uuid.UUID, userID 
 	const op serrors.Op = "jobs.RedisStore.ListByUser"
 	ids, err := s.client.ZRevRange(ctx, userIndexKey(tenantID, userID), 0, int64(limit)-1).Result()
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	out := make([]Job, 0, len(ids))
 	for _, raw := range ids {
@@ -221,7 +221,7 @@ func (s *RedisStore) ListByUser(ctx context.Context, tenantID uuid.UUID, userID 
 		}
 		j, ok, getErr := s.Get(ctx, id)
 		if getErr != nil {
-			return nil, serrors.E(op, getErr)
+			return nil, serrors.Wrap(op, getErr)
 		}
 		// Expired/evicted jobs stay in the index until it is pruned; skip.
 		if ok {
@@ -235,7 +235,7 @@ func (s *RedisStore) Delete(ctx context.Context, id uuid.UUID) error {
 	const op serrors.Op = "jobs.RedisStore.Delete"
 	j, ok, err := s.Get(ctx, id)
 	if err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	pipe := s.client.Pipeline()
 	pipe.Del(ctx, jobKey(id))
@@ -244,7 +244,7 @@ func (s *RedisStore) Delete(ctx context.Context, id uuid.UUID) error {
 		pipe.ZRem(ctx, userIndexKey(j.TenantID, j.UserID), j.ID.String())
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -252,7 +252,7 @@ func (s *RedisStore) Delete(ctx context.Context, id uuid.UUID) error {
 func (s *RedisStore) SaveResult(ctx context.Context, id uuid.UUID, name string, data []byte) error {
 	const op serrors.Op = "jobs.RedisStore.SaveResult"
 	if err := s.client.Set(ctx, resultKey(id), data, s.retention).Err(); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -261,14 +261,14 @@ func (s *RedisStore) GetResult(ctx context.Context, id uuid.UUID) (string, []byt
 	const op serrors.Op = "jobs.RedisStore.GetResult"
 	j, ok, err := s.Get(ctx, id)
 	if err != nil || !ok {
-		return "", nil, false, serrors.E(op, err)
+		return "", nil, false, serrors.Wrap(op, err)
 	}
 	data, err := s.client.Get(ctx, resultKey(id)).Bytes()
 	if err != nil {
 		if err == redis.Nil {
 			return "", nil, false, nil
 		}
-		return "", nil, false, serrors.E(op, err)
+		return "", nil, false, serrors.Wrap(op, err)
 	}
 	return j.ResultName, data, true, nil
 }
@@ -314,11 +314,11 @@ func (s *RedisStore) Touch(ctx context.Context, id uuid.UUID, at time.Time) erro
 			continue
 		}
 		if err != nil {
-			return serrors.E(op, err)
+			return serrors.Wrap(op, err)
 		}
 		return nil
 	}
-	return serrors.E(op, redis.TxFailedErr)
+	return serrors.Wrap(op, redis.TxFailedErr)
 }
 
 // Close releases the underlying Redis client.

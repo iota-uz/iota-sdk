@@ -114,12 +114,12 @@ func newStore(opts ModuleOptions) (jobs.Store, error) {
 	}
 	client, err := newRedisClient(url)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	store, err := jobs.NewRedisStore(client, opts.Retention, jobs.WithStaleAfter(opts.Runner.StaleAfter))
 	if err != nil {
 		_ = client.Close()
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	return store, nil
 }
@@ -134,14 +134,14 @@ func newRedisClient(redisURL string) (*redis.Client, error) {
 		options = &redis.Options{Addr: redisURL}
 	}
 	if err != nil {
-		return nil, serrors.E(op, "parse redis url", err)
+		return nil, serrors.WrapContext(op, err, "parse redis url")
 	}
 	client := redis.NewClient(options)
 	pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if pingErr := client.Ping(pingCtx).Err(); pingErr != nil {
 		_ = client.Close()
-		return nil, serrors.E(op, "ping redis", pingErr)
+		return nil, serrors.WrapContext(op, pingErr, "ping redis")
 	}
 	return client, nil
 }

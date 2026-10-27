@@ -80,15 +80,15 @@ func NewRunner(store Store, registry *Registry, opts RunnerOptions) *Runner {
 func (r *Runner) Enqueue(ctx context.Context, kind string, params map[string]any) (Job, error) {
 	const op serrors.Op = "jobs.Runner.Enqueue"
 	if _, ok := r.registry.Get(kind); !ok {
-		return Job{}, serrors.E(op, ErrUnknownJobKind)
+		return Job{}, serrors.Wrap(op, ErrUnknownJobKind)
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return Job{}, serrors.E(op, err)
+		return Job{}, serrors.Wrap(op, err)
 	}
 	user, err := composables.UseUser(ctx)
 	if err != nil {
-		return Job{}, serrors.E(op, err)
+		return Job{}, serrors.Wrap(op, err)
 	}
 	if params == nil {
 		params = map[string]any{}
@@ -105,7 +105,7 @@ func (r *Runner) Enqueue(ctx context.Context, kind string, params map[string]any
 		UpdatedAt: now,
 	}
 	if err := r.store.Create(ctx, j); err != nil {
-		return Job{}, serrors.E(op, err)
+		return Job{}, serrors.Wrap(op, err)
 	}
 	r.start(ctx, j)
 	return j, nil
@@ -128,18 +128,18 @@ func (r *Runner) ListMine(ctx context.Context, limit int) ([]Job, error) {
 	const op serrors.Op = "jobs.Runner.ListMine"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	user, err := composables.UseUser(ctx)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	if limit <= 0 {
 		limit = DefaultListLimit
 	}
 	jobs, err := r.store.ListByUser(ctx, tenantID, user.ID(), limit)
 	if err != nil {
-		return nil, serrors.E(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
 	for i, j := range jobs {
 		jobs[i] = r.reapIfStale(ctx, j)
@@ -155,7 +155,7 @@ func (r *Runner) Retry(ctx context.Context, id uuid.UUID) (Job, error) {
 		return Job{}, err
 	}
 	if j.Status != StatusFailed {
-		return Job{}, serrors.E(op, ErrNotRetryable)
+		return Job{}, serrors.Wrap(op, ErrNotRetryable)
 	}
 	now := time.Now()
 	j.Status = StatusQueued
@@ -167,7 +167,7 @@ func (r *Runner) Retry(ctx context.Context, id uuid.UUID) (Job, error) {
 	j.FinishedAt = time.Time{}
 	j.UpdatedAt = now
 	if err := r.store.Save(ctx, j); err != nil {
-		return Job{}, serrors.E(op, err)
+		return Job{}, serrors.Wrap(op, err)
 	}
 	r.start(ctx, j)
 	return j, nil
@@ -180,7 +180,7 @@ func (r *Runner) Delete(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	if err := r.store.Delete(ctx, id); err != nil {
-		return serrors.E(op, err)
+		return serrors.Wrap(op, err)
 	}
 	return nil
 }
@@ -193,10 +193,10 @@ func (r *Runner) GetResult(ctx context.Context, id uuid.UUID) (string, []byte, e
 	}
 	name, data, ok, err := r.store.GetResult(ctx, id)
 	if err != nil {
-		return "", nil, serrors.E(op, err)
+		return "", nil, serrors.Wrap(op, err)
 	}
 	if !ok {
-		return "", nil, serrors.E(op, ErrNotFound)
+		return "", nil, serrors.Wrap(op, ErrNotFound)
 	}
 	return name, data, nil
 }
@@ -211,21 +211,21 @@ func (r *Runner) getOwned(ctx context.Context, id uuid.UUID) (Job, error) {
 	const op serrors.Op = "jobs.Runner.getOwned"
 	j, ok, err := r.store.Get(ctx, id)
 	if err != nil {
-		return Job{}, serrors.E(op, err)
+		return Job{}, serrors.Wrap(op, err)
 	}
 	if !ok {
-		return Job{}, serrors.E(op, ErrNotFound)
+		return Job{}, serrors.Wrap(op, ErrNotFound)
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return Job{}, serrors.E(op, err)
+		return Job{}, serrors.Wrap(op, err)
 	}
 	user, err := composables.UseUser(ctx)
 	if err != nil {
-		return Job{}, serrors.E(op, err)
+		return Job{}, serrors.Wrap(op, err)
 	}
 	if !j.OwnedBy(tenantID, user.ID()) {
-		return Job{}, serrors.E(op, ErrNotFound)
+		return Job{}, serrors.Wrap(op, ErrNotFound)
 	}
 	return j, nil
 }
