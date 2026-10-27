@@ -30,7 +30,9 @@ func ParseCreateJobDTO(r *http.Request) (*CreateJobDTO, error) {
 		if err := json.Unmarshal([]byte(raw), &params); err != nil {
 			return nil, err
 		}
-		dto.Params = params
+		if params != nil {
+			dto.Params = params
+		}
 	}
 	for key, values := range r.Form {
 		if len(values) == 0 {

@@ -40,6 +40,58 @@ func newTestRunner(store Store, registry *Registry) *Runner {
 	return NewRunner(store, registry, RunnerOptions{})
 }
 
+func TestRunner_QueuedJobSurvivesRequestCancellation(t *testing.T) {
+	store := newTestStore()
+	registry := NewRegistry()
+	registry.Register("noop", func(context.Context, map[string]any, ProgressReporter) (Result, error) {
+		return Result{}, nil
+	})
+	runner := NewRunner(store, registry, RunnerOptions{Concurrency: 1})
+	runner.slots <- struct{}{}
+	ctx, cancel := context.WithCancel(userCtx(t, 7))
+	j, err := runner.Enqueue(ctx, "noop", nil)
+	require.NoError(t, err)
+	cancel()
+	<-runner.slots
+	runner.Wait()
+	assert.Equal(t, StatusDone, waitForTerminal(t, store, j.ID).Status)
+}
+
+type blockingTouchStore struct {
+	Store
+	started chan struct{}
+	release chan struct{}
+}
+
+func (s *blockingTouchStore) Touch(context.Context, uuid.UUID, time.Time) error {
+	select {
+	case s.started <- struct{}{}:
+	default:
+	}
+	<-s.release
+	return nil
+}
+
+func TestHeartbeat_StopWaitsForTouch(t *testing.T) {
+	s := &blockingTouchStore{started: make(chan struct{}, 1), release: make(chan struct{})}
+	stop := startHeartbeat(s, uuid.New(), time.Millisecond)
+	<-s.started
+	stopped := make(chan struct{})
+	go func() { stop(); close(stopped) }()
+	select {
+	case <-stopped:
+		t.Error("stop returned during Touch")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(s.release)
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("stop did not return")
+	}
+	stop()
+}
+
 func waitForTerminal(t *testing.T, store Store, id uuid.UUID) Job {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)

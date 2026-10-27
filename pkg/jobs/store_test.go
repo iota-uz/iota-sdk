@@ -14,6 +14,41 @@ func newTestStore() *memoryStore {
 	return NewMemoryStore(time.Hour).(*memoryStore)
 }
 
+func TestMemoryStore_CapIsScopedAndPreservesActiveJobs(t *testing.T) {
+	s := newTestStore()
+	s.cap = 1
+	ctx := context.Background()
+	tenant := uuid.New()
+	other := Job{ID: uuid.New(), TenantID: uuid.New(), UserID: 7, Status: StatusDone}
+	anotherUser := Job{ID: uuid.New(), TenantID: tenant, UserID: 8, Status: StatusDone}
+	old := Job{ID: uuid.New(), TenantID: tenant, UserID: 7, Status: StatusDone}
+	for _, j := range []Job{other, anotherUser, old} {
+		require.NoError(t, s.Create(ctx, j))
+	}
+	require.NoError(t, s.SaveResult(ctx, old.ID, "old", []byte("result")))
+	for _, status := range []Status{StatusRunning, StatusQueued} {
+		j := Job{ID: uuid.New(), TenantID: tenant, UserID: 7, Status: status, CreatedAt: time.Now()}
+		require.NoError(t, s.Create(ctx, j))
+		_, ok, err := s.Get(ctx, j.ID)
+		require.NoError(t, err)
+		assert.True(t, ok)
+	}
+	for _, j := range []Job{other, anotherUser} {
+		_, ok, err := s.Get(ctx, j.ID)
+		require.NoError(t, err)
+		assert.True(t, ok)
+	}
+	_, ok, err := s.Get(ctx, old.ID)
+	require.NoError(t, err)
+	assert.False(t, ok)
+	_, _, ok, err = s.GetResult(ctx, old.ID)
+	require.NoError(t, err)
+	assert.False(t, ok)
+	list, err := s.ListByUser(ctx, tenant, 7, 10)
+	require.NoError(t, err)
+	assert.Len(t, list, 2)
+}
+
 func TestMemoryStore_RoundTrip(t *testing.T) {
 	s := newTestStore()
 	ctx := context.Background()

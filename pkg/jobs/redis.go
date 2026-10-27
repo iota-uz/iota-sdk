@@ -274,12 +274,51 @@ func (s *RedisStore) GetResult(ctx context.Context, id uuid.UUID) (string, []byt
 }
 
 func (s *RedisStore) Touch(ctx context.Context, id uuid.UUID, at time.Time) error {
-	j, ok, err := s.Get(ctx, id)
-	if err != nil || !ok {
-		return err
+	const op serrors.Op = "jobs.RedisStore.Touch"
+	key := jobKey(id)
+	for attempts := 0; attempts < 10; attempts++ {
+		err := s.client.Watch(ctx, func(tx *redis.Tx) error {
+			raw, err := tx.Get(ctx, key).Bytes()
+			if err == redis.Nil {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &fields); err != nil {
+				return err
+			}
+			var status Status
+			if err := json.Unmarshal(fields["status"], &status); err != nil {
+				return err
+			}
+			if status.IsTerminal() {
+				return nil
+			}
+			fields["updated_at"], err = json.Marshal(at)
+			if err != nil {
+				return err
+			}
+			raw, err = json.Marshal(fields)
+			if err != nil {
+				return err
+			}
+			_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+				pipe.Set(ctx, key, raw, s.ttl(Job{Status: status}))
+				return nil
+			})
+			return err
+		}, key)
+		if err == redis.TxFailedErr {
+			continue
+		}
+		if err != nil {
+			return serrors.E(op, err)
+		}
+		return nil
 	}
-	j.UpdatedAt = at
-	return s.writeJob(ctx, j)
+	return serrors.E(op, redis.TxFailedErr)
 }
 
 // Close releases the underlying Redis client.

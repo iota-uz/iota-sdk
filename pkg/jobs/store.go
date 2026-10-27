@@ -147,7 +147,7 @@ func (s *memoryStore) GetResult(ctx context.Context, id uuid.UUID) (string, []by
 func (s *memoryStore) Touch(ctx context.Context, id uuid.UUID, at time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if j, ok := s.jobs[id]; ok {
+	if j, ok := s.jobs[id]; ok && !j.Status.IsTerminal() {
 		j.UpdatedAt = at
 		s.jobs[id] = j
 	}
@@ -155,7 +155,7 @@ func (s *memoryStore) Touch(ctx context.Context, id uuid.UUID, at time.Time) err
 }
 
 // prune evicts terminal jobs past the retention window, oldest first, keeps
-// the total job count within the cap, and drops orphaned results. Callers
+// each owner within the cap without evicting active jobs, and drops orphaned results. Callers
 // must hold s.mu.
 func (s *memoryStore) prune(now time.Time) {
 	for id, j := range s.jobs {
@@ -169,19 +169,34 @@ func (s *memoryStore) prune(now time.Time) {
 			delete(s.results, id)
 		}
 	}
-	if len(s.jobs) <= s.cap {
-		return
+	type owner struct {
+		tenant uuid.UUID
+		user   uint
 	}
-	ids := make([]uuid.UUID, 0, len(s.jobs))
-	for id := range s.jobs {
-		ids = append(ids, id)
+	byOwner := make(map[owner][]uuid.UUID)
+	for id, j := range s.jobs {
+		key := owner{j.TenantID, j.UserID}
+		byOwner[key] = append(byOwner[key], id)
 	}
-	sort.Slice(ids, func(a, b int) bool {
-		return s.jobs[ids[a]].CreatedAt.Before(s.jobs[ids[b]].CreatedAt)
-	})
-	for _, id := range ids[:len(s.jobs)-s.cap] {
-		delete(s.jobs, id)
-		delete(s.results, id)
+	for _, ids := range byOwner {
+		excess := len(ids) - s.cap
+		if excess <= 0 {
+			continue
+		}
+		sort.Slice(ids, func(a, b int) bool {
+			return s.jobs[ids[a]].CreatedAt.Before(s.jobs[ids[b]].CreatedAt)
+		})
+		for _, id := range ids {
+			if excess == 0 {
+				break
+			}
+			if !s.jobs[id].Status.IsTerminal() {
+				continue
+			}
+			delete(s.jobs, id)
+			delete(s.results, id)
+			excess--
+		}
 	}
 }
 

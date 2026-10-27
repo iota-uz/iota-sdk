@@ -31,18 +31,19 @@ type TriggerProps struct {
 // for the job itself — progress is reported by the polling job item.
 templ Trigger(props TriggerProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	{{ paramsJSON, _ := json.Marshal(props.Params) }}
+	{{ params := props.Params }}
+	{{ if params == nil { params = map[string]any{} } }}
+	{{ paramsJSON, _ := json.Marshal(params) }}
 	<button
 		type="button"
 		class={ "cursor-pointer shrink-0 btn btn-secondary btn-with-icon flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed", buttonSizeClass(props.Size), props.Class }
 		hx-post="/jobs"
+		hx-vals={ templ.JSONString(map[string]string{"kind": props.Kind, "params": string(paramsJSON)}) }
 		hx-target="#jobs-operations-list"
 		hx-swap="beforeend"
 		hx-disabled-elt="this"
 		{ props.Attrs... }
 	>
-		<input type="hidden" name="kind" value={ props.Kind }/>
-		<input type="hidden" name="params" value={ string(paramsJSON) }/>
 		<span class="htmx-indicator flex items-center">
 			@loaders.Spinner(loaders.SpinnerProps{SpinnerClass: templ.Classes("w-4 h-4")})
 		</span>

@@ -245,14 +245,14 @@ func (r *Runner) reapIfStale(ctx context.Context, j Job) Job {
 
 // start launches execution of a queued job in the background.
 func (r *Runner) start(ctx context.Context, j Job) {
+	ctx = context.WithoutCancel(ctx)
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-		select {
-		case r.slots <- struct{}{}:
-		case <-ctx.Done():
-			return
-		}
+		hbStop := startHeartbeat(r.store, j.ID, defaultHeartbeatInterval)
+		defer hbStop()
+		r.slots <- struct{}{}
+		hbStop()
 		defer func() { <-r.slots }()
 		r.execute(context.WithoutCancel(ctx), j)
 	}()
@@ -329,8 +329,10 @@ func failedJob(j Job, message string) Job {
 // alive handlers are not reaped by StaleAfter. Returns a stop function.
 func startHeartbeat(store Store, id uuid.UUID, interval time.Duration) (stop func()) {
 	done := make(chan struct{})
+	exited := make(chan struct{})
 	var once sync.Once
 	go func() {
+		defer close(exited)
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
@@ -342,7 +344,10 @@ func startHeartbeat(store Store, id uuid.UUID, interval time.Duration) (stop fun
 			}
 		}
 	}()
-	return func() { once.Do(func() { close(done) }) }
+	return func() {
+		once.Do(func() { close(done) })
+		<-exited
+	}
 }
 
 // reporter adapts handler progress calls into throttled store writes.

@@ -139,3 +139,28 @@ func TestRedisStore_TouchRefreshesUpdatedAt(t *testing.T) {
 	require.True(t, ok)
 	assert.WithinDuration(t, at, got.UpdatedAt, time.Second)
 }
+
+func TestRedisStore_TouchPreservesSnapshotAndTerminalTTL(t *testing.T) {
+	store, mr := newRedisStore(t, time.Hour)
+	ctx := context.Background()
+	j := Job{ID: uuid.New(), TenantID: uuid.New(), UserID: 7, Status: StatusRunning, Progress: 63, Phase: "writing", Params: map[string]any{}, UpdatedAt: time.Now().UTC()}
+	require.NoError(t, store.Create(ctx, j))
+	require.NoError(t, store.Touch(ctx, j.ID, j.UpdatedAt.Add(time.Minute)))
+	got, ok, err := store.Get(ctx, j.ID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, j.Progress, got.Progress)
+	assert.Equal(t, j.Phase, got.Phase)
+	assert.NotNil(t, got.Params)
+	j.Status = StatusDone
+	require.NoError(t, store.Save(ctx, j))
+	mr.FastForward(time.Minute)
+	ttl := mr.TTL(jobKey(j.ID))
+	require.NoError(t, store.Touch(ctx, j.ID, time.Now()))
+	got, ok, err = store.Get(ctx, j.ID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, j, got)
+	assert.Equal(t, ttl, mr.TTL(jobKey(j.ID)))
+	require.NoError(t, store.Touch(ctx, uuid.New(), time.Now()))
+}

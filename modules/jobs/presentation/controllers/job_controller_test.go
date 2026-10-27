@@ -58,6 +58,14 @@ func TestParseCreateJobDTO_NoParams(t *testing.T) {
 	assert.Empty(t, dto.Params)
 }
 
+func TestParseCreateJobDTO_NullWithPrefixedParams(t *testing.T) {
+	req := formRequest(t, url.Values{"kind": {"noop"}, "params": {"null"}, "params.scope": {"all"}, "params.ids": {"1", "2"}})
+	dto, err := dtos.ParseCreateJobDTO(req)
+	require.NoError(t, err)
+	assert.Equal(t, "all", dto.Params["scope"])
+	assert.Equal(t, []string{"1", "2"}, dto.Params["ids"])
+}
+
 func TestParseCreateJobDTO_InvalidJSONRejected(t *testing.T) {
 	req := formRequest(t, url.Values{
 		"kind":   {"export"},

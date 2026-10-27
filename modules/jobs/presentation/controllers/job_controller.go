@@ -97,6 +97,10 @@ func (c *JobController) Get(
 	}
 	found, err := c.runner.Get(r.Context(), id)
 	if err != nil {
+		if htmx.IsHxRequest(r) && errors.Is(err, jobs.ErrNotFound) {
+			w.WriteHeader(286)
+			return
+		}
 		writeJobError(w, err)
 		return
 	}
@@ -137,7 +141,7 @@ func (c *JobController) Result(
 		return
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", "attachment; filename="+asciiFilename(name))
+	w.Header().Set("Content-Disposition", `attachment; filename="`+asciiFilename(name)+`"`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
 }

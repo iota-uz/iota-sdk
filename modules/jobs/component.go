@@ -86,8 +86,13 @@ func (c *component) Build(builder *composition.Builder) error {
 		return []composition.Hook{{
 			Name: "jobs-runner",
 			Start: func(ctx context.Context) (composition.StopFn, error) {
-				return func(context.Context) error {
-					runner.Wait()
+				return func(stopCtx context.Context) error {
+					waited := make(chan struct{})
+					go func() { runner.Wait(); close(waited) }()
+					select {
+					case <-waited:
+					case <-stopCtx.Done():
+					}
 					if closer, ok := store.(interface{ Close() error }); ok {
 						return closer.Close()
 					}
