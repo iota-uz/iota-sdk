@@ -75,10 +75,12 @@ func (c *JobController) Create(
 	if !htmx.IsHxRequest(r) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"id":     created.ID.String(),
 			"status": created.Status.String(),
-		})
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 	templ.Handler(jobscomponents.Item(created), templ.WithStreaming()).ServeHTTP(w, r)
@@ -106,7 +108,9 @@ func (c *JobController) Get(
 	}
 	if !htmx.IsHxRequest(r) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(jobJSON(found))
+		if err := json.NewEncoder(w).Encode(jobJSON(found)); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 	templ.Handler(jobscomponents.Item(found), templ.WithStreaming()).ServeHTTP(w, r)

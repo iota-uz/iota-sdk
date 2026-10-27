@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -20,7 +21,7 @@ func TestGet_MissingJobStopsHTMXPolling(t *testing.T) {
 		{"plain", false, 404}, {"htmx", true, 286},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			r := httptest.NewRequest("GET", "/jobs/missing", nil)
+			r := httptest.NewRequest(http.MethodGet, "/jobs/missing", nil)
 			r = mux.SetURLVars(r, map[string]string{"id": uuid.NewString()})
 			if tc.htmx {
 				r.Header.Set("HX-Request", "true")

@@ -115,7 +115,6 @@ func (r *Runner) Enqueue(ctx context.Context, kind string, params map[string]any
 // marked failed so users see an interrupted operation instead of a spinner
 // that never ends.
 func (r *Runner) Get(ctx context.Context, id uuid.UUID) (Job, error) {
-	const op serrors.Op = "jobs.Runner.Get"
 	j, err := r.getOwned(ctx, id)
 	if err != nil {
 		return Job{}, err
@@ -327,7 +326,7 @@ func failedJob(j Job, message string) Job {
 
 // startHeartbeat periodically refreshes the job's UpdatedAt so silent-but-
 // alive handlers are not reaped by StaleAfter. Returns a stop function.
-func startHeartbeat(store Store, id uuid.UUID, interval time.Duration) (stop func()) {
+func startHeartbeat(store Store, id uuid.UUID, interval time.Duration) func() {
 	done := make(chan struct{})
 	exited := make(chan struct{})
 	var once sync.Once

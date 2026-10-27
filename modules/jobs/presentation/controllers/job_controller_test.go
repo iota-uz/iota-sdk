@@ -1,6 +1,7 @@
 package controllers_test
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strings"
@@ -13,7 +14,7 @@ import (
 
 func formRequest(t *testing.T, values url.Values) *http.Request {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodPost, "/jobs", strings.NewReader(values.Encode()))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/jobs", strings.NewReader(values.Encode()))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	return req
@@ -30,7 +31,7 @@ func TestParseCreateJobDTO_KindAndJSONParams(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "report.export", dto.Kind)
 	assert.Equal(t, "xlsx", dto.Params["format"])
-	assert.Equal(t, float64(100), dto.Params["limit"])
+	assert.InDelta(t, float64(100), dto.Params["limit"], 0.001)
 }
 
 func TestParseCreateJobDTO_PrefixedFormParams(t *testing.T) {

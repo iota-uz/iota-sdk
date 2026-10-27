@@ -70,7 +70,7 @@ func TestRedisStore_ActiveJobKeyHasTTL(t *testing.T) {
 	require.NoError(t, store.Create(ctx, j))
 
 	ttl := mr.TTL(jobKey(j.ID))
-	assert.True(t, ttl > 0, "active job key must expire")
+	assert.Positive(t, ttl, "active job key must expire")
 
 	j.Status = StatusDone
 	j.FinishedAt = time.Now()
