@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Stream selected Lens evidence rows into bounded request-owned XLSX artifacts without retaining full export datasets or publishing partial files."
+    }
+  ],
+  "source": "3ee815d61f4ecde6b5e7139cacca0e9875fbf8ed",
+  "version": "0.32.0"
+}
