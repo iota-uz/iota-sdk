@@ -24,7 +24,7 @@ func TestGet_MissingJobStopsHTMXPolling(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, "/jobs/missing", nil)
 			r = mux.SetURLVars(r, map[string]string{"id": uuid.NewString()})
 			if tc.htmx {
-				r.Header.Set("HX-Request", "true")
+				r.Header.Set("Hx-Request", "true")
 			}
 			w := httptest.NewRecorder()
 			c.Get(r, w)
