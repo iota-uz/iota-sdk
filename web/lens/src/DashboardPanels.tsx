@@ -21,7 +21,7 @@ import { ExportMenu } from './panels/ExportMenu'
 import { RegisteredPanel, type PanelRegistry } from './panels/registry'
 import { ShareSliceButton } from './panels/ShareSliceButton'
 import { StatMetric, StatusChip } from './panels/StatPanel'
-import { PanelChromeContext, type PanelChrome } from './panels/context'
+import { PanelChromeContext, PlacementLayoutContext, usePlacementLayout, type PanelChrome } from './panels/context'
 import { ArrowClockwise, CircleNotch, Clock, X } from './icons'
 import { ExplorePanel } from './explore'
 import { FilterBar, FilterControls, type CalendarDate } from './controls'
@@ -225,6 +225,7 @@ function GroupCard(props: { group: LayoutGroup; items?: LayoutItem[]; panels?: M
   const placement = () => props.group.kind === 'grid' && outermost() && Boolean(reportHost || props.group.unavailable)
   const unavailable = createMemo(() => props.group.kind === 'grid' ? reportPlacementUnavailable(reportHost, props.group) : undefined)
   const blocked = () => Boolean(props.group.filterContext && (props.group.filterContext.conflicts.length || props.group.filterContext.unsupported.length))
+  const layout = usePlacementLayout()
   const panelIds = createMemo(() => (props.items ?? []).map((item) => item.panelId))
   const title = () => {
     const reason = unavailable()
@@ -269,6 +270,9 @@ function GroupCard(props: { group: LayoutGroup; items?: LayoutItem[]; panels?: M
   const edit = props.edit
   const editing = () => Boolean(props.edit?.editing)
   const live = () => !props.edit?.preview
+  // A flat placement hands its heading, filters and status to the dashboard header. It keeps
+  // the full card whenever there is something the card must say: editing, a refusal or a failure.
+  const flat = () => layout === 'flat' && placement() && !edit && !unavailable() && !blocked() && state() !== 'error'
   const itemStyle = (): JSX.CSSProperties => edit
     ? { ...spanStyle(edit.span()), '--lens-edit-row': String(edit.row + 1) } as JSX.CSSProperties
     : spanStyle(props.group.span)
@@ -286,12 +290,12 @@ function GroupCard(props: { group: LayoutGroup; items?: LayoutItem[]; panels?: M
     >
       <section
         aria-label={title() || undefined}
-        class={`lens-panel lens-panel-group ${`lens-panel-group-${props.group.kind}`}`}
+        class={`lens-panel lens-panel-group ${`lens-panel-group-${props.group.kind}`}${flat() ? ' lens-panel-group-flat' : ''}`}
         data-report-placement={placement() ? props.group.id : undefined}
         data-state={state()}
         tabindex={placement() ? -1 : undefined}
       >
-        <Show when={Boolean(title() || props.group.status || contextToolbar() || menu() || editing())}>
+        <Show when={!flat() && Boolean(title() || props.group.status || contextToolbar() || menu() || editing())}>
           <header class="lens-panel-header lens-panel-group-header">
             <Show when={edit && editing()}>{edit!.handle()}</Show>
             <Show when={title()}>
@@ -314,11 +318,11 @@ function GroupCard(props: { group: LayoutGroup; items?: LayoutItem[]; panels?: M
             for, so while a new document is in flight it describes the previous
             one — it dims with them rather than standing at full strength over
             superseded numbers. */}
-        <Show when={props.group.caption && unavailable() !== 'report-forbidden'}>
+        <Show when={!flat() && props.group.caption && unavailable() !== 'report-forbidden'}>
           <p class="lens-panel-caption" data-stale={documentState.isRefreshing || undefined}>{props.group.caption}</p>
         </Show>
-        <Show when={placement() && live()}><ReportVersionNotice placementId={props.group.id} unavailable={props.group.unavailable} /></Show>
-        <Show when={!unavailable() && props.group.filterContext}>{(context) => <ContextGroupDetails id={props.group.id} context={context()} disclosure={disclosure} />}</Show>
+        <Show when={placement() && live() && !flat()}><ReportVersionNotice placementId={props.group.id} unavailable={props.group.unavailable} /></Show>
+        <Show when={!flat() && !unavailable() && props.group.filterContext}>{(context) => <ContextGroupDetails id={props.group.id} context={context()} disclosure={disclosure} />}</Show>
         <Show when={!unavailable() && !blocked()}>
           <ExportGateContext.Provider value={exportAllowed}>
             <DrillGateContext.Provider value={drillAllowed}>
@@ -326,7 +330,7 @@ function GroupCard(props: { group: LayoutGroup; items?: LayoutItem[]; panels?: M
             </DrillGateContext.Provider>
           </ExportGateContext.Provider>
         </Show>
-        <Show when={reportHost && placement() && !unavailable() && !blocked() && live()}>
+        <Show when={!flat() && reportHost && placement() && !unavailable() && !blocked() && live()}>
           <ReportPlacementStatus placementId={props.group.id} panelIds={panelIds()} timeZone={props.group.filterContext?.calendar.timezone} />
         </Show>
       </section>
@@ -1070,24 +1074,26 @@ export function DashboardPanels(props: DashboardPanelsProps) {
             <Show when={editor && editing()}>{editor!.Notices()}</Show>
             {props.toolbar?.({ get document() { return dashboard.document } })}
             <MetricColumnsContext.Provider value={columns()}>
-              <Show when={!empty(editor)} fallback={<DashboardEmptyState onAdd={editor?.session.host.catalog ? (trigger) => editor.addReport(trigger) : undefined} />}>
-                <Show fallback={documentRows()} when={editor}>
-                  <ReportPlacementProvider host={editor!.placementHost(placementHost)}>
-                    <DraftLayout
-                      csrf={props.csrf}
-                      editor={editor!}
-                      entrance={entrance}
-                      fetcher={props.fetcher}
-                      filterToday={props.filterToday}
-                      locale={props.locale}
-                      panels={panels()}
-                      registry={props.registry}
-                      rows={document.layout.rows}
-                      theme={theme()}
-                    />
-                  </ReportPlacementProvider>
+              <PlacementLayoutContext.Provider value={chrome().placements === 'flat' && documentPlacements(document.layout.rows).size > 1 ? 'flat' : 'cards'}>
+                <Show when={!empty(editor)} fallback={<DashboardEmptyState onAdd={editor?.session.host.catalog ? (trigger) => editor.addReport(trigger) : undefined} />}>
+                  <Show fallback={documentRows()} when={editor}>
+                    <ReportPlacementProvider host={editor!.placementHost(placementHost)}>
+                      <DraftLayout
+                        csrf={props.csrf}
+                        editor={editor!}
+                        entrance={entrance}
+                        fetcher={props.fetcher}
+                        filterToday={props.filterToday}
+                        locale={props.locale}
+                        panels={panels()}
+                        registry={props.registry}
+                        rows={document.layout.rows}
+                        theme={theme()}
+                      />
+                    </ReportPlacementProvider>
+                  </Show>
                 </Show>
-              </Show>
+              </PlacementLayoutContext.Provider>
             </MetricColumnsContext.Provider>
             <Show when={editor}>{editor!.Dialogs()}</Show>
             <Show when={print.active}>

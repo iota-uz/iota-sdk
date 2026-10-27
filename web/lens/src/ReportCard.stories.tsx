@@ -48,6 +48,7 @@ function Card(props: {
   host?: ReportPlacementHost
   fetcher?: typeof fetch
   after?: () => void
+  flat?: boolean
 }) {
   const [log, setLog] = createSignal('')
   onMount(() => props.after?.())
@@ -56,6 +57,7 @@ function Card(props: {
       <LensDashboard
         initialDocument={props.document}
         theme={props.theme}
+        chrome={props.flat ? { placements: 'flat' } : undefined}
         fetcher={props.fetcher}
         reportPlacementHost={props.host ?? storyHost(setLog)}
         renderers={props.renderers === false ? undefined : { 'legacy-bars': LegacyBars }}
@@ -70,6 +72,8 @@ const standalone = () => parseDocument(structuredClone(fixture.standalone))
 
 export const EmbeddedLight = () => <Card theme="light" document={embedded()} />
 export const EmbeddedDark = () => <Card theme="dark" document={embedded()} />
+export const FlatLight = () => <Card theme="light" document={embedded()} flat />
+export const FlatDark = () => <Card theme="dark" document={embedded()} flat />
 export const StandaloneLight = () => <Card theme="light" document={standalone()} />
 export const StandaloneDark = () => <Card theme="dark" document={standalone()} />
 export const CompatibilityLight = () => <Card theme="light" document={embedded()} renderers={false} />

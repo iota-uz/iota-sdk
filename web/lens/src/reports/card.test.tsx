@@ -97,6 +97,38 @@ describe('report card states', () => {
   })
 })
 
+describe('flat placements', () => {
+  // False green: hiding the card with CSS would leave the menu and status in the DOM for assistive tech.
+  it('renders a placement as its panels alone, and keeps the card chrome by default', () => {
+    mount(embedded(), { actions: allActions() }, { chrome: { placements: 'flat' } })
+    const flat = placement('revenue')
+    expect(flat).toHaveClass('lens-panel-group-flat')
+    expect(flat.querySelector(':scope > .lens-panel-group-header')).toBeNull()
+    expect(flat.querySelector('[data-testid^="report-menu-"], [data-testid^="report-status-"]')).toBeNull()
+    expect(flat.querySelector('.lens-panel')).not.toBeNull()
+    cleanup()
+    mount(embedded(), { actions: allActions() })
+    expect(placement('revenue')).not.toHaveClass('lens-panel-group-flat')
+    expect(placement('revenue').querySelector(':scope > .lens-panel-group-header')).not.toBeNull()
+  })
+
+  // False green: a flat board that swallows the refusal would show a blank gap for a deleted report.
+  it('keeps the card for a placement that cannot render', () => {
+    mount(embedded(), { unavailable: (id) => id === 'revenue' ? 'report-deleted' : undefined }, { chrome: { placements: 'flat' } })
+    expect(placement('revenue')).not.toHaveClass('lens-panel-group-flat')
+    expect(placement('revenue')).toHaveAttribute('data-state', 'deleted')
+  })
+})
+
+describe('flat placements on a single report', () => {
+  // False green: a flat standalone report would lose the only menu that opens, copies and edits it.
+  it('keeps the card of a report opened on its own', () => {
+    mount(standalone(), { actions: allActions() }, { chrome: { placements: 'flat' } })
+    const card = document.querySelector<HTMLElement>('[data-report-placement]')!
+    expect(card).not.toHaveClass('lens-panel-group-flat')
+  })
+})
+
 describe('report card menu', () => {
   // False green: a menu opened by pointer alone, or one leaving focus on body, would pass a click-only check.
   it('is one keyboard menu per card that calls only the chosen host handler', async () => {

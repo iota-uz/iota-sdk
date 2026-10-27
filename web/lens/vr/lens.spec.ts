@@ -21,6 +21,8 @@ const storyIds = [
   'reusable-reports--reopened-incompatible-dark',
   'report-card--embedded-light',
   'report-card--embedded-dark',
+  'report-card--flat-light',
+  'report-card--flat-dark',
   'report-card--standalone-light',
   'report-card--standalone-dark',
   'report-card--compatibility-light',
