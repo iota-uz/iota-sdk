@@ -23,8 +23,9 @@ func RequiredEvidence(spec lens.DashboardSpec, panelID string) ([]string, error)
 		result.Panels[p.ID] = &lensruntime.PanelResult{Panel: p, Frames: &frame.FrameSet{}}
 	}
 	panels := selectedPanels(result, panelID)
-	var names []string
-	for _, name := range exportDatasetNames(spec, panels, panelID, !spec.Export.OmitLineage) {
+	datasetNames := exportDatasetNames(spec, panels, panelID, !spec.Export.OmitLineage)
+	names := make([]string, 0, len(datasetNames))
+	for _, name := range datasetNames {
 		if containsPanelDataset(panels, name) {
 			continue
 		}

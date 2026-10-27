@@ -19,12 +19,12 @@ func normalizeExactValue(value any) (any, error) {
 		return v, err
 	case *frame.Formula:
 		if v == nil {
-			return nil, nil
+			return nil, nil //nolint:nilnil // A nil formula represents a valid blank cell.
 		}
-		copy := *v
-		result, err := normalizeExactValue(copy.Result)
-		copy.Result = result
-		return copy, err
+		formula := *v
+		result, err := normalizeExactValue(formula.Result)
+		formula.Result = result
+		return formula, err
 	default:
 		return value, nil
 	}
