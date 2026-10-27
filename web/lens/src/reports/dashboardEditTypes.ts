@@ -44,7 +44,8 @@ export interface LensDashboardChrome {
   /**
    * How a composed report's placements read. `cards` (default) frames each placement with its
    * own title, filters, menu and calculation time; `flat` renders only the panels, so the
-   * dashboard header carries the one shared set of filters and actions.
+   * dashboard header carries the one shared set of filters and actions. A document with a single
+   * placement (one report opened on its own) keeps its card, whose menu is the report's actions.
    */
   placements?: 'cards' | 'flat'
 }

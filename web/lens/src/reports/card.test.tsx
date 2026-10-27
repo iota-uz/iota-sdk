@@ -120,6 +120,15 @@ describe('flat placements', () => {
   })
 })
 
+describe('flat placements on a single report', () => {
+  // False green: a flat standalone report would lose the only menu that opens, copies and edits it.
+  it('keeps the card of a report opened on its own', () => {
+    mount(standalone(), { actions: allActions() }, { chrome: { placements: 'flat' } })
+    const card = document.querySelector<HTMLElement>('[data-report-placement]')!
+    expect(card).not.toHaveClass('lens-panel-group-flat')
+  })
+})
+
 describe('report card menu', () => {
   // False green: a menu opened by pointer alone, or one leaving focus on body, would pass a click-only check.
   it('is one keyboard menu per card that calls only the chosen host handler', async () => {

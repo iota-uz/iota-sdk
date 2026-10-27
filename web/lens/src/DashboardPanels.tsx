@@ -1074,7 +1074,7 @@ export function DashboardPanels(props: DashboardPanelsProps) {
             <Show when={editor && editing()}>{editor!.Notices()}</Show>
             {props.toolbar?.({ get document() { return dashboard.document } })}
             <MetricColumnsContext.Provider value={columns()}>
-              <PlacementLayoutContext.Provider value={chrome().placements ?? 'cards'}>
+              <PlacementLayoutContext.Provider value={chrome().placements === 'flat' && documentPlacements(document.layout.rows).size > 1 ? 'flat' : 'cards'}>
                 <Show when={!empty(editor)} fallback={<DashboardEmptyState onAdd={editor?.session.host.catalog ? (trigger) => editor.addReport(trigger) : undefined} />}>
                   <Show fallback={documentRows()} when={editor}>
                     <ReportPlacementProvider host={editor!.placementHost(placementHost)}>
