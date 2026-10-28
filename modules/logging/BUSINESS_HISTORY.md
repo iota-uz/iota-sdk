@@ -11,11 +11,20 @@ an application service in core, crm, finance, hrm, projects and warehouse must a
 `Service.Method` (in the events table or in the exceptions), and every registered event type must
 be documented here. A new service mutation fails the build until it is classified.
 
+## Installing
+
+History is on when the application loads the logging component (`logging.NewComponent()`, part of
+`modules.Components()`). Core provides defaults that the component replaces: an in-memory registry
+and `history.Disabled()`, a writer that records nothing. An application that composes core,
+finance and the other modules without the logging component keeps working exactly as before and
+records no history; once it adds the component, every rule below applies, fail-closed included.
+
 ## Entry points and trusted context
 
 Actor, channel, tenant and correlation IDs come from `history.Execution`, set by the entry point
-and never from request bodies, imported files or model arguments. A service called without it
-fails with `history.ErrExecutionMissing` (reason `execution_missing`) and the change rolls back.
+and never from request bodies, imported files or model arguments. With history installed, a service
+called without it fails with `history.ErrExecutionMissing` (reason `execution_missing`) and the
+change rolls back.
 
 | Entry point | Sets | Channel | Actor | Initiator | operation_id |
 |---|---|---|---|---|---|

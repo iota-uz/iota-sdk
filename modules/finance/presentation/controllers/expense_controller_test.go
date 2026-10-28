@@ -20,7 +20,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
@@ -52,7 +51,7 @@ func TestExpenseController_List_Success(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -126,7 +125,7 @@ func TestExpenseController_List_HTMX_Request(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -185,7 +184,7 @@ func TestExpenseController_List_InfiniteScroll(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -270,7 +269,7 @@ func TestExpenseController_GetNew_Success(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -323,7 +322,7 @@ func TestExpenseController_Create_Success(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -382,7 +381,7 @@ func TestExpenseController_Create_ValidationError(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -444,7 +443,7 @@ func TestExpenseController_GetEdit_Success(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -512,7 +511,7 @@ func TestExpenseController_GetEdit_NotFound(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -537,7 +536,7 @@ func TestExpenseController_Update_Success(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -607,7 +606,7 @@ func TestExpenseController_Update_ValidationError(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -681,7 +680,7 @@ func TestExpenseController_Delete_Success(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -744,7 +743,7 @@ func TestExpenseController_Delete_NotFound(t *testing.T) {
 		permissions.ExpenseDelete,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -767,7 +766,7 @@ func TestExpenseController_InvalidUUID(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -790,7 +789,7 @@ func TestExpenseController_Export_Excel_Success(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -865,7 +864,7 @@ func TestExpenseController_Export_InvalidFormat(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -888,7 +887,7 @@ func TestExpenseController_Export_MissingFormat(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -909,7 +908,7 @@ func TestExpenseController_Export_Forbidden(t *testing.T) {
 	t.Parallel()
 	userWithoutPermission := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(userWithoutPermission)

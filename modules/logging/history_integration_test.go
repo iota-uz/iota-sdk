@@ -13,8 +13,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/finance"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
@@ -25,6 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/health"
 	importpkg "github.com/iota-uz/iota-sdk/pkg/import"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
@@ -38,6 +41,24 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	os.Exit(m.Run())
+}
+
+func TestBusinessHistory_OffWithoutLoggingComponent(t *testing.T) {
+	t.Parallel()
+	env := itf.Setup(t,
+		itf.WithComponents(core.NewComponent(&core.ModuleOptions{PermissionSchema: defaults.PermissionSchema()}), finance.NewComponent()),
+		itf.WithUser(itf.User(permissions.Permissions...)),
+		itf.WithCapabilities(composition.Capability("history-test")),
+	)
+	require.Equal(t, history.Disabled(), resolve[history.Writer](t, env))
+	base := composables.WithSession(composables.WithParams(composables.WithTenantID(composables.WithPool(context.Background(), env.Pool), env.TenantID()), itf.DefaultParams()), itf.MockSession())
+	fixture := newPaymentFixture(t, env, base)
+
+	require.NoError(t, fixture.create(composables.WithUser(base, env.User), env, resolve[*financeservices.PaymentService](t, env), "no history"))
+
+	var events int
+	require.NoError(t, env.Pool.QueryRow(base, `SELECT COUNT(*) FROM business_events WHERE tenant_id = $1`, env.TenantID()).Scan(&events))
+	require.Zero(t, events)
 }
 
 // setupCommitted compiles the application without the API and worker capabilities, so no

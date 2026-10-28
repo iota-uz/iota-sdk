@@ -18,7 +18,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
@@ -48,7 +47,7 @@ func TestDebtController_List_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -114,7 +113,7 @@ func TestDebtController_List_HTMX_Request(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -166,7 +165,7 @@ func TestDebtController_GetEditDrawer_Success(t *testing.T) {
 		permissions.DebtUpdate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -220,7 +219,7 @@ func TestDebtController_GetEditDrawer_NotFound(t *testing.T) {
 		permissions.DebtRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -244,7 +243,7 @@ func TestDebtController_GetNewDrawer_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -286,7 +285,7 @@ func TestDebtController_Create_Success(t *testing.T) {
 		permissions.DebtRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -344,7 +343,7 @@ func TestDebtController_Create_ValidationError(t *testing.T) {
 		permissions.DebtRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -399,7 +398,7 @@ func TestDebtController_Update_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -468,7 +467,7 @@ func TestDebtController_Update_ValidationError(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -535,7 +534,7 @@ func TestDebtController_Settle_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -621,7 +620,7 @@ func TestDebtController_WriteOff_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -676,7 +675,7 @@ func TestDebtController_Delete_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -733,7 +732,7 @@ func TestDebtController_Delete_NotFound(t *testing.T) {
 		permissions.DebtDelete,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -756,7 +755,7 @@ func TestDebtController_InvalidUUID(t *testing.T) {
 		permissions.DebtRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -776,7 +775,7 @@ func TestDebtController_Permission_Forbidden(t *testing.T) {
 	t.Parallel()
 	userWithoutPermission := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(userWithoutPermission)
@@ -800,7 +799,7 @@ func TestDebtController_List_WithFilters(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)

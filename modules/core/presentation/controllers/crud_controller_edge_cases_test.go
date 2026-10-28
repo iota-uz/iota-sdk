@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
-	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
@@ -276,7 +275,7 @@ func (b *nullableTestBuilder) Repository() crud.Repository[NullableEntity] {
 // TestCrudController_DecimalFieldWithDriverValuer tests the decimal field fix with driver.Valuer types
 func TestCrudController_DecimalFieldWithDriverValuer(t *testing.T) {
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
@@ -533,7 +532,7 @@ func (b *validationTestBuilder) Repository() crud.Repository[TestEntity] {
 // TestCrudController_StringKeyEntityCreation tests the fix for entities with pre-assigned string keys
 func TestCrudController_StringKeyEntityCreation(t *testing.T) {
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
@@ -577,7 +576,7 @@ func TestCrudController_StringKeyEntityCreation(t *testing.T) {
 // TestCrudController_ReadonlyFieldValidationFix tests the service validation fix
 func TestCrudController_ReadonlyFieldValidationFix(t *testing.T) {
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
@@ -644,7 +643,7 @@ func TestCrudController_ReadonlyFieldValidationFix(t *testing.T) {
 // TestCrudController_ZeroValueHandling tests handling of zero values in fields
 func TestCrudController_ZeroValueHandling(t *testing.T) {
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
@@ -700,7 +699,7 @@ func TestCrudController_NilValueHandling(t *testing.T) {
 	)
 
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
@@ -724,7 +723,7 @@ func TestCrudController_NilValueHandling(t *testing.T) {
 // TestCrudController_TimeZoneHandling tests proper handling of timestamps across timezones
 func TestCrudController_TimeZoneHandling(t *testing.T) {
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
@@ -765,7 +764,7 @@ func TestCrudController_LargeFormSubmission(t *testing.T) {
 	}
 
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)
@@ -797,7 +796,7 @@ func TestCrudController_LargeFormSubmission(t *testing.T) {
 func TestCrudController_ConcurrentFormSubmissions(t *testing.T) {
 	t.Skip("TODO: Fix concurrent form submissions test - infrastructure issue")
 	adminUser := itf.User()
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	})).Build().
 		AsUser(adminUser)

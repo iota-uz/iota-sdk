@@ -36,7 +36,7 @@ func NewComponent() composition.Component {
 type component struct{}
 
 func (c *component) Descriptor() composition.Descriptor {
-	return composition.Descriptor{Name: "crm", Requires: []string{"logging"}}
+	return composition.Descriptor{Name: "crm"}
 }
 
 func (c *component) LocaleFS() []*embed.FS {

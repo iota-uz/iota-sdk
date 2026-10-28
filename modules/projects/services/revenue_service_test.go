@@ -16,7 +16,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	financepermissions "github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	financeservices "github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/modules/projects"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/acceptance"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project"
@@ -38,7 +37,6 @@ func (s invoicesStub) Invoiced(context.Context, []uuid.UUID) ([]*money.Money, er
 func TestRevenueService_KeepsBasesAndCurrenciesApart(t *testing.T) {
 	t.Parallel()
 	env := itf.Setup(t, itf.WithComponents(
-		logging.NewComponent(),
 		core.NewComponent(&core.ModuleOptions{PermissionSchema: defaults.PermissionSchema()}),
 		finance.NewComponent(),
 		projects.NewComponent(),
@@ -135,7 +133,6 @@ func TestRevenueService_KeepsBasesAndCurrenciesApart(t *testing.T) {
 func TestAcceptanceService_StatusChangeChecksStoredStatus(t *testing.T) {
 	t.Parallel()
 	env := itf.Setup(t, itf.WithComponents(
-		logging.NewComponent(),
 		core.NewComponent(&core.ModuleOptions{PermissionSchema: defaults.PermissionSchema()}),
 		finance.NewComponent(),
 		projects.NewComponent(),

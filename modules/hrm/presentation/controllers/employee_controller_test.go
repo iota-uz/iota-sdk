@@ -12,7 +12,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/hrm/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/hrm/services"
-	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
@@ -26,7 +25,7 @@ func setupEmployees(t *testing.T) (*itf.Suite, *services.EmployeeService) {
 	t.Helper()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+		WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		}), hrm.NewComponent()).
 		AsAdmin().

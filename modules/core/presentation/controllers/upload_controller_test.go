@@ -10,7 +10,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
@@ -29,7 +28,7 @@ func TestUploadController_DirectoryListing_Returns404(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
@@ -59,7 +58,7 @@ func TestUploadController_FileAccess_ReturnsFile(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
@@ -89,7 +88,7 @@ func TestUploadController_FileAccess_ReturnsFile(t *testing.T) {
 func TestUploadController_PrivateFileAccess_Returns404(t *testing.T) {
 	uploadsPath := "test-uploads"
 	testSubDir := strings.ReplaceAll(t.Name(), "/", "-")
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
@@ -137,7 +136,7 @@ func TestUploadController_SubdirectoryListing_Returns404(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
@@ -171,7 +170,7 @@ func TestUploadController_FileInSubdirectory_ReturnsFile(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
@@ -211,7 +210,7 @@ func TestUploadController_NonExistentFile_Returns404(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())

@@ -16,7 +16,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
-	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
@@ -273,14 +272,14 @@ type testBuilder struct {
 
 func newCoreCrudSuiteBuilder(tb testing.TB) *itf.SuiteBuilder {
 	tb.Helper()
-	return itf.NewSuiteBuilder(tb).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	return itf.NewSuiteBuilder(tb).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}))
 }
 
 func newCoreCrudSuiteBuilderWithDefaults(tb testing.TB) *itf.SuiteBuilder {
 	tb.Helper()
-	return itf.NewSuiteBuilder(tb).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	return itf.NewSuiteBuilder(tb).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}))
 }
@@ -1089,7 +1088,7 @@ func TestCrudController_ErrorHandling(t *testing.T) {
 		// Test various error scenarios
 		adminUser := itf.User()
 		suite := itf.NewSuiteBuilder(t).
-			WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+			WithComponents(core.NewComponent(&core.ModuleOptions{
 				PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 			})).Build().
 			AsUser(adminUser)

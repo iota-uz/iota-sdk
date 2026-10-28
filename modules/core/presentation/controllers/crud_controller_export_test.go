@@ -15,7 +15,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	corepermissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
-	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/crud/models"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
@@ -181,7 +180,7 @@ func newExportSuite(t *testing.T) *itf.Suite {
 		user.UILanguageEN,
 	)
 	return itf.NewSuiteBuilder(t).
-		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+		WithComponents(core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		})).
 		Build().

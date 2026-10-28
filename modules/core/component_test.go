@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core"
-	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
@@ -105,7 +104,7 @@ func compileCore(t *testing.T, opts *core.ModuleOptions) (*composition.Container
 	require.NoError(t, err)
 
 	engine := composition.NewEngine()
-	require.NoError(t, engine.Register(logging.NewComponent(), core.NewComponent(opts)))
+	require.NoError(t, engine.Register(core.NewComponent(opts)))
 	container, err := engine.Compile(
 		composition.NewBuildContext(app, src, composition.WithLogger(logger)),
 		composition.CapabilityAPI,

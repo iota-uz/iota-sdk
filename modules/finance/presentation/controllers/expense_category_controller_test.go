@@ -12,7 +12,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/stretchr/testify/require"
@@ -25,7 +24,6 @@ var (
 func newExpenseCategorySuiteBuilder(tb testing.TB) *itf.SuiteBuilder {
 	tb.Helper()
 	return itf.NewSuiteBuilder(tb).WithComponents(
-		logging.NewComponent(),
 		core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		}),

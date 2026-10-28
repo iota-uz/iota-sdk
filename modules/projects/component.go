@@ -23,7 +23,7 @@ type component struct{}
 func (c *component) Descriptor() composition.Descriptor {
 	return composition.Descriptor{
 		Name:     "projects",
-		Requires: []string{"core", "logging"},
+		Requires: []string{"core"},
 	}
 }
 

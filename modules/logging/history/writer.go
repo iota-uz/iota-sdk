@@ -253,3 +253,15 @@ func subjectRef(resource, id string) string {
 func schemaInvalid(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrSchemaInvalid, fmt.Sprintf(format, args...))
 }
+
+// Disabled is the writer of an application without the logging component: it records nothing
+// and accepts any context, so services keep working until the host installs business history.
+func Disabled() Writer {
+	return disabledWriter{}
+}
+
+type disabledWriter struct{}
+
+func (disabledWriter) Record(context.Context, Input) (uuid.UUID, error) {
+	return uuid.Nil, nil
+}

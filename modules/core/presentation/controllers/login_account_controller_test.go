@@ -18,7 +18,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
@@ -41,7 +40,7 @@ func (v testAuthorizationRequestValidator) ValidateAuthorizationRequest(_ contex
 // ordinary login route instead of the OIDC callback for this request.
 func TestLoginController_ActiveAccountContinuesOIDCRequest(t *testing.T) {
 	t.Parallel()
-	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).AsUser().Build()
 	persistTestUser(t, suite.Env())
@@ -90,7 +89,7 @@ func TestLoginController_CustomRendererDeduplicatesRepeatedAccountLogin_Scenario
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
+			suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 				PermissionSchema: defaults.PermissionSchema(),
 			})).AsUser().Build()
 			persistTestUser(t, suite.Env())

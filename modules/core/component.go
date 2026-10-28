@@ -102,7 +102,7 @@ type component struct {
 }
 
 func (c *component) Descriptor() composition.Descriptor {
-	return composition.Descriptor{Name: "core", Requires: []string{"logging"}}
+	return composition.Descriptor{Name: "core"}
 }
 
 func (c *component) LocaleFS() []*embed.FS {
@@ -181,6 +181,10 @@ func (c *component) Build(builder *composition.Builder) error {
 			return []composition.Hook{{Name: "notification-dispatch", Start: worker.Start}}, nil
 		})
 	}
+	// Business history stays off until the host installs the logging component, which replaces
+	// these defaults with the persistent registry and the transactional writer.
+	composition.ProvideDefault[*history.Registry](builder, history.NewRegistry())
+	composition.ProvideDefault[history.Writer](builder, history.Disabled())
 	history.ContributeDefinitions(builder, services.HistoryDefinitions()...)
 	composition.ProvideFunc(builder, services.NewPrivilegeGrantPolicy)
 	composition.ProvideFunc(builder, services.NewTenantService)
