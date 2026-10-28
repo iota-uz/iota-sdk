@@ -12,6 +12,8 @@ import (
 type Limits struct {
 	WallClockMS int64 `json:"wall_clock_ms,omitempty"`
 	OutputCap   int   `json:"output_cap,omitempty"`
+	// SeparateStderr asks the kernel to report stderr apart from stdout.
+	SeparateStderr bool `json:"separate_stderr,omitempty"`
 }
 
 // Call is a kernel→host capability invocation. It deliberately carries no
@@ -167,8 +169,8 @@ func (b *bridge) handleCall(ctx context.Context, dispatcher CallDispatcher, msg 
 		b.writeError(msg.ID, codeCapabilityArgs, "invalid cap.call params: "+err.Error(), "")
 		return
 	}
-	// ctx is the Serve-lifetime context; the dispatcher swaps in the context of
-	// the exec named by the call so cancellation reaches the handler.
+	// ctx is the Serve-lifetime context; the dispatcher may swap in the context
+	// of the exec named by the call when that exec asked for it.
 	reply := dispatcher.Dispatch(ctx, Call(p))
 	if reply.Err != nil {
 		b.writeError(msg.ID, codeCapabilityError, reply.Err.Message, reply.Err.Type)

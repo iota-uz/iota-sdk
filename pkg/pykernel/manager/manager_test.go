@@ -72,7 +72,7 @@ func drain(t *testing.T, ch <-chan pykernel.ExecEvent, d time.Duration) (string,
 				errEv = ev.Err
 			case pykernel.EventDone:
 				gotDone = true
-			case pykernel.EventMetric, pykernel.EventLog, pykernel.EventTruncated, pykernel.EventStderr:
+			case pykernel.EventMetric, pykernel.EventLog, pykernel.EventTruncated:
 				// Not asserted by these tests; ignore.
 			}
 		case <-deadline:
@@ -205,7 +205,7 @@ func TestManager_ExecContextReachesCapability(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), ctxKey{}, "exec-scoped"))
-	ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: "wait()"})
+	ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: "wait()", BindContext: true})
 	require.NoError(t, err)
 	time.AfterFunc(300*time.Millisecond, cancel)
 
@@ -222,35 +222,66 @@ func TestManager_ExecContextReachesCapability(t *testing.T) {
 	assert.Equal(t, "exec-scoped", sawValue)
 }
 
-func TestManager_ExecSeparatesStderrAndReportsTruncation(t *testing.T) {
+func TestManager_ExecOutputStreams(t *testing.T) {
 	requirePython(t)
-	caps, err := pykernel.NewCapabilitySet()
-	require.NoError(t, err)
-	m := newManager(t)
-	k, err := m.Acquire(context.Background(), &testSession{key: "run-err", tenant: uuid.New(), caps: caps, mode: pykernel.ModePlan, wd: t.TempDir()})
-	require.NoError(t, err)
-
-	ch, err := k.Exec(context.Background(), pykernel.ExecRequest{
-		Code:      "import sys\nprint('out')\nprint('e' * 200, file=sys.stderr)",
-		OutputCap: 64,
-	})
-	require.NoError(t, err)
-	var stdout, stderr strings.Builder
-	var done *pykernel.DonePayload
-	for ev := range ch {
-		switch ev.Kind {
-		case pykernel.EventStdout:
-			stdout.Write(ev.Stdout)
-		case pykernel.EventStderr:
-			stderr.Write(ev.Stderr)
-		case pykernel.EventDone:
-			done = ev.Done
-		case pykernel.EventResult, pykernel.EventMetric, pykernel.EventLog, pykernel.EventError, pykernel.EventTruncated:
-		}
+	type ctxKey struct{}
+	cases := []struct {
+		name            string
+		separate        bool
+		bind            bool
+		stdout          string
+		stderrLen       int
+		stderrTruncated bool
+		sawExecValue    bool
+	}{
+		{name: "default merges stderr into stdout and keeps the kernel context",
+			stdout: "out\n" + strings.Repeat("e", 60)},
+		{name: "opt-in separates stderr and binds the exec context", separate: true, bind: true,
+			stdout: "out\n", stderrLen: 60, stderrTruncated: true, sawExecValue: true},
 	}
-	assert.Equal(t, "out\n", stdout.String())
-	assert.Equal(t, 60, stderr.Len())
-	require.NotNil(t, done)
-	assert.False(t, done.StdoutTruncated)
-	assert.True(t, done.StderrTruncated)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var sawValue any
+			probe := pykernel.CapabilityFunc("probe", pykernel.AccessRead, pykernel.CapabilitySignature{},
+				func(ctx context.Context, _ pykernel.CallArgs) (any, error) {
+					sawValue = ctx.Value(ctxKey{})
+					return true, nil
+				})
+			caps, err := pykernel.NewCapabilitySet(probe)
+			require.NoError(t, err)
+			m := newManager(t)
+			k, err := m.Acquire(context.Background(), &testSession{key: "streams", tenant: uuid.New(), caps: caps, mode: pykernel.ModePlan, wd: t.TempDir()})
+			require.NoError(t, err)
+
+			ctx := context.WithValue(context.Background(), ctxKey{}, "exec-scoped")
+			ch, err := k.Exec(ctx, pykernel.ExecRequest{
+				Code:           "import sys\nprobe()\nprint('out')\nprint('e' * 200, file=sys.stderr)",
+				OutputCap:      64,
+				SeparateStderr: tc.separate,
+				BindContext:    tc.bind,
+			})
+			require.NoError(t, err)
+			var stdout, stderr strings.Builder
+			var done *pykernel.DonePayload
+			for ev := range ch {
+				switch ev.Kind {
+				case pykernel.EventStdout:
+					if ev.Stderr {
+						stderr.Write(ev.Stdout)
+					} else {
+						stdout.Write(ev.Stdout)
+					}
+				case pykernel.EventDone:
+					done = ev.Done
+				case pykernel.EventResult, pykernel.EventMetric, pykernel.EventLog, pykernel.EventError, pykernel.EventTruncated:
+				}
+			}
+			assert.Equal(t, tc.stdout, stdout.String())
+			assert.Equal(t, tc.stderrLen, stderr.Len())
+			require.NotNil(t, done)
+			assert.Equal(t, !tc.separate, done.StdoutTruncated)
+			assert.Equal(t, tc.stderrTruncated, done.StderrTruncated)
+			assert.Equal(t, tc.sawExecValue, sawValue != nil)
+		})
+	}
 }

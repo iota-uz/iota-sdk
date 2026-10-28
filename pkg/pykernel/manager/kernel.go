@@ -60,7 +60,7 @@ func newKernel(sess pykernel.Session, proc isolation.Process, br bridge.Bridge, 
 }
 
 // execContext returns the context the consumer passed to Exec for execID, as
-// long as that exec is still the active one.
+// long as that exec is still the active one and asked for BindContext.
 func (k *kernel) execContext(execID string) (context.Context, bool) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
@@ -112,7 +112,9 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 	ch := make(chan pykernel.ExecEvent, 256)
 	done := make(chan struct{})
 	k.activeExecID = execID
-	k.activeCtx = ctx
+	if req.BindContext {
+		k.activeCtx = ctx
+	}
 	k.activeCh = ch
 	k.activeDone = done
 	k.inFlight = true
@@ -123,7 +125,7 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 	if outCap == 0 {
 		outCap = k.outputCap
 	}
-	limits := bridge.Limits{OutputCap: outCap}
+	limits := bridge.Limits{OutputCap: outCap, SeparateStderr: req.SeparateStderr}
 	if req.Timeout > 0 {
 		limits.WallClockMS = req.Timeout.Milliseconds()
 	}

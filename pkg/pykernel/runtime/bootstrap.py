@@ -258,12 +258,12 @@ def _deliver(method, params):
             continue
 
 
-def _run_code(exec_id, code, output_cap):
+def _run_code(exec_id, code, output_cap, separate_stderr):
     global _current_exec
     _current_exec = exec_id
     budget = _Budget(output_cap or _OUTPUT_CAP_DEFAULT)
     writer = _StreamWriter(exec_id, budget, "out.stdout")
-    err_writer = _StreamWriter(exec_id, budget, "out.stderr")
+    err_writer = _StreamWriter(exec_id, budget, "out.stderr") if separate_stderr else writer
     saved_out, saved_err = sys.stdout, sys.stderr
     sys.stdout = writer
     sys.stderr = err_writer
@@ -309,7 +309,7 @@ def _run_code(exec_id, code, output_cap):
         "exec_id": exec_id,
         "output_truncated": writer.truncated or err_writer.truncated,
         "stdout_truncated": writer.truncated,
-        "stderr_truncated": err_writer.truncated,
+        "stderr_truncated": separate_stderr and err_writer.truncated,
     })
 
 
@@ -321,8 +321,8 @@ def _worker():
             item = _exec_queue.get()
             if item is None:
                 return
-            exec_id, code, output_cap = item
-            _run_code(exec_id, code, output_cap)
+            exec_id, code, output_cap, separate_stderr = item
+            _run_code(exec_id, code, output_cap, separate_stderr)
         except KeyboardInterrupt:
             # A cancellation can be delivered late (after the target exec
             # finished) or while the worker is idle in _exec_queue.get(). Such a
@@ -393,6 +393,7 @@ def _reader():
                     params.get("exec_id"),
                     params.get("code", ""),
                     limits.get("output_cap", 0),
+                    bool(limits.get("separate_stderr")),
                 ))
             elif method == "exec.cancel":
                 params = msg.get("params") or {}

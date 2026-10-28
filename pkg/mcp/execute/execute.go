@@ -246,7 +246,10 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 	}
 	state := &runState{maxEmit: outputCap}
 	started := time.Now()
-	events, err := k.Exec(withRun(ctx, state), pykernel.ExecRequest{Code: in.Code, Timeout: timeout, OutputCap: outputCap, Label: res.RunID})
+	events, err := k.Exec(withRun(ctx, state), pykernel.ExecRequest{
+		Code: in.Code, Timeout: timeout, OutputCap: outputCap, Label: res.RunID,
+		SeparateStderr: true, BindContext: true,
+	})
 	if errors.Is(err, pykernel.ErrKernelBusy) {
 		return Result{}, mcp.Fail(mcp.CodeBusy, mcp.RecoveryRetryLater, "another run is in progress in this session").
 			WithRetryAfter(busyRetryAfter.Milliseconds())
@@ -260,9 +263,11 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 	for ev := range events {
 		switch ev.Kind {
 		case pykernel.EventStdout:
-			res.Truncated.Stdout = appendCapped(&stdout, ev.Stdout, outputCap) || res.Truncated.Stdout
-		case pykernel.EventStderr:
-			res.Truncated.Stderr = appendCapped(&stderr, ev.Stderr, outputCap) || res.Truncated.Stderr
+			if ev.Stderr {
+				res.Truncated.Stderr = appendCapped(&stderr, ev.Stdout, outputCap) || res.Truncated.Stderr
+			} else {
+				res.Truncated.Stdout = appendCapped(&stdout, ev.Stdout, outputCap) || res.Truncated.Stdout
+			}
 		case pykernel.EventError:
 			execErr = ev.Err
 		case pykernel.EventDone:

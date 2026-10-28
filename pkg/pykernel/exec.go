@@ -16,6 +16,13 @@ type ExecRequest struct {
 	OutputCap int
 	// Label is a human-readable tag for tracing and observability.
 	Label string
+	// SeparateStderr reports stderr as EventStdout chunks flagged Stderr
+	// instead of merging it into stdout.
+	SeparateStderr bool
+	// BindContext runs capability calls of this exec under the Exec ctx, so
+	// cancelling the exec cancels the capability and ctx values reach it.
+	// Otherwise calls run under the kernel's lifetime context.
+	BindContext bool
 }
 
 // ExecEventKind discriminates the streamed ExecEvent union.
@@ -37,8 +44,6 @@ const (
 	// EventDone is terminal: the exec finished (successfully or with an error).
 	// Exactly one EventDone closes the stream.
 	EventDone
-	// EventStderr carries an incremental stderr chunk.
-	EventStderr
 )
 
 func (k ExecEventKind) String() string {
@@ -57,8 +62,6 @@ func (k ExecEventKind) String() string {
 		return "truncated"
 	case EventDone:
 		return "done"
-	case EventStderr:
-		return "stderr"
 	default:
 		return fmt.Sprintf("ExecEventKind(%d)", int(k))
 	}
@@ -67,9 +70,11 @@ func (k ExecEventKind) String() string {
 // ExecEvent is one item in the stream returned by Kernel.Exec. The populated
 // payload field corresponds to Kind.
 type ExecEvent struct {
-	Kind      ExecEventKind
-	Stdout    []byte         // EventStdout
-	Stderr    []byte         // EventStderr
+	Kind   ExecEventKind
+	Stdout []byte // EventStdout
+	// Stderr marks an EventStdout chunk written to stderr; it is only set when
+	// the exec asked for SeparateStderr.
+	Stderr    bool
 	Result    *ResultPayload // EventResult
 	Metric    *MetricPayload // EventMetric
 	Log       *LogPayload    // EventLog

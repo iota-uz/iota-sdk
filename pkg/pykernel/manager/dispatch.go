@@ -48,8 +48,8 @@ func capSpecsJSON(set pykernel.CapabilitySet) ([]byte, error) {
 // dispatcher binds a kernel's capability set, run Mode and tenant, and routes
 // every kernel cap.call through the central plan/apply authorization. The
 // kernel supplies only the capability name and arguments; tenant and Mode are
-// bound here from the Session, and the call runs under the context of the exec
-// it belongs to, so cancelling the exec cancels the capability.
+// bound here from the Session. An exec that asked for BindContext gets its
+// calls run under its own context, so cancelling the exec cancels them.
 type dispatcher struct {
 	caps   pykernel.CapabilitySet
 	mode   pykernel.Mode
@@ -57,10 +57,9 @@ type dispatcher struct {
 	exec   func(execID string) (context.Context, bool)
 }
 
-func (d *dispatcher) Dispatch(_ context.Context, call bridge.Call) bridge.Reply {
-	ctx, ok := d.exec(call.ExecID)
-	if !ok {
-		return bridge.Reply{Err: &bridge.CallError{Type: "ExecNotActive", Message: "capability call outside of an active exec"}}
+func (d *dispatcher) Dispatch(ctx context.Context, call bridge.Call) bridge.Reply {
+	if execCtx, ok := d.exec(call.ExecID); ok {
+		ctx = execCtx
 	}
 	ctx = composables.WithTenantID(ctx, d.tenant)
 
@@ -112,8 +111,9 @@ func translate(ev bridge.RawEvent) (pykernel.ExecEvent, bool) {
 			Chunk string `json:"chunk"`
 		}
 		_ = json.Unmarshal(ev.Params, &p)
-		out.Kind = pykernel.EventStderr
-		out.Stderr = []byte(p.Chunk)
+		out.Kind = pykernel.EventStdout
+		out.Stdout = []byte(p.Chunk)
+		out.Stderr = true
 	case bridge.KindMetric:
 		var p struct {
 			Name  string            `json:"name"`
