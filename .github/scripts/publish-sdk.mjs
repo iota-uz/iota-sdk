@@ -31,8 +31,10 @@ const tag = await publishSDK({
     const dir = mkdtempSync(join(tmpdir(), 'iota-sdk-go-verify-'))
     try {
       run('go', ['mod', 'init', 'verify.invalid/iota-sdk-release'], { cwd: dir })
-      const module = JSON.parse(run('go', ['mod', 'download', '-json', `github.com/iota-uz/iota-sdk@v${version}`], { cwd: dir, env: { ...process.env, GOWORK: 'off' } }))
-      if (module.Version !== `v${version}` || !module.Sum || module.Error) throw new Error('Published Go module is not retrievable')
+      for (const path of ['github.com/iota-uz/iota-sdk', 'github.com/iota-uz/iota-sdk/mcpgateway']) {
+        const module = JSON.parse(run('go', ['mod', 'download', '-json', `${path}@v${version}`], { cwd: dir, env: { ...process.env, GOWORK: 'off', GOTOOLCHAIN: 'auto' } }))
+        if (module.Version !== `v${version}` || !module.Sum || module.Error) throw new Error(`Published Go module ${path} is not retrievable`)
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

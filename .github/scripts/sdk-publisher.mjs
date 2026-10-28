@@ -20,11 +20,14 @@ export async function publishSDK({ sha, version, manifest, bytes, api, registry,
   if (createHash('sha256').update(bytes).digest('hex') !== manifest.sha256) throw new Error('Artifact checksum mismatch')
   const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`
   const tag = `v${version}`
-  const existingTag = await api('GET', `git/ref/tags/${tag}`, undefined, true)
-  if (existingTag) {
-    if (existingTag.object.type !== 'commit' || existingTag.object.sha !== sha) throw new Error('Tag is already bound to another commit')
-  } else {
-    await api('POST', 'git/refs', { ref: `refs/tags/${tag}`, sha })
+  // Nested Go modules are released by a path-prefixed tag on the same commit.
+  for (const name of [tag, `mcpgateway/${tag}`]) {
+    const existingTag = await api('GET', `git/ref/tags/${name}`, undefined, true)
+    if (existingTag) {
+      if (existingTag.object.type !== 'commit' || existingTag.object.sha !== sha) throw new Error('Tag is already bound to another commit')
+    } else {
+      await api('POST', 'git/refs', { ref: `refs/tags/${name}`, sha })
+    }
   }
   let published = await registry(version)
   const checkConflict = metadata => {

@@ -78,6 +78,7 @@ jobs:
               - 'internal/**'
               - 'modules/**'
               - 'pkg/**'
+              - 'mcpgateway/**'
               - 'migrations/**'
               - 'scripts/**'
               - 'styles/**'
@@ -421,6 +422,15 @@ jobs:
           go test -race ./pkg/testenv/...
           go test -race ./pkg/agentsignin
           go test -tags dev -race ./pkg/agentsignin -run 'TestTicket|TestIssue|TestCommand'
+          go test -race ./pkg/mcp/ ./pkg/mcp/rbacauth ./pkg/mcp/execute ./pkg/pykernel/...
+
+      - name: Check the MCP gateway module
+        working-directory: mcpgateway
+        env:
+          GOTOOLCHAIN: auto
+        run: |
+          go vet ./...
+          go test -race ./...
 
       - name: Check applet RPC contracts
         run: just applet rpc-check bichat
