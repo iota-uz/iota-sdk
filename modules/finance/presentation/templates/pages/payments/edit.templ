@@ -12,6 +12,7 @@ import (
 	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
@@ -117,7 +118,7 @@ templ EditForm(props *EditPageProps) {
 		}
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<div class="mr-auto">
-				@historylink.Button("payment", props.Payment.ID)
+				@historylink.Button(services.PaymentResource, props.Payment.ID)
 			</div>
 			<form
 				id="delete-form"

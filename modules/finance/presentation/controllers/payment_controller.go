@@ -138,7 +138,7 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 	for _, p := range paymentEntities {
 		rowActions := []actions.ActionProps{actions.EditAction(fmt.Sprintf("%s/%s", c.basePath, p.ID()))}
 		if showHistory {
-			rowActions = append(rowActions, historylink.RowAction(r.Context(), "payment", p.ID().String()))
+			rowActions = append(rowActions, historylink.RowAction(r.Context(), services.PaymentResource, p.ID().String()))
 		}
 		cfg.AddRows(table.Row(
 			table.Cell(templ.Raw(p.Amount().Display()), p.Amount().Display()),
@@ -174,7 +174,7 @@ func (c *PaymentsController) tableConfig(r *http.Request, params composables.Pag
 	)
 	cfg.AddFilters(filters.CreatedAt())
 	if historylink.Visible(r.Context()) {
-		cfg.AddActions(actions.RenderAction(historylink.Action(r.Context(), "payment")))
+		cfg.AddActions(actions.RenderAction(historylink.Action(r.Context(), services.PaymentResource)))
 	}
 	cfg.AddActions(actions.RenderAction(actions.CreateAction(pageCtx.T("Payments.List.New"), c.basePath+"/new")))
 	return cfg
