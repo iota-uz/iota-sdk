@@ -43,6 +43,10 @@ func (r *memoryRepository) ListByOperation(context.Context, string) ([]businesse
 	return nil, nil
 }
 
+func (r *memoryRepository) Find(context.Context, businessevent.FindParams) ([]businessevent.Event, error) {
+	return nil, nil
+}
+
 func paymentDefinition() Definition {
 	return Definition{
 		Type:           "finance.payment.posted",

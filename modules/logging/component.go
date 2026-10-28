@@ -8,6 +8,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
 	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/modules/logging/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/logging/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/health"
 )
@@ -15,11 +17,26 @@ import (
 //go:embed presentation/locales/*.json
 var localeFiles embed.FS
 
-func NewComponent() composition.Component {
-	return &component{}
+type ComponentOption func(*component)
+
+// WithHistoryBasePath mounts the business history page at path instead of /admin/history.
+func WithHistoryBasePath(path string) ComponentOption {
+	return func(c *component) {
+		c.historyBasePath = path
+	}
 }
 
-type component struct{}
+func NewComponent(opts ...ComponentOption) composition.Component {
+	c := &component{}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
+}
+
+type component struct {
+	historyBasePath string
+}
 
 func (c *component) Descriptor() composition.Descriptor {
 	return composition.Descriptor{Name: "logging"}
@@ -61,5 +78,11 @@ func (c *component) Build(builder *composition.Builder) error {
 		}
 		return []composition.Hook{{Name: "business-history-outbox", Start: dispatcher.Start}}, nil
 	})
+	composition.ProvideFunc(builder, history.NewService)
+	if builder.Context().HasCapability(composition.CapabilityAPI) {
+		composition.ContributeControllersFunc(builder, func(service *history.Service, registry *history.Registry) []application.Controller {
+			return []application.Controller{controllers.NewHistoryController(c.historyBasePath, service, registry)}
+		})
+	}
 	return nil
 }

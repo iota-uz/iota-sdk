@@ -17,6 +17,83 @@
         "Title": "导入项被拒绝",
         "Summary": "导入项未保存，其更改已回滚"
       }
+    },
+    "Link": "历史",
+    "UnknownEvent": "未知操作",
+    "UnknownActor": "未记录",
+    "AllEvents": "全部操作",
+    "OnlyAccessible": "仅显示您有权访问的操作",
+    "Next": "后续事件",
+    "First": "返回最新",
+    "Meta": {
+      "Title": "操作日志",
+      "Subtitle": "您可访问资源上的业务操作"
+    },
+    "Filters": {
+      "From": "从",
+      "To": "至",
+      "Resource": "资源",
+      "Action": "操作",
+      "Channel": "渠道",
+      "Outcome": "结果",
+      "Actor": "执行人",
+      "Any": "任意",
+      "Apply": "应用",
+      "Clear": "清除筛选"
+    },
+    "Channels": {
+      "ui": "网页界面",
+      "mcp": "外部 AI (MCP)",
+      "chat": "内置 AI",
+      "import": "导入",
+      "job": "后台任务",
+      "api": "API",
+      "legacy": "旧日志"
+    },
+    "Outcomes": {
+      "succeeded": "已应用",
+      "failed": "失败",
+      "denied": "被拒绝"
+    },
+    "States": {
+      "Loading": "正在加载操作…",
+      "Empty": {
+        "Title": "未找到操作",
+        "Text": "所选范围和筛选条件下没有记录。"
+      },
+      "Denied": {
+        "Title": "无权访问",
+        "Text": "您无权查看此资源的历史。"
+      },
+      "Invalid": {
+        "Title": "筛选条件无效",
+        "Text": "链接包含未知的资源、操作或时间段。请清除筛选后重试。"
+      },
+      "Error": {
+        "Title": "无法加载历史",
+        "Text": "未进行任何更改。请重新加载历史。",
+        "Retry": "重试"
+      }
+    },
+    "Group": {
+      "More": "此操作中还有 {{.Count}} 条"
+    },
+    "Details": {
+      "Field": "字段",
+      "Before": "之前",
+      "After": "之后",
+      "Hidden": "已隐藏",
+      "OnlyAllowed": "仅显示您有权查看的字段。",
+      "LegacyIncomplete": "由旧日志记录：执行人和变更内容可能缺失。",
+      "Initiator": "代表",
+      "EventType": "事件类型",
+      "Operation": "操作批次",
+      "Request": "请求",
+      "Run": "运行",
+      "Event": "事件"
     }
+  },
+  "NavigationLinks": {
+    "BusinessHistory": "操作日志"
   }
 }

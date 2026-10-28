@@ -6,12 +6,23 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/fielddiff"
 )
 
-// ForReader hides the field values a reader may not see. Values of fields the registry no
-// longer describes are hidden as well, so a missing definition never discloses data.
+// ForReader drops subjects of resources a reader may not see and hides the field values the
+// reader may not see. Values of fields the registry no longer describes are hidden as well,
+// so a missing definition never discloses data.
 func (r *Registry) ForReader(e businessevent.Event, can func(permission.Permission) bool) businessevent.Event {
 	def, known := r.Get(e.Type, e.SchemaVersion)
-	changes := make([]businessevent.Change, len(e.Changes))
-	for i, c := range e.Changes {
+	subjects := make([]businessevent.Subject, 0, len(e.Subjects))
+	for _, s := range e.Subjects {
+		if r.Readable(s.Resource, can) {
+			subjects = append(subjects, s)
+		}
+	}
+	e.Subjects = subjects
+	changes := make([]businessevent.Change, 0, len(e.Changes))
+	for _, c := range e.Changes {
+		if !r.Readable(c.Resource, can) {
+			continue
+		}
 		resource, _ := def.resource(c.Resource)
 		fields := make([]fielddiff.Diff, len(c.Fields))
 		for j, d := range c.Fields {
@@ -21,7 +32,7 @@ func (r *Registry) ForReader(e businessevent.Event, can func(permission.Permissi
 			}
 			fields[j] = d
 		}
-		changes[i] = businessevent.Change{Resource: c.Resource, ID: c.ID, Fields: fields}
+		changes = append(changes, businessevent.Change{Resource: c.Resource, ID: c.ID, Fields: fields})
 	}
 	e.Changes = changes
 	return e

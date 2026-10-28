@@ -1,0 +1,19 @@
+package historylink
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+)
+
+// Button opens the history of one object from its card; it renders nothing for users without access.
+templ Button(resource, id string) {
+	if Visible(ctx) {
+		@button.Secondary(button.Props{
+			Size: button.SizeMD,
+			Href: URL(resource, id),
+			Icon: icons.ClockCounterClockwise(icons.Props{Size: "16"}),
+		}) {
+			{ Label(ctx) }
+		}
+	}
+}

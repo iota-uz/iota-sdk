@@ -138,10 +138,44 @@ func (e Event) Fingerprint() (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+// Position is a place in the timeline, ordered by time and then event ID, both descending.
+type Position struct {
+	Time time.Time
+	ID   uuid.UUID
+}
+
+// FindParams narrows the timeline; zero values do not filter. An event is visible when it
+// concerns at least one of Readable resources or none at all.
+type FindParams struct {
+	Resource   string
+	SubjectID  string
+	ActorID    string
+	EventTypes []string
+	Channels   []Channel
+	// WithoutChannel includes legacy events, which have no channel.
+	WithoutChannel bool
+	Outcomes       []Outcome
+	From           time.Time
+	To             time.Time
+	Readable       []string
+	After          *Position
+	Limit          int
+}
+
+// Position places the event in the timeline. Legacy events without occurred_at use the time they were recorded.
+func (e Event) Position() Position {
+	if e.OccurredAt.IsZero() {
+		return Position{Time: e.RecordedAt, ID: e.ID}
+	}
+	return Position{Time: e.OccurredAt, ID: e.ID}
+}
+
 type Repository interface {
 	// Append stores the event in the transaction carried by ctx. Storing an event that is
 	// already present with the same fingerprint is a no-op; a different one is ErrConflict.
 	Append(ctx context.Context, e Event) error
 	Get(ctx context.Context, id uuid.UUID) (Event, error)
 	ListByOperation(ctx context.Context, operationID string) ([]Event, error)
+	// Find returns the tenant's events newest first.
+	Find(ctx context.Context, params FindParams) ([]Event, error)
 }

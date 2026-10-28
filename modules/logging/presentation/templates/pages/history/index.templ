@@ -1,0 +1,363 @@
+package history
+
+import (
+	"fmt"
+
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/badge"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
+	loghistory "github.com/iota-uz/iota-sdk/modules/logging/history"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/fielddiff"
+)
+
+var channels = []string{
+	string(businessevent.ChannelUI),
+	string(businessevent.ChannelMCP),
+	string(businessevent.ChannelChat),
+	string(businessevent.ChannelImport),
+	string(businessevent.ChannelJob),
+	string(businessevent.ChannelAPI),
+	loghistory.LegacyChannel,
+}
+
+var outcomes = []businessevent.Outcome{
+	businessevent.OutcomeSucceeded,
+	businessevent.OutcomeFailed,
+	businessevent.OutcomeDenied,
+}
+
+var channelVariants = map[string]badge.Variant{
+	string(businessevent.ChannelMCP):    badge.VariantPurple,
+	string(businessevent.ChannelChat):   badge.VariantBlue,
+	string(businessevent.ChannelImport): badge.VariantYellow,
+}
+
+var outcomeVariants = map[businessevent.Outcome]badge.Variant{
+	businessevent.OutcomeSucceeded: badge.VariantGreen,
+	businessevent.OutcomeFailed:    badge.VariantPink,
+	businessevent.OutcomeDenied:    badge.VariantYellow,
+}
+
+func channelVariant(channel string) badge.Variant {
+	if v, ok := channelVariants[channel]; ok {
+		return v
+	}
+	return badge.VariantGray
+}
+
+templ Index(props *PageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: props.Scope},
+	}) {
+		<div class="flex flex-col gap-5 p-4 md:p-6">
+			<div class="flex flex-col gap-1">
+				if props.Filters.Resource != "" {
+					<a href={ templ.SafeURL(props.BasePath) } class="text-sm text-300 hover:underline">
+						{ pageCtx.T("BusinessHistory.AllEvents") }
+					</a>
+				}
+				<h1 class="text-2xl font-medium">{ props.Scope }</h1>
+				<p class="text-sm text-300">{ pageCtx.T("BusinessHistory.Meta.Subtitle") }</p>
+			</div>
+			@filters(props)
+			<div
+				id="history-events"
+				hx-get={ props.EventsURL }
+				hx-trigger="load"
+				hx-swap="innerHTML"
+			>
+				<div class="flex items-center justify-center gap-2 p-10 text-300" data-state="loading">
+					@icons.CircleNotch(icons.Props{Size: "20", Class: "animate-spin"})
+					{ pageCtx.T("BusinessHistory.States.Loading") }
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ filters(props *PageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ f := props.Filters }}
+	<form method="get" action={ templ.SafeURL(props.BasePath) } class="flex flex-col gap-3 rounded-lg border border-primary bg-surface-300 p-4">
+		if f.ID != "" {
+			<input type="hidden" name="id" value={ f.ID }/>
+		}
+		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+			@input.Date(&input.Props{
+				Label: pageCtx.T("BusinessHistory.Filters.From"),
+				Attrs: templ.Attributes{"name": "from", "value": f.From},
+			})
+			@input.Date(&input.Props{
+				Label: pageCtx.T("BusinessHistory.Filters.To"),
+				Attrs: templ.Attributes{"name": "to", "value": f.To},
+			})
+			if f.ID != "" {
+				<input type="hidden" name="resource" value={ f.Resource }/>
+			} else {
+				@base.Select(&base.SelectProps{
+					Label: pageCtx.T("BusinessHistory.Filters.Resource"),
+					Attrs: templ.Attributes{"name": "resource"},
+				}) {
+					<option value="">{ pageCtx.T("BusinessHistory.Filters.Any") }</option>
+					for _, o := range props.Resources {
+						<option value={ o.Value } selected?={ o.Value == f.Resource }>{ o.Label }</option>
+					}
+				}
+			}
+			@base.Select(&base.SelectProps{
+				Label: pageCtx.T("BusinessHistory.Filters.Action"),
+				Attrs: templ.Attributes{"name": "event_type"},
+			}) {
+				<option value="">{ pageCtx.T("BusinessHistory.Filters.Any") }</option>
+				for _, o := range props.Types {
+					<option value={ o.Value } selected?={ o.Value == f.EventType }>{ o.Label }</option>
+				}
+			}
+			@base.Select(&base.SelectProps{
+				Label: pageCtx.T("BusinessHistory.Filters.Channel"),
+				Attrs: templ.Attributes{"name": "channel"},
+			}) {
+				<option value="">{ pageCtx.T("BusinessHistory.Filters.Any") }</option>
+				for _, c := range channels {
+					<option value={ c } selected?={ c == f.Channel }>{ pageCtx.T("BusinessHistory.Channels." + c) }</option>
+				}
+			}
+			@base.Select(&base.SelectProps{
+				Label: pageCtx.T("BusinessHistory.Filters.Outcome"),
+				Attrs: templ.Attributes{"name": "outcome"},
+			}) {
+				<option value="">{ pageCtx.T("BusinessHistory.Filters.Any") }</option>
+				for _, o := range outcomes {
+					<option value={ string(o) } selected?={ string(o) == f.Outcome }>{ pageCtx.T("BusinessHistory.Outcomes." + string(o)) }</option>
+				}
+			}
+		</div>
+		<div class="flex flex-wrap items-center gap-3">
+			if f.Actor != "" {
+				<input type="hidden" name="actor" value={ f.Actor }/>
+				<input type="hidden" name="actor_name" value={ f.ActorName }/>
+				<a
+					href={ templ.SafeURL(f.URL(props.BasePath, "actor", "", "actor_name", "")) }
+					class="inline-flex items-center gap-2 rounded-lg border border-primary px-3 py-1.5 text-sm"
+				>
+					{ pageCtx.T("BusinessHistory.Filters.Actor") }: { f.ActorName }
+					@icons.X(icons.Props{Size: "14"})
+				</a>
+			}
+			<div class="ml-auto flex items-center gap-3">
+				if f.Filtered() {
+					<a href={ templ.SafeURL(Filters{Resource: f.Resource, ID: f.ID}.URL(props.BasePath)) } class="text-sm text-300 hover:underline">
+						{ pageCtx.T("BusinessHistory.Filters.Clear") }
+					</a>
+				}
+				@button.Primary(button.Props{Size: button.SizeNormal, Attrs: templ.Attributes{"type": "submit"}}) {
+					{ pageCtx.T("BusinessHistory.Filters.Apply") }
+				}
+			</div>
+		</div>
+	</form>
+}
+
+templ Events(props *EventsProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	switch props.State {
+		case StateDenied:
+			@state(icons.LockSimple(icons.Props{Size: "32"}), "denied", pageCtx.T("BusinessHistory.States.Denied.Title"), pageCtx.T("BusinessHistory.States.Denied.Text")) {
+			}
+		case StateInvalid:
+			@state(icons.Warning(icons.Props{Size: "32"}), "invalid", pageCtx.T("BusinessHistory.States.Invalid.Title"), pageCtx.T("BusinessHistory.States.Invalid.Text")) {
+				@button.Secondary(button.Props{Size: button.SizeNormal, Href: Filters{Resource: props.Filters.Resource, ID: props.Filters.ID}.URL(props.BasePath)}) {
+					{ pageCtx.T("BusinessHistory.Filters.Clear") }
+				}
+			}
+		case StateError:
+			@state(icons.WarningCircle(icons.Props{Size: "32"}), "error", pageCtx.T("BusinessHistory.States.Error.Title"), pageCtx.T("BusinessHistory.States.Error.Text")) {
+				@button.Secondary(button.Props{
+					Size:  button.SizeNormal,
+					Attrs: templ.Attributes{"hx-get": props.RetryURL, "hx-target": "#history-events", "hx-swap": "innerHTML"},
+				}) {
+					{ pageCtx.T("BusinessHistory.States.Error.Retry") }
+				}
+			}
+		case StateEmpty:
+			@state(icons.ClockCounterClockwise(icons.Props{Size: "32"}), "empty", pageCtx.T("BusinessHistory.States.Empty.Title"), pageCtx.T("BusinessHistory.States.Empty.Text")) {
+				if props.Filters.Filtered() {
+					@button.Secondary(button.Props{Size: button.SizeNormal, Href: Filters{Resource: props.Filters.Resource, ID: props.Filters.ID}.URL(props.BasePath)}) {
+						{ pageCtx.T("BusinessHistory.Filters.Clear") }
+					}
+				}
+			}
+		default:
+			<div class="flex flex-col gap-3" data-state="ready">
+				for _, group := range props.Groups {
+					<div class="rounded-lg border border-primary bg-surface-300">
+						@event(props, group[0])
+						if len(group) > 1 {
+							<details class="border-t border-primary">
+								<summary class="cursor-pointer px-4 py-3 text-sm text-300">
+									{ pageCtx.T("BusinessHistory.Group.More", map[string]any{"Count": len(group) - 1}) }
+								</summary>
+								for _, e := range group[1:] {
+									<div class="border-t border-primary">
+										@event(props, e)
+									</div>
+								}
+							</details>
+						}
+					</div>
+				}
+			</div>
+			<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+				<span class="text-sm text-300">{ pageCtx.T("BusinessHistory.OnlyAccessible") }</span>
+				<div class="flex gap-3">
+					if props.Filters.Cursor != "" {
+						@button.Secondary(button.Props{Size: button.SizeNormal, Href: props.Filters.URL(props.BasePath)}) {
+							{ pageCtx.T("BusinessHistory.First") }
+						}
+					}
+					if props.NextURL != "" {
+						@button.Secondary(button.Props{
+							Size:  button.SizeNormal,
+							Href:  props.NextURL,
+							Icon:  icons.ArrowRight(icons.Props{Size: "16"}),
+						}) {
+							{ pageCtx.T("BusinessHistory.Next") }
+						}
+					}
+				</div>
+			</div>
+	}
+}
+
+templ state(icon templ.Component, name, title, text string) {
+	<div class="flex flex-col items-center gap-3 rounded-lg border border-primary bg-surface-300 p-10 text-center" data-state={ name }>
+		<div class="text-300">
+			@icon
+		</div>
+		<h2 class="text-lg font-medium">{ title }</h2>
+		<p class="max-w-md text-sm text-300">{ text }</p>
+		{ children... }
+	</div>
+}
+
+templ event(props *EventsProps, e Event) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<details class="group">
+		<summary class="grid cursor-pointer list-none grid-cols-1 gap-2 px-4 py-3 md:grid-cols-[11rem_1fr_14rem_10rem] md:items-center md:gap-4">
+			<span class="text-sm text-300">{ FormatTime(e.OccurredAt) }</span>
+			<div class="flex min-w-0 flex-col">
+				<span class="font-medium">{ e.Title }</span>
+				if len(e.Subjects) > 0 {
+					<span class="truncate text-sm text-300">
+						for i, s := range e.Subjects {
+							if i > 0 {
+								{ ", " }
+							}
+							{ s.Label }
+						}
+					</span>
+				}
+			</div>
+			<div class="text-sm">
+				if name := ActorName(e.Actor); name != "" {
+					<a
+						href={ templ.SafeURL(props.Filters.URL(props.BasePath, "actor", e.Actor.Identity(), "actor_name", name)) }
+						class="hover:underline"
+					>
+						{ name }
+					</a>
+				} else {
+					<span class="text-300">{ pageCtx.T("BusinessHistory.UnknownActor") }</span>
+				}
+			</div>
+			<div class="flex flex-wrap gap-2">
+				@badge.New(badge.Props{Variant: channelVariant(e.Channel), Class: templ.Classes("px-2")}) {
+					{ pageCtx.T("BusinessHistory.Channels." + e.Channel) }
+				}
+				if e.Outcome != "" && e.Outcome != businessevent.OutcomeSucceeded {
+					@badge.New(badge.Props{Variant: outcomeVariants[e.Outcome], Class: templ.Classes("px-2")}) {
+						{ pageCtx.T("BusinessHistory.Outcomes." + string(e.Outcome)) }
+					}
+				}
+			</div>
+		</summary>
+		<div class="flex flex-col gap-4 border-t border-primary px-4 py-4">
+			if e.Summary != "" {
+				<p class="text-sm">{ e.Summary }</p>
+			}
+			if e.LegacyIncomplete {
+				<p class="text-sm text-300">{ pageCtx.T("BusinessHistory.Details.LegacyIncomplete") }</p>
+			}
+			for _, c := range e.Changes {
+				<div class="flex flex-col gap-2">
+					<div class="flex items-center justify-between gap-2 text-sm font-medium">
+						<span>{ c.Subject }</span>
+					</div>
+					<div class="overflow-hidden rounded-lg border border-primary">
+						<div class="hidden grid-cols-3 bg-surface-500 px-3 py-2 text-sm text-300 md:grid">
+							<span>{ pageCtx.T("BusinessHistory.Details.Field") }</span>
+							<span>{ pageCtx.T("BusinessHistory.Details.Before") }</span>
+							<span>{ pageCtx.T("BusinessHistory.Details.After") }</span>
+						</div>
+						for _, f := range c.Fields {
+							<div class="grid grid-cols-1 gap-1 border-t border-primary px-3 py-2 text-sm first:border-t-0 md:grid-cols-3 md:first:border-t">
+								<span class="font-medium md:font-normal">{ f.Label }</span>
+								<span class="break-words">
+									<span class="text-300 md:hidden">{ pageCtx.T("BusinessHistory.Details.Before") }: </span>
+									@fieldValue(f.Before)
+								</span>
+								<span class="break-words">
+									<span class="text-300 md:hidden">{ pageCtx.T("BusinessHistory.Details.After") }: </span>
+									@fieldValue(f.After)
+								</span>
+							</div>
+						}
+					</div>
+				</div>
+			}
+			if len(e.Changes) > 0 {
+				<p class="text-xs text-300">{ pageCtx.T("BusinessHistory.Details.OnlyAllowed") }</p>
+			}
+			<dl class="grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-300 sm:grid-cols-[10rem_1fr]">
+				if e.Initiator != nil {
+					<dt>{ pageCtx.T("BusinessHistory.Details.Initiator") }</dt>
+					<dd class="break-all">{ ActorName(e.Initiator) }</dd>
+				}
+				<dt>{ pageCtx.T("BusinessHistory.Details.EventType") }</dt>
+				<dd class="break-all">{ fmt.Sprintf("%s v%d", e.EventType, e.SchemaVersion) }</dd>
+				if e.OperationID != nil {
+					<dt>{ pageCtx.T("BusinessHistory.Details.Operation") }</dt>
+					<dd class="break-all">{ *e.OperationID }</dd>
+				}
+				if e.RequestID != "" {
+					<dt>{ pageCtx.T("BusinessHistory.Details.Request") }</dt>
+					<dd class="break-all">{ e.RequestID }</dd>
+				}
+				if e.RunID != "" {
+					<dt>{ pageCtx.T("BusinessHistory.Details.Run") }</dt>
+					<dd class="break-all">{ e.RunID }</dd>
+				}
+				<dt>{ pageCtx.T("BusinessHistory.Details.Event") }</dt>
+				<dd class="break-all">{ e.EventID }</dd>
+			</dl>
+		</div>
+	</details>
+}
+
+templ fieldValue(v fielddiff.FieldValue) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	switch v.State {
+		case fielddiff.StateRedacted:
+			<span class="text-300 italic">{ pageCtx.T("BusinessHistory.Details.Hidden") }</span>
+		case fielddiff.StateAbsent:
+			<span class="text-300">—</span>
+		case fielddiff.StateValue:
+			{ Value(v) }
+	}
+}

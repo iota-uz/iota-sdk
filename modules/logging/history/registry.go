@@ -40,8 +40,12 @@ type Field struct {
 }
 
 type Resource struct {
-	Name   string
-	Fields []Field
+	Name string
+	// LabelKey names the resource in the history UI; the name is shown when it is empty.
+	LabelKey string
+	// ReadPermission hides events about the resource, and its subjects in other events, from readers without it.
+	ReadPermission *permission.Permission
+	Fields         []Field
 }
 
 type Definition struct {
@@ -152,10 +156,46 @@ func (r *Registry) Definitions() []Definition {
 	return result
 }
 
+// Resources lists every resource named by a registered event type, sorted by name.
+func (r *Registry) Resources() []Resource {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	byName := map[string]Resource{}
+	for _, d := range r.definitions {
+		for _, res := range d.Resources {
+			if known, ok := byName[res.Name]; !ok || known.LabelKey == "" {
+				byName[res.Name] = Resource{Name: res.Name, LabelKey: res.LabelKey}
+			}
+		}
+	}
+	result := make([]Resource, 0, len(byName))
+	for _, res := range byName {
+		result = append(result, res)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result
+}
+
+// Readable reports whether a reader may see events about the resource. A permission declared
+// for it by any event type applies to all of them.
+func (r *Registry) Readable(resource string, can func(permission.Permission) bool) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, d := range r.definitions {
+		for _, res := range d.Resources {
+			if res.Name == resource && res.ReadPermission != nil && !can(*res.ReadPermission) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func cloneDefinition(d Definition) Definition {
 	resources := make([]Resource, len(d.Resources))
 	for i, r := range d.Resources {
-		resources[i] = Resource{Name: r.Name, Fields: append([]Field(nil), r.Fields...)}
+		r.Fields = append([]Field(nil), r.Fields...)
+		resources[i] = r
 	}
 	d.Resources = resources
 	return d
