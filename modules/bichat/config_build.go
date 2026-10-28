@@ -130,7 +130,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		return nil, serrors.Wrap(op, err)
 	}
 
-	var runtimeTools []coreagents.Tool
+	runtimeTools := append([]coreagents.Tool(nil), c.RuntimeTools...)
 	if c.skillsCatalog != nil {
 		runtimeTools = append(runtimeTools, toolskills.NewLoadSkillTool(
 			c.skillsCatalog,

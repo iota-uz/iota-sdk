@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Add the shared MCP engine: typed tool registry, guarded prepare/apply changes with durable idempotency, execute on the pykernel runtime, chat adapter and the separate mcpgateway module."}

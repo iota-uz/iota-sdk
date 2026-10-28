@@ -149,6 +149,13 @@ func WithCheckpointer(checkpointer Checkpointer) ConfigOption {
 	}
 }
 
+// WithRuntimeTools adds application tools to every agent turn.
+func WithRuntimeTools(tools ...agents.Tool) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.RuntimeTools = append(c.RuntimeTools, tools...)
+	}
+}
+
 // WithSubAgents sets additional sub-agents for delegation
 func WithSubAgents(subAgents ...Agent) ConfigOption {
 	return func(c *ModuleConfig) {
