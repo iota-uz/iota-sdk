@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	coreseed "github.com/iota-uz/iota-sdk/modules/core/seed"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	websiteseed "github.com/iota-uz/iota-sdk/modules/website/seed"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -93,7 +94,7 @@ func SeedPool(ctx context.Context, pool *pgxpool.Pool, logger *logrus.Logger) er
 	)
 
 	ctxWithTenant := composables.WithTenantID(
-		composables.WithTx(ctx, tx),
+		composables.WithTx(history.SystemExecution(ctx, "e2e:seed", "E2E seed"), tx),
 		defaultTenant.ID,
 	)
 

@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -19,6 +20,7 @@ type ExpenseService struct {
 	publisher      eventbus.EventBus
 	accountService *MoneyAccountService
 	uploadRepo     upload.Repository
+	historyWriter  history.Writer
 }
 
 func NewExpenseService(
@@ -26,12 +28,14 @@ func NewExpenseService(
 	publisher eventbus.EventBus,
 	accountService *MoneyAccountService,
 	uploadRepo upload.Repository,
+	historyWriter history.Writer,
 ) *ExpenseService {
 	return &ExpenseService{
 		repo:           repo,
 		publisher:      publisher,
 		accountService: accountService,
 		uploadRepo:     uploadRepo,
+		historyWriter:  historyWriter,
 	}
 }
 
@@ -77,7 +81,10 @@ func (s *ExpenseService) Create(ctx context.Context, entity expense.Expense) (ex
 		if err := s.accountService.RecalculateBalance(txCtx, entity.Account().ID()); err != nil {
 			return err
 		}
-		return nil
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: ExpenseCreated, Version: 1, Resource: ExpenseResource, ID: created.ID().String(),
+			After: expenseSnapshot(created),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -99,6 +106,10 @@ func (s *ExpenseService) Update(ctx context.Context, entity expense.Expense) (ex
 
 	var updated expense.Expense
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		before, err := s.repo.GetByID(txCtx, entity.ID())
+		if err != nil {
+			return err
+		}
 		updated, err = s.repo.Update(txCtx, entity)
 		if err != nil {
 			return err
@@ -106,7 +117,10 @@ func (s *ExpenseService) Update(ctx context.Context, entity expense.Expense) (ex
 		if err := s.accountService.RecalculateBalance(txCtx, entity.Account().ID()); err != nil {
 			return err
 		}
-		return nil
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: ExpenseUpdated, Version: 1, Resource: ExpenseResource, ID: entity.ID().String(),
+			Before: expenseSnapshot(before), After: expenseSnapshot(updated),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -135,7 +149,10 @@ func (s *ExpenseService) Delete(ctx context.Context, id uuid.UUID) (expense.Expe
 		if err := s.repo.Delete(txCtx, id); err != nil {
 			return err
 		}
-		return nil
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: ExpenseDeleted, Version: 1, Resource: ExpenseResource, ID: id.String(),
+			Before: expenseSnapshot(entity),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -181,7 +198,10 @@ func (s *ExpenseService) AttachFileToExpense(ctx context.Context, expenseID uuid
 	}
 
 	return composables.InTx(ctx, func(txCtx context.Context) error {
-		return s.repo.AttachFile(txCtx, expenseID, uploadID)
+		if err := s.repo.AttachFile(txCtx, expenseID, uploadID); err != nil {
+			return err
+		}
+		return recordFileEvent(txCtx, s.historyWriter, ExpenseFileAttached, ExpenseResource, expenseID.String(), uploadID)
 	})
 }
 
@@ -198,7 +218,10 @@ func (s *ExpenseService) DetachFileFromExpense(ctx context.Context, expenseID uu
 	}
 
 	return composables.InTx(ctx, func(txCtx context.Context) error {
-		return s.repo.DetachFile(txCtx, expenseID, uploadID)
+		if err := s.repo.DetachFile(txCtx, expenseID, uploadID); err != nil {
+			return err
+		}
+		return recordFileEvent(txCtx, s.historyWriter, ExpenseFileDetached, ExpenseResource, expenseID.String(), uploadID)
 	})
 }
 

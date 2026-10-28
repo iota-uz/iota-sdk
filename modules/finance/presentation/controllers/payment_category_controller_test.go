@@ -11,6 +11,7 @@ import (
 	paymentCategoryEntity "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,7 @@ func TestPaymentCategoryController_List_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -67,7 +68,7 @@ func TestPaymentCategoryController_List_HTMX_Request(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -97,7 +98,7 @@ func TestPaymentCategoryController_GetNewDrawer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -124,7 +125,7 @@ func TestPaymentCategoryController_Create_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -158,7 +159,7 @@ func TestPaymentCategoryController_Create_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -192,7 +193,7 @@ func TestPaymentCategoryController_GetEditDrawer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -234,7 +235,7 @@ func TestPaymentCategoryController_GetEditDrawer_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -256,7 +257,7 @@ func TestPaymentCategoryController_Update_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -303,7 +304,7 @@ func TestPaymentCategoryController_Update_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -351,7 +352,7 @@ func TestPaymentCategoryController_Delete_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -393,7 +394,7 @@ func TestPaymentCategoryController_Delete_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -414,7 +415,7 @@ func TestPaymentCategoryController_InvalidUUID(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)

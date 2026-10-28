@@ -6,6 +6,7 @@ import (
 
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules/core"
+	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/modules/superadmin"
 	superadminMiddleware "github.com/iota-uz/iota-sdk/modules/superadmin/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
@@ -46,6 +47,7 @@ func run() error {
 		context.Background(),
 		bootstrap.InstallComponents(
 			[]composition.Capability{composition.CapabilityAPI},
+			logging.NewComponent(),
 			core.NewComponent(&core.ModuleOptions{
 				PermissionSchema:     defaults.PermissionSchema(),
 				SkipAdminControllers: true,

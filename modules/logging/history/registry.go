@@ -160,3 +160,22 @@ func cloneDefinition(d Definition) Definition {
 	d.Resources = resources
 	return d
 }
+
+// Lifecycle defines the created, updated and deleted events of one resource: types are
+// typePrefix.created, .updated and .deleted, and translation keys are
+// keyPrefix.Created.Title, keyPrefix.Created.Summary and so on.
+func Lifecycle(typePrefix, keyPrefix string, resource Resource) []Definition {
+	actions := []struct{ suffix, key string }{{"created", "Created"}, {"updated", "Updated"}, {"deleted", "Deleted"}}
+	defs := make([]Definition, len(actions))
+	for i, a := range actions {
+		defs[i] = Definition{
+			Type:           typePrefix + "." + a.suffix,
+			Version:        1,
+			Category:       businessevent.CategoryBusiness,
+			TitleKey:       keyPrefix + "." + a.key + ".Title",
+			DescriptionKey: keyPrefix + "." + a.key + ".Summary",
+			Resources:      []Resource{resource},
+		}
+	}
+	return defs
+}

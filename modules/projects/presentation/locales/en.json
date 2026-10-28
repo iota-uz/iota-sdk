@@ -79,6 +79,39 @@
         "DRAFT": "Draft",
         "SIGNED": "Signed",
         "CANCELLED": "Cancelled"
+      },
+      "Status": "Status",
+      "History": {
+        "Created": {
+          "Title": "Acceptance document created",
+          "Summary": "A draft acceptance document was added to the project"
+        },
+        "Signed": {
+          "Title": "Acceptance document signed",
+          "Summary": "The document was signed and its amount is recognised as revenue"
+        },
+        "Cancelled": {
+          "Title": "Acceptance document cancelled",
+          "Summary": "The document was withdrawn and no longer counts"
+        },
+        "Deleted": {
+          "Title": "Acceptance document deleted",
+          "Summary": "The document was removed from the project"
+        }
+      }
+    },
+    "History": {
+      "Created": {
+        "Title": "Project created",
+        "Summary": "A new project was added"
+      },
+      "Updated": {
+        "Title": "Project updated",
+        "Summary": "Project details were changed"
+      },
+      "Deleted": {
+        "Title": "Project deleted",
+        "Summary": "The project was removed"
       }
     }
   },
@@ -120,6 +153,20 @@
       "PlannedEndDate": "Planned End Date",
       "FactualEndDate": "Actual End Date",
       "DeleteConfirmation": "Are you sure you want to delete this project stage?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Project stage created",
+        "Summary": "A new stage was added to the project"
+      },
+      "Updated": {
+        "Title": "Project stage updated",
+        "Summary": "Stage details were changed"
+      },
+      "Deleted": {
+        "Title": "Project stage deleted",
+        "Summary": "The stage was removed from the project"
+      }
     }
   }
 }

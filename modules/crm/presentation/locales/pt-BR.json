@@ -116,6 +116,20 @@
       },
       "Delete": "Excluir cliente",
       "DeleteConfirmation": "Tem certeza de que deseja excluir este cliente?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Cliente criado",
+        "Summary": "Um novo cliente foi adicionado"
+      },
+      "Updated": {
+        "Title": "Cliente alterado",
+        "Summary": "Os dados do cliente foram alterados"
+      },
+      "Deleted": {
+        "Title": "Cliente excluído",
+        "Summary": "O cliente foi removido do CRM"
+      }
     }
   },
   "MessageTemplates": {

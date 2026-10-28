@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
@@ -36,7 +37,7 @@ type accountCardFixture struct {
 func newAccountCardFixture(t *testing.T) *accountCardFixture {
 	t.Helper()
 	user := itf.User(permissions.PaymentCreate, permissions.PaymentRead)
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(user)

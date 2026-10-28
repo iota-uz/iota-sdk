@@ -192,9 +192,14 @@ func (s *ChatService) CreateOrGetClientByPhone(ctx context.Context, phoneNumber 
 
 	// Create client in a transaction
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		tenantID, err := composables.UseTenantID(txCtx)
+		if err != nil {
+			return err
+		}
 		// Create a new client with the provided phone number
 		newClient, err := client.New(
 			"Guest", // Default first name
+			client.WithTenantID(tenantID),
 			client.WithPhone(phoneValue),
 		)
 		if err != nil {
@@ -202,8 +207,7 @@ func (s *ChatService) CreateOrGetClientByPhone(ctx context.Context, phoneNumber 
 			return err
 		}
 
-		// Save the new client
-		newClientEntity, err = s.clientRepo.Save(txCtx, newClient)
+		newClientEntity, err = s.clientService.create(txCtx, newClient)
 		return err
 	})
 	if err != nil {

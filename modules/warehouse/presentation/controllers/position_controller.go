@@ -30,6 +30,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	importcomponents "github.com/iota-uz/iota-sdk/components/import"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -141,6 +142,7 @@ func (c *PositionsController) HandleUpload(
 	localizer *i18n.Localizer,
 	coreUploadService *coreservices.UploadService,
 	positionService *positionservice.PositionService,
+	historyWriter history.Writer,
 ) {
 	if err := r.ParseForm(); err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
@@ -187,11 +189,16 @@ func (c *PositionsController) HandleUpload(
 	rowHandler := NewPositionRowHandler(
 		positionService,
 		importpkg.NewDefaultErrorFactory(),
+		historyWriter,
 	)
 
-	if err := excelProcessor.ProcessFileWithAllErrors(r.Context(), dto.FileID, rowHandler); err != nil {
+	importCtx := history.ImportExecution(r.Context(), strconv.FormatUint(uint64(dto.FileID), 10))
+	if err := excelProcessor.ProcessFileWithAllErrors(importCtx, dto.FileID, rowHandler); err != nil {
 		// Check if it's a validation errors collection
 		if validationErrors, ok := err.(*importpkg.MultiValidationError); ok {
+			if recordErr := rowHandler.RecordRejectedRows(importCtx, validationErrors.Errors); recordErr != nil {
+				logger.WithError(recordErr).Error("failed to record rejected import rows")
+			}
 			// Create namespaced context for error localization
 			pageCtx := composables.UsePageCtx(r.Context())
 			namespacedPageCtx := pageCtx.Namespace("WarehousePositions.Import")

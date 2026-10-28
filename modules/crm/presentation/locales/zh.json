@@ -116,6 +116,20 @@
       },
       "Delete": "删除客户",
       "DeleteConfirmation": "您确定要删除此客户吗？"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建客户",
+        "Summary": "添加了新客户"
+      },
+      "Updated": {
+        "Title": "已修改客户",
+        "Summary": "客户信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除客户",
+        "Summary": "客户已从 CRM 中删除"
+      }
     }
   },
   "MessageTemplates": {

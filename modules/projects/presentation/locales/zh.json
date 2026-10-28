@@ -79,6 +79,39 @@
         "DRAFT": "草稿",
         "SIGNED": "已签署",
         "CANCELLED": "已作废"
+      },
+      "Status": "状态",
+      "History": {
+        "Created": {
+          "Title": "验收文件已创建",
+          "Summary": "项目中已添加验收文件草稿"
+        },
+        "Signed": {
+          "Title": "验收文件已签署",
+          "Summary": "文件已签署，其金额确认为收入"
+        },
+        "Cancelled": {
+          "Title": "验收文件已作废",
+          "Summary": "文件已撤回，不再计入"
+        },
+        "Deleted": {
+          "Title": "验收文件已删除",
+          "Summary": "文件已从项目中移除"
+        }
+      }
+    },
+    "History": {
+      "Created": {
+        "Title": "项目已创建",
+        "Summary": "已添加新项目"
+      },
+      "Updated": {
+        "Title": "项目已修改",
+        "Summary": "项目信息已修改"
+      },
+      "Deleted": {
+        "Title": "项目已删除",
+        "Summary": "项目已被移除"
       }
     }
   },
@@ -120,6 +153,20 @@
       "PlannedEndDate": "计划结束日期",
       "FactualEndDate": "实际结束日期",
       "DeleteConfirmation": "您确定要删除此项目阶段吗？"
+    },
+    "History": {
+      "Created": {
+        "Title": "项目阶段已创建",
+        "Summary": "项目中已添加新阶段"
+      },
+      "Updated": {
+        "Title": "项目阶段已修改",
+        "Summary": "阶段信息已修改"
+      },
+      "Deleted": {
+        "Title": "项目阶段已删除",
+        "Summary": "该阶段已从项目中移除"
+      }
     }
   }
 }

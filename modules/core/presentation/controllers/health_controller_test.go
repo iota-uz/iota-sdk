@@ -8,6 +8,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,7 @@ import (
 func TestHealthController_Descriptor_ReturnsCorrectRoute(t *testing.T) {
 	t.Parallel()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	controller := controllers.NewHealthController(suite.Environment().App)
@@ -30,7 +31,7 @@ func TestHealthController_Descriptor_ReturnsCorrectRoute(t *testing.T) {
 func TestHealthController_Get_ReturnsMinimalHealthyPayload(t *testing.T) {
 	t.Parallel()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	controller := controllers.NewHealthController(suite.Environment().App)
@@ -50,7 +51,7 @@ func TestHealthController_Get_ReturnsMinimalHealthyPayload(t *testing.T) {
 func TestHealthController_QuickDBCheck_Timeout(t *testing.T) {
 	t.Parallel()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 
@@ -70,7 +71,7 @@ func TestHealthController_QuickDBCheck_Timeout(t *testing.T) {
 func TestHealthController_Integration_ResponseFormat(t *testing.T) {
 	t.Parallel()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	controller := controllers.NewHealthController(suite.Environment().App)

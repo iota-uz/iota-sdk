@@ -476,6 +476,36 @@
       "NoRoleDescription": "Tavsif mavjud emas",
       "Delete": "Guruhni o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu guruhni o'chirmoqchimisiz?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Гуруҳ яратилди",
+        "Summary": "Гуруҳ яратилди"
+      },
+      "Updated": {
+        "Title": "Гуруҳ ўзгартирилди",
+        "Summary": "Гуруҳ маълумотлари ўзгартирилди"
+      },
+      "Deleted": {
+        "Title": "Гуруҳ ўчирилди",
+        "Summary": "Гуруҳ ўчирилди"
+      },
+      "MemberAdded": {
+        "Title": "Фойдаланувчи гуруҳга қўшилди",
+        "Summary": "Фойдаланувчи гуруҳга қўшилди"
+      },
+      "MemberRemoved": {
+        "Title": "Фойдаланувчи гуруҳдан чиқарилди",
+        "Summary": "Фойдаланувчи гуруҳдан чиқарилди"
+      },
+      "RoleAssigned": {
+        "Title": "Гуруҳга рол тайинланди",
+        "Summary": "Гуруҳга рол тайинланди"
+      },
+      "RoleUnassigned": {
+        "Title": "Гуруҳдан рол олиб ташланди",
+        "Summary": "Гуруҳдан рол олиб ташланди"
+      }
     }
   },
   "Home": {
@@ -966,6 +996,28 @@
       },
       "Delete": "Rolni o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu rolni o'chirmoqchimisiz?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Рол яратилди",
+        "Summary": "Рол яратилди"
+      },
+      "Updated": {
+        "Title": "Рол ўзгартирилди",
+        "Summary": "Рол маълумотлари ўзгартирилди"
+      },
+      "Deleted": {
+        "Title": "Рол ўчирилди",
+        "Summary": "Рол ўчирилди"
+      },
+      "PermissionGranted": {
+        "Title": "Ролга рухсат қўшилди",
+        "Summary": "Ролга рухсат қўшилди"
+      },
+      "PermissionRevoked": {
+        "Title": "Ролдан рухсат олиб ташланди",
+        "Summary": "Ролдан рухсат олиб ташланди"
+      }
     }
   },
   "Save": "Saqlash",
@@ -1257,6 +1309,56 @@
       "NoSessions": "Faol sessiyalar yo'q",
       "RevokeSuccess": "Sessiya muvaffaqiyatli bekor qilindi",
       "RevokeFailed": "Sessiyani bekor qilib bo'lmadi"
+    },
+    "History": {
+      "Created": {
+        "Title": "Фойдаланувчи яратилди",
+        "Summary": "Фойдаланувчи ҳисоби яратилди"
+      },
+      "Updated": {
+        "Title": "Фойдаланувчи ўзгартирилди",
+        "Summary": "Фойдаланувчи ҳисоби маълумотлари ўзгартирилди"
+      },
+      "Deleted": {
+        "Title": "Фойдаланувчи ўчирилди",
+        "Summary": "Фойдаланувчи ҳисоби ўчирилди"
+      },
+      "Blocked": {
+        "Title": "Фойдаланувчи блокланди",
+        "Summary": "Фойдаланувчи блокланди, унинг сеанслари якунланди"
+      },
+      "Unblocked": {
+        "Title": "Фойдаланувчи блокдан чиқарилди",
+        "Summary": "Фойдаланувчи яна тизимга кира олади"
+      },
+      "PasswordChanged": {
+        "Title": "Парол ўзгартирилди",
+        "Summary": "Фойдаланувчи паролини ўзгартирди, барча сеанслар якунланди"
+      },
+      "TemporaryPasswordIssued": {
+        "Title": "Вақтинчалик парол берилди",
+        "Summary": "Фойдаланувчига вақтинчалик парол берилди, киришда у ўз паролини ўрнатади"
+      },
+      "OnboardingCompleted": {
+        "Title": "Ҳисоб созланди",
+        "Summary": "Фойдаланувчи профилини тўлдирди ва ўз паролини ўрнатди"
+      },
+      "RoleAssigned": {
+        "Title": "Фойдаланувчига рол тайинланди",
+        "Summary": "Фойдаланувчига рол тайинланди"
+      },
+      "RoleUnassigned": {
+        "Title": "Фойдаланувчидан рол олиб ташланди",
+        "Summary": "Фойдаланувчидан рол олиб ташланди"
+      },
+      "PermissionGranted": {
+        "Title": "Фойдаланувчига рухсат берилди",
+        "Summary": "Фойдаланувчига тўғридан-тўғри рухсат берилди"
+      },
+      "PermissionRevoked": {
+        "Title": "Фойдаланувчидан рухсат қайтариб олинди",
+        "Summary": "Фойдаланувчидан тўғридан-тўғри берилган рухсат қайтариб олинди"
+      }
     }
   },
   "ValidationErrors": {
@@ -1442,6 +1544,20 @@
       "Cycle": "Бу ота-бўлим айланма иерархияни яратади.",
       "DuplicateCode": "Бу код бошқа бўлим томонидан ишлатилмоқда.",
       "ParentNotFound": "Танланган ота-бўлим топилмади."
+    },
+    "History": {
+      "Created": {
+        "Title": "Бўлим яратилди",
+        "Summary": "Ташкилий тузилмага бўлим қўшилди"
+      },
+      "Updated": {
+        "Title": "Бўлим ўзгартирилди",
+        "Summary": "Бўлим маълумотлари ўзгартирилди"
+      },
+      "Deleted": {
+        "Title": "Бўлим ўчирилди",
+        "Summary": "Бўлим ташкилий тузилмадан ўчирилди"
+      }
     }
   },
   "Positions": {
@@ -1547,5 +1663,21 @@
     "Cancel": "Бекор қилиш",
     "AllDelivered": "Ҳаммаси етказилмоқда",
     "DeliveryIssues": "Етказилмади: {{.Count}}. Уринишни давом эттирамиз."
+  },
+  "UserPositions": {
+    "History": {
+      "Created": {
+        "Title": "Лавозим яратилди",
+        "Summary": "Фойдаланувчига бўлимда лавозим тайинланди"
+      },
+      "Updated": {
+        "Title": "Лавозим ўзгартирилди",
+        "Summary": "Лавозим маълумотлари ўзгартирилди"
+      },
+      "Deleted": {
+        "Title": "Лавозим ўчирилди",
+        "Summary": "Лавозим ўчирилди"
+      }
+    }
   }
 }

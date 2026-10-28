@@ -26,6 +26,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	coreservices2fa "github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
@@ -101,7 +102,7 @@ type component struct {
 }
 
 func (c *component) Descriptor() composition.Descriptor {
-	return composition.Descriptor{Name: "core"}
+	return composition.Descriptor{Name: "core", Requires: []string{"logging"}}
 }
 
 func (c *component) LocaleFS() []*embed.FS {
@@ -180,6 +181,7 @@ func (c *component) Build(builder *composition.Builder) error {
 			return []composition.Hook{{Name: "notification-dispatch", Start: worker.Start}}, nil
 		})
 	}
+	history.ContributeDefinitions(builder, services.HistoryDefinitions()...)
 	composition.ProvideFunc(builder, services.NewPrivilegeGrantPolicy)
 	composition.ProvideFunc(builder, services.NewTenantService)
 	composition.ProvideFunc(builder, services.NewConfiguredUploadService)
@@ -438,8 +440,9 @@ func newCoreUserService(
 	bus eventbus.EventBus,
 	sessionService *services.SessionService,
 	policy *services.PrivilegeGrantPolicy,
+	historyWriter history.Writer,
 ) *services.UserService {
-	return services.NewUserService(repo, validators.NewUserValidator(repo), bus, sessionService, policy)
+	return services.NewUserService(repo, validators.NewUserValidator(repo), bus, sessionService, policy, historyWriter)
 }
 
 // newCoreTwoFactorService bootstraps the 2FA service from typed configs.

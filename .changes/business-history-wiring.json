@@ -1,0 +1,4 @@
+{
+  "bump": "major",
+  "summary": "Record business history from application services: finance, crm, hrm, projects, warehouse and core mutations write versioned events in their own transaction, with channel and actor taken from a trusted history.Execution set by the HTTP middleware, import runner, jobs, periodics and dbctl. Adds per-item import outcomes, a transactional outbox (business_event_deliveries) with retrying consumers and /system/info diagnostics, and a coverage matrix guarded by a test. Breaking: wired service constructors take a history.Writer, core/crm/finance/hrm/projects/warehouse components require the logging component, and calling a wired service mutation without an execution context fails with reason execution_missing (wrap host entry points with history.SystemExecution, JobExecution, ImportExecution or WithExecution)."
+}

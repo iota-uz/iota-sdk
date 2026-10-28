@@ -79,6 +79,39 @@
         "DRAFT": "Qoralama",
         "SIGNED": "Imzolangan",
         "CANCELLED": "Bekor qilingan"
+      },
+      "Status": "Holat",
+      "History": {
+        "Created": {
+          "Title": "Qabul hujjati yaratildi",
+          "Summary": "Loyihaga qabul hujjati qoralamasi qo'shildi"
+        },
+        "Signed": {
+          "Title": "Qabul hujjati imzolandi",
+          "Summary": "Hujjat imzolandi, uning summasi tushum sifatida tan olindi"
+        },
+        "Cancelled": {
+          "Title": "Qabul hujjati bekor qilindi",
+          "Summary": "Hujjat qaytarib olindi va endi hisobga olinmaydi"
+        },
+        "Deleted": {
+          "Title": "Qabul hujjati o'chirildi",
+          "Summary": "Hujjat loyihadan o'chirildi"
+        }
+      }
+    },
+    "History": {
+      "Created": {
+        "Title": "Loyiha yaratildi",
+        "Summary": "Yangi loyiha qo'shildi"
+      },
+      "Updated": {
+        "Title": "Loyiha o'zgartirildi",
+        "Summary": "Loyiha ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "Loyiha o'chirildi",
+        "Summary": "Loyiha hisobdan o'chirildi"
       }
     }
   },
@@ -120,6 +153,20 @@
       "PlannedEndDate": "Rejalashtirilgan tugash sanasi",
       "FactualEndDate": "Haqiqiy tugash sanasi",
       "DeleteConfirmation": "Ushbu loyiha bosqichini o'chirishni xohlaysizmi?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Loyiha bosqichi yaratildi",
+        "Summary": "Loyihaga yangi bosqich qo'shildi"
+      },
+      "Updated": {
+        "Title": "Loyiha bosqichi o'zgartirildi",
+        "Summary": "Bosqich ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "Loyiha bosqichi o'chirildi",
+        "Summary": "Bosqich loyihadan o'chirildi"
+      }
     }
   }
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
@@ -33,7 +34,7 @@ var temporaryPasswordPattern = regexp.MustCompile(`data-testid="temporary-passwo
 
 func newOnboardingSuite(t *testing.T) *itf.Suite {
 	t.Helper()
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	env := suite.Env()

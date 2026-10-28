@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
@@ -30,7 +31,7 @@ func TestDebtAggregateController_List_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -96,7 +97,7 @@ func TestDebtAggregateController_List_HTMX_Request(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -148,7 +149,7 @@ func TestDebtAggregateController_List_EmptyResult(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -182,7 +183,7 @@ func TestDebtAggregateController_GetCounterpartyDrawer_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -247,7 +248,7 @@ func TestDebtAggregateController_GetCounterpartyDrawer_NotFound(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -274,7 +275,7 @@ func TestDebtAggregateController_GetCounterpartyDrawer_InvalidUUID(t *testing.T)
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -297,7 +298,7 @@ func TestDebtAggregateController_Permission_Forbidden(t *testing.T) {
 	t.Parallel()
 	userWithoutPermission := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(userWithoutPermission)
@@ -324,7 +325,7 @@ func TestDebtAggregateController_MultipleCounterparties(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)

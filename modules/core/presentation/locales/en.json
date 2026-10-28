@@ -476,6 +476,36 @@
       "NoRoleDescription": "No description available",
       "Delete": "Delete group",
       "DeleteConfirmation": "Are you sure you want to delete this group?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Group created",
+        "Summary": "A group was created"
+      },
+      "Updated": {
+        "Title": "Group changed",
+        "Summary": "Group details were changed"
+      },
+      "Deleted": {
+        "Title": "Group deleted",
+        "Summary": "A group was deleted"
+      },
+      "MemberAdded": {
+        "Title": "User added to group",
+        "Summary": "A user was added to the group"
+      },
+      "MemberRemoved": {
+        "Title": "User removed from group",
+        "Summary": "A user was removed from the group"
+      },
+      "RoleAssigned": {
+        "Title": "Role assigned to group",
+        "Summary": "A role was assigned to the group"
+      },
+      "RoleUnassigned": {
+        "Title": "Role removed from group",
+        "Summary": "A role was taken away from the group"
+      }
     }
   },
   "Home": {
@@ -966,6 +996,28 @@
       },
       "Delete": "Delete role",
       "DeleteConfirmation": "Are you sure you want to delete this role?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Role created",
+        "Summary": "A role was created"
+      },
+      "Updated": {
+        "Title": "Role changed",
+        "Summary": "Role details were changed"
+      },
+      "Deleted": {
+        "Title": "Role deleted",
+        "Summary": "A role was deleted"
+      },
+      "PermissionGranted": {
+        "Title": "Permission added to role",
+        "Summary": "A permission was added to the role"
+      },
+      "PermissionRevoked": {
+        "Title": "Permission removed from role",
+        "Summary": "A permission was removed from the role"
+      }
     }
   },
   "Save": "Save",
@@ -1258,6 +1310,56 @@
       "NoSessions": "No active sessions",
       "RevokeSuccess": "Session revoked successfully",
       "RevokeFailed": "Failed to revoke session"
+    },
+    "History": {
+      "Created": {
+        "Title": "User created",
+        "Summary": "A user account was created"
+      },
+      "Updated": {
+        "Title": "User changed",
+        "Summary": "User account details were changed"
+      },
+      "Deleted": {
+        "Title": "User deleted",
+        "Summary": "A user account was deleted"
+      },
+      "Blocked": {
+        "Title": "User blocked",
+        "Summary": "The user was blocked and their sessions were ended"
+      },
+      "Unblocked": {
+        "Title": "User unblocked",
+        "Summary": "The user was unblocked"
+      },
+      "PasswordChanged": {
+        "Title": "Password changed",
+        "Summary": "The user changed their password; all sessions were ended"
+      },
+      "TemporaryPasswordIssued": {
+        "Title": "Temporary password issued",
+        "Summary": "A temporary password was issued; the user must set their own password"
+      },
+      "OnboardingCompleted": {
+        "Title": "Account set up",
+        "Summary": "The user filled in their profile and set their own password"
+      },
+      "RoleAssigned": {
+        "Title": "Role assigned to user",
+        "Summary": "The user was given a role"
+      },
+      "RoleUnassigned": {
+        "Title": "Role removed from user",
+        "Summary": "A role was taken away from the user"
+      },
+      "PermissionGranted": {
+        "Title": "Permission granted to user",
+        "Summary": "The user was granted a permission directly"
+      },
+      "PermissionRevoked": {
+        "Title": "Permission revoked from user",
+        "Summary": "A directly granted permission was revoked from the user"
+      }
     }
   },
   "ValidationErrors": {
@@ -1443,6 +1545,20 @@
       "Cycle": "This parent would create a circular hierarchy.",
       "DuplicateCode": "This code is already in use by another department.",
       "ParentNotFound": "The selected parent department was not found."
+    },
+    "History": {
+      "Created": {
+        "Title": "Department created",
+        "Summary": "A department was added to the org structure"
+      },
+      "Updated": {
+        "Title": "Department changed",
+        "Summary": "Department details were changed"
+      },
+      "Deleted": {
+        "Title": "Department deleted",
+        "Summary": "A department was removed from the org structure"
+      }
     }
   },
   "Positions": {
@@ -1548,5 +1664,21 @@
     "Cancel": "Cancel",
     "AllDelivered": "Everything is being delivered",
     "DeliveryIssues": "{{.Count}} not delivered yet; we will keep trying."
+  },
+  "UserPositions": {
+    "History": {
+      "Created": {
+        "Title": "Position created",
+        "Summary": "A user was given a position in a department"
+      },
+      "Updated": {
+        "Title": "Position changed",
+        "Summary": "Position details were changed"
+      },
+      "Deleted": {
+        "Title": "Position deleted",
+        "Summary": "A position was deleted"
+      }
+    }
   }
 }

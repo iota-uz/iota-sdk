@@ -15,9 +15,12 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/antchfx/htmlquery"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -208,6 +211,7 @@ func (s *Suite) setupMiddleware() {
 			ctx = composables.WithTx(ctx, s.env.Tx)
 			ctx = composables.WithSession(ctx, MockSession())
 			ctx = composables.WithTenantID(ctx, s.env.Tenant.ID)
+			ctx = history.WithExecution(ctx, history.Execution{Channel: businessevent.ChannelUI, OperationID: uuid.NewString()})
 			ctx = context.WithValue(ctx, constants.AppKey, s.env.App)
 			if s.env.Container != nil {
 				ctx = context.WithValue(ctx, constants.ContainerKey, s.env.Container)

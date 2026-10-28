@@ -19,7 +19,7 @@ import (
 func TestDepartmentValidationSentinels(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	svc, repo, _ := newDepartmentService()
+	svc, repo, _ := newDepartmentService(t, f)
 
 	ctx := withActor(f.Ctx)
 	tenant, err := composables.UseTenantID(ctx)

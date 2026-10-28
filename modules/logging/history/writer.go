@@ -19,6 +19,9 @@ var (
 	ErrSchemaInvalid     = serrors.NewInvalid("business event does not match its schema").WithReason("schema_invalid")
 	ErrActorMissing      = serrors.NewInvalid("business event has no actor").WithReason("actor_missing")
 	ErrPersistenceFailed = serrors.NewInternal("business event was not persisted").WithReason("persistence_failed")
+	// ErrExecutionMissing means the entry point never set a trusted execution: wrap it with
+	// WithExecution, SystemExecution, JobExecution or ImportExecution.
+	ErrExecutionMissing = serrors.NewInvalid("business action has no execution context; the entry point must set history.WithExecution or history.SystemExecution").WithReason("execution_missing")
 )
 
 var eventIDNamespace = uuid.MustParse("f4f27838-83d5-4f52-b673-7b16a7874ec4")
@@ -77,7 +80,10 @@ func (w *writer) build(ctx context.Context, in Input) (businessevent.Event, erro
 		return businessevent.Event{}, schemaInvalid("unknown event type %s v%d", in.Type, in.Version)
 	}
 	exec, ok := UseExecution(ctx)
-	if !ok || !exec.Channel.Valid() || exec.OperationID == "" {
+	if !ok {
+		return businessevent.Event{}, ErrExecutionMissing
+	}
+	if !exec.Channel.Valid() || exec.OperationID == "" {
 		return businessevent.Event{}, schemaInvalid("execution context with channel and operation is required")
 	}
 	tenantID, err := composables.UseTenantID(ctx)

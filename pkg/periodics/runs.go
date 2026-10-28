@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
@@ -107,6 +109,13 @@ func (m *manager) startRun(name string, allowOverlap bool) (RunReceipt, error) {
 
 func (m *manager) executeRun(ctx context.Context, task PeriodicTask, cfg TaskConfig, run *managedRun) {
 	defer run.cancel()
+	actor := businessevent.SystemActor("periodic:"+task.Name(), task.Name())
+	ctx = history.WithExecution(ctx, history.Execution{
+		Channel:     businessevent.ChannelJob,
+		OperationID: run.result.ID,
+		Actor:       &actor,
+		RunID:       run.result.ID,
+	})
 	var resultErr error
 	for attempt := 0; attempt < *cfg.MaxRetries; attempt++ {
 		if err := ctx.Err(); err != nil {

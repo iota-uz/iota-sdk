@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/userposition"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -16,10 +17,11 @@ import (
 
 // UserPositionService provides operations for managing user positions.
 type UserPositionService struct {
-	repo      userposition.Repository
-	deptRepo  department.Repository
-	userRepo  user.Repository
-	publisher eventbus.EventBus
+	repo          userposition.Repository
+	deptRepo      department.Repository
+	userRepo      user.Repository
+	publisher     eventbus.EventBus
+	historyWriter history.Writer
 }
 
 // NewUserPositionService creates a new user position service instance.
@@ -30,12 +32,14 @@ func NewUserPositionService(
 	deptRepo department.Repository,
 	userRepo user.Repository,
 	publisher eventbus.EventBus,
+	historyWriter history.Writer,
 ) *UserPositionService {
 	return &UserPositionService{
-		repo:      repo,
-		deptRepo:  deptRepo,
-		userRepo:  userRepo,
-		publisher: publisher,
+		repo:          repo,
+		deptRepo:      deptRepo,
+		userRepo:      userRepo,
+		publisher:     publisher,
+		historyWriter: historyWriter,
 	}
 }
 
@@ -92,7 +96,13 @@ func (s *UserPositionService) Create(
 			return err
 		}
 		saved, err = s.repo.Save(txCtx, p)
-		return err
+		if err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: UserPositionCreated, Version: 1, Resource: UserPositionResource, ID: saved.ID().String(),
+			After: userPositionSnapshot(saved),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -134,7 +144,13 @@ func (s *UserPositionService) Update(
 			return err
 		}
 		updated, err = s.repo.Save(txCtx, p)
-		return err
+		if err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: UserPositionUpdated, Version: 1, Resource: UserPositionResource, ID: updated.ID().String(),
+			Before: userPositionSnapshot(oldPosition), After: userPositionSnapshot(updated),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -163,7 +179,13 @@ func (s *UserPositionService) Delete(ctx context.Context, id uuid.UUID) error {
 		if err != nil {
 			return err
 		}
-		return s.repo.Delete(txCtx, id)
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: UserPositionDeleted, Version: 1, Resource: UserPositionResource, ID: id.String(),
+			Before: userPositionSnapshot(p),
+		})
 	})
 	if err != nil {
 		return serrors.Wrap(op, err)

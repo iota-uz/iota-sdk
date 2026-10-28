@@ -91,3 +91,26 @@
     [Employees.Private.Pin]
       Label = "JSHSHR"
       Placeholder = "123456789192121"
+
+    [Employees.History.Created]
+      Title = "Xodim qo'shildi"
+      Summary = "Yangi xodim ishga qabul qilindi"
+    [Employees.History.Updated]
+      Title = "Xodim o'zgartirildi"
+      Summary = "Xodim ma'lumotlari o'zgartirildi"
+    [Employees.History.Deleted]
+      Title = "Xodim o'chirildi"
+      Summary = "Xodim xodimlar ro'yxatidan o'chirildi"
+    [Positions.Single.Name]
+      Label = "Lavozim nomi"
+    [Positions.Single.Description]
+      Label = "Tavsif"
+    [Positions.History.Created]
+      Title = "Lavozim yaratildi"
+      Summary = "Yangi lavozim qo'shildi"
+    [Positions.History.Updated]
+      Title = "Lavozim o'zgartirildi"
+      Summary = "Lavozim ma'lumotlari o'zgartirildi"
+    [Positions.History.Deleted]
+      Title = "Lavozim o'chirildi"
+      Summary = "Lavozim ma'lumotnomadan o'chirildi"

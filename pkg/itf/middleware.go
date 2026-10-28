@@ -6,9 +6,12 @@ import (
 	"net/url"
 
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	i18n "github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -27,6 +30,7 @@ func TestMiddleware(env *TestEnvironment, u user.User) mux.MiddlewareFunc {
 			ctx = composables.WithPool(ctx, env.Pool)
 			ctx = composables.WithTx(ctx, env.Tx)
 			ctx = composables.WithTenantID(ctx, env.Tenant.ID)
+			ctx = history.WithExecution(ctx, history.Execution{Channel: businessevent.ChannelUI, OperationID: uuid.NewString()})
 			ctx = composables.WithSession(ctx, MockSession())
 			ctx = composables.WithParams(ctx, &composables.Params{
 				IP:            "127.0.0.1",

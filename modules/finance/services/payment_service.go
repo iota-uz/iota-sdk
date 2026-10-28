@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -19,6 +20,7 @@ type PaymentService struct {
 	publisher      eventbus.EventBus
 	accountService *MoneyAccountService
 	uploadRepo     upload.Repository
+	historyWriter  history.Writer
 }
 
 func NewPaymentService(
@@ -26,12 +28,14 @@ func NewPaymentService(
 	publisher eventbus.EventBus,
 	accountService *MoneyAccountService,
 	uploadRepo upload.Repository,
+	historyWriter history.Writer,
 ) *PaymentService {
 	return &PaymentService{
 		repo:           repo,
 		publisher:      publisher,
 		accountService: accountService,
 		uploadRepo:     uploadRepo,
+		historyWriter:  historyWriter,
 	}
 }
 
@@ -75,7 +79,13 @@ func (s *PaymentService) Create(ctx context.Context, entity payment.Payment) (pa
 		if err != nil {
 			return err
 		}
-		return s.accountService.RecalculateBalance(txCtx, createdEntity.Account().ID())
+		if err := s.accountService.RecalculateBalance(txCtx, createdEntity.Account().ID()); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: PaymentCreated, Version: 1, Resource: PaymentResource, ID: createdEntity.ID().String(),
+			After: paymentSnapshot(createdEntity),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -98,12 +108,21 @@ func (s *PaymentService) Update(ctx context.Context, entity payment.Payment) (pa
 
 	var updatedEntity payment.Payment
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		var err error
+		before, err := s.repo.GetByID(txCtx, entity.ID())
+		if err != nil {
+			return err
+		}
 		updatedEntity, err = s.repo.Update(txCtx, entity)
 		if err != nil {
 			return err
 		}
-		return s.accountService.RecalculateBalance(txCtx, entity.Account().ID())
+		if err := s.accountService.RecalculateBalance(txCtx, entity.Account().ID()); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: PaymentUpdated, Version: 1, Resource: PaymentResource, ID: entity.ID().String(),
+			Before: paymentSnapshot(before), After: paymentSnapshot(updatedEntity),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -133,7 +152,13 @@ func (s *PaymentService) Delete(ctx context.Context, id uuid.UUID) (payment.Paym
 		if err := s.repo.Delete(txCtx, id); err != nil {
 			return err
 		}
-		return s.accountService.RecalculateBalance(txCtx, entity.Account().ID())
+		if err := s.accountService.RecalculateBalance(txCtx, entity.Account().ID()); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: PaymentDeleted, Version: 1, Resource: PaymentResource, ID: id.String(),
+			Before: paymentSnapshot(entity),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -183,7 +208,10 @@ func (s *PaymentService) AttachFileToPayment(ctx context.Context, paymentID uuid
 	}
 
 	return composables.InTx(ctx, func(txCtx context.Context) error {
-		return s.repo.AttachFile(txCtx, paymentID, uploadID)
+		if err := s.repo.AttachFile(txCtx, paymentID, uploadID); err != nil {
+			return err
+		}
+		return recordFileEvent(txCtx, s.historyWriter, PaymentFileAttached, PaymentResource, paymentID.String(), uploadID)
 	})
 }
 
@@ -200,7 +228,10 @@ func (s *PaymentService) DetachFileFromPayment(ctx context.Context, paymentID uu
 	}
 
 	return composables.InTx(ctx, func(txCtx context.Context) error {
-		return s.repo.DetachFile(txCtx, paymentID, uploadID)
+		if err := s.repo.DetachFile(txCtx, paymentID, uploadID); err != nil {
+			return err
+		}
+		return recordFileEvent(txCtx, s.historyWriter, PaymentFileDetached, PaymentResource, paymentID.String(), uploadID)
 	})
 }
 

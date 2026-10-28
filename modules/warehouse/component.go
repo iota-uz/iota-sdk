@@ -4,6 +4,7 @@ package warehouse
 import (
 	"embed"
 
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/assets"
@@ -30,7 +31,7 @@ type component struct{}
 func (c *component) Descriptor() composition.Descriptor {
 	return composition.Descriptor{
 		Name:     "warehouse",
-		Requires: []string{"core"},
+		Requires: []string{"core", "logging"},
 	}
 }
 
@@ -47,6 +48,10 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewProductRepository)
 	composition.ProvideFunc(builder, persistence.NewOrderRepository)
 	composition.ProvideFunc(builder, persistence.NewInventoryRepository)
+	history.ContributeDefinitions(builder, services.HistoryDefinitions()...)
+	history.ContributeDefinitions(builder, productservice.HistoryDefinitions()...)
+	history.ContributeDefinitions(builder, positionservice.HistoryDefinitions()...)
+	history.ContributeDefinitions(builder, orderservice.HistoryDefinitions()...)
 	composition.ProvideFunc(builder, services.NewUnitService)
 	composition.ProvideFunc(builder, productservice.NewProductService)
 	composition.ProvideFunc(builder, positionservice.NewPositionService)

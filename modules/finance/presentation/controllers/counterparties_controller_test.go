@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
@@ -25,7 +26,7 @@ func TestCounterpartiesController_List_Success(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithComponents(core.NewComponent(&core.ModuleOptions{
+		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		}), finance.NewComponent()).
 		AsAdmin().
@@ -71,7 +72,7 @@ func TestCounterpartiesController_List_HTMX_Request(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithComponents(core.NewComponent(&core.ModuleOptions{
+		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		}), finance.NewComponent()).
 		AsAdmin().
@@ -102,7 +103,7 @@ func TestCounterpartiesController_GetNew_Success(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithComponents(core.NewComponent(&core.ModuleOptions{
+		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		}), finance.NewComponent()).
 		AsAdmin().
@@ -134,7 +135,7 @@ func TestCounterpartiesController_Create_Success(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithComponents(core.NewComponent(&core.ModuleOptions{
+		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		}), finance.NewComponent()).
 		AsAdmin().
@@ -171,7 +172,7 @@ func TestCounterpartiesController_Create_ValidationError(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithComponents(core.NewComponent(&core.ModuleOptions{
+		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		}), finance.NewComponent()).
 		AsAdmin().
@@ -204,7 +205,7 @@ func TestCounterpartiesController_GetEdit_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -248,7 +249,7 @@ func TestCounterpartiesController_GetEdit_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -267,7 +268,7 @@ func TestCounterpartiesController_Update_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -312,7 +313,7 @@ func TestCounterpartiesController_Update_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -354,7 +355,7 @@ func TestCounterpartiesController_Delete_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -390,7 +391,7 @@ func TestCounterpartiesController_Delete_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -409,7 +410,7 @@ func TestCounterpartiesController_Search_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -448,7 +449,7 @@ func TestCounterpartiesController_InvalidUUID(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -466,7 +467,7 @@ func TestCounterpartiesController_Create_InvalidTINValidationError(t *testing.T)
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -501,7 +502,7 @@ func TestCounterpartiesController_Update_InvalidTINValidationError(t *testing.T)
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent()).Build().
 		AsUser(adminUser)
@@ -553,7 +554,7 @@ func TestCreate_ValidationError_PreservesFormData(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithComponents(core.NewComponent(&core.ModuleOptions{
+		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
 		}), finance.NewComponent()).
 		AsAdmin().
@@ -650,7 +651,7 @@ func TestCreate_MultipleValidationErrors_PreservesAllFields(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithComponents(core.NewComponent(&core.ModuleOptions{
+		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
 		}), finance.NewComponent()).
 		AsAdmin().
@@ -705,7 +706,7 @@ func TestUpdate_ValidationError_PreservesFormData(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithComponents(core.NewComponent(&core.ModuleOptions{
+		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
 		}), finance.NewComponent()).
 		AsAdmin().
@@ -806,7 +807,7 @@ func TestUpdate_ValidTINWithOtherValidationErrors_PreservesUserInput(t *testing.
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithComponents(core.NewComponent(&core.ModuleOptions{
+		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
 		}), finance.NewComponent()).
 		AsAdmin().
@@ -872,7 +873,7 @@ func TestCreate_EmptyTIN_ShouldBeAllowed(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithComponents(core.NewComponent(&core.ModuleOptions{
+		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
 		}), finance.NewComponent()).
 		AsAdmin().
@@ -913,7 +914,7 @@ func TestCreate_HTMXRequest_ValidationError_PreservesTINField(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithComponents(core.NewComponent(&core.ModuleOptions{
+		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
 		}), finance.NewComponent()).
 		AsAdmin().
@@ -955,7 +956,7 @@ func TestUpdate_HTMXRequest_ValidationError_PreservesTINField(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
-		WithComponents(core.NewComponent(&core.ModuleOptions{
+		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
 		}), finance.NewComponent()).
 		AsAdmin().

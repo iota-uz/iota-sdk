@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/department"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -15,9 +16,10 @@ import (
 
 // DepartmentService provides operations for managing departments.
 type DepartmentService struct {
-	repo      department.Repository
-	orgQuery  query.OrgQueryRepository
-	publisher eventbus.EventBus
+	repo          department.Repository
+	orgQuery      query.OrgQueryRepository
+	publisher     eventbus.EventBus
+	historyWriter history.Writer
 }
 
 // NewDepartmentService creates a new department service instance. orgQuery
@@ -27,11 +29,13 @@ func NewDepartmentService(
 	repo department.Repository,
 	orgQuery query.OrgQueryRepository,
 	publisher eventbus.EventBus,
+	historyWriter history.Writer,
 ) *DepartmentService {
 	return &DepartmentService{
-		repo:      repo,
-		orgQuery:  orgQuery,
-		publisher: publisher,
+		repo:          repo,
+		orgQuery:      orgQuery,
+		publisher:     publisher,
+		historyWriter: historyWriter,
 	}
 }
 
@@ -106,7 +110,13 @@ func (s *DepartmentService) Create(ctx context.Context, d department.Department)
 			return err
 		}
 		saved, err = s.repo.Save(txCtx, d)
-		return err
+		if err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: DepartmentCreated, Version: 1, Resource: DepartmentResource, ID: saved.ID().String(),
+			After: departmentSnapshot(saved),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -145,7 +155,13 @@ func (s *DepartmentService) Update(ctx context.Context, d department.Department)
 			return err
 		}
 		updated, err = s.repo.Save(txCtx, d)
-		return err
+		if err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: DepartmentUpdated, Version: 1, Resource: DepartmentResource, ID: updated.ID().String(),
+			Before: departmentSnapshot(oldDepartment), After: departmentSnapshot(updated),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -174,7 +190,13 @@ func (s *DepartmentService) Delete(ctx context.Context, id uuid.UUID) error {
 		if err != nil {
 			return err
 		}
-		return s.repo.Delete(txCtx, id)
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: DepartmentDeleted, Version: 1, Resource: DepartmentResource, ID: id.String(),
+			Before: departmentSnapshot(d),
+		})
 	})
 	if err != nil {
 		return serrors.Wrap(op, err)

@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/agentsession"
 	"github.com/iota-uz/iota-sdk/pkg/agentsignin"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
@@ -30,7 +31,7 @@ import (
 
 // Falsely green if the fixture gains permissions or a fabricated cookie replaces the HTTP-issued cookie.
 func TestMountedHandoffCreatesRealBlockedUserSession(t *testing.T) {
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{PermissionSchema: defaults.PermissionSchema()})).AsAdmin().Build()
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{PermissionSchema: defaults.PermissionSchema()})).AsAdmin().Build()
 	env := suite.Env()
 	repo, err := composition.Resolve[user.Repository](env.Container)
 	require.NoError(t, err)

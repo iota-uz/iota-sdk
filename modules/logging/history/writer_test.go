@@ -113,7 +113,7 @@ func TestWriter_Record_RejectsInvalidInput(t *testing.T) {
 		{"unknown type", ui, func(in *Input) { in.Type = "finance.payment.unknown" }, ErrSchemaInvalid},
 		{"unknown version", ui, func(in *Input) { in.Version = 2 }, ErrSchemaInvalid},
 		{"legacy type", ui, func(in *Input) { in.Type, in.Changes, in.Subjects = LegacyActionLogType, nil, nil }, ErrSchemaInvalid},
-		{"no execution context", nil, func(*Input) {}, ErrSchemaInvalid},
+		{"no execution context", nil, func(*Input) {}, ErrExecutionMissing},
 		{"no operation", &Execution{Channel: businessevent.ChannelUI}, func(*Input) {}, ErrSchemaInvalid},
 		{"unknown channel", &Execution{Channel: "http", OperationID: "op-1"}, func(*Input) {}, ErrSchemaInvalid},
 		{"invalid outcome", ui, func(in *Input) { in.Outcome = "partial" }, ErrSchemaInvalid},

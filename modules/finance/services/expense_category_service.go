@@ -6,19 +6,22 @@ import (
 
 	"github.com/google/uuid"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type ExpenseCategoryService struct {
-	repo      category.Repository
-	publisher eventbus.EventBus
+	repo          category.Repository
+	publisher     eventbus.EventBus
+	historyWriter history.Writer
 }
 
-func NewExpenseCategoryService(repo category.Repository, publisher eventbus.EventBus) *ExpenseCategoryService {
+func NewExpenseCategoryService(repo category.Repository, publisher eventbus.EventBus, historyWriter history.Writer) *ExpenseCategoryService {
 	return &ExpenseCategoryService{
-		repo:      repo,
-		publisher: publisher,
+		repo:          repo,
+		publisher:     publisher,
+		historyWriter: historyWriter,
 	}
 }
 
@@ -53,7 +56,13 @@ func (s *ExpenseCategoryService) Create(ctx context.Context, entity category.Exp
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		var createErr error
 		createdEntity, createErr = s.repo.Create(txCtx, entity)
-		return createErr
+		if createErr != nil {
+			return createErr
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: ExpenseCategoryCreated, Version: 1, Resource: ExpenseCategoryResource, ID: createdEntity.ID().String(),
+			After: expenseCategorySnapshot(createdEntity),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -70,9 +79,18 @@ func (s *ExpenseCategoryService) Update(ctx context.Context, entity category.Exp
 	}
 	var updatedEntity category.ExpenseCategory
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		var updateErr error
-		updatedEntity, updateErr = s.repo.Update(txCtx, entity)
-		return updateErr
+		before, err := s.repo.GetByID(txCtx, entity.ID())
+		if err != nil {
+			return err
+		}
+		updatedEntity, err = s.repo.Update(txCtx, entity)
+		if err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: ExpenseCategoryUpdated, Version: 1, Resource: ExpenseCategoryResource, ID: entity.ID().String(),
+			Before: expenseCategorySnapshot(before), After: expenseCategorySnapshot(updatedEntity),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -92,7 +110,13 @@ func (s *ExpenseCategoryService) Delete(ctx context.Context, id uuid.UUID) (cate
 		return nil, err
 	}
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		return s.repo.Delete(txCtx, id)
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: ExpenseCategoryDeleted, Version: 1, Resource: ExpenseCategoryResource, ID: id.String(),
+			Before: expenseCategorySnapshot(entity),
+		})
 	})
 	if err != nil {
 		return nil, err

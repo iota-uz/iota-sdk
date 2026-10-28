@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/debt"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/money"
@@ -28,10 +29,11 @@ var (
 )
 
 type DebtService struct {
-	repo        debt.Repository
-	accountRepo moneyaccount.Repository
-	projects    ProjectDirectory
-	publisher   eventbus.EventBus
+	repo          debt.Repository
+	accountRepo   moneyaccount.Repository
+	projects      ProjectDirectory
+	publisher     eventbus.EventBus
+	historyWriter history.Writer
 }
 
 func NewDebtService(
@@ -39,12 +41,14 @@ func NewDebtService(
 	accountRepo moneyaccount.Repository,
 	projects ProjectDirectory,
 	publisher eventbus.EventBus,
+	historyWriter history.Writer,
 ) *DebtService {
 	return &DebtService{
-		repo:        repo,
-		accountRepo: accountRepo,
-		projects:    projects,
-		publisher:   publisher,
+		repo:          repo,
+		accountRepo:   accountRepo,
+		projects:      projects,
+		publisher:     publisher,
+		historyWriter: historyWriter,
 	}
 }
 
@@ -152,7 +156,13 @@ func (s *DebtService) Create(ctx context.Context, entity debt.Debt) (debt.Debt, 
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		var err error
 		createdEntity, err = s.repo.Create(txCtx, entity)
-		return err
+		if err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: DebtCreated, Version: 1, Resource: DebtResource, ID: createdEntity.ID().String(),
+			After: debtSnapshot(createdEntity),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -188,9 +198,18 @@ func (s *DebtService) Update(ctx context.Context, entity debt.Debt) (debt.Debt, 
 
 	var updatedEntity debt.Debt
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		var err error
+		before, err := s.repo.GetByID(txCtx, entity.ID())
+		if err != nil {
+			return err
+		}
 		updatedEntity, err = s.repo.Update(txCtx, entity)
-		return err
+		if err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: DebtUpdated, Version: 1, Resource: DebtResource, ID: entity.ID().String(),
+			Before: debtSnapshot(before), After: debtSnapshot(updatedEntity),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -206,42 +225,45 @@ func (s *DebtService) Settle(ctx context.Context, debtID uuid.UUID, settlementAm
 		return nil, err
 	}
 
-	entity, err := s.repo.GetByID(ctx, debtID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Calculate new outstanding amount
-	currentOutstanding := entity.OutstandingAmount()
-	settlementMoney := money.NewFromFloat(settlementAmount, currentOutstanding.Currency().Code)
-	newOutstanding, err := currentOutstanding.Subtract(settlementMoney)
-	if err != nil {
-		return nil, fmt.Errorf("invalid settlement amount: %w", err)
-	}
-
-	// Determine status based on remaining outstanding amount
-	var newStatus debt.DebtStatus
-	if newOutstanding.Amount() <= 0 {
-		newStatus = debt.DebtStatusSettled
-		newOutstanding = money.New(0, currentOutstanding.Currency().Code)
-	} else {
-		newStatus = debt.DebtStatusPartial
-	}
-
-	// Update debt with new status and outstanding amount
-	settledDebt := entity.
-		UpdateStatus(newStatus).
-		UpdateOutstandingAmount(newOutstanding)
-
-	// Link to settlement transaction if provided
-	if transactionID != nil {
-		settledDebt = settledDebt.UpdateSettlementTransactionID(transactionID)
-	}
-
 	var updatedEntity debt.Debt
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		entity, err := s.repo.GetByID(txCtx, debtID)
+		if err != nil {
+			return err
+		}
+
+		// Calculate new outstanding amount
+		currentOutstanding := entity.OutstandingAmount()
+		settlementMoney := money.NewFromFloat(settlementAmount, currentOutstanding.Currency().Code)
+		newOutstanding, err := currentOutstanding.Subtract(settlementMoney)
+		if err != nil {
+			return fmt.Errorf("invalid settlement amount: %w", err)
+		}
+
+		// Determine status based on remaining outstanding amount
+		var newStatus debt.DebtStatus
+		if newOutstanding.Amount() <= 0 {
+			newStatus = debt.DebtStatusSettled
+			newOutstanding = money.New(0, currentOutstanding.Currency().Code)
+		} else {
+			newStatus = debt.DebtStatusPartial
+		}
+
+		// Update debt with new status and outstanding amount
+		settledDebt := entity.
+			UpdateStatus(newStatus).
+			UpdateOutstandingAmount(newOutstanding)
+
+		// Link to settlement transaction if provided
+		if transactionID != nil {
+			settledDebt = settledDebt.UpdateSettlementTransactionID(transactionID)
+		}
+
 		updatedEntity, err = s.repo.Update(txCtx, settledDebt)
-		return err
+		if err != nil {
+			return err
+		}
+		return s.recordDebtChange(txCtx, DebtSettled, entity, updatedEntity)
 	})
 	if err != nil {
 		return nil, err
@@ -261,21 +283,24 @@ func (s *DebtService) WriteOff(ctx context.Context, debtID uuid.UUID) (debt.Debt
 		return nil, err
 	}
 
-	entity, err := s.repo.GetByID(ctx, debtID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Mark debt as written off
-	zeroCurrency := entity.OriginalAmount().Currency().Code
-	writtenOffDebt := entity.
-		UpdateStatus(debt.DebtStatusWrittenOff).
-		UpdateOutstandingAmount(money.New(0, zeroCurrency))
-
 	var updatedEntity debt.Debt
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		entity, err := s.repo.GetByID(txCtx, debtID)
+		if err != nil {
+			return err
+		}
+
+		// Mark debt as written off
+		zeroCurrency := entity.OriginalAmount().Currency().Code
+		writtenOffDebt := entity.
+			UpdateStatus(debt.DebtStatusWrittenOff).
+			UpdateOutstandingAmount(money.New(0, zeroCurrency))
+
 		updatedEntity, err = s.repo.Update(txCtx, writtenOffDebt)
-		return err
+		if err != nil {
+			return err
+		}
+		return s.recordDebtChange(txCtx, DebtWrittenOff, entity, updatedEntity)
 	})
 	if err != nil {
 		return nil, err
@@ -297,22 +322,25 @@ func (s *DebtService) Cancel(ctx context.Context, debtID uuid.UUID) (debt.Debt, 
 		return nil, err
 	}
 
-	entity, err := s.repo.GetByID(ctx, debtID)
-	if err != nil {
-		return nil, err
-	}
-	if !entity.Status().IsOpen() {
-		return nil, ErrDebtNotOpen
-	}
-
-	cancelled := entity.
-		UpdateStatus(debt.DebtStatusCancelled).
-		UpdateOutstandingAmount(money.New(0, entity.OutstandingAmount().Currency().Code))
-
 	var updatedEntity debt.Debt
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		entity, err := s.repo.GetByID(txCtx, debtID)
+		if err != nil {
+			return err
+		}
+		if !entity.Status().IsOpen() {
+			return ErrDebtNotOpen
+		}
+
+		cancelled := entity.
+			UpdateStatus(debt.DebtStatusCancelled).
+			UpdateOutstandingAmount(money.New(0, entity.OutstandingAmount().Currency().Code))
+
 		updatedEntity, err = s.repo.Update(txCtx, cancelled)
-		return err
+		if err != nil {
+			return err
+		}
+		return s.recordDebtChange(txCtx, DebtCancelled, entity, updatedEntity)
 	})
 	if err != nil {
 		return nil, err
@@ -342,7 +370,13 @@ func (s *DebtService) Delete(ctx context.Context, id uuid.UUID) (debt.Debt, erro
 	}
 
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		return s.repo.Delete(txCtx, id)
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: DebtDeleted, Version: 1, Resource: DebtResource, ID: id.String(),
+			Before: debtSnapshot(entity),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -350,6 +384,13 @@ func (s *DebtService) Delete(ctx context.Context, id uuid.UUID) (debt.Debt, erro
 
 	s.publisher.Publish(deletedEvent)
 	return entity, nil
+}
+
+func (s *DebtService) recordDebtChange(ctx context.Context, eventType string, before, after debt.Debt) error {
+	return history.RecordMutation(ctx, s.historyWriter, history.Mutation{
+		Type: eventType, Version: 1, Resource: DebtResource, ID: after.ID().String(),
+		Before: debtSnapshot(before), After: debtSnapshot(after),
+	})
 }
 
 func (s *DebtService) Count(ctx context.Context) (int64, error) {

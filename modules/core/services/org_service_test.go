@@ -13,7 +13,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	crudmodels "github.com/iota-uz/iota-sdk/pkg/crud/models"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
@@ -51,20 +53,29 @@ func orgName(t *testing.T, base string) crudmodels.MultiLang {
 	return ml
 }
 
-func newDepartmentService() (*services.DepartmentService, department.Repository, query.OrgQueryRepository) {
+func newDepartmentService(t *testing.T, f *itf.TestEnvironment) (*services.DepartmentService, department.Repository, query.OrgQueryRepository) {
+	t.Helper()
 	repo := persistence.NewDepartmentRepository()
 	orgQuery := query.NewPgOrgQueryRepository()
 	bus := eventbus.NewEventPublisher(logrus.New())
-	return services.NewDepartmentService(repo, orgQuery, bus), repo, orgQuery
+	return services.NewDepartmentService(repo, orgQuery, bus, historyWriter(t, f)), repo, orgQuery
 }
 
-func newUserPositionService() (*services.UserPositionService, department.Repository, user.Repository) {
+func newUserPositionService(t *testing.T, f *itf.TestEnvironment) (*services.UserPositionService, department.Repository, user.Repository) {
+	t.Helper()
 	uploadRepo := persistence.NewUploadRepository()
 	userRepo := persistence.NewUserRepository(uploadRepo)
 	deptRepo := persistence.NewDepartmentRepository()
 	posRepo := persistence.NewUserPositionRepository()
 	bus := eventbus.NewEventPublisher(logrus.New())
-	return services.NewUserPositionService(posRepo, deptRepo, userRepo, bus), deptRepo, userRepo
+	return services.NewUserPositionService(posRepo, deptRepo, userRepo, bus, historyWriter(t, f)), deptRepo, userRepo
+}
+
+func historyWriter(t *testing.T, f *itf.TestEnvironment) history.Writer {
+	t.Helper()
+	w, err := composition.Resolve[history.Writer](f.Container)
+	require.NoError(t, err)
+	return w
 }
 
 // requireValidation asserts err is non-nil and classified as a validation error.
@@ -80,7 +91,7 @@ func requireValidation(t *testing.T, err error) {
 func TestDepartmentService_Create_StructuralValidation(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	svc, repo, _ := newDepartmentService()
+	svc, repo, _ := newDepartmentService(t, f)
 
 	ctx := withActor(f.Ctx)
 	tenantA, err := composables.UseTenantID(ctx)
@@ -155,7 +166,7 @@ func TestDepartmentService_Create_StructuralValidation(t *testing.T) {
 func TestDepartmentService_Update_CycleRejected(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	svc, _, _ := newDepartmentService()
+	svc, _, _ := newDepartmentService(t, f)
 
 	ctx := withActor(f.Ctx)
 	tenantA, err := composables.UseTenantID(ctx)
@@ -200,7 +211,7 @@ func TestDepartmentService_Update_CycleRejected(t *testing.T) {
 func TestUserPositionService_Create_RefValidation(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	svc, deptRepo, userRepo := newUserPositionService()
+	svc, deptRepo, userRepo := newUserPositionService(t, f)
 
 	ctx := withActor(f.Ctx)
 	tenantA, err := composables.UseTenantID(ctx)

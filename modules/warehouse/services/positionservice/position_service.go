@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
@@ -23,6 +24,7 @@ type PositionService struct {
 	uploadService  *coreservices.UploadService
 	unitService    *services.UnitService
 	productService *productservice.ProductService
+	historyWriter  history.Writer
 }
 
 func NewPositionService(
@@ -31,6 +33,7 @@ func NewPositionService(
 	uploadService *coreservices.UploadService,
 	unitService *services.UnitService,
 	productService *productservice.ProductService,
+	historyWriter history.Writer,
 ) *PositionService {
 	return &PositionService{
 		repo:           repo,
@@ -38,6 +41,7 @@ func NewPositionService(
 		uploadService:  uploadService,
 		unitService:    unitService,
 		productService: productService,
+		historyWriter:  historyWriter,
 	}
 }
 
@@ -158,32 +162,26 @@ func (s *PositionService) UpdateWithFile(ctx context.Context, fileID uint) error
 	return s.LoadFromFilePath(ctx, uploadEntity.Path())
 }
 
-// CreatePositionFromXlsRow creates a position from a single Excel row
+// CreatePositionFromXlsRow creates or updates a position from a single Excel row in one transaction.
 func (s *PositionService) CreatePositionFromXlsRow(ctx context.Context, xlsRow *XlsRow) error {
-	// Find or create unit
-	unitEntity, err := s.findOrCreateUnit(ctx, xlsRow.Unit)
-	if err != nil {
-		return err
-	}
-
-	// Check if position already exists
-	entity, err := s.repo.GetByBarcode(ctx, xlsRow.Barcode)
-	if err != nil && !errors.Is(err, persistence.ErrPositionNotFound) {
-		return err
-	}
-
-	if errors.Is(err, persistence.ErrPositionNotFound) {
-		// Create new position
-		return s.createPosition(ctx, xlsRow, unitEntity.ID)
-	} else {
-		// Update existing position
-		pos := &position.UpdateDTO{
+	return composables.InTx(ctx, func(txCtx context.Context) error {
+		unitEntity, err := s.findOrCreateUnit(txCtx, xlsRow.Unit)
+		if err != nil {
+			return err
+		}
+		entity, err := s.repo.GetByBarcode(txCtx, xlsRow.Barcode)
+		if errors.Is(err, persistence.ErrPositionNotFound) {
+			return s.createPosition(txCtx, xlsRow, unitEntity.ID)
+		}
+		if err != nil {
+			return err
+		}
+		return s.Update(txCtx, entity.ID(), &position.UpdateDTO{
 			Title:   xlsRow.Title,
 			UnitID:  unitEntity.ID,
 			Barcode: xlsRow.Barcode,
-		}
-		return s.Update(ctx, entity.ID(), pos)
-	}
+		})
+	})
 }
 
 func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) (position.Position, error) {
@@ -194,7 +192,16 @@ func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) 
 	if err != nil {
 		return nil, err
 	}
-	entity, err = s.repo.Create(ctx, entity)
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		entity, err = s.repo.Create(txCtx, entity)
+		if err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: PositionCreated, Version: 1, Resource: PositionResource, ID: positionID(entity.ID()),
+			After: positionSnapshot(entity),
+		})
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +221,20 @@ func (s *PositionService) Update(ctx context.Context, id uint, data *position.Up
 	if err != nil {
 		return err
 	}
-	entity, err = s.repo.Update(ctx, entity)
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		before, err := s.repo.GetByID(txCtx, id)
+		if err != nil {
+			return err
+		}
+		entity, err = s.repo.Update(txCtx, entity)
+		if err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: PositionUpdated, Version: 1, Resource: PositionResource, ID: positionID(id),
+			Before: positionSnapshot(before), After: positionSnapshot(entity),
+		})
+	})
 	if err != nil {
 		return err
 	}
@@ -230,11 +250,22 @@ func (s *PositionService) Delete(ctx context.Context, id uint) (position.Positio
 	if err := composables.CanUser(ctx, permissions.PositionDelete); err != nil {
 		return nil, err
 	}
-	entity, err := s.repo.GetByID(ctx, id)
+	var entity position.Position
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		entity, err = s.repo.GetByID(txCtx, id)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: PositionDeleted, Version: 1, Resource: PositionResource, ID: positionID(id),
+			Before: positionSnapshot(entity),
+		})
+	})
 	if err != nil {
-		return nil, err
-	}
-	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
 	deletedEvent, err := position.NewDeletedEvent(ctx, entity)

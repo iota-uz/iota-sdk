@@ -91,3 +91,26 @@ Placeholder = "1234567"
 [Employees.Private.Pin]
 Label = "ПИНФЛ"
 Placeholder = "123456789192121"
+
+[Employees.History.Created]
+Title = "Сотрудник добавлен"
+Summary = "Принят новый сотрудник"
+[Employees.History.Updated]
+Title = "Сотрудник изменён"
+Summary = "Изменены данные сотрудника"
+[Employees.History.Deleted]
+Title = "Сотрудник удалён"
+Summary = "Сотрудник удалён из списка персонала"
+[Positions.Single.Name]
+Label = "Название должности"
+[Positions.Single.Description]
+Label = "Описание"
+[Positions.History.Created]
+Title = "Должность создана"
+Summary = "Добавлена новая должность"
+[Positions.History.Updated]
+Title = "Должность изменена"
+Summary = "Изменены данные должности"
+[Positions.History.Deleted]
+Title = "Должность удалена"
+Summary = "Должность удалена из справочника"

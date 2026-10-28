@@ -96,6 +96,20 @@
       "SelectStatus": "Holatni tanlang",
       "Delete": "O'chirish",
       "DeleteConfirmation": "Ushbu mahsulotni o'chirishni xohlaysizmi?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Маҳсулот яратилди",
+        "Summary": "Омборга маҳсулот қўшилди"
+      },
+      "Updated": {
+        "Title": "Маҳсулот ўзгартирилди",
+        "Summary": "Маҳсулот маълумотлари ўзгартирилди"
+      },
+      "Deleted": {
+        "Title": "Маҳсулот ўчирилди",
+        "Summary": "Маҳсулот омбордан ўчирилди"
+      }
     }
   },
   "WarehousePositions": {
@@ -186,6 +200,20 @@
       "UploadLabel": "Faylni tanlang",
       "UploadPlaceholder": "Faylni tanlang",
       "Submit": "Yuklash"
+    },
+    "History": {
+      "Created": {
+        "Title": "Ном яратилди",
+        "Summary": "Омбор номи қўшилди"
+      },
+      "Updated": {
+        "Title": "Ном ўзгартирилди",
+        "Summary": "Омбор номи маълумотлари ўзгартирилди"
+      },
+      "Deleted": {
+        "Title": "Ном ўчирилди",
+        "Summary": "Омбор номи ўчирилди"
+      }
     }
   },
   "WarehouseUnits": {
@@ -222,6 +250,20 @@
       },
       "Delete": "O'chirish",
       "DeleteConfirmation": "Ushbu o'lchov birligini o'chirishni xohlaysizmi?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Ўлчов бирлиги яратилди",
+        "Summary": "Ўлчов бирлиги қўшилди"
+      },
+      "Updated": {
+        "Title": "Ўлчов бирлиги ўзгартирилди",
+        "Summary": "Ўлчов бирлиги маълумотлари ўзгартирилди"
+      },
+      "Deleted": {
+        "Title": "Ўлчов бирлиги ўчирилди",
+        "Summary": "Ўлчов бирлиги ўчирилди"
+      }
     }
   },
   "WarehouseOrders": {
@@ -293,6 +335,24 @@
       "Unit": "O'lchov birligi",
       "Delete": "O'chirish",
       "DeleteConfirmation": "Ushbu buyurtmani o'chirishni xohlaysizmi?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Накладной яратилди",
+        "Summary": "Омбор накладнойи расмийлаштирилди"
+      },
+      "Updated": {
+        "Title": "Накладной ўзгартирилди",
+        "Summary": "Омбор накладнойи маълумотлари ўзгартирилди"
+      },
+      "Deleted": {
+        "Title": "Накладной ўчирилди",
+        "Summary": "Омбор накладнойи ўчирилди"
+      },
+      "Completed": {
+        "Title": "Накладной якунланди",
+        "Summary": "Омбор накладнойи якунланди"
+      }
     }
   },
   "WarehouseInventory": {
@@ -349,6 +409,20 @@
       "AllPositions": "Barcha nomlar",
       "Delete": "O'chirish",
       "DeleteConfirmation": "Ushbu inventarizatsiyani o'chirishni xohlaysizmi?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Инвентаризация яратилди",
+        "Summary": "Инвентаризация ўтказилди"
+      },
+      "Updated": {
+        "Title": "Инвентаризация ўзгартирилди",
+        "Summary": "Инвентаризация маълумотлари ўзгартирилди"
+      },
+      "Deleted": {
+        "Title": "Инвентаризация ўчирилди",
+        "Summary": "Инвентаризация ўчирилди"
+      }
     }
   }
 }

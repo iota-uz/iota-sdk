@@ -16,6 +16,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/onboarding"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -181,7 +183,7 @@ func (c *OnboardingController) Post(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var completed coreuser.User
-	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+	err = composables.InTx(onboardingExecution(r.Context(), u), func(txCtx context.Context) error {
 		avatarID, err := c.saveAvatar(txCtx, r)
 		if err != nil {
 			return err
@@ -212,6 +214,18 @@ func (c *OnboardingController) Post(w http.ResponseWriter, r *http.Request) {
 	c.endOnboardingSession(w, r)
 	shared.SetFlash(w, "notice", []byte(intl.MustT(r.Context(), "Onboarding.Completed")))
 	http.Redirect(w, r, "/login?"+url.Values{"email": []string{completed.Email().Value()}}.Encode(), http.StatusFound)
+}
+
+// onboardingExecution makes the pending user the actor of the operation: an onboarding
+// session never puts the user into the context, yet the user completes their own account.
+func onboardingExecution(ctx context.Context, u coreuser.User) context.Context {
+	exec, ok := history.UseExecution(ctx)
+	if !ok {
+		return ctx
+	}
+	actor := businessevent.UserActor(u)
+	exec.Actor = &actor
+	return history.WithExecution(ctx, exec)
 }
 
 // onboardingEndedMessageID maps errors that end the onboarding session.

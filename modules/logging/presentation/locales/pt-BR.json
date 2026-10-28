@@ -12,6 +12,10 @@
       "LegacyActionLog": {
         "Title": "Ação do registro anterior",
         "Summary": "Registrada pelo antigo log de requisições antes do histórico de negócios. O nome do responsável e o significado de negócio da ação não foram capturados."
+      },
+      "ImportItem": {
+        "Title": "Item de importação rejeitado",
+        "Summary": "Um item da importação não foi salvo; suas alterações foram desfeitas"
       }
     }
   }

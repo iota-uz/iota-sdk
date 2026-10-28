@@ -91,3 +91,26 @@
     [Employees.Private.Pin]
       Label = "JSHSHR"
       Placeholder = "123456789192121"
+
+    [Employees.History.Created]
+      Title = "Ходим қўшилди"
+      Summary = "Янги ходим ишга қабул қилинди"
+    [Employees.History.Updated]
+      Title = "Ходим ўзгартирилди"
+      Summary = "Ходим маълумотлари ўзгартирилди"
+    [Employees.History.Deleted]
+      Title = "Ходим ўчирилди"
+      Summary = "Ходим ходимлар рўйхатидан ўчирилди"
+    [Positions.Single.Name]
+      Label = "Лавозим номи"
+    [Positions.Single.Description]
+      Label = "Тавсиф"
+    [Positions.History.Created]
+      Title = "Лавозим яратилди"
+      Summary = "Янги лавозим қўшилди"
+    [Positions.History.Updated]
+      Title = "Лавозим ўзгартирилди"
+      Summary = "Лавозим маълумотлари ўзгартирилди"
+    [Positions.History.Deleted]
+      Title = "Лавозим ўчирилди"
+      Summary = "Лавозим маълумотномадан ўчирилди"

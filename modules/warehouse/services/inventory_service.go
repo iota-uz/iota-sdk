@@ -3,7 +3,9 @@ package services
 
 import (
 	"context"
+	"strconv"
 
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
@@ -13,10 +15,11 @@ import (
 )
 
 type InventoryService struct {
-	repo         inventory.Repository
-	positionRepo position.Repository
-	productRepo  product.Repository
-	publisher    eventbus.EventBus
+	repo          inventory.Repository
+	positionRepo  position.Repository
+	productRepo   product.Repository
+	publisher     eventbus.EventBus
+	historyWriter history.Writer
 }
 
 func NewInventoryService(
@@ -24,12 +27,14 @@ func NewInventoryService(
 	positionRepo position.Repository,
 	productRepo product.Repository,
 	publisher eventbus.EventBus,
+	historyWriter history.Writer,
 ) *InventoryService {
 	return &InventoryService{
-		repo:         repo,
-		productRepo:  productRepo,
-		positionRepo: positionRepo,
-		publisher:    publisher,
+		repo:          repo,
+		productRepo:   productRepo,
+		positionRepo:  positionRepo,
+		publisher:     publisher,
+		historyWriter: historyWriter,
 	}
 }
 
@@ -83,15 +88,24 @@ func (s *InventoryService) Create(ctx context.Context, data *inventory.CreateChe
 	for _, pos := range data.Positions {
 		found[pos.PositionID] = pos.Found
 	}
-	positions, err := s.repo.Positions(ctx)
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		positions, err := s.repo.Positions(txCtx)
+		if err != nil {
+			return err
+		}
+		entity.Results = make([]*inventory.CheckResult, 0, len(positions))
+		for _, pos := range positions {
+			entity.AddResult(pos.ID, pos.Quantity, int(found[pos.ID]))
+		}
+		if err := s.repo.Create(txCtx, entity); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: InventoryCheckCreated, Version: 1, Resource: InventoryCheckResource, ID: strconv.FormatUint(uint64(entity.ID), 10),
+			After: inventoryCheckSnapshot(entity),
+		})
+	})
 	if err != nil {
-		return nil, err
-	}
-	entity.Results = make([]*inventory.CheckResult, 0, len(positions))
-	for _, pos := range positions {
-		entity.AddResult(pos.ID, pos.Quantity, int(found[pos.ID]))
-	}
-	if err := s.repo.Create(ctx, entity); err != nil {
 		return nil, err
 	}
 	createdEvent, err := inventory.NewCreatedEvent(ctx, *data, *entity)
@@ -110,7 +124,24 @@ func (s *InventoryService) Update(ctx context.Context, id uint, data *inventory.
 	if err != nil {
 		return err
 	}
-	if err := s.repo.Update(ctx, entity); err != nil {
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		before, err := s.repo.GetByID(txCtx, id)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.Update(txCtx, entity); err != nil {
+			return err
+		}
+		after := *before
+		if entity.Name != "" {
+			after.Name = entity.Name
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: InventoryCheckUpdated, Version: 1, Resource: InventoryCheckResource, ID: strconv.FormatUint(uint64(id), 10),
+			Before: inventoryCheckSnapshot(before), After: inventoryCheckSnapshot(&after),
+		})
+	})
+	if err != nil {
 		return err
 	}
 	updatedEvent, err := inventory.NewUpdatedEvent(ctx, *data, *entity)
@@ -125,11 +156,22 @@ func (s *InventoryService) Delete(ctx context.Context, id uint) (*inventory.Chec
 	if err := composables.CanUser(ctx, permissions.InventoryDelete); err != nil {
 		return nil, err
 	}
-	entity, err := s.repo.GetByID(ctx, id)
+	var entity *inventory.Check
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		entity, err = s.repo.GetByID(txCtx, id)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: InventoryCheckDeleted, Version: 1, Resource: InventoryCheckResource, ID: strconv.FormatUint(uint64(id), 10),
+			Before: inventoryCheckSnapshot(entity),
+		})
+	})
 	if err != nil {
-		return nil, err
-	}
-	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
 	deletedEvent, err := inventory.NewDeletedEvent(ctx, *entity)

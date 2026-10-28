@@ -89,6 +89,20 @@
       "IsCOGS": "Sotilgan tovarlarning tannarxi (COGS)",
       "Delete": "Kategoriyani o'chirish",
       "DeleteConfirmation": "Ushbu xarajat kategoriyasini o'chirishni xohlaysizmi?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Xarajat kategoriyasi yaratildi",
+        "Summary": "Yangi xarajat kategoriyasi qo'shildi"
+      },
+      "Updated": {
+        "Title": "Xarajat kategoriyasi o'zgartirildi",
+        "Summary": "Xarajat kategoriyasi ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "Xarajat kategoriyasi o'chirildi",
+        "Summary": "Xarajat kategoriyasi ro'yxatdan o'chirildi"
+      }
     }
   },
   "Payments": {
@@ -132,6 +146,28 @@
       "User": "Foydalanuvchi",
       "Delete": "To'lovni o'chirish",
       "DeleteConfirmation": "Ushbu to'lovni o'chirishni xohlaysizmi?"
+    },
+    "History": {
+      "Created": {
+        "Title": "To'lov yaratildi",
+        "Summary": "To'lov qayd etildi"
+      },
+      "Updated": {
+        "Title": "To'lov o'zgartirildi",
+        "Summary": "To'lov ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "To'lov o'chirildi",
+        "Summary": "To'lov hisobdan o'chirildi"
+      },
+      "FileAttached": {
+        "Title": "To'lovga fayl biriktirildi",
+        "Summary": "To'lovga fayl biriktirildi"
+      },
+      "FileDetached": {
+        "Title": "Fayl to'lovdan ajratildi",
+        "Summary": "Fayl to'lovdan ajratildi"
+      }
     }
   },
   "Expenses": {
@@ -174,6 +210,28 @@
       "Comment": "Izoh",
       "Delete": "Xarajatni o'chirish",
       "DeleteConfirmation": "Ushbu xarajatni o'chirishni xohlaysizmi?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Xarajat yaratildi",
+        "Summary": "Xarajat qayd etildi"
+      },
+      "Updated": {
+        "Title": "Xarajat o'zgartirildi",
+        "Summary": "Xarajat ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "Xarajat o'chirildi",
+        "Summary": "Xarajat hisobdan o'chirildi"
+      },
+      "FileAttached": {
+        "Title": "Xarajatga fayl biriktirildi",
+        "Summary": "Xarajatga fayl biriktirildi"
+      },
+      "FileDetached": {
+        "Title": "Fayl xarajatdan ajratildi",
+        "Summary": "Fayl xarajatdan ajratildi"
+      }
     }
   },
   "Counterparties": {
@@ -223,6 +281,20 @@
       "LLC": "MChJ (Mas'uliyati cheklangan jamiyat)",
       "JSC": "AJ (Aksiyadorlik jamiyati)",
       "SOLE_PROPRIETORSHIP": "Yakka tadbirkor"
+    },
+    "History": {
+      "Created": {
+        "Title": "Kontragent yaratildi",
+        "Summary": "Yangi kontragent qo'shildi"
+      },
+      "Updated": {
+        "Title": "Kontragent o'zgartirildi",
+        "Summary": "Kontragent ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "Kontragent o'chirildi",
+        "Summary": "Kontragent ro'yxatdan o'chirildi"
+      }
     }
   },
   "MoneyAccounts": {
@@ -271,6 +343,20 @@
       "NoTransactionsDescription": "Bu hisobda tranzaksiyalar yo'q. Tranzaksiyalar siz xarajat, to'lov yoki o'tkazmalar qo'shganingizda bu yerda ko'rinadi.",
       "ViewAll": "Barcha tranzaksiyalarni ko'rish",
       "Loading": "Yuklanmoqda…"
+    },
+    "History": {
+      "Created": {
+        "Title": "Hisob yaratildi",
+        "Summary": "Boshlang'ich qoldiq bilan pul hisobi ochildi"
+      },
+      "Updated": {
+        "Title": "Hisob o'zgartirildi",
+        "Summary": "Hisob ma'lumotlari yoki qoldig'i o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "Hisob o'chirildi",
+        "Summary": "Pul hisobi o'chirildi"
+      }
     }
   },
   "Transfers": {
@@ -318,6 +404,20 @@
       "_Description": "Tavsif",
       "Delete": "To'lov kategoriyasini o'chirish",
       "DeleteConfirmation": "Ushbu to'lov kategoriyasini o'chirishni xohlaysizmi?"
+    },
+    "History": {
+      "Created": {
+        "Title": "To'lov kategoriyasi yaratildi",
+        "Summary": "Yangi to'lov kategoriyasi qo'shildi"
+      },
+      "Updated": {
+        "Title": "To'lov kategoriyasi o'zgartirildi",
+        "Summary": "To'lov kategoriyasi ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "To'lov kategoriyasi o'chirildi",
+        "Summary": "To'lov kategoriyasi ro'yxatdan o'chirildi"
+      }
     }
   },
   "Inventory": {
@@ -355,6 +455,20 @@
       "_Description": "Tavsif",
       "Delete": "Tovarni o'chirish",
       "DeleteConfirmation": "Ushbu tovarni o'chirishni xohlaysizmi?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Tovar yaratildi",
+        "Summary": "Tovar qo'shildi"
+      },
+      "Updated": {
+        "Title": "Tovar o'zgartirildi",
+        "Summary": "Tovar ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "Tovar o'chirildi",
+        "Summary": "Tovar hisobdan o'chirildi"
+      }
     }
   },
   "Transactions": {
@@ -415,6 +529,20 @@
       "TRANSFER": "O'tkazma",
       "EXCHANGE": "Ayirboshlash",
       "ADJUSTMENT": "Tuzatish"
+    },
+    "History": {
+      "Created": {
+        "Title": "O'tkazma amalga oshirildi",
+        "Summary": "Pul hisoblar o'rtasida o'tkazildi yoki ayirboshlandi"
+      },
+      "Updated": {
+        "Title": "O'tkazma o'zgartirildi",
+        "Summary": "Hisoblar o'rtasidagi o'tkazma ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "O'tkazma o'chirildi",
+        "Summary": "Hisoblar o'rtasidagi o'tkazma hisobdan o'chirildi"
+      }
     }
   },
   "Reports": {
@@ -551,6 +679,32 @@
       "Deleted": "Qarz muvaffaqiyatli o'chirildi",
       "Settled": "Qarz muvaffaqiyatli to'landi",
       "WrittenOff": "Qarz muvaffaqiyatli hisobdan chiqarildi"
+    },
+    "History": {
+      "Created": {
+        "Title": "Qarz yaratildi",
+        "Summary": "Qarz qayd etildi"
+      },
+      "Updated": {
+        "Title": "Qarz o'zgartirildi",
+        "Summary": "Qarz ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "Qarz o'chirildi",
+        "Summary": "Qarz hisobdan o'chirildi"
+      },
+      "Settled": {
+        "Title": "Qarz to'landi",
+        "Summary": "Qarz to'liq yoki qisman to'landi"
+      },
+      "WrittenOff": {
+        "Title": "Qarz hisobdan chiqarildi",
+        "Summary": "Qarz undirib bo'lmaydigan sifatida hisobdan chiqarildi"
+      },
+      "Cancelled": {
+        "Title": "Qarz bekor qilindi",
+        "Summary": "Qarz endi hisoblanmaydi va pulni zaxiraga olmaydi"
+      }
     }
   },
   "DebtAggregates": {

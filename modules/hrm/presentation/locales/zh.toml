@@ -92,3 +92,25 @@
       Label = "个人识别号码"
       Placeholder = "123456789192121"
 
+    [Employees.History.Created]
+      Title = "已添加员工"
+      Summary = "录用了新员工"
+    [Employees.History.Updated]
+      Title = "已修改员工"
+      Summary = "员工信息已修改"
+    [Employees.History.Deleted]
+      Title = "已删除员工"
+      Summary = "员工已从员工名单中删除"
+    [Positions.Single.Name]
+      Label = "职位名称"
+    [Positions.Single.Description]
+      Label = "描述"
+    [Positions.History.Created]
+      Title = "已创建职位"
+      Summary = "添加了新职位"
+    [Positions.History.Updated]
+      Title = "已修改职位"
+      Summary = "职位信息已修改"
+    [Positions.History.Deleted]
+      Title = "已删除职位"
+      Summary = "职位已删除"

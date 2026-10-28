@@ -13,6 +13,7 @@ import (
 	financepermissions "github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	financecontrollers "github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	financeServices "github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/modules/projects"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project"
 	"github.com/iota-uz/iota-sdk/modules/projects/permissions"
@@ -31,7 +32,7 @@ func TestDebtForm_LinksProject(t *testing.T) {
 		financepermissions.DebtRead,
 	)
 
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+	suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(user)

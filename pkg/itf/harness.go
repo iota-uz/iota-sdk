@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
@@ -266,6 +267,9 @@ func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 	ctx := h.state.baseCtx
 	if h.cfg.Context.User != nil {
 		ctx = composables.WithUser(ctx, h.cfg.Context.User)
+		ctx = TestExecution(ctx)
+	} else {
+		ctx = history.SystemExecution(ctx, "itf", "Integration test")
 	}
 	switch h.cfg.Isolation.Mode {
 	case IsolationCommitted:

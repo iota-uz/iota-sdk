@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/modules/logging"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
@@ -29,7 +30,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 
 	//t.Run("displays labels in list view", func(t *testing.T) {
 	//	suite := itf.NewSuiteBuilder(t).
-	//		WithComponents(core.NewComponent(&core.ModuleOptions{
+	//		WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 	//			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 	//		})).
 	//		AsUser(testUser).
@@ -138,7 +139,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 	//})
 
 	t.Run("displays labels in details view", func(t *testing.T) {
-		suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		})).Build().
 			AsUser(testUser)
@@ -209,7 +210,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 	})
 
 	t.Run("handles dynamic options loader", func(t *testing.T) {
-		suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		})).Build().
 			AsUser(testUser)
@@ -267,7 +268,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 	})
 
 	t.Run("displays raw value when no matching option", func(t *testing.T) {
-		suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		suite := itf.NewSuiteBuilder(t).WithComponents(logging.NewComponent(), core.NewComponent(&core.ModuleOptions{
 			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
 		})).Build().
 			AsUser(testUser)

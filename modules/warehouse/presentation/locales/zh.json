@@ -96,6 +96,20 @@
       "SelectStatus": "选择状态",
       "Delete": "删除",
       "DeleteConfirmation": "您确定要删除此产品吗？"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建产品",
+        "Summary": "仓库中新增了一件产品"
+      },
+      "Updated": {
+        "Title": "已修改产品",
+        "Summary": "产品信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除产品",
+        "Summary": "一件产品已从仓库删除"
+      }
     }
   },
   "WarehousePositions": {
@@ -186,6 +200,20 @@
       "UploadLabel": "选择文件",
       "UploadPlaceholder": "选择文件",
       "Submit": "导入"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建仓位",
+        "Summary": "新增了一个仓库仓位"
+      },
+      "Updated": {
+        "Title": "已修改仓位",
+        "Summary": "仓库仓位信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除仓位",
+        "Summary": "一个仓库仓位已被删除"
+      }
     }
   },
   "WarehouseUnits": {
@@ -222,6 +250,20 @@
       },
       "Delete": "删除",
       "DeleteConfirmation": "您确定要删除此仓库单位吗？"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建计量单位",
+        "Summary": "新增了一个计量单位"
+      },
+      "Updated": {
+        "Title": "已修改计量单位",
+        "Summary": "计量单位信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除计量单位",
+        "Summary": "一个计量单位已被删除"
+      }
     }
   },
   "WarehouseOrders": {
@@ -293,6 +335,24 @@
       "Unit": "单位",
       "Delete": "删除",
       "DeleteConfirmation": "您确定要删除此订单吗？"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建订单",
+        "Summary": "已创建一张仓库订单"
+      },
+      "Updated": {
+        "Title": "已修改订单",
+        "Summary": "仓库订单信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除订单",
+        "Summary": "一张仓库订单已被删除"
+      },
+      "Completed": {
+        "Title": "订单已完成",
+        "Summary": "一张仓库订单已完成"
+      }
     }
   },
   "WarehouseInventory": {
@@ -349,6 +409,20 @@
       "AllPositions": "所有仓位",
       "Delete": "删除",
       "DeleteConfirmation": "您确定要删除此库存检查吗？"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建盘点",
+        "Summary": "已登记一次库存盘点"
+      },
+      "Updated": {
+        "Title": "已修改盘点",
+        "Summary": "库存盘点信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除盘点",
+        "Summary": "一次库存盘点已被删除"
+      }
     }
   }
 }
