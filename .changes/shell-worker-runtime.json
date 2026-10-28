@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add the shell capability contract (pkg/shell) and a separately deployed gbash shell worker module with per-run child processes, VFS isolation, budgets and a bounded queue."
+}
