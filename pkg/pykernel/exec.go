@@ -37,6 +37,8 @@ const (
 	// EventDone is terminal: the exec finished (successfully or with an error).
 	// Exactly one EventDone closes the stream.
 	EventDone
+	// EventStderr carries an incremental stderr chunk.
+	EventStderr
 )
 
 func (k ExecEventKind) String() string {
@@ -55,6 +57,8 @@ func (k ExecEventKind) String() string {
 		return "truncated"
 	case EventDone:
 		return "done"
+	case EventStderr:
+		return "stderr"
 	default:
 		return fmt.Sprintf("ExecEventKind(%d)", int(k))
 	}
@@ -65,11 +69,20 @@ func (k ExecEventKind) String() string {
 type ExecEvent struct {
 	Kind      ExecEventKind
 	Stdout    []byte         // EventStdout
+	Stderr    []byte         // EventStderr
 	Result    *ResultPayload // EventResult
 	Metric    *MetricPayload // EventMetric
 	Log       *LogPayload    // EventLog
 	Err       *ExecError     // EventError
+	Done      *DonePayload   // EventDone
 	Timestamp time.Time
+}
+
+// DonePayload reports which output streams lost data to the output cap, so a
+// consumer can mark truncation without parsing the text.
+type DonePayload struct {
+	StdoutTruncated bool
+	StderrTruncated bool
 }
 
 // ResultPayload carries the value of the final expression, already converted at

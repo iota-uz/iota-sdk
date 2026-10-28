@@ -77,6 +77,11 @@ type CapabilitySignature struct {
 	Params  []ParamSpec
 	Returns string // doc hint, e.g. "list[dict]"
 	Doc     string
+	// Namespace places the proxy on a module-level object (e.g. "tools")
+	// instead of the global namespace.
+	Namespace string
+	// Async makes the proxy a coroutine function, awaitable at top level.
+	Async bool
 }
 
 // Capability is one host function exposed into the kernel's Python namespace

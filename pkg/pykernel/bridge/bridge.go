@@ -69,6 +69,7 @@ type RawEvent struct {
 // Event kind names used in RawEvent.Kind.
 const (
 	KindStdout = "stdout"
+	KindStderr = "stderr"
 	KindMetric = "metric"
 	KindLog    = "log"
 	KindResult = "result"
@@ -166,10 +167,8 @@ func (b *bridge) handleCall(ctx context.Context, dispatcher CallDispatcher, msg 
 		b.writeError(msg.ID, codeCapabilityArgs, "invalid cap.call params: "+err.Error(), "")
 		return
 	}
-	// ctx here is the Serve-lifetime context, not a per-exec context, so per-exec
-	// cancellation/timeout does NOT propagate into a capability handler today; a
-	// hung handler is bounded only by the manager's wall-clock watchdog closing
-	// conn.
+	// ctx is the Serve-lifetime context; the dispatcher swaps in the context of
+	// the exec named by the call so cancellation reaches the handler.
 	reply := dispatcher.Dispatch(ctx, Call(p))
 	if reply.Err != nil {
 		b.writeError(msg.ID, codeCapabilityError, reply.Err.Message, reply.Err.Type)
@@ -192,6 +191,8 @@ func notificationKind(method string) (string, bool) {
 	switch method {
 	case MethodOutStdout:
 		return KindStdout, true
+	case MethodOutStderr:
+		return KindStderr, true
 	case MethodOutMetric:
 		return KindMetric, true
 	case MethodOutLog:

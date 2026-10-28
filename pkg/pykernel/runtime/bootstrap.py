@@ -13,6 +13,8 @@ shim raises as a Python exception at the call site.
 """
 
 import ast
+import asyncio
+import inspect
 import json
 import os
 import socket
@@ -20,6 +22,7 @@ import struct
 import sys
 import threading
 import traceback
+import types
 import queue as _queue
 
 try:
@@ -40,6 +43,7 @@ _current_exec = None
 _worker_tid = None
 _exec_queue = _queue.Queue()
 _exc_types = {}
+_loop = None
 
 
 # --- Framing -------------------------------------------------------------
@@ -118,8 +122,26 @@ def _invoke(name, args):
     return resp.get("result")
 
 
-def _make_proxy(name, param_names):
-    def proxy(*args, **kwargs):
+_PY_TYPES = {"str": str, "int": int, "float": float, "bool": bool, "dict": dict, "list": list}
+
+
+def _signature(params):
+    out = []
+    for p in params:
+        annotation = _PY_TYPES.get(p.get("type") or "", inspect.Parameter.empty)
+        default = inspect.Parameter.empty if p.get("required") else None
+        out.append(inspect.Parameter(
+            p["name"], inspect.Parameter.KEYWORD_ONLY, default=default, annotation=annotation,
+        ))
+    return inspect.Signature(out)
+
+
+def _make_proxy(spec):
+    name = spec["name"]
+    params = spec.get("params") or []
+    param_names = [p.get("name") for p in params]
+
+    def call(args, kwargs):
         call_args = dict(kwargs)
         for i, value in enumerate(args):
             if i >= len(param_names):
@@ -127,19 +149,38 @@ def _make_proxy(name, param_names):
                     "%s() takes at most %d positional argument(s)" % (name, len(param_names))
                 )
             call_args[param_names[i]] = value
-        return _invoke(name, call_args)
+        return call_args
+
+    if spec.get("async"):
+        async def proxy(*args, **kwargs):
+            call_args = call(args, kwargs)
+            return await asyncio.get_running_loop().run_in_executor(None, _invoke, name, call_args)
+    else:
+        def proxy(*args, **kwargs):
+            return _invoke(name, call(args, kwargs))
 
     proxy.__name__ = name
+    proxy.__doc__ = spec.get("doc") or None
+    if spec.get("namespace"):
+        proxy.__signature__ = _signature(params)
     return proxy
 
 
 # --- Stdout capture ------------------------------------------------------
 
+class _Budget:
+    """Output cap shared by stdout, stderr and the result of one exec."""
+
+    def __init__(self, cap):
+        self.cap = cap
+        self.sent = 0
+
+
 class _StreamWriter:
-    def __init__(self, exec_id, cap):
+    def __init__(self, exec_id, budget, method):
         self._exec_id = exec_id
-        self._cap = cap
-        self._sent = 0
+        self._budget = budget
+        self._method = method
         self.truncated = False
 
     def write(self, s):
@@ -151,22 +192,23 @@ class _StreamWriter:
         n = len(s)
         if not s:
             return 0
-        if self._sent >= self._cap:
+        budget = self._budget
+        if budget.sent >= budget.cap:
             self.truncated = True
             return n
         encoded = s.encode("utf-8")
-        remaining = self._cap - self._sent
+        remaining = budget.cap - budget.sent
         if len(encoded) <= remaining:
-            self._sent += len(encoded)
-            _notify("out.stdout", {"exec_id": self._exec_id, "chunk": s})
+            budget.sent += len(encoded)
+            _notify(self._method, {"exec_id": self._exec_id, "chunk": s})
             return n
         # Truncate on a valid UTF-8 boundary: take the first `remaining` bytes,
         # then drop any partial trailing char via errors='ignore'.
         chunk = encoded[:remaining].decode("utf-8", errors="ignore")
         self.truncated = True
-        self._sent = self._cap
+        budget.sent = budget.cap
         if chunk:
-            _notify("out.stdout", {"exec_id": self._exec_id, "chunk": chunk})
+            _notify(self._method, {"exec_id": self._exec_id, "chunk": chunk})
         return n
 
     def flush(self):
@@ -175,6 +217,21 @@ class _StreamWriter:
 
 # --- Execution -----------------------------------------------------------
 
+_COMPILE_FLAGS = ast.PyCF_ALLOW_TOP_LEVEL_AWAIT
+
+
+def _run(code_obj):
+    """Evaluate a compiled cell; a cell using top-level await compiles to a
+    coroutine, which runs on the kernel's persistent event loop."""
+    global _loop
+    value = eval(code_obj, _ns)
+    if code_obj.co_flags & inspect.CO_COROUTINE:
+        if _loop is None:
+            _loop = asyncio.new_event_loop()
+        value = _loop.run_until_complete(value)
+    return value
+
+
 def _exec_with_result(code):
     """Execute code in the persistent namespace. If the final statement is an
     expression, return repr(value); otherwise return None."""
@@ -182,57 +239,78 @@ def _exec_with_result(code):
     if tree.body and isinstance(tree.body[-1], ast.Expr):
         last = tree.body.pop()
         if tree.body:
-            exec(compile(tree, "<cell>", "exec"), _ns)
-        value = eval(compile(ast.Expression(last.value), "<cell>", "eval"), _ns)
+            _run(compile(tree, "<cell>", "exec", flags=_COMPILE_FLAGS))
+        value = _run(compile(ast.Expression(last.value), "<cell>", "eval", flags=_COMPILE_FLAGS))
         return None if value is None else repr(value)
-    exec(compile(tree, "<cell>", "exec"), _ns)
+    _run(compile(tree, "<cell>", "exec", flags=_COMPILE_FLAGS))
     return None
+
+
+def _deliver(method, params):
+    """Send a notification even if a late cancellation lands meanwhile. Once
+    _current_exec is cleared no further interrupt can be injected, so at most
+    one retry happens; a duplicated frame is ignored by the host."""
+    while True:
+        try:
+            _notify(method, params)
+            return
+        except KeyboardInterrupt:
+            continue
 
 
 def _run_code(exec_id, code, output_cap):
     global _current_exec
     _current_exec = exec_id
-    writer = _StreamWriter(exec_id, output_cap or _OUTPUT_CAP_DEFAULT)
+    budget = _Budget(output_cap or _OUTPUT_CAP_DEFAULT)
+    writer = _StreamWriter(exec_id, budget, "out.stdout")
+    err_writer = _StreamWriter(exec_id, budget, "out.stderr")
     saved_out, saved_err = sys.stdout, sys.stderr
     sys.stdout = writer
-    sys.stderr = writer
+    sys.stderr = err_writer
+    error = None
+    result_text = None
     try:
-        result_text = _exec_with_result(code)
+        try:
+            result_text = _exec_with_result(code)
+        except KeyboardInterrupt:
+            error = ("KernelCancelled", "execution cancelled", "")
+        except BaseException as exc:  # report any failure back to the host
+            error = (type(exc).__name__, str(exc), traceback.format_exc())
     except KeyboardInterrupt:
-        sys.stdout, sys.stderr = saved_out, saved_err
-        _notify("exec.error", {
-            "exec_id": exec_id, "type": "KernelCancelled",
-            "message": "execution cancelled", "traceback": "",
-        })
-    except BaseException as exc:  # report any failure back to the host
-        sys.stdout, sys.stderr = saved_out, saved_err
-        _notify("exec.error", {
-            "exec_id": exec_id, "type": type(exc).__name__,
-            "message": str(exc), "traceback": traceback.format_exc(),
-        })
-    else:
-        sys.stdout, sys.stderr = saved_out, saved_err
-        if result_text is not None:
-            # Budget the result against the SAME byte cap as stdout so a huge
-            # repr can't exceed the bridge frame cap or balloon memory. Truncate
-            # on a UTF-8 boundary and flag the exec as truncated.
-            remaining = writer._cap - writer._sent
-            encoded = result_text.encode("utf-8")
-            if remaining <= 0:
-                # Budget exhausted by stdout: elide the result entirely.
-                result_text = "… [truncated]"
-                writer.truncated = True
-            elif len(encoded) > remaining:
-                result_text = encoded[:remaining].decode("utf-8", errors="ignore") + "… [truncated]"
-                writer._sent = writer._cap
-                writer.truncated = True
-            else:
-                writer._sent += len(encoded)
-            _notify("exec.result", {"exec_id": exec_id, "text": result_text, "mime": "text/plain"})
+        # The cancellation raced with the end of the cell.
+        if error is None:
+            error = ("KernelCancelled", "execution cancelled", "")
     finally:
-        sys.stdout, sys.stderr = saved_out, saved_err
         _current_exec = None
-    _notify("exec.done", {"exec_id": exec_id, "output_truncated": writer.truncated})
+        sys.stdout, sys.stderr = saved_out, saved_err
+
+    if error is not None:
+        _deliver("exec.error", {
+            "exec_id": exec_id, "type": error[0], "message": error[1], "traceback": error[2],
+        })
+    elif result_text is not None:
+        # Budget the result against the SAME byte cap as stdout so a huge
+        # repr can't exceed the bridge frame cap or balloon memory. Truncate
+        # on a UTF-8 boundary and flag the exec as truncated.
+        remaining = budget.cap - budget.sent
+        encoded = result_text.encode("utf-8")
+        if remaining <= 0:
+            # Budget exhausted by stdout: elide the result entirely.
+            result_text = "… [truncated]"
+            writer.truncated = True
+        elif len(encoded) > remaining:
+            result_text = encoded[:remaining].decode("utf-8", errors="ignore") + "… [truncated]"
+            budget.sent = budget.cap
+            writer.truncated = True
+        else:
+            budget.sent += len(encoded)
+        _deliver("exec.result", {"exec_id": exec_id, "text": result_text, "mime": "text/plain"})
+    _deliver("exec.done", {
+        "exec_id": exec_id,
+        "output_truncated": writer.truncated or err_writer.truncated,
+        "stdout_truncated": writer.truncated,
+        "stderr_truncated": err_writer.truncated,
+    })
 
 
 def _worker():
@@ -354,8 +432,13 @@ def _main():
     _sock.setblocking(True)
 
     for spec in json.loads(os.environ.get("PYKERNEL_CAPABILITIES", "[]")):
-        param_names = [p.get("name") for p in (spec.get("params") or [])]
-        _ns[spec["name"]] = _make_proxy(spec["name"], param_names)
+        proxy = _make_proxy(spec)
+        namespace = spec.get("namespace")
+        if namespace:
+            _ns.setdefault(namespace, types.SimpleNamespace())
+            setattr(_ns[namespace], spec["name"], proxy)
+        else:
+            _ns[spec["name"]] = proxy
 
     threading.Thread(target=_worker, daemon=True).start()
     _reader()

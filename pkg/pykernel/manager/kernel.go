@@ -34,6 +34,7 @@ type kernel struct {
 	lastActive   time.Time
 	pid          int
 	activeExecID string
+	activeCtx    context.Context
 	activeCh     chan pykernel.ExecEvent
 	activeDone   chan struct{}
 }
@@ -44,17 +45,29 @@ var (
 )
 
 func newKernel(sess pykernel.Session, proc isolation.Process, br bridge.Bridge, outputCap int, grace time.Duration) *kernel {
-	return &kernel{
+	k := &kernel{
 		key:        sess.Key(),
 		proc:       proc,
 		br:         br,
-		disp:       &dispatcher{caps: sess.Capabilities(), mode: sess.Mode(), tenant: sess.TenantID()},
 		outputCap:  outputCap,
 		grace:      grace,
 		closed:     make(chan struct{}),
 		lastActive: time.Now(),
 		pid:        proc.PID(),
 	}
+	k.disp = &dispatcher{caps: sess.Capabilities(), mode: sess.Mode(), tenant: sess.TenantID(), exec: k.execContext}
+	return k
+}
+
+// execContext returns the context the consumer passed to Exec for execID, as
+// long as that exec is still the active one.
+func (k *kernel) execContext(execID string) (context.Context, bool) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if execID == "" || execID != k.activeExecID || k.activeCtx == nil {
+		return nil, false
+	}
+	return k.activeCtx, true
 }
 
 // start runs the bridge read loop for the kernel's lifetime.
@@ -99,6 +112,7 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 	ch := make(chan pykernel.ExecEvent, 256)
 	done := make(chan struct{})
 	k.activeExecID = execID
+	k.activeCtx = ctx
 	k.activeCh = ch
 	k.activeDone = done
 	k.inFlight = true
@@ -172,6 +186,7 @@ func (k *kernel) finishLocked(synthetic *pykernel.ExecEvent) {
 	close(k.activeCh)
 	k.activeCh = nil
 	k.activeExecID = ""
+	k.activeCtx = nil
 	k.inFlight = false
 	k.lastActive = time.Now()
 	if k.activeDone != nil {

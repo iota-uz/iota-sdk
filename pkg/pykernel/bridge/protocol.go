@@ -19,6 +19,7 @@ const (
 
 	// kernel→host notifications
 	MethodOutStdout  = "out.stdout"
+	MethodOutStderr  = "out.stderr"
 	MethodOutMetric  = "out.metric"
 	MethodOutLog     = "out.log"
 	MethodExecResult = "exec.result"
