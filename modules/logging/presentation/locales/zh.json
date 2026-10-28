@@ -6,5 +6,13 @@
     "Logs": {
       "View": "查看日志"
     }
+  },
+  "BusinessHistory": {
+    "Events": {
+      "LegacyActionLog": {
+        "Title": "旧日志中的操作",
+        "Summary": "在业务历史出现之前由旧的请求日志记录。未记录执行者姓名和操作的业务含义。"
+      }
+    }
   }
 }
