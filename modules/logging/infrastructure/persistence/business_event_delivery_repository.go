@@ -14,7 +14,7 @@ import (
 
 const deliveryColumns = `d.tenant_id, d.event_id, d.consumer, COALESCE(e.operation_id, ''), d.attempts, d.last_error, d.created_at, d.available_at, d.delivered_at`
 
-const deliveryFrom = ` FROM business_event_deliveries d JOIN business_events e ON e.tenant_id = d.tenant_id AND e.event_id = d.event_id`
+const deliveryFrom = ` FROM business_event_deliveries d JOIN action_logs e ON e.tenant_id = d.tenant_id AND e.event_id = d.event_id`
 
 type PgBusinessEventDeliveryRepository struct{}
 

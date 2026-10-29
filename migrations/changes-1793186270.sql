@@ -9,7 +9,7 @@ CREATE TABLE business_event_deliveries (
     available_at timestamp with time zone NOT NULL DEFAULT now(),
     delivered_at timestamp with time zone,
     PRIMARY KEY (tenant_id, event_id, consumer),
-    FOREIGN KEY (tenant_id, event_id) REFERENCES business_events (tenant_id, event_id) ON DELETE CASCADE
+    FOREIGN KEY (tenant_id, event_id) REFERENCES action_logs (tenant_id, event_id) ON DELETE CASCADE
 );
 
 CREATE INDEX business_event_deliveries_due_idx ON business_event_deliveries (available_at, created_at)

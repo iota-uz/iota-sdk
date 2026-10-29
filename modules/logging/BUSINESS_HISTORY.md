@@ -1,6 +1,6 @@
 # Business history: coverage matrix
 
-Business history (`business_events`) records what happened to business objects, who did it and
+Business history (`action_logs`, rows with an `event_type`) records what happened to business objects, who did it and
 through which channel. An event is written by the application service in the same PostgreSQL
 transaction as the change itself, so a committed change always has its event and a rolled-back
 one never does. HTTP middleware only marks the request as a UI operation; it records nothing on
