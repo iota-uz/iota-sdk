@@ -1,0 +1,14 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Round percentage-point XLSX cells to two decimal places before conversion, preventing calculated fractions from exceeding Excel precision."
+    },
+    {
+      "bump": "none",
+      "summary": "Compare button parity in one browser page while retaining exact pixel checks."
+    }
+  ],
+  "source": "962b99ec8226c14b6845c74590c6d229590fc83e",
+  "version": "0.34.0"
+}
