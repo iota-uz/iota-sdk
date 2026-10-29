@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Round percentage-point XLSX cells to two decimal places before conversion, preventing calculated fractions from exceeding Excel precision."
+    }
+  ],
+  "source": "a10dd67a6766421a24e24b24e2a43af591309bba",
+  "version": "0.34.0"
+}
