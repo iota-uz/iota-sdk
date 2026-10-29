@@ -216,7 +216,8 @@ Approximate values with more than 15 significant digits, such as float64(1/3),
 are rejected instead of silently rounded. Use `PercentPoints` when the source
 stores percentage points: it rounds them to two decimal places and scales their
 decimal representation by 100. Excel formulas use the rounded value, so values
-smaller than 0.005 percentage points become zero. Non-finite values, scaling
+whose absolute value is smaller than 0.005 percentage points become zero, except
+when scaling underflows. Non-finite values, scaling
 underflow, and values still exceeding Excel's precision fail. Other numbers retain
 the strict precision check. A decimal's scale is kept
 unless an explicit number format overrides it. A database driver returning a
