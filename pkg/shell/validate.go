@@ -70,9 +70,15 @@ func ValidateCwd(cwd string) error {
 // ValidateInputPaths rejects traversal, non-canonical, duplicate and
 // file-versus-directory conflicting paths relative to /input.
 func ValidateInputPaths(paths []string) error {
+	if len(paths) > MaxInputFiles {
+		return newError(CodeLimitExceeded, "files", fmt.Sprintf("files exceed %d entries", MaxInputFiles))
+	}
 	seen := make(map[string]struct{}, len(paths))
 	for i, p := range paths {
 		field := fmt.Sprintf("files[%d].path", i)
+		if len(p) > MaxInputPathBytes {
+			return newError(CodeLimitExceeded, field, fmt.Sprintf("path exceeds %d bytes", MaxInputPathBytes))
+		}
 		if err := validateInputPath(p); err != nil {
 			return newError(CodeInvalidInput, field, err.Error())
 		}

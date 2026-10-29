@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -182,6 +183,9 @@ func TestServer_Busy(t *testing.T) {
 	if busy.status != http.StatusTooManyRequests || busy.err.Code != protocol.CodeBusy || busy.err.RetryAfterMS != 1500 {
 		t.Fatalf("status=%d error=%+v", busy.status, busy.err)
 	}
+	if early := mustPost(t, srv, withFiles(script("true", 1000), "../not-decoded")); early.status != http.StatusTooManyRequests {
+		t.Fatalf("busy must be decided before the body is read: status=%d error=%+v", early.status, early.err)
+	}
 
 	wg.Wait()
 	for _, r := range results {
@@ -225,6 +229,8 @@ func TestServer_RejectsBeforeRun(t *testing.T) {
 		{"cwd outside sandbox", testToken, protocol.Request{Script: "true", Cwd: "/etc", TimeoutMS: 1000, MaxOutputBytes: 10}, http.StatusBadRequest, protocol.CodeInvalidInput},
 		{"timeout above max", testToken, script("true", 20000), http.StatusBadRequest, protocol.CodeInvalidInput},
 		{"script too large", testToken, script(strings.Repeat("x", protocol.MaxScriptBytes+1), 1000), http.StatusRequestEntityTooLarge, protocol.CodeLimitExceeded},
+		{"path too long", testToken, withFiles(script("true", 1000), strings.Repeat("a/", protocol.MaxInputPathBytes/2)+"b"), http.StatusRequestEntityTooLarge, protocol.CodeLimitExceeded},
+		{"too many files", testToken, withFiles(script("true", 1000), manyPaths(protocol.MaxInputFiles+1)...), http.StatusRequestEntityTooLarge, protocol.CodeLimitExceeded},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -237,6 +243,14 @@ func TestServer_RejectsBeforeRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+func manyPaths(n int) []string {
+	paths := make([]string, n)
+	for i := range paths {
+		paths[i] = "f" + strconv.Itoa(i)
+	}
+	return paths
 }
 
 func withFiles(req protocol.Request, paths ...string) protocol.Request {

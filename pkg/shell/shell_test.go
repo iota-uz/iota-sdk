@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -59,6 +60,8 @@ func TestNormalize_Rejects(t *testing.T) {
 		{"non-canonical path", shell.Request{Script: "ls", Files: files("./a")}, shell.CodeInvalidInput},
 		{"duplicate path", shell.Request{Script: "ls", Files: files("a.csv", "a.csv")}, shell.CodeInvalidInput},
 		{"file used as directory", shell.Request{Script: "ls", Files: files("a", "a/b.csv")}, shell.CodeInvalidInput},
+		{"path too long", shell.Request{Script: "ls", Files: files(strings.Repeat("a/", shell.MaxInputPathBytes/2) + "b")}, shell.CodeLimitExceeded},
+		{"too many files", shell.Request{Script: "ls", Files: files(manyPaths(shell.MaxInputFiles + 1)...)}, shell.CodeLimitExceeded},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -66,6 +69,14 @@ func TestNormalize_Rejects(t *testing.T) {
 			requireCode(t, err, tt.code)
 		})
 	}
+}
+
+func manyPaths(n int) []string {
+	paths := make([]string, n)
+	for i := range paths {
+		paths[i] = fmt.Sprintf("f%d", i)
+	}
+	return paths
 }
 
 type fakeExecutor struct {
@@ -140,6 +151,36 @@ func TestRunner_RejectsBeforeExecution(t *testing.T) {
 			_, err := runner.Run(context.Background(), shell.Request{Script: "ls", Files: tt.files})
 			requireCode(t, err, tt.code)
 			require.Nil(t, executor.got, "executor must not be called")
+		})
+	}
+}
+
+func TestRunner_Run_InputSizeBoundary(t *testing.T) {
+	half := strings.Repeat("x", shell.MaxInputBytes/2)
+	tests := []struct {
+		name    string
+		second  string
+		wantErr bool
+	}{
+		{"exactly MaxInputBytes", half, false},
+		{"MaxInputBytes plus one", half + "x", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			executor := &fakeExecutor{result: &shell.ExecResult{}}
+			runner := shell.NewRunner(executor, fakeResolver{"a": half, "b": tt.second}, &fakePublisher{})
+			_, err := runner.Run(context.Background(), shell.Request{
+				Script: "ls",
+				Files:  []shell.FileRef{{FileRef: "a", Path: "a"}, {FileRef: "b", Path: "b"}},
+			})
+			if tt.wantErr {
+				requireCode(t, err, shell.CodeLimitExceeded)
+				require.Nil(t, executor.got, "executor must not be called")
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, executor.got)
+			require.Len(t, executor.got.Files[1].Content, len(tt.second))
 		})
 	}
 }

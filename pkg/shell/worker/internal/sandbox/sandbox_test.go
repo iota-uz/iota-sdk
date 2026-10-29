@@ -168,6 +168,24 @@ func TestRun_Limits(t *testing.T) {
 			wantLimit: protocol.LimitFilesystem,
 		},
 		{
+			name:      "in-place overwrite at a full quota is not growth",
+			req:       protocol.Request{Script: "head -c 600000 /dev/zero > /tmp/a; head -c 430000 /dev/zero > /tmp/b; exec 3<> /tmp/a; head -c 32768 /dev/zero | tr '\\0' x >&3; exec 3>&-; wc -c < /tmp/a; head -c 1 /tmp/a"},
+			budgets:   small,
+			wantLimit: "",
+			check: func(t *testing.T, res *protocol.Result) {
+				t.Helper()
+				if exitOf(res) != 0 || res.Stdout != "600000\nx" {
+					t.Fatalf("exit=%d stdout=%q stderr=%q", exitOf(res), res.Stdout, res.Stderr)
+				}
+			},
+		},
+		{
+			name:      "writes past the end of a full quota are growth",
+			req:       protocol.Request{Script: "head -c 600000 /dev/zero > /tmp/a; head -c 430000 /dev/zero > /tmp/b; head -c 32768 /dev/zero >> /tmp/a"},
+			budgets:   small,
+			wantLimit: protocol.LimitFilesystem,
+		},
+		{
 			name:      "removed files release quota",
 			req:       protocol.Request{Script: "for i in 1 2 3 4; do head -c 600000 /dev/zero > /tmp/a; rm /tmp/a; done; echo ok"},
 			budgets:   small,

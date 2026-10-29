@@ -33,6 +33,8 @@ func (q *quotaFS) OpenFile(ctx context.Context, name string, flag int, perm stdf
 	writable := flag&(os.O_WRONLY|os.O_RDWR) != 0
 	var freed int64
 	if writable && flag&os.O_TRUNC != 0 {
+		q.mu.Lock()
+		defer q.mu.Unlock()
 		if info, err := q.Stat(ctx, name); err == nil && info.Mode().IsRegular() {
 			freed = info.Size()
 		}
@@ -41,11 +43,13 @@ func (q *quotaFS) OpenFile(ctx context.Context, name string, flag int, perm stdf
 	if err != nil {
 		return nil, err
 	}
-	q.release(freed)
+	if freed > 0 {
+		q.releaseLocked(freed)
+	}
 	if !writable {
 		return f, nil
 	}
-	return &quotaFile{File: f, fs: q, name: name}, nil
+	return &quotaFile{File: f, fs: q, name: name, append: flag&os.O_APPEND != 0}, nil
 }
 
 func (q *quotaFS) Remove(ctx context.Context, name string, recursive bool) error {
@@ -102,26 +106,44 @@ func (q *quotaFS) release(n int64) {
 		return
 	}
 	q.mu.Lock()
-	q.used = max(q.used-n, 0)
+	q.releaseLocked(n)
 	q.mu.Unlock()
+}
+
+func (q *quotaFS) releaseLocked(n int64) {
+	q.used = max(q.used-n, 0)
 }
 
 type quotaFile struct {
 	gbfs.File
-	fs   *quotaFS
-	name string
+	fs     *quotaFS
+	name   string
+	append bool
+	offset int64
+}
+
+func (f *quotaFile) Read(p []byte) (int, error) {
+	n, err := f.File.Read(p)
+	f.fs.mu.Lock()
+	f.offset += int64(n)
+	f.fs.mu.Unlock()
+	return n, err
 }
 
 func (f *quotaFile) Write(p []byte) (int, error) {
 	q := f.fs
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	if q.used+int64(len(p)) > q.limit {
+	before := f.size()
+	if f.append {
+		f.offset = before
+	}
+	if q.used+max(f.offset+int64(len(p))-before, 0) > q.limit {
 		q.exceeded.Store(true)
 		return 0, &os.PathError{Op: "write", Path: f.name, Err: syscall.ENOSPC}
 	}
-	before := f.size()
 	n, err := f.File.Write(p)
+	f.offset += int64(n)
 	q.used += max(f.size()-before, 0)
 	return n, err
 }

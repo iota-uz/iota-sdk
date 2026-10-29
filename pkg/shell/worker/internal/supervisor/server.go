@@ -60,32 +60,18 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req protocol.Request
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, protocol.MaxRequestBytes)).Decode(&req); err != nil {
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
-			s.writeError(w, http.StatusRequestEntityTooLarge, &protocol.Error{Code: protocol.CodeLimitExceeded, Message: "request is too large"})
-			return
-		}
-		s.writeError(w, http.StatusBadRequest, &protocol.Error{Code: protocol.CodeInvalidInput, Message: "request is not valid JSON"})
-		return
-	}
-	if verr := req.Validate(); verr != nil {
-		status := http.StatusBadRequest
-		if verr.Code == protocol.CodeLimitExceeded {
-			status = http.StatusRequestEntityTooLarge
-		}
-		s.writeError(w, status, verr)
-		return
-	}
-
-	release, err := s.queue.acquire(r.Context())
-	if errors.Is(err, errBusy) {
+	if err := s.queue.reserve(); err != nil {
 		retry := s.cfg.RetryAfter.Milliseconds()
 		w.Header().Set("Retry-After", strconv.FormatInt(max(retry/1000, 1), 10))
 		s.writeError(w, http.StatusTooManyRequests, &protocol.Error{Code: protocol.CodeBusy, Message: err.Error(), RetryAfterMS: retry})
 		return
 	}
+	req, ok := s.readRequest(w, r)
+	if !ok {
+		s.queue.leave()
+		return
+	}
+	release, err := s.queue.acquire(r.Context())
 	if err != nil {
 		return
 	}
@@ -93,7 +79,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 
 	runID := newRunID()
 	started := time.Now()
-	res, out, err := s.runChild(r.Context(), &req)
+	res, out, err := s.runChild(r.Context(), req)
 	duration := time.Since(started)
 	if err != nil {
 		if r.Context().Err() == nil {
@@ -124,6 +110,28 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(res); err != nil {
 		s.logger.Warn("shell result not delivered", "run_id", runID, "error", err)
 	}
+}
+
+func (s *Server) readRequest(w http.ResponseWriter, r *http.Request) (*protocol.Request, bool) {
+	var req protocol.Request
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, protocol.MaxRequestBytes)).Decode(&req); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			s.writeError(w, http.StatusRequestEntityTooLarge, &protocol.Error{Code: protocol.CodeLimitExceeded, Message: "request is too large"})
+			return nil, false
+		}
+		s.writeError(w, http.StatusBadRequest, &protocol.Error{Code: protocol.CodeInvalidInput, Message: "request is not valid JSON"})
+		return nil, false
+	}
+	if verr := req.Validate(); verr != nil {
+		status := http.StatusBadRequest
+		if verr.Code == protocol.CodeLimitExceeded {
+			status = http.StatusRequestEntityTooLarge
+		}
+		s.writeError(w, status, verr)
+		return nil, false
+	}
+	return &req, true
 }
 
 func (s *Server) authorized(r *http.Request) bool {

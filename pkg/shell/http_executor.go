@@ -8,11 +8,15 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const (
 	RunsPath         = "/v1/runs"
 	maxResponseBytes = 128 << 20
+	// defaultExecuteTimeout bounds a call without a deadline; it covers the
+	// default worker queue draining at maximum run time plus the transfer.
+	defaultExecuteTimeout = 2 * time.Minute
 )
 
 // HTTPExecutor calls the shell worker internal API.
@@ -23,7 +27,8 @@ type HTTPExecutor struct {
 }
 
 // NewHTTPExecutor targets the worker at baseURL and authenticates with token.
-// A nil client uses http.DefaultClient; deadlines come from the call context.
+// A nil client uses http.DefaultClient; deadlines come from the call context,
+// and a context without one is bounded by defaultExecuteTimeout.
 func NewHTTPExecutor(baseURL, token string, client *http.Client) *HTTPExecutor {
 	if client == nil {
 		client = http.DefaultClient
@@ -32,6 +37,11 @@ func NewHTTPExecutor(baseURL, token string, client *http.Client) *HTTPExecutor {
 }
 
 func (e *HTTPExecutor) Execute(ctx context.Context, req ExecRequest) (*ExecResult, error) {
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, defaultExecuteTimeout)
+		defer cancel()
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("shell: encode request: %w", err)

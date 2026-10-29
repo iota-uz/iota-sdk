@@ -16,6 +16,8 @@ const (
 	MaxOutputBytes        = 128 << 10
 	MaxScriptBytes        = 32 << 10
 	MaxInputBytes         = 32 << 20
+	MaxInputFiles         = 100
+	MaxInputPathBytes     = 1024
 )
 
 // Request is the shell tool input.

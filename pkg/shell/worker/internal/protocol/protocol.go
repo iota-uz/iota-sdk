@@ -14,11 +14,13 @@ const (
 	TempDir   = "/tmp"
 	OutputDir = "/output"
 
-	MaxTimeoutMS    = 10000
-	MaxOutputBytes  = 128 << 10
-	MaxScriptBytes  = 32 << 10
-	MaxInputBytes   = 32 << 20
-	MaxScratchBytes = 64 << 20
+	MaxTimeoutMS      = 10000
+	MaxOutputBytes    = 128 << 10
+	MaxScriptBytes    = 32 << 10
+	MaxInputBytes     = 32 << 20
+	MaxInputFiles     = 100
+	MaxInputPathBytes = 1024
+	MaxScratchBytes   = 64 << 20
 
 	// Wire bounds: JSON carries file contents as base64 (4/3) and may escape
 	// script and output text up to 6x; the margin covers that and the envelope.
@@ -107,9 +109,15 @@ func (r *Request) Validate() *Error {
 		return &Error{Code: CodeInvalidInput, Field: "cwd", Message: "cwd must be a clean absolute path inside the sandbox"}
 	}
 
+	if len(r.Files) > MaxInputFiles {
+		return &Error{Code: CodeLimitExceeded, Field: "files", Message: fmt.Sprintf("files exceed %d entries", MaxInputFiles)}
+	}
 	seen := make(map[string]struct{}, len(r.Files))
 	var total int64
 	for i, f := range r.Files {
+		if len(f.Path) > MaxInputPathBytes {
+			return &Error{Code: CodeLimitExceeded, Field: fmt.Sprintf("files[%d].path", i), Message: fmt.Sprintf("path exceeds %d bytes", MaxInputPathBytes)}
+		}
 		if !validInputPath(f.Path) {
 			return &Error{Code: CodeInvalidInput, Field: fmt.Sprintf("files[%d].path", i), Message: fmt.Sprintf("invalid path %q", f.Path)}
 		}

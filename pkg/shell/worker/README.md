@@ -19,8 +19,9 @@ application ── pkg/shell.Runner ── HTTPExecutor ──► supervisor (PO
   (one active run per replica, `SHELL_WORKER_QUEUE_SIZE` waiting), retryable
   `busy` with `retry_after_ms` on overflow. Every run is a new child process with
   an empty environment, its own process group and a hard deadline
-  (`timeout_ms` + 1 s); the group is SIGKILLed and reaped on deadline or when the
-  client goes away. gbash's own JSON-RPC server is not used.
+  (`timeout_ms` + 3 s, which also covers decoding the request and encoding the
+  result at their size limits); the group is SIGKILLed and reaped on deadline
+  or when the client goes away. gbash's own JSON-RPC server is not used.
 - **Child** (`shell-worker child`): applies its limits before reading the
   request (`oom_score_adj=1000`, `RLIMIT_FSIZE=0`, `RLIMIT_CORE=0`,
   `RLIMIT_NOFILE=64`), a Go heap budget with a watchdog

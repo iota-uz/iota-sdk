@@ -64,6 +64,9 @@ func serve(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	if memory == 0 {
+		return errors.New("SHELL_WORKER_CHILD_MEMORY_BYTES must be positive")
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		return err
@@ -77,7 +80,7 @@ func serve(logger *slog.Logger) error {
 		},
 		QueueSize:  queueSize,
 		RetryAfter: time.Duration(retryAfterMS) * time.Millisecond,
-		KillGrace:  time.Second,
+		KillGrace:  3 * time.Second,
 	}, logger)
 	if err != nil {
 		return err
