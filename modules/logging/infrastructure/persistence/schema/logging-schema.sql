@@ -93,7 +93,6 @@ CREATE TRIGGER business_events_append_only
     FOR EACH ROW
     EXECUTE FUNCTION business_events_append_only ();
 
-
 CREATE TABLE business_event_deliveries (
     tenant_id uuid NOT NULL,
     event_id uuid NOT NULL,
@@ -110,3 +109,4 @@ CREATE TABLE business_event_deliveries (
 CREATE INDEX business_event_deliveries_due_idx ON business_event_deliveries (available_at, created_at)
 WHERE
     delivered_at IS NULL;
+
