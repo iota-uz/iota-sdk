@@ -13,8 +13,10 @@ func TestOpenHarnessRetainsDatabaseAndRollsBackScopes(t *testing.T) {
 	h := OpenHarness(t, HarnessConfig{Name: "explicit_lifetime_test", Components: modules.Components()})
 	t.Cleanup(func() { require.NoError(t, h.Close()) })
 	var database string
+	var poolClosed func() error
 	t.Run("first", func(t *testing.T) {
 		s := h.Scope(t)
+		poolClosed = func() error { return s.Pool.Ping(context.Background()) }
 		require.NoError(t, s.Tx.QueryRow(s.Ctx, "SELECT current_database()").Scan(&database))
 		_, err := s.Tx.Exec(s.Ctx, "CREATE TABLE lifetime_probe (id integer)")
 		require.NoError(t, err)
@@ -28,4 +30,6 @@ func TestOpenHarnessRetainsDatabaseAndRollsBackScopes(t *testing.T) {
 		require.NoError(t, s.Pool.QueryRow(context.Background(), "SELECT to_regclass('public.lifetime_probe') IS NOT NULL").Scan(&exists))
 		require.False(t, exists)
 	})
+	require.NoError(t, h.Close())
+	require.Error(t, poolClosed())
 }
