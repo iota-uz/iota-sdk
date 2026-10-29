@@ -270,6 +270,13 @@
   "requests": [
     1225
   ],
+  "candidate": {
+    "version": "0.34.0",
+    "source": "a10dd67a6766421a24e24b24e2a43af591309bba",
+    "sha": "40d24b8a0c1aca66b5a2676ae0221bdf806edf87",
+    "phase": "testing",
+    "run_id": "40867962671"
+  },
   "ready": {
     "version": "0.33.0",
     "source": "4805ca8aad3e22584ad1ac535a62be4435c9b811",
