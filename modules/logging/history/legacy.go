@@ -2,8 +2,8 @@ package history
 
 import "github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
 
-// LegacyActionLogType is the event type of records migrated from action_logs.
-const LegacyActionLogType = "logging.action_log"
+// LegacyActionLogType is the event type of legacy action_logs records.
+const LegacyActionLogType = businessevent.LegacyActionLogType
 
 func LegacyActionLogDefinition() Definition {
 	return Definition{
