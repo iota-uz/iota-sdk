@@ -2,6 +2,8 @@
 
 ## Platform
 
+- **Проценты в Excel округляются до двух знаков в процентных пунктах** — [запись](adr/platform/excel-percent-points-rounding.md) · accepted · 2026-10-29
+
 - **Контекст фильтров вычисляется до исполнения отчёта** — [запись](adr/platform/scoped-report-filter-context.md) · accepted · 2026-10-13 (#1057)
 
 - **Отчёт Lens отделён от размещения и результата исполнения** — [запись](adr/platform/reusable-lens-reports.md) · accepted · 2026-10-12 (#1056)

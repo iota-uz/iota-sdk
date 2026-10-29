@@ -214,10 +214,11 @@ decimal representation (using float32 precision for float32 inputs), so common
 values such as 0.1 and 0.29 are accepted without exposing binary expansion.
 Approximate values with more than 15 significant digits, such as float64(1/3),
 are rejected instead of silently rounded. Use `PercentPoints` when the source
-stores percentage points: it scales their decimal representation by 100 without
-introducing binary-division artifacts. It refuses loss of precision or underflow
-instead of inventing a zero fraction. Unsafe precision and
-non-finite values fail instead of silently rounding. Its decimal scale is kept
+stores percentage points: it rounds them to two decimal places and scales their
+decimal representation by 100. Excel formulas use the rounded value, so values
+smaller than 0.005 percentage points become zero. Non-finite values, scaling
+underflow, and values still exceeding Excel's precision fail. Other numbers retain
+the strict precision check. A decimal's scale is kept
 unless an explicit number format overrides it. A database driver returning a
 decimal as an ordinary string must supply its type through a typed data source;
 the exporter does not guess from the string's contents.

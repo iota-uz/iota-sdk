@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Round percentage-point XLSX cells to two decimal places before conversion, preventing calculated fractions from exceeding Excel precision."
+}
