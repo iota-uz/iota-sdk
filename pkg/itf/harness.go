@@ -236,6 +236,15 @@ var sharedHarnessManager = &harnessManager{
 
 func NewHarness(tb testing.TB, cfg HarnessConfig) Harness {
 	tb.Helper()
+	h := OpenHarness(tb, cfg)
+	tb.Cleanup(func() { _ = h.Close() })
+	return h
+}
+
+// OpenHarness creates a harness whose lifetime is managed by its caller.
+// Close it after all scopes have finished; each scope still owns its rollback.
+func OpenHarness(tb testing.TB, cfg HarnessConfig) Harness {
+	tb.Helper()
 
 	cfg = normalizeHarnessConfig(tb, cfg)
 	key := buildHarnessKey(cfg)
@@ -246,7 +255,6 @@ func NewHarness(tb testing.TB, cfg HarnessConfig) Harness {
 			tb.Fatalf("failed to create per-test harness: %v", err)
 		}
 		h := &harnessImpl{cfg: cfg, state: state, shared: false}
-		tb.Cleanup(func() { _ = h.Close() })
 		return h
 	}
 
@@ -256,7 +264,6 @@ func NewHarness(tb testing.TB, cfg HarnessConfig) Harness {
 	}
 
 	h := &harnessImpl{cfg: cfg, state: state, shared: true}
-	tb.Cleanup(func() { _ = h.Close() })
 	return h
 }
 

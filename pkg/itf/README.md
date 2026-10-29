@@ -2,6 +2,12 @@
 
 The IOTA Testing Framework provides comprehensive tools for testing HTTP controllers in IOTA SDK applications. ITF features a SuiteBuilder pattern, fluent assertions, HTMX support, and table-driven testing capabilities.
 
+`NewHarness` closes its handle when its test finishes. To share one harness
+across sequential tests, use `OpenHarness` and explicitly call `Close` after
+all scopes finish (for example, after `m.Run` in `TestMain`). Each rollback
+scope still rolls back when its own test finishes. Committed writes require
+explicit cleanup and must not leak into later tests.
+
 ## Key Features
 
 ### SuiteBuilder Pattern
