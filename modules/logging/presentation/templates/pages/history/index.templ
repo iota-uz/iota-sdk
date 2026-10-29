@@ -223,9 +223,9 @@ templ Events(props *EventsProps) {
 					}
 					if props.NextURL != "" {
 						@button.Secondary(button.Props{
-							Size:  button.SizeNormal,
-							Href:  props.NextURL,
-							Icon:  icons.ArrowRight(icons.Props{Size: "16"}),
+							Size: button.SizeNormal,
+							Href: props.NextURL,
+							Icon: icons.ArrowRight(icons.Props{Size: "16"}),
 						}) {
 							{ pageCtx.T("BusinessHistory.Next") }
 						}
