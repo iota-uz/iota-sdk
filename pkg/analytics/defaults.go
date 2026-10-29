@@ -8,6 +8,9 @@ package analytics
 //
 //	SELECT * FROM public.{table} WHERE tenant_id = current_setting('app.tenant_id', true)::uuid
 //
+// action_logs also stores business history events, so its view keeps exposing only
+// the request-log columns and rows it had before.
+//
 // All views are public (no permission requirements) by default.
 // Consumers should register additional views with permissions as needed.
 func DefaultTenantViews() []View {
@@ -36,7 +39,6 @@ func DefaultTenantViews() []View {
 		"sessions",
 		"chats",
 		"message_templates",
-		"action_logs",
 		"authentication_logs",
 		"positions",
 		"roles",
@@ -48,9 +50,14 @@ func DefaultTenantViews() []View {
 		"permissions",
 	}
 
-	views := make([]View, 0, len(tables))
+	views := make([]View, 0, len(tables)+1)
 	for _, t := range tables {
 		views = append(views, TenantView(t))
 	}
-	return views
+	return append(views, View{
+		Name:   "action_logs",
+		Schema: "analytics",
+		SQL: "SELECT id, method, path, user_id, after, before, user_agent, ip, created_at, tenant_id FROM public.action_logs " +
+			"WHERE tenant_id = current_setting('app.tenant_id', true)::uuid AND event_type IS NULL",
+	})
 }

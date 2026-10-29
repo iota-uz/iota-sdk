@@ -59,9 +59,12 @@ type Category string
 const (
 	CategoryBusiness Category = "business"
 	CategorySecurity Category = "security"
-	// CategoryLegacy marks records migrated from the request-level action log.
+	// CategoryLegacy marks records of the request-level action log written before business history.
 	CategoryLegacy Category = "legacy"
 )
+
+// LegacyActionLogType is the event type legacy action_logs records read as.
+const LegacyActionLogType = "logging.action_log"
 
 func (c Category) Valid() bool {
 	switch c {
@@ -84,7 +87,7 @@ type Change struct {
 	Fields   []fielddiff.Diff `json:"fields"`
 }
 
-// Legacy keeps a migrated record with exactly the detail it had; nothing missing is reconstructed.
+// Legacy keeps a request-log record with exactly the detail it had; nothing missing is reconstructed.
 type Legacy struct {
 	Source     string          `json:"source"`
 	SourceID   string          `json:"source_id"`

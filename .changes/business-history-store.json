@@ -1,4 +1,4 @@
 {
   "bump": "minor",
-  "summary": "Add the business history store: a versioned event registry, append-only business_events table with actor snapshots and redaction before storage, a transactional idempotent writer, and migration of action_logs rows as incomplete legacy events."
+  "summary": "Add the business history store: a versioned event registry, action_logs extended into the business history table (append-only for new events, actor snapshots, redaction before storage), and a transactional idempotent writer; existing action_logs rows read as incomplete legacy events."
 }

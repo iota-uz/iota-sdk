@@ -25,10 +25,13 @@ func (t ValueType) valid() bool {
 // normalize checks a field value against its declared type and returns its canonical JSON,
 // so equal values always serialize identically. JSON null is accepted for every type.
 func normalize(t ValueType, raw json.RawMessage) (json.RawMessage, error) {
+	if !json.Valid(raw) {
+		return nil, fmt.Errorf("malformed %s value", t)
+	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
 	var value any
-	if err := decoder.Decode(&value); err != nil || decoder.More() {
+	if err := decoder.Decode(&value); err != nil {
 		return nil, fmt.Errorf("malformed %s value", t)
 	}
 	if value != nil {

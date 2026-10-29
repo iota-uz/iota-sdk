@@ -16,9 +16,15 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const businessEventColumns = `event_id, tenant_id, event_type, schema_version, category, occurred_at, recorded_at,
-	actor_snapshot, initiator_snapshot, COALESCE(channel, ''), COALESCE(operation_id, ''), COALESCE(request_id, ''),
-	COALESCE(run_id, ''), COALESCE(client_id, ''), COALESCE(outcome, ''), subjects, changes, legacy`
+// Rows without event_type are legacy request-log records; they read as incomplete legacy events.
+const businessEventColumns = `event_id, tenant_id, COALESCE(event_type, '` + businessevent.LegacyActionLogType + `'),
+	COALESCE(schema_version, 1), COALESCE(category, '` + string(businessevent.CategoryLegacy) + `'),
+	COALESCE(occurred_at, created_at), created_at, actor_snapshot, initiator_snapshot, COALESCE(channel, ''),
+	COALESCE(operation_id, ''), COALESCE(request_id, ''), COALESCE(run_id, ''), COALESCE(client_id, ''),
+	COALESCE(outcome, ''), subjects, changes,
+	CASE WHEN event_type IS NULL THEN jsonb_build_object('source', 'action_logs', 'source_id', id::text,
+		'user_id', user_id::text, 'incomplete', TRUE, 'payload', jsonb_build_object('method', method, 'path', path,
+		'before', before::jsonb, 'after', after::jsonb, 'user_agent', user_agent, 'ip', ip)) END`
 
 type PgBusinessEventRepository struct{}
 
@@ -62,8 +68,8 @@ func (r *PgBusinessEventRepository) Append(ctx context.Context, e businessevent.
 			return serrors.Wrap(op, err)
 		}
 	}
-	tag, err := tx.Exec(ctx, `INSERT INTO business_events (
-		event_id, tenant_id, event_type, schema_version, category, occurred_at, recorded_at,
+	tag, err := tx.Exec(ctx, `INSERT INTO action_logs (
+		event_id, tenant_id, event_type, schema_version, category, occurred_at, created_at,
 		actor_kind, actor_id, actor_snapshot, initiator_snapshot, channel, operation_id,
 		request_id, run_id, client_id, outcome, resources, subject_refs, subjects, changes, fingerprint
 	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NULLIF($14, ''), NULLIF($15, ''), NULLIF($16, ''), $17, $18, $19, $20, $21, $22)
@@ -78,7 +84,7 @@ func (r *PgBusinessEventRepository) Append(ctx context.Context, e businessevent.
 		return nil
 	}
 	var stored string
-	if err := tx.QueryRow(ctx, `SELECT COALESCE(fingerprint, '') FROM business_events WHERE tenant_id = $1 AND event_id = $2`, e.TenantID, e.ID).Scan(&stored); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT COALESCE(fingerprint, '') FROM action_logs WHERE tenant_id = $1 AND event_id = $2`, e.TenantID, e.ID).Scan(&stored); err != nil {
 		return serrors.Wrap(op, err)
 	}
 	if stored != fingerprint {
@@ -97,7 +103,7 @@ func (r *PgBusinessEventRepository) Get(ctx context.Context, id uuid.UUID) (busi
 	if err != nil {
 		return businessevent.Event{}, serrors.Wrap(op, err)
 	}
-	e, err := scanBusinessEvent(tx.QueryRow(ctx, `SELECT `+businessEventColumns+` FROM business_events WHERE tenant_id = $1 AND event_id = $2`, tenantID, id))
+	e, err := scanBusinessEvent(tx.QueryRow(ctx, `SELECT `+businessEventColumns+` FROM action_logs WHERE tenant_id = $1 AND event_id = $2`, tenantID, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return businessevent.Event{}, serrors.Wrap(op, businessevent.ErrNotFound)
 	}
@@ -117,7 +123,7 @@ func (r *PgBusinessEventRepository) ListByOperation(ctx context.Context, operati
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
-	rows, err := tx.Query(ctx, `SELECT `+businessEventColumns+` FROM business_events WHERE tenant_id = $1 AND operation_id = $2 ORDER BY occurred_at, event_id`, tenantID, operationID)
+	rows, err := tx.Query(ctx, `SELECT `+businessEventColumns+` FROM action_logs WHERE tenant_id = $1 AND operation_id = $2 ORDER BY occurred_at, event_id`, tenantID, operationID)
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
@@ -214,17 +220,20 @@ func (r *PgBusinessEventRepository) Find(ctx context.Context, params businesseve
 
 func scanBusinessEvent(row pgx.Row) (businessevent.Event, error) {
 	var e businessevent.Event
-	var occurredAt *time.Time
+	var occurredAt, recordedAt *time.Time
 	var actor, initiator, legacy []byte
 	var subjects, changes []byte
 	var channel, outcome string
-	if err := row.Scan(&e.ID, &e.TenantID, &e.Type, &e.SchemaVersion, &e.Category, &occurredAt, &e.RecordedAt,
+	if err := row.Scan(&e.ID, &e.TenantID, &e.Type, &e.SchemaVersion, &e.Category, &occurredAt, &recordedAt,
 		&actor, &initiator, &channel, &e.OperationID, &e.RequestID, &e.RunID, &e.ClientID, &outcome,
 		&subjects, &changes, &legacy); err != nil {
 		return businessevent.Event{}, err
 	}
 	if occurredAt != nil {
 		e.OccurredAt = *occurredAt
+	}
+	if recordedAt != nil {
+		e.RecordedAt = *recordedAt
 	}
 	e.Channel = businessevent.Channel(channel)
 	e.Outcome = businessevent.Outcome(outcome)

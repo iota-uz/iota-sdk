@@ -57,7 +57,7 @@ func TestBusinessHistory_OffWithoutLoggingComponent(t *testing.T) {
 	require.NoError(t, fixture.create(composables.WithUser(base, env.User), env, resolve[*financeservices.PaymentService](t, env), "no history"))
 
 	var events int
-	require.NoError(t, env.Pool.QueryRow(base, `SELECT COUNT(*) FROM business_events WHERE tenant_id = $1`, env.TenantID()).Scan(&events))
+	require.NoError(t, env.Pool.QueryRow(base, `SELECT COUNT(*) FROM action_logs WHERE tenant_id = $1 AND event_type IS NOT NULL`, env.TenantID()).Scan(&events))
 	require.Zero(t, events)
 }
 
@@ -159,7 +159,7 @@ func TestBusinessHistory_SameActionAcrossChannels(t *testing.T) {
 
 	rows, err := env.Pool.Query(base, `SELECT channel, actor_kind, actor_id, COALESCE(initiator_snapshot->>'user_id', ''),
 		operation_id, COALESCE(request_id, ''), COALESCE(run_id, '')
-		FROM business_events WHERE tenant_id = $1 AND event_type = $2 AND outcome = 'succeeded'`, env.TenantID(), financeservices.PaymentCreated)
+		FROM action_logs WHERE tenant_id = $1 AND event_type = $2 AND outcome = 'succeeded'`, env.TenantID(), financeservices.PaymentCreated)
 	require.NoError(t, err)
 	byChannel := map[string]paymentEvent{}
 	for rows.Next() {

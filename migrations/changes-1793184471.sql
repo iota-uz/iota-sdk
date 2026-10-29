@@ -1,98 +1,163 @@
 -- +migrate Up
-CREATE TABLE business_events (
-    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
-    event_id uuid NOT NULL,
-    event_type varchar(200) NOT NULL,
-    schema_version integer NOT NULL CHECK (schema_version > 0),
-    category varchar(20) NOT NULL CHECK (category IN ('business', 'security', 'legacy')),
-    occurred_at timestamp with time zone,
-    recorded_at timestamp with time zone NOT NULL DEFAULT now(),
-    actor_kind varchar(20) CHECK (actor_kind IN ('user', 'service', 'system')),
-    actor_id varchar(255),
-    actor_snapshot jsonb,
-    initiator_snapshot jsonb,
-    channel varchar(20) CHECK (channel IN ('ui', 'mcp', 'chat', 'import', 'job', 'api')),
-    operation_id varchar(255),
-    request_id varchar(255),
-    run_id varchar(255),
-    client_id varchar(255),
-    outcome varchar(20) CHECK (outcome IN ('succeeded', 'failed', 'denied')),
-    resources text[] NOT NULL DEFAULT '{}',
-    subject_refs text[] NOT NULL DEFAULT '{}',
-    subjects jsonb NOT NULL DEFAULT '[]',
-    changes jsonb NOT NULL DEFAULT '[]',
-    fingerprint varchar(64),
-    legacy jsonb,
-    PRIMARY KEY (tenant_id, event_id),
-    CONSTRAINT business_events_complete CHECK (legacy IS NOT NULL OR (occurred_at IS NOT NULL AND actor_kind IS NOT NULL AND actor_id IS NOT NULL AND actor_snapshot IS NOT NULL AND channel IS NOT NULL AND operation_id IS NOT NULL AND outcome IS NOT NULL AND fingerprint IS NOT NULL))
-);
+ALTER TABLE action_logs
+    ALTER COLUMN method DROP NOT NULL,
+    ALTER COLUMN path DROP NOT NULL,
+    ALTER COLUMN user_agent DROP NOT NULL,
+    ALTER COLUMN ip DROP NOT NULL,
+    ADD COLUMN event_id uuid NOT NULL DEFAULT gen_random_uuid (),
+    ADD COLUMN event_type varchar(200),
+    ADD COLUMN schema_version integer CHECK (schema_version > 0),
+    ADD COLUMN category varchar(20) CHECK (category IN ('business', 'security')),
+    ADD COLUMN occurred_at timestamp with time zone,
+    ADD COLUMN actor_kind varchar(20) CHECK (actor_kind IN ('user', 'service', 'system')),
+    ADD COLUMN actor_id varchar(255),
+    ADD COLUMN actor_snapshot jsonb,
+    ADD COLUMN initiator_snapshot jsonb,
+    ADD COLUMN channel varchar(20) CHECK (channel IN ('ui', 'mcp', 'chat', 'import', 'job', 'api')),
+    ADD COLUMN operation_id varchar(255),
+    ADD COLUMN request_id varchar(255),
+    ADD COLUMN run_id varchar(255),
+    ADD COLUMN client_id varchar(255),
+    ADD COLUMN outcome varchar(20) CHECK (outcome IN ('succeeded', 'failed', 'denied')),
+    ADD COLUMN resources text[] NOT NULL DEFAULT '{}',
+    ADD COLUMN subject_refs text[] NOT NULL DEFAULT '{}',
+    ADD COLUMN subjects jsonb NOT NULL DEFAULT '[]',
+    ADD COLUMN changes jsonb NOT NULL DEFAULT '[]',
+    ADD COLUMN fingerprint varchar(64),
+    ADD CONSTRAINT action_logs_tenant_event_key UNIQUE (tenant_id, event_id),
+    ADD CONSTRAINT action_logs_legacy_request CHECK (event_type IS NOT NULL OR (method IS NOT NULL AND path IS NOT NULL AND user_agent IS NOT NULL AND ip IS NOT NULL)),
+    ADD CONSTRAINT action_logs_event_complete CHECK (event_type IS NULL OR (schema_version IS NOT NULL AND category IS NOT NULL AND occurred_at IS NOT NULL AND created_at IS NOT NULL AND actor_kind IS NOT NULL AND actor_id IS NOT NULL AND actor_snapshot IS NOT NULL AND channel IS NOT NULL AND operation_id IS NOT NULL AND outcome IS NOT NULL AND fingerprint IS NOT NULL));
 
-CREATE INDEX business_events_timeline_idx ON business_events (tenant_id, occurred_at DESC, event_id DESC);
+CREATE INDEX action_logs_timeline_idx ON action_logs (tenant_id, COALESCE(occurred_at, created_at) DESC, event_id DESC);
 
-CREATE INDEX business_events_operation_idx ON business_events (tenant_id, operation_id);
+CREATE INDEX action_logs_operation_idx ON action_logs (tenant_id, operation_id);
 
-CREATE INDEX business_events_actor_idx ON business_events (tenant_id, actor_kind, actor_id, occurred_at DESC);
+CREATE INDEX action_logs_actor_idx ON action_logs (tenant_id, actor_kind, actor_id, occurred_at DESC);
 
-CREATE INDEX business_events_type_idx ON business_events (tenant_id, event_type, occurred_at DESC);
+CREATE INDEX action_logs_event_type_idx ON action_logs (tenant_id, event_type, occurred_at DESC);
 
-CREATE INDEX business_events_resources_idx ON business_events USING gin (resources);
+CREATE INDEX action_logs_resources_idx ON action_logs USING gin (resources);
 
-CREATE INDEX business_events_subject_refs_idx ON business_events USING gin (subject_refs);
+CREATE INDEX action_logs_subject_refs_idx ON action_logs USING gin (subject_refs);
 
 -- +migrate StatementBegin
-CREATE FUNCTION business_events_append_only ()
+CREATE FUNCTION action_logs_events_append_only ()
     RETURNS TRIGGER
     AS $$
 BEGIN
-    IF TG_OP = 'DELETE' AND NOT EXISTS (
-        SELECT
-            1
-        FROM
-            tenants
-        WHERE
-            id = OLD.tenant_id) THEN
-        RETURN OLD;
+    IF TG_OP = 'DELETE' THEN
+        IF OLD.event_type IS NULL OR NOT EXISTS (
+            SELECT
+                1
+            FROM
+                tenants
+            WHERE
+                id = OLD.tenant_id) THEN
+            RETURN OLD;
+        END IF;
+    ELSIF OLD.event_type IS NULL
+            AND NEW.event_type IS NULL THEN
+            RETURN NEW;
     END IF;
-    RAISE EXCEPTION 'business_events is append-only';
+    RAISE EXCEPTION 'action_logs events are append-only';
 END;
 $$
 LANGUAGE plpgsql;
 -- +migrate StatementEnd
 
-CREATE TRIGGER business_events_append_only
-    BEFORE UPDATE OR DELETE ON business_events
+CREATE TRIGGER action_logs_events_append_only
+    BEFORE UPDATE OR DELETE ON action_logs
     FOR EACH ROW
-    EXECUTE FUNCTION business_events_append_only ();
+    EXECUTE FUNCTION action_logs_events_append_only ();
 
-INSERT INTO business_events (tenant_id, event_id, event_type, schema_version, category, occurred_at, recorded_at, actor_kind, actor_id, legacy)
-SELECT
-    tenant_id,
-    md5('action_logs:' || id)::uuid,
-    'logging.action_log',
-    1,
-    'legacy',
-    created_at,
-    COALESCE(created_at, now()),
-    CASE WHEN user_id IS NOT NULL THEN
-        'user'
-    END,
-    user_id::text,
-    jsonb_build_object('source', 'action_logs', 'source_id', id::text, 'incomplete', TRUE, 'payload', jsonb_build_object('method', method, 'path', path, 'before', before::jsonb, 'after', after::jsonb, 'user_agent', user_agent, 'ip', ip)) || CASE WHEN user_id IS NOT NULL THEN
-        jsonb_build_object('user_id', user_id::text)
-    ELSE
-        '{}'::jsonb
-    END
-FROM
-    action_logs
-ON CONFLICT (tenant_id,
-    event_id)
-    DO NOTHING;
+-- +migrate StatementBegin
+DO $$
+BEGIN
+    IF to_regclass('analytics.action_logs') IS NOT NULL THEN
+        CREATE OR REPLACE VIEW analytics.action_logs AS
+        SELECT
+            id,
+            method,
+            path,
+            user_id,
+            after,
+            before,
+            user_agent,
+            ip,
+            created_at,
+            tenant_id
+        FROM
+            public.action_logs
+        WHERE
+            tenant_id = current_setting('app.tenant_id', TRUE)::uuid
+            AND event_type IS NULL;
+    END IF;
+END;
+$$;
+-- +migrate StatementEnd
 
-COMMENT ON TABLE action_logs IS 'Superseded by business_events; existing rows are copied there as legacy events.';
+COMMENT ON TABLE action_logs IS 'Business action history. Rows without event_type are legacy request-log records.';
 
 -- +migrate Down
+-- +migrate StatementBegin
+DO $$
+BEGIN
+    IF to_regclass('analytics.action_logs') IS NOT NULL THEN
+        CREATE OR REPLACE VIEW analytics.action_logs AS
+        SELECT
+            id,
+            method,
+            path,
+            user_id,
+            after,
+            before,
+            user_agent,
+            ip,
+            created_at,
+            tenant_id
+        FROM
+            public.action_logs
+        WHERE
+            tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+    END IF;
+END;
+$$;
+-- +migrate StatementEnd
+
+DROP TRIGGER IF EXISTS action_logs_events_append_only ON action_logs;
+
+DROP FUNCTION IF EXISTS action_logs_events_append_only ();
+
+DELETE FROM action_logs
+WHERE event_type IS NOT NULL;
+
 COMMENT ON TABLE action_logs IS NULL;
 
-DROP TABLE IF EXISTS business_events;
-
-DROP FUNCTION IF EXISTS business_events_append_only ();
+ALTER TABLE action_logs
+    DROP CONSTRAINT IF EXISTS action_logs_event_complete,
+    DROP CONSTRAINT IF EXISTS action_logs_legacy_request,
+    DROP CONSTRAINT IF EXISTS action_logs_tenant_event_key,
+    DROP COLUMN IF EXISTS event_id,
+    DROP COLUMN IF EXISTS event_type,
+    DROP COLUMN IF EXISTS schema_version,
+    DROP COLUMN IF EXISTS category,
+    DROP COLUMN IF EXISTS occurred_at,
+    DROP COLUMN IF EXISTS actor_kind,
+    DROP COLUMN IF EXISTS actor_id,
+    DROP COLUMN IF EXISTS actor_snapshot,
+    DROP COLUMN IF EXISTS initiator_snapshot,
+    DROP COLUMN IF EXISTS channel,
+    DROP COLUMN IF EXISTS operation_id,
+    DROP COLUMN IF EXISTS request_id,
+    DROP COLUMN IF EXISTS run_id,
+    DROP COLUMN IF EXISTS client_id,
+    DROP COLUMN IF EXISTS outcome,
+    DROP COLUMN IF EXISTS resources,
+    DROP COLUMN IF EXISTS subject_refs,
+    DROP COLUMN IF EXISTS subjects,
+    DROP COLUMN IF EXISTS changes,
+    DROP COLUMN IF EXISTS fingerprint,
+    ALTER COLUMN method SET NOT NULL,
+    ALTER COLUMN path SET NOT NULL,
+    ALTER COLUMN user_agent SET NOT NULL,
+    ALTER COLUMN ip SET NOT NULL;
