@@ -231,7 +231,66 @@ async function deterministicTargetScreenshots(
   return [solidPNG, templPNG]
 }
 
+// Separate pages can rasterize identical rounded edges differently; retain the
+// actual documents and compare both in the same page with no pixel tolerance.
+async function compareButtonInOnePage(browser: Browser, fixture: ThemedFixture, changeTempl = false) {
+  const context = await browser.newContext({
+    colorScheme: fixture.theme,
+    deviceScaleFactor: 1,
+    locale: 'en-US',
+    timezoneId: 'UTC',
+    viewport: { width: 1440, height: 900 },
+  })
+  try {
+    const page = await context.newPage()
+    const solidQuery = new URLSearchParams({ specimen: fixture.solidSpecimen, theme: fixture.theme, state: fixture.state })
+    const templQuery = new URLSearchParams({ specimen: fixture.specimen, theme: fixture.theme, state: fixture.state })
+    await page.goto(`http://127.0.0.1:${process.env.SOLID_UI_VR_PORT ?? '61010'}/?${solidQuery}`, { waitUntil: 'domcontentloaded' })
+    await ready(page, 'gallery')
+    const solidTarget = page.locator(fixture.solidTarget)
+    await applyState(solidTarget, 'default')
+    const solidBox = await solidTarget.boundingBox()
+    await applyState(solidTarget, fixture.state)
+    const solidContract = await computed(solidTarget, fixture.properties)
+    const solidPNG = await solidTarget.screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' })
+
+    await page.goto(`${templOrigin}/?${templQuery}`, { waitUntil: 'domcontentloaded' })
+    await ready(page, 'fixture')
+    const templTarget = page.locator(fixture.templTarget)
+    await applyState(templTarget, 'default')
+    const templBox = await templTarget.boundingBox()
+    if (solidBox && templBox) {
+      await page.locator('.fixture').evaluate((element, offset) => {
+        element.style.position = 'relative'
+        element.style.left = `${offset.x}px`
+        element.style.top = `${offset.y}px`
+      }, { x: solidBox.x - templBox.x, y: solidBox.y - templBox.y })
+    }
+    await applyState(templTarget, fixture.state)
+    if (changeTempl) await templTarget.evaluate((element) => { (element as HTMLElement).style.boxShadow = 'inset 0 0 0 3px red' })
+    const templContract = await computed(templTarget, fixture.properties)
+    const templPNG = await templTarget.screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' })
+    return { solidContract, templContract, pixelDiff: await differingPixels(page, solidPNG, templPNG), solidPNG, templPNG }
+  } finally {
+    await context.close()
+  }
+}
+
 async function compareFixture(browser: Browser, fixture: ThemedFixture, testInfo: TestInfo): Promise<void> {
+  if (fixture.specimen === 'button') {
+    const { solidContract, templContract, pixelDiff, solidPNG, templPNG } = await compareButtonInOnePage(browser, fixture)
+    expect(solidContract, 'Solid DOMRect/computed styles must equal the rendered templ primitive').toEqual(templContract)
+    if (pixelDiff.count !== 0) {
+      await testInfo.attach('solid.png', { body: solidPNG, contentType: 'image/png' })
+      await testInfo.attach('templ.png', { body: templPNG, contentType: 'image/png' })
+    }
+    expect(pixelDiff, 'Solid and templ decoded RGBA pixels must match exactly').toEqual({
+      count: 0,
+      first: pixelDiff.second,
+      second: pixelDiff.second,
+    })
+    return
+  }
   const context = await browser.newContext({
     colorScheme: fixture.theme,
     deviceScaleFactor: 1,
@@ -321,3 +380,10 @@ for (const fixture of fixtures) {
     await compareFixture(browser, fixture, testInfo)
   })
 }
+
+test('button parity detects a pixel change outside its computed-style contract', async ({ browser }) => {
+  const fixture = fixtures.find((item) => item.specimen === 'button' && item.theme === 'dark' && item.state === 'hover')!
+  const { solidContract, templContract, pixelDiff } = await compareButtonInOnePage(browser, fixture, true)
+  expect(solidContract).toEqual(templContract)
+  expect(pixelDiff.count).toBeGreaterThan(0)
+})
