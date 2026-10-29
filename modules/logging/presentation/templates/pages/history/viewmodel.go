@@ -139,7 +139,7 @@ type Field struct {
 
 // Group joins consecutive events of one operation, so a bulk action reads as one entry.
 func Group(items []history.Item, label func(item history.Item, resource, field string) string) [][]Event {
-	var groups [][]Event
+	groups := make([][]Event, 0, len(items))
 	for _, item := range items {
 		event := Event{Item: item}
 		for _, c := range item.Changes {

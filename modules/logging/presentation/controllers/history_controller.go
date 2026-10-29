@@ -155,8 +155,9 @@ func (c *HistoryController) resourceOptions(r *http.Request) []historypage.Optio
 
 func (c *HistoryController) typeOptions(r *http.Request) []historypage.Option {
 	seen := map[string]bool{}
-	var options []historypage.Option
-	for _, d := range c.registry.Definitions() {
+	definitions := c.registry.Definitions()
+	options := make([]historypage.Option, 0, len(definitions))
+	for _, d := range definitions {
 		if seen[d.Type] || d.Category == businessevent.CategoryLegacy {
 			continue
 		}
