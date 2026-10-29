@@ -277,6 +277,13 @@
   "requests": [
     1227
   ],
+  "candidate": {
+    "version": "0.35.0",
+    "source": "43177508a89af207c524ab13138cbb74b70342eb",
+    "sha": "717c4ebe79b71dcfe84e3ab6400f37c81d1bba9f",
+    "phase": "testing",
+    "run_id": "40898117839"
+  },
   "ready": {
     "version": "0.34.0",
     "source": "962b99ec8226c14b6845c74590c6d229590fc83e",
