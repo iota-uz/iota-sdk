@@ -31,13 +31,17 @@ func Date(value time.Time) Cell {
 }
 
 // PercentPoints converts a percentage-point value such as 20.2 to the numeric
-// fraction 0.202 displayed by Excel as 20.20%. Decimal scaling avoids introducing
-// binary-division artifacts before the workbook's precision validation.
+// fraction 0.202 displayed by Excel as 20.20%. Values are rounded to two decimal
+// places in percentage points, including the value used by Excel formulas.
 func PercentPoints(value float64) Cell {
 	if math.IsNaN(value) || math.IsInf(value, 0) {
 		return Cell{Value: value, NumberFormat: "0.00%"}
 	}
-	decimalFraction := decimal.NewFromFloat(value).Shift(-2)
+	points := decimal.NewFromFloat(value)
+	decimalFraction := points.Round(2).Shift(-2)
+	if value != 0 && value/100 == 0 {
+		decimalFraction = points.Shift(-2)
+	}
 	return Cell{
 		Value:        pgtype.Numeric{Int: decimalFraction.Coefficient(), Exp: decimalFraction.Exponent(), Valid: true},
 		NumberFormat: "0.00%",
