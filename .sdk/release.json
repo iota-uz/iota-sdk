@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Allow test harness owners to retain an environment across sequential scopes and close it explicitly."
+    }
+  ],
+  "source": "43177508a89af207c524ab13138cbb74b70342eb",
+  "version": "0.35.0"
+}
