@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Allow test harness owners to retain an environment across sequential scopes and close it explicitly."}
