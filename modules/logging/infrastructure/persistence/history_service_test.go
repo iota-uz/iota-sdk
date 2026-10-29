@@ -67,8 +67,6 @@ func newHistoryFixture(t *testing.T) historyFixture {
 	_, err = f.Tx.Exec(f.Ctx, `INSERT INTO action_logs (tenant_id, method, path, user_id, user_agent, ip, created_at)
 		VALUES ($1, 'POST', '/finance/payments', $2, 'test', '127.0.0.1', $3)`, f.TenantID(), actor.ID(), historyStart.Add(-time.Hour))
 	require.NoError(t, err)
-	_, err = f.Tx.Exec(f.Ctx, legacyCopyStatement(t))
-	require.NoError(t, err)
 	require.NoError(t, corepersistence.NewUserRepository(corepersistence.NewUploadRepository()).Delete(f.Ctx, actor.ID()))
 	return historyFixture{
 		ctx:     f.Ctx,
@@ -107,7 +105,7 @@ func TestHistoryService_Filters(t *testing.T) {
 		{"resource", history.Query{Scope: history.Scope{Kind: history.ScopeResource, Resource: "employee"}}, 5},
 		{"entity", history.Query{Scope: history.Scope{Kind: history.ScopeEntity, Resource: "employee", ID: "3"}}, 1},
 		{"event type", history.Query{Scope: all(), EventTypes: []string{"hrm.contract.signed"}}, 1},
-		{"deleted actor", history.Query{Scope: all(), ActorID: h.actor}, 7},
+		{"deleted actor, legacy record loses its user", history.Query{Scope: all(), ActorID: h.actor}, 6},
 		{"channel", history.Query{Scope: all(), Channels: []string{"ui"}}, 6},
 		{"legacy channel", history.Query{Scope: all(), Channels: []string{history.LegacyChannel}}, 1},
 		{"period from inclusive, to exclusive", history.Query{Scope: all(),
@@ -245,6 +243,8 @@ func TestHistoryService_DeletedActorAndLegacyRecordStayReadable(t *testing.T) {
 	require.Equal(t, []history.Subject{{Resource: "employee", ID: "5", Label: "employee #5"}}, newest.Subjects)
 	require.False(t, newest.LegacyIncomplete)
 
+	result, err = h.service.History(h.as(permissions.ViewLogs), history.Query{Scope: all()})
+	require.NoError(t, err)
 	legacy := result.Items[len(result.Items)-1]
 	require.Equal(t, history.LegacyActionLogType, legacy.EventType)
 	require.True(t, legacy.LegacyIncomplete)

@@ -152,7 +152,7 @@ func (r *PgBusinessEventRepository) Find(ctx context.Context, params businesseve
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
-	const position = "COALESCE(occurred_at, recorded_at)"
+	const position = "COALESCE(occurred_at, created_at)"
 	args := []any{tenantID, params.Readable}
 	where := []string{"tenant_id = $1", "(cardinality(resources) = 0 OR resources && $2)"}
 	arg := func(v any) string {
@@ -165,7 +165,7 @@ func (r *PgBusinessEventRepository) Find(ctx context.Context, params businesseve
 		where = append(where, "resources @> ARRAY["+arg(params.Resource)+"::text]")
 	}
 	if params.ActorID != "" {
-		where = append(where, "actor_id = "+arg(params.ActorID))
+		where = append(where, "COALESCE(actor_id, user_id::text) = "+arg(params.ActorID))
 	}
 	if len(params.EventTypes) > 0 {
 		where = append(where, "event_type = ANY("+arg(params.EventTypes)+")")
@@ -197,7 +197,7 @@ func (r *PgBusinessEventRepository) Find(ctx context.Context, params businesseve
 	if params.After != nil {
 		where = append(where, "("+position+", event_id) < ("+arg(params.After.Time)+", "+arg(params.After.ID)+")")
 	}
-	query := `SELECT ` + businessEventColumns + ` FROM business_events WHERE ` + strings.Join(where, " AND ") +
+	query := `SELECT ` + businessEventColumns + ` FROM action_logs WHERE ` + strings.Join(where, " AND ") +
 		` ORDER BY ` + position + ` DESC, event_id DESC LIMIT ` + arg(params.Limit)
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
