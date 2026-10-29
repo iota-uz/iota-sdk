@@ -3,9 +3,7 @@ package persistence_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -112,40 +110,28 @@ func TestBusinessEventRepository_ActorSnapshotOutlivesUser(t *testing.T) {
 	}, deleted.Actor)
 
 	var byActor int
-	require.NoError(t, f.Tx.QueryRow(f.Ctx, `SELECT count(*) FROM business_events WHERE tenant_id = $1 AND actor_kind = 'user' AND actor_id = $2`,
+	require.NoError(t, f.Tx.QueryRow(f.Ctx, `SELECT count(*) FROM action_logs WHERE tenant_id = $1 AND actor_kind = 'user' AND actor_id = $2`,
 		f.TenantID(), strconv.FormatUint(uint64(actor.ID()), 10)).Scan(&byActor))
 	require.Equal(t, 1, byActor)
 }
 
-func TestBusinessEventRepository_LegacyActionLogsMigrateAsIncomplete(t *testing.T) {
+func TestBusinessEventRepository_LegacyActionLogsReadAsIncomplete(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
 	known := createUser(t, f.Ctx, "Old", "Operator", "", "legacy-operator@example.com")
 	var withUser, anonymous int
-	require.NoError(t, f.Tx.QueryRow(f.Ctx, `INSERT INTO action_logs (tenant_id, method, path, user_id, before, after, user_agent, ip, created_at)
-		VALUES ($1, 'POST', '/finance/payments/5', $2, '{"amount": 10}', '{"amount": 12}', 'Mozilla', '10.0.0.1', '2025-01-02T03:04:05Z') RETURNING id`,
-		f.TenantID(), known.ID()).Scan(&withUser))
-	require.NoError(t, f.Tx.QueryRow(f.Ctx, `INSERT INTO action_logs (tenant_id, method, path, user_agent, ip, created_at)
-		VALUES ($1, 'DELETE', '/finance/expenses/7', 'curl', '10.0.0.2', '2025-01-03T00:00:00Z') RETURNING id`, f.TenantID()).Scan(&anonymous))
-
-	copyLegacy := legacyCopyStatement(t)
-	_, err := f.Tx.Exec(f.Ctx, copyLegacy)
-	require.NoError(t, err)
-	_, err = f.Tx.Exec(f.Ctx, copyLegacy)
-	require.NoError(t, err, "the copy is idempotent")
-
-	var actionLogs, legacy int
-	require.NoError(t, f.Tx.QueryRow(f.Ctx, `SELECT (SELECT count(*) FROM action_logs), (SELECT count(*) FROM business_events WHERE category = 'legacy')`).Scan(&actionLogs, &legacy))
-	require.Equal(t, 2, actionLogs, "action_logs keeps its rows")
-	require.Equal(t, 2, legacy)
-
 	var withUserID, anonymousID uuid.UUID
-	require.NoError(t, f.Tx.QueryRow(f.Ctx, `SELECT md5('action_logs:' || $1::integer)::uuid, md5('action_logs:' || $2::integer)::uuid`, withUser, anonymous).Scan(&withUserID, &anonymousID))
+	require.NoError(t, f.Tx.QueryRow(f.Ctx, `INSERT INTO action_logs (tenant_id, method, path, user_id, before, after, user_agent, ip, created_at)
+		VALUES ($1, 'POST', '/finance/payments/5', $2, '{"amount": 10}', '{"amount": 12}', 'Mozilla', '10.0.0.1', '2025-01-02T03:04:05Z') RETURNING id, event_id`,
+		f.TenantID(), known.ID()).Scan(&withUser, &withUserID))
+	require.NoError(t, f.Tx.QueryRow(f.Ctx, `INSERT INTO action_logs (tenant_id, method, path, user_agent, ip, created_at)
+		VALUES ($1, 'DELETE', '/finance/expenses/7', 'curl', '10.0.0.2', '2025-01-03T00:00:00Z') RETURNING id, event_id`, f.TenantID()).Scan(&anonymous, &anonymousID))
 	repo := persistence.NewBusinessEventRepository()
 
 	e, err := repo.Get(f.Ctx, withUserID)
 	require.NoError(t, err)
 	require.Equal(t, history.LegacyActionLogType, e.Type)
+	require.Equal(t, businessevent.CategoryLegacy, e.Category)
 	require.Nil(t, e.Actor, "no snapshot is invented for a legacy user")
 	require.NotNil(t, e.Legacy)
 	require.True(t, e.Legacy.Incomplete)
@@ -161,19 +147,14 @@ func TestBusinessEventRepository_LegacyActionLogsMigrateAsIncomplete(t *testing.
 	require.Empty(t, e.Legacy.UserID)
 	require.Empty(t, e.Channel)
 	require.Empty(t, e.Outcome)
+	require.Equal(t, strconv.Itoa(anonymous), e.Legacy.SourceID)
 }
 
-func legacyCopyStatement(t *testing.T) string {
-	t.Helper()
-	data, err := os.ReadFile("migrations/changes-1793184471.sql")
-	require.NoError(t, err)
-	up, _, ok := strings.Cut(string(data), "-- +migrate Down")
-	require.True(t, ok)
-	start := strings.Index(up, "INSERT INTO business_events")
-	require.GreaterOrEqual(t, start, 0)
-	end := strings.Index(up[start:], ";")
-	require.Positive(t, end)
-	return up[start : start+end]
+func TestBusinessEventRepository_LegacyRequestLogRequiresItsColumns(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	_, err := f.Tx.Exec(f.Ctx, `INSERT INTO action_logs (tenant_id, method, path) VALUES ($1, 'GET', '/')`, f.TenantID())
+	require.ErrorContains(t, err, "action_logs_legacy_request", "a request-log row without user agent and IP is still rejected")
 }
 
 func TestBusinessEventRepository_BulkRedeliveryDoesNotDuplicate(t *testing.T) {
@@ -227,7 +208,7 @@ func TestBusinessEventRepository_HiddenFieldsDoNotLeak(t *testing.T) {
 	require.NoError(t, err)
 
 	var stored string
-	require.NoError(t, f.Tx.QueryRow(f.Ctx, `SELECT changes::text || actor_snapshot::text FROM business_events WHERE event_id = $1`, id).Scan(&stored))
+	require.NoError(t, f.Tx.QueryRow(f.Ctx, `SELECT changes::text || actor_snapshot::text FROM action_logs WHERE event_id = $1`, id).Scan(&stored))
 	require.NotContains(t, stored, "9999")
 	require.NotContains(t, stored, "1111")
 	require.NotContains(t, stored, "hidden-fields@example.com")
@@ -293,9 +274,9 @@ func TestBusinessEventRepository_FailedRecordRollsBackBusinessChange(t *testing.
 	f := setupTest(t)
 	actor := createUser(t, f.Ctx, "Atomic", "Writer", "", "atomic-writer@example.com")
 	users := corepersistence.NewUserRepository(corepersistence.NewUploadRepository())
-	_, err := f.Tx.Exec(f.Ctx, `CREATE FUNCTION fail_business_events() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'history storage unavailable'; END; $$ LANGUAGE plpgsql`)
+	_, err := f.Tx.Exec(f.Ctx, `CREATE FUNCTION fail_history() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'history storage unavailable'; END; $$ LANGUAGE plpgsql`)
 	require.NoError(t, err)
-	_, err = f.Tx.Exec(f.Ctx, `CREATE TRIGGER fail_business_events BEFORE INSERT ON business_events FOR EACH ROW EXECUTE FUNCTION fail_business_events()`)
+	_, err = f.Tx.Exec(f.Ctx, `CREATE TRIGGER fail_history BEFORE INSERT ON action_logs FOR EACH ROW EXECUTE FUNCTION fail_history()`)
 	require.NoError(t, err)
 
 	business, err := f.Tx.Begin(f.Ctx)
@@ -309,7 +290,7 @@ func TestBusinessEventRepository_FailedRecordRollsBackBusinessChange(t *testing.
 	_, err = users.GetByID(f.Ctx, created.ID())
 	require.Error(t, err, "the business change is rolled back with the event")
 	var events int
-	require.NoError(t, f.Tx.QueryRow(f.Ctx, `SELECT count(*) FROM business_events`).Scan(&events))
+	require.NoError(t, f.Tx.QueryRow(f.Ctx, `SELECT count(*) FROM action_logs WHERE event_type IS NOT NULL`).Scan(&events))
 	require.Zero(t, events)
 }
 
@@ -320,20 +301,29 @@ func TestBusinessEventRepository_AppendOnly(t *testing.T) {
 	id, err := newWriter(t, employeeV1()).Record(asUser(f.Ctx, actor, "op-append"), employeeUpdate("1", positionChange("A", "B")))
 	require.NoError(t, err)
 
+	var legacyID uuid.UUID
+	require.NoError(t, f.Tx.QueryRow(f.Ctx, `INSERT INTO action_logs (tenant_id, method, path, user_agent, ip) VALUES ($1, 'GET', '/', 'curl', '10.0.0.1') RETURNING event_id`,
+		f.TenantID()).Scan(&legacyID))
 	tests := []struct {
-		name string
-		sql  string
+		name   string
+		sql    string
+		target uuid.UUID
 	}{
-		{"update", `UPDATE business_events SET event_type = 'hrm.employee.deleted' WHERE event_id = $1`},
-		{"delete", `DELETE FROM business_events WHERE event_id = $1`},
+		{"update", `UPDATE action_logs SET event_type = 'hrm.employee.deleted' WHERE event_id = $1`, id},
+		{"delete", `DELETE FROM action_logs WHERE event_id = $1`, id},
+		{"turn a legacy record into an event", `UPDATE action_logs SET event_type = 'hrm.employee.deleted' WHERE event_id = $1`, legacyID},
 	}
 	for _, tt := range tests {
 		sp, err := f.Tx.Begin(f.Ctx)
 		require.NoError(t, err)
-		_, err = sp.Exec(f.Ctx, tt.sql, id)
+		_, err = sp.Exec(f.Ctx, tt.sql, tt.target)
 		require.ErrorContains(t, err, "append-only", tt.name)
 		require.NoError(t, sp.Rollback(f.Ctx))
 	}
+	_, err = f.Tx.Exec(f.Ctx, `UPDATE action_logs SET path = '/home' WHERE event_id = $1`, legacyID)
+	require.NoError(t, err, "legacy request-log records keep their previous behavior")
+	_, err = f.Tx.Exec(f.Ctx, `DELETE FROM action_logs WHERE event_id = $1`, legacyID)
+	require.NoError(t, err)
 
 	other := uuid.New()
 	_, err = f.Tx.Exec(f.Ctx, `INSERT INTO tenants (id, name) VALUES ($1, $2)`, other, "history-"+other.String())
@@ -346,7 +336,7 @@ func TestBusinessEventRepository_AppendOnly(t *testing.T) {
 	_, err = f.Tx.Exec(f.Ctx, `DELETE FROM tenants WHERE id = $1`, other)
 	require.NoError(t, err, "removing a tenant is the explicit way its history goes away")
 	var left int
-	require.NoError(t, f.Tx.QueryRow(f.Ctx, `SELECT count(*) FROM business_events WHERE tenant_id = $1`, other).Scan(&left))
+	require.NoError(t, f.Tx.QueryRow(f.Ctx, `SELECT count(*) FROM action_logs WHERE tenant_id = $1`, other).Scan(&left))
 	require.Zero(t, left)
 	_, err = persistence.NewBusinessEventRepository().Get(f.Ctx, id)
 	require.NoError(t, err)

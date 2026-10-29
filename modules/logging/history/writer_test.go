@@ -172,7 +172,7 @@ func TestWriter_Record_BuildsEventFromTrustedContext(t *testing.T) {
 
 	id, err := w.Record(ctx, in)
 	require.NoError(t, err)
-	again, err := w.Record(ctx, validInput())
+	again, err := w.Record(ctx, in)
 	require.NoError(t, err)
 	require.Equal(t, id, again, "the same event of the same operation keeps its ID on retry")
 	other, err := w.Record(WithExecution(ctx, Execution{Channel: businessevent.ChannelMCP, OperationID: "plan-2"}), validInput())
@@ -247,6 +247,14 @@ func TestNormalize_CanonicalizesEqualValues(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, b, a)
 		})
+	}
+}
+
+func TestNormalize_RejectsTrailingData(t *testing.T) {
+	t.Parallel()
+	for _, raw := range []string{`"abc"}`, `{"amount":"1","currency":"UZS"}}`, `1 2`} {
+		_, err := normalize(ValueString, json.RawMessage(raw))
+		require.Error(t, err, raw)
 	}
 }
 
