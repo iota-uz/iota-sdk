@@ -20,11 +20,15 @@ func TestWorkbookPercentPointsPreservesDecimalFraction(t *testing.T) {
 			source := excel.NewSliceDataSource([]string{"rate"}, [][]any{
 				{excel.PercentPoints(20.2)}, {excel.PercentPoints(-1.25)},
 				{excel.PercentPoints(0)}, {excel.PercentPoints(100)},
+				{excel.PercentPoints(0.0049)}, {excel.PercentPoints(-0.0049)},
+				{excel.PercentPoints(0.005)}, {excel.PercentPoints(-0.005)},
 			})
 			f := exportWorkbook(t, nil, source, streaming)
 			for cell, expected := range map[string][2]string{
 				"A2": {"0.202", "20.20%"}, "A3": {"-0.0125", "-1.25%"},
 				"A4": {"0", "0.00%"}, "A5": {"1", "100.00%"},
+				"A6": {"0", "0.00%"}, "A7": {"0", "0.00%"},
+				"A8": {"0.0001", "0.01%"}, "A9": {"-0.0001", "-0.01%"},
 			} {
 				raw, err := f.GetCellValue("Sheet1", cell, excelize.Options{RawCellValue: true})
 				require.NoError(t, err)
