@@ -61,6 +61,7 @@ jobs:
       docs: ${{ steps.filter.outputs.docs }}
       lens: ${{ steps.filter.outputs.lens }}
       client_host: ${{ steps.filter.outputs.client_host }}
+      shell_worker: ${{ steps.filter.outputs.shell_worker }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -124,6 +125,31 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - '.github/workflows/test.yml'
+            shell_worker:
+              - 'pkg/shell/worker/**'
+              - '.github/workflows/test.yml'
+
+  shell-worker:
+    name: Shell worker module
+    needs: changes
+    if: |
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft) &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || needs.changes.outputs.shell_worker == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: pkg/shell/worker
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: pkg/shell/worker/go.mod
+          cache-dependency-path: pkg/shell/worker/go.sum
+      - run: go vet ./...
+      - run: go test -race ./...
 
   mcp:
     name: MCP engine and gateway
