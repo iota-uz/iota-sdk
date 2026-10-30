@@ -83,8 +83,7 @@ CREATE TRIGGER action_logs_events_append_only
 DO $$
 BEGIN
     IF to_regclass('analytics.action_logs') IS NOT NULL THEN
-        DROP VIEW analytics.action_logs;
-        CREATE VIEW analytics.action_logs AS
+        CREATE OR REPLACE VIEW analytics.action_logs AS
         SELECT
             id,
             method,
@@ -113,8 +112,7 @@ COMMENT ON TABLE action_logs IS 'Business action history. Rows without event_typ
 DO $$
 BEGIN
     IF to_regclass('analytics.action_logs') IS NOT NULL THEN
-        DROP VIEW analytics.action_logs;
-        CREATE VIEW analytics.action_logs AS
+        CREATE OR REPLACE VIEW analytics.action_logs AS
         SELECT
             id,
             method,
@@ -146,7 +144,7 @@ SET
     path = event_type,
     user_agent = COALESCE(user_agent, ''),
     ip = COALESCE(ip, ''),
-    after = to_jsonb(action_logs.*) - ARRAY['id', 'tenant_id', 'method', 'path', 'user_id', 'after', 'before', 'user_agent', 'ip', 'created_at']
+    after = to_jsonb(action_logs.*) - ARRAY['id', 'tenant_id', 'method', 'path', 'user_id', 'after', 'before', 'user_agent', 'ip', 'created_at', 'changes', 'actor_snapshot', 'initiator_snapshot']
 WHERE
     event_type IS NOT NULL;
 
