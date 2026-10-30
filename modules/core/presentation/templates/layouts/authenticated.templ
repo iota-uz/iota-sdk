@@ -55,7 +55,7 @@ templ ThemeSwitcher() {
 		/>
 		<label
 			for="theme-light"
-			class="group/system absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black cursor-pointer transition-colors hover:bg-gray-300 invisible peer-checked/system:visible"
+			class="group/system absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black cursor-pointer transition-colors hover:bg-gray-300 dark:bg-black-950 dark:text-white dark:hover:bg-black-800 invisible peer-checked/system:visible"
 		>
 			@icons.Desktop(icons.Props{
 				Size:  "20",
@@ -72,7 +72,7 @@ templ ThemeSwitcher() {
 		/>
 		<label
 			for="theme-dark"
-			class="group/light absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black cursor-pointer transition-colors hover:bg-gray-300 invisible peer-checked/light:visible"
+			class="group/light absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black cursor-pointer transition-colors hover:bg-gray-300 dark:bg-black-950 dark:text-white dark:hover:bg-black-800 invisible peer-checked/light:visible"
 		>
 			@icons.Sun(icons.Props{
 				Size:    "20",
