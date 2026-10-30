@@ -3,12 +3,17 @@ package controllers
 
 import (
 	"context"
+	"errors"
+	"io"
+	"io/fs"
 	"log"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -16,6 +21,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/components"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -49,6 +55,10 @@ func (c *UploadController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(middleware.Authorize())
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
+
+	download := r.PathPrefix(c.basePath).Subrouter()
+	download.Use(middleware.Authorize(), middleware.ProvideUser())
+	download.HandleFunc("/{id:[0-9]+}", c.Download).Methods(http.MethodGet)
 
 	workDir, err := os.Getwd()
 	if err != nil {
@@ -147,4 +157,88 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	templ.Handler(components.UploadTarget(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+// Download streams one upload of the current tenant to a signed-in user. It
+// serves exactly the uploads the public file handler would expose (inside the
+// uploads root, outside its private namespace) from either storage backend,
+// so S3-backed uploads stay off the anonymous file handler.
+func (c *UploadController) Download(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if _, err := composables.UseUser(ctx); err != nil {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
+	id, err := strconv.ParseUint(mux.Vars(r)["id"], 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	entity, err := c.uploadService.GetByID(ctx, uint(id))
+	if err != nil {
+		if errors.Is(err, persistence.ErrUploadNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		serrorhttp.WriteTextContext(ctx, w, err, http.StatusInternalServerError, nil)
+		return
+	}
+	// GetByID looks the row up by id alone; a foreign tenant's upload must
+	// look exactly like a missing one.
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil || entity.TenantID() != tenantID {
+		http.NotFound(w, r)
+		return
+	}
+	if !c.isPublicUploadPath(entity.Path()) {
+		http.NotFound(w, r)
+		return
+	}
+	body, info, err := c.uploadService.OpenReader(ctx, entity.Path())
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			http.NotFound(w, r)
+			return
+		}
+		serrorhttp.WriteTextContext(ctx, w, err, http.StatusInternalServerError, nil)
+		return
+	}
+	defer func() { _ = body.Close() }()
+
+	// The MIME type detected from the content at upload time beats the
+	// filesystem's extension-based guess.
+	contentType := ""
+	if entity.Mimetype() != nil {
+		contentType = entity.Mimetype().String()
+	}
+	if contentType == "" {
+		contentType = info.ContentType
+	}
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	header := w.Header()
+	header.Set("Content-Type", contentType)
+	header.Set("X-Content-Type-Options", "nosniff")
+	header.Set("Content-Security-Policy", "sandbox")
+	header.Set("Cache-Control", "private, no-store")
+	if disposition := mime.FormatMediaType("inline", map[string]string{"filename": entity.Name()}); disposition != "" {
+		header.Set("Content-Disposition", disposition)
+	}
+	if info.Size > 0 {
+		header.Set("Content-Length", strconv.FormatInt(info.Size, 10))
+	}
+	if _, err := io.Copy(w, body); err != nil {
+		composables.UseLogger(ctx).WithError(err).Warn("upload download interrupted")
+	}
+}
+
+func (c *UploadController) isPublicUploadPath(storedPath string) bool {
+	root := strings.Trim(filepath.ToSlash(filepath.Clean(c.cfg.Path)), "/")
+	candidate := strings.TrimPrefix(path.Clean("/"+filepath.ToSlash(upload.LayoutPath(storedPath))), "/")
+	if root == "" || root == "." || !strings.HasPrefix(candidate, root+"/") {
+		return false
+	}
+	rest := strings.TrimPrefix(candidate, root+"/")
+	return rest != uploadsconfig.PrivateDirectory && !strings.HasPrefix(rest, uploadsconfig.PrivateDirectory+"/")
 }

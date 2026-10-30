@@ -45,6 +45,7 @@ func TestRegisterAll_AllNonNil(t *testing.T) {
 		{"Twilio", b.Twilio},
 		{"TwoFactor", b.TwoFactor},
 		{"Uploads", b.Uploads},
+		{"UploadStore", b.UploadStore},
 	}
 
 	for _, c := range checks {

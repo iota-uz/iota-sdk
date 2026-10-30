@@ -47,6 +47,7 @@ type Bundle struct {
 	Twilio      *twilioconfig.Config
 	TwoFactor   *twofactorconfig.Config
 	Uploads     *uploadsconfig.Config
+	UploadStore *uploadsconfig.StorageConfig
 }
 
 // RegisterAll registers all stdconfig types into r and returns a Bundle
@@ -117,6 +118,9 @@ func RegisterAll(r *config.Registry) (*Bundle, error) {
 		return nil, err
 	}
 	if b.Uploads, err = config.Register[uploadsconfig.Config](r); err != nil {
+		return nil, err
+	}
+	if b.UploadStore, err = config.Register[uploadsconfig.StorageConfig](r); err != nil {
 		return nil, err
 	}
 

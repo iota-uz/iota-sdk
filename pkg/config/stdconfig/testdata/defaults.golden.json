@@ -161,5 +161,32 @@
     "Path": "static",
     "MaxSize": 33554432,
     "MaxMemory": 33554432
+  },
+  "UploadStore": {
+    "Storage": {
+      "Backend": "fs"
+    },
+    "S3": {
+      "Endpoint": "",
+      "Bucket": "",
+      "Region": "us-east-1",
+      "Access": {
+        "Key": ""
+      },
+      "Secret": {
+        "Key": ""
+      },
+      "Secure": false,
+      "Force": {
+        "Path": {
+          "Style": true
+        }
+      },
+      "Presign": {
+        "TTL": {
+          "Seconds": 300
+        }
+      }
+    }
   }
 }
