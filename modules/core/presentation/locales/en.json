@@ -1532,6 +1532,8 @@
     "Retry": "Retry now",
     "ReadOnly": "You can view these settings. Only administrators can change them.",
     "AddRecipient": "Add a person, group or role…",
+    "ShowMore": "Show more",
+    "RecipientsLoadFailed": "Could not load people. Try again.",
     "People": "People",
     "GroupsAndRoles": "Groups and roles",
     "GroupLabel": "group",

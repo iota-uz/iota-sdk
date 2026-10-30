@@ -1535,6 +1535,8 @@
     "Retry": "立即重试",
     "ReadOnly": "您可以查看这些设置，只有管理员可以修改。",
     "AddRecipient": "添加人员、群组或角色…",
+    "ShowMore": "显示更多",
+    "RecipientsLoadFailed": "无法加载人员，请重试。",
     "People": "人员",
     "GroupsAndRoles": "群组和角色",
     "GroupLabel": "群组",

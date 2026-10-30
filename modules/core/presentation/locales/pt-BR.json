@@ -1536,6 +1536,8 @@
     "Retry": "Tentar agora",
     "ReadOnly": "Você pode ver estas configurações. Somente administradores podem alterá-las.",
     "AddRecipient": "Adicionar pessoa, grupo ou função…",
+    "ShowMore": "Mostrar mais",
+    "RecipientsLoadFailed": "Não foi possível carregar as pessoas. Tente novamente.",
     "People": "Pessoas",
     "GroupsAndRoles": "Grupos e funções",
     "GroupLabel": "grupo",

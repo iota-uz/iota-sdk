@@ -43,7 +43,7 @@ templ Avatar() {
 }
 
 templ ThemeSwitcher() {
-	<div class="flex items-center justify-center relative">
+	<div class="relative flex h-9 w-9 shrink-0 items-center justify-center" data-testid="navbar-theme-switcher">
 		<input
 			class="peer/system appearance-none absolute"
 			type="radio"
@@ -55,7 +55,7 @@ templ ThemeSwitcher() {
 		/>
 		<label
 			for="theme-light"
-			class="group/system absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black cursor-pointer invisible peer-checked/system:visible"
+			class="group/system absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black cursor-pointer transition-colors hover:bg-gray-300 invisible peer-checked/system:visible"
 		>
 			@icons.Desktop(icons.Props{
 				Size:  "20",
@@ -72,7 +72,7 @@ templ ThemeSwitcher() {
 		/>
 		<label
 			for="theme-dark"
-			class="group/light absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black cursor-pointer invisible peer-checked/light:visible"
+			class="group/light absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black cursor-pointer transition-colors hover:bg-gray-300 invisible peer-checked/light:visible"
 		>
 			@icons.Sun(icons.Props{
 				Size:    "20",
@@ -90,7 +90,7 @@ templ ThemeSwitcher() {
 		/>
 		<label
 			for="theme-system"
-			class="group/dark absolute flex items-center justify-center w-9 h-9 rounded-full bg-black-950 text-white cursor-pointer invisible peer-checked/dark:visible"
+			class="group/dark absolute flex items-center justify-center w-9 h-9 rounded-full bg-black-950 text-white cursor-pointer transition-colors hover:bg-black-800 invisible peer-checked/dark:visible"
 		>
 			@icons.Moon(icons.Props{
 				Size:       "20",
@@ -109,9 +109,10 @@ templ SidebarTrigger(class string) {
 	<button
 		x-data
 		class={
-			"flex items-center justify-center w-9 h-9 rounded-md bg-surface-400 text-black cursor-pointer",
+			"flex items-center justify-center w-9 h-9 shrink-0 rounded-full bg-gray-200 text-black cursor-pointer transition-colors hover:bg-gray-300 dark:bg-black-950 dark:text-white dark:hover:bg-black-800",
 			class,
 		}
+		data-testid="navbar-sidebar-trigger"
 		@click="$dispatch('open-sidebar')"
 	>
 		@icons.List(icons.Props{Size: "20"})
@@ -130,8 +131,8 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 		if navbarLeft != nil {
 			@navbarLeft
 		}
-		<div class="ml-auto flex items-center gap-4 md:gap-8">
-			<div class="hidden lg:block">
+		<div class="ml-auto flex shrink-0 items-center gap-2 md:gap-3" data-testid="navbar-controls">
+			<div class="hidden lg:block lg:mr-2">
 				@spotlight.Spotlight()
 			</div>
 			@NotificationBell()
@@ -334,8 +335,8 @@ templ Authenticated(props AuthenticatedProps) {
 templ NotificationBell() {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<details class="relative" data-testid="notification-bell" x-data @keydown.escape.stop="$el.removeAttribute('open')">
-		<summary class="relative flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-lg text-gray-700 hover:bg-surface-400" aria-label={ pageCtx.T("Notifications.Title") }>
-			@icons.Bell(icons.Props{Size: "22"})
+		<summary class="relative flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full bg-gray-200 text-black transition-colors hover:bg-gray-300 dark:bg-black-950 dark:text-white dark:hover:bg-black-800 [&::-webkit-details-marker]:hidden" aria-label={ pageCtx.T("Notifications.Title") }>
+			@icons.Bell(icons.Props{Size: "20"})
 			<span id="notification-bell-count" hx-get="/notifications/summary" hx-trigger="notificationsChanged from:body" hx-swap="innerHTML" aria-live="polite">
 				@NotificationBellCount(services.NotificationUnreadCount(ctx))
 			</span>
@@ -358,7 +359,7 @@ templ NotificationBell() {
 
 templ NotificationBellCount(count int64) {
 	if count > 0 {
-		<span class="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white" data-testid="notification-unread-count" title={ strconv.FormatInt(count, 10) }>{ notificationCountLabel(count) }</span>
+		<span class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-surface-300" data-testid="notification-unread-count" title={ strconv.FormatInt(count, 10) }>{ notificationCountLabel(count) }</span>
 	}
 }
 
