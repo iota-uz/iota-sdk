@@ -493,15 +493,23 @@ func TestUploadController_DownloadStreamsS3UploadsToSignedInUsers(t *testing.T) 
 	require.Equal(t, "application/pdf", serve("/uploads/1", true).Header().Get("Content-Type"))
 }
 
+// noSuchBucketError carries both the error code and the HTTP 404 of a real
+// response, so a check on the status alone would call it a missing object.
+type noSuchBucketError struct{}
+
+func (noSuchBucketError) Error() string       { return "NoSuchBucket" }
+func (noSuchBucketError) ErrorCode() string   { return "NoSuchBucket" }
+func (noSuchBucketError) HTTPStatusCode() int { return http.StatusNotFound }
+
 // missingBucketS3 answers every object call the way S3 does for an absent bucket.
 type missingBucketS3 struct{ *memoryS3 }
 
 func (missingBucketS3) GetObject(context.Context, *s3.GetObjectInput, ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
-	return nil, &s3types.NoSuchBucket{}
+	return nil, noSuchBucketError{}
 }
 
 func (missingBucketS3) DeleteObject(context.Context, *s3.DeleteObjectInput, ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
-	return nil, &s3types.NoSuchBucket{}
+	return nil, noSuchBucketError{}
 }
 
 func TestS3Storage_MissingBucketIsNotAMissingFile(t *testing.T) {
