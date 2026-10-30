@@ -15,14 +15,18 @@ import (
 // capSpec mirrors one entry the Python shim reads from PYKERNEL_CAPABILITIES to
 // synthesize a callable proxy.
 type capSpec struct {
-	Name    string     `json:"name"`
-	Params  []capParam `json:"params"`
-	Returns string     `json:"returns"`
-	Doc     string     `json:"doc"`
+	Name      string     `json:"name"`
+	Params    []capParam `json:"params"`
+	Returns   string     `json:"returns"`
+	Doc       string     `json:"doc"`
+	Namespace string     `json:"namespace,omitempty"`
+	Async     bool       `json:"async,omitempty"`
 }
 
 type capParam struct {
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	Type     string `json:"type,omitempty"`
+	Required bool   `json:"required,omitempty"`
 }
 
 func capSpecsJSON(set pykernel.CapabilitySet) ([]byte, error) {
@@ -31,9 +35,12 @@ func capSpecsJSON(set pykernel.CapabilitySet) ([]byte, error) {
 		sig := c.Signature()
 		params := make([]capParam, 0, len(sig.Params))
 		for _, p := range sig.Params {
-			params = append(params, capParam{Name: p.Name})
+			params = append(params, capParam{Name: p.Name, Type: p.Type, Required: p.Required})
 		}
-		specs = append(specs, capSpec{Name: c.Name(), Params: params, Returns: sig.Returns, Doc: sig.Doc})
+		specs = append(specs, capSpec{
+			Name: c.Name(), Params: params, Returns: sig.Returns, Doc: sig.Doc,
+			Namespace: sig.Namespace, Async: sig.Async,
+		})
 	}
 	return json.Marshal(specs)
 }
@@ -41,14 +48,19 @@ func capSpecsJSON(set pykernel.CapabilitySet) ([]byte, error) {
 // dispatcher binds a kernel's capability set, run Mode and tenant, and routes
 // every kernel cap.call through the central plan/apply authorization. The
 // kernel supplies only the capability name and arguments; tenant and Mode are
-// bound here from the Session.
+// bound here from the Session. An exec that asked for BindContext gets its
+// calls run under its own context, so cancelling the exec cancels them.
 type dispatcher struct {
 	caps   pykernel.CapabilitySet
 	mode   pykernel.Mode
 	tenant uuid.UUID
+	exec   func(execID string) (context.Context, bool)
 }
 
 func (d *dispatcher) Dispatch(ctx context.Context, call bridge.Call) bridge.Reply {
+	if execCtx, ok := d.exec(call.ExecID); ok {
+		ctx = execCtx
+	}
 	ctx = composables.WithTenantID(ctx, d.tenant)
 
 	var args pykernel.CallArgs
@@ -94,6 +106,14 @@ func translate(ev bridge.RawEvent) (pykernel.ExecEvent, bool) {
 		_ = json.Unmarshal(ev.Params, &p)
 		out.Kind = pykernel.EventStdout
 		out.Stdout = []byte(p.Chunk)
+	case bridge.KindStderr:
+		var p struct {
+			Chunk string `json:"chunk"`
+		}
+		_ = json.Unmarshal(ev.Params, &p)
+		out.Kind = pykernel.EventStdout
+		out.Stdout = []byte(p.Chunk)
+		out.Stderr = true
 	case bridge.KindMetric:
 		var p struct {
 			Name  string            `json:"name"`
@@ -132,7 +152,13 @@ func translate(ev bridge.RawEvent) (pykernel.ExecEvent, bool) {
 		out.Kind = pykernel.EventError
 		out.Err = &pykernel.ExecError{Type: p.Type, Message: p.Message, Traceback: p.Traceback}
 	case bridge.KindDone:
+		var p struct {
+			StdoutTruncated bool `json:"stdout_truncated"`
+			StderrTruncated bool `json:"stderr_truncated"`
+		}
+		_ = json.Unmarshal(ev.Params, &p)
 		out.Kind = pykernel.EventDone
+		out.Done = &pykernel.DonePayload{StdoutTruncated: p.StdoutTruncated, StderrTruncated: p.StderrTruncated}
 		return out, true
 	default:
 		out.Kind = pykernel.EventLog

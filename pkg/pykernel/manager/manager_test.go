@@ -182,3 +182,106 @@ func TestManager_CancelTerminatesExec(t *testing.T) {
 		}
 	}
 }
+
+func TestManager_ExecContextReachesCapability(t *testing.T) {
+	requirePython(t)
+
+	type ctxKey struct{}
+	cancelled := make(chan error, 1)
+	var sawValue any
+	wait := pykernel.CapabilityFunc("wait", pykernel.AccessRead, pykernel.CapabilitySignature{},
+		func(ctx context.Context, _ pykernel.CallArgs) (any, error) {
+			sawValue = ctx.Value(ctxKey{})
+			<-ctx.Done()
+			cancelled <- ctx.Err()
+			return nil, ctx.Err()
+		})
+	caps, err := pykernel.NewCapabilitySet(wait)
+	require.NoError(t, err)
+
+	m := newManager(t)
+	sess := &testSession{key: "run-ctx", tenant: uuid.New(), caps: caps, mode: pykernel.ModeApply, wd: t.TempDir()}
+	k, err := m.Acquire(context.Background(), sess)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), ctxKey{}, "exec-scoped"))
+	ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: "wait()", BindContext: true})
+	require.NoError(t, err)
+	time.AfterFunc(300*time.Millisecond, cancel)
+
+	select {
+	case err := <-cancelled:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(10 * time.Second):
+		t.Fatal("exec cancellation did not reach the capability")
+	}
+	_, _, gotDone, errEv := drain(t, ch, 20*time.Second)
+	assert.True(t, gotDone)
+	require.NotNil(t, errEv)
+	assert.Equal(t, "KernelCancelled", errEv.Type)
+	assert.Equal(t, "exec-scoped", sawValue)
+}
+
+func TestManager_ExecOutputStreams(t *testing.T) {
+	requirePython(t)
+	type ctxKey struct{}
+	cases := []struct {
+		name            string
+		separate        bool
+		bind            bool
+		stdout          string
+		stderrLen       int
+		stderrTruncated bool
+		sawExecValue    bool
+	}{
+		{name: "default merges stderr into stdout and keeps the kernel context",
+			stdout: "out\n" + strings.Repeat("e", 60)},
+		{name: "opt-in separates stderr and binds the exec context", separate: true, bind: true,
+			stdout: "out\n", stderrLen: 60, stderrTruncated: true, sawExecValue: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var sawValue any
+			probe := pykernel.CapabilityFunc("probe", pykernel.AccessRead, pykernel.CapabilitySignature{},
+				func(ctx context.Context, _ pykernel.CallArgs) (any, error) {
+					sawValue = ctx.Value(ctxKey{})
+					return true, nil
+				})
+			caps, err := pykernel.NewCapabilitySet(probe)
+			require.NoError(t, err)
+			m := newManager(t)
+			k, err := m.Acquire(context.Background(), &testSession{key: "streams", tenant: uuid.New(), caps: caps, mode: pykernel.ModePlan, wd: t.TempDir()})
+			require.NoError(t, err)
+
+			ctx := context.WithValue(context.Background(), ctxKey{}, "exec-scoped")
+			ch, err := k.Exec(ctx, pykernel.ExecRequest{
+				Code:           "import sys\nprobe()\nprint('out')\nprint('e' * 200, file=sys.stderr)",
+				OutputCap:      64,
+				SeparateStderr: tc.separate,
+				BindContext:    tc.bind,
+			})
+			require.NoError(t, err)
+			var stdout, stderr strings.Builder
+			var done *pykernel.DonePayload
+			for ev := range ch {
+				switch ev.Kind {
+				case pykernel.EventStdout:
+					if ev.Stderr {
+						stderr.Write(ev.Stdout)
+					} else {
+						stdout.Write(ev.Stdout)
+					}
+				case pykernel.EventDone:
+					done = ev.Done
+				case pykernel.EventResult, pykernel.EventMetric, pykernel.EventLog, pykernel.EventError, pykernel.EventTruncated:
+				}
+			}
+			assert.Equal(t, tc.stdout, stdout.String())
+			assert.Equal(t, tc.stderrLen, stderr.Len())
+			require.NotNil(t, done)
+			assert.Equal(t, !tc.separate, done.StdoutTruncated)
+			assert.Equal(t, tc.stderrTruncated, done.StderrTruncated)
+			assert.Equal(t, tc.sawExecValue, sawValue != nil)
+		})
+	}
+}

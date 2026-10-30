@@ -43,6 +43,9 @@ linters:
         - ".*LocalizeConfig$"
         - ".*i18n\\.Message$"
         - ".*url\\.URL$"
+    gomoddirectives:
+      # Nested modules (mcpgateway) build against the SDK in the same checkout.
+      replace-local: true
     staticcheck:
       checks:
         - "all"

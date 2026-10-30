@@ -208,6 +208,10 @@ type ModuleConfig struct {
 	// Optional: Agent Registry for multi-agent orchestration
 	AgentRegistry *agents.AgentRegistry
 
+	// Optional: application tools added to every agent turn, e.g. the shared
+	// MCP registry adapted by pkg/mcp/chattools.
+	RuntimeTools []agents.Tool
+
 	// Optional services (can be nil)
 	QueryExecutor          bichatsql.QueryExecutor
 	KBSearcher             kb.KBSearcher

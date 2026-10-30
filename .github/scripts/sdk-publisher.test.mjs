@@ -12,17 +12,17 @@ function fixture() {
   const bytes = Buffer.from('verified tarball')
   const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`
   const registryValue = { dist: { integrity, attestations: { provenance: { predicateType: 'https://slsa.dev/provenance/v1' } } } }
-  const state = { tag: null, release: null, npm: null, publishCount: 0, writes: [] }
+  const state = { tags: {}, release: null, npm: null, publishCount: 0, writes: [] }
   return {
     state, registryValue,
     args: {
       sha, version, bytes,
       manifest: { sdkCommit: sha, sdkReleaseVersion: version, packageVersion: version, package: '@iota-uz/sdk', file: 'sdk.tgz', sha256: createHash('sha256').update(bytes).digest('hex') },
       async api(method, path, body) {
-        if (method === 'GET' && path.startsWith('git/ref/')) return state.tag
+        if (method === 'GET' && path.startsWith('git/ref/')) return state.tags[path.slice('git/ref/'.length)] ?? null
         if (method === 'GET' && path.startsWith('releases/')) return state.release
         state.writes.push(path)
-        if (path === 'git/refs') state.tag = { object: { type: 'commit', sha: body.sha } }
+        if (path === 'git/refs') state.tags[body.ref.slice('refs/'.length)] = { object: { type: 'commit', sha: body.sha } }
         else if (path === 'releases') state.release = body
         else throw new Error(`Unexpected API ${method} ${path}`)
       },
@@ -39,15 +39,24 @@ test('publishes once and resumes after completion without another npm write', as
   await publishSDK(f.args)
   await publishSDK(f.args)
   assert.equal(f.state.publishCount, 1)
-  assert.deepEqual(f.state.writes, ['git/refs'])
+  assert.deepEqual(f.state.writes, ['git/refs', 'git/refs'])
 })
 
 test('resumes a tag-only partial release at the same SHA', async () => {
   const f = fixture()
-  f.state.tag = { object: { type: 'commit', sha: f.args.sha } }
+  f.state.tags[`tags/v${f.args.version}`] = { object: { type: 'commit', sha: f.args.sha } }
+  f.state.tags[`tags/mcpgateway/v${f.args.version}`] = { object: { type: 'commit', sha: f.args.sha } }
   await publishSDK(f.args)
   assert.deepEqual(f.state.writes, [])
   assert.equal(f.state.publishCount, 1)
+})
+
+test('tags the gateway module when only the main tag survived an interruption', async () => {
+  const f = fixture()
+  f.state.tags[`tags/v${f.args.version}`] = { object: { type: 'commit', sha: f.args.sha } }
+  await publishSDK(f.args)
+  assert.deepEqual(Object.keys(f.state.tags).sort(), [`tags/mcpgateway/v${f.args.version}`, `tags/v${f.args.version}`])
+  assert.equal(f.state.tags[`tags/mcpgateway/v${f.args.version}`].object.sha, f.args.sha)
 })
 
 test('resumes npm success followed by Go lookup failure without republishing', async () => {
@@ -64,7 +73,7 @@ test('resumes npm success followed by Go lookup failure without republishing', a
 
 test('rejects a conflicting tag without publishing npm', async () => {
   const f = fixture()
-  f.state.tag = { object: { type: 'commit', sha: 'b'.repeat(40) } }
+  f.state.tags[`tags/v${f.args.version}`] = { object: { type: 'commit', sha: 'b'.repeat(40) } }
   await assert.rejects(publishSDK(f.args), /another commit/)
   assert.equal(f.state.publishCount, 0)
 })
@@ -117,7 +126,7 @@ test('waits for delayed npm visibility without republishing the verified artifac
   assert.equal(await publishSDK(f.args), `v${f.args.version}`)
   assert.equal(f.state.publishCount, 1)
   assert.equal(verified, true)
-  assert.deepEqual(f.state.writes, ['git/refs'])
+  assert.deepEqual(f.state.writes, ['git/refs', 'git/refs'])
 })
 
 // Falsely green if provenance is already present in the first registry read.
@@ -141,7 +150,7 @@ test('reports bounded visibility timeout and preserves the partial publication',
   assert.equal(f.state.publishCount, 1)
   assert.equal(polls, 37)
   assert.equal(verified, false)
-  assert.equal(f.state.tag.object.sha, f.args.sha)
+  assert.equal(f.state.tags[`tags/v${f.args.version}`].object.sha, f.args.sha)
 })
 
 // Falsely green if retry polling accepts registry bytes from another release.

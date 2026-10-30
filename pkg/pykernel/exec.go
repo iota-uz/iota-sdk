@@ -16,6 +16,13 @@ type ExecRequest struct {
 	OutputCap int
 	// Label is a human-readable tag for tracing and observability.
 	Label string
+	// SeparateStderr reports stderr as EventStdout chunks flagged Stderr
+	// instead of merging it into stdout.
+	SeparateStderr bool
+	// BindContext runs capability calls of this exec under the Exec ctx, so
+	// cancelling the exec cancels the capability and ctx values reach it.
+	// Otherwise calls run under the kernel's lifetime context.
+	BindContext bool
 }
 
 // ExecEventKind discriminates the streamed ExecEvent union.
@@ -63,13 +70,24 @@ func (k ExecEventKind) String() string {
 // ExecEvent is one item in the stream returned by Kernel.Exec. The populated
 // payload field corresponds to Kind.
 type ExecEvent struct {
-	Kind      ExecEventKind
-	Stdout    []byte         // EventStdout
+	Kind   ExecEventKind
+	Stdout []byte // EventStdout
+	// Stderr marks an EventStdout chunk written to stderr; it is only set when
+	// the exec asked for SeparateStderr.
+	Stderr    bool
 	Result    *ResultPayload // EventResult
 	Metric    *MetricPayload // EventMetric
 	Log       *LogPayload    // EventLog
 	Err       *ExecError     // EventError
+	Done      *DonePayload   // EventDone
 	Timestamp time.Time
+}
+
+// DonePayload reports which output streams lost data to the output cap, so a
+// consumer can mark truncation without parsing the text.
+type DonePayload struct {
+	StdoutTruncated bool
+	StderrTruncated bool
 }
 
 // ResultPayload carries the value of the final expression, already converted at

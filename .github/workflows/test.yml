@@ -78,6 +78,7 @@ jobs:
               - 'internal/**'
               - 'modules/**'
               - 'pkg/**'
+              - 'mcpgateway/**'
               - 'migrations/**'
               - 'scripts/**'
               - 'styles/**'
@@ -123,6 +124,30 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - '.github/workflows/test.yml'
+
+  mcp:
+    name: MCP engine and gateway
+    needs: changes
+    if: |
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft) &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || needs.changes.outputs.backend == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: "1.24.13"
+      - run: go test -race ./pkg/mcp/ ./pkg/mcp/rbacauth ./pkg/mcp/execute ./pkg/pykernel/...
+      - name: Check the MCP gateway module
+        working-directory: mcpgateway
+        env:
+          GOTOOLCHAIN: auto
+        run: |
+          go vet ./...
+          go test -race ./...
 
   client-host:
     needs: changes
