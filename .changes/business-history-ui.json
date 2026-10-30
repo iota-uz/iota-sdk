@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add the business history read service and the /admin/history page: system, resource and object journals with URL filters, an opaque cursor bound to filters, user and tenant, resource and field permissions applied before pagination, operation grouping and before/after diffs, plus a reusable history link shown on payments."
+}

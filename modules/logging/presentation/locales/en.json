@@ -17,6 +17,83 @@
 				"Title": "Import item rejected",
 				"Summary": "An item of the import was not saved; its changes were rolled back"
 			}
+		},
+		"Link": "History",
+		"UnknownEvent": "Unknown action",
+		"UnknownActor": "Not recorded",
+		"AllEvents": "All actions",
+		"OnlyAccessible": "Showing actions you have access to",
+		"Next": "Next events",
+		"First": "Back to newest",
+		"Meta": {
+			"Title": "Action log",
+			"Subtitle": "Business actions across the resources you can access"
+		},
+		"Filters": {
+			"From": "From",
+			"To": "To",
+			"Resource": "Resource",
+			"Action": "Action",
+			"Channel": "Channel",
+			"Outcome": "Result",
+			"Actor": "Performed by",
+			"Any": "Any",
+			"Apply": "Apply",
+			"Clear": "Clear filters"
+		},
+		"Channels": {
+			"ui": "Web UI",
+			"mcp": "External AI (MCP)",
+			"chat": "Built-in AI",
+			"import": "Import",
+			"job": "Background job",
+			"api": "API",
+			"legacy": "Former log"
+		},
+		"Outcomes": {
+			"succeeded": "Applied",
+			"failed": "Failed",
+			"denied": "Denied"
+		},
+		"States": {
+			"Loading": "Loading actions…",
+			"Empty": {
+				"Title": "No actions found",
+				"Text": "Nothing matches the selected scope and filters."
+			},
+			"Denied": {
+				"Title": "No access",
+				"Text": "You are not allowed to view the history of this resource."
+			},
+			"Invalid": {
+				"Title": "Filters are not valid",
+				"Text": "The link contains an unknown resource, action or period. Clear the filters to start over."
+			},
+			"Error": {
+				"Title": "Could not load the history",
+				"Text": "Nothing was changed. Try loading the history again.",
+				"Retry": "Retry"
+			}
+		},
+		"Group": {
+			"More": "{{.Count}} more in this operation"
+		},
+		"Details": {
+			"Field": "Field",
+			"Before": "Before",
+			"After": "After",
+			"Hidden": "Hidden",
+			"OnlyAllowed": "Only fields you are allowed to see are shown.",
+			"LegacyIncomplete": "Recorded by the former log: who acted and what changed may be missing.",
+			"Initiator": "On behalf of",
+			"EventType": "Event type",
+			"Operation": "Operation",
+			"Request": "Request",
+			"Run": "Run",
+			"Event": "Event"
 		}
+	},
+	"NavigationLinks": {
+		"BusinessHistory": "Action log"
 	}
 }

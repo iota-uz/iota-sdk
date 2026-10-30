@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -134,6 +136,82 @@ func (r *PgBusinessEventRepository) ListByOperation(ctx context.Context, operati
 	}
 	defer rows.Close()
 	result := make([]businessevent.Event, 0)
+	for rows.Next() {
+		e, err := scanBusinessEvent(rows)
+		if err != nil {
+			return nil, serrors.Wrap(op, err)
+		}
+		result = append(result, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	return result, nil
+}
+
+func (r *PgBusinessEventRepository) Find(ctx context.Context, params businessevent.FindParams) ([]businessevent.Event, error) {
+	const op serrors.Op = "PgBusinessEventRepository.Find"
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	const position = "COALESCE(occurred_at, created_at)"
+	args := []any{tenantID, params.Readable}
+	where := []string{"tenant_id = $1", "(cardinality(resources) = 0 OR resources && $2)"}
+	arg := func(v any) string {
+		args = append(args, v)
+		return "$" + strconv.Itoa(len(args))
+	}
+	if params.SubjectID != "" {
+		where = append(where, "subject_refs @> ARRAY["+arg(params.Resource+":"+params.SubjectID)+"::text]")
+	} else if params.Resource != "" {
+		where = append(where, "resources @> ARRAY["+arg(params.Resource)+"::text]")
+	}
+	if params.ActorID != "" {
+		where = append(where, "COALESCE(actor_id, user_id::text) = "+arg(params.ActorID))
+	}
+	if len(params.EventTypes) > 0 {
+		where = append(where, "event_type = ANY("+arg(params.EventTypes)+")")
+	}
+	if len(params.Channels) > 0 || params.WithoutChannel {
+		channels := make([]string, len(params.Channels))
+		for i, c := range params.Channels {
+			channels[i] = string(c)
+		}
+		clause := "channel = ANY(" + arg(channels) + ")"
+		if params.WithoutChannel {
+			clause = "(" + clause + " OR channel IS NULL)"
+		}
+		where = append(where, clause)
+	}
+	if len(params.Outcomes) > 0 {
+		outcomes := make([]string, len(params.Outcomes))
+		for i, o := range params.Outcomes {
+			outcomes[i] = string(o)
+		}
+		where = append(where, "outcome = ANY("+arg(outcomes)+")")
+	}
+	if !params.From.IsZero() {
+		where = append(where, position+" >= "+arg(params.From))
+	}
+	if !params.To.IsZero() {
+		where = append(where, position+" < "+arg(params.To))
+	}
+	if params.After != nil {
+		where = append(where, "("+position+", event_id) < ("+arg(params.After.Time)+", "+arg(params.After.ID)+")")
+	}
+	query := `SELECT ` + businessEventColumns + ` FROM action_logs WHERE ` + strings.Join(where, " AND ") +
+		` ORDER BY ` + position + ` DESC, event_id DESC LIMIT ` + arg(params.Limit)
+	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	defer rows.Close()
+	result := make([]businessevent.Event, 0, params.Limit)
 	for rows.Next() {
 		e, err := scanBusinessEvent(rows)
 		if err != nil {

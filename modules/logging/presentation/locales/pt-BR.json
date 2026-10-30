@@ -17,6 +17,83 @@
         "Title": "Item de importação rejeitado",
         "Summary": "Um item da importação não foi salvo; suas alterações foram desfeitas"
       }
+    },
+    "Link": "Histórico",
+    "UnknownEvent": "Ação desconhecida",
+    "UnknownActor": "Não registrado",
+    "AllEvents": "Todas as ações",
+    "OnlyAccessible": "Exibindo ações às quais você tem acesso",
+    "Next": "Próximos eventos",
+    "First": "Voltar aos mais recentes",
+    "Meta": {
+      "Title": "Registro de ações",
+      "Subtitle": "Ações de negócio nos recursos aos quais você tem acesso"
+    },
+    "Filters": {
+      "From": "De",
+      "To": "Até",
+      "Resource": "Recurso",
+      "Action": "Ação",
+      "Channel": "Canal",
+      "Outcome": "Resultado",
+      "Actor": "Executado por",
+      "Any": "Qualquer",
+      "Apply": "Aplicar",
+      "Clear": "Limpar filtros"
+    },
+    "Channels": {
+      "ui": "Interface web",
+      "mcp": "IA externa (MCP)",
+      "chat": "IA integrada",
+      "import": "Importação",
+      "job": "Tarefa em segundo plano",
+      "api": "API",
+      "legacy": "Registro antigo"
+    },
+    "Outcomes": {
+      "succeeded": "Aplicada",
+      "failed": "Falhou",
+      "denied": "Negada"
+    },
+    "States": {
+      "Loading": "Carregando ações…",
+      "Empty": {
+        "Title": "Nenhuma ação encontrada",
+        "Text": "Nada corresponde ao escopo e aos filtros selecionados."
+      },
+      "Denied": {
+        "Title": "Sem acesso",
+        "Text": "Você não tem permissão para ver o histórico deste recurso."
+      },
+      "Invalid": {
+        "Title": "Filtros inválidos",
+        "Text": "O link contém um recurso, ação ou período desconhecido. Limpe os filtros para recomeçar."
+      },
+      "Error": {
+        "Title": "Não foi possível carregar o histórico",
+        "Text": "Nada foi alterado. Tente carregar o histórico novamente.",
+        "Retry": "Tentar novamente"
+      }
+    },
+    "Group": {
+      "More": "Mais {{.Count}} nesta operação"
+    },
+    "Details": {
+      "Field": "Campo",
+      "Before": "Antes",
+      "After": "Depois",
+      "Hidden": "Oculto",
+      "OnlyAllowed": "Somente os campos que você pode ver são exibidos.",
+      "LegacyIncomplete": "Registrado pelo log antigo: quem agiu e o que mudou podem estar ausentes.",
+      "Initiator": "Em nome de",
+      "EventType": "Tipo de evento",
+      "Operation": "Operação",
+      "Request": "Requisição",
+      "Run": "Execução",
+      "Event": "Evento"
     }
+  },
+  "NavigationLinks": {
+    "BusinessHistory": "Registro de ações"
   }
 }

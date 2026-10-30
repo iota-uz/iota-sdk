@@ -17,6 +17,83 @@
 				"Title": "Import elementi rad etildi",
 				"Summary": "Import elementi saqlanmadi, uning o'zgarishlari bekor qilindi"
 			}
+		},
+		"Link": "Tarix",
+		"UnknownEvent": "Noma'lum amal",
+		"UnknownActor": "Yozilmagan",
+		"AllEvents": "Barcha amallar",
+		"OnlyAccessible": "Sizga ruxsat berilgan amallar ko'rsatilgan",
+		"Next": "Keyingi hodisalar",
+		"First": "Eng yangilariga",
+		"Meta": {
+			"Title": "Amallar jurnali",
+			"Subtitle": "Sizga ochiq resurslar bo'yicha biznes amallar"
+		},
+		"Filters": {
+			"From": "Dan",
+			"To": "Gacha",
+			"Resource": "Resurs",
+			"Action": "Amal",
+			"Channel": "Kanal",
+			"Outcome": "Natija",
+			"Actor": "Bajaruvchi",
+			"Any": "Istalgan",
+			"Apply": "Qo'llash",
+			"Clear": "Filtrlarni tozalash"
+		},
+		"Channels": {
+			"ui": "Veb-interfeys",
+			"mcp": "Tashqi AI (MCP)",
+			"chat": "Ichki AI",
+			"import": "Import",
+			"job": "Fon vazifasi",
+			"api": "API",
+			"legacy": "Avvalgi jurnal"
+		},
+		"Outcomes": {
+			"succeeded": "Qo'llandi",
+			"failed": "Xato",
+			"denied": "Rad etildi"
+		},
+		"States": {
+			"Loading": "Amallar yuklanmoqda…",
+			"Empty": {
+				"Title": "Amallar topilmadi",
+				"Text": "Tanlangan jurnal va filtrlar bo'yicha hech narsa yo'q."
+			},
+			"Denied": {
+				"Title": "Ruxsat yo'q",
+				"Text": "Bu resurs tarixini ko'rishga ruxsatingiz yo'q."
+			},
+			"Invalid": {
+				"Title": "Filtrlar noto'g'ri",
+				"Text": "Havolada noma'lum resurs, amal yoki davr bor. Qaytadan boshlash uchun filtrlarni tozalang."
+			},
+			"Error": {
+				"Title": "Tarixni yuklab bo'lmadi",
+				"Text": "Hech narsa o'zgartirilmadi. Tarixni qayta yuklab ko'ring.",
+				"Retry": "Qayta urinish"
+			}
+		},
+		"Group": {
+			"More": "Bu operatsiyada yana {{.Count}} ta"
+		},
+		"Details": {
+			"Field": "Maydon",
+			"Before": "Oldin",
+			"After": "Keyin",
+			"Hidden": "Yashirilgan",
+			"OnlyAllowed": "Faqat sizga ko'rish ruxsat etilgan maydonlar ko'rsatilgan.",
+			"LegacyIncomplete": "Avvalgi jurnal yozuvi: bajaruvchi va o'zgarishlar noma'lum bo'lishi mumkin.",
+			"Initiator": "Kimning nomidan",
+			"EventType": "Hodisa turi",
+			"Operation": "Operatsiya",
+			"Request": "So'rov",
+			"Run": "Ishga tushirish",
+			"Event": "Hodisa"
 		}
+	},
+	"NavigationLinks": {
+		"BusinessHistory": "Amallar jurnali"
 	}
 }

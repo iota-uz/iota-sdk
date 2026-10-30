@@ -19,6 +19,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/components/historylink"
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
@@ -133,11 +134,16 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg := c.tableConfig(r, paginationParams, int(total))
+	showHistory := historylink.Visible(r.Context())
 	for _, p := range paymentEntities {
+		rowActions := []actions.ActionProps{actions.EditAction(fmt.Sprintf("%s/%s", c.basePath, p.ID()))}
+		if showHistory {
+			rowActions = append(rowActions, historylink.RowAction(r.Context(), services.PaymentResource, p.ID().String()))
+		}
 		cfg.AddRows(table.Row(
 			table.Cell(templ.Raw(p.Amount().Display()), p.Amount().Display()),
 			table.Cell(table.DateTime(p.UpdatedAt()), p.UpdatedAt()),
-			table.Cell(actions.RenderRowActions(actions.EditAction(fmt.Sprintf("%s/%s", c.basePath, p.ID()))), nil),
+			table.Cell(actions.RenderRowActions(rowActions...), nil),
 		))
 	}
 
@@ -167,6 +173,9 @@ func (c *PaymentsController) tableConfig(r *http.Request, params composables.Pag
 		table.Column("actions", pageCtx.T("Actions"), table.WithClass("w-16")),
 	)
 	cfg.AddFilters(filters.CreatedAt())
+	if historylink.Visible(r.Context()) {
+		cfg.AddActions(actions.RenderAction(historylink.Action(r.Context(), services.PaymentResource)))
+	}
 	cfg.AddActions(actions.RenderAction(actions.CreateAction(pageCtx.T("Payments.List.New"), c.basePath+"/new")))
 	return cfg
 }
