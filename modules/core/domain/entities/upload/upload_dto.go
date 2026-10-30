@@ -36,6 +36,9 @@ type CreateDTO struct {
 	UploadsPath string // populated by service from uploadsconfig.Config.Path
 	Domain      string // populated by service from httpconfig.Config.Domain
 	Scheme      string // populated by service from httpconfig.Config.Scheme()
+	// StorageLocation is set by the service from the primary storage backend
+	// ("" for the filesystem, "s3://<bucket>" for S3).
+	StorageLocation string
 }
 
 func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
@@ -86,7 +89,7 @@ func (d *CreateDTO) ToEntity() (Upload, []byte, error) {
 	}
 	u := New(
 		hash,
-		filepath.Join(uploadsPath, d.Slug+ext),
+		LocatePath(d.StorageLocation, filepath.Join(uploadsPath, d.Slug+ext)),
 		d.Name,
 		d.Slug,
 		d.Size,

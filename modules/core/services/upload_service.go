@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
@@ -60,8 +62,59 @@ func (s *UploadService) IsAccessible(ctx context.Context, entity upload.Upload) 
 	if entity == nil {
 		return false
 	}
-	_, err := s.storage.Open(ctx, entity.Path())
-	return err == nil
+	body, _, err := s.OpenReader(ctx, entity.Path())
+	if err != nil {
+		return false
+	}
+	_ = body.Close()
+	return true
+}
+
+// Open reads a whole stored upload by its stored path (Upload.Path()), on
+// whichever backend holds it. Prefer OpenReader for large files.
+func (s *UploadService) Open(ctx context.Context, storedPath string) ([]byte, error) {
+	const op serrors.Op = "UploadService.Open"
+	data, err := s.storage.Open(ctx, storedPath)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	return data, nil
+}
+
+// OpenReader streams a stored upload by its stored path (Upload.Path()):
+// "s3://<bucket>/<key>" paths are read from S3, any other path from the local
+// filesystem. It performs no authorization; callers check access first and
+// must close the reader.
+func (s *UploadService) OpenReader(ctx context.Context, storedPath string) (io.ReadCloser, upload.ObjectInfo, error) {
+	const op serrors.Op = "UploadService.OpenReader"
+	body, info, err := persistence.OpenUploadReader(ctx, s.storage, storedPath)
+	if err != nil {
+		return nil, upload.ObjectInfo{}, serrors.Wrap(op, err)
+	}
+	return body, info, nil
+}
+
+// PresignGetURL returns a short-lived direct download URL for an S3-backed
+// upload. A non-positive ttl uses UPLOAD_S3_PRESIGN_TTL_SECONDS. Filesystem
+// paths return upload.ErrPresignNotSupported. It performs no authorization.
+func (s *UploadService) PresignGetURL(ctx context.Context, storedPath string, ttl time.Duration) (string, error) {
+	const op serrors.Op = "UploadService.PresignGetURL"
+	presigner, ok := s.storage.(upload.PresigningStorage)
+	if !ok {
+		return "", serrors.Wrap(op, upload.ErrPresignNotSupported)
+	}
+	presigned, err := presigner.PresignGetURL(ctx, storedPath, ttl)
+	if err != nil {
+		return "", serrors.Wrap(op, err)
+	}
+	return presigned, nil
+}
+
+func (s *UploadService) storageLocation() string {
+	if locating, ok := s.storage.(upload.LocatingStorage); ok {
+		return locating.StorageLocation()
+	}
+	return ""
 }
 
 func (s *UploadService) GetByHash(ctx context.Context, hash string) (upload.Upload, error) {
@@ -102,13 +155,23 @@ func (s *UploadService) CreatePrivate(ctx context.Context, data *upload.CreateDT
 	return s.create(ctx, &privateData, false, false, privatePath)
 }
 
+// pathWithin compares filesystem layouts, so S3 keys match the same roots as local paths.
 func pathWithin(root, candidate string) bool {
-	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(candidate))
+	if upload.IsS3Path(candidate) {
+		root = strings.TrimPrefix(filepath.ToSlash(filepath.Clean(root)), "/")
+		candidate = upload.LayoutPath(candidate)
+	}
+	rel, err := filepath.Rel(filepath.Clean(filepath.FromSlash(root)), filepath.Clean(filepath.FromSlash(candidate)))
 	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, deduplicateByHash, replaceSlug bool, requiredPath ...string) (upload.Upload, error) {
 	const op serrors.Op = "UploadService.create"
+	if location := s.storageLocation(); location != "" && data.StorageLocation == "" {
+		located := *data
+		located.StorageLocation = location
+		data = &located
+	}
 	entity, bytes, err := data.ToEntity()
 	if err != nil {
 		return nil, err
@@ -169,7 +232,7 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 			}
 		}
 		if data.UploadsPath != "" && !pathWithin(data.UploadsPath, up.Path()) {
-			rooted := upload.NewWithID(up.ID(), up.TenantID(), up.Hash(), filepath.Join(data.UploadsPath, filepath.Base(up.Path())), up.Name(), up.Slug(), up.Size().Bytes(), up.Mimetype(), up.Type(), up.CreatedAt(), up.UpdatedAt(), upload.WithUploadsPath(data.UploadsPath))
+			rooted := upload.NewWithID(up.ID(), up.TenantID(), up.Hash(), upload.LocatePath(data.StorageLocation, filepath.Join(data.UploadsPath, filepath.Base(upload.LayoutPath(up.Path())))), up.Name(), up.Slug(), up.Size().Bytes(), up.Mimetype(), up.Type(), up.CreatedAt(), up.UpdatedAt(), upload.WithUploadsPath(data.UploadsPath))
 			rooted.SetGeoPoint(up.GeoPoint())
 			if err := s.storage.Save(ctx, rooted.Path(), bytes); err != nil {
 				return nil, err

@@ -282,6 +282,21 @@ The sidebar shows navigation items only to users who have at least one role; use
 | `MAX_UPLOAD_SIZE` | File upload size limit |
 | `MAX_UPLOAD_MEMORY` | Multipart form memory limit (bytes) |
 | `UPLOADS_PATH` | File storage directory |
+| `UPLOAD_STORAGE_BACKEND` | Backend for new uploads: `fs` (default) or `s3` |
+| `UPLOAD_S3_ENDPOINT` | S3-compatible endpoint, e.g. `minio:9000` |
+| `UPLOAD_S3_BUCKET` | Private bucket for uploads |
+| `UPLOAD_S3_REGION` | S3 region (default `us-east-1`) |
+| `UPLOAD_S3_ACCESS_KEY` / `UPLOAD_S3_SECRET_KEY` | S3 credentials |
+| `UPLOAD_S3_SECURE` | Use HTTPS when the endpoint has no scheme (default `false`) |
+| `UPLOAD_S3_FORCE_PATH_STYLE` | Path-style bucket addressing for MinIO (default `true`) |
+| `UPLOAD_S3_PRESIGN_TTL_SECONDS` | Lifetime of presigned download URLs (default `300`) |
+
+Uploads are read from the backend named by their stored path: `s3://<bucket>/<key>`
+paths come from S3 and every other path from the local filesystem, so both
+backends work side by side during a migration. S3 objects are served only
+through the authenticated `GET /uploads/{id}` route, never by the public file
+handler. Modules stream a stored file with `UploadService.OpenReader(ctx, path)`
+after their own permission check.
 
 ## Usage
 

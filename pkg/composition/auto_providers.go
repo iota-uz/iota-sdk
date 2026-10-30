@@ -188,6 +188,9 @@ func installStdconfigFromSource(container *Container, ctx *BuildContext) error {
 		func() error {
 			return registerAuto[uploadsconfig.Config](reg, container, ctx, "auto:uploadsconfig")
 		},
+		func() error {
+			return registerAuto[uploadsconfig.StorageConfig](reg, container, ctx, "auto:uploadstorageconfig")
+		},
 		func() error { return registerAuto[redisconfig.Config](reg, container, ctx, "auto:redisconfig") },
 		func() error { return registerAuto[meiliconfig.Config](reg, container, ctx, "auto:meiliconfig") },
 		func() error {

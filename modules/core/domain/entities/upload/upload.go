@@ -3,8 +3,10 @@ package upload
 import (
 	"fmt"
 	"net/url"
+	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -231,6 +233,10 @@ func (u *upload) SetName(name string) {
 func (u *upload) SetSlug(slug string) {
 	u.slug = slug
 	ext := filepath.Ext(u.name)
+	if bucket, key, err := ParseS3Path(u.path); err == nil {
+		u.path = S3Path(bucket, path.Join(path.Dir(key), u.slug+ext))
+		return
+	}
 	u.path = filepath.Join(u.uploadsPath, u.slug+ext)
 }
 
@@ -246,12 +252,23 @@ func (u *upload) SetID(id uint) {
 	u.id = id
 }
 
+// URL points S3 objects at the authenticated download route because the
+// public file handler never serves them.
 func (u *upload) URL() *url.URL {
+	urlPath := u.path
+	if IsS3Path(u.path) {
+		urlPath = DownloadPath(u.id)
+	}
 	return &url.URL{
 		Scheme: u.scheme,
 		Host:   u.domain,
-		Path:   u.path,
+		Path:   urlPath,
 	}
+}
+
+// DownloadPath is the authenticated in-app route that streams an upload by ID.
+func DownloadPath(id uint) string {
+	return "/uploads/" + strconv.FormatUint(uint64(id), 10)
 }
 
 func (u *upload) PreviewURL() string {
@@ -260,6 +277,9 @@ func (u *upload) PreviewURL() string {
 		return "/assets/" + assets.HashFS.HashName("images/excel-logo.svg")
 	}
 
+	if IsS3Path(u.path) {
+		return DownloadPath(u.id)
+	}
 	return "/" + u.path
 }
 

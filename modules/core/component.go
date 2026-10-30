@@ -127,7 +127,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	})
 
 	// ----- Storage -----
-	composition.ProvideFuncAs[upload.Storage](builder, persistence.NewFSStorage)
+	composition.ProvideFuncAs[upload.Storage](builder, persistence.NewUploadStorage)
 
 	// ----- Repositories -----
 	composition.ProvideFunc(builder, persistence.NewUploadRepository)
