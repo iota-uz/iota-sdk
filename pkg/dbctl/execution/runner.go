@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/commands/e2e"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
@@ -111,6 +112,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 	if err != nil {
 		return err
 	}
+	ctx = history.SystemExecution(ctx, "dbctl:"+plan.Spec.Name, plan.Spec.Name)
 	Emit(opts.Out, opts.JSONOutput, Event{Type: "preflight", Operation: plan.Spec.Name, Message: "plan completed"})
 	Emit(opts.Out, opts.JSONOutput, Event{
 		Type:      "safety_banner",

@@ -77,7 +77,7 @@ func (g *GormInventoryRepository) GetPaginated(
 		return nil, err
 	}
 	defer rows.Close()
-	checks := make([]*inventory.Check, 0)
+	dbChecks := make([]*models.InventoryCheck, 0)
 	for rows.Next() {
 		var check models.InventoryCheck
 		var finishedAt sql.NullTime
@@ -102,7 +102,16 @@ func (g *GormInventoryRepository) GetPaginated(
 		if finishedByID.Valid {
 			check.FinishedByID = mapping.Pointer(uint(finishedByID.Int32))
 		}
-		domainCheck, err := mappers.ToDomainInventoryCheck(&check)
+		dbChecks = append(dbChecks, &check)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+
+	checks := make([]*inventory.Check, 0, len(dbChecks))
+	for _, check := range dbChecks {
+		domainCheck, err := mappers.ToDomainInventoryCheck(check)
 		if err != nil {
 			return nil, err
 		}
@@ -125,9 +134,6 @@ func (g *GormInventoryRepository) GetPaginated(
 			}
 		}
 		checks = append(checks, domainCheck)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
 	}
 	return checks, nil
 }

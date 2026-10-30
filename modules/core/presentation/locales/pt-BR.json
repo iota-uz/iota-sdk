@@ -476,6 +476,36 @@
       "NoRoleDescription": "Nenhuma descrição disponível",
       "Delete": "Excluir grupo",
       "DeleteConfirmation": "Tem certeza de que deseja excluir este grupo?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Grupo criado",
+        "Summary": "Um grupo foi criado"
+      },
+      "Updated": {
+        "Title": "Grupo alterado",
+        "Summary": "Os dados do grupo foram alterados"
+      },
+      "Deleted": {
+        "Title": "Grupo excluído",
+        "Summary": "Um grupo foi excluído"
+      },
+      "MemberAdded": {
+        "Title": "Usuário adicionado ao grupo",
+        "Summary": "Um usuário foi adicionado ao grupo"
+      },
+      "MemberRemoved": {
+        "Title": "Usuário removido do grupo",
+        "Summary": "Um usuário foi removido do grupo"
+      },
+      "RoleAssigned": {
+        "Title": "Função atribuída ao grupo",
+        "Summary": "Uma função foi atribuída ao grupo"
+      },
+      "RoleUnassigned": {
+        "Title": "Função removida do grupo",
+        "Summary": "Uma função foi removida do grupo"
+      }
     }
   },
   "Home": {
@@ -969,6 +999,28 @@
       },
       "Delete": "Excluir papel",
       "DeleteConfirmation": "Tem certeza de que deseja excluir este papel?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Função criada",
+        "Summary": "Uma função foi criada"
+      },
+      "Updated": {
+        "Title": "Função alterada",
+        "Summary": "Os dados da função foram alterados"
+      },
+      "Deleted": {
+        "Title": "Função excluída",
+        "Summary": "Uma função foi excluída"
+      },
+      "PermissionGranted": {
+        "Title": "Permissão adicionada à função",
+        "Summary": "Uma permissão foi adicionada à função"
+      },
+      "PermissionRevoked": {
+        "Title": "Permissão removida da função",
+        "Summary": "Uma permissão foi removida da função"
+      }
     }
   },
   "Save": "Salvar",
@@ -1262,6 +1314,56 @@
       "NoSessions": "Nenhuma sessão ativa",
       "RevokeSuccess": "Sessão revogada com sucesso",
       "RevokeFailed": "Falha ao revogar a sessão"
+    },
+    "History": {
+      "Created": {
+        "Title": "Usuário criado",
+        "Summary": "Uma conta de usuário foi criada"
+      },
+      "Updated": {
+        "Title": "Usuário alterado",
+        "Summary": "Os dados da conta de usuário foram alterados"
+      },
+      "Deleted": {
+        "Title": "Usuário excluído",
+        "Summary": "Uma conta de usuário foi excluída"
+      },
+      "Blocked": {
+        "Title": "Usuário bloqueado",
+        "Summary": "O usuário foi bloqueado e suas sessões foram encerradas"
+      },
+      "Unblocked": {
+        "Title": "Usuário desbloqueado",
+        "Summary": "O usuário foi desbloqueado"
+      },
+      "PasswordChanged": {
+        "Title": "Senha alterada",
+        "Summary": "O usuário alterou a própria senha; todas as sessões foram encerradas"
+      },
+      "TemporaryPasswordIssued": {
+        "Title": "Senha temporária emitida",
+        "Summary": "Uma senha temporária foi emitida; o usuário deve definir a própria senha"
+      },
+      "OnboardingCompleted": {
+        "Title": "Conta configurada",
+        "Summary": "O usuário preencheu o perfil e definiu a própria senha"
+      },
+      "RoleAssigned": {
+        "Title": "Função atribuída ao usuário",
+        "Summary": "Uma função foi atribuída ao usuário"
+      },
+      "RoleUnassigned": {
+        "Title": "Função removida do usuário",
+        "Summary": "Uma função foi removida do usuário"
+      },
+      "PermissionGranted": {
+        "Title": "Permissão concedida ao usuário",
+        "Summary": "Uma permissão foi concedida diretamente ao usuário"
+      },
+      "PermissionRevoked": {
+        "Title": "Permissão revogada do usuário",
+        "Summary": "Uma permissão concedida diretamente foi revogada do usuário"
+      }
     }
   },
   "ValidationErrors": {
@@ -1447,6 +1549,20 @@
       "Cycle": "Este departamento superior criaria uma hierarquia circular.",
       "DuplicateCode": "Este código já está em uso por outro departamento.",
       "ParentNotFound": "O departamento superior selecionado não foi encontrado."
+    },
+    "History": {
+      "Created": {
+        "Title": "Departamento criado",
+        "Summary": "Um departamento foi adicionado à estrutura organizacional"
+      },
+      "Updated": {
+        "Title": "Departamento alterado",
+        "Summary": "Os dados do departamento foram alterados"
+      },
+      "Deleted": {
+        "Title": "Departamento excluído",
+        "Summary": "Um departamento foi removido da estrutura organizacional"
+      }
     }
   },
   "Positions": {
@@ -1554,5 +1670,21 @@
     "Cancel": "Cancelar",
     "AllDelivered": "Tudo está sendo entregue",
     "DeliveryIssues": "{{.Count}} não entregue(s); continuaremos tentando."
+  },
+  "UserPositions": {
+    "History": {
+      "Created": {
+        "Title": "Cargo criado",
+        "Summary": "Um usuário recebeu um cargo em um departamento"
+      },
+      "Updated": {
+        "Title": "Cargo alterado",
+        "Summary": "Os dados do cargo foram alterados"
+      },
+      "Deleted": {
+        "Title": "Cargo excluído",
+        "Summary": "Um cargo foi excluído"
+      }
+    }
   }
 }

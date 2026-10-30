@@ -476,6 +476,36 @@
       "NoRoleDescription": "Tavsif mavjud emas",
       "Delete": "Guruhni o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu guruhni o'chirmoqchimisiz?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Guruh yaratildi",
+        "Summary": "Guruh yaratildi"
+      },
+      "Updated": {
+        "Title": "Guruh o'zgartirildi",
+        "Summary": "Guruh ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "Guruh o'chirildi",
+        "Summary": "Guruh o'chirildi"
+      },
+      "MemberAdded": {
+        "Title": "Foydalanuvchi guruhga qo'shildi",
+        "Summary": "Foydalanuvchi guruhga qo'shildi"
+      },
+      "MemberRemoved": {
+        "Title": "Foydalanuvchi guruhdan chiqarildi",
+        "Summary": "Foydalanuvchi guruhdan chiqarildi"
+      },
+      "RoleAssigned": {
+        "Title": "Guruhga rol tayinlandi",
+        "Summary": "Guruhga rol tayinlandi"
+      },
+      "RoleUnassigned": {
+        "Title": "Guruhdan rol olib tashlandi",
+        "Summary": "Guruhdan rol olib tashlandi"
+      }
     }
   },
   "Home": {
@@ -966,6 +996,28 @@
       },
       "Delete": "Rolni o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu rolni o'chirmoqchimisiz?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Rol yaratildi",
+        "Summary": "Rol yaratildi"
+      },
+      "Updated": {
+        "Title": "Rol o'zgartirildi",
+        "Summary": "Rol ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "Rol o'chirildi",
+        "Summary": "Rol o'chirildi"
+      },
+      "PermissionGranted": {
+        "Title": "Rolga ruxsat qo'shildi",
+        "Summary": "Rolga ruxsat qo'shildi"
+      },
+      "PermissionRevoked": {
+        "Title": "Roldan ruxsat olib tashlandi",
+        "Summary": "Roldan ruxsat olib tashlandi"
+      }
     }
   },
   "Save": "Saqlash",
@@ -1257,6 +1309,56 @@
       "NoSessions": "Faol sessiyalar yo'q",
       "RevokeSuccess": "Sessiya muvaffaqiyatli bekor qilindi",
       "RevokeFailed": "Sessiyani bekor qilib bo'lmadi"
+    },
+    "History": {
+      "Created": {
+        "Title": "Foydalanuvchi yaratildi",
+        "Summary": "Foydalanuvchi hisobi yaratildi"
+      },
+      "Updated": {
+        "Title": "Foydalanuvchi o'zgartirildi",
+        "Summary": "Foydalanuvchi hisobi ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "Foydalanuvchi o'chirildi",
+        "Summary": "Foydalanuvchi hisobi o'chirildi"
+      },
+      "Blocked": {
+        "Title": "Foydalanuvchi bloklandi",
+        "Summary": "Foydalanuvchi bloklandi, uning seanslari yakunlandi"
+      },
+      "Unblocked": {
+        "Title": "Foydalanuvchi blokdan chiqarildi",
+        "Summary": "Foydalanuvchi yana tizimga kira oladi"
+      },
+      "PasswordChanged": {
+        "Title": "Parol o'zgartirildi",
+        "Summary": "Foydalanuvchi parolini o'zgartirdi, barcha seanslar yakunlandi"
+      },
+      "TemporaryPasswordIssued": {
+        "Title": "Vaqtinchalik parol berildi",
+        "Summary": "Foydalanuvchiga vaqtinchalik parol berildi, kirishda u o'z parolini o'rnatadi"
+      },
+      "OnboardingCompleted": {
+        "Title": "Hisob sozlandi",
+        "Summary": "Foydalanuvchi profilini to'ldirdi va o'z parolini o'rnatdi"
+      },
+      "RoleAssigned": {
+        "Title": "Foydalanuvchiga rol tayinlandi",
+        "Summary": "Foydalanuvchiga rol tayinlandi"
+      },
+      "RoleUnassigned": {
+        "Title": "Foydalanuvchidan rol olib tashlandi",
+        "Summary": "Foydalanuvchidan rol olib tashlandi"
+      },
+      "PermissionGranted": {
+        "Title": "Foydalanuvchiga ruxsat berildi",
+        "Summary": "Foydalanuvchiga to'g'ridan-to'g'ri ruxsat berildi"
+      },
+      "PermissionRevoked": {
+        "Title": "Foydalanuvchidan ruxsat qaytarib olindi",
+        "Summary": "Foydalanuvchidan to'g'ridan-to'g'ri berilgan ruxsat qaytarib olindi"
+      }
     }
   },
   "ValidationErrors": {
@@ -1442,6 +1544,20 @@
       "Cycle": "Bu ota-bo'lim aylanma ierarxiyani yaratadi.",
       "DuplicateCode": "Bu kod boshqa bo'lim tomonidan ishlatilmoqda.",
       "ParentNotFound": "Tanlangan ota-bo'lim topilmadi."
+    },
+    "History": {
+      "Created": {
+        "Title": "Bo'lim yaratildi",
+        "Summary": "Tashkiliy tuzilmaga bo'lim qo'shildi"
+      },
+      "Updated": {
+        "Title": "Bo'lim o'zgartirildi",
+        "Summary": "Bo'lim ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "Bo'lim o'chirildi",
+        "Summary": "Bo'lim tashkiliy tuzilmadan o'chirildi"
+      }
     }
   },
   "Positions": {
@@ -1549,5 +1665,21 @@
     "Cancel": "Bekor qilish",
     "AllDelivered": "Hammasi yetkazilmoqda",
     "DeliveryIssues": "Yetkazilmadi: {{.Count}}. Urinishni davom ettiramiz."
+  },
+  "UserPositions": {
+    "History": {
+      "Created": {
+        "Title": "Lavozim yaratildi",
+        "Summary": "Foydalanuvchiga bo'limda lavozim tayinlandi"
+      },
+      "Updated": {
+        "Title": "Lavozim o'zgartirildi",
+        "Summary": "Lavozim ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "Lavozim o'chirildi",
+        "Summary": "Lavozim o'chirildi"
+      }
+    }
   }
 }

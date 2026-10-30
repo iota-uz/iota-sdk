@@ -96,6 +96,20 @@
       "SelectStatus": "Select status",
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this product?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Product created",
+        "Summary": "A product was added to the warehouse"
+      },
+      "Updated": {
+        "Title": "Product changed",
+        "Summary": "Product details were changed"
+      },
+      "Deleted": {
+        "Title": "Product deleted",
+        "Summary": "A product was removed from the warehouse"
+      }
     }
   },
   "WarehousePositions": {
@@ -186,6 +200,20 @@
       "UploadLabel": "Choose a file",
       "UploadPlaceholder": "Choose a file",
       "Submit": "Import"
+    },
+    "History": {
+      "Created": {
+        "Title": "Position created",
+        "Summary": "A warehouse position was added"
+      },
+      "Updated": {
+        "Title": "Position changed",
+        "Summary": "Warehouse position details were changed"
+      },
+      "Deleted": {
+        "Title": "Position deleted",
+        "Summary": "A warehouse position was deleted"
+      }
     }
   },
   "WarehouseUnits": {
@@ -222,6 +250,20 @@
       },
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this warehouse unit?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Unit created",
+        "Summary": "A unit of measure was added"
+      },
+      "Updated": {
+        "Title": "Unit changed",
+        "Summary": "Unit of measure details were changed"
+      },
+      "Deleted": {
+        "Title": "Unit deleted",
+        "Summary": "A unit of measure was deleted"
+      }
     }
   },
   "WarehouseOrders": {
@@ -293,6 +335,24 @@
       "Unit": "Unit",
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this order?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Order created",
+        "Summary": "A warehouse order was created"
+      },
+      "Updated": {
+        "Title": "Order changed",
+        "Summary": "Warehouse order details were changed"
+      },
+      "Deleted": {
+        "Title": "Order deleted",
+        "Summary": "A warehouse order was deleted"
+      },
+      "Completed": {
+        "Title": "Order completed",
+        "Summary": "A warehouse order was completed"
+      }
     }
   },
   "WarehouseInventory": {
@@ -349,6 +409,20 @@
       "AllPositions": "All positions",
       "Delete": "Delete",
       "DeleteConfirmation": "Are you sure you want to delete this inventory check?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Inventory check created",
+        "Summary": "An inventory check was recorded"
+      },
+      "Updated": {
+        "Title": "Inventory check changed",
+        "Summary": "Inventory check details were changed"
+      },
+      "Deleted": {
+        "Title": "Inventory check deleted",
+        "Summary": "An inventory check was deleted"
+      }
     }
   }
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
@@ -16,17 +17,19 @@ import (
 // GroupService TODO: refactor it
 // GroupService provides operations for managing groups
 type GroupService struct {
-	repo      group.Repository
-	publisher eventbus.EventBus
-	policy    *PrivilegeGrantPolicy
+	repo          group.Repository
+	publisher     eventbus.EventBus
+	policy        *PrivilegeGrantPolicy
+	historyWriter history.Writer
 }
 
 // NewGroupService creates a new group service instance
-func NewGroupService(repo group.Repository, publisher eventbus.EventBus, policy *PrivilegeGrantPolicy) *GroupService {
+func NewGroupService(repo group.Repository, publisher eventbus.EventBus, policy *PrivilegeGrantPolicy, historyWriter history.Writer) *GroupService {
 	return &GroupService{
-		repo:      repo,
-		publisher: publisher,
-		policy:    policy,
+		repo:          repo,
+		publisher:     publisher,
+		policy:        policy,
+		historyWriter: historyWriter,
 	}
 }
 
@@ -98,7 +101,10 @@ func (s *GroupService) Create(ctx context.Context, g group.Group) (group.Group, 
 			return err
 		}
 		savedGroup, err = s.repo.Save(txCtx, g)
-		return err
+		if err != nil {
+			return err
+		}
+		return recordGroupChange(txCtx, s.historyWriter, nil, savedGroup)
 	})
 	if err != nil {
 		return nil, err
@@ -132,7 +138,10 @@ func (s *GroupService) Update(ctx context.Context, g group.Group) (group.Group, 
 		}
 
 		updatedGroup, err = s.repo.Save(txCtx, g)
-		return err
+		if err != nil {
+			return err
+		}
+		return recordGroupChange(txCtx, s.historyWriter, oldGroup, updatedGroup)
 	})
 	if err != nil {
 		return nil, err
@@ -163,7 +172,13 @@ func (s *GroupService) Delete(ctx context.Context, id uuid.UUID) error {
 			return err
 		}
 
-		return s.repo.Delete(txCtx, id)
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: GroupDeleted, Version: 1, Resource: GroupResource, ID: id.String(),
+			Before: groupSnapshot(g),
+		})
 	})
 	if err != nil {
 		return err
@@ -196,7 +211,10 @@ func (s *GroupService) AddUser(ctx context.Context, groupID uuid.UUID, userToAdd
 		updatedGroup := g.AddUser(userToAdd)
 
 		savedGroup, err = s.repo.Save(txCtx, updatedGroup)
-		return err
+		if err != nil {
+			return err
+		}
+		return recordGroupChange(txCtx, s.historyWriter, g, savedGroup)
 	})
 	if err != nil {
 		return nil, err
@@ -229,7 +247,10 @@ func (s *GroupService) RemoveUser(ctx context.Context, groupID uuid.UUID, userTo
 		updatedGroup := g.RemoveUser(userToRemove)
 
 		savedGroup, err = s.repo.Save(txCtx, updatedGroup)
-		return err
+		if err != nil {
+			return err
+		}
+		return recordGroupChange(txCtx, s.historyWriter, g, savedGroup)
 	})
 	if err != nil {
 		return nil, err
@@ -264,7 +285,10 @@ func (s *GroupService) AssignRole(ctx context.Context, groupID uuid.UUID, roleTo
 		updatedGroup := g.AssignRole(roleToAssign)
 
 		savedGroup, err = s.repo.Save(txCtx, updatedGroup)
-		return err
+		if err != nil {
+			return err
+		}
+		return recordGroupChange(txCtx, s.historyWriter, g, savedGroup)
 	})
 	if err != nil {
 		return nil, err
@@ -299,7 +323,10 @@ func (s *GroupService) RemoveRole(ctx context.Context, groupID uuid.UUID, roleTo
 		updatedGroup := g.RemoveRole(roleToRemove)
 
 		savedGroup, err = s.repo.Save(txCtx, updatedGroup)
-		return err
+		if err != nil {
+			return err
+		}
+		return recordGroupChange(txCtx, s.historyWriter, g, savedGroup)
 	})
 	if err != nil {
 		return nil, err

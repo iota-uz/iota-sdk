@@ -96,6 +96,20 @@
       "SelectStatus": "Selecionar status",
       "Delete": "Excluir",
       "DeleteConfirmation": "Tem certeza de que deseja excluir este produto?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Produto criado",
+        "Summary": "Um produto foi adicionado ao armazém"
+      },
+      "Updated": {
+        "Title": "Produto alterado",
+        "Summary": "Os dados do produto foram alterados"
+      },
+      "Deleted": {
+        "Title": "Produto excluído",
+        "Summary": "Um produto foi removido do armazém"
+      }
     }
   },
   "WarehousePositions": {
@@ -186,6 +200,20 @@
       "UploadLabel": "Escolher um arquivo",
       "UploadPlaceholder": "Escolher um arquivo",
       "Submit": "Importar"
+    },
+    "History": {
+      "Created": {
+        "Title": "Posição criada",
+        "Summary": "Uma posição de armazém foi adicionada"
+      },
+      "Updated": {
+        "Title": "Posição alterada",
+        "Summary": "Os dados da posição de armazém foram alterados"
+      },
+      "Deleted": {
+        "Title": "Posição excluída",
+        "Summary": "Uma posição de armazém foi excluída"
+      }
     }
   },
   "WarehouseUnits": {
@@ -222,6 +250,20 @@
       },
       "Delete": "Excluir",
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta unidade do armazém?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Unidade criada",
+        "Summary": "Uma unidade de medida foi adicionada"
+      },
+      "Updated": {
+        "Title": "Unidade alterada",
+        "Summary": "Os dados da unidade de medida foram alterados"
+      },
+      "Deleted": {
+        "Title": "Unidade excluída",
+        "Summary": "Uma unidade de medida foi excluída"
+      }
     }
   },
   "WarehouseOrders": {
@@ -293,6 +335,24 @@
       "Unit": "Unidade",
       "Delete": "Excluir",
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta ordem?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Ordem criada",
+        "Summary": "Uma ordem de armazém foi criada"
+      },
+      "Updated": {
+        "Title": "Ordem alterada",
+        "Summary": "Os dados da ordem de armazém foram alterados"
+      },
+      "Deleted": {
+        "Title": "Ordem excluída",
+        "Summary": "Uma ordem de armazém foi excluída"
+      },
+      "Completed": {
+        "Title": "Ordem concluída",
+        "Summary": "Uma ordem de armazém foi concluída"
+      }
     }
   },
   "WarehouseInventory": {
@@ -349,6 +409,20 @@
       "AllPositions": "Todas as posições",
       "Delete": "Excluir",
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta verificação de inventário?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Inventário criado",
+        "Summary": "Um inventário foi registrado"
+      },
+      "Updated": {
+        "Title": "Inventário alterado",
+        "Summary": "Os dados do inventário foram alterados"
+      },
+      "Deleted": {
+        "Title": "Inventário excluído",
+        "Summary": "Um inventário foi excluído"
+      }
     }
   }
 }

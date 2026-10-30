@@ -89,6 +89,20 @@
       "IsCOGS": "销货成本 (COGS)",
       "Delete": "删除类别",
       "DeleteConfirmation": "您确定要删除此支出类别吗？"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建费用类别",
+        "Summary": "已添加新的费用类别"
+      },
+      "Updated": {
+        "Title": "已修改费用类别",
+        "Summary": "费用类别信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除费用类别",
+        "Summary": "一个费用类别已被删除"
+      }
     }
   },
   "Payments": {
@@ -132,6 +146,28 @@
       "User": "用户",
       "Delete": "删除付款",
       "DeleteConfirmation": "您确定要删除此付款吗？"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建付款",
+        "Summary": "已登记一笔付款"
+      },
+      "Updated": {
+        "Title": "已修改付款",
+        "Summary": "付款信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除付款",
+        "Summary": "一笔付款已被删除"
+      },
+      "FileAttached": {
+        "Title": "已为付款附加文件",
+        "Summary": "付款已附加一个文件"
+      },
+      "FileDetached": {
+        "Title": "已从付款移除文件",
+        "Summary": "付款的一个文件已被移除"
+      }
     }
   },
   "Expenses": {
@@ -174,6 +210,28 @@
       "Comment": "备注",
       "Delete": "删除支出",
       "DeleteConfirmation": "您确定要删除此支出吗？"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建支出",
+        "Summary": "已登记一笔支出"
+      },
+      "Updated": {
+        "Title": "已修改支出",
+        "Summary": "支出信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除支出",
+        "Summary": "一笔支出已被删除"
+      },
+      "FileAttached": {
+        "Title": "已为支出附加文件",
+        "Summary": "支出已附加一个文件"
+      },
+      "FileDetached": {
+        "Title": "已从支出移除文件",
+        "Summary": "支出的一个文件已被移除"
+      }
     }
   },
   "Counterparties": {
@@ -223,6 +281,20 @@
       "LLC": "有限责任公司",
       "JSC": "股份公司",
       "SOLE_PROPRIETORSHIP": "独资企业"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建交易对手",
+        "Summary": "已添加新的交易对手"
+      },
+      "Updated": {
+        "Title": "已修改交易对手",
+        "Summary": "交易对手信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除交易对手",
+        "Summary": "一个交易对手已被删除"
+      }
     }
   },
   "MoneyAccounts": {
@@ -271,6 +343,20 @@
       "NoTransactionsDescription": "此账户没有交易。当您添加支出、付款或转账时，交易将显示在这里。",
       "ViewAll": "查看所有交易",
       "Loading": "加载中…"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建账户",
+        "Summary": "已开立资金账户并设定期初余额"
+      },
+      "Updated": {
+        "Title": "已修改账户",
+        "Summary": "账户信息或余额已修改"
+      },
+      "Deleted": {
+        "Title": "已删除账户",
+        "Summary": "一个资金账户已被删除"
+      }
     }
   },
   "Transfers": {
@@ -318,6 +404,20 @@
       "_Description": "描述",
       "Delete": "删除付款类别",
       "DeleteConfirmation": "您确定要删除此付款类别吗？"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建付款类别",
+        "Summary": "已添加新的付款类别"
+      },
+      "Updated": {
+        "Title": "已修改付款类别",
+        "Summary": "付款类别信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除付款类别",
+        "Summary": "一个付款类别已被删除"
+      }
     }
   },
   "Inventory": {
@@ -355,6 +455,20 @@
       "_Description": "描述",
       "Delete": "删除库存项目",
       "DeleteConfirmation": "您确定要删除此库存项目吗？"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建库存项目",
+        "Summary": "已添加库存项目"
+      },
+      "Updated": {
+        "Title": "已修改库存项目",
+        "Summary": "库存项目信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除库存项目",
+        "Summary": "一个库存项目已被删除"
+      }
     }
   },
   "Transactions": {
@@ -415,6 +529,20 @@
       "TRANSFER": "转账",
       "EXCHANGE": "兑换",
       "ADJUSTMENT": "调整"
+    },
+    "History": {
+      "Created": {
+        "Title": "已登记转账",
+        "Summary": "资金已在账户之间转账或兑换"
+      },
+      "Updated": {
+        "Title": "已修改转账",
+        "Summary": "账户间转账的信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除转账",
+        "Summary": "一笔账户间转账已被删除"
+      }
     }
   },
   "Reports": {
@@ -551,6 +679,32 @@
       "Deleted": "债务删除成功",
       "Settled": "债务结算成功",
       "WrittenOff": "债务核销成功"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建债务",
+        "Summary": "已登记一笔债务"
+      },
+      "Updated": {
+        "Title": "已修改债务",
+        "Summary": "债务信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除债务",
+        "Summary": "一笔债务已被删除"
+      },
+      "Settled": {
+        "Title": "已结算债务",
+        "Summary": "债务已全部或部分结算"
+      },
+      "WrittenOff": {
+        "Title": "已核销债务",
+        "Summary": "债务已作为坏账核销"
+      },
+      "Cancelled": {
+        "Title": "已取消债务",
+        "Summary": "该债务不再应付，也不再占用资金"
+      }
     }
   },
   "DebtAggregates": {

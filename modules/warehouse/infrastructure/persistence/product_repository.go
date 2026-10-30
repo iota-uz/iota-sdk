@@ -226,24 +226,23 @@ func (g *GormProductRepository) GetByRfidMany(ctx context.Context, tags []string
 	})
 }
 
-func (g *GormProductRepository) Create(ctx context.Context, data product.Product) error {
+func (g *GormProductRepository) Create(ctx context.Context, data product.Product) (product.Product, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	dbProduct, err := mappers.ToDBProduct(data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	dbProduct.TenantID = tenantID.String()
-	// Note: TenantID is set via constructor options, not direct assignment
 
 	var newID uint
 	if err := tx.QueryRow(
@@ -255,18 +254,28 @@ func (g *GormProductRepository) Create(ctx context.Context, data product.Product
 		dbProduct.Status,
 		dbProduct.CreatedAt,
 	).Scan(&newID); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return product.New(data.Rfid(), data.Status(),
+		product.WithID(newID),
+		product.WithTenantID(tenantID),
+		product.WithPosition(data.Position()),
+		product.WithPositionID(data.PositionID()),
+		product.WithCreatedAt(data.CreatedAt()),
+		product.WithUpdatedAt(data.UpdatedAt()),
+	), nil
 }
 
-func (g *GormProductRepository) BulkCreate(ctx context.Context, data []product.Product) error {
-	for _, p := range data {
-		if err := g.Create(ctx, p); err != nil {
-			return err
+func (g *GormProductRepository) BulkCreate(ctx context.Context, data []product.Product) ([]product.Product, error) {
+	created := make([]product.Product, len(data))
+	for i, p := range data {
+		entity, err := g.Create(ctx, p)
+		if err != nil {
+			return nil, err
 		}
+		created[i] = entity
 	}
-	return nil
+	return created, nil
 }
 
 func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data product.Product) error {
@@ -277,7 +286,8 @@ func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data product
 	if p != nil {
 		return g.Update(ctx, data)
 	}
-	return g.Create(ctx, data)
+	_, err = g.Create(ctx, data)
+	return err
 }
 
 func (g *GormProductRepository) Update(ctx context.Context, data product.Product) error {

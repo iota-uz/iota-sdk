@@ -79,6 +79,39 @@
         "DRAFT": "Rascunho",
         "SIGNED": "Assinado",
         "CANCELLED": "Cancelado"
+      },
+      "Status": "Status",
+      "History": {
+        "Created": {
+          "Title": "Documento de aceite criado",
+          "Summary": "Um rascunho de documento de aceite foi adicionado ao projeto"
+        },
+        "Signed": {
+          "Title": "Documento de aceite assinado",
+          "Summary": "O documento foi assinado e seu valor foi reconhecido como receita"
+        },
+        "Cancelled": {
+          "Title": "Documento de aceite cancelado",
+          "Summary": "O documento foi retirado e não é mais considerado"
+        },
+        "Deleted": {
+          "Title": "Documento de aceite excluído",
+          "Summary": "O documento foi removido do projeto"
+        }
+      }
+    },
+    "History": {
+      "Created": {
+        "Title": "Projeto criado",
+        "Summary": "Um novo projeto foi adicionado"
+      },
+      "Updated": {
+        "Title": "Projeto alterado",
+        "Summary": "Os dados do projeto foram alterados"
+      },
+      "Deleted": {
+        "Title": "Projeto excluído",
+        "Summary": "O projeto foi removido"
       }
     }
   },
@@ -120,6 +153,20 @@
       "PlannedEndDate": "Data planejada de término",
       "FactualEndDate": "Data real de término",
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta etapa de projeto?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Etapa do projeto criada",
+        "Summary": "Uma nova etapa foi adicionada ao projeto"
+      },
+      "Updated": {
+        "Title": "Etapa do projeto alterada",
+        "Summary": "Os dados da etapa foram alterados"
+      },
+      "Deleted": {
+        "Title": "Etapa do projeto excluída",
+        "Summary": "A etapa foi removida do projeto"
+      }
     }
   }
 }

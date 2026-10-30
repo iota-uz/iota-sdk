@@ -79,6 +79,39 @@
         "DRAFT": "Қоралама",
         "SIGNED": "Имзоланган",
         "CANCELLED": "Бекор қилинган"
+      },
+      "Status": "Ҳолат",
+      "History": {
+        "Created": {
+          "Title": "Қабул ҳужжати яратилди",
+          "Summary": "Лойиҳага қабул ҳужжати қораламаси қўшилди"
+        },
+        "Signed": {
+          "Title": "Қабул ҳужжати имзоланди",
+          "Summary": "Ҳужжат имзоланди, унинг суммаси тушум сифатида тан олинди"
+        },
+        "Cancelled": {
+          "Title": "Қабул ҳужжати бекор қилинди",
+          "Summary": "Ҳужжат қайтариб олинди ва энди ҳисобга олинмайди"
+        },
+        "Deleted": {
+          "Title": "Қабул ҳужжати ўчирилди",
+          "Summary": "Ҳужжат лойиҳадан ўчирилди"
+        }
+      }
+    },
+    "History": {
+      "Created": {
+        "Title": "Лойиҳа яратилди",
+        "Summary": "Янги лойиҳа қўшилди"
+      },
+      "Updated": {
+        "Title": "Лойиҳа ўзгартирилди",
+        "Summary": "Лойиҳа маълумотлари ўзгартирилди"
+      },
+      "Deleted": {
+        "Title": "Лойиҳа ўчирилди",
+        "Summary": "Лойиҳа ҳисобдан ўчирилди"
       }
     }
   },
@@ -120,6 +153,20 @@
       "PlannedEndDate": "Rejalashtirilgan tugash sanasi",
       "FactualEndDate": "Haqiqiy tugash sanasi",
       "DeleteConfirmation": "Ushbu loyiha bosqichini o'chirishni xohlaysizmi?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Лойиҳа босқичи яратилди",
+        "Summary": "Лойиҳага янги босқич қўшилди"
+      },
+      "Updated": {
+        "Title": "Лойиҳа босқичи ўзгартирилди",
+        "Summary": "Босқич маълумотлари ўзгартирилди"
+      },
+      "Deleted": {
+        "Title": "Лойиҳа босқичи ўчирилди",
+        "Summary": "Босқич лойиҳадан ўчирилди"
+      }
     }
   }
 }

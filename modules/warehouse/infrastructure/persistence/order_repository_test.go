@@ -47,7 +47,7 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := orderRepository.Create(f.Ctx, orderEntity); err != nil {
+	if _, err := orderRepository.Create(f.Ctx, orderEntity); err != nil {
 		t.Fatal(err)
 	}
 

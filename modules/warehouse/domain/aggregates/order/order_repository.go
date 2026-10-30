@@ -24,7 +24,7 @@ type Repository interface {
 	Count(ctx context.Context) (int64, error)
 	GetAll(ctx context.Context) ([]Order, error)
 	GetByID(ctx context.Context, id uint) (Order, error)
-	Create(ctx context.Context, data Order) error
+	Create(ctx context.Context, data Order) (Order, error)
 	Update(ctx context.Context, data Order) error
 	Delete(ctx context.Context, id uint) error
 }

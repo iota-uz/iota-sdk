@@ -476,6 +476,36 @@
       "NoRoleDescription": "无可用描述",
       "Delete": "删除组",
       "DeleteConfirmation": "您确定要删除此组吗？"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建组",
+        "Summary": "已创建一个组"
+      },
+      "Updated": {
+        "Title": "已修改组",
+        "Summary": "组信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除组",
+        "Summary": "一个组已被删除"
+      },
+      "MemberAdded": {
+        "Title": "已将用户加入组",
+        "Summary": "一名用户已加入该组"
+      },
+      "MemberRemoved": {
+        "Title": "已将用户移出组",
+        "Summary": "一名用户已被移出该组"
+      },
+      "RoleAssigned": {
+        "Title": "已为组分配角色",
+        "Summary": "该组已被分配一个角色"
+      },
+      "RoleUnassigned": {
+        "Title": "已移除组角色",
+        "Summary": "该组的一个角色已被移除"
+      }
     }
   },
   "Home": {
@@ -970,6 +1000,28 @@
       },
       "Delete": "删除角色",
       "DeleteConfirmation": "您确定要删除此角色吗？"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建角色",
+        "Summary": "已创建一个角色"
+      },
+      "Updated": {
+        "Title": "已修改角色",
+        "Summary": "角色信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除角色",
+        "Summary": "一个角色已被删除"
+      },
+      "PermissionGranted": {
+        "Title": "已为角色添加权限",
+        "Summary": "角色已添加一项权限"
+      },
+      "PermissionRevoked": {
+        "Title": "已从角色移除权限",
+        "Summary": "角色的一项权限已被移除"
+      }
     }
   },
   "Save": "保存",
@@ -1261,6 +1313,56 @@
       "NoSessions": "无活动会话",
       "RevokeSuccess": "会话已成功撤销",
       "RevokeFailed": "撤销会话失败"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建用户",
+        "Summary": "已创建一个用户账户"
+      },
+      "Updated": {
+        "Title": "已修改用户",
+        "Summary": "用户账户信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除用户",
+        "Summary": "一个用户账户已被删除"
+      },
+      "Blocked": {
+        "Title": "已封禁用户",
+        "Summary": "用户已被封禁，其所有会话已结束"
+      },
+      "Unblocked": {
+        "Title": "已解封用户",
+        "Summary": "用户已被解除封禁"
+      },
+      "PasswordChanged": {
+        "Title": "已修改密码",
+        "Summary": "用户已修改自己的密码，所有会话已结束"
+      },
+      "TemporaryPasswordIssued": {
+        "Title": "已发放临时密码",
+        "Summary": "已为用户发放临时密码，用户须设置自己的密码"
+      },
+      "OnboardingCompleted": {
+        "Title": "账户已设置",
+        "Summary": "用户已填写个人资料并设置了自己的密码"
+      },
+      "RoleAssigned": {
+        "Title": "已为用户分配角色",
+        "Summary": "用户已被分配一个角色"
+      },
+      "RoleUnassigned": {
+        "Title": "已移除用户角色",
+        "Summary": "用户的一个角色已被移除"
+      },
+      "PermissionGranted": {
+        "Title": "已授予用户权限",
+        "Summary": "已直接授予用户一项权限"
+      },
+      "PermissionRevoked": {
+        "Title": "已撤销用户权限",
+        "Summary": "已撤销直接授予用户的一项权限"
+      }
     }
   },
   "ValidationErrors": {
@@ -1446,6 +1548,20 @@
       "Cycle": "该上级会造成循环层级。",
       "DuplicateCode": "该编码已被其他部门使用。",
       "ParentNotFound": "未找到所选的上级部门。"
+    },
+    "History": {
+      "Created": {
+        "Title": "已创建部门",
+        "Summary": "组织结构中已添加一个部门"
+      },
+      "Updated": {
+        "Title": "已修改部门",
+        "Summary": "部门信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除部门",
+        "Summary": "一个部门已从组织结构中删除"
+      }
     }
   },
   "Positions": {
@@ -1553,5 +1669,21 @@
     "Cancel": "取消",
     "AllDelivered": "一切正常送达",
     "DeliveryIssues": "{{.Count}} 条未送达，我们会继续尝试。"
+  },
+  "UserPositions": {
+    "History": {
+      "Created": {
+        "Title": "已创建职位",
+        "Summary": "已为用户在部门中设置职位"
+      },
+      "Updated": {
+        "Title": "已修改职位",
+        "Summary": "职位信息已修改"
+      },
+      "Deleted": {
+        "Title": "已删除职位",
+        "Summary": "一个职位已被删除"
+      }
+    }
   }
 }

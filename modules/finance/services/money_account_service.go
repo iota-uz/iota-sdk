@@ -10,6 +10,7 @@ import (
 
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
@@ -18,17 +19,20 @@ type MoneyAccountService struct {
 	repo            moneyaccount.Repository
 	transactionRepo transaction.Repository
 	publisher       eventbus.EventBus
+	historyWriter   history.Writer
 }
 
 func NewMoneyAccountService(
 	repo moneyaccount.Repository,
 	transactionRepo transaction.Repository,
 	publisher eventbus.EventBus,
+	historyWriter history.Writer,
 ) *MoneyAccountService {
 	return &MoneyAccountService{
 		repo:            repo,
 		transactionRepo: transactionRepo,
 		publisher:       publisher,
+		historyWriter:   historyWriter,
 	}
 }
 
@@ -65,7 +69,10 @@ func (s *MoneyAccountService) Create(ctx context.Context, entity moneyaccount.Ac
 		if _, err := s.transactionRepo.Create(txCtx, createdEntity.InitialTransaction()); err != nil {
 			return errors.Wrap(err, "transactionRepo.Create")
 		}
-		return nil
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: MoneyAccountCreated, Version: 1, Resource: MoneyAccountResource, ID: createdEntity.ID().String(),
+			After: moneyAccountSnapshot(createdEntity),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -84,14 +91,18 @@ func (s *MoneyAccountService) Update(ctx context.Context, entity moneyaccount.Ac
 
 	var updatedEntity moneyaccount.Account
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err := s.recordAdjustment(txCtx, entity); err != nil {
+		before, err := s.recordAdjustment(txCtx, entity)
+		if err != nil {
 			return err
 		}
 		updatedEntity, err = s.repo.Update(txCtx, entity)
 		if err != nil {
 			return err
 		}
-		return nil
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: MoneyAccountUpdated, Version: 1, Resource: MoneyAccountResource, ID: entity.ID().String(),
+			Before: moneyAccountSnapshot(before), After: moneyAccountSnapshot(updatedEntity),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -103,24 +114,25 @@ func (s *MoneyAccountService) Update(ctx context.Context, entity moneyaccount.Ac
 }
 
 // recordAdjustment keeps the balance explained by transactions: a balance
-// typed by hand is booked as an adjustment for the difference.
-func (s *MoneyAccountService) recordAdjustment(ctx context.Context, entity moneyaccount.Account) error {
+// typed by hand is booked as an adjustment for the difference. It returns the
+// account as stored before the change.
+func (s *MoneyAccountService) recordAdjustment(ctx context.Context, entity moneyaccount.Account) (moneyaccount.Account, error) {
 	if err := s.repo.RecalculateBalance(ctx, entity.ID()); err != nil {
-		return errors.Wrap(err, "accountRepo.RecalculateBalance")
+		return nil, errors.Wrap(err, "accountRepo.RecalculateBalance")
 	}
 	current, err := s.repo.GetByID(ctx, entity.ID())
 	if err != nil {
-		return errors.Wrap(err, "accountRepo.GetByID")
+		return nil, errors.Wrap(err, "accountRepo.GetByID")
 	}
 	if !current.Balance().SameCurrency(entity.Balance()) {
-		return nil
+		return current, nil
 	}
 	diff, err := entity.Balance().Subtract(current.Balance())
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if diff.IsZero() {
-		return nil
+		return current, nil
 	}
 
 	side := transaction.WithDestinationAccountID(entity.ID())
@@ -136,9 +148,9 @@ func (s *MoneyAccountService) recordAdjustment(ctx context.Context, entity money
 		transaction.WithAccountingPeriod(now),
 	)
 	if _, err := s.transactionRepo.Create(ctx, adjustment); err != nil {
-		return errors.Wrap(err, "transactionRepo.Create")
+		return nil, errors.Wrap(err, "transactionRepo.Create")
 	}
-	return nil
+	return current, nil
 }
 
 func (s *MoneyAccountService) Delete(ctx context.Context, id uuid.UUID) (moneyaccount.Account, error) {
@@ -156,7 +168,10 @@ func (s *MoneyAccountService) Delete(ctx context.Context, id uuid.UUID) (moneyac
 		if err := s.repo.Delete(txCtx, id); err != nil {
 			return err
 		}
-		return nil
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: MoneyAccountDeleted, Version: 1, Resource: MoneyAccountResource, ID: id.String(),
+			Before: moneyAccountSnapshot(entity),
+		})
 	})
 	if err != nil {
 		return nil, err

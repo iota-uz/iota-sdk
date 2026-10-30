@@ -116,6 +116,20 @@
       },
       "Delete": "Delete client",
       "DeleteConfirmation": "Are you sure you want to delete this client?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Client created",
+        "Summary": "A new client was added"
+      },
+      "Updated": {
+        "Title": "Client changed",
+        "Summary": "Client details were changed"
+      },
+      "Deleted": {
+        "Title": "Client deleted",
+        "Summary": "The client was removed from the CRM"
+      }
     }
   },
   "MessageTemplates": {

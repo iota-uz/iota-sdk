@@ -89,6 +89,20 @@
       "IsCOGS": "Custo dos Produtos Vendidos (CPV)",
       "Delete": "Excluir categoria",
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta categoria de despesa?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Categoria de despesa criada",
+        "Summary": "Uma nova categoria de despesa foi adicionada"
+      },
+      "Updated": {
+        "Title": "Categoria de despesa alterada",
+        "Summary": "Os dados da categoria de despesa foram alterados"
+      },
+      "Deleted": {
+        "Title": "Categoria de despesa excluída",
+        "Summary": "Uma categoria de despesa foi excluída"
+      }
     }
   },
   "Payments": {
@@ -132,6 +146,28 @@
       "User": "Usuário",
       "Delete": "Excluir pagamento",
       "DeleteConfirmation": "Tem certeza de que deseja excluir este pagamento?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Pagamento criado",
+        "Summary": "Um pagamento foi registrado"
+      },
+      "Updated": {
+        "Title": "Pagamento alterado",
+        "Summary": "Os dados do pagamento foram alterados"
+      },
+      "Deleted": {
+        "Title": "Pagamento excluído",
+        "Summary": "Um pagamento foi excluído"
+      },
+      "FileAttached": {
+        "Title": "Arquivo anexado ao pagamento",
+        "Summary": "Um arquivo foi anexado ao pagamento"
+      },
+      "FileDetached": {
+        "Title": "Arquivo removido do pagamento",
+        "Summary": "Um arquivo foi removido do pagamento"
+      }
     }
   },
   "Expenses": {
@@ -174,6 +210,28 @@
       "Comment": "Comentário",
       "Delete": "Excluir despesa",
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta despesa?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Despesa criada",
+        "Summary": "Uma despesa foi registrada"
+      },
+      "Updated": {
+        "Title": "Despesa alterada",
+        "Summary": "Os dados da despesa foram alterados"
+      },
+      "Deleted": {
+        "Title": "Despesa excluída",
+        "Summary": "Uma despesa foi excluída"
+      },
+      "FileAttached": {
+        "Title": "Arquivo anexado à despesa",
+        "Summary": "Um arquivo foi anexado à despesa"
+      },
+      "FileDetached": {
+        "Title": "Arquivo removido da despesa",
+        "Summary": "Um arquivo foi removido da despesa"
+      }
     }
   },
   "Counterparties": {
@@ -223,6 +281,20 @@
       "LLC": "LTDA (Sociedade Limitada)",
       "JSC": "SA (Sociedade Anônima)",
       "SOLE_PROPRIETORSHIP": "Empresário Individual"
+    },
+    "History": {
+      "Created": {
+        "Title": "Contraparte criada",
+        "Summary": "Uma nova contraparte foi adicionada"
+      },
+      "Updated": {
+        "Title": "Contraparte alterada",
+        "Summary": "Os dados da contraparte foram alterados"
+      },
+      "Deleted": {
+        "Title": "Contraparte excluída",
+        "Summary": "Uma contraparte foi excluída"
+      }
     }
   },
   "MoneyAccounts": {
@@ -271,6 +343,20 @@
       "NoTransactionsDescription": "Esta conta não possui transações. As transações aparecerão aqui quando você adicionar despesas, pagamentos ou transferências.",
       "ViewAll": "Ver todas as transações",
       "Loading": "Carregando…"
+    },
+    "History": {
+      "Created": {
+        "Title": "Conta criada",
+        "Summary": "Uma conta foi aberta com o saldo inicial"
+      },
+      "Updated": {
+        "Title": "Conta alterada",
+        "Summary": "Os dados ou o saldo da conta foram alterados"
+      },
+      "Deleted": {
+        "Title": "Conta excluída",
+        "Summary": "Uma conta foi excluída"
+      }
     }
   },
   "Transfers": {
@@ -318,6 +404,20 @@
       "_Description": "Descrição",
       "Delete": "Excluir categoria de pagamento",
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta categoria de pagamento?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Categoria de pagamento criada",
+        "Summary": "Uma nova categoria de pagamento foi adicionada"
+      },
+      "Updated": {
+        "Title": "Categoria de pagamento alterada",
+        "Summary": "Os dados da categoria de pagamento foram alterados"
+      },
+      "Deleted": {
+        "Title": "Categoria de pagamento excluída",
+        "Summary": "Uma categoria de pagamento foi excluída"
+      }
     }
   },
   "Inventory": {
@@ -355,6 +455,20 @@
       "_Description": "Descrição",
       "Delete": "Excluir item de estoque",
       "DeleteConfirmation": "Tem certeza de que deseja excluir este item de estoque?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Item de estoque criado",
+        "Summary": "Um item de estoque foi adicionado"
+      },
+      "Updated": {
+        "Title": "Item de estoque alterado",
+        "Summary": "Os dados do item de estoque foram alterados"
+      },
+      "Deleted": {
+        "Title": "Item de estoque excluído",
+        "Summary": "Um item de estoque foi excluído"
+      }
     }
   },
   "Transactions": {
@@ -415,6 +529,20 @@
       "TRANSFER": "Transferência",
       "EXCHANGE": "Câmbio",
       "ADJUSTMENT": "Ajuste"
+    },
+    "History": {
+      "Created": {
+        "Title": "Transferência registrada",
+        "Summary": "Dinheiro transferido ou trocado entre contas"
+      },
+      "Updated": {
+        "Title": "Transferência alterada",
+        "Summary": "Os dados de uma transferência entre contas foram alterados"
+      },
+      "Deleted": {
+        "Title": "Transferência excluída",
+        "Summary": "Uma transferência entre contas foi excluída"
+      }
     }
   },
   "Reports": {
@@ -551,6 +679,32 @@
       "Deleted": "Dívida excluída com sucesso",
       "Settled": "Dívida liquidada com sucesso",
       "WrittenOff": "Dívida baixada com sucesso"
+    },
+    "History": {
+      "Created": {
+        "Title": "Dívida criada",
+        "Summary": "Uma dívida foi registrada"
+      },
+      "Updated": {
+        "Title": "Dívida alterada",
+        "Summary": "Os dados da dívida foram alterados"
+      },
+      "Deleted": {
+        "Title": "Dívida excluída",
+        "Summary": "Uma dívida foi excluída"
+      },
+      "Settled": {
+        "Title": "Dívida liquidada",
+        "Summary": "A dívida foi paga total ou parcialmente"
+      },
+      "WrittenOff": {
+        "Title": "Dívida baixada",
+        "Summary": "A dívida foi baixada como incobrável"
+      },
+      "Cancelled": {
+        "Title": "Dívida cancelada",
+        "Summary": "A dívida deixou de existir e não reserva mais dinheiro"
+      }
     }
   },
   "DebtAggregates": {

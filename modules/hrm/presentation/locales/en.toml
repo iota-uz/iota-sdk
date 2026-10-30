@@ -92,3 +92,25 @@
       Label = "Pin (Personal Identification Number)"
       Placeholder = "123456789192121"
 
+    [Employees.History.Created]
+      Title = "Employee added"
+      Summary = "A new employee was hired"
+    [Employees.History.Updated]
+      Title = "Employee changed"
+      Summary = "Employee details were changed"
+    [Employees.History.Deleted]
+      Title = "Employee deleted"
+      Summary = "The employee was removed from the staff list"
+    [Positions.Single.Name]
+      Label = "Position name"
+    [Positions.Single.Description]
+      Label = "Description"
+    [Positions.History.Created]
+      Title = "Position created"
+      Summary = "A new position was added"
+    [Positions.History.Updated]
+      Title = "Position changed"
+      Summary = "Position details were changed"
+    [Positions.History.Deleted]
+      Title = "Position deleted"
+      Summary = "The position was removed"

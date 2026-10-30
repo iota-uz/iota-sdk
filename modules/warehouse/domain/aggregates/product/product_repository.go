@@ -42,8 +42,8 @@ type Repository interface {
 	GetByRfidMany(context.Context, []string) ([]Product, error)
 	FindByPositionID(context.Context, *FindByPositionParams) ([]Product, error)
 	UpdateStatus(context.Context, []uint, Status) error
-	Create(context.Context, Product) error
-	BulkCreate(context.Context, []Product) error
+	Create(context.Context, Product) (Product, error)
+	BulkCreate(context.Context, []Product) ([]Product, error)
 	CreateOrUpdate(context.Context, Product) error
 	Update(context.Context, Product) error
 	BulkDelete(context.Context, []uint) error

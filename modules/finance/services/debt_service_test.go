@@ -28,7 +28,7 @@ func committedCtx(fixtures *itf.TestEnvironment) context.Context {
 	ctx = composables.WithParams(ctx, itf.DefaultParams())
 	ctx = composables.WithSession(ctx, itf.MockSession())
 	ctx = composables.WithUser(ctx, fixtures.User)
-	return ctx
+	return itf.TestExecution(ctx)
 }
 
 // setupDebtTestData creates necessary test data for debt tests

@@ -116,6 +116,20 @@
       },
       "Delete": "Mijozni o'chirish",
       "DeleteConfirmation": "Haqiqatan ham ushbu mijozni o'chirib tashlamoqchimisiz?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Mijoz yaratildi",
+        "Summary": "Yangi mijoz qo'shildi"
+      },
+      "Updated": {
+        "Title": "Mijoz o'zgartirildi",
+        "Summary": "Mijoz ma'lumotlari o'zgartirildi"
+      },
+      "Deleted": {
+        "Title": "Mijoz o'chirildi",
+        "Summary": "Mijoz CRM'dan o'chirildi"
+      }
     }
   },
   "MessageTemplates": {

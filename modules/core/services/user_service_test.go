@@ -35,7 +35,7 @@ func userCommittedCtx(fixtures *itf.TestEnvironment) context.Context {
 	if localizer, ok := intl.UseLocalizer(fixtures.Ctx); ok {
 		ctx = intl.WithLocalizer(ctx, localizer)
 	}
-	return ctx
+	return itf.TestExecution(ctx)
 }
 
 // setupTestWithPermissions creates test environment with specified permissions

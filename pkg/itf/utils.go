@@ -21,6 +21,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 
+	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
@@ -296,4 +298,10 @@ func LoadDBConfigFromEnv() dbconfig.Config {
 		panic(fmt.Errorf("itf: register dbconfig: %w", err))
 	}
 	return *cfg
+}
+
+// TestExecution marks a hand-built test context as one programmatic business operation, so
+// services that record business history accept it. The user in ctx stays the actor.
+func TestExecution(ctx context.Context) context.Context {
+	return history.WithExecution(ctx, history.Execution{Channel: businessevent.ChannelAPI, OperationID: uuid.NewString()})
 }

@@ -168,15 +168,15 @@ func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (order.Order
 	return orders[0], nil
 }
 
-func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) error {
+func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) (order.Order, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Set tenant ID in domain entity
@@ -184,7 +184,7 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 
 	dbOrder, dbProducts, err := mappers.ToDBOrder(data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Make sure tenant ID is set in DB model
@@ -198,7 +198,7 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 		dbOrder.Status,
 		dbOrder.CreatedAt,
 	).Scan(&dbOrder.ID); err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, p := range dbProducts {
@@ -214,7 +214,7 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 			p.Status,
 			p.CreatedAt,
 		).Scan(&p.ID); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -225,11 +225,18 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 			dbOrder.ID,
 			item.ID,
 		); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return order.New(data.Type(),
+		order.WithID(dbOrder.ID),
+		order.WithTenantID(tenantID),
+		order.WithStatus(data.Status()),
+		order.WithItems(data.Items()),
+		order.WithCreatedAt(data.CreatedAt()),
+		order.WithUpdatedAt(data.UpdatedAt()),
+	), nil
 }
 
 func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) error {

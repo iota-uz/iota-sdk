@@ -6,16 +6,19 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CounterpartyService struct {
-	repo counterparty.Repository
+	repo          counterparty.Repository
+	historyWriter history.Writer
 }
 
-func NewCounterpartyService(repo counterparty.Repository) *CounterpartyService {
+func NewCounterpartyService(repo counterparty.Repository, historyWriter history.Writer) *CounterpartyService {
 	return &CounterpartyService{
-		repo: repo,
+		repo:          repo,
+		historyWriter: historyWriter,
 	}
 }
 
@@ -36,7 +39,13 @@ func (s *CounterpartyService) Create(ctx context.Context, entity counterparty.Co
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
 		var createErr error
 		result, createErr = s.repo.Create(txCtx, entity)
-		return createErr
+		if createErr != nil {
+			return createErr
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: CounterpartyCreated, Version: 1, Resource: CounterpartyResource, ID: result.ID().String(),
+			After: counterpartySnapshot(result),
+		})
 	})
 	return result, err
 }
@@ -44,9 +53,18 @@ func (s *CounterpartyService) Create(ctx context.Context, entity counterparty.Co
 func (s *CounterpartyService) Update(ctx context.Context, entity counterparty.Counterparty) (counterparty.Counterparty, error) {
 	var result counterparty.Counterparty
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
-		var updateErr error
-		result, updateErr = s.repo.Update(txCtx, entity)
-		return updateErr
+		before, err := s.repo.GetByID(txCtx, entity.ID())
+		if err != nil {
+			return err
+		}
+		result, err = s.repo.Update(txCtx, entity)
+		if err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: CounterpartyUpdated, Version: 1, Resource: CounterpartyResource, ID: entity.ID().String(),
+			Before: counterpartySnapshot(before), After: counterpartySnapshot(result),
+		})
 	})
 	return result, err
 }
@@ -57,7 +75,13 @@ func (s *CounterpartyService) Delete(ctx context.Context, id uuid.UUID) (counter
 		return nil, err
 	}
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		return s.repo.Delete(txCtx, id)
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: CounterpartyDeleted, Version: 1, Resource: CounterpartyResource, ID: id.String(),
+			Before: counterpartySnapshot(entity),
+		})
 	})
 	if err != nil {
 		return nil, err

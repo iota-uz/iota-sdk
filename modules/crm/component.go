@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
@@ -57,6 +58,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewClientRepository)
 	composition.ProvideFunc(builder, persistence.NewMessageTemplateRepository)
 	composition.ProvideFunc(builder, newCRMTwilioProvider)
+	history.ContributeDefinitions(builder, services.HistoryDefinitions()...)
 	composition.ProvideFunc(builder, services.NewClientService)
 	composition.ProvideFunc(builder, newCRMChatService)
 	composition.ProvideFunc(builder, services.NewMessageTemplateService)

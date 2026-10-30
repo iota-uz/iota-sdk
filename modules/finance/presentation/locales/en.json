@@ -89,6 +89,20 @@
       "IsCOGS": "Cost of Goods Sold (COGS)",
       "Delete": "Delete category",
       "DeleteConfirmation": "Are you sure you want to delete this expense category?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Expense category created",
+        "Summary": "A new expense category was added"
+      },
+      "Updated": {
+        "Title": "Expense category changed",
+        "Summary": "Expense category details were changed"
+      },
+      "Deleted": {
+        "Title": "Expense category deleted",
+        "Summary": "An expense category was removed"
+      }
     }
   },
   "Payments": {
@@ -132,6 +146,28 @@
       "User": "User",
       "Delete": "Delete payment",
       "DeleteConfirmation": "Are you sure you want to delete this payment?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Payment created",
+        "Summary": "A payment was recorded"
+      },
+      "Updated": {
+        "Title": "Payment changed",
+        "Summary": "Payment details were changed"
+      },
+      "Deleted": {
+        "Title": "Payment deleted",
+        "Summary": "A payment was deleted"
+      },
+      "FileAttached": {
+        "Title": "File attached to payment",
+        "Summary": "A file was attached to the payment"
+      },
+      "FileDetached": {
+        "Title": "File removed from payment",
+        "Summary": "A file was removed from the payment"
+      }
     }
   },
   "Expenses": {
@@ -174,6 +210,28 @@
       "Comment": "Comment",
       "Delete": "Delete expense",
       "DeleteConfirmation": "Are you sure you want to delete this expense?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Expense created",
+        "Summary": "An expense was recorded"
+      },
+      "Updated": {
+        "Title": "Expense changed",
+        "Summary": "Expense details were changed"
+      },
+      "Deleted": {
+        "Title": "Expense deleted",
+        "Summary": "An expense was deleted"
+      },
+      "FileAttached": {
+        "Title": "File attached to expense",
+        "Summary": "A file was attached to the expense"
+      },
+      "FileDetached": {
+        "Title": "File removed from expense",
+        "Summary": "A file was removed from the expense"
+      }
     }
   },
   "Counterparties": {
@@ -223,6 +281,20 @@
       "LLC": "LLC (Limited Liability Company)",
       "JSC": "JSC (Joint Stock Company)",
       "SOLE_PROPRIETORSHIP": "Sole Proprietorship"
+    },
+    "History": {
+      "Created": {
+        "Title": "Counterparty created",
+        "Summary": "A new counterparty was added"
+      },
+      "Updated": {
+        "Title": "Counterparty changed",
+        "Summary": "Counterparty details were changed"
+      },
+      "Deleted": {
+        "Title": "Counterparty deleted",
+        "Summary": "A counterparty was removed"
+      }
     }
   },
   "MoneyAccounts": {
@@ -271,6 +343,20 @@
       "NoTransactionsDescription": "This account has no transactions. Transactions will appear here when you add expenses, payments, or transfers.",
       "ViewAll": "View all transactions",
       "Loading": "Loading…"
+    },
+    "History": {
+      "Created": {
+        "Title": "Account created",
+        "Summary": "A money account was opened with its starting balance"
+      },
+      "Updated": {
+        "Title": "Account changed",
+        "Summary": "Account details or its balance were changed"
+      },
+      "Deleted": {
+        "Title": "Account deleted",
+        "Summary": "A money account was removed"
+      }
     }
   },
   "Transfers": {
@@ -318,6 +404,20 @@
       "_Description": "Description",
       "Delete": "Delete payment category",
       "DeleteConfirmation": "Are you sure you want to delete this payment category?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Payment category created",
+        "Summary": "A new payment category was added"
+      },
+      "Updated": {
+        "Title": "Payment category changed",
+        "Summary": "Payment category details were changed"
+      },
+      "Deleted": {
+        "Title": "Payment category deleted",
+        "Summary": "A payment category was removed"
+      }
     }
   },
   "Inventory": {
@@ -355,6 +455,20 @@
       "_Description": "Description",
       "Delete": "Delete inventory item",
       "DeleteConfirmation": "Are you sure you want to delete this inventory item?"
+    },
+    "History": {
+      "Created": {
+        "Title": "Inventory item created",
+        "Summary": "An inventory item was added"
+      },
+      "Updated": {
+        "Title": "Inventory item changed",
+        "Summary": "Inventory item details were changed"
+      },
+      "Deleted": {
+        "Title": "Inventory item deleted",
+        "Summary": "An inventory item was removed"
+      }
     }
   },
   "Transactions": {
@@ -415,6 +529,20 @@
       "TRANSFER": "Transfer",
       "EXCHANGE": "Exchange",
       "ADJUSTMENT": "Adjustment"
+    },
+    "History": {
+      "Created": {
+        "Title": "Transfer recorded",
+        "Summary": "Money was transferred or exchanged between accounts"
+      },
+      "Updated": {
+        "Title": "Transfer changed",
+        "Summary": "Details of a transfer between accounts were changed"
+      },
+      "Deleted": {
+        "Title": "Transfer deleted",
+        "Summary": "A transfer between accounts was removed from the books"
+      }
     }
   },
   "Reports": {
@@ -551,6 +679,32 @@
       "Deleted": "Debt deleted successfully",
       "Settled": "Debt settled successfully",
       "WrittenOff": "Debt written off successfully"
+    },
+    "History": {
+      "Created": {
+        "Title": "Debt created",
+        "Summary": "A debt was recorded"
+      },
+      "Updated": {
+        "Title": "Debt changed",
+        "Summary": "Debt details were changed"
+      },
+      "Deleted": {
+        "Title": "Debt deleted",
+        "Summary": "A debt was removed from the books"
+      },
+      "Settled": {
+        "Title": "Debt paid",
+        "Summary": "The debt was paid in full or in part"
+      },
+      "WrittenOff": {
+        "Title": "Debt written off",
+        "Summary": "The debt was written off as uncollectible"
+      },
+      "Cancelled": {
+        "Title": "Debt cancelled",
+        "Summary": "The debt is no longer owed and stops reserving money"
+      }
     }
   },
   "DebtAggregates": {

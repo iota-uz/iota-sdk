@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/orderservice"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
 func TestOrderService(t *testing.T) {
@@ -20,7 +21,7 @@ func TestOrderService(t *testing.T) {
 	positionRepo := persistence.NewPositionRepository()
 	productRepo := persistence.NewProductRepository()
 	orderRepo := persistence.NewOrderRepository(productRepo)
-	orderService := orderservice.NewOrderService(f.App.EventPublisher(), orderRepo, productRepo)
+	orderService := itf.GetService[orderservice.OrderService](f)
 
 	if err := unitRepo.Create(f.Ctx, &unit.Unit{
 		ID:         1,
@@ -51,7 +52,7 @@ func TestOrderService(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := orderRepo.Create(f.Ctx, domainOrder); err != nil {
+	if _, err := orderRepo.Create(f.Ctx, domainOrder); err != nil {
 		t.Fatal(err)
 	}
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -277,6 +278,7 @@ func (r *Runner) execute(ctx context.Context, j Job) {
 		return
 	}
 
+	ctx = history.JobExecution(ctx, j.ID.String(), j.Kind, history.UserInitiator(ctx))
 	reporter := newReporter(r.store, j.ID, defaultProgressInterval)
 	hbStop := startHeartbeat(r.store, j.ID, defaultHeartbeatInterval)
 	defer hbStop()

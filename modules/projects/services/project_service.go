@@ -3,21 +3,27 @@ package services
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project"
+	"github.com/iota-uz/iota-sdk/modules/projects/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type ProjectService struct {
-	repo      project.Repository
-	publisher eventbus.EventBus
+	repo          project.Repository
+	publisher     eventbus.EventBus
+	historyWriter history.Writer
 }
 
-func NewProjectService(repo project.Repository, publisher eventbus.EventBus) *ProjectService {
+func NewProjectService(repo project.Repository, publisher eventbus.EventBus, historyWriter history.Writer) *ProjectService {
 	return &ProjectService{
-		repo:      repo,
-		publisher: publisher,
+		repo:          repo,
+		publisher:     publisher,
+		historyWriter: historyWriter,
 	}
 }
 
@@ -44,7 +50,27 @@ func (s *ProjectService) GetByCounterpartyID(ctx context.Context, counterpartyID
 func (s *ProjectService) Save(ctx context.Context, proj project.Project) (project.Project, error) {
 	isNew := proj.ID() == uuid.Nil
 
-	savedProj, err := s.repo.Save(ctx, proj)
+	var savedProj project.Project
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		var before project.Project
+		if !isNew {
+			existing, err := s.repo.GetByID(txCtx, proj.ID())
+			if err != nil && !errors.Is(err, persistence.ErrProjectNotFound) {
+				return err
+			}
+			before = existing
+		}
+		var err error
+		savedProj, err = s.repo.Save(txCtx, proj)
+		if err != nil {
+			return err
+		}
+		m := history.Mutation{Type: ProjectCreated, Version: 1, Resource: ProjectResource, ID: savedProj.ID().String(), After: projectSnapshot(savedProj)}
+		if before != nil {
+			m.Type, m.Before = ProjectUpdated, projectSnapshot(before)
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, m)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -77,11 +103,22 @@ func (s *ProjectService) Update(ctx context.Context, proj project.Project) error
 }
 
 func (s *ProjectService) Delete(ctx context.Context, id uuid.UUID) (project.Project, error) {
-	entity, err := s.repo.GetByID(ctx, id)
+	var entity project.Project
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		entity, err = s.repo.GetByID(txCtx, id)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: ProjectDeleted, Version: 1, Resource: ProjectResource, ID: id.String(),
+			Before: projectSnapshot(entity),
+		})
+	})
 	if err != nil {
-		return nil, err
-	}
-	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
 	deletedEvent, err := project.NewDeletedEvent(ctx, entity)

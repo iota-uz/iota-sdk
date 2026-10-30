@@ -6,19 +6,22 @@ import (
 
 	"github.com/google/uuid"
 	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type PaymentCategoryService struct {
-	repo      paymentcategory.Repository
-	publisher eventbus.EventBus
+	repo          paymentcategory.Repository
+	publisher     eventbus.EventBus
+	historyWriter history.Writer
 }
 
-func NewPaymentCategoryService(repo paymentcategory.Repository, publisher eventbus.EventBus) *PaymentCategoryService {
+func NewPaymentCategoryService(repo paymentcategory.Repository, publisher eventbus.EventBus, historyWriter history.Writer) *PaymentCategoryService {
 	return &PaymentCategoryService{
-		repo:      repo,
-		publisher: publisher,
+		repo:          repo,
+		publisher:     publisher,
+		historyWriter: historyWriter,
 	}
 }
 
@@ -53,7 +56,13 @@ func (s *PaymentCategoryService) Create(ctx context.Context, entity paymentcateg
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		var createErr error
 		created, createErr = s.repo.Create(txCtx, entity)
-		return createErr
+		if createErr != nil {
+			return createErr
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: PaymentCategoryCreated, Version: 1, Resource: PaymentCategoryResource, ID: created.ID().String(),
+			After: paymentCategorySnapshot(created),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -70,9 +79,18 @@ func (s *PaymentCategoryService) Update(ctx context.Context, entity paymentcateg
 	}
 	var updated paymentcategory.PaymentCategory
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		var updateErr error
-		updated, updateErr = s.repo.Update(txCtx, entity)
-		return updateErr
+		before, err := s.repo.GetByID(txCtx, entity.ID())
+		if err != nil {
+			return err
+		}
+		updated, err = s.repo.Update(txCtx, entity)
+		if err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: PaymentCategoryUpdated, Version: 1, Resource: PaymentCategoryResource, ID: entity.ID().String(),
+			Before: paymentCategorySnapshot(before), After: paymentCategorySnapshot(updated),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -92,7 +110,13 @@ func (s *PaymentCategoryService) Delete(ctx context.Context, id uuid.UUID) (paym
 		return nil, err
 	}
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		return s.repo.Delete(txCtx, id)
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: PaymentCategoryDeleted, Version: 1, Resource: PaymentCategoryResource, ID: id.String(),
+			Before: paymentCategorySnapshot(entity),
+		})
 	})
 	if err != nil {
 		return nil, err

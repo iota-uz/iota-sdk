@@ -3,8 +3,10 @@ package services
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
@@ -12,16 +14,18 @@ import (
 )
 
 type RoleService struct {
-	repo      role.Repository
-	publisher eventbus.EventBus
-	policy    *PrivilegeGrantPolicy
+	repo          role.Repository
+	publisher     eventbus.EventBus
+	policy        *PrivilegeGrantPolicy
+	historyWriter history.Writer
 }
 
-func NewRoleService(repo role.Repository, publisher eventbus.EventBus, policy *PrivilegeGrantPolicy) *RoleService {
+func NewRoleService(repo role.Repository, publisher eventbus.EventBus, policy *PrivilegeGrantPolicy, historyWriter history.Writer) *RoleService {
 	return &RoleService{
-		repo:      repo,
-		publisher: publisher,
-		policy:    policy,
+		repo:          repo,
+		publisher:     publisher,
+		policy:        policy,
+		historyWriter: historyWriter,
 	}
 }
 
@@ -59,12 +63,11 @@ func (s *RoleService) Create(ctx context.Context, data role.Role) (role.Role, er
 		if err != nil {
 			return err
 		}
-		if created, err := s.repo.Create(txCtx, data); err != nil {
+		createdRole, err = s.repo.Create(txCtx, data)
+		if err != nil {
 			return err
-		} else {
-			createdRole = created
 		}
-		return nil
+		return recordRoleChange(txCtx, s.historyWriter, nil, createdRole)
 	})
 	if err != nil {
 		return nil, err
@@ -94,12 +97,15 @@ func (s *RoleService) Update(ctx context.Context, data role.Role) error {
 		if err != nil {
 			return err
 		}
-		if roleAfterUpdate, err := s.repo.Update(ctx, data); err != nil {
+		before, err := s.repo.GetByID(ctx, data.ID())
+		if err != nil {
 			return err
-		} else {
-			updatedRole = roleAfterUpdate
 		}
-		return nil
+		updatedRole, err = s.repo.Update(ctx, data)
+		if err != nil {
+			return err
+		}
+		return recordRoleChange(ctx, s.historyWriter, before, updatedRole)
 	})
 	if err != nil {
 		return err
@@ -131,10 +137,12 @@ func (s *RoleService) Delete(ctx context.Context, id uint) error {
 		}
 		if err := s.repo.Delete(txCtx, id); err != nil {
 			return err
-		} else {
-			deletedRole = entity
 		}
-		return nil
+		deletedRole = entity
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: RoleDeleted, Version: 1, Resource: RoleResource, ID: strconv.FormatUint(uint64(id), 10),
+			Before: roleSnapshot(entity),
+		})
 	})
 	if err != nil {
 		return err

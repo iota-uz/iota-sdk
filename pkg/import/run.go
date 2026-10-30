@@ -6,6 +6,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 )
 
 // RunStatus describes the lifecycle state of an import run.
@@ -244,7 +246,8 @@ func NewImportRunner(store RunStore) *ImportRunner {
 //
 // The supplied ctx governs the spawned goroutine, so callers must pass a
 // detached context (not a request context) to avoid cancellation when the HTTP
-// handler returns. Progress is written to the store via a ProgressSink, and the
+// handler returns. The run is one import operation in business history, attributed to the actor
+// of ctx. Progress is written to the store via a ProgressSink, and the
 // terminal status (RunDone or RunFailed) plus Result/Err and FinishedAt are
 // recorded when proc.Process returns.
 func (r *ImportRunner) Start(ctx context.Context, id string, proc BulkImportProcessor, filePath string, opts ImportRunOptions) {
@@ -266,6 +269,7 @@ func (r *ImportRunner) Start(ctx context.Context, id string, proc BulkImportProc
 		st.StartedAt = time.Now()
 	})
 
+	ctx = history.ImportExecution(ctx, id)
 	go func() {
 		sink := &storeSink{store: r.store, id: id}
 		result, err := proc.Process(ctx, filePath, opts, sink)

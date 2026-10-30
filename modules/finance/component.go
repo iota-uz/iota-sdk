@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 )
@@ -47,6 +48,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewDebtRepository)
 	composition.ProvideFunc(builder, query.NewPgFinancialReportsQueryRepository)
 
+	history.ContributeDefinitions(builder, services.HistoryDefinitions()...)
 	composition.ProvideFunc(builder, services.NewMoneyAccountService)
 	composition.ProvideFunc(builder, services.NewTransactionService)
 	composition.ProvideFunc(builder, services.NewPaymentService)

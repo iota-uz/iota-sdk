@@ -3,24 +3,29 @@ package services
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 type ClientService struct {
-	repo      client.Repository
-	publisher eventbus.EventBus
+	repo          client.Repository
+	publisher     eventbus.EventBus
+	historyWriter history.Writer
 }
 
 func NewClientService(
 	repo client.Repository,
 	publisher eventbus.EventBus,
+	historyWriter history.Writer,
 ) *ClientService {
 	return &ClientService{
-		repo:      repo,
-		publisher: publisher,
+		repo:          repo,
+		publisher:     publisher,
+		historyWriter: historyWriter,
 	}
 }
 
@@ -41,10 +46,9 @@ func (s *ClientService) GetByPhone(ctx context.Context, phoneNumber string) (cli
 }
 
 func (s *ClientService) Create(ctx context.Context, data client.Client) error {
-	var err error
 	var createdClient client.Client
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		created, err := s.repo.Save(ctx, data)
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		created, err := s.create(txCtx, data)
 		if err != nil {
 			return err
 		}
@@ -63,16 +67,36 @@ func (s *ClientService) Create(ctx context.Context, data client.Client) error {
 	return nil
 }
 
+func (s *ClientService) create(txCtx context.Context, data client.Client) (client.Client, error) {
+	created, err := s.repo.Save(txCtx, data)
+	if err != nil {
+		return nil, err
+	}
+	if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		Type: ClientCreated, Version: 1, Resource: ClientResource, ID: strconv.FormatUint(uint64(created.ID()), 10),
+		After: clientSnapshot(created),
+	}); err != nil {
+		return nil, err
+	}
+	return created, nil
+}
+
 func (s *ClientService) Update(ctx context.Context, data client.Client) error {
-	var err error
 	var updatedClient client.Client
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		updated, err := s.repo.Save(ctx, data)
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		before, err := s.repo.GetByID(txCtx, data.ID())
+		if err != nil {
+			return err
+		}
+		updated, err := s.repo.Save(txCtx, data)
 		if err != nil {
 			return err
 		}
 		updatedClient = updated
-		return nil
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: ClientUpdated, Version: 1, Resource: ClientResource, ID: strconv.FormatUint(uint64(data.ID()), 10),
+			Before: clientSnapshot(before), After: clientSnapshot(updated),
+		})
 	})
 	if err != nil {
 		return err
@@ -87,18 +111,20 @@ func (s *ClientService) Update(ctx context.Context, data client.Client) error {
 }
 
 func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, error) {
-	entity, err := s.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	var deletedClient client.Client
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err := s.repo.Delete(ctx, id); err != nil {
+	var entity client.Client
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		entity, err = s.repo.GetByID(txCtx, id)
+		if err != nil {
 			return err
 		}
-		deletedClient = entity
-		return nil
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: ClientDeleted, Version: 1, Resource: ClientResource, ID: strconv.FormatUint(uint64(id), 10),
+			Before: clientSnapshot(entity),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -107,7 +133,7 @@ func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, err
 	if err != nil {
 		return nil, err
 	}
-	deletedEvent.Result = deletedClient
+	deletedEvent.Result = entity
 	s.publisher.Publish(deletedEvent)
 	return entity, nil
 }

@@ -12,6 +12,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -28,15 +30,17 @@ type UserService struct {
 	publisher      eventbus.EventBus
 	sessionService *SessionService
 	policy         *PrivilegeGrantPolicy
+	historyWriter  history.Writer
 }
 
-func NewUserService(repo user.Repository, validator user.Validator, publisher eventbus.EventBus, sessionService *SessionService, policy *PrivilegeGrantPolicy) *UserService {
+func NewUserService(repo user.Repository, validator user.Validator, publisher eventbus.EventBus, sessionService *SessionService, policy *PrivilegeGrantPolicy, historyWriter history.Writer) *UserService {
 	return &UserService{
 		repo:           repo,
 		validator:      validator,
 		publisher:      publisher,
 		sessionService: sessionService,
 		policy:         policy,
+		historyWriter:  historyWriter,
 	}
 }
 
@@ -105,12 +109,17 @@ func (s *UserService) Create(ctx context.Context, data user.User) (user.User, er
 		if err := s.validator.ValidateCreate(txCtx, data); err != nil {
 			return err
 		}
-		if created, err := s.repo.Create(txCtx, data); err != nil {
+		createdUser, err = s.repo.Create(txCtx, data)
+		if err != nil {
 			return err
-		} else {
-			createdUser = created
 		}
-		return nil
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: UserCreated, Version: 1, Resource: UserResource, ID: userKey(createdUser.ID()),
+			After: userSnapshot(createdUser),
+		}); err != nil {
+			return err
+		}
+		return recordUserAccess(txCtx, s.historyWriter, nil, createdUser)
 	})
 	if err != nil {
 		return nil, err
@@ -246,7 +255,7 @@ func (s *UserService) ChangePassword(ctx context.Context, currentPassword, newPa
 		if err != nil {
 			return serrors.Wrap(op, err)
 		}
-		return nil
+		return recordEvent(txCtx, s.historyWriter, UserPasswordChanged, businessevent.Subject{Resource: UserResource, ID: userKey(updated.ID())})
 	})
 	if err != nil {
 		return serrors.Wrap(op, err)
@@ -267,15 +276,24 @@ func (s *UserService) performUpdate(ctx context.Context, data user.User) (user.U
 		if err := s.validator.ValidateUpdate(txCtx, data); err != nil {
 			return err
 		}
+		before, err := s.repo.GetByID(txCtx, data.ID())
+		if err != nil {
+			return err
+		}
 		if err := s.repo.Update(txCtx, data); err != nil {
 			return err
 		}
-		if userAfterUpdate, err := s.repo.GetByID(txCtx, data.ID()); err != nil {
+		updatedUser, err = s.repo.GetByID(txCtx, data.ID())
+		if err != nil {
 			return err
-		} else {
-			updatedUser = userAfterUpdate
 		}
-		return nil
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: UserUpdated, Version: 1, Resource: UserResource, ID: userKey(updatedUser.ID()),
+			Before: userSnapshot(before), After: userSnapshot(updatedUser),
+		}); err != nil {
+			return err
+		}
+		return recordUserAccess(txCtx, s.historyWriter, before, updatedUser)
 	})
 	if err != nil {
 		return nil, err
@@ -333,10 +351,12 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 		}
 		if err := s.repo.Delete(txCtx, id); err != nil {
 			return err
-		} else {
-			deletedUser = entity
 		}
-		return nil
+		deletedUser = entity
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: UserDeleted, Version: 1, Resource: UserResource, ID: userKey(id),
+			Before: userSnapshot(entity),
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -390,6 +410,8 @@ func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string)
 			return errors.New("you cannot block yourself")
 		}
 
+		before := u
+
 		// Block user
 		u = u.Block(reason, actor.ID(), actor.TenantID())
 
@@ -405,7 +427,13 @@ func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string)
 
 		// Reload user to get updated state
 		blockedUser, err = s.repo.GetByID(txCtx, userID)
-		return err
+		if err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: UserBlocked, Version: 1, Resource: UserResource, ID: userKey(userID),
+			Before: userBlockSnapshot(before), After: userBlockSnapshot(blockedUser),
+		})
 	})
 
 	if err != nil {
@@ -438,6 +466,8 @@ func (s *UserService) UnblockUser(ctx context.Context, userID uint) (user.User, 
 			return errors.New("user is not blocked")
 		}
 
+		before := u
+
 		// Unblock user
 		u = u.Unblock()
 
@@ -448,7 +478,13 @@ func (s *UserService) UnblockUser(ctx context.Context, userID uint) (user.User, 
 
 		// Reload user to get updated state
 		unblockedUser, err = s.repo.GetByID(txCtx, userID)
-		return err
+		if err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: UserUnblocked, Version: 1, Resource: UserResource, ID: userKey(userID),
+			Before: userBlockSnapshot(before), After: userBlockSnapshot(unblockedUser),
+		})
 	})
 
 	if err != nil {
@@ -530,7 +566,10 @@ func (s *UserService) IssueTemporaryPassword(ctx context.Context, userID uint, p
 		if _, err := s.sessionService.DeleteByUserID(txCtx, userID); err != nil {
 			return fmt.Errorf("failed to invalidate user sessions: %w", err)
 		}
-		return nil
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: UserTemporaryPasswordIssued, Version: 1, Resource: UserResource, ID: userKey(userID),
+			Before: userCredentialsSnapshot(target), After: userCredentialsSnapshot(updated),
+		})
 	})
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
@@ -614,7 +653,10 @@ func (s *UserService) CompleteOnboarding(ctx context.Context, sessionToken strin
 		if _, err := s.sessionService.DeleteByUserID(txCtx, userID); err != nil {
 			return fmt.Errorf("failed to invalidate user sessions: %w", err)
 		}
-		return nil
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: UserOnboardingCompleted, Version: 1, Resource: UserResource, ID: userKey(userID),
+			Before: userSnapshot(current), After: userSnapshot(completed),
+		})
 	})
 	if err != nil {
 		return nil, serrors.Wrap(op, err)

@@ -12,6 +12,10 @@
 			"LegacyActionLog": {
 				"Title": "Action from the former log",
 				"Summary": "Recorded by the former request log before business history existed. The actor's name and the action's business meaning were not captured."
+			},
+			"ImportItem": {
+				"Title": "Import item rejected",
+				"Summary": "An item of the import was not saved; its changes were rolled back"
 			}
 		}
 	}
