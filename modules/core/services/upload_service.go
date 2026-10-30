@@ -263,8 +263,18 @@ func (s *UploadService) moveSlugToExisting(ctx context.Context, holder, existing
 		holder.SetSlug(holderSlug)
 		existing.SetSlug(existingSlug)
 	}
-	// Parking the holder on existing's object would overwrite that object.
-	if holderTarget == existingPath {
+	// Objects move before the rows, so the unique slug constraint would fire too
+	// late: refuse any move that lands on an object another row still owns.
+	if holderTarget == existingPath || holderTarget == existingTarget {
+		restoreEntities()
+		return serrors.Wrap(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, slug))
+	}
+	occupant, err := s.repo.GetBySlug(ctx, holder.Hash())
+	if err != nil && !errors.Is(err, persistence.ErrUploadNotFound) {
+		restoreEntities()
+		return serrors.Wrap(op, err)
+	}
+	if occupant != nil && occupant.ID() != holder.ID() {
 		restoreEntities()
 		return serrors.Wrap(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, slug))
 	}

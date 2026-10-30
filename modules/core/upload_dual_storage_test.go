@@ -629,38 +629,62 @@ func TestUploadService_FailedSlugMoveKeepsObjectsWhereRowsPoint(t *testing.T) {
 	}
 }
 
-func TestUploadService_SlugMoveNeverOverwritesExistingObject(t *testing.T) {
-	// existing's slug equals the holder's hash, so parking the holder under its
-	// hash lands exactly on existing's object.
-	f := newDualStorageFixture(t, true)
+func TestUploadService_SlugMoveNeverOverwritesAnotherObject(t *testing.T) {
+	// Each case would overwrite an object if the move reached storage; the
+	// occupied object must keep its bytes and no row may change.
 	holderBytes := []byte("%PDF-1.7\nslug holder")
 	movedBytes := []byte("%PDF-1.7\nexisting content")
-	holderKey := f.root + "/report.pdf"
-	f.s3.put(holderKey, holderBytes, "application/pdf")
-	holderEntity := newUploadEntity(t, 1, upload.S3Path(testBucket, holderKey), holderBytes)
-	holderEntity.SetSlug("report")
+	thirdBytes := []byte("%PDF-1.7\nthird upload")
+	holderHash := newUploadEntity(t, 1, "unused.pdf", holderBytes).Hash()
+	movedHash := newUploadEntity(t, 2, "unused.pdf", movedBytes).Hash()
 
-	moved := newUploadEntity(t, 2, upload.S3Path(testBucket, f.root+"/x.pdf"), movedBytes)
-	moved.SetSlug(holderEntity.Hash())
-	movedKey := f.root + "/" + holderEntity.Hash() + ".pdf"
-	f.s3.put(movedKey, movedBytes, "application/pdf")
-
-	repo := &swapRepo{
-		bySlug: map[string]upload.Upload{"report": holderEntity, holderEntity.Hash(): moved},
-		byHash: map[string]upload.Upload{holderEntity.Hash(): holderEntity, moved.Hash(): moved},
+	tests := []struct {
+		name       string
+		holderSlug string
+		movedSlug  string
+		thirdSlug  string
+	}{
+		{name: "existing sits on the holder's hash", holderSlug: "report", movedSlug: holderHash},
+		{name: "holder slug is its own hash", holderSlug: holderHash, movedSlug: movedHash},
+		{name: "third upload sits on the holder's hash", holderSlug: "report", movedSlug: movedHash, thirdSlug: holderHash},
 	}
-	service := services.NewConfiguredUploadService(repo, f.storage, eventbus.NewEventPublisher(logrus.New()), f.cfg)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newDualStorageFixture(t, true)
+			keyOf := func(slug string) string { return f.root + "/" + slug + ".pdf" }
+			add := func(id uint, slug string, content []byte) upload.Upload {
+				entity := newUploadEntity(t, id, upload.S3Path(testBucket, keyOf("x")), content)
+				entity.SetSlug(slug)
+				f.s3.put(keyOf(slug), content, "application/pdf")
+				return entity
+			}
+			holderEntity := add(1, tt.holderSlug, holderBytes)
+			moved := add(2, tt.movedSlug, movedBytes)
+			repo := &swapRepo{
+				bySlug: map[string]upload.Upload{tt.holderSlug: holderEntity, tt.movedSlug: moved},
+				byHash: map[string]upload.Upload{holderEntity.Hash(): holderEntity, moved.Hash(): moved},
+			}
+			if tt.thirdSlug != "" {
+				repo.bySlug[tt.thirdSlug] = add(3, tt.thirdSlug, thirdBytes)
+			}
+			service := services.NewConfiguredUploadService(repo, f.storage, eventbus.NewEventPublisher(logrus.New()), f.cfg)
 
-	_, err := service.Create(t.Context(), &upload.CreateDTO{File: bytes.NewReader(movedBytes), Name: "report.pdf", Slug: "report", Size: len(movedBytes)})
-	require.ErrorIs(t, err, services.ErrUploadSlugConflict)
+			_, err := service.Create(t.Context(), &upload.CreateDTO{File: bytes.NewReader(movedBytes), Name: "report.pdf", Slug: tt.holderSlug, Size: len(movedBytes)})
+			require.ErrorIs(t, err, services.ErrUploadSlugConflict)
 
-	require.Zero(t, repo.updates)
-	require.Equal(t, "report", holderEntity.Slug())
-	require.Equal(t, holderEntity.Hash(), moved.Slug())
-	got, ok := f.s3.object(holderKey)
-	require.True(t, ok)
-	require.Equal(t, holderBytes, got)
-	got, ok = f.s3.object(movedKey)
-	require.True(t, ok)
-	require.Equal(t, movedBytes, got)
+			require.Zero(t, repo.updates)
+			require.Equal(t, tt.holderSlug, holderEntity.Slug())
+			require.Equal(t, tt.movedSlug, moved.Slug())
+			for slug, want := range map[string][]byte{tt.holderSlug: holderBytes, tt.movedSlug: movedBytes} {
+				got, ok := f.s3.object(keyOf(slug))
+				require.True(t, ok, slug)
+				require.Equal(t, want, got, slug)
+			}
+			if tt.thirdSlug != "" {
+				got, ok := f.s3.object(keyOf(tt.thirdSlug))
+				require.True(t, ok)
+				require.Equal(t, thirdBytes, got)
+			}
+		})
+	}
 }
