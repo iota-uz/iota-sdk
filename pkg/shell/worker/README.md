@@ -65,9 +65,12 @@ commands fail with exit 127 and never reach the host.
 `HTTPExecutor.Execute` bounds a call without a deadline at 2 minutes, and that
 time includes waiting in the worker queue. A run takes at most about 14 s
 (10 s limit, 3 s kill grace, 1 s reap), so the default queue drains well within
-the bound. From `SHELL_WORKER_QUEUE_SIZE=8` up, a queued run can outlast it: the
-caller gets `context.DeadlineExceeded` and the run is dropped unexecuted. With a
-larger queue, give `Execute` a context deadline that covers the whole queue.
+the bound. From `SHELL_WORKER_QUEUE_SIZE=8` up, a queued run can outlast it and
+the caller gets `context.DeadlineExceeded`. What happens to the run depends on
+when the deadline passes: a run that has not yet taken the active slot is
+dropped unexecuted, while a run that already started is killed by the worker
+when the caller's context ends. With a larger queue, give `Execute` a context
+deadline that covers the whole queue.
 
 `GET /healthz` returns 204 without authentication.
 
