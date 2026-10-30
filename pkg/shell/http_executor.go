@@ -14,10 +14,12 @@ import (
 const (
 	RunsPath         = "/v1/runs"
 	maxResponseBytes = 128 << 20
-	// defaultExecuteTimeout bounds a call without a deadline; it covers the
-	// default worker queue draining at maximum run time plus the transfer.
-	defaultExecuteTimeout = 2 * time.Minute
 )
+
+// defaultExecuteTimeout bounds a call without a deadline; it covers the default
+// worker queue draining at maximum run time plus the transfer. A larger
+// SHELL_WORKER_QUEUE_SIZE needs a caller deadline instead (see worker/README.md).
+var defaultExecuteTimeout = 2 * time.Minute
 
 // HTTPExecutor calls the shell worker internal API.
 type HTTPExecutor struct {

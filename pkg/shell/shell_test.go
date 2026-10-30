@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -67,6 +68,26 @@ func TestNormalize_Rejects(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := shell.Normalize(tt.req)
 			requireCode(t, err, tt.code)
+		})
+	}
+}
+
+func TestNormalize_AcceptsLimits(t *testing.T) {
+	tests := []struct {
+		name  string
+		paths []string
+	}{
+		{"path at max bytes", []string{strings.Repeat("a", shell.MaxInputPathBytes)}},
+		{"max files", manyPaths(shell.MaxInputFiles)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			refs := make([]shell.FileRef, 0, len(tt.paths))
+			for _, p := range tt.paths {
+				refs = append(refs, shell.FileRef{FileRef: "ref-" + p, Path: p})
+			}
+			_, err := shell.Normalize(shell.Request{Script: "ls", Files: refs})
+			require.NoError(t, err)
 		})
 	}
 }
@@ -278,6 +299,29 @@ func TestHTTPExecutor_Unreachable(t *testing.T) {
 
 	_, err := shell.NewHTTPExecutor(url, "secret", nil).Execute(context.Background(), shell.ExecRequest{Script: "ls"})
 	requireCode(t, err, shell.CodeDependencyUnavailable)
+}
+
+func TestHTTPExecutor_DefaultDeadline(t *testing.T) {
+	restore := shell.SetDefaultExecuteTimeout(50 * time.Millisecond)
+	defer restore()
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		<-release
+	}))
+	defer srv.Close()
+	defer close(release)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := shell.NewHTTPExecutor(srv.URL, "secret", nil).Execute(context.Background(), shell.ExecRequest{Script: "ls"})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Execute did not return after the default deadline")
+	}
 }
 
 func TestResult_NullFields(t *testing.T) {

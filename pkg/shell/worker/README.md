@@ -19,9 +19,11 @@ application ── pkg/shell.Runner ── HTTPExecutor ──► supervisor (PO
   (one active run per replica, `SHELL_WORKER_QUEUE_SIZE` waiting), retryable
   `busy` with `retry_after_ms` on overflow. Every run is a new child process with
   an empty environment, its own process group and a hard deadline
-  (`timeout_ms` + 3 s, which also covers decoding the request and encoding the
-  result at their size limits); the group is SIGKILLed and reaped on deadline
-  or when the client goes away. gbash's own JSON-RPC server is not used.
+  (`timeout_ms` + 3 s on the child process, which leaves the child room to
+  decode its request and encode its result at their size limits); the group is
+  SIGKILLed and reaped on deadline or when the client goes away. Reading the
+  HTTP request and writing the response happen outside this deadline. gbash's
+  own JSON-RPC server is not used.
 - **Child** (`shell-worker child`): applies its limits before reading the
   request (`oom_score_adj=1000`, `RLIMIT_FSIZE=0`, `RLIMIT_CORE=0`,
   `RLIMIT_NOFILE=64`), a Go heap budget with a watchdog
@@ -56,9 +58,16 @@ commands fail with exit 127 and never reach the host.
 |---|---|---|
 | `SHELL_WORKER_TOKEN` | — (required) | Bearer token of the internal API; removed from the environment at start |
 | `SHELL_WORKER_ADDR` | `:8080` | Listen address |
-| `SHELL_WORKER_QUEUE_SIZE` | `4` | Runs allowed to wait behind the active one |
+| `SHELL_WORKER_QUEUE_SIZE` | `4` | Runs allowed to wait behind the active one; see the note on queue wait below |
 | `SHELL_WORKER_RETRY_AFTER_MS` | `1000` | `retry_after_ms` returned with `busy` |
 | `SHELL_WORKER_CHILD_MEMORY_BYTES` | `268435456` | Go heap budget of one run |
+
+`HTTPExecutor.Execute` bounds a call without a deadline at 2 minutes, and that
+time includes waiting in the worker queue. A run takes at most about 14 s
+(10 s limit, 3 s kill grace, 1 s reap), so the default queue drains well within
+the bound. From `SHELL_WORKER_QUEUE_SIZE=8` up, a queued run can outlast it: the
+caller gets `context.DeadlineExceeded` and the run is dropped unexecuted. With a
+larger queue, give `Execute` a context deadline that covers the whole queue.
 
 `GET /healthz` returns 204 without authentication.
 
