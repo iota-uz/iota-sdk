@@ -22,9 +22,9 @@ const businessEventColumns = `event_id, tenant_id, COALESCE(event_type, '` + bus
 	COALESCE(occurred_at, created_at), created_at, actor_snapshot, initiator_snapshot, COALESCE(channel, ''),
 	COALESCE(operation_id, ''), COALESCE(request_id, ''), COALESCE(run_id, ''), COALESCE(client_id, ''),
 	COALESCE(outcome, ''), subjects, changes,
-	CASE WHEN event_type IS NULL THEN jsonb_build_object('source', 'action_logs', 'source_id', id::text,
-		'user_id', user_id::text, 'incomplete', TRUE, 'payload', jsonb_build_object('method', method, 'path', path,
-		'before', before::jsonb, 'after', after::jsonb, 'user_agent', user_agent, 'ip', ip)) END`
+	CASE WHEN event_type IS NULL THEN json_build_object('source', 'action_logs', 'source_id', id::text,
+		'user_id', user_id::text, 'incomplete', TRUE, 'payload', json_build_object('method', method, 'path', path,
+		'before', before, 'after', after, 'user_agent', user_agent, 'ip', ip)) END`
 
 type PgBusinessEventRepository struct{}
 
@@ -40,6 +40,13 @@ func (r *PgBusinessEventRepository) Append(ctx context.Context, e businessevent.
 	}
 	if e.Actor == nil || e.Legacy != nil {
 		return serrors.NewInvalid("only complete events with an actor can be appended").WithOp(op)
+	}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	if e.TenantID != tenantID {
+		return serrors.NewInvalid("event tenant does not match the request tenant").WithOp(op)
 	}
 	fingerprint, err := e.Fingerprint()
 	if err != nil {
