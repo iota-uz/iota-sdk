@@ -211,6 +211,7 @@ lang := pageCtx.GetLocale().String()
 										x-model="q"
 										type="text"
 										autocomplete="off"
+										maxlength="100"
 										role="combobox"
 										aria-expanded="false"
 										:aria-expanded="open"
@@ -261,7 +262,7 @@ lang := pageCtx.GetLocale().String()
 									{ pageCtx.T("NotificationSettings.ShowMore") }
 								</button>
 							</div>
-							<p x-show="open && q && !results.length && !peopleLoading && !peopleFailed" x-cloak class="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-secondary bg-surface-300 px-3 py-3 text-sm text-200 shadow-lg">{ pageCtx.T("NotificationSettings.NothingFound") }</p>
+							<p x-show="open && q && !results.length && !peopleLoading && !peopleFailed && !peopleHasMore" x-cloak class="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-secondary bg-surface-300 px-3 py-3 text-sm text-200 shadow-lg">{ pageCtx.T("NotificationSettings.NothingFound") }</p>
 							<p x-show="open && peopleFailed" x-cloak role="alert" class="mt-2 text-sm text-red-600" data-testid="notification-recipients-failed">{ pageCtx.T("NotificationSettings.RecipientsLoadFailed") }</p>
 						</div>
 						<p class="mt-2 text-sm text-200">{ pageCtx.T("NotificationSettings.AudienceHint") }</p>
