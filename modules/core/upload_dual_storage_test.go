@@ -533,6 +533,7 @@ type swapRepo struct {
 	bySlug, byHash map[string]upload.Upload
 	failUpdate     int
 	updates        int
+	lastWritten    upload.Upload
 }
 
 func (r *swapRepo) GetBySlug(_ context.Context, slug string) (upload.Upload, error) {
@@ -549,8 +550,9 @@ func (r *swapRepo) GetByHash(_ context.Context, hash string) (upload.Upload, err
 	return nil, persistence.ErrUploadNotFound
 }
 
-func (r *swapRepo) Update(context.Context, upload.Upload) error {
+func (r *swapRepo) Update(_ context.Context, entity upload.Upload) error {
 	r.updates++
+	r.lastWritten = entity
 	if r.updates == r.failUpdate {
 		return errors.New("row update failed")
 	}
@@ -610,6 +612,9 @@ func TestUploadService_FailedSlugMoveKeepsObjectsWhereRowsPoint(t *testing.T) {
 			require.Error(t, err)
 
 			require.Equal(t, tt.wantRowWrites, repo.updates)
+			if tt.wantRowWrites > 0 {
+				require.Same(t, holderEntity, repo.lastWritten)
+			}
 			require.Equal(t, "report", holderEntity.Slug())
 			require.Equal(t, moved.Hash(), moved.Slug())
 			got, ok := f.s3.object(holderKey)
@@ -622,4 +627,40 @@ func TestUploadService_FailedSlugMoveKeepsObjectsWhereRowsPoint(t *testing.T) {
 			require.False(t, ok, "parked copy must be undone")
 		})
 	}
+}
+
+func TestUploadService_SlugMoveNeverOverwritesExistingObject(t *testing.T) {
+	// existing's slug equals the holder's hash, so parking the holder under its
+	// hash lands exactly on existing's object.
+	f := newDualStorageFixture(t, true)
+	holderBytes := []byte("%PDF-1.7\nslug holder")
+	movedBytes := []byte("%PDF-1.7\nexisting content")
+	holderKey := f.root + "/report.pdf"
+	f.s3.put(holderKey, holderBytes, "application/pdf")
+	holderEntity := newUploadEntity(t, 1, upload.S3Path(testBucket, holderKey), holderBytes)
+	holderEntity.SetSlug("report")
+
+	moved := newUploadEntity(t, 2, upload.S3Path(testBucket, f.root+"/x.pdf"), movedBytes)
+	moved.SetSlug(holderEntity.Hash())
+	movedKey := f.root + "/" + holderEntity.Hash() + ".pdf"
+	f.s3.put(movedKey, movedBytes, "application/pdf")
+
+	repo := &swapRepo{
+		bySlug: map[string]upload.Upload{"report": holderEntity, holderEntity.Hash(): moved},
+		byHash: map[string]upload.Upload{holderEntity.Hash(): holderEntity, moved.Hash(): moved},
+	}
+	service := services.NewConfiguredUploadService(repo, f.storage, eventbus.NewEventPublisher(logrus.New()), f.cfg)
+
+	_, err := service.Create(t.Context(), &upload.CreateDTO{File: bytes.NewReader(movedBytes), Name: "report.pdf", Slug: "report", Size: len(movedBytes)})
+	require.ErrorIs(t, err, services.ErrUploadSlugConflict)
+
+	require.Zero(t, repo.updates)
+	require.Equal(t, "report", holderEntity.Slug())
+	require.Equal(t, holderEntity.Hash(), moved.Slug())
+	got, ok := f.s3.object(holderKey)
+	require.True(t, ok)
+	require.Equal(t, holderBytes, got)
+	got, ok = f.s3.object(movedKey)
+	require.True(t, ok)
+	require.Equal(t, movedBytes, got)
 }

@@ -263,6 +263,11 @@ func (s *UploadService) moveSlugToExisting(ctx context.Context, holder, existing
 		holder.SetSlug(holderSlug)
 		existing.SetSlug(existingSlug)
 	}
+	// Parking the holder on existing's object would overwrite that object.
+	if holderTarget == existingPath {
+		restoreEntities()
+		return serrors.Wrap(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, slug))
+	}
 
 	if err := s.storage.Rename(ctx, holderPath, holderTarget); err != nil {
 		restoreEntities()
