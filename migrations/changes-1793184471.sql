@@ -4,7 +4,7 @@ ALTER TABLE action_logs
     ALTER COLUMN path DROP NOT NULL,
     ALTER COLUMN user_agent DROP NOT NULL,
     ALTER COLUMN ip DROP NOT NULL,
-    ADD COLUMN event_id uuid NOT NULL DEFAULT gen_random_uuid (),
+    ADD COLUMN event_id uuid,
     ADD COLUMN event_type varchar(200),
     ADD COLUMN schema_version integer CHECK (schema_version > 0),
     ADD COLUMN category varchar(20) CHECK (category IN ('business', 'security')),
@@ -24,9 +24,18 @@ ALTER TABLE action_logs
     ADD COLUMN subjects jsonb NOT NULL DEFAULT '[]',
     ADD COLUMN changes jsonb NOT NULL DEFAULT '[]',
     ADD COLUMN fingerprint varchar(64),
-    ADD CONSTRAINT action_logs_tenant_event_key UNIQUE (tenant_id, event_id),
     ADD CONSTRAINT action_logs_legacy_request CHECK (event_type IS NOT NULL OR (method IS NOT NULL AND path IS NOT NULL AND user_agent IS NOT NULL AND ip IS NOT NULL)),
     ADD CONSTRAINT action_logs_event_complete CHECK (event_type IS NULL OR (schema_version IS NOT NULL AND category IS NOT NULL AND occurred_at IS NOT NULL AND created_at IS NOT NULL AND actor_kind IS NOT NULL AND actor_id IS NOT NULL AND actor_snapshot IS NOT NULL AND channel IS NOT NULL AND operation_id IS NOT NULL AND outcome IS NOT NULL AND fingerprint IS NOT NULL));
+
+UPDATE
+    action_logs
+SET
+    event_id = gen_random_uuid ();
+
+ALTER TABLE action_logs
+    ALTER COLUMN event_id SET DEFAULT gen_random_uuid (),
+    ALTER COLUMN event_id SET NOT NULL,
+    ADD CONSTRAINT action_logs_tenant_event_key UNIQUE (tenant_id, event_id);
 
 CREATE INDEX action_logs_timeline_idx ON action_logs (tenant_id, COALESCE(occurred_at, created_at) DESC, event_id DESC);
 
@@ -74,7 +83,8 @@ CREATE TRIGGER action_logs_events_append_only
 DO $$
 BEGIN
     IF to_regclass('analytics.action_logs') IS NOT NULL THEN
-        CREATE OR REPLACE VIEW analytics.action_logs AS
+        DROP VIEW analytics.action_logs;
+        CREATE VIEW analytics.action_logs AS
         SELECT
             id,
             method,
@@ -103,7 +113,8 @@ COMMENT ON TABLE action_logs IS 'Business action history. Rows without event_typ
 DO $$
 BEGIN
     IF to_regclass('analytics.action_logs') IS NOT NULL THEN
-        CREATE OR REPLACE VIEW analytics.action_logs AS
+        DROP VIEW analytics.action_logs;
+        CREATE VIEW analytics.action_logs AS
         SELECT
             id,
             method,
@@ -128,8 +139,16 @@ DROP TRIGGER IF EXISTS action_logs_events_append_only ON action_logs;
 
 DROP FUNCTION IF EXISTS action_logs_events_append_only ();
 
-DELETE FROM action_logs
-WHERE event_type IS NOT NULL;
+UPDATE
+    action_logs
+SET
+    method = 'EVENT',
+    path = event_type,
+    user_agent = COALESCE(user_agent, ''),
+    ip = COALESCE(ip, ''),
+    after = to_jsonb(action_logs.*) - ARRAY['id', 'tenant_id', 'method', 'path', 'user_id', 'after', 'before', 'user_agent', 'ip', 'created_at']
+WHERE
+    event_type IS NOT NULL;
 
 COMMENT ON TABLE action_logs IS NULL;
 

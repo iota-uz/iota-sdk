@@ -352,6 +352,18 @@ func TestBusinessEventRepository_AppendRequiresBusinessTransaction(t *testing.T)
 	require.ErrorIs(t, err, history.ErrPersistenceFailed)
 }
 
+func TestBusinessEventRepository_AppendRejectsForeignTenant(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	err := persistence.NewBusinessEventRepository().Append(f.Ctx, businessevent.Event{
+		ID: uuid.New(), TenantID: uuid.New(), Actor: ptr(businessevent.SystemActor("scheduler", "Scheduler")),
+	})
+	require.ErrorContains(t, err, "does not match the request tenant")
+	var count int
+	require.NoError(t, f.Tx.QueryRow(f.Ctx, `SELECT count(*) FROM action_logs WHERE event_type IS NOT NULL`).Scan(&count))
+	require.Zero(t, count)
+}
+
 func ptr[T any](v T) *T {
 	return &v
 }
