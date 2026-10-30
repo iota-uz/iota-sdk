@@ -241,6 +241,17 @@ func TestNotificationSettings_RecipientsArePaged(t *testing.T) {
 	require.Equal(t, "Person 21", second.Items[0].Name)
 }
 
+// Falsely green if the limit sat above the request: the fake records any query that reaches it.
+func TestNotificationSettings_RecipientsRejectOversizedSearch(t *testing.T) {
+	directory := &settingsDirectory{}
+	service := services.NewNotificationRoutingService(notifications.NewCatalog(), &settingsRuleRepo{}, &settingsUsersRepo{}, nil, settingsAudienceRepo{}, directory)
+	c := controllers.NewNotificationSettingsController().(*controllers.NotificationSettingsController)
+	response := httptest.NewRecorder()
+	c.Recipients(response, settingsRequest(t, http.MethodGet, "/settings/notifications/recipients?q="+strings.Repeat("a", 101), permissions.NotificationRulesManage), service)
+	require.Equal(t, http.StatusBadRequest, response.Code)
+	require.Empty(t, directory.searched)
+}
+
 // Falsely green if the check only hid the picker: the endpoint itself refuses.
 func TestNotificationSettings_RecipientsRequireManage(t *testing.T) {
 	directory := &settingsDirectory{allowed: []notifications.Recipient{{ID: 1, Name: "Hidden Person"}}}

@@ -222,7 +222,7 @@ lang := pageCtx.GetLocale().String()
 									/>
 								}
 							</div>
-							<div x-show="open && results.length" x-cloak class="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-secondary bg-surface-300 py-1 shadow-lg" role="listbox">
+							<div x-show="open && (results.length || (peopleHasMore && peopleQuery === q.trim()))" x-cloak class="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-secondary bg-surface-300 py-1 shadow-lg" role="listbox">
 								<template x-for="(o, i) in results" :key="o.kind + o.id">
 									<div>
 										<div x-show="i === 0 || (results[i - 1].kind === 'user') !== (o.kind === 'user')" class="px-3 pb-1 pt-2 text-xs font-medium text-200" x-text="label(o.kind === 'user' ? 'people' : 'groups')"></div>
@@ -250,6 +250,16 @@ lang := pageCtx.GetLocale().String()
 										</button>
 									</div>
 								</template>
+								<button
+									type="button"
+									x-show="peopleHasMore && peopleQuery === q.trim() && !results.some((o) => o.kind === 'user')"
+									@mousedown.prevent
+									@click="loadMorePeople()"
+									class="w-full px-3 py-1.5 text-left text-sm text-primary hover:underline"
+									data-testid="notification-recipients-more"
+								>
+									{ pageCtx.T("NotificationSettings.ShowMore") }
+								</button>
 							</div>
 							<p x-show="open && q && !results.length && !peopleLoading && !peopleFailed" x-cloak class="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-secondary bg-surface-300 px-3 py-3 text-sm text-200 shadow-lg">{ pageCtx.T("NotificationSettings.NothingFound") }</p>
 							<p x-show="open && peopleFailed" x-cloak role="alert" class="mt-2 text-sm text-red-600" data-testid="notification-recipients-failed">{ pageCtx.T("NotificationSettings.RecipientsLoadFailed") }</p>

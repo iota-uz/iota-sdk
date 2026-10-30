@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"unicode/utf8"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
@@ -21,6 +22,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
+
+const maxRecipientSearchLength = 100
 
 type NotificationSettingsController struct{}
 
@@ -130,11 +133,16 @@ func (c *NotificationSettingsController) Recipients(w http.ResponseWriter, r *ht
 		RenderForbidden(w, r)
 		return
 	}
+	search := r.URL.Query().Get("q")
+	if utf8.RuneCountInString(search) > maxRecipientSearchLength {
+		http.Error(w, "Search is too long", http.StatusBadRequest)
+		return
+	}
 	offset, err := strconv.Atoi(r.URL.Query().Get("offset"))
 	if err != nil || offset < 0 {
 		offset = 0
 	}
-	page, err := s.SearchRecipients(r.Context(), r.URL.Query().Get("q"), offset)
+	page, err := s.SearchRecipients(r.Context(), search, offset)
 	if err != nil {
 		composables.UseLogger(r.Context()).WithError(err).Error("failed to search notification recipients")
 		http.Error(w, "Unable to load recipients", http.StatusInternalServerError)

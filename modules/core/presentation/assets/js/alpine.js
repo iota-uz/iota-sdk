@@ -2581,7 +2581,8 @@ let notificationRule = (cfg = {}) => ({
     const taken = new Set(this.items.map((i) => i.kind + ":" + i.id));
     const free = (o) => !taken.has(o.kind + ":" + o.id);
     const audience = this.options.filter((o) => free(o) && (!q || o.name.toLowerCase().includes(q)));
-    return [...this.people.filter(free), ...audience];
+    const people = this.peopleQuery === this.q.trim() ? this.people.filter(free) : [];
+    return [...people, ...audience];
   },
   async fetchPeople(query, offset) {
     const request = ++this.peopleRequest;
@@ -2599,10 +2600,12 @@ let notificationRule = (cfg = {}) => ({
     } catch (error) {
       if (request !== this.peopleRequest) return;
       console.error(error);
-      this.people = [];
-      this.peopleQuery = null;
-      this.peopleHasMore = false;
       this.peopleFailed = true;
+      if (!offset) {
+        this.people = [];
+        this.peopleQuery = null;
+        this.peopleHasMore = false;
+      }
     } finally {
       if (request === this.peopleRequest) this.peopleLoading = false;
     }
