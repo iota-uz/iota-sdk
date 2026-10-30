@@ -6,5 +6,13 @@
 		"Logs": {
 			"View": "Jurnalni ko'rish"
 		}
+	},
+	"BusinessHistory": {
+		"Events": {
+			"LegacyActionLog": {
+				"Title": "Avvalgi jurnaldagi amal",
+				"Summary": "Biznes tarixi paydo bo‘lgunga qadar avvalgi so‘rovlar jurnali tomonidan yozilgan. Ijrochining ismi va amalning biznes ma’nosi saqlanmagan."
+			}
+		}
 	}
 }

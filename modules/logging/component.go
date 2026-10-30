@@ -4,6 +4,8 @@ package logging
 import (
 	"embed"
 
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
+	"github.com/iota-uz/iota-sdk/modules/logging/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 )
 
@@ -25,5 +27,14 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
+	composition.ProvideFunc(builder, func() (*history.Registry, error) {
+		registry := history.NewRegistry()
+		if err := registry.Register(history.LegacyActionLogDefinition()); err != nil {
+			return nil, err
+		}
+		return registry, nil
+	})
+	composition.ProvideFunc(builder, persistence.NewBusinessEventRepository)
+	composition.ProvideFunc(builder, history.NewWriter)
 	return nil
 }

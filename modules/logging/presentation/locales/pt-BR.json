@@ -6,5 +6,13 @@
     "Logs": {
       "View": "Visualizar logs"
     }
+  },
+  "BusinessHistory": {
+    "Events": {
+      "LegacyActionLog": {
+        "Title": "Ação do registro anterior",
+        "Summary": "Registrada pelo antigo log de requisições antes do histórico de negócios. O nome do responsável e o significado de negócio da ação não foram capturados."
+      }
+    }
   }
 }

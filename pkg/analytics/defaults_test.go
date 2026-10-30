@@ -71,6 +71,10 @@ func TestDefaultTenantViews(t *testing.T) {
 		}
 
 		expectedSQL := "SELECT * FROM public." + tableName + " WHERE tenant_id = current_setting('app.tenant_id', true)::uuid"
+		if tableName == "action_logs" {
+			expectedSQL = "SELECT id, method, path, user_id, after, before, user_agent, ip, created_at, tenant_id FROM public.action_logs " +
+				"WHERE tenant_id = current_setting('app.tenant_id', true)::uuid AND event_type IS NULL"
+		}
 		if view.SQL != expectedSQL {
 			t.Errorf("view %q: incorrect SQL:\nexpected: %s\ngot:      %s", tableName, expectedSQL, view.SQL)
 		}
