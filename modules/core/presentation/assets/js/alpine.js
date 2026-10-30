@@ -2569,13 +2569,59 @@ let notificationRule = (cfg = {}) => ({
   open: false,
   hi: 0,
   dirty: false,
+  people: [],
+  peopleQuery: null,
+  peopleHasMore: false,
+  peopleLoading: false,
+  peopleFailed: false,
+  peopleRequest: 0,
+  peopleTimer: null,
   get results() {
     const q = this.q.trim().toLowerCase();
     const taken = new Set(this.items.map((i) => i.kind + ":" + i.id));
-    const rank = (o) => (o.kind === "user" ? 0 : 1);
-    return this.options
-      .filter((o) => !taken.has(o.kind + ":" + o.id) && (!q || (o.name + " " + (o.hint || "")).toLowerCase().includes(q)))
-      .sort((a, b) => rank(a) - rank(b));
+    const free = (o) => !taken.has(o.kind + ":" + o.id);
+    const audience = this.options.filter((o) => free(o) && (!q || o.name.toLowerCase().includes(q)));
+    const people = this.peopleQuery === this.q.trim() ? this.people.filter(free) : [];
+    return [...people, ...audience];
+  },
+  async fetchPeople(query, offset) {
+    const request = ++this.peopleRequest;
+    this.peopleLoading = true;
+    this.peopleFailed = false;
+    try {
+      const params = new URLSearchParams({ q: query, offset: String(offset) });
+      const response = await fetch(this.$root.dataset.recipientsUrl + "?" + params, { headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error("recipients: " + response.status);
+      const page = await response.json();
+      if (request !== this.peopleRequest) return;
+      this.people = offset ? [...this.people, ...page.items] : page.items;
+      this.peopleQuery = query;
+      this.peopleHasMore = page.has_more;
+    } catch (error) {
+      if (request !== this.peopleRequest) return;
+      console.error(error);
+      this.peopleFailed = true;
+      if (!offset) {
+        this.people = [];
+        this.peopleQuery = null;
+        this.peopleHasMore = false;
+      }
+    } finally {
+      if (request === this.peopleRequest) this.peopleLoading = false;
+    }
+  },
+  loadPeople() {
+    const query = this.q.trim();
+    if (query !== this.peopleQuery) this.fetchPeople(query, 0);
+    else this.peopleLoading = false;
+  },
+  searchPeople() {
+    clearTimeout(this.peopleTimer);
+    this.peopleLoading = true;
+    this.peopleTimer = setTimeout(() => this.loadPeople(), 250);
+  },
+  loadMorePeople() {
+    if (!this.peopleLoading) this.fetchPeople(this.peopleQuery || "", this.people.length);
   },
   field(kind) {
     return { user: "user_ids", group: "group_ids", role: "role_ids" }[kind];
@@ -2591,6 +2637,8 @@ let notificationRule = (cfg = {}) => ({
     this.q = "";
     this.hi = 0;
     this.dirty = true;
+    clearTimeout(this.peopleTimer);
+    this.loadPeople();
     this.$nextTick(() => this.$refs.input && this.$refs.input.focus());
   },
   remove(i) {

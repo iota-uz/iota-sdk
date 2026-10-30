@@ -60,14 +60,17 @@ type ModuleOptions struct {
 	// DisableNotificationWorker leaves durable jobs for a dedicated worker process.
 	DisableNotificationWorker bool
 	// NotificationEvents registers application-owned events in the settings catalog.
-	NotificationEvents       []notifications.Definition
-	PermissionSchema         *rbac.PermissionSchema
-	UploadsAuthorizer        types.UploadsAuthorizer
-	DefaultTenantID          uuid.UUID
-	LoginControllerOptions   *controllers.LoginControllerOptions
-	DashboardLinkPermissions []permission.Permission
-	SettingsLinkPermissions  []permission.Permission
-	UserControllerOptions    []controllers.UserControllerOption
+	NotificationEvents []notifications.Definition
+	// NotificationRecipientGroups limits individually pickable notification
+	// recipients to members of these groups. Empty means every active user.
+	NotificationRecipientGroups []uuid.UUID
+	PermissionSchema            *rbac.PermissionSchema
+	UploadsAuthorizer           types.UploadsAuthorizer
+	DefaultTenantID             uuid.UUID
+	LoginControllerOptions      *controllers.LoginControllerOptions
+	DashboardLinkPermissions    []permission.Permission
+	SettingsLinkPermissions     []permission.Permission
+	UserControllerOptions       []controllers.UserControllerOption
 	// SkipAdminControllers suppresses registration of the admin-facing
 	// controllers (dashboard, users, roles, groups, settings, sessions,
 	// spotlight, websocket). Auth controllers (login, logout, two-factor,
@@ -135,6 +138,9 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewNotificationRepository)
 	composition.ProvideFunc(builder, persistence.NewNotificationRuleRepository)
 	composition.ProvideFunc(builder, persistence.NewNotificationAudienceRepository)
+	composition.ProvideFunc(builder, func() notifications.RecipientDirectory {
+		return persistence.NewNotificationRecipientDirectory(c.options.NotificationRecipientGroups...)
+	})
 	composition.ProvideFunc(builder, persistence.NewNotificationDispatchRepository)
 	composition.ProvideFunc(builder, persistence.NewRoleRepository)
 	composition.ProvideFunc(builder, persistence.NewTenantRepository)

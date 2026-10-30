@@ -17,19 +17,28 @@ type NotificationDelivery interface {
 	Deliver(context.Context, notification.Notification) (notification.Notification, error)
 }
 type NotificationRecipients interface {
-	GetAll(context.Context) ([]user.User, error)
 	GetByIDs(context.Context, []uint) ([]user.User, error)
 }
-type NotificationRoutingService struct {
-	catalog  *notifications.Catalog
-	rules    notifications.RuleRepository
-	users    NotificationRecipients
-	delivery NotificationDelivery
-	audience notifications.AudienceRepository
+
+// RecipientPage is one page of the recipient picker.
+type RecipientPage struct {
+	Items   []notifications.Recipient
+	HasMore bool
 }
 
-func NewNotificationRoutingService(catalog *notifications.Catalog, rules notifications.RuleRepository, users user.Repository, delivery NotificationDelivery, audience notifications.AudienceRepository) *NotificationRoutingService {
-	return &NotificationRoutingService{catalog: catalog, rules: rules, users: users, delivery: delivery, audience: audience}
+const recipientPageSize = 20
+
+type NotificationRoutingService struct {
+	catalog   *notifications.Catalog
+	rules     notifications.RuleRepository
+	users     NotificationRecipients
+	delivery  NotificationDelivery
+	audience  notifications.AudienceRepository
+	directory notifications.RecipientDirectory
+}
+
+func NewNotificationRoutingService(catalog *notifications.Catalog, rules notifications.RuleRepository, users user.Repository, delivery NotificationDelivery, audience notifications.AudienceRepository, directory notifications.RecipientDirectory) *NotificationRoutingService {
+	return &NotificationRoutingService{catalog: catalog, rules: rules, users: users, delivery: delivery, audience: audience, directory: directory}
 }
 func (s *NotificationRoutingService) Catalog() *notifications.Catalog { return s.catalog }
 func (s *NotificationRoutingService) Rule(ctx context.Context, key string) (notifications.Rule, error) {
@@ -43,8 +52,22 @@ func (s *NotificationRoutingService) Rule(ctx context.Context, key string) (noti
 	}
 	return rule, nil
 }
-func (s *NotificationRoutingService) Recipients(ctx context.Context) ([]user.User, error) {
-	return s.users.GetAll(ctx)
+
+// SearchRecipients returns one page of the people a rule can name individually.
+func (s *NotificationRoutingService) SearchRecipients(ctx context.Context, search string, offset int) (RecipientPage, error) {
+	items, err := s.directory.Search(ctx, notifications.RecipientQuery{Search: search, Limit: recipientPageSize + 1, Offset: offset})
+	if err != nil {
+		return RecipientPage{}, err
+	}
+	if len(items) > recipientPageSize {
+		return RecipientPage{Items: items[:recipientPageSize], HasMore: true}, nil
+	}
+	return RecipientPage{Items: items}, nil
+}
+
+// RecipientsByIDs returns the available people among ids.
+func (s *NotificationRoutingService) RecipientsByIDs(ctx context.Context, ids []uint) ([]notifications.Recipient, error) {
+	return s.directory.GetByIDs(ctx, ids)
 }
 func (s *NotificationRoutingService) SaveRule(ctx context.Context, rule notifications.Rule) error {
 	const op = "NotificationRoutingService.SaveRule"
@@ -95,6 +118,13 @@ func (s *NotificationRoutingService) SaveRule(ctx context.Context, rule notifica
 			return serrors.New(serrors.Invalid, "invalid recipient").WithOp(op)
 		}
 	}
+	available, err := s.directory.GetByIDs(ctx, rule.UserIDs)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	if len(available) != len(rule.UserIDs) {
+		return serrors.New(serrors.Invalid, "invalid recipient").WithOp(op)
+	}
 	if err := s.validateAudience(ctx, rule); err != nil {
 		return serrors.Wrap(op, err)
 	}
@@ -143,7 +173,14 @@ func (s *NotificationRoutingService) ResolveRecipients(ctx context.Context, even
 	if !rule.Enabled {
 		return rule, nil, nil
 	}
-	ids := append([]uint{}, rule.UserIDs...)
+	named, err := s.directory.GetByIDs(ctx, rule.UserIDs)
+	if err != nil {
+		return rule, nil, serrors.Wrap(op, err)
+	}
+	ids := make([]uint, 0, len(named))
+	for _, recipient := range named {
+		ids = append(ids, recipient.ID)
+	}
 	if len(rule.GroupIDs)+len(rule.RoleIDs) > 0 {
 		resolved, err := s.audience.Resolve(ctx, rule.GroupIDs, rule.RoleIDs)
 		if err != nil {

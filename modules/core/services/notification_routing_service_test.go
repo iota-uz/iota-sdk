@@ -55,6 +55,22 @@ func (d *deliveryStub) Deliver(_ context.Context, n notification.Notification) (
 	d.count++
 	return n, nil
 }
+
+type directoryStub struct{ allowed map[uint]bool }
+
+func (d directoryStub) Search(context.Context, notifications.RecipientQuery) ([]notifications.Recipient, error) {
+	return nil, nil
+}
+func (d directoryStub) GetByIDs(_ context.Context, ids []uint) ([]notifications.Recipient, error) {
+	result := []notifications.Recipient{}
+	for _, id := range ids {
+		if d.allowed[id] {
+			result = append(result, notifications.Recipient{ID: id})
+		}
+	}
+	return result, nil
+}
+
 func routingFixture(t *testing.T) (context.Context, *NotificationRoutingService, *ruleStub, *deliveryStub) {
 	t.Helper()
 	tenant := uuid.New()
@@ -66,7 +82,7 @@ func routingFixture(t *testing.T) (context.Context, *NotificationRoutingService,
 	email, err := internet.NewEmail("recipient@example.com")
 	require.NoError(t, err)
 	users := recipientsStub{users: []user.User{user.New("Recipient", "User", email, user.UILanguage("ru"), user.WithID(1), user.WithTenantID(tenant))}}
-	return ctx, &NotificationRoutingService{catalog: catalog, rules: rules, users: users, delivery: delivery}, rules, delivery
+	return ctx, &NotificationRoutingService{catalog: catalog, rules: rules, users: users, delivery: delivery, directory: directoryStub{allowed: map[uint]bool{1: true}}}, rules, delivery
 }
 func TestNotificationRoutingPublish(t *testing.T) {
 	for _, scenario := range []string{"enabled", "disabled", "cross tenant", "empty identity", "blocked", "delivery failure"} {
@@ -151,4 +167,16 @@ func TestNotificationRoutingSemanticRecipientsAndGuard(t *testing.T) {
 	rule.RecipientKeys = []string{"creator"}
 	rule.Level = "critical"
 	require.Error(t, s.SaveRule(ctx, rule))
+}
+
+// Falsely green if the rule's named person is also reachable through a stubbed
+// group or recipient key: this rule names only the person outside the directory.
+func TestResolveRecipients_DropsPeopleOutsideTheDirectory(t *testing.T) {
+	ctx, s, rules, _ := routingFixture(t)
+	rules.rule.UserIDs = []uint{1, 2}
+	tenant, err := composables.UseTenantID(ctx)
+	require.NoError(t, err)
+	_, ids, err := s.ResolveRecipients(ctx, notifications.Event{Key: notifications.TestEventKey, ID: uuid.NewString(), TenantID: tenant})
+	require.NoError(t, err)
+	require.Equal(t, []uint{1}, ids)
 }

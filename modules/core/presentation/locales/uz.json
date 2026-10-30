@@ -1531,6 +1531,8 @@
     "Retry": "Hozir qayta urinish",
     "ReadOnly": "Siz sozlamalarni ko‘rishingiz mumkin. Ularni faqat administratorlar o‘zgartira oladi.",
     "AddRecipient": "Odam, guruh yoki rol qo‘shing…",
+    "ShowMore": "Yana ko‘rsatish",
+    "RecipientsLoadFailed": "Odamlarni yuklab bo‘lmadi. Qayta urinib ko‘ring.",
     "People": "Odamlar",
     "GroupsAndRoles": "Guruhlar va rollar",
     "GroupLabel": "guruh",

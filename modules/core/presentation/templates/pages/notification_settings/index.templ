@@ -44,6 +44,20 @@ type pickerItem struct {
 	Gone bool   `json:"gone,omitempty"`
 }
 
+// RecipientPage is the JSON body of the picker's people search.
+type RecipientPage struct {
+	Items   []pickerItem `json:"items"`
+	HasMore bool         `json:"has_more"`
+}
+
+func NewRecipientPage(recipients []notifications.Recipient, hasMore bool) RecipientPage {
+	page := RecipientPage{Items: make([]pickerItem, 0, len(recipients)), HasMore: hasMore}
+	for _, r := range recipients {
+		page.Items = append(page.Items, pickerItem{Kind: "user", ID: strconv.FormatUint(uint64(r.ID), 10), Name: r.Name, Hint: r.Hint})
+	}
+	return page
+}
+
 type pickerConfig struct {
 	Items   []pickerItem `json:"items"`
 	Options []pickerItem `json:"options"`
@@ -63,7 +77,6 @@ func pickerData(props *Props, e EventRule, unavailable string) string {
 	cfg := pickerConfig{Manage: props.CanManage, Items: []pickerItem{}, Options: []pickerItem{}}
 	for _, r := range props.Recipients {
 		id := strconv.FormatUint(uint64(r.ID), 10)
-		cfg.Options = append(cfg.Options, pickerItem{Kind: "user", ID: id, Name: r.Name, Hint: r.Hint})
 		if selected(e.Rule.UserIDs, r.ID) {
 			cfg.Items = append(cfg.Items, pickerItem{Kind: "user", ID: id, Name: r.Name, Hint: r.Hint})
 		}
@@ -135,6 +148,7 @@ lang := pageCtx.GetLocale().String()
 				hx-target="#notification-settings"
 				hx-swap="outerHTML"
 				x-data={ pickerData(props, event, pageCtx.T("NotificationSettings.Unavailable")) }
+				data-recipients-url="/settings/notifications/recipients"
 				data-label-group={ pageCtx.T("NotificationSettings.GroupLabel") }
 				data-label-role={ pageCtx.T("NotificationSettings.RoleLabel") }
 				data-label-people={ pageCtx.T("NotificationSettings.People") }
@@ -197,18 +211,19 @@ lang := pageCtx.GetLocale().String()
 										x-model="q"
 										type="text"
 										autocomplete="off"
+										maxlength="100"
 										role="combobox"
 										aria-expanded="false"
 										:aria-expanded="open"
 										placeholder={ pageCtx.T("NotificationSettings.AddRecipient") }
 										class="h-7 min-w-32 flex-1 border-0 bg-transparent px-1 text-sm outline-none placeholder:text-200 focus:ring-0"
-										@focus="open = true"
-										@input="open = true; hi = 0"
+										@focus="open = true; loadPeople()"
+										@input="open = true; hi = 0; searchPeople()"
 										@keydown="key($event)"
 									/>
 								}
 							</div>
-							<div x-show="open && results.length" x-cloak class="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-secondary bg-surface-300 py-1 shadow-lg" role="listbox">
+							<div x-show="open && (results.length || (peopleHasMore && peopleQuery === q.trim()))" x-cloak class="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-secondary bg-surface-300 py-1 shadow-lg" role="listbox">
 								<template x-for="(o, i) in results" :key="o.kind + o.id">
 									<div>
 										<div x-show="i === 0 || (results[i - 1].kind === 'user') !== (o.kind === 'user')" class="px-3 pb-1 pt-2 text-xs font-medium text-200" x-text="label(o.kind === 'user' ? 'people' : 'groups')"></div>
@@ -224,10 +239,31 @@ lang := pageCtx.GetLocale().String()
 											<span x-text="o.name"></span>
 											<span class="text-xs text-200" x-show="o.hint" x-text="o.hint"></span>
 										</button>
+										<button
+											type="button"
+											x-show="peopleHasMore && o.kind === 'user' && (i === results.length - 1 || results[i + 1].kind !== 'user')"
+											@mousedown.prevent
+											@click="loadMorePeople()"
+											class="w-full px-3 py-1.5 text-left text-sm text-primary hover:underline"
+											data-testid="notification-recipients-more"
+										>
+											{ pageCtx.T("NotificationSettings.ShowMore") }
+										</button>
 									</div>
 								</template>
+								<button
+									type="button"
+									x-show="peopleHasMore && peopleQuery === q.trim() && !results.some((o) => o.kind === 'user')"
+									@mousedown.prevent
+									@click="loadMorePeople()"
+									class="w-full px-3 py-1.5 text-left text-sm text-primary hover:underline"
+									data-testid="notification-recipients-more"
+								>
+									{ pageCtx.T("NotificationSettings.ShowMore") }
+								</button>
 							</div>
-							<p x-show="open && q && !results.length" x-cloak class="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-secondary bg-surface-300 px-3 py-3 text-sm text-200 shadow-lg">{ pageCtx.T("NotificationSettings.NothingFound") }</p>
+							<p x-show="open && q && !results.length && !peopleLoading && !peopleFailed && !peopleHasMore" x-cloak class="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-secondary bg-surface-300 px-3 py-3 text-sm text-200 shadow-lg">{ pageCtx.T("NotificationSettings.NothingFound") }</p>
+							<p x-show="open && peopleFailed" x-cloak role="alert" class="mt-2 text-sm text-red-600" data-testid="notification-recipients-failed">{ pageCtx.T("NotificationSettings.RecipientsLoadFailed") }</p>
 						</div>
 						<p class="mt-2 text-sm text-200">{ pageCtx.T("NotificationSettings.AudienceHint") }</p>
 						if event.MissingRecipients > 0 {

@@ -1,16 +1,16 @@
 package controllers
 
 import (
+	"encoding/json"
 	"net/http"
 	"sort"
 	"strconv"
-	"strings"
+	"unicode/utf8"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	settings "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/notification_settings"
@@ -22,6 +22,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
+
+const maxRecipientSearchLength = 100
 
 type NotificationSettingsController struct{}
 
@@ -36,17 +38,14 @@ func (c *NotificationSettingsController) Register(r *mux.Router) {
 	router.Use(middleware.Authorize(), middleware.RedirectNotAuthenticated(), middleware.ProvideUser(), middleware.ProvideDynamicLogo(), middleware.NavItems(), middleware.WithPageContext())
 	router.HandleFunc("", di.H(c.Index)).Methods(http.MethodGet)
 	router.HandleFunc("", di.H(c.Save)).Methods(http.MethodPost)
+	router.HandleFunc("/recipients", di.H(c.Recipients)).Methods(http.MethodGet)
 	router.HandleFunc("/queue", di.H(c.Queue)).Methods(http.MethodGet)
 	router.HandleFunc("/queue/{id}/retry", di.H(c.Retry)).Methods(http.MethodPost)
 	router.HandleFunc("/test", di.H(c.Test)).Methods(http.MethodPost)
 }
 func (c *NotificationSettingsController) render(w http.ResponseWriter, r *http.Request, s *services.NotificationRoutingService, message string, delivered int) {
-	users, err := s.Recipients(r.Context())
-	if err != nil {
-		http.Error(w, "Unable to load recipients", http.StatusInternalServerError)
-		return
-	}
 	props := &settings.Props{CanManage: composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) == nil, MessageKey: message, Delivered: delivered}
+	var err error
 	props.Groups, err = s.Groups(r.Context())
 	if err != nil {
 		http.Error(w, "Unable to load groups", http.StatusInternalServerError)
@@ -57,26 +56,30 @@ func (c *NotificationSettingsController) render(w http.ResponseWriter, r *http.R
 		http.Error(w, "Unable to load roles", http.StatusInternalServerError)
 		return
 	}
-	tenant, err := composables.UseTenantID(r.Context())
-	if err != nil {
-		http.Error(w, "Unable to load tenant", http.StatusInternalServerError)
-		return
-	}
-	for _, u := range users {
-		if u.TenantID() == tenant && !u.IsBlocked() && u.Type() == user.TypeUser && u.Status() == user.StatusActive {
-			props.Recipients = append(props.Recipients, settings.Recipient{ID: u.ID(), Name: strings.TrimSpace(u.FirstName() + " " + u.LastName()), Hint: u.Email().Value()})
-		}
-	}
-	available := make(map[uint]bool, len(props.Recipients))
-	for _, recipient := range props.Recipients {
-		available[recipient.ID] = true
-	}
-	for _, d := range s.Catalog().Definitions() {
+	definitions := s.Catalog().Definitions()
+	rules := make(map[string]notifications.Rule, len(definitions))
+	var named []uint
+	for _, d := range definitions {
 		rule, err := s.Rule(r.Context(), d.Key)
 		if err != nil {
 			http.Error(w, "Unable to load notification settings", http.StatusInternalServerError)
 			return
 		}
+		rules[d.Key] = rule
+		named = append(named, rule.UserIDs...)
+	}
+	recipients, err := s.RecipientsByIDs(r.Context(), named)
+	if err != nil {
+		http.Error(w, "Unable to load recipients", http.StatusInternalServerError)
+		return
+	}
+	available := make(map[uint]bool, len(recipients))
+	for _, recipient := range recipients {
+		props.Recipients = append(props.Recipients, settings.Recipient{ID: recipient.ID, Name: recipient.Name, Hint: recipient.Hint})
+		available[recipient.ID] = true
+	}
+	for _, d := range definitions {
+		rule := rules[d.Key]
 		missing := 0
 		groups := map[uuid.UUID]bool{}
 		for _, g := range props.Groups {
@@ -121,6 +124,34 @@ func (c *NotificationSettingsController) Index(w http.ResponseWriter, r *http.Re
 		return
 	}
 	c.render(w, r, s, "", 0)
+}
+
+// Recipients serves one page of the rule picker's people. Only managers edit
+// rules, so read-only users have no reason to list the directory.
+func (c *NotificationSettingsController) Recipients(w http.ResponseWriter, r *http.Request, s *services.NotificationRoutingService) {
+	if composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) != nil {
+		RenderForbidden(w, r)
+		return
+	}
+	search := r.URL.Query().Get("q")
+	if utf8.RuneCountInString(search) > maxRecipientSearchLength {
+		http.Error(w, "Search is too long", http.StatusBadRequest)
+		return
+	}
+	offset, err := strconv.Atoi(r.URL.Query().Get("offset"))
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+	page, err := s.SearchRecipients(r.Context(), search, offset)
+	if err != nil {
+		composables.UseLogger(r.Context()).WithError(err).Error("failed to search notification recipients")
+		http.Error(w, "Unable to load recipients", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(settings.NewRecipientPage(page.Items, page.HasMore)); err != nil {
+		composables.UseLogger(r.Context()).WithError(err).Error("failed to write notification recipients")
+	}
 }
 func (c *NotificationSettingsController) Save(w http.ResponseWriter, r *http.Request, s *services.NotificationRoutingService) {
 	if composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) != nil {
