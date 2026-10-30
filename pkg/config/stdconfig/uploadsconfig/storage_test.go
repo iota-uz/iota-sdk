@@ -70,6 +70,10 @@ func TestStorageConfig_Validate(t *testing.T) {
 			"upload.storage.backend": "s3", "upload.s3.bucket": "b", "upload.s3.access.key": "a", "upload.s3.secret.key": "s",
 		}},
 		{name: "s3 primary without settings", values: map[string]any{"upload.storage.backend": "s3", "upload.s3.bucket": "b"}, wantErr: "UPLOAD_S3_ACCESS_KEY, UPLOAD_S3_SECRET_KEY"},
+		{name: "fs with partial s3", values: map[string]any{
+			"upload.storage.backend": "fs", "upload.s3.bucket": "b", "upload.s3.endpoint": "minio:9000",
+		}, wantErr: "partial S3 upload configuration: missing UPLOAD_S3_ACCESS_KEY, UPLOAD_S3_SECRET_KEY"},
+		{name: "fs with s3 endpoint only", values: map[string]any{"upload.storage.backend": "fs", "upload.s3.endpoint": "minio:9000"}},
 		{name: "unknown backend", values: map[string]any{"upload.storage.backend": "gcs"}, wantErr: "unsupported UPLOAD_STORAGE_BACKEND"},
 	}
 	for _, tt := range tests {

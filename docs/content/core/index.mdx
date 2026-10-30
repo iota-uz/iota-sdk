@@ -298,6 +298,16 @@ through the authenticated `GET /uploads/{id}` route, never by the public file
 handler. Modules stream a stored file with `UploadService.OpenReader(ctx, path)`
 after their own permission check.
 
+Stored S3 paths embed the bucket name, and only the configured bucket is
+readable: changing `UPLOAD_S3_BUCKET` makes existing `s3://` uploads
+unreadable until the original value is restored.
+
+Upgrading: the core upload storage now depends on `*uploadsconfig.StorageConfig`
+as well as `*uploadsconfig.Config`. Compositions built with a config Source get
+it automatically; a composition without a Source must also provide one, for
+example `composition.Provide[*uploadsconfig.StorageConfig](builder, &uploadsconfig.StorageConfig{})`
+for filesystem-only uploads; otherwise `Compile` fails with `ErrNotProvided`.
+
 ## Usage
 
 The Core component is included in `modules.Components()` and is usually loaded by registering the full component list with `composition.NewEngine()`, then compiling with the capabilities your process needs.

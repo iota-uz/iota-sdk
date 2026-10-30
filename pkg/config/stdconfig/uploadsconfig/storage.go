@@ -31,6 +31,10 @@ type StorageBackendConfig struct {
 }
 
 // S3Config holds S3-compatible (MinIO, AWS) connection settings.
+//
+// Stored paths embed the bucket name (s3://<bucket>/<key>) and only paths of
+// the configured bucket are readable. Changing UPLOAD_S3_BUCKET makes every
+// existing s3:// upload unreadable; restoring the original value restores access.
 type S3Config struct {
 	Endpoint string           `koanf:"endpoint"`
 	Bucket   string           `koanf:"bucket"`
@@ -88,6 +92,10 @@ func (c StorageConfig) S3Configured() bool {
 func (c *StorageConfig) Validate() error {
 	switch c.Backend() {
 	case BackendFS:
+		// S3 stays optional with the filesystem primary, but half of it is a typo.
+		if c.S3.anySet() && !c.S3.IsConfigured() {
+			return fmt.Errorf("partial S3 upload configuration: missing %s", c.S3.MissingFields())
+		}
 	case BackendS3:
 		if !c.S3.IsConfigured() {
 			return fmt.Errorf("UPLOAD_STORAGE_BACKEND=s3 requires %s", c.S3.MissingFields())
@@ -119,6 +127,10 @@ func (c S3Config) MissingFields() string {
 		missing = append(missing, "UPLOAD_S3_SECRET_KEY")
 	}
 	return strings.Join(missing, ", ")
+}
+
+func (c S3Config) anySet() bool {
+	return strings.TrimSpace(c.Bucket) != "" || strings.TrimSpace(c.Access.Key) != "" || strings.TrimSpace(c.Secret.Key) != ""
 }
 
 // ForcePathStyle reports whether bucket names go into the URL path (MinIO) instead of the host.

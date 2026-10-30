@@ -204,18 +204,7 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 				return nil, err
 			}
 			if existing != nil {
-				previousPath := up.Path()
-				existingPreviousPath := existing.Path()
-				up.SetSlug(up.Hash())
-				existing.SetSlug(entity.Slug())
-				if err := s.repo.Update(ctx, up); err != nil {
-					return nil, err
-				} else if err := s.repo.Update(ctx, existing); err != nil {
-					return nil, err
-				}
-				if err := s.storage.Rename(ctx, previousPath, up.Path()); err != nil {
-					return nil, err
-				} else if err := s.storage.Rename(ctx, existingPreviousPath, existing.Path()); err != nil {
+				if err := s.moveSlugToExisting(ctx, up, existing, entity.Slug()); err != nil {
 					return nil, err
 				}
 				up = existing
@@ -257,6 +246,47 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 	}
 	s.publisher.Publish(createdEvent)
 	return createdEntity, nil
+}
+
+// moveSlugToExisting gives slug to existing and parks holder under its own hash.
+// Objects move before the rows and every step is undone on failure, so a failed
+// step never leaves a row pointing at an object that has moved.
+func (s *UploadService) moveSlugToExisting(ctx context.Context, holder, existing upload.Upload, slug string) error {
+	const op serrors.Op = "UploadService.moveSlugToExisting"
+	holderPath, existingPath := holder.Path(), existing.Path()
+	holderSlug, existingSlug := holder.Slug(), existing.Slug()
+	holder.SetSlug(holder.Hash())
+	existing.SetSlug(slug)
+	holderTarget, existingTarget := holder.Path(), existing.Path()
+	undoCtx := context.WithoutCancel(ctx)
+	restoreEntities := func() {
+		holder.SetSlug(holderSlug)
+		existing.SetSlug(existingSlug)
+	}
+
+	if err := s.storage.Rename(ctx, holderPath, holderTarget); err != nil {
+		restoreEntities()
+		return serrors.Wrap(op, err)
+	}
+	if err := s.storage.Rename(ctx, existingPath, existingTarget); err != nil {
+		restoreEntities()
+		return serrors.Wrap(op, errors.Join(err, s.storage.Rename(undoCtx, holderTarget, holderPath)))
+	}
+	undoRenames := func() error {
+		return errors.Join(
+			s.storage.Rename(undoCtx, existingTarget, existingPath),
+			s.storage.Rename(undoCtx, holderTarget, holderPath),
+		)
+	}
+	if err := s.repo.Update(ctx, holder); err != nil {
+		restoreEntities()
+		return serrors.Wrap(op, errors.Join(err, undoRenames()))
+	}
+	if err := s.repo.Update(ctx, existing); err != nil {
+		restoreEntities()
+		return serrors.Wrap(op, errors.Join(err, s.repo.Update(undoCtx, holder), undoRenames()))
+	}
+	return nil
 }
 
 func (s *UploadService) CreateMany(ctx context.Context, data []*upload.CreateDTO) ([]upload.Upload, error) {

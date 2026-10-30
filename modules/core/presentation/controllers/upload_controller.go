@@ -183,6 +183,13 @@ func (c *UploadController) Download(w http.ResponseWriter, r *http.Request) {
 		serrorhttp.WriteTextContext(ctx, w, err, http.StatusInternalServerError, nil)
 		return
 	}
+	// GetByID looks the row up by id alone; a foreign tenant's upload must
+	// look exactly like a missing one.
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil || entity.TenantID() != tenantID {
+		http.NotFound(w, r)
+		return
+	}
 	if !c.isPublicUploadPath(entity.Path()) {
 		http.NotFound(w, r)
 		return
@@ -198,9 +205,14 @@ func (c *UploadController) Download(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = body.Close() }()
 
-	contentType := info.ContentType
-	if contentType == "" && entity.Mimetype() != nil {
+	// The MIME type detected from the content at upload time beats the
+	// filesystem's extension-based guess.
+	contentType := ""
+	if entity.Mimetype() != nil {
 		contentType = entity.Mimetype().String()
+	}
+	if contentType == "" {
+		contentType = info.ContentType
 	}
 	if contentType == "" {
 		contentType = "application/octet-stream"

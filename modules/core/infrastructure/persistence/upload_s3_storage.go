@@ -222,7 +222,17 @@ func s3Endpoint(endpoint string, secure bool) (string, error) {
 	return endpoint, nil
 }
 
+// isS3NotFound reports a missing object. A missing bucket is a configuration
+// error and must not read as a missing file.
 func isS3NotFound(err error) bool {
+	var noSuchBucket *s3types.NoSuchBucket
+	if errors.As(err, &noSuchBucket) {
+		return false
+	}
+	var codeErr interface{ ErrorCode() string }
+	if errors.As(err, &codeErr) && codeErr.ErrorCode() == "NoSuchBucket" {
+		return false
+	}
 	var noSuchKey *s3types.NoSuchKey
 	var notFound *s3types.NotFound
 	if errors.As(err, &noSuchKey) || errors.As(err, &notFound) {
