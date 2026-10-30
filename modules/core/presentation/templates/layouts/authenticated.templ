@@ -359,7 +359,7 @@ templ NotificationBell() {
 
 templ NotificationBellCount(count int64) {
 	if count > 0 {
-		<span class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-surface-300" data-testid="notification-unread-count" title={ strconv.FormatInt(count, 10) }>{ notificationCountLabel(count) }</span>
+		<span class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-[color:oklch(var(--clr-surface-300))]" data-testid="notification-unread-count" title={ strconv.FormatInt(count, 10) }>{ notificationCountLabel(count) }</span>
 	}
 }
 
