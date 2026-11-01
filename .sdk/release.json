@@ -1,0 +1,30 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Add the business history store: a versioned event registry, action_logs extended into the business history table (append-only for new events, actor snapshots, redaction before storage), and a transactional idempotent writer; existing action_logs rows read as incomplete legacy events."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add the business history read service and the /admin/history page: system, resource and object journals with URL filters, an opaque cursor bound to filters, user and tenant, resource and field permissions applied before pagination, operation grouping and before/after diffs, plus a reusable history link shown on payments."
+    },
+    {
+      "bump": "major",
+      "summary": "Record business history from application services: finance, crm, hrm, projects, warehouse and core mutations write versioned events in their own transaction, with channel and actor taken from a trusted history.Execution set by the HTTP middleware, import runner, jobs, periodics and dbctl. Adds per-item import outcomes, a transactional outbox (business_event_deliveries) with retrying consumers and /system/info diagnostics, and a coverage matrix guarded by a test. History is on when the logging component is loaded; without it core provides a writer that records nothing. Breaking: wired service constructors take a history.Writer, product and order repositories return the created entity, and with the logging component loaded a wired service mutation without an execution context fails with reason execution_missing (wrap host entry points with history.SystemExecution, JobExecution, ImportExecution or WithExecution)."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add the shared MCP engine: typed tool registry, guarded prepare/apply changes with durable idempotency, execute on the pykernel runtime, chat adapter and the separate mcpgateway module."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add the shell capability contract (pkg/shell) and a separately deployed gbash shell worker module with per-run child processes, VFS isolation, budgets and a bounded queue."
+    },
+    {
+      "bump": "patch",
+      "summary": "Deliver unnamed-user notifications and expose migration status through the configured application database."
+    }
+  ],
+  "source": "50e0804fabcdf130521be0a6b90d292fd5ee95eb",
+  "version": "0.37.0"
+}
