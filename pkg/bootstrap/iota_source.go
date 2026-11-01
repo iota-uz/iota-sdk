@@ -165,6 +165,10 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 				supportedLanguages = application.DefaultSupportedLanguages()
 			}
 
+			dbCfg, err := config.Register[dbconfig.Config](reg)
+			if err != nil {
+				return nil, fmt.Errorf("bootstrap: load dbconfig from source: %w", err)
+			}
 			redisCfg, err := config.Register[redisconfig.Config](reg)
 			if err != nil {
 				return nil, fmt.Errorf("bootstrap: load redis config: %w", err)
@@ -176,6 +180,7 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 			app, err := application.New(&application.ApplicationOptions{
 
 				Pool:               rt.Pool,
+				DBConfig:           dbCfg,
 				Bundle:             rt.Bundle,
 				EventBus:           eventbus.NewEventPublisher(rt.Logger),
 				Logger:             rt.Logger,
