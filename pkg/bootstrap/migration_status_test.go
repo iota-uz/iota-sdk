@@ -43,6 +43,20 @@ func TestMigrationStatusReleasesConnections(t *testing.T) {
 	require.Zero(t, connections)
 }
 
+// Falsely green if the migration tracking table still exists before the status call.
+func TestMigrationStatusDoesNotCreateTable(t *testing.T) {
+	env := itf.Setup(t)
+	ctx := context.Background()
+	_, err := env.Pool.Exec(ctx, `DROP TABLE public.gorp_migrations`)
+	require.NoError(t, err)
+	manager := application.NewMigrationManager(env.Pool, dbconfig.Config{MigrationsDir: "migrations"}, logrus.New())
+	_, err = manager.Status(ctx)
+	require.Error(t, err)
+	var exists bool
+	require.NoError(t, env.Pool.QueryRow(ctx, `SELECT to_regclass('public.gorp_migrations') IS NOT NULL`).Scan(&exists))
+	require.False(t, exists)
+}
+
 // Falsely green if the fixture is not an applied migration in the test database.
 func TestIotaSourceReportsAppliedMigration(t *testing.T) {
 	env := itf.Setup(t)

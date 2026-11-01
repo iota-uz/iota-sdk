@@ -177,8 +177,8 @@ func (m *migrationManager) Status(ctx context.Context) ([]MigrationStatus, error
 		return nil, fmt.Errorf("failed to find migrations: %w", err)
 	}
 
-	// Get applied migrations from database
-	ms := migrate.MigrationSet{}
+	// Status must not race the migration runner by creating its tracking table.
+	ms := migrate.MigrationSet{DisableCreateTable: true}
 	records, err := ms.GetMigrationRecords(db, "postgres")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get migration records: %w", err)
