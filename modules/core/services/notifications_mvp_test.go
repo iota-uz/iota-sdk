@@ -49,8 +49,7 @@ func TestNotificationsMVP_UserCreatedWithoutName(t *testing.T) {
 	items, err := inbox.List(ctx, notification.FindParams{UnreadOnly: true})
 	require.NoError(t, err)
 	require.Len(t, items, 1)
-	require.NotEmpty(t, items[0].Body())
-	require.NotContains(t, items[0].Body(), "@generated.com")
+	require.Equal(t, fmt.Sprintf("#%d", created.ID()), items[0].Body())
 	require.Equal(t, fmt.Sprintf("/users/%d", created.ID()), items[0].ActionURL())
 }
 
