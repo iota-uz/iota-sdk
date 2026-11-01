@@ -45,10 +45,14 @@ func (h *NotificationHandler) OnUserCreated(event *user.CreatedEvent) {
 			actorID = actor.ID()
 		}
 	}
+	name := strings.TrimSpace(u.FirstName() + " " + u.LastName())
+	if name == "" {
+		name = fmt.Sprintf("#%d", u.ID())
+	}
 	err := h.publish(ctx, notifications.Event{
 		ActorUserID: actorID, OccurredAt: time.Now().UTC(), Subject: notifications.SubjectReference{Type: "user", ID: fmt.Sprint(u.ID())},
 		Key: "core.user.created.v1", ID: fmt.Sprintf("user-created:%d", u.ID()), TenantID: u.TenantID(),
-		Data: map[string]string{"user_id": fmt.Sprint(u.ID()), "name": strings.TrimSpace(u.FirstName() + " " + u.LastName())},
+		Data: map[string]string{"user_id": fmt.Sprint(u.ID()), "name": name},
 	})
 	if err != nil {
 		h.logger.WithError(err).WithField("tenant_id", u.TenantID()).WithField("user_id", u.ID()).Error("failed to persist user-created notifications")

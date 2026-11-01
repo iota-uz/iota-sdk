@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/handlers"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
@@ -19,8 +20,39 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
+
+// A phone-only account has no name and must still produce its notification.
+// Falsely green if a name is supplied or the notification rule has no recipient.
+func TestNotificationsMVP_UserCreatedWithoutName(t *testing.T) {
+	f := setupNotificationTest(t, permissions.UserCreate, permissions.UserRead)
+	for _, p := range []permission.Permission{permissions.UserCreate, permissions.UserRead} {
+		require.NoError(t, persistence.NewPermissionRepository().Save(f.Ctx, p))
+	}
+	actor, err := persistence.NewUserRepository(persistence.NewUploadRepository()).Create(f.Ctx, user.New("Business", "Admin", internet.MustParseEmail("notification-admin@example.com"), user.UILanguageEN,
+		user.WithTenantID(f.TenantID()), user.WithPermissions([]permission.Permission{permissions.UserCreate, permissions.UserRead})))
+	require.NoError(t, err)
+	f.User = actor
+	require.NoError(t, f.Tx.Commit(f.Ctx))
+	ctx := userCommittedCtx(f)
+	router := itf.GetService[services.NotificationRoutingService](f)
+	inbox := itf.GetService[services.NotificationService](f)
+	dispatch := itf.GetService[services.NotificationDispatchService](f)
+	require.NoError(t, router.SaveRule(ctx, notifications.Rule{EventKey: core.UserCreatedNotificationEvent, Enabled: true, UserIDs: []uint{actor.ID()}}))
+	created, err := persistence.NewUserRepository(persistence.NewUploadRepository()).Create(ctx, user.New("", "", internet.MustParseEmail("phone-only@generated.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
+	require.NoError(t, err)
+	handlers.NewNotificationHandler(f.Pool, dispatch, logrus.New()).OnUserCreated(user.NewCreatedEvent(ctx, created))
+	_, err = dispatch.Process(ctx)
+	require.NoError(t, err)
+	items, err := inbox.List(ctx, notification.FindParams{UnreadOnly: true})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.NotEmpty(t, items[0].Body())
+	require.NotContains(t, items[0].Body(), "@generated.com")
+	require.Equal(t, fmt.Sprintf("/users/%d", created.ID()), items[0].ActionURL())
+}
 
 func TestNotificationsMVP_UserCreationToInbox(t *testing.T) {
 	f := setupNotificationTest(t, permissions.UserCreate, permissions.UserRead)
