@@ -306,10 +306,20 @@
           "logic": "all"
         },
         {
+          "key": "logging.history",
+          "name": "NavigationLinks.BusinessHistory",
+          "href": "/admin/history",
+          "order": 7,
+          "permissions": [
+            "Logs.View"
+          ],
+          "logic": "all"
+        },
+        {
           "key": "core.system_info",
           "name": "NavigationLinks.SystemInfo",
           "href": "/system/info",
-          "order": 7,
+          "order": 8,
           "logic": "all"
         }
       ],
@@ -412,6 +422,23 @@
         "allowed_permissions": null,
         "permission_logic": ""
       }
+    },
+    {
+      "tr_key": "NavigationLinks.BusinessHistory",
+      "link": "/admin/history",
+      "access": {
+        "visibility": "restricted",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": [
+          "Logs.View"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Logs.View"
+      ]
     },
     {
       "tr_key": "NavigationLinks.CashflowStatement",
