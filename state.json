@@ -295,7 +295,7 @@
     "version": "0.37.0",
     "source": "50e0804fabcdf130521be0a6b90d292fd5ee95eb",
     "sha": "2130569beaf3775c135aa1390906d3db42a73527",
-    "phase": "testing",
+    "phase": "failed",
     "run_id": "41333372041"
   },
   "ready": {
