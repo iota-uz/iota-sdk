@@ -43,6 +43,40 @@ func TestMigrationStatusReleasesConnections(t *testing.T) {
 	require.Zero(t, connections)
 }
 
+// Falsely green if migration operations use a different application name from the one counted.
+func TestMigrationOperationsReleaseConnections(t *testing.T) {
+	for _, operation := range []string{"run", "rollback"} {
+		t.Run(operation, func(t *testing.T) {
+			env := itf.Setup(t)
+			ctx := context.Background()
+			_, err := env.Pool.Exec(ctx, `DROP TABLE public.gorp_migrations`)
+			require.NoError(t, err)
+			cfg := env.Pool.Config().Copy()
+			cfg.MinConns = 0
+			name := "sdk-migration-operation-" + operation
+			cfg.ConnConfig.RuntimeParams["application_name"] = name
+			pool, err := pgxpool.NewWithConfig(ctx, cfg)
+			require.NoError(t, err)
+			t.Cleanup(pool.Close)
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "9999999999.sql"), []byte("-- +migrate Up\nCREATE TABLE migration_connection_test (id int);\n-- +migrate Down\nDROP TABLE migration_connection_test;\n"), 0600))
+			manager := application.NewMigrationManager(pool, dbconfig.Config{MigrationsDir: dir}, logrus.New())
+			if operation == "rollback" {
+				require.NoError(t, manager.Run())
+			}
+			var before, after int
+			require.NoError(t, env.Pool.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE application_name = $1`, name).Scan(&before))
+			if operation == "run" {
+				require.NoError(t, manager.Run())
+			} else {
+				require.NoError(t, manager.Rollback())
+			}
+			require.NoError(t, env.Pool.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE application_name = $1`, name).Scan(&after))
+			require.Equal(t, before, after)
+		})
+	}
+}
+
 // Falsely green if the migration tracking table still exists before the status call.
 func TestMigrationStatusDoesNotCreateTable(t *testing.T) {
 	env := itf.Setup(t)

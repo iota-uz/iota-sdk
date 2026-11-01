@@ -127,6 +127,7 @@ func (m *migrationManager) applyMigrations(
 
 func (m *migrationManager) Run() error {
 	db := stdlib.OpenDB(*m.pool.Config().ConnConfig)
+	defer func() { _ = db.Close() }()
 	migrationSource := &migrate.FileMigrationSource{
 		Dir: m.migrationsDir,
 	}
@@ -146,6 +147,7 @@ func (m *migrationManager) Run() error {
 
 func (m *migrationManager) Rollback() error {
 	db := stdlib.OpenDB(*m.pool.Config().ConnConfig)
+	defer func() { _ = db.Close() }()
 	migrationSource := &migrate.FileMigrationSource{
 		Dir: m.migrationsDir,
 	}
