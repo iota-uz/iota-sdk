@@ -166,6 +166,7 @@ func (m *migrationManager) Rollback() error {
 // Status returns the status of all migrations (applied and pending)
 func (m *migrationManager) Status(ctx context.Context) ([]MigrationStatus, error) {
 	db := stdlib.OpenDB(*m.pool.Config().ConnConfig)
+	defer db.Close()
 	migrationSource := &migrate.FileMigrationSource{
 		Dir: m.migrationsDir,
 	}
