@@ -384,7 +384,7 @@ jobs:
 
   lint-and-format:
     runs-on: blacksmith-8vcpu-ubuntu-2404
-    timeout-minutes: 15
+    timeout-minutes: 30
     name: Code Quality & Formatting
 
     steps:

@@ -358,7 +358,7 @@ jobs:
       group: lint-and-format-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     name: Code Quality & Formatting
 
     steps:

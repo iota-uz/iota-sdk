@@ -127,6 +127,7 @@ func (m *migrationManager) applyMigrations(
 
 func (m *migrationManager) Run() error {
 	db := stdlib.OpenDB(*m.pool.Config().ConnConfig)
+	defer func() { _ = db.Close() }()
 	migrationSource := &migrate.FileMigrationSource{
 		Dir: m.migrationsDir,
 	}
@@ -146,6 +147,7 @@ func (m *migrationManager) Run() error {
 
 func (m *migrationManager) Rollback() error {
 	db := stdlib.OpenDB(*m.pool.Config().ConnConfig)
+	defer func() { _ = db.Close() }()
 	migrationSource := &migrate.FileMigrationSource{
 		Dir: m.migrationsDir,
 	}
@@ -166,6 +168,7 @@ func (m *migrationManager) Rollback() error {
 // Status returns the status of all migrations (applied and pending)
 func (m *migrationManager) Status(ctx context.Context) ([]MigrationStatus, error) {
 	db := stdlib.OpenDB(*m.pool.Config().ConnConfig)
+	defer func() { _ = db.Close() }()
 	migrationSource := &migrate.FileMigrationSource{
 		Dir: m.migrationsDir,
 	}
@@ -176,8 +179,8 @@ func (m *migrationManager) Status(ctx context.Context) ([]MigrationStatus, error
 		return nil, fmt.Errorf("failed to find migrations: %w", err)
 	}
 
-	// Get applied migrations from database
-	ms := migrate.MigrationSet{}
+	// Status must not race the migration runner by creating its tracking table.
+	ms := migrate.MigrationSet{DisableCreateTable: true}
 	records, err := ms.GetMigrationRecords(db, "postgres")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get migration records: %w", err)
