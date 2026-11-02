@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Write buffered Excel dates as numeric serials with the cached number style so large workbooks do not exhaust the 65,430 cell-style limit."
+    }
+  ],
+  "source": "037e21c40a0f39542da129af154456e9419d3a8b",
+  "version": "0.37.1"
+}
