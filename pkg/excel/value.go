@@ -207,3 +207,18 @@ func excelFloatPreserves(value float64, bits int) bool {
 	shortest, err := decimal.NewFromString(strconv.FormatFloat(value, 'g', -1, bits))
 	return err == nil && excelNumberPreserves(shortest)
 }
+
+// excelDateSerial keeps a date's wall clock. Passing time.Time to excelize's
+// buffered SetCellValue allocates one style per styled cell, which exhausts the
+// workbook's style limit; the serial uses the caller's cached number style.
+func excelDateSerial(value time.Time) float64 {
+	year, month, day := value.Date()
+	date := time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+	days := float64(date.Unix()-time.Date(1899, 12, 31, 0, 0, 0, 0, time.UTC).Unix()) / 86400
+	if !date.Before(time.Date(1900, 3, 1, 0, 0, 0, 0, time.UTC)) {
+		days++ // Excel's fictitious 1900-02-29.
+	}
+	hour, minute, second := value.Clock()
+	seconds := float64(hour*3600+minute*60+second) + float64(value.Nanosecond())/float64(time.Second)
+	return days + seconds/86400
+}
