@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xuri/excelize/v2"
 )
@@ -323,6 +324,9 @@ func (e *ExcelExporter) writeRow(
 		normalizedValue, numFmt, custom, err := workbookValue(value, e.options)
 		if err != nil {
 			return fmt.Errorf("invalid column %d: %w", i+1, err)
+		}
+		if date, ok := normalizedValue.(time.Time); ok {
+			normalizedValue = excelDateSerial(date)
 		}
 		if formula, ok := asFormula(normalizedValue); ok {
 			if err := f.SetCellFormula(sheet, cell, formula); err != nil {
