@@ -45,3 +45,13 @@ func TestBufferedWorkbookDatesDoNotExhaustExcelStyles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, []excelize.CellType{excelize.CellTypeNumber, excelize.CellTypeUnset}, cellType, "a date stays a native Excel number")
 }
+
+// False green if the date stays within time.Duration's 292-year range: a
+// subtraction-based serial saturates there and shows a much earlier day.
+func TestBufferedWorkbookKeepsDatesBeyondDurationRange(t *testing.T) {
+	stamp := time.Date(2500, time.January, 15, 0, 0, 0, 0, time.UTC)
+	f := exportWorkbook(t, nil, excel.NewSliceDataSource([]string{"date"}, [][]any{{stamp}}), false)
+	shown, err := f.GetCellValue("Sheet1", "A2")
+	require.NoError(t, err)
+	assert.Equal(t, "2500-01-15 00:00:00", shown)
+}

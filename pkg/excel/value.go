@@ -214,7 +214,7 @@ func excelFloatPreserves(value float64, bits int) bool {
 func excelDateSerial(value time.Time) float64 {
 	year, month, day := value.Date()
 	date := time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
-	days := date.Sub(time.Date(1899, 12, 31, 0, 0, 0, 0, time.UTC)).Hours() / 24
+	days := float64(date.Unix()-time.Date(1899, 12, 31, 0, 0, 0, 0, time.UTC).Unix()) / 86400
 	if !date.Before(time.Date(1900, 3, 1, 0, 0, 0, 0, time.UTC)) {
 		days++ // Excel's fictitious 1900-02-29.
 	}
