@@ -99,9 +99,7 @@ func (c *HelpCenterController) index(w http.ResponseWriter, r *http.Request) {
 			templ.Handler(help.Index(props)).ServeHTTP(w, r)
 			return
 		}
-		tree = c.navigationTree(doc, tree)
-		props.Tree = tree
-		docView, err := c.toDocView(doc, tree)
+		docView, err := c.toDocView(doc, c.navigationTree(doc, tree))
 		if err != nil {
 			c.renderError(w, r, err)
 			return
@@ -127,8 +125,7 @@ func (c *HelpCenterController) doc(w http.ResponseWriter, r *http.Request) {
 		}
 		logrus.WithError(serrors.Wrap("HelpCenterController.doc", err)).Warn("help center article rendered without navigation")
 	}
-	tree = c.navigationTree(doc, tree)
-	docView, err := c.toDocView(doc, tree)
+	docView, err := c.toDocView(doc, c.navigationTree(doc, tree))
 	if err != nil {
 		c.renderError(w, r, err)
 		return

@@ -135,7 +135,7 @@ func TestHelpCenterController_DocServedByLocaleFallbackKeepsNavigation(t *testin
 }
 
 // False green: testing an HTMX fragment, which does not render the sidebar.
-func TestHelpCenterController_FallbackArticleAppearsInFullPageSidebar(t *testing.T) {
+func TestHelpCenterController_FallbackKeepsLocalizedFullPageSidebar(t *testing.T) {
 	controller := &HelpCenterController{
 		basePath: "/help", renderer: markdown.NewRenderer(),
 		contentService: services.NewContentService(services.ContentConfig{
@@ -165,5 +165,6 @@ func TestHelpCenterController_FallbackArticleAppearsInFullPageSidebar(t *testing
 	rec := httptest.NewRecorder()
 	controller.doc(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Contains(t, rec.Body.String(), `class="help-nav-link" aria-current="page"`)
+	require.Contains(t, rec.Body.String(), `href="/help/doc/other.md"`)
+	require.NotContains(t, rec.Body.String(), `class="help-nav-link" aria-current="page"`)
 }
