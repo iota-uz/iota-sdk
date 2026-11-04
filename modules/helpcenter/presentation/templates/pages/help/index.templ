@@ -447,7 +447,7 @@ templ Index(props IndexProps) {
 					const bandShare = 0.35;
 					const markActive = () => {
 						const bandEnd = scroller.getBoundingClientRect().top + scroller.clientHeight * bandShare;
-						const current = headings.findLast((heading) => heading.getBoundingClientRect().top <= bandEnd);
+						const current = headings.filter((heading) => heading.getBoundingClientRect().top <= bandEnd).pop();
 						for (const [id, link] of links) {
 							if (id === current?.id) link.setAttribute("aria-current", "true");
 							else link.removeAttribute("aria-current");

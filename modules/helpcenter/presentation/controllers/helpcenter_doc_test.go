@@ -104,3 +104,25 @@ func TestWrapTablesWrapsTablesWithAttributes(t *testing.T) {
 
 	require.Equal(t, `<div class="help-table-wrap"><table><tr><td>1</td></tr></table></div><div class="help-table-wrap"><table summary="x" width="50%"><tr><td>2</td></tr></table></div><tablex>`, string(got))
 }
+
+// False green: a reader locale that has the article, where the requested
+// locale's tree already lists it and the fallback branch never runs.
+func TestHelpCenterController_DocServedByLocaleFallbackKeepsNavigation(t *testing.T) {
+	contentFS := fstest.MapFS{
+		"content/en/course/start.md":   &fstest.MapFile{Data: []byte("---\norder: 1\n---\n\n# Start\n\nIn.")},
+		"content/en/course/numbers.md": &fstest.MapFile{Data: []byte("---\norder: 2\n---\n\n# Numbers\n\nLead.")},
+		"content/ru/other.md":          &fstest.MapFile{Data: []byte("# Другое\n\nТекст.")},
+	}
+	controller := &HelpCenterController{
+		basePath: "/help",
+		renderer: markdown.NewRenderer(),
+		contentService: services.NewContentService(services.ContentConfig{
+			FS: contentFS, Root: "content", Locales: []string{"en", "ru"}, DefaultLocale: "en",
+		}),
+	}
+
+	body := renderDocFragment(t, controller, "course/numbers.md")
+
+	require.Contains(t, body, "<h1")
+	require.Contains(t, body, `href="/help/doc/course/start.md"`)
+}

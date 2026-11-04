@@ -116,17 +116,21 @@ func (c *HelpCenterController) doc(w http.ResponseWriter, r *http.Request) {
 		c.renderError(w, r, err)
 		return
 	}
+	fullPage := htmx.WantsFullPage(r)
 	tree, err := c.contentService.Tree(r.Context())
 	if err != nil {
-		c.renderError(w, r, err)
-		return
+		if fullPage {
+			c.renderError(w, r, err)
+			return
+		}
+		logrus.WithError(serrors.Wrap("HelpCenterController.doc", err)).Warn("help center article rendered without navigation")
 	}
 	docView, err := c.toDocView(doc, tree)
 	if err != nil {
 		c.renderError(w, r, err)
 		return
 	}
-	if htmx.WantsFullPage(r) {
+	if fullPage {
 		templ.Handler(help.Index(help.IndexProps{
 			BasePath:        c.basePath,
 			Tree:            tree,
@@ -188,7 +192,12 @@ func (c *HelpCenterController) toDocView(doc *services.Document, tree []viewmode
 	if err != nil {
 		return nil, err
 	}
-	nav := services.Locate(tree, doc.Path)
+	nav, found := services.Locate(tree, doc.Path)
+	if !found {
+		if fallback, err := c.contentService.DefaultTree(); err == nil {
+			nav, _ = services.Locate(fallback, doc.Path)
+		}
+	}
 	return &viewmodels.DocView{
 		Title:          doc.Title,
 		Path:           doc.Path,

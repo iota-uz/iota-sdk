@@ -229,10 +229,19 @@ func (s *ContentService) Locale(ctx context.Context) string {
 }
 
 // Locate places docPath in a sidebar tree built by Tree, so one request can
-// reuse the tree it already walked for the sidebar.
-func Locate(tree []viewmodels.CategoryNode, docPath string) DocumentNavigation {
-	nav, _ := locateDocument(tree, path.Clean(strings.TrimPrefix(docPath, "/")), nil)
-	return nav
+// reuse the tree it already walked for the sidebar. It reports whether the
+// document is in the tree.
+func Locate(tree []viewmodels.CategoryNode, docPath string) (DocumentNavigation, bool) {
+	return locateDocument(tree, path.Clean(strings.TrimPrefix(docPath, "/")), nil)
+}
+
+// DefaultTree returns the default locale's sidebar tree, where a document
+// served by locale fallback is listed.
+func (s *ContentService) DefaultTree() ([]viewmodels.CategoryNode, error) {
+	if s.fsys == nil {
+		return nil, ErrContentRootRequired
+	}
+	return s.buildTree(s.config.DefaultLocale, s.config.DefaultLocale)
 }
 
 // FeedbackURL returns the configured feedback link for docPath, or "" when no
