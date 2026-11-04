@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 // splitAfterLead splits rendered article HTML after its title and lead
