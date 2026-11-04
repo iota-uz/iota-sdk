@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Redesign the Help Center reader: a quieter topbar with section and feedback links, breadcrumbs, a front-matter meta line with reading time, quiet callouts with custom labels, wrapped tables, round step numbers, a scroll-spy table of contents with copy-link and report actions, a previous/next pager with an article footer, a step path and clickable task cards on the home page, front-matter ordering for sidebar sequences, and styles moved into a hashed stylesheet; markdown renderers can opt in class hooks and KB indexing skips front matter."
+    }
+  ],
+  "source": "e85e3f26369dcdca96a062312a096e111ee7e9a4",
+  "version": "0.38.0"
+}
