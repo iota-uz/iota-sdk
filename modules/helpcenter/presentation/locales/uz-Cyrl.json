@@ -13,7 +13,6 @@
       "NoResults": "Натижалар топилмади."
     },
     "Categories": "Ҳужжатлар",
-    "Article": "Маҳсулот қўлланмаси",
     "OnThisPage": "Ушбу саҳифада",
     "Tasks": {
       "Kicker": "Вазифалар навигатори",
@@ -26,7 +25,17 @@
         "Result": "Натижани текширинг"
       },
       "OpenScreen": "Экранни очиш",
-      "ReadGuide": "Йўриқномани ўқиш"
+      "ReadGuide": "Йўриқномани ўқиш",
+      "Step": "{{.N}}-қадам",
+      "Guide": "Қўлланма",
+      "GuideCount": {
+        "one": "{{.Count}} та қўлланма",
+        "other": "{{.Count}} та қўлланма"
+      },
+      "Minutes": {
+        "one": "{{.Count}} дақиқа",
+        "other": "{{.Count}} дақиқа"
+      }
     },
     "ExpandNavigation": "Навигацияни очиш",
     "CollapseNavigation": "Навигацияни йиғиш",
@@ -49,6 +58,43 @@
       "Warning": "Огоҳлантириш",
       "Caution": "Эҳтиёт бўлинг"
     },
-    "Empty": "Ёрдам мақолалари ҳали мавжуд эмас."
+    "Empty": "Ёрдам мақолалари ҳали мавжуд эмас.",
+    "Breadcrumbs": "Мақола йўли",
+    "TopbarLinks": {
+      "Label": "Ёрдам маркази бўлимлари",
+      "AllSections": "Барча бўлимлар",
+      "Feedback": "Фикр-мулоҳаза"
+    },
+    "ArticleMeta": {
+      "ReadingTime": {
+        "one": "{{.Count}} дақиқа ўқиш",
+        "other": "{{.Count}} дақиқа ўқиш"
+      },
+      "Updated": "Янгиланган: {{.Year}} йил {{.Day}} {{.Month}}",
+      "Months": {
+        "January": "январ",
+        "February": "феврал",
+        "March": "март",
+        "April": "апрел",
+        "May": "май",
+        "June": "июн",
+        "July": "июл",
+        "August": "август",
+        "September": "сентябр",
+        "October": "октябр",
+        "November": "ноябр",
+        "December": "декабр"
+      }
+    },
+    "Pager": {
+      "Label": "Қўшни мақолалар",
+      "Previous": "Олдинги",
+      "Next": "Кейинги"
+    },
+    "Toc": {
+      "CopyLink": "Ҳаволани нусхалаш",
+      "LinkCopied": "Ҳавола нусхаланди",
+      "ReportProblem": "Хато ҳақида хабар бериш"
+    }
   }
 }

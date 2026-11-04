@@ -13,7 +13,6 @@
       "NoResults": "Ничего не найдено."
     },
     "Categories": "Документация",
-    "Article": "Руководство по продукту",
     "OnThisPage": "На этой странице",
     "Tasks": {
       "Kicker": "Навигатор задач",
@@ -26,7 +25,21 @@
         "Result": "Проверьте результат"
       },
       "OpenScreen": "Открыть экран",
-      "ReadGuide": "Читать инструкцию"
+      "ReadGuide": "Читать инструкцию",
+      "Step": "Шаг {{.N}}",
+      "Guide": "Руководство",
+      "GuideCount": {
+        "one": "{{.Count}} руководство",
+        "few": "{{.Count}} руководства",
+        "many": "{{.Count}} руководств",
+        "other": "{{.Count}} руководства"
+      },
+      "Minutes": {
+        "one": "{{.Count}} минута",
+        "few": "{{.Count}} минуты",
+        "many": "{{.Count}} минут",
+        "other": "{{.Count}} минуты"
+      }
     },
     "ExpandNavigation": "Развернуть навигацию",
     "CollapseNavigation": "Свернуть навигацию",
@@ -49,6 +62,45 @@
       "Warning": "Предупреждение",
       "Caution": "Осторожно"
     },
-    "Empty": "Справочные статьи пока недоступны."
+    "Empty": "Справочные статьи пока недоступны.",
+    "Breadcrumbs": "Путь к статье",
+    "TopbarLinks": {
+      "Label": "Разделы центра помощи",
+      "AllSections": "Все разделы",
+      "Feedback": "Обратная связь"
+    },
+    "ArticleMeta": {
+      "ReadingTime": {
+        "one": "{{.Count}} минута чтения",
+        "few": "{{.Count}} минуты чтения",
+        "many": "{{.Count}} минут чтения",
+        "other": "{{.Count}} минуты чтения"
+      },
+      "Updated": "Обновлено {{.Day}} {{.Month}} {{.Year}}",
+      "Months": {
+        "January": "января",
+        "February": "февраля",
+        "March": "марта",
+        "April": "апреля",
+        "May": "мая",
+        "June": "июня",
+        "July": "июля",
+        "August": "августа",
+        "September": "сентября",
+        "October": "октября",
+        "November": "ноября",
+        "December": "декабря"
+      }
+    },
+    "Pager": {
+      "Label": "Соседние статьи",
+      "Previous": "Предыдущая",
+      "Next": "Следующая"
+    },
+    "Toc": {
+      "CopyLink": "Скопировать ссылку",
+      "LinkCopied": "Ссылка скопирована",
+      "ReportProblem": "Сообщить об ошибке"
+    }
   }
 }

@@ -1,18 +1,35 @@
 // Package viewmodels provides this package.
 package viewmodels
 
-import "html/template"
+import (
+	"html/template"
+	"time"
+)
 
 type CategoryNode struct {
 	Title    string
 	Path     string
+	Order    int
 	Children []CategoryNode
 }
 
 type DocView struct {
+	Title          string
+	Path           string
+	HTML           template.HTML
+	Categories     []string
+	Part           string
+	Audience       string
+	Updated        time.Time
+	ReadingMinutes int
+	Previous       *DocLink
+	Next           *DocLink
+	FeedbackURL    string
+}
+
+type DocLink struct {
 	Title string
 	Path  string
-	HTML  template.HTML
 }
 
 type SearchHit struct {
@@ -33,4 +50,6 @@ type HelpTask struct {
 	Outcome     string
 	ScreenPath  string
 	ArticlePath string
+	// ReadingMinutes is filled from the linked article when the page renders.
+	ReadingMinutes int
 }

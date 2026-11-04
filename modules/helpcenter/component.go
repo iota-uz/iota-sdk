@@ -3,6 +3,7 @@ package helpcenter
 
 import (
 	"embed"
+	"regexp"
 
 	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/controllers"
@@ -36,6 +37,14 @@ func EmbeddedContentConfig() ContentConfig {
 	}
 }
 
+// articleClassPattern lists the Help Center presentation hooks an article may
+// use in raw HTML, such as the course start page's step path and cards.
+var articleClassPattern = regexp.MustCompile(`^help-(home-path|task-(grid|card|meta|title|description|outcome|footer))$`)
+
+func newArticleRenderer() markdown.Renderer {
+	return markdown.NewRendererWithOptions(markdown.WithAllowedClasses(articleClassPattern, "a", "div", "span"))
+}
+
 func NewComponent(config ContentConfig) composition.Component {
 	return &component{config: config.Normalized()}
 }
@@ -58,7 +67,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		composition.AddNavNodes(builder, HelpCenterNavNode)
 	}
 	composition.Provide[services.ContentConfig](builder, c.config)
-	composition.ProvideFunc(builder, markdown.NewRenderer)
+	composition.ProvideFunc(builder, newArticleRenderer)
 	composition.ProvideFunc(builder, services.NewContentService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {

@@ -4,7 +4,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -331,4 +333,96 @@ func writeFile(t *testing.T, root, path, content string) {
 	fullPath := filepath.Join(root, filepath.FromSlash(path))
 	require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0o755))
 	require.NoError(t, os.WriteFile(fullPath, []byte(content), 0o644))
+}
+
+// False green: reading the fields back from a hand-built Document, or a date
+// layout that also accepts the zero value.
+func TestContentService_GetReadsReaderMetadataFromFrontMatter(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "en/course/numbers.md", "---\ntitle: Numbers\norder: 3\npart: \"**Chapter 2** of 5\"\naudience: For accountants\nupdated: 2026-11-04\nreading_minutes: 12\n---\n\n# Contract in numbers\n\nLead.")
+	writeDoc(t, root, "en/course/plain.md", "---\nupdated: not-a-date\n---\n\n# Plain\n\nBody.")
+	service := NewContentService(ContentConfig{Root: root, Locales: []string{"en"}, DefaultLocale: "en"})
+
+	doc, err := service.Get(context.Background(), "course/numbers.md")
+	require.NoError(t, err)
+	require.Equal(t, "Numbers", doc.Title)
+	require.Equal(t, DocumentMeta{
+		Order:          3,
+		Part:           "**Chapter 2** of 5",
+		Audience:       "For accountants",
+		Updated:        time.Date(2026, time.November, 4, 0, 0, 0, 0, time.UTC),
+		ReadingMinutes: 12,
+	}, doc.Meta)
+
+	plain, err := service.Get(context.Background(), "course/plain.md")
+	require.NoError(t, err)
+	require.True(t, plain.Meta.Updated.IsZero())
+	require.Equal(t, 1, plain.Meta.ReadingMinutes)
+}
+
+// False green: a fixture whose titles already sort in the declared order.
+func TestContentService_TreeOrdersDocumentsByFrontMatterOrder(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "en/course/a.md", "---\ntitle: Zeta route\norder: 1\n---\n\n# Z")
+	writeDoc(t, root, "en/course/b.md", "---\ntitle: Alpha chapter\norder: 2\n---\n\n# A")
+	writeDoc(t, root, "en/guides/b.md", "# Beta")
+	writeDoc(t, root, "en/guides/a.md", "# Alpha")
+	service := NewContentService(ContentConfig{Root: root, Locales: []string{"en"}, DefaultLocale: "en"})
+
+	tree, err := service.Tree(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"Zeta route", "Alpha chapter"}, nodeTitles(tree[0].Children))
+	require.Equal(t, []string{"Alpha", "Beta"}, nodeTitles(tree[1].Children))
+}
+
+// False green: neighbours taken from the flattened tree, which would page
+// into a nested category or across sections.
+func TestContentService_NavigationLocatesCategoriesAndNeighbours(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "en/finance/course/start.md", "---\ntitle: Route\norder: 1\n---\n\n# Route")
+	writeDoc(t, root, "en/finance/course/numbers.md", "---\ntitle: Numbers\norder: 2\n---\n\n# Numbers")
+	writeDoc(t, root, "en/finance/course/deep/extra.md", "---\norder: 3\n---\n\n# Extra")
+	writeDoc(t, root, "en/finance/course/close.md", "---\ntitle: Close\norder: 4\n---\n\n# Close")
+	service := NewContentService(ContentConfig{
+		Root: root, Locales: []string{"en"}, DefaultLocale: "en",
+		CategoryTitles: map[string]map[string]string{"en": {"finance": "05 Finance", "finance/course": "00 Course"}},
+	})
+
+	tree, err := service.Tree(context.Background())
+	require.NoError(t, err)
+
+	nav, found := Locate(tree, "finance/course/numbers.md")
+	require.True(t, found)
+	require.Equal(t, []string{"05 Finance", "00 Course"}, nav.Categories)
+	require.Equal(t, "finance/course/start.md", nav.Previous.Path)
+	require.Equal(t, "finance/course/close.md", nav.Next.Path)
+
+	first, _ := Locate(tree, "finance/course/start.md")
+	require.Nil(t, first.Previous)
+	require.Equal(t, "Numbers", first.Next.Title)
+}
+
+func TestEstimateReadingMinutesCountsWordsOutsideMarkup(t *testing.T) {
+	require.Equal(t, 1, estimateReadingMinutes(nil))
+	words := strings.Repeat("слово ", readingWordsPerMinute)
+	require.Equal(t, 1, estimateReadingMinutes([]byte(words)))
+	require.Equal(t, 2, estimateReadingMinutes([]byte(words+"ещё")))
+	require.Equal(t, 1, estimateReadingMinutes([]byte(words+`<div class="help-task-card"> | --- | </div>`)))
+}
+
+func TestContentService_FeedbackURLEscapesDocumentPath(t *testing.T) {
+	service := NewContentService(ContentConfig{FeedbackURL: "https://example.test/new?doc={path}"})
+
+	require.Equal(t, "https://example.test/new?doc=course%2Fnumbers.md", service.FeedbackURL("course/numbers.md"))
+	require.Equal(t, "https://example.test/new?doc=", service.FeedbackURL(""))
+	require.Empty(t, NewContentService(ContentConfig{}).FeedbackURL("course/numbers.md"))
+}
+
+func nodeTitles(nodes []viewmodels.CategoryNode) []string {
+	titles := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		titles = append(titles, node.Title)
+	}
+	return titles
 }

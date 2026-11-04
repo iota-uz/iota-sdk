@@ -13,7 +13,6 @@
       "NoResults": "未找到结果。"
     },
     "Categories": "文档",
-    "Article": "产品指南",
     "OnThisPage": "本页内容",
     "Tasks": {
       "Kicker": "任务导航",
@@ -26,7 +25,15 @@
         "Result": "检查结果"
       },
       "OpenScreen": "打开页面",
-      "ReadGuide": "阅读指南"
+      "ReadGuide": "阅读指南",
+      "Step": "第 {{.N}} 步",
+      "Guide": "指南",
+      "GuideCount": {
+        "other": "{{.Count}} 篇指南"
+      },
+      "Minutes": {
+        "other": "{{.Count}} 分钟"
+      }
     },
     "ExpandNavigation": "展开导航",
     "CollapseNavigation": "收起导航",
@@ -49,6 +56,42 @@
       "Warning": "警告",
       "Caution": "谨慎"
     },
-    "Empty": "暂无帮助文章。"
+    "Empty": "暂无帮助文章。",
+    "Breadcrumbs": "面包屑导航",
+    "TopbarLinks": {
+      "Label": "帮助中心链接",
+      "AllSections": "所有栏目",
+      "Feedback": "反馈"
+    },
+    "ArticleMeta": {
+      "ReadingTime": {
+        "other": "阅读约 {{.Count}} 分钟"
+      },
+      "Updated": "更新于 {{.Year}}年{{.Month}}{{.Day}}日",
+      "Months": {
+        "January": "1月",
+        "February": "2月",
+        "March": "3月",
+        "April": "4月",
+        "May": "5月",
+        "June": "6月",
+        "July": "7月",
+        "August": "8月",
+        "September": "9月",
+        "October": "10月",
+        "November": "11月",
+        "December": "12月"
+      }
+    },
+    "Pager": {
+      "Label": "相邻文章",
+      "Previous": "上一篇",
+      "Next": "下一篇"
+    },
+    "Toc": {
+      "CopyLink": "复制链接",
+      "LinkCopied": "链接已复制",
+      "ReportProblem": "报告问题"
+    }
   }
 }

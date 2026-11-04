@@ -2,11 +2,14 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"html/template"
 	"mime"
 	"net/http"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -76,7 +79,7 @@ func (c *HelpCenterController) index(w http.ResponseWriter, r *http.Request) {
 		c.renderError(w, r, err)
 		return
 	}
-	tasks := c.contentService.Tasks(r.Context())
+	tasks := c.tasksWithReadingTime(r.Context())
 
 	props := help.IndexProps{
 		BasePath:        c.basePath,
@@ -84,6 +87,7 @@ func (c *HelpCenterController) index(w http.ResponseWriter, r *http.Request) {
 		Tasks:           tasks,
 		SearchAvailable: c.searchAvailable(),
 		Locale:          c.contentService.Locale(r.Context()),
+		FeedbackURL:     c.contentService.FeedbackURL(""),
 	}
 	if len(tasks) == 0 {
 		doc, err := c.contentService.DefaultDocument(r.Context())
@@ -95,7 +99,7 @@ func (c *HelpCenterController) index(w http.ResponseWriter, r *http.Request) {
 			templ.Handler(help.Index(props)).ServeHTTP(w, r)
 			return
 		}
-		docView, err := c.toDocView(doc)
+		docView, err := c.toDocView(doc, c.navigationTree(doc, tree))
 		if err != nil {
 			c.renderError(w, r, err)
 			return
@@ -112,27 +116,32 @@ func (c *HelpCenterController) doc(w http.ResponseWriter, r *http.Request) {
 		c.renderError(w, r, err)
 		return
 	}
-	docView, err := c.toDocView(doc)
+	fullPage := htmx.WantsFullPage(r)
+	tree, err := c.contentService.Tree(r.Context())
+	if err != nil {
+		if fullPage {
+			c.renderError(w, r, err)
+			return
+		}
+		logrus.WithError(serrors.Wrap("HelpCenterController.doc", err)).Warn("help center article rendered without navigation")
+	}
+	docView, err := c.toDocView(doc, c.navigationTree(doc, tree))
 	if err != nil {
 		c.renderError(w, r, err)
 		return
 	}
-	if htmx.WantsFullPage(r) {
-		tree, err := c.contentService.Tree(r.Context())
-		if err != nil {
-			c.renderError(w, r, err)
-			return
-		}
+	if fullPage {
 		templ.Handler(help.Index(help.IndexProps{
 			BasePath:        c.basePath,
 			Tree:            tree,
 			Doc:             docView,
 			SearchAvailable: c.searchAvailable(),
 			Locale:          c.contentService.Locale(r.Context()),
+			FeedbackURL:     c.contentService.FeedbackURL(""),
 		})).ServeHTTP(w, r)
 		return
 	}
-	templ.Handler(help.Doc(help.DocProps{Doc: docView})).ServeHTTP(w, r)
+	templ.Handler(help.Doc(help.DocProps{BasePath: c.basePath, Doc: docView})).ServeHTTP(w, r)
 }
 
 func (c *HelpCenterController) search(w http.ResponseWriter, r *http.Request) {
@@ -178,12 +187,69 @@ func (c *HelpCenterController) media(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(media.Content)
 }
 
-func (c *HelpCenterController) toDocView(doc *services.Document) (*viewmodels.DocView, error) {
+func (c *HelpCenterController) navigationTree(doc *services.Document, tree []viewmodels.CategoryNode) []viewmodels.CategoryNode {
+	if _, found := services.Locate(tree, doc.Path); !found {
+		if fallback, err := c.contentService.DefaultTree(); err == nil {
+			if _, found := services.Locate(fallback, doc.Path); found {
+				return fallback
+			}
+		}
+	}
+	return tree
+}
+
+func (c *HelpCenterController) toDocView(doc *services.Document, tree []viewmodels.CategoryNode) (*viewmodels.DocView, error) {
 	html, err := c.renderer.Render(doc.Content)
 	if err != nil {
 		return nil, err
 	}
-	return &viewmodels.DocView{Title: doc.Title, Path: doc.Path, HTML: html}, nil
+	nav, _ := services.Locate(tree, doc.Path)
+	return &viewmodels.DocView{
+		Title:          doc.Title,
+		Path:           doc.Path,
+		HTML:           wrapTables(html),
+		Categories:     nav.Categories,
+		Part:           doc.Meta.Part,
+		Audience:       doc.Meta.Audience,
+		Updated:        doc.Meta.Updated,
+		ReadingMinutes: doc.Meta.ReadingMinutes,
+		Previous:       docLink(nav.Previous),
+		Next:           docLink(nav.Next),
+		FeedbackURL:    c.contentService.FeedbackURL(doc.Path),
+	}, nil
+}
+
+func docLink(node *viewmodels.CategoryNode) *viewmodels.DocLink {
+	if node == nil {
+		return nil
+	}
+	return &viewmodels.DocLink{Title: node.Title, Path: node.Path}
+}
+
+var tableOpenTag = regexp.MustCompile(`<table(?:\s[^>]*)?>`)
+
+// wrapTables gives every rendered table its own horizontal scroll container,
+// so only a table wider than the article scrolls.
+func wrapTables(html template.HTML) template.HTML {
+	out := tableOpenTag.ReplaceAllString(string(html), `<div class="help-table-wrap">$0`)
+	return template.HTML(strings.ReplaceAll(out, "</table>", "</table></div>"))
+}
+
+func (c *HelpCenterController) tasksWithReadingTime(ctx context.Context) []viewmodels.TaskGroup {
+	groups := c.contentService.Tasks(ctx)
+	result := make([]viewmodels.TaskGroup, len(groups))
+	for i, group := range groups {
+		result[i] = viewmodels.TaskGroup{Title: group.Title, Tasks: slices.Clone(group.Tasks)}
+		for j, task := range result[i].Tasks {
+			if task.ArticlePath == "" {
+				continue
+			}
+			if doc, err := c.contentService.Get(ctx, task.ArticlePath); err == nil {
+				result[i].Tasks[j].ReadingMinutes = doc.Meta.ReadingMinutes
+			}
+		}
+	}
+	return result
 }
 
 func (c *HelpCenterController) searchAvailable() bool {

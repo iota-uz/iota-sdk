@@ -293,10 +293,15 @@ func (fs *fileSystemSource) createDocument(path string, info os.FileInfo) (kb.Do
 		return kb.Document{}, fmt.Errorf("failed to read file: %w", err)
 	}
 
+	text := string(content)
+	if ext := strings.ToLower(filepath.Ext(path)); ext == ".md" || ext == ".markdown" {
+		text = stripFrontMatter(text)
+	}
+
 	doc := kb.Document{
 		ID:        fs.generateDocumentID(path),
 		Path:      path,
-		Content:   string(content),
+		Content:   text,
 		Type:      fs.detectDocumentType(path),
 		Metadata:  make(map[string]string),
 		UpdatedAt: info.ModTime(),
@@ -304,7 +309,7 @@ func (fs *fileSystemSource) createDocument(path string, info os.FileInfo) (kb.Do
 
 	// Extract title
 	if fs.extractTitle {
-		doc.Title = fs.extractTitleFromContent(string(content), path)
+		doc.Title = fs.extractTitleFromContent(text, path)
 	} else {
 		doc.Title = filepath.Base(path)
 	}
@@ -349,6 +354,36 @@ func (fs *fileSystemSource) detectDocumentType(path string) kb.DocumentType {
 	default:
 		return kb.DocumentTypeText
 	}
+}
+
+// stripFrontMatter drops a leading YAML front matter block: it is reader
+// metadata, not searchable text, and would hide the document's heading. Only
+// a delimiter in column 0 closes the block; an indented "---" is YAML content.
+func stripFrontMatter(content string) string {
+	rest, ok := strings.CutPrefix(content, "---\n")
+	if !ok {
+		if rest, ok = strings.CutPrefix(content, "---\r\n"); !ok {
+			return content
+		}
+	}
+	for offset := 0; offset < len(rest); {
+		end := strings.IndexByte(rest[offset:], '\n')
+		line := rest[offset:]
+		if end >= 0 {
+			line = rest[offset : offset+end]
+		}
+		if strings.TrimRight(line, " \t\r") == "---" {
+			if end < 0 {
+				return ""
+			}
+			return strings.TrimLeft(rest[offset+end+1:], "\r\n")
+		}
+		if end < 0 {
+			break
+		}
+		offset += end + 1
+	}
+	return content
 }
 
 // extractTitleFromContent extracts title from markdown heading or filename.

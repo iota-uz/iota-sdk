@@ -13,7 +13,6 @@
       "NoResults": "Nenhum resultado encontrado."
     },
     "Categories": "Categorias",
-    "Article": "Guia do produto",
     "OnThisPage": "Nesta página",
     "Tasks": {
       "Kicker": "Navegador de tarefas",
@@ -26,7 +25,19 @@
         "Result": "Confira o resultado"
       },
       "OpenScreen": "Abrir tela",
-      "ReadGuide": "Ler guia"
+      "ReadGuide": "Ler guia",
+      "Step": "Passo {{.N}}",
+      "Guide": "Guia",
+      "GuideCount": {
+        "one": "{{.Count}} guia",
+        "many": "{{.Count}} guias",
+        "other": "{{.Count}} guias"
+      },
+      "Minutes": {
+        "one": "{{.Count}} minuto",
+        "many": "{{.Count}} minutos",
+        "other": "{{.Count}} minutos"
+      }
     },
     "ExpandNavigation": "Expandir navegação",
     "CollapseNavigation": "Recolher navegação",
@@ -49,6 +60,44 @@
       "Warning": "Aviso",
       "Caution": "Cuidado"
     },
-    "Empty": "Ainda não há artigos de ajuda disponíveis."
+    "Empty": "Ainda não há artigos de ajuda disponíveis.",
+    "Breadcrumbs": "Trilha de navegação",
+    "TopbarLinks": {
+      "Label": "Links da Central de Ajuda",
+      "AllSections": "Todas as seções",
+      "Feedback": "Feedback"
+    },
+    "ArticleMeta": {
+      "ReadingTime": {
+        "one": "{{.Count}} minuto de leitura",
+        "many": "{{.Count}} minutos de leitura",
+        "other": "{{.Count}} minutos de leitura"
+      },
+      "Updated": "Atualizado em {{.Day}} de {{.Month}} de {{.Year}}",
+      "Months": {
+        "January": "janeiro",
+        "February": "fevereiro",
+        "March": "março",
+        "April": "abril",
+        "May": "maio",
+        "June": "junho",
+        "July": "julho",
+        "August": "agosto",
+        "September": "setembro",
+        "October": "outubro",
+        "November": "novembro",
+        "December": "dezembro"
+      }
+    },
+    "Pager": {
+      "Label": "Artigos vizinhos",
+      "Previous": "Anterior",
+      "Next": "Próximo"
+    },
+    "Toc": {
+      "CopyLink": "Copiar link",
+      "LinkCopied": "Link copiado",
+      "ReportProblem": "Relatar um problema"
+    }
   }
 }
