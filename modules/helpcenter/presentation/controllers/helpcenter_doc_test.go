@@ -9,10 +9,15 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/components/sidebar"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/helpcenter/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/markdown"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -82,6 +87,8 @@ func renderDocFragment(t *testing.T, controller *HelpCenterController, docPath s
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	_, err := bundle.LoadMessageFile("../locales/ru.json")
 	require.NoError(t, err)
+	_, err = bundle.LoadMessageFile("../../../core/presentation/locales/ru.json")
+	require.NoError(t, err)
 	localizer := i18n.NewLocalizer(bundle, "ru")
 
 	req := httptest.NewRequest(http.MethodGet, "/help/doc/"+docPath, nil)
@@ -125,4 +132,38 @@ func TestHelpCenterController_DocServedByLocaleFallbackKeepsNavigation(t *testin
 
 	require.Contains(t, body, "<h1")
 	require.Contains(t, body, `href="/help/doc/course/start.md"`)
+}
+
+// False green: testing an HTMX fragment, which does not render the sidebar.
+func TestHelpCenterController_FallbackArticleAppearsInFullPageSidebar(t *testing.T) {
+	controller := &HelpCenterController{
+		basePath: "/help", renderer: markdown.NewRenderer(),
+		contentService: services.NewContentService(services.ContentConfig{
+			FS: fstest.MapFS{
+				"content/en/course/numbers.md": &fstest.MapFile{Data: []byte("# Numbers\n\nLead.")},
+				"content/ru/other.md":          &fstest.MapFile{Data: []byte("# Другое\n\nТекст.")},
+			}, Root: "content", Locales: []string{"en", "ru"}, DefaultLocale: "en",
+		}),
+	}
+	bundle := i18n.NewBundle(language.Russian)
+	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
+	_, err := bundle.LoadMessageFile("../locales/ru.json")
+	require.NoError(t, err)
+	_, err = bundle.LoadMessageFile("../../../core/presentation/locales/ru.json")
+	require.NoError(t, err)
+	localizer := i18n.NewLocalizer(bundle, "ru")
+	req := httptest.NewRequest(http.MethodGet, "/help/doc/course/numbers.md", nil)
+	ctx := intl.WithLocalizer(intl.WithLocale(context.Background(), language.Russian), localizer)
+	ctx = composables.WithPageCtx(ctx, types.NewPageContext(language.Russian, req.URL, localizer))
+	ctx = context.WithValue(ctx, constants.SidebarPropsKey, sidebar.Props{})
+	ctx = context.WithValue(ctx, constants.LogoKey, templ.NopComponent)
+	ctx = context.WithValue(ctx, constants.HeadKey, templ.NopComponent)
+	email, err := internet.NewEmail("tester@example.com")
+	require.NoError(t, err)
+	ctx = composables.WithUser(ctx, user.New("Tester", "", email, "en"))
+	req = mux.SetURLVars(req.WithContext(ctx), map[string]string{"path": "course/numbers.md"})
+	rec := httptest.NewRecorder()
+	controller.doc(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `class="help-nav-link" aria-current="page"`)
 }

@@ -99,6 +99,8 @@ func (c *HelpCenterController) index(w http.ResponseWriter, r *http.Request) {
 			templ.Handler(help.Index(props)).ServeHTTP(w, r)
 			return
 		}
+		tree = c.navigationTree(doc, tree)
+		props.Tree = tree
 		docView, err := c.toDocView(doc, tree)
 		if err != nil {
 			c.renderError(w, r, err)
@@ -125,6 +127,7 @@ func (c *HelpCenterController) doc(w http.ResponseWriter, r *http.Request) {
 		}
 		logrus.WithError(serrors.Wrap("HelpCenterController.doc", err)).Warn("help center article rendered without navigation")
 	}
+	tree = c.navigationTree(doc, tree)
 	docView, err := c.toDocView(doc, tree)
 	if err != nil {
 		c.renderError(w, r, err)
@@ -187,17 +190,23 @@ func (c *HelpCenterController) media(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(media.Content)
 }
 
+func (c *HelpCenterController) navigationTree(doc *services.Document, tree []viewmodels.CategoryNode) []viewmodels.CategoryNode {
+	if _, found := services.Locate(tree, doc.Path); !found {
+		if fallback, err := c.contentService.DefaultTree(); err == nil {
+			if _, found := services.Locate(fallback, doc.Path); found {
+				return fallback
+			}
+		}
+	}
+	return tree
+}
+
 func (c *HelpCenterController) toDocView(doc *services.Document, tree []viewmodels.CategoryNode) (*viewmodels.DocView, error) {
 	html, err := c.renderer.Render(doc.Content)
 	if err != nil {
 		return nil, err
 	}
-	nav, found := services.Locate(tree, doc.Path)
-	if !found {
-		if fallback, err := c.contentService.DefaultTree(); err == nil {
-			nav, _ = services.Locate(fallback, doc.Path)
-		}
-	}
+	nav, _ := services.Locate(tree, doc.Path)
 	return &viewmodels.DocView{
 		Title:          doc.Title,
 		Path:           doc.Path,
