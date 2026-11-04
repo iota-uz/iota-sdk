@@ -96,3 +96,11 @@ func renderDocFragment(t *testing.T, controller *HelpCenterController, docPath s
 	require.Equal(t, http.StatusOK, rec.Code)
 	return rec.Body.String()
 }
+
+// False green: a fixture with only bare <table> tags, which never reaches the
+// branch where a stray </div> would close the article early.
+func TestWrapTablesWrapsTablesWithAttributes(t *testing.T) {
+	got := wrapTables(`<table><tr><td>1</td></tr></table><table summary="x" width="50%"><tr><td>2</td></tr></table><tablex>`)
+
+	require.Equal(t, `<div class="help-table-wrap"><table><tr><td>1</td></tr></table></div><div class="help-table-wrap"><table summary="x" width="50%"><tr><td>2</td></tr></table></div><tablex>`, string(got))
+}

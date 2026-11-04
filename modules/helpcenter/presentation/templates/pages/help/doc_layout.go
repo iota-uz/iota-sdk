@@ -16,6 +16,9 @@ import (
 // paragraph, where the article meta line belongs. Without a leading H1 the
 // meta line goes first.
 func splitAfterLead(articleHTML string) (string, string) {
+	if !strings.HasPrefix(strings.TrimLeft(articleHTML, " \t\r\n"), "<h1") {
+		return "", articleHTML
+	}
 	end := strings.Index(articleHTML, "</h1>")
 	if end < 0 {
 		return "", articleHTML

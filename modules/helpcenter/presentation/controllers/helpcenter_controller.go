@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -98,7 +99,7 @@ func (c *HelpCenterController) index(w http.ResponseWriter, r *http.Request) {
 			templ.Handler(help.Index(props)).ServeHTTP(w, r)
 			return
 		}
-		docView, err := c.toDocView(r.Context(), doc)
+		docView, err := c.toDocView(doc, tree)
 		if err != nil {
 			c.renderError(w, r, err)
 			return
@@ -115,17 +116,17 @@ func (c *HelpCenterController) doc(w http.ResponseWriter, r *http.Request) {
 		c.renderError(w, r, err)
 		return
 	}
-	docView, err := c.toDocView(r.Context(), doc)
+	tree, err := c.contentService.Tree(r.Context())
+	if err != nil {
+		c.renderError(w, r, err)
+		return
+	}
+	docView, err := c.toDocView(doc, tree)
 	if err != nil {
 		c.renderError(w, r, err)
 		return
 	}
 	if htmx.WantsFullPage(r) {
-		tree, err := c.contentService.Tree(r.Context())
-		if err != nil {
-			c.renderError(w, r, err)
-			return
-		}
 		templ.Handler(help.Index(help.IndexProps{
 			BasePath:        c.basePath,
 			Tree:            tree,
@@ -182,15 +183,12 @@ func (c *HelpCenterController) media(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(media.Content)
 }
 
-func (c *HelpCenterController) toDocView(ctx context.Context, doc *services.Document) (*viewmodels.DocView, error) {
+func (c *HelpCenterController) toDocView(doc *services.Document, tree []viewmodels.CategoryNode) (*viewmodels.DocView, error) {
 	html, err := c.renderer.Render(doc.Content)
 	if err != nil {
 		return nil, err
 	}
-	nav, err := c.contentService.Navigation(ctx, doc.Path)
-	if err != nil {
-		return nil, err
-	}
+	nav := services.Locate(tree, doc.Path)
 	return &viewmodels.DocView{
 		Title:          doc.Title,
 		Path:           doc.Path,
@@ -213,10 +211,12 @@ func docLink(node *viewmodels.CategoryNode) *viewmodels.DocLink {
 	return &viewmodels.DocLink{Title: node.Title, Path: node.Path}
 }
 
+var tableOpenTag = regexp.MustCompile(`<table(?:\s[^>]*)?>`)
+
 // wrapTables gives every rendered table its own horizontal scroll container,
 // so only a table wider than the article scrolls.
 func wrapTables(html template.HTML) template.HTML {
-	out := strings.ReplaceAll(string(html), "<table>", `<div class="help-table-wrap"><table>`)
+	out := tableOpenTag.ReplaceAllString(string(html), `<div class="help-table-wrap">$0`)
 	return template.HTML(strings.ReplaceAll(out, "</table>", "</table></div>"))
 }
 

@@ -549,8 +549,10 @@ func TestFileSystemSource_SkipsMarkdownFrontMatter(t *testing.T) {
 	tmpDir := t.TempDir()
 	withFrontMatter := "---\ntitle: Short nav label\norder: 2\n---\n\n# Chapter heading\n\nBody text."
 	unterminated := "---\nnot front matter\n\n# Kept heading\n"
+	blockScalar := "---\nnote: |\n  ---\n  still yaml\n---\n# Scalar heading\n"
 	_ = os.WriteFile(filepath.Join(tmpDir, "chapter.md"), []byte(withFrontMatter), 0644)
 	_ = os.WriteFile(filepath.Join(tmpDir, "open.md"), []byte(unterminated), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "scalar.md"), []byte(blockScalar), 0644)
 
 	docs, err := sources.NewFileSystemSource(tmpDir, sources.WithExtractTitle(true)).List(context.Background())
 	if err != nil {
@@ -568,6 +570,9 @@ func TestFileSystemSource_SkipsMarkdownFrontMatter(t *testing.T) {
 	}
 	if byName["chapter.md"] != "# Chapter heading\n\nBody text." {
 		t.Errorf("Expected front matter to be stripped, got %q", byName["chapter.md"])
+	}
+	if titles["scalar.md"] != "Scalar heading" || byName["scalar.md"] != "# Scalar heading\n" {
+		t.Errorf("Expected an indented delimiter to stay inside front matter, got title %q content %q", titles["scalar.md"], byName["scalar.md"])
 	}
 	if byName["open.md"] != unterminated {
 		t.Errorf("Expected unterminated block to be kept, got %q", byName["open.md"])

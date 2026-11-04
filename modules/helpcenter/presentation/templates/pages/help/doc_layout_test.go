@@ -20,6 +20,10 @@ func TestSplitAfterLead(t *testing.T) {
 	head, rest = splitAfterLead("<p>No title.</p>")
 	require.Empty(t, head)
 	require.Equal(t, "<p>No title.</p>", rest)
+
+	head, rest = splitAfterLead("<p>Disclaimer.</p>\n<h1>Late title</h1>\n<p>Text.</p>")
+	require.Empty(t, head)
+	require.Equal(t, "<p>Disclaimer.</p>\n<h1>Late title</h1>\n<p>Text.</p>", rest)
 }
 
 func TestPartHTMLEscapesAndEmphasises(t *testing.T) {

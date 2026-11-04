@@ -50,12 +50,14 @@ templ Home(props HomeProps) {
 templ taskCard(basePath string, task viewmodels.HelpTask) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<article class="help-task-card">
-		<div class="help-task-meta">
-			<span>{ pageCtx.T("HelpCenter.Tasks.Guide") }</span>
-			if task.ReadingMinutes > 0 {
-				<span>{ minutesLabel(ctx, task.ReadingMinutes) }</span>
-			}
-		</div>
+		if task.ArticlePath != "" {
+			<div class="help-task-meta">
+				<span>{ pageCtx.T("HelpCenter.Tasks.Guide") }</span>
+				if task.ReadingMinutes > 0 {
+					<span>{ minutesLabel(ctx, task.ReadingMinutes) }</span>
+				}
+			</div>
+		}
 		<h3 class="help-task-title">
 			if task.ArticlePath != "" {
 				<a

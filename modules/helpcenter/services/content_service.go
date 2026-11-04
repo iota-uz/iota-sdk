@@ -228,14 +228,11 @@ func (s *ContentService) Locale(ctx context.Context) string {
 	return locale
 }
 
-// Navigation locates docPath in the reader's sidebar tree.
-func (s *ContentService) Navigation(ctx context.Context, docPath string) (DocumentNavigation, error) {
-	tree, err := s.Tree(ctx)
-	if err != nil {
-		return DocumentNavigation{}, err
-	}
+// Locate places docPath in a sidebar tree built by Tree, so one request can
+// reuse the tree it already walked for the sidebar.
+func Locate(tree []viewmodels.CategoryNode, docPath string) DocumentNavigation {
 	nav, _ := locateDocument(tree, path.Clean(strings.TrimPrefix(docPath, "/")), nil)
-	return nav, nil
+	return nav
 }
 
 // FeedbackURL returns the configured feedback link for docPath, or "" when no
@@ -517,7 +514,9 @@ func parseMarkdownDocument(content []byte, docPath string) (frontMatter, []byte)
 
 var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
 
-// readingWordsPerMinute is a conservative pace for instructional text.
+// readingWordsPerMinute is a conservative pace for instructional text. The
+// estimate counts space-separated words, so articles in scripts written
+// without spaces declare reading_minutes in their front matter.
 const readingWordsPerMinute = 180
 
 func estimateReadingMinutes(body []byte) int {

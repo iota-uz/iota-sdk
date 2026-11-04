@@ -357,7 +357,8 @@ func (fs *fileSystemSource) detectDocumentType(path string) kb.DocumentType {
 }
 
 // stripFrontMatter drops a leading YAML front matter block: it is reader
-// metadata, not searchable text, and would hide the document's heading.
+// metadata, not searchable text, and would hide the document's heading. Only
+// a delimiter in column 0 closes the block; an indented "---" is YAML content.
 func stripFrontMatter(content string) string {
 	rest, ok := strings.CutPrefix(content, "---\n")
 	if !ok {
@@ -371,7 +372,7 @@ func stripFrontMatter(content string) string {
 		if end >= 0 {
 			line = rest[offset : offset+end]
 		}
-		if strings.TrimSpace(line) == "---" {
+		if strings.TrimRight(line, " \t\r") == "---" {
 			if end < 0 {
 				return ""
 			}

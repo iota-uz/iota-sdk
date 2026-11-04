@@ -443,23 +443,21 @@ templ Index(props IndexProps) {
 					const scroller = document.querySelector(".help-main");
 					if (!("IntersectionObserver" in window) || !scroller) return;
 					const links = new Map([...toc.querySelectorAll(".help-toc-link")].map((link) => [link.getAttribute("href").slice(1), link]));
-					const visible = new Set();
+					const headings = [...article.querySelectorAll("h2[id], h3[id]")];
+					const bandShare = 0.35;
 					const markActive = () => {
-						const current = [...article.querySelectorAll("h2[id], h3[id]")].find((heading) => visible.has(heading.id));
-						if (!current) return;
+						const bandEnd = scroller.getBoundingClientRect().top + scroller.clientHeight * bandShare;
+						const current = headings.findLast((heading) => heading.getBoundingClientRect().top <= bandEnd);
 						for (const [id, link] of links) {
 							if (id === current?.id) link.setAttribute("aria-current", "true");
 							else link.removeAttribute("aria-current");
 						}
 					};
-					headingObserver = new IntersectionObserver((entries) => {
-						for (const entry of entries) {
-							if (entry.isIntersecting) visible.add(entry.target.id);
-							else visible.delete(entry.target.id);
-						}
-						markActive();
-					}, { root: scroller, rootMargin: "0px 0px -65% 0px" });
-					for (const heading of article.querySelectorAll("h2[id], h3[id]")) headingObserver.observe(heading);
+					headingObserver = new IntersectionObserver(markActive, {
+						root: scroller,
+						rootMargin: `0px 0px -${(1 - bandShare) * 100}% 0px`,
+					});
+					for (const heading of headings) headingObserver.observe(heading);
 				}
 
 				document.addEventListener("click", async (event) => {
@@ -530,13 +528,13 @@ templ Index(props IndexProps) {
 					};
 					for (const quote of root.querySelectorAll(".help-article blockquote")) {
 						const first = quote.querySelector("p");
-						const marker = first?.textContent?.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*([^\n]*)\n?/);
+						const head = first?.firstChild;
+						if (head?.nodeType !== 3) continue;
+						const marker = head.textContent.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*([^\n]*)\n?/);
 						if (!marker) continue;
 						quote.classList.add("help-callout", `help-callout-${marker[1].toLowerCase()}`);
 						quote.dataset.calloutLabel = marker[2].trim() || labels[marker[1]];
-						if (first.firstChild?.nodeType === 3) {
-							first.firstChild.textContent = first.firstChild.textContent.replace(marker[0], "");
-						}
+						head.textContent = head.textContent.slice(marker[0].length);
 						if (!first.textContent.trim() && !first.querySelector("img")) first.remove();
 					}
 				}

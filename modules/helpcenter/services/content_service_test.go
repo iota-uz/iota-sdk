@@ -389,14 +389,15 @@ func TestContentService_NavigationLocatesCategoriesAndNeighbours(t *testing.T) {
 		CategoryTitles: map[string]map[string]string{"en": {"finance": "05 Finance", "finance/course": "00 Course"}},
 	})
 
-	nav, err := service.Navigation(context.Background(), "finance/course/numbers.md")
+	tree, err := service.Tree(context.Background())
 	require.NoError(t, err)
+
+	nav := Locate(tree, "finance/course/numbers.md")
 	require.Equal(t, []string{"05 Finance", "00 Course"}, nav.Categories)
 	require.Equal(t, "finance/course/start.md", nav.Previous.Path)
 	require.Equal(t, "finance/course/close.md", nav.Next.Path)
 
-	first, err := service.Navigation(context.Background(), "finance/course/start.md")
-	require.NoError(t, err)
+	first := Locate(tree, "finance/course/start.md")
 	require.Nil(t, first.Previous)
 	require.Equal(t, "Numbers", first.Next.Title)
 }
