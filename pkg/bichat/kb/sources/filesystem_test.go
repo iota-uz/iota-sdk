@@ -540,3 +540,36 @@ func TestFileSystemSource_UniqueIDs(t *testing.T) {
 		t.Errorf("Expected %d unique IDs, got %d", len(docs), len(ids))
 	}
 }
+
+// False green: a front matter block without a heading behind it, where the
+// filename fallback and the extracted title would coincide.
+func TestFileSystemSource_SkipsMarkdownFrontMatter(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	withFrontMatter := "---\ntitle: Short nav label\norder: 2\n---\n\n# Chapter heading\n\nBody text."
+	unterminated := "---\nnot front matter\n\n# Kept heading\n"
+	_ = os.WriteFile(filepath.Join(tmpDir, "chapter.md"), []byte(withFrontMatter), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "open.md"), []byte(unterminated), 0644)
+
+	docs, err := sources.NewFileSystemSource(tmpDir, sources.WithExtractTitle(true)).List(context.Background())
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	byName := map[string]string{}
+	titles := map[string]string{}
+	for _, doc := range docs {
+		byName[filepath.Base(doc.Path)] = doc.Content
+		titles[filepath.Base(doc.Path)] = doc.Title
+	}
+
+	if titles["chapter.md"] != "Chapter heading" {
+		t.Errorf("Expected title 'Chapter heading', got %q", titles["chapter.md"])
+	}
+	if byName["chapter.md"] != "# Chapter heading\n\nBody text." {
+		t.Errorf("Expected front matter to be stripped, got %q", byName["chapter.md"])
+	}
+	if byName["open.md"] != unterminated {
+		t.Errorf("Expected unterminated block to be kept, got %q", byName["open.md"])
+	}
+}

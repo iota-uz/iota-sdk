@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -37,4 +38,25 @@ func TestRenderer_PreservesImageMetadata(t *testing.T) {
 	require.Contains(t, out, `src="/help/media/assets/policy-workflow.svg"`)
 	require.Contains(t, out, `alt="Policy workflow"`)
 	require.Contains(t, out, `title="From quote to coverage"`)
+}
+
+// False green: a pattern that also matches the stripped class, or an element
+// list that silently keeps classes everywhere.
+func TestRenderer_WithAllowedClassesKeepsOnlyMatchingClasses(t *testing.T) {
+	renderer := NewRendererWithOptions(WithAllowedClasses(regexp.MustCompile(`^help-card$`), "div"))
+
+	html, err := renderer.Render([]byte("<div class=\"help-card\">a</div>\n\n<div class=\"evil\">b</div>\n\n<span class=\"help-card\">c</span>"))
+
+	require.NoError(t, err)
+	out := string(html)
+	require.Contains(t, out, `<div class="help-card">a</div>`)
+	require.Contains(t, out, `<div>b</div>`)
+	require.Contains(t, out, `<span>c</span>`)
+}
+
+func TestRenderer_DefaultStripsClasses(t *testing.T) {
+	html, err := NewRenderer().Render([]byte(`<div class="help-card">a</div>`))
+
+	require.NoError(t, err)
+	require.Contains(t, string(html), `<div>a</div>`)
 }

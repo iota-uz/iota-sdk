@@ -6,11 +6,16 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
+	"time"
+	"unicode"
 
 	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -41,6 +46,25 @@ type Document struct {
 	Title   string
 	Path    string
 	Content []byte
+	Meta    DocumentMeta
+}
+
+// DocumentMeta is the optional reader-facing metadata declared in a document's
+// YAML front matter. ReadingMinutes falls back to an estimate from the body.
+type DocumentMeta struct {
+	Order          int
+	Part           string
+	Audience       string
+	Updated        time.Time
+	ReadingMinutes int
+}
+
+// DocumentNavigation places a document in the sidebar tree: the category
+// titles above it and its neighbouring documents within the same category.
+type DocumentNavigation struct {
+	Categories []string
+	Previous   *viewmodels.CategoryNode
+	Next       *viewmodels.CategoryNode
 }
 
 type Media struct {
@@ -80,6 +104,10 @@ type ContentConfig struct {
 	// Center landing page. When the resolved locale has tasks, /help opens the
 	// task launcher instead of selecting the first article.
 	HomeTasks map[string][]viewmodels.TaskGroup
+	// FeedbackURL is where readers send feedback and report outdated articles.
+	// A "{path}" placeholder is replaced with the query-escaped document path,
+	// or removed outside an article. Empty hides the feedback links.
+	FeedbackURL string
 }
 
 func (c ContentConfig) Normalized() ContentConfig {
@@ -200,6 +228,22 @@ func (s *ContentService) Locale(ctx context.Context) string {
 	return locale
 }
 
+// Navigation locates docPath in the reader's sidebar tree.
+func (s *ContentService) Navigation(ctx context.Context, docPath string) (DocumentNavigation, error) {
+	tree, err := s.Tree(ctx)
+	if err != nil {
+		return DocumentNavigation{}, err
+	}
+	nav, _ := locateDocument(tree, path.Clean(strings.TrimPrefix(docPath, "/")), nil)
+	return nav, nil
+}
+
+// FeedbackURL returns the configured feedback link for docPath, or "" when no
+// feedback channel is configured.
+func (s *ContentService) FeedbackURL(docPath string) string {
+	return strings.ReplaceAll(s.config.FeedbackURL, "{path}", url.QueryEscape(docPath))
+}
+
 func (s *ContentService) Tasks(ctx context.Context) []viewmodels.TaskGroup {
 	locale := s.Locale(ctx)
 	if tasks := s.config.HomeTasks[locale]; len(tasks) > 0 {
@@ -227,12 +271,17 @@ func (s *ContentService) readDoc(localeDir, cleanPath string) (*Document, error)
 	if err != nil {
 		return nil, err
 	}
-	title, content := parseMarkdownDocument(content, cleanPath)
+	meta, content := parseMarkdownDocument(content, cleanPath)
 	content = stripMarkdownSections(content, s.config.HiddenSections)
+	docMeta := meta.documentMeta()
+	if docMeta.ReadingMinutes <= 0 {
+		docMeta.ReadingMinutes = estimateReadingMinutes(content)
+	}
 	return &Document{
-		Title:   title,
+		Title:   meta.Title,
 		Path:    cleanPath,
 		Content: content,
+		Meta:    docMeta,
 	}, nil
 }
 
@@ -302,8 +351,8 @@ func (s *ContentService) buildTree(localeDir, locale string) ([]viewmodels.Categ
 		}
 		parts := strings.Split(rel, "/")
 		categories := s.treeCategories(parts[:len(parts)-1])
-		title, _ := parseMarkdownDocument(content, rel)
-		doc := viewmodels.CategoryNode{Title: title, Path: rel}
+		meta, _ := parseMarkdownDocument(content, rel)
+		doc := viewmodels.CategoryNode{Title: meta.Title, Path: rel, Order: meta.Order}
 		s.insertNode(&tree, locale, "", categories, doc)
 		return nil
 	})
@@ -419,17 +468,42 @@ func isMarkdown(p string) bool {
 	return ext == ".md" || ext == ".markdown"
 }
 
-func parseMarkdownDocument(content []byte, docPath string) (string, []byte) {
-	frontMatterTitle, body := splitFrontMatter(content)
-	if frontMatterTitle != "" {
-		return frontMatterTitle, body
+// frontMatter is the YAML metadata a document may declare before its body.
+// title is the sidebar label; it defaults to the leading H1.
+type frontMatter struct {
+	Title          string `yaml:"title"`
+	Order          int    `yaml:"order"`
+	Part           string `yaml:"part"`
+	Audience       string `yaml:"audience"`
+	Updated        string `yaml:"updated"`
+	ReadingMinutes int    `yaml:"reading_minutes"`
+}
+
+func (m frontMatter) documentMeta() DocumentMeta {
+	meta := DocumentMeta{
+		Order:          m.Order,
+		Part:           strings.TrimSpace(m.Part),
+		Audience:       strings.TrimSpace(m.Audience),
+		ReadingMinutes: m.ReadingMinutes,
+	}
+	if updated, err := time.Parse(time.DateOnly, strings.TrimSpace(m.Updated)); err == nil {
+		meta.Updated = updated
+	}
+	return meta
+}
+
+func parseMarkdownDocument(content []byte, docPath string) (frontMatter, []byte) {
+	meta, body := splitFrontMatter(content)
+	if meta.Title != "" {
+		return meta, body
 	}
 	for _, line := range strings.Split(string(body), "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "#") {
 			title := strings.TrimSpace(strings.TrimLeft(line, "#"))
 			if title != "" {
-				return title, body
+				meta.Title = title
+				return meta, body
 			}
 		}
 		if line != "" {
@@ -437,7 +511,55 @@ func parseMarkdownDocument(content []byte, docPath string) (string, []byte) {
 		}
 	}
 	name := strings.TrimSuffix(path.Base(docPath), path.Ext(docPath))
-	return titleFromSegment(name), body
+	meta.Title = titleFromSegment(name)
+	return meta, body
+}
+
+var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
+
+// readingWordsPerMinute is a conservative pace for instructional text.
+const readingWordsPerMinute = 180
+
+func estimateReadingMinutes(body []byte) int {
+	words := 0
+	for _, field := range strings.Fields(htmlTagPattern.ReplaceAllString(string(body), " ")) {
+		if strings.IndexFunc(field, unicode.IsLetter) >= 0 || strings.IndexFunc(field, unicode.IsDigit) >= 0 {
+			words++
+		}
+	}
+	return max(1, (words+readingWordsPerMinute-1)/readingWordsPerMinute)
+}
+
+// locateDocument walks the sidebar tree for docPath. Neighbours are the
+// documents adjacent to it inside its own category; nested categories are
+// skipped, so the pager never jumps across sections.
+func locateDocument(nodes []viewmodels.CategoryNode, docPath string, categories []string) (DocumentNavigation, bool) {
+	for i, node := range nodes {
+		if node.Path == "" {
+			if nav, ok := locateDocument(node.Children, docPath, append(slices.Clip(categories), node.Title)); ok {
+				return nav, true
+			}
+			continue
+		}
+		if node.Path != docPath {
+			continue
+		}
+		nav := DocumentNavigation{Categories: categories}
+		for j := i - 1; j >= 0; j-- {
+			if nodes[j].Path != "" {
+				nav.Previous = &nodes[j]
+				break
+			}
+		}
+		for j := i + 1; j < len(nodes); j++ {
+			if nodes[j].Path != "" {
+				nav.Next = &nodes[j]
+				break
+			}
+		}
+		return nav, true
+	}
+	return DocumentNavigation{}, false
 }
 
 func titleFromSegment(segment string) string {
@@ -447,25 +569,24 @@ func titleFromSegment(segment string) string {
 	return cases.Title(language.English).String(segment)
 }
 
-func splitFrontMatter(content []byte) (string, []byte) {
+func splitFrontMatter(content []byte) (frontMatter, []byte) {
 	lines := bytes.Split(content, []byte("\n"))
 	if len(lines) < 3 || string(bytes.TrimSpace(lines[0])) != "---" {
-		return "", content
+		return frontMatter{}, content
 	}
 	for i := 1; i < len(lines); i++ {
 		if string(bytes.TrimSpace(lines[i])) != "---" {
 			continue
 		}
-		var metadata struct {
-			Title string `yaml:"title"`
-		}
+		var metadata frontMatter
 		if err := yaml.Unmarshal(bytes.Join(lines[1:i], []byte("\n")), &metadata); err != nil {
-			return "", content
+			return frontMatter{}, content
 		}
+		metadata.Title = strings.TrimSpace(metadata.Title)
 		body := bytes.TrimLeft(bytes.Join(lines[i+1:], []byte("\n")), "\r\n")
-		return strings.TrimSpace(metadata.Title), body
+		return metadata, body
 	}
-	return "", content
+	return frontMatter{}, content
 }
 
 func stripMarkdownSections(content []byte, hiddenSections []string) []byte {
@@ -549,6 +670,7 @@ type categoryTreeNode struct {
 	key      string
 	title    string
 	path     string
+	order    int
 	children []*categoryTreeNode
 }
 
@@ -560,7 +682,7 @@ func (s *ContentService) insertNode(
 	doc viewmodels.CategoryNode,
 ) {
 	if len(categories) == 0 {
-		*nodes = append(*nodes, &categoryTreeNode{key: doc.Path, title: doc.Title, path: doc.Path})
+		*nodes = append(*nodes, &categoryTreeNode{key: doc.Path, title: doc.Title, path: doc.Path, order: doc.Order})
 		return
 	}
 	categoryPath := path.Join(parentPath, categories[0])
@@ -578,6 +700,9 @@ func (s *ContentService) insertNode(
 
 func categoryViewModels(nodes []*categoryTreeNode) []viewmodels.CategoryNode {
 	sort.SliceStable(nodes, func(i, j int) bool {
+		if nodes[i].order != nodes[j].order {
+			return nodes[i].order < nodes[j].order
+		}
 		if nodes[i].title == nodes[j].title {
 			return nodes[i].key < nodes[j].key
 		}
@@ -588,6 +713,7 @@ func categoryViewModels(nodes []*categoryTreeNode) []viewmodels.CategoryNode {
 		result = append(result, viewmodels.CategoryNode{
 			Title:    node.title,
 			Path:     node.path,
+			Order:    node.order,
 			Children: categoryViewModels(node.children),
 		})
 	}
@@ -626,6 +752,9 @@ func firstDocPath(nodes []viewmodels.CategoryNode) string {
 
 func sortNodes(nodes []viewmodels.CategoryNode) {
 	sort.SliceStable(nodes, func(i, j int) bool {
+		if nodes[i].Order != nodes[j].Order {
+			return nodes[i].Order < nodes[j].Order
+		}
 		return nodes[i].Title < nodes[j].Title
 	})
 	for i := range nodes {

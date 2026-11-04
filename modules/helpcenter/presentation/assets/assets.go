@@ -7,6 +7,7 @@ import (
 	"github.com/benbjohnson/hashfs"
 )
 
+//go:embed css/*.css
 //go:embed js/lib/*.js
 //go:embed licenses/*
 var FS embed.FS

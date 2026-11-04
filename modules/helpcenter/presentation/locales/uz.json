@@ -13,7 +13,6 @@
       "NoResults": "Natijalar topilmadi."
     },
     "Categories": "Hujjatlar",
-    "Article": "Mahsulot qo‘llanmasi",
     "OnThisPage": "Ushbu sahifada",
     "Tasks": {
       "Kicker": "Vazifalar navigatori",
@@ -26,7 +25,17 @@
         "Result": "Natijani tekshiring"
       },
       "OpenScreen": "Ekranni ochish",
-      "ReadGuide": "Yo‘riqnomani o‘qish"
+      "ReadGuide": "Yo‘riqnomani o‘qish",
+      "Step": "{{.N}}-qadam",
+      "Guide": "Qo‘llanma",
+      "GuideCount": {
+        "one": "{{.Count}} ta qo‘llanma",
+        "other": "{{.Count}} ta qo‘llanma"
+      },
+      "Minutes": {
+        "one": "{{.Count}} daqiqa",
+        "other": "{{.Count}} daqiqa"
+      }
     },
     "ExpandNavigation": "Navigatsiyani ochish",
     "CollapseNavigation": "Navigatsiyani yig‘ish",
@@ -49,6 +58,43 @@
       "Warning": "Ogohlantirish",
       "Caution": "Ehtiyot bo‘ling"
     },
-    "Empty": "Yordam maqolalari hali mavjud emas."
+    "Empty": "Yordam maqolalari hali mavjud emas.",
+    "Breadcrumbs": "Maqola yo‘li",
+    "TopbarLinks": {
+      "Label": "Yordam markazi bo‘limlari",
+      "AllSections": "Barcha bo‘limlar",
+      "Feedback": "Fikr-mulohaza"
+    },
+    "ArticleMeta": {
+      "ReadingTime": {
+        "one": "{{.Count}} daqiqa o‘qish",
+        "other": "{{.Count}} daqiqa o‘qish"
+      },
+      "Updated": "Yangilangan: {{.Year}}-yil {{.Day}}-{{.Month}}",
+      "Months": {
+        "January": "yanvar",
+        "February": "fevral",
+        "March": "mart",
+        "April": "aprel",
+        "May": "may",
+        "June": "iyun",
+        "July": "iyul",
+        "August": "avgust",
+        "September": "sentabr",
+        "October": "oktabr",
+        "November": "noyabr",
+        "December": "dekabr"
+      }
+    },
+    "Pager": {
+      "Label": "Qo‘shni maqolalar",
+      "Previous": "Oldingi",
+      "Next": "Keyingi"
+    },
+    "Toc": {
+      "CopyLink": "Havolani nusxalash",
+      "LinkCopied": "Havola nusxalandi",
+      "ReportProblem": "Xato haqida xabar berish"
+    }
   }
 }

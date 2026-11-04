@@ -13,7 +13,6 @@
       "NoResults": "No results found."
     },
     "Categories": "Documentation",
-    "Article": "Product guide",
     "OnThisPage": "On this page",
     "Tasks": {
       "Kicker": "Task navigator",
@@ -26,7 +25,17 @@
         "Result": "Check the result"
       },
       "OpenScreen": "Open screen",
-      "ReadGuide": "Read guide"
+      "ReadGuide": "Read guide",
+      "Step": "Step {{.N}}",
+      "Guide": "Guide",
+      "GuideCount": {
+        "one": "{{.Count}} guide",
+        "other": "{{.Count}} guides"
+      },
+      "Minutes": {
+        "one": "{{.Count}} minute",
+        "other": "{{.Count}} minutes"
+      }
     },
     "ExpandNavigation": "Expand navigation",
     "CollapseNavigation": "Collapse navigation",
@@ -49,6 +58,43 @@
       "Warning": "Warning",
       "Caution": "Caution"
     },
-    "Empty": "No help articles are available yet."
+    "Empty": "No help articles are available yet.",
+    "Breadcrumbs": "Breadcrumbs",
+    "TopbarLinks": {
+      "Label": "Help Center links",
+      "AllSections": "All sections",
+      "Feedback": "Feedback"
+    },
+    "ArticleMeta": {
+      "ReadingTime": {
+        "one": "{{.Count}} minute read",
+        "other": "{{.Count}} minute read"
+      },
+      "Updated": "Updated {{.Month}} {{.Day}}, {{.Year}}",
+      "Months": {
+        "January": "January",
+        "February": "February",
+        "March": "March",
+        "April": "April",
+        "May": "May",
+        "June": "June",
+        "July": "July",
+        "August": "August",
+        "September": "September",
+        "October": "October",
+        "November": "November",
+        "December": "December"
+      }
+    },
+    "Pager": {
+      "Label": "Previous and next articles",
+      "Previous": "Previous",
+      "Next": "Next"
+    },
+    "Toc": {
+      "CopyLink": "Copy link",
+      "LinkCopied": "Link copied",
+      "ReportProblem": "Report a problem"
+    }
   }
 }

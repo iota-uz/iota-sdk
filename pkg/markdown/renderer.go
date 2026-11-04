@@ -22,13 +22,32 @@ type renderer struct {
 	sanitizer *bluemonday.Policy
 }
 
+// Option customizes the sanitizer of a renderer built by NewRendererWithOptions.
+type Option func(policy *bluemonday.Policy)
+
+// WithAllowedClasses keeps class attributes matching pattern on the given
+// elements. Classes are otherwise stripped, so a caller opts in only the
+// presentation hooks its own stylesheet owns.
+func WithAllowedClasses(pattern *regexp.Regexp, elements ...string) Option {
+	return func(policy *bluemonday.Policy) {
+		policy.AllowAttrs("class").Matching(pattern).OnElements(elements...)
+	}
+}
+
 var mermaidLanguagePattern = regexp.MustCompile(`^language-mermaid$`)
 
 func NewRenderer() Renderer {
+	return NewRendererWithOptions()
+}
+
+func NewRendererWithOptions(opts ...Option) Renderer {
 	sanitizer := bluemonday.UGCPolicy()
 	sanitizer.AllowAttrs("class").
 		Matching(mermaidLanguagePattern).
 		OnElements("code")
+	for _, opt := range opts {
+		opt(sanitizer)
+	}
 
 	return &renderer{
 		md: goldmark.New(
