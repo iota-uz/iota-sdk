@@ -4,10 +4,10 @@
 
 Ensure these tools are installed before you begin:
 
-- [Go v1.24.10](https://golang.org/doc/install)
+- [Go v1.25.14](https://golang.org/doc/install)
 - [Air v1.61.5](https://github.com/air-verse/air#Installation) - Hot-reloading
 - [Docker v27.2.0](https://docs.docker.com/get-docker/) - Containerization
-- [Templ v0.3.857](https://templ.guide/) - Templating
+- [Templ v0.3.1020](https://templ.guide/) - Templating
 - [TailwindCSS v3.4.13](https://tailwindcss.com/docs/installation) - Styling
 - [golangci-lint 1.64.8](https://golangci-lint.run/welcome/install/) - Linting
 - [Just](https://github.com/casey/just) - Task runner
@@ -27,7 +27,7 @@ Ensure these tools are installed before you begin:
 
 4. **Templ**:
    ```cmd
-   go install github.com/a-h/templ/cmd/templ@v0.3.857
+   go install github.com/a-h/templ/cmd/templ@v0.3.1020
    ```
 
 5. **TailwindCSS**: Using npm (requires Node.js):

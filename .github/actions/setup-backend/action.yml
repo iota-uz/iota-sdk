@@ -5,7 +5,7 @@ inputs:
   go-version:
     description: Go version to install
     required: false
-    default: '1.24.10'
+    default: '1.25.14'
   install-templ:
     description: Whether to install templ tool
     required: false
@@ -40,7 +40,7 @@ runs:
       run: |
         set -euo pipefail
         echo "::group::Installing templ"
-        if ! go install github.com/a-h/templ/cmd/templ@v0.3.857; then
+        if ! go install github.com/a-h/templ/cmd/templ@v0.3.1020; then
           echo "::error::Failed to install templ tool"
           exit 1
         fi
