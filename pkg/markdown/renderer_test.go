@@ -60,3 +60,18 @@ func TestRenderer_DefaultStripsClasses(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(html), `<div>a</div>`)
 }
+
+// False green: ASCII-only headings, which goldmark's default generator already
+// turns into readable ids, or checking the generator without the sanitizer
+// that used to strip non-ASCII ids.
+func TestRenderer_HeadingIDsKeepEveryScript(t *testing.T) {
+	html, err := NewRenderer().Render([]byte("## Шаги на экране\n\n## Шаги на экране\n\n### 2. Проверьте НАПП\n\n## Step one\n\n## ¿?"))
+
+	require.NoError(t, err)
+	out := string(html)
+	require.Contains(t, out, `<h2 id="шаги-на-экране">`)
+	require.Contains(t, out, `<h2 id="шаги-на-экране-1">`)
+	require.Contains(t, out, `<h3 id="2-проверьте-напп">`)
+	require.Contains(t, out, `<h2 id="step-one">`)
+	require.Contains(t, out, `<h2 id="heading">`)
+}

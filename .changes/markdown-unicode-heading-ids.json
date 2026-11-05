@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Markdown headings get readable anchors in every script: \"## Шаги на экране\" renders as id \"шаги-на-экране\" instead of \"---2\", and the sanitizer keeps such ids on headings."}
