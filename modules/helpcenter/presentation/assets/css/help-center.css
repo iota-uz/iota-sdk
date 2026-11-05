@@ -1205,3 +1205,192 @@ body.help-mermaid-fullscreen-open {
     transition: none;
   }
 }
+
+/* Sidebar: article counts and an in-section filter for long categories */
+.help-category-title {
+  min-width: 0;
+  flex: 1;
+}
+.help-category-count {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #f0f2f5;
+  padding: 0 0.4rem;
+  color: var(--help-faint);
+  font-size: 0.68rem;
+  font-weight: 550;
+  line-height: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+.help-category-filter {
+  padding: 0.3rem 0.4rem 0.35rem 0.75rem;
+}
+.help-category-filter input {
+  width: 100%;
+  height: 1.85rem;
+  border: 1px solid var(--help-border);
+  border-radius: 0.45rem;
+  background: var(--help-paper);
+  padding: 0 0.6rem;
+  color: var(--help-ink);
+  font-size: 0.76rem;
+}
+.help-category-filter input:focus {
+  border-color: var(--help-accent-line);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, oklch(var(--primary-500)) 10%, transparent);
+}
+.help-category-filter-empty {
+  margin-top: 0.4rem;
+  color: var(--help-faint);
+  font-size: 0.74rem;
+}
+.help-nav-link[hidden],
+.help-category[hidden],
+.help-category-filter-empty[hidden] {
+  display: none;
+}
+
+/* Home: jump links to task groups */
+.help-task-jump {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 2.5rem calc(-1 * clamp(1.25rem, 4vw, 3rem)) 0;
+  border-bottom: 1px solid var(--help-line);
+  background: rgb(255 255 255 / 0.94);
+  padding: 0.7rem clamp(1.25rem, 4vw, 3rem);
+  backdrop-filter: blur(8px);
+}
+.help-task-jump a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--help-border);
+  border-radius: 999px;
+  background: var(--help-paper);
+  padding: 0.28rem 0.7rem;
+  color: var(--help-text);
+  font-size: 0.78rem;
+  font-weight: 550;
+  white-space: nowrap;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+.help-task-jump a:hover,
+.help-task-jump a:focus-visible {
+  border-color: var(--help-accent-line);
+  color: var(--help-accent-ink);
+  outline: none;
+}
+.help-task-jump small {
+  color: var(--help-faint);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+.help-task-jump + .help-task-groups {
+  margin-top: 2rem;
+}
+.help-task-group {
+  scroll-margin-top: 4.5rem;
+}
+
+/* Article: collapsed table of contents below the wide layout */
+.help-article .help-toc-compact {
+  margin: -1rem 0 2rem;
+  border: 1px solid var(--help-border);
+  border-radius: 0.6rem;
+  background: #fbfbfc;
+}
+.help-article .help-toc-compact[hidden] {
+  display: none;
+}
+.help-toc-compact > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+  padding: 0.6rem 0.9rem;
+  color: var(--help-heading);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.help-toc-compact > summary::-webkit-details-marker { display: none; }
+.help-toc-compact > summary::after {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 1.5px solid var(--help-faint);
+  border-bottom: 1.5px solid var(--help-faint);
+  content: "";
+  transform: translateY(-0.1rem) rotate(45deg);
+  transition: transform 140ms ease;
+}
+.help-toc-compact[open] > summary::after {
+  transform: translateY(0.1rem) rotate(-135deg);
+}
+.help-toc-compact .help-toc-nav {
+  max-height: 50vh;
+  overflow-y: auto;
+  margin: 0 0.9rem 0.75rem;
+}
+.help-article .help-toc-compact .help-toc-link {
+  color: var(--help-muted);
+  font-weight: 400;
+  text-decoration: none;
+}
+.help-article .help-toc-compact .help-toc-link[aria-current="true"] {
+  color: var(--help-accent-ink);
+  font-weight: 600;
+}
+@media (min-width: 1380px) {
+  .help-article .help-toc-compact {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .help-task-jump {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-top: 1.75rem;
+    scrollbar-width: none;
+  }
+  .help-task-jump::-webkit-scrollbar {
+    display: none;
+  }
+  .help-task-groups {
+    gap: 2.25rem;
+  }
+  .help-task-grid {
+    gap: 0.6rem;
+  }
+  .help-task-card {
+    padding: 0.8rem 0.9rem 0.75rem;
+  }
+  .help-task-meta {
+    margin-bottom: 0.3rem;
+  }
+  .help-task-title {
+    font-size: 0.92rem;
+  }
+  .help-task-description {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .help-task-outcome {
+    display: none;
+  }
+  .help-task-actions {
+    padding-top: 0.6rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .help-task-jump a {
+    transition: none;
+  }
+}

@@ -1,6 +1,7 @@
 package help
 
 import (
+	"strconv"
 	"strings"
 
 	icons "github.com/iota-uz/icons/phosphor"
@@ -18,6 +19,7 @@ type IndexProps struct {
 	BasePath        string
 	Tree            []viewmodels.CategoryNode
 	Tasks           []viewmodels.TaskGroup
+	Intro           viewmodels.HomeIntro
 	Doc             *viewmodels.DocView
 	SearchAvailable bool
 	Locale          string
@@ -46,13 +48,30 @@ func categoryContainsActive(node viewmodels.CategoryNode, active *viewmodels.Doc
 	return false
 }
 
-func categoryDisplayTitle(title string) string {
+// CategoryDisplayTitle drops a legacy two-digit ordering prefix ("01 CRM")
+// from a category title; CategoryOrder now orders categories instead.
+func CategoryDisplayTitle(title string) string {
 	title = strings.TrimSpace(title)
 	prefix, remainder, found := strings.Cut(title, " ")
 	if found && len(prefix) == 2 && prefix[0] >= '0' && prefix[0] <= '9' && prefix[1] >= '0' && prefix[1] <= '9' {
 		return strings.TrimSpace(remainder)
 	}
 	return title
+}
+
+// categoryFilterThreshold is the article count from which a sidebar category
+// gets its own filter field instead of a list to scroll through.
+const categoryFilterThreshold = 12
+
+func categoryDocCount(node viewmodels.CategoryNode) int {
+	if node.Path != "" {
+		return 1
+	}
+	count := 0
+	for _, child := range node.Children {
+		count += categoryDocCount(child)
+	}
+	return count
 }
 
 templ Index(props IndexProps) {
@@ -161,7 +180,7 @@ templ Index(props IndexProps) {
 						</div>
 						<nav>
 							for _, node := range props.Tree {
-								@categoryNode(props.BasePath, node, props.Doc)
+								@categoryNode(props.BasePath, node, props.Doc, false)
 							}
 						</nav>
 					</div>
@@ -172,7 +191,7 @@ templ Index(props IndexProps) {
 						if props.Doc != nil {
 							@Doc(DocProps{BasePath: props.BasePath, Doc: props.Doc})
 						} else if len(props.Tasks) > 0 {
-							@Home(HomeProps{BasePath: props.BasePath, Groups: props.Tasks})
+							@Home(HomeProps{BasePath: props.BasePath, Groups: props.Tasks, Intro: props.Intro})
 						} else {
 							<div class="p-6 text-sm text-gray-500">{ pageCtx.T("HelpCenter.Empty") }</div>
 						}
@@ -421,35 +440,36 @@ templ Index(props IndexProps) {
 
 				function buildTableOfContents(root = document) {
 					const article = root.querySelector(".help-article");
-					const toc = root.querySelector("[data-help-toc]");
-					if (!article || !toc) return;
-					toc.replaceChildren();
-					const headings = article.querySelectorAll("h2, h3");
-					for (const heading of headings) {
-						if (!heading.id) continue;
-						const link = document.createElement("a");
-						link.href = `#${heading.id}`;
-						link.textContent = heading.textContent;
-						link.className = heading.tagName === "H3" ? "help-toc-link help-toc-link-nested" : "help-toc-link";
-						toc.appendChild(link);
+					const tocs = [...root.querySelectorAll("[data-help-toc]")];
+					if (!article || tocs.length === 0) return;
+					const headings = [...article.querySelectorAll("h2[id], h3[id]")];
+					for (const toc of tocs) {
+						toc.replaceChildren();
+						for (const heading of headings) {
+							const link = document.createElement("a");
+							link.href = `#${heading.id}`;
+							link.textContent = heading.textContent;
+							link.className = heading.tagName === "H3" ? "help-toc-link help-toc-link-nested" : "help-toc-link";
+							toc.appendChild(link);
+						}
+						toc.closest(".help-toc, .help-toc-compact")?.toggleAttribute("hidden", headings.length === 0);
 					}
-					toc.closest(".help-toc")?.toggleAttribute("hidden", headings.length === 0);
-					observeActiveHeading(article, toc);
+					observeActiveHeading(article, tocs);
 				}
 
 				let headingObserver;
-				function observeActiveHeading(article, toc) {
+				function observeActiveHeading(article, tocs) {
 					headingObserver?.disconnect();
 					const scroller = document.querySelector(".help-main");
 					if (!("IntersectionObserver" in window) || !scroller) return;
-					const links = new Map([...toc.querySelectorAll(".help-toc-link")].map((link) => [link.getAttribute("href").slice(1), link]));
+					const links = tocs.flatMap((toc) => [...toc.querySelectorAll(".help-toc-link")]);
 					const headings = [...article.querySelectorAll("h2[id], h3[id]")];
 					const bandShare = 0.35;
 					const markActive = () => {
 						const bandEnd = scroller.getBoundingClientRect().top + scroller.clientHeight * bandShare;
 						const current = headings.filter((heading) => heading.getBoundingClientRect().top <= bandEnd).pop();
-						for (const [id, link] of links) {
-							if (id === current?.id) link.setAttribute("aria-current", "true");
+						for (const link of links) {
+							if (link.getAttribute("href").slice(1) === current?.id) link.setAttribute("aria-current", "true");
 							else link.removeAttribute("aria-current");
 						}
 					};
@@ -459,6 +479,30 @@ templ Index(props IndexProps) {
 					});
 					for (const heading of headings) headingObserver.observe(heading);
 				}
+
+				document.addEventListener("click", (event) => {
+					const compactLink = event.target.closest(".help-toc-compact .help-toc-link");
+					if (compactLink) compactLink.closest("details")?.removeAttribute("open");
+				});
+
+				document.addEventListener("input", (event) => {
+					const field = event.target.closest("[data-help-category-filter]");
+					if (!field) return;
+					const category = field.closest(".help-category");
+					const query = field.value.trim().toLocaleLowerCase();
+					let matches = 0;
+					for (const link of category.querySelectorAll(".help-nav-link")) {
+						const visible = query === "" || link.textContent.toLocaleLowerCase().includes(query);
+						link.hidden = !visible;
+						if (visible) matches++;
+					}
+					for (const nested of category.querySelectorAll(".help-category-children .help-category")) {
+						const hasVisible = [...nested.querySelectorAll(".help-nav-link")].some((link) => !link.hidden);
+						nested.hidden = !hasVisible;
+						if (query !== "" && hasVisible) nested.open = true;
+					}
+					field.parentElement.querySelector(".help-category-filter-empty")?.toggleAttribute("hidden", matches > 0);
+				});
 
 				document.addEventListener("click", async (event) => {
 					const copy = event.target.closest("[data-help-copy-link]");
@@ -576,7 +620,9 @@ templ Index(props IndexProps) {
 	}
 }
 
-templ categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmodels.DocView) {
+// categoryNode renders one sidebar entry. filtered is set below a category
+// that already has a filter field, so nested categories do not repeat it.
+templ categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmodels.DocView, filtered bool) {
 	if node.Path != "" {
 		<a
 			href={ templ.URL(basePath + "/doc/" + node.Path) }
@@ -589,16 +635,32 @@ templ categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmo
 			{ node.Title }
 		</a>
 	} else {
+		{{ count := categoryDocCount(node) }}
 		<details class="help-category" open?={ categoryContainsActive(node, active) }>
 			<summary>
-				<span>{ categoryDisplayTitle(node.Title) }</span>
+				<span class="help-category-title">{ CategoryDisplayTitle(node.Title) }</span>
+				<span class="help-category-count" aria-label={ articleCountLabel(ctx, count) }>{ strconv.Itoa(count) }</span>
 				<span class="help-category-caret">
 					@icons.CaretDown(icons.Props{Size: "12"})
 				</span>
 			</summary>
 			<div class="help-category-children">
+				{{ withFilter := !filtered && count >= categoryFilterThreshold }}
+				if withFilter {
+					{{ pageCtx := composables.UsePageCtx(ctx) }}
+					<div class="help-category-filter">
+						<input
+							type="search"
+							autocomplete="off"
+							data-help-category-filter
+							placeholder={ pageCtx.T("HelpCenter.CategoryFilter.Placeholder") }
+							aria-label={ pageCtx.T("HelpCenter.CategoryFilter.Placeholder") }
+						/>
+						<p class="help-category-filter-empty" hidden>{ pageCtx.T("HelpCenter.CategoryFilter.NoMatches") }</p>
+					</div>
+				}
 				for _, child := range node.Children {
-					@categoryNode(basePath, child, active)
+					@categoryNode(basePath, child, active, filtered || withFilter)
 				}
 			</div>
 		</details>

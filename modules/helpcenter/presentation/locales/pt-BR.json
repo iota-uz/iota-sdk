@@ -13,6 +13,15 @@
       "NoResults": "Nenhum resultado encontrado."
     },
     "Categories": "Categorias",
+    "ArticleCount": {
+      "one": "{{.Count}} artigo",
+      "many": "{{.Count}} artigos",
+      "other": "{{.Count}} artigos"
+    },
+    "CategoryFilter": {
+      "Placeholder": "Filtrar esta seção",
+      "NoMatches": "Nenhum artigo corresponde."
+    },
     "OnThisPage": "Nesta página",
     "Tasks": {
       "Kicker": "Navegador de tarefas",
@@ -37,7 +46,8 @@
         "one": "{{.Count}} minuto",
         "many": "{{.Count}} minutos",
         "other": "{{.Count}} minutos"
-      }
+      },
+      "GroupsLabel": "Grupos de tarefas"
     },
     "ExpandNavigation": "Expandir navegação",
     "CollapseNavigation": "Recolher navegação",

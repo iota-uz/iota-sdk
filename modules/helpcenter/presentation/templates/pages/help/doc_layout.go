@@ -75,6 +75,10 @@ func guideCountLabel(ctx context.Context, count int) string {
 	return pluralLabel(ctx, "HelpCenter.Tasks.GuideCount", count)
 }
 
+func articleCountLabel(ctx context.Context, count int) string {
+	return pluralLabel(ctx, "HelpCenter.ArticleCount", count)
+}
+
 func minutesLabel(ctx context.Context, minutes int) string {
 	return pluralLabel(ctx, "HelpCenter.Tasks.Minutes", minutes)
 }

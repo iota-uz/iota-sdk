@@ -13,6 +13,14 @@
       "NoResults": "No results found."
     },
     "Categories": "Documentation",
+    "ArticleCount": {
+      "one": "{{.Count}} article",
+      "other": "{{.Count}} articles"
+    },
+    "CategoryFilter": {
+      "Placeholder": "Filter this section",
+      "NoMatches": "No articles match."
+    },
     "OnThisPage": "On this page",
     "Tasks": {
       "Kicker": "Task navigator",
@@ -35,7 +43,8 @@
       "Minutes": {
         "one": "{{.Count}} minute",
         "other": "{{.Count}} minutes"
-      }
+      },
+      "GroupsLabel": "Task groups"
     },
     "ExpandNavigation": "Expand navigation",
     "CollapseNavigation": "Collapse navigation",

@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Help Center search filters hits by the reader's content locale and HiddenPaths before the result limit, shows clean excerpts that keep the highlight and the article's section instead of its file path; ContentConfig gains HomeIntro, HideHomePath and CategoryOrder; the home page gets jump links to task groups and compact cards on narrow screens, long sidebar categories show article counts and an in-section filter, and articles get a collapsed table of contents below the wide layout."
+}
