@@ -294,9 +294,10 @@ templ Authenticated(props AuthenticatedProps) {
 		pageCtx := composables.UsePageCtx(ctx)
 		sidebarProps := MustUseSidebarProps(ctx)
 	}}
-	{{if props.WebsocketURL == "" {
-	props.WebsocketURL = "/ws"
-}
+	{{
+		if props.WebsocketURL == "" {
+			props.WebsocketURL = "/ws"
+		}
 	}}
 	@Base(&props.BaseProps) {
 		@toast.Container()

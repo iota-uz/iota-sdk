@@ -33,7 +33,7 @@ download_file() {
 }
 
 # Tool versions (from go.mod and installation.md)
-TEMPL_VERSION="v0.3.857"
+TEMPL_VERSION="v0.3.1020"
 AIR_VERSION="v1.61.5"
 GOLANGCI_LINT_VERSION="v1.64.8"
 

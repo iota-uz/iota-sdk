@@ -5,7 +5,7 @@ RUN curl -sSfL https://github.com/tailwindlabs/tailwindcss/releases/download/v3.
     && chmod +x /usr/local/bin/tailwindcss
 
 # Install Go tools
-RUN go install github.com/a-h/templ/cmd/templ@v0.3.857 \
+RUN go install github.com/a-h/templ/cmd/templ@v0.3.1020 \
     && go install github.com/air-verse/air@v1.61.5 \
     && go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 \
     && go install golang.org/x/tools/cmd/goimports@v0.31.0 \

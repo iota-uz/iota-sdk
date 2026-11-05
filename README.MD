@@ -106,7 +106,7 @@ just install-tools
 ```
 
 This installs the following tools with correct versions:
-- **templ** v0.3.857 - Template engine
+- **templ** v0.3.1020 - Template engine
 - **air** v1.61.5 - Hot reload for Go applications
 - **goimports** - Go imports organizer
 - **golangci-lint** v1.64.8 - Go linter

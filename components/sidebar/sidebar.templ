@@ -194,9 +194,7 @@ templ SidebarCollapsedWorkspaceTabs(props Props) {
 }
 
 templ SidebarNav(props Props) {
-	{{
-		tabs := BuildSidebarNavTabs(ctx, props.TabGroups)
-	}}
+	{{ tabs := BuildSidebarNavTabs(ctx, props.TabGroups) }}
 	<nav
 		id={ sidebarMainNavID }
 		x-data="sidebarNavigation()"

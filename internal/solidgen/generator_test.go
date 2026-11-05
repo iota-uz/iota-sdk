@@ -298,7 +298,7 @@ func fixtureModule(t *testing.T, goSource, tsxSource string) string {
 	_, current, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 	sdkRoot := filepath.Clean(filepath.Join(filepath.Dir(current), "..", ".."))
-	goMod := "module example.test/app\n\ngo 1.24.10\n\nrequire github.com/iota-uz/iota-sdk v0.0.0\nreplace github.com/iota-uz/iota-sdk => " + filepath.ToSlash(sdkRoot) + "\n"
+	goMod := "module example.test/app\n\ngo 1.25.0\n\nrequire github.com/iota-uz/iota-sdk v0.0.0\nreplace github.com/iota-uz/iota-sdk => " + filepath.ToSlash(sdkRoot) + "\n"
 	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte(goMod), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "feature"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "feature", "feature.go"), []byte(goSource), 0o644))
