@@ -147,15 +147,19 @@ templ editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) {
 		}
 		switch field.Type {
 			case filterq.FieldTypeReference:
-				@base.Combobox(base.ComboboxProps{
-					Multiple:     true,
-					Searchable:   true,
-					Name:         "",
-					Placeholder:  pageCtx.T("Scaffold.FilterBuilder.SelectValues"),
-					NotFoundText: pageCtx.T("Scaffold.FilterBuilder.NothingFound"),
-					ListClass:    "!max-h-60",
-				}) {
-					@GroupedOptions(field.Options, condValues(cond))
+				if usesCheckboxList(field.Options) {
+					@CheckboxOptions(field.Options, condValues(cond))
+				} else {
+					@base.Combobox(base.ComboboxProps{
+						Multiple:     true,
+						Searchable:   true,
+						Name:         "",
+						Placeholder:  pageCtx.T("Scaffold.FilterBuilder.SelectValues"),
+						NotFoundText: pageCtx.T("Scaffold.FilterBuilder.NothingFound"),
+						ListClass:    "!max-h-60",
+					}) {
+						@GroupedOptions(field.Options, condValues(cond))
+					}
 				}
 			case filterq.FieldTypeDate:
 				if len(field.presets()) > 0 {
