@@ -244,6 +244,19 @@ func TestCheckboxOptionsMarkup(t *testing.T) {
 	assert.Equal(t, 2, strings.Count(html, `toLocaleString`), "a negative count means no counter")
 }
 
+func TestCheckboxOptionsKeepSelectedDisabledOptionRemovable(t *testing.T) {
+	html := render(t, CheckboxOptions([]Option{
+		{Value: "1", Label: "Retired", Count: 0, Disabled: true},
+		{Value: "2", Label: "Annulled", Count: 0, Disabled: true},
+	}, []string{"1"}))
+
+	inputs := checkboxInputs(t, html)
+	require.Len(t, inputs, 2)
+	assert.Contains(t, inputs[0], ` checked`)
+	assert.NotContains(t, inputs[0], ` disabled`, "a selected option must stay removable")
+	assert.Contains(t, inputs[1], ` disabled`, "a fresh selection stays blocked")
+}
+
 func TestChipEditorPreChecksConditionValues(t *testing.T) {
 	fs := filterq.FilterSet{{Field: "status", Op: filterq.OpIs, Values: []string{"2"}}}
 	html := renderComponent(t, Props{Registry: testRegistry(), Filters: fs}, false)

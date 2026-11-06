@@ -29,9 +29,12 @@ func usesCheckboxList(options []Option) bool {
 	return !slices.ContainsFunc(options, func(opt Option) bool { return opt.Group != "" })
 }
 
-func checkboxOptionAttrs(opt Option) templ.Attributes {
+// checkboxOptionAttrs leaves a selected option enabled even if it became disabled
+// after selection, so it can be removed. Like the combobox, only a fresh selection
+// of a disabled option is blocked.
+func checkboxOptionAttrs(opt Option, checked bool) templ.Attributes {
 	attrs := templ.Attributes{"value": opt.Value, "data-fb-value": ""}
-	if opt.Disabled {
+	if opt.Disabled && !checked {
 		attrs["disabled"] = true
 	}
 	return attrs
@@ -65,6 +68,7 @@ func CheckboxOptions(options []Option, selected []string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		for _, opt := range options {
+			checked := slices.Contains(selected, opt.Value)
 			templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -85,7 +89,7 @@ func CheckboxOptions(options []Option, selected []string) templ.Component {
 					var templ_7745c5c3_Var3 string
 					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("'(' + Number(%d).toLocaleString() + ')'", opt.Count))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/options.templ`, Line: 46, Col: 80}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/options.templ`, Line: 53, Col: 80}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
@@ -100,9 +104,12 @@ func CheckboxOptions(options []Option, selected []string) templ.Component {
 			})
 			templ_7745c5c3_Err = input.Checkbox(&input.CheckboxProps{
 				Label:   opt.Label,
-				Checked: slices.Contains(selected, opt.Value),
-				Class:   templ.Classes(templ.KV("opacity-40 !cursor-not-allowed", opt.Disabled)),
-				Attrs:   checkboxOptionAttrs(opt),
+				Checked: checked,
+				Class: templ.Classes(
+					templ.KV("opacity-40", opt.Disabled),
+					templ.KV("!cursor-not-allowed", opt.Disabled && !checked),
+				),
+				Attrs: checkboxOptionAttrs(opt, checked),
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -156,7 +163,7 @@ func GroupedOptions(options []Option, selected []string) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs("__group:" + opt.Group)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/options.templ`, Line: 68, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/options.templ`, Line: 75, Col: 69}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -169,7 +176,7 @@ func GroupedOptions(options []Option, selected []string) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(opt.Group)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/options.templ`, Line: 68, Col: 83}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/options.templ`, Line: 75, Col: 83}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -192,7 +199,7 @@ func GroupedOptions(options []Option, selected []string) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(opt.Value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/options.templ`, Line: 72, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/options.templ`, Line: 79, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -222,7 +229,7 @@ func GroupedOptions(options []Option, selected []string) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(opt.Count))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/options.templ`, Line: 76, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/options.templ`, Line: 83, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -240,7 +247,7 @@ func GroupedOptions(options []Option, selected []string) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(opt.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/options.templ`, Line: 79, Col: 14}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/options.templ`, Line: 86, Col: 14}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {

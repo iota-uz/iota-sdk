@@ -21,9 +21,12 @@ func usesCheckboxList(options []Option) bool {
 	return !slices.ContainsFunc(options, func(opt Option) bool { return opt.Group != "" })
 }
 
-func checkboxOptionAttrs(opt Option) templ.Attributes {
+// checkboxOptionAttrs leaves a selected option enabled even if it became disabled
+// after selection, so it can be removed. Like the combobox, only a fresh selection
+// of a disabled option is blocked.
+func checkboxOptionAttrs(opt Option, checked bool) templ.Attributes {
 	attrs := templ.Attributes{"value": opt.Value, "data-fb-value": ""}
-	if opt.Disabled {
+	if opt.Disabled && !checked {
 		attrs["disabled"] = true
 	}
 	return attrs
@@ -34,11 +37,15 @@ func checkboxOptionAttrs(opt Option) templ.Attributes {
 templ CheckboxOptions(options []Option, selected []string) {
 	<div class="flex flex-col gap-2" data-fb-checkboxes>
 		for _, opt := range options {
+			{{ checked := slices.Contains(selected, opt.Value) }}
 			@input.Checkbox(&input.CheckboxProps{
 				Label:   opt.Label,
-				Checked: slices.Contains(selected, opt.Value),
-				Class:   templ.Classes(templ.KV("opacity-40 !cursor-not-allowed", opt.Disabled)),
-				Attrs:   checkboxOptionAttrs(opt),
+				Checked: checked,
+				Class: templ.Classes(
+					templ.KV("opacity-40", opt.Disabled),
+					templ.KV("!cursor-not-allowed", opt.Disabled && !checked),
+				),
+				Attrs: checkboxOptionAttrs(opt, checked),
 			}) {
 				if opt.Count >= 0 {
 					<span
