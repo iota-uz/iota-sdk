@@ -42,6 +42,7 @@ templ CheckboxOptions(options []Option, selected []string) {
 				Label:   opt.Label,
 				Checked: checked,
 				Class: templ.Classes(
+					"rounded-md has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-brand-500",
 					templ.KV("opacity-40", opt.Disabled),
 					templ.KV("!cursor-not-allowed", opt.Disabled && !checked),
 				),

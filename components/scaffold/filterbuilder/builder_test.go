@@ -239,6 +239,7 @@ func TestCheckboxOptionsMarkup(t *testing.T) {
 		assert.NotContains(t, inputs[i], `name=`, "editor controls must not serialize into the form")
 	}
 
+	assert.Contains(t, html, `has-[input:focus-visible]:ring-2`, "the hidden input needs a visible keyboard focus state")
 	assert.Contains(t, html, `Number(12403)`, "a counter renders as a badge")
 	assert.Contains(t, html, `Number(0)`, "a zero counter is still a counter")
 	assert.Equal(t, 2, strings.Count(html, `toLocaleString`), "a negative count means no counter")
