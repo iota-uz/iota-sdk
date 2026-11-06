@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Render ungrouped filter builder reference fields with fewer than five options as a checkbox list instead of a searchable combobox."}

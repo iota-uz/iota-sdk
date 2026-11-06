@@ -1,6 +1,55 @@
 package filterbuilder
 
-import "strconv"
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"slices"
+	"strconv"
+)
+
+// checkboxListLimit is the option count from which a reference field needs the
+// searchable combobox instead of a plain checkbox list.
+const checkboxListLimit = 5
+
+// usesCheckboxList reports whether options fit a plain checkbox list. Grouped
+// options stay on the combobox, the only editor that renders group headers, and
+// so does an empty list, which relies on the combobox's "nothing found" state.
+func usesCheckboxList(options []Option) bool {
+	if len(options) == 0 || len(options) >= checkboxListLimit {
+		return false
+	}
+	return !slices.ContainsFunc(options, func(opt Option) bool { return opt.Group != "" })
+}
+
+func checkboxOptionAttrs(opt Option) templ.Attributes {
+	attrs := templ.Attributes{"value": opt.Value, "data-fb-value": ""}
+	if opt.Disabled {
+		attrs["disabled"] = true
+	}
+	return attrs
+}
+
+// CheckboxOptions renders a short reference-field option list as nameless
+// checkboxes, read back by fbPanel.collect through data-fb-value.
+templ CheckboxOptions(options []Option, selected []string) {
+	<div class="flex flex-col gap-2" data-fb-checkboxes>
+		for _, opt := range options {
+			@input.Checkbox(&input.CheckboxProps{
+				Label:   opt.Label,
+				Checked: slices.Contains(selected, opt.Value),
+				Class:   templ.Classes(templ.KV("opacity-40 !cursor-not-allowed", opt.Disabled)),
+				Attrs:   checkboxOptionAttrs(opt),
+			}) {
+				if opt.Count >= 0 {
+					<span
+						class="text-xs text-200 whitespace-nowrap"
+						x-text={ fmt.Sprintf("'(' + Number(%d).toLocaleString() + ')'", opt.Count) }
+					></span>
+				}
+			}
+		}
+	</div>
+}
 
 // GroupedOptions renders reference-field options as children for
 // base.Combobox. Group headings are emitted as disabled marker options

@@ -3,6 +3,7 @@ package filterbuilder
 import (
 	"context"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -157,6 +158,118 @@ func TestGroupedOptionsMarkup(t *testing.T) {
 	assert.Contains(t, html, `value="EEIU" selected data-fb-count="12403"`)
 	// Zero-count options are disabled (dimmed).
 	assert.Contains(t, html, `value="GBO" disabled data-fb-count="0"`)
+}
+
+func referenceOptions(n int) []Option {
+	options := make([]Option, n)
+	for i := range options {
+		options[i] = Opt(strconv.Itoa(i), "Option "+strconv.Itoa(i))
+	}
+	return options
+}
+
+func TestUsesCheckboxList(t *testing.T) {
+	grouped := referenceOptions(2)
+	grouped[1].Group = "Voluntary"
+
+	tests := []struct {
+		name    string
+		options []Option
+		want    bool
+	}{
+		{name: "no options keep the empty state", options: nil, want: false},
+		{name: "one option", options: referenceOptions(1), want: true},
+		{name: "just under the limit", options: referenceOptions(4), want: true},
+		{name: "at the limit", options: referenceOptions(5), want: false},
+		{name: "any grouped option", options: grouped, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, usesCheckboxList(tt.options))
+		})
+	}
+}
+
+func TestReferenceEditorPicksControlByOptions(t *testing.T) {
+	registry := NewRegistry(
+		FieldDef{Key: "short", Type: filterq.FieldTypeReference, Label: "Short", Options: referenceOptions(4)},
+		FieldDef{Key: "long", Type: filterq.FieldTypeReference, Label: "Long", Options: referenceOptions(5)},
+		FieldDef{Key: "seria", Type: filterq.FieldTypeReference, Label: "Seria", Options: []Option{
+			{Value: "EEIU", Label: "EEIU", Count: 1, Group: "Mandatory"},
+		}},
+	)
+	editor := func(key string) string {
+		field, ok := registry.Field(key)
+		require.True(t, ok)
+		return render(t, editorPanel(field, nil, -1))
+	}
+
+	short := editor("short")
+	assert.Equal(t, 4, strings.Count(short, `type="checkbox"`))
+	assert.NotContains(t, short, " multiple", "the combobox renders a multiple select")
+
+	for _, key := range []string{"long", "seria"} {
+		html := editor(key)
+		assert.Contains(t, html, " multiple", key)
+		assert.NotContains(t, html, "data-fb-checkboxes", key)
+	}
+}
+
+func TestCheckboxOptionsMarkup(t *testing.T) {
+	html := render(t, CheckboxOptions([]Option{
+		{Value: "1", Label: "Active", Count: 12403},
+		{Value: "2", Label: "Annulled", Count: 0, Disabled: true},
+		Opt("3", "Draft"),
+	}, []string{"1"}))
+
+	inputs := checkboxInputs(t, html)
+	require.Len(t, inputs, 3)
+
+	assert.Contains(t, inputs[0], ` checked`, "selected values are pre-checked")
+	assert.NotContains(t, inputs[1], ` checked`)
+	assert.NotContains(t, inputs[2], ` checked`)
+
+	assert.Contains(t, inputs[1], ` disabled`, "zero-count options stay unselectable")
+	assert.NotContains(t, inputs[0], ` disabled`)
+
+	for i, value := range []string{"1", "2", "3"} {
+		assert.Contains(t, inputs[i], `value="`+value+`"`)
+		assert.Contains(t, inputs[i], `data-fb-value`, "fbPanel.collect reads this marker")
+		assert.NotContains(t, inputs[i], `name=`, "editor controls must not serialize into the form")
+	}
+
+	assert.Contains(t, html, `Number(12403)`, "a counter renders as a badge")
+	assert.Contains(t, html, `Number(0)`, "a zero counter is still a counter")
+	assert.Equal(t, 2, strings.Count(html, `toLocaleString`), "a negative count means no counter")
+}
+
+func TestChipEditorPreChecksConditionValues(t *testing.T) {
+	fs := filterq.FilterSet{{Field: "status", Op: filterq.OpIs, Values: []string{"2"}}}
+	html := renderComponent(t, Props{Registry: testRegistry(), Filters: fs}, false)
+
+	var checked []string
+	for _, tag := range checkboxInputs(t, html) {
+		if strings.Contains(tag, ` checked`) {
+			checked = append(checked, tag)
+		}
+	}
+	require.Len(t, checked, 1)
+	assert.Contains(t, checked[0], `value="2"`)
+}
+
+// checkboxInputs returns the opening tag of every option checkbox in html.
+func checkboxInputs(t *testing.T, html string) []string {
+	t.Helper()
+	var tags []string
+	for _, frag := range strings.Split(html, "<input")[1:] {
+		end := strings.Index(frag, ">")
+		require.GreaterOrEqual(t, end, 0)
+		if tag := frag[:end]; strings.Contains(tag, `type="checkbox"`) && strings.Contains(tag, "data-fb-value") {
+			tags = append(tags, tag)
+		}
+	}
+	return tags
 }
 
 func TestRegistryDecode(t *testing.T) {
