@@ -121,9 +121,14 @@ func (p *paymeProvider) Cancel(_ context.Context, t billing.Transaction) (billin
 		SetDetails(paymeDetails.SetState(paymeapi.TransactionStateCancelledBeforeCompletion)), nil
 }
 
-func (p *paymeProvider) Refund(_ context.Context, t billing.Transaction, quantity float64) (billing.Transaction, error) {
-	//TODO implement me
-	panic("implement me")
+// ErrPaymeRefundUnsupported is returned because this provider has no outbound
+// refund: Payme reversals arrive through PaymeController.cancel. It is an error
+// rather than a panic because BillingService.Refund calls providers while holding
+// the transaction's row lock, and composables.InTx does not roll back on a panic.
+var ErrPaymeRefundUnsupported = errors.New("payme provider does not support merchant-initiated refunds")
+
+func (p *paymeProvider) Refund(_ context.Context, _ billing.Transaction, _ float64) (billing.Transaction, error) {
+	return nil, ErrPaymeRefundUnsupported
 }
 
 func toPaymeDetails(detailsObj details.Details) (details.PaymeDetails, error) {

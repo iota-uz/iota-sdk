@@ -186,7 +186,9 @@ var ErrTransactionNotCancellable = errors.New("transaction is not active; only a
 // A transaction that is no longer active is refused (ErrTransactionNotCancellable)
 // before the provider is called and before the updated event is built: a
 // cancellation that must not happen should neither reach the gateway nor
-// announce a status change that did not occur.
+// announce a status change that did not occur. The status is read under a row
+// lock, so concurrent callers are checked one at a time against the outcome of
+// the previous one.
 //
 // The refusal is an error rather than a silent no-op, including for a
 // transaction that is already cancelled. Nothing in this SDK cancels twice — a
@@ -197,26 +199,27 @@ var ErrTransactionNotCancellable = errors.New("transaction is not active; only a
 func (s *BillingService) Cancel(ctx context.Context, cmd *CancelTransactionCommand) (billing.Transaction, error) {
 	const op serrors.Op = "BillingService.Cancel"
 
-	entity, err := s.repo.GetByID(ctx, cmd.TransactionID)
-	if err != nil {
-		return nil, serrors.Wrap(op, err)
-	}
+	var (
+		updatedEvent       *billing.UpdatedEvent
+		updatedTransaction billing.Transaction
+	)
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		entity, err := s.repo.GetByIDForUpdate(txCtx, cmd.TransactionID)
+		if err != nil {
+			return err
+		}
 
-	if !entity.Status().IsActive() {
-		return nil, serrors.Wrap(op, fmt.Errorf("%w: status %q", ErrTransactionNotCancellable, entity.Status()))
-	}
+		if !entity.Status().IsActive() {
+			return fmt.Errorf("%w: status %q", ErrTransactionNotCancellable, entity.Status())
+		}
 
-	provider := s.providers[entity.Gateway()]
+		updatedEvent, err = billing.NewUpdatedEvent(txCtx, entity)
+		if err != nil {
+			return err
+		}
 
-	updatedEvent, err := billing.NewUpdatedEvent(ctx, entity)
-	if err != nil {
-		return nil, serrors.Wrap(op, err)
-	}
-
-	var updatedTransaction billing.Transaction
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		// If provider exists, use it
-		if provider != nil {
+		if provider := s.providers[entity.Gateway()]; provider != nil {
 			providedTransaction, err := provider.Cancel(txCtx, entity)
 			if err != nil {
 				return err
@@ -243,23 +246,64 @@ func (s *BillingService) Cancel(ctx context.Context, cmd *CancelTransactionComma
 	return updatedTransaction, nil
 }
 
+// ErrTransactionNotRefundable is returned when a refund is asked for a
+// transaction holding no captured money: it was never paid, or it has already
+// been refunded in full.
+var ErrTransactionNotRefundable = errors.New("transaction has no captured money to refund; only a completed or partially refunded transaction can be refunded")
+
+// ErrInvalidRefundAmount is returned when a refund amount is not positive or
+// exceeds what the transaction can still give back.
+var ErrInvalidRefundAmount = errors.New("refund amount must be positive and must not exceed the refundable amount")
+
+// refundTolerance matches the rounding slack the providers allow on amounts.
+const refundTolerance = 0.001
+
+// refundableQuantity returns what can still be refunded. Only details that
+// record a refunded sum can reduce it; for any other gateway the ceiling is the
+// transaction total, because earlier partial refunds are not recorded.
+func refundableQuantity(t billing.Transaction) float64 {
+	if tracked, ok := t.Details().(details.RefundTracker); ok {
+		return t.Amount().Quantity() - tracked.RefundedSum()
+	}
+	return t.Amount().Quantity()
+}
+
+// Refund sends captured money back.
+//
+// The refusal is decided by Status.IsRefundable and refundableQuantity under a
+// row lock held until commit, before the provider is called: concurrent refunds
+// of one transaction reach the gateway one at a time, and each one sees the
+// status and refunded sum the previous one stored.
 func (s *BillingService) Refund(ctx context.Context, cmd *RefundTransactionCommand) (billing.Transaction, error) {
-	entity, err := s.repo.GetByID(ctx, cmd.TransactionID)
-	if err != nil {
-		return nil, err
-	}
+	const op serrors.Op = "BillingService.Refund"
 
-	provider := s.providers[entity.Gateway()]
+	var (
+		updatedEvent       *billing.UpdatedEvent
+		updatedTransaction billing.Transaction
+	)
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		entity, err := s.repo.GetByIDForUpdate(txCtx, cmd.TransactionID)
+		if err != nil {
+			return err
+		}
 
-	updatedEvent, err := billing.NewUpdatedEvent(ctx, entity)
-	if err != nil {
-		return nil, err
-	}
+		if !entity.Status().IsRefundable() {
+			return fmt.Errorf("%w: status %q", ErrTransactionNotRefundable, entity.Status())
+		}
 
-	var updatedTransaction billing.Transaction
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		// Written so that NaN, which fails every comparison, is refused too.
+		remaining := refundableQuantity(entity)
+		if !(cmd.Quantity > 0 && cmd.Quantity <= remaining+refundTolerance) {
+			return fmt.Errorf("%w: requested %v, refundable %v", ErrInvalidRefundAmount, cmd.Quantity, remaining)
+		}
+
+		updatedEvent, err = billing.NewUpdatedEvent(txCtx, entity)
+		if err != nil {
+			return err
+		}
+
 		// If provider exists, use it
-		if provider != nil {
+		if provider := s.providers[entity.Gateway()]; provider != nil {
 			providedTransaction, err := provider.Refund(txCtx, entity, cmd.Quantity)
 			if err != nil {
 				return err
@@ -278,7 +322,7 @@ func (s *BillingService) Refund(ctx context.Context, cmd *RefundTransactionComma
 		return err
 	})
 	if err != nil {
-		return nil, err
+		return nil, serrors.Wrap(op, err)
 	}
 
 	updatedEvent.Result = updatedTransaction
@@ -291,23 +335,25 @@ func (s *BillingService) Refund(ctx context.Context, cmd *RefundTransactionComma
 }
 
 func (s *BillingService) Delete(ctx context.Context, id uuid.UUID) (billing.Transaction, error) {
-	entity, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
+	var (
+		deletedEvent       *billing.DeletedEvent
+		deletedTransaction billing.Transaction
+	)
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		entity, err := s.repo.GetByIDForUpdate(txCtx, id)
+		if err != nil {
+			return err
+		}
 
-	deletedEvent, err := billing.NewDeletedEvent(ctx, entity)
-	if err != nil {
-		return nil, err
-	}
+		deletedEvent, err = billing.NewDeletedEvent(txCtx, entity)
+		if err != nil {
+			return err
+		}
 
-	var deletedTransaction billing.Transaction
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		if err := s.repo.Delete(txCtx, id); err != nil {
 			return err
-		} else {
-			deletedTransaction = entity
 		}
+		deletedTransaction = entity
 		return nil
 	})
 	if err != nil {
