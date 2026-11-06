@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Refuse billing refunds that have no captured money or an invalid amount, and serialize Cancel, Refund and Delete with a row lock. billing.Repository gains GetByIDForUpdate, so custom implementations must add it."}
