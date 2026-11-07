@@ -30,7 +30,9 @@ func WithUploadsPath(path string) Option {
 	}
 }
 
-// WithDomain sets the HTTP domain used for URL generation.
+// WithDomain sets the HTTP domain used for URL generation. Without it URL
+// returns a host-relative path, which resolves against whichever origin
+// serves the page.
 func WithDomain(domain string) Option {
 	return func(u *upload) {
 		u.domain = domain
@@ -123,8 +125,8 @@ func New(
 		createdAt:   time.Now(),
 		updatedAt:   time.Now(),
 		uploadsPath: "static",
-		domain:      "localhost",
-		scheme:      "http",
+		domain:      "",
+		scheme:      "",
 	}
 	for _, opt := range opts {
 		opt(u)
@@ -159,8 +161,8 @@ func NewWithID(
 		createdAt:   createdAt,
 		updatedAt:   updatedAt,
 		uploadsPath: "static",
-		domain:      "localhost",
-		scheme:      "http",
+		domain:      "",
+		scheme:      "",
 	}
 	for _, opt := range opts {
 		opt(u)
@@ -253,14 +255,26 @@ func (u *upload) SetID(id uint) {
 }
 
 // URL points S3 objects at the authenticated download route because the
-// public file handler never serves them.
+// public file handler never serves them. Without a configured domain it is
+// host-relative ("/static/<file>"): an invented host such as "localhost"
+// would send browsers away from the application that serves the file.
 func (u *upload) URL() *url.URL {
 	urlPath := u.path
 	if IsS3Path(u.path) {
 		urlPath = DownloadPath(u.id)
 	}
+	// TrimLeft, not TrimPrefix: "//host/x" would otherwise become a
+	// protocol-relative URL that leaves the application.
+	urlPath = "/" + strings.TrimLeft(urlPath, "/")
+	if u.domain == "" {
+		return &url.URL{Path: urlPath}
+	}
+	scheme := u.scheme
+	if scheme == "" {
+		scheme = "http"
+	}
 	return &url.URL{
-		Scheme: u.scheme,
+		Scheme: scheme,
 		Host:   u.domain,
 		Path:   urlPath,
 	}

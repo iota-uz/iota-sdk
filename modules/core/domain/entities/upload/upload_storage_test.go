@@ -3,6 +3,9 @@ package upload_test
 import (
 	"bytes"
 	"testing"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/stretchr/testify/require"
@@ -65,8 +68,30 @@ func TestCreateDTO_StorageLocationMirrorsFilesystemLayout(t *testing.T) {
 
 	located.SetID(42)
 	require.Equal(t, "/uploads/42", located.PreviewURL())
-	require.Equal(t, "http://localhost/uploads/42", located.URL().String())
+	require.Equal(t, "/uploads/42", located.URL().String())
 
 	located.SetSlug("renamed")
 	require.Equal(t, "s3://uploads/static/renamed.pdf", located.Path())
+}
+
+func TestUpload_URLUsesHostOnlyWhenConfigured(t *testing.T) {
+	t.Parallel()
+	// Falsely green if both cases accidentally shared one constructor default.
+	fresh := upload.New("hash", "static/report.xlsx", "report.xlsx", "", 10, nil)
+	require.Equal(t, "/static/report.xlsx", fresh.URL().String())
+
+	stored := upload.NewWithID(7, uuid.Nil, "hash", "static/report.xlsx", "report.xlsx", "", 10, nil, upload.UploadTypeDocument, time.Time{}, time.Time{})
+	require.Equal(t, "/static/report.xlsx", stored.URL().String())
+
+	public := upload.NewWithID(7, uuid.Nil, "hash", "static/report.xlsx", "report.xlsx", "", 10, nil, upload.UploadTypeDocument, time.Time{}, time.Time{},
+		upload.WithDomain("erp.example.com"), upload.WithScheme("https"))
+	require.Equal(t, "https://erp.example.com/static/report.xlsx", public.URL().String())
+
+	defaultScheme := upload.NewWithID(7, uuid.Nil, "hash", "static/report.xlsx", "report.xlsx", "", 10, nil, upload.UploadTypeDocument, time.Time{}, time.Time{},
+		upload.WithDomain("erp.example.com"))
+	require.Equal(t, "http://erp.example.com/static/report.xlsx", defaultScheme.URL().String())
+
+	// A stored path with extra leading slashes must not become "//evil.example/x".
+	slashes := upload.NewWithID(7, uuid.Nil, "hash", "//evil.example/x.xlsx", "x.xlsx", "", 10, nil, upload.UploadTypeDocument, time.Time{}, time.Time{})
+	require.Equal(t, "/evil.example/x.xlsx", slashes.URL().String())
 }
