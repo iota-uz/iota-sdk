@@ -263,7 +263,9 @@ func (u *upload) URL() *url.URL {
 	if IsS3Path(u.path) {
 		urlPath = DownloadPath(u.id)
 	}
-	urlPath = "/" + strings.TrimPrefix(urlPath, "/")
+	// TrimLeft, not TrimPrefix: "//host/x" would otherwise become a
+	// protocol-relative URL that leaves the application.
+	urlPath = "/" + strings.TrimLeft(urlPath, "/")
 	if u.domain == "" {
 		return &url.URL{Path: urlPath}
 	}
