@@ -19,9 +19,7 @@ type SessionsPageProps struct {
 }
 
 templ SessionRow(session *viewmodels.Session) {
-	{{
-		pageCtx := composables.UsePageCtx(ctx)
-	}}
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<tr id={ fmt.Sprintf("session-row-%s", session.TokenID) } class="border-b border-subtle">
 		<td class="px-6 py-4">
 			<div class="flex items-center gap-3">
@@ -81,9 +79,7 @@ templ SessionRow(session *viewmodels.Session) {
 }
 
 templ SessionsList(props *SessionsPageProps) {
-	{{
-		pageCtx := composables.UsePageCtx(ctx)
-	}}
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="overflow-x-auto">
 		@card.Card(card.Props{
 			Class: "p-0",
@@ -116,9 +112,7 @@ templ SessionsList(props *SessionsPageProps) {
 }
 
 templ EmptyState() {
-	{{
-		pageCtx := composables.UsePageCtx(ctx)
-	}}
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@card.Card(card.Props{
 		Class: "flex flex-col items-center justify-center py-12",
 	}) {

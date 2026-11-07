@@ -165,7 +165,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: "1.24.13"
+          go-version: "1.25.14"
       - run: go test -race ./pkg/mcp/ ./pkg/mcp/rbacauth ./pkg/mcp/execute ./pkg/pykernel/...
       - name: Check the MCP gateway module
         working-directory: mcpgateway
@@ -266,7 +266,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: "1.24.13"
+          go-version: "1.25.14"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # v3
@@ -333,7 +333,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: "1.24.13"
+          go-version: "1.25.14"
 
       - name: Download Go dependencies
         run: go mod download
@@ -370,7 +370,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: "1.24.13"
+          go-version: "1.25.14"
 
       - name: Install golangci-lint
         run: |
@@ -381,7 +381,7 @@ jobs:
 
       - name: Install templ
         run: |
-          go install github.com/a-h/templ/cmd/templ@v0.3.857
+          go install github.com/a-h/templ/cmd/templ@v0.3.1020
           templ --help
 
       - name: Install air

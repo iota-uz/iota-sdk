@@ -48,9 +48,7 @@ templ ForbiddenBody() {
 // Forbidden renders the 403 page inside the authenticated layout (with sidebar/navbar)
 // when sidebar context is available, otherwise falls back to standalone.
 templ Forbidden() {
-	{{
-		_, sidebarErr := layouts.UseSidebarProps(ctx)
-	}}
+	{{ _, sidebarErr := layouts.UseSidebarProps(ctx) }}
 	if sidebarErr == nil {
 		@layouts.Authenticated(layouts.AuthenticatedProps{
 			BaseProps: layouts.BaseProps{Title: "Forbidden", WebsocketURL: "/ws"},

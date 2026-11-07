@@ -245,8 +245,8 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 	@base.TableRow(*rowProps) {
 		for i, cell := range cells {
 			{{
-			cellAttrs := templ.Attributes{"data-col": cols[i].Key()}
-			maps.Copy(cellAttrs, cell.Attrs())
+				cellAttrs := templ.Attributes{"data-col": cols[i].Key()}
+				maps.Copy(cellAttrs, cell.Attrs())
 			}}
 			@base.TableCell(base.TableCellProps{
 				Classes: cell.Classes(),

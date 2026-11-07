@@ -1,6 +1,6 @@
 module github.com/iota-uz/iota-sdk
 
-go 1.24.10
+go 1.25.0
 
 require (
 	filippo.io/csrf v0.2.1
@@ -12,7 +12,7 @@ require (
 	github.com/PaulSonOfLars/gotgbot/v2 v2.0.0-rc.31
 	github.com/PuerkitoBio/goquery v1.10.1
 	github.com/Rhymond/go-money v1.0.15
-	github.com/a-h/templ v0.3.857
+	github.com/a-h/templ v0.3.1020
 	github.com/agnivade/levenshtein v1.2.1
 	github.com/alecthomas/chroma/v2 v2.17.0
 	github.com/alicebob/miniredis/v2 v2.35.0
@@ -91,7 +91,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.40.0
 	go.opentelemetry.io/otel/trace v1.40.0
 	golang.org/x/crypto v0.48.0
-	golang.org/x/net v0.49.0
+	golang.org/x/net v0.51.0
 	golang.org/x/oauth2 v0.34.0
 	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.41.0
