@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Return a host-relative upload URL (\"/static/\u003cfile\u003e\", \"/uploads/\u003cid\u003e\") when no domain is configured instead of inventing \"http://localhost\", so BiChat attachment links and other stored upload URLs open on the serving origin."
+    }
+  ],
+  "source": "47f7bb632a455bb245affc89e9ecffbf0359b9f8",
+  "version": "0.38.1"
+}
