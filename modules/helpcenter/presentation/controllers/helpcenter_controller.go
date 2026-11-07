@@ -85,6 +85,7 @@ func (c *HelpCenterController) index(w http.ResponseWriter, r *http.Request) {
 		BasePath:        c.basePath,
 		Tree:            tree,
 		Tasks:           tasks,
+		Intro:           c.contentService.HomeIntro(r.Context()),
 		SearchAvailable: c.searchAvailable(),
 		Locale:          c.contentService.Locale(r.Context()),
 		FeedbackURL:     c.contentService.FeedbackURL(""),
@@ -148,12 +149,12 @@ func (c *HelpCenterController) search(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	props := help.SearchResultsProps{BasePath: c.basePath, Query: q, Available: c.searchAvailable()}
 	if props.Available && q != "" {
-		results, err := c.searcher.Search(r.Context(), q, kb.SearchOptions{TopK: 8})
+		results, err := c.searcher.Search(r.Context(), q, kb.SearchOptions{TopK: c.searchFetchLimit()})
 		if err != nil {
 			c.renderError(w, r, err)
 			return
 		}
-		props.Results = c.mapSearchResults(results, c.contentService.Locale(r.Context()))
+		props.Results = c.searchHits(r.Context(), results)
 	}
 	templ.Handler(help.SearchResults(props)).ServeHTTP(w, r)
 }
@@ -254,44 +255,6 @@ func (c *HelpCenterController) tasksWithReadingTime(ctx context.Context) []viewm
 
 func (c *HelpCenterController) searchAvailable() bool {
 	return c.searcher != nil && c.searcher.IsAvailable()
-}
-
-func (c *HelpCenterController) mapSearchResults(results []kb.SearchResult, locale string) []viewmodels.SearchHit {
-	hits := make([]viewmodels.SearchHit, 0, len(results))
-	for _, result := range results {
-		path := filepath.ToSlash(result.Document.Path)
-		if !strings.Contains(path, "/"+locale+"/") && !strings.HasPrefix(path, locale+"/") {
-			continue
-		}
-		path = strings.TrimPrefix(path, locale+"/")
-		if idx := strings.Index(path, "/"+locale+"/"); idx >= 0 {
-			path = path[idx+len(locale)+2:]
-		}
-		if path == "" {
-			continue
-		}
-		hits = append(hits, viewmodels.SearchHit{
-			Title:   result.Document.Title,
-			Path:    path,
-			Excerpt: c.sanitizeSearchExcerpt(result),
-			Score:   result.Score,
-		})
-	}
-	return hits
-}
-
-func (c *HelpCenterController) sanitizeSearchExcerpt(result kb.SearchResult) template.HTML {
-	excerpt := strings.TrimSpace(result.Excerpt)
-	if excerpt == "" && len(result.Fragments) > 0 {
-		excerpt = strings.TrimSpace(result.Fragments[0])
-	}
-	if excerpt == "" {
-		excerpt = strings.TrimSpace(result.Document.Content)
-		if len(excerpt) > 180 {
-			excerpt = excerpt[:180] + "..."
-		}
-	}
-	return template.HTML(c.snippetPolicy.Sanitize(excerpt))
 }
 
 func (c *HelpCenterController) renderError(w http.ResponseWriter, r *http.Request, err error) {

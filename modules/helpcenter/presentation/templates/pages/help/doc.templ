@@ -20,7 +20,7 @@ templ Doc(props DocProps) {
 				<a href={ templ.URL(props.BasePath) }>{ pageCtx.T("HelpCenter.Meta.Title") }</a>
 				for _, category := range props.Doc.Categories {
 					<span class="help-crumb-sep" aria-hidden="true">/</span>
-					<span>{ categoryDisplayTitle(category) }</span>
+					<span>{ CategoryDisplayTitle(category) }</span>
 				}
 			</nav>
 			<div class="help-article">
@@ -39,6 +39,10 @@ templ Doc(props DocProps) {
 						<span>{ updatedLabel(ctx, props.Doc.Updated) }</span>
 					}
 				</div>
+				<details class="help-toc-compact" hidden>
+					<summary>{ pageCtx.T("HelpCenter.OnThisPage") }</summary>
+					<nav class="help-toc-nav" data-help-toc aria-label={ pageCtx.T("HelpCenter.OnThisPage") }></nav>
+				</details>
 				@templ.Raw(rest)
 			</div>
 			if props.Doc.Previous != nil || props.Doc.Next != nil {

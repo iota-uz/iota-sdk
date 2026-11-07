@@ -13,6 +13,13 @@
       "NoResults": "未找到结果。"
     },
     "Categories": "文档",
+    "ArticleCount": {
+      "other": "{{.Count}} 篇文章"
+    },
+    "CategoryFilter": {
+      "Placeholder": "在本节中筛选",
+      "NoMatches": "没有匹配的文章。"
+    },
     "OnThisPage": "本页内容",
     "Tasks": {
       "Kicker": "任务导航",
@@ -33,7 +40,8 @@
       },
       "Minutes": {
         "other": "{{.Count}} 分钟"
-      }
+      },
+      "GroupsLabel": "任务分组"
     },
     "ExpandNavigation": "展开导航",
     "CollapseNavigation": "收起导航",

@@ -88,6 +88,11 @@ type ContentConfig struct {
 	// are forward-slash-separated relative paths without a leading slash
 	// (for example, "guides/setup").
 	CategoryTitles map[string]map[string]string
+	// CategoryOrder places a category among its siblings, keyed like
+	// CategoryTitles by its (virtual) category path. Lower values come first;
+	// a category without an entry has order 0 and siblings with equal order
+	// sort by title, so labels never need a numeric prefix.
+	CategoryOrder map[string]int
 	// CategoryPaths maps content directory paths to virtual sidebar directory
 	// paths. Document URLs remain unchanged.
 	CategoryPaths map[string]string
@@ -104,6 +109,13 @@ type ContentConfig struct {
 	// Center landing page. When the resolved locale has tasks, /help opens the
 	// task launcher instead of selecting the first article.
 	HomeTasks map[string][]viewmodels.TaskGroup
+	// HomeIntro maps a locale to the landing page header above the tasks. A
+	// locale without an entry uses the default locale's, like HomeTasks; an
+	// empty field keeps the component's own localized text.
+	HomeIntro map[string]viewmodels.HomeIntro
+	// HideHomePath omits the "choose a task, open the screen, check the
+	// result" step path under the landing page header.
+	HideHomePath bool
 	// FeedbackURL is where readers send feedback and report outdated articles.
 	// A "{path}" placeholder is replaced with the query-escaped document path,
 	// or removed outside an article. Empty hides the feedback links.
@@ -256,6 +268,28 @@ func (s *ContentService) Tasks(ctx context.Context) []viewmodels.TaskGroup {
 		return tasks
 	}
 	return s.config.HomeTasks[s.config.DefaultLocale]
+}
+
+// HomeIntro returns the configured landing page header for the request
+// locale. Empty texts are left for the template to fill from its locales.
+func (s *ContentService) HomeIntro(ctx context.Context) viewmodels.HomeIntro {
+	intro, ok := s.config.HomeIntro[s.Locale(ctx)]
+	if !ok {
+		intro = s.config.HomeIntro[s.config.DefaultLocale]
+	}
+	intro.HidePath = intro.HidePath || s.config.HideHomePath
+	return intro
+}
+
+// Locales returns the content locales the Help Center serves.
+func (s *ContentService) Locales() []string {
+	return slices.Clone(s.config.Locales)
+}
+
+// IsHidden reports whether a locale-relative document path is excluded from
+// the reader-facing Help Center by HiddenPaths.
+func (s *ContentService) IsHidden(docPath string) bool {
+	return s.isHiddenPath(docPath)
 }
 
 func (s *ContentService) getFromLocale(locale, docPath string) (*Document, error) {
@@ -701,7 +735,7 @@ func (s *ContentService) insertNode(
 			return
 		}
 	}
-	node := &categoryTreeNode{key: categoryPath, title: title}
+	node := &categoryTreeNode{key: categoryPath, title: title, order: s.categoryOrder(categoryPath)}
 	*nodes = append(*nodes, node)
 	s.insertNode(&node.children, locale, categoryPath, categories[1:], doc)
 }
@@ -735,6 +769,15 @@ func (s *ContentService) categoryTitle(locale, categoryPath, segment string) str
 		}
 	}
 	return titleFromSegment(segment)
+}
+
+func (s *ContentService) categoryOrder(categoryPath string) int {
+	for key, order := range s.config.CategoryOrder {
+		if strings.Trim(path.Clean(key), "/") == categoryPath {
+			return order
+		}
+	}
+	return 0
 }
 
 func contains(values []string, value string) bool {

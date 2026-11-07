@@ -13,6 +13,14 @@
       "NoResults": "Natijalar topilmadi."
     },
     "Categories": "Hujjatlar",
+    "ArticleCount": {
+      "one": "{{.Count}} ta maqola",
+      "other": "{{.Count}} ta maqola"
+    },
+    "CategoryFilter": {
+      "Placeholder": "Bo‘limdan qidirish",
+      "NoMatches": "Mos maqola yo‘q."
+    },
     "OnThisPage": "Ushbu sahifada",
     "Tasks": {
       "Kicker": "Vazifalar navigatori",
@@ -35,7 +43,8 @@
       "Minutes": {
         "one": "{{.Count}} daqiqa",
         "other": "{{.Count}} daqiqa"
-      }
+      },
+      "GroupsLabel": "Vazifalar guruhlari"
     },
     "ExpandNavigation": "Navigatsiyani ochish",
     "CollapseNavigation": "Navigatsiyani yig‘ish",

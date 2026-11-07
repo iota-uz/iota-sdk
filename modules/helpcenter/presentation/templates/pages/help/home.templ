@@ -1,6 +1,8 @@
 package help
 
 import (
+	"strconv"
+
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -9,6 +11,18 @@ import (
 type HomeProps struct {
 	BasePath string
 	Groups   []viewmodels.TaskGroup
+	Intro    viewmodels.HomeIntro
+}
+
+func introText(configured, fallback string) string {
+	if configured != "" {
+		return configured
+	}
+	return fallback
+}
+
+func taskGroupID(index int) string {
+	return "help-task-group-" + strconv.Itoa(index+1)
 }
 
 templ Home(props HomeProps) {
@@ -16,23 +30,35 @@ templ Home(props HomeProps) {
 	<div class="help-home">
 		<header class="help-home-intro">
 			<div class="help-home-kicker">
-				<span>{ pageCtx.T("HelpCenter.Tasks.Kicker") }</span>
+				<span>{ introText(props.Intro.Kicker, pageCtx.T("HelpCenter.Tasks.Kicker")) }</span>
 			</div>
-			<h1>{ pageCtx.T("HelpCenter.Tasks.Title") }</h1>
-			<p class="help-home-lead">{ pageCtx.T("HelpCenter.Tasks.Subtitle") }</p>
-			<div class="help-home-path" aria-label={ pageCtx.T("HelpCenter.Tasks.PathLabel") }>
-				for i, step := range []string{"Task", "Screen", "Result"} {
-					<div>
-						<small>{ pageCtx.T("HelpCenter.Tasks.Step", map[string]interface{}{"N": i + 1}) }</small>
-						{ pageCtx.T("HelpCenter.Tasks.Path." + step) }
-					</div>
-				}
-			</div>
+			<h1>{ introText(props.Intro.Title, pageCtx.T("HelpCenter.Tasks.Title")) }</h1>
+			<p class="help-home-lead">{ introText(props.Intro.Subtitle, pageCtx.T("HelpCenter.Tasks.Subtitle")) }</p>
+			if !props.Intro.HidePath {
+				<div class="help-home-path" aria-label={ pageCtx.T("HelpCenter.Tasks.PathLabel") }>
+					for i, step := range []string{"Task", "Screen", "Result"} {
+						<div>
+							<small>{ pageCtx.T("HelpCenter.Tasks.Step", map[string]interface{}{"N": i + 1}) }</small>
+							{ pageCtx.T("HelpCenter.Tasks.Path." + step) }
+						</div>
+					}
+				</div>
+			}
 		</header>
+		if len(props.Groups) > 1 {
+			<nav class="help-task-jump" aria-label={ pageCtx.T("HelpCenter.Tasks.GroupsLabel") }>
+				for i, group := range props.Groups {
+					<a href={ templ.SafeURL("#" + taskGroupID(i)) }>
+						{ group.Title }
+						<small>{ strconv.Itoa(len(group.Tasks)) }</small>
+					</a>
+				}
+			</nav>
+		}
 		<div class="help-task-groups">
-			for _, group := range props.Groups {
-				<section>
-					<h2 class="help-task-group-heading">
+			for i, group := range props.Groups {
+				<section id={ taskGroupID(i) } class="help-task-group" aria-labelledby={ taskGroupID(i) + "-title" }>
+					<h2 id={ taskGroupID(i) + "-title" } class="help-task-group-heading">
 						{ group.Title }
 						<small>{ guideCountLabel(ctx, len(group.Tasks)) }</small>
 					</h2>

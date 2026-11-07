@@ -426,3 +426,70 @@ func nodeTitles(nodes []viewmodels.CategoryNode) []string {
 	}
 	return titles
 }
+
+// False green: category titles that already sort alphabetically in the
+// configured order, or an order applied to documents but not categories.
+func TestContentService_TreeOrdersCategoriesByConfiguredOrder(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "ru/start/intro.md", "# Введение")
+	writeDoc(t, root, "ru/erp/portfolio/issue.md", "# Выпуск")
+	writeDoc(t, root, "ru/erp/analytics/report.md", "# Отчёт")
+	writeDoc(t, root, "ru/crm/clients.md", "# Клиенты")
+	writeDoc(t, root, "ru/edo/sign.md", "# Подпись")
+	service := NewContentService(ContentConfig{
+		Root:          root,
+		Locales:       []string{"ru"},
+		DefaultLocale: "ru",
+		CategoryTitles: map[string]map[string]string{"ru": {
+			"start":         "Начало работы",
+			"erp":           "ERP",
+			"erp/portfolio": "Портфель",
+			"erp/analytics": "Аналитика",
+			"crm":           "CRM",
+			"edo":           "ЭДО",
+		}},
+		CategoryOrder: map[string]int{
+			"start":          1,
+			"erp":            2,
+			"erp/portfolio":  1,
+			"/erp/analytics": 2,
+			"crm":            3,
+		},
+	})
+
+	tree, err := service.Tree(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"ЭДО", "Начало работы", "ERP", "CRM"}, nodeTitles(tree),
+		"a category without an entry keeps order 0 and comes first")
+	require.Equal(t, []string{"Портфель", "Аналитика"}, nodeTitles(tree[2].Children))
+}
+
+// False green: a single-locale config, where the default-locale fallback and
+// the per-locale lookup are the same branch.
+func TestContentService_HomeIntroUsesLocaleThenDefault(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "en/intro.md", "# Intro")
+	writeDoc(t, root, "ru/intro.md", "# Введение")
+	writeDoc(t, root, "uz/intro.md", "# Kirish")
+	config := ContentConfig{
+		Root:          root,
+		Locales:       []string{"en", "ru", "uz"},
+		DefaultLocale: "en",
+		HomeIntro: map[string]viewmodels.HomeIntro{
+			"en": {Kicker: "Help", Title: "Something went wrong?"},
+			"ru": {Title: "Что-то пошло не так?"},
+		},
+	}
+
+	service := NewContentService(config)
+	require.Equal(t, viewmodels.HomeIntro{Title: "Что-то пошло не так?"},
+		service.HomeIntro(intl.WithLocale(context.Background(), language.Russian)),
+		"a locale's own entry wins, and its empty fields stay empty for the template defaults")
+	require.Equal(t, viewmodels.HomeIntro{Kicker: "Help", Title: "Something went wrong?"},
+		service.HomeIntro(intl.WithLocale(context.Background(), language.Uzbek)))
+
+	config.HideHomePath = true
+	require.True(t, NewContentService(config).HomeIntro(intl.WithLocale(context.Background(), language.Russian)).HidePath)
+	require.False(t, service.HomeIntro(context.Background()).HidePath)
+}
