@@ -33,10 +33,21 @@ type DocLink struct {
 }
 
 type SearchHit struct {
-	Title   string
-	Path    string
+	Title string
+	Path  string
+	// Section is the title of the sidebar category that lists the article.
+	Section string
 	Excerpt template.HTML
 	Score   float64
+}
+
+// HomeIntro is the landing page header. Empty texts fall back to the
+// component's localized defaults.
+type HomeIntro struct {
+	Kicker   string
+	Title    string
+	Subtitle string
+	HidePath bool
 }
 
 type TaskGroup struct {

@@ -36,6 +36,10 @@ func WithAllowedClasses(pattern *regexp.Regexp, elements ...string) Option {
 
 var mermaidLanguagePattern = regexp.MustCompile(`^language-mermaid$`)
 
+// headingIDPattern admits the anchors headingIDs generates. The UGC policy
+// accepts ASCII ids only and would strip a Cyrillic anchor.
+var headingIDPattern = regexp.MustCompile(`^[\p{L}\p{N}_-]+$`)
+
 func NewRenderer() Renderer {
 	return NewRendererWithOptions()
 }
@@ -45,6 +49,9 @@ func NewRendererWithOptions(opts ...Option) Renderer {
 	sanitizer.AllowAttrs("class").
 		Matching(mermaidLanguagePattern).
 		OnElements("code")
+	sanitizer.AllowAttrs("id").
+		Matching(headingIDPattern).
+		OnElements("h1", "h2", "h3", "h4", "h5", "h6")
 	for _, opt := range opts {
 		opt(sanitizer)
 	}
@@ -61,7 +68,8 @@ func NewRendererWithOptions(opts ...Option) Renderer {
 
 func (r *renderer) Render(source []byte) (template.HTML, error) {
 	var buf bytes.Buffer
-	if err := r.md.Convert(source, &buf); err != nil {
+	ctx := parser.NewContext(parser.WithIDs(newHeadingIDs()))
+	if err := r.md.Convert(source, &buf, parser.WithContext(ctx)); err != nil {
 		return "", err
 	}
 	return template.HTML(r.sanitizer.SanitizeBytes(buf.Bytes())), nil

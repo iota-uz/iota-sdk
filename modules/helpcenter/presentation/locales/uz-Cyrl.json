@@ -13,6 +13,14 @@
       "NoResults": "Натижалар топилмади."
     },
     "Categories": "Ҳужжатлар",
+    "ArticleCount": {
+      "one": "{{.Count}} та мақола",
+      "other": "{{.Count}} та мақола"
+    },
+    "CategoryFilter": {
+      "Placeholder": "Бўлимдан қидириш",
+      "NoMatches": "Мос мақола йўқ."
+    },
     "OnThisPage": "Ушбу саҳифада",
     "Tasks": {
       "Kicker": "Вазифалар навигатори",
@@ -35,7 +43,8 @@
       "Minutes": {
         "one": "{{.Count}} дақиқа",
         "other": "{{.Count}} дақиқа"
-      }
+      },
+      "GroupsLabel": "Вазифалар гуруҳлари"
     },
     "ExpandNavigation": "Навигацияни очиш",
     "CollapseNavigation": "Навигацияни йиғиш",

@@ -31,10 +31,10 @@ templ SearchResults(props SearchResultsProps) {
 							hx-on::after-request="this.closest('#help-search-results').innerHTML = ''"
 							class="block border-b border-subtle px-4 py-3 last:border-b-0 hover:bg-gray-50"
 						>
-							<div class="flex items-center justify-between gap-3">
-								<div class="min-w-0 text-sm font-medium text-gray-900 truncate">{ result.Title }</div>
-								<div class="shrink-0 text-[11px] text-gray-400 truncate max-w-40">{ result.Path }</div>
-							</div>
+							if result.Section != "" {
+								<div class="help-search-section text-[11px] text-gray-400 truncate">{ result.Section }</div>
+							}
+							<div class="text-sm font-medium text-gray-900 line-clamp-2">{ result.Title }</div>
 							if result.Excerpt != "" {
 								<div class="text-xs text-gray-500 mt-1 line-clamp-2 [&_mark]:rounded [&_mark]:bg-yellow-100 [&_mark]:px-0.5 [&_mark]:text-gray-900">
 									@templ.Raw(string(result.Excerpt))

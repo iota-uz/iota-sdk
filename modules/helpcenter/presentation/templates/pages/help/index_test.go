@@ -24,7 +24,7 @@ func TestCategoryDisplayTitle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tt.expected, categoryDisplayTitle(tt.input))
+			require.Equal(t, tt.expected, CategoryDisplayTitle(tt.input))
 		})
 	}
 }

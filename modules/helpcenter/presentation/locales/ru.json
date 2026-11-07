@@ -13,6 +13,16 @@
       "NoResults": "Ничего не найдено."
     },
     "Categories": "Документация",
+    "ArticleCount": {
+      "one": "{{.Count}} статья",
+      "few": "{{.Count}} статьи",
+      "many": "{{.Count}} статей",
+      "other": "{{.Count}} статьи"
+    },
+    "CategoryFilter": {
+      "Placeholder": "Найти в разделе",
+      "NoMatches": "Подходящих статей нет."
+    },
     "OnThisPage": "На этой странице",
     "Tasks": {
       "Kicker": "Навигатор задач",
@@ -39,7 +49,8 @@
         "few": "{{.Count}} минуты",
         "many": "{{.Count}} минут",
         "other": "{{.Count}} минуты"
-      }
+      },
+      "GroupsLabel": "Группы задач"
     },
     "ExpandNavigation": "Развернуть навигацию",
     "CollapseNavigation": "Свернуть навигацию",
