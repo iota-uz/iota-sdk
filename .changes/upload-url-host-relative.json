@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Return a host-relative upload URL (\"/static/<file>\", \"/uploads/<id>\") when no domain is configured instead of inventing \"http://localhost\", so BiChat attachment links and other stored upload URLs open on the serving origin."}

@@ -25,8 +25,8 @@ type GeoPoint struct {
 
 // CreateDTO carries data for upload creation.
 // UploadsPath, Domain, and Scheme are populated by the service layer from
-// uploadsconfig.Config and httpconfig.Config respectively. When zero, sane
-// defaults are applied ("static", "localhost", "http").
+// uploadsconfig.Config and httpconfig.Config respectively. A zero UploadsPath
+// defaults to "static"; a zero Domain leaves URL host-relative.
 type CreateDTO struct {
 	File        io.ReadSeeker `validate:"required"`
 	Name        string        `validate:"required"`
@@ -69,13 +69,7 @@ func (d *CreateDTO) ToEntity() (Upload, []byte, error) {
 		uploadsPath = "static"
 	}
 	domain := d.Domain
-	if domain == "" {
-		domain = "localhost"
-	}
 	scheme := d.Scheme
-	if scheme == "" {
-		scheme = "http"
-	}
 
 	raw, err := io.ReadAll(d.File)
 	if err != nil {
