@@ -71,6 +71,11 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		assert.Equal(t, "application/pdf", retrievedUpload.Mimetype().String())
 		assert.Equal(t, upload.UploadTypeDocument, retrievedUpload.Type())
 		assert.False(t, retrievedUpload.IsImage())
+		// BiChat stores this URL as the attachment download link. A loaded
+		// upload carries no host, so the link must stay on the serving origin
+		// instead of pointing browsers at "http://localhost/...".
+		// Falsely green if the repository started returning a different path.
+		assert.Equal(t, "/uploads/document.pdf", retrievedUpload.URL().String())
 	})
 
 	t.Run("GetByHash", func(t *testing.T) {
