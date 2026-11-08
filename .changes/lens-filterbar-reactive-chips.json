@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Lens FilterBar re-derives its chip row and «Clear all» from the current document: after a chip removal or «Clear all» refetched the document, the bar kept the chips it was first rendered with although the figures had widened."}

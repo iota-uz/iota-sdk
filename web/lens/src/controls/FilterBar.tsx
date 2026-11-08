@@ -1,5 +1,5 @@
 
-import { createEffect, createSignal, createUniqueId, For, onCleanup, Show, type JSX } from 'solid-js'
+import { createEffect, createMemo, createSignal, createUniqueId, For, onCleanup, Show, type JSX } from 'solid-js'
 import { useDashboard, useFilters, useTranslate } from '../runtime'
 import { DotsThree, X } from '../icons'
 import { CompareFilterControl } from './CompareFilterControl'
@@ -155,95 +155,114 @@ export function FilterControls(props: { filters: Filter[]; today?: CalendarDate 
  * change the figures from the ones that carry them away.
  */
 export function FilterBar(props: FilterBarProps) {
-  const { filters, applyURL } = useFilters()
-  const { document } = useDashboard()
+  const filtersContext = useFilters()
+  const dashboard = useDashboard()
   const translate = useTranslate()
-  if (document.contextEditor?.readOnly) return null
-  const globalFilters = filters.filter((filter) => !filter.placement && !filter.scope)
-  if (!document.contextEditor && globalFilters.length === 0 && (document.activeFilters?.length ?? 0) === 0 && !props.subtitle) return null
+  // Solid runs a component once: everything read from the filters store or
+  // the document below is an accessor, so a refetched document (a removed
+  // chip, «Clear all») re-derives the chip row instead of keeping the chips
+  // the bar was first rendered with.
+  const document = () => dashboard.document
+  const filters = () => filtersContext.filters
+  const applyURL = (url: string) => filtersContext.applyURL(url)
+  const globalFilters = createMemo(() => filters().filter((filter) => !filter.placement && !filter.scope))
   const intercept = (url: string) => (event: MouseEvent) => {
     if ('metaKey' in event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)) return
     event.preventDefault()
     applyURL(url)
   }
-  const facets = globalFilters.filter((filter) => filter.kind === 'facet' && filter.facet)
-  const clearURL = facets.find((filter) =>
+  const facets = createMemo(() => globalFilters().filter((filter) => filter.kind === 'facet' && filter.facet))
+  const clearURL = () => facets().find((filter) =>
     (filter.facet?.selections?.length ?? 0) > 0 && Boolean(filter.facet?.clearUrl),
   )?.facet?.clearUrl
-  const representedFacetDimensions = new Set(facets.flatMap((filter) =>
-    filter.facet ? [filter.facet.dimension] : [],
-  ))
   // Every applied selection is a chip, wherever the document states it: the
   // facet's own `selections` and the document-level `activeFilters` that cover
   // dimensions no declared facet represents.
-  const chips: Array<ActiveChip> = [
-    ...facets.flatMap((filter) => (filter.facet?.selections ?? []).map((selection) => ({
-      key: `${filter.id}:${selection.label}:${selection.removeUrl}`,
-      label: selection.label,
-      removeUrl: selection.removeUrl,
-    }))),
-    ...(document.activeFilters ?? [])
-      .filter((filter) => !representedFacetDimensions.has(filter.dimension))
-      .map((filter) => ({
-        key: `${filter.dimension}:${filter.value}`,
-        label: filter.label,
-        removeUrl: filter.removeUrl,
-      })),
-  ]
-  const resetURL = document.resetFiltersUrl
-    ? clearRendererStateFromURL(document.resetFiltersUrl, new URL(window.location.href))
-    : undefined
-  const clearAllURL = resetURL && (document.activeFilters?.length ?? 0) > 0
-    ? resetURL
-    : !document.resetFiltersUrl ? clearURL : undefined
+  const chips = createMemo((): Array<ActiveChip> => {
+    const representedFacetDimensions = new Set(facets().flatMap((filter) =>
+      filter.facet ? [filter.facet.dimension] : [],
+    ))
+    return [
+      ...facets().flatMap((filter) => (filter.facet?.selections ?? []).map((selection) => ({
+        key: `${filter.id}:${selection.label}:${selection.removeUrl}`,
+        label: selection.label,
+        removeUrl: selection.removeUrl,
+      }))),
+      ...(document().activeFilters ?? [])
+        .filter((filter) => !representedFacetDimensions.has(filter.dimension))
+        .map((filter) => ({
+          key: `${filter.dimension}:${filter.value}`,
+          label: filter.label,
+          removeUrl: filter.removeUrl,
+        })),
+    ]
+  })
+  const clearAllURL = createMemo(() => {
+    const doc = document()
+    const resetURL = doc.resetFiltersUrl
+      ? clearRendererStateFromURL(doc.resetFiltersUrl, new URL(window.location.href))
+      : undefined
+    return resetURL && (doc.activeFilters?.length ?? 0) > 0
+      ? resetURL
+      : !doc.resetFiltersUrl ? clearURL() : undefined
+  })
   const [overflow, setOverflow] = createSignal<HTMLElement>()
   const secondary = (filter: Filter) => Boolean(props.compact) && filter.kind === 'compare'
   const inlineFilters = (list: Filter[]) => list.filter((filter) => !secondary(filter))
   const overflowFilters = (list: Filter[]) => list.filter(secondary)
-  const contextFilters = globalFilters.filter((filter) => filter.kind !== 'period' && filter.kind !== 'facet')
+  const contextFilters = createMemo(() => globalFilters().filter((filter) => filter.kind !== 'period' && filter.kind !== 'facet'))
+  // Hidden for a read-only editor, and when the document declares no control,
+  // carries no applied filter and states no scope line of its own.
+  const visible = () => !document().contextEditor?.readOnly && Boolean(
+    document().contextEditor || globalFilters().length > 0 || (document().activeFilters?.length ?? 0) > 0 || props.subtitle,
+  )
 
   return (
-    <div aria-label={translate('filter.bar.label', 'Dashboard filters')} class="lens-filter-bar" role="group">
-      <div class="lens-dashboard-scope">
-        {/* Declaration order is render order, and the row only wraps — it never
-            reorders — so a control keeps the same neighbours at every width. */}
-        <ToolbarOverflowContext.Provider value={props.compact ? overflow : undefined}>
-          <Show when={document.contextEditor} fallback={<FilterControls filters={inlineFilters(globalFilters)} today={props.today} />}>{(editor) => <><ScopedFilterControls editor={editor()} scope="dashboard" id="dashboard" facets={facets} /><FilterControls filters={inlineFilters(contextFilters)} today={props.today} /></>}</Show>
-        </ToolbarOverflowContext.Provider>
-        <Show when={props.compact}>
-          <ToolbarOverflow panel={setOverflow}>
-            <FilterControls filters={overflowFilters(document.contextEditor ? contextFilters : globalFilters)} today={props.today} />
-          </ToolbarOverflow>
-        </Show>
-        {/* Not a heading and not a control: the part of the scope no control
-            owns. It sits last so the editable segments stay together at the
-            left edge, where the eye lands. */}
-        {props.subtitle && <p class="lens-dashboard-subtitle">{props.subtitle}</p>}
-      </div>
-      <Show when={chips.length > 0 || clearAllURL}>
-        <div class="lens-filter-bar-chips">
-          <For each={chips}>
-            {(chip) => (
-              <a
-                aria-label={`${translate('filter.facet.remove', 'Remove filter')}: ${chip.label}`}
-                class="lens-facet-active-chip"
-                href={chip.removeUrl}
-                onClick={intercept(chip.removeUrl)}
-              >
-                <span>{chip.label}</span><X aria-hidden="true" />
-              </a>
-            )}
-          </For>
-          {/* A button, not a link: it does not navigate anywhere a reader could
-              bookmark, it dismisses the chips beside it. It also stays at the
-              end of the chip row instead of flowing among the triggers. */}
-          {clearAllURL && (
-            <button class="lens-facet-clear" onClick={intercept(clearAllURL)} type="button">
-              {translate('filter.facet.clearAll', 'Clear all')}
-            </button>
-          )}
+    <Show when={visible()}>
+      <div aria-label={translate('filter.bar.label', 'Dashboard filters')} class="lens-filter-bar" role="group">
+        <div class="lens-dashboard-scope">
+          {/* Declaration order is render order, and the row only wraps — it never
+              reorders — so a control keeps the same neighbours at every width. */}
+          <ToolbarOverflowContext.Provider value={props.compact ? overflow : undefined}>
+            <Show when={document().contextEditor} fallback={<FilterControls filters={inlineFilters(globalFilters())} today={props.today} />}>{(editor) => <><ScopedFilterControls editor={editor()} scope="dashboard" id="dashboard" facets={facets()} /><FilterControls filters={inlineFilters(contextFilters())} today={props.today} /></>}</Show>
+          </ToolbarOverflowContext.Provider>
+          <Show when={props.compact}>
+            <ToolbarOverflow panel={setOverflow}>
+              <FilterControls filters={overflowFilters(document().contextEditor ? contextFilters() : globalFilters())} today={props.today} />
+            </ToolbarOverflow>
+          </Show>
+          {/* Not a heading and not a control: the part of the scope no control
+              owns. It sits last so the editable segments stay together at the
+              left edge, where the eye lands. */}
+          {props.subtitle && <p class="lens-dashboard-subtitle">{props.subtitle}</p>}
         </div>
-      </Show>
-    </div>
+        <Show when={chips().length > 0 || clearAllURL()}>
+          <div class="lens-filter-bar-chips">
+            <For each={chips()}>
+              {(chip) => (
+                <a
+                  aria-label={`${translate('filter.facet.remove', 'Remove filter')}: ${chip.label}`}
+                  class="lens-facet-active-chip"
+                  href={chip.removeUrl}
+                  onClick={intercept(chip.removeUrl)}
+                >
+                  <span>{chip.label}</span><X aria-hidden="true" />
+                </a>
+              )}
+            </For>
+            {/* A button, not a link: it does not navigate anywhere a reader could
+                bookmark, it dismisses the chips beside it. It also stays at the
+                end of the chip row instead of flowing among the triggers. */}
+            <Show when={clearAllURL()}>
+              {(url) => (
+                <button class="lens-facet-clear" onClick={(event) => intercept(url())(event)} type="button">
+                  {translate('filter.facet.clearAll', 'Clear all')}
+                </button>
+              )}
+            </Show>
+          </div>
+        </Show>
+      </div>
+    </Show>
   )
 }

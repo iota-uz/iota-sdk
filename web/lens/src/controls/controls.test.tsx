@@ -952,6 +952,34 @@ function FacetFixture() {
   )
 }
 
+describe('facet chips', () => {
+  // QA on Granite's sales report: «Clear all» refetched the document and the
+  // figures widened, but the chip stayed. Falsely green if the second document
+  // still carried the selection, so it is asserted to have none, and the chip
+  // is asserted present before the click.
+  it('drop a chip once the refetched document no longer selects it', async () => {
+    window.history.replaceState(null, '', '/report?_f=product%3Aosago')
+    const calls: Array<string> = []
+    const cleared = facetDocument()
+    cleared.filters = cleared.filters!.map((filter) => filter.facet ? { ...filter, facet: { ...filter.facet, selections: [] } } : filter)
+    cleared.activeFilters = []
+    expect(cleared.filters!.every((filter) => (filter.facet?.selections?.length ?? 0) === 0)).toBe(true)
+    const fetcher: typeof fetch = (input) => {
+      const url = String(input)
+      calls.push(url)
+      return Promise.resolve(new Response(JSON.stringify(calls.length === 1 ? facetDocument() : cleared), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    }
+    render(() => <FiltersFixture fetcher={fetcher} />)
+
+    expect(await screen.findByRole('link', { name: /Remove filter: OSAGO/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
+
+    await waitFor(() => expect(calls.length).toBe(2))
+    await waitFor(() => expect(screen.queryByRole('link', { name: /Remove filter: OSAGO/ })).not.toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Clear all' })).not.toBeInTheDocument()
+  })
+})
+
 describe('facet filter menu', () => {
   // False green: a callback checking only the URL would miss synchronous close cleanup emptying its selections.
   it('submits staged dimensions intact to a parent draft before cleanup', async () => {
