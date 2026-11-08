@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Refresh Lens active filter chips and clear action after in-place filter changes."
+}

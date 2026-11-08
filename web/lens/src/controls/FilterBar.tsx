@@ -167,7 +167,7 @@ export function FilterBar(props: FilterBarProps) {
     applyURL(url)
   }
   const facets = globalFilters.filter((filter) => filter.kind === 'facet' && filter.facet)
-  const clearURL = facets.find((filter) =>
+  const clearURL = () => facets.find((filter) =>
     (filter.facet?.selections?.length ?? 0) > 0 && Boolean(filter.facet?.clearUrl),
   )?.facet?.clearUrl
   const representedFacetDimensions = new Set(facets.flatMap((filter) =>
@@ -176,7 +176,7 @@ export function FilterBar(props: FilterBarProps) {
   // Every applied selection is a chip, wherever the document states it: the
   // facet's own `selections` and the document-level `activeFilters` that cover
   // dimensions no declared facet represents.
-  const chips: Array<ActiveChip> = [
+  const chips = (): Array<ActiveChip> => [
     ...facets.flatMap((filter) => (filter.facet?.selections ?? []).map((selection) => ({
       key: `${filter.id}:${selection.label}:${selection.removeUrl}`,
       label: selection.label,
@@ -190,12 +190,12 @@ export function FilterBar(props: FilterBarProps) {
         removeUrl: filter.removeUrl,
       })),
   ]
-  const resetURL = document.resetFiltersUrl
+  const resetURL = () => document.resetFiltersUrl
     ? clearRendererStateFromURL(document.resetFiltersUrl, new URL(window.location.href))
     : undefined
-  const clearAllURL = resetURL && (document.activeFilters?.length ?? 0) > 0
-    ? resetURL
-    : !document.resetFiltersUrl ? clearURL : undefined
+  const clearAllURL = () => resetURL() && (document.activeFilters?.length ?? 0) > 0
+    ? resetURL()
+    : !document.resetFiltersUrl ? clearURL() : undefined
   const [overflow, setOverflow] = createSignal<HTMLElement>()
   const secondary = (filter: Filter) => Boolean(props.compact) && filter.kind === 'compare'
   const inlineFilters = (list: Filter[]) => list.filter((filter) => !secondary(filter))
@@ -220,9 +220,9 @@ export function FilterBar(props: FilterBarProps) {
             left edge, where the eye lands. */}
         {props.subtitle && <p class="lens-dashboard-subtitle">{props.subtitle}</p>}
       </div>
-      <Show when={chips.length > 0 || clearAllURL}>
+      <Show when={chips().length > 0 || clearAllURL()}>
         <div class="lens-filter-bar-chips">
-          <For each={chips}>
+          <For each={chips()}>
             {(chip) => (
               <a
                 aria-label={`${translate('filter.facet.remove', 'Remove filter')}: ${chip.label}`}
@@ -237,8 +237,8 @@ export function FilterBar(props: FilterBarProps) {
           {/* A button, not a link: it does not navigate anywhere a reader could
               bookmark, it dismisses the chips beside it. It also stays at the
               end of the chip row instead of flowing among the triggers. */}
-          {clearAllURL && (
-            <button class="lens-facet-clear" onClick={intercept(clearAllURL)} type="button">
+          {clearAllURL() && (
+            <button class="lens-facet-clear" onClick={intercept(clearAllURL()!)} type="button">
               {translate('filter.facet.clearAll', 'Clear all')}
             </button>
           )}

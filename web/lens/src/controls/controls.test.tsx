@@ -430,6 +430,31 @@ function refetchFailureFetcher(calls: Array<string>): typeof fetch {
 
 describe('FilterBar runtime integration', () => {
 
+  // False green: checking the request alone would miss chips retained after the cleared document arrives.
+  it('removes active chips and the clear action after clearing filters in place', async () => {
+    window.history.replaceState(null, '', '/report?_f=product%3Aosago')
+    const selected = facetDocument()
+    const cleared = parseDocument({
+      ...selected,
+      filters: selected.filters!.map((filter) => ({
+        ...filter,
+        facet: filter.facet ? { ...filter.facet, selections: [] } : undefined,
+      })),
+      activeFilters: [],
+    })
+    let requests = 0
+    const fetcher: typeof fetch = () => Promise.resolve(new Response(
+      JSON.stringify(requests++ === 0 ? selected : cleared),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ))
+    render(() => <FiltersFixture fetcher={fetcher} />)
+    expect(await screen.findByRole('link', { name: 'Remove filter: OSAGO' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
+    await waitFor(() => expect(requests).toBe(2))
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Remove filter: OSAGO' })).not.toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Clear all' })).not.toBeInTheDocument()
+  })
+
   // The comparison control is a trigger + listbox (see CompareFilterControl):
   // the trigger names the applied mode, the options live in a portalled popover.
   const compareTrigger = () => screen.findByRole('button', { name: /Compare with/ })
