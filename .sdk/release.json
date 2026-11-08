@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Refresh Lens active filter chips and clear action after in-place filter changes."
+    }
+  ],
+  "source": "8bb7b3ee2694bfaace7c297189a8922ddd17dd36",
+  "version": "0.39.1"
+}
