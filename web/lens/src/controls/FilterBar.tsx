@@ -197,15 +197,18 @@ export function FilterBar(props: FilterBarProps) {
         })),
     ]
   })
-  const clearAllURL = createMemo(() => {
+  // Whether «Clear all» is offered follows the document; the URL it applies is
+  // resolved against the location at click time, because a host may move the
+  // address with pushState while the dashboard stays mounted.
+  const clearAllAvailable = createMemo(() => {
     const doc = document()
-    const resetURL = doc.resetFiltersUrl
-      ? clearRendererStateFromURL(doc.resetFiltersUrl, new URL(window.location.href))
-      : undefined
-    return resetURL && (doc.activeFilters?.length ?? 0) > 0
-      ? resetURL
-      : !doc.resetFiltersUrl ? clearURL() : undefined
+    return doc.resetFiltersUrl ? (doc.activeFilters?.length ?? 0) > 0 : Boolean(clearURL())
   })
+  const clearAllURL = (): string | undefined => {
+    const doc = document()
+    if (!doc.resetFiltersUrl) return clearURL()
+    return clearRendererStateFromURL(doc.resetFiltersUrl, new URL(window.location.href))
+  }
   const [overflow, setOverflow] = createSignal<HTMLElement>()
   const secondary = (filter: Filter) => Boolean(props.compact) && filter.kind === 'compare'
   const inlineFilters = (list: Filter[]) => list.filter((filter) => !secondary(filter))
@@ -236,7 +239,7 @@ export function FilterBar(props: FilterBarProps) {
               left edge, where the eye lands. */}
           {props.subtitle && <p class="lens-dashboard-subtitle">{props.subtitle}</p>}
         </div>
-        <Show when={chips().length > 0 || clearAllURL()}>
+        <Show when={chips().length > 0 || clearAllAvailable()}>
           <div class="lens-filter-bar-chips">
             <For each={chips()}>
               {(chip) => (
@@ -253,12 +256,17 @@ export function FilterBar(props: FilterBarProps) {
             {/* A button, not a link: it does not navigate anywhere a reader could
                 bookmark, it dismisses the chips beside it. It also stays at the
                 end of the chip row instead of flowing among the triggers. */}
-            <Show when={clearAllURL()}>
-              {(url) => (
-                <button class="lens-facet-clear" onClick={(event) => intercept(url())(event)} type="button">
-                  {translate('filter.facet.clearAll', 'Clear all')}
-                </button>
-              )}
+            <Show when={clearAllAvailable()}>
+              <button
+                class="lens-facet-clear"
+                onClick={(event) => {
+                  const url = clearAllURL()
+                  if (url) intercept(url)(event)
+                }}
+                type="button"
+              >
+                {translate('filter.facet.clearAll', 'Clear all')}
+              </button>
             </Show>
           </div>
         </Show>
