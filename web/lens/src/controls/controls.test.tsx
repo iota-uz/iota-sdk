@@ -963,10 +963,9 @@ describe('facet chips', () => {
     const cleared = facetDocument()
     cleared.filters = cleared.filters!.map((filter) => filter.facet ? { ...filter, facet: { ...filter.facet, selections: [] } } : filter)
     cleared.activeFilters = []
-    expect(cleared.filters!.every((filter) => (filter.facet?.selections?.length ?? 0) === 0)).toBe(true)
+    expect(cleared.filters.every((filter) => (filter.facet?.selections?.length ?? 0) === 0)).toBe(true)
     const fetcher: typeof fetch = (input) => {
-      const url = String(input)
-      calls.push(url)
+      calls.push(input instanceof Request ? input.url : input.toString())
       return Promise.resolve(new Response(JSON.stringify(calls.length === 1 ? facetDocument() : cleared), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     }
     render(() => <FiltersFixture fetcher={fetcher} />)
