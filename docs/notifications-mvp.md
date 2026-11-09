@@ -99,6 +99,46 @@ publication/subscription logs. Settings show a single delivery status line:
 everything is being delivered, or how many jobs are retrying with a retry action
 for managers. Event payloads are not displayed in diagnostics.
 
+## Delivery channels
+
+Rules select channels (`Rule.Channels`: `in_app`, `email`, `sms`, `push`); an empty
+selection keeps the previous in-app-only behaviour. The settings page shows the
+picker once an adapter is installed. Install providers in the application:
+
+```go
+core.NewComponent(&core.ModuleOptions{
+    NotificationChannels:        []notifications.ChannelAdapter{emailAdapter, smsAdapter, pushAdapter},
+    NotificationAddressResolver: addresses, // email, phone or device token per user
+})
+```
+
+The SDK ships the contract, not providers. Applications wire their own senders
+and decide where addresses and device tokens live. `ChannelAdapter.Send` must
+not assume a transaction and should wrap `notifications.ErrPermanent` for errors
+that cannot succeed on retry; `AddressResolver` returns `notifications.ErrNoAddress`
+when a recipient is unreachable.
+
+Each event/recipient/channel is one row in `core.notification_deliveries`
+(unique per tenant, event identity, user and channel) with status `pending`,
+`sent`, `failed` or `no_address`, attempts, a generic last error, the provider
+receipt, and the rendered localized content with its event version. In-app
+delivery records `sent` next to its inbox row; read/unread stays on the inbox
+row. Rows are created in the same worker transaction as the in-app write and
+checkpoint. Workers then claim due external rows in a short transaction and
+call providers with no transaction open. Failed attempts back off exponentially
+up to five attempts, then become `failed`. Provider error text and credentials
+are never stored. `NotificationChannelService.Retry` reopens one `failed` or
+`no_address` row without touching other channels. Delivery is at-least-once: a
+crash between a provider accepting a message and its outcome being stored
+repeats that one message after the two-minute lease expires.
+
+A producer that names recipients itself calls
+`NotificationDispatchService.EnqueueAddressed`. It uses the same durable queue and
+per-recipient eligibility checks but ignores the administrator's rule for the
+event, so a disabled rule does not suppress it and settings cannot change its
+audience or channels. Other deliveries of the same event are unaffected when
+one recipient or channel fails.
+
 ## Validation
 
 ```sh
@@ -116,6 +156,6 @@ SDK replica with the same PostgreSQL and Redis to check cross-instance delivery.
 It covers saved settings, overlapping/group/role audiences, severity toast,
 realtime dropdown/history, read persistence, membership removal and disabling.
 
-Email, SMS, Telegram, browser push, administrator-authored expressions/templates,
+Telegram, administrator-authored expressions/templates,
 quiet hours, per-user preferences, retention jobs and durable domain-event replay
 remain outside these notification tasks.

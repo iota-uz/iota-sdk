@@ -44,7 +44,7 @@ func (c *NotificationSettingsController) Register(r *mux.Router) {
 	router.HandleFunc("/test", di.H(c.Test)).Methods(http.MethodPost)
 }
 func (c *NotificationSettingsController) render(w http.ResponseWriter, r *http.Request, s *services.NotificationRoutingService, message string, delivered int) {
-	props := &settings.Props{CanManage: composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) == nil, MessageKey: message, Delivered: delivered}
+	props := &settings.Props{Channels: s.Channels(), CanManage: composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) == nil, MessageKey: message, Delivered: delivered}
 	var err error
 	props.Groups, err = s.Groups(r.Context())
 	if err != nil {
@@ -163,6 +163,9 @@ func (c *NotificationSettingsController) Save(w http.ResponseWriter, r *http.Req
 		return
 	}
 	rule := notifications.Rule{Level: notification.Level(r.FormValue("level")), RecipientKeys: r.Form["recipient_keys"], EventKey: r.FormValue("event_key"), Enabled: r.FormValue("enabled") == "true", UserIDs: []uint{}}
+	for _, value := range r.Form["channels"] {
+		rule.Channels = append(rule.Channels, notifications.Channel(value))
+	}
 	for _, value := range r.Form["user_ids"] {
 		id, err := strconv.ParseUint(value, 10, 32)
 		if err != nil || id == 0 {

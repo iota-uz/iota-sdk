@@ -31,6 +31,8 @@ type Props struct {
 	Recipients []Recipient
 	Groups     []notifications.GroupOption
 	Roles      []notifications.RoleOption
+	// Channels are the selectable delivery channels; the picker is hidden when only in-app exists.
+	Channels   []notifications.Channel
 	CanManage  bool
 	MessageKey string
 	Delivered  int
@@ -308,6 +310,19 @@ lang := pageCtx.GetLocale().String()
 								}
 							</select>
 						</label>
+						if len(props.Channels) > 1 {
+							<fieldset class="mt-3">
+								<legend class="font-medium">{ pageCtx.T("NotificationSettings.Channels") }</legend>
+								<div class="mt-1 flex flex-wrap gap-4">
+									for _, channel := range props.Channels {
+										<label class="flex items-center gap-2 font-normal">
+											<input type="checkbox" name="channels" value={ string(channel) } checked?={ hasChannel(event.Rule, channel) } disabled?={ !props.CanManage }/>
+											{ pageCtx.T("NotificationSettings.Channel" + channelKey(channel)) }
+										</label>
+									}
+								</div>
+							</fieldset>
+						}
 					</details>
 				</div>
 				if props.CanManage {
@@ -332,6 +347,27 @@ lang := pageCtx.GetLocale().String()
 			</form>
 		}
 	</main>
+}
+
+func hasChannel(rule notifications.Rule, channel notifications.Channel) bool {
+	for _, c := range rule.EffectiveChannels() {
+		if c == channel {
+			return true
+		}
+	}
+	return false
+}
+
+func channelKey(c notifications.Channel) string {
+	switch c {
+	case notifications.ChannelEmail:
+		return "Email"
+	case notifications.ChannelSMS:
+		return "SMS"
+	case notifications.ChannelPush:
+		return "Push"
+	}
+	return "InApp"
 }
 
 func levelKey(l notification.Level) string {

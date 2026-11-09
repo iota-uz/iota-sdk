@@ -39,3 +39,19 @@ func TestNotificationRuleRepository_SemanticLevelAuditAndTenant(t *testing.T) {
 	require.Equal(t, saved.CreatedAt, updated.CreatedAt)
 	require.Empty(t, updated.Level)
 }
+
+func TestNotificationRuleRepository_Channels(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	repo := persistence.NewNotificationRuleRepository()
+	rule := notifications.Rule{EventKey: notifications.TestEventKey, Enabled: true, RecipientKeys: []string{"actor"}}
+	require.NoError(t, repo.Save(f.Ctx, rule))
+	saved, err := repo.Get(f.Ctx, rule.EventKey)
+	require.NoError(t, err)
+	require.Equal(t, []notifications.Channel{notifications.ChannelInApp}, saved.EffectiveChannels(), "rules without channels stay in-app only")
+	rule.Channels = []notifications.Channel{notifications.ChannelEmail, notifications.ChannelPush, notifications.ChannelEmail}
+	require.NoError(t, repo.Save(f.Ctx, rule))
+	saved, err = repo.Get(f.Ctx, rule.EventKey)
+	require.NoError(t, err)
+	require.Equal(t, []notifications.Channel{notifications.ChannelEmail, notifications.ChannelPush}, saved.Channels)
+}

@@ -60,6 +60,12 @@ var LocaleFiles embed.FS
 type ModuleOptions struct {
 	// DisableNotificationWorker leaves durable jobs for a dedicated worker process.
 	DisableNotificationWorker bool
+	// NotificationChannels installs provider adapters for email, SMS and push.
+	// In-app delivery is always available. Without an adapter its channel cannot
+	// be selected on a rule.
+	NotificationChannels []notifications.ChannelAdapter
+	// NotificationAddressResolver finds a recipient's email, phone or device.
+	NotificationAddressResolver notifications.AddressResolver
 	// NotificationEvents registers application-owned events in the settings catalog.
 	NotificationEvents []notifications.Definition
 	// NotificationRecipientGroups limits individually pickable notification
@@ -168,7 +174,13 @@ func (c *component) Build(builder *composition.Builder) error {
 		return services.NewNotificationService(repo).WithRealtime(realtime)
 	})
 	composition.ProvideFunc(builder, func(service *services.NotificationService) services.NotificationDelivery { return service })
-	composition.ProvideFunc(builder, services.NewNotificationRoutingService)
+	composition.ProvideFunc(builder, persistence.NewNotificationDeliveryRepository)
+	composition.ProvideFunc(builder, func(repo notifications.DeliveryRepository, logger *logrus.Logger) *services.NotificationChannelService {
+		return services.NewNotificationChannelService(repo, c.options.NotificationChannels, c.options.NotificationAddressResolver, logger)
+	})
+	composition.ProvideFunc(builder, func(catalog *notifications.Catalog, rules notifications.RuleRepository, users user.Repository, delivery services.NotificationDelivery, audience notifications.AudienceRepository, directory notifications.RecipientDirectory, channels *services.NotificationChannelService) *services.NotificationRoutingService {
+		return services.NewNotificationRoutingService(catalog, rules, users, delivery, audience, directory).WithChannels(channels)
+	})
 	composition.ProvideFunc(builder, services.NewNotificationDispatchService)
 	composition.ProvideFunc(builder, services.NewNotificationDispatchWorker)
 	composition.ContributeMiddleware(builder, func(container *composition.Container) ([]mux.MiddlewareFunc, error) {

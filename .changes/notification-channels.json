@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Add notification delivery channels (email, SMS, push) with provider adapters, per-channel delivery state and retry, channel selection on event rules, and explicit addressed sends."}

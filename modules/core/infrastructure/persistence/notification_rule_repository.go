@@ -27,8 +27,8 @@ func (r *NotificationRuleRepository) Get(ctx context.Context, key string) (notif
 	if err != nil {
 		return rule, serrors.Wrap("NotificationRuleRepository.Get", err)
 	}
-	var ids, groups, roles, recipients []byte
-	err = db.QueryRow(ctx, "SELECT enabled,user_ids,group_ids,role_ids,recipient_keys,level,created_at,updated_at FROM core.notification_rules WHERE tenant_id=$1 AND event_key=$2", tenant, key).Scan(&rule.Enabled, &ids, &groups, &roles, &recipients, &rule.Level, &rule.CreatedAt, &rule.UpdatedAt)
+	var ids, groups, roles, recipients, channels []byte
+	err = db.QueryRow(ctx, "SELECT enabled,user_ids,group_ids,role_ids,recipient_keys,level,channels,created_at,updated_at FROM core.notification_rules WHERE tenant_id=$1 AND event_key=$2", tenant, key).Scan(&rule.Enabled, &ids, &groups, &roles, &recipients, &rule.Level, &channels, &rule.CreatedAt, &rule.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return rule, nil
 	}
@@ -36,6 +36,9 @@ func (r *NotificationRuleRepository) Get(ctx context.Context, key string) (notif
 		return rule, serrors.Wrap("NotificationRuleRepository.Get", err)
 	}
 	rule.Configured = true
+	if err = json.Unmarshal(channels, &rule.Channels); err != nil {
+		return rule, serrors.Wrap("NotificationRuleRepository.Get", err)
+	}
 	if err = json.Unmarshal(recipients, &rule.RecipientKeys); err != nil {
 		return rule, serrors.Wrap("NotificationRuleRepository.Get", err)
 	}
@@ -71,6 +74,10 @@ func (r *NotificationRuleRepository) Save(ctx context.Context, rule notification
 	if rule.RecipientKeys == nil {
 		rule.RecipientKeys = []string{}
 	}
+	channels, err := json.Marshal(notifications.NormalizeChannels(rule.Channels))
+	if err != nil {
+		return serrors.Wrap("NotificationRuleRepository.Save", err)
+	}
 	recipients, err := json.Marshal(rule.RecipientKeys)
 	if err != nil {
 		return serrors.Wrap("NotificationRuleRepository.Save", err)
@@ -87,7 +94,7 @@ func (r *NotificationRuleRepository) Save(ctx context.Context, rule notification
 	if err != nil {
 		return serrors.Wrap("NotificationRuleRepository.Save", err)
 	}
-	_, err = db.Exec(ctx, `INSERT INTO core.notification_rules(tenant_id,event_key,enabled,user_ids,group_ids,role_ids,recipient_keys,level) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(tenant_id,event_key) DO UPDATE SET enabled=EXCLUDED.enabled,user_ids=EXCLUDED.user_ids,group_ids=EXCLUDED.group_ids,role_ids=EXCLUDED.role_ids,recipient_keys=EXCLUDED.recipient_keys,level=EXCLUDED.level,updated_at=NOW()`, tenant, rule.EventKey, rule.Enabled, ids, groups, roles, recipients, rule.Level)
+	_, err = db.Exec(ctx, `INSERT INTO core.notification_rules(tenant_id,event_key,enabled,user_ids,group_ids,role_ids,recipient_keys,level,channels) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(tenant_id,event_key) DO UPDATE SET enabled=EXCLUDED.enabled,user_ids=EXCLUDED.user_ids,group_ids=EXCLUDED.group_ids,role_ids=EXCLUDED.role_ids,recipient_keys=EXCLUDED.recipient_keys,level=EXCLUDED.level,channels=EXCLUDED.channels,updated_at=NOW()`, tenant, rule.EventKey, rule.Enabled, ids, groups, roles, recipients, rule.Level, channels)
 	if err != nil {
 		return serrors.Wrap("NotificationRuleRepository.Save", err)
 	}

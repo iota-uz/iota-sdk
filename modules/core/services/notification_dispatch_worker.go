@@ -12,13 +12,14 @@ import (
 
 type NotificationDispatchWorker struct {
 	dispatch *NotificationDispatchService
+	channels *NotificationChannelService
 	tenants  *TenantService
 	pool     *pgxpool.Pool
 	logger   *logrus.Logger
 }
 
-func NewNotificationDispatchWorker(dispatch *NotificationDispatchService, tenants *TenantService, pool *pgxpool.Pool, logger *logrus.Logger) *NotificationDispatchWorker {
-	return &NotificationDispatchWorker{dispatch: dispatch, tenants: tenants, pool: pool, logger: logger}
+func NewNotificationDispatchWorker(dispatch *NotificationDispatchService, channels *NotificationChannelService, tenants *TenantService, pool *pgxpool.Pool, logger *logrus.Logger) *NotificationDispatchWorker {
+	return &NotificationDispatchWorker{dispatch: dispatch, channels: channels, tenants: tenants, pool: pool, logger: logger}
 }
 func (w *NotificationDispatchWorker) Start(parent context.Context) (composition.StopFn, error) {
 	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
@@ -67,6 +68,15 @@ func (w *NotificationDispatchWorker) tick(ctx context.Context) {
 		cancel()
 		if err != nil && ctx.Err() == nil {
 			w.logger.WithError(err).WithField("tenant_id", tenant.ID()).Error("notification delivery batch failed; durable retry scheduled")
+		}
+		if w.channels == nil || ctx.Err() != nil {
+			continue
+		}
+		channelCtx, cancelChannels := context.WithTimeout(composables.WithTenantID(base, tenant.ID()), 2*time.Minute)
+		_, err = w.channels.Process(channelCtx)
+		cancelChannels()
+		if err != nil && ctx.Err() == nil {
+			w.logger.WithError(err).WithField("tenant_id", tenant.ID()).Error("notification channel delivery failed; retry scheduled")
 		}
 	}
 }

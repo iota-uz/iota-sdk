@@ -35,6 +35,21 @@ type NotificationRoutingService struct {
 	delivery  NotificationDelivery
 	audience  notifications.AudienceRepository
 	directory notifications.RecipientDirectory
+	channels  *NotificationChannelService
+}
+
+// WithChannels enables external channels; without it every rule is in-app only.
+func (s *NotificationRoutingService) WithChannels(channels *NotificationChannelService) *NotificationRoutingService {
+	s.channels = channels
+	return s
+}
+
+// Channels lists the channels a rule can select.
+func (s *NotificationRoutingService) Channels() []notifications.Channel {
+	if s.channels == nil {
+		return []notifications.Channel{notifications.ChannelInApp}
+	}
+	return s.channels.Available()
 }
 
 func NewNotificationRoutingService(catalog *notifications.Catalog, rules notifications.RuleRepository, users user.Repository, delivery NotificationDelivery, audience notifications.AudienceRepository, directory notifications.RecipientDirectory) *NotificationRoutingService {
@@ -94,6 +109,9 @@ func (s *NotificationRoutingService) SaveRule(ctx context.Context, rule notifica
 	}
 	if rule.Level != "" && !rule.Level.Valid() {
 		return serrors.New(serrors.Invalid, "invalid notification level").WithOp(op)
+	}
+	if err := s.validateChannels(rule.Channels); err != nil {
+		return err
 	}
 	keys := map[string]bool{}
 	for _, key := range definition.RecipientKeys {
@@ -250,6 +268,11 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 	}
 	delivered := 0
 	seen := map[uint]bool{}
+	channels := rule.EffectiveChannels()
+	if err := s.validateChannels(channels); err != nil {
+		return 0, err
+	}
+	var deliveries []notifications.Delivery
 	for _, u := range users {
 		if seen[u.ID()] || u.TenantID() != tenant || u.IsBlocked() || u.Type() != user.TypeUser || u.Status() != user.StatusActive || (definition.RequiredPermission != nil && !u.Can(definition.RequiredPermission)) {
 			continue
@@ -274,16 +297,46 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 				return delivered, serrors.Wrap(op, err)
 			}
 		}
-		n, err := notification.New(u.ID(), content.Title, content.Body, notification.WithTenantID(tenant), notification.WithEventKey(event.Key), notification.WithActionURL(content.ActionURL), notification.WithLevel(level), notification.WithDedupeKey(dedupe))
-		if err != nil {
-			return delivered, serrors.Wrap(op, err)
+		identity := event.DedupeKey
+		if identity == "" {
+			identity = event.ID
 		}
-		if _, err = s.delivery.Deliver(ctx, n); err != nil {
-			return delivered, serrors.Wrap(op, err)
+		for _, channel := range channels {
+			d := notifications.Delivery{TenantID: tenant, EventKey: event.Key, EventID: identity, ContentVersion: event.Version, UserID: u.ID(), Channel: channel, Language: string(u.UILanguage()), Level: level, Title: content.Title, Body: content.Body, ActionURL: content.ActionURL}
+			if channel != notifications.ChannelInApp {
+				deliveries = append(deliveries, d)
+				continue
+			}
+			n, err := notification.New(u.ID(), content.Title, content.Body, notification.WithTenantID(tenant), notification.WithEventKey(event.Key), notification.WithActionURL(content.ActionURL), notification.WithLevel(level), notification.WithDedupeKey(dedupe))
+			if err != nil {
+				return delivered, serrors.Wrap(op, err)
+			}
+			if _, err = s.delivery.Deliver(ctx, n); err != nil {
+				return delivered, serrors.Wrap(op, err)
+			}
+			d.Status = notifications.DeliverySent
+			deliveries = append(deliveries, d)
 		}
 		delivered++
 	}
+	if len(deliveries) > 0 && s.channels != nil {
+		if err := s.channels.Record(ctx, deliveries); err != nil {
+			return delivered, serrors.Wrap(op, err)
+		}
+	}
 	return delivered, nil
+}
+
+func (s *NotificationRoutingService) validateChannels(channels []notifications.Channel) error {
+	if s.channels == nil {
+		for _, c := range channels {
+			if c != notifications.ChannelInApp {
+				return serrors.New(serrors.Invalid, "invalid or unavailable notification channel").WithOp("NotificationRoutingService.validateChannels")
+			}
+		}
+		return nil
+	}
+	return s.channels.Validate(channels)
 }
 
 func (s *NotificationRoutingService) Groups(ctx context.Context) ([]notifications.GroupOption, error) {
