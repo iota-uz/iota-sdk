@@ -298,7 +298,8 @@ CREATE TABLE core.notification_deliveries (
     user_id integer NOT NULL,
     channel text NOT NULL CHECK (channel IN ('in_app', 'email', 'sms', 'push')),
     status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed', 'no_address')),
-    language text NOT NULL DEFAULT 'en',
+    language text
+    NOT NULL DEFAULT 'en',
     level text NOT NULL DEFAULT 'info' CHECK (level IN ('info', 'success', 'warning', 'error')),
     title varchar(300) NOT NULL,
     body text NOT NULL DEFAULT '',
@@ -315,8 +316,7 @@ CREATE TABLE core.notification_deliveries (
 
 CREATE INDEX notification_deliveries_due_idx ON core.notification_deliveries (tenant_id, available_at, created_at)
 WHERE
-    status = 'pending'
-    AND channel <> 'in_app';
+    status = 'pending' AND channel <> 'in_app';
 
 CREATE TABLE core.notification_dispatches (
     id uuid PRIMARY KEY,
