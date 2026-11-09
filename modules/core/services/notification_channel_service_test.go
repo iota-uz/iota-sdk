@@ -237,3 +237,44 @@ func TestNotificationChannels_RejectsUnavailableChannels(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, []notifications.Channel{notifications.ChannelInApp}, router.Channels())
 }
+
+func TestNotificationChannels_ExhaustedLeaseFailsWithoutAnotherProviderCall(t *testing.T) {
+	c := setupChannels(t, fakeAddresses{notifications.ChannelEmail: "a@example.com"})
+	require.NoError(t, c.router.SaveRule(c.f.Ctx, notifications.Rule{EventKey: notifications.TestEventKey, Enabled: true, UserIDs: []uint{c.userID}, Channels: []notifications.Channel{notifications.ChannelEmail}}))
+	eventID := uuid.NewString()
+	_, err := c.dispatch.Enqueue(c.f.Ctx, notifications.Event{Key: notifications.TestEventKey, ID: eventID, TenantID: c.f.TenantID()})
+	require.NoError(t, err)
+	c.commit(t)
+	c.run(t)
+	// The fifth outcome was never recorded and its lease expired.
+	_, err = c.f.Pool.Exec(c.committed, "UPDATE core.notification_deliveries SET attempts=$2,available_at=NOW() WHERE tenant_id=$1", c.f.TenantID(), notifications.MaxDeliveryAttempts)
+	require.NoError(t, err)
+	processed, err := c.channels.Process(c.committed)
+	require.NoError(t, err)
+	require.Zero(t, processed)
+	require.Zero(t, c.email.count())
+	require.Equal(t, notifications.DeliveryFailed, c.statuses(t, eventID)[notifications.ChannelEmail].Status)
+}
+
+func TestNotificationDeliveryRepository_StaleOutcomeIsDropped(t *testing.T) {
+	c := setupChannels(t, fakeAddresses{notifications.ChannelEmail: "a@example.com"})
+	require.NoError(t, c.router.SaveRule(c.f.Ctx, notifications.Rule{EventKey: notifications.TestEventKey, Enabled: true, UserIDs: []uint{c.userID}, Channels: []notifications.Channel{notifications.ChannelEmail}}))
+	eventID := uuid.NewString()
+	_, err := c.dispatch.Enqueue(c.f.Ctx, notifications.Event{Key: notifications.TestEventKey, ID: eventID, TenantID: c.f.TenantID()})
+	require.NoError(t, err)
+	c.commit(t)
+	c.run(t)
+	repo := persistence.NewNotificationDeliveryRepository()
+	first, err := repo.Claim(c.committed, 10, 0)
+	require.NoError(t, err)
+	require.Len(t, first, 1)
+	second, err := repo.Claim(c.committed, 10, 0)
+	require.NoError(t, err)
+	require.Len(t, second, 1)
+	require.Equal(t, first[0].Attempts+1, second[0].Attempts)
+	require.NoError(t, repo.Record(c.committed, second[0].ID, second[0].Attempts, notifications.DeliverySent, "new", "", 0))
+	require.NoError(t, repo.Record(c.committed, first[0].ID, first[0].Attempts, notifications.DeliveryFailed, "", "stale", 0))
+	got := c.statuses(t, eventID)[notifications.ChannelEmail]
+	require.Equal(t, notifications.DeliverySent, got.Status)
+	require.Equal(t, "new", got.ProviderReceipt)
+}

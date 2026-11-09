@@ -86,6 +86,9 @@ func (r *NotificationDeliveryRepository) Claim(ctx context.Context, limit int, l
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
+	if _, err := db.Exec(ctx, `UPDATE core.notification_deliveries SET status='failed',last_error='attempt limit reached',available_at=NOW() WHERE tenant_id=$1 AND status='pending' AND channel<>'in_app' AND available_at<=NOW() AND attempts>=$2`, tenant, notifications.MaxDeliveryAttempts); err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
 	rows, err := db.Query(ctx, `UPDATE core.notification_deliveries SET attempts=attempts+1,available_at=NOW()+make_interval(secs=>$3::double precision) WHERE id IN (SELECT id FROM core.notification_deliveries WHERE tenant_id=$1 AND status='pending' AND channel<>'in_app' AND available_at<=NOW() ORDER BY created_at,id LIMIT $2 FOR UPDATE SKIP LOCKED) RETURNING `+deliveryColumns, tenant, limit, lease.Seconds())
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
@@ -104,7 +107,7 @@ func (r *NotificationDeliveryRepository) Claim(ctx context.Context, limit int, l
 
 // Record stores an attempt outcome. A pending status with retryIn schedules the
 // next attempt; terminal statuses end the delivery.
-func (r *NotificationDeliveryRepository) Record(ctx context.Context, id uuid.UUID, status notifications.DeliveryStatus, receipt, lastError string, retryIn time.Duration) error {
+func (r *NotificationDeliveryRepository) Record(ctx context.Context, id uuid.UUID, attempt int, status notifications.DeliveryStatus, receipt, lastError string, retryIn time.Duration) error {
 	const op serrors.Op = "NotificationDeliveryRepository.Record"
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
@@ -114,14 +117,9 @@ func (r *NotificationDeliveryRepository) Record(ctx context.Context, id uuid.UUI
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
-	tag, err := db.Exec(ctx, `UPDATE core.notification_deliveries SET status=$3,provider_receipt=$4,last_error=$5,available_at=NOW()+make_interval(secs=>$6::double precision),delivered_at=CASE WHEN $3='sent' THEN NOW() ELSE NULL END WHERE tenant_id=$1 AND id=$2`, tenant, id, string(status), receipt, lastError, retryIn.Seconds())
-	if err != nil {
-		return serrors.Wrap(op, err)
-	}
-	if tag.RowsAffected() != 1 {
-		return serrors.New(serrors.NotFound, "").WithOp(op).WithCause(notifications.ErrDeliveryNotFound)
-	}
-	return nil
+	_, err = db.Exec(ctx, `UPDATE core.notification_deliveries SET status=$3,provider_receipt=$4,last_error=$5,available_at=NOW()+make_interval(secs=>$6::double precision),delivered_at=CASE WHEN $3='sent' THEN NOW() ELSE NULL END WHERE tenant_id=$1 AND id=$2 AND attempts=$7 AND status='pending'`, tenant, id, string(status), receipt, lastError, retryIn.Seconds(), attempt)
+	// Zero rows means the claim was superseded; the newer claim owns the outcome.
+	return serrors.Wrap(op, err)
 }
 
 // Retry reopens one failed or exhausted delivery. Sent and sibling deliveries

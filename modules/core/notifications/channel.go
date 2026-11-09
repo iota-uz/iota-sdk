@@ -153,8 +153,10 @@ type DeliveryRepository interface {
 	Create(context.Context, []Delivery) error
 	// Claim leases up to limit due external deliveries and counts the attempt.
 	Claim(ctx context.Context, limit int, lease time.Duration) ([]Delivery, error)
-	// Record stores the outcome of an attempt.
-	Record(ctx context.Context, id uuid.UUID, status DeliveryStatus, receipt, lastError string, retryIn time.Duration) error
+	// Claim fails deliveries that exhausted their attempts instead of leasing them.
+	// Record stores the outcome of the claimed attempt number; an outcome whose
+	// claim was superseded (lease expired and re-claimed, or retried) is dropped.
+	Record(ctx context.Context, id uuid.UUID, attempt int, status DeliveryStatus, receipt, lastError string, retryIn time.Duration) error
 	// Retry makes one failed or exhausted delivery due again, leaving siblings alone.
 	Retry(context.Context, uuid.UUID) error
 	// ForEvent lists the deliveries of one event.

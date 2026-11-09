@@ -117,7 +117,7 @@ func (s *NotificationChannelService) attempt(ctx context.Context, d notification
 	out := s.send(ctx, d)
 	record, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	if err := s.repo.Record(record, d.ID, out.status, out.receipt, out.lastError, out.retryIn); err != nil {
+	if err := s.repo.Record(record, d.ID, d.Attempts, out.status, out.receipt, out.lastError, out.retryIn); err != nil {
 		return serrors.WrapContext(op, err, "failed to record notification delivery outcome")
 	}
 	return nil
