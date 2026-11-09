@@ -114,34 +114,42 @@ func (s *NotificationChannelService) Process(ctx context.Context) (int, error) {
 
 func (s *NotificationChannelService) attempt(ctx context.Context, d notifications.Delivery) error {
 	const op serrors.Op = "NotificationChannelService.attempt"
-	status, receipt, lastError, retryIn := s.send(ctx, d)
+	out := s.send(ctx, d)
 	record, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	if err := s.repo.Record(record, d.ID, status, receipt, lastError, retryIn); err != nil {
+	if err := s.repo.Record(record, d.ID, out.status, out.receipt, out.lastError, out.retryIn); err != nil {
 		return serrors.WrapContext(op, err, "failed to record notification delivery outcome")
 	}
 	return nil
 }
 
-func (s *NotificationChannelService) send(ctx context.Context, d notifications.Delivery) (status notifications.DeliveryStatus, receipt, lastError string, retryIn time.Duration) {
-	retry := func(reason string) (notifications.DeliveryStatus, string, string, time.Duration) {
+type deliveryOutcome struct {
+	status    notifications.DeliveryStatus
+	receipt   string
+	lastError string
+	retryIn   time.Duration
+}
+
+func (s *NotificationChannelService) send(ctx context.Context, d notifications.Delivery) deliveryOutcome {
+	retry := func(reason string) deliveryOutcome {
 		if d.Attempts >= notifications.MaxDeliveryAttempts {
-			return notifications.DeliveryFailed, "", reason, 0
+			return deliveryOutcome{status: notifications.DeliveryFailed, lastError: reason}
 		}
-		return notifications.DeliveryPending, "", reason + "; retry scheduled", time.Duration(min(300, 1<<min(d.Attempts, 8))) * time.Second
+		return deliveryOutcome{status: notifications.DeliveryPending, lastError: reason + "; retry scheduled", retryIn: time.Duration(min(300, 1<<min(d.Attempts, 8))) * time.Second}
 	}
+	noAddress := deliveryOutcome{status: notifications.DeliveryNoAddress, lastError: "recipient has no address for channel"}
 	adapter, ok := s.adapters[d.Channel]
 	if !ok {
 		return retry("channel adapter is not installed")
 	}
 	if s.resolver == nil {
-		return notifications.DeliveryNoAddress, "", "recipient has no address for channel", 0
+		return noAddress
 	}
 	sendCtx, cancel := context.WithTimeout(ctx, notificationChannelSendLimit)
 	defer cancel()
 	address, err := s.resolver.Resolve(sendCtx, d.TenantID, d.UserID, d.Channel)
 	if errors.Is(err, notifications.ErrNoAddress) || (err == nil && address == "") {
-		return notifications.DeliveryNoAddress, "", "recipient has no address for channel", 0
+		return noAddress
 	}
 	if err != nil {
 		return retry("address lookup failed")
@@ -149,9 +157,9 @@ func (s *NotificationChannelService) send(ctx context.Context, d notifications.D
 	result, err := adapter.Send(sendCtx, notifications.Message{DeliveryID: d.ID, TenantID: d.TenantID, EventKey: d.EventKey, EventID: d.EventID, ContentVersion: d.ContentVersion, UserID: d.UserID, Channel: d.Channel, Address: address, Language: d.Language, Level: d.Level, Title: d.Title, Body: d.Body, ActionURL: d.ActionURL})
 	switch {
 	case err == nil:
-		return notifications.DeliverySent, result.ProviderMessageID, "", 0
+		return deliveryOutcome{status: notifications.DeliverySent, receipt: result.ProviderMessageID}
 	case errors.Is(err, notifications.ErrPermanent):
-		return notifications.DeliveryFailed, "", "provider rejected the message", 0
+		return deliveryOutcome{status: notifications.DeliveryFailed, lastError: "provider rejected the message"}
 	default:
 		return retry("provider failure")
 	}
