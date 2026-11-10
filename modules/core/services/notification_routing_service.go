@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"slices"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
@@ -345,7 +346,7 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 		}
 		var userDeliveries []notifications.Delivery
 		for _, channel := range userChannels {
-			d := notifications.Delivery{TenantID: tenant, EventKey: event.Key, EventID: identity, ContentVersion: event.Version, UserID: u.ID(), Channel: channel, Language: language, Level: level, Title: content.Title, Body: content.Body, ActionURL: content.ActionURL}
+			d := notifications.Delivery{TenantID: tenant, EventKey: event.Key, EventID: identity, ContentVersion: event.Version, UserID: u.ID(), Channel: channel, Language: language, Level: level, Title: truncateRunes(content.Title, 300), Body: content.Body, ActionURL: content.ActionURL}
 			if channel != notifications.ChannelInApp {
 				userDeliveries = append(userDeliveries, d)
 				continue
@@ -446,4 +447,13 @@ func (s *NotificationRoutingService) validateAudience(ctx context.Context, rule 
 		}
 	}
 	return nil
+}
+
+// truncateRunes keeps external delivery rows within the title column so one
+// oversized rendered title cannot fail and endlessly retry a whole batch.
+func truncateRunes(value string, limit int) string {
+	if utf8.RuneCountInString(value) <= limit {
+		return value
+	}
+	return string([]rune(value)[:limit])
 }

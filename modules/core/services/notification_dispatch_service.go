@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -86,6 +88,9 @@ func (s *NotificationDispatchService) EnqueueAddressed(ctx context.Context, req 
 		identity = event.ID
 	}
 	event.DedupeKey = "addressed:" + identity
+	if len(event.DedupeKey) > 200 {
+		event.DedupeKey = fmt.Sprintf("addressed:sha256:%x", sha256.Sum256([]byte(identity)))
+	}
 	ids := make([]uint, 0, len(req.RecipientIDs))
 	seen := map[uint]bool{}
 	for _, id := range req.RecipientIDs {
