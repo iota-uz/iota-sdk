@@ -877,7 +877,7 @@ func Content(props *Props) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if len(props.Channels) > 1 {
+			if len(props.Channels) > 1 || hasExternalChannel(event.Rule) {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "<fieldset class=\"mt-3\"><legend class=\"font-medium\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -895,7 +895,7 @@ func Content(props *Props) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				for _, channel := range props.Channels {
+				for _, channel := range channelChoices(props.Channels, event.Rule) {
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "<label class=\"flex items-center gap-2 font-normal\"><input type=\"checkbox\" name=\"channels\" value=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -1069,6 +1069,33 @@ func Content(props *Props) templ.Component {
 	})
 }
 
+// channelChoices lists available channels plus any selected one whose adapter is
+// gone, so the administrator sees it and must change it explicitly.
+func channelChoices(available []notifications.Channel, rule notifications.Rule) []notifications.Channel {
+	choices := append([]notifications.Channel{}, available...)
+	for _, c := range rule.EffectiveChannels() {
+		found := false
+		for _, a := range available {
+			if a == c {
+				found = true
+			}
+		}
+		if !found {
+			choices = append(choices, c)
+		}
+	}
+	return choices
+}
+
+func hasExternalChannel(rule notifications.Rule) bool {
+	for _, c := range rule.EffectiveChannels() {
+		if c.External() {
+			return true
+		}
+	}
+	return false
+}
+
 func hasChannel(rule notifications.Rule, channel notifications.Channel) bool {
 	for _, c := range rule.EffectiveChannels() {
 		if c == channel {
@@ -1137,7 +1164,7 @@ func Queue(stats notifications.DispatchStats, jobs []notifications.DispatchSumma
 			var templ_7745c5c3_Var53 string
 			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NotificationSettings.DeliveryIssues", map[string]interface{}{"Count": stats.Retrying}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/notification_settings/index.templ`, Line: 391, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/notification_settings/index.templ`, Line: 418, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 			if templ_7745c5c3_Err != nil {
@@ -1166,7 +1193,7 @@ func Queue(stats notifications.DispatchStats, jobs []notifications.DispatchSumma
 						var templ_7745c5c3_Var55 string
 						templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs("/settings/notifications/queue/" + job.ID.String() + "/retry")
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/notification_settings/index.templ`, Line: 395, Col: 196}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/notification_settings/index.templ`, Line: 422, Col: 196}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 						if templ_7745c5c3_Err != nil {
@@ -1179,7 +1206,7 @@ func Queue(stats notifications.DispatchStats, jobs []notifications.DispatchSumma
 						var templ_7745c5c3_Var56 string
 						templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NotificationSettings.Retry"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/notification_settings/index.templ`, Line: 396, Col: 107}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/notification_settings/index.templ`, Line: 423, Col: 107}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 						if templ_7745c5c3_Err != nil {
@@ -1200,7 +1227,7 @@ func Queue(stats notifications.DispatchStats, jobs []notifications.DispatchSumma
 			var templ_7745c5c3_Var57 string
 			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NotificationSettings.AllDelivered"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/notification_settings/index.templ`, Line: 403, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/notification_settings/index.templ`, Line: 430, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 			if templ_7745c5c3_Err != nil {

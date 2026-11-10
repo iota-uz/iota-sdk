@@ -137,7 +137,12 @@ A producer that names recipients itself calls
 per-recipient eligibility checks but ignores the administrator's rule for the
 event, so a disabled rule does not suppress it and settings cannot change its
 audience or channels. Other deliveries of the same event are unaffected when
-one recipient or channel fails.
+one recipient or channel fails. Addressed jobs use their own identity namespace
+(`addressed:<id>`), so a rule-based job for the same event ID does not absorb them.
+External deliveries run in their own worker loop, so slow providers never delay
+in-app dispatch. Eligibility is checked when content is rendered; a recipient who
+loses access afterwards can still receive the already rendered message until it
+is sent.
 
 ## Validation
 

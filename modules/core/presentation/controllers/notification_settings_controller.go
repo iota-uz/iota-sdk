@@ -190,6 +190,12 @@ func (c *NotificationSettingsController) Save(w http.ResponseWriter, r *http.Req
 		}
 		rule.RoleIDs = append(rule.RoleIDs, uint(id))
 	}
+	// With a channel picker on the page, an empty selection must not silently
+	// fall back to in-app (for example after an adapter was removed).
+	if len(s.Channels()) > 1 && len(rule.Channels) == 0 {
+		c.render(w, r, s, "InvalidRule", 0)
+		return
+	}
 	if err := s.SaveRule(r.Context(), rule); err != nil {
 		if serrors.CodeOf(err) != serrors.Invalid {
 			composables.UseLogger(r.Context()).WithError(err).Error("failed to save notification rule")

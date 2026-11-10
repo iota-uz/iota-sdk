@@ -72,10 +72,20 @@ func (s *NotificationDispatchService) EnqueueAddressed(ctx context.Context, req 
 	if tenant != event.TenantID || (req.Level != "" && !req.Level.Valid()) {
 		return 0, serrors.New(serrors.Invalid, "invalid notification event envelope").WithOp(op)
 	}
+	if err := s.router.validateActor(ctx, event); err != nil {
+		return 0, serrors.Wrap(op, err)
+	}
 	channels := notifications.NormalizeChannels(req.Channels)
 	if err := s.router.validateChannels(channels); err != nil {
 		return 0, serrors.Wrap(op, err)
 	}
+	// Addressed jobs have their own identity namespace, so an event rule that
+	// already queued the same event ID cannot swallow the requested audience.
+	identity := event.DedupeKey
+	if identity == "" {
+		identity = event.ID
+	}
+	event.DedupeKey = "addressed:" + identity
 	ids := make([]uint, 0, len(req.RecipientIDs))
 	seen := map[uint]bool{}
 	for _, id := range req.RecipientIDs {

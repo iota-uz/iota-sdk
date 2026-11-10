@@ -171,14 +171,8 @@ func (s *NotificationRoutingService) ResolveRecipients(ctx context.Context, even
 		return rule, nil, serrors.New(serrors.Invalid, "invalid notification event envelope").WithOp(op)
 	}
 	definition, _ := s.catalog.Get(event.Key)
-	if event.ActorUserID != 0 {
-		actors, err := s.users.GetByIDs(ctx, []uint{event.ActorUserID})
-		if err != nil {
-			return rule, nil, serrors.Wrap(op, err)
-		}
-		if len(actors) != 1 || actors[0].TenantID() != tenant {
-			return rule, nil, serrors.New(serrors.Invalid, "invalid notification actor").WithOp(op)
-		}
+	if err := s.validateActor(ctx, event); err != nil {
+		return rule, nil, err
 	}
 	rule, err = s.rules.Get(ctx, event.Key)
 	if err != nil {
@@ -269,10 +263,13 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 	delivered := 0
 	seen := map[uint]bool{}
 	channels := rule.EffectiveChannels()
-	if err := s.validateChannels(channels); err != nil {
-		return 0, err
+	// A missing adapter must not block the other channels: its deliveries are
+	// recorded and retried by the channel service.
+	for _, c := range channels {
+		if !c.Valid() {
+			return 0, serrors.New(serrors.Invalid, "invalid notification channel").WithOp(op)
+		}
 	}
-	var deliveries []notifications.Delivery
 	for _, u := range users {
 		if seen[u.ID()] || u.TenantID() != tenant || u.IsBlocked() || u.Type() != user.TypeUser || u.Status() != user.StatusActive || (definition.RequiredPermission != nil && !u.Can(definition.RequiredPermission)) {
 			continue
@@ -287,7 +284,11 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 				continue
 			}
 		}
-		content, err := definition.Render(event, string(u.UILanguage()))
+		language := string(u.UILanguage())
+		if language == "" {
+			language = "en"
+		}
+		content, err := definition.Render(event, language)
 		if err != nil {
 			return delivered, serrors.Wrap(op, err)
 		}
@@ -297,14 +298,19 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 				return delivered, serrors.Wrap(op, err)
 			}
 		}
+		// Every channel, not only in-app, must carry a safe internal link.
+		if _, err := notification.New(u.ID(), "validation", "", notification.WithActionURL(content.ActionURL)); err != nil {
+			return delivered, serrors.Wrap(op, err)
+		}
 		identity := event.DedupeKey
 		if identity == "" {
 			identity = event.ID
 		}
+		var userDeliveries []notifications.Delivery
 		for _, channel := range channels {
-			d := notifications.Delivery{TenantID: tenant, EventKey: event.Key, EventID: identity, ContentVersion: event.Version, UserID: u.ID(), Channel: channel, Language: string(u.UILanguage()), Level: level, Title: content.Title, Body: content.Body, ActionURL: content.ActionURL}
+			d := notifications.Delivery{TenantID: tenant, EventKey: event.Key, EventID: identity, ContentVersion: event.Version, UserID: u.ID(), Channel: channel, Language: language, Level: level, Title: content.Title, Body: content.Body, ActionURL: content.ActionURL}
 			if channel != notifications.ChannelInApp {
-				deliveries = append(deliveries, d)
+				userDeliveries = append(userDeliveries, d)
 				continue
 			}
 			n, err := notification.New(u.ID(), content.Title, content.Body, notification.WithTenantID(tenant), notification.WithEventKey(event.Key), notification.WithActionURL(content.ActionURL), notification.WithLevel(level), notification.WithDedupeKey(dedupe))
@@ -315,16 +321,37 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 				return delivered, serrors.Wrap(op, err)
 			}
 			d.Status = notifications.DeliverySent
-			deliveries = append(deliveries, d)
+			userDeliveries = append(userDeliveries, d)
+		}
+		// Recorded with the recipient's inbox write so a later failure cannot
+		// leave a saved message without its delivery rows.
+		if len(userDeliveries) > 0 && s.channels != nil {
+			if err := s.channels.Record(ctx, userDeliveries); err != nil {
+				return delivered, serrors.Wrap(op, err)
+			}
 		}
 		delivered++
 	}
-	if len(deliveries) > 0 && s.channels != nil {
-		if err := s.channels.Record(ctx, deliveries); err != nil {
-			return delivered, serrors.Wrap(op, err)
-		}
-	}
 	return delivered, nil
+}
+
+func (s *NotificationRoutingService) validateActor(ctx context.Context, event notifications.Event) error {
+	const op = "NotificationRoutingService.validateActor"
+	if event.ActorUserID == 0 {
+		return nil
+	}
+	tenant, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	actors, err := s.users.GetByIDs(ctx, []uint{event.ActorUserID})
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	if len(actors) != 1 || actors[0].TenantID() != tenant {
+		return serrors.New(serrors.Invalid, "invalid notification actor").WithOp(op)
+	}
+	return nil
 }
 
 func (s *NotificationRoutingService) validateChannels(channels []notifications.Channel) error {

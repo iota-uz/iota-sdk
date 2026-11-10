@@ -219,7 +219,7 @@ func TestNotificationChannels_AddressedSendIgnoresEventRuleAndRollsBack(t *testi
 	c.run(t)
 	_, err = c.channels.Process(c.committed)
 	require.NoError(t, err)
-	got := c.statuses(t, eventID)
+	got := c.statuses(t, "addressed:"+eventID)
 	require.Len(t, got, 1)
 	require.Equal(t, notifications.DeliverySent, got[notifications.ChannelEmail].Status)
 	rule, err := c.router.Rule(c.committed, notifications.TestEventKey)
@@ -230,7 +230,13 @@ func TestNotificationChannels_AddressedSendIgnoresEventRuleAndRollsBack(t *testi
 func TestNotificationChannels_RejectsUnavailableChannels(t *testing.T) {
 	f := setupNotificationTest(t)
 	router := itf.GetService[services.NotificationRoutingService](f)
-	err := router.SaveRule(f.Ctx, notifications.Rule{EventKey: notifications.TestEventKey, Enabled: true, RecipientKeys: nil, UserIDs: []uint{}, Channels: []notifications.Channel{notifications.ChannelSMS}})
+	users := persistence.NewUserRepository(persistence.NewUploadRepository())
+	u, err := users.Create(f.Ctx, user.New("Channel", "Validation", internet.MustParseEmail(fmt.Sprintf("validation%s@example.com", uuid.NewString()[:8])), user.UILanguageEN, user.WithTenantID(f.TenantID())))
+	require.NoError(t, err)
+	valid := notifications.Rule{EventKey: notifications.TestEventKey, Enabled: true, UserIDs: []uint{u.ID()}}
+	require.NoError(t, router.SaveRule(f.Ctx, valid), "the rule is valid without the unavailable channel")
+	valid.Channels = []notifications.Channel{notifications.ChannelSMS}
+	err = router.SaveRule(f.Ctx, valid)
 	require.Error(t, err)
 	dispatch := itf.GetService[services.NotificationDispatchService](f)
 	_, err = dispatch.EnqueueAddressed(f.Ctx, services.AddressedRequest{Event: notifications.Event{Key: notifications.TestEventKey, ID: uuid.NewString(), TenantID: f.TenantID()}, RecipientIDs: []uint{1}, Channels: []notifications.Channel{notifications.ChannelPush}})
@@ -277,4 +283,22 @@ func TestNotificationDeliveryRepository_StaleOutcomeIsDropped(t *testing.T) {
 	got := c.statuses(t, eventID)[notifications.ChannelEmail]
 	require.Equal(t, notifications.DeliverySent, got.Status)
 	require.Equal(t, "new", got.ProviderReceipt)
+}
+
+func TestNotificationChannels_AddressedSendNotSwallowedByRuleJob(t *testing.T) {
+	c := setupChannels(t, fakeAddresses{notifications.ChannelEmail: "a@example.com"})
+	require.NoError(t, c.router.SaveRule(c.f.Ctx, notifications.Rule{EventKey: notifications.TestEventKey, Enabled: true, UserIDs: []uint{c.userID}}))
+	eventID := uuid.NewString()
+	event := notifications.Event{Key: notifications.TestEventKey, ID: eventID, TenantID: c.f.TenantID()}
+	_, err := c.dispatch.Enqueue(c.f.Ctx, event)
+	require.NoError(t, err)
+	n, err := c.dispatch.EnqueueAddressed(c.f.Ctx, services.AddressedRequest{Event: event, RecipientIDs: []uint{c.userID}, Channels: []notifications.Channel{notifications.ChannelEmail}})
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	_, err = c.dispatch.EnqueueAddressed(c.f.Ctx, services.AddressedRequest{Event: notifications.Event{Key: notifications.TestEventKey, ID: uuid.NewString(), TenantID: c.f.TenantID(), ActorUserID: 999999999}, RecipientIDs: []uint{c.userID}})
+	require.Error(t, err, "an actor outside the tenant is rejected")
+	c.commit(t)
+	var jobs int
+	require.NoError(t, c.f.Pool.QueryRow(c.committed, "SELECT COUNT(*) FROM core.notification_dispatches WHERE tenant_id=$1", c.f.TenantID()).Scan(&jobs))
+	require.Equal(t, 2, jobs, "the addressed request keeps its own job next to the rule job")
 }
