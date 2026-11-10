@@ -1,3 +1,4 @@
+import type { ShellUser } from './shell-host'
 import { ShellRegistry, type ShellNavigationItem } from './shell-registry'
 
 export const SHELL_CONTEXT_VERSION = '1.0.0'
@@ -17,6 +18,7 @@ interface WireNavigationItem {
 export interface ShellContext {
   version: string
   navigation: ShellNavigationItem[]
+  user: ShellUser | null
 }
 
 function major(version: string): string { return version.split('.', 1)[0] ?? '' }
@@ -40,12 +42,15 @@ function parseItem(raw: unknown, index: number): ShellNavigationItem {
 export function readShellContext(document: Document, elementID = SHELL_CONTEXT_ELEMENT_ID): ShellContext | null {
   const element = document.getElementById(elementID)
   if (!element?.textContent) return null
-  const payload = JSON.parse(element.textContent) as { version?: unknown; navigation?: unknown }
+  const payload = JSON.parse(element.textContent) as { version?: unknown; navigation?: unknown; user?: { name?: unknown; email?: unknown } }
   if (typeof payload.version !== 'string' || major(payload.version) !== major(SHELL_CONTEXT_VERSION)) {
     throw new Error(`shell context ${String(payload.version)} is incompatible with ${SHELL_CONTEXT_VERSION}`)
   }
   if (!Array.isArray(payload.navigation)) throw new Error('shell context navigation must be an array')
-  return { version: payload.version, navigation: payload.navigation.map(parseItem) }
+  const user = payload.user && typeof payload.user.name === 'string' && typeof payload.user.email === 'string'
+    ? { name: payload.user.name, email: payload.user.email }
+    : null
+  return { version: payload.version, navigation: payload.navigation.map(parseItem), user }
 }
 
 const registries = new WeakMap<Document, ShellRegistry>()
