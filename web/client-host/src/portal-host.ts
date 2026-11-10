@@ -51,9 +51,9 @@ function isBlocking(surface: PortalSurface): boolean {
 export class PortalRegistry {
   private readonly roots = new Map<PortalSurface, HTMLElement>()
   private readonly overlays: OverlayEntry[] = []
-  private locked = false
+  private locked: HTMLElement | true | false = false
 
-  constructor(private readonly owner: HTMLElement, private readonly background?: HTMLElement) {}
+  constructor(private readonly owner: HTMLElement, private readonly background?: HTMLElement | (() => HTMLElement | undefined)) {}
 
   get ownerDocument(): Document { return this.owner.ownerDocument }
 
@@ -99,13 +99,31 @@ export class PortalRegistry {
   private sync(): void {
     const blocking = this.overlays.some(({ surface }) => isBlocking(surface))
     if (blocking && !this.locked) {
-      this.locked = true
+      const background = typeof this.background === 'function' ? this.background() : this.background
+      this.locked = background ?? true
       acquireDocumentLock(this.owner.ownerDocument)
-      if (this.background) acquireBackgroundLock(this.background)
+      if (background) acquireBackgroundLock(background)
     } else if (!blocking && this.locked) {
+      const background = this.locked
       this.locked = false
       releaseDocumentLock(this.owner.ownerDocument)
-      if (this.background) releaseBackgroundLock(this.background)
+      if (background !== true) releaseBackgroundLock(background)
     }
   }
+}
+
+const documentRegistries = new WeakMap<Document, PortalRegistry>()
+
+/**
+ * The document-level portal host for overlays rendered outside a Solid client
+ * route. Roots live under the body; the standard shell or the client route
+ * background becomes inert while a blocking overlay is open.
+ */
+export function documentPortalRegistry(owner: Document): PortalRegistry {
+  let registry = documentRegistries.get(owner)
+  if (!registry) {
+    registry = new PortalRegistry(owner.body, () => owner.querySelector<HTMLElement>('[data-iota-shell-standard], [data-client-route-background]') ?? undefined)
+    documentRegistries.set(owner, registry)
+  }
+  return registry
 }
