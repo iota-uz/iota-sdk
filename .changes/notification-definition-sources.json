@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Add notification definition sources: runtime definitions bound to an immutable snapshot reference, atomic registration, deactivation that keeps pending deliveries renderable."}

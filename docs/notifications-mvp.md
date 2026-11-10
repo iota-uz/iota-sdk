@@ -119,3 +119,25 @@ realtime dropdown/history, read persistence, membership removal and disabling.
 Email, SMS, Telegram, browser push, administrator-authored expressions/templates,
 quiet hours, per-user preferences, retention jobs and durable domain-event replay
 remain outside these notification tasks.
+
+## Runtime definition sources
+
+Definitions that do not come from native composition (for example a TypeScript
+extension activated from an immutable snapshot) implement
+`notifications.DefinitionSource` and are added with `Catalog.RegisterSource`.
+
+- Every definition carries `Source` (the source name) and a non-empty
+  `SnapshotRef`. Registration is atomic: one invalid or duplicate definition
+  rejects the whole source.
+- Keys stay versioned (`...v1`). Registering an existing key fails, so an update
+  is published as a new version (`...v2`), never as a silent overwrite.
+- Events produced from a runtime definition set `Event.SnapshotRef`. It is part
+  of the queued dispatch job's event JSON, so no schema change is needed, and
+  `Catalog.For(event)` resolves exactly that snapshot.
+- `Catalog.Deactivate(source)` removes the source's definitions from the active
+  catalog and the settings list. Pending deliveries keep rendering through their
+  snapshot. The catalog is in memory: after a restart the source re-supplies
+  the snapshots that still have pending deliveries.
+- Definitions are metadata plus simple localized templates; recipients are
+  resolved by Go from descriptors. Computing text, payload or explicit recipients
+  stays in the author's code before enqueue.

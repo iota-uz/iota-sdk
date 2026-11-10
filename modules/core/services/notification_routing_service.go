@@ -152,7 +152,7 @@ func (s *NotificationRoutingService) ResolveRecipients(ctx context.Context, even
 	if err != nil || tenant != event.TenantID {
 		return rule, nil, serrors.New(serrors.Invalid, "invalid notification event envelope").WithOp(op)
 	}
-	definition, _ := s.catalog.Get(event.Key)
+	definition, _ := s.catalog.For(event)
 	if event.ActorUserID != 0 {
 		actors, err := s.users.GetByIDs(ctx, []uint{event.ActorUserID})
 		if err != nil {
@@ -228,7 +228,7 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 	if !rule.Enabled {
 		return 0, nil
 	}
-	definition, _ := s.catalog.Get(event.Key)
+	definition, _ := s.catalog.For(event)
 	users, err := s.users.GetByIDs(ctx, ids)
 	if err != nil {
 		return 0, serrors.Wrap(op, err)
