@@ -175,8 +175,9 @@ func (c *component) Build(builder *composition.Builder) error {
 	})
 	composition.ProvideFunc(builder, func(service *services.NotificationService) services.NotificationDelivery { return service })
 	composition.ProvideFunc(builder, persistence.NewNotificationDeliveryRepository)
-	composition.ProvideFunc(builder, func(repo notifications.DeliveryRepository, logger *logrus.Logger) *services.NotificationChannelService {
-		return services.NewNotificationChannelService(repo, c.options.NotificationChannels, c.options.NotificationAddressResolver, logger)
+	composition.ProvideFunc(builder, persistence.NewNotificationPreferenceRepository)
+	composition.ProvideFunc(builder, func(repo notifications.DeliveryRepository, prefs notifications.PreferenceRepository, logger *logrus.Logger) *services.NotificationChannelService {
+		return services.NewNotificationChannelService(repo, prefs, c.options.NotificationChannels, c.options.NotificationAddressResolver, logger)
 	})
 	composition.ProvideFunc(builder, func(catalog *notifications.Catalog, rules notifications.RuleRepository, users user.Repository, delivery services.NotificationDelivery, audience notifications.AudienceRepository, directory notifications.RecipientDirectory, channels *services.NotificationChannelService) *services.NotificationRoutingService {
 		return services.NewNotificationRoutingService(catalog, rules, users, delivery, audience, directory).WithChannels(channels)

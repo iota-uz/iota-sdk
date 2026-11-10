@@ -1,6 +1,6 @@
 -- Migration: Notification channels and per-channel deliveries
 -- Date: 2026-11-09
--- Purpose: Let event rules select delivery channels and persist the outcome of every event/recipient/channel.
+-- Purpose: Let event rules select delivery channels, persist the outcome of every event/recipient/channel and store per-user channel opt-outs.
 
 -- +migrate Up
 ALTER TABLE core.notification_rules
@@ -35,7 +35,18 @@ WHERE
     status = 'pending'
     AND channel <> 'in_app';
 
+CREATE TABLE core.notification_channel_preferences (
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    user_id integer NOT NULL,
+    channel text NOT NULL CHECK (channel IN ('in_app', 'email', 'sms', 'push')),
+    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT notification_channel_preferences_user_tenant_fkey FOREIGN KEY (tenant_id, user_id) REFERENCES users (tenant_id, id) ON DELETE CASCADE,
+    PRIMARY KEY (tenant_id, user_id, channel)
+);
+
 -- +migrate Down
+DROP TABLE IF EXISTS core.notification_channel_preferences;
+
 DROP TABLE IF EXISTS core.notification_deliveries;
 
 ALTER TABLE core.notification_rules

@@ -42,6 +42,8 @@ func (c *NotificationSettingsController) Register(r *mux.Router) {
 	router.HandleFunc("/queue", di.H(c.Queue)).Methods(http.MethodGet)
 	router.HandleFunc("/queue/{id}/retry", di.H(c.Retry)).Methods(http.MethodPost)
 	router.HandleFunc("/test", di.H(c.Test)).Methods(http.MethodPost)
+	router.HandleFunc("/users", di.H(c.UserChannels)).Methods(http.MethodGet)
+	router.HandleFunc("/users/{id:[0-9]+}", di.H(c.SaveUserChannels)).Methods(http.MethodPost)
 }
 func (c *NotificationSettingsController) render(w http.ResponseWriter, r *http.Request, s *services.NotificationRoutingService, message string, delivered int) {
 	props := &settings.Props{Channels: s.Channels(), CanManage: composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) == nil, MessageKey: message, Delivered: delivered}
@@ -292,4 +294,76 @@ func (c *NotificationSettingsController) Test(w http.ResponseWriter, r *http.Req
 		key = "TestSkipped"
 	}
 	c.render(w, r, s, key, count)
+}
+
+// UserChannels lists people with their personal channel choices.
+func (c *NotificationSettingsController) UserChannels(w http.ResponseWriter, r *http.Request, s *services.NotificationRoutingService) {
+	c.renderUserChannels(w, r, s, "")
+}
+
+func (c *NotificationSettingsController) renderUserChannels(w http.ResponseWriter, r *http.Request, s *services.NotificationRoutingService, message string) {
+	if composables.CanUserStrict(r.Context(), permissions.NotificationRulesRead) != nil {
+		RenderForbidden(w, r)
+		return
+	}
+	search := r.FormValue("q")
+	if utf8.RuneCountInString(search) > maxRecipientSearchLength {
+		http.Error(w, "Search is too long", http.StatusBadRequest)
+		return
+	}
+	page, err := s.SearchRecipients(r.Context(), search, 0)
+	if err != nil {
+		composables.UseLogger(r.Context()).WithError(err).Error("failed to search notification recipients")
+		http.Error(w, "Unable to load recipients", http.StatusInternalServerError)
+		return
+	}
+	ids := make([]uint, 0, len(page.Items))
+	for _, item := range page.Items {
+		ids = append(ids, item.ID)
+	}
+	disabled, err := s.UserChannels(r.Context(), ids)
+	if err != nil {
+		http.Error(w, "Unable to load channel settings", http.StatusInternalServerError)
+		return
+	}
+	props := &settings.UserChannelsProps{Channels: s.Channels(), Search: search, MessageKey: message, CanManage: composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) == nil}
+	for _, item := range page.Items {
+		props.Rows = append(props.Rows, settings.UserChannelRow{Recipient: settings.Recipient{ID: item.ID, Name: item.Name, Hint: item.Hint}, Disabled: disabled[item.ID]})
+	}
+	component := settings.UserChannels(props)
+	if htmx.IsHxRequest(r) {
+		component = settings.UserChannelsContent(props)
+	}
+	templ.Handler(component).ServeHTTP(w, r)
+}
+
+// SaveUserChannels stores which channels one person wants.
+func (c *NotificationSettingsController) SaveUserChannels(w http.ResponseWriter, r *http.Request, s *services.NotificationRoutingService) {
+	if composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) != nil {
+		RenderForbidden(w, r)
+		return
+	}
+	id, err := strconv.ParseUint(mux.Vars(r)["id"], 10, 32)
+	if err != nil || id == 0 {
+		http.Error(w, "Invalid user", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form", http.StatusBadRequest)
+		return
+	}
+	enabled := make([]notifications.Channel, 0, len(r.Form["channels"]))
+	for _, value := range r.Form["channels"] {
+		enabled = append(enabled, notifications.Channel(value))
+	}
+	if err := s.SetUserChannels(r.Context(), uint(id), enabled); err != nil {
+		if serrors.CodeOf(err) != serrors.Invalid {
+			composables.UseLogger(r.Context()).WithError(err).Error("failed to save user notification channels")
+			http.Error(w, "Unable to save channel settings", http.StatusInternalServerError)
+			return
+		}
+		c.renderUserChannels(w, r, s, "InvalidChannels")
+		return
+	}
+	c.renderUserChannels(w, r, s, "UserChannelsSaved")
 }

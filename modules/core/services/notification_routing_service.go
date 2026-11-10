@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
@@ -42,6 +43,28 @@ type NotificationRoutingService struct {
 func (s *NotificationRoutingService) WithChannels(channels *NotificationChannelService) *NotificationRoutingService {
 	s.channels = channels
 	return s
+}
+
+// UserChannels returns the channels each user opted out of.
+func (s *NotificationRoutingService) UserChannels(ctx context.Context, ids []uint) (map[uint][]notifications.Channel, error) {
+	if s.channels == nil {
+		return map[uint][]notifications.Channel{}, nil
+	}
+	return s.channels.Disabled(ctx, ids)
+}
+
+// SetUserChannels stores which channels a user wants. The user must be someone
+// who can receive notifications in the current tenant.
+func (s *NotificationRoutingService) SetUserChannels(ctx context.Context, userID uint, enabled []notifications.Channel) error {
+	const op = "NotificationRoutingService.SetUserChannels"
+	available, err := s.directory.GetByIDs(ctx, []uint{userID})
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	if len(available) != 1 || s.channels == nil {
+		return serrors.New(serrors.Invalid, "invalid recipient").WithOp(op)
+	}
+	return s.channels.SetEnabled(ctx, userID, enabled)
 }
 
 // Channels lists the channels a rule can select.
@@ -263,6 +286,13 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 	delivered := 0
 	seen := map[uint]bool{}
 	channels := rule.EffectiveChannels()
+	var disabled map[uint][]notifications.Channel
+	if s.channels != nil {
+		disabled, err = s.channels.Disabled(ctx, ids)
+		if err != nil {
+			return 0, serrors.Wrap(op, err)
+		}
+	}
 	// A missing adapter must not block the other channels: its deliveries are
 	// recorded and retried by the channel service.
 	for _, c := range channels {
@@ -281,6 +311,13 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 				return delivered, serrors.Wrap(op, err)
 			}
 			if !allowed {
+				continue
+			}
+		}
+		userChannels := channels
+		if len(disabled[u.ID()]) > 0 {
+			userChannels = slices.DeleteFunc(slices.Clone(channels), func(c notifications.Channel) bool { return slices.Contains(disabled[u.ID()], c) })
+			if len(userChannels) == 0 {
 				continue
 			}
 		}
@@ -307,7 +344,7 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 			identity = event.ID
 		}
 		var userDeliveries []notifications.Delivery
-		for _, channel := range channels {
+		for _, channel := range userChannels {
 			d := notifications.Delivery{TenantID: tenant, EventKey: event.Key, EventID: identity, ContentVersion: event.Version, UserID: u.ID(), Channel: channel, Language: language, Level: level, Title: content.Title, Body: content.Body, ActionURL: content.ActionURL}
 			if channel != notifications.ChannelInApp {
 				userDeliveries = append(userDeliveries, d)

@@ -136,6 +136,7 @@ lang := pageCtx.GetLocale().String()
 		if !props.CanManage {
 			<p class="text-sm text-200 rounded-lg bg-surface-400 px-4 py-3 mt-4">{ pageCtx.T("NotificationSettings.ReadOnly") }</p>
 		}
+		<p class="mt-2 text-sm"><a href="/settings/notifications/users" class="text-primary-600 hover:underline">{ pageCtx.T("NotificationSettings.UserChannels") }</a></p>
 		<section id="notification-queue" class="mt-4 h-5" hx-get="/settings/notifications/queue" hx-trigger="load" hx-swap="outerHTML"></section>
 		{{ previousModule := "" }}
 		for _, event := range props.Rules {

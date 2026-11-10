@@ -25,19 +25,20 @@ const (
 // calls provider adapters only after that transaction committed.
 type NotificationChannelService struct {
 	repo     notifications.DeliveryRepository
+	prefs    notifications.PreferenceRepository
 	adapters map[notifications.Channel]notifications.ChannelAdapter
 	resolver notifications.AddressResolver
 	logger   *logrus.Logger
 }
 
-func NewNotificationChannelService(repo notifications.DeliveryRepository, adapters []notifications.ChannelAdapter, resolver notifications.AddressResolver, logger *logrus.Logger) *NotificationChannelService {
+func NewNotificationChannelService(repo notifications.DeliveryRepository, prefs notifications.PreferenceRepository, adapters []notifications.ChannelAdapter, resolver notifications.AddressResolver, logger *logrus.Logger) *NotificationChannelService {
 	index := make(map[notifications.Channel]notifications.ChannelAdapter, len(adapters))
 	for _, a := range adapters {
 		if a != nil && a.Channel().External() {
 			index[a.Channel()] = a
 		}
 	}
-	return &NotificationChannelService{repo: repo, adapters: index, resolver: resolver, logger: logger}
+	return &NotificationChannelService{repo: repo, prefs: prefs, adapters: index, resolver: resolver, logger: logger}
 }
 
 // Available lists the channels a rule can select: in-app and every installed adapter.
@@ -63,6 +64,38 @@ func (s *NotificationChannelService) Validate(channels []notifications.Channel) 
 		seen[c] = true
 	}
 	return nil
+}
+
+// Disabled returns each user's opted-out channels.
+func (s *NotificationChannelService) Disabled(ctx context.Context, userIDs []uint) (map[uint][]notifications.Channel, error) {
+	return s.prefs.Disabled(ctx, userIDs)
+}
+
+// SetEnabled stores which of the available channels a user wants. Opt-outs for
+// channels without an installed adapter are kept, so installing one later does
+// not override an earlier choice.
+func (s *NotificationChannelService) SetEnabled(ctx context.Context, userID uint, enabled []notifications.Channel) error {
+	const op serrors.Op = "NotificationChannelService.SetEnabled"
+	if err := s.Validate(enabled); err != nil {
+		return serrors.Wrap(op, err)
+	}
+	current, err := s.prefs.Disabled(ctx, []uint{userID})
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	available := s.Available()
+	var disabled []notifications.Channel
+	for _, c := range current[userID] {
+		if !slices.Contains(available, c) {
+			disabled = append(disabled, c)
+		}
+	}
+	for _, c := range available {
+		if !slices.Contains(enabled, c) {
+			disabled = append(disabled, c)
+		}
+	}
+	return s.prefs.SetDisabled(ctx, userID, disabled)
 }
 
 // Record persists deliveries in the caller's transaction.

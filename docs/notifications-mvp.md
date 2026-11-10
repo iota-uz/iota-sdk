@@ -144,6 +144,17 @@ in-app dispatch. Eligibility is checked when content is rendered; a recipient wh
 loses access afterwards can still receive the already rendered message until it
 is sent.
 
+### Personal channel choices
+
+Under **Channels per person** (`/settings/notifications/users`) a manager turns a
+channel on or off for one person. A channel switched off is skipped for that
+person in every event, rule-based or addressed; their other channels and other
+recipients are unaffected, and a person with every channel off gets nothing.
+Choices are stored as opt-outs in `core.notification_channel_preferences`
+(tenant-scoped), so people without a row keep everything the rule selects, and an
+opt-out for a channel whose adapter is not installed is kept. The page needs
+`NotificationRules.Read`; saving needs `NotificationRules.Manage`.
+
 ## Validation
 
 ```sh

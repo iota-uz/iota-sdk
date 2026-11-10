@@ -302,3 +302,39 @@ func TestNotificationChannels_AddressedSendNotSwallowedByRuleJob(t *testing.T) {
 	require.NoError(t, c.f.Pool.QueryRow(c.committed, "SELECT COUNT(*) FROM core.notification_dispatches WHERE tenant_id=$1", c.f.TenantID()).Scan(&jobs))
 	require.Equal(t, 2, jobs, "the addressed request keeps its own job next to the rule job")
 }
+
+func TestNotificationChannels_UserOptOutSkipsOnlyThatUsersChannel(t *testing.T) {
+	c := setupChannels(t, fakeAddresses{notifications.ChannelEmail: "a@example.com", notifications.ChannelSMS: "+998900000000"})
+	users := persistence.NewUserRepository(persistence.NewUploadRepository())
+	other, err := users.Create(c.f.Ctx, user.New("Other", "Recipient", internet.MustParseEmail(fmt.Sprintf("other%s@example.com", uuid.NewString()[:8])), user.UILanguageEN, user.WithTenantID(c.f.TenantID())))
+	require.NoError(t, err)
+	require.NoError(t, c.router.SaveRule(c.f.Ctx, notifications.Rule{EventKey: notifications.TestEventKey, Enabled: true, UserIDs: []uint{c.userID, other.ID()}, Channels: []notifications.Channel{notifications.ChannelInApp, notifications.ChannelEmail, notifications.ChannelSMS}}))
+	require.Error(t, c.router.SetUserChannels(c.f.Ctx, c.userID, []notifications.Channel{"fax", notifications.ChannelInApp}), "an unknown channel cannot be chosen")
+	require.NoError(t, c.router.SetUserChannels(c.f.Ctx, c.userID, []notifications.Channel{notifications.ChannelInApp, notifications.ChannelSMS}))
+	eventID := uuid.NewString()
+	_, err = c.dispatch.Enqueue(c.f.Ctx, notifications.Event{Key: notifications.TestEventKey, ID: eventID, TenantID: c.f.TenantID()})
+	require.NoError(t, err)
+	c.commit(t)
+	c.run(t)
+	_, err = c.channels.Process(c.committed)
+	require.NoError(t, err)
+	list, err := c.channels.Deliveries(c.committed, notifications.TestEventKey, eventID)
+	require.NoError(t, err)
+	byUser := map[uint][]notifications.Channel{}
+	for _, d := range list {
+		byUser[d.UserID] = append(byUser[d.UserID], d.Channel)
+	}
+	require.ElementsMatch(t, []notifications.Channel{notifications.ChannelInApp, notifications.ChannelSMS}, byUser[c.userID], "email was turned off for this user")
+	require.ElementsMatch(t, []notifications.Channel{notifications.ChannelInApp, notifications.ChannelEmail, notifications.ChannelSMS}, byUser[other.ID()], "other users keep every channel")
+	disabled, err := c.router.UserChannels(c.committed, []uint{c.userID, other.ID()})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []notifications.Channel{notifications.ChannelEmail, notifications.ChannelPush}, disabled[c.userID])
+	require.Empty(t, disabled[other.ID()])
+	otherTenant, err := c.router.UserChannels(composables.WithTenantID(c.committed, uuid.New()), []uint{c.userID})
+	require.NoError(t, err)
+	require.Empty(t, otherTenant, "preferences are tenant-scoped")
+	require.NoError(t, c.router.SetUserChannels(c.committed, c.userID, allChannels))
+	disabled, err = c.router.UserChannels(c.committed, []uint{c.userID})
+	require.NoError(t, err)
+	require.Empty(t, disabled[c.userID], "re-enabling clears the opt-out")
+}

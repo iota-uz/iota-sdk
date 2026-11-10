@@ -36,6 +36,19 @@ func (c Channel) Valid() bool {
 // External reports whether delivery leaves the SDK through a provider adapter.
 func (c Channel) External() bool { return c.Valid() && c != ChannelInApp }
 
+// UniqueChannels deduplicates channels preserving order, without the in-app default.
+func UniqueChannels(in []Channel) []Channel {
+	out := make([]Channel, 0, len(in))
+	seen := map[Channel]bool{}
+	for _, c := range in {
+		if !seen[c] {
+			seen[c] = true
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // NormalizeChannels deduplicates channels preserving order; an empty selection
 // means in-app only, the behaviour of rules saved before channels existed.
 func NormalizeChannels(in []Channel) []Channel {
@@ -162,4 +175,13 @@ type DeliveryRepository interface {
 	// ForEvent lists the deliveries of one event.
 	ForEvent(ctx context.Context, eventKey, eventID string) ([]Delivery, error)
 	Stats(context.Context) ([]DeliveryStats, error)
+}
+
+// PreferenceRepository stores per-user channel opt-outs. A user without rows
+// receives every channel selected by the rule or addressed request.
+type PreferenceRepository interface {
+	// Disabled returns the channels each of the given users opted out of.
+	Disabled(ctx context.Context, userIDs []uint) (map[uint][]Channel, error)
+	// SetDisabled replaces a user's opt-outs.
+	SetDisabled(ctx context.Context, userID uint, channels []Channel) error
 }
