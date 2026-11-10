@@ -2,6 +2,8 @@
 
 ## Platform
 
+- **Навигация и регионы оболочки описываются реестром с владельцами и диагностикой** — [запись](adr/platform/shell-registry-navigation-and-region-contributions.md) · accepted · 2026-11-10 (#953)
+
 - **Проценты в Excel округляются до двух знаков в процентных пунктах** — [запись](adr/platform/excel-percent-points-rounding.md) · accepted · 2026-10-29
 
 - **Контекст фильтров вычисляется до исполнения отчёта** — [запись](adr/platform/scoped-report-filter-context.md) · accepted · 2026-10-13 (#1057)
