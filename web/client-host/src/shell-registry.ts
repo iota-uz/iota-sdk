@@ -122,21 +122,24 @@ export class ShellRegistry {
   /** Mounts the region's contributions and keeps them in sync until disposed. */
   mountRegion(region: ShellRegion, element: HTMLElement): () => void {
     const mounted = new Map<ShellContribution, { host: HTMLElement; cleanup: void | (() => void) }>()
+    const failed = new Set<ShellContribution>()
     const sync = () => {
       const wanted = this.contributions(region)
-      for (const [contribution, entry] of mounted) {
+      for (const contribution of [...failed]) if (!wanted.includes(contribution)) failed.delete(contribution)
+      for (const [contribution, entry] of [...mounted]) {
         if (wanted.includes(contribution)) continue
-        this.cleanup(entry)
         mounted.delete(contribution)
+        this.cleanup(entry, contribution.key)
       }
       for (const contribution of wanted) {
-        if (mounted.has(contribution)) continue
+        if (mounted.has(contribution) || failed.has(contribution)) continue
         const host = element.ownerDocument.createElement('div')
         host.dataset.iotaShellContribution = contribution.key
         const entry = { host, cleanup: undefined as void | (() => void) }
         try {
           entry.cleanup = contribution.mount(host)
         } catch (error) {
+          failed.add(contribution)
           host.remove()
           element.ownerDocument.defaultView?.console.error(`Shell contribution ${contribution.key} failed to mount`, error)
           continue
@@ -152,13 +155,21 @@ export class ShellRegistry {
     const unsubscribe = this.subscribe(sync)
     return () => {
       unsubscribe()
-      for (const entry of mounted.values()) this.cleanup(entry)
-      mounted.clear()
+      for (const [contribution, entry] of [...mounted]) {
+        mounted.delete(contribution)
+        this.cleanup(entry, contribution.key)
+      }
     }
   }
 
-  private cleanup(entry: { host: HTMLElement; cleanup: void | (() => void) }): void {
-    try { entry.cleanup?.() } finally { entry.host.remove() }
+  private cleanup(entry: { host: HTMLElement; cleanup: void | (() => void) }, key: string): void {
+    try {
+      entry.cleanup?.()
+    } catch (error) {
+      console.error(`Shell contribution ${key} failed to clean up`, error)
+    } finally {
+      entry.host.remove()
+    }
   }
 
   private activeContributions(): Owned<ShellContribution>[] {
@@ -233,6 +244,7 @@ export class ShellRegistry {
       const chain = new Set([key])
       for (let parent = node.parent; parent !== undefined; parent = nodes.get(parent)?.parent) {
         if (chain.has(parent)) {
+          if (parent !== key) break
           diagnostics.push({ code: 'navigation-cycle', owner: node.owner, key, message: `Navigation item ${key} would form a parent cycle; shown at the root` })
           node.parent = undefined
           break
@@ -275,6 +287,12 @@ export class ShellRegistry {
   }
 
   private changed(): void {
-    for (const listener of [...this.listeners]) listener()
+    for (const listener of [...this.listeners]) {
+      try {
+        listener()
+      } catch (error) {
+        console.error('Shell registry listener failed', error)
+      }
+    }
   }
 }

@@ -9,6 +9,17 @@ const base = [
 ]
 
 describe('ShellRegistry navigation', () => {
+  it('does not blame an item that only hangs off a cycle', () => {
+    const registry = new ShellRegistry([
+      { key: 'p', title: 'P', parent: 'q' },
+      { key: 'q', title: 'Q', parent: 'p' },
+      { key: 'child', title: 'Child', parent: 'p' },
+    ])
+    const flagged = registry.diagnostics().filter((item) => item.code === 'navigation-cycle').map((item) => item.key)
+    expect(flagged).not.toContain('child')
+    expect(registry.navigation().flatMap(function walk(node): string[] { return [node.key, ...node.children.flatMap(walk)] }).sort()).toEqual(['child', 'p', 'q'])
+  })
+
   it('adds an item from an extension and removes it on dispose', () => {
     const registry = new ShellRegistry(base)
     const dispose = registry.addNavigation('ext', [{ key: 'ext.report', title: 'Report', parent: 'crm', href: '/report' }])
@@ -104,6 +115,36 @@ describe('ShellRegistry regions', () => {
     expect(error).toHaveBeenCalled()
     stop()
     expect(region.textContent).toBe('')
+    error.mockRestore()
+  })
+
+  it('does not remount a failed contribution on unrelated changes and survives a throwing cleanup', () => {
+    const registry = new ShellRegistry()
+    const region = document.createElement('div')
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const bad = vi.fn(() => { throw new Error('boom') })
+    registry.contribute('bad', { key: 'bad', region: 'header', mount: bad })
+    registry.contribute('dirty', { key: 'dirty', region: 'header', mount: (c) => { c.textContent = 'dirty'; return () => { throw new Error('cleanup') } } })
+    registry.contribute('ok', { key: 'ok', region: 'header', mount: (c) => { c.textContent = 'ok' } })
+    const stop = registry.mountRegion('header', region)
+    registry.addNavigation('x', [{ key: 'n', title: 'N' }])
+    registry.addNavigation('x', [{ key: 'm', title: 'M' }])
+    expect(bad).toHaveBeenCalledTimes(1)
+    registry.disposeOwner('dirty')
+    registry.disposeOwner('ok')
+    expect(region.textContent).toBe('')
+    stop()
+    error.mockRestore()
+  })
+
+  it('keeps notifying other listeners when one throws', () => {
+    const registry = new ShellRegistry()
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const later = vi.fn()
+    registry.subscribe(() => { throw new Error('listener') })
+    registry.subscribe(later)
+    registry.addNavigation('ext', [{ key: 'x', title: 'X' }])
+    expect(later).toHaveBeenCalledTimes(1)
     error.mockRestore()
   })
 })
