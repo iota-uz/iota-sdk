@@ -1,0 +1,225 @@
+// Manifest JSON and wire value types. Mirrors pkg/extruntime/manifest (Go) exactly:
+// field names and omitempty semantics (false/0/""/[] are omitted, never emitted).
+
+export type Json = null | boolean | number | string | readonly Json[] | { readonly [key: string]: Json | undefined }
+
+declare const int64Brand: unique symbol
+declare const decimalBrand: unique symbol
+declare const dateBrand: unique symbol
+declare const datetimeBrand: unique symbol
+
+/** Decimal string of an integer within the signed 64-bit range. Never a JS number. */
+export type Int64 = string & { readonly [int64Brand]: true }
+/** Exact decimal string, e.g. "12.50". */
+export type Decimal = string & { readonly [decimalBrand]: true }
+/** "YYYY-MM-DD". */
+export type ISODate = string & { readonly [dateBrand]: true }
+/** RFC 3339 with offset. */
+export type ISODateTime = string & { readonly [datetimeBrand]: true }
+
+export type Label = Readonly<Record<string, string>>
+
+export type TypeKind =
+  | 'string' | 'int' | 'int64' | 'decimal' | 'bool' | 'date' | 'datetime'
+  | 'uuid' | 'enum' | 'json' | 'ref' | 'object' | 'array'
+
+export interface TypeJSON {
+  kind: TypeKind
+  optional?: true
+  nullable?: true
+  values?: string[]
+  entity?: string
+  properties?: PropertyJSON[]
+  items?: TypeJSON
+  precision?: number
+  scale?: number
+  maxLength?: number
+}
+
+export interface PropertyJSON {
+  name: string
+  type: TypeJSON
+}
+
+export type ResourceKind =
+  | 'entity' | 'overlay' | 'query' | 'command' | 'operation' | 'event' | 'workflow'
+  | 'notice' | 'route' | 'permission' | 'issue' | 'domainError' | 'column'
+  | 'page' | 'navigation' | 'slot' | 'cell' | 'shell' | 'contactResolver' | 'deliveryPolicy'
+
+export interface FieldJSON {
+  id: string
+  type: TypeJSON
+  unique?: true
+  index?: true
+  default?: Json
+  renamedFrom?: string[]
+  label?: Label
+}
+
+export interface ConditionJSON {
+  eq?: Json
+  ne?: Json
+  in?: Json[]
+  lt?: Json
+  lte?: Json
+  gt?: Json
+  gte?: Json
+  isNull?: boolean
+  like?: string
+}
+
+export interface FilterJSON {
+  fields?: Record<string, ConditionJSON>
+  or?: FilterJSON[]
+}
+
+export interface ReadRuleJSON {
+  permission?: string
+  all?: true
+  rows?: FilterJSON
+}
+
+export interface AccessJSON {
+  read?: ReadRuleJSON[]
+  fields?: Record<string, string[]>
+}
+
+export interface NavJSON {
+  label: Label
+  group?: string
+  parent?: string
+  icon?: string
+  order?: number
+}
+
+export interface NavPatchJSON {
+  ref: string
+  hide?: true
+  rename?: Label
+  parent?: string
+  order?: number
+}
+
+export interface NavGroupJSON {
+  id: string
+  label: Label
+  icon?: string
+  order?: number
+}
+
+export interface WorkspaceJSON {
+  id: string
+  label: Label
+  icon?: string
+  order?: number
+}
+
+export interface PaletteEntryJSON {
+  id: string
+  label: Label
+  target: string
+  keywords?: string[]
+}
+
+export interface ResourceJSON {
+  id: string
+  kind: ResourceKind
+  label?: Label
+  description?: string
+  fields?: FieldJSON[]
+  base?: string
+  access?: AccessJSON
+  atomic?: true
+  input?: TypeJSON
+  output?: TypeJSON
+  errors?: string[]
+  params?: TypeJSON
+  payload?: TypeJSON
+  subject?: string
+  signals?: Record<string, TypeJSON>
+  permission?: string
+  path?: string
+  route?: string
+  nav?: NavJSON
+  chunk?: string
+  export?: string
+  list?: string
+  overlay?: string
+  field?: string
+  filterable?: true
+  sortable?: true
+  exportable?: true
+  groups?: NavGroupJSON[]
+  patches?: NavPatchJSON[]
+  workspaces?: WorkspaceJSON[]
+  palette?: PaletteEntryJSON[]
+  target?: string
+}
+
+export type ImplKind =
+  | 'command' | 'atomic' | 'operation' | 'query' | 'workflow' | 'contactResolver' | 'deliveryPolicy'
+
+export interface ImplementationJSON {
+  export: string
+  implements: string
+  kind: ImplKind
+}
+
+export interface SubscriptionJSON {
+  id: string
+  export: string
+  event: string
+}
+
+export type GuardPhase = 'input' | 'operation' | 'write'
+
+export interface GuardJSON {
+  id: string
+  export: string
+  target: string
+  phase: GuardPhase
+}
+
+export type Channel = 'sms' | 'email' | 'inApp' | 'push'
+
+export interface TemplateJSON {
+  export: string
+  notice: string
+  channels: Channel[]
+}
+
+export interface ScheduleJSON {
+  id: string
+  export: string
+  cron: string
+  timezone?: string
+}
+
+export interface EndpointJSON {
+  id: string
+  export: string
+  method: string
+  path: string
+  public?: true
+}
+
+export interface CapabilitiesJSON {
+  network?: string[]
+  secrets?: string[]
+}
+
+export interface ManifestJSON {
+  schema: 'iota.manifest/1'
+  namespace: string
+  resources: ResourceJSON[]
+  implementations?: ImplementationJSON[]
+  subscriptions?: SubscriptionJSON[]
+  guards?: GuardJSON[]
+  templates?: TemplateJSON[]
+  schedules?: ScheduleJSON[]
+  endpoints?: EndpointJSON[]
+  capabilities?: CapabilitiesJSON
+  dependencies?: Record<string, string>
+}
+
+export const MANIFEST_SCHEMA = 'iota.manifest/1'

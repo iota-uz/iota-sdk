@@ -1,0 +1,29 @@
+{
+  "name": "@iota-uz/sdk-runtime-internal",
+  "private": true,
+  "version": "0.0.0",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.typetests.json",
+    "typecheck:types": "tsc --noEmit -p tsconfig.typetests.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "solid-js": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "solid-js": "1.9.15",
+    "typescript": "5.7.2",
+    "vitest": "2.1.9"
+  }
+}
