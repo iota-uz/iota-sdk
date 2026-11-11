@@ -311,3 +311,5 @@ func (e *env) instancesOf(a *actor, wf string) []workflow.Instance {
 	sort.Slice(list, func(i, j int) bool { return list[i].CreatedAt.Before(list[j].CreatedAt) })
 	return list
 }
+
+func jsonUnmarshal(b []byte, v any) error { return json.Unmarshal(b, v) }
