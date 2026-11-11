@@ -24,6 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/artifact"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/build"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/configurator"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
@@ -81,6 +82,11 @@ type Config struct {
 	// UI enables the runtime UI slice (page host, navigation, shell, native
 	// list columns) on top of the management storage. Nil disables it.
 	UI *UIConfig
+
+	// Configurator mounts the SDK's extension configurator page (Monaco
+	// editor, versions, workflows) next to the management API. Its Host
+	// defaults to UI.Host; Service is the runtime's. Nil leaves the page out.
+	Configurator *configurator.Config
 
 	// Extensions attach after the runtime is built (MCP tools, extra
 	// consumers); each receives the Runtime and returns a stop function.

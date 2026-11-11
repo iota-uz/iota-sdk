@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/configurator"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/ui"
@@ -86,6 +87,23 @@ func (c *component) Build(builder *composition.Builder) error {
 		composition.ContributeControllersFunc(builder, func(rt *Runtime) []application.Controller {
 			return []application.Controller{NewController(NewAPI(rt.Manage, requestSubject, rt.log))}
 		})
+		if c.cfg.Configurator != nil {
+			composition.ContributeControllersFunc(builder, func(rt *Runtime) ([]application.Controller, error) {
+				cc := *c.cfg.Configurator
+				cc.Service = rt.Manage
+				if cc.Logger == nil {
+					cc.Logger = rt.log
+				}
+				if len(cc.Host.Entry) == 0 && c.cfg.UI != nil {
+					cc.Host = c.cfg.UI.Host
+				}
+				ctrl, err := configurator.NewController(cc)
+				if err != nil {
+					return nil, err
+				}
+				return []application.Controller{ctrl}, nil
+			})
+		}
 	}
 	if builder.Context().HasCapability(composition.CapabilityAPI) || builder.Context().HasCapability(composition.CapabilityWorker) {
 		composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
