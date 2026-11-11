@@ -151,6 +151,54 @@ func TestDirectDispatcherRunsGoDefaultsWithTheHostsTransactionShape(t *testing.T
 	})
 }
 
+type verdict struct {
+	Status string `json:"status" wire:"enum=draft|active"`
+}
+
+// An operation whose output breaks its contract does not commit what it
+// wrote: the output is validated before the transaction ends, as in the host.
+func TestDirectValidatesTheOutputBeforeItCommits(t *testing.T) {
+	h := itf.NewHarness(t, itf.HarnessConfig{
+		Name:      "extruntime_native_output",
+		Database:  itf.DatabaseConfig{Provisioning: itf.ProvisioningPerTestDatabase},
+		Isolation: itf.IsolationConfig{Mode: itf.IsolationCommitted},
+	})
+	scope := h.Scope(t)
+	_, err := scope.Pool.Exec(context.Background(), `CREATE TABLE native_notes (id bigserial PRIMARY KEY, text text NOT NULL)`)
+	require.NoError(t, err)
+
+	var hooks int
+	broken := native.Operation("acme.d.broken", native.Spec{}, func(native.Deps) (native.OperationFunc[note, verdict], error) {
+		return func(ctx context.Context, tx native.Tx, in note) (verdict, error) {
+			if _, err := tx.DB().Exec(ctx, `INSERT INTO native_notes (text) VALUES ($1)`, in.Text); err != nil {
+				return verdict{}, err
+			}
+			if err := tx.AfterCommit(func(context.Context) { hooks++ }); err != nil {
+				return verdict{}, err
+			}
+			return verdict{Status: in.Text}, nil
+		}, nil
+	})
+	set := native.NewSet()
+	require.NoError(t, set.Add(broken))
+	d := native.NewDirect(native.Bind(set, native.StaticDeps()))
+	ctx := composables.WithPool(context.Background(), scope.Pool)
+
+	_, err = broken.Dispatch(ctx, d, note{Text: "bogus"})
+	require.Equal(t, native.CodeInvalidOutput, mustWire(t, err).Code)
+	var rows int
+	require.NoError(t, scope.Pool.QueryRow(ctx, `SELECT count(*) FROM native_notes`).Scan(&rows))
+	require.Zero(t, rows, "the write of the invalid result was rolled back")
+	require.Zero(t, hooks, "no after-commit callback for a rolled-back write")
+
+	out, err := broken.Dispatch(ctx, d, note{Text: "draft"})
+	require.NoError(t, err)
+	require.Equal(t, verdict{Status: "draft"}, out)
+	require.NoError(t, scope.Pool.QueryRow(ctx, `SELECT count(*) FROM native_notes`).Scan(&rows))
+	require.Equal(t, 1, rows)
+	require.Equal(t, 1, hooks)
+}
+
 func mustWire(t *testing.T, err error) *pool.WireError {
 	t.Helper()
 	we, ok := native.AsError(err)

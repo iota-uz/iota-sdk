@@ -100,8 +100,17 @@ func (d *Direct) invoke(ctx context.Context, contract string, input json.RawMess
 	var out json.RawMessage
 	switch def.Kind() {
 	case KindOperation, KindAtomic:
+		// The output is validated before the transaction ends, as the host
+		// does: an implementation that breaks its contract does not commit.
 		out, err = d.inTx(ctx, join, func(ctx context.Context, tx *directTx) (json.RawMessage, error) {
-			return impl.RunTx(ctx, tx, input)
+			out, err := impl.RunTx(ctx, tx, input)
+			if err != nil {
+				return nil, err
+			}
+			if err := CheckOutput(res, out); err != nil {
+				return nil, err
+			}
+			return out, nil
 		})
 	case KindCommand:
 		out, err = impl.RunCommand(ctx, &directCommand{d: d, ctx: ctx}, input)
@@ -113,8 +122,13 @@ func (d *Direct) invoke(ctx context.Context, contract string, input json.RawMess
 	if err != nil {
 		return nil, err
 	}
-	if err := CheckOutput(res, out); err != nil {
-		return nil, err
+	if def.Kind() == KindCommand || def.Kind() == KindQuery {
+		// Operations and atomic commands were checked inside their
+		// transaction. An ordinary command's own transactions have ended by
+		// the time it returns, and a query has none to end.
+		if err := CheckOutput(res, out); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
