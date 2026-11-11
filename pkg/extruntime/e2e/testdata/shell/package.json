@@ -1,0 +1,7 @@
+{
+  "name": "@e2e/shell",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "iota": { "namespace": "e2e.shell", "client": "./src/client.tsx" }
+}
