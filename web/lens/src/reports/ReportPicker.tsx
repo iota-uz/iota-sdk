@@ -149,10 +149,22 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
   const adopt = (entry: CatalogEntry) => {
     setGenerated([entry, ...generated().filter((known) => known.id !== entry.id)])
     if (!selection.selected(entry.id)) selection.toggle(entry)
+    // The new report is the reader's own and the reader has just asked for it: show it, rather than
+    // leave it hidden behind a filter that cannot contain it.
+    if (scope() === 'shared') setScope('all')
+    if (query() && !matchesQuery(entry)) {
+      setSearch('')
+      setQuery('')
+    }
   }
-  // A generated report is the reader's own, so it stays while the search is empty or names it, under All or Mine.
-  const pinned = () => generated().filter((entry) => scope() !== 'shared' && entry.title.toLowerCase().includes(query().toLowerCase()))
-  const fetched = () => entries().filter((entry) => !created().has(entry.id))
+  const matchesQuery = (entry: CatalogEntry) => entry.title.toLowerCase().includes(query().toLowerCase())
+  // A generated report is pinned while the filters allow it; a host search that returns it under a
+  // filter the title does not match (description, source) is shown as the host's own result.
+  const pinned = () => generated().filter((entry) => scope() !== 'shared' && matchesQuery(entry))
+  const fetched = () => {
+    const shown = new Set(pinned().map((entry) => entry.id))
+    return entries().filter((entry) => !shown.has(entry.id))
+  }
 
   const closePreview = () => {
     const entry = previewing()
@@ -317,30 +329,31 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
                 </button>
               </div>
             </Match>
-            <Match when={fetched().length === 0 && pinned().length > 0}>{null}</Match>
-            <Match when={fetched().length === 0}>
+            <Match when={fetched().length === 0 && pinned().length === 0 && !next()}>
               <p class="lens-report-picker-state" data-state={emptyCatalog() ? 'empty' : 'no-matches'} role="status">
                 {emptyCatalog()
                   ? translate('report.picker.empty', 'There are no reports to add yet.')
                   : translate('report.picker.noMatches', 'No reports match this search.')}
               </p>
             </Match>
-            <Match when={true}>
+            <Match when={fetched().length > 0}>
               <ul aria-label={translate('report.picker.list', 'Reports')} class="lens-report-picker-list">
                 <For each={fetched()}>{renderRow}</For>
               </ul>
-              <Show when={next()}>
-                <div class="lens-report-picker-more">
-                  <button aria-busy={loadingMore() || undefined} class="lens-context-action" disabled={loadingMore()} onClick={loadMore} type="button">
-                    {translate('report.picker.loadMore', 'Show more reports')}
-                  </button>
-                  <Show when={moreFailed()}>
-                    <p class="lens-report-picker-error" role="alert">{translate('report.picker.loadFailed', 'The reports could not be loaded.')}</p>
-                  </Show>
-                </div>
-              </Show>
             </Match>
           </Switch>
+          {/* Outside the switch: a page made only of reports already pinned above leaves nothing to list,
+              and the next cursor must stay reachable all the same. */}
+          <Show when={state() === 'ready' && next()}>
+            <div class="lens-report-picker-more">
+              <button aria-busy={loadingMore() || undefined} class="lens-context-action" disabled={loadingMore()} onClick={loadMore} type="button">
+                {translate('report.picker.loadMore', 'Show more reports')}
+              </button>
+              <Show when={moreFailed()}>
+                <p class="lens-report-picker-error" role="alert">{translate('report.picker.loadFailed', 'The reports could not be loaded.')}</p>
+              </Show>
+            </div>
+          </Show>
         </div>
       </div>
       <Show when={previewing()}>

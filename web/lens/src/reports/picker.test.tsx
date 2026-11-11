@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library'
 import { createRoot, createSignal, Show } from 'solid-js'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import type { CatalogPage } from './contract/types'
+import type { CatalogEntry, CatalogPage } from './contract/types'
 import { catalogEntries, catalogTarget, memoryCatalog, memoryDestinations } from '../stories/reportCatalog'
 import { appendReportPicks, createReportPickerSelection, parseCatalogPage, type ReportCardGenerateOptions, type ReportCatalogHost, type ReportPickerConfirmation } from './picker'
 import { ReportDestinationPicker } from './ReportDestinationPicker'
@@ -569,6 +569,73 @@ describe('ReportPicker AI card creation', () => {
     expect(listed()).toEqual(['created-1'])
     expect(checkbox('created-1')).toBeChecked()
     expect(screen.getByTestId('report-picker-confirm')).toHaveTextContent('Add 1')
+  })
+
+  // False green: generating under the default filters would never meet a filter that cannot contain the new report.
+  it('shows a report generated under Shared with me or a search its title does not match', async () => {
+    const host = generating(() => Promise.resolve(created))
+    mountPicker({ host })
+    await waitFor(() => expect(listed()).toHaveLength(20))
+    fireEvent.click(screen.getByRole('tab', { name: 'Shared with me' }))
+    await waitFor(() => expect(listed().every((id) => entry(id!).ownership === 'shared')).toBe(true))
+    open()
+    describeReport('x')
+    fireEvent.click(screen.getByTestId('report-picker-generate-submit'))
+    await waitFor(() => expect(row('created-1')).toBeTruthy())
+    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
+    expect(checkbox('created-1')).toBeChecked()
+    fireEvent.input(screen.getByRole('searchbox', { name: 'Search reports' }), { target: { value: 'finance' } })
+    await waitFor(() => expect(row('created-1')).toBeNull())
+    describeReport('y')
+    fireEvent.click(screen.getByTestId('report-picker-generate-submit'))
+    await waitFor(() => expect(row('created-1')).toBeTruthy())
+    expect(screen.getByRole('searchbox', { name: 'Search reports' })).toHaveValue('')
+    expect(checkbox('created-1')).toBeChecked()
+  })
+
+  // False green: pinning by id alone would pass while the host's own match of the report was dropped.
+  it('keeps a report the host returns for a search the title does not match, once', async () => {
+    const base = memoryCatalog()
+    const host: ReportCatalogHost = {
+      search: (query, options) => (query.search === 'zzz'
+        ? Promise.resolve({ entries: [created] })
+        : base.search(query, options)),
+      generate: () => Promise.resolve(created),
+    }
+    mountPicker({ host })
+    await waitFor(() => expect(listed()).toHaveLength(20))
+    open()
+    describeReport('x')
+    fireEvent.click(screen.getByTestId('report-picker-generate-submit'))
+    await waitFor(() => expect(row('created-1')).toBeTruthy())
+    fireEvent.input(screen.getByRole('searchbox', { name: 'Search reports' }), { target: { value: 'zzz' } })
+    await waitFor(() => expect(listed()).toEqual(['created-1']))
+    expect(document.querySelector('[data-state="no-matches"]')).toBeNull()
+    expect(document.querySelectorAll('[data-report-id="created-1"]')).toHaveLength(1)
+    expect(checkbox('created-1')).toBeChecked()
+  })
+
+  // False green: a page that still lists something would hide that a page made only of pinned reports lost its cursor.
+  it('keeps Show more reachable when a page holds only reports already pinned', async () => {
+    const pages: Record<string, { entries: CatalogEntry[]; next?: string }> = {
+      first: { entries: [created], next: 'second' },
+      second: { entries: [entry('report-03')] },
+    }
+    const host: ReportCatalogHost = {
+      search: (query) => Promise.resolve(structuredClone(pages[query.cursor ?? 'first']!)),
+      generate: () => Promise.resolve(created),
+    }
+    mountPicker({ host })
+    await waitFor(() => expect(listed()).toEqual(['created-1']))
+    open()
+    describeReport('x')
+    fireEvent.click(screen.getByTestId('report-picker-generate-submit'))
+    await waitFor(() => expect(row('created-1')).toHaveTextContent('New'))
+    const more = screen.getByRole('button', { name: 'Show more reports' })
+    expect(listed()).toEqual(['created-1'])
+    fireEvent.click(more)
+    await waitFor(() => expect(listed()).toEqual(['created-1', 'report-03']))
+    expect(screen.queryByRole('button', { name: 'Show more reports' })).toBeNull()
   })
 
   it('falls back to a generic reason when the rejection has none, and aborts when the drawer closes', async () => {
