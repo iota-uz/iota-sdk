@@ -75,6 +75,17 @@ func TestPaymeCancelRefusesACompletedTransaction(t *testing.T) {
 	require.ErrorIs(t, err, providers.ErrPaymeCancelAfterCompletion)
 }
 
+// BillingService.Refund calls providers while holding the row lock, and a panic
+// would leave that lock held by an open database transaction.
+func TestPaymeRefundIsRefusedWithoutPanicking(t *testing.T) {
+	t.Parallel()
+
+	completed := paymeTransaction(t).SetStatus(billing.Completed)
+
+	_, err := paymeProvider().Refund(context.Background(), completed, 1920)
+	require.ErrorIs(t, err, providers.ErrPaymeRefundUnsupported)
+}
+
 // A two-decimal transaction must mint the same integer tiyin amount in the
 // checkout. This would be falsely green if it checked only stored transaction
 // details instead of decoding the link handed to the customer.

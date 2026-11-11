@@ -72,6 +72,15 @@ func InTx(ctx context.Context, fn func(context.Context) error) error {
 		return err
 	}
 
+	defer func() {
+		// A panic unwinding through fn would otherwise leave the transaction, and
+		// any row locks it holds, open until the connection is reclaimed.
+		if r := recover(); r != nil {
+			_ = tx.Rollback(ctx)
+			panic(r)
+		}
+	}()
+
 	if err := fn(WithTx(ctx, tx)); err != nil {
 		if rErr := tx.Rollback(ctx); rErr != nil {
 			return errors.Join(err, rErr)

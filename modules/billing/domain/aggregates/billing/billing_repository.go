@@ -55,6 +55,10 @@ type Repository interface {
 	Count(ctx context.Context, params *FindParams) (int64, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Transaction, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Transaction, error)
+	// GetByIDForUpdate reads a transaction and locks its row until the database
+	// transaction in ctx ends. Call it inside composables.InTx: outside one the
+	// lock is released as soon as the read returns.
+	GetByIDForUpdate(ctx context.Context, id uuid.UUID) (Transaction, error)
 	GetByDetailsFields(ctx context.Context, gateway Gateway, filters []DetailsFieldFilter) ([]Transaction, error)
 	GetAll(ctx context.Context) ([]Transaction, error)
 	Save(ctx context.Context, data Transaction) (Transaction, error)

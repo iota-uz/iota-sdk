@@ -34,6 +34,13 @@ func (s Status) IsActive() bool {
 	return s == Created || s == Pending
 }
 
+// IsRefundable reports whether the status means money was captured and some of
+// it may still be owed back. It is not the inverse of IsActive: failed, expired
+// and canceled transactions are inactive too, but they never captured anything.
+func (s Status) IsRefundable() bool {
+	return s == Completed || s == PartiallyRefunded
+}
+
 // TransactionCallback is a function that gets invoked during transaction processing.
 // It receives the transaction and returns an error.
 // - If error is nil, the transaction processing continues normally

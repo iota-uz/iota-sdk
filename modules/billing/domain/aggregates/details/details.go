@@ -4,6 +4,12 @@ package details
 type Details interface {
 }
 
+// RefundTracker is implemented by details that record how much of a transaction
+// has already been refunded.
+type RefundTracker interface {
+	RefundedSum() float64
+}
+
 type ClickDetails interface {
 	Details
 
