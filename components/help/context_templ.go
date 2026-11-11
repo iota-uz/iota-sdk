@@ -57,7 +57,7 @@ func Context(props ContextProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " @keydown.escape.window=\"open = false\" @resize.window=\"open &amp;&amp; place()\"><button type=\"button\" x-ref=\"trigger\" class=\"inline-flex size-8 shrink-0 items-center justify-center rounded-full text-200 transition-colors hover:bg-surface-400 hover:text-brand-500 aria-expanded:text-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-300\" aria-haspopup=\"dialog\" x-bind:aria-expanded=\"String(open)\" :aria-controls=\"$id(&#39;help-panel&#39;)\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " @keydown.escape.window=\"open = false\" @resize.window=\"open &amp;&amp; place()\"><button type=\"button\" x-ref=\"trigger\" class=\"inline-flex size-8 shrink-0 items-center justify-center rounded-full text-200 transition-colors hover:bg-surface-400 hover:text-brand-500 aria-expanded:text-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[oklch(var(--clr-surface-300))]\" aria-haspopup=\"dialog\" x-bind:aria-expanded=\"String(open)\" :aria-controls=\"$id(&#39;help-panel&#39;)\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -199,7 +199,7 @@ func Context(props ContextProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" class=\"inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-brand-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-300\"><span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" class=\"inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-brand-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[oklch(var(--clr-surface-300))]\"><span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -235,7 +235,7 @@ func Context(props ContextProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "\" class=\"inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-default bg-surface-300 px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-brand hover:text-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-300\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "\" class=\"inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-default bg-surface-300 px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-brand hover:text-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[oklch(var(--clr-surface-300))]\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
