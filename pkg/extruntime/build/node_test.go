@@ -547,6 +547,17 @@ func TestKitGenerationAndConsumerPackage(t *testing.T) {
 		require.Contains(t, string(native.Modules["@iota-kit/core"]["index.js"]), `import * as kit_crm from "@iota-kit/crm"`)
 	})
 
+	t.Run("declared native lists are kit references", func(t *testing.T) {
+		kit, err := b.GenerateKit(context.Background(), append(nativeSources(t), build.KitSource{Namespace: "billing", Lists: []string{"billing.lists.invoices"}}))
+		require.NoError(t, err)
+		js := string(kit.Modules["@iota-kit/billing"]["index.js"])
+		require.Contains(t, js, `export const Invoices = nativeList("billing.lists.invoices")`)
+		require.Contains(t, string(kit.Modules["@iota-kit/billing"]["index.d.ts"]), "Invoices")
+		other, err := b.GenerateKit(context.Background(), nativeSources(t))
+		require.NoError(t, err)
+		require.NotEqual(t, other.Hash, kit.Hash, "the kit identity covers declared lists")
+	})
+
 	t.Run("generated refs reproduce the catalog resources exactly", func(t *testing.T) {
 		// A package test imports the generated modules, so the same build pipeline that
 		// serves authors evaluates them: every public resource must read back as declared.

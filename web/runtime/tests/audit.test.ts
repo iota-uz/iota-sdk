@@ -82,6 +82,21 @@ describe('2. falsy defaults are emitted', () => {
     expect(O.resource.fields).toEqual([{ id: 'on', type: { kind: 'bool' }, index: true, default: false }])
   })
 
+  it('compiles the access of an overlay: field permissions and row rules reach the manifest', () => {
+    const Secret = pub.permission('acme.insurance.seeSecret', { label: { en: 'See secrets' } })
+    const O = overlay(
+      'acme.insurance.secretOverlay',
+      kit.Client,
+      { note: field.text().optional(), score: field.int().optional() },
+      { access: { fields: { note: [Secret] }, read: [{ when: Secret, rows: 'all' }, { rows: 'none' }] } },
+    )
+    expect(O.resource.access).toEqual({
+      read: [{ permission: 'acme.insurance.seeSecret', all: true }, {}],
+      fields: { note: ['acme.insurance.seeSecret'] },
+    })
+    expect(overlay('acme.insurance.openOverlay', kit.Client, { on: field.bool().default(false) }).resource.access).toBeUndefined()
+  })
+
   it('rejects a default the column cannot hold', () => {
     expect(() => field.int().default('0' as never)).toThrow(/invalid field default/)
     expect(() => field.text({ maxLength: 2 }).default('abc')).toThrow(/longer than 2/)

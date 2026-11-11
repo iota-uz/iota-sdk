@@ -69,6 +69,24 @@ func TestScenario12SMSRenewalCampaignPilot(t *testing.T) {
 	gateway := e.newActor("sms-gateway-owner")
 	e.assignOwner(admin, ns+".smsInbound", gateway)
 
+	// The endpoint acts as the session user when there is one and as the trigger owner otherwise.
+	e.assignOwner(admin, ns+".who", gateway)
+	var who struct {
+		User string `json:"user"`
+		Kind string `json:"kind"`
+	}
+	r0 := e.get(nil, "/_ext/endpoints/e2e.renewals/who")
+	require.Equal(t, http.StatusOK, r0.Status, r0.String())
+	require.NoError(t, json.Unmarshal(r0.Body, &who))
+	require.Equal(t, itoa(gateway.id), who.User)
+	require.Equal(t, "owner", who.Kind)
+	r0 = e.get(admin, "/_ext/endpoints/e2e.renewals/who")
+	require.NoError(t, json.Unmarshal(r0.Body, &who))
+	require.Equal(t, itoa(admin.id), who.User)
+	require.Equal(t, "initiator", who.Kind)
+	require.Equal(t, http.StatusNotFound, e.get(nil, "/_ext/endpoints/e2e.renewals/nowhere").Status)
+	require.Equal(t, http.StatusMethodNotAllowed, e.do(nil, http.MethodPost, "/_ext/endpoints/e2e.renewals/who", nil).Status)
+
 	// Start the campaign: window [today, today+14d], replies accepted for 12 seconds.
 	var started struct {
 		Instance string `json:"instance"`

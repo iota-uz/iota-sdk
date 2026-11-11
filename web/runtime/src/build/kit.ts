@@ -283,6 +283,8 @@ class Generator {
       const entry = this.index.get(id);
       if (entry !== undefined) {
         this.done.add(id);
+        // Annotated (JSDoc: the module is JS) so a namespace that declares only lists still emits a portable declaration.
+        this.lines.push(`/** @type {import("@iota-uz/sdk/runtime").ListRef<${q(l)}>} */`);
         this.lines.push(`export const ${entry.exportName} = ${this.use("nativeList")}(${q(l)});`);
       }
     }

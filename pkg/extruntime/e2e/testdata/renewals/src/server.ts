@@ -101,3 +101,8 @@ export const smsInbound = endpoint("e2e.renewals.smsInbound", { method: "POST", 
   await ctx.signal({ workflow: c.Campaign.id, instance: target.campaign }, "reply", { number: target.number, text: message.text })
   return { status: 202, body: { accepted: true } }
 })
+
+// Who is acting: the signed-in user for a browser caller, the trigger owner for a bare webhook.
+export const who = endpoint("e2e.renewals.who", { method: "GET", path: "/who", public: true }, async (ctx) => {
+  return { status: 200, body: { user: ctx.user.userId, kind: ctx.user.kind } }
+})

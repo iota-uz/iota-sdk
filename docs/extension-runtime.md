@@ -555,3 +555,20 @@ query without a package implementation (Go-implemented native queries are future
 `/_ext/endpoints/<namespace>/<path>` (sync response; session user, or the trigger owner for
 `public` endpoints; tenant of an unauthenticated request via `runtime.Config.Endpoints.PublicTenant`;
 `Set-Cookie` from handlers is dropped).
+
+### 9.2 Integration notes from the end-to-end suite
+
+* **Native lists** are declared by Go (`runtime.Config.NativeLists`, default `crm.lists.clients`; `catalog.NativeSet.RegisterList`),
+  carried to the kit as `KitSource.Lists` and published as a reference owned by the namespace the list ID extends. An author
+  writes `column(crm.ListsClients, {...})` (the name is the PascalCase of the last non-clashing ID segments: the route
+  `crm.clients` already holds `Clients`). A list is not discovered from columns any more.
+* `overlay(id, base, fields, { access })` accepts `access` (`fields` permissions and `read` rules), compiled into the overlay
+  resource; the native list and the export hide a field the viewer may not read.
+* The composition root passes the workflow engine as `host.Config.Signals`, so `tx.signal` / `ctx.signal` (including from a
+  public endpoint) reach instances.
+* `pkg/extruntime/e2e` drives the composed `runtime.Component` (real Node pool, real Node build worker built from
+  `web/runtime`, real PostgreSQL through `pkg/itf`, real session middleware) through `/_ext/manage`, `/_ext/rpc`, page
+  routes, the CRM clients list/export and `/_ext/endpoints`. Its packages are real TypeScript trees in `testdata/`, written
+  with the public author API only. Prerequisites: `pnpm install` and `pnpm --filter @iota-uz/sdk-client-host-internal build`
+  (the SDK emit type-checks `src/client-host/entry.ts` against the client-host declarations). Run with
+  `go test -p 1 ./pkg/extruntime/e2e/`.
