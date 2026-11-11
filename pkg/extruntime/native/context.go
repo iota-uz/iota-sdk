@@ -84,10 +84,11 @@ type bound struct {
 	err  error
 }
 
-// Bind binds the Go defaults of set to deps (nil set: Default).
+// Bind binds the Go defaults of the contracts of set to deps (nil set: no
+// contracts).
 func Bind(set *Set, deps Deps) *Implementations {
 	if set == nil {
-		set = Default
+		set = NewSet()
 	}
 	return &Implementations{set: set, deps: deps, bound: map[string]*bound{}}
 }
@@ -100,7 +101,7 @@ func (i *Implementations) Definition(id string) (Definition, bool) {
 	if i == nil {
 		return nil, false
 	}
-	return i.set.Get(id)
+	return i.set.Contract(id)
 }
 
 // Lookup returns the Go default of id; ok is false when id is not a native
@@ -109,7 +110,7 @@ func (i *Implementations) Lookup(id string) (*Implementation, bool, error) {
 	if i == nil {
 		return nil, false, nil
 	}
-	d, ok := i.set.Get(id)
+	d, ok := i.set.Contract(id)
 	if !ok || !d.HasDefault() {
 		return nil, false, nil
 	}

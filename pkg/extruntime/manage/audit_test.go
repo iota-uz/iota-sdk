@@ -53,13 +53,13 @@ func TestEveryManagementActionIsAudited(t *testing.T) {
 	om := manifest.Manifest{
 		Schema: manifest.SchemaVersion, Namespace: other,
 		Resources:       []manifest.Resource{{ID: other + ".dummy", Kind: manifest.ResQuery, Input: emptyObj(), Output: emptyObj()}},
-		Implementations: []manifest.Implementation{{Export: "rejectIncoming", Implements: "core.commands.RejectIncoming", Kind: manifest.ImplCommand}},
+		Implementations: []manifest.Implementation{{Export: "rejectIncoming", Implements: "core.commands.rejectIncoming", Kind: manifest.ImplCommand}},
 	}
 	e.draft(other, "1.0.0", om, nil)
 	e.release(other, "1.0.0")
-	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.RejectIncoming", other, "1.0.0", "rejectIncoming")
+	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.rejectIncoming", other, "1.0.0", "rejectIncoming")
 	require.NoError(t, err)
-	require.NoError(t, e.svc.Unbind(ctx, e.admin, manage.SlotCommand, "core.commands.RejectIncoming"))
+	require.NoError(t, e.svc.Unbind(ctx, e.admin, manage.SlotCommand, "core.commands.rejectIncoming"))
 	owner := e.newUser("owner")
 	rights[owner] = []string{manage.PermRead}
 	_, err = e.svc.AssignOwner(ctx, e.admin, ns+".onRenewed", owner)

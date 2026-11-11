@@ -112,7 +112,8 @@ core.NewComponent(&core.ModuleOptions{
 })
 ```
 
-The SDK ships the contract, not providers. Applications wire their own senders
+The SDK ships the contract and one optional provider, [Web Push](#web-push) for
+browsers. Applications wire their own email, SMS and native push senders
 and decide where addresses and device tokens live. `ChannelAdapter.Send` must
 not assume a transaction and should wrap `notifications.ErrPermanent` for errors
 that cannot succeed on retry; `AddressResolver` returns `notifications.ErrNoAddress`
@@ -264,7 +265,9 @@ retarget, an explicit send.
    - `address`: the address itself.
 3. Record and address targets pass `DeliveryPolicy` (default allow; deny → `skipped`
    with `policy_denied[:reason]`). The SDK defines no consent schema: the owning
-   domain package implements the interface.
+   domain package implements the interface. The platform policy is a
+   `*notifications.DeliveryPolicies` composition, see
+   [Delivery policy composition](#delivery-policy-composition).
 4. The content is rendered once per intent by `ContentRenderers` using the pinned
    `(event key, snapshot ref)`: a renderer registered with `ContentRenderers.Register`
    (the plug-in point for runtime/TypeScript templates), else the catalog definition
@@ -311,6 +314,7 @@ core.NewComponent(&core.ModuleOptions{
     NotificationContactResolvers: map[string]notifications.ContactResolver{"acme.customer": customers},
     NotificationSubjectAccess:    subjectAccess,                      // may user U see subject ref?
     NotificationDeliveryPolicy:   consentPolicy,                      // business consent, default allow
+    NotificationWebPush:          webPushOptions,                     // optional, off by default; see "Web Push"
 })
 ```
 
@@ -325,3 +329,72 @@ Synthetic providers for tests live in `modules/core/notifications/notificationst
 (recording email/SMS/push adapters with per-address failure, ambiguous and permanent
 outcomes, a map-backed contact resolver, recording access and policy hooks). They are
 never registered by the core component.
+
+### Delivery policy composition
+
+The notification platform consults one `DeliveryPolicy`: the `*notifications.DeliveryPolicies`
+registry (resolvable from the container). Its members are evaluated in a fixed order:
+the policy configured in Go (`ModuleOptions.NotificationDeliveryPolicy`) first, then the
+named policies registered with `DeliveryPolicies.Set(name, policy)` in lexical order of
+their names. **Any denial wins**: the first denial in that order ends the walk and its
+reason is the one stored. A member that returns an error fails the whole evaluation, so
+the delivery stays `unresolved` and is retried rather than sent without the verdict.
+`Set` replaces a policy of the same name and a nil policy removes it.
+
+The extension runtime installs one member, `extruntime`
+(`pkg/extruntime/notify.PolicyName`). For a record recipient it runs the
+`deliveryPolicy` implementations of the **active** package versions bound to the
+recipient's entity (ordered by policy ID, then package), each as the trigger owner of
+the policy, outside any transaction and after the producer committed. Unbound or
+deactivated policies are not consulted. The wire request and answer are documented in the
+authoring guide (*Delivery policies*) and are a public contract.
+
+## Web Push
+
+`modules/core/notifications/webpush` is a `ChannelAdapter` for the push channel that
+sends to browsers over the Web Push protocol itself: RFC 8291 message encryption
+(aes128gcm) and RFC 8292 VAPID, with the Go standard library plus the JWT library the
+SDK already depends on. It was written rather than taken from a library because the
+protocol is small, the cryptography is standard-library primitives, a new dependency
+would be one more thing to audit for a path that handles user subscriptions, and the
+encryption is pinned byte-for-byte to the RFC 8291 test vector in the tests.
+
+It is **off by default**. Enable it with options built from secrets:
+
+```go
+opts, enabled, err := webpush.FromEnv(os.LookupEnv) // enabled is false when no key variable is set
+if err != nil { /* a half-configured deployment: fail startup */ }
+modOpts := &core.ModuleOptions{}
+if enabled {
+    modOpts.NotificationWebPush = &opts
+}
+core.NewComponent(modOpts)
+```
+
+| Variable | |
+|---|---|
+| `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY` | base64url key pair; create it once with `webpush.GenerateKeys()` and keep the private key in the secret store |
+| `WEB_PUSH_SUBJECT` | `mailto:` or `https:` contact for the push service |
+| `WEB_PUSH_ALLOWED_HOSTS` | optional comma-separated host patterns; default is the major browsers' push services |
+| `WEB_PUSH_TTL` | optional duration, default `24h` |
+
+Setting only some of the key variables fails startup. When enabled the component installs the
+adapter and the signed-in user's registration API:
+
+| Route | |
+|---|---|
+| `GET /notifications/push/config` | `{"vapidPublicKey": "..."}` for `pushManager.subscribe({applicationServerKey})` |
+| `PUT /notifications/push/devices` | `{"subscription": <PushSubscription.toJSON()>}` → `{"deviceId": "web:…"}`; calls `RegisterDevice` |
+| `DELETE /notifications/push/devices/{deviceId}` | `RevokeDevice`; 204 |
+
+The recipient is always the authenticated user. The device ID derives from the endpoint, so
+registering the same subscription again refreshes one device; the device token is the
+subscription JSON. Endpoints are only accepted on allowed push-service hosts and over
+https (users choose the endpoint, so this is what stops the server being used to call
+arbitrary hosts), and redirects are never followed.
+
+Outcomes: `201/202` → `sent`; `404/410` → `failed` and the device is revoked
+(`notifications.ErrTargetGone`); other `4xx` → `failed`; `408/429/5xx` and transport
+errors → retried; a timeout after sending → `ambiguous`. The delivery ID becomes the
+`Topic` header so a retried message on an offline device is shown once. Native iOS/Android
+tokens are not covered; install an adapter for them in `NotificationChannels`.

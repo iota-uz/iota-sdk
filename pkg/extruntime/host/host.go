@@ -125,7 +125,7 @@ const (
 	// ctx.signal) while a Go transaction is open in the same invocation: the
 	// intent would run its own transactions while this one holds a connection
 	// and locks, and could commit before this one fails.
-	CodeIntentInTransaction = "runtime.intentInTransaction"
+	CodeIntentInTransaction = native.CodeIntentInTransaction
 	// CodeReadOnlyContext rejects a write host call from a guard or query
 	// invocation, whatever context object the worker built.
 	CodeReadOnlyContext = "runtime.readOnlyContext"
@@ -134,7 +134,7 @@ const (
 	// package export.
 	CodeNativeQueryUnavailable = "runtime.nativeQueryUnavailable"
 	// CodeNotQuery is returned by tx.query / q.query for a non-query contract.
-	CodeNotQuery = "runtime.notQuery"
+	CodeNotQuery = native.CodeNotQuery
 )
 
 // Config wires the host. Outbox, Starter, Notifier, Signals, Workflow and
@@ -410,12 +410,10 @@ func (h *Host) execute(ctx context.Context, root *rootState, spec execSpec) (Res
 		if kind, err = kindOf(contract); err != nil {
 			return Result{}, err
 		}
-		for _, perm := range h.permissionsOf(res) {
-			if !spec.subject.Has(perm) {
-				return Result{}, &pool.WireError{Kind: pool.ErrKindDenied, Code: "runtime.permissionDenied", Message: "permission " + perm + " is required for " + contract.ID}
-			}
+		if err := native.CheckPermissions(spec.subject.Has, res.Resource, h.nativeDefinition(res)); err != nil {
+			return Result{}, err
 		}
-		if err := validateInput(contract, spec.input); err != nil {
+		if err := native.CheckInput(res.Resource, spec.input); err != nil {
 			return Result{}, err
 		}
 		if binding, impl, err = h.resolveBinding(ctx, res); err != nil {
@@ -460,18 +458,18 @@ func (h *Host) execute(ctx context.Context, root *rootState, spec execSpec) (Res
 	return e.run(ctx, res)
 }
 
-// permissionsOf lists the permissions an invocation of the contract needs:
-// the published contract's, and for a native contract the RBAC permission of
-// its Go definition (not a catalog resource, so not published). Both apply
-// whichever implementation is bound.
-func (h *Host) permissionsOf(res spi.ResolvedResource) []string {
-	perms := []string{res.Resource.Permission}
-	if res.Native && h.cfg.Natives != nil {
-		if d, ok := h.cfg.Natives.Definition(res.Resource.ID); ok {
-			perms = append(perms, d.Permission())
-		}
+// nativeDefinition is the Go definition of a native contract (nil for a
+// package contract): its RBAC permission (not a catalog resource, so not
+// published) applies whichever implementation is bound
+// (native.CheckPermissions).
+func (h *Host) nativeDefinition(res spi.ResolvedResource) native.Definition {
+	if !res.Native || h.cfg.Natives == nil {
+		return nil
 	}
-	return perms
+	if d, ok := h.cfg.Natives.Definition(res.Resource.ID); ok {
+		return d
+	}
+	return nil
 }
 
 // resolveBinding selects the one active implementation: the bound package
@@ -531,34 +529,4 @@ func kindOf(c *manifest.Resource) (pool.Kind, error) {
 		return pool.KindQuery, nil
 	}
 	return "", serrors.New(serrors.Invalid, fmt.Sprintf("extruntime: %s is a %s, not an invocable contract", c.ID, c.Kind))
-}
-
-func validateInput(c *manifest.Resource, input json.RawMessage) error {
-	if c.Input == nil {
-		return nil
-	}
-	if err := manifest.ValidateValue(*c.Input, input); err != nil {
-		return invalidValue("input", err)
-	}
-	return nil
-}
-
-func invalidValue(phase string, err error) *pool.WireError {
-	var pe *manifest.PathError
-	we := &pool.WireError{Kind: pool.ErrKindValidation, Code: "runtime.invalidValue", Message: err.Error()}
-	if errors.As(err, &pe) {
-		path, pathErr := json.Marshal(pe.Path)
-		params, paramsErr := json.Marshal(map[string]string{"message": pe.Message})
-		// Without an encodable path the error keeps its message and no
-		// per-field issue.
-		if pathErr == nil && paramsErr == nil {
-			we.Issues = []pool.Issue{{Code: "runtime.invalidValue", Phase: phase, Path: path, Params: params}}
-		}
-	}
-	if phase == "output" {
-		we.Kind = pool.ErrKindInternal
-		we.Code = "runtime.invalidOutput"
-		we.Issues = nil
-	}
-	return we
 }

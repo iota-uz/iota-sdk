@@ -28,7 +28,6 @@ import (
 	corePerms "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
-	crmext "github.com/iota-uz/iota-sdk/modules/crm/extension"
 	crmPerms "github.com/iota-uz/iota-sdk/modules/crm/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
@@ -41,8 +40,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/build/buildtest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/runtime"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/ui"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/sdkidentity"
@@ -96,7 +95,6 @@ type envConfig struct {
 	events    events.Config
 	schedules events.SchedulerConfig
 	poolSize  int
-	uiRoutes  ui.NativeRoutes
 	resolvers map[string]notifications.ContactResolver
 }
 
@@ -105,30 +103,31 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 	cfg := envConfig{
 		poolSize: 2,
 		events:   events.Config{PollInterval: 100 * time.Millisecond, BackoffBase: 100 * time.Millisecond, BlockedRecheck: 500 * time.Millisecond},
-		uiRoutes: ui.NativeRoutes{"crm.clients": "/crm/clients"},
 	}
 	for _, o := range opts {
 		o(&cfg)
 	}
 	worker := hostWorker(t)
+	// The application's native set: the registrations of the SDK modules it
+	// enables, exactly as a production composition root builds it.
+	natives, err := native.Compose(modules.Natives()...)
+	require.NoError(t, err)
 	builder, err := build.NewNodeBuilder(buildtest.Config(t))
 	require.NoError(t, err)
 
 	e := &env{t: t, sms: notificationstest.NewSMS(), email: notificationstest.NewEmail(), push: notificationstest.NewPush()}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	e.cfg = runtime.Config{
-		WorkerScript: worker, CacheDir: t.TempDir(), PoolSize: cfg.poolSize,
+		Natives: natives, WorkerScript: worker, CacheDir: t.TempDir(), PoolSize: cfg.poolSize,
 		Builder: builder, Kits: builder,
-		// The CRM's extension points (client view route, sidebar slot) are native resources of the application.
-		NativeResources: crmext.Resources("/crm/clients"),
-		Git:             manage.GitConfig{AllowedSchemes: []string{"file"}},
-		Events:          cfg.events, Schedules: cfg.schedules,
+		Git:    manage.GitConfig{AllowedSchemes: []string{"file"}},
+		Events: cfg.events, Schedules: cfg.schedules,
 		UI: &runtime.UIConfig{
 			Host: clienthost.Manifest{
 				Package: "@iota-uz/sdk", PackageVersion: "0.5.6", SDKCommit: "0123456789abcdef0123456789abcdef01234567",
 				SDKReleaseVersion: sdkidentity.ReleaseVersion, ProtocolVersion: clienthost.ProtocolVersion, Entry: "/assets/runtime-host.js",
 			},
-			NativeRoutes: cfg.uiRoutes, SourceTTL: 10 * time.Millisecond,
+			SourceTTL: 10 * time.Millisecond,
 		},
 		// A webhook has no session: the application resolves its tenant (by host name in production).
 		Endpoints: runtime.EndpointConfig{PublicTenant: func(*http.Request) (uuid.UUID, bool) { return e.tenant, true }},
@@ -171,6 +170,7 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 		Notices:   resolve[*notifications.Catalog](t, e.scope.Container),
 		Renderers: resolve[*notifications.ContentRenderers](t, e.scope.Container),
 		Contacts:  resolve[*notifications.ContactResolvers](t, e.scope.Container),
+		Policies:  resolve[*notifications.DeliveryPolicies](t, e.scope.Container),
 		Users:     resolve[user.Repository](t, e.scope.Container),
 		// The Go defaults of native contracts resolve their services here, as
 		// the component wires them.

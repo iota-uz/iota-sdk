@@ -11,11 +11,17 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 )
 
+func baseSet(t *testing.T, items ...native.Item) *native.Set {
+	t.Helper()
+	set := native.NewSet()
+	require.NoError(t, set.Add(native.Entity(data.CoreUser()), native.Entity(data.CRMClient()), native.List(data.NativeClientList)))
+	require.NoError(t, set.Add(items...))
+	return set
+}
+
 func TestNativeListsAreKitSourcesOfTheirNamespace(t *testing.T) {
-	n := catalog.NewNativeSet(data.DefaultNatives())
-	require.NoError(t, n.RegisterList(data.NativeClientList))
-	require.NoError(t, n.RegisterList("billing.lists.invoices"))
-	require.Error(t, n.RegisterList("Not A List"))
+	n := catalog.Natives(baseSet(t, native.List("billing.lists.invoices")))
+	require.Error(t, native.NewSet().Add(native.List("Not A List")))
 
 	byNS := map[string][]string{}
 	for _, s := range n.Sources() {
@@ -24,12 +30,12 @@ func TestNativeListsAreKitSourcesOfTheirNamespace(t *testing.T) {
 	require.Equal(t, []string{"crm.lists.clients"}, byNS["crm"], "a list is declared on the namespace it extends")
 	require.Equal(t, []string{"billing.lists.invoices"}, byNS["billing"], "a namespace with only a list is still a source")
 	require.Empty(t, byNS["core"])
+	require.True(t, n.Reserved("billing.extra"), "a namespace with only a list is native")
+	require.False(t, n.Reserved("acme"))
 }
 
 func TestSnapshotIsSortedAndStable(t *testing.T) {
-	n := catalog.NewNativeSet(data.DefaultNatives())
-	require.NoError(t, n.RegisterList(data.NativeClientList))
-	require.NoError(t, n.RegisterList("billing.lists.invoices"))
+	n := catalog.Natives(baseSet(t, native.List("billing.lists.invoices")))
 
 	snap := n.Snapshot()
 	require.Equal(t, catalog.SnapshotSchema, snap.Schema)
@@ -52,16 +58,19 @@ type noteIn struct {
 	Text string `json:"text"`
 }
 
-func TestDefaultNativesPublishGoContractsInTheKit(t *testing.T) {
-	set := native.NewSet()
+func TestNativeSetPublishesEveryKindInTheKit(t *testing.T) {
 	op := native.Operation[noteIn, noteIn]("billing.operations.addNote", native.Spec{}, nil)
-	require.NoError(t, set.Register(op))
-	n, err := catalog.DefaultNatives(data.DefaultNatives(), set, nil, manifest.Resource{ID: "billing.invoices", Kind: manifest.ResRoute, Path: "/billing"})
-	require.NoError(t, err)
+	ev := native.Event[noteIn]("billing.invoice.noted.v1", native.EventSpec{Subject: "billing.invoice"})
+	slot := manifest.Resource{ID: "billing.slots.invoiceHeader", Kind: manifest.ResSlot, Props: &manifest.Type{Kind: manifest.KindObject}}
+	n := catalog.Natives(baseSet(t, op, ev, native.Route("billing.invoices", "/billing"), native.Declare(slot)))
 
 	r, ok := n.Get("billing.operations.addNote")
 	require.True(t, ok)
 	require.Equal(t, op.Resource().ContractHash, r.ContractHash, "the kit and the catalog hash the same contract")
+	r, ok = n.Get("billing.invoices")
+	require.True(t, ok)
+	require.Equal(t, manifest.ResRoute, r.Kind)
+	require.Equal(t, "/billing", r.Path)
 	byNS := map[string][]string{}
 	for _, s := range n.Sources() {
 		for _, r := range s.Resources {
@@ -69,14 +78,20 @@ func TestDefaultNativesPublishGoContractsInTheKit(t *testing.T) {
 		}
 		byNS[s.Namespace+":lists"] = s.Lists
 	}
-	require.Equal(t, []string{"billing.invoices", "billing.operations.addNote"}, byNS["billing"])
-	require.Equal(t, []string{data.NativeClientList}, byNS["crm:lists"], "the default native list")
+	require.Equal(t, []string{"billing.invoice.noted.v1", "billing.invoices", "billing.operations.addNote", "billing.slots.invoiceHeader"}, byNS["billing"])
+	require.Equal(t, []string{data.NativeClientList}, byNS["crm:lists"])
+	_, ok = n.Get(data.NativeClient)
+	require.True(t, ok, "the set carries the native entities")
+	_, ok = n.Get(data.NativeClientList)
+	require.False(t, ok, "a list is a kit reference, not a resource")
+}
 
-	_, err = catalog.DefaultNatives(data.DefaultNatives(), set, nil, op.Resource())
-	require.Error(t, err, "an ID is published once")
-
-	all, err := catalog.Defaults()
-	require.NoError(t, err)
-	_, ok = all.Get(data.NativeClient)
-	require.True(t, ok, "Defaults carries the native entities")
+func TestNewNativeSetViewsEntitiesOnly(t *testing.T) {
+	n := catalog.NewNativeSet(data.DefaultNatives())
+	ids := []string{}
+	for _, r := range n.Resources() {
+		ids = append(ids, r.ID)
+	}
+	require.Equal(t, []string{data.NativeUser, data.NativeClient}, ids)
+	require.Empty(t, catalog.NewNativeSet(nil).Resources())
 }

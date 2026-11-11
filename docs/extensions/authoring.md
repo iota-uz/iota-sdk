@@ -133,7 +133,7 @@ Contracts you did not declare (users, CRM clients, other packages' commands) are
 
 ```ts
 import * as core from "@iota-kit/core"   // core.User, core.Created (the user-created event)
-import * as crm from "@iota-kit/crm"     // crm.Client, crm.Clients (the native list), crm.SaveClient, crm.UpsertClient
+import * as crm from "@iota-kit/crm"     // crm.Client, crm.ListsClients (the native list), crm.Created, crm.Updated, crm.SaveClient, crm.UpsertClient
 ```
 
 A kit module is generated from a **catalog snapshot**: native entities (with fields and key types), native lists, native
@@ -150,7 +150,8 @@ packages that are active. You get one of three ways:
 them into `node_modules/@iota-kit/` and records the snapshot hash in `node_modules/.iota-kit.json`. The token is read
 from the environment variable you name (never from the command line); `--cookie-env VAR` sends a session cookie header
 instead. The user needs the extensions *read* permission. An application exports a snapshot with
-`GET /_ext/manage/catalog/natives` or `catalog.NativeSet.Snapshot()`; the SDK's own is committed as
+`GET /_ext/manage/catalog/natives` or `catalog.Natives(set).Snapshot()` over its composed `native.Set`; the SDK's own
+(the set of `modules.Natives()`) is committed as
 `web/runtime/catalog/sdk-natives.json` (regenerate it with `go run ./cmd/extruntime-catalog`) and ships in the
 distribution. Rerun the command whenever the application's natives or other packages change; the build pins the kit hash
 in the manifest.
@@ -160,17 +161,20 @@ What a module exports:
 * **Native entities** (`core.User`, `crm.Client`) with their real fields and **key type** (`int64` for both; a ref's key
   is a decimal string such as `"42"`). You can read them, reference them in fields, put an overlay on them, but not
   write them with `tx.insert/update/delete` (§6).
-* **Native lists** (`crm.Clients`) that your `column(...)` contracts extend.
-* **Events** (`core.Created`), to subscribe to.
+* **Native lists** (`crm.ListsClients`) that your `column(...)` contracts extend.
+* **Native routes** (`crm.Clients`, the CRM clients page) you link to or replace with a screen binding.
+* **Events** (`core.Created`, `crm.Created`, `crm.Updated`), to subscribe to. Native events are published by Go in
+  the transaction of the change they report, so a subscription sees them only after that change committed and never
+  for a change that rolled back.
 * **Native commands, operations and queries**, implemented in Go (`crm.SaveClient`, `crm.UpsertClient`). You call them,
   guard them and — for commands — replace them (§7.4).
 * The public contracts of other active packages.
 
 Export names are the PascalCase of the last segment of the ID, a version suffix dropped; when two IDs would collide
-they take more segments (`crm.clients` the route and `crm.lists.clients` the list would become `Clients` and
-`ListsClients`). **The names depend on the catalog you generated from**: the offline SDK kit has `crm.Clients`; an
-application that also registers a `crm.clients` route publishes the list as `crm.ListsClients`. Pull the kit of the
-application you target and use the names it gives you.
+they take more segments (`crm.clients` the route and `crm.lists.clients` the list become `Clients` and
+`ListsClients`). The offline SDK kit and an application built on the SDK modules are generated from the same module
+registrations, so they agree on these names; an application that adds natives of its own can add names (and push an
+existing one to more segments when it collides), so pull the kit of the application you target.
 
 If an import fails with `graph.unknownKit` or TS2307 for `@iota-kit/…`, the module is not installed: the CLI says
 which command to run.
@@ -283,7 +287,7 @@ returns `null` for them (absence is explicit in the type) and the defaults apply
 
 ```ts
 // example/src/contracts.ts
-export const TierColumn = column(crm.Clients, {
+export const TierColumn = column(crm.ListsClients, {
   id: "acme.loyalty.tier",
   field: ClientLoyalty.fields.tier,
   label: { en: "Loyalty tier", ru: "Уровень" },
@@ -393,7 +397,8 @@ Go modules publish **native contracts**: operations, atomic commands, ordinary c
 visible in the kit. The CRM publishes two for its clients:
 
 * `crm.UpsertClient` (operation): the invariant behind every client write: authorization, value validation
-  (phone, e-mail, PIN, country), persistence, change history and the client events.
+  (phone, e-mail, PIN, country), persistence, change history and the client events (`crm.Created` / `crm.Updated`,
+  in the same transaction, §9).
 * `crm.SaveClient` (ordinary command): the intent the client forms run; its Go default calls `UpsertClient` in one
   transaction.
 
@@ -508,6 +513,19 @@ export const onPointsChanged = subscribe("acme.loyalty.onPointsChanged", c.Point
   assigns to the trigger (`ext_owner_assign`). Without an owner the delivery is `blocked`, not lost.
 * Subscribe to platform events through the kit (`subscribe("…", core.Created, handler)`). `tx.start` inside a
   subscription needs no key: the delivery derives one, so redelivery cannot start a second workflow.
+* Platform events are published by Go through the same outbox, **in the transaction of the change**: `core.Created`
+  (`core.user.created.v1`) when a user is created; `crm.Created` / `crm.Updated` (`crm.client.created.v1` /
+  `crm.client.updated.v1`, subject `crm.client`) by `crm.UpsertClient`, so every client write that goes through it
+  — the CRM forms, a `crm.SaveClient` replacement, your own `tx.call(crm.UpsertClient, …)` — publishes one. The
+  payload carries the client's published fields (`clientId`, `firstName`, optional `lastName`, `middleName`,
+  `phone`, `email`; never PIN or passport) and, for updates, `changed`: the `crm.client` field IDs the write changed.
+  A save that rolls back publishes nothing.
+
+```ts
+export const onClientUpdated = subscribe("acme.loyalty.onClientUpdated", crm.Updated, async (tx, event) => {
+  if (event.payload.changed.includes("phone")) tx.log.info("client phone changed", { client: event.payload.clientId })
+})
+```
 
 ## 10. Workflows
 
@@ -647,12 +665,68 @@ export const clientContacts = implement(c.ClientContacts, async (q, record) => {
 * A template renderer exists per channel (`sms`, `email`, `inApp`, `push`); a channel without a renderer is skipped for
   that notice. Renderers receive `{ payload, subject, locale }` and may be async.
 * `recipient.record(ref)` needs a **contact resolver** for that entity (`contactResolver(id, Entity)` + `implement`);
-  it returns the targets per channel (`sms`, `email`, `push`). `deliveryPolicy(id, Entity)` is the matching public
-  contract for consent and opt-out rules.
+  it returns the targets per channel (`sms`, `email`, `push`); a `push` target is a device token and each token is its
+  own delivery with its own outcome.
+* A **delivery policy** (`deliveryPolicy(id, Entity)` + `implement`) is where consent and opt-out live: the SDK has no
+  consent schema, the package that owns the data decides. See [Delivery policies](#delivery-policies).
 * `recipient.user(...)` addresses an ERP user through the platform's notification preferences; it takes a ref to
   `core.user`.
 * Use a stable `name`/key on repeated sends in workflows (`wf.transaction("send:${id}", …)`) so a replay does not notify
   twice.
+
+### Delivery policies
+
+```ts
+// example/src/contracts.ts
+export const ClientConsent = deliveryPolicy("acme.loyalty.clientConsent", crm.Client)
+```
+
+```ts
+// example/src/server.ts
+export const clientConsent = implement(c.ClientConsent, async (q, request) => {
+  const consent = await q.find(c.Consent, { where: { client: request.recipient.ref }, limit: 1 })
+  if (request.channel === "sms" && consent[0]?.smsOptOut === true) return { allow: false, reason: "sms_opt_out" }
+  return { allow: true }
+})
+```
+
+Once per notice, channel and **target** about to be created for a record recipient of the policy's entity, the platform
+calls every active policy of that entity. The call is made after the sender's transaction committed and never inside
+any write transaction; it runs as the **trigger owner** of the policy (assign one like for a contact resolver:
+`PUT /_ext/manage/triggers/{policyId}/owner`, `ext_owner_assign`) with that user's current rights. A policy of a
+package that is not active (deactivated, replaced, never activated) is simply not consulted.
+
+The request and the answer are a **public, versioned contract**; fields are only ever added.
+
+```jsonc
+// request (the second argument of the handler)
+{
+  "notice":    { "key": "acme.loyalty.redemption_result.v1", "version": 1, "snapshot": "acme.loyalty@1.4.0" },
+  "subject":   { "entity": "acme.loyalty.redemption", "key": "r-1" },   // null when the notice has none
+  "recipient": { "kind": "record", "ref": { "entity": "crm.client", "key": "c-1" }, "address": null },
+  "channel":   "sms",                                                   // "sms" | "email" | "push"
+  "target":    { "address": "+998901234567", "deviceId": null }         // deviceId only for a registered push device
+}
+// answer
+{ "allow": true }
+{ "allow": false, "reason": "sms_opt_out" }
+```
+
+* `notice.key` is the catalog key of the notice: its ID with each segment in snake_case and a trailing `.vN`.
+  `snapshot` is the package version that rendered it.
+* `recipient.kind` is `"record"` today (`ref` set, `address` null). Handle kinds you do not know by allowing; new kinds
+  will only be added with their own fields. Address recipients (a bare phone or email) have no entity to bind a policy
+  to and are governed by the application's Go-configured policy only.
+* `reason` is optional: a short machine code of `[a-z0-9_.-]`, at most 64 characters, without personal data. A denial
+  is stored per target as a **skipped** delivery with error code `policy_denied:<reason>` (or `policy_denied`); the
+  provider is not called and sibling targets (other channels, the other device) are unaffected.
+* Composition is deterministic: the Go-configured `ModuleOptions.NotificationDeliveryPolicy` is consulted first, then
+  the policies of active packages ordered by policy ID and package. **Any denial wins**; the first denial's reason is the
+  one stored and later policies are not asked.
+* A policy that cannot answer is never an implicit allow. No owner assigned, a handler that throws, or an answer that is
+  not `{ allow: boolean, reason?: string }` all leave the delivery waiting and retried (visible as `unresolved`, and
+  `failed` with `resolution_attempt_limit` when attempts run out, after which an operator can retry it). Assign the
+  owner or fix the policy and the waiting deliveries proceed.
 
 ## 12. Triggers
 
@@ -902,8 +976,12 @@ message and the line in **your** `.ts` file (the bundles are source-mapped), `--
 | `fakes` | `sms`, `email`, `push`, `inApp`, `http` |
 
 What the host reproduces from the Go data layer: SQL null semantics, filters through refs, ordering with the primary-key
-tie-break, read rules before filter and paging, hidden fields, unique constraints, `rowVersion` conflicts, native-write
-refusal, write rules, rollback of events/notices/starts/signals. **What it does not do**: it does not check a contract's
+tie-break, read rules before filter and paging, hidden fields (not readable, filterable, sortable or writable), overlay
+rows readable only with their base row, unique constraints (`data.unique`), `rowVersion` conflicts, native-write
+refusal (`data.nativeWrite`), the `tx.call` / `ctx.call` rules (`runtime.ordinaryCommandInTx`,
+`runtime.intentInTransaction`, `runtime.nestedTransaction`), write rules, rollback of events/notices/starts/signals.
+These semantics are pinned by a shared conformance suite (`web/runtime/tests/conformance/cases.json`) that runs the
+same package and cases on this host and on the Go host with PostgreSQL, so the two cannot drift apart. **What it does not do**: it does not check a contract's
 `permission` (you call the handler directly; test the gate in the application's end-to-end suite), it does not verify
 that a ref points at an existing row, and handlers see one logical process (no concurrency).
 
@@ -928,7 +1006,8 @@ Each `host.deliveries` entry is `{ notice, channel, recipient, target, status, r
 `delivered`, `skipped` (no renderer for the channel, no address, no contact data; `reason` says which) or `failed` (the
 fake channel rejected it: `fakes.sms.failNext(new Error("down"))`, or the template threw). Delivery happens after commit,
 so a rolled-back transaction delivers nothing. Without any templates, `tx.notify` is only recorded in `host.notices`; with
-templates, a notice none of them covers is a `notify.noTemplates` error, as in the runtime.
+templates, a notice none of them covers is a `notify.noTemplates` error, as in the runtime. The test host does not
+evaluate delivery policies: unit-test a policy by calling its handler with a request of the shape above.
 
 ### 14.3 `fetch` and the fakes
 

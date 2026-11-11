@@ -245,6 +245,135 @@
           "keyType": "int64"
         },
         {
+          "id": "crm.client.created.v1",
+          "kind": "event",
+          "contractHash": "63b4839536ba51abf135cd79186d77ddfb8cd63a6c417639441282cb69b550e4",
+          "label": {
+            "en": "Client created",
+            "ru": "Клиент создан",
+            "uz": "Mijoz yaratildi"
+          },
+          "description": "A CRM client was created. Published in the transaction that creates the client.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "clientId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "firstName",
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "lastName",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "middleName",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "phone",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "email",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              }
+            ]
+          },
+          "subject": "crm.client"
+        },
+        {
+          "id": "crm.client.updated.v1",
+          "kind": "event",
+          "contractHash": "b919391660de57675d516e31d65e527f8ad018c02576bbf2c222ce64a29f8c46",
+          "label": {
+            "en": "Client updated",
+            "ru": "Клиент изменён",
+            "uz": "Mijoz o'zgartirildi"
+          },
+          "description": "A CRM client was updated. Published in the transaction that updates the client; changed lists the crm.client fields the update changed.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "clientId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "firstName",
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "lastName",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "middleName",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "phone",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "email",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "changed",
+                "type": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "string"
+                  }
+                }
+              }
+            ]
+          },
+          "subject": "crm.client"
+        },
+        {
+          "id": "crm.clients",
+          "kind": "route",
+          "contractHash": "dc7ded52984ef55121a35799d6d702c932084c963136a9443b96665859338290",
+          "path": "/crm/clients"
+        },
+        {
           "id": "crm.commands.saveClient",
           "kind": "command",
           "contractHash": "999d950149ac69c84112117b8de28e07c5dafb885e6d35496ac773f242e36f97",

@@ -81,7 +81,7 @@ func (s *NotificationChannelService) resolveOne(ctx context.Context, d notificat
 		row.Language = language
 		row.Status = notifications.DeliveryPending
 		if d.RecipientKind != notifications.RecipientUser {
-			decision, err := s.platform.policy().Evaluate(ctx, notifications.PolicyRequest{TenantID: d.TenantID, EventKey: notice.EventKey, SnapshotRef: notice.SnapshotRef, Subject: notice.Subject, Recipient: recipientOf(d), Target: target})
+			decision, err := s.platform.policy().Evaluate(ctx, notifications.PolicyRequest{TenantID: d.TenantID, EventKey: notice.EventKey, EventVersion: notice.Version, SnapshotRef: notice.SnapshotRef, Subject: notice.Subject, Recipient: recipientOf(d), Target: target})
 			if err != nil {
 				return settle(resolveProblem{code: notifications.ErrorCodeResolutionFailed, transient: true})
 			}

@@ -1,10 +1,8 @@
 // Package extension declares the extension points the CRM module offers to
 // packages of the extension runtime: the route of the client view page, which a
 // package page can replace, and the slot of its sidebar, which any package can
-// contribute to. The declarations are plain native resources (manifest
-// resources of kind route and slot) that the composition root publishes in the
-// catalog next to the other native contracts; the module's pages use the IDs
-// below.
+// contribute to. They are contributed to the application's native.Set by the
+// CRM module (crm.Natives); the module's pages use the IDs below.
 package extension
 
 import (
@@ -12,6 +10,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/crm/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 )
 
 const (
@@ -36,26 +35,25 @@ func ClientViewPath(basePath string) string {
 	return strings.TrimRight(basePath, "/") + "/:id"
 }
 
-// Resources are the native declarations of the module's extension points:
-// the typed client view route and the sidebar slot. Pass them to the
-// extension runtime's native resources.
-func Resources(basePath string) []manifest.Resource {
-	return []manifest.Resource{
-		{
-			ID: RouteClientView, Kind: manifest.ResRoute, Path: ClientViewPath(basePath),
-			// A package page replacing the screen inherits the native requirement.
-			Permission: permissions.ClientRead.Name(),
+// Items are the native contributions of the module's extension points: the
+// typed client view route (under the clients page path) and the sidebar slot.
+// The CRM contributor (crm.Natives) adds them to the application's native.Set.
+func Items(clientsPath string) []native.Item {
+	return []native.Item{
+		native.RouteWith(RouteClientView, ClientViewPath(clientsPath), native.RouteSpec{
 			Params: &manifest.Type{Kind: manifest.KindObject, Properties: []manifest.Property{
 				{Name: "id", Type: manifest.Type{Kind: manifest.KindInt}},
 			}},
-		},
-		{
+			// A package page replacing the screen inherits the native requirement.
+			Permission: permissions.ClientRead.Name(),
+		}),
+		native.Declare(manifest.Resource{
 			ID: SlotClientSidebar, Kind: manifest.ResSlot,
 			Props: &manifest.Type{Kind: manifest.KindObject, Properties: []manifest.Property{
 				{Name: "clientId", Type: manifest.Type{Kind: manifest.KindInt}},
 			}},
 			// The host page needs the same permission to be viewed at all.
 			Permission: permissions.ClientRead.Name(),
-		},
+		}),
 	}
 }

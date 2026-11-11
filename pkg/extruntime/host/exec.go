@@ -103,8 +103,9 @@ func (e *execution) resource() string {
 
 // MaxNesting bounds nested invocations (tx.call, tx.query, ctx.call, guards)
 // under one root, so a query or operation that calls itself fails with a
-// diagnostic instead of exhausting the worker stack.
-const MaxNesting = 32
+// diagnostic instead of exhausting the worker stack. It is the limit of the
+// native contract rules, shared with native.Direct.
+const MaxNesting = native.MaxNesting
 
 func (e *execution) depth() int {
 	n := 0
@@ -116,8 +117,7 @@ func (e *execution) depth() int {
 
 func (e *execution) run(ctx context.Context, res spi.ResolvedResource) (Result, error) {
 	if e.depth() > MaxNesting {
-		return Result{}, &pool.WireError{Kind: pool.ErrKindInternal, Code: "runtime.nestingTooDeep",
-			Message: fmt.Sprintf("more than %d nested invocations under one root (recursive call of %s?)", MaxNesting, e.resource())}
+		return Result{}, native.NestingTooDeep(e.resource())
 	}
 	out := Result{InvocationID: e.id, Binding: e.binding}
 	parentID := ""
@@ -331,13 +331,10 @@ func (e *execution) countCommitted() {
 }
 
 func (e *execution) checkOutput(output json.RawMessage) error {
-	if e.contract == nil || e.contract.Output == nil {
+	if e.contract == nil {
 		return nil
 	}
-	if err := manifest.ValidateValue(*e.contract.Output, output); err != nil {
-		return invalidValue("output", err)
-	}
-	return nil
+	return native.CheckOutput(*e.contract, output)
 }
 
 // closedErrors enforces that a contract only raises its declared domain
@@ -672,9 +669,8 @@ func (e *execution) callJoined(ctx context.Context, h *txHandle, contract string
 	if err != nil {
 		return nil, err
 	}
-	joinable := res.Resource.Kind == manifest.ResOperation || (res.Resource.Kind == manifest.ResCommand && res.Resource.Atomic)
-	if !joinable {
-		return nil, fail("runtime.ordinaryCommandInTx", "tx.call accepts only operations and atomic commands; %s is not", contract)
+	if err := native.CheckCall(native.ViaTxCall, res.Resource); err != nil {
+		return nil, err
 	}
 	return e.invokeNested(ctx, contract, input, h)
 }
@@ -717,8 +713,8 @@ func (e *execution) invokeCommand(ctx context.Context, args json.RawMessage) (js
 	if err != nil {
 		return nil, err
 	}
-	if res.Resource.Kind != manifest.ResCommand {
-		return nil, fail("runtime.notCommand", "ctx.call accepts commands; %s is a %s", a.Command, res.Resource.Kind)
+	if err := native.CheckCall(native.ViaCtxCall, res.Resource); err != nil {
+		return nil, err
 	}
 	return e.invokeNested(ctx, a.Command, a.Input, nil)
 }
@@ -776,8 +772,8 @@ func (e *execution) nestedQuery(ctx context.Context, h *txHandle, args json.RawM
 	if err != nil {
 		return nil, err
 	}
-	if res.Resource.Kind != manifest.ResQuery {
-		return nil, fail(CodeNotQuery, "tx.query accepts queries; %s is a %s", a.Query, res.Resource.Kind)
+	if err := native.CheckCall(native.ViaQuery, res.Resource); err != nil {
+		return nil, err
 	}
 	return e.runQuery(ctx, h, a.Query, a.Input)
 }
@@ -888,8 +884,11 @@ func (e *execution) dataWrite(ctx context.Context, h *txHandle, method string, a
 	if err != nil {
 		return nil, err
 	}
-	if res.Native || res.Resource.Kind != want {
-		return nil, &pool.WireError{Kind: pool.ErrKindDenied, Code: "runtime.notWritable", Message: fmt.Sprintf("%s is not a writable package-owned %s; native data changes through published operations", target, want)}
+	if res.Native {
+		return nil, &pool.WireError{Kind: pool.ErrKindDenied, Code: CodeDataNativeWrite, Message: fmt.Sprintf("%s is native: native entities are read-only through generic data calls; use a published operation", target)}
+	}
+	if res.Resource.Kind != want {
+		return nil, &pool.WireError{Kind: pool.ErrKindDenied, Code: "runtime.notWritable", Message: fmt.Sprintf("%s is not a writable package-owned %s", target, want)}
 	}
 	var out json.RawMessage
 	err = h.do(ctx, func(ctx context.Context, tx pgx.Tx) error {

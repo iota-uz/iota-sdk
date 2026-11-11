@@ -186,7 +186,7 @@ func TestNativeEntityWritesAreRejected(t *testing.T) {
 	we, ok := pool.AsWireError(err)
 	require.True(t, ok)
 	require.Equal(t, pool.ErrKindDenied, we.Kind)
-	require.Equal(t, "runtime.notWritable", we.Code)
+	require.Equal(t, host.CodeDataNativeWrite, we.Code)
 }
 
 func TestWorkerKilledInsideTxRollsBackAndNextInvocationSucceeds(t *testing.T) {

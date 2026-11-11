@@ -101,7 +101,7 @@ export const customerContacts = implement(c.CustomerContacts, async (q, record) 
   return customer?.phone ? { sms: [customer.phone] } : {}
 })
 export const customerConsent = implement(c.CustomerConsent, async (_q, request) => ({
-  allow: request.channel !== 'sms' || request.target.startsWith('+998'),
+  allow: request.channel !== 'sms' || request.target.address.startsWith('+998'),
 }))
 
 // --- overlay of a native entity, replacement of a native command, independent guards

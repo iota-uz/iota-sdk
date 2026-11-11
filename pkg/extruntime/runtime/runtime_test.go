@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/artifact"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
@@ -28,6 +29,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage/managetest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool/pooltest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
@@ -92,8 +94,10 @@ func put(t *testing.T, svc *manage.Service, actor spi.Subject, version string) {
 }
 
 func TestComponentComposesTheRuntimeAndRunsAPackageEndToEnd(t *testing.T) {
+	natives, err := native.Compose(modules.Natives()...)
+	require.NoError(t, err)
 	comp, err := runtime.NewComponent(runtime.Config{
-		WorkerScript: pooltest.BuildWorker(t), CacheDir: t.TempDir(), PoolSize: 1,
+		Natives: natives, WorkerScript: pooltest.BuildWorker(t), CacheDir: t.TempDir(), PoolSize: 1,
 		Builder: &managetest.Builder{}, Kits: &managetest.Kits{}, DisableBackground: true,
 	})
 	require.NoError(t, err)
@@ -136,10 +140,8 @@ func TestComponentComposesTheRuntimeAndRunsAPackageEndToEnd(t *testing.T) {
 	// an event published after activation reaches the subscription as its owner
 	tx, err := f.Pool.Begin(ctx)
 	require.NoError(t, err)
-	_, err = events.Publish(ctx, tx, spi.Scope{Subject: admin}, spi.EventIntent{
-		Event: "core.user.created.v1", Subject: &spi.ObjectRef{Entity: "core.user", Key: "5"},
-		Payload: json.RawMessage(`{"userId":"5","email":"a@b.c","firstName":"A","lastName":"B","userType":"user"}`),
-	})
+	_, err = events.Publish(ctx, tx, spi.Scope{Subject: admin}, coreservices.UserCreatedEvent, &spi.ObjectRef{Entity: "core.user", Key: "5"},
+		coreservices.UserCreatedPayload{UserID: 5, Email: "a@b.c", FirstName: "A", LastName: "B", UserType: "user"})
 	require.NoError(t, err)
 	require.NoError(t, tx.Commit(ctx))
 	require.Eventually(t, func() bool {
@@ -389,7 +391,7 @@ func TestUISlicePicksUpActivationsBindingsColumnsAndAssets(t *testing.T) {
 	ctx := context.Background()
 	admin := spi.Subject{TenantID: e.tenant, UserID: 1, Kind: spi.SubjectInitiator,
 		Permissions: []string{manage.PermRead, manage.PermAuthor, manage.PermReview, manage.PermPublish}}
-	require.NoError(t, e.natives.Register(manifest.Resource{ID: "crm.clients", Kind: manifest.ResRoute, Path: "/crm/clients"}))
+	require.NoError(t, e.natives.Set().Add(native.Route("crm.clients", "/crm/clients")))
 
 	m := manifest.Manifest{
 		Schema: manifest.SchemaVersion, Namespace: ns,

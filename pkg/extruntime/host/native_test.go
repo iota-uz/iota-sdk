@@ -146,7 +146,7 @@ func newNatives(t *testing.T) *natives {
 	panics := native.Operation("acme.n.panic", native.Spec{}, func(native.Deps) (native.OperationFunc[labelIn, seenOut], error) {
 		return func(context.Context, native.Tx, labelIn) (seenOut, error) { panic("bug") }, nil
 	})
-	require.NoError(t, n.set.Register(n.add, n.save, count, viaPkg, loop, badOut, panics))
+	require.NoError(t, n.set.Add(n.add, n.save, count, viaPkg, loop, badOut, panics))
 	return n
 }
 

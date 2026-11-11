@@ -11,7 +11,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -102,7 +101,7 @@ func (e *execution) authorize(permission string) error {
 	if permission == "" || e.scope.Subject.Has(permission) {
 		return nil
 	}
-	return &pool.WireError{Kind: pool.ErrKindDenied, Code: "runtime.permissionDenied", Message: "permission " + permission + " is required"}
+	return &pool.WireError{Kind: pool.ErrKindDenied, Code: native.CodePermissionDenied, Message: "permission " + permission + " is required"}
 }
 
 func errHandlerDone() error {
@@ -166,8 +165,8 @@ func (e *execution) queryVia(ctx context.Context, h *txHandle, query string, inp
 	if err != nil {
 		return nil, err
 	}
-	if res.Resource.Kind != manifest.ResQuery {
-		return nil, fail(CodeNotQuery, "query accepts queries; %s is a %s", query, res.Resource.Kind)
+	if err := native.CheckCall(native.ViaQuery, res.Resource); err != nil {
+		return nil, err
 	}
 	return e.runQuery(ctx, h, query, input)
 }
@@ -214,8 +213,8 @@ func (c *hostCommand) Call(ctx context.Context, command string, input json.RawMe
 	if err != nil {
 		return nil, err
 	}
-	if res.Resource.Kind != manifest.ResCommand {
-		return nil, fail("runtime.notCommand", "ctx.call accepts commands; %s is a %s", command, res.Resource.Kind)
+	if err := native.CheckCall(native.ViaCtxCall, res.Resource); err != nil {
+		return nil, err
 	}
 	return c.e.invokeNested(ctx, command, input, nil)
 }
@@ -244,6 +243,9 @@ const (
 	CodeDataForeignWrite    = "data.foreignWrite"
 	CodeDataDenied          = "data.denied"
 	CodeDataFieldHidden     = "data.fieldNotAccessible"
+	CodeDataUnknownField    = "data.unknownField"
+	CodeDataInvalidQuery    = "data.invalidQuery"
+	CodeDataInvalidValue    = "data.invalidValue"
 )
 
 func isPlatformDomainCode(code string) bool {
@@ -271,6 +273,14 @@ func dataError(err error) *pool.WireError {
 		return &pool.WireError{Kind: pool.ErrKindDomain, Code: CodeDataNotFound, Message: "record not found"}
 	case errors.Is(err, data.ErrVersionConflict):
 		return &pool.WireError{Kind: pool.ErrKindDomain, Code: CodeDataVersionConflict, Message: "record was changed concurrently"}
+	case errors.Is(err, data.ErrInvalidValue):
+		return writeIssue(err, CodeDataInvalidValue, "a value does not match its field type")
+	case errors.Is(err, data.ErrUnknownField):
+		// A query or write naming a field the entity does not have: a bug of
+		// the calling code, reported with the stable code the test host uses.
+		return &pool.WireError{Kind: pool.ErrKindInternal, Code: CodeDataUnknownField, Message: err.Error()}
+	case errors.Is(err, data.ErrInvalidQuery):
+		return &pool.WireError{Kind: pool.ErrKindInternal, Code: CodeDataInvalidQuery, Message: err.Error()}
 	}
 	return nil
 }

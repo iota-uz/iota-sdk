@@ -37,10 +37,11 @@ import (
 // storage (its source, artifact store, invoker and catalog are the
 // runtime's).
 //
+//	natives, err := native.Compose(append(modules.Natives(), app.Natives)...)
 //	comp, err := runtime.NewComponent(runtime.Config{
-//	    NodeBinary: "node", WorkerScript: "dist/host/worker.mjs",
-//	    PoolSize: 4, CacheDir: "/var/cache/app/extruntime",
-//	    Builder: buildWorker, Kits: kitGenerator,
+//	    Natives: natives, PoolSize: 4, CacheDir: "/var/cache/app/extruntime",
+//	    // the workers come from node_modules/@iota-uz/sdk of the same release
+//	    Dist: runtime.DistConfig{AppRoot: "/srv/app"},
 //	})
 func NewComponent(cfg Config) (composition.Component, error) {
 	c := &component{cfg: cfg}
@@ -50,7 +51,7 @@ func NewComponent(cfg Config) (composition.Component, error) {
 		l := &lazy{h: c.holder}
 		uic, err := ui.NewComponent(ui.Config{
 			Source: l, Artifacts: l, Invoker: l, Catalog: l,
-			Host: cfg.UI.Host, NativeRoutes: cfg.UI.NativeRoutes, Logger: cfg.UI.Logger,
+			Host: cfg.UI.Host, NativeRoutes: ui.NativeRoutes(cfg.Natives.Routes()), Logger: cfg.UI.Logger,
 		}, l)
 		if err != nil {
 			return nil, err
@@ -99,13 +100,17 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
+		policies, err := composition.Resolve[*notifications.DeliveryPolicies](container)
+		if err != nil {
+			return nil, err
+		}
 		users, err := composition.Resolve[user.Repository](container)
 		if err != nil {
 			return nil, err
 		}
 		// The Go defaults of native contracts resolve their services from the
 		// container when first invoked.
-		return New(c.cfg, Deps{DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Users: users, NativeDeps: container})
+		return New(c.cfg, Deps{DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Policies: policies, Users: users, NativeDeps: container})
 	})
 	composition.ProvideFunc(builder, func(rt *Runtime) *manage.Service { return rt.Manage })
 	// Every Go entry of a native contract dispatches through the host.

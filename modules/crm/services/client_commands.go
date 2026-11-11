@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -65,10 +66,12 @@ const (
 // UpsertClient is the reusable invariant operation behind every client
 // write: authorization (Client.Create / Client.Update), value-object
 // validation, persistence through the repository with the change history in
-// the same transaction, and the client events after commit. Packages reach
+// the same transaction, the native events crm.client.created.v1 /
+// crm.client.updated.v1 through the outbox in that transaction (atomic with
+// the write), and the module's eventbus events after commit. Packages reach
 // CRM clients only through it (generic writes to crm.client are refused); a
 // package guard on it applies to every caller.
-var UpsertClient = native.MustRegister(native.Operation("crm.operations.upsertClient", native.Spec{
+var UpsertClient = native.Operation("crm.operations.upsertClient", native.Spec{
 	Label:       map[string]string{"en": "Save client data", "ru": "Сохранить данные клиента", "uz": "Mijoz ma'lumotlarini saqlash"},
 	Description: "Creates a CRM client, or applies the present fields to an existing one, enforcing the client invariants.",
 }, func(d native.Deps) (native.OperationFunc[SaveClientInput, SaveClientOutput], error) {
@@ -77,13 +80,13 @@ var UpsertClient = native.MustRegister(native.Operation("crm.operations.upsertCl
 		return nil, err
 	}
 	return svc.upsert, nil
-}))
+})
 
 // SaveClient is the published intent of the client forms: an ordinary
 // command whose Go default runs UpsertClient in one transaction. A package
 // may replace it (a command binding) with its own algorithm; the replacement
 // still writes through UpsertClient, so its invariants and guards hold.
-var SaveClient = native.MustRegister(native.Command("crm.commands.saveClient", native.Spec{
+var SaveClient = native.Command("crm.commands.saveClient", native.Spec{
 	Label:       map[string]string{"en": "Save client", "ru": "Сохранить клиента", "uz": "Mijozni saqlash"},
 	Description: "Saves a CRM client from the client forms.",
 }, func(native.Deps) (native.CommandFunc[SaveClientInput, SaveClientOutput], error) {
@@ -96,7 +99,7 @@ var SaveClient = native.MustRegister(native.Command("crm.commands.saveClient", n
 		})
 		return out, err
 	}, nil
-}))
+})
 
 // ClientRef is the wire ref of a client.
 func ClientRef(id uint) spi.ObjectRef {
@@ -151,6 +154,9 @@ func (s *ClientService) upsert(ctx context.Context, tx native.Tx, in SaveClientI
 		return SaveClientOutput{}, serrors.Wrap(op, err)
 	}
 	created := existing == nil
+	if err := publishClientEvent(ctx, tx, existing, saved); err != nil {
+		return SaveClientOutput{}, serrors.Wrap(op, err)
+	}
 	if err := tx.AfterCommit(func(context.Context) { s.publishSaved(ctx, created, data, saved) }); err != nil {
 		return SaveClientOutput{}, err
 	}
@@ -299,9 +305,31 @@ func (in SaveClientInput) apply(existing client.Client, tenant uuid.UUID) (clien
 	return c, nil
 }
 
+// Natives is the native registration of the CRM services: the crm.client
+// entity, the clients list packages extend with columns, the client events and
+// the client contracts. The CRM module adds its routes (crm.Natives).
+func Natives(s *native.Set) error {
+	return s.Add(
+		native.Entity(data.CRMClient()), native.List(data.NativeClientList),
+		ClientCreatedEvent, ClientUpdatedEvent,
+		UpsertClient, SaveClient,
+	)
+}
+
+// Contracts is the set of the client contracts alone: the fallback of an
+// application without the extension runtime (native.ResolveDispatcher).
+func Contracts() *native.Set {
+	s := native.NewSet()
+	if err := s.Add(UpsertClient, SaveClient); err != nil {
+		// The two package-level contracts have distinct, valid IDs.
+		panic(err)
+	}
+	return s
+}
+
 // DirectClientDispatcher runs the client contracts in-process over svc,
 // authorizing with the request user's permissions: the dispatcher of an
 // application without the extension runtime.
 func DirectClientDispatcher(svc *ClientService) native.Dispatcher {
-	return native.NewDirect(native.Bind(native.Default, native.StaticDeps(svc)), native.WithAuthorizer(native.UserAuthorizer))
+	return native.NewDirect(native.Bind(Contracts(), native.StaticDeps(svc)), native.WithAuthorizer(native.UserAuthorizer))
 }

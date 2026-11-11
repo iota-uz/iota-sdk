@@ -116,7 +116,7 @@ func TestScenario13NativeCommandReplacement(t *testing.T) {
 	sneak := e.rpc(admin, "command", "e2e.vip.sneak", map[string]any{"client": map[string]string{"entity": "crm.client", "key": id}})
 	require.False(t, sneak.OK)
 	require.Equal(t, "denied", sneak.Error.Kind, "%+v", sneak.Error)
-	require.Equal(t, "runtime.notWritable", sneak.Error.Code)
+	require.Equal(t, "data.nativeWrite", sneak.Error.Code)
 	first, _, _ = e.clientName("+998901112201")
 	require.Equal(t, "Ann", first, "the client row is untouched")
 

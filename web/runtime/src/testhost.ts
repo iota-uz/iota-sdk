@@ -587,8 +587,11 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
       register(def)
       const st = s()
       if (isOverlay(def)) {
+        // An overlay row is readable only together with its base row (the Go store joins the base under its read rules).
         const row = st.overlay(def.id).get(ref.key)
-        return row === undefined ? null : project(def, row)
+        const base = st.tables.get(def.base.id)?.get(ref.key)
+        if (row === undefined || (base !== undefined && !visible(st, defs.get(def.base.id) ?? def.base, base))) return null
+        return project(def, row)
       }
       if (ref.entity !== def.id) fail('data.invalidRef', `ref to "${ref.entity}" used with entity "${def.id}"`)
       const row = st.table(def.id).get(ref.key)
@@ -734,11 +737,17 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
       register(def)
       if (def.entityKind === 'native') fail('data.nativeWrite', `${op} on native entity "${def.id}": native entities are read-only through generic data calls`)
     }
+    // Field access is symmetric (pkg/extruntime/data): a field the subject cannot read cannot be written by it.
+    const writable = (def: Def, values: Row): void => {
+      for (const k of Object.keys(values)) {
+        if (values[k] !== undefined && hiddenField(def, k)) fail('data.fieldNotAccessible', `"${k}" on ${def.id}`)
+      }
+    }
     const checkUnique = (def: AnyEntity, row: Row, exceptKey: string | undefined): void => {
       for (const [k, f] of Object.entries(def.fields)) {
         if (f.spec.unique !== true || row[k] === null || row[k] === undefined) continue
         for (const other of scope.store.table(def.id).values()) {
-          if (other.key !== exceptKey && JSON.stringify(other[k]) === JSON.stringify(row[k])) fail('data.uniqueViolation', `field "${k}" already holds this value`)
+          if (other.key !== exceptKey && JSON.stringify(other[k]) === JSON.stringify(row[k])) fail('data.unique', `field "${k}" already holds this value`)
         }
       }
     }
@@ -755,6 +764,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
       insert: async (def: AnyEntity, values: Row) => {
         guard()
         own(def, 'insert')
+        writable(def, values)
         const row: Row = {}
         for (const [k, f] of Object.entries(def.fields)) row[k] = values[k] !== undefined ? values[k] : (f.spec.default ?? null)
         for (const k of Object.keys(values)) if (!(k in def.fields)) fail('data.unknownField', `"${k}" on ${def.id}`)
@@ -772,6 +782,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
       update: async (def: AnyEntity, ref: Ref, patch: Row, opts?: { rowVersion?: number }) => {
         guard()
         own(def, 'update')
+        writable(def, patch)
         const existing = scope.store.table(def.id).get(ref.key)
         if (existing === undefined || !visible(scope.store, def, existing)) return fail('data.notFound', `${def.id} ${ref.key}`)
         if (opts?.rowVersion !== undefined && opts.rowVersion !== existing.rowVersion) {
@@ -802,6 +813,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
       put: async (overlay: AnyOverlay, base: Ref, values: Row) => {
         guard()
         register(overlay)
+        writable(overlay, values)
         const baseTable = scope.store.tables.get(overlay.base.id)
         if (baseTable !== undefined && !baseTable.has(base.key)) fail('data.notFound', `${overlay.base.id} ${base.key}`)
         const keys = Object.keys(values).filter((k) => values[k] !== undefined)
@@ -823,7 +835,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
         guard()
         const c = callable as { id: string; kind: string; atomic?: boolean }
         if (!(c.kind === 'operation' || (c.kind === 'command' && c.atomic === true))) {
-          fail('runtime.callNotAtomic', `tx.call accepts only operations and atomic commands, not ${c.kind === 'command' ? 'ordinary command ' : c.kind + ' '}"${c.id}"`)
+          fail('runtime.ordinaryCommandInTx', `tx.call accepts only operations and atomic commands, not ${c.kind === 'command' ? 'ordinary command ' : c.kind + ' '}"${c.id}"`)
         }
         return callCallable(tx as unknown as Tx, callable, input)
       },
@@ -975,7 +987,11 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
           inTx = false
         }
       },
-      call: (async (command: OrdinaryCommand | Command<string, AnySchema, AnySchema | undefined, true>, input: unknown) => invokeCommand(command, input, info.id)) as CommandContext['call'],
+      call: (async (command: OrdinaryCommand | Command<string, AnySchema, AnySchema | undefined, true>, input: unknown) => {
+        // Like the Go host: an intent never runs while this invocation holds an open transaction.
+        if (inTx) fail('runtime.intentInTransaction', 'ctx.call is not allowed while a transaction is open; finish the transaction first')
+        return invokeCommand(command, input, info.id)
+      }) as CommandContext['call'],
       signal: (async (target: WorkflowInstance, name: string, payload: unknown) => deliverSignal(checkSignal(target, name, payload, []))) as CommandContext['signal'],
     }
     return ctx

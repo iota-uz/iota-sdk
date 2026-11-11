@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"path/filepath"
 	"sync"
 
 	"github.com/google/uuid"
@@ -29,7 +30,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/notify"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
@@ -43,9 +43,13 @@ import (
 type Config struct {
 	// NodeBinary is the node executable. Default "node".
 	NodeBinary string
-	// WorkerScript is the path of the host worker (dist/host/worker.mjs of
-	// the SDK distribution). Required.
+	// WorkerScript is the path of the host worker. Default: the worker of
+	// the installed @iota-uz/sdk distribution (Dist).
 	WorkerScript string
+	// Dist locates the installed @iota-uz/sdk distribution the workers are
+	// taken from when WorkerScript or Builder is not set; its version must
+	// be the Go SDK's (ResolveDist).
+	Dist DistConfig
 	// PoolSize is the number of worker processes. Default 2.
 	PoolSize int
 	// CacheDir is where artifacts are materialized for the workers and the
@@ -54,24 +58,22 @@ type Config struct {
 	// Git bounds repository imports.
 	Git manage.GitConfig
 
-	// Builder is the build worker adapter (Check/Build/Test). Required.
+	// Builder is the build worker adapter (Check/Build/Test). Default: a
+	// build.NodeBuilder over the build worker of the distribution (Dist),
+	// working under CacheDir/build.
 	Builder build.Builder
-	// Kits renders the developer kit. Without it, builds cannot run.
+	// Kits renders the developer kit. Default: the default Builder (a
+	// NodeBuilder renders kits); without it, builds cannot run.
 	Kits build.KitGenerator
 
-	// Natives are the native entity descriptors. Default data.DefaultNatives.
-	Natives *data.NativeRegistry
-	// NativeResources are additional native contracts (pages, slots, ...)
-	// published in the catalog and the kit. Native events declared through
-	// events.RegisterNative and the Go-implemented commands, operations and
-	// queries of NativeContracts are included automatically.
-	NativeResources []manifest.Resource
-	// NativeContracts are the Go-implemented commands, operations and
-	// queries. Default native.Default.
-	NativeContracts *native.Set
-	// NativeLists are the native lists packages may extend with columns.
-	// Default: the CRM clients list.
-	NativeLists []string
+	// Natives is every native (Go-owned) resource of the application:
+	// entities, lists, events, Go-implemented operations/commands/queries,
+	// routes and declarations such as slots. It is composed once from the
+	// registrations of the application's modules (native.Compose(
+	// append(modules.Natives(), app.Natives)...)) and feeds the catalog, the
+	// developer kit, the data store, the invocation host and the UI slice.
+	// Required.
+	Natives *native.Set
 	// PermissionUniverse lists the permissions a trigger owner's rights are
 	// computed over. Default: the core permissions.
 	PermissionUniverse []permission.Permission
@@ -124,6 +126,9 @@ type Deps struct {
 	Notices   *notifications.Catalog
 	Renderers *notifications.ContentRenderers
 	Contacts  *notifications.ContactResolvers
+	// Policies composes delivery policies; the notify adapter installs the
+	// policies of active packages on it.
+	Policies *notifications.DeliveryPolicies
 	// Users loads the current rights of owners and initiators.
 	Users user.Repository
 	// NativeDeps resolves the dependencies of the Go defaults of native
@@ -147,7 +152,8 @@ type Runtime struct {
 	Data     *data.Store
 	Bindings *host.PgBindings
 	Catalog  *catalog.Catalog
-	Natives  *catalog.NativeSet
+	// Natives is Config.Natives.
+	Natives *native.Set
 	// NativeImpls are the Go defaults of the native contracts, bound to the
 	// application's dependencies.
 	NativeImpls *native.Implementations
@@ -182,6 +188,32 @@ func (g *guardRef) CheckWrite(ctx context.Context, tx pgx.Tx, sc spi.Scope, c sp
 	return g.h.CheckWrite(ctx, tx, sc, c)
 }
 
+// resolveWorkers fills WorkerScript, Builder and Kits from the installed
+// @iota-uz/sdk distribution when they are not set.
+func (cfg *Config) resolveWorkers() error {
+	if cfg.WorkerScript != "" && cfg.Builder != nil {
+		return nil
+	}
+	dist, err := ResolveDist(cfg.Dist)
+	if err != nil {
+		return err
+	}
+	if cfg.WorkerScript == "" {
+		cfg.WorkerScript = dist.HostWorker
+	}
+	if cfg.Builder == nil {
+		b, err := build.NewNodeBuilder(build.Config{Node: cfg.NodeBinary, WorkerScript: dist.BuildWorker, WorkDir: filepath.Join(cfg.CacheDir, "build")})
+		if err != nil {
+			return err
+		}
+		cfg.Builder = b
+		if cfg.Kits == nil {
+			cfg.Kits = b
+		}
+	}
+	return nil
+}
+
 // New wires the runtime. It starts the Node pool but no background loops;
 // call Start.
 func New(cfg Config, deps Deps) (*Runtime, error) {
@@ -189,16 +221,16 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	switch {
 	case deps.DB == nil:
 		return nil, serrors.New(serrors.Invalid, "extruntime: database is required").WithOp(op)
-	case cfg.WorkerScript == "", cfg.CacheDir == "":
-		return nil, serrors.New(serrors.Invalid, "extruntime: WorkerScript and CacheDir are required").WithOp(op)
-	case cfg.Builder == nil:
-		return nil, serrors.New(serrors.Invalid, "extruntime: Builder is required").WithOp(op)
+	case cfg.CacheDir == "":
+		return nil, serrors.New(serrors.Invalid, "extruntime: CacheDir is required").WithOp(op)
+	case cfg.Natives == nil:
+		return nil, serrors.New(serrors.Invalid, "extruntime: Natives is required (compose the module registrations with native.Compose(modules.Natives()...))").WithOp(op)
+	}
+	if err := cfg.resolveWorkers(); err != nil {
+		return nil, serrors.Wrap(op, err)
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
-	}
-	if cfg.Natives == nil {
-		cfg.Natives = data.DefaultNatives()
 	}
 	if len(cfg.PermissionUniverse) == 0 {
 		cfg.PermissionUniverse = corePerms.Permissions
@@ -212,20 +244,13 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	if rt.Artifacts, err = artifact.NewStore(deps.DB, cfg.CacheDir); err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
-	extra := append([]manifest.Resource{}, cfg.NativeResources...)
-	if cfg.UI != nil {
-		for id, path := range cfg.UI.NativeRoutes {
-			extra = append(extra, manifest.Resource{ID: id, Kind: manifest.ResRoute, Path: path})
-		}
-	}
-	if rt.Natives, err = catalog.DefaultNatives(cfg.Natives, cfg.NativeContracts, cfg.NativeLists, extra...); err != nil {
-		return nil, serrors.Wrap(op, err)
-	}
-	rt.NativeImpls = native.Bind(cfg.NativeContracts, deps.NativeDeps)
-	rt.Catalog = catalog.New(deps.DB, rt.Natives)
+	rt.Natives = cfg.Natives
+	rt.NativeImpls = native.Bind(cfg.Natives, deps.NativeDeps)
+	rt.Catalog = catalog.New(deps.DB, catalog.Natives(cfg.Natives))
+	entities := cfg.Natives.EntityRegistry()
 	mcfg := manage.Config{
 		DB: deps.DB, Builder: cfg.Builder, Kits: cfg.Kits, Artifacts: rt.Artifacts, Catalog: rt.Catalog,
-		Natives: cfg.Natives, Git: cfg.Git, Logger: cfg.Logger,
+		Natives: entities, Git: cfg.Git, Logger: cfg.Logger,
 	}
 	if rt.Subjects != nil {
 		mcfg.Subjects = rt.Subjects
@@ -234,7 +259,7 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 		return nil, serrors.Wrap(op, err)
 	}
 	guard := &guardRef{}
-	rt.Data = data.NewStore(rt.Catalog, cfg.Natives, guard)
+	rt.Data = data.NewStore(rt.Catalog, entities, guard)
 	rt.Bindings = host.NewPgBindings(deps.DB, rt.Manage)
 	rt.Outbox = events.NewOutbox(rt.Catalog)
 
@@ -304,7 +329,7 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 			owners = rt.Subjects
 		}
 		rt.Notify, err = notify.NewAdapter(notify.Config{
-			Catalog: rt.Catalog, Notices: deps.Notices, Renderers: deps.Renderers, Contacts: deps.Contacts,
+			Catalog: rt.Catalog, Notices: deps.Notices, Renderers: deps.Renderers, Contacts: deps.Contacts, Policies: deps.Policies,
 			Runner: rt.Host, Artifacts: rt.Manage, Manifests: rt.Manage, Owners: rt.Manage, Subjects: owners,
 			Published: notify.PgPublished{DB: deps.DB}, Logger: cfg.Logger,
 		})

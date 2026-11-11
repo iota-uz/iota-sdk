@@ -16,8 +16,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
@@ -82,8 +82,11 @@ func TestUserService_Create_PublishesUserCreatedEventInTheCreatingTransaction(t 
 }
 
 func TestUserCreatedEvent_IsInTheNativeCatalogWithAVersionedPayload(t *testing.T) {
-	res, ok := events.Default.Lookup(services.UserCreatedEventID)
-	require.True(t, ok)
+	set, err := native.Compose(services.Natives)
+	require.NoError(t, err)
+	def, ok := set.Event(services.UserCreatedEventID)
+	require.True(t, ok, "the core module contributes the event to the native set")
+	res := def.Resource()
 	require.Equal(t, manifest.ResEvent, res.Kind)
 	require.Equal(t, "core.user", res.Subject)
 	require.NotNil(t, res.Payload)

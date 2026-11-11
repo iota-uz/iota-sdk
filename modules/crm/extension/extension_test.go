@@ -8,13 +8,17 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/crm/extension"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 )
 
 func TestResourcesDeclareTheTypedRouteAndTheSlot(t *testing.T) {
-	res := extension.Resources("/crm/clients/")
-	require.Len(t, res, 2)
+	set := native.NewSet()
+	require.NoError(t, set.Add(extension.Items("/crm/clients/")...))
+	route, ok := set.Resource(extension.RouteClientView)
+	require.True(t, ok)
+	slot, ok := set.Resource(extension.SlotClientSidebar)
+	require.True(t, ok)
 
-	route := res[0]
 	assert.Equal(t, extension.RouteClientView, route.ID)
 	assert.Equal(t, manifest.ResRoute, route.Kind)
 	assert.Equal(t, "/crm/clients/:id", route.Path, "the base path decides the pattern")
@@ -23,7 +27,6 @@ func TestResourcesDeclareTheTypedRouteAndTheSlot(t *testing.T) {
 	assert.Equal(t, manifest.KindInt, route.Params.Properties[0].Type.Kind)
 	assert.Equal(t, "Client.Read", route.Permission, "a package page replacing the screen inherits the native requirement")
 
-	slot := res[1]
 	assert.Equal(t, extension.SlotClientSidebar, slot.ID)
 	assert.Equal(t, manifest.ResSlot, slot.Kind)
 	assert.Empty(t, slot.Target, "a declaration, not a contribution")
