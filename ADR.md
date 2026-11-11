@@ -2,6 +2,7 @@
 
 ## Platform
 
+- **UI расширений читает один снимок активации, страницы и замены отдаёт один контроллер** — [запись](adr/platform/extension-ui-reads-one-activated-snapshot.md) · accepted · 2026-11-11 (#416, #953)
 - **Один renderer оболочки получает существующий outlet и откатывается на стандартную оболочку** — [запись](adr/platform/shell-renderer-owns-outlet-and-falls-back.md) · accepted · 2026-11-10 (#953)
 
 - **Базовая навигация оболочки публикуется layouts.Authenticated и читается одним реестром документа** — [запись](adr/platform/shell-context-is-published-by-authenticated-layout.md) · accepted · 2026-11-10 (#953)
