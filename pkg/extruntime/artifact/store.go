@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -59,11 +60,15 @@ type Store struct {
 
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex
+	// verified are the hashes whose materialized directory this process has
+	// checked against the stored archive (or wrote itself).
+	verified map[string]bool
 }
 
 var _ ArtifactStore = (*Store)(nil)
 
-// NewStore creates the cache directory.
+// NewStore creates the cache directory as a private directory of the current
+// user (0700); an existing directory of another user is refused.
 func NewStore(db *pgxpool.Pool, cacheDir string) (*Store, error) {
 	if db == nil || cacheDir == "" {
 		return nil, serrors.New(serrors.Invalid, "artifact store: database and cache directory are required")
@@ -72,10 +77,13 @@ func NewStore(db *pgxpool.Pool, cacheDir string) (*Store, error) {
 	if err != nil {
 		return nil, serrors.Wrap(opDir, err)
 	}
-	if err := os.MkdirAll(abs, 0o755); err != nil {
+	if err := os.MkdirAll(abs, 0o700); err != nil {
 		return nil, serrors.Wrap(opDir, err)
 	}
-	return &Store{db: db, cacheDir: abs, locks: map[string]*sync.Mutex{}}, nil
+	if err := securePrivateDir(abs); err != nil {
+		return nil, err
+	}
+	return &Store{db: db, cacheDir: abs, locks: map[string]*sync.Mutex{}, verified: map[string]bool{}}, nil
 }
 
 // CacheDir is the absolute materialization root.
@@ -131,24 +139,36 @@ func (s *Store) lock(hash string) *sync.Mutex {
 }
 
 // Dir materializes a build artifact and returns its directory. The directory
-// appears atomically (rename), so a directory that exists is complete.
+// appears atomically (rename), so a directory that exists is complete. A
+// directory this process did not write is not trusted: before its first use
+// in this process its files are compared with the stored archive, and a
+// directory that differs (a leftover, a damaged copy, a planted one) is
+// replaced by a fresh materialization.
 func (s *Store) Dir(ctx context.Context, hash string) (string, error) {
 	if !ValidHash(hash) {
 		return "", serrors.New(serrors.Invalid, "artifact hash "+hash+" is not valid").WithOp(opDir)
 	}
 	dir := filepath.Join(s.cacheDir, hash)
-	if st, err := os.Stat(dir); err == nil && st.IsDir() {
-		return dir, nil
+	if s.isVerified(hash) {
+		if st, err := os.Lstat(dir); err == nil && st.IsDir() {
+			return dir, nil
+		}
 	}
 	l := s.lock(hash)
 	l.Lock()
 	defer l.Unlock()
-	if st, err := os.Stat(dir); err == nil && st.IsDir() {
-		return dir, nil
-	}
 	tree, err := s.Tree(ctx, hash)
 	if err != nil {
 		return "", err
+	}
+	if st, err := os.Lstat(dir); err == nil {
+		if st.IsDir() && sameTree(dir, tree) {
+			s.markVerified(hash)
+			return dir, nil
+		}
+		if err := os.RemoveAll(dir); err != nil {
+			return "", serrors.Wrap(opDir, err)
+		}
 	}
 	tmp, err := os.MkdirTemp(s.cacheDir, ".tmp-"+hash[:8]+"-")
 	if err != nil {
@@ -174,13 +194,54 @@ func (s *Store) Dir(ctx context.Context, hash string) (string, error) {
 		}
 	}
 	if err := os.Rename(tmp, dir); err != nil {
-		if st, serr := os.Stat(dir); serr == nil && st.IsDir() {
-			return dir, nil
-		}
 		return "", serrors.Wrap(opDir, err)
 	}
 	cleanup = false
+	s.markVerified(hash)
 	return dir, nil
+}
+
+func (s *Store) isVerified(hash string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.verified[hash]
+}
+
+func (s *Store) markVerified(hash string) {
+	s.mu.Lock()
+	s.verified[hash] = true
+	s.mu.Unlock()
+}
+
+// sameTree reports whether dir holds exactly the files of tree: nothing
+// extra, nothing missing, no symlink or special file, identical bytes.
+func sameTree(dir string, tree build.Tree) bool {
+	disk := build.Tree{}
+	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !d.Type().IsRegular() {
+			return errors.New("not a regular file")
+		}
+		rel, err := filepath.Rel(dir, p)
+		if err != nil {
+			return err
+		}
+		if len(disk) >= len(tree) {
+			return errors.New("more files than the archive")
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		disk[filepath.ToSlash(rel)] = b
+		return nil
+	})
+	return err == nil && len(disk) == len(tree) && TreeHash(disk) == TreeHash(tree)
 }
 
 // OpenContext opens one file of a build artifact.

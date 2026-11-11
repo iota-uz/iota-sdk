@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -66,7 +68,7 @@ func TestRuntimeConfig_TranslatesTheSection(t *testing.T) {
 		UI:           extruntimeconfig.UIConfig{HostManifest: hostManifest(t, sdkidentity.ReleaseVersion)},
 		Configurator: extruntimeconfig.ConfiguratorConfig{Enabled: true, Path: "/admin/ext"},
 		Endpoints:    extruntimeconfig.EndpointsConfig{PublicTenant: tenant.String(), MaxBodyBytes: 4096},
-		Git:          extruntimeconfig.GitConfig{AllowedSchemes: "https"},
+		Git:          extruntimeconfig.GitConfig{AllowedSchemes: "https", AllowedHosts: "Git.Example.com,*.corp.example.com", AllowPrivateNetworks: true},
 	}
 	registry := mcp.NewRegistry()
 
@@ -80,6 +82,8 @@ func TestRuntimeConfig_TranslatesTheSection(t *testing.T) {
 	require.True(t, cfg.DisableBackground)
 	require.Equal(t, int64(4096), cfg.Endpoints.MaxBodyBytes)
 	require.Equal(t, []string{"https"}, cfg.Git.AllowedSchemes)
+	require.Equal(t, []string{"git.example.com", "*.corp.example.com"}, cfg.Git.AllowedHosts)
+	require.True(t, cfg.Git.AllowPrivateNetworks)
 	require.NotNil(t, cfg.Natives)
 	require.NotNil(t, cfg.UI)
 	require.Equal(t, "/assets/host.js", cfg.UI.Host.Entry)
@@ -167,4 +171,19 @@ func TestRuntimeConfig_NativeSetErrorsSurface(t *testing.T) {
 	section := extruntimeconfig.Config{Enabled: true, NodeBinary: "node", PoolSize: 2, DistDir: fakeDist(t, sdkidentity.ReleaseVersion)}
 	_, _, err := wiring.RuntimeConfig(section, wiring.Options{Natives: []native.Contributor{func(*native.Set) error { return os.ErrInvalid }}})
 	require.ErrorIs(t, err, os.ErrInvalid)
+}
+
+// The artifact cache defaults to a directory of the user's own cache, not to a
+// name in the shared temporary directory.
+func TestDefaultCacheDirIsPerUser(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", "")
+	t.Setenv("HOME", home)
+	dir := wiring.DefaultCacheDir()
+	require.True(t, strings.HasPrefix(dir, home), "%s is below the user's home", dir)
+
+	t.Setenv("HOME", "")
+	dir = wiring.DefaultCacheDir()
+	require.NotEqual(t, filepath.Join(os.TempDir(), "iota-extruntime"), dir, "a shared, guessable name")
+	require.Contains(t, dir, "iota-extruntime-"+strconv.Itoa(os.Geteuid()))
 }

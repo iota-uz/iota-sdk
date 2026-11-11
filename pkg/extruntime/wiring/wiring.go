@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -132,6 +133,18 @@ func (c *component) section(b *composition.Builder) (extruntimeconfig.Config, bo
 	return *loaded, true, nil
 }
 
+// DefaultCacheDir is the artifact cache when none is configured: a directory
+// of the user's own cache (os.UserCacheDir), never a name in the shared
+// temporary directory that another local user could create first. Without a
+// user cache directory (no home) it is a per-user name below the temporary
+// directory; the store refuses a directory another user owns.
+func DefaultCacheDir() string {
+	if base, err := os.UserCacheDir(); err == nil && base != "" {
+		return filepath.Join(base, "iota-extruntime")
+	}
+	return filepath.Join(os.TempDir(), "iota-extruntime-"+strconv.Itoa(os.Geteuid()))
+}
+
 // RuntimeConfig translates the section into the runtime's configuration and
 // verifies the installed @iota-uz/sdk distribution (the version and the
 // presence of both workers), so a deployment that cannot run the workers
@@ -153,7 +166,7 @@ func RuntimeConfig(section extruntimeconfig.Config, opts Options) (runtime.Confi
 	}
 	cacheDir := section.CacheDir
 	if cacheDir == "" {
-		cacheDir = filepath.Join(os.TempDir(), "iota-extruntime")
+		cacheDir = DefaultCacheDir()
 	}
 	cfg := runtime.Config{
 		NodeBinary:        section.NodeBinary,

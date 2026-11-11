@@ -112,7 +112,9 @@ type Config struct {
 	DistDir string `koanf:"distdir"`
 	// CacheDir is where artifacts are materialized for the workers and the UI
 	// asset route. It is a cache rebuilt from the database, so it does not
-	// need to persist. Default: <os temp dir>/iota-extruntime.
+	// need to persist. It is a private (0700) directory of the user running the
+	// service. Default: <os.UserCacheDir()>/iota-extruntime, or
+	// <os temp dir>/iota-extruntime-<uid> without a user cache directory.
 	CacheDir string `koanf:"cachedir"`
 	// WorkflowConcurrency is the number of workflow instances the durable
 	// engine runs at once. Default: the engine's own.

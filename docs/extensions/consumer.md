@@ -67,7 +67,7 @@ application composes exactly as before.
 | `EXTRUNTIME_NODEBINARY` | `node` | Node executable of the workers. |
 | `EXTRUNTIME_APPROOT` | working dir | JS root holding `node_modules/@iota-uz/sdk`. |
 | `EXTRUNTIME_DISTDIR` | `$IOTA_SDK_DIST`, else `<APPROOT>/node_modules/@iota-uz/sdk` | The `@iota-uz/sdk` package directory. |
-| `EXTRUNTIME_CACHEDIR` | `<tmp>/iota-extruntime` | Where artifacts are materialized for the workers and the asset route. A cache rebuilt from the database: it need not persist or be shared between instances. |
+| `EXTRUNTIME_CACHEDIR` | `<user cache dir>/iota-extruntime` | Where artifacts are materialized for the workers and the asset route. A cache rebuilt from the database: it need not persist or be shared between instances. It is created `0700` and must belong to the user running the service (another user's directory is refused, a looser mode is tightened); a directory found under an artifact's name is compared with the stored archive before it is used and replaced when it differs. Without a user cache directory (no `$HOME`) the default is `<tmp>/iota-extruntime-<uid>`. |
 | `EXTRUNTIME_WORKFLOWCONCURRENCY` | engine default | Workflow instances run at once. |
 | `EXTRUNTIME_DISABLEBACKGROUND` | `false` | Keeps the workflow engine, event dispatcher and scheduler of this process off. The API, endpoints and RPC are unaffected. |
 | `EXTRUNTIME_UI_HOSTMANIFEST` | – | Path of the client-host manifest JSON of the application's frontend build. Setting it mounts the UI slice: package pages, navigation, shell bindings, `/_ext/rpc` and `/_ext/assets`. Without it the browser RPC does not exist. |
