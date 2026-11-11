@@ -10,6 +10,7 @@ prints goes to stderr). Built by `scripts/build-worker.mjs` into `dist/build/` (
 | `worker.mjs` | entry; `typescript` and `@babel/core` are bundled in, `esbuild` is resolved at run time (optional peer of `@iota-uz/sdk`, or `NODE_PATH`) |
 | `extract.mjs` | child: imports the built bundles and runs `collectManifest` (isolated from the worker) |
 | `test-child.mjs` | child: runs `*.test.ts` bundles with outbound network blocked |
+| `../cli/iota-ext.mjs` | the author CLI (`src/cli`): drives this worker; see `docs/extensions/authoring.md` |
 | `vendor/` | TypeScript libs, `@types/node`, Solid (types + server build) the worker serves to packages |
 
 Requires the host loader (`../host/register.mjs`, `../host/sdk/*.mjs`) next to it: artifacts keep
@@ -27,11 +28,14 @@ extraction child, test child) registers `host/loader.ts` to resolve them.
   manifest extraction (`manifest.*`) → artifacts below `<outDir>/artifacts`:
   `contracts.mjs`, `server.mjs`, `client/index-<hash>.js`, `client/chunk-<hash>.js`,
   `client/manifest.json`. `check` runs the same pipeline and writes nothing.
-* `test` — bundles every `*.test.ts` (SDK external, kit bundled), runs the cases registered with
-  `test()` from `@iota-uz/sdk/runtime/testing` in `test-child.mjs`. `fetch`, `net` connections and `dns`
+* `test` — typechecks the package first (`typecheck: false` skips it; type errors are returned as `diagnostics` and
+  nothing runs), then bundles every `*.test.ts` (optionally only those matching `filter`; SDK external, kit bundled, with
+  an external source map) and runs the cases registered with `test()` from `@iota-uz/sdk/runtime/testing` in
+  `test-child.mjs`. A failing case carries `message`, the source-mapped `location` in the author's file and the
+  `frames` (platform frames removed), never the temp bundle path. `fetch`, `net` connections and `dns`
   are blocked; the only way out is a fake route of the host's `fakes.http`.
-* `kit` — `{sources:[{namespace, resources, contractsModule?}]}` → `@iota-kit/<ns>` modules
-  (`index.js`, `index.d.ts`, `package.json`) in dependency order.
+* `kit` — `{sources:[{namespace, resources, contractsModule?, lists?}]}` (a catalog snapshot's sources) → `@iota-kit/<ns>` modules
+  (`index.js`, `index.d.ts`, `package.json`) in dependency order; native entities carry their `keyType`.
 
 ## Graph rules (all diagnostics are `file:line:column` in the author's source)
 

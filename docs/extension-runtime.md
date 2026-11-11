@@ -54,6 +54,15 @@ query API or workflow engine; changes to anything in this file go through its ow
 
 ## 2. TypeScript public API (`@iota-uz/sdk/runtime*`)
 
+> **Superseded where it differs.** The examples in this section are the original design sketch. §9 and §9.1 (and the
+> author-facing manual [`extensions/authoring.md`](extensions/authoring.md)) are authoritative; the examples below are
+> stale in places: write rules are `writeRule(id, Entity, …)`, operation guards `guard(id, Operation, …)` and ordinary
+> command prechecks `precheck(id, Command, …)` (not `guard(Policy, "write", …)`); errors are thrown as `Err.of(params)` or
+> `validation(Issue.at(path, params))` (there is no `tx.issue`); native lists and entities come from the generated kit
+> (`crm.Clients`, `core.User`, whose names depend on the catalog) rather than `crm.lists.Clients`; `tx.start` needs
+> `{ key }` outside subscriptions and workflows; `tx.get(overlay, ref)` and `tx.put(overlay, ref, values)` replace
+> overlay reads/writes; `column`'s `id` is the full namespaced ID; `t.ref`/`field.ref` take entities only.
+
 Subpaths (published inside the single `@iota-uz/sdk` distribution):
 
 * `@iota-uz/sdk/runtime` — pure: `t` (value schema), `entity`, `overlay`, `field`, `query`,

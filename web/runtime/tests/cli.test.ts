@@ -137,7 +137,7 @@ export const b = tx.start(c.Note as never, {})
       expect(r.err).toContain('check failed: ')
       const json = iota(dir(), 'check', '--json')
       expect(json.status).toBe(1)
-      expect(JSON.parse(json.out)).toMatchObject({ ok: false, diagnostics: [{ file: 'src/broken.ts', severity: 'error' }] })
+      expect(JSON.parse(json.out)).toMatchObject({ ok: false, diagnostics: expect.arrayContaining([expect.objectContaining({ file: 'src/broken.ts', severity: 'error' })]) })
       // `test` does not run a package that does not compile.
       const t = iota(dir(), 'test')
       expect(t.status).toBe(1)

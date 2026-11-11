@@ -127,6 +127,19 @@ export const reminder = implement(c.Reminder, async (wf, input) => {
   return { reminded: true }
 })
 
+// ---- replacing a native command
+// crm.SaveClient is the published intent behind the client forms; its Go default calls the operation crm.UpsertClient
+// in one transaction. This implementation is only a candidate: it runs when an administrator binds it to the command
+// (and the Go default returns when the binding is removed). It keeps the invariants by writing through the same
+// operation, and every guard on that operation (ours included) still applies.
+export const saveClient = implement(crm.SaveClient, async (ctx, input) =>
+  ctx.transaction(async (tx) => {
+    const saved = await tx.call(crm.UpsertClient, input)
+    if (saved.created) await tx.call(c.AdjustPoints, { client: saved.client, delta: 50 })
+    return saved
+  }),
+)
+
 // ---- notifications: contact data of a record, and per-channel templates
 export const clientContacts = implement(c.ClientContacts, async (q, record) => {
   const client = await q.get(crm.Client, record)

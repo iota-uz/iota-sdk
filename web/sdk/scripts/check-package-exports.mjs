@@ -1,4 +1,4 @@
-import { access, readFile } from 'node:fs/promises'
+import { access, lstat, readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -28,8 +28,12 @@ const expectedExports = [
 if (JSON.stringify(Object.keys(packageJSON.exports).sort()) !== JSON.stringify(expectedExports.sort())) {
   throw new Error(`unexpected public exports: ${Object.keys(packageJSON.exports).join(', ')}`)
 }
-if (Object.keys(packageJSON.dependencies ?? {}).length !== 0) {
-  throw new Error('the public package must not expose implementation dependencies')
+// esbuild is the one runtime dependency: the shipped build worker and `iota-ext` require it at run time.
+if (JSON.stringify(Object.keys(packageJSON.dependencies ?? {})) !== JSON.stringify(['esbuild'])) {
+  throw new Error(`the public package must depend on esbuild and nothing else, got ${Object.keys(packageJSON.dependencies ?? {}).join(', ')}`)
+}
+if (packageJSON.peerDependencies?.esbuild || packageJSON.peerDependenciesMeta?.esbuild) {
+  throw new Error('esbuild is a regular dependency, not a peer')
 }
 if (packageJSON.peerDependencies?.react || packageJSON.peerDependencies?.['react-dom']) {
   throw new Error('React must not be a public runtime dependency')
@@ -50,11 +54,54 @@ for (const file of [
   'dist/runtime/build/vendor/lib/lib.es2022.d.ts',
   'dist/runtime/build/vendor/node-types/package.json',
   'dist/runtime/build/vendor/node_modules/solid-js/package.json',
+  'dist/runtime/build/vendor/node_modules/csstype/package.json',
+  'dist/runtime/build/vendor/node_modules/seroval/package.json',
+  'dist/runtime/build/vendor/node_modules/seroval-plugins/package.json',
+  'dist/runtime/cli/iota-ext.mjs',
+  'dist/runtime/catalog/sdk-natives.json',
+  'dist/runtime/README.md',
+  'dist/runtime/docs/authoring.md',
+  'dist/runtime/docs/example/package.json',
 ]) {
   await access(path.join(root, file))
 }
-if (!packageJSON.peerDependencies?.esbuild) {
-  throw new Error('the build worker needs esbuild as an (optional) peer dependency')
+
+// The author CLI: a `bin` that points at a real, executable, shebanged file.
+if (packageJSON.bin?.['iota-ext'] !== './dist/runtime/cli/iota-ext.mjs') {
+  throw new Error('the package must expose the iota-ext bin at ./dist/runtime/cli/iota-ext.mjs')
+}
+{
+  const cli = path.join(root, 'dist/runtime/cli/iota-ext.mjs')
+  const head = (await readFile(cli, 'utf8')).slice(0, 40)
+  if (!head.startsWith('#!/usr/bin/env node')) throw new Error('iota-ext.mjs must start with a node shebang')
+  if (((await lstat(cli)).mode & 0o111) === 0) throw new Error('iota-ext.mjs must be executable')
+}
+
+// The SDK's native catalog snapshot the offline kit is generated from.
+{
+  const snapshot = JSON.parse(await readFile(path.join(root, 'dist/runtime/catalog/sdk-natives.json'), 'utf8'))
+  if (snapshot.schema !== 'iota.catalog/1' || !Array.isArray(snapshot.sources)) throw new Error('sdk-natives.json is not a catalog snapshot')
+  const ids = new Set(snapshot.sources.flatMap((s) => s.resources.map((r) => r.id)))
+  for (const id of ['core.user', 'crm.client', 'crm.commands.saveClient', 'crm.operations.upsertClient']) {
+    if (!ids.has(id)) throw new Error(`sdk-natives.json lacks the native resource ${id}`)
+  }
+  for (const s of snapshot.sources) {
+    for (const r of s.resources) {
+      if (r.kind === 'entity' && !['int64', 'uuid', 'string'].includes(r.keyType)) throw new Error(`native entity ${r.id} has no keyType`)
+    }
+  }
+}
+
+// The vendored tree must hold real files: a symlink survives neither npm pack nor another machine.
+{
+  const walk = async (dir) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name)
+      if (entry.isSymbolicLink()) throw new Error(`dist contains a symbolic link: ${path.relative(root, file)}`)
+      if (entry.isDirectory()) await walk(file)
+    }
+  }
+  await walk(path.join(root, 'dist/runtime/build/vendor'))
 }
 
 const targets = []

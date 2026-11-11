@@ -132,7 +132,7 @@ function failure(err: unknown): Pick<CaseResult, "message" | "location" | "frame
   if (!(err instanceof Error)) return { message: String(err) };
   const frames = (err.stack ?? "").split("\n").map(mapFrame).filter((f): f is Frame => f !== undefined);
   const first = frames.find((f) => f.location !== undefined)?.location;
-  const generic = err.name === "Error" || err.name === "AssertionError";
+  const generic = err.name === "Error";
   const code = (err as { code?: unknown }).code;
   const head = generic ? err.message : `${err.name}${typeof code === "string" ? ` [${code}]` : ""}: ${err.message}`;
   return {

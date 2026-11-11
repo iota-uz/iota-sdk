@@ -88,6 +88,16 @@ await chmod(join(out, "cli", "iota-ext.mjs"), 0o755);
 await mkdir(join(out, "catalog"), { recursive: true });
 await cp(join(root, "catalog", "sdk-natives.json"), join(out, "catalog", "sdk-natives.json"));
 
+// Author documentation shipped next to the CLI: a short README, the guide and its complete example package.
+await cp(join(root, "DIST_README.md"), join(out, "README.md"));
+const docs = resolve(root, "../../docs/extensions");
+await mkdir(join(out, "docs"), { recursive: true });
+await cp(join(docs, "authoring.md"), join(out, "docs", "authoring.md"));
+await cp(join(docs, "example"), join(out, "docs", "example"), {
+  recursive: true,
+  filter: (src) => !/[\\/](node_modules|\.iota)([\\/]|$)/.test(src),
+});
+
 // Vendored assets: TypeScript libs, Node typings, Solid (types for typecheck, server build for extraction).
 const vendor = join(buildDir, "vendor");
 const pkgDir = (name) => dirname(require.resolve(`${name}/package.json`));

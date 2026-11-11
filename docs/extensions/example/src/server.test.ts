@@ -3,6 +3,7 @@ import {
   assert, createTestHost, fixture, overlayFixture, test, type TestHostOptions,
 } from "@iota-uz/sdk/runtime/testing"
 import { ref } from "@iota-uz/sdk/runtime"
+import { implement } from "@iota-uz/sdk/runtime/server"
 import * as core from "@iota-kit/core"
 import * as crm from "@iota-kit/crm"
 import * as c from "./contracts"
@@ -106,4 +107,16 @@ test("a reminder sleeps, waits for the opt-out signal and sends one SMS", async 
   const done = await run.run()
   assert.deepEqual(done.status === "completed" ? done.value : null, { reminded: true })
   assert.deepEqual(h.fakes.sms.delivered.map((m) => m.text), ["You have 55 loyalty points."])
+})
+
+test("a replacement of a native command writes through the native operation", async () => {
+  // Native contracts have no handler in a test host: bind a double of the Go default.
+  const upsert = implement(crm.UpsertClient, async (_tx, input) => ({ client: input.client ?? ali.ref, created: input.client === undefined }))
+  const h = host({ implementations: [upsert, s.saveClient, s.adjustPoints] })
+  const out = await s.saveClient.handler(h.command(), { firstName: "Vali" })
+  assert.equal(out.created, true)
+  assert.equal(h.overlayRow(c.ClientLoyalty, ali.ref)?.points, 50)
+  const again = await s.saveClient.handler(h.command(), { client: ali.ref, phone: "+998900000000" })
+  assert.equal(again.created, false)
+  assert.equal(h.overlayRow(c.ClientLoyalty, ali.ref)?.points, 50)
 })
