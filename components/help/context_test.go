@@ -29,6 +29,22 @@ func TestContext_Render(t *testing.T) {
 	require.Contains(t, html, `role="dialog"`)
 }
 
+func TestContext_TriggerStyleAndPanelPlacement(t *testing.T) {
+	var buf bytes.Buffer
+	err := Context(ContextProps{Title: "Policy status"}).Render(context.Background(), &buf)
+	require.NoError(t, err)
+
+	html := buf.String()
+	require.Contains(t, html, "rounded-full")
+	require.Contains(t, html, "text-200")
+	require.Contains(t, html, "aria-expanded:text-brand-500")
+	require.NotContains(t, html, "border-default bg-surface-300 text-gray-700 shadow-sm")
+	require.Contains(t, html, "calc(100vw-2rem)")
+	require.Contains(t, html, `x-ref="trigger"`)
+	require.Contains(t, html, `x-ref="panel"`)
+	require.Contains(t, html, "document.documentElement.clientWidth")
+}
+
 func TestHint_Render(t *testing.T) {
 	var buf bytes.Buffer
 	err := Hint(HintProps{
