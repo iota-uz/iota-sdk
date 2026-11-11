@@ -183,3 +183,27 @@ func TestComponentComposesIntoAnApplication(t *testing.T) {
 	_, err = ui.NewComponent(ui.Config{}, nil)
 	require.Error(t, err, "a component without a source is refused")
 }
+
+func TestPGSourceServesNoStaleSnapshotAfterAGenerationChange(t *testing.T) {
+	e := itf.Setup(t, itf.WithComponents(modules.Components()...))
+	ctx := e.Ctx
+	mans := &fakeManifests{rev: "m1", pkgs: []ui.ActivePackage{shellPkg()}}
+	var gen uint64
+	src := ui.NewPGSource(e.Tx, mans, time.Hour).WithGeneration(func() uint64 { return gen })
+
+	before, err := src.Snapshot(ctx)
+	require.NoError(t, err)
+	require.Empty(t, before.Bindings)
+
+	_, err = e.Tx.Exec(ctx, `INSERT INTO extruntime.bindings (slot_kind, target_id, package, version, export)
+		VALUES ('shell', 'app', '@acme/shell', 'v2', 'shell')`)
+	require.NoError(t, err)
+	cached, err := src.Snapshot(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cached.Bindings, "within the TTL and the same generation the cache is served")
+
+	gen++ // a binding or activation changed (catalog invalidation)
+	after, err := src.Snapshot(ctx)
+	require.NoError(t, err)
+	require.Len(t, after.Bindings, 1, "a new generation is read through, whatever the TTL")
+}

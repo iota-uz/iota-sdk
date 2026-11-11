@@ -68,6 +68,14 @@ func (c *Catalog) OnChange(fn func()) {
 	c.mu.Unlock()
 }
 
+// Generation increases with every invalidation (local or from another
+// replica); caches derived from the catalog compare it to stay fresh.
+func (c *Catalog) Generation() uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.gen
+}
+
 // Invalidate drops the cached snapshot.
 func (c *Catalog) Invalidate() {
 	c.mu.Lock()

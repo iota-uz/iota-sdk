@@ -27,9 +27,16 @@ type PGSource struct {
 	ttl       time.Duration
 	now       func() time.Time
 
+	// generation, when set, reports a counter that changes whenever an
+	// activation or binding changed (catalog invalidation); a cached snapshot
+	// of another generation is never served, so a change in this process or a
+	// notified one in another replica applies on the next request.
+	generation func() uint64
+
 	mu     sync.Mutex
 	cached *Snapshot
 	at     time.Time
+	gen    uint64
 }
 
 var _ Source = (*PGSource)(nil)
@@ -39,6 +46,12 @@ func NewPGSource(db Querier, manifests ManifestSource, ttl time.Duration) *PGSou
 	return &PGSource{db: db, manifests: manifests, ttl: ttl, now: time.Now}
 }
 
+// WithGeneration makes the cache follow a change counter (catalog.Generation).
+func (s *PGSource) WithGeneration(generation func() uint64) *PGSource {
+	s.generation = generation
+	return s
+}
+
 // Snapshot reads the activated packages and the open screen and shell
 // bindings. A closed binding (active_to set) is not part of it, so reverting
 // a replacement takes effect on the next read.
@@ -46,7 +59,11 @@ func (s *PGSource) Snapshot(ctx context.Context) (*Snapshot, error) {
 	const op = serrors.Op("extruntime.ui.PGSource.Snapshot")
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.cached != nil && s.ttl > 0 && s.now().Sub(s.at) < s.ttl {
+	var gen uint64
+	if s.generation != nil {
+		gen = s.generation()
+	}
+	if s.cached != nil && s.ttl > 0 && s.now().Sub(s.at) < s.ttl && gen == s.gen {
 		return s.cached, nil
 	}
 	revision, packages, err := s.manifests.ActivePackages(ctx)
@@ -78,7 +95,7 @@ func (s *PGSource) Snapshot(ctx context.Context) (*Snapshot, error) {
 		return nil, serrors.FromDB(op, err)
 	}
 	snap.Revision = hex.EncodeToString(h.Sum(nil))
-	s.cached, s.at = snap, s.now()
+	s.cached, s.at, s.gen = snap, s.now(), gen
 	return snap, nil
 }
 

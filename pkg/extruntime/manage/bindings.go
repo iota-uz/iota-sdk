@@ -290,7 +290,8 @@ func (s *Service) Bind(ctx context.Context, actor spi.Subject, slotKind, targetI
 				return err
 			}
 		}
-		return nil
+		e.After = s.catalog.Invalidate
+		return notifyCatalog(ctx, tx, "bind")
 	})
 	_ = op
 	return out, err
@@ -312,7 +313,10 @@ func (s *Service) Unbind(ctx context.Context, actor spi.Subject, slotKind, targe
 		if slotKind == SlotCommand && ownsID(holder.Package, targetID) {
 			return serrors.New(serrors.FailedPrecondition, "the binding is the package's own implementation; deactivate the package instead")
 		}
-		_, err = release(ctx, tx, holder, actor.UserID)
-		return err
+		if _, err = release(ctx, tx, holder, actor.UserID); err != nil {
+			return err
+		}
+		e.After = s.catalog.Invalidate
+		return notifyCatalog(ctx, tx, "unbind")
 	})
 }

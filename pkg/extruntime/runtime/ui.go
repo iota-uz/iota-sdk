@@ -100,7 +100,7 @@ func (rt *Runtime) UIConfig() (ui.Config, error) {
 		ttl = 2 * time.Second
 	}
 	return ui.Config{
-		Source:    ui.NewPGSource(rt.db, UIManifests{Catalog: rt.Catalog}, ttl),
+		Source:    ui.NewPGSource(rt.db, UIManifests{Catalog: rt.Catalog}, ttl).WithGeneration(rt.Catalog.Generation),
 		Artifacts: UIArtifacts{Store: rt.Artifacts},
 		Invoker:   rt.Host,
 		Catalog:   rt.Catalog,
