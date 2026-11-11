@@ -11,7 +11,7 @@ export interface EntityLike {
 }
 
 /** Typed pointer to a record. Refs of different entities are not assignable to each other. */
-export interface Ref<E extends EntityLike = EntityLike> {
+export type Ref<E extends EntityLike = EntityLike> = {
   readonly entity: E['id']
   readonly key: string
   readonly [refTarget]?: E
