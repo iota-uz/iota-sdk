@@ -409,7 +409,8 @@ transaction receipts and per-instance artifact pinning.
 * Dispatcher (after commit; LISTEN/NOTIFY + poll) delivers to each **active** subscription in
   `seq` order from its cursor (cursor initialized at activation → no automatic replay of the
   journal on handler update). Each delivery = own tx: handler (Tx) + receipt; duplicate
-  receipt → skipped. `tx.start` inside uses `start_key = subscription:event_id`.
+  receipt → skipped. `tx.start` inside uses `start_key = subscription:event_id#n` (n = order of
+  the keyless `tx.start` calls inside the delivery).
 * Subject: event initiator's current rights; no initiator → `trigger_owners` owner-user
   (assigned at activation; activation fails without one).
 
@@ -511,6 +512,37 @@ sequentially; `wf.user.has()` reads current rights and is not journaled; xmin ga
 cluster snapshot horizon (a long transaction anywhere delays delivery); schedule slots older
 than `Lookback` (15 min) are skipped.
 
+**Engine/events hardening (as implemented)**:
+* `tx.start` without an explicit key derives `base#n`: inside `wf.transaction` / an atomic `wf.call` the
+  base is the occurrence `instance:name:n`, inside an ordinary command called by `wf.call` it is
+  `wf.call:<invocationId>`, inside subscriptions and schedules `subscription:event` / `schedule:id:slot`;
+  `n` counts the keyless starts of that unit, so a replay yields the same keys and a later occurrence can
+  never collide with an earlier child.
+* `DecideTask` locks the instance row before the task (same order as every run write) and wakes it under
+  that lock, like `deliverSignal`; `Resolve`/`Retry` read `blocked` under `FOR UPDATE` in the tx that edits
+  the journal.
+* Infrastructure failures (database/connection errors, lost worker, closed or full pool, cancelled run)
+  are `host.InfraError`: a host call that hits one aborts the workflow run (further calls get
+  `workflow.runAborted`), the lease is released and the run is replayed after the backoff
+  (`failures` counts; `MaxRunFailures` blocks with `failing`). They are never journaled as `OccFailed`;
+  an ordinary `wf.call` that hit one stays `started`, its invocation is recorded `unknown`, and the replay
+  blocks it `ambiguous` (resolve/retry) like a lost worker. Events and schedules retry such a failure after
+  the backoff without counting an attempt, so an outage cannot dead-letter anything.
+* `events.RequeueReceipts` (`Service.RequeueReceipts`, `POST /_ext/manage/subscriptions/{id}/requeue`,
+  operate permission, audited as `events.requeue`) turns `dead` and `blocked` receipts of the tenant back
+  into due `failed` ones with no attempts counted. Schedule runs have no requeue: a dead slot is outside the
+  15 min lookback anyway.
+* `tx.start` / `wf.start` check the workflow contract's `Permission` against the subject (`tx.start`:
+  reloaded current rights, `workflow.startDenied`; `wf.start`: the run's subject, instance `blocked: denied`).
+* A run of an instance whose package has no active version blocks it with `packageDeactivated`
+  (`workflow.PackageGate`, implemented by `manage` over the catalog); `Resume` continues it once the package
+  is active again. Subscriptions and schedules of a deactivated package are not listed by the sources, so
+  nothing is delivered or fired for them. A schedule never fires slots older than its activation
+  (`ScheduleDef.ActiveFrom`).
+* A transaction cannot commit while an invocation joined to it (`tx.call`, `tx.query`) is still running or
+  was cut short because its caller finished: an un-awaited `tx.call` rolls the transaction back with
+  `runtime.nestedInFlight` instead of committing half of it.
+
 ### 9.1 TypeScript authoring API audit (supersedes §2 where it differs)
 
 **Kit entry.** `@iota-uz/sdk/runtime/kit` (`foreign`, `nativeEntity`, `nativeList`) is internal: only generated
@@ -571,7 +603,8 @@ entities carry `keyType`; slot declarations carry `props`.
 `runtime.readOnlyContext` — enforced by the Go router, not only by the TS context.
 `invoke.command`, `invoke.signal` and `wf.call` return `runtime.intentInTransaction` while a Go tx
 is open in the invocation. `tx.query`/`q.query` return `runtime.nativeQueryUnavailable` for a
-query without a package implementation (Go-implemented native queries are future work).
+query with no implementation at all (neither a Go default nor a bound package export; Go-implemented
+native queries run, see §9.3).
 `wf.step`/`wf.transaction` results are JSON-normalized on first execution. HTTP endpoints:
 `/_ext/endpoints/<namespace>/<path>` (sync response; session user, or the trigger owner for
 `public` endpoints; tenant of an unauthenticated request via `runtime.Config.Endpoints.PublicTenant`;
@@ -593,3 +626,50 @@ query without a package implementation (Go-implemented native queries are future
   with the public author API only. Prerequisites: `pnpm install` and `pnpm --filter @iota-uz/sdk-client-host-internal build`
   (the SDK emit type-checks `src/client-host/entry.ts` against the client-host declarations). Run with
   `go test -p 1 ./pkg/extruntime/e2e/`.
+
+### 9.3 Native command boundary (as implemented)
+
+* **Authoring (`pkg/extruntime/native`).** A module declares a native contract once, as a package-level value:
+  `native.Operation | AtomicCommand | Command | Query[In, Out](id, native.Spec{...}, impl)` registered with
+  `native.MustRegister` into `native.Default`. The wire contract is derived from the Go structs by `native.TypeOf`
+  (explicit `json` names; `wire:"int64|decimal,precision=P,scale=S|date|datetime|uuid|enum=a|b|ref=<entity>|string,maxLength=N"`;
+  int64 fields need `wire:"int64"` + `,string`; a pointer field is an optional key and needs `omitempty`; floats, maps,
+  interfaces, embedded and recursive types fail loudly) or given explicitly in `Spec.Input/Output`. `impl` is a factory over
+  `native.Deps` (the composition container) returning the typed Go default (`OperationFunc(ctx, native.Tx, in)`,
+  `CommandFunc(ctx, native.CommandContext, in)`, `QueryFunc(ctx, native.QueryContext, in)`); it is instantiated per
+  application on first use (`native.Bind`). `Spec.Permission` is an RBAC permission name: it is not a catalog resource, so
+  it is not published in the contract; the host enforces it from the definition on every invocation, whichever
+  implementation is bound. Native contracts reach the catalog and the kit through `catalog.DefaultNatives`;
+  `catalog.Defaults()` is every native resource of the binary without application configuration (offline kits).
+* **Dispatch.** A native contract without an open `slot_kind='command'` binding runs its Go default
+  (`host.Config.Natives`, `Binding.Native`, recorded with an empty package/version/export); with a binding the package
+  export runs instead — one active implementation, no fallback on error; unbinding restores the Go default. Everything
+  else is the package path: input/output validation, permission, prechecks and operation guards of packages
+  (`Catalog.Guards`), invocation records, nesting limit, closed domain errors. Operations and atomic commands run inside
+  the caller's transaction (`tx.call`) or one the host opens; queries in the caller's transaction/snapshot (`tx.query`,
+  `q.query`) or a read-only snapshot; ordinary commands get `CommandContext.Transaction` / `Call` / `Query`. The handler's
+  `ctx` carries the transaction (`composables.UseTx`, so repositories join it), the subject's tenant and the pool, plus the
+  root request's values (user, session) when the root came from HTTP. `Tx.AfterCommit` runs callbacks after the
+  transaction commits (module events published post-commit); it is refused in a caller-owned transaction (subscription
+  delivery, schedule slot). A package invocation nested under a Go frame runs on the worker of the nearest package
+  ancestor, or takes a pool slot under a Go root.
+* **Entry points.** Go code calls `Def.Dispatch(ctx, dispatcher, in)`. The runtime component provides
+  `native.Dispatcher` (`runtime.HostDispatcher`: root invocation as the session user, trigger `ui`); without the runtime
+  `native.ResolveDispatcher` falls back to `native.Direct` (Go defaults in-process, same validation and transaction shape,
+  `Spec.Permission`/`Authorize` checked against the request user). Reference consumer: CRM — `crm.operations.upsertClient`
+  (authorization Client.Create/Client.Update, value-object validation as issues `crm.invalidPhone|invalidEmail|invalidPin|
+  invalidCountry|clientNotFound`, repository save + history in the caller's transaction, client events after commit) and
+  `crm.commands.saveClient` (ordinary; Go default = one transaction around `upsertClient`). The client create form, the four
+  edit forms and the chat "new chat" form dispatch `saveClient`; `ClientService.Create/Update` remain as Go API. A
+  dispatch error renders 422 (validation) / 403 (denied) / 409 (domain).
+* **Error mapping.** Data-layer failures reaching package code map to stable kinds instead of `runtime.hostCall`:
+  unique → validation `data.unique` (issue phase `write`, path = field), reference → validation `data.reference`,
+  native/foreign generic write → denied `data.nativeWrite` / `data.foreignWrite`, read denied → denied `data.denied`,
+  hidden field → denied `data.fieldNotAccessible` (no field values), not found → domain `data.notFound`, row version
+  conflict → domain `data.versionConflict`. The two `data.*` domain codes pass the closed-errors check of every contract.
+  A Go default's own error is returned to Go callers unchanged (its chain intact) and recorded as internal.
+* **Limits.** Package code nested under a Go default shares the Go frame's hold of the transaction: concurrent host calls
+  from it (`Promise.all`) fail fast (`repo.ErrTxInUse`) instead of queueing — the same rule as write-rule guards.
+  `upsertClient` cannot run inside a subscription delivery (after-commit callbacks are refused there). Other writers of
+  CRM clients (inbound Twilio messages, `ClientService.Create` callers) do not go through the command.
+

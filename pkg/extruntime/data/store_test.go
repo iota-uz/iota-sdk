@@ -102,6 +102,7 @@ func TestCRUDExactWireTypes(t *testing.T) {
 		})
 		require.ErrorIs(t, err, data.ErrUniqueViolation)
 		assert.Contains(t, err.Error(), `"number"`)
+		require.Equal(t, []serrors.FieldViolation{{Field: "number"}}, serrors.FieldsOf(err), "the field travels structured, for the host's error mapping")
 	})
 	t.Run("reference", func(t *testing.T) {
 		err := e.attempt(func(tx pgx.Tx) error {
@@ -113,6 +114,7 @@ func TestCRUDExactWireTypes(t *testing.T) {
 		require.ErrorIs(t, err, data.ErrReferenceViolation)
 		_, err = e.store.Insert(e.ctx, e.tx, sc, customerID, js(map[string]any{"name": "x", "owner": ref("core.user", "987654")}))
 		require.ErrorIs(t, err, data.ErrReferenceViolation, "refs to native rows must exist in the tenant")
+		require.Equal(t, []serrors.FieldViolation{{Field: "owner"}}, serrors.FieldsOf(err))
 	})
 
 	require.NoError(t, e.store.Delete(e.ctx, e.tx, sc, policyID, pol["key"].(string)))

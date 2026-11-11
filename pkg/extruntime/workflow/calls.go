@@ -98,6 +98,26 @@ func (e *Engine) CallWorkflow(ctx context.Context, call host.WorkflowCall, metho
 	if we := rs.stale(); we != nil {
 		return nil, we
 	}
+	if rs.aborted() != nil {
+		return nil, errRunAborted
+	}
+	if ierr := call.InfraError(); ierr != nil {
+		// A host call of this run (a tx.* call inside a transaction callback)
+		// hit the infrastructure; nothing the workflow does afterwards may be
+		// recorded, or the retry would replay a path that only exists because
+		// of the outage.
+		rs.abort(ierr)
+		return nil, errRunAborted
+	}
+	out, err := e.dispatch(ctx, call, rs, method, args)
+	if err != nil && host.IsInfrastructure(err) {
+		rs.abort(err)
+		return nil, errRunAborted
+	}
+	return out, err
+}
+
+func (e *Engine) dispatch(ctx context.Context, call host.WorkflowCall, rs *runState, method string, args json.RawMessage) (json.RawMessage, error) {
 	switch method {
 	case "wf.transaction.begin":
 		return e.wfTxBegin(ctx, call, rs, args)
@@ -150,7 +170,7 @@ func (e *Engine) wfTxBegin(ctx context.Context, call host.WorkflowCall, rs *runS
 		}
 		return replayWrap(o)
 	}
-	h, err := call.OpenTx(ctx)
+	h, err := call.OpenTx(ctx, idempotencyKey(rs, a.Name, a.N))
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +231,7 @@ func (e *Engine) wfTxCall(ctx context.Context, call host.WorkflowCall, rs *runSt
 		}
 		return terminalReply(o)
 	}
-	h, err := call.OpenTx(ctx)
+	h, err := call.OpenTx(ctx, idempotencyKey(rs, a.Name, a.N))
 	if err != nil {
 		return nil, err
 	}
@@ -644,7 +664,7 @@ func (e *Engine) wfStart(ctx context.Context, rs *runState, args json.RawMessage
 		}
 		return terminalReply(o)
 	}
-	impl, err := e.prepareStart(ctx, a.Workflow, a.Input)
+	plan, err := e.prepareStart(ctx, a.Workflow, a.Input)
 	if err != nil {
 		var we *pool.WireError
 		if errors.As(err, &we) && we.Kind == pool.ErrKindInternal && (we.Code == "workflow.noImplementation" || we.Code == "workflow.unknownWorkflow") {
@@ -652,6 +672,11 @@ func (e *Engine) wfStart(ctx context.Context, rs *runState, args json.RawMessage
 		}
 		return nil, err
 	}
+	if !rs.subject.Has(plan.permission) {
+		// The run's subject holds its rights as loaded for this run.
+		return nil, blockedWire(rs.block(BlockDenied, fmt.Sprintf("permission %s is required to start %s", plan.permission, a.Workflow)))
+	}
+	impl := plan.impl
 	var out json.RawMessage
 	err = e.inFence(ctx, rs, func(tx pgx.Tx) (func(), error) {
 		parent := rs.inst.ID
@@ -730,8 +755,10 @@ func (e *Engine) wfCall(ctx context.Context, call host.WorkflowCall, rs *runStat
 	return e.callOrdinary(ctx, call, rs, a.Name, a.N, a.Command, a.Input, a.InputHash, hash, o, ok)
 }
 
+// isInfrastructure is true for a failure of the platform (database, worker,
+// pool, a cancelled run), which is never a result of the called command.
 func isInfrastructure(ctx context.Context, err error) bool {
-	return ctx.Err() != nil || errors.Is(err, pool.ErrWorkerLost) || errors.Is(err, pool.ErrPoolClosed) || errors.Is(err, pool.ErrQueueFull)
+	return ctx.Err() != nil || host.IsInfrastructure(err)
 }
 
 func callMeta(res host.CallResult) json.RawMessage {
@@ -885,7 +912,7 @@ func (e *Engine) callOrdinary(ctx context.Context, call host.WorkflowCall, rs *r
 // callAtomic runs an atomic command joined to a Go transaction that also
 // holds the occurrence receipt: both commit or neither does.
 func (e *Engine) callAtomic(ctx context.Context, call host.WorkflowCall, rs *runState, name string, n int, command string, input json.RawMessage, inputHash, contractHash string) (json.RawMessage, error) {
-	h, err := call.OpenTx(ctx)
+	h, err := call.OpenTx(ctx, idempotencyKey(rs, name, n))
 	if err != nil {
 		return nil, err
 	}

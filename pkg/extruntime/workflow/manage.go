@@ -424,6 +424,18 @@ func (e *Engine) DecideTask(ctx context.Context, actor spi.Subject, taskID uuid.
 		return serrors.FromDB(opManage, err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	// The instance row is locked first, as every run write does (fence), and
+	// the wake is decided under that lock: a run that is suspending commits its
+	// wait before this proceeds, so the instance is `waiting` here and gets
+	// woken; a run that has not suspended yet sees the decision when it does.
+	// Updating only `status = 'waiting'` rows without the lock would lose a
+	// decision committed between the run's wake computation and its commit.
+	if _, err := tx.Exec(ctx, `
+		UPDATE extruntime.workflow_instances
+		SET wake_at = CASE WHEN status = 'waiting' THEN now() ELSE wake_at END, updated_at = now()
+		WHERE id = $1 AND tenant_id = $2`, instanceID, actor.TenantID); err != nil {
+		return serrors.FromDB(opManage, err)
+	}
 	tag, err := tx.Exec(ctx, `
 		UPDATE extruntime.human_tasks SET status = 'decided', decision = $3, decided_by = $4, decided_at = now()
 		WHERE id = $1 AND tenant_id = $2 AND status = 'open'`, taskID, actor.TenantID, []byte(decision), actor.UserID)
@@ -432,9 +444,6 @@ func (e *Engine) DecideTask(ctx context.Context, actor spi.Subject, taskID uuid.
 	}
 	if tag.RowsAffected() == 0 {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: task %s was decided or expired first", ErrTaskClosed, taskID))
-	}
-	if _, err := tx.Exec(ctx, `UPDATE extruntime.workflow_instances SET wake_at = now(), updated_at = now() WHERE id = $1 AND tenant_id = $2 AND status = 'waiting'`, instanceID, actor.TenantID); err != nil {
-		return serrors.FromDB(opManage, err)
 	}
 	if err := notify(ctx, tx); err != nil {
 		return err
@@ -520,17 +529,23 @@ func (e *Engine) StartV2(ctx context.Context, actor spi.Subject, predecessor uui
 	return id, serrors.FromDB(opManage, tx.Commit(ctx))
 }
 
-// requireBlocked loads a blocked instance and locks nothing; the writes below
-// are guarded by `status = 'blocked'`.
-func (e *Engine) requireBlocked(ctx context.Context, tenant, id uuid.UUID) (Instance, error) {
-	inst, err := e.instance(ctx, e.cfg.DB, tenant, id)
+// lockBlocked locks the instance row in tx and requires it to be blocked. The
+// status is read under the lock, so a Resume (and the run it starts) that
+// commits first is seen here, and the occurrence write that follows can never
+// touch the journal of a running instance.
+func (e *Engine) lockBlocked(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID) error {
+	var status string
+	err := tx.QueryRow(ctx, `SELECT status FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2 FOR UPDATE`, id, tenant).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return serrors.Wrap(opManage, fmt.Errorf("%w: instance %s", ErrNotFound, id))
+	}
 	if err != nil {
-		return inst, err
+		return serrors.FromDB(opManage, err)
 	}
-	if inst.Status != StatusBlocked {
-		return inst, serrors.Wrap(opManage, fmt.Errorf("%w: instance %s is %s, not blocked", ErrNotAccepting, id, inst.Status))
+	if status != StatusBlocked {
+		return serrors.Wrap(opManage, fmt.Errorf("%w: instance %s is %s, not blocked", ErrNotAccepting, id, status))
 	}
-	return inst, nil
+	return nil
 }
 
 // Resolve completes a blocked or failed call/step occurrence with a result
@@ -540,10 +555,15 @@ func (e *Engine) Resolve(ctx context.Context, tenant, id uuid.UUID, name string,
 	if !json.Valid(result) {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: result is not valid JSON", ErrInvalid))
 	}
-	if _, err := e.requireBlocked(ctx, tenant, id); err != nil {
+	tx, err := e.cfg.DB.Begin(ctx)
+	if err != nil {
+		return serrors.FromDB(opManage, err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if err := e.lockBlocked(ctx, tx, tenant, id); err != nil {
 		return err
 	}
-	tag, err := e.cfg.DB.Exec(ctx, `
+	tag, err := tx.Exec(ctx, `
 		UPDATE extruntime.workflow_occurrences
 		SET status = 'completed', result = $5, error = NULL, meta = COALESCE(meta, '{}'::jsonb) || '{"resolved":true}'::jsonb, updated_at = now()
 		WHERE instance_id = $1 AND tenant_id = $2 AND name = $3 AND n = $4 AND status IN ('started', 'failed') AND kind IN ('call', 'step')`,
@@ -554,17 +574,22 @@ func (e *Engine) Resolve(ctx context.Context, tenant, id uuid.UUID, name string,
 	if tag.RowsAffected() == 0 {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: occurrence %s#%d is not an unresolved call or step", ErrNotFound, name, n))
 	}
-	return nil
+	return serrors.FromDB(opManage, tx.Commit(ctx))
 }
 
 // Retry forgets an unresolved occurrence so the next run executes it again as
 // new. For an ambiguous command this accepts the risk of a duplicate effect.
 // Call Resume afterwards.
 func (e *Engine) Retry(ctx context.Context, tenant, id uuid.UUID, name string, n int) error {
-	if _, err := e.requireBlocked(ctx, tenant, id); err != nil {
+	tx, err := e.cfg.DB.Begin(ctx)
+	if err != nil {
+		return serrors.FromDB(opManage, err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if err := e.lockBlocked(ctx, tx, tenant, id); err != nil {
 		return err
 	}
-	tag, err := e.cfg.DB.Exec(ctx, `
+	tag, err := tx.Exec(ctx, `
 		DELETE FROM extruntime.workflow_occurrences
 		WHERE instance_id = $1 AND tenant_id = $2 AND name = $3 AND n = $4 AND status IN ('started', 'failed', 'waiting')`,
 		id, tenant, name, n)
@@ -574,7 +599,7 @@ func (e *Engine) Retry(ctx context.Context, tenant, id uuid.UUID, name string, n
 	if tag.RowsAffected() == 0 {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: occurrence %s#%d is not retryable", ErrNotFound, name, n))
 	}
-	return nil
+	return serrors.FromDB(opManage, tx.Commit(ctx))
 }
 
 // Resume makes a blocked instance runnable again: after the cause was removed

@@ -30,6 +30,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/notify"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
@@ -60,10 +61,14 @@ type Config struct {
 
 	// Natives are the native entity descriptors. Default data.DefaultNatives.
 	Natives *data.NativeRegistry
-	// NativeResources are additional native contracts (commands, operations,
-	// pages, slots) published in the catalog and the kit. Native events
-	// declared through events.RegisterNative are included automatically.
+	// NativeResources are additional native contracts (pages, slots, ...)
+	// published in the catalog and the kit. Native events declared through
+	// events.RegisterNative and the Go-implemented commands, operations and
+	// queries of NativeContracts are included automatically.
 	NativeResources []manifest.Resource
+	// NativeContracts are the Go-implemented commands, operations and
+	// queries. Default native.Default.
+	NativeContracts *native.Set
 	// NativeLists are the native lists packages may extend with columns.
 	// Default: the CRM clients list.
 	NativeLists []string
@@ -121,6 +126,10 @@ type Deps struct {
 	Contacts  *notifications.ContactResolvers
 	// Users loads the current rights of owners and initiators.
 	Users user.Repository
+	// NativeDeps resolves the dependencies of the Go defaults of native
+	// contracts (the composition container). Without it a native contract
+	// whose default needs a dependency fails when invoked.
+	NativeDeps native.Deps
 }
 
 // Extension is a slice that needs the finished runtime.
@@ -132,15 +141,18 @@ type Extension interface {
 
 // Runtime holds the wired parts. Fields are read-only after New.
 type Runtime struct {
-	Config    Config
-	Pool      *pool.Pool
-	Host      *host.Host
-	Data      *data.Store
-	Bindings  *host.PgBindings
-	Catalog   *catalog.Catalog
-	Natives   *catalog.NativeSet
-	Artifacts *artifact.Store
-	Manage    *manage.Service
+	Config   Config
+	Pool     *pool.Pool
+	Host     *host.Host
+	Data     *data.Store
+	Bindings *host.PgBindings
+	Catalog  *catalog.Catalog
+	Natives  *catalog.NativeSet
+	// NativeImpls are the Go defaults of the native contracts, bound to the
+	// application's dependencies.
+	NativeImpls *native.Implementations
+	Artifacts   *artifact.Store
+	Manage      *manage.Service
 	// Workflows is the durable engine (host.WorkflowHandler and spi.Starter).
 	Workflows  *workflow.Engine
 	Outbox     *events.Outbox
@@ -200,28 +212,16 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	if rt.Artifacts, err = artifact.NewStore(deps.DB, cfg.CacheDir); err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
-	rt.Natives = catalog.NewNativeSet(cfg.Natives)
-	native := append([]manifest.Resource{}, events.Default.Resources()...)
-	native = append(native, cfg.NativeResources...)
+	extra := append([]manifest.Resource{}, cfg.NativeResources...)
 	if cfg.UI != nil {
 		for id, path := range cfg.UI.NativeRoutes {
-			native = append(native, manifest.Resource{ID: id, Kind: manifest.ResRoute, Path: path})
+			extra = append(extra, manifest.Resource{ID: id, Kind: manifest.ResRoute, Path: path})
 		}
 	}
-	for _, r := range native {
-		if err := rt.Natives.Register(r); err != nil {
-			return nil, serrors.Wrap(op, err)
-		}
+	if rt.Natives, err = catalog.DefaultNatives(cfg.Natives, cfg.NativeContracts, cfg.NativeLists, extra...); err != nil {
+		return nil, serrors.Wrap(op, err)
 	}
-	lists := cfg.NativeLists
-	if len(lists) == 0 {
-		lists = data.DefaultNativeLists()
-	}
-	for _, l := range lists {
-		if err := rt.Natives.RegisterList(l); err != nil {
-			return nil, serrors.Wrap(op, err)
-		}
-	}
+	rt.NativeImpls = native.Bind(cfg.NativeContracts, deps.NativeDeps)
 	rt.Catalog = catalog.New(deps.DB, rt.Natives)
 	mcfg := manage.Config{
 		DB: deps.DB, Builder: cfg.Builder, Kits: cfg.Kits, Artifacts: rt.Artifacts, Catalog: rt.Catalog,
@@ -256,7 +256,7 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	}
 	hostCfg := host.Config{
 		Pool: rt.Pool, DB: deps.DB, Bindings: rt.Bindings, Catalog: rt.Catalog, Data: rt.Data, Artifacts: rt.Manage,
-		Outbox: rt.Outbox, Secrets: cfg.Secrets, Logger: cfg.Logger,
+		Outbox: rt.Outbox, Secrets: cfg.Secrets, Natives: rt.NativeImpls, Logger: cfg.Logger,
 	}
 	if subjects != nil {
 		rt.Workflows, err = workflow.New(workflow.Config{

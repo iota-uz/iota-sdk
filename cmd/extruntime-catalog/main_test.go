@@ -33,7 +33,7 @@ func TestSnapshotIsDeterministicAndComplete(t *testing.T) {
 	require.Equal(t, catalog.GeneratedHeader, doc.Generated)
 
 	keyTypes := map[string]string{}
-	events := []string{}
+	ids := map[string]string{}
 	lists := map[string][]string{}
 	for _, s := range doc.Sources {
 		require.NotNil(t, s.Resources, "%s: resources must serialize as an array", s.Namespace)
@@ -42,13 +42,14 @@ func TestSnapshotIsDeterministicAndComplete(t *testing.T) {
 			switch r.Kind {
 			case "entity":
 				keyTypes[r.ID] = r.KeyType
-			case "event":
-				events = append(events, r.ID)
 			}
+			ids[r.ID] = string(r.Kind)
 		}
 	}
 	require.Equal(t, map[string]string{"core.user": "int64", "crm.client": "int64"}, keyTypes, "native entities carry their key type")
-	require.Contains(t, events, "core.user.created.v1")
+	require.Equal(t, "event", ids["core.user.created.v1"])
+	require.Equal(t, "command", ids["crm.commands.saveClient"], "the Go-implemented CRM contracts are in the offline kit")
+	require.Equal(t, "operation", ids["crm.operations.upsertClient"])
 	require.Equal(t, []string{"crm.lists.clients"}, lists["crm"])
 }
 

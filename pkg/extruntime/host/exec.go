@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -34,6 +35,9 @@ func asWire(err error) *pool.WireError {
 	if errors.As(err, &carrier) {
 		return carrier.WireError()
 	}
+	if we := dataError(err); we != nil {
+		return we
+	}
 	return pool.Internal(pool.CodeHostCall, err.Error())
 }
 
@@ -51,8 +55,14 @@ type execution struct {
 	spec     execSpec
 	contract *manifest.Resource
 	binding  Binding
-	kind     pool.Kind
-	scope    spi.Scope
+	// native is the Go default running this invocation (no worker); nil for
+	// package code.
+	native *native.Implementation
+	kind   pool.Kind
+	scope  spi.Scope
+	// starts is the tx.start key sequence this invocation draws from: its
+	// parent's, unless the invocation was given a base of its own.
+	starts *startSource
 
 	mu        sync.Mutex
 	ctxTx     *txHandle // open ctx.transaction of an ordinary invocation
@@ -150,6 +160,12 @@ func (e *execution) run(ctx context.Context, res spi.ResolvedResource) (Result, 
 	case errors.Is(err, pool.ErrWorkerLost):
 		out.Outcome = OutcomeWorkerLost
 		fin.Error = errorJSON(err)
+	case e.root.infra.get() != nil:
+		// A host call failed for an infrastructure reason. Whatever the handler
+		// made of it, the invocation did not finish on its own terms: its
+		// outcome is unknown, never a recorded business failure.
+		out.Outcome = OutcomeUnknown
+		fin.Error = errorJSON(err)
 	default:
 		out.Outcome = OutcomeError
 		fin.Error = errorJSON(err)
@@ -243,25 +259,31 @@ func (e *execution) dispatch(ctx context.Context) (json.RawMessage, error) {
 		}
 	}
 
-	inv := pool.Invocation{
-		ID:       e.id,
-		Artifact: e.binding.Artifact,
-		Kind:     e.kind,
-		Export:   e.binding.Export,
-		Resource: e.resource(),
-		Input:    e.spec.input,
-		Ctx:      invCtx,
-		Calls:    e,
-	}
-	switch {
-	case e.spec.placement:
-		if e.spec.placeOn != nil {
-			inv.ParentID = e.spec.placeOn.id
+	var (
+		output json.RawMessage
+		err    error
+	)
+	if e.native != nil {
+		output, err = e.runNative(ctx, txh)
+	} else {
+		inv := pool.Invocation{
+			ID:       e.id,
+			Artifact: e.binding.Artifact,
+			Kind:     e.kind,
+			Export:   e.binding.Export,
+			Resource: e.resource(),
+			Input:    e.spec.input,
+			Ctx:      invCtx,
+			Calls:    e,
 		}
-	case e.spec.parent != nil:
-		inv.ParentID = e.spec.parent.id
+		switch {
+		case e.spec.placement:
+			inv.ParentID = workerOf(e.spec.placeOn)
+		case e.spec.parent != nil:
+			inv.ParentID = workerOf(e.spec.parent)
+		}
+		output, err = e.h.cfg.Pool.Invoke(ctx, inv)
 	}
-	output, err := e.h.cfg.Pool.Invoke(ctx, inv)
 
 	if err == nil {
 		err = e.checkOutput(output)
@@ -273,6 +295,11 @@ func (e *execution) dispatch(ctx context.Context) (json.RawMessage, error) {
 	e.mu.Unlock()
 	if err == nil && rolledBack {
 		err = fail("runtime.txRolledBack", "the handler rolled back its transaction and then returned normally; the caller-owned transaction is not committed")
+	}
+	if err == nil && e.spec.externalTx != nil && txh != nil && (txh.inflight.Load() > 0 || txh.abandoned.Load()) {
+		// The caller commits this transaction: it must not see a handler whose
+		// un-awaited tx.call is still running or was cut short.
+		err = fail("runtime.nestedInFlight", "a nested invocation joined to the caller-owned transaction did not finish before the handler returned (an un-awaited tx.call?); the caller must roll back")
 	}
 	if ownTx != nil {
 		if err != nil {
@@ -312,7 +339,7 @@ func (e *execution) closedErrors(err error) error {
 	if !ok || we.Kind != pool.ErrKindDomain || e.contract == nil {
 		return err
 	}
-	if slices.Contains(e.contract.Errors, we.Code) {
+	if slices.Contains(e.contract.Errors, we.Code) || isPlatformDomainCode(we.Code) {
 		return err
 	}
 	return fail("runtime.undeclaredDomainError", "%s raised %q which its contract does not declare", e.contract.ID, we.Code)
@@ -337,6 +364,9 @@ func (e *execution) Call(ctx context.Context, method string, args json.RawMessag
 	ctx = context.WithValue(ctx, execKey{}, e)
 	out, err := e.call(ctx, method, args)
 	if err != nil {
+		if IsInfrastructure(err) {
+			e.root.infra.note(err)
+		}
 		return nil, asWire(err)
 	}
 	return out, nil
@@ -395,10 +425,13 @@ func decode(args json.RawMessage, into any) error {
 
 // OpenTx opens a transaction for the durable engine (wf.transaction); the
 // worker reaches it through tx.* calls with the returned handle.
-func (e *execution) OpenTx(ctx context.Context) (string, error) {
+func (e *execution) OpenTx(ctx context.Context, startKeyBase string) (string, error) {
 	h, err := e.root.txs.begin(ctx, e.id, pgx.TxOptions{})
 	if err != nil {
 		return "", err
+	}
+	if startKeyBase != "" {
+		h.starts = &startSource{base: startKeyBase}
 	}
 	e.mu.Lock()
 	if e.engineTxs == nil {
@@ -424,8 +457,12 @@ func (e *execution) CallInTx(ctx context.Context, handle, contract string, input
 	if err != nil {
 		return nil, err
 	}
-	return e.callJoined(ctx, h, contract, input)
+	out, err := e.callJoined(ctx, h, contract, input)
+	return out, e.root.withInfra(err)
 }
+
+// InfraError implements WorkflowCall.
+func (e *execution) InfraError() error { return e.root.infra.get() }
 
 func (e *execution) EndTx(ctx context.Context, handle string, outcome TxOutcome) error {
 	h, err := e.root.txs.lookup(handle)
@@ -447,6 +484,16 @@ func (e *execution) EndTx(ctx context.Context, handle string, outcome TxOutcome)
 
 // txBegin opens the transaction of an ordinary invocation's ctx.transaction.
 func (e *execution) txBegin(ctx context.Context) (json.RawMessage, error) {
+	h, err := e.openCtxTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(map[string]string{"tx": h.id})
+}
+
+// openCtxTx opens the ctx.transaction of an ordinary invocation (package code
+// through tx.begin, a Go default through CommandContext.Transaction).
+func (e *execution) openCtxTx(ctx context.Context) (*txHandle, error) {
 	if e.kind != pool.KindCommand && e.kind != pool.KindEndpoint && e.kind != pool.KindSchedule {
 		return nil, fail("runtime.txNotAllowed", "%s invocations do not open transactions; they run in the transaction the host gave them", e.kind)
 	}
@@ -461,7 +508,7 @@ func (e *execution) txBegin(ctx context.Context) (json.RawMessage, error) {
 		// receipt): ctx.transaction joins it instead of opening another one.
 		e.ctxTx = ext
 		e.mu.Unlock()
-		return json.Marshal(map[string]string{"tx": ext.id})
+		return ext, nil
 	}
 	e.mu.Unlock()
 	h, err := e.root.txs.begin(ctx, e.id, pgx.TxOptions{})
@@ -469,9 +516,15 @@ func (e *execution) txBegin(ctx context.Context) (json.RawMessage, error) {
 		return nil, err
 	}
 	e.mu.Lock()
+	if e.ctxTx != nil {
+		// A concurrent ctx.transaction won the race.
+		e.mu.Unlock()
+		_ = e.root.txs.end(ctx, h, TxRollback)
+		return nil, fail("runtime.nestedTransaction", "ctx.transaction cannot be nested")
+	}
 	e.ctxTx = h
 	e.mu.Unlock()
-	return json.Marshal(map[string]string{"tx": h.id})
+	return h, nil
 }
 
 func (e *execution) txEnd(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
@@ -482,37 +535,45 @@ func (e *execution) txEnd(ctx context.Context, args json.RawMessage) (json.RawMe
 	if err := decode(args, &a); err != nil {
 		return nil, err
 	}
+	if err := e.endCtxTx(ctx, a.Tx, a.Outcome); err != nil {
+		return nil, err
+	}
+	return json.RawMessage(`null`), nil
+}
+
+// endCtxTx commits or rolls back the open ctx.transaction.
+func (e *execution) endCtxTx(ctx context.Context, handle string, outcome TxOutcome) error {
 	e.mu.Lock()
 	h := e.ctxTx
 	e.mu.Unlock()
-	if h == nil || h.id != a.Tx {
-		return nil, fail("runtime.txUnknown", "transaction handle is not the open ctx.transaction of this invocation")
+	if h == nil || h.id != handle {
+		return fail("runtime.txUnknown", "transaction handle is not the open ctx.transaction of this invocation")
 	}
-	if a.Outcome != TxCommit && a.Outcome != TxRollback {
-		return nil, fail(pool.CodeHostCall, "unknown tx.end outcome %q", a.Outcome)
+	if outcome != TxCommit && outcome != TxRollback {
+		return fail(pool.CodeHostCall, "unknown tx.end outcome %q", outcome)
 	}
 	if h.external {
 		// The caller commits; a rollback poisons the run, because part of the
 		// caller's transaction would otherwise commit anyway.
 		e.mu.Lock()
 		e.ctxTx = nil
-		if a.Outcome == TxRollback {
+		if outcome == TxRollback {
 			e.extRolledBack = true
 		}
 		e.mu.Unlock()
-		return json.RawMessage(`null`), nil
+		return nil
 	}
-	err := e.root.txs.end(ctx, h, a.Outcome)
+	err := e.root.txs.end(ctx, h, outcome)
 	e.mu.Lock()
 	e.ctxTx = nil
 	e.mu.Unlock()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if a.Outcome == TxCommit {
+	if outcome == TxCommit {
 		e.countCommitted()
 	}
-	return json.RawMessage(`null`), nil
+	return nil
 }
 
 func (e *execution) invokeNested(ctx context.Context, contract string, input json.RawMessage, join *txHandle) (json.RawMessage, error) {
@@ -549,8 +610,17 @@ func (e *execution) CallCommand(ctx context.Context, contract string, input json
 	if err := e.rejectIntentInTx("wf.call"); err != nil {
 		return CallResult{}, err
 	}
-	res, err := e.invokeNestedResult(ctx, contract, input, nil, invocationID)
-	return callResult(res), err
+	var base string
+	if invocationID != "" {
+		// An ordinary command is never replayed: its pre-allocated invocation is
+		// the stable identity its tx.start keys derive from.
+		base = "wf.call:" + invocationID
+	}
+	res, err := e.h.execute(ctx, e.root, execSpec{
+		contract: contract, input: input, subject: e.spec.subject, trigger: e.trigger(),
+		parent: e, id: invocationID, startBase: base,
+	})
+	return callResult(res), e.root.withInfra(err)
 }
 
 // CallCommandInTx runs an atomic command joined to the engine's transaction.
@@ -567,7 +637,7 @@ func (e *execution) CallCommandInTx(ctx context.Context, handle, contract string
 		return CallResult{}, fail("runtime.notAtomic", "%s is not an atomic command", contract)
 	}
 	res, err := e.invokeNestedResult(ctx, contract, input, h, "")
-	return callResult(res), err
+	return callResult(res), e.root.withInfra(err)
 }
 
 // txCall dispatches an operation or atomic command to its active
@@ -698,13 +768,14 @@ func (e *execution) nestedQuery(ctx context.Context, h *txHandle, args json.RawM
 	if res.Resource.Kind != manifest.ResQuery {
 		return nil, fail(CodeNotQuery, "tx.query accepts queries; %s is a %s", a.Query, res.Resource.Kind)
 	}
-	unavailable := fail(CodeNativeQueryUnavailable, "query %s has no package implementation; native queries cannot be called from package code yet", a.Query)
-	if res.Native {
-		return nil, unavailable
-	}
-	out, err := e.invokeNested(ctx, a.Query, a.Input, h)
+	return e.runQuery(ctx, h, a.Query, a.Input)
+}
+
+// runQuery runs a query contract nested in this invocation, reading through h.
+func (e *execution) runQuery(ctx context.Context, h *txHandle, query string, input json.RawMessage) (json.RawMessage, error) {
+	out, err := e.invokeNested(ctx, query, input, h)
 	if errors.Is(err, ErrNoBinding) {
-		return nil, unavailable
+		return nil, fail(CodeNativeQueryUnavailable, "query %s has no implementation (neither a Go default nor a bound package export)", query)
 	}
 	return out, err
 }
@@ -908,10 +979,16 @@ func (e *execution) intent(ctx context.Context, h *txHandle, method string, args
 		}
 		key := a.Key
 		if key == "" {
-			if e.root.startKeyBase == "" {
-				return nil, fail("runtime.startKeyRequired", "tx.start needs {key} outside subscriptions and workflows")
+			// The handle's own sequence (a workflow occurrence) wins over the
+			// invocation's (a delivery, a slot, a workflow-called command).
+			src := h.starts
+			if src == nil {
+				src = e.starts
 			}
-			key = e.root.startKeyBase + "#" + strconv.FormatInt(e.root.startSeq.Add(1), 10)
+			var ok bool
+			if key, ok = src.next(); !ok {
+				return nil, fail("runtime.startKeyRequired", "tx.start needs {key} outside subscriptions, schedules and workflows")
+			}
 		}
 		var id string
 		err := h.do(ctx, func(ctx context.Context, tx pgx.Tx) (err error) {

@@ -55,6 +55,13 @@ func fail(op serrors.Op, sentinel *serrors.Error, format string, args ...any) er
 	return serrors.New(serrors.CodeOf(sentinel), fmt.Sprintf(format, args...)).WithOp(op).WithCause(sentinel)
 }
 
+// failField is fail with the offending field key attached
+// (serrors.FieldsOf), so callers can point at it without parsing messages.
+func failField(op serrors.Op, sentinel *serrors.Error, field, format string, args ...any) error {
+	return serrors.New(serrors.CodeOf(sentinel), fmt.Sprintf(format, args...)).WithOp(op).WithCause(sentinel).
+		WithFields(serrors.FieldViolation{Field: field})
+}
+
 // Diagnostic is one precise reason a schema was refused.
 type Diagnostic struct {
 	Resource string `json:"resource"`

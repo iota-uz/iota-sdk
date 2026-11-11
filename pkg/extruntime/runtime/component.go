@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/configurator"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/ui"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -24,7 +25,8 @@ import (
 
 // NewComponent enables the extension runtime in an iota-sdk application. It
 // builds on the core module (notification services, users) and provides
-// *Runtime, *manage.Service, *catalog.Catalog and spi.Catalog to the
+// *Runtime, *manage.Service, *catalog.Catalog, spi.Catalog and the
+// native.Dispatcher Go code invokes native contracts through to the
 // container; with the API capability it mounts the management API under
 // APIPrefix, and with the API or worker capability it starts the runtime's
 // background parts (catalog listener, workflow engine, event dispatcher,
@@ -76,13 +78,38 @@ func (c *component) Build(builder *composition.Builder) error {
 			return err
 		}
 	}
-	composition.ProvideFunc(builder, func(
-		db *pgxpool.Pool, dispatch *services.NotificationDispatchService, notices *notifications.Catalog,
-		renderers *notifications.ContentRenderers, contacts *notifications.ContactResolvers, users user.Repository,
-	) (*Runtime, error) {
-		return New(c.cfg, Deps{DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Users: users})
+	composition.Provide[*Runtime](builder, func(container *composition.Container) (*Runtime, error) {
+		db, err := composition.Resolve[*pgxpool.Pool](container)
+		if err != nil {
+			return nil, err
+		}
+		dispatch, err := composition.Resolve[*services.NotificationDispatchService](container)
+		if err != nil {
+			return nil, err
+		}
+		notices, err := composition.Resolve[*notifications.Catalog](container)
+		if err != nil {
+			return nil, err
+		}
+		renderers, err := composition.Resolve[*notifications.ContentRenderers](container)
+		if err != nil {
+			return nil, err
+		}
+		contacts, err := composition.Resolve[*notifications.ContactResolvers](container)
+		if err != nil {
+			return nil, err
+		}
+		users, err := composition.Resolve[user.Repository](container)
+		if err != nil {
+			return nil, err
+		}
+		// The Go defaults of native contracts resolve their services from the
+		// container when first invoked.
+		return New(c.cfg, Deps{DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Users: users, NativeDeps: container})
 	})
 	composition.ProvideFunc(builder, func(rt *Runtime) *manage.Service { return rt.Manage })
+	// Every Go entry of a native contract dispatches through the host.
+	composition.ProvideFuncAs[native.Dispatcher](builder, func(rt *Runtime) *HostDispatcher { return rt.CommandDispatcher() })
 	composition.ProvideFuncAs[spi.Catalog](builder, func(rt *Runtime) *catalog.Catalog { return rt.Catalog })
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllersFunc(builder, func(rt *Runtime) []application.Controller {

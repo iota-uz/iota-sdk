@@ -52,6 +52,10 @@ const (
 	BlockDenied         = "denied"
 	BlockArtifact       = "artifact"
 	BlockFailing        = "failing"
+	// BlockPackageDeactivated: the package the instance is pinned to has no
+	// active version, so the instance does not execute its code. Resume it after
+	// the package is activated again.
+	BlockPackageDeactivated = "packageDeactivated"
 )
 
 // Occurrence kinds.
@@ -95,6 +99,17 @@ type Implementations interface {
 	// At returns the implementation inside a given package version, for
 	// StartV2 on an older or newer version.
 	At(ctx context.Context, workflowID, pkg, version string) (Implementation, error)
+}
+
+// PackageGate is optionally implemented by Implementations. A run of an
+// instance whose package it reports inactive does not execute: the instance
+// becomes blocked with BlockPackageDeactivated until Resume, so deactivating a
+// package stops its live instances from running disabled code.
+type PackageGate interface {
+	// PackageActive reports whether the package has an active version. Any
+	// version counts: an instance pinned to an older version of an active
+	// package keeps running (old instances keep their pinned artifacts).
+	PackageActive(ctx context.Context, pkg string) (bool, error)
 }
 
 // Runner executes a workflow export; *host.Host implements it.
@@ -227,11 +242,15 @@ const (
 	codeLeaseLost  = "workflow.leaseLost"
 	codeTerminated = "workflow.terminated"
 	codeBlocked    = "workflow.blocked"
+	codeAborted    = "workflow.runAborted"
 )
 
 var (
 	errLeaseLost  = &pool.WireError{Kind: pool.ErrKindInternal, Code: codeLeaseLost, Message: "the run lost its lease; another runner owns the instance"}
 	errTerminated = &pool.WireError{Kind: pool.ErrKindInternal, Code: codeTerminated, Message: "the instance is no longer running; host calls are rejected"}
+	// errRunAborted ends a run whose host call hit an infrastructure failure:
+	// the workflow never sees the failure as its own, the run is replayed later.
+	errRunAborted = &pool.WireError{Kind: pool.ErrKindInternal, Code: codeAborted, Message: "the run was aborted by an infrastructure failure and will be retried"}
 )
 
 type blockInfo struct {

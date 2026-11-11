@@ -382,10 +382,15 @@ func (d *Dispatcher) backoff(attempts int) time.Duration {
 }
 
 // recordFailure keeps the failed attempt visible. It runs outside the rolled
-// back delivery transaction and never overwrites a delivered receipt.
+// back delivery transaction and never overwrites a delivered receipt. A
+// failure of the platform (database, worker, pool) is not the handler's: it is
+// retried after the backoff without counting as an attempt, so an outage can
+// never dead-letter events.
 func (d *Dispatcher) recordFailure(ctx context.Context, sub Subscription, ev outboxRow, attempts int, invocationID string, runErr error) error {
 	status := StatusFailed
-	if attempts >= d.cfg.MaxAttempts {
+	if host.IsInfrastructure(runErr) {
+		attempts = max(attempts-1, 0)
+	} else if attempts >= d.cfg.MaxAttempts {
 		status = StatusDead
 	}
 	var inv any
@@ -403,7 +408,7 @@ func (d *Dispatcher) recordFailure(ctx context.Context, sub Subscription, ev out
 		SET status = EXCLUDED.status, attempts = EXCLUDED.attempts, next_at = EXCLUDED.next_at,
 		    last_error = EXCLUDED.last_error, invocation_id = COALESCE(EXCLUDED.invocation_id, r.invocation_id), updated_at = now()
 		WHERE r.status <> 'done'`,
-		sub.ID, ev.id, ev.tenant, status, attempts, d.backoff(attempts).String(), msg, inv)
+		sub.ID, ev.id, ev.tenant, status, attempts, d.backoff(max(attempts, 1)).String(), msg, inv)
 	if err != nil {
 		return serrors.FromDB(opDeliver, err)
 	}

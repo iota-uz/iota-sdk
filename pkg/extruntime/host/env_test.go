@@ -435,7 +435,7 @@ func (w *workflowDouble) CallWorkflow(ctx context.Context, call host.WorkflowCal
 	case "wf.sleep":
 		return nil, &pool.WireError{Kind: pool.ErrKindSuspend, Suspend: json.RawMessage(`{"wakeAt":"2031-01-01T00:00:00Z"}`)}
 	case "wf.transaction.begin":
-		h, err := call.OpenTx(ctx)
+		h, err := call.OpenTx(ctx, "")
 		if err != nil {
 			return nil, err
 		}
@@ -448,7 +448,7 @@ func (w *workflowDouble) CallWorkflow(ctx context.Context, call host.WorkflowCal
 		if err := json.Unmarshal(args, &a); err != nil {
 			return nil, err
 		}
-		h, err := call.OpenTx(ctx)
+		h, err := call.OpenTx(ctx, "")
 		if err != nil {
 			return nil, err
 		}

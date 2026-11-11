@@ -210,10 +210,6 @@ func CRMClient() NativeEntity {
 	}
 }
 
-// DefaultNativeLists are the native lists the SDK publishes for packages to
-// extend with columns when the application declares none of its own.
-func DefaultNativeLists() []string { return []string{NativeClientList} }
-
 // DefaultNatives registers the SDK's native descriptors.
 func DefaultNatives() *NativeRegistry {
 	return NewNativeRegistry(CoreUser(), CRMClient())

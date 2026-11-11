@@ -37,6 +37,10 @@ type ScheduleDef struct {
 	Timezone string // IANA name; default UTC
 	Artifact pool.Artifact
 	Secrets  []string
+	// ActiveFrom is when the package version carrying the schedule was
+	// activated. Slots before it never fire, so a freshly activated schedule
+	// does not replay the lookback window. Zero means no lower bound.
+	ActiveFrom time.Time
 }
 
 // ScheduleSource lists the active schedules; the management slice implements
@@ -187,7 +191,11 @@ func (s *Scheduler) RunOnce(ctx context.Context) (int, error) {
 	now := s.cfg.Now()
 	ran := 0
 	for _, def := range defs {
-		slots, err := Slots(def, now.Add(-s.cfg.Lookback), now)
+		from := now.Add(-s.cfg.Lookback)
+		if from.Before(def.ActiveFrom) {
+			from = def.ActiveFrom
+		}
+		slots, err := Slots(def, from, now)
 		if err != nil {
 			s.cfg.Logger.Error("extruntime: schedule is invalid", "schedule", def.ID, "error", err)
 			continue
@@ -307,7 +315,11 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 	}
 	_ = tx.Rollback(context.WithoutCancel(ctx))
 	status := StatusFailed
-	if attempts >= s.cfg.MaxAttempts {
+	if host.IsInfrastructure(runErr) {
+		// A failure of the platform is not the handler's: the slot is retried
+		// after the backoff without counting as an attempt.
+		attempts = max(attempts-1, 0)
+	} else if attempts >= s.cfg.MaxAttempts {
 		status = StatusDead
 	}
 	msg := runErr.Error()

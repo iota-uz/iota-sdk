@@ -2,13 +2,16 @@ package host
 
 import (
 	"context"
+	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -37,9 +40,36 @@ type txHandle struct {
 	// this transaction; empty for transactions owned by the caller.
 	owner    string
 	external bool
+	// starts, when set, is the key sequence of tx.start calls made through
+	// this handle (a workflow occurrence's transaction).
+	starts *startSource
+	// inflight counts invocations joined to this handle that have not
+	// returned. The transaction cannot commit while any is running: its
+	// later writes would hit a closed handle after the earlier ones committed.
+	inflight atomic.Int32
+	// abandoned is set when a joined invocation ended because its caller
+	// finished or was cancelled: part of its writes are in the transaction.
+	abandoned atomic.Bool
+	hookMu    sync.Mutex
 
 	mu     sync.Mutex
 	closed bool
+	// hooks run after a commit of the transaction (native Tx.AfterCommit).
+	hooks []func(context.Context)
+}
+
+// afterCommit registers fn to run once the transaction commits. A
+// caller-owned transaction is committed outside the host, so it refuses.
+func (h *txHandle) afterCommit(fn func(context.Context)) error {
+	if h.external {
+		return pool.Internal("runtime.afterCommitUnavailable", "the transaction belongs to the caller of the runtime (a subscription delivery or schedule slot); after-commit callbacks cannot be registered in it")
+	}
+	// Called from inside a data call on the handle (the handle lock may be
+	// held by this goroutine), so the hooks have their own lock.
+	h.hookMu.Lock()
+	h.hooks = append(h.hooks, fn)
+	h.hookMu.Unlock()
+	return nil
 }
 
 // do serializes calls on the handle. A pgx transaction is single-connection;
@@ -70,14 +100,15 @@ func errTxClosed() error {
 // txRegistry holds the open handles of one root invocation. Handles are
 // scoped to the root: nested invocations join them, nothing else can see them.
 type txRegistry struct {
-	db *pgxpool.Pool
+	db  *pgxpool.Pool
+	log *slog.Logger
 
 	mu      sync.Mutex
 	handles map[string]*txHandle
 }
 
-func newTxRegistry(db *pgxpool.Pool) *txRegistry {
-	return &txRegistry{db: db, handles: map[string]*txHandle{}}
+func newTxRegistry(db *pgxpool.Pool, log *slog.Logger) *txRegistry {
+	return &txRegistry{db: db, log: log, handles: map[string]*txHandle{}}
 }
 
 func (r *txRegistry) begin(ctx context.Context, owner string, opts pgx.TxOptions) (*txHandle, error) {
@@ -130,6 +161,14 @@ func (r *txRegistry) end(ctx context.Context, h *txHandle, outcome TxOutcome) er
 	delete(r.handles, h.id)
 	r.mu.Unlock()
 
+	if outcome == TxCommit && (h.inflight.Load() > 0 || h.abandoned.Load()) {
+		// A tx.call / tx.query that nobody awaited is still running in this
+		// transaction, or was cut short when its caller finished. Committing
+		// would persist what it wrote so far and lose the rest; roll everything
+		// back instead.
+		_ = h.tx.Rollback(context.WithoutCancel(ctx))
+		return pool.Internal("runtime.nestedInFlight", "a nested invocation joined to this transaction did not finish before its caller (an un-awaited tx.call?); the transaction was rolled back")
+	}
 	if outcome == TxCommit {
 		if err := countCommit(ctx, h.tx, h.owner); err != nil {
 			_ = h.tx.Rollback(context.WithoutCancel(ctx))
@@ -139,6 +178,11 @@ func (r *txRegistry) end(ctx context.Context, h *txHandle, outcome TxOutcome) er
 			_ = h.tx.Rollback(context.WithoutCancel(ctx))
 			return serrors.FromDB(opTxEnd, err)
 		}
+		h.hookMu.Lock()
+		hooks := h.hooks
+		h.hooks = nil
+		h.hookMu.Unlock()
+		native.RunAfterCommit(context.WithoutCancel(ctx), r.log, hooks)
 		return nil
 	}
 	if err := h.tx.Rollback(context.WithoutCancel(ctx)); err != nil && err != pgx.ErrTxClosed {

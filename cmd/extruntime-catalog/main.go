@@ -22,30 +22,25 @@ import (
 	"os"
 	"path/filepath"
 
-	// Registers core.user.created.v1 in the native event catalog.
+	// Register the native events and Go-implemented commands, operations and queries of the SDK modules
+	// (core.user.created.v1, crm.commands.saveClient, crm.operations.upsertClient, ...).
 	_ "github.com/iota-uz/iota-sdk/modules/core/services"
+	_ "github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 )
 
 // DefaultOutput is the committed snapshot, relative to the repository root.
 const DefaultOutput = "web/runtime/catalog/sdk-natives.json"
 
-// SDKSnapshot builds the catalog exactly as runtime.New does for an
-// application that adds no natives: the default entities and lists plus the
-// events Go modules registered at init time.
+// SDKSnapshot is the native catalog of the SDK without application
+// configuration: catalog.Defaults() over the modules this binary links in. Each
+// module that publishes native contracts registers them from its package
+// initialization, so the blank imports below decide what the snapshot (and the
+// kit generated from it) contains.
 func SDKSnapshot() (catalog.Snapshot, error) {
-	set := catalog.NewNativeSet(data.DefaultNatives())
-	for _, r := range events.Default.Resources() {
-		if err := set.Register(r); err != nil {
-			return catalog.Snapshot{}, err
-		}
-	}
-	for _, l := range data.DefaultNativeLists() {
-		if err := set.RegisterList(l); err != nil {
-			return catalog.Snapshot{}, err
-		}
+	set, err := catalog.Defaults()
+	if err != nil {
+		return catalog.Snapshot{}, err
 	}
 	return set.Snapshot(), nil
 }

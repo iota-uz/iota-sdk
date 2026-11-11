@@ -243,6 +243,244 @@
             ]
           },
           "keyType": "int64"
+        },
+        {
+          "id": "crm.commands.saveClient",
+          "kind": "command",
+          "contractHash": "999d950149ac69c84112117b8de28e07c5dafb885e6d35496ac773f242e36f97",
+          "label": {
+            "en": "Save client",
+            "ru": "Сохранить клиента",
+            "uz": "Mijozni saqlash"
+          },
+          "description": "Saves a CRM client from the client forms.",
+          "input": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "client",
+                "type": {
+                  "kind": "ref",
+                  "optional": true,
+                  "entity": "crm.client"
+                }
+              },
+              {
+                "name": "firstName",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "lastName",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "middleName",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "phone",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "email",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "address",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "passportSeries",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "passportNumber",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "pin",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "countryCode",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "comments",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              }
+            ]
+          },
+          "output": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "client",
+                "type": {
+                  "kind": "ref",
+                  "entity": "crm.client"
+                }
+              },
+              {
+                "name": "created",
+                "type": {
+                  "kind": "bool"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "crm.operations.upsertClient",
+          "kind": "operation",
+          "contractHash": "779f730da5d5137e80e0c51eaf21bdb11f9d49d2bf014207e3ff8e92b986d22a",
+          "label": {
+            "en": "Save client data",
+            "ru": "Сохранить данные клиента",
+            "uz": "Mijoz ma'lumotlarini saqlash"
+          },
+          "description": "Creates a CRM client, or applies the present fields to an existing one, enforcing the client invariants.",
+          "input": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "client",
+                "type": {
+                  "kind": "ref",
+                  "optional": true,
+                  "entity": "crm.client"
+                }
+              },
+              {
+                "name": "firstName",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "lastName",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "middleName",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "phone",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "email",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "address",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "passportSeries",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "passportNumber",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "pin",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "countryCode",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "comments",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              }
+            ]
+          },
+          "output": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "client",
+                "type": {
+                  "kind": "ref",
+                  "entity": "crm.client"
+                }
+              },
+              {
+                "name": "created",
+                "type": {
+                  "kind": "bool"
+                }
+              }
+            ]
+          }
         }
       ],
       "lists": [

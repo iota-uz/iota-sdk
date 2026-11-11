@@ -105,7 +105,7 @@ func (h *Host) runGuards(ctx context.Context, g guardRun) error {
 				}
 				issues = append(issues, is)
 			}
-		case we.Kind == pool.ErrKindDomain && g.contract != nil && slices.Contains(g.contract.Errors, we.Code):
+		case we.Kind == pool.ErrKindDomain && (isPlatformDomainCode(we.Code) || (g.contract != nil && slices.Contains(g.contract.Errors, we.Code))):
 			return err
 		case we.Kind == pool.ErrKindDomain:
 			return fail("runtime.undeclaredDomainError", "guard %s raised %q which %s does not declare", rg.Guard.ID, we.Code, g.target)
@@ -129,7 +129,7 @@ func (h *Host) CheckWrite(ctx context.Context, tx pgx.Tx, sc spi.Scope, change s
 	if parent != nil {
 		root, trigger = parent.root, parent.trigger()
 	} else {
-		root = &rootState{txs: newTxRegistry(h.cfg.DB)}
+		root = &rootState{txs: newTxRegistry(h.cfg.DB, h.cfg.Logger)}
 		defer root.txs.rollbackAll()
 		var cancel context.CancelFunc
 		ctx, cancel = h.withDeadline(ctx)

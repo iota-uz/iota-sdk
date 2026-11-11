@@ -258,7 +258,7 @@ func (s *Store) verifyNativeRefs(ctx context.Context, tx pgx.Tx, op serrors.Op, 
 			return serrors.FromDB(op, err)
 		}
 		if !found {
-			return fail(op, ErrReferenceViolation, "field %q refers to a missing %s", w.f.Key, n.ID)
+			return failField(op, ErrReferenceViolation, w.f.Key, "field %q refers to a missing %s", w.f.Key, n.ID)
 		}
 	}
 	return nil
@@ -321,7 +321,7 @@ func (s *Store) dbErr(op serrors.Op, m *model, err error) error {
 	switch code {
 	case "23505":
 		if f, ok := m.uniques[pg.ConstraintName]; ok {
-			return fail(op, ErrUniqueViolation, "field %q already holds this value", f)
+			return failField(op, ErrUniqueViolation, f, "field %q already holds this value", f)
 		}
 		return fail(op, ErrUniqueViolation, "a unique field already holds this value")
 	case "23503":
