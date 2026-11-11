@@ -228,9 +228,14 @@ func (s *Service) Activate(ctx context.Context, actor spi.Subject, ns, version s
 		if err := s.rebind(ctx, tx, actor.UserID, ns, version, &m, &out); err != nil {
 			return err
 		}
+		subs, err := s.syncSubscriptions(ctx, tx, ns, &m)
+		if err != nil {
+			return err
+		}
 		if err := notifyCatalog(ctx, tx, ns+"@"+version); err != nil {
 			return err
 		}
+		e.Detail["newSubscriptions"] = subs
 		e.Detail["schemaSteps"] = len(steps)
 		e.Detail["bound"], e.Detail["rebound"], e.Detail["released"] = len(out.Bound), len(out.Rebound), len(out.Released)
 		e.After = s.catalog.Invalidate
@@ -387,6 +392,9 @@ func (s *Service) Deactivate(ctx context.Context, actor spi.Subject, ns string) 
 			}
 		}
 		e.Detail["released"] = len(open)
+		if _, err := tx.Exec(ctx, `DELETE FROM extruntime.subscription_watermarks WHERE package = $1`, ns); err != nil {
+			return serrors.FromDB(op, err)
+		}
 		if err := notifyCatalog(ctx, tx, ns); err != nil {
 			return err
 		}

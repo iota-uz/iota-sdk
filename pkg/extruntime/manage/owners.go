@@ -19,7 +19,6 @@ type TriggerOwner struct {
 	TriggerID  string    `json:"triggerId"`
 	TenantID   uuid.UUID `json:"tenantId"`
 	UserID     int64     `json:"userId"`
-	AssignedBy *int64    `json:"assignedBy,omitempty"`
 	AssignedAt time.Time `json:"assignedAt"`
 }
 
@@ -78,10 +77,10 @@ func (s *Service) AssignOwner(ctx context.Context, actor spi.Subject, triggerID 
 			return serrors.New(serrors.Invalid, "the owner must be a user of the tenant")
 		}
 		out = TriggerOwner{TriggerID: triggerID, TenantID: actor.TenantID, UserID: userID}
-		return tx.QueryRow(ctx, `INSERT INTO extruntime.trigger_owners (trigger_id, tenant_id, user_id, assigned_by)
-			VALUES ($1, $2, $3, $4)
-			ON CONFLICT (trigger_id, tenant_id) DO UPDATE SET user_id = EXCLUDED.user_id, assigned_by = EXCLUDED.assigned_by, assigned_at = CURRENT_TIMESTAMP
-			RETURNING assigned_by, assigned_at`, triggerID, actor.TenantID, userID, actor.UserID).Scan(&out.AssignedBy, &out.AssignedAt)
+		return tx.QueryRow(ctx, `INSERT INTO extruntime.trigger_owners (trigger_id, tenant_id, user_id)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (trigger_id, tenant_id) DO UPDATE SET user_id = EXCLUDED.user_id, assigned_at = CURRENT_TIMESTAMP
+			RETURNING assigned_at`, triggerID, actor.TenantID, userID).Scan(&out.AssignedAt)
 	})
 	return out, serrors.Wrap(op, err)
 }
@@ -107,7 +106,7 @@ func (s *Service) ListOwners(ctx context.Context, actor spi.Subject) ([]TriggerO
 	if err := require(actor, PermRead); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.Query(ctx, `SELECT trigger_id, tenant_id, user_id, assigned_by, assigned_at
+	rows, err := s.db.Query(ctx, `SELECT trigger_id, tenant_id, user_id, assigned_at
 		FROM extruntime.trigger_owners WHERE tenant_id = $1 ORDER BY trigger_id`, actor.TenantID)
 	if err != nil {
 		return nil, serrors.FromDB(op, err)
@@ -116,7 +115,7 @@ func (s *Service) ListOwners(ctx context.Context, actor spi.Subject) ([]TriggerO
 	var out []TriggerOwner
 	for rows.Next() {
 		var o TriggerOwner
-		if err := rows.Scan(&o.TriggerID, &o.TenantID, &o.UserID, &o.AssignedBy, &o.AssignedAt); err != nil {
+		if err := rows.Scan(&o.TriggerID, &o.TenantID, &o.UserID, &o.AssignedAt); err != nil {
 			return nil, serrors.FromDB(op, err)
 		}
 		out = append(out, o)

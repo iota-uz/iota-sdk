@@ -133,6 +133,17 @@ CREATE TABLE extruntime.binding_displaced (
     displaced_binding_id uuid NOT NULL REFERENCES extruntime.bindings (id) ON DELETE CASCADE
 );
 
+-- Position in the event outbox from which a subscription receives events:
+-- set when the subscription is first activated, never replayed backwards.
+CREATE TABLE extruntime.subscription_watermarks (
+    subscription text PRIMARY KEY,
+    package text NOT NULL REFERENCES extruntime.packages (namespace),
+    after_seq bigint NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX subscription_watermarks_package_idx ON extruntime.subscription_watermarks (package);
+
 CREATE TABLE extruntime.audit_log (
     id bigserial PRIMARY KEY,
     at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -154,6 +165,8 @@ CREATE INDEX audit_log_namespace_idx ON extruntime.audit_log (namespace, id DESC
 
 -- +migrate Down
 DROP TABLE IF EXISTS extruntime.audit_log;
+
+DROP TABLE IF EXISTS extruntime.subscription_watermarks;
 
 DROP TABLE IF EXISTS extruntime.binding_displaced;
 

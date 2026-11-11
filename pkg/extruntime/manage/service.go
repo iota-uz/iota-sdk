@@ -61,6 +61,8 @@ type Service struct {
 	git      GitConfig
 	log      *slog.Logger
 
+	workflows Workflows
+
 	kitMu    sync.Mutex
 	kitKey   string
 	kitCache build.Kit

@@ -244,8 +244,8 @@ func TestIncompatibleSchemaActivationIsBlocked(t *testing.T) {
 
 	// relaxing a required field is automatic, but a live workflow instance
 	// pinned to v1 expects a value on every row
-	e.exec(`CREATE TABLE extruntime.workflow_instances (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), package text NOT NULL, version text NOT NULL, status text NOT NULL)`)
-	e.exec(`INSERT INTO extruntime.workflow_instances (package, version, status) VALUES ($1, '1.0.0', 'waiting')`, ns)
+	e.exec(`INSERT INTO extruntime.workflow_instances (id, tenant_id, workflow, package, version, export, input, status, subject_user_id, subject_kind)
+		VALUES (gen_random_uuid(), $1, $2, $3, '1.0.0', 'flow', '{}', 'waiting', 1, 'initiator')`, e.tenant, ns+".flow", ns)
 	e.draft(ns, "3.0.0", insuranceManifest(opt(tm(manifest.KindString))), nil)
 	_, err = e.svc.Publish(ctx, e.admin, ns, "3.0.0")
 	require.NoError(t, err)
