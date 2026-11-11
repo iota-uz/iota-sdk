@@ -1752,7 +1752,7 @@ func tableSection(config *TableConfig, filterAction string) templ.Component {
 		// filters on target.closest() are the only reliable guard.
 		// Alpine select models may update hidden query fields in a microtask.
 		// Defer serialization until those derived values reach the DOM.
-		hxTrigger := "keyup[!target.closest('[data-fb-popover]')] changed delay:300ms from:input, change[!target.closest('[data-fb-popover]')] from:input delay:500ms, change[!target.closest('[data-fb-popover]')] from:select delay:10ms, change from:input[type='checkbox'], filter-changed"
+		hxTrigger := "keyup[!target.closest('[data-fb-popover]')] changed delay:300ms from:input, change[!target.closest('[data-fb-popover]')] from:input delay:500ms, change[!target.closest('[data-fb-popover]')] from:select delay:10ms, change[!target.closest('[data-fb-popover]')] from:input[type='checkbox'], filter-changed"
 		if config.HxTrigger != "" {
 			hxTrigger = config.HxTrigger
 		}

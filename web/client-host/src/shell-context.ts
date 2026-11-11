@@ -28,12 +28,19 @@ function parseItem(raw: unknown, index: number): ShellNavigationItem {
   if (!item || typeof item.key !== 'string' || typeof item.title !== 'string') {
     throw new Error(`shell context navigation[${index}] requires string key and title`)
   }
+  for (const field of ['href', 'parent', 'workspace'] as const) {
+    if (item[field] !== undefined && typeof item[field] !== 'string') {
+      throw new Error(`shell context navigation[${index}].${field} must be a string`)
+    }
+  }
   return {
     key: item.key,
     title: item.title,
     ...(item.href ? { href: item.href } : {}),
     ...(item.parent ? { parent: item.parent } : {}),
     ...(item.workspace ? { workspace: item.workspace } : {}),
+    ...(typeof item.pinned === 'boolean' ? { pinned: item.pinned } : {}),
+    ...(typeof item.beta === 'boolean' ? { beta: item.beta } : {}),
     ...(typeof item.order === 'number' ? { order: item.order } : {}),
   }
 }

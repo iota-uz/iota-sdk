@@ -452,34 +452,41 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 		}
 		switch field.Type {
 		case filterq.FieldTypeReference:
-			templ_7745c5c3_Var21 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-				if !templ_7745c5c3_IsBuffer {
-					defer func() {
-						templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-						if templ_7745c5c3_Err == nil {
-							templ_7745c5c3_Err = templ_7745c5c3_BufErr
-						}
-					}()
-				}
-				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = GroupedOptions(field.Options, condValues(cond)).Render(ctx, templ_7745c5c3_Buffer)
+			if usesCheckboxList(field.Options) {
+				templ_7745c5c3_Err = CheckboxOptions(field.Options, condValues(cond)).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				return nil
-			})
-			templ_7745c5c3_Err = base.Combobox(base.ComboboxProps{
-				Multiple:     true,
-				Searchable:   true,
-				Name:         "",
-				Placeholder:  pageCtx.T("Scaffold.FilterBuilder.SelectValues"),
-				NotFoundText: pageCtx.T("Scaffold.FilterBuilder.NothingFound"),
-				ListClass:    "!max-h-60",
-			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var21), templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
+			} else {
+				templ_7745c5c3_Var21 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+					if !templ_7745c5c3_IsBuffer {
+						defer func() {
+							templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+							if templ_7745c5c3_Err == nil {
+								templ_7745c5c3_Err = templ_7745c5c3_BufErr
+							}
+						}()
+					}
+					ctx = templ.InitializeContext(ctx)
+					templ_7745c5c3_Err = GroupedOptions(field.Options, condValues(cond)).Render(ctx, templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					return nil
+				})
+				templ_7745c5c3_Err = base.Combobox(base.ComboboxProps{
+					Multiple:     true,
+					Searchable:   true,
+					Name:         "",
+					Placeholder:  pageCtx.T("Scaffold.FilterBuilder.SelectValues"),
+					NotFoundText: pageCtx.T("Scaffold.FilterBuilder.NothingFound"),
+					ListClass:    "!max-h-60",
+				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var21), templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 			}
 		case filterq.FieldTypeDate:
 			if len(field.presets()) > 0 {
@@ -495,7 +502,7 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 					var templ_7745c5c3_Var22 string
 					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs("preset === '" + string(p) + "' ? 'bg-surface-400 font-medium' : ''")
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 167, Col: 85}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 171, Col: 85}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 					if templ_7745c5c3_Err != nil {
@@ -508,7 +515,7 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 					var templ_7745c5c3_Var23 string
 					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs("applyPreset('" + string(p) + "')")
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 168, Col: 55}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 172, Col: 55}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 					if templ_7745c5c3_Err != nil {
@@ -521,7 +528,7 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 					var templ_7745c5c3_Var24 string
 					templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T(presetKey(p)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 170, Col: 33}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 174, Col: 33}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 					if templ_7745c5c3_Err != nil {
@@ -582,7 +589,7 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(numberValue(cond, 0))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 205, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 209, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
@@ -595,7 +602,7 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(numberValue(cond, 0))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 214, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 218, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 			if templ_7745c5c3_Err != nil {
@@ -608,7 +615,7 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(numberValue(cond, 1))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 222, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 226, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {
@@ -634,7 +641,7 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Scaffold.FilterBuilder.Apply"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 234, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 238, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {

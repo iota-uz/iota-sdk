@@ -1,6 +1,87 @@
 package filterbuilder
 
-import "strconv"
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"slices"
+	"strconv"
+)
+
+// checkboxListLimit is the option count from which a reference field needs the
+// searchable combobox instead of a plain checkbox list.
+const checkboxListLimit = 5
+
+// usesCheckboxList reports whether options fit a plain checkbox list. Grouped
+// options stay on the combobox, the only editor that renders group headers, and
+// so does an empty list, which relies on the combobox's "nothing found" state.
+func usesCheckboxList(options []Option) bool {
+	if len(options) == 0 || len(options) >= checkboxListLimit {
+		return false
+	}
+	return !slices.ContainsFunc(options, func(opt Option) bool { return opt.Group != "" })
+}
+
+// checkboxOptionAttrs leaves a selected option enabled even if it became disabled
+// after selection, so it can be removed. Like the combobox, only a fresh selection
+// of a disabled option is blocked.
+func checkboxOptionAttrs(opt Option, checked bool) templ.Attributes {
+	attrs := templ.Attributes{"value": opt.Value, "data-fb-value": ""}
+	if opt.Disabled && !checked {
+		attrs["disabled"] = true
+	}
+	return attrs
+}
+
+// missingSelected returns the selected values that no option carries, in order
+// and without repeats. Dropping them would make applying the editor silently
+// remove them from the filter.
+func missingSelected(options []Option, selected []string) []string {
+	var missing []string
+	for _, v := range selected {
+		known := slices.ContainsFunc(options, func(opt Option) bool { return opt.Value == v })
+		if !known && !slices.Contains(missing, v) {
+			missing = append(missing, v)
+		}
+	}
+	return missing
+}
+
+// CheckboxOptions renders a short reference-field option list as nameless
+// checkboxes, read back by fbPanel.collect through data-fb-value.
+templ CheckboxOptions(options []Option, selected []string) {
+	<div class="flex flex-col gap-2" data-fb-checkboxes>
+		for _, opt := range options {
+			{{ checked := slices.Contains(selected, opt.Value) }}
+			@input.Checkbox(&input.CheckboxProps{
+				Label:   opt.Label,
+				Checked: checked,
+				Class: templ.Classes(
+					"rounded-md has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-brand-500",
+					templ.KV("opacity-40", opt.Disabled),
+					templ.KV("!cursor-not-allowed", opt.Disabled && !checked),
+				),
+				Attrs: checkboxOptionAttrs(opt, checked),
+			}) {
+				if opt.Count >= 0 {
+					<span
+						class="text-xs text-200 whitespace-nowrap"
+						x-text={ fmt.Sprintf("'(' + Number(%d).toLocaleString() + ')'", opt.Count) }
+					></span>
+				}
+			}
+		}
+		// A selected value that is no longer an option stays visible and checked,
+		// so the user can keep it or remove it explicitly.
+		for _, v := range missingSelected(options, selected) {
+			@input.Checkbox(&input.CheckboxProps{
+				Label:   v,
+				Checked: true,
+				Class:   templ.Classes("rounded-md has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-brand-500"),
+				Attrs:   templ.Attributes{"value": v, "data-fb-value": ""},
+			})
+		}
+	</div>
+}
 
 // GroupedOptions renders reference-field options as children for
 // base.Combobox. Group headings are emitted as disabled marker options

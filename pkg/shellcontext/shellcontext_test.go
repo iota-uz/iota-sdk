@@ -43,6 +43,20 @@ func TestFlatten_DuplicateKeysStayUnique(t *testing.T) {
 	assert.NotEqual(t, got[0].Key, got[1].Key)
 }
 
+func TestFlatten_SuffixedKeyCollisionStaysUnique(t *testing.T) {
+	got := shellcontext.Flatten([]types.NavigationItem{
+		{Key: "a", Name: "A", Children: []types.NavigationItem{{Key: "a", Name: "child"}}},
+		{Key: "a#1", Name: "B"},
+		{Key: "a", Name: "C"},
+	})
+	require.Len(t, got, 4)
+	seen := map[string]bool{}
+	for _, item := range got {
+		assert.False(t, seen[item.Key], "duplicate key %s", item.Key)
+		seen[item.Key] = true
+	}
+}
+
 func TestComponent_RendersEscapedJSON(t *testing.T) {
 	ctx := context.WithValue(context.Background(), constants.NavItemsKey, []types.NavigationItem{{Key: "x", Name: "</script><b>"}})
 	var out bytes.Buffer

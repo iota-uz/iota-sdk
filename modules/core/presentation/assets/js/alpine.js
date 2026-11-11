@@ -2858,6 +2858,10 @@ let fbPanel = (cfg = {}) => ({
   collect() {
     switch (cfg.type) {
       case 'reference': {
+        const checkboxes = this.$root.querySelectorAll('input[type="checkbox"][data-fb-value]');
+        if (checkboxes.length) {
+          return Array.from(checkboxes).filter((c) => c.checked).map((c) => c.value);
+        }
         const select = this.$root.querySelector('select[multiple]');
         return Array.from(select?.selectedOptions ?? [])
           .map((o) => o.value)

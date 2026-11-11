@@ -26,6 +26,19 @@ describe('shell context', () => {
     expect(documentShellRegistry(doc)).toBe(registry)
   })
 
+  it('keeps pinned and beta flags, including false', () => {
+    const doc = page({ version: '1.0.0', navigation: [
+      { key: 'a', title: 'A', pinned: true, beta: false },
+    ] })
+    expect(documentShellRegistry(doc).navigation()).toMatchObject([{ key: 'a', pinned: true, beta: false }])
+  })
+
+  it('rejects non-string href, parent and workspace', () => {
+    for (const field of ['href', 'parent', 'workspace']) {
+      expect(() => readShellContext(page({ version: '1.0.0', navigation: [{ key: 'x', title: 'X', [field]: {} }] }))).toThrow(/must be a string/)
+    }
+  })
+
   it('rejects an incompatible major version and malformed items', () => {
     expect(() => readShellContext(page({ version: '2.0.0', navigation: [] }))).toThrow(/incompatible/)
     expect(() => readShellContext(page({ version: '1.0.0', navigation: [{ key: 1 }] }))).toThrow(/requires string key/)

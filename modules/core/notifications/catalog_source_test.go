@@ -135,3 +135,15 @@ func TestCatalogRegisterSource_ReactivatesSameSnapshot(t *testing.T) {
 	other.definitions[0].Source = "other"
 	require.Error(t, c.RegisterSource(context.Background(), other), "another source cannot claim the snapshot")
 }
+
+func TestCatalogReservesKeysAcrossDeactivationAndPinsSnapshot(t *testing.T) {
+	t.Parallel()
+	const key = "ext.thing.happened.v1"
+	catalog := NewCatalog()
+	require.NoError(t, catalog.RegisterSource(context.Background(), staticSource{name: "ts", definitions: []Definition{runtimeDefinition(key, "a")}}))
+	event, err := catalog.Normalize(Event{Key: key, ID: "1", TenantID: uuid.New()})
+	require.NoError(t, err)
+	require.Equal(t, "a", event.SnapshotRef)
+	catalog.Deactivate("ts")
+	require.Error(t, catalog.RegisterSource(context.Background(), staticSource{name: "ts", definitions: []Definition{runtimeDefinition(key, "b")}}))
+}

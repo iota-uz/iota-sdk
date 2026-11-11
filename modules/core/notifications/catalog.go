@@ -226,6 +226,15 @@ func (c *Catalog) prepare(d Definition) (Definition, error) {
 	if prev, exists := c.snapshots[snapshotID(d.Key, d.SnapshotRef)]; exists && d.SnapshotRef != "" && prev.Source != d.Source {
 		return Definition{}, fmt.Errorf("notification snapshot already registered: %s", snapshotID(d.Key, d.SnapshotRef))
 	}
+	// A runtime key stays reserved after its source is deactivated: changing a
+	// definition's meaning requires a new key version.
+	if d.SnapshotRef != "" {
+		for _, snapshot := range c.snapshots {
+			if snapshot.Key == d.Key {
+				return Definition{}, fmt.Errorf("notification event key already used by a previous definition: %s", d.Key)
+			}
+		}
+	}
 	if d.Render == nil {
 		names := cloneDefinition(d).Name
 		descriptions := cloneDefinition(d).Description
@@ -300,6 +309,11 @@ func (c *Catalog) Normalize(event Event) (Event, error) {
 	}
 	if event.Version == 0 {
 		event.Version = version
+	}
+	// Pin runtime events to the definition they were validated against so a
+	// later deactivation cannot leave queued jobs without a definition.
+	if event.SnapshotRef == "" {
+		event.SnapshotRef = d.SnapshotRef
 	}
 	if event.Version != version || event.TenantID == uuid.Nil || strings.TrimSpace(event.ID) == "" || len(event.ID) > 200 || len(event.DedupeKey) > 200 {
 		return event, fmt.Errorf("invalid notification event envelope")
