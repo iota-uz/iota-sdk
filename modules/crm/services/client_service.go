@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/listext"
 )
 
 type ClientService struct {
@@ -136,4 +137,15 @@ func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, err
 	deletedEvent.Result = entity
 	s.publisher.Publish(deletedEvent)
 	return entity, nil
+}
+
+// ExtensionView reads the columns extension packages contribute to the clients
+// list for the given clients. It returns nil when the repository does not
+// support extension columns or none applies to the current user.
+func (s *ClientService) ExtensionView(ctx context.Context, params *client.FindParams, purpose listext.Purpose, ids []uint) (*listext.View, error) {
+	reader, ok := s.repo.(client.ExtensionReader)
+	if !ok {
+		return nil, nil
+	}
+	return reader.ExtensionView(ctx, params, purpose, ids)
 }
