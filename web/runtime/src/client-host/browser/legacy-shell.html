@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Legacy with shell</title></head>
+<body>
+<script id="iota-shell-context" type="application/json">{"version": "1.0.0", "navigation": [{"key": "crm", "title": "CRM", "order": 0}, {"key": "crm.client", "title": "Clients", "href": "/crm/clients", "parent": "crm", "order": 0}, {"key": "acme.insurance.policies", "title": "Policies", "href": "/insurance/policies", "order": 1}], "user": {"name": "Ann Doe", "email": "ann@example.com"}}</script>
+<script id="iota-runtime-context" type="application/json">{"version": "1.0.0", "protocolVersion": "1.0.0", "sdkReleaseVersion": "0.5.6", "sdkCommit": "__IOTA_SDK_SOURCE_COMMIT__", "rpc": "/_ext/rpc", "locale": "en", "permissions": ["Policy.Read"], "user": {"id": "5", "name": "Ann Doe", "email": "ann@example.com"}, "shell": {"id": "acme.shell.main", "package": "@acme/shell", "version": "v2", "module": "/_ext/assets/5he115he/client/shell.tsx", "export": "shell", "binding": "b-1"}, "navigation": {"workspaces": [], "palette": [{"id": "p1", "label": "Go to policies", "href": "/insurance/policies", "keywords": []}]}}</script>
+<div data-iota-shell-standard id="standard"><aside id="standard-sidebar">Standard sidebar</aside>
+  <div class="content"><div data-iota-shell-outlet id="outlet"><div id="legacy-body"><h1>Clients (legacy Templ page)</h1><button id="legacy-button" type="button" onclick="this.textContent='clicked ' + (++window.__clicks)">click me</button></div><script>window.__clicks = 0</script></div></div>
+</div>
+<script type="module" src="/runtime-host.ts"></script>
+</body></html>

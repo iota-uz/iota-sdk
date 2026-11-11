@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Policy</title></head>
+<body>
+<script id="iota-shell-context" type="application/json">{"version": "1.0.0", "navigation": [{"key": "crm", "title": "CRM", "order": 0}, {"key": "crm.client", "title": "Clients", "href": "/crm/clients", "parent": "crm", "order": 0}, {"key": "acme.insurance.policies", "title": "Policies", "href": "/insurance/policies", "order": 1}], "user": {"name": "Ann Doe", "email": "ann@example.com"}}</script>
+
+<div data-iota-shell-standard id="standard"><aside id="standard-sidebar">Standard sidebar</aside>
+  <div class="content"><div data-iota-shell-outlet id="outlet"><main id="iota-client-route" data-client-route-background><div id="iota-client-route-mount"></div></main><div id="iota-client-route-portals"></div><script id="iota-client-context" type="application/json">{"bootstrapVersion": "1.0.0", "protocolVersion": "1.0.0", "sdkReleaseVersion": "0.5.6", "sdkCommit": "__IOTA_SDK_SOURCE_COMMIT__", "initial": {"kind": "iota.runtime.page", "page": {"id": "acme.insurance.policy", "package": "@acme/insurance", "version": "v1", "module": "/_ext/assets/h1h1h1h1/client/policy.tsx", "export": "policy"}, "params": {"id": "7"}, "paramTypes": {"kind": "object", "properties": [{"name": "id", "type": {"kind": "int"}}]}}, "theme": "light", "route": {"id": "acme.insurance.policy", "path": "/insurance/policies/7", "featureId": "acme.insurance.policy"}, "locale": {"language": "en", "messages": {}}, "permissions": ["Policy.Read"], "services": {"rpc": "/_ext/rpc"}}</script></div></div>
+</div>
+<script type="module" src="/runtime-host.ts"></script>
+</body></html>

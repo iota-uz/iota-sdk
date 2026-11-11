@@ -685,6 +685,7 @@
   },
   "No": "Não",
   "PerPage": "Por página",
+  "SortBy": "Ordenar por",
   "PermissionSets": {
     "Core": {
       "UserView": {
