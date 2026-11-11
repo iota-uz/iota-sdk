@@ -43,8 +43,8 @@ func TestDraftCheckBuildPublishReviewActivate(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, chk.HasErrors)
 	require.NotEmpty(t, chk.KitHash)
-	require.Equal(t, chk.KitHash, e.builder.lastKit.Hash)
-	require.Contains(t, e.builder.lastKit.Modules, "@iota-kit/core", "native descriptors are in the kit")
+	require.Equal(t, chk.KitHash, e.builder.LastKit.Hash)
+	require.Contains(t, e.builder.LastKit.Modules, "@iota-kit/core", "native descriptors are in the kit")
 
 	// a build with errors reports diagnostics and publish is refused
 	_, err = e.svc.PutFile(ctx, e.author, ns, "src/bad.ts", []byte("const x: number = BAD_TYPE"), nil)

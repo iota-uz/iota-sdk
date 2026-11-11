@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -40,6 +41,12 @@ func (s *Service) triggerExists(ctx context.Context, id string) (bool, error) {
 		}
 		for _, t := range av.Manifest.Endpoints {
 			if t.ID == id {
+				return true, nil
+			}
+		}
+		// a contact resolver runs after commit without a user: it needs an owner too
+		for _, i := range av.Manifest.Implementations {
+			if i.Kind == manifest.ImplContactResolver && i.Implements == id {
 				return true, nil
 			}
 		}

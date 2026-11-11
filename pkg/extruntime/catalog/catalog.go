@@ -45,9 +45,10 @@ type Catalog struct {
 	db      *pgxpool.Pool
 	natives *NativeSet
 
-	mu   sync.Mutex
-	snap *snapshot
-	gen  uint64
+	mu        sync.Mutex
+	snap      *snapshot
+	gen       uint64
+	listeners []func()
 }
 
 var _ spi.Catalog = (*Catalog)(nil)
@@ -59,12 +60,24 @@ func New(db *pgxpool.Pool, natives *NativeSet) *Catalog {
 // Natives is the native contract set the catalog was built with.
 func (c *Catalog) Natives() *NativeSet { return c.natives }
 
+// OnChange registers fn to run (in its own goroutine) after every
+// invalidation, so adapters can follow activations.
+func (c *Catalog) OnChange(fn func()) {
+	c.mu.Lock()
+	c.listeners = append(c.listeners, fn)
+	c.mu.Unlock()
+}
+
 // Invalidate drops the cached snapshot.
 func (c *Catalog) Invalidate() {
 	c.mu.Lock()
 	c.snap = nil
 	c.gen++
+	listeners := append([]func(){}, c.listeners...)
 	c.mu.Unlock()
+	for _, fn := range listeners {
+		go fn()
+	}
 }
 
 func (c *Catalog) current(ctx context.Context) (*snapshot, error) {

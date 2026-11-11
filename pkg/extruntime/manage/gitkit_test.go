@@ -197,7 +197,7 @@ func TestKitExportHasRefsAndTypesButNoHandlers(t *testing.T) {
 	require.Contains(t, string(k0.Modules["@iota-kit/core"]["index.d.ts"]), "core_commands_RejectIncoming")
 	_, err = e.svc.Kit(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 1, e.kits.calls, "an unchanged catalog does not regenerate the kit")
+	require.Equal(t, 1, e.kits.Calls, "an unchanged catalog does not regenerate the kit")
 
 	e.draft(ns, "1.0.0", insuranceManifest(tm(manifest.KindString)), nil)
 	v1 := e.release(ns, "1.0.0")
@@ -213,7 +213,7 @@ func TestKitExportHasRefsAndTypesButNoHandlers(t *testing.T) {
 
 	// what the generator received: contract kinds only, never the server graph
 	var src build.KitSource
-	for _, s := range e.kits.sources {
+	for _, s := range e.kits.Sources {
 		if s.Namespace == ns {
 			src = s
 		}

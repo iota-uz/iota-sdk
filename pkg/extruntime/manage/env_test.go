@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
-	"strings"
-	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -15,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/artifact"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/build"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage/managetest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
@@ -41,8 +38,8 @@ type env struct {
 	svc     *manage.Service
 	cat     *catalog.Catalog
 	natives *catalog.NativeSet
-	builder *fakeBuilder
-	kits    *fakeKits
+	builder *managetest.Builder
+	kits    *managetest.Kits
 	arts    *artifact.Store
 	cache   string
 	// subjects
@@ -57,7 +54,7 @@ func newEnv(t *testing.T, opts ...func(*manage.Config)) *env {
 		Isolation: itf.IsolationConfig{Mode: itf.IsolationCommitted},
 	})
 	scope := h.Scope(t)
-	e := &env{t: t, db: scope.Pool, tenant: scope.Tenant.ID, builder: &fakeBuilder{}, kits: &fakeKits{}, cache: t.TempDir()}
+	e := &env{t: t, db: scope.Pool, tenant: scope.Tenant.ID, builder: &managetest.Builder{}, kits: &managetest.Kits{}, cache: t.TempDir()}
 	var err error
 	e.arts, err = artifact.NewStore(e.db, e.cache)
 	require.NoError(t, err)
@@ -217,108 +214,6 @@ func (e *env) auditActions(outcome string) map[string]int {
 	}
 	require.NoError(e.t, rows.Err())
 	return out
-}
-
-// ---- builder double ----
-
-// fakeBuilder implements build.Builder: the manifest comes from the tree's
-// manifest.json, artifacts are server.mjs and contracts.mjs, and a file
-// containing BAD_TYPE produces an error diagnostic.
-type fakeBuilder struct {
-	mu                    sync.Mutex
-	checks, builds, tests int
-	lastKit               build.Kit
-	treesSeen             []build.Tree
-	failTests             bool
-	overrideArtifactHash  string
-}
-
-func (b *fakeBuilder) diagnostics(src build.Tree) []build.Diagnostic {
-	var out []build.Diagnostic
-	paths := make([]string, 0, len(src))
-	for p := range src {
-		paths = append(paths, p)
-	}
-	sort.Strings(paths)
-	for _, p := range paths {
-		if strings.Contains(string(src[p]), "BAD_TYPE") {
-			out = append(out, build.Diagnostic{File: p, Line: 1, Severity: build.SeverityError, Code: "ts.2345", Message: "BAD_TYPE is not assignable"})
-		}
-		if strings.Contains(string(src[p]), "WARN_ONLY") {
-			out = append(out, build.Diagnostic{File: p, Line: 1, Severity: build.SeverityWarning, Code: "lint.warn", Message: "careful"})
-		}
-	}
-	return out
-}
-
-func (b *fakeBuilder) Check(_ context.Context, src build.Tree, kit build.Kit) ([]build.Diagnostic, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.checks++
-	b.lastKit = kit
-	return b.diagnostics(src), nil
-}
-
-func (b *fakeBuilder) Build(_ context.Context, src build.Tree, kit build.Kit) (build.Result, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.builds++
-	b.lastKit = kit
-	b.treesSeen = append(b.treesSeen, src)
-	ds := b.diagnostics(src)
-	for _, d := range ds {
-		if d.Severity == build.SeverityError {
-			return build.Result{Diagnostics: ds}, &build.Failed{Diagnostics: ds}
-		}
-	}
-	var m manifest.Manifest
-	if err := json.Unmarshal(src["manifest.json"], &m); err != nil {
-		return build.Result{}, fmt.Errorf("manifest.json: %w", err)
-	}
-	arts := build.Tree{}
-	for _, f := range []string{"server.mjs", "contracts.mjs"} {
-		if c, ok := src[f]; ok {
-			arts[f] = c
-		}
-	}
-	hash := artifact.TreeHash(arts)
-	if b.overrideArtifactHash != "" {
-		hash = b.overrideArtifactHash
-	}
-	return build.Result{Manifest: m, Artifacts: arts, SourceHash: "src-" + artifact.TreeHash(src), ArtifactHash: hash, Diagnostics: ds}, nil
-}
-
-func (b *fakeBuilder) Test(_ context.Context, src build.Tree, kit build.Kit) (build.TestReport, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.tests++
-	b.lastKit = kit
-	return build.TestReport{Passed: !b.failTests, Cases: []build.TestCase{{Name: "renews", File: "a.test.ts", Passed: !b.failTests}}}, nil
-}
-
-// ---- kit generator double ----
-
-type fakeKits struct {
-	mu      sync.Mutex
-	calls   int
-	sources []build.KitSource
-}
-
-func (k *fakeKits) GenerateKit(_ context.Context, sources []build.KitSource) (build.Kit, error) {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	k.calls++
-	k.sources = sources
-	kit := build.Kit{Modules: map[string]build.Tree{}}
-	for _, s := range sources {
-		var dts strings.Builder
-		for _, r := range s.Resources {
-			fmt.Fprintf(&dts, "export declare const %s: Ref<%q>; // %s\n", strings.ReplaceAll(r.ID, ".", "_"), r.Kind, r.ContractHash)
-		}
-		js := "// refs of " + s.Namespace + "\n" + string(s.ContractsModule)
-		kit.Modules["@iota-kit/"+s.Namespace] = build.Tree{"index.js": []byte(js), "index.d.ts": []byte(dts.String())}
-	}
-	return kit, nil
 }
 
 func uuidOther() uuid.UUID { return uuid.MustParse("00000000-0000-0000-0000-0000000000aa") }
