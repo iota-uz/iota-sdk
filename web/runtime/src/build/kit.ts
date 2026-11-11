@@ -24,6 +24,9 @@ interface Entry {
   resource: ResourceJSON;
 }
 
+/** Builders only the internal `@iota-uz/sdk/runtime/kit` entry exports (`foreign` is added whenever the module has any). */
+const KIT_BUILDERS: ReadonlySet<string> = new Set(["nativeEntity", "nativeList"]);
+
 const SKIPPED_KINDS = new Set(["page", "navigation", "cell", "shell"]);
 
 /** A slot resource without a target declares a slot others contribute to; with a target it is a contribution. */
@@ -284,10 +287,13 @@ class Generator {
       }
     }
     for (const r of [...this.resources].sort((a, b) => (a.id < b.id ? -1 : 1))) this.emit(r.id);
-    const sdk = [...this.used].sort();
+    // The kit entry mints platform-owned contracts; everything else comes from the public runtime entry.
+    const sdk = [...this.used].filter((name) => !KIT_BUILDERS.has(name)).sort();
+    const kit = [...new Set([...[...this.used].filter((name) => KIT_BUILDERS.has(name)), "foreign"])].sort();
     const head = [
       "// Generated developer kit module: pure references, no handlers.",
-      ...(this.used.size > 0 ? [`import { ${[...new Set([...sdk, "foreign"])].sort().join(", ")} } from "@iota-uz/sdk/runtime";`] : []),
+      ...(sdk.length > 0 ? [`import { ${sdk.join(", ")} } from "@iota-uz/sdk/runtime";`] : []),
+      ...(this.used.size > 0 ? [`import { ${kit.join(", ")} } from "@iota-uz/sdk/runtime/kit";`] : []),
       ...[...this.imports].sort().map((ns) => `import * as ${alias(ns)} from ${q(moduleName(ns))};`),
     ];
     return `${head.join("\n")}\n\n${this.lines.join("\n")}\n`;
@@ -329,6 +335,45 @@ function unwrap(node: ts.Expression): ts.CallExpression | undefined {
   const first = node.arguments[0];
   if (ts.isIdentifier(node.expression) && node.expression.text === "foreign" && first !== undefined && ts.isCallExpression(first)) return first;
   return node;
+}
+
+/** Builders whose results a kit module hands to other packages as `foreign` contracts. */
+const FOREIGN_BUILDERS: ReadonlySet<string> = new Set([
+  "entity", "overlay", "command", "operation", "query", "event", "notice", "workflow", "domainError", "issue", "permission", "route",
+  "contactResolver", "deliveryPolicy", "column",
+]);
+
+/**
+ * A shipped pure contracts module is the package's own, so its contracts are owned. To every other package they are
+ * referenced, never emitted: each exported contract is issued through the kit entry (`foreign(...)`), like the
+ * generated modules do. Bundlers may suffix builder names (`command2`), which is ignored.
+ */
+function markForeign(js: string): string {
+  const sf = ts.createSourceFile("index.js", js, ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
+  // Bundled modules declare `var X = builder(...)` and export it later with `export { X }`.
+  const exportedLocals = new Set<string>();
+  for (const st of sf.statements) {
+    if (ts.isExportDeclaration(st) && st.moduleSpecifier === undefined && st.exportClause !== undefined && ts.isNamedExports(st.exportClause)) {
+      for (const el of st.exportClause.elements) exportedLocals.add(el.propertyName?.text ?? el.name.text);
+    }
+  }
+  const spans: { start: number; end: number }[] = [];
+  for (const st of sf.statements) {
+    if (!ts.isVariableStatement(st)) continue;
+    const inline = st.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) === true;
+    for (const d of st.declarationList.declarations) {
+      const init = d.initializer;
+      if (init === undefined || !ts.isIdentifier(d.name) || !(inline || exportedLocals.has(d.name.text))) continue;
+      if (!ts.isCallExpression(init) || !ts.isIdentifier(init.expression)) continue;
+      const callee = init.expression.text.replace(/\d+$/, "");
+      if (FOREIGN_BUILDERS.has(callee)) spans.push({ start: init.getStart(sf), end: init.getEnd() });
+    }
+  }
+  if (spans.length === 0) return js;
+  let out = js;
+  for (const { start, end } of spans.sort((a, b) => b.start - a.start)) out = `${out.slice(0, start)}__iotaForeign(${out.slice(start, end)})${out.slice(end)}`;
+  // Aliased: the bundle may import `foreign` itself (for the kit modules it consumes).
+  return `import { foreign as __iotaForeign } from "@iota-uz/sdk/runtime/kit";\n${out}`;
 }
 
 function shippedImports(js: string): string[] {
@@ -480,7 +525,7 @@ export function generateKit(layout: Layout, sources: readonly KitSourcePayload[]
   const cache = new Map<string, ts.SourceFile | undefined>();
   for (const s of order) {
     let js: string;
-    if (s.contractsModule !== undefined) js = s.contractsModule;
+    if (s.contractsModule !== undefined) js = markForeign(s.contractsModule);
     else {
       const gen = new Generator(s.namespace, publicOf.get(s.namespace) ?? [], index, ownedLists.get(s.namespace) ?? []);
       js = gen.generate();

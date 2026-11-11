@@ -21,6 +21,7 @@ export const SDK_RUNTIME = new Set([
   "@iota-uz/sdk/runtime",
   "@iota-uz/sdk/runtime/server",
   "@iota-uz/sdk/runtime/client",
+  "@iota-uz/sdk/runtime/kit",
   "@iota-uz/sdk/runtime/testing",
 ]);
 const SOLID = /^solid-js(?:\/.*)?$/;
@@ -32,7 +33,7 @@ const SKIP = Symbol("iota.skip");
  * `globalThis[Symbol.for("iota.runtime.shared")]` (client-host/shared.ts) and bundles read them through a
  * generated shim. A second Solid or runtime client would break reactivity and the RuntimeProvider context.
  */
-export const SHARED_SPECIFIERS: ReadonlySet<string> = new Set(["solid-js", "solid-js/web", "@iota-uz/sdk/runtime/client"]);
+export const SHARED_SPECIFIERS: ReadonlySet<string> = new Set(["solid-js", "solid-js/web", "solid-js/store", "@iota-uz/sdk/runtime/client"]);
 const SHARED_REGISTRY = 'globalThis[Symbol.for("iota.runtime.shared")]';
 
 let sharedNames: Record<string, string[]> | undefined;
@@ -176,6 +177,7 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
           }
           // The pure runtime has no state worth sharing (brands use the global symbol registry): bundled.
           if (spec === "@iota-uz/sdk/runtime") return { path: join(env.layout.hostDir, "sdk", "index.mjs") };
+          if (spec === "@iota-uz/sdk/runtime/kit") return { path: join(env.layout.hostDir, "sdk", "kit.mjs") };
           if (spec === "@iota-uz/sdk/runtime/server") {
             violate("graph.serverInClient", `client graph imports "${spec}", which is server-only`, importer, spec);
             return { path: spec, external: true };

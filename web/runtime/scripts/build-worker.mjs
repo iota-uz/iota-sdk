@@ -95,6 +95,7 @@ const exportsOf = async (name, options) => {
 };
 await exportsOf("solid-js", { stdin: { contents: 'export * from "solid-js"', resolveDir: join(vendor) } });
 await exportsOf("solid-js/web", { stdin: { contents: 'export * from "solid-js/web"', resolveDir: join(vendor) } });
+await exportsOf("solid-js/store", { stdin: { contents: 'export * from "solid-js/store"', resolveDir: join(vendor) } });
 await exportsOf("@iota-uz/sdk/runtime/client", {
   stdin: {
     contents: ["client.ts", "client-host/hooks.ts", "client-host/transport.ts"].map((f) => `export * from ${JSON.stringify(join(root, "src", f))};`).join("\n"),

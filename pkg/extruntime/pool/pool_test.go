@@ -103,7 +103,8 @@ export const run = async (ctx, input) => {
 	})
 	out, err := p.Invoke(context.Background(), invoke(art, pool.KindCommand, "run", `null`, calls))
 	require.NoError(t, err)
-	require.JSONEq(t, `{"row":{"key":"k1"},"tx":{"key":"k2"}}`, string(out))
+	// Rows carry a typed ref to themselves, computed by the context layer.
+	require.JSONEq(t, `{"row":{"key":"k1","ref":{"entity":"acme.test.thing","key":"k1"}},"tx":{"key":"k2","ref":{"entity":"acme.test.thing","key":"k2"}}}`, string(out))
 	require.Equal(t, []string{"q.get", "tx.begin", "tx.insert", "tx.end"}, methods)
 }
 
@@ -395,7 +396,7 @@ export const endpointImpl = { [brand]: true, serverKind: "endpoint", handler: as
 export const sched = { [brand]: true, serverKind: "schedule", handler: async (ctx) => ({ slot: ctx.slot, hasCall: typeof ctx.call }) };
 export const tpl = { [brand]: true, serverKind: "templates", renderers: { sms: ({ payload, locale }) => "hi " + payload.name + " " + locale } };
 export const precheck = { [brand]: true, serverKind: "guard", phase: "input", handler: async (q, input) => typeof q.find + ":" + input.x };
-export const opGuard = { [brand]: true, serverKind: "guard", phase: "operation", handler: async (tx, input) => typeof tx.insert + ":" + input.x };
+export const opGuard = { [brand]: true, serverKind: "guard", phase: "operation", handler: async (tx, input) => typeof tx.get + ":" + typeof tx.insert + ":" + input.x };
 export const flow = { [brand]: true, serverKind: "implementation", handler: async (wf, input) => {
   const sig = { workflow: "acme.test.flow", name: "decision", schema: { type: { kind: "bool" } } };
   const waited = await wf.waitFor("w", sig);
@@ -441,7 +442,8 @@ export const flow = { [brand]: true, serverKind: "implementation", handler: asyn
 	in.Ctx.Tx = "tx-1"
 	out, err = p.Invoke(context.Background(), in)
 	require.NoError(t, err)
-	require.JSONEq(t, `"function:2"`, string(out))
+	// Guards read through the writing transaction but have no write API.
+	require.JSONEq(t, `"function:undefined:2"`, string(out))
 
 	got := map[string]json.RawMessage{}
 	wf := invoke(art, pool.KindWorkflow, "flow", `null`, pool.HostCallsFunc(func(_ context.Context, method string, args json.RawMessage) (json.RawMessage, error) {
