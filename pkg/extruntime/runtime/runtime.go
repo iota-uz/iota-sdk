@@ -32,6 +32,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/notify"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
@@ -100,6 +101,13 @@ type Config struct {
 	// editor, versions, workflows) next to the management API. Its Host
 	// defaults to UI.Host; Service is the runtime's. Nil leaves the page out.
 	Configurator *configurator.Config
+
+	// TrustedOrigins are the origins (scheme://host[:port]) that may make
+	// state-changing requests to the cookie-authenticated surfaces (/_ext/rpc,
+	// /_ext/manage, non-public endpoints) from another origin than the
+	// application's, for example a UI served from a separate host. Default:
+	// none; a request from another site is refused.
+	TrustedOrigins []string
 
 	// Extensions attach after the runtime is built (MCP tools, extra
 	// consumers); each receives the Runtime and returns a stop function.
@@ -170,8 +178,9 @@ type Runtime struct {
 	// Subjects loads current rights; nil without a user repository.
 	Subjects *UserSubjects
 
-	db  *pgxpool.Pool
-	log *slog.Logger
+	db      *pgxpool.Pool
+	log     *slog.Logger
+	origins *originguard.Guard
 
 	mu    sync.Mutex
 	stops []func(context.Context) error
@@ -235,12 +244,15 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	if len(cfg.PermissionUniverse) == 0 {
 		cfg.PermissionUniverse = corePerms.Permissions
 	}
-	rt := &Runtime{Config: cfg, db: deps.DB, log: cfg.Logger}
+	origins, err := originguard.New(cfg.TrustedOrigins...)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	rt := &Runtime{Config: cfg, db: deps.DB, log: cfg.Logger, origins: origins}
 	if deps.Users != nil {
 		rt.Subjects = &UserSubjects{Users: deps.Users, Universe: cfg.PermissionUniverse, Pool: deps.DB}
 	}
 
-	var err error
 	if rt.Artifacts, err = artifact.NewStore(deps.DB, cfg.CacheDir); err != nil {
 		return nil, serrors.Wrap(op, err)
 	}

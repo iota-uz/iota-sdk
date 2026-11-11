@@ -15,6 +15,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -41,6 +42,14 @@ type API struct {
 	svc     *manage.Service
 	subject SubjectFunc
 	log     *slog.Logger
+	origins *originguard.Guard
+}
+
+// WithOriginGuard sets who may make state-changing requests from another
+// origin (default: nobody; see package originguard). It returns the API.
+func (a *API) WithOriginGuard(g *originguard.Guard) *API {
+	a.origins = g
+	return a
 }
 
 // NewAPI builds the handler tree rooted at APIPrefix.
@@ -55,6 +64,15 @@ type handler func(w http.ResponseWriter, r *http.Request, actor spi.Subject) (st
 
 func (a *API) wrap(h handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// The session cookie rides along on a request any site makes: a
+		// state-changing call must come from this origin (or a trusted one).
+		if err := a.origins.Check(r); err != nil {
+			a.log.Warn("extruntime manage: cross-site request refused", "method", r.Method, "path", r.URL.Path, "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": originguard.Code, "message": "cross-site request refused"}})
+			return
+		}
 		actor, err := a.subject(r)
 		if err != nil {
 			a.fail(w, err)

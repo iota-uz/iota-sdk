@@ -650,9 +650,13 @@ is open in the invocation. `tx.query`/`q.query` return `runtime.nativeQueryUnava
 query with no implementation at all (neither a Go default nor a bound package export; Go-implemented
 native queries run, see §9.3).
 `wf.step`/`wf.transaction` results are JSON-normalized on first execution. HTTP endpoints:
-`/_ext/endpoints/<namespace>/<path>` (sync response; session user, or the trigger owner for
-`public` endpoints; tenant of an unauthenticated request via `runtime.Config.Endpoints.PublicTenant`;
-`Set-Cookie` from handlers is dropped).
+`/_ext/endpoints/<namespace>/<path>` (sync response; the session user for a non-public endpoint — a
+state-changing cross-site request is refused, `originguard` — and always the trigger owner for `public` endpoints, whose
+browser session is ignored; tenant of such a request via `runtime.Config.Endpoints.PublicTenant`, `TenantByHost` trusts
+the `Host` the proxy forwards; response headers are an allowlist, `nosniff` always and `Content-Security-Policy: sandbox`
+for HTML/SVG/XML; see `docs/extensions/consumer.md` §5). `POST /_ext/rpc` and the state-changing `/_ext/manage` calls
+refuse cross-site requests with `runtime.crossSite` (`runtime.Config.TrustedOrigins` / `EXTRUNTIME_TRUSTEDORIGINS`
+allow-list another origin).
 
 ### 9.2 Integration notes from the end-to-end suite
 

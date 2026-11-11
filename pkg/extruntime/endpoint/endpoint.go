@@ -5,10 +5,12 @@
 // manifest `endpoints` of the activated package versions, supplied by the
 // management slice through Source) and run as one synchronous `endpoint`
 // invocation of the host: the handler's {status, headers, body} is written as
-// the HTTP response, there is no durable instance. An authenticated request
-// runs as the session user with the permissions held now; a `public` endpoint
-// without a session runs as the trigger owner-user assigned for the tenant
-// (extruntime.trigger_owners), judged by that user's current rights.
+// the HTTP response, there is no durable instance. A non-public endpoint runs
+// as the session user with the permissions held now (state-changing requests
+// must come from this origin); a `public` endpoint ALWAYS runs as the trigger
+// owner-user assigned for the tenant (extruntime.trigger_owners), judged by
+// that user's current rights, and never as the browser's session: a request
+// any site can make must not act with the visitor's authority.
 package endpoint
 
 import (
@@ -23,6 +25,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/listext"
@@ -45,6 +48,7 @@ const (
 	CodeUnauthenticated = "endpoint.unauthenticated"
 	CodeBodyTooLarge    = "endpoint.bodyTooLarge"
 	CodeBadRequest      = "endpoint.badRequest"
+	CodeCrossSite       = originguard.Code
 	CodeUnavailable     = "endpoint.unavailable"
 	CodeNoTenant        = "endpoint.noTenant"
 	CodeOwnerMissing    = "endpoint.ownerMissing"
@@ -114,6 +118,11 @@ type Config struct {
 	PublicTenant func(r *http.Request) (uuid.UUID, bool)
 	// MaxBodyBytes bounds the request body. Default DefaultMaxBodyBytes.
 	MaxBodyBytes int64
+	// Origins decides which sites may make state-changing requests to an
+	// endpoint that runs as the signed-in user (default: this origin only; see
+	// package originguard). Public endpoints run as the trigger owner whatever
+	// the browser holds, so they are open to any origin by design.
+	Origins *originguard.Guard
 	// Timeout bounds one endpoint invocation. Default DefaultTimeout.
 	Timeout time.Duration
 	Logger  logrus.FieldLogger

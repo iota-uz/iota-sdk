@@ -807,10 +807,13 @@ export const publicCatalog = endpoint("acme.loyalty.publicCatalog", { method: "G
   is the scheduled instant. A slot older than 15 minutes (after downtime) is skipped, not replayed.
 * `endpoint(id, { method, path, public }, handler)` is served at `/_ext/endpoints/<namespace>/<path>`; the handler gets the
   command context plus `ctx.request` (`method path headers query body rawBody text()`) and returns
-  `{ status, headers?, body? }`. `rawBody` is for signature checks. `Set-Cookie` from handlers is dropped.
+  `{ status, headers?, body? }`. `rawBody` is for signature checks. Response `headers` are an allowlist (content type,
+  caching, `ETag`, `Content-Disposition`, a same-origin `Location` on a redirect, your own `X-` headers); `Set-Cookie`, CORS
+  and `Content-Security-Policy` are dropped, and HTML/SVG/XML is served sandboxed (`Content-Security-Policy: sandbox`).
 * **Who runs it.** A schedule, a subscription on a user-less event and a *public* endpoint run as the trigger's
   **owner-user**, assigned per tenant by an administrator (`ext_owner_assign`) and executed with that user's current
-  rights. An authenticated (non-public) endpoint runs as the calling user. A trigger without an owner is `blocked`.
+  rights. An authenticated (non-public) endpoint runs as the calling user; a *public* endpoint ignores the caller's session
+  and always runs as the owner, even when it is called from a signed-in browser. A trigger without an owner is `blocked`.
 
 ## 13. User interface
 

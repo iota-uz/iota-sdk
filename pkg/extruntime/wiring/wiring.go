@@ -177,6 +177,7 @@ func RuntimeConfig(section extruntimeconfig.Config, opts Options) (runtime.Confi
 		Secrets:           opts.Secrets,
 		Workflow:          runtime.WorkflowConfig{Concurrency: section.WorkflowConcurrency},
 		DisableBackground: section.DisableBackground,
+		TrustedOrigins:    section.TrustedOriginList(),
 		Git: manage.GitConfig{
 			AllowedSchemes: section.GitSchemes(), AllowedHosts: section.GitHosts(), AllowPrivateNetworks: section.Git.AllowPrivateNetworks,
 			Binary: section.Git.Binary, Timeout: section.Git.Timeout,

@@ -122,6 +122,7 @@ func TestRegister_FromEnvironment(t *testing.T) {
 	t.Setenv("EXTRUNTIME_ENDPOINTS_PUBLICTENANT", tenant)
 	t.Setenv("EXTRUNTIME_ENDPOINTS_TIMEOUT", "45s")
 	t.Setenv("EXTRUNTIME_GIT_ALLOWEDSCHEMES", "https,ssh")
+	t.Setenv("EXTRUNTIME_TRUSTEDORIGINS", "https://admin.example.com, http://localhost:3200")
 	t.Setenv("EXTRUNTIME_GIT_ALLOWEDHOSTS", "Git.Example.com, *.corp.example.com")
 	t.Setenv("EXTRUNTIME_GIT_ALLOWPRIVATENETWORKS", "true")
 
@@ -141,7 +142,14 @@ func TestRegister_FromEnvironment(t *testing.T) {
 	assert.Equal(t, []string{"https", "ssh"}, cfg.GitSchemes())
 	assert.Equal(t, []string{"git.example.com", "*.corp.example.com"}, cfg.GitHosts())
 	assert.True(t, cfg.Git.AllowPrivateNetworks)
+	assert.Equal(t, []string{"https://admin.example.com", "http://localhost:3200"}, cfg.TrustedOriginList())
 	require.NoError(t, cfg.Validate())
+
+	cfg.TrustedOrigins = "admin.example.com"
+	assert.ErrorContains(t, cfg.Validate(), "trustedorigins")
+	cfg.TrustedOrigins = "https://admin.example.com/path"
+	assert.ErrorContains(t, cfg.Validate(), "trustedorigins")
+	cfg.TrustedOrigins = ""
 
 	cfg.Git.AllowedHosts = "https://git.example.com"
 	assert.ErrorContains(t, cfg.Validate(), "git.allowedhosts")

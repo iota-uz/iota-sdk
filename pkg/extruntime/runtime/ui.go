@@ -104,7 +104,7 @@ func (rt *Runtime) UIConfig() (ui.Config, error) {
 		Artifacts: UIArtifacts{Store: rt.Artifacts},
 		Invoker:   rt.Host,
 		Catalog:   rt.Catalog,
-		Host:      rt.Config.UI.Host, NativeRoutes: ui.NativeRoutes(rt.Natives.Routes()), Logger: rt.Config.UI.Logger,
+		Host:      rt.Config.UI.Host, NativeRoutes: ui.NativeRoutes(rt.Natives.Routes()), Origins: rt.origins, Logger: rt.Config.UI.Logger,
 	}, nil
 }
 

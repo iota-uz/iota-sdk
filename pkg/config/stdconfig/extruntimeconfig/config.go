@@ -9,6 +9,7 @@ package extruntimeconfig
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -124,6 +125,13 @@ type Config struct {
 	// worker process runs them. The management API, endpoints and RPC are
 	// unaffected.
 	DisableBackground bool `koanf:"disablebackground"`
+	// TrustedOrigins is the comma-separated list of origins (scheme://host
+	// [:port]) that may make state-changing requests to /_ext/rpc, /_ext/manage
+	// and non-public endpoints from another origin than the application's.
+	// Default: none; the runtime refuses a state-changing request that a
+	// browser marks as cross-site (Sec-Fetch-Site, or an Origin that differs
+	// from Host).
+	TrustedOrigins string `koanf:"trustedorigins"`
 
 	UI           UIConfig           `koanf:"ui"`
 	Configurator ConfiguratorConfig `koanf:"configurator"`
@@ -174,6 +182,12 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("extruntimeconfig: git.allowedschemes: unsupported scheme %q (https, ssh or file)", s)
 		}
 	}
+	for _, o := range c.TrustedOriginList() {
+		u, err := url.Parse(o)
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.Path != "" || u.RawQuery != "" || u.User != nil {
+			return fmt.Errorf("extruntimeconfig: trustedorigins: %q is not an origin (https://app.example.com)", o)
+		}
+	}
 	for _, h := range c.GitHosts() {
 		name := strings.TrimPrefix(h, "*.")
 		if name == "" || strings.ContainsAny(name, "*/:@ ") {
@@ -190,6 +204,17 @@ func (c *Config) GitSchemes() []string {
 	for _, s := range strings.Split(c.Git.AllowedSchemes, ",") {
 		if s = strings.ToLower(strings.TrimSpace(s)); s != "" {
 			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// TrustedOriginList returns the trusted cross-origin callers, trimmed.
+func (c *Config) TrustedOriginList() []string {
+	var out []string
+	for _, o := range strings.Split(c.TrustedOrigins, ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			out = append(out, o)
 		}
 	}
 	return out

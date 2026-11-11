@@ -127,3 +127,31 @@ func TestAdvertisedPermissionsAreWhatTheServiceEnforces(t *testing.T) {
 		require.Contains(t, checked, want, fmt.Sprint(checked))
 	}
 }
+
+// The management API authenticates with the session cookie, which any site
+// can make a browser send: a state-changing call from another site is refused
+// before it reaches the service (the configurator's own calls are same-origin).
+func TestManageAPIRefusesCrossSiteStateChanges(t *testing.T) {
+	e := newEnv(t)
+	create := func(ns string, headers ...string) int {
+		status, _ := e.http(adminID, "POST", "/packages", map[string]string{"namespace": ns}, headers...)
+		return status
+	}
+	for name, headers := range map[string][]string{
+		"a cross-site fetch":      {"Sec-Fetch-Site", "cross-site"},
+		"a same-site fetch":       {"Sec-Fetch-Site", "same-site"},
+		"an older browser's POST": {"Origin", "https://evil.example.net"},
+	} {
+		require.Equal(t, 403, create("acme.cross", headers...), name)
+	}
+	status, _ := e.http(adminID, "GET", "/packages/acme.cross", nil)
+	require.Equal(t, 404, status, "nothing was created by the refused calls")
+
+	status, body := e.http(adminID, "POST", "/packages", map[string]string{"namespace": "acme.cross"}, "Sec-Fetch-Site", "cross-site")
+	require.Equal(t, 403, status)
+	require.Contains(t, string(body), "runtime.crossSite")
+
+	require.Less(t, create("acme.cross", "Sec-Fetch-Site", "same-origin"), 300, "the same origin may")
+	status, _ = e.http(adminID, "GET", "/packages/acme.cross", nil, "Sec-Fetch-Site", "cross-site")
+	require.Equal(t, 200, status, "a safe method is not state-changing")
+}

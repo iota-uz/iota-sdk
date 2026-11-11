@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/endpoint"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host/hosttest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
@@ -267,11 +269,23 @@ func TestPublicEndpointRunsAsTheTriggerOwner(t *testing.T) {
 	require.NoError(t, f.env.DB.QueryRow(context.Background(), `SELECT subject_kind FROM extruntime.invocations WHERE contract = 'acme.a.hook'`).Scan(&kind))
 	require.Equal(t, "owner", kind)
 
-	t.Run("a session wins over the owner", func(t *testing.T) {
-		_, body := f.do(http.MethodPost, base+"/public", []byte(`{}`), map[string]string{"X-Test-User": "7"})
-		got := jsonMap(t, body)
-		require.Equal(t, "7", got["user"])
-		require.Equal(t, "initiator", got["kind"])
+	t.Run("a browser session is ignored: the owner acts for everybody", func(t *testing.T) {
+		// A page on any site can post to a public endpoint from a visitor's
+		// browser, cookie included; it must not run with the visitor's rights.
+		for _, headers := range []map[string]string{
+			{"X-Test-User": "7"},
+			{"X-Test-User": "7", "X-Test-Perms": "p.read,p.admin", "Sec-Fetch-Site": "cross-site", "Origin": "https://evil.example.net"},
+		} {
+			res, body := f.do(http.MethodPost, base+"/public", []byte(`{}`), headers)
+			require.Equal(t, http.StatusCreated, res.StatusCode, string(body))
+			got := jsonMap(t, body)
+			require.Equal(t, "42", got["user"])
+			require.Equal(t, "owner", got["kind"])
+		}
+		var rows int
+		require.NoError(t, f.env.DB.QueryRow(context.Background(),
+			`SELECT count(*) FROM extruntime.invocations WHERE contract = 'acme.a.hook' AND subject_user_id = 7`).Scan(&rows))
+		require.Zero(t, rows, "nothing ever ran as the visitor")
 	})
 
 	t.Run("an owner whose rights were revoked still runs, with the current rights", func(t *testing.T) {
@@ -423,4 +437,125 @@ func TestConfigRequiresSourceAndRunner(t *testing.T) {
 	require.Error(t, err)
 	_, err = endpoint.NewHandler(endpoint.Config{Source: &fakeSource{}})
 	require.Error(t, err)
+}
+
+func TestSessionEndpointsRefuseCrossSiteStateChanges(t *testing.T) {
+	f := newFixture(t)
+	f.add("acme.a.get", "echo", http.MethodGet, "/hook", false)
+	user := map[string]string{"X-Test-User": "7"}
+	ran := func() int {
+		var n int
+		require.NoError(t, f.env.DB.QueryRow(context.Background(), `SELECT count(*) FROM extruntime.invocations`).Scan(&n))
+		return n
+	}
+
+	for name, headers := range map[string]map[string]string{
+		"a cross-site fetch":      merge(user, "Sec-Fetch-Site", "cross-site"),
+		"a same-site fetch":       merge(user, "Sec-Fetch-Site", "same-site"),
+		"an older browser's POST": merge(user, "Origin", "https://evil.example.net"),
+	} {
+		res, body := f.do(http.MethodPost, base+"/hook", []byte(`{}`), headers)
+		require.Equal(t, http.StatusForbidden, res.StatusCode, name)
+		require.Equal(t, endpoint.CodeCrossSite, errCode(t, body), name)
+	}
+	require.Zero(t, ran(), "the handler never ran")
+
+	for name, headers := range map[string]map[string]string{
+		"a same-origin fetch":  merge(user, "Sec-Fetch-Site", "same-origin"),
+		"a navigation":         merge(user, "Sec-Fetch-Site", "none"),
+		"a matching Origin":    merge(user, "Origin", "http://example.com"),
+		"a non-browser client": user,
+	} {
+		res, body := f.do(http.MethodPost, base+"/hook", []byte(`{}`), headers)
+		require.Equal(t, http.StatusCreated, res.StatusCode, "%s: %s", name, body)
+	}
+
+	res, _ := f.do(http.MethodGet, base+"/hook", nil, merge(user, "Sec-Fetch-Site", "cross-site"))
+	require.Equal(t, http.StatusCreated, res.StatusCode, "a safe method is not state-changing")
+
+	t.Run("a trusted origin may call across sites", func(t *testing.T) {
+		guard, err := originguard.New("https://admin.example.com")
+		require.NoError(t, err)
+		f := newFixture(t, func(c *endpoint.Config) { c.Origins = guard })
+		res, body := f.do(http.MethodPost, base+"/hook", []byte(`{}`), merge(user, "Sec-Fetch-Site", "cross-site", "Origin", "https://admin.example.com"))
+		require.Equal(t, http.StatusCreated, res.StatusCode, string(body))
+		res, _ = f.do(http.MethodPost, base+"/hook", []byte(`{}`), merge(user, "Sec-Fetch-Site", "cross-site", "Origin", "https://evil.example.net"))
+		require.Equal(t, http.StatusForbidden, res.StatusCode)
+	})
+}
+
+const headerSource = prelude + `
+export const headers = async (ctx) => ({
+  status: ctx.request.query.status ? Number(ctx.request.query.status) : 200,
+  headers: JSON.parse(ctx.request.query.h),
+  body: ctx.request.query.body ?? { ok: true },
+});
+`
+
+func TestResponseHeadersAreAnAllowlist(t *testing.T) {
+	f := newFixture(t)
+	f.art = f.env.Artifacts.Add(t, "acme.a", "1.0.1", headerSource)
+	f.add("acme.a.headers", "headers", http.MethodGet, "/headers", false)
+	user := map[string]string{"X-Test-User": "7"}
+	call := func(status int, headers map[string]string, extra string) reply {
+		raw, err := json.Marshal(headers)
+		require.NoError(t, err)
+		q := "?h=" + url.QueryEscape(string(raw)) + extra
+		if status != 0 {
+			q += "&status=" + strconv.Itoa(status)
+		}
+		res, body := f.do(http.MethodGet, base+"/headers"+q, nil, user)
+		require.Less(t, res.StatusCode, 600, string(body))
+		return res
+	}
+
+	res := call(200, map[string]string{
+		"Content-Type": "application/pdf", "Cache-Control": "private, max-age=60", "ETag": `"v1"`, "Last-Modified": "Mon, 02 Jan 2006 15:04:05 GMT",
+		"Content-Disposition": `attachment; filename="r.pdf"`, "X-Request-Note": "kept",
+		// none of these may reach the browser
+		"Set-Cookie": "sid=stolen", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Credentials": "true",
+		"Content-Security-Policy": "script-src *", "Strict-Transport-Security": "max-age=0", "X-Accel-Redirect": "/internal/secret",
+		"X-Sendfile": "/etc/passwd", "X-Forwarded-Host": "evil", "Refresh": "0; url=https://evil.example.net", "Link": "<https://evil>; rel=preload",
+		"Clear-Site-Data": `"cookies"`, "X-Content-Type-Options": "sniff", "Service-Worker-Allowed": "/", "Permissions-Policy": "camera=*",
+	}, "")
+	require.Equal(t, "application/pdf", res.Header.Get("Content-Type"))
+	require.Equal(t, "private, max-age=60", res.Header.Get("Cache-Control"))
+	require.Equal(t, `"v1"`, res.Header.Get("ETag"))
+	require.NotEmpty(t, res.Header.Get("Last-Modified"))
+	require.Equal(t, `attachment; filename="r.pdf"`, res.Header.Get("Content-Disposition"))
+	require.Equal(t, "kept", res.Header.Get("X-Request-Note"), "a custom X- header passes")
+	for _, dropped := range []string{
+		"Set-Cookie", "Access-Control-Allow-Origin", "Access-Control-Allow-Credentials", "Strict-Transport-Security", "X-Accel-Redirect",
+		"X-Sendfile", "X-Forwarded-Host", "Refresh", "Link", "Clear-Site-Data", "Service-Worker-Allowed", "Permissions-Policy",
+	} {
+		require.Empty(t, res.Header.Get(dropped), dropped)
+	}
+	require.Empty(t, res.Header.Get("Content-Security-Policy"), "a pdf needs no CSP, and the package cannot set one")
+	require.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"), "the platform's value wins")
+
+	t.Run("HTML is sandboxed", func(t *testing.T) {
+		for _, ct := range []string{"text/html", "text/html; charset=utf-8", "TEXT/HTML", "application/xhtml+xml", "image/svg+xml", "text/xml", "application/rss+xml"} {
+			res := call(200, map[string]string{"Content-Type": ct, "Content-Security-Policy": "script-src *"}, "&body=%3Cscript%3Ealert(1)%3C%2Fscript%3E")
+			require.Equal(t, "sandbox", res.Header.Get("Content-Security-Policy"), ct)
+			require.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"), ct)
+		}
+		res := call(200, map[string]string{"Content-Type": "text/plain"}, "")
+		require.Empty(t, res.Header.Get("Content-Security-Policy"))
+	})
+
+	t.Run("Location stays on this origin", func(t *testing.T) {
+		require.Equal(t, "/done", call(302, map[string]string{"Location": "/done"}, "").Header.Get("Location"))
+		require.Equal(t, "/a?b=1#c", call(303, map[string]string{"Location": "/a?b=1#c"}, "").Header.Get("Location"))
+		require.Equal(t, "/items/7", call(201, map[string]string{"Location": "/items/7"}, "").Header.Get("Location"), "Created points at the new resource")
+		for _, target := range []string{"https://evil.example.net/", "//evil.example.net/x", "/\\evil.example.net", "javascript:alert(1)", "evil.example.net", "/x\ny"} {
+			require.Empty(t, call(302, map[string]string{"Location": target}, "").Header.Get("Location"), target)
+		}
+		require.Empty(t, call(200, map[string]string{"Location": "/done"}, "").Header.Get("Location"), "only redirects and Created have one")
+	})
+
+	t.Run("header values cannot split the response", func(t *testing.T) {
+		res := call(200, map[string]string{"X-Note": "a\r\nSet-Cookie: x=1"}, "")
+		require.Empty(t, res.Header.Get("X-Note"))
+		require.Empty(t, res.Header.Get("Set-Cookie"))
+	})
 }

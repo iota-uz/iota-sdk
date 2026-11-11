@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/configurator"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/ui"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -49,9 +50,13 @@ func NewComponent(cfg Config) (composition.Component, error) {
 		c.holder = &holder{}
 		c.cfg.bind = c.holder
 		l := &lazy{h: c.holder}
+		origins, err := originguard.New(cfg.TrustedOrigins...)
+		if err != nil {
+			return nil, err
+		}
 		uic, err := ui.NewComponent(ui.Config{
 			Source: l, Artifacts: l, Invoker: l, Catalog: l,
-			Host: cfg.UI.Host, NativeRoutes: ui.NativeRoutes(cfg.Natives.Routes()), Logger: cfg.UI.Logger,
+			Host: cfg.UI.Host, NativeRoutes: ui.NativeRoutes(cfg.Natives.Routes()), Origins: origins, Logger: cfg.UI.Logger,
 		}, l)
 		if err != nil {
 			return nil, err
@@ -118,7 +123,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFuncAs[spi.Catalog](builder, func(rt *Runtime) *catalog.Catalog { return rt.Catalog })
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllersFunc(builder, func(rt *Runtime) []application.Controller {
-			return []application.Controller{NewController(NewAPI(rt.Manage, requestSubject, rt.log))}
+			return []application.Controller{NewController(NewAPI(rt.Manage, requestSubject, rt.log).WithOriginGuard(rt.origins))}
 		})
 		composition.ContributeControllersFunc(builder, func(rt *Runtime) ([]application.Controller, error) {
 			h, err := rt.EndpointHandler()

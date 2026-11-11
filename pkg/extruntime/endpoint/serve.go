@@ -122,12 +122,23 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // subject decides who the endpoint runs as. It writes the response itself when
 // there is nobody to run as.
+//
+// A non-public endpoint runs as the signed-in user, and a state-changing
+// request must not come from another site (the session cookie is sent with
+// it). A public endpoint never looks at the session: it runs as the trigger
+// owner of the tenant for everybody. Otherwise a page on any site could post
+// to it from a visitor's browser and have it run with that visitor's rights.
 func (h *Handler) subject(w http.ResponseWriter, r *http.Request, ep *Endpoint) (spi.Subject, bool) {
-	if sub, ok := h.cfg.SessionSubject(r.Context()); ok {
-		sub.Credential = "session"
-		return sub, true
-	}
 	if !ep.Public {
+		if err := h.cfg.Origins.Check(r); err != nil {
+			h.cfg.Logger.WithError(err).WithField("endpoint", ep.ID).Warn("extruntime endpoint: cross-site request refused")
+			writeError(w, http.StatusForbidden, CodeCrossSite, "cross-site request refused")
+			return spi.Subject{}, false
+		}
+		if sub, ok := h.cfg.SessionSubject(r.Context()); ok {
+			sub.Credential = "session"
+			return sub, true
+		}
 		writeError(w, http.StatusUnauthorized, CodeUnauthenticated, "sign in required")
 		return spi.Subject{}, false
 	}
@@ -265,11 +276,64 @@ func (h *Handler) fail(w http.ResponseWriter, ep *Endpoint, res host.Result, err
 	}
 }
 
-// responseHeaders the package may not set: hop-by-hop framing, and cookies,
-// which would be set on the application's own origin.
-var forbiddenResponseHeaders = map[string]bool{
-	"set-cookie": true, "content-length": true, "transfer-encoding": true, "connection": true,
-	"keep-alive": true, "upgrade": true, "te": true, "trailer": true,
+// Response headers a handler may set. Everything else is dropped: the set is
+// an allowlist, so a header the platform did not think of (Set-Cookie, CORS,
+// CSP, reverse-proxy controls such as X-Accel-Redirect) never reaches the
+// application's own origin. A handler may also set its own X- headers, except
+// the ones that steer a proxy or that the platform sets itself.
+var allowedResponseHeaders = map[string]bool{
+	"content-type": true, "cache-control": true, "etag": true, "last-modified": true, "expires": true,
+	"content-disposition": true, "content-language": true, "vary": true, "location": true,
+}
+
+// proxyControlPrefixes are X- headers that tell a front proxy what to do.
+var proxyControlPrefixes = []string{"x-accel-", "x-sendfile", "x-lighttpd-", "x-forwarded-", "x-real-", "x-original-", "x-rewrite-", "x-http-method"}
+
+func responseHeaderAllowed(name string) bool {
+	lower := strings.ToLower(name)
+	if allowedResponseHeaders[lower] {
+		return true
+	}
+	if !strings.HasPrefix(lower, "x-") || lower == "x-content-type-options" || lower == "x-frame-options" || lower == "x-xss-protection" {
+		return false
+	}
+	for _, prefix := range proxyControlPrefixes {
+		if strings.HasPrefix(lower, prefix) {
+			return false
+		}
+	}
+	return true
+}
+
+// cleanHeaderValue reports whether a header value is plain: no control
+// characters, so it cannot split the response.
+func cleanHeaderValue(v string) bool {
+	for _, r := range v {
+		if r < 0x20 && r != '\t' || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
+// safeLocation reports whether a redirect target stays on this origin: an
+// absolute path ("/x"), not a protocol-relative one ("//host") or one a
+// browser reads as such ("/\host").
+func safeLocation(v string) bool {
+	return strings.HasPrefix(v, "/") && !strings.HasPrefix(v, "//") && !strings.HasPrefix(v, "/\\") && !strings.ContainsAny(v, "\\")
+}
+
+// activeContent reports a media type a browser runs scripts from.
+func activeContent(contentType string) bool {
+	media, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		media = strings.ToLower(strings.TrimSpace(strings.SplitN(contentType, ";", 2)[0]))
+	}
+	switch media {
+	case "text/html", "application/xhtml+xml", "image/svg+xml", "text/xml", "application/xml", "text/xsl", "text/xslt", "application/xslt+xml":
+		return true
+	}
+	return strings.HasSuffix(media, "+xml")
 }
 
 type response struct {
@@ -291,7 +355,10 @@ func (h *Handler) respond(w http.ResponseWriter, ep *Endpoint, res host.Result) 
 	}
 	status := *out.Status
 	for name, value := range out.Headers {
-		if forbiddenResponseHeaders[strings.ToLower(name)] {
+		if !responseHeaderAllowed(name) || !cleanHeaderValue(name) || !cleanHeaderValue(value) {
+			continue
+		}
+		if strings.EqualFold(name, "location") && ((status < 300 || status > 399) && status != http.StatusCreated || !safeLocation(value)) {
 			continue
 		}
 		w.Header().Set(name, value)
@@ -303,6 +370,12 @@ func (h *Handler) respond(w http.ResponseWriter, ep *Endpoint, res host.Result) 
 	hasBody := len(out.Body) > 0 && string(out.Body) != "null" && status != http.StatusNoContent && status != http.StatusNotModified
 	if hasBody && w.Header().Get("Content-Type") == "" {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	}
+	if activeContent(w.Header().Get("Content-Type")) {
+		// A document the handler serves runs in a sandbox of its own: no
+		// scripts, no forms, and an opaque origin that cannot reach the
+		// application's cookies or storage.
+		w.Header().Set("Content-Security-Policy", "sandbox")
 	}
 	w.WriteHeader(status)
 	if hasBody {

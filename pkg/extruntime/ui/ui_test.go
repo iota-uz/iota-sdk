@@ -518,6 +518,47 @@ func TestRPCInvokesAsTheSessionUserAndKeepsStructuredErrors(t *testing.T) {
 	e.inv.err = nil
 }
 
+// The session cookie rides along on a request any site makes: a page on
+// another site must not be able to invoke a command as the signed-in user.
+func TestRPCRefusesCrossSiteRequests(t *testing.T) {
+	e := newEnv(t, "Policy.Read")
+	body := map[string]any{"kind": "query", "resource": "acme.insurance.expiring", "input": map[string]any{"days": 30}}
+	post := func(headers ...string) (int, ui.RPCResponseForTest) {
+		t.Helper()
+		b, err := json.Marshal(body)
+		require.NoError(t, err)
+		req := e.suite.POST("/_ext/rpc").Header("Content-Type", "application/json")
+		for i := 0; i+1 < len(headers); i += 2 {
+			req = req.Header(headers[i], headers[i+1])
+		}
+		resp := req.JSON(json.RawMessage(b)).Expect(t)
+		var out ui.RPCResponseForTest
+		require.NoError(t, json.Unmarshal([]byte(resp.Body()), &out), resp.Body())
+		return statusCode(resp), out
+	}
+
+	for name, headers := range map[string][]string{
+		"a cross-site fetch":      {"Sec-Fetch-Site", "cross-site"},
+		"a same-site fetch":       {"Sec-Fetch-Site", "same-site"},
+		"an older browser's POST": {"Origin", "https://evil.example.net"},
+	} {
+		status, out := post(headers...)
+		assert.Equal(t, http.StatusForbidden, status, name)
+		require.NotNil(t, out.Error, name)
+		assert.Equal(t, "runtime.crossSite", out.Error.Code, name)
+	}
+	assert.Empty(t, e.inv.calls, "nothing was invoked")
+
+	for name, headers := range map[string][]string{
+		"a same-origin fetch": {"Sec-Fetch-Site", "same-origin"},
+		"no browser headers":  nil,
+	} {
+		status, out := post(headers...)
+		assert.Equal(t, http.StatusOK, status, name)
+		assert.True(t, out.OK, name)
+	}
+}
+
 func TestRPCRejectsWhatTheBrowserMustNotCall(t *testing.T) {
 	e := newEnv(t) // no Policy.Read
 	before := len(e.inv.calls)

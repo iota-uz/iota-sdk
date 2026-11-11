@@ -46,6 +46,7 @@ func (rt *Runtime) EndpointHandler() (*endpoint.Handler, error) {
 		Owners:       &endpoint.PgOwners{DB: rt.db},
 		Subjects:     subjects,
 		PublicTenant: publicTenant,
+		Origins:      rt.origins,
 		MaxBodyBytes: rt.Config.Endpoints.MaxBodyBytes,
 		Timeout:      rt.Config.Endpoints.Timeout,
 	})

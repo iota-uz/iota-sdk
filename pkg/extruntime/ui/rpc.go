@@ -11,6 +11,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/listext"
 )
@@ -97,6 +98,12 @@ func statusOf(kind pool.ErrorKind) int {
 // rpcHandler serves POST /_ext/rpc: it invokes a query or command as the
 // session user, with the permissions the user holds now.
 func (c *Controller) rpcHandler(w http.ResponseWriter, r *http.Request) {
+	// The session cookie rides along on a request any site makes.
+	if err := c.cfg.Origins.Check(r); err != nil {
+		c.cfg.Logger.WithError(err).Warn("extruntime ui: cross-site rpc refused")
+		rpcFail(w, http.StatusForbidden, pool.ErrKindDenied, originguard.Code, "cross-site request refused")
+		return
+	}
 	if c.cfg.Invoker == nil {
 		rpcFail(w, http.StatusServiceUnavailable, pool.ErrKindInternal, CodeUnavailable, "extension runtime is not available")
 		return

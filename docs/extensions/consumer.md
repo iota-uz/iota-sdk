@@ -77,6 +77,7 @@ application composes exactly as before.
 | `EXTRUNTIME_CONFIGURATOR_TYPESDIR` | `<APPROOT>/node_modules` when present | Tree Monaco's type information is served from. |
 | `EXTRUNTIME_ENDPOINTS_PUBLICTENANT` | – | Tenant ID for requests without a session (webhooks). See §5. |
 | `EXTRUNTIME_ENDPOINTS_PUBLICTENANTBYHOST` | `false` | Resolve that tenant from the `Host` header against `tenants.domain`. Exclusive with the above. |
+| `EXTRUNTIME_TRUSTEDORIGINS` | – | Origins (`https://app.example.com`, comma-separated) that may make state-changing requests to `/_ext/rpc`, `/_ext/manage` and non-public endpoints from another site. See §5. |
 | `EXTRUNTIME_ENDPOINTS_MAXBODYBYTES` / `_TIMEOUT` | 1 MiB / 30s | Body and invocation bounds of package endpoints. |
 | `EXTRUNTIME_GIT_ALLOWEDSCHEMES` / `_BINARY` / `_TIMEOUT` | `https,ssh` / `git` / `2m` | Package imports from Git. `file` lets a caller read any repository on the server. |
 | `EXTRUNTIME_GIT_ALLOWEDHOSTS` | – (any host with public addresses) | Comma-separated hosts https/ssh imports may use: `git.example.com` or `*.example.com`. **Set it in production.** |
@@ -243,9 +244,10 @@ core.NewComponent(&core.ModuleOptions{
 
 ## 5. Public endpoints and their tenant
 
-`/_ext/endpoints/<namespace>/<path>` serves a package's endpoints. Authenticated requests run as the session user; a
-`public` endpoint runs as the **trigger owner** of its tenant (§6.3). A webhook carries no session, so the tenant must come
-from somewhere:
+`/_ext/endpoints/<namespace>/<path>` serves a package's endpoints. A non-public endpoint runs as the session user; a
+`public` endpoint runs as the **trigger owner** of its tenant (§6.3) **whatever the request carries**: it never uses the
+browser's session, because a page on any site can make a visitor's browser post to it (the cookie rides along) and it
+would run with the visitor's rights. A webhook carries no session, so the tenant must come from somewhere:
 
 1. `EXTRUNTIME_ENDPOINTS_PUBLICTENANT=<tenant uuid>` — single-tenant deployments.
 2. `EXTRUNTIME_ENDPOINTS_PUBLICTENANTBYHOST=true` — the tenant whose `tenants.domain` equals the request's `Host` (port and
@@ -253,6 +255,27 @@ from somewhere:
    `endpoint.noTenant` instead of acting in a guessed tenant. Answers are cached for 30 seconds.
 3. `wiring.Options.PublicTenant` / `runtime.EndpointConfig.PublicTenant` — a function of the request, which wins over both.
 4. Neither: the tenant the application's middleware put in the request context; without one the answer is 503.
+
+**`PUBLICTENANTBYHOST` trusts the `Host` header.** The runtime cannot tell a genuine `Host` from a forged one, so the
+reverse proxy in front of the service must pin it: forward only the host names of your tenants (reject, or rewrite to a
+fixed value, any other `Host`, and never pass an `X-Forwarded-Host` through as `Host`). Otherwise whoever can reach the
+service directly chooses the tenant a public endpoint acts in by sending the domain of another tenant. A single-tenant
+deployment should use `EXTRUNTIME_ENDPOINTS_PUBLICTENANT` instead.
+
+**Cross-site requests.** The cookie-authenticated surfaces — `POST /_ext/rpc`, the state-changing calls of `/_ext/manage`
+(the configurator's), and non-public endpoints with a state-changing method — refuse a request a browser marks as cross-site
+(`Sec-Fetch-Site: cross-site|same-site`, or, for browsers without it, an `Origin` that differs from `Host`) with 403
+`runtime.crossSite` (`endpoint.crossSite` for endpoints). This is the SDK's CSRF mechanism (`filippo.io/csrf`, what
+`middleware.CSRF` wraps), so no token is involved. Safe methods are not checked; a request with neither header (a
+same-origin fetch of an old browser, a non-browser client) is allowed. If the UI is served from another origin than the
+API, list it in `EXTRUNTIME_TRUSTEDORIGINS`. Public endpoints are open to any origin by design — they run as the owner.
+
+**What an endpoint's response may set.** The handler's `headers` are an allowlist: `Content-Type`, `Cache-Control`, `ETag`,
+`Last-Modified`, `Expires`, `Content-Disposition`, `Content-Language`, `Vary`, `Location` (a redirect or `201`, and only a
+same-origin path such as `/done`) and custom `X-` headers (not proxy controls such as `X-Accel-*`, `X-Sendfile` or
+`X-Forwarded-*`). Everything else (`Set-Cookie`, CORS, `Content-Security-Policy`, `Refresh`, `Link`, …) is dropped. Every
+response carries `X-Content-Type-Options: nosniff`, and a response whose type runs scripts (HTML, XHTML, SVG, XML) also
+`Content-Security-Policy: sandbox`, so a package cannot serve a page that acts on the application's origin.
 
 ## 6. Operating it
 

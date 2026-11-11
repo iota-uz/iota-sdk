@@ -9,6 +9,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
 
@@ -32,7 +33,10 @@ type Config struct {
 	// of kind route, with params) is resolved through Catalog: a package
 	// page replacing it receives typed path parameters.
 	NativeRoutes NativeRoutes
-	Logger       logrus.FieldLogger
+	// Origins decides which sites may make state-changing requests to
+	// /_ext/rpc (default: this origin only; see package originguard).
+	Origins *originguard.Guard
+	Logger  logrus.FieldLogger
 }
 
 func (c *Config) validate() error {
