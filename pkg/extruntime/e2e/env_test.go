@@ -353,3 +353,31 @@ func contains(s string, subs ...string) bool {
 	}
 	return true
 }
+
+// pumpNotifications runs the notification worker's passes once the work is
+// there: expansion of dispatches into deliveries, then provider sends. The
+// application's own worker is disabled in tests so the fakes see every send
+// on the test's schedule.
+func (e *env) pumpNotifications() {
+	e.t.Helper()
+	dispatch := resolve[*services.NotificationDispatchService](e.t, e.scope.Container)
+	channels := resolve[*services.NotificationChannelService](e.t, e.scope.Container)
+	for range 10 {
+		worked, err := dispatch.Process(e.ctx)
+		require.NoError(e.t, err)
+		if !worked {
+			break
+		}
+	}
+	_, err := channels.Process(e.ctx)
+	require.NoError(e.t, err)
+}
+
+// untilDelivered pumps the notification worker until cond holds.
+func (e *env) untilDelivered(what string, timeout time.Duration, cond func() bool) {
+	e.t.Helper()
+	e.eventually(what, timeout, func() bool {
+		e.pumpNotifications()
+		return cond()
+	})
+}
